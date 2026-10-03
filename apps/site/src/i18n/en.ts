@@ -1,12 +1,14 @@
 export const en = {
   redesign: {
-    heroLine: 'Work, unfolded.',
-    heroAccent: 'Ready for review.',
+    heroLine: 'Agents work.',
+    heroAccent: 'You decide.',
     heroIntro:
       'Turn a Work Item into a pull request with AI agents, explicit budgets and evidence you can inspect. You decide what gets merged.',
     explore: 'Explore a Shift',
     source: 'Read the source',
-    category: 'Agent orchestration, with a human finish.',
+    category: 'Self-hosted agent orchestration',
+    assemblyCaption: 'One Work Item. Unfolded into evidence.',
+    unfoldAgain: 'Unfold again',
     architecture: 'Architecture',
     menu: 'Menu',
     recorded: 'Recorded demo',
@@ -71,6 +73,9 @@ export const en = {
     no: 'No',
     recording: 'Inspect the complete recording',
     recordingNote: 'Every event, its recorded timing and the original Vloer interface.',
+    controlLine: 'The last word',
+    controlAccent: 'is yours.',
+    controlNote: 'Agents propose changes. People accept, merge and release.',
     guardKicker: '02 / BOUNDED BY DESIGN',
     guardTitle: 'Give agents work. Keep control.',
     guardIntro:

@@ -2,13 +2,15 @@ import type { Dictionary } from './en.ts';
 
 export const nl: Dictionary = {
   redesign: {
-    heroLine: 'Werk, ontvouwen.',
-    heroAccent: 'Klaar voor review.',
+    heroLine: 'Agents werken.',
+    heroAccent: 'Jij beslist.',
     heroIntro:
       'Van Work Item naar pull request, met AI-agents, expliciete budgetten en bewijs dat je kunt inspecteren. Jij beslist wat wordt gemerged.',
     explore: 'Verken een Shift',
     source: 'Bekijk de broncode',
-    category: 'Agentorkestratie, met de mens aan het einde.',
+    category: 'Zelf gehoste agentorkestratie',
+    assemblyCaption: 'Eén Work Item. Ontvouwen tot bewijs.',
+    unfoldAgain: 'Opnieuw ontvouwen',
     architecture: 'Architectuur',
     menu: 'Menu',
     recorded: 'Opgenomen demo',
@@ -73,6 +75,9 @@ export const nl: Dictionary = {
     no: 'Nee',
     recording: 'Bekijk de volledige opname',
     recordingNote: 'Elke gebeurtenis, de opgenomen timing en de originele Vloer-interface.',
+    controlLine: 'Het laatste woord',
+    controlAccent: 'is aan jou.',
+    controlNote: 'Agents stellen wijzigingen voor. Mensen accepteren, mergen en releasen.',
     guardKicker: '02 / BEGRENZD ONTWORPEN',
     guardTitle: 'Geef agents werk. Houd controle.',
     guardIntro:

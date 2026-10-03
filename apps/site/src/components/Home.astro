@@ -24,7 +24,7 @@ const r = t.redesign;
 ---
 
 <Hero locale={locale} />
-<section id="how" class="section" aria-labelledby="how-title">
+<section id="how" class="section evidence-section" aria-labelledby="how-title">
   <div class="container">
     <p class="eyebrow">{r.howKicker}</p>
     <div class="section-heading">
@@ -40,6 +40,13 @@ const r = t.redesign;
       <summary>{r.recording}</summary>
       <div class="recording-body"><Walkthrough locale={locale} /><DemoVideo locale={locale} /></div>
     </details>
+  </div>
+</section>
+<section class="section control-section" aria-labelledby="control-title">
+  <div class="container control-layout">
+    <h2 id="control-title">{r.controlLine}<br /><span>{r.controlAccent}</span></h2>
+    <p>{r.controlNote}</p>
+    <span class="control-sign" aria-hidden="true">↗</span>
   </div>
 </section>
 <section id="guardrails" class="section guards-section" aria-labelledby="guards-title">
@@ -71,24 +78,24 @@ const r = t.redesign;
       <p>{r.archIntro}</p>
     </div>
     <div class="architecture-map">
-      <div class="cluster-label micro">{r.cluster}</div>
+      <div class="cluster-label micro"><span aria-hidden="true" />{r.cluster}</div>
       <div class="map-flow">
         <div class="map-node workbench">
-          <span class="micro">{t.parts.items[1]?.role}</span>
+          <span class="micro node-role">{t.parts.items[1]?.role}</span>
           <h3>{t.parts.items[1]?.name}</h3>
           <p>{r.front}</p>
         </div>
         <div class="map-connector" aria-hidden="true"><span /></div>
         <div class="map-node engine">
-          <span class="micro">{t.parts.items[0]?.role}</span>
+          <span class="micro node-role">{t.parts.items[0]?.role}</span>
           <h3>{t.parts.items[0]?.name}</h3>
           <p>{r.engine}</p>
           <div class="engine-runs"><span>{r.implementation}</span><span>{r.independent}</span></div>
         </div>
         <div class="map-connector" aria-hidden="true"><span /></div>
         <div class="map-node output">
-          <span class="micro">{r.forge}</span>
-          <h3>{t.hero.visual.pullRequest}</h3>
+          <span class="micro node-role">{r.forge}</span>
+          <h3>{r.pullRequest}</h3>
           <p>{r.workerPath}</p>
         </div>
       </div>
@@ -133,12 +140,45 @@ const r = t.redesign;
 <Pricing locale={locale} />
 <SignupForm locale={locale} />
 <style>
+  .evidence-section {
+    color-scheme: dark;
+    --bg: var(--brand-ground-dark);
+    --bg-raised: var(--brand-ground-dark);
+    --bg-band: var(--brand-ink);
+    --fg: var(--brand-paper);
+    --fg-muted: var(--brand-muted-light);
+    --accent: var(--brand-accent-night);
+    --accent-decor: var(--brand-accent-night);
+    --accent-fill: var(--brand-accent-night);
+    --accent-fg: var(--brand-ground-dark);
+    --border: color-mix(in oklab, var(--brand-paper) 18%, var(--brand-ground-dark));
+    --border-strong: color-mix(in oklab, var(--brand-paper) 36%, var(--brand-ground-dark));
+    --link: var(--brand-accent-night);
+    --link-hover: var(--brand-paper);
+    --focus-ring: var(--brand-accent-night);
+    --code-bg: var(--brand-ground-dark);
+    color: var(--fg);
+    background: var(--bg);
+    position: relative;
+    border-top: 1px solid var(--border);
+  }
+  .evidence-section .section-heading {
+    grid-template-columns: 1.3fr 0.7fr;
+    gap: 4rem;
+    margin-bottom: 3.5rem;
+  }
+  .evidence-section .section-title,
+  .architecture .section-title {
+    font-size: clamp(2.7rem, 4.8vw, 4.65rem);
+    line-height: 1.02;
+    letter-spacing: -0.055em;
+  }
   .replay-link {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem 1.5rem;
-    padding: 1.25rem 0;
+    padding: 1.5rem 0;
     font-size: 0.8rem;
   }
   .replay-link span {
@@ -147,7 +187,7 @@ const r = t.redesign;
   }
   .recording-details {
     border-block: 1px solid var(--border);
-    margin-top: 1rem;
+    margin-top: 0.5rem;
   }
   summary {
     padding: 1.25rem 0;
@@ -159,26 +199,66 @@ const r = t.redesign;
     gap: 2rem;
     padding-bottom: 2rem;
   }
+  .control-section {
+    --fg: var(--brand-on-accent);
+    --fg-muted: var(--brand-on-accent);
+    color: var(--fg);
+    background: var(--brand-accent-deep);
+    padding-block: clamp(3.5rem, 8vw, 7rem);
+  }
+  .control-layout {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.3fr 0.7fr;
+    gap: 4rem;
+    align-items: end;
+  }
+  .control-layout h2 {
+    position: relative;
+    z-index: 1;
+    font-size: clamp(3rem, 6.8vw, 6.7rem);
+    letter-spacing: -0.065em;
+    line-height: 0.99;
+    text-wrap: initial;
+  }
+  .control-layout p {
+    font-size: clamp(1.05rem, 1.5vw, 1.3rem);
+    max-width: 26ch;
+    position: relative;
+    z-index: 1;
+  }
+  .control-sign {
+    position: absolute;
+    right: 0;
+    top: -0.12em;
+    font: 800 clamp(6rem, 14vw, 12rem)/1 var(--font-sans);
+    color: var(--brand-on-accent);
+    opacity: 0.23;
+    pointer-events: none;
+  }
   .guards-section {
-    border-block: 1px solid var(--border);
-    background: var(--bg-raised);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
   }
   .guards-layout {
     display: grid;
-    grid-template-columns: 0.85fr 1.15fr;
-    gap: 6rem;
+    grid-template-columns: 0.8fr 1.2fr;
+    gap: clamp(3rem, 7vw, 7rem);
   }
   .guard-intro .section-title {
     margin: 1.3rem 0 1.5rem;
+    font-size: clamp(2.3rem, 3.7vw, 3.5rem);
+    line-height: 1.05;
   }
   .guard-intro > p:last-of-type {
     color: var(--fg-muted);
+    max-width: 39ch;
   }
   .guard-brand {
     display: flex;
     align-items: center;
     gap: 1.5rem;
-    margin-top: 2rem;
+    margin-top: 2.5rem;
     font: 0.75rem var(--font-mono);
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -186,14 +266,14 @@ const r = t.redesign;
   }
   .guard {
     display: block;
-    padding: 1.6rem 0;
-    border-top: 1px solid var(--border);
+    padding: 1.75rem 0;
+    border-top: 1px solid var(--border-strong);
   }
   .guard:last-child {
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--border-strong);
   }
   .guard-number {
-    font: 0.75rem var(--font-mono);
+    font: 0.8rem var(--font-mono);
     color: var(--accent);
     padding-top: 0.2rem;
   }
@@ -201,36 +281,56 @@ const r = t.redesign;
     display: flex;
     align-items: baseline;
     gap: 1.5rem;
-    font-size: 1.25rem;
+    font-size: clamp(1.35rem, 2vw, 1.7rem);
     font-weight: 700;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.035em;
   }
   .guard dd {
     padding-left: 2.6rem;
     margin-top: 0.7rem;
     color: var(--fg-muted);
     font-size: 0.95rem;
+    max-width: 60ch;
+  }
+  .architecture {
+    background: var(--bg-raised);
+  }
+  .architecture .section-heading {
+    grid-template-columns: 1.2fr 0.8fr;
+    margin-bottom: 3.5rem;
   }
   .architecture-map {
-    border: 1px solid var(--border-strong);
-    padding: 1.75rem;
+    position: relative;
+    border-block: 1px solid var(--border-strong);
+    padding: clamp(1rem, 3vw, 3rem) 0 1.5rem;
     background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
-    background-size: 20px 20px;
+    background-size: 24px 24px;
   }
   .cluster-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     color: var(--fg-muted);
-    padding-bottom: 2rem;
+    padding-bottom: 3.5rem;
+  }
+  .cluster-label > span {
+    width: 0.55rem;
+    height: 0.55rem;
+    border: 1px solid var(--accent-decor);
+    transform: rotate(45deg);
+    flex: none;
   }
   .map-flow {
     display: grid;
-    grid-template-columns: 1fr 3rem 1.5fr 3rem 1fr;
+    grid-template-columns: minmax(0, 1fr) 3rem minmax(0, 1.5fr) 3rem minmax(0, 1fr);
     align-items: center;
   }
   .map-node {
     padding: 1.5rem;
-    border: 1px solid var(--border-strong);
+    border-block: 1px solid var(--border-strong);
     background: var(--bg);
-    min-height: 150px;
+    min-width: 0;
+    min-height: 190px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -239,37 +339,50 @@ const r = t.redesign;
     color: var(--fg-muted);
   }
   .map-node h3 {
-    font-size: 1.65rem;
-    margin: 0.5rem 0;
+    font-size: clamp(2.2rem, 3.4vw, 3.4rem);
+    letter-spacing: -0.06em;
+    margin: 0.8rem 0 1rem;
+    line-height: 1;
   }
   .map-node p {
     color: var(--fg-muted);
-    font-size: 0.75rem;
+    font-size: 0.85rem;
+  }
+  .output h3 {
+    font-size: clamp(1.8rem, 2.6vw, 2.7rem);
+    letter-spacing: -0.04em;
+    line-height: 1.06;
   }
   .engine {
-    border-color: var(--accent-decor);
-    padding: 2rem;
+    position: relative;
+    z-index: 1;
+    border: 1px solid var(--accent-decor);
+    padding: clamp(1.5rem, 3vw, 3rem);
+    min-height: 310px;
+    box-shadow: 0.6rem 0.6rem 0 var(--border);
   }
   .engine > .micro {
     color: var(--accent);
   }
   .engine h3 {
-    font-size: 2.5rem;
+    font-size: clamp(3.75rem, 6.5vw, 6.5rem);
+    margin-block: 0.9rem 1.3rem;
+    letter-spacing: -0.075em;
   }
   .engine-runs {
     display: flex;
-    gap: 1rem;
-    margin-top: 1rem;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
     flex-wrap: wrap;
   }
   .engine-runs span {
-    padding: 0.3rem 0.6rem;
-    border: 1px solid var(--border);
-    font: 0.7rem var(--font-mono);
+    padding: 0.4rem 0.7rem;
+    border: 1px solid var(--border-strong);
+    font: 0.72rem var(--font-mono);
   }
   .map-connector {
     height: 1px;
-    background: var(--border-strong);
+    background: var(--accent-decor);
     position: relative;
   }
   .map-connector span {
@@ -278,48 +391,55 @@ const r = t.redesign;
     top: -3px;
     width: 7px;
     height: 7px;
-    border-right: 1px solid var(--fg-muted);
-    border-top: 1px solid var(--fg-muted);
+    border-right: 1px solid var(--accent-decor);
+    border-top: 1px solid var(--accent-decor);
     transform: rotate(45deg);
   }
   .map-services {
     display: flex;
-    gap: 2rem;
-    margin: 2rem 0 0;
+    gap: 2rem 4rem;
+    margin: 3.5rem 0 0;
     padding-top: 1.5rem;
     border-top: 1px dashed var(--border-strong);
     justify-content: center;
+    flex-wrap: wrap;
   }
   .map-services > div {
     display: flex;
     gap: 1rem;
-    align-items: center;
-    font-size: 0.8rem;
+    align-items: baseline;
+    font-size: 1rem;
+  }
+  .map-services strong {
+    font-weight: 650;
+    letter-spacing: -0.025em;
   }
   .map-services span {
     color: var(--fg-muted);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
   }
   .map-note {
-    margin-top: 1rem;
+    margin-top: 1.25rem;
     color: var(--fg-muted);
-    font-size: 0.75rem;
+    font-size: 0.8rem;
+    max-width: 100ch;
   }
   .parts-detail {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 4rem;
-    margin-top: 2.5rem;
+    margin-top: 3.5rem;
   }
   .parts-detail h3 {
-    font-size: 1.2rem;
+    font-size: 1.35rem;
     margin-bottom: 0.8rem;
   }
   .parts-detail h3 span {
-    font-size: 0.75rem;
+    display: inline-block;
+    font-size: 0.8rem;
     font-weight: 400;
     color: var(--fg-muted);
-    margin-left: 1rem;
+    margin-left: 0.75rem;
     letter-spacing: 0;
   }
   .parts-detail p {
@@ -327,12 +447,12 @@ const r = t.redesign;
     font-size: 0.95rem;
   }
   .open-section {
-    background: var(--bg-raised);
+    background: var(--bg);
     border-block: 1px solid var(--border);
   }
   .open-layout {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 6rem;
   }
   .open-layout .section-title {
@@ -348,15 +468,16 @@ const r = t.redesign;
     font-size: 0.8rem;
   }
   .status-title {
-    font-size: 1.25rem;
+    font-size: 1.45rem;
     margin-bottom: 1.5rem;
+    letter-spacing: -0.035em;
   }
   .status > div {
     display: grid;
-    grid-template-columns: 8rem 1fr;
+    grid-template-columns: 8rem minmax(0, 1fr);
     gap: 1.25rem;
-    padding: 1.2rem 0;
-    border-top: 1px solid var(--border);
+    padding: 1.5rem 0;
+    border-top: 1px solid var(--border-strong);
     font-size: 0.875rem;
   }
   .status dt {
@@ -387,63 +508,65 @@ const r = t.redesign;
     border-top: 1px solid var(--border);
     padding-top: 1rem;
   }
-  @media (max-width: 60rem) {
+  @container (max-width: 60rem) {
+    .control-layout {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 2rem;
+    }
+    .control-sign {
+      top: auto;
+      bottom: -0.1em;
+    }
+    .control-layout p {
+      max-width: 36ch;
+    }
     .guards-layout,
     .open-layout {
       gap: 3rem;
-    }
-    .map-flow {
-      grid-template-columns: 1fr 1.5rem 1.3fr 1.5rem 1fr;
-    }
-    .map-node,
-    .engine {
-      padding: 1rem;
-    }
-  }
-  @media (max-width: 45rem) {
-    .guards-layout,
-    .open-layout,
-    .parts-detail {
-      grid-template-columns: 1fr;
-      gap: 2.5rem;
-    }
-    .guard-brand {
-      display: none;
-    }
-    .map-flow {
-      grid-template-columns: 1fr;
-    }
-    .map-connector {
-      height: 2rem;
-      width: 1px;
-      justify-self: center;
-    }
-    .map-connector span {
-      transform: rotate(135deg);
-      top: auto;
-      bottom: 0;
-      left: -3px;
     }
     .map-node {
       text-align: center;
       min-height: 0;
       padding: 1.5rem;
     }
+    .engine {
+      padding: 2.5rem 1.5rem;
+    }
     .engine-runs {
       justify-content: center;
     }
-    .map-services {
-      flex-direction: column;
+    .map-services > div {
+      flex-wrap: wrap;
+      gap: 0.4rem 1rem;
+    }
+  }
+  @container (max-width: 32rem) {
+    .control-layout h2 {
+      font-size: clamp(2.6rem, 11vw, 4rem);
+    }
+    .control-sign {
+      display: none;
+    }
+    .guard dd {
+      padding-left: 0;
+    }
+    .guard dt {
       gap: 1rem;
+    }
+    .cluster-label {
+      padding-bottom: 2rem;
+    }
+    .status > div {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 0.5rem;
     }
     .map-services > div {
       align-items: start;
       flex-direction: column;
       gap: 0.2rem;
     }
-    .status > div {
-      grid-template-columns: 1fr;
-      gap: 0.5rem;
+    .parts-detail {
+      gap: 2rem;
     }
   }
 </style>

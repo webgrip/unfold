@@ -26,7 +26,7 @@ const starts = [
   data-complete={r.complete}
 >
   <div class="explorer-toolbar">
-    <span class="micro">{r.demoBadge}</span
+    <span class="micro recording-label"><span aria-hidden="true" />{r.demoBadge}</span
     ><button type="button" class="button button--secondary" data-shift-play hidden>{r.play}</button>
   </div>
   <div class="stage-nav" aria-label={r.stageLabel}>
@@ -48,8 +48,9 @@ const starts = [
       tabindex="-1"
     >
       <div class="stage-story">
-        <p class="micro">
-          {String(index + 1).padStart(2, '0')} / {r.stages.length.toString().padStart(2, '0')}
+        <p class="stage-count" aria-hidden="true">
+          <span>{String(index + 1).padStart(2, '0')}</span
+          ><small> / {r.stages.length.toString().padStart(2, '0')}</small>
         </p>
         <h3 id={`stage-title-${index}`}>{stage.title}</h3>
         <p>{stage.text}</p>
@@ -130,59 +131,82 @@ const starts = [
 </div>
 <style>
   .explorer {
-    border: 1px solid var(--border-strong);
+    border-block: 1px solid var(--border-strong);
     background: var(--bg);
+    position: relative;
   }
   .explorer-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: 1rem 1.5rem;
+    padding: 1rem 0;
     border-bottom: 1px solid var(--border);
   }
   .explorer-toolbar .micro {
     color: var(--fg-muted);
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     text-transform: none;
     letter-spacing: 0;
+  }
+  .recording-label {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  .recording-label > span {
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--accent-decor);
+    flex: none;
   }
   .explorer-toolbar button {
     min-width: 10rem;
     min-height: 44px;
     padding: 0.55rem 0.85rem;
     font-size: 0.8rem;
+    border-radius: 0;
   }
   .stage-nav {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-inline: 1px solid var(--border);
   }
   .stage-nav a {
     position: relative;
     display: flex;
     align-items: center;
-    gap: 0.7rem;
-    padding: 1.25rem;
-    min-height: 68px;
+    gap: 1rem;
+    padding: 1.4rem;
+    min-height: 80px;
     color: var(--fg-muted);
     text-decoration: none;
     border-bottom: 1px solid var(--border);
     font-size: 0.875rem;
+    transition: background-color 180ms var(--ease-out);
   }
   .stage-nav a:not(:last-child) {
     border-right: 1px solid var(--border);
   }
+  .stage-nav a:hover {
+    color: var(--fg);
+    background: var(--bg-band);
+  }
   .stage-index {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.85rem;
   }
   .stage-nav a[aria-current='step'] {
-    color: var(--fg);
-    background: var(--bg-raised);
+    color: var(--brand-on-accent);
+    background: var(--brand-accent-deep);
     font-weight: 650;
   }
+  .stage-nav a[aria-current='step']:focus-visible {
+    outline-color: var(--brand-paper);
+    outline-offset: -5px;
+  }
   .stage-nav a[aria-current='step'] .stage-index {
-    color: var(--accent);
+    color: inherit;
   }
   .stage-line {
     position: absolute;
@@ -190,7 +214,7 @@ const starts = [
     bottom: -1px;
     height: 3px;
     width: 100%;
-    background: var(--accent-decor);
+    background: var(--brand-on-accent);
     transform: scaleX(0);
     transform-origin: left;
     transition: transform 300ms var(--ease-out);
@@ -200,11 +224,14 @@ const starts = [
   }
   .stage-panel {
     display: grid;
-    grid-template-columns: 0.85fr 1.15fr;
-    gap: 3rem;
-    padding: 3rem;
-    min-height: 360px;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: clamp(2rem, 5vw, 5rem);
+    padding: 3.5rem 1.5rem 3.5rem 0;
+    min-height: 480px;
     align-items: center;
+  }
+  .stage-panel > * {
+    min-width: 0;
   }
   .stage-panel:not(:last-child) {
     border-bottom: 1px solid var(--border);
@@ -221,44 +248,74 @@ const starts = [
     visibility: hidden;
     pointer-events: none;
   }
-  .stage-story > .micro {
+  .stage-count {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
     color: var(--accent);
+    margin-bottom: 1.5rem;
+  }
+  .stage-count > span {
+    font-size: clamp(4rem, 6vw, 6rem);
+    font-weight: 800;
+    letter-spacing: -0.075em;
+    line-height: 0.9;
+  }
+  .stage-count small {
+    font: 0.75rem var(--font-mono);
+    color: var(--fg-muted);
   }
   .stage-story h3 {
-    font-size: clamp(1.65rem, 2.5vw, 2.25rem);
-    letter-spacing: -0.04em;
-    margin: 0.8rem 0 1.1rem;
+    font-size: clamp(1.9rem, 3.1vw, 2.8rem);
+    letter-spacing: -0.05em;
+    margin-bottom: 1.2rem;
+    line-height: 1.06;
   }
   .stage-story > p:last-child {
     color: var(--fg-muted);
-    font-size: 1rem;
+    font-size: 0.95rem;
+    max-width: 43ch;
   }
   .stage-evidence {
     min-width: 0;
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-strong);
+    border-top: 3px solid var(--accent-decor);
+    position: relative;
+    background: var(--bg);
+    box-shadow:
+      0.6rem 0.6rem 0 var(--bg),
+      0.6rem 0.6rem 0 1px var(--border);
   }
   .work-evidence,
   .review-evidence,
   .decision-evidence {
-    padding: 1.5rem;
+    padding: clamp(1.5rem, 2.5vw, 2.5rem);
+  }
+  .work-evidence > .micro,
+  .review-evidence > .micro {
+    color: var(--fg-muted);
   }
   .work-evidence h4 {
-    font-size: 1.2rem;
-    margin: 0.7rem 0;
+    font-size: clamp(1.5rem, 2.1vw, 2rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.035em;
+    margin: 1rem 0;
   }
   .work-evidence > p {
     font-size: 0.875rem;
     color: var(--fg-muted);
   }
   .evidence-facts {
-    margin-top: 1.5rem;
+    margin-top: 2rem;
     font-size: 0.8rem;
   }
   .evidence-facts > div {
     display: flex;
     justify-content: space-between;
+    align-items: baseline;
     gap: 1rem;
-    padding: 0.6rem 0;
+    padding: 0.8rem 0;
     border-top: 1px solid var(--border);
   }
   dt {
@@ -266,14 +323,15 @@ const starts = [
   }
   dd {
     font-family: var(--font-mono);
+    font-size: 1rem;
   }
   .checks-summary {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     border-bottom: 1px solid var(--border);
   }
   .checks-summary > div {
-    padding: 1.2rem;
+    padding: 1.5rem;
     font-size: 0.8rem;
   }
   .checks-summary > div + div {
@@ -282,19 +340,20 @@ const starts = [
   .checks-summary span {
     color: var(--fg-muted);
     display: block;
-    margin-bottom: 0.4rem;
+    margin-bottom: 0.7rem;
   }
   .checks-summary strong {
-    font-size: 0.9rem;
+    font-size: 1rem;
   }
   .code-title {
-    padding: 1.3rem 1.2rem 0.5rem;
+    padding: 1.5rem 1.5rem 0.5rem;
     color: var(--fg-muted);
   }
   pre {
-    padding: 1rem 1.2rem 1.5rem;
+    padding: 1rem 1.5rem 1.5rem;
     overflow-x: auto;
     font: 0.8rem/2 var(--font-mono);
+    margin: 0;
   }
   pre span {
     display: block;
@@ -307,30 +366,38 @@ const starts = [
   }
   .review-command {
     display: block;
-    font-size: 0.8rem;
-    margin: 1rem 0;
+    font-size: 0.85rem;
+    margin: 1.5rem 0;
   }
   .test-list {
     padding: 0;
     list-style: none;
     display: grid;
-    gap: 0.7rem;
-    font-size: 0.8rem;
+    gap: 0;
+    font-size: 0.85rem;
   }
   .test-list li {
     display: flex;
     gap: 0.8rem;
+    border-top: 1px solid var(--border);
+    padding-block: 0.8rem;
   }
   .test-list li span {
     color: var(--accent);
+    flex: none;
   }
   .decision-symbol {
-    font-size: 2rem;
+    display: block;
+    font-size: 4rem;
+    line-height: 1;
     color: var(--accent);
+    margin-bottom: 1rem;
   }
   .decision-evidence h4 {
-    font-size: 1.4rem;
-    margin: 0.5rem 0;
+    font-size: clamp(1.6rem, 2.4vw, 2.15rem);
+    line-height: 1.1;
+    letter-spacing: -0.035em;
+    margin-bottom: 1rem;
   }
   .decision-evidence > p {
     color: var(--fg-muted);
@@ -338,47 +405,71 @@ const starts = [
   }
   @media (prefers-reduced-motion: no-preference) {
     [data-enhanced] .stage-panel:not([hidden]) .stage-evidence {
-      animation: evidence-in 400ms var(--ease-out);
+      animation: evidence-in 450ms var(--ease-out);
     }
   }
   @keyframes evidence-in {
     from {
-      transform: translateY(10px);
+      transform: translateY(14px);
     }
     to {
       transform: none;
     }
   }
-  @media (max-width: 55rem) {
+  @container (max-width: 60rem) {
     .stage-panel {
-      padding: 2rem;
+      padding-block: 2.5rem;
       gap: 2rem;
+      align-content: start;
+      min-height: 0;
     }
     .stage-nav a {
       padding: 1rem;
       font-size: 0.8rem;
+      min-height: 68px;
     }
-  }
-  @media (max-width: 42rem) {
-    .stage-panel {
-      grid-template-columns: 1fr;
-      gap: 1.5rem;
-      padding: 1.5rem;
-      min-height: 560px;
-      align-content: start;
+    .stage-count {
+      margin-bottom: 1.25rem;
     }
-    .stage-nav {
-      grid-template-columns: 1fr 1fr;
+    .stage-count > span {
+      font-size: 4rem;
     }
-    .stage-nav a {
-      min-height: 58px;
+    .stage-story > p:last-child {
+      max-width: 65ch;
     }
     .explorer-toolbar {
-      padding: 1rem;
       flex-wrap: wrap;
     }
     .explorer-toolbar button {
       min-width: 0;
+    }
+  }
+  @container (max-width: 32rem) {
+    .stage-panel {
+      padding-right: 0.65rem;
+    }
+    .stage-count > span {
+      font-size: 3.5rem;
+    }
+    .stage-evidence {
+      box-shadow:
+        0.35rem 0.35rem 0 var(--bg),
+        0.35rem 0.35rem 0 1px var(--border);
+    }
+    .work-evidence,
+    .review-evidence,
+    .decision-evidence {
+      padding: 1.2rem;
+    }
+    .evidence-facts > div {
+      flex-wrap: wrap;
+    }
+    .checks-summary {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .checks-summary > div + div {
+      border-left: 0;
+      border-top: 1px solid var(--border);
     }
   }
 </style>

@@ -113,6 +113,13 @@ const mail = `mailto:${CONTROLLER.email}`;
 <style>
   .signup-copy .section-title {
     margin-top: 1.3rem;
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+    max-width: 13ch;
+    line-height: 1.04;
+  }
+  .signup-copy .lede {
+    font-size: 1rem;
+    max-width: 42ch;
   }
   .signup {
     border-top: var(--border-width) solid var(--border);
@@ -152,7 +159,9 @@ const mail = `mailto:${CONTROLLER.email}`;
 
   .signup-panel {
     padding: var(--space-6);
-    box-shadow: var(--shadow-card);
+    border-radius: 0;
+    border-top: 4px solid var(--accent-decor);
+    box-shadow: none;
   }
 
   @media (max-width: 44rem) {
