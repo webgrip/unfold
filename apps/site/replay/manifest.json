@@ -1,10 +1,10 @@
 {
   "format": 1,
-  "vloerVersion": "0.4.0-rc.32",
-  "commit": "30922c5ce780",
-  "recordedAt": "2026-10-02",
+  "vloerVersion": "0.4.0-rc.34",
+  "commit": "9c8b7407ba8c",
+  "recordedAt": "2026-10-03",
   "anchor": "2026-09-30T12:00:00.000Z",
-  "replay": "d4bf055a26fb003b9832b35c9e78ee0cfcfe5d21a3bc928739fe57ddbbf22d6f",
+  "replay": "92c13aefe6a1e2521783673baf7e0b027eec6b72ad5ae3dd3a7567259608bc18",
   "files": {
     "android-chrome-192x192.png": "f122ded6fe7fbad89fe69bb2be0563999d31eee21053bb5fb828bdf238b125fd",
     "android-chrome-512x512.png": "476a26d43f05dcf3a2c4a778ac5ace910d9029edb89a11896e57a47183d7b6b4",
