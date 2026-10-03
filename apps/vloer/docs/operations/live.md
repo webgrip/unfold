@@ -185,7 +185,7 @@ The `docker` backend runs the clone and the OpenCode server inside a container f
 docker build -t de-vloer-agent:1.18.34 ops/agent
 ```
 
-The Dockerfile pulls its hardened base through `harbor.webgrip.dev/dhi`, which is reachable on the LAN; pass `--build-arg REGISTRY_DHI=<your-proxy>` elsewhere. Released builds are at `harbor.webgrip.dev/webgrip/de-vloer-agent:<version>`, signed and within a zero critical, zero high CVE budget ([releases](release.md)).
+The Dockerfile pulls its hardened base from `dhi.io`, which needs `docker login dhi.io` with a Docker account; pass `--build-arg REGISTRY_DHI=<your-proxy>` to use a mirror. Released builds are at `ghcr.io/webgrip/de-vloer-agent:<version>`, signed and within a zero critical, zero high CVE budget ([releases](release.md)).
 
 Add a `docker` block next to `runtime`:
 
@@ -214,7 +214,7 @@ The probe serves a fixture repository to the container, verifies the hardened co
 
 ## Kubernetes
 
-Deployment assets live under `ops/helm/de-vloer`; the application Dockerfile and `ops/agent/Dockerfile` build separate control-plane and agent images. Build and publish them to an authorized registry, then configure explicit image tags or digests in values. The supplied configuration is an example, not the user's actual cluster inventory.
+Deployment assets live under `ops/helm/de-vloer`, and its [README](../../ops/helm/de-vloer/README.md) lists what an install needs. The application Dockerfile and `ops/agent/Dockerfile` build separate control-plane and agent images. The chart defaults to the public release images on `ghcr.io`; to use your own builds, publish them to an authorized registry and configure explicit image tags or digests in values. The supplied configuration is an example, not the user's actual cluster inventory.
 
 Validate manifests before installation:
 

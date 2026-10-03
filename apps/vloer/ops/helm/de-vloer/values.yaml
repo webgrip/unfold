@@ -1,5 +1,5 @@
 image:
-  repository: harbor.webgrip.dev/webgrip/de-vloer
+  repository: ghcr.io/webgrip/de-vloer
   tag: ""
   digest: ""
   pullPolicy: IfNotPresent

@@ -1,7 +1,7 @@
 mode: live
 baseUrl: https://workbench.example
 image:
-  repository: harbor.webgrip.dev/webgrip/de-vloer
+  repository: ghcr.io/webgrip/de-vloer
   tag: ""
 credentialsSecret: de-vloer-credentials
 workspaceNamespace: de-vloer-workspaces
