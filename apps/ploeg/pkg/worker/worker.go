@@ -237,35 +237,22 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 		}
 	}
 
-	// A writer creates its own branch from the base, which the clone already
-	// checked out. A READER is here to look at what the writer produced, and
-	// until now it never got it: the shallow single-branch clone contains the
-	// base only, so the branch under review was absent while the prompt
-	// insisted the checkout was on it. Fetch it and stand on it.
-	//
-	// The branch may legitimately not exist yet: a plan can open with a
-	// reading Round — silver's `analyst` recons the ticket BEFORE the builder
-	// writes anything — and there is nothing to fetch then. That is not a
-	// failure, so a missing branch leaves the reader on the base and tells the
-	// prompt so, rather than parking a Round that was never going to find one.
 	writes := claimed.Writes || claimed.Role == ""
-	onReviewBranch := false
+	var reviewedCommit string
 	if !writes && branch != "" {
-		if out, err := runGit(ctx, cloneDir, cloneURL, forgeToken, fetchBranchArgs(branch)...); err != nil {
-			w.Log.Info("no branch under review yet; reviewing the base branch",
-				"branch", branch, "base", ref.BaseBranch, "git", tail(out, 400))
-		} else if out, err := runGit(ctx, cloneDir, cloneURL, forgeToken, "checkout", branch); err != nil {
-			return stuckReport("could not check out the branch under review", tail(out, 2000))
-		} else {
-			onReviewBranch = true
+		commit, failure, failed := checkoutBranchUnderReview(ctx, w.Log, cloneDir, cloneURL, forgeToken, branch, ref.BaseBranch, claimed.PreAuthor)
+		if failed {
+			return failure
 		}
-		w.Log.Info("reading run prepared", "on_review_branch", onReviewBranch,
-			"branch", branch, "base", ref.BaseBranch)
+		reviewedCommit = commit
+		w.Log.Info("reading run prepared", "on_review_branch", reviewedCommit != "", "commit", reviewedCommit,
+			"pre_author", claimed.PreAuthor, "branch", branch, "base", ref.BaseBranch)
 	}
+	onReviewBranch := reviewedCommit != ""
 
 	instructions, scanErr := scanInstructionFiles(cloneDir)
 	w.Log.Info("scanned agent instruction files", "files", len(instructions.Files), "hidden_characters", instructions.HiddenTotal)
-	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{Phase: "branch_created", Branch: branch, NodeName: nodeName, PodUID: podUID,
+	if err := w.API.Checkpoint(claimed.RunToken, work.Checkpoint{Phase: "branch_created", Branch: branch, Commit: reviewedCommit, NodeName: nodeName, PodUID: podUID,
 		InstructionFiles: instructions.Files}); err != nil {
 		w.Log.Warn("checkpoint failed", "err", err)
 	}
@@ -423,6 +410,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	}
 	final := resolveOutcome(w.Adapter.Name(), report, runErr, context.Cause(ctx), prURL, priorPR != "",
 		item.Title, branch, logTail.Bytes(), w.Adapter.ExpectsLLM(), writes)
+	final = withReviewedCommit(final, branch, prURL, reviewedCommit)
 	if openSpec != nil && openSpecGateApplies(final, writes, onReviewBranch) {
 		gate := runOpenSpecGate(ctx, *openSpec, cloneURL, forgeToken, branch, home)
 		w.Log.Info("OpenSpec gate", "change", openSpec.ID, "ran", gate.Ran, "passed", gate.Passed)

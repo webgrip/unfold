@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // cloneArgs builds the git clone invocation: a configured base branch is
@@ -55,9 +56,12 @@ func gitAuthenticationEnvironment(repositoryURL, token string) []string {
 	return env
 }
 
+const gitWaitDelay = 5 * time.Second
+
 func runGit(ctx context.Context, dir, repositoryURL, token string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
+	cmd.WaitDelay = gitWaitDelay
 	for _, key := range []string{"PATH", "LANG", "LC_ALL", "TZ"} {
 		if value, ok := os.LookupEnv(key); ok {
 			cmd.Env = append(cmd.Env, key+"="+value)

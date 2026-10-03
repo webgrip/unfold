@@ -161,6 +161,9 @@ func TestClaim_RoleScoped(t *testing.T) {
 	if resp.Shift == 0 || resp.Round != 1 {
 		t.Errorf("shift/round = %d/%d, want both set", resp.Shift, resp.Round)
 	}
+	if !resp.PreAuthor {
+		t.Error("a reader in the Shift's first Round was not marked pre-author")
+	}
 	if n, _ := testStore.PendingRuns(context.Background(), "bronze", "builder"); n != 1 {
 		t.Errorf("builder run was consumed by a reviewer claim (%d pending)", n)
 	}

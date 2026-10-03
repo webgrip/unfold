@@ -85,7 +85,8 @@ type FailureReason string
 const (
 	// FailureInfraNode is written where the machine, not the agent, is known
 	// to have ended the Run: the worker received SIGTERM (pod shutdown or
-	// eviction), ploegd could not mint the Run's push credential, or an ACP
+	// eviction), ploegd could not mint the Run's push credential, the worker
+	// could not fetch a reading Run's branch from the forge, or an ACP
 	// harness failed to start or speak the protocol. The sweeper never writes
 	// it, because it sees only an expired lease, not why the pod died.
 	FailureInfraNode FailureReason = "infra_node"
@@ -236,13 +237,16 @@ type Lease struct {
 // are set from the downward API on the first checkpoint so forensics survive
 // pod/job cleanup (VIK-597).
 type Checkpoint struct {
-	WorkItemID string    `json:"workItemId,omitempty"`
-	Phase      string    `json:"phase"` // e.g. "branch_created", "changes_made", "pr_opened"
-	Branch     string    `json:"branch,omitempty"`
-	PRURL      string    `json:"prUrl,omitempty"`
-	NodeName   string    `json:"nodeName,omitempty"`
-	PodUID     string    `json:"podUid,omitempty"`
-	At         time.Time `json:"at,omitempty"`
+	WorkItemID string `json:"workItemId,omitempty"`
+	Phase      string `json:"phase"` // e.g. "branch_created", "changes_made", "pr_opened"
+	Branch     string `json:"branch,omitempty"`
+	PRURL      string `json:"prUrl,omitempty"`
+	// Commit is the commit a reading Run had checked out from the branch
+	// under review. Empty when the Run reviewed the base branch.
+	Commit   string    `json:"commit,omitempty"`
+	NodeName string    `json:"nodeName,omitempty"`
+	PodUID   string    `json:"podUid,omitempty"`
+	At       time.Time `json:"at,omitempty"`
 
 	// InstructionFiles is every agent instruction file the worker found in
 	// the clone before the harness ran, with the digest of what it read.

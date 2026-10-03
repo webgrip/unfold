@@ -363,3 +363,49 @@ func TestRoundCompleteTracksItsRuns(t *testing.T) {
 		t.Error("round did not report complete after every run finished")
 	}
 }
+
+func TestOnlyAReaderBeforeAnyWriterClaimsAsPreAuthor(t *testing.T) {
+	ctx := context.Background()
+	_, shiftID := openShift(t, 10)
+
+	round, err := testStore.OpenRound(ctx, shiftID, 0, []Role{{Name: "analyst", Cap: 1}})
+	if err != nil {
+		t.Fatalf("OpenRound(analyst): %v", err)
+	}
+	analyst, err := testStore.ClaimRole(ctx, "silver", "analyst", time.Minute, 1)
+	if err != nil {
+		t.Fatalf("ClaimRole(analyst): %v", err)
+	}
+	if !analyst.PreAuthor {
+		t.Error("a reader in the Shift's first Round did not claim as pre-author")
+	}
+	if _, err := testStore.ReportOutcome(ctx, analyst.RunToken, Report(work.OutcomeNoChangeNeeded, "recon", "", nil, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+
+	round, err = testStore.OpenRound(ctx, shiftID, round, []Role{{Name: "builder", Writes: true, Cap: 1}})
+	if err != nil {
+		t.Fatalf("OpenRound(builder): %v", err)
+	}
+	builder, err := testStore.ClaimRole(ctx, "silver", "builder", time.Minute, 1)
+	if err != nil {
+		t.Fatalf("ClaimRole(builder): %v", err)
+	}
+	if builder.PreAuthor {
+		t.Error("a writer claimed as pre-author")
+	}
+	if _, err := testStore.ReportOutcome(ctx, builder.RunToken, Report(work.OutcomePROpened, "built", "", nil, nil, nil)); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := testStore.OpenRound(ctx, shiftID, round, []Role{{Name: "reviewer", Cap: 1}}); err != nil {
+		t.Fatalf("OpenRound(reviewer): %v", err)
+	}
+	reviewer, err := testStore.ClaimRole(ctx, "silver", "reviewer", time.Minute, 1)
+	if err != nil {
+		t.Fatalf("ClaimRole(reviewer): %v", err)
+	}
+	if reviewer.PreAuthor {
+		t.Error("a reviewer after the writing Round claimed as pre-author; it would review the base branch")
+	}
+}

@@ -55,6 +55,10 @@
         "planner": {
           "type": "boolean",
           "description": "True when the team's plan marks this Role as a planner (ADR-0031): the worker composes the planner prompt, which asks for createdWorkItems instead of code. Absent = not a planner."
+        },
+        "preAuthor": {
+          "type": "boolean",
+          "description": "True for a reading Run when no writing Run precedes its Round in the Shift, so the Shift's branch may not exist yet. Only then does the worker review the base branch when that branch is absent; otherwise an absent branch ends the Run stuck. Absent = false."
         }
       },
       "required": ["runToken", "deadline", "workItem"],
