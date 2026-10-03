@@ -37,7 +37,9 @@ async function gitlab(): Promise<Fake> {
     }
     if (req.method === 'POST' && req.url === '/oauth/revoke') { fake.revoked.push(String(data.token)); res.end('{}'); return; }
     if (req.method === 'POST' && req.url?.startsWith('/api/v2/oauth/token')) {
-      const params = Object.fromEntries(new URL(req.url, fake.base).searchParams);
+      assert.equal(new URL(req.url, fake.base).search, '');
+      assert.equal(req.headers['content-type'], 'application/json');
+      const params = data as Record<string, string>;
       fake.clickupExchanges.push(params);
       if (params.code !== 'cu-code') { res.writeHead(400); res.end('{"err":"bad code"}'); return; }
       res.end(JSON.stringify({ access_token: 'cu-access-1' }));
@@ -152,6 +154,36 @@ test('a ClickUp link exchanges the code with the client secret, keeps the token 
   assert.equal(fake.clickupExchanges[0].client_secret, 'cu-secret');
   await links.revoke('clickup', 'user-1');
   assert.equal(links.describe('user-1', 'clickup').linked, false);
+});
+
+test('the ClickUp code exchange sends its credentials in a JSON body, never in the URL, and keeps them out of errors', async t => {
+  const { store, config } = await harness(t);
+  config.links = { ...config.links, clickup: { clientId: 'cu-app', clientSecret: 'cu-secret', apiUrl: 'https://api.clickup.test', appUrl: 'https://app.clickup.test' } };
+  const requests: { url: URL; init: RequestInit }[] = [];
+  let tokenStatus = 200;
+  const intercepted: typeof fetch = async (input, init = {}) => {
+    const url = new URL(String(input));
+    requests.push({ url, init });
+    if (url.pathname === '/api/v2/oauth/token') return new Response(tokenStatus === 200 ? JSON.stringify({ access_token: 'cu-access-1' }) : '{"err":"cu-secret rejected"}', { status: tokenStatus });
+    if (url.pathname === '/api/v2/user') return new Response(JSON.stringify({ user: { username: 'ryan' } }));
+    return new Response('{}', { status: 404 });
+  };
+  const links = new Links(store, config, intercepted);
+  const begin = () => new URL(links.begin('clickup', 'user-1', 'test-browser')).searchParams.get('state')!;
+
+  await links.complete('clickup', 'cu-code', begin(), 'test-browser');
+  const exchange = requests.find(request => request.url.pathname === '/api/v2/oauth/token')!;
+  assert.equal(exchange.url.href, 'https://api.clickup.test/api/v2/oauth/token');
+  assert.equal(exchange.url.search, '');
+  assert.equal(exchange.init.method, 'POST');
+  assert.equal(exchange.init.redirect, 'error');
+  assert.ok(exchange.init.signal instanceof AbortSignal);
+  assert.equal(new Headers(exchange.init.headers).get('content-type'), 'application/json');
+  assert.deepEqual(JSON.parse(String(exchange.init.body)), { client_id: 'cu-app', client_secret: 'cu-secret', code: 'cu-code' });
+
+  await links.revoke('clickup', 'user-1');
+  tokenStatus = 401;
+  await assert.rejects(links.complete('clickup', 'cu-code', begin(), 'test-browser'), (error: any) => error instanceof RuntimeFailure && !JSON.stringify({ message: error.message, error }).includes('cu-secret'));
 });
 
 test('a person can paste a personal token for ClickUp or GitLab with no application registered', async t => {

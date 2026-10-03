@@ -100,11 +100,9 @@ export class Links {
     } else {
       const { clientId, clientSecret, apiUrl, appUrl } = this.clickup()!;
       const url = new URL(`${apiUrl}/api/v2/oauth/token`);
-      url.searchParams.set('client_id', clientId!);
-      url.searchParams.set('client_secret', clientSecret!);
-      url.searchParams.set('code', code);
+      const body = JSON.stringify({ client_id: clientId!, client_secret: clientSecret!, code });
       let response: Response;
-      try { response = await this.fetchImpl(url, { method: 'POST', headers: { accept: 'application/json' }, signal: AbortSignal.timeout(10_000), redirect: 'error' }); }
+      try { response = await this.fetchImpl(url, { method: 'POST', headers: { accept: 'application/json', 'content-type': 'application/json' }, body, signal: AbortSignal.timeout(10_000), redirect: 'error' }); }
       catch { throw new RuntimeFailure('connectivity', 'workspace', 'not_submitted', undefined, 'ClickUp could not be reached to exchange the link code.'); }
       if (!response.ok) throw new RuntimeFailure(response.status >= 500 ? 'connectivity' : 'workspace_setup', 'workspace', 'not_submitted', response.status, `The ClickUp OAuth exchange answered HTTP ${response.status}`);
       let data: any;
