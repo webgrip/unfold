@@ -238,13 +238,13 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	}
 
 	writes := claimed.Writes || claimed.Role == ""
-	var writerStart string
+	var baseline writerBaseline
 	if writes {
-		start, err := checkoutStart(ctx, cloneDir)
+		recorded, err := recordWriterBaseline(ctx, cloneDir, cloneURL, forgeToken, branch)
 		if err != nil {
 			return stuckReport("could not record the commit the writer starts from", err.Error())
 		}
-		writerStart = start
+		baseline = recorded
 	}
 	var reviewedCommit string
 	if !writes && branch != "" {
@@ -419,7 +419,9 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	final := resolveOutcome(w.Adapter.Name(), report, runErr, context.Cause(ctx), prURL, priorPR != "",
 		item.Title, branch, logTail.Bytes(), w.Adapter.ExpectsLLM(), writes)
 	final = withReviewedCommit(final, branch, prURL, reviewedCommit)
-	final = guardUnpublishedWork(context.WithoutCancel(ctx), final, writes, cloneDir, writerStart)
+	final = guardUnpublishedWork(context.WithoutCancel(ctx), final, deliveryCheck{
+		writes: writes, dir: cloneDir, cloneURL: cloneURL, token: forgeToken, branch: branch, baseline: baseline, prErr: prErr,
+	})
 	if openSpec != nil && openSpecGateApplies(final, writes, onReviewBranch) {
 		gate := runOpenSpecGate(ctx, *openSpec, cloneURL, forgeToken, branch, home)
 		w.Log.Info("OpenSpec gate", "change", openSpec.ID, "ran", gate.Ran, "passed", gate.Passed)

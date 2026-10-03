@@ -458,15 +458,23 @@ func TestOpenSpecWorkItem_WriterBriefedAndGated(t *testing.T) {
 			t.Fatalf("report = %+v, want pr_updated noting the passed gate", report)
 		}
 	})
-	t.Run("pushed branch fails even when the working tree is valid", func(t *testing.T) {
+	t.Run("pushed branch fails the gate", func(t *testing.T) {
+		fakeOpenSpec(t, fakeOpenSpecScript)
+		report := runOpenSpecWorkItem(t, "openspec: add-widget", writer, "BROKEN", &openSpecAdapter{})
+		if report.Outcome != work.OutcomeStuck || !strings.Contains(report.StuckReason, "at least one delta") ||
+			len(report.Links) != 1 || !strings.HasSuffix(report.Links[0], "/pulls/3") {
+			t.Fatalf("report = %+v, want stuck with the validation output and the pull request", report)
+		}
+	})
+	t.Run("a valid fix left in the working tree is not delivered", func(t *testing.T) {
 		fakeOpenSpec(t, fakeOpenSpecScript)
 		adapter := &openSpecAdapter{edit: func(repo string) {
 			writeTree(t, repo, map[string]string{"apps/ploeg/openspec/changes/add-widget/proposal.md": "fixed locally, never pushed"})
 		}}
 		report := runOpenSpecWorkItem(t, "openspec: add-widget", writer, "BROKEN", adapter)
-		if report.Outcome != work.OutcomeStuck || !strings.Contains(report.StuckReason, "at least one delta") ||
+		if report.Outcome != work.OutcomeStuck || !strings.Contains(report.StuckReason, "add-widget/proposal.md") ||
 			len(report.Links) != 1 || !strings.HasSuffix(report.Links[0], "/pulls/3") {
-			t.Fatalf("report = %+v, want stuck with the validation output and the pull request", report)
+			t.Fatalf("report = %+v, want stuck naming the unpushed proposal, with the pull request", report)
 		}
 	})
 	t.Run("no CLI in the image", func(t *testing.T) {
