@@ -72,14 +72,14 @@ async function harness(t: test.TestContext) {
 test('a link starts with PKCE, completes against the account, and yields clone access for that host only', async t => {
   const { links, store, fake } = await harness(t);
   assert.deepEqual(links.describe('user-1'), { provider: 'gitlab', host: new URL(fake.base).host, configured: true, oauth: true, linked: false });
-  const url = new URL(links.begin('gitlab', 'user-1'));
+  const url = new URL(links.begin('gitlab', 'user-1', 'test-browser'));
   assert.equal(url.origin + url.pathname, `${fake.base}/oauth/authorize`);
   assert.equal(url.searchParams.get('code_challenge_method'), 'S256');
   assert.equal(url.searchParams.get('redirect_uri'), 'http://127.0.0.1:4080/api/links/gitlab/callback');
   assert.equal(url.searchParams.get('scope'), 'read_api read_repository write_repository');
   const state = url.searchParams.get('state')!;
-  await assert.rejects(links.complete('gitlab', 'good-code', 'not-a-state'), (error: any) => error instanceof LinkError && error.code === 'link_state');
-  const completed = await links.complete('gitlab', 'good-code', state);
+  await assert.rejects(links.complete('gitlab', 'good-code', 'not-a-state', 'test-browser'), (error: any) => error instanceof LinkError && error.code === 'link_state');
+  const completed = await links.complete('gitlab', 'good-code', state, 'test-browser');
   assert.equal(completed.userId, 'user-1');
   assert.equal(completed.link.linked, true);
   assert.equal(completed.link.login, 'ryan');
@@ -90,15 +90,15 @@ test('a link starts with PKCE, completes against the account, and yields clone a
   assert.deepEqual(await links.access('user-1', `${fake.base}/group/project.git`), { username: 'oauth2', password: 'access-1' });
   assert.equal(await links.access('user-1', 'https://forge.example/project.git'), undefined);
   assert.equal(await links.access('user-2', `${fake.base}/group/project.git`), undefined);
-  assert.equal(await links.complete('gitlab', 'good-code', state).catch((error: any) => error.code), 'link_state');
+  assert.equal(await links.complete('gitlab', 'good-code', state, 'test-browser').catch((error: any) => error.code), 'link_state');
   assert.ok(store.getSecret('link:gitlab:user-1'));
 });
 
 test('an expiring link is refreshed before the clone and revocation forgets and revokes both tokens', async t => {
   const { links, store, fake } = await harness(t);
   fake.expiresIn = 60;
-  const state = new URL(links.begin('gitlab', 'user-1')).searchParams.get('state')!;
-  await links.complete('gitlab', 'good-code', state);
+  const state = new URL(links.begin('gitlab', 'user-1', 'test-browser')).searchParams.get('state')!;
+  await links.complete('gitlab', 'good-code', state, 'test-browser');
   assert.deepEqual(await links.access('user-1', `${fake.base}/p.git`), { username: 'oauth2', password: 'access-2' });
   const refresh = fake.tokens[1] as Record<string, string>;
   assert.equal(refresh.grant_type, 'refresh_token');
@@ -113,11 +113,11 @@ test('an expiring link is refreshed before the clone and revocation forgets and 
 
 test('a rejected code and a broken refresh are failures the session can explain', async t => {
   const { links, fake } = await harness(t);
-  const state = new URL(links.begin('gitlab', 'user-1')).searchParams.get('state')!;
-  await assert.rejects(links.complete('gitlab', 'bad-code', state), (error: any) => error instanceof RuntimeFailure && error.category === 'workspace_setup' && error.httpStatus === 400);
+  const state = new URL(links.begin('gitlab', 'user-1', 'test-browser')).searchParams.get('state')!;
+  await assert.rejects(links.complete('gitlab', 'bad-code', state, 'test-browser'), (error: any) => error instanceof RuntimeFailure && error.category === 'workspace_setup' && error.httpStatus === 400);
   fake.expiresIn = 60;
-  const again = new URL(links.begin('gitlab', 'user-1')).searchParams.get('state')!;
-  await links.complete('gitlab', 'good-code', again);
+  const again = new URL(links.begin('gitlab', 'user-1', 'test-browser')).searchParams.get('state')!;
+  await links.complete('gitlab', 'good-code', again, 'test-browser');
   const record = (links as any).record('gitlab', 'user-1');
   (links as any).store.setSecret('link:gitlab:user-1', { ...record, refreshToken: 'stale' });
   await assert.rejects(links.access('user-1', `${fake.base}/p.git`), (error: any) => error instanceof RuntimeFailure && error.category === 'workspace_setup' && error.detail === 'The GitLab OAuth exchange answered HTTP 400');
@@ -127,7 +127,7 @@ test('an unconfigured link describes itself and refuses to start', async t => {
   const { links, config } = await harness(t);
   config.links = { gitlab: { baseUrl: 'https://gitlab.example', scopes: ['read_api'] } };
   assert.deepEqual(links.describe('user-1'), { provider: 'gitlab', host: 'gitlab.example', configured: true, oauth: false, linked: false });
-  assert.throws(() => links.begin('gitlab', 'user-1'), (error: any) => error instanceof LinkError && error.status === 409);
+  assert.throws(() => links.begin('gitlab', 'user-1', 'test-browser'), (error: any) => error instanceof LinkError && error.status === 409);
   assert.equal(await links.access('user-1', 'https://gitlab.example/p.git'), undefined);
 });
 
@@ -136,15 +136,15 @@ test('a ClickUp link exchanges the code with the client secret, keeps the token 
   config.links = { ...config.links, clickup: { clientId: 'cu-app', clientSecret: 'cu-secret', apiUrl: fake.base, appUrl: fake.base } };
   const listed = links.describeAll('user-1').map(link => `${link.provider}:${link.configured}:${link.linked}`);
   assert.deepEqual(listed, ['gitlab:true:false', 'clickup:true:false']);
-  const url = new URL(links.begin('clickup', 'user-1'));
+  const url = new URL(links.begin('clickup', 'user-1', 'test-browser'));
   assert.equal(url.pathname, '/api');
   assert.equal(url.searchParams.get('client_id'), 'cu-app');
   assert.equal(url.searchParams.get('redirect_uri'), 'http://127.0.0.1:4080/api/links/clickup/callback');
   const state = url.searchParams.get('state')!;
-  const other = new URL(links.begin('clickup', 'user-1')).searchParams.get('state')!;
-  await assert.rejects(links.complete('gitlab', 'good-code', other), (error: any) => error.code === 'link_state');
-  await assert.rejects(links.complete('clickup', 'cu-code', other), (error: any) => error.code === 'link_state');
-  const completed = await links.complete('clickup', 'cu-code', state);
+  const other = new URL(links.begin('clickup', 'user-1', 'test-browser')).searchParams.get('state')!;
+  await assert.rejects(links.complete('gitlab', 'good-code', other, 'test-browser'), (error: any) => error.code === 'link_state');
+  await assert.rejects(links.complete('clickup', 'cu-code', other, 'test-browser'), (error: any) => error.code === 'link_state');
+  const completed = await links.complete('clickup', 'cu-code', state, 'test-browser');
   assert.equal(completed.link.linked, true);
   assert.equal(completed.link.login, 'ryan');
   assert.deepEqual(await links.token('user-1', 'clickup'), { token: 'cu-access-1', type: 'private' });
@@ -160,7 +160,7 @@ test('a person can paste a personal token for ClickUp or GitLab with no applicat
   config.taskSources = [{ id: 'board', name: 'Board', provider: 'clickup', baseUrl: `${fake.base}/api/v2`, project: '1', repositoryId: 'r', executionOwner: 'interactive' }];
   const listed = links.describeAll('user-1');
   assert.deepEqual(listed.map(link => `${link.provider}:${link.configured}:${link.oauth}`), ['gitlab:true:false', 'clickup:true:false']);
-  assert.throws(() => links.begin('clickup', 'user-1'), (error: any) => error.code === 'link_unconfigured');
+  assert.throws(() => links.begin('clickup', 'user-1', 'test-browser'), (error: any) => error.code === 'link_unconfigured');
   await assert.rejects(links.paste('clickup', 'user-1', 'wrong-token'), (error: any) => error.code === 'link_profile');
   await assert.rejects(links.paste('clickup', 'user-1', '   '), (error: any) => error.code === 'link_token');
   const clickup = await links.paste('clickup', 'user-1', 'cu-access-1');

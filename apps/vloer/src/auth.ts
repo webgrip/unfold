@@ -38,6 +38,18 @@ export class Auth {
     const header = req.headers.cookie || '';
     return header.split(';').map(pair => pair.trim()).find(pair => pair.startsWith(`${this.cookieName}=`))?.slice(this.cookieName.length + 1);
   }
+  /** OAuth callbacks are cross-site navigations, so use a separate Lax cookie. */
+  browserBinding(req: IncomingMessage): string {
+    const name = `${this.cookieName}-oauth`;
+    const value = (req.headers.cookie || '').split(';').map(pair => pair.trim()).find(pair => pair.startsWith(`${name}=`))?.slice(name.length + 1);
+    return value && /^[A-Za-z0-9_-]{43}$/.test(value) ? digest(value) : '';
+  }
+  beginBrowserFlow(req: IncomingMessage): { binding: string; cookie: string } {
+    const name = `${this.cookieName}-oauth`;
+    const existing = (req.headers.cookie || '').split(';').map(pair => pair.trim()).find(pair => pair.startsWith(`${name}=`))?.slice(name.length + 1);
+    const value = existing && /^[A-Za-z0-9_-]{43}$/.test(existing) ? existing : randomBytes(32).toString('base64url');
+    return { binding: digest(value), cookie: `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600${this.config.auth.secureCookies ? '; Secure' : ''}` };
+  }
   /** Identifies the sign-in that authenticated a request without exposing its cookie value. */
   signIn(req: IncomingMessage): string | undefined {
     const token = this.token(req);

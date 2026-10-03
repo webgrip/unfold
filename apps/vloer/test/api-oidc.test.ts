@@ -57,7 +57,7 @@ async function signIn(server: { url: string }, idp: Awaited<ReturnType<typeof pr
   const state = authorize.searchParams.get('state')!;
   const nonce = authorize.searchParams.get('nonce')!;
   idp.pendingNonce.set('*', nonce);
-  const callback = await fetch(`${server.url}/api/auth/oidc/callback?code=${code}&state=${encodeURIComponent(state)}`, { redirect: 'manual' });
+  const callback = await fetch(`${server.url}/api/auth/oidc/callback?code=${code}&state=${encodeURIComponent(state)}`, { redirect: 'manual', headers: { cookie: start.headers.get('set-cookie')!.split(';')[0] } });
   return { callback, state, nonce, challenge: authorize.searchParams.get('code_challenge')! };
 }
 
@@ -125,7 +125,7 @@ test('an editor signs in through the browser: a one-time code, the usual sign-in
   assert.equal(start.status, 303);
   const authorize = new URL(start.headers.get('location')!);
   idp.pendingNonce.set('*', authorize.searchParams.get('nonce')!);
-  const callback = await fetch(`${server.url}/api/auth/oidc/callback?code=good-code&state=${encodeURIComponent(authorize.searchParams.get('state')!)}`, { redirect: 'manual' });
+  const callback = await fetch(`${server.url}/api/auth/oidc/callback?code=good-code&state=${encodeURIComponent(authorize.searchParams.get('state')!)}`, { redirect: 'manual', headers: { cookie: start.headers.get('set-cookie')!.split(';')[0] } });
   assert.equal(callback.headers.get('location'), '/?editor=done');
   const ready = await request(server.url, `/api/auth/editor/${started.body.code}`, { method: 'POST', body: { secret: started.body.secret } });
   assert.equal(ready.status, 200);
@@ -137,4 +137,34 @@ test('an editor signs in through the browser: a one-time code, the usual sign-in
   assert.equal(bootstrap.body.user.name, 'person@example.com');
   const again = await request(server.url, `/api/auth/editor/${started.body.code}`, { method: 'POST', body: { secret: started.body.secret } });
   assert.equal(again.status, 404);
+});
+
+test('OIDC rejects a callback in another browser before exchanging its code', async t => {
+  const { server, idp } = await workbench(t);
+  const first = await fetch(`${server.url}/api/auth/oidc`, { redirect: 'manual' });
+  const second = await fetch(`${server.url}/api/auth/oidc`, { redirect: 'manual' });
+  const authorize = new URL(first.headers.get('location')!);
+  idp.pendingNonce.set('*', authorize.searchParams.get('nonce')!);
+  const callbackUrl = `${server.url}/api/auth/oidc/callback?code=good-code&state=${encodeURIComponent(authorize.searchParams.get('state')!)}`;
+  for (const cookie of ['', second.headers.get('set-cookie')!.split(';')[0]]) {
+    const denied = await fetch(callbackUrl, { redirect: 'manual', headers: { cookie } });
+    assert.equal(denied.headers.get('location'), '/?login_error=oidc_state');
+    assert.equal(denied.headers.get('set-cookie'), null);
+    assert.equal(idp.exchanges.length, 0);
+  }
+  const completed = await fetch(callbackUrl, { redirect: 'manual', headers: { cookie: first.headers.get('set-cookie')!.split(';')[0] } });
+  assert.equal(completed.headers.get('location'), '/');
+  assert.equal(idp.exchanges.length, 1);
+});
+
+test('HTTPS OIDC uses a host-only, secure, short-lived browser cookie', async t => {
+  const idp = await provider();
+  const app = await application('live', config => {
+    config.auth.secureCookies = true;
+    config.auth.oidc = { issuer: idp.issuer, clientId: 'vloer', scopes: ['openid'], displayName: 'IdP', roleClaim: 'role', groupsClaim: 'groups', roles: { admin: [], operator: [], viewer: [] } };
+  });
+  t.after(async () => { await app.close(); await idp.close(); });
+  const start = await fetch(`${app.url}/api/auth/oidc`, { redirect: 'manual' });
+  assert.equal(start.status, 303);
+  assert.match(start.headers.get('set-cookie')!, /^__Host-vloer-oauth=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=600; Secure$/);
 });
