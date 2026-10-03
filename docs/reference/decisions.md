@@ -66,6 +66,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Vloer | [0020](../../apps/vloer/docs/adrs/0020-the-name-and-mark-are-trademarks.md) | The name and mark are trademarks under a usage policy, not CC-licensed artwork | 2026-09-11 | — |
 | Vloer | [0021](../../apps/vloer/docs/adrs/0021-the-extension-ships-through-open-vsx-first.md) | The extension ships through Open VSX first, and reaches the Marketplace only on stable versions | 2026-09-11 | — |
 | Vloer | [0022](../../apps/vloer/docs/adrs/0022-apache-2-0-is-the-estate-licence.md) | Apache-2.0 is a decision here, not an inheritance | 2026-09-11 | — |
+| Vloer | [0036](../../apps/vloer/docs/adrs/0036-the-agent-host-speaks-websocket-through-ws.md) | The agent host speaks WebSocket through `ws` | 2026-10-03 | — |
 
 ## Proposed
 

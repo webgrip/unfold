@@ -5,7 +5,7 @@ Trunk is `development`. Each accepted decision records its consequences and a tr
 | ADR | Decision | Scope and evidence | Status | Last updated |
 | --- | --- | --- | --- | --- |
 | [0001](0001-the-human-workbench-beside-ploeg.md) | The human workbench beside Ploeg | Accepted for v0.1 | accepted | 2026-09-09 |
-| [0002](0002-native-node-and-single-writer-storage.md) | Native Node and one durable writer | Accepted for v0.1 | accepted | 2026-09-09 |
+| [0002](0002-native-node-and-single-writer-storage.md) | Native Node and one durable writer | Accepted for v0.1; production dependency set amended by [0036](0036-the-agent-host-speaks-websocket-through-ws.md) | accepted | 2026-09-09 |
 | [0003](0003-runtime-workspace-and-credential-seams.md) | Keep harness, workspace and credential seams distinct | Accepted for v0.1 | accepted | 2026-09-09 |
 | [0004](0004-portable-procedures-and-explicit-contracts.md) | Portable operating procedure, explicit local contracts | Accepted for v0.1 | accepted | 2026-09-09 |
 | [0005](0005-one-work-authority.md) | One work authority | Proposed for governed delivery | proposed | 2026-09-09 |
@@ -39,3 +39,4 @@ Trunk is `development`. Each accepted decision records its consequences and a tr
 | [0033](0033-a-forge-card-s-art-window-is-an-inner-world-its-holder-may-decorate-privately.md) | A forge card's art window is an inner world its holder may decorate privately | Proposed; world runtime, fact-driven unlocks, theme worlds, the designer choice and private per-copy decorations implemented in Vloer | proposed | 2026-10-02 |
 | [0034](0034-run-cards-show-rarity-as-frame-metal-and-a-set-symbol-and-reveal-it-once-at-release.md) | Run cards show rarity as frame metal and a set symbol, and reveal it once at release | Proposed; Vloer side implemented against Ploeg PR #121 (ADR-0056), which is not merged: proxy, view, mark and frame ring on every skin, the forge's frame metal, the Rarity tab, the reveal ceremony, binder and pack display, demo rarity | proposed | 2026-10-02 |
 | [0035](0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) | Run cards lead with three or four KPIs for their state, and keep the rest on the back | Proposed; Vloer side implemented against Ploeg PR #130 (ADR-0057) and #133 (ADR-0058), which are not merged: proxy, headline strip on every skin, Flow tab, Review & CI, Change and Life figures, calendar ↔ working-hours toggle, team medians, demo figures | proposed | 2026-10-02 |
+| [0036](0036-the-agent-host-speaks-websocket-through-ws.md) | The agent host speaks WebSocket through `ws` | Accepted and implemented; `ws` 8.22.0 is the one runtime dependency, enforced by `npm run check` and `npm run license:check` | accepted | 2026-10-03 |

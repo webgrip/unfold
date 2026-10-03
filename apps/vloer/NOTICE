@@ -15,3 +15,8 @@ This product bundles three.js 0.186.1 (public/vendor/three/), Copyright 2010-202
 three.js authors, licensed under the MIT License. Its licence text is
 public/vendor/three/LICENSE and travels with the copy. scripts/vendor-three.mjs
 copies it from the pinned npm package.
+
+The container image includes ws 8.22.0 (node_modules/ws/), Copyright 2011 Einar
+Otto Stangvik, 2013 Arnout Kazemier and contributors, and 2016 Luigi Pinca and
+contributors, licensed under the MIT License. Its licence text is
+node_modules/ws/LICENSE and travels with the package.

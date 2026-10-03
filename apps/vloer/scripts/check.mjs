@@ -43,7 +43,13 @@ if (Number(process.versions.node.split('.')[0]) !== 24) failures.push('Node 24 i
 walk(root);
 const packagePath = resolve(root, 'package.json');
 const manifest = JSON.parse(readFileSync(packagePath, 'utf8'));
-if (Object.keys(manifest.dependencies || {}).length || Object.keys(manifest.optionalDependencies || {}).length) fail(packagePath, 'production npm dependencies require an architecture decision');
+const decidedRuntimeDependencies = { ws: 'docs/adrs/0036-the-agent-host-speaks-websocket-through-ws.md' };
+for (const [name, version] of Object.entries(manifest.dependencies || {})) {
+  if (!Object.hasOwn(decidedRuntimeDependencies, name)) fail(packagePath, `production npm dependency ${name} requires an architecture decision`);
+  else if (!existsSync(resolve(root, decidedRuntimeDependencies[name]))) fail(packagePath, `production npm dependency ${name} names ${decidedRuntimeDependencies[name]}, which is missing`);
+  if (!/^\d+\.\d+\.\d+$/.test(version)) fail(packagePath, `production npm dependency ${name} must pin an exact version, not ${version}`);
+}
+if (Object.keys(manifest.optionalDependencies || {}).length || Object.keys(manifest.peerDependencies || {}).length) fail(packagePath, 'optional and peer npm dependencies require an architecture decision');
 let sources = 0;
 let jsonFiles = 0;
 for (const path of files) {
@@ -75,8 +81,8 @@ for (const path of files) {
       const syncedCoreImport = dirname(target) === syncedCoreDirectory && existsSync(resolve(root, 'public/core', basename(target)));
       if (!extname(target) || (!existsSync(target) && !compiledExtensionImport && !syncedCoreImport)) fail(path, `missing relative import ${specifier}`);
       if (relative(root, target).startsWith('..') || isAbsolute(relative(root, target))) fail(path, 'source import escapes repository');
-    } else if (relative(root, path).startsWith('src/') && !specifier.startsWith('node:')) {
-      fail(path, 'application imports must use native Node modules or repository files');
+    } else if (relative(root, path).startsWith('src/') && !specifier.startsWith('node:') && !Object.hasOwn(decidedRuntimeDependencies, specifier)) {
+      fail(path, 'application imports must use native Node modules, repository files or a decided runtime dependency');
     }
   }
 }

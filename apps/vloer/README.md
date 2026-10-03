@@ -8,9 +8,10 @@ De Vloer sits beside [Ploeg](https://forgejo.webgrip.dev/webgrip/ploeg). The tra
 
 ## Try it in ten minutes
 
-Requirements: Node **24**, Git and a modern browser. `mise install` selects the pinned tools if you use mise. No provider account, Kubernetes cluster or npm installation is needed for this demonstration.
+Requirements: Node **24**, Git and a modern browser. `mise install` selects the pinned tools if you use mise. No provider account or Kubernetes cluster is needed for this demonstration. `npm ci --omit=dev` installs the server's one runtime dependency, `ws`.
 
 ```sh
+npm ci --omit=dev
 npm run demo
 ```
 
@@ -38,7 +39,7 @@ npm run smoke
 - Sandboxes that dial out, an Agent Host Protocol endpoint for VS Code and other clients, warm Kata pools through the Sandbox CRDs, and candidates signed with in-toto provenance and Agent Trace records.
 - Per-session workspace placement: a hardened container on the workbench host, a pod in a Kubernetes workspace namespace, or a plain working directory for trusted development; a browser can supervise a remote server without running agents on the laptop.
 
-The application uses native Node TypeScript and browser modules, with **zero third-party npm runtime dependencies**. Development-only dependencies provide strict type checking. SQLite requires **one application replica**. Live integrations have separate prerequisites and qualification limits; read the [validation matrix](docs/validation.md) before treating them as production-tested.
+The application uses native Node TypeScript and browser modules, with **one third-party npm runtime dependency**: [`ws`](https://github.com/websockets/ws) for the agent host's WebSocket server ([ADR 0036](docs/adrs/0036-the-agent-host-speaks-websocket-through-ws.md)). Development-only dependencies provide strict type checking. SQLite requires **one application replica**. Live integrations have separate prerequisites and qualification limits; read the [validation matrix](docs/validation.md) before treating them as production-tested.
 
 ![Actual 0.2.0 task browser showing a demo task, its source brief and an explicit queued-session import](docs/images/tasks-preview.png)
 

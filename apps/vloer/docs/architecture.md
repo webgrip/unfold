@@ -74,7 +74,7 @@ Every module in `src/`:
 | [`src/delivery-verifier.ts`](../src/delivery-verifier.ts) | Runs a policy's pinned checks in throwaway Docker containers |
 | [`src/trusted-candidate.ts`](../src/trusted-candidate.ts) | Rebuilds a captured candidate as one canonical commit on the approved base, with hardened Git |
 | [`src/ahp/host.ts`](../src/ahp/host.ts) | Agent Host Protocol server: connection tokens, JSON-RPC methods and session events projected as turns |
-| [`src/ahp/websocket.ts`](../src/ahp/websocket.ts) | Minimal WebSocket upgrade, framing and connection-token generation |
+| [`src/ahp/websocket.ts`](../src/ahp/websocket.ts) | WebSocket upgrade through `ws`, the message and unread-bytes limits, and connection-token generation |
 | [`src/runtime/opencode.ts`](../src/runtime/opencode.ts) | OpenCode HTTP and event-stream adapter: native session, prompts, permission replies, transcript and verdict |
 | [`src/runtime/command.ts`](../src/runtime/command.ts) | JSON-lines subprocess harness bridge, local backend only |
 | [`src/runtime/demo.ts`](../src/runtime/demo.ts) | Deterministic fixture runtime for the demo; makes no model calls |
@@ -104,7 +104,7 @@ Outside `src/`:
 | [`ops/`](../ops/) | Agent image, Helm chart, local Compose and cluster manifests |
 | [`skills/`](../skills/), [`.agents/contracts/`](../.agents/contracts/) | Portable operator procedure and repository-specific facts |
 
-Node 24 runs erasable TypeScript directly. The production application has zero third-party npm runtime dependencies; browser JavaScript uses native modules. There is no frontend build step or package installation in the demo path. This is a deliberate small-service choice, recorded in [ADR 0002](adrs/0002-native-node-and-single-writer-storage.md), rather than an inferred organization-wide frontend standard.
+Node 24 runs erasable TypeScript directly. The production application has one third-party npm runtime dependency, `ws`, for the agent host's WebSocket server ([ADR 0036](adrs/0036-the-agent-host-speaks-websocket-through-ws.md)); browser JavaScript uses native modules. There is no frontend build step; the demo path needs `npm ci` for `ws` and nothing else. This is a deliberate small-service choice, recorded in [ADR 0002](adrs/0002-native-node-and-single-writer-storage.md), rather than an inferred organization-wide frontend standard.
 
 ## Sessions, runs and handoffs
 

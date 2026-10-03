@@ -7,7 +7,8 @@ ARG NODE_RUNTIME_IMAGE=${REGISTRY_DHI}/node:24.21.0-alpine3.24@sha256:732e532a85
 
 FROM ${NODE_DEV_IMAGE} AS stage
 WORKDIR /app
-COPY package.json ./
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 COPY src ./src
 COPY public ./public
 COPY examples ./examples

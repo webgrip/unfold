@@ -134,7 +134,7 @@ test('three.js is vendored unedited, pinned and loadable without an import map',
   const vendor = new URL('../public/vendor/three/', import.meta.url);
   const pinned = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
   assert.equal(pinned.devDependencies.three, threeVersion);
-  assert.equal(pinned.dependencies, undefined, 'no production npm dependency');
+  assert.equal(pinned.dependencies?.three, undefined, 'three.js is vendored, not a production npm dependency');
   assert.equal(readFileSync(new URL('VERSION', vendor), 'utf8').trim(), threeVersion);
   assert.match(readFileSync(new URL('LICENSE', vendor), 'utf8'), /The MIT License[\s\S]*three\.js authors/);
   assert.deepEqual(readdirSync(vendor).sort(), [...Object.values(vendoredFiles), 'LICENSE', 'VERSION'].sort());
