@@ -2,7 +2,7 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://openvex.dev/docs/public/vex-ba968dad9b7223d6897593985bacd7fadb2501dde3d6f4733eeb558124a53c34",
   "author": "ryan@webgrip.nl",
-  "version": 1,
+  "version": 2,
   "statements": [
     {
       "vulnerability": {
@@ -17,7 +17,35 @@
       "justification": "vulnerable_code_not_in_execute_path",
       "impact_statement": "The overflow is reachable only through zlib's gzprintf()/gzvprintf() after a stalled non-blocking gzwrite(). No ELF binary or shared library in the image imports gzprintf, gzvprintf, gzwrite, gzopen or gzdopen (nm -D scan of all ELF files at digest sha256:d1603c289cd8000cf1eab07f411a7630318a64368f56a93c2bf305cd09a4c68f on 2026-09-27). Alpine 3.24 and edge ship no zlib with the upstream 1.3.3 fix yet; remove this statement once the base carries it.",
       "timestamp": "2026-09-27T10:36:08.762685515Z"
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-93748"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/de-vloer-agent"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
+      "impact_statement": "The flaw lets a client with a large max-stale read another user's security-zeroed entry from a SHARED HTTP cache. In this image the only copy is npm's bundled dependency (/usr/lib/node_modules/npm/node_modules/http-cache-semantics 4.2.0, sole copy at build on 2026-10-03), which backs npm's private client download cache for the single node user of one session's container; no process serves that cache to other users, and the requests in it are npm's own. check-http-cache-semantics.mjs fails the build if another copy appears. No fixed release exists (affected through 4.2.0); remove this statement once npm bundles a fixed version.",
+      "timestamp": "2026-10-03T10:32:57Z"
+    },
+    {
+      "vulnerability": {
+        "name": "GHSA-ch52-4w7c-c8xp"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/de-vloer-agent"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
+      "impact_statement": "The flaw lets a client with a large max-stale read another user's security-zeroed entry from a SHARED HTTP cache. In this image the only copy is npm's bundled dependency (/usr/lib/node_modules/npm/node_modules/http-cache-semantics 4.2.0, sole copy at build on 2026-10-03), which backs npm's private client download cache for the single node user of one session's container; no process serves that cache to other users, and the requests in it are npm's own. check-http-cache-semantics.mjs fails the build if another copy appears. No fixed release exists (affected through 4.2.0); remove this statement once npm bundles a fixed version.",
+      "timestamp": "2026-10-03T10:32:57Z"
     }
   ],
-  "timestamp": "2026-09-27T10:36:08Z"
+  "timestamp": "2026-10-03T10:32:57Z"
 }

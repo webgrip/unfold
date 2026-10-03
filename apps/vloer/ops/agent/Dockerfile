@@ -40,6 +40,7 @@ COPY relay-worker.mjs /usr/local/lib/de-vloer/relay-worker.mjs
 RUN chmod 0644 /usr/local/lib/de-vloer/relay-worker.mjs && su node -s /bin/sh -c 'node --check /usr/local/lib/de-vloer/relay-worker.mjs'
 RUN opencode --version | grep -F "${OPENCODE_VERSION}"
 RUN --mount=type=bind,source=check-gz-imports.mjs,target=/tmp/check-gz-imports.mjs node /tmp/check-gz-imports.mjs
+RUN --mount=type=bind,source=check-http-cache-semantics.mjs,target=/tmp/check-http-cache-semantics.mjs node /tmp/check-http-cache-semantics.mjs
 RUN --mount=type=bind,from=fetch,source=/npm-patches,target=/tmp/npm-patches \
     --mount=type=bind,source=patch-bundled-npm.mjs,target=/tmp/patch-bundled-npm.mjs \
     node /tmp/patch-bundled-npm.mjs /tmp/npm-patches
