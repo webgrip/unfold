@@ -2,8 +2,8 @@
 type: how-to
 audience: [operator, owner]
 owner: ploeg
-last_verified: 2026-09-30
-verified_by: "Read apps/ploeg pkg/target/{resolver,readiness}.go, pkg/config/{config,resolve}.go, pkg/httpapi/server.go, pkg/provider/vikunja/vikunja.go, pkg/provider/forgejo/repository.go and cmd/ploegd/routing.go; go test ./pkg/target ./pkg/config ./pkg/httpapi ./cmd/ploegd. Not checked against a live deployment."
+last_verified: 2026-10-03
+verified_by: "Read apps/ploeg pkg/target/{resolver,readiness}.go, pkg/config/{config,resolve}.go, pkg/httpapi/server.go, pkg/provider/vikunja/vikunja.go, pkg/provider/{forgejo,gitlab}/repository.go and cmd/ploegd/routing.go; go test ./pkg/target ./pkg/config ./pkg/httpapi ./pkg/provider/gitlab ./cmd/ploegd. Not checked against a live deployment."
 ---
 
 # Route a board that serves several repositories
@@ -90,7 +90,7 @@ When ploegd starts, it asks the forge about every registered target and logs `re
 - **At assignment:** a ticket that resolves to a target not ready is refused with that reason. Ploeg asks the forge again first, so a repository you fixed after startup is accepted without a restart.
 - **At claim:** Ploeg checks again before any Run starts. If the target became unready, the Run ends `stuck` with the reason and the Work Item moves to `needs_human`. If the forge cannot be reached, the Run ends as a retryable infrastructure failure and the Work Item goes back in the queue.
 
-Only the Forgejo forge can report readiness. A target on another forge is never ready.
+The Forgejo and GitLab forges report readiness. On GitLab, a pull mirror counts as a mirror, and a target's `repo` may name subgroups (`group/subgroup/project`). A target on any other forge is never ready.
 
 ## 5. Verify
 
