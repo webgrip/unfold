@@ -166,7 +166,7 @@ export function ploegReview(detail) {
     branch: shift?.branch || checkpoint?.branch || '',
     shift,
     closeReason: shift?.closeReason || '',
-    closeMeaning: shift?.closeReason === 'review_approved' ? 'An agent reviewer approved. This is not a human review.' : shift?.closeReason ? closeReasonLabel(shift.closeReason) : '',
+    closeMeaning: shift?.closeReason === 'review_approved' ? 'An agent reviewer approved. This is not a human review.' : shift?.closeReason === 'review_failed' ? 'No agent reviewed this pull request: the reviewer Run kept failing. Review it yourself.' : shift?.closeReason ? closeReasonLabel(shift.closeReason) : '',
     runs: runs.map(run => ({ id: run.id, role: run.role, round: run.round, writes: run.writes, state: run.state, outcome: run.outcome || '', verdict: run.verdict })),
     findings,
     verdict: lastReader ? lastReader.verdict || '' : null,
@@ -334,6 +334,10 @@ function spendMini(item, context) {
 function reviewChip(item, facts) {
   const fact = facts?.[item.id]?.updatedAt === item.updatedAt ? facts[item.id] : null;
   const code = item.latestShift?.closeReason || item.closeReason || '';
+  if (code === 'review_failed') {
+    const pr = fact?.pullRequestNumber ? `PR #${fact.pullRequestNumber} · ` : '';
+    return ui.chip({ label: `${pr}Agent review unavailable`, tone: 'attention', icon: 'pull-request', title: 'The reviewer Run kept failing, so no agent reviewed this pull request. Review it yourself.' });
+  }
   const verdict = fact ? fact.verdict : code === 'review_approved' ? 'approve' : undefined;
   const verdictText = verdict === 'approve' ? 'Agent approved' : verdict === 'request_changes' ? 'Agent asked for changes' : verdict === '' ? 'No agent verdict' : verdict === null ? 'No agent review' : code === 'plan_exhausted' ? 'No changes requested' : '';
   const pr = fact?.pullRequestNumber ? `PR #${fact.pullRequestNumber}` : '';

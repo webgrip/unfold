@@ -179,6 +179,7 @@ test('the detail counts the killed writer Runs when the Work Item does not', () 
 test('a Shift close reason reads in a few plain words, never as a raw code', () => {
   assert.equal(closeReasonLabel('plan_exhausted'), 'Every planned Round ran');
   assert.equal(closeReasonLabel('review_approved'), 'An agent reviewer approved');
+  assert.equal(closeReasonLabel('review_failed'), 'No agent reviewed it: the reviewer kept failing');
   assert.equal(closeReasonLabel('fix_round_cap_reached'), 'The fix Rounds ran out');
   assert.equal(closeReasonLabel('writing_run_killed_repeatedly'), 'The cluster kept stopping the writer');
   assert.equal(closeReasonLabel('budget exhausted: pool 0.04, spent 0.00, reserved 0.00'), `The US$${space}0,04 budget ran out`);
