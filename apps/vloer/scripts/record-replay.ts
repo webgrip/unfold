@@ -258,16 +258,16 @@ export async function record(): Promise<Recording> {
 
 const maskedKeys = /^(durationMs|bytes)$/;
 
-/** The recording with the values that legitimately change between two recordings replaced by a marker: timings, hashes, signatures and Git object ids. */
-export function mask(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(mask);
-  if (typeof value === 'string') return value
+/** The recording with the values that legitimately change between two recordings replaced by a marker: timings, hashes, signatures, Git object ids and the Vloer version it was recorded at, which every release bumps. */
+export function mask(value: unknown, vloerVersion = ''): unknown {
+  if (Array.isArray(value)) return value.map(item => mask(item, vloerVersion));
+  if (typeof value === 'string') return (vloerVersion && value === vloerVersion ? '<vloer-version>' : value)
     .replace(/\b[0-9a-f]{40}\b|\b[0-9a-f]{64}\b|\b[0-9a-f]{7,12}\.\.[0-9a-f]{7,12}\b/g, '<sha>')
     .replace(/\(\d+(?:\.\d+)?ms\)/g, '(<ms>)')
     .replace(/Duration: \d+ ms/g, 'Duration: <ms> ms')
     .replace(/duration_ms \d+(?:\.\d+)?/g, 'duration_ms <ms>')
     .replace(/node:internal\/[\w/.-]+:\d+:\d+/g, 'node:internal/<frame>');
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, maskedKeys.test(key) && (typeof item === 'string' || typeof item === 'number') ? '<masked>' : mask(item)]));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, maskedKeys.test(key) && (typeof item === 'string' || typeof item === 'number') ? '<masked>' : mask(item, vloerVersion)]));
   return value;
 }
 
@@ -386,7 +386,7 @@ async function main() {
     if (committed && manifest) {
       const committedText = await readFile(join(out, 'replay.json'));
       if (createHash('sha256').update(committedText).digest('hex') !== manifest.replay) failures.push('replay.json does not match the sha256 in manifest.json; it was edited by hand');
-      for (const line of differences(mask(committed), mask(recording))) failures.push(`recording drift ${line}`);
+      for (const line of differences(mask(committed, manifest.vloerVersion), mask(recording, version))) failures.push(`recording drift ${line}`);
       const names = [...new Set([...Object.keys(manifest.files ?? {}), ...Object.keys(files)])].sort();
       for (const name of names) if (manifest.files?.[name] !== files[name]) failures.push(`public/${name} ${!files[name] ? 'was removed' : !manifest.files?.[name] ? 'is new' : 'changed'} since the recording`);
     }
