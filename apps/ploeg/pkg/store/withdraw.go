@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -61,6 +62,99 @@ func (s *Store) WorkItemStarted(ctx context.Context, workItemID int64) (bool, er
 	err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM agent_runs
 		WHERE work_item_id = $1 AND (started_at IS NOT NULL OR authorized <> 0))`, workItemID).Scan(&started)
 	return started, err
+}
+
+// SettleClosedInTracker withdraws a stopped Work Item whose tracker task a
+// person closed. Only needs_human and awaiting_review items settle; an item
+// with a running Run, or in any other state, is left as it is and reported
+// with Withdrawn false. The item becomes withdrawn, any pending Run is
+// cancelled, and the change is audited as work_item.withdrawn with reason
+// withdrawn_closed. Operator-owned items return ErrOperatorOwned.
+func (s *Store) SettleClosedInTracker(ctx context.Context, workItemID int64, actor string) (Withdrawal, error) {
+	out := Withdrawal{WorkItemID: workItemID}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return out, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var state string
+	var operatorOwned, running bool
+	err = tx.QueryRow(ctx, `SELECT state, operator_owned,
+		EXISTS(SELECT 1 FROM agent_runs WHERE work_item_id = work_items.id AND state = 'running')
+		FROM work_items WHERE id = $1 FOR UPDATE`, workItemID).Scan(&state, &operatorOwned, &running)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return out, ErrWorkItemNotFound
+	}
+	if err != nil {
+		return out, err
+	}
+	out.State = work.State(state)
+	if operatorOwned {
+		return out, ErrOperatorOwned
+	}
+	if running || (out.State != work.StateNeedsHuman && out.State != work.StateAwaitingReview) {
+		return out, tx.Commit(ctx)
+	}
+
+	err = tx.QueryRow(ctx, `UPDATE shifts SET closed_at = now(), close_reason = $2
+		WHERE work_item_id = $1 AND closed_at IS NULL RETURNING id`, workItemID, CloseReasonWithdrawnClosed).Scan(&out.ShiftID)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return out, err
+	}
+	tag, err := tx.Exec(ctx, `UPDATE agent_runs SET state = 'finished', finished_at = now(), summary = $2
+		WHERE work_item_id = $1 AND state = 'pending'`, workItemID, "cancelled: work item withdrawn ("+CloseReasonWithdrawnClosed+")")
+	if err != nil {
+		return out, err
+	}
+	out.CancelledRuns = tag.RowsAffected()
+	if _, err := tx.Exec(ctx, `UPDATE work_items SET state = 'withdrawn', next_eligible_at = NULL, updated_at = now() WHERE id = $1`, workItemID); err != nil {
+		return out, err
+	}
+	detail := map[string]any{"reason": CloseReasonWithdrawnClosed, "previous_state": state, "cancelled_pending": out.CancelledRuns}
+	if out.ShiftID != 0 {
+		detail["shift"] = out.ShiftID
+	}
+	if err := audit(ctx, tx, actor, "work_item.withdrawn", &workItemID, detail); err != nil {
+		return out, err
+	}
+	out.State, out.Withdrawn = work.StateWithdrawn, true
+	return out, tx.Commit(ctx)
+}
+
+// StoppedTrackerItem names a stopped Work Item whose tracker task is due a
+// re-read.
+type StoppedTrackerItem struct {
+	WorkItemID int64
+	Provider   string
+	ExternalID string
+}
+
+// ClaimStoppedTrackerChecks returns up to limit needs_human and
+// awaiting_review items of the given tracker providers that were not checked
+// within every, and records now as their last check. Operator-owned items
+// are never returned. Concurrent callers never receive the same item.
+func (s *Store) ClaimStoppedTrackerChecks(ctx context.Context, providers []string, every time.Duration, limit int) ([]StoppedTrackerItem, error) {
+	if len(providers) == 0 || limit <= 0 {
+		return nil, nil
+	}
+	rows, err := s.pool.Query(ctx, `UPDATE work_items SET tracker_checked_at = now()
+		WHERE id IN (
+			SELECT id FROM work_items
+			WHERE state IN ('needs_human', 'awaiting_review') AND NOT operator_owned AND provider = ANY($1)
+				AND (tracker_checked_at IS NULL OR tracker_checked_at <= now() - make_interval(secs => $2))
+			ORDER BY tracker_checked_at NULLS FIRST, id
+			LIMIT $3
+			FOR UPDATE SKIP LOCKED)
+		RETURNING id, provider, external_id`, providers, every.Seconds(), limit)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, func(row pgx.CollectableRow) (StoppedTrackerItem, error) {
+		var it StoppedTrackerItem
+		err := row.Scan(&it.WorkItemID, &it.Provider, &it.ExternalID)
+		return it, err
+	})
 }
 
 // WithdrawWorkItem takes back the mandate for tracker-originated work: its

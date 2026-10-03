@@ -197,6 +197,9 @@ type WorkItem struct {
 	// EstimateSeconds is the tracker's time estimate, nil when the tracker
 	// keeps none or none was set (ADR-0057).
 	EstimateSeconds *int64 `json:"-"`
+	// Closed reports that the tracker marked the item done or closed when
+	// FetchItem read it. It is never stored.
+	Closed bool `json:"-"`
 }
 
 // Target is where a Work Item's changes land: the forge coordinates a Run

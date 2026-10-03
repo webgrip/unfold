@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -319,5 +320,105 @@ func TestClosingATaskWithdrawsOnlyWorkThatHasNotStarted(t *testing.T) {
 	}
 	if got := snapshotItem(t, started); got.state != "queued" || got.liveShifts != 1 {
 		t.Fatalf("closing a started item withdrew it: %+v", got)
+	}
+}
+
+func reopenWebhook(t *testing.T, h http.Handler, taskID string) int {
+	t.Helper()
+	body := fmt.Sprintf(`{"event_name":"task.updated","data":{"task":{"id":%s,"title":"withdrawal fixture","project_id":7,"done":false}}}`, taskID)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, signedTrackerHook("vikunja", body))
+	return w.Code
+}
+
+func stoppedFixture(t *testing.T, externalID, state string) int64 {
+	t.Helper()
+	ctx := context.Background()
+	shiftFixture(t, externalID, 5, []store.Role{{Name: "builder"}})
+	id, _, err := testStore.TrackerWorkItemID(ctx, "vikunja", externalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, stmt := range []string{
+		`UPDATE agent_runs SET state='finished', started_at=now(), finished_at=now() WHERE work_item_id=$1`,
+		`UPDATE shifts SET closed_at=now(), close_reason='pool_exhausted' WHERE work_item_id=$1`,
+	} {
+		if _, err := testPool.Exec(ctx, stmt, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := testPool.Exec(ctx, `UPDATE work_items SET state=$2 WHERE id=$1`, id, state); err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func TestClosingATaskSettlesStoppedWorkWithoutAComment(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+	var writes atomic.Int32
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writes.Add(1)
+		}
+		http.NotFound(w, r)
+	}))
+	defer api.Close()
+
+	stopped := map[string]string{"4301": "needs_human", "4302": "awaiting_review"}
+	ids := map[string]int64{}
+	for task, state := range stopped {
+		ids[task] = stoppedFixture(t, task, state)
+	}
+	shiftFixture(t, "4303", 5, []store.Role{{Name: "builder"}})
+	running, _, err := testStore.TrackerWorkItemID(ctx, "vikunja", "4303")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testStore.ClaimRole(ctx, "bronze", "builder", time.Minute, 3); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testPool.Exec(ctx, `UPDATE work_items SET state='needs_human' WHERE id=$1`, running); err != nil {
+		t.Fatal(err)
+	}
+
+	s := withdrawalServer(&shiftengine.Engine{Store: testStore, Log: slog.New(slog.DiscardHandler), Uniform: true})
+	tp := s.Trackers["vikunja"].(*vikunja.Provider)
+	tp.BaseURL, tp.Token = api.URL, "fixture"
+	h := s.Handler()
+
+	for _, task := range []string{"4301", "4302", "4303"} {
+		if code := closeWebhook(t, h, task); code != http.StatusAccepted {
+			t.Fatalf("close of task %s: %d", task, code)
+		}
+	}
+	for task, id := range ids {
+		if got := snapshotItem(t, id); got.state != string(work.StateWithdrawn) {
+			t.Fatalf("closing a %s item left it %+v", stopped[task], got)
+		}
+		var audited int
+		if err := testPool.QueryRow(ctx, `SELECT count(*) FROM audit_log WHERE work_item_id=$1 AND action='work_item.withdrawn'
+			AND actor='webhook:vikunja' AND detail->>'reason'=$2`, id, store.CloseReasonWithdrawnClosed).Scan(&audited); err != nil || audited != 1 {
+			t.Fatalf("%s settle audit rows=%d err=%v", stopped[task], audited, err)
+		}
+	}
+	if got := snapshotItem(t, running); got.state != "needs_human" || got.unfinished != 1 {
+		t.Fatalf("closing an item with a running Run changed it: %+v", got)
+	}
+	if n := writes.Load(); n != 0 {
+		t.Fatalf("Ploeg wrote to the tracker %d times for a person's own close", n)
+	}
+
+	if code := reopenWebhook(t, h, "4301"); code != http.StatusAccepted {
+		t.Fatalf("re-open: %d", code)
+	}
+	if got := snapshotItem(t, ids["4301"]); got.state != string(work.StateWithdrawn) {
+		t.Fatalf("re-opening the task resurrected the item: %+v", got)
+	}
+	if code := vikunjaWebhook(t, h, "task.assignee.created", "4301", "builder"); code != http.StatusAccepted {
+		t.Fatalf("re-assignment: %d", code)
+	}
+	if got := snapshotItem(t, ids["4301"]); got.state != "queued" {
+		t.Fatalf("re-assignment did not start new work: %+v", got)
 	}
 }

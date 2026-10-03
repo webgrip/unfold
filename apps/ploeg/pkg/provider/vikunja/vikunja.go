@@ -259,6 +259,7 @@ func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (p
 		ExternalScope:    scope,
 		Labels:           labels,
 		TrackerCreatedAt: createdAt(task.Created),
+		Closed:           task.Done != nil && *task.Done,
 	}}, nil
 }
 
