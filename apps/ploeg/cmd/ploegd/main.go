@@ -395,6 +395,7 @@ func run(log *slog.Logger) error {
 	if reviews != nil {
 		go reviewLoop(ctx, reviews, reviewEvery)
 	}
+	go deployCheckLoop(ctx, srv, deployCheckEvery)
 
 	log.Info("ploegd listening", "version", version, "addr", listen, "lease_ttl", leaseTTL)
 	if err := httpSrv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {

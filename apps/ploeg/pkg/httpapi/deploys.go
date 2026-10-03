@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -58,6 +59,12 @@ const (
 	deployMergeSkew      = 10 * time.Minute
 	deployFutureSkew     = 5 * time.Minute
 	deployCheckTimeout   = 20 * time.Second
+
+	deploySweepBatch       = 10
+	deployCheckLease       = 5 * time.Minute
+	deployCheckBackoff     = time.Minute
+	deployCheckMaxBackoff  = time.Hour
+	deployCheckMaxAttempts = 12
 )
 
 var (
@@ -121,7 +128,7 @@ func (s *Server) handleDeploy(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Log.Info("deploy recorded", "deploy_id", recorded.ID, "new", recorded.Created, "forge", d.Forge,
 		"repo", d.Owner+"/"+d.Name, "environment", d.Environment, "sha", d.SHA)
-	marked := s.markDeployed(context.WithoutCancel(ctx), fp, d, recorded)
+	marked := s.checkDeployment(context.WithoutCancel(ctx), fp, store.PendingDeployment{ID: recorded.ID, Deployment: d})
 	writeJSON(w, http.StatusAccepted, map[string]any{"deployId": strconv.FormatInt(recorded.ID, 10), "pullRequests": marked})
 }
 
@@ -192,48 +199,97 @@ func deployLink(raw string) (string, bool) {
 	return link, len(link) <= 2048
 }
 
-func (s *Server) markDeployed(ctx context.Context, fp provider.ForgeProvider, d store.Deployment, recorded store.RecordedDeployment) int {
+// SweepDeployChecks resumes up to deploySweepBatch deployments whose pull
+// requests were not all compared yet: a report that hit the batch limit or
+// its deadline, or whose comparisons failed (ADR-0047). Each deployment gets
+// one bounded pass; failures are logged and retried with a growing pause.
+func (s *Server) SweepDeployChecks(ctx context.Context) {
+	if len(s.Forges) == 0 {
+		return
+	}
+	due, err := s.Store.DueDeployChecks(ctx, deployCheckLease, deploySweepBatch)
+	if err != nil {
+		s.Log.Error("deploy check sweep failed", "err", err)
+		return
+	}
+	for _, p := range due {
+		if ctx.Err() != nil {
+			return
+		}
+		fp := s.Forges[p.Forge]
+		if fp == nil {
+			s.Log.Warn("deploy check given up: no forge provider for the deploy", "deploy_id", p.ID, "forge", p.Forge)
+			if err := s.Store.CompleteDeployCheck(ctx, p.ID); err != nil {
+				s.Log.Error("deploy check not completed", "deploy_id", p.ID, "err", err)
+			}
+			continue
+		}
+		s.checkDeployment(ctx, fp, p)
+	}
+}
+
+func (s *Server) checkDeployment(ctx context.Context, fp provider.ForgeProvider, p store.PendingDeployment) int {
 	ctx, cancel := context.WithTimeout(ctx, deployCheckTimeout)
 	defer cancel()
-	log := s.Log.With("deploy_id", recorded.ID, "forge", d.Forge, "repo", d.Owner+"/"+d.Name, "environment", d.Environment, "sha", d.SHA)
-	candidates, err := s.Store.DeployCandidates(ctx, recorded.ID, deployMergeSkew, deployCandidateLimit)
+	log := s.Log.With("deploy_id", p.ID, "forge", p.Forge, "repo", p.Owner+"/"+p.Name, "environment", p.Environment, "sha", p.SHA)
+	candidates, err := s.Store.DeployCandidates(ctx, p.ID, deployMergeSkew, deployCandidateLimit)
 	if err != nil {
-		log.Error("deploy recorded but its pull requests were not checked", "err", err)
+		log.Error("deploy recorded but its pull requests were not checked; the sweep retries", "err", err)
 		return 0
 	}
-	if len(candidates) == deployCandidateLimit {
-		log.Info("more merged pull requests await a deploy check than one deploy checks; the next deploy continues",
-			"checked", deployCandidateLimit)
-	}
-	marked := 0
+	marked, compared, failed, stopped := 0, 0, 0, false
 	for i, c := range candidates {
 		if ctx.Err() != nil {
-			log.Warn("deploy check stopped at its deadline; the next deploy continues", "unchecked", len(candidates)-i)
+			log.Info("deploy check stopped at its deadline; the sweep continues", "unchecked", len(candidates)-i)
+			stopped = true
 			break
 		}
-		ancestor, err := provider.IsAncestor(ctx, fp, c.Repo, c.MergeCommitSHA, d.SHA)
+		ancestor, err := provider.IsAncestor(ctx, fp, c.Repo, c.MergeCommitSHA, p.SHA)
 		if errors.Is(err, provider.ErrNoAncestry) {
 			log.Warn("the forge cannot compare commits; no pull request is marked as deployed")
+			s.completeDeployCheck(ctx, log, p.ID)
 			return marked
 		}
 		if err != nil {
-			log.Warn("deploy check failed for a pull request", "pr", c.Number, "merge_commit", c.MergeCommitSHA, "err", err)
+			failed++
+			log.Warn("deploy check failed for a pull request; the sweep retries", "pr", c.Number, "merge_commit", c.MergeCommitSHA, "err", err)
 			continue
 		}
-		if !ancestor {
-			continue
-		}
-		newly, err := s.Store.MarkDeployed(ctx, c.PullRequestID, recorded.ID)
+		newly, err := s.Store.RecordDeployCheck(ctx, p.ID, c.PullRequestID, ancestor)
 		if err != nil {
-			log.Error("pull request deploy not recorded", "pr", c.Number, "err", err)
+			failed++
+			log.Error("pull request deploy check not recorded", "pr", c.Number, "err", err)
 			continue
 		}
+		compared++
 		if newly {
 			marked++
 			log.Info("pull request deployed", "pr", c.Number, "merge_commit", c.MergeCommitSHA)
 		}
 	}
+	if !stopped && failed == 0 && len(candidates) < deployCandidateLimit {
+		s.completeDeployCheck(ctx, log, p.ID)
+		return marked
+	}
+	if !stopped && failed == 0 {
+		log.Info("more merged pull requests await a deploy check than one pass checks; the sweep continues",
+			"checked", deployCandidateLimit)
+	}
+	gaveUp, err := s.Store.DeferDeployCheck(context.WithoutCancel(ctx), p.ID, compared == 0,
+		deployCheckBackoff, deployCheckMaxBackoff, deployCheckMaxAttempts)
+	if err != nil {
+		log.Error("deploy check not rescheduled", "err", err)
+	} else if gaveUp {
+		log.Warn("deploy check given up after repeated forge failures; the next deploy of this environment checks again",
+			"attempts", deployCheckMaxAttempts)
+	}
 	return marked
+}
+
+func (s *Server) completeDeployCheck(ctx context.Context, log *slog.Logger, id int64) {
+	if err := s.Store.CompleteDeployCheck(context.WithoutCancel(ctx), id); err != nil {
+		log.Error("deploy check not completed", "err", err)
+	}
 }
 
 func deployError(w http.ResponseWriter, status int, code, message string) {

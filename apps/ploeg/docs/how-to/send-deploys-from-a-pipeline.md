@@ -99,7 +99,7 @@ targets:
 
 ## Verify
 
-1. The pipeline log shows `{"deployId":"…","pullRequests":N}`. `N` counts the pull requests this deploy marked for the first time; a repeated call returns the same `deployId` and usually `0`.
+1. The pipeline log shows `{"deployId":"…","pullRequests":N}`. `N` counts the pull requests this report marked for the first time; pull requests the sweep marks later are not in it. A repeated call returns the same `deployId` and usually `0`.
 2. ploegd logs `deploy recorded` and one `pull request deployed` per marked pull request.
 3. In Vloer, the Work Item's card shows the deploy under its environments. Once production has it, the release says "deploy" instead of "counted from merge".
 
@@ -111,6 +111,6 @@ targets:
 | 401 `unauthorized` | The pipeline sent no token, another token, or an operator token | Check the CI secret matches the vault value |
 | 400 `invalid_request` | A field is missing, misspelled or malformed; the message names it | Compare the body with the table above. Unknown fields such as `deployed_at` are refused |
 | 422 `unknown_forge` | `repo.forge` names a forge ploegd has no provider for | Use `forgejo`, `gitlab` or the configured instance id |
-| `pullRequests` stays 0 and the log says `deploy check failed` | The forge refused the compare call, for example because the bot cannot read the repository | Give the forge token read access; the next deploy checks again |
-| Older merged pull requests stay unmarked | One deploy checks the 50 newest unmarked merges | Each later deploy continues with the rest |
+| `pullRequests` stays 0 and the log says `deploy check failed` | The forge refused the compare call, for example because the bot cannot read the repository | Give the forge token read access; ploegd's sweep retries within the hour |
+| Older merged pull requests stay unmarked for a few minutes | One report checks the 50 newest unmarked merges | ploegd's sweep checks 50 more every minute |
 | A card shows no release after merging | The repository sends production deploys, but none carried this merge yet | Wait for the next production deploy |

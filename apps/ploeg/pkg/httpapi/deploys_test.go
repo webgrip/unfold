@@ -350,8 +350,8 @@ func TestDeploys_MarkMergedPullRequestsWhoseMergeCommitIsAnAncestor(t *testing.T
 	if repeat.DeployID != first.DeployID || repeat.PullRequests != 0 {
 		t.Errorf("repeat = %+v; want deploy %s again and nothing new", repeat, first.DeployID)
 	}
-	if got := fmt.Sprint(forge.took()); got != "[d...2 d...3]" {
-		t.Errorf("repeat compared %s; a marked pull request is never compared again", got)
+	if got := fmt.Sprint(forge.took()); got != "[d...3]" {
+		t.Errorf("repeat compared %s; only the failed comparison is retried", got)
 	}
 
 	forge.answer(sha("e"), sha("2"), `{"total_commits":0,"commits":[]}`)
