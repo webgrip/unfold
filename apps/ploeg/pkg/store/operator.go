@@ -61,7 +61,7 @@ type OperatorLease struct {
 
 // OperatorPullRequest is where a Work Item's pull request stands: the reported
 // link, the newest agent reviewer's verdict, whether a human asked for changes,
-// and how many repair follow-ups it spawned. It is nil when no Run or Checkpoint
+// which forge logins asked for them, and how many repair follow-ups it spawned. It is nil when no Run or Checkpoint
 // ever reported a pull request link. URL selects the newest finished writer Run
 // that opened or updated a pull request, exactly as AwaitingReview does, and
 // falls back to the newest Checkpoint pr_url; the operator link sanitizer
@@ -70,11 +70,15 @@ type OperatorLease struct {
 // The merge facts and Reviews come from the newest pull request the forge
 // reported for the Work Item (ADR-0045). A fact the forge has not reported is
 // left out, and Reviews is empty when no review was recorded.
+//
+// ChangesRequestedBy lists each distinct reviewer login that asked for changes,
+// ordered by its newest request first, and is empty when nobody did.
 type OperatorPullRequest struct {
 	URL                   string                      `json:"url"`
 	AgentVerdict          string                      `json:"agentVerdict"`
 	AgentVerdictRound     *int                        `json:"agentVerdictRound"`
 	HumanChangesRequested bool                        `json:"humanChangesRequested"`
+	ChangesRequestedBy    []string                    `json:"changesRequestedBy"`
 	RepairFollowUps       int64                       `json:"repairFollowUps"`
 	MergedAt              *time.Time                  `json:"mergedAt,omitempty"`
 	MergedBy              string                      `json:"mergedBy,omitempty"`
@@ -267,8 +271,15 @@ const operatorItemJSON = `jsonb_build_object(
 		'agentVerdict', COALESCE((` + operatorAgentVerdictJSON + `)->>'verdict', ''),
 		'agentVerdictRound', (` + operatorAgentVerdictJSON + `)->'round',
 		'humanChangesRequested', EXISTS (SELECT 1 FROM work_item_reviews w WHERE w.work_item_id = i.id AND w.state = 'changes_requested'),
+		'changesRequestedBy', ` + operatorChangesRequestedByJSON + `,
 		'repairFollowUps', (SELECT count(*) FROM work_items f WHERE f.source_work_item_id = i.id AND f.source_run_id IS NULL))
 		|| COALESCE(` + operatorPullRequestFactsJSON + `, '{"reviews": []}'::jsonb) ELSE NULL END)`
+
+const operatorChangesRequestedByJSON = `(SELECT COALESCE(jsonb_agg(c.reviewer ORDER BY c.newest DESC, c.last_id DESC), '[]'::jsonb)
+	FROM (SELECT left(w.reviewer, 256) AS reviewer, max(w.received_at) AS newest, max(w.id) AS last_id
+		FROM work_item_reviews w
+		WHERE w.work_item_id = i.id AND w.state = 'changes_requested' AND w.reviewer <> ''
+		GROUP BY 1) c)`
 
 const operatorPullRequestFactsJSON = `(SELECT jsonb_strip_nulls(jsonb_build_object(
 	'mergedAt', p.merged_at, 'mergedBy', left(p.merged_by, 256),
