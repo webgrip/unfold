@@ -3,7 +3,7 @@ type: tutorial
 audience: [owner, operator, integrator, contributor]
 owner: unfold
 last_verified: 2026-10-01
-verified_by: "Read apps/vloer/scripts/unified-demo.ts (prerequisite commands, ready/stopped/smoke-passed events, environment settings, cleanup), apps/vloer/package.json, root mise.toml and apps/ploeg/go.mod; on 2026-10-01 ran mise run demo-record, npm run replay:check and mise run demo-replay-conformance for the hosted replay section"
+verified_by: "Read apps/vloer/scripts/unified-demo.ts (prerequisite commands, ready/stopped/smoke-passed events, environment settings, cleanup), apps/vloer/package.json, root mise.toml and apps/ploeg/go.mod; on 2026-10-01 ran mise run demo-record, npm run replay:check and mise run demo-replay-conformance for the hosted replay section; on 2026-10-04 moved the recording into the site build and ran mise run demo-record and the site build"
 ---
 
 # Local shared execution demonstration
@@ -65,10 +65,10 @@ The marketing site's `/demo/` page is a recorded replay of Vloer's own determini
 - The views and the demo session come from a real demo run. The session plays one event every 1.2 seconds after **Run the demonstration**, and its review can be accepted or rejected. **Restart the replay** in the banner starts over.
 - Pausing, cancelling the session, instructions, a brief of your own, approving proposed work, crack attributions, opening packs and every settings change answer "This hosted replay is recorded. Run mise run demo to try this."
 
-After a change to Vloer's interface, demo runtime or demo data, `mise run verify` fails in its `demo-replay` group until the recording is regenerated:
+The site build records the replay from the same checkout, so a change to Vloer's interface, demo runtime or demo data needs no re-recording and no extra commit. Every Unfold release candidate redeploys staging, so staging's `/demo` follows the latest Vloer candidate; production's follows with the next stable site release. To record it without building the site:
 
 ```sh
 mise run demo-record
 ```
 
-Commit the changed `apps/site/replay/` files in a separate commit scoped `site`, because the site only releases for commits under `apps/site`. `mise run demo-replay-conformance` drives the replay in Chromium and fails on any request the recording cannot answer, a page error or a CSP violation; it needs a local Chromium (`VLOER_CHROMIUM_BIN` or Playwright's own).
+The recording lands in `apps/site/replay/`, which Git ignores. `mise run demo-replay-conformance` records, then drives the replay in Chromium and fails on any request the recording cannot answer, a page error or a CSP violation; it needs a local Chromium (`VLOER_CHROMIUM_BIN` or Playwright's own).

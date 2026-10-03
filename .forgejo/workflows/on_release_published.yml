@@ -326,15 +326,19 @@ jobs:
         run: |
           set -euo pipefail
           tag="${RELEASE_TAG:-}"
-          if [[ "${RELEASES_ENABLED:-}" != true || "$tag" != unfold-site-v* ]]; then
+          if [[ "${RELEASES_ENABLED:-}" != true || ( "$tag" != unfold-site-v* && "$tag" != unfold-v* ) ]]; then
             echo "channel=none" >> "$GITHUB_OUTPUT"
-            echo "${tag:-This release} is not a site release; the site is not deployed."
+            echo "${tag:-This release} is neither a site nor an Unfold release; the site is not deployed."
             exit 0
           fi
           if [[ "${WORKFLOW_EVENT:-}" == workflow_dispatch ]]; then
             [[ "${SELECTED_REF:-}" == "refs/tags/$tag" ]] || { echo "Select the same tag as the workflow ref before deploying." >&2; exit 1; }
           fi
-          [[ "$tag" =~ ^unfold-site-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$ ]] || { echo "The site deploys only unfold-site-vX.Y.Z or unfold-site-vX.Y.Z-rc.N tags." >&2; exit 1; }
+          if [[ "$tag" == unfold-site-v* ]]; then
+            [[ "$tag" =~ ^unfold-site-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$ ]] || { echo "The site deploys only unfold-site-vX.Y.Z or unfold-site-vX.Y.Z-rc.N tags." >&2; exit 1; }
+          else
+            [[ "$tag" =~ ^unfold-v0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.[1-9][0-9]*$ ]] || { echo "An Unfold release redeploys staging only from unfold-v0.x.y-rc.N tags." >&2; exit 1; }
+          fi
           [[ -n "${CLOUDFLARE_API_TOKEN:-}" && -n "${CLOUDFLARE_ACCOUNT_ID:-}" ]] || { echo "The Cloudflare deploy credential is missing; the forgejo-actions-secrets bridge publishes it from OpenBao cloudflare/deploy." >&2; exit 1; }
           if [[ "$tag" == *-rc.* ]]; then
             echo "channel=prerelease" >> "$GITHUB_OUTPUT"
@@ -353,7 +357,7 @@ jobs:
       release-channel: prerelease
       wrangler-env: staging
       working-directory: apps/site
-      build-command: UNFOLD_SITE_URL=https://staging.unfoldhq.dev pnpm run build:release
+      build-command: npm --prefix ../vloer ci --omit=dev --no-audit --no-fund && UNFOLD_SITE_URL=https://staging.unfoldhq.dev pnpm run build:release
       apex-url: https://staging.unfoldhq.dev
       smoke-paths: |
         /
@@ -378,7 +382,7 @@ jobs:
       environment: production
       release-channel: stable
       working-directory: apps/site
-      build-command: UNFOLD_SITE_URL=https://unfoldhq.dev pnpm run build:release
+      build-command: npm --prefix ../vloer ci --omit=dev --no-audit --no-fund && UNFOLD_SITE_URL=https://unfoldhq.dev pnpm run build:release
       apex-url: https://unfoldhq.dev
       smoke-paths: |
         /

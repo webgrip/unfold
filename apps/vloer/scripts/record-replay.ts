@@ -258,16 +258,16 @@ export async function record(): Promise<Recording> {
 
 const maskedKeys = /^(durationMs|bytes)$/;
 
-/** The recording with the values that legitimately change between two recordings replaced by a marker: timings, hashes, signatures, Git object ids and the Vloer version it was recorded at, which every release bumps. */
-export function mask(value: unknown, vloerVersion = ''): unknown {
-  if (Array.isArray(value)) return value.map(item => mask(item, vloerVersion));
-  if (typeof value === 'string') return (vloerVersion && value === vloerVersion ? '<vloer-version>' : value)
+/** The recording with the values that legitimately change between two recordings replaced by a marker: timings, hashes, signatures and Git object ids. */
+export function mask(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(item => mask(item));
+  if (typeof value === 'string') return value
     .replace(/\b[0-9a-f]{40}\b|\b[0-9a-f]{64}\b|\b[0-9a-f]{7,12}\.\.[0-9a-f]{7,12}\b/g, '<sha>')
     .replace(/\(\d+(?:\.\d+)?ms\)/g, '(<ms>)')
     .replace(/Duration: \d+ ms/g, 'Duration: <ms> ms')
     .replace(/duration_ms \d+(?:\.\d+)?/g, 'duration_ms <ms>')
     .replace(/node:internal\/[\w/.-]+:\d+:\d+/g, 'node:internal/<frame>');
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, maskedKeys.test(key) && (typeof item === 'string' || typeof item === 'number') ? '<masked>' : mask(item, vloerVersion)]));
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, maskedKeys.test(key) && (typeof item === 'string' || typeof item === 'number') ? '<masked>' : mask(item)]));
   return value;
 }
 
@@ -299,18 +299,6 @@ export function serialize(recording: Recording): string {
   });
   lines.push('}', '}');
   return `${lines.join('\n')}\n`;
-}
-
-function differences(expected: unknown, actual: unknown, path = '$', found: string[] = []): string[] {
-  if (found.length >= 12) return found;
-  if (JSON.stringify(expected) === JSON.stringify(actual)) return found;
-  if (expected && actual && typeof expected === 'object' && typeof actual === 'object' && Array.isArray(expected) === Array.isArray(actual)) {
-    const keys = [...new Set([...Object.keys(expected), ...Object.keys(actual)])];
-    for (const key of keys) differences((expected as any)[key], (actual as any)[key], Array.isArray(expected) ? `${path}[${key}]` : `${path}.${key}`, found);
-    return found;
-  }
-  found.push(`${path}: recorded ${JSON.stringify(expected)?.slice(0, 160)}, now ${JSON.stringify(actual)?.slice(0, 160)}`);
-  return found;
 }
 
 function literalAt(source: string, index: number): string | null {
@@ -364,7 +352,6 @@ function gitCommit(): string {
 
 async function main() {
   const args = process.argv.slice(2);
-  const check = args.includes('--check');
   const unrouted = await unroutedApiPaths();
   if (unrouted.length) {
     process.stderr.write(`FAIL: Vloer calls API paths the hosted replay neither answers nor refuses. Add each to public/replay/routes.js.\n${unrouted.map(line => `  ${line}`).join('\n')}\n`);
@@ -377,27 +364,6 @@ async function main() {
   const text = serialize(recording);
   const files = await publicHashes();
   const version = JSON.parse(await readFile(join(vloer, 'package.json'), 'utf8')).version as string;
-  if (check) {
-    const failures: string[] = [];
-    let committed: Recording | undefined;
-    let manifest: any;
-    try { committed = JSON.parse(await readFile(join(out, 'replay.json'), 'utf8')); manifest = JSON.parse(await readFile(join(out, 'manifest.json'), 'utf8')); }
-    catch { failures.push(`no recorded replay in ${relative(process.cwd(), out) || out}; run mise run demo-record`); }
-    if (committed && manifest) {
-      const committedText = await readFile(join(out, 'replay.json'));
-      if (createHash('sha256').update(committedText).digest('hex') !== manifest.replay) failures.push('replay.json does not match the sha256 in manifest.json; it was edited by hand');
-      for (const line of differences(mask(committed, manifest.vloerVersion), mask(recording, version))) failures.push(`recording drift ${line}`);
-      const names = [...new Set([...Object.keys(manifest.files ?? {}), ...Object.keys(files)])].sort();
-      for (const name of names) if (manifest.files?.[name] !== files[name]) failures.push(`public/${name} ${!files[name] ? 'was removed' : !manifest.files?.[name] ? 'is new' : 'changed'} since the recording`);
-    }
-    if (failures.length) {
-      process.stderr.write(`FAIL: the hosted demo replay is out of date with Vloer. Run mise run demo-record and commit apps/site/replay.\n${failures.map(line => `  ${line}`).join('\n')}\n`);
-      process.exitCode = 1;
-      return;
-    }
-    process.stdout.write(`PASS: the hosted demo replay matches Vloer's deterministic demo (${Object.keys(recording.routes).length} recorded requests, ${recording.session.events.length} session events, ${Object.keys(files).length} public files).\n`);
-    return;
-  }
   await mkdir(out, { recursive: true });
   await writeFile(join(out, 'replay.json'), text);
   const manifest = { format: replayFormat, vloerVersion: version, commit: gitCommit(), recordedAt: new Date(realNow).toISOString().slice(0, 10), anchor: recording.anchor, replay: createHash('sha256').update(text).digest('hex'), files };

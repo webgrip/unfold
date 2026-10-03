@@ -14,7 +14,7 @@ mise run verify
 mise run demo-unified   # Ploeg, Vloer and PostgreSQL; deterministic, no model calls
 ```
 
-`mise run demo` starts Vloer's deterministic fixture alone. The site's `/demo` page replays a recording of it in the browser; `mise run demo-record` regenerates that recording. `mise run integration` exercises the managed path without paid providers, including key minting and blocking against a local fake LiteLLM gateway.
+`mise run demo` starts Vloer's deterministic fixture alone. The site's `/demo` page replays a recording of it in the browser. The site build records it; `mise run demo-record` records it on its own. `mise run integration` exercises the managed path without paid providers, including key minting and blocking against a local fake LiteLLM gateway.
 
 Read the [published documentation](https://docs.webgrip.dev/glide/) or start at [docs/index.md](docs/index.md). Agents start from [AGENTS.md](AGENTS.md) and [llms.txt](llms.txt).
 
