@@ -69,7 +69,7 @@ func gateServer(t *testing.T, board *fakeBoard) (*Server, string) {
 	consumers, token := operatorTestConsumers(t, []string{"silver"}, false)
 	return &Server{
 		Store: testStore, Log: slog.New(slog.DiscardHandler),
-		Trackers:       map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{BaseURL: api.URL, Token: "fixture", DefaultTeam: "silver"}},
+		Trackers:       map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{Secret: testTrackerSecret, BaseURL: api.URL, Token: "fixture", DefaultTeam: "silver"}},
 		Gates:          gate.Boards{"vikunja": {"10": m}},
 		ForgeBots:      []string{"ploeg-bot"},
 		OperatorConfig: OperatorConfig{Consumers: consumers, Teams: map[string][]string{"silver": {"builder"}}},
@@ -80,7 +80,7 @@ func taskUpdated(t *testing.T, h http.Handler, project int, doer string) {
 	t.Helper()
 	body := fmt.Sprintf(`{"event_name":"task.updated","data":{"task":{"id":1900,"project_id":%d},"doer":{"username":%q}}}`, project, doer)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/webhooks/tracker/vikunja", strings.NewReader(body)))
+	h.ServeHTTP(rec, signedTrackerHook("vikunja", body))
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("webhook returned %d: %s", rec.Code, rec.Body)
 	}
@@ -189,7 +189,7 @@ func TestTrackerWebhook_AnAssignmentRecordsTheGateItStartsIn(t *testing.T) {
 	board.set("Doing")
 	body := `{"event_name":"task.assignee.created","data":{"task":{"id":1900,"project_id":10,"title":"Gate me"},"assignee":{"username":"silver"},"doer":{"username":"paula"}}}`
 	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/webhooks/tracker/vikunja", strings.NewReader(body)))
+	s.Handler().ServeHTTP(rec, signedTrackerHook("vikunja", body))
 	if rec.Code != http.StatusAccepted {
 		t.Fatalf("webhook returned %d", rec.Code)
 	}

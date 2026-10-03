@@ -14,9 +14,8 @@ import (
 )
 
 func TestParseWebhookCarriesTheDoerAndTheUpdateTime(t *testing.T) {
-	p := &Provider{}
-	body := `{"event_name":"task.updated","data":{"task":{"id":42,"project_id":10,"updated":"2026-10-01T09:30:00+02:00"},"doer":{"username":"tess"}}}`
-	events, err := p.ParseWebhook(httptest.NewRequest("POST", WebhookPath, strings.NewReader(body)))
+	p := &Provider{Secret: fixtureSecret}
+	events, err := p.ParseWebhook(signedHook(`{"event_name":"task.updated","data":{"task":{"id":42,"project_id":10,"updated":"2026-10-01T09:30:00+02:00"},"doer":{"username":"tess"}}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -24,7 +23,7 @@ func TestParseWebhookCarriesTheDoerAndTheUpdateTime(t *testing.T) {
 		!events[0].At.Equal(time.Date(2026, 10, 1, 7, 30, 0, 0, time.UTC)) {
 		t.Fatalf("events = %+v", events)
 	}
-	events, err = p.ParseWebhook(httptest.NewRequest("POST", WebhookPath, strings.NewReader(`{"event_name":"task.updated","data":{"task":{"id":42}}}`)))
+	events, err = p.ParseWebhook(signedHook(`{"event_name":"task.updated","data":{"task":{"id":42}}}`))
 	if err != nil || events[0].Actor != "" || !events[0].At.IsZero() {
 		t.Fatalf("a payload without doer or time: %+v, %v", events, err)
 	}

@@ -102,6 +102,9 @@ func run(log *slog.Logger) error {
 	} else {
 		log.Info("vikunja write-backs disabled (PLOEG_VIKUNJA_URL/PLOEG_VIKUNJA_TOKEN unset)")
 	}
+	if vik.Secret == "" {
+		log.Warn("PLOEG_VIKUNJA_SECRET is unset; every Vikunja webhook is rejected")
+	}
 
 	// The tracker registry. Keyed by dialect name, which is what the webhook
 	// route names (/webhooks/tracker/{provider}) and what a mirrored WorkItem
@@ -111,8 +114,7 @@ func run(log *slog.Logger) error {
 	trackers := map[string]provider.TrackerProvider{vik.Name(): vik}
 
 	// ClickUp is registered only when a secret or a token says the deployment
-	// actually uses it — an unconfigured provider on the route would accept
-	// unauthenticated deliveries.
+	// actually uses it. Without a secret its route rejects every delivery.
 	if cuSecret, cuToken := os.Getenv("PLOEG_CLICKUP_SECRET"), os.Getenv("PLOEG_CLICKUP_TOKEN"); cuSecret != "" || cuToken != "" {
 		cu := &clickup.Provider{
 			Secret:      cuSecret,
@@ -124,6 +126,9 @@ func run(log *slog.Logger) error {
 			Log:         log,
 		}
 		trackers[cu.Name()] = cu
+		if cuSecret == "" {
+			log.Warn("PLOEG_CLICKUP_SECRET is unset; every ClickUp webhook is rejected")
+		}
 		log.Info("clickup tracker configured",
 			"write_backs", cuToken != "",
 			"done_status", cu.DoneStatus != "")

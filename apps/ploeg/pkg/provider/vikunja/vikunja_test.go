@@ -33,6 +33,14 @@ func sign(secret string, body []byte) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+const fixtureSecret = "s3cret"
+
+func signedHook(body string) *http.Request {
+	r := httptest.NewRequest(http.MethodPost, WebhookPath, strings.NewReader(body))
+	r.Header.Set("X-Vikunja-Signature", sign(fixtureSecret, []byte(body)))
+	return r
+}
+
 func TestParseWebhookAssigned(t *testing.T) {
 	p := &Provider{Secret: "s3cret", DefaultTeam: "default", TeamMap: map[string]string{"crew-alpha": "alpha"}}
 
@@ -126,11 +134,30 @@ func TestParseWebhookRejectsBadSignature(t *testing.T) {
 	}
 }
 
+func TestParseWebhookRejectsEveryDeliveryWithoutAConfiguredSecret(t *testing.T) {
+	p := &Provider{DefaultTeam: "default"}
+	r := httptest.NewRequest(http.MethodPost, WebhookPath, strings.NewReader(assignedBody))
+	if _, err := p.ParseWebhook(r); err == nil {
+		t.Fatal("an unsigned delivery was accepted by a provider without a secret")
+	}
+}
+
+func TestParseWebhookRejectsAMissingOrMalformedSignature(t *testing.T) {
+	p := &Provider{Secret: fixtureSecret}
+	for _, sig := range []string{"", "not-hex", sign(fixtureSecret, []byte(assignedBody))[:10]} {
+		r := httptest.NewRequest(http.MethodPost, WebhookPath, strings.NewReader(assignedBody))
+		if sig != "" {
+			r.Header.Set("X-Vikunja-Signature", sig)
+		}
+		if _, err := p.ParseWebhook(r); err == nil {
+			t.Errorf("signature %q was accepted", sig)
+		}
+	}
+}
+
 func TestParseWebhookUnhandledEventDropped(t *testing.T) {
-	p := &Provider{DefaultTeam: "alpha"}
-	body := []byte(`{"event_name":"task.comment.created","data":{"task":{"id":7,"title":"x"}}}`)
-	r := httptest.NewRequest("POST", "/", bytes.NewReader(body))
-	events, err := p.ParseWebhook(r)
+	p := &Provider{Secret: fixtureSecret, DefaultTeam: "alpha"}
+	events, err := p.ParseWebhook(signedHook(`{"event_name":"task.comment.created","data":{"task":{"id":7,"title":"x"}}}`))
 	if err != nil || events != nil {
 		t.Fatalf("want (nil, nil), got (%v, %v)", events, err)
 	}
@@ -253,7 +280,7 @@ func TestFetchItem_ReadsAuthoritativeState(t *testing.T) {
 }
 
 func TestParseWebhookClosedTaskIsAClose(t *testing.T) {
-	p := &Provider{DefaultTeam: "default"}
+	p := &Provider{Secret: fixtureSecret, DefaultTeam: "default"}
 	for _, tc := range []struct {
 		task string
 		want provider.TrackerEventKind
@@ -261,8 +288,7 @@ func TestParseWebhookClosedTaskIsAClose(t *testing.T) {
 		{`{"id": 611, "project_id": 11, "done": true}`, provider.TrackerClosed},
 		{`{"id": 611, "project_id": 11, "done": false}`, provider.TrackerUpdated},
 	} {
-		body := []byte(`{"event_name": "task.updated", "data": {"task": ` + tc.task + `}}`)
-		events, err := p.ParseWebhook(httptest.NewRequest("POST", "/webhooks/tracker/vikunja", bytes.NewReader(body)))
+		events, err := p.ParseWebhook(signedHook(`{"event_name": "task.updated", "data": {"task": ` + tc.task + `}}`))
 		if err != nil {
 			t.Fatal(err)
 		}

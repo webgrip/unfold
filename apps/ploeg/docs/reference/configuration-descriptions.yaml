@@ -7,12 +7,12 @@ env:
   PLOEG_TEAM_MAP: Legacy assignee roster, replaced by `teams.<name>.assignees` in the `PLOEG_CONFIG` file.
   PLOEG_TEAM_PLANS: Legacy Shift plans, replaced by `teams.<name>.plan` in the `PLOEG_CONFIG` file. A malformed plan stops ploegd at boot.
   PLOEG_TARGET_MAP: Legacy routing from tracker scope to repository, rendered from the org.yaml roster manifest. Replaced by `trackers.<tracker>.projects` in the `PLOEG_CONFIG` file.
-  PLOEG_VIKUNJA_SECRET: Secret that verifies `X-Vikunja-Signature` on `POST /webhooks/tracker/vikunja`. The chart reads it from `webhook.existingSecret`.
+  PLOEG_VIKUNJA_SECRET: Secret that verifies `X-Vikunja-Signature` on `POST /webhooks/tracker/vikunja`. The chart reads it from `webhook.existingSecret`. Unset rejects every Vikunja webhook.
   PLOEG_VIKUNJA_URL: Vikunja API root (chart `tracker.url`). With `PLOEG_VIKUNJA_TOKEN` it enables comments on the ticket and the webhook registration check.
   PLOEG_VIKUNJA_TOKEN: Vikunja API token (chart `tracker.tokenSecret`). Unset keeps tracker write-backs a logged no-op.
   PLOEG_VIKUNJA_WEBHOOK_URL: Exact webhook target the registration check looks for. Unset means any target on the `/webhooks/tracker/vikunja` path counts.
   PLOEG_VIKUNJA_WEBHOOK_REGISTER: "`true` registers a signed webhook on each configured project that lacks one. Requires `PLOEG_VIKUNJA_WEBHOOK_URL` and the webhook secret, or ploegd refuses to start."
-  PLOEG_CLICKUP_SECRET: Verifies `X-Signature` on `POST /webhooks/tracker/clickup`. ClickUp generates it when the webhook is registered. ClickUp is registered only when this or `PLOEG_CLICKUP_TOKEN` is set.
+  PLOEG_CLICKUP_SECRET: Verifies `X-Signature` on `POST /webhooks/tracker/clickup`. ClickUp generates it when the webhook is registered. ClickUp is registered only when this or `PLOEG_CLICKUP_TOKEN` is set. Unset rejects every ClickUp webhook.
   PLOEG_CLICKUP_TOKEN: Personal ClickUp token for reads and write-backs (chart `tracker.clickup.tokenSecret`).
   PLOEG_CLICKUP_URL: ClickUp API root (chart `tracker.clickup.url`). Empty means `https://api.clickup.com/api/v2`.
   PLOEG_CLICKUP_DONE_STATUS: List status applied when a Shift finishes (chart `tracker.clickup.doneStatus`). Empty leaves the board untouched.

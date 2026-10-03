@@ -47,7 +47,7 @@ func TestTrackerWebhook_RecordsEpicsBeforeTheFirstShiftAndShowsTheSet(t *testing
 	consumers, token := operatorTestConsumers(t, []string{"silver"}, false)
 	s := &Server{
 		Store: testStore, Log: slog.New(slog.DiscardHandler),
-		Trackers:       map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{BaseURL: api.URL, Token: "fixture", DefaultTeam: "silver"}},
+		Trackers:       map[string]provider.TrackerProvider{"vikunja": &vikunja.Provider{Secret: testTrackerSecret, BaseURL: api.URL, Token: "fixture", DefaultTeam: "silver"}},
 		OperatorConfig: OperatorConfig{Consumers: consumers, Teams: map[string][]string{"silver": {"builder"}}},
 	}
 	h := s.Handler()
@@ -55,7 +55,7 @@ func TestTrackerWebhook_RecordsEpicsBeforeTheFirstShiftAndShowsTheSet(t *testing
 		t.Helper()
 		body := fmt.Sprintf(`{"event_name":%q,"data":{"task":{"id":%s,"project_id":10},"assignee":{"username":"ploeg"}}}`, event, id)
 		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/webhooks/tracker/vikunja", strings.NewReader(body)))
+		h.ServeHTTP(rec, signedTrackerHook("vikunja", body))
 		if rec.Code != http.StatusAccepted {
 			t.Fatalf("%s returned %d: %s", event, rec.Code, rec.Body)
 		}
