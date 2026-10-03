@@ -44,8 +44,9 @@ type usageReportInput struct {
 // Evidence is the writing Run's verification as stored; the zero value means
 // the report renders "not recorded".
 type Evidence struct {
-	Result string // e.g. "passed", "failed (go test ./...)", "incomplete (...)"
-	Commit string // short sha from the verification line; "" when absent
+	Result string // e.g. "passed", "failed (go test ./...)", "incomplete (...)", "unknown"
+	Commit string // the verified commit; "" when absent
+	Dirty  bool   // the working tree had uncommitted changes when the checks ran
 }
 
 // money formats a US dollar amount the way the Unfold — Loop dashboard does:
@@ -243,6 +244,9 @@ func evidenceSection(ev Evidence) string {
 	if ev.Commit != "" {
 		fmt.Fprintf(&b, "\nCommit verified: `%s`\n", ev.Commit)
 	}
+	if ev.Dirty {
+		b.WriteString("\nThe working tree had uncommitted changes when the checks ran, so the result may not match the pushed commit.\n")
+	}
 	b.WriteString("\nThe full verification output is in the writing Run's findings comment on this pull request.\n")
 	return b.String()
 }
@@ -291,29 +295,67 @@ var (
 
 // parseEvidence derives the writing Run's verification from the Shift's
 // reports. It takes the LAST Run that wrote — the one whose commit is at the
-// branch tip — reads the result from its summary marker and the commit from
-// its findings section. It returns the zero Evidence when there is no writing
-// Run or its findings carry no verification section, which the report renders
-// as "not recorded" rather than a blank that could read as a pass.
+// branch tip. Its structured Verification, when present, is the whole answer;
+// agent-written prose cannot change it. Only a Run reported before the
+// worker sent that record falls back to the prose the worker appended. It
+// returns the zero Evidence when there is no writing Run or it carries no
+// verification at all, which the report renders as "not recorded" rather
+// than a blank that could read as a pass.
 func parseEvidence(reports []store.RunReport) Evidence {
 	for i := len(reports) - 1; i >= 0; i-- {
 		r := reports[i]
 		if !r.Writes {
 			continue
 		}
-		if !strings.Contains(r.Findings, verificationHeading) {
-			return Evidence{}
+		if r.Verification != nil {
+			return structuredEvidence(*r.Verification)
 		}
-		ev := Evidence{}
-		if m := verificationSummaryRe.FindStringSubmatch(r.Summary); m != nil {
-			ev.Result = describeVerification(m[1])
-		}
-		if m := verificationCommitRe.FindStringSubmatch(r.Findings); m != nil {
-			ev.Commit = m[1]
-		}
-		return ev
+		return legacyEvidence(r)
 	}
 	return Evidence{}
+}
+
+func structuredEvidence(v harness.Verification) Evidence {
+	ev := Evidence{Commit: v.Commit, Dirty: v.Dirty}
+	switch v.Result {
+	case harness.VerificationPassed:
+		ev.Result = "passed"
+	case harness.VerificationFailed:
+		ev.Result = "failed"
+		if c, ok := v.FailedCheck(); ok {
+			ev.Result = "failed (" + c.Command + ")"
+		}
+	case harness.VerificationIncomplete:
+		ev.Result = "incomplete"
+		if strings.TrimSpace(v.Stopped) != "" {
+			ev.Result = "incomplete (" + strings.TrimSpace(v.Stopped) + ")"
+		}
+	default:
+		ev.Result = "unknown"
+	}
+	return ev
+}
+
+// legacyEvidence reads a Run reported by a worker that sent no structured
+// record. The worker appended its marker to the end of the summary and its
+// section to the end of the findings, so the last of each is its own.
+func legacyEvidence(r store.RunReport) Evidence {
+	at := strings.LastIndex(r.Findings, verificationHeading)
+	if at < 0 {
+		return Evidence{}
+	}
+	section := r.Findings[at:]
+	ev := Evidence{Dirty: strings.Contains(section, "The working tree had uncommitted changes")}
+	if m := verificationSummaryRe.FindAllStringSubmatch(r.Summary, -1); m != nil {
+		ev.Result = describeVerification(m[len(m)-1][1])
+	}
+	if ev.Result == "" {
+		ev.Result = "unknown"
+	}
+	if m := verificationCommitRe.FindStringSubmatch(section); m != nil {
+		ev.Commit = m[1]
+	}
+	return ev
 }
 
 // verificationHeading is the marker the worker writes; it must match

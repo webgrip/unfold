@@ -150,6 +150,10 @@
       "items": {
         "$ref": "#/$defs/createdWorkItem"
       }
+    },
+    "verification": {
+      "$ref": "#/$defs/verification",
+      "description": "The worker's own run of the configured checks on a writing Run's checkout after the harness exited (VIK-1733). Only the worker sets it: it discards any value an adapter or agent reported, and ploegd stores it for a writing Run only. Readers take a Run's verification result and commit from this record, never from the summary or findings prose. Optional: a report from an older worker has none and is read through the prose the worker appended."
     }
   },
   "$defs": {
@@ -218,6 +222,90 @@
         "description",
         "ready",
         "kind"
+      ],
+      "additionalProperties": false
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "incomplete"
+          ],
+          "description": "failed when a check failed; incomplete when checks stopped without a failure (time limit, cancellation); passed when every check ran and passed"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
+          "description": "the full object name of HEAD when the checks ran; absent when git could not tell"
+        },
+        "dirty": {
+          "type": "boolean",
+          "description": "the working tree had uncommitted changes, so the result may not describe commit"
+        },
+        "stopped": {
+          "type": "string",
+          "description": "why the checks after the last one that ran did not run"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/verificationCheck"
+          }
+        }
+      },
+      "required": [
+        "result",
+        "dirty",
+        "startedAt",
+        "finishedAt",
+        "checks"
+      ],
+      "additionalProperties": false
+    },
+    "verificationCheck": {
+      "type": "object",
+      "description": "one configured command, in the order the worker ran them; exitCode and the timestamps are present exactly when it ran",
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "result": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "failed",
+            "not_run"
+          ]
+        },
+        "exitCode": {
+          "type": "integer",
+          "description": "the command's exit status; -1 when it ended without one"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "command",
+        "result"
       ],
       "additionalProperties": false
     }

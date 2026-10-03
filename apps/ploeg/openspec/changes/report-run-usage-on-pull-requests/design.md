@@ -79,6 +79,15 @@ sentence); a `pkg/worker` test already pins that rendering (`verify_test.go`) an
 task 3.4 adds a byte-identical fixture, so a wording change fails both rather
 than silently dropping the evidence.
 
+Since VIK-1733 the prose is no longer the source when anything better exists.
+An agent could write the same markers into its own summary and findings, and
+the first match won. The worker now also sends a structured `verification`
+record on the outcome (`outcomereport.v1.schema.json`), which ploegd stores in
+`agent_runs.verification` (migration 0034) and `RoundReports` returns.
+`parseEvidence` uses that record whenever the last writing Run has one, and
+reads the prose only for a Run reported by an older worker, taking the last
+marker and the last section, which are the ones the worker appended.
+
 When that Run has no verification section — the worker did not verify it (a
 reading Role, or an outcome other than `pr_opened`/`pr_updated`), the operator
 configured no `verifyCommands`, or the Shift predates ADR-0035 (still

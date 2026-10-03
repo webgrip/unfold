@@ -35,6 +35,14 @@ func TestValidateOutcomeReport(t *testing.T) {
 		{"known failureReason", harness.OutcomeReport{Outcome: work.OutcomeFailed, FailureReason: string(work.FailureInfraLLM)}, false},
 		{"invented failureReason", harness.OutcomeReport{Outcome: work.OutcomeFailed, FailureReason: "vibes"}, true},
 		{"near-miss failureReason", harness.OutcomeReport{Outcome: work.OutcomeFailed, FailureReason: "infra-llm"}, true},
+
+		// VIK-1733: the worker's verification record is checked like the enums.
+		{"verification passed", harness.OutcomeReport{Outcome: work.OutcomePROpened,
+			Verification: &harness.Verification{Result: harness.VerificationPassed, Checks: []harness.VerificationCheck{}}}, false},
+		{"verification invented result", harness.OutcomeReport{Outcome: work.OutcomePROpened,
+			Verification: &harness.Verification{Result: "green"}}, true},
+		{"verification abbreviated commit", harness.OutcomeReport{Outcome: work.OutcomePROpened,
+			Verification: &harness.Verification{Result: harness.VerificationPassed, Commit: "abcdef123456"}}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validateOutcomeReport(tc.req)
