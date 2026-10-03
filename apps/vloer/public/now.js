@@ -3,7 +3,7 @@ import { icon } from './core/icons.js';
 import * as format from './core/format.js';
 import { runOutcome, verdict as verdictMeta, runFailure, workItemState, tileDetail, unreportedOutcome } from './core/states.js';
 import { listReason, reasonGlyph, routingWarning, needsYouBlocks } from './core/reasons.js';
-import { workItemRef, reasonBand } from './ploeg.js';
+import { workItemRef, reasonBand, mergeStateView } from './ploeg.js';
 import { grafanaTeam } from './core/observability.js';
 import { badge, button, callout, count, disclosure, emptyState, iconButton, kbd, listRow, meter, skeleton, stat, demoNote, ploegUnconfigured } from './core/ui.js';
 
@@ -233,6 +233,8 @@ function whyLine(entry, reason, warning, grouped) {
 function waitingMeta(entry, context, { reason, warning, grouped }) {
   const chips = [];
   if (reason && !grouped) chips.push(chipMarkup({ label: reason.chip, tone: reason.tone, title: `${reason.sentence} ${reason.action}` }));
+  const merge = entry.state === 'awaiting_review' ? mergeStateView(entry) : null;
+  if (merge?.key === 'conflicted') chips.push(chipMarkup({ label: 'Merge conflict', tone: 'attention', glyph: 'alert', title: `${merge.title}. ${merge.detail}` }));
   if (entry.state === 'proposed' && entry.ready === false) chips.push(chipMarkup({ label: 'Needs refinement', tone: 'attention', title: 'Not Ready yet: the brief needs refining before an agent can pick it up.' }));
   if (warning) chips.push(chipMarkup({ label: warning.chip, tone: warning.tone, glyph: warning.glyph, title: warning.sentence, secondary: true }));
   const review = entry.state === 'awaiting_review' ? latestVerdict(entry, context.runs) : null;

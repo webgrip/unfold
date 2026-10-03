@@ -281,7 +281,8 @@ Every Work Item in the overview lanes, the work-item pages, the detail and the p
 | `closeReason` | The latest Shift's close reason, or `null` while the Shift is open or when there is none |
 | `latestShift` | `{round, closeReason, budgetUsd, spentUsd, reservedUsd, closedAt}`, or `null` |
 | `spentUsd` | The latest Shift's spend, or `null` when unknown |
-| `pullRequestUrl` | For up to ten review rows, the pull request link from the newest checkpoint or Run; otherwise `""` |
+| `pullRequestUrl` | For up to ten review rows, the pull request link Ploeg's list reports, else the one from the newest checkpoint or Run; otherwise `""` |
+| `pullRequest` | Passed through from Ploeg's Work Item list: `{url, number, mergeState, baseBranch, headSha, checkedAt}`, or `null` when the Work Item has no pull request. Absent when Ploeg sends no field. `mergeState` is `clean`, `conflicted`, `unknown`, or `null` when Ploeg reported none ([Ploeg ADR-0040](../../../ploeg/docs/adrs/0040-a-conflicted-pull-request-becomes-a-priority-ticket-ploeg-resolves.md)) |
 | `sourceWorkItemId`, `sourceTitle`, `createdKind`, `ready` | Proposed rows only, when Ploeg reports them |
 
 ### Cancel

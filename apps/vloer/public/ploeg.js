@@ -336,8 +336,33 @@ function spendMini(item, context) {
   return `<span class="work-row-spend"><span class="work-row-spend-text">${text}</span>${ui.meter({ settled: shift.spentUsd, reserved: shift.reservedUsd, authorized: shift.budgetUsd, size: 'sm', label: '' })}</span>`;
 }
 
+/**
+ * How a Work Item's merge state reads where Vloer offers its pull request for review (Ploeg ADR-0040): `conflicted`
+ * in attention tone, `clean` as a success with the time Ploeg checked, `unknown` as a neutral "Not checked yet", and a
+ * Ploeg that reported no merge state as "Merge state: not reported". Only `clean` reads as clean. `title` and
+ * `detail` are plain text; `number` is the pull request number or null.
+ * @returns {{ key: 'conflicted' | 'clean' | 'unknown' | 'unreported', tone: string, glyph: string, title: string, detail: string, number: number | null }}
+ */
+export function mergeStateView(item) {
+  const pr = item?.pullRequest || null;
+  const base = pr?.baseBranch || item?.target?.baseBranch || '';
+  const number = Number.isInteger(pr?.number) && pr.number > 0 ? pr.number : null;
+  const against = base ? `with ${base}` : 'with its base branch';
+  if (pr?.mergeState === 'conflicted') return { key: 'conflicted', tone: 'attention', glyph: 'alert', title: `Conflicts ${against}`, detail: `Merge ${base || 'the base branch'} into the pull request's branch and resolve the conflicts before you review it.`, number };
+  if (pr?.mergeState === 'clean') return { key: 'clean', tone: 'success', glyph: 'check-circle', title: `No conflicts ${against}`, detail: pr.checkedAt ? `Ploeg checked ${dateTime(pr.checkedAt)}.` : '', number };
+  if (pr?.mergeState === 'unknown') return { key: 'unknown', tone: 'neutral', glyph: 'circle-dashed', title: 'Not checked yet', detail: 'Ploeg has not confirmed whether this pull request merges cleanly.', number };
+  return { key: 'unreported', tone: 'neutral', glyph: 'circle-dashed', title: 'Merge state: not reported', detail: 'Ploeg did not say whether this pull request conflicts.', number };
+}
+
 function reviewChip(item, facts) {
   const fact = facts?.[item.id]?.updatedAt === item.updatedAt ? facts[item.id] : null;
+  const merge = mergeStateView(item);
+  const number = merge.number ?? fact?.pullRequestNumber ?? null;
+  const conflict = merge.key === 'conflicted' ? ui.chip({ label: `${number ? `PR #${number}` : 'PR'} · Conflicts`, tone: 'attention', icon: 'alert', title: `${merge.title}. ${merge.detail}` }) : '';
+  return conflict + verdictChip(fact, item, conflict ? '' : fact?.pullRequestNumber);
+}
+
+function verdictChip(fact, item, pullRequestNumber) {
   const code = item.latestShift?.closeReason || item.closeReason || '';
   if (code === 'review_failed') {
     const pr = fact?.pullRequestNumber ? `PR #${fact.pullRequestNumber} · ` : '';
@@ -345,7 +370,7 @@ function reviewChip(item, facts) {
   }
   const verdict = fact ? fact.verdict : code === 'review_approved' ? 'approve' : undefined;
   const verdictText = verdict === 'approve' ? 'Agent approved' : verdict === 'request_changes' ? 'Agent asked for changes' : verdict === '' ? 'No agent verdict' : verdict === null ? 'No agent review' : code === 'plan_exhausted' ? 'No changes requested' : '';
-  const pr = fact?.pullRequestNumber ? `PR #${fact.pullRequestNumber}` : '';
+  const pr = pullRequestNumber ? `PR #${pullRequestNumber}` : '';
   const label = [pr, verdictText].filter(Boolean).join(' · ');
   if (!label) return '';
   const tone = verdict === 'approve' ? 'success' : verdict === 'request_changes' ? 'attention' : undefined;
@@ -702,6 +727,10 @@ function reviewBox(detail, model, plan, { hero = false } = {}) {
     ['Spend', spent ? ui.meter({ settled: spent.settledUsd, reserved: spent.reservedUsd, authorized: spent.authorizedUsd, demo, label: '', size: 'sm' }) : '<span class="subtle">No Shift recorded</span>'],
   ]);
   const checks = [];
+  const merge = mergeStateView(item);
+  const mergeCheck = merge.key === 'unreported' ? null : check(merge.tone, merge.glyph, escape(merge.title), escape(merge.detail), 'merge state');
+  if (mergeCheck) checks.push(mergeCheck);
+  const mergeNote = mergeCheck ? '' : `<p class="meta work-checklist-note">${escape(merge.title)}</p>`;
   const pr = safeUrl(review.pullRequestUrl);
   checks.push(pr ? check('success', 'check-circle', `Pull request${review.pullRequestNumber ? ` #${escape(review.pullRequestNumber)}` : ''} reported by the writer`, item.target ? `${escape(repoName(item.target))}${review.branch ? ` · <span class="mono">${escape(review.branch)}</span>` : ''}` : '', 'pull request') : check('attention', 'alert', 'No pull request link reported', review.branch ? `Find it on the forge by its branch <span class="mono">${escape(review.branch)}</span>.` : 'Find it on the forge.', 'pull request link'));
   if (!hero) {
@@ -719,8 +748,9 @@ function reviewBox(detail, model, plan, { hero = false } = {}) {
   if (files.length) checks.push(check('attention', 'alert', files.length === 1 ? 'Findings name an instruction file' : 'Findings name instruction files', `${files.map(name => `<code>${escape(name)}</code>`).join(' ')} ${files.length === 1 ? 'is' : 'are'} named in the findings. Check ${files.length === 1 ? 'it' : 'them'} in the diff before you merge.`));
   checks.push(safeUrl(item.url) ? check('success', 'check-circle', `Linked to its ${escape(trackerName(item.provider) || 'tracker')} task`, '') : check('neutral', 'circle-dashed', 'No tracker link reported', '', 'tracker link'));
   const ordered = checks.map((entry, index) => ({ ...entry, index })).sort((a, b) => checkRank[a.tone] - checkRank[b.tone] || a.index - b.index);
-  const visible = hero ? [...checks.filter(entry => entry.tone === 'danger' || entry.tone === 'attention'), ...checks.filter(entry => entry.tone === 'success')] : ordered;
-  const fold = hero ? neutralChecksLine(checks.filter(entry => entry.tone === 'neutral')) : '';
+  const rest = checks.filter(entry => entry !== mergeCheck);
+  const visible = hero ? [...(mergeCheck ? [mergeCheck] : []), ...rest.filter(entry => entry.tone === 'danger' || entry.tone === 'attention'), ...rest.filter(entry => entry.tone === 'success')] : ordered;
+  const fold = hero ? neutralChecksLine(rest.filter(entry => entry.tone === 'neutral')) : '';
   const forge = ui.disclosure({ summary: 'On the forge', id: `work-forge-${item.id}`, body: ui.dl([
     ['Merge', 'Ploeg marks the Work Item Done.'],
     ['Request changes', 'Ploeg queues a fix Round for the same Team, on the same branch.'],
@@ -729,7 +759,7 @@ function reviewBox(detail, model, plan, { hero = false } = {}) {
   const truncated = review.truncated ? '<p class="meta">Ploeg capped this history. Earlier records may be missing.</p>' : '';
   const actions = hero ? (plan.findings ? `<div class="work-decision-actions">${plan.findings}</div>` : '') : plan.actions.length ? `<div class="work-decision-actions">${plan.actions.join('')}</div>` : '';
   const head = hero ? '' : `<div class="work-decision-part"><p class="work-decision-sentence">${escape(pr ? 'The agents are done. Read the pull request and decide on the forge; Vloer does not merge.' : 'The agents are done, but Ploeg reported no pull request link.')}</p><div class="work-receipt">${receipt}</div>${truncated}</div>`;
-  const body = `${head}<div class="work-decision-part"><h4 class="overline">Before you merge</h4><ul class="work-checklist">${visible.map(entry => entry.html).join('')}</ul>${fold}${hero ? truncated : ''}${actions}</div><div class="work-decision-part">${forge}</div>`;
+  const body = `${head}<div class="work-decision-part"><h4 class="overline">Before you merge</h4><ul class="work-checklist">${visible.map(entry => entry.html).join('')}</ul>${mergeNote}${fold}${hero ? truncated : ''}${actions}</div><div class="work-decision-part">${forge}</div>`;
   return ui.card({ id: 'work-decision', region: true, title: 'Ready for your review', icon: 'pull-request', tone: 'review', level: 3, body });
 }
 

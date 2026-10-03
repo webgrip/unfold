@@ -35,6 +35,28 @@ export function notificationFor(item) {
   return { title: clip(item.title, 120) || `Work Item #${item.id}`, body: [what, clip(item.team, 60), `#${item.id}`].filter(Boolean).join(' · '), tag: `vloer-waiting-${item.id}`, hash: `work/${item.id}` };
 }
 
+/**
+ * The conflict spell of a waiting Work Item: its id and the head at which Ploeg confirmed its pull request conflicts
+ * (Ploeg ADR-0040), or null when it does not conflict. A conflict at a new head is a new spell.
+ */
+export function conflictKey(item) {
+  return item?.state === 'awaiting_review' && item.pullRequest?.mergeState === 'conflicted' ? `${item.id}:conflicted:${item.pullRequest.headSha || ''}` : null;
+}
+
+/**
+ * The waiting items whose pull request conflicts in a spell the previous read did not hold (`previous`, a Set of
+ * {@link conflictKey} values) and this tab has not seen (`seen`).
+ */
+export function newlyConflicted(previous, items, seen = new Set()) {
+  return items.filter(item => { const key = conflictKey(item); return key !== null && !previous.has(key) && !seen.has(key); });
+}
+
+/** The desktop notification for a waiting Work Item whose pull request started to conflict: "PR #N now conflicts". */
+export function conflictNotification(item) {
+  const number = Number.isInteger(item.pullRequest?.number) && item.pullRequest.number > 0 ? `PR #${item.pullRequest.number}` : 'Its pull request';
+  return { title: clip(item.title, 120) || `Work Item #${item.id}`, body: [`${number} now conflicts`, clip(item.team, 60), `#${item.id}`].filter(Boolean).join(' · '), tag: `vloer-conflict-${item.id}`, hash: `work/${item.id}` };
+}
+
 /** The one notification that stands in for several items that started waiting at once. */
 export function summaryNotification(total) {
   return { title: `${total} new items wait on you`, body: 'Open De Vloer to see what needs you.', tag: 'vloer-waiting', hash: 'now' };
@@ -58,18 +80,19 @@ export function waitingRows(data) {
  */
 export function createAttention(env) {
   let previous = null;
+  let previousConflicts = null;
   const seen = new Set();
   let broken = false;
   const store = createPrefs(() => env.storage());
   const wanted = () => store.get('notify') === true;
   const want = value => { store.set('notify', value); };
 
-  function claim(items, now) {
+  function claim(items, now, key = spellKey) {
     let list = [];
     try { const parsed = JSON.parse(env.storage()?.getItem(notifiedKey) || '[]'); if (Array.isArray(parsed)) list = parsed.filter(entry => Array.isArray(entry) && typeof entry[0] === 'string' && now - Number(entry[1]) < keepNotified); } catch {}
     const taken = new Set(list.map(entry => entry[0]));
-    const mine = items.filter(item => !taken.has(spellKey(item)));
-    list.push(...mine.map(item => [spellKey(item), now]));
+    const mine = items.filter(item => !taken.has(key(item)));
+    list.push(...mine.map(item => [key(item), now]));
     try { env.storage()?.setItem(notifiedKey, JSON.stringify(list.slice(-maxNotified))); } catch {}
     return mine;
   }
@@ -85,24 +108,30 @@ export function createAttention(env) {
   const attention = {
     /**
      * Takes the latest counts and waiting rows: shows the favicon dot while `waiting` is above zero, and sends a
-     * notification for each item that started waiting since the previous rows. `items` null means unknown and
-     * keeps the previous rows. Returns the notifications it sent.
+     * notification for each item that started waiting since the previous rows, and for each waiting item whose
+     * pull request started to conflict at a head not announced before. `items` null means unknown and keeps the
+     * previous rows. Returns the notifications it sent.
      */
     update({ waiting, items = null, now = Date.now() } = {}) {
       env.favicon(typeof waiting === 'number' && waiting > 0);
       if (!Array.isArray(items)) return [];
       const rows = items.filter(item => item && workItemId.test(String(item.id)));
       const fresh = previous ? newlyWaiting(previous, rows, seen) : [];
+      const freshIds = new Set(fresh.map(item => String(item.id)));
+      const conflicts = previousConflicts ? newlyConflicted(previousConflicts, rows, seen).filter(item => !freshIds.has(String(item.id))) : [];
       previous = new Set(rows.map(item => String(item.id)));
-      for (const item of rows) seen.add(spellKey(item));
-      if (!fresh.length || attention.status() !== 'on' || env.attentive()) return [];
+      previousConflicts = new Set(rows.map(conflictKey).filter(key => key !== null));
+      for (const item of rows) { seen.add(spellKey(item)); const key = conflictKey(item); if (key !== null) seen.add(key); }
+      if ((!fresh.length && !conflicts.length) || attention.status() !== 'on' || env.attentive()) return [];
       const Api = env.notifications();
       const mine = claim(fresh, now);
-      const messages = mine.length > summaryAbove ? [summaryNotification(mine.length)] : mine.map(notificationFor);
+      const mineConflicts = claim(conflicts, now, conflictKey);
+      const total = mine.length + mineConflicts.length;
+      const messages = total > summaryAbove ? [summaryNotification(total)] : [...mine.map(notificationFor), ...mineConflicts.map(conflictNotification)];
       return messages.filter(message => send(Api, message));
     },
     /** Forgets the waiting rows and hides the dot, for example after signing out. */
-    reset() { previous = null; env.favicon(false); },
+    reset() { previous = null; previousConflicts = null; env.favicon(false); },
     /**
      * Whether desktop notifications can and do run: `unsupported` (no Notification API, or it refused to show
      * one), `insecure` (not a secure context), `denied` (blocked in the browser), `off`, or `on`.
