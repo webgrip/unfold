@@ -1,0 +1,70 @@
+name: '[Workflow] On DNS Change'
+
+on:
+  push:
+    branches: [development]
+    paths:
+      - 'apps/site/ops/dns/**'
+      - '.forgejo/workflows/on_dns_change.yml'
+  schedule:
+    - cron: '45 5 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: dns-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  authorize-dns:
+    runs-on: docker
+    outputs:
+      change: ${{ steps.gate.outputs.change }}
+      drift: ${{ steps.gate.outputs.drift }}
+    steps:
+      - name: Resolve the DNS credential and event gate
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          CLOUDFLARE_DNS_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
+        run: |
+          change=false
+          drift=false
+          if [ -n "${CLOUDFLARE_DNS_TOKEN:-}" ]; then
+            if [ "$EVENT" = schedule ]; then drift=true; else change=true; fi
+          fi
+          printf 'change=%s\ndrift=%s\n' "$change" "$drift" >> "$GITHUB_OUTPUT"
+          printf 'DNS change: %s, drift check: %s\n' "$change" "$drift"
+  dns-preview:
+    needs: [authorize-dns]
+    uses: webgrip/workflows/.forgejo/workflows/dnscontrol.yml@v2.7.7
+    with:
+      enabled: ${{ needs.authorize-dns.outputs.change }}
+      mode: preview
+      working-directory: apps/site/ops/dns
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  dns-push:
+    needs: [authorize-dns, dns-preview]
+    uses: webgrip/workflows/.forgejo/workflows/dnscontrol.yml@v2.7.7
+    with:
+      enabled: ${{ needs.authorize-dns.outputs.change }}
+      mode: push
+      push-refs: refs/heads/development
+      working-directory: apps/site/ops/dns
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+  dns-drift:
+    needs: [authorize-dns]
+    uses: webgrip/workflows/.forgejo/workflows/dnscontrol.yml@v2.7.7
+    with:
+      enabled: ${{ needs.authorize-dns.outputs.drift }}
+      mode: drift
+      working-directory: apps/site/ops/dns
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_DNS_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

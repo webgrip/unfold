@@ -4,4 +4,22 @@ import webgrip from '@webgrip/eslint-config-astro';
 export default defineConfig([
   ...webgrip,
   globalIgnores(['.releaserc.cjs', 'public/demo/', 'replay/']),
+  {
+    files: ['ops/dns/**/*.js'],
+    languageOptions: {
+      globals: Object.fromEntries(
+        [
+          'AAAA',
+          'CF_PROXY_ON',
+          'CF_SINGLE_REDIRECT',
+          'D',
+          'DefaultTTL',
+          'DnsProvider',
+          'IGNORE',
+          'NewDnsProvider',
+          'NewRegistrar',
+        ].map((name) => [name, 'readonly']),
+      ),
+    },
+  },
 ]);

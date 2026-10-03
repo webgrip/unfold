@@ -9,6 +9,10 @@ describe('site indexing', () => {
     assert.equal(isIndexable('https://unfold-site.pages.dev'), false);
   });
 
+  test('a staging hostname is never indexed', () => {
+    assert.equal(isIndexable('https://staging.unfoldhq.dev'), false);
+  });
+
   test('a local build is never indexed', () => {
     assert.equal(isIndexable(LOCAL_SITE_URL), false);
     assert.equal(isIndexable('http://127.0.0.1:4321'), false);

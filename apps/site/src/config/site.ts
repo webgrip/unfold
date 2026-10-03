@@ -13,10 +13,12 @@ export const SITE_URL = resolveSiteUrl(process.env['UNFOLD_SITE_URL']);
 
 const PLATFORM_HOST_SUFFIXES = ['.workers.dev', '.pages.dev'];
 const LOCAL_HOSTS = ['localhost', '127.0.0.1'];
+const NON_PUBLIC_HOST_PREFIXES = ['staging.'];
 
 export function isIndexable(siteUrl: string): boolean {
   const { hostname } = new URL(siteUrl);
   if (LOCAL_HOSTS.includes(hostname)) return false;
+  if (NON_PUBLIC_HOST_PREFIXES.some((prefix) => hostname.startsWith(prefix))) return false;
   return !PLATFORM_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix));
 }
 
