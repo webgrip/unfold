@@ -159,7 +159,7 @@ A durable, explicitly approved operation to publish one verified Delivery Candid
 ## Push Credential
 *Context: Execution*
 
-The repository-scoped forge token minted for one writing Run and revoked when its Lease settles or lapses. What makes the Lease enforceable rather than advisory, and the reason a reading Run cannot write the branch it is reviewing. The model-provider equivalent is the per-Run LiteLLM key.
+The repository-scoped forge token minted for one writing Run and revoked when its Lease settles or lapses. What makes the Lease enforceable rather than advisory, and the reason a reading Run cannot write the branch it is reviewing. The model-provider equivalent is the per-Run LiteLLM key. It has no expiry of its own, because a Forgejo access token lives until it is deleted, so revocation is its only bound. The forge orphan sweep revokes every token whose Run holds no Lease.
 
 **Do not use:** builder token, deploy key  
 **See also:** [Lease](#lease), [Run](#run)  

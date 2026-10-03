@@ -129,7 +129,7 @@ func TestSweepOrphans_LeavesForeignTokensAlone(t *testing.T) {
 	})
 
 	b := &Forgejo{BaseURL: srv.URL, Bot: "agent-builder", Password: "bot-password"}
-	n, err := b.SweepOrphans(context.Background(), []string{"2"})
+	n, err := b.SweepOrphans(context.Background(), leasedRuns("bbb"))
 	if err != nil {
 		t.Fatalf("SweepOrphans: %v", err)
 	}

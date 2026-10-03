@@ -12,26 +12,19 @@ import (
 	"github.com/webgrip/ploeg/pkg/store"
 )
 
-// forgeOrphanSweep revokes push credentials that outlived the ploegd that
-// minted them — the crash window between minting and recording, and anything
-// a previous process left behind.
 func forgeOrphanSweep(ctx context.Context, log *slog.Logger, st *store.Store, sweeper forgebroker.Sweeper) {
 	if sweeper == nil {
 		return
 	}
-	alive, err := st.LiveForgeTokenIDs(ctx)
-	if err != nil {
-		log.Error("forge orphan sweep: failed to read live credentials", "err", err)
-		return
+	n, err := sweeper.SweepOrphans(ctx, st.LeasedRunTokens)
+	if n > 0 {
+		log.Info("forge orphan sweep: revoked stale push credentials", "count", n)
 	}
-	n, err := sweeper.SweepOrphans(ctx, alive)
 	if err != nil {
 		log.Error("forge orphan sweep failed", "err", err)
 		return
 	}
-	if n > 0 {
-		log.Info("forge orphan sweep: revoked stale push credentials", "count", n)
-	} else {
+	if n == 0 {
 		log.Info("forge orphan sweep: no stale push credentials found")
 	}
 }
