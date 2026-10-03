@@ -1,7 +1,7 @@
 import { escape, safeUrl } from './core/dom.js';
 import { icon } from './core/icons.js';
 import * as format from './core/format.js';
-import { runOutcome, verdict as verdictMeta, failureReason, workItemState, tileDetail, unreportedOutcome } from './core/states.js';
+import { runOutcome, verdict as verdictMeta, runFailure, workItemState, tileDetail, unreportedOutcome } from './core/states.js';
 import { listReason, reasonGlyph, routingWarning, needsYouBlocks } from './core/reasons.js';
 import { workItemRef, reasonBand } from './ploeg.js';
 import { grafanaTeam } from './core/observability.js';
@@ -397,7 +397,7 @@ function runningCard(view, context) {
 function recentRow(run, context) {
   const outcome = runOutcome(run.outcome);
   const tone = outcome?.tone || 'neutral';
-  const failure = failureReason(run.failureReason);
+  const failure = runFailure(run);
   const verdict = run.verdict && run.verdict !== 'none' ? verdictMeta(run.verdict) : null;
   const unread = context.dots && after(run.finishedAt, context.since);
   const none = outcome ? null : unreportedOutcome(run);

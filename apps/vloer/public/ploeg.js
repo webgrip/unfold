@@ -3,7 +3,7 @@ import { icon } from './core/icons.js';
 import { markdown } from './core/markdown.js';
 import { count as formatCount, money, plural, duration, dateTime } from './core/format.js';
 import * as ui from './core/ui.js';
-import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason } from './core/states.js';
+import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, runFailure, runFailureText, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason } from './core/states.js';
 import { listReason, routingWarning, detailReason, requeueNote, needsYouBlocks, reasonGlyph } from './core/reasons.js';
 import { grafanaTeam, runExplorer } from './core/observability.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
@@ -270,7 +270,7 @@ export function runResult(run) {
   if (run.state !== 'finished') return run.state === 'running' ? runState('running') : { ...runState('pending'), label: 'Waiting for a worker' };
   if (!run.writes && run.verdict) { const meta = verdictMeta(run.verdict); return { ...meta, label: meta.short, title: meta.label }; }
   if (run.outcome) { const meta = runOutcome(run.outcome); return { ...meta, label: meta.short || meta.label, title: meta.label }; }
-  if (run.failureReason) return { ...failureReason(run.failureReason), tone: 'danger' };
+  if (run.failureReason) return { ...runFailure(run), tone: 'danger' };
   return unreportedOutcome(run);
 }
 
@@ -555,7 +555,7 @@ function evidenceText(run, reason) {
 function evidenceLine(run, reason) {
   const result = runResult(run);
   const text = evidenceText(run, reason);
-  const failure = failureReason(run.failureReason);
+  const failure = runFailure(run);
   const when = run.finishedAt || run.startedAt;
   return `<li class="work-evidence" data-tone="${result.tone}"><span class="work-evidence-icon" aria-hidden="true">${icon(result.glyph || 'circle')}</span><div class="work-evidence-main"><p class="work-evidence-title"><strong>${escape(run.role || 'Agent')}</strong>${run.round ? ` · Round ${escape(run.round)}` : ''} · ${escape(result.title || result.label)}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}${when ? ` · ${ui.timeAgo(when)}` : ''}</p>${text ? `<p class="${logLike.test(text) ? 'work-evidence-text work-log' : 'work-evidence-text'}">${escape(text)}</p>` : ''}</div>${runJump(run)}</li>`;
 }
@@ -831,7 +831,7 @@ function runLinks(run) {
 }
 
 function runBody(run, { demo, now, live, attempts, grafanaUrl }) {
-  const failure = failureReason(run.failureReason);
+  const failure = runFailure(run);
   const retriedAs = failure?.retries ? attempts?.get(String(run.id))?.next : null;
   const parts = [];
   const repeated = run.stuckReason && overlaps(run.summary, run.stuckReason);
@@ -839,9 +839,11 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl }) {
   if (run.stuckReason || failure) {
     const tone = run.outcome === 'stuck' ? 'attention' : failure?.tone || 'danger';
     const title = run.outcome === 'stuck' ? 'Why it is stuck' : failure ? failure.label : 'Why it failed';
-    const reasonText = run.stuckReason ? `<p class="${logLike.test(run.stuckReason) ? 'work-log' : 'work-run-reason'}">${escape(run.stuckReason)}</p>` : '';
-    const note = failure ? [failureNote(run.failureReason, { live: live && !retriedAs }), retriedAs ? `Ploeg retried it as attempt ${retriedAs}.` : ''].filter(Boolean).join(' ') : '';
-    const body = `${reasonText}${note ? `<p>${escape(note)}</p>` : ''}`;
+    const { reason: stated, output, outputLabel } = runFailureText(run);
+    const reasonText = stated ? `<p class="${logLike.test(stated) ? 'work-log' : 'work-run-reason'}">${escape(stated)}</p>` : '';
+    const outputText = output ? `<h4 class="overline">${escape(outputLabel)}</h4><p class="work-log">${escape(output)}</p>` : '';
+    const note = failure ? [failureNote(failure, { live: live && !retriedAs }), retriedAs ? `Ploeg retried it as attempt ${retriedAs}.` : ''].filter(Boolean).join(' ') : '';
+    const body = `${reasonText}${outputText}${note ? `<p>${escape(note)}</p>` : ''}`;
     parts.push(ui.callout({ tone, title, body }));
   }
   if (run.findings?.trim()) parts.push(`<div class="work-findings"><h4 class="overline">Findings</h4><div class="prose">${markdown(run.findings, { baseLevel: 5 })}</div></div>`);
@@ -871,7 +873,7 @@ function runRow(run, context, { round }) {
   const cost = runCost(run, context.demo);
   const lead = result.live ? '<span class="live-dot" aria-hidden="true"></span>' : icon(result.glyph || 'circle');
   const when = run.finishedAt || run.startedAt;
-  const failure = failureReason(run.failureReason);
+  const failure = runFailure(run);
   const attempt = attemptLabel(context.attempts?.get(String(run.id)));
   const role = `${round ? `<span class="work-run-round">${escape(round)} · </span>` : ''}${run.writes ? 'writer' : 'reader'}${attempt ? ` · ${escape(attempt)}` : ''}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}`;
   return `<details class="work-run" id="work-run-${escape(run.id)}" data-tone="${result.tone}"><summary><span class="work-run-lead" aria-hidden="true">${lead}</span><span class="work-run-name"><strong>${escape(run.role || 'Agent')}</strong><span class="meta">${role}</span></span>${ui.badge({ tone: result.tone, label: result.label, title: result.title, size: 'sm' })}<span class="work-run-numbers meta">${time !== null ? `<span class="num">${escape(duration(time))}</span>` : ''}${cost ? `<span class="num">${escape(cost)}</span>` : ''}${when ? ui.timeAgo(when) : ''}</span>${icon('chevron-down', 'work-run-chevron')}</summary><div class="work-run-body">${runBody(run, context)}</div></details>`;

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { actorName, auditActor, auditEvent, displayState, tileDetail, unreportedOutcome, checkpointPhase, checkpointPhases, failureNote, failureReason, failureReasons, runOutcome, runOutcomes, runState, runStates, sessionNeedsYou, sessionStatus, sessionStatuses, stateMeta, tones, verdict, verdicts, workItemState, workItemStates } from '../public/core/states.js';
+import { actorName, auditActor, auditEvent, displayState, tileDetail, unreportedOutcome, checkpointPhase, checkpointPhases, failureNote, failureReason, failureReasons, runFailure, runFailureText, runOutcome, runOutcomes, runState, runStates, sessionNeedsYou, sessionStatus, sessionStatuses, stateMeta, tones, verdict, verdicts, workItemState, workItemStates } from '../public/core/states.js';
 import { stateBadge } from '../public/core/ui.js';
 import { labels, statusLabel } from '../public/core/lookup.js';
 import { icons } from '../public/core/icons.js';
@@ -125,6 +125,29 @@ test('a failure reads as its cause, and only a live Work Item is said to retry',
   assert.equal(failureReasons.infra_node.action, 'It retries automatically. If it keeps happening, check the nodes and images.', 'owner and action stay for existing callers');
   assert(Object.values(failureReasons).every(meta => meta.cause && typeof meta.retries === 'boolean' && meta.next));
   assert(Object.values(failureReasons).every(meta => meta.retries === meta.infra), 'only infrastructure failures are retried by Ploeg');
+});
+
+test('a Run an ACP watchdog stopped reads as an agent that stopped responding, whichever summary it carries', () => {
+  const tail = 'no protocol activity for 10m0s after 29 events | last agent message: still reading | stderr: npm WARN deprecated';
+  for (const summary of ['acp idle watchdog stopped the agent: no protocol activity for 10m0s', 'acp prompt wall stopped the agent: the turn ran past 45m0s', 'acp agent stopped responding']) {
+    const meta = runFailure({ failureReason: 'agent_error', summary, stuckReason: tail });
+    assert.equal(meta.label, 'The agent stopped responding', summary);
+    assert.equal(meta.infra, false);
+    assert.equal(meta.key, 'agent_error', 'the failure reason stays agent_error');
+    assert.equal(failureNote(meta, { live: false }), 'Cause: the agent stopped responding. Its reason names the watchdog that stopped it. A hung command or a long silent model call is the usual cause.');
+    assert.doesNotMatch(failureNote(meta), /log tail|exited with an error/);
+  }
+  assert.deepEqual(runFailureText({ failureReason: 'agent_error', summary: 'acp idle watchdog stopped the agent: no protocol activity for 10m0s', stuckReason: tail }), { reason: 'no protocol activity for 10m0s after 29 events | last agent message: still reading', output: 'npm WARN deprecated', outputLabel: 'Last lines it printed' });
+  assert.deepEqual(runFailureText({ failureReason: 'agent_error', summary: 'acp prompt wall stopped the agent: the turn ran past 45m0s', stuckReason: 'prompt ran past 45m0s' }), { reason: 'prompt ran past 45m0s', output: '', outputLabel: 'Last lines it printed' });
+});
+
+test('other agent_error Runs and other failures keep their table wording', () => {
+  const crash = { failureReason: 'agent_error', summary: 'acp agent exited before answering the prompt', stuckReason: 'EOF | stderr: panic' };
+  assert.equal(runFailure(crash), failureReason('agent_error'));
+  assert.deepEqual(runFailureText(crash), { reason: 'EOF | stderr: panic', output: '', outputLabel: '' });
+  assert.equal(runFailure({ failureReason: 'lease_lost', summary: 'acp agent stopped responding' }), failureReason('lease_lost'));
+  assert.equal(runFailure({ failureReason: null, summary: 'acp idle watchdog stopped the agent: x' }), null);
+  assert.equal(runFailure({ failureReason: 'agent_error', summary: 'it said acp idle watchdog stopped the agent' }), failureReason('agent_error'), 'only a summary that starts with the watchdog wording counts');
 });
 
 test('checkpoint phases read as what the Run did', () => {
