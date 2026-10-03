@@ -5,5 +5,5 @@ type: application
 home: https://forgejo.webgrip.dev/webgrip/glide
 sources:
   - https://github.com/webgrip/glide
-version: 0.4.0-rc.33
-appVersion: 0.4.0-rc.33
+version: 0.4.0-rc.34
+appVersion: 0.4.0-rc.34
