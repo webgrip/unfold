@@ -8,7 +8,7 @@ verified_by: "Repository claims checked: outcome values in cutover-record.exampl
 
 # First Unfold release and live test
 
-Use this playbook to transfer release authority to Unfold, publish the first qualified application versions, and test them in a controlled environment. The source migration is complete. Release cutover is not yet qualified: keep `GLIDE_RELEASES_ENABLED` unset or `false` until the preparation gates below pass.
+Use this playbook to transfer release authority to Unfold, publish the first qualified application versions, and test them in a controlled environment. The source migration is complete. Release cutover is not yet qualified: keep `UNFOLD_RELEASES_ENABLED` unset or `false` until the preparation gates below pass.
 
 The [12 September readiness record](../research/2026-09-12-cutover-readiness.json) separates observed results from missing evidence. The [23 September readiness record](../research/2026-09-23-cutover-readiness.json) and its [summary](../research/2026-09-23-cutover-readiness.md) show which blockers are fixed and which owner actions remain. The [CI guide](ci.md) maps the current event entry points and publication guards. Copy the [execution record](cutover-record.example.json) for your test and replace its empty fields as each stage completes. Keep credentials, cookies, model prompts containing private data and database contents out of that record. A stage passes only when its evidence is attached; a skipped job is not a pass.
 
@@ -69,7 +69,7 @@ Credential values remain in OpenBao and the existing bridges. The [secrets model
 
 ## 3. Preview the versions while publishing is disabled
 
-Open [Unfold Actions](https://forgejo.webgrip.dev/webgrip/glide/actions), select **[Workflow] On Release Preview**, choose `development`, and dispatch it. The [preview workflow](../../.forgejo/workflows/on_release_preview.yml) invokes the same pinned toolchain and application configs as the release jobs with `dry-run: 'true'`. It has no artifact publisher or deployment step and does not require opening `GLIDE_RELEASES_ENABLED`.
+Open [Unfold Actions](https://forgejo.webgrip.dev/webgrip/glide/actions), select **[Workflow] On Release Preview**, choose `development`, and dispatch it. The [preview workflow](../../.forgejo/workflows/on_release_preview.yml) invokes the same pinned toolchain and application configs as the release jobs with `dry-run: 'true'`. It has no artifact publisher or deployment step and does not require opening `UNFOLD_RELEASES_ENABLED`.
 
 Record the source SHA, last recognized Unfold tag, predicted next version, channel and release notes. The first preview must recognize the `glide-v0.3.0` baseline and predict `0.4.0-rc.1` (or `0.3.1-rc.1` if only fixes follow the baseline); anything lower means the baseline tag is missing from Forgejo. Check the proposed versions against every existing registry and extension destination; do not reuse a version already published with different contents.
 
@@ -89,7 +89,7 @@ The 12 September audit saw completed Ploeg backups but an unhealthy `cnpg-disast
 
 ## 5. Publish the first Unfold release
 
-With preparation evidence complete and the old release authorities frozen, set the repository variable `GLIDE_RELEASES_ENABLED=true` in [Unfold repository settings](https://forgejo.webgrip.dev/webgrip/glide/settings). Record who changed it and when. Coordinate a quiet `development` window so the source cannot advance unnoticed.
+With preparation evidence complete and the old release authorities frozen, set the repository variable `UNFOLD_RELEASES_ENABLED=true` in [Unfold repository settings](https://forgejo.webgrip.dev/webgrip/glide/settings). Record who changed it and when. Coordinate a quiet `development` window so the source cannot advance unnoticed.
 
 The [release jobs](../../.forgejo/workflows/on_source_change.yml) run only for a **push to `development`**. Enabling the variable does not start them; manually dispatching the source-change workflow also does not start them. Push the reviewed release-worthy change, or, if the exact qualified tip already contains eligible changes, use one documented `chore: start qualified Unfold release cutover` empty commit to trigger a fresh push. An empty commit triggers evaluation but does not itself earn a version bump. Fetch the resulting tip, wait for its checks and retain its run link.
 
@@ -185,7 +185,7 @@ Give each paid session its own approved limit and record the total allowance bef
 | Pilot rollout or work fails | Stop new admission, explicitly stop active work and settle or retain uncertain authorizations. Revert the scoped GitOps rollout to the recorded chart/image/configuration pins and let Flux reconcile. Verify observed digests and health. |
 | Old binaries cannot read migrated state | Use the tested coordinated database/volume restore procedure with admission closed, or fix forward. A Git revert is not a database rollback. Do not restore one service's state while leaving inconsistent peer state active. |
 
-Setting `GLIDE_RELEASES_ENABLED=false` prevents future eligible jobs; it does not cancel an already running job, retract artifacts, roll back a deployment or stop a paid session. Inspect [Actions](https://forgejo.webgrip.dev/webgrip/glide/actions) and stop the relevant active publication runs if needed. Do not re-enable the old release authorities after an Unfold publication without reconciling versions, source and channel history first.
+Setting `UNFOLD_RELEASES_ENABLED=false` prevents future eligible jobs; it does not cancel an already running job, retract artifacts, roll back a deployment or stop a paid session. Inspect [Actions](https://forgejo.webgrip.dev/webgrip/glide/actions) and stop the relevant active publication runs if needed. Do not re-enable the old release authorities after an Unfold publication without reconciling versions, source and channel history first.
 
 ## 10. Close the test
 

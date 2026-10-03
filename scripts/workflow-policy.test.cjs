@@ -28,7 +28,7 @@ test('event entry points preserve validation and keep application publication ou
   assert.deepEqual(pr.jobs['release-policy'].container, source.jobs.release.container);
   assert.deepEqual(pr.jobs['release-policy'].steps, source.jobs.release.steps.slice(0, 2));
   for (const name of ['on_pull_request.yml', 'on_docs_change.yml']) {
-    assert.doesNotMatch(JSON.stringify(workflows[name]), /GLIDE_RELEASES_ENABLED|contents":"write|semantic-release-monorepo@/);
+    assert.doesNotMatch(JSON.stringify(workflows[name]), /UNFOLD_RELEASES_ENABLED|contents":"write|semantic-release-monorepo@/);
   }
   const verification = read('.forgejo/actions/verify/action.yml');
   assert.ok(verification.runs.steps.some(verifyStep));
@@ -49,7 +49,7 @@ test('only an enabled development push can version Unfold, after the checks and 
   for (const event_name of ['push', 'pull_request', 'workflow_dispatch', 'release']) {
     for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic', 'refs/tags/unfold-v0.4.0-rc.1']) {
       for (const gate of ['', 'false', 'true']) {
-        const enabled = evaluate(job.if, { github: { event_name, ref }, vars: { GLIDE_RELEASES_ENABLED: gate } });
+        const enabled = evaluate(job.if, { github: { event_name, ref }, vars: { UNFOLD_RELEASES_ENABLED: gate } });
         assert.equal(enabled, event_name === 'push' && ref === 'refs/heads/development' && gate === 'true');
       }
     }
@@ -153,7 +153,7 @@ test('release routing publishes both applications for an Unfold tag and nothing 
     for (const event_name of ['release', 'workflow_dispatch']) {
       for (const gate of ['', 'false', 'true']) {
         const tag = `${selected}-v0.4.0-rc.5`;
-        const context = { github: { event_name, event: { release: { tag_name: event_name === 'release' ? tag : '' } } }, inputs: { tag: event_name === 'workflow_dispatch' ? tag : '' }, vars: { GLIDE_RELEASES_ENABLED: gate }, needs: {} };
+        const context = { github: { event_name, event: { release: { tag_name: event_name === 'release' ? tag : '' } } }, inputs: { tag: event_name === 'workflow_dispatch' ? tag : '' }, vars: { UNFOLD_RELEASES_ENABLED: gate }, needs: {} };
         const parsed = evaluate(publisher.jobs['parse-release-tag'].if, context);
         assert.equal(parsed, selected === 'unfold' && gate === 'true');
         context.needs['parse-release-tag'] = { outputs: { version: parsed ? '0.4.0-rc.5' : '' } };
@@ -182,7 +182,7 @@ test('the site versions on its own train, after Unfold, behind the same gate', (
 test('only a site tag deploys the site, to the workers.dev origin Cloudflare reports', () => {
   const gate = publisher.jobs['site-release-tag'];
   assert.equal(gate.if, undefined, 'site-deploy reads these outputs while Forgejo flattens it, so the gate job must never be skipped');
-  assert.equal(gate.steps[0].env.RELEASES_ENABLED, '${{ vars.GLIDE_RELEASES_ENABLED }}');
+  assert.equal(gate.steps[0].env.RELEASES_ENABLED, '${{ vars.UNFOLD_RELEASES_ENABLED }}');
 
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'site-gate-'));
   fs.writeFileSync(path.join(bin, 'curl'), '#!/bin/sh\nprintf \'%s\' "$FAKE_CLOUDFLARE"\n', { mode: 0o755 });
@@ -219,7 +219,7 @@ test('only a site tag deploys the site, to the workers.dev origin Cloudflare rep
 
   const deploy = publisher.jobs['site-deploy'];
   assert.deepEqual(deploy.needs, ['site-release-tag']);
-  assert.equal(deploy.uses, 'webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v2.7.5');
+  assert.equal(deploy.uses, 'webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v2.7.7');
   assert.equal(deploy.with.enabled, "${{ needs.site-release-tag.outputs.deploy == 'true' }}");
   assert.equal(deploy.with.environment, 'production');
   assert.equal(deploy.with['release-channel'], 'prerelease');
@@ -352,7 +352,7 @@ test('the tutorial smoke job runs weekly, only runs the deterministic demo and n
   const action = read('.forgejo/actions/tutorial-smoke/action.yml');
   assert.deepEqual(action.runs.steps.filter(step => step.run).map(step => step.run), ['bash scripts/tutorial-smoke.sh --check', 'mise trust apps/vloer/mise.toml && mise trust apps/ploeg/mise.toml && bash scripts/tutorial-smoke.sh']);
   assert.equal(action.runs.steps.at(-1).if, "steps.prerequisites.outputs.ready == 'true'");
-  assert.doesNotMatch(JSON.stringify(action) + JSON.stringify(job), /secrets\.|GLIDE_RELEASES_ENABLED|permissions/);
+  assert.doesNotMatch(JSON.stringify(action) + JSON.stringify(job), /secrets\.|UNFOLD_RELEASES_ENABLED|permissions/);
   for (const workflow of ['on_pull_request.yml', 'on_source_change.yml']) assert.ok(!('tutorial-smoke' in workflows[workflow].jobs), workflow);
 });
 

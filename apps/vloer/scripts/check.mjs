@@ -1,11 +1,12 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
-import { dirname, extname, isAbsolute, relative, resolve } from 'node:path';
+import { basename, dirname, extname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripTypeScriptTypes } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { threeVersion, vendoredFiles } from './vendor-three.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const syncedCoreDirectory = resolve(root, 'extensions/vscode/media/core');
 const failures = [];
 const files = [];
 const excluded = new Set(['.git', 'node_modules', '.vloer', 'dist', 'coverage', 'test-results', 'playwright-report']);
@@ -71,7 +72,8 @@ for (const path of files) {
     if (specifier.startsWith('.')) {
       const target = resolve(dirname(path), specifier.split('?')[0]);
       const compiledExtensionImport = relative(root, path).startsWith('extensions/vscode/') && extension === '.ts' && target.endsWith('.js') && existsSync(target.slice(0, -3) + '.ts');
-      if (!extname(target) || (!existsSync(target) && !compiledExtensionImport)) fail(path, `missing relative import ${specifier}`);
+      const syncedCoreImport = dirname(target) === syncedCoreDirectory && existsSync(resolve(root, 'public/core', basename(target)));
+      if (!extname(target) || (!existsSync(target) && !compiledExtensionImport && !syncedCoreImport)) fail(path, `missing relative import ${specifier}`);
       if (relative(root, target).startsWith('..') || isAbsolute(relative(root, target))) fail(path, 'source import escapes repository');
     } else if (relative(root, path).startsWith('src/') && !specifier.startsWith('node:')) {
       fail(path, 'application imports must use native Node modules or repository files');

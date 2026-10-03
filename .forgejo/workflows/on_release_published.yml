@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   parse-release-tag:
-    if: vars.GLIDE_RELEASES_ENABLED == 'true' && startsWith(github.event.release.tag_name || inputs.tag, 'unfold-v')
+    if: vars.UNFOLD_RELEASES_ENABLED == 'true' && startsWith(github.event.release.tag_name || inputs.tag, 'unfold-v')
     runs-on: docker
     outputs:
       version: ${{ steps.parse.outputs.version }}
@@ -538,7 +538,7 @@ jobs:
           WORKFLOW_EVENT: ${{ github.event_name }}
           SELECTED_REF: ${{ github.ref }}
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
-          RELEASES_ENABLED: ${{ vars.GLIDE_RELEASES_ENABLED }}
+          RELEASES_ENABLED: ${{ vars.UNFOLD_RELEASES_ENABLED }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |

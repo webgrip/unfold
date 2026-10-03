@@ -35,7 +35,7 @@ jobs:
         id: gate
         env:
           DOCS_REF: ${{ github.ref }}
-          DOCS_ENABLED: ${{ vars.GLIDE_DOCS_PUBLISH_ENABLED }}
+          DOCS_ENABLED: ${{ vars.UNFOLD_DOCS_PUBLISH_ENABLED }}
         run: |
           enabled=false
           if [ "$DOCS_REF" = 'refs/heads/development' ] && [ "$DOCS_ENABLED" = 'true' ]; then
