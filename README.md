@@ -2,9 +2,11 @@
 
 Unfold turns units of work into pull requests that AI agents write and you review. A unit of work, a *Work Item*, is something you have decided to do, or a problem described well enough that a solution can be formulated or at least conceived. You assign it to an agent team. Unfold runs the agents with a budget and a credential that expires, until a pull request is ready for your review. Work can also create work: splitting a Work Item or making it ready is a job for agents too.
 
-[Ploeg](apps/ploeg/README.md) authorizes, budgets and runs every agent Run. [Vloer](apps/vloer/README.md) is its front end. Both live here and deploy separately. Unfold is an internal, pre-1.0 tool that is self-hosted on Kubernetes.
+[Ploeg](https://github.com/ploeg-hq/ploeg) authorizes, budgets and runs every agent Run. [Vloer](apps/vloer/README.md) is its front end. Vloer lives here; Ploeg is developed and released in its own repository, and Unfold pins one tested commit of it as a Git submodule at `apps/ploeg` ([ADR-0019](docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)). They deploy separately. Unfold is an internal, pre-1.0 tool that is self-hosted on Kubernetes.
 
 ```sh
+git clone --recurse-submodules https://forgejo.webgrip.dev/webgrip/unfold.git
+cd unfold
 mise trust
 mise install
 mise run setup
@@ -18,11 +20,11 @@ Read the [published documentation](https://docs.webgrip.dev/glide/) or start at 
 
 | Location | Contents |
 | --- | --- |
-| [apps/ploeg](apps/ploeg/) | Go controller and worker, schemas, Helm chart |
+| [apps/ploeg](apps/ploeg/) | Pinned [Ploeg](https://github.com/ploeg-hq/ploeg) submodule: Go controller and worker, schemas, Helm chart |
 | [apps/vloer](apps/vloer/) | TypeScript front end, VS Code extension, Helm chart |
 | [apps/site](apps/site/) | Static marketing site in English and Dutch; not deployed, not released |
 | [docs](docs/index.md) | System explanation, how-to guides, glossary, decisions |
 
-The import preserved both application histories and 70 namespaced tags. Package, Go module, image and chart names are unchanged. The [migration record](docs/migration.md) tracks the release cutover.
+The import preserved both application histories and 70 namespaced tags. On 2026-10-03 Ploeg moved to its own repository, with the module `github.com/ploeg-hq/ploeg` and releases from `v0.1.0`. Unfold's history keeps Ploeg's earlier source, and the versions Unfold published for Ploeg stay published. Vloer's package, image and chart names are unchanged. The [migration record](docs/migration.md) tracks the release cutover.
 
 Code is [Apache-2.0](LICENSE). Original notices and bundled third-party licenses remain with each application. The [Unfold](docs/brand/TRADEMARK.md) (proposed), [Vloer](apps/vloer/docs/brand/TRADEMARK.md) and [Ploeg](apps/ploeg/docs/brand/TRADEMARK.md) mark policies apply. Unfold's identity is in [docs/brand](docs/brand/README.md).

@@ -30,7 +30,7 @@ Quality goals, in priority order:
 
 * Self-hosted: Kubernetes, PostgreSQL, a LiteLLM gateway, Forgejo (the leading forge) and Vikunja or ClickUp.
 * One owner operates and maintains it. Simplicity outranks generality.
-* Production desired state lives in the separate `homelab-cluster` repository. Unfold builds images and Helm charts.
+* Production desired state lives in the separate `homelab-cluster` repository. Unfold builds Vloer's images, chart and extension. Ploeg's come from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg), which Unfold pins as a submodule at `apps/ploeg` ([ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)).
 
 ## Context
 

@@ -20,7 +20,6 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0001](../adr/adr-0001-unfold-contains-independent-applications.md) | Unfold contains independently deployable Vloer and Ploeg | 2026-09-12 | — |
 | System | [0002](../adr/adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Vloer is its front end | 2026-09-22 | — |
 | System | [0003](../adr/adr-0003-the-unit-of-work-is-the-work-item.md) | The unit of work is the Work Item, and work can create work | 2026-09-22 | — |
-| System | [0004](../adr/adr-0004-unfold-releases-one-version.md) | Unfold releases Vloer and Ploeg under one version | 2026-10-01 | — |
 | System | [0005](../adr/adr-0005-unfold-is-offered-to-agencies.md) | Unfold is offered to agencies, and delivery ends at a reviewed pull request with a preview | 2026-09-29 | — |
 | System | [0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md) | The ticket is the billing unit: a quoted, capped Shift budget charged on delivery | 2026-09-29 | — |
 | System | [0007](../adr/adr-0007-clients-approve-ready-work.md) | Clients approve Ready work, and each client sets its own definitions of Ready and Done | 2026-09-29 | — |
@@ -31,6 +30,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0012](../adr/adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md) | The marketing site releases and deploys on its own, outside the Unfold version | 2026-10-01 | — |
 | System | [0013](../adr/adr-0013-the-product-is-named-unfold.md) | The product is named Unfold, and Ploeg and Vloer are its parts | 2026-10-01 | — |
 | System | [0016](../adr/adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | 2026-10-02 | — |
+| System | [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) | Unfold pins Ploeg from its own repository and releases only Vloer | 2026-10-03 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
@@ -143,4 +143,6 @@ An accepted record states why a rule exists. A proposed record is an open questi
 
 ## Other statuses
 
-No record is rejected, deprecated or superseded.
+| Scope | ADR | Title | Status | Date | Superseded by |
+| --- | --- | --- | --- | --- | --- |
+| System | [0004](../adr/adr-0004-unfold-releases-one-version.md) | Unfold releases Vloer and Ploeg under one version | superseded by ADR-0019 | 2026-10-03 | System [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) |

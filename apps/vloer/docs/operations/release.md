@@ -2,7 +2,7 @@
 
 Forgejo coordinates one version for the workbench image, workspace image, Helm chart and editor extension. Source checks run before a release tag is created; publication jobs consume that tag. A tag or green source job alone does not prove that every artifact was published.
 
-Vloer releases together with Ploeg under one Unfold version and a `unfold-v<version>` tag ([Unfold ADR-0004](../../../../docs/adr/adr-0004-unfold-releases-one-version.md)). Publication remains disabled until the [distribution cutover](../../../../docs/migration.md#distribution-cutover-remains-separate) is qualified.
+Vloer's version is the Unfold version, with a `unfold-v<version>` tag ([Unfold ADR-0019](../../../../docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)). Ploeg releases on its own from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg); until `unfold-v0.4.0-rc.35` it released together with Vloer ([Unfold ADR-0004](../../../../docs/adr/adr-0004-unfold-releases-one-version.md)). Publication remains disabled until the [distribution cutover](../../../../docs/migration.md#distribution-cutover-remains-separate) is qualified.
 
 ## Follow the release
 

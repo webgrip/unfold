@@ -148,6 +148,7 @@ When this ADR is implemented:
   * Q3. Should a bundle be cut automatically after every component release that qualifies, or only on request?
   * Q4. Should Vloer also leave the Unfold version for its own `vloer-v…` train (proposed), or should only Ploeg split off while Vloer releases as part of the bundle?
   * Q5. Should the contract version cover only the operator API, or also Ploeg's worker-facing contracts (`run-api`, `checkpoint`, `outcomereport`, `taskspec`) that executors from other releases may call?
+* 2026-10-03 — [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) moved Ploeg to its own repository instead of splitting the train here, so sections 1 and 5 no longer apply: ADR-0019 supersedes ADR-0004, and Ploeg releases from github.com/ploeg-hq/ploeg. The contract version, bundles and cross-version qualification remain proposed and now apply across the two repositories.
 * Follow-up tickets, to file when the ADR is accepted:
   1. Ploeg: contract version constant, `GET /api/v1/operator/version`, the `Ploeg-Contract` header and deprecation and sunset headers, with tests.
   2. Vloer: `ploegContract` range, the startup and header-change check, the banner, blocked managed calls and the `ploeg.contract_incompatible` event, with tests. The extension and the MCP server follow.
