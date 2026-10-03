@@ -681,10 +681,9 @@ func (s *Store) LiveShiftForItem(ctx context.Context, workItemID int64) (*ShiftI
 // Idempotent: closing an already-closed Shift is a no-op, because the outcome
 // fast-path and the sweeper may both conclude a Shift is done (R2).
 //
-// Reports whether THIS call won the close. Both racers still settle the item
-// (that path is crash repair and must stay unconditional), but only the winner
-// notifies the tracker — otherwise the fast path and the sweeper each post a
-// "Ploeg finished this item" comment to the same board.
+// Reports whether THIS call won the close. CloseShift leaves the Work Item
+// alone; the shift engine closes through CloseShiftAndSettle, so its item is
+// never left behind a closed Shift.
 func (s *Store) CloseShift(ctx context.Context, shiftID int64, reason string) (bool, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -692,27 +691,73 @@ func (s *Store) CloseShift(ctx context.Context, shiftID int64, reason string) (b
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	closed, _, err := closeShiftTx(ctx, tx, shiftID, reason)
+	if err != nil || !closed {
+		return false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// CloseShiftAndSettle closes a Shift as CloseShift does and moves its Work
+// Item as SettleItem does, in one transaction: after a crash there is either
+// a live Shift the sweep evaluates again, or a closed Shift whose item is
+// settled.
+//
+// Only the call that wins the close settles. Replaying against a Shift that
+// is already closed — by the other evaluator, a withdrawal or an operator —
+// changes nothing and reports closed false with the item's current state.
+func (s *Store) CloseShiftAndSettle(ctx context.Context, shiftID int64, closeReason string, next work.State, settleReason string) (bool, work.State, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return false, "", err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	closed, workItemID, err := closeShiftTx(ctx, tx, shiftID, closeReason)
+	if err != nil {
+		return false, "", err
+	}
+	if !closed {
+		var current string
+		if err := tx.QueryRow(ctx,
+			`SELECT state FROM work_items WHERE id = $1`, workItemID).Scan(&current); err != nil {
+			return false, "", err
+		}
+		return false, work.State(current), nil
+	}
+	settled, err := settleItemTx(ctx, tx, workItemID, next, settleReason)
+	if err != nil {
+		return false, "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, "", err
+	}
+	return true, settled, nil
+}
+
+func closeShiftTx(ctx context.Context, tx pgx.Tx, shiftID int64, reason string) (bool, int64, error) {
 	var workItemID int64
 	var team string
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		UPDATE shifts SET closed_at = now(), close_reason = $2
 		WHERE id = $1 AND closed_at IS NULL
 		  AND NOT EXISTS(SELECT 1 FROM operator_executions e WHERE e.shift_id=shifts.id)
 		RETURNING work_item_id, team`, shiftID, reason).Scan(&workItemID, &team)
 	if errors.Is(err, pgx.ErrNoRows) {
-		// Already closed (idempotent), or never existed (caller bug).
-		var exists bool
 		if err := tx.QueryRow(ctx,
-			`SELECT EXISTS (SELECT 1 FROM shifts WHERE id = $1)`, shiftID).Scan(&exists); err != nil {
-			return false, err
+			`SELECT work_item_id FROM shifts WHERE id = $1`, shiftID).Scan(&workItemID); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return false, 0, fmt.Errorf("shift %d does not exist", shiftID)
+			}
+			return false, 0, err
 		}
-		if !exists {
-			return false, fmt.Errorf("shift %d does not exist", shiftID)
-		}
-		return false, nil
+		return false, workItemID, nil
 	}
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 
 	tag, err := tx.Exec(ctx, `
@@ -720,17 +765,14 @@ func (s *Store) CloseShift(ctx context.Context, shiftID int64, reason string) (b
 			summary = 'cancelled: shift closed (' || $2 || ')'
 		WHERE shift_id = $1 AND state = 'pending'`, shiftID, reason)
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 	if err := audit(ctx, tx, "team:"+team, "shift.closed", &workItemID, map[string]any{
 		"shift": shiftID, "reason": reason, "cancelled_pending": tag.RowsAffected(),
 	}); err != nil {
-		return false, err
+		return false, 0, err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return false, err
-	}
-	return true, nil
+	return true, workItemID, nil
 }
 
 // RunReport is one finished Run's contribution to the blackboard: who said

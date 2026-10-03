@@ -692,6 +692,17 @@ func (s *Store) SettleItem(ctx context.Context, workItemID int64, next work.Stat
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	settled, err := settleItemTx(ctx, tx, workItemID, next, reason)
+	if err != nil {
+		return "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	return settled, nil
+}
+
+func settleItemTx(ctx context.Context, tx pgx.Tx, workItemID int64, next work.State, reason string) (work.State, error) {
 	var operatorOwned bool
 	var current string
 	if err := tx.QueryRow(ctx, `SELECT operator_owned, state FROM work_items WHERE id=$1 FOR UPDATE`, workItemID).Scan(&operatorOwned, &current); err != nil {
@@ -701,7 +712,7 @@ func (s *Store) SettleItem(ctx context.Context, workItemID int64, next work.Stat
 		return "", ErrExecutionConflict
 	}
 	if work.State(current) == work.StateWithdrawn {
-		return work.StateWithdrawn, tx.Commit(ctx)
+		return work.StateWithdrawn, nil
 	}
 
 	var written string
@@ -718,15 +729,11 @@ func (s *Store) SettleItem(ctx context.Context, workItemID int64, next work.Stat
 		workItemID, string(next)).Scan(&written); err != nil {
 		return "", err
 	}
-	settled := work.State(written)
 	if err := audit(ctx, tx, "ploegd:shift-engine", "work_item."+written, &workItemID,
 		map[string]any{"reason": reason}); err != nil {
 		return "", err
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return "", err
-	}
-	return settled, nil
+	return work.State(written), nil
 }
 
 // ExpireLeases releases every overdue lease: the run is recorded as failed
