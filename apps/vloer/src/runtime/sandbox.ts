@@ -119,11 +119,29 @@ export class SandboxWorkspaces {
       }
       const authorization = 'Basic ' + Buffer.from(`${basic.username}:${basic.password}`).toString('base64');
       const transport = this.relay.fetcher(session.id);
+      let healthy = false;
       while (Date.now() < deadline) {
         signal.throwIfAborted();
-        try { const health = await transport('http://workspace/global/health', { headers: { authorization }, signal: AbortSignal.timeout(2000) }); if (health.ok) break; } catch {}
+        try {
+          const health = await transport('http://workspace/global/health', { headers: { authorization }, signal: AbortSignal.any([signal, AbortSignal.timeout(Math.min(2000, Math.max(1, deadline - Date.now())))]) });
+          await health.text();
+          if (health.ok) { healthy = true; break; }
+        } catch {}
         await new Promise(done => setTimeout(done, 500));
       }
+      signal.throwIfAborted();
+      if (!healthy) throw new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, `Sandbox ${name} did not answer /global/health before its provisioning deadline`);
+      if (!baseSha) {
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) throw new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, `Sandbox ${name} could not pin its candidate base before its provisioning deadline`);
+        const response = await transport('http://workspace/__vloer/exec', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ argv: ['git', '--no-pager', '-c', 'core.fsmonitor=false', '-C', '/workspace/repository', 'rev-parse', '--verify', 'HEAD'] }), signal: AbortSignal.any([signal, AbortSignal.timeout(remainingMs)]) });
+        if (!response.ok) throw new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, `Sandbox ${name} could not read its candidate base`);
+        const result = await response.json() as { exitCode?: unknown; stdout?: unknown };
+        const pinned = typeof result.stdout === 'string' ? result.stdout.trim() : '';
+        if (result.exitCode !== 0 || !/^[a-f0-9]{40}$/.test(pinned)) throw new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, `Sandbox ${name} returned no valid candidate base`);
+        baseSha = pinned;
+      }
+      signal.throwIfAborted();
       this.passwords.set(session.id, basic);
       return { id: session.id, backend: 'kubernetes', directory: '/workspace/repository', endpoint: relayEndpoint(session.id), metadata: { namespace: k.namespace, pod: this.pods.get(session.id) ?? name, provisioner: 'sandbox', transport: 'pull', runtimeClassName: k.sandbox?.runtimeClassName ?? 'kata', ...(baseSha ? { baseSha } : {}) } };
     } catch (error) {
