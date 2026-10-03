@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import { createServer } from 'node:http';
 import { hostname } from 'node:os';
@@ -14,47 +15,113 @@ let token = process.env.VLOER_RELAY_TOKEN;
 let sessionEnv = {};
 let child;
 let stopping = false;
+const childGroups = new Set();
+const execGroups = new Set();
+const configuredGrace = Number(process.env.VLOER_RELAY_STOP_GRACE_MS);
+const stopGraceMs = Number.isFinite(configuredGrace) && configuredGrace >= 0 ? configuredGrace : 10_000;
+const killWaitMs = 5_000;
+const sleep = milliseconds => new Promise(done => setTimeout(done, milliseconds));
 
-const stop = () => { if (stopping) return; stopping = true; for (const controller of inFlight.values()) controller.abort(); if (child) child.kill('SIGTERM'); setTimeout(() => process.exit(0), 3000).unref(); };
+const stop = async () => {
+  if (stopping) return;
+  stopping = true;
+  for (const controller of inFlight.values()) controller.abort();
+  child = undefined;
+  const results = await Promise.all([...childGroups, ...execGroups].map(group => stopGroup(group)));
+  process.exit(results.every(Boolean) ? 0 : 1);
+};
 process.on('SIGTERM', stop);
 process.on('SIGINT', stop);
 
+function groupAlive(group) {
+  let entries;
+  try { entries = readdirSync('/proc'); } catch { entries = undefined; }
+  if (entries) {
+    for (const entry of entries) {
+      if (!/^[0-9]+$/.test(entry)) continue;
+      let stat;
+      try { stat = readFileSync(`/proc/${entry}/stat`, 'utf8'); } catch { continue; }
+      const [state, , processGroup] = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      if (Number(processGroup) === group && state !== 'Z' && state !== 'X') return true;
+    }
+    return false;
+  }
+  try { process.kill(-group, 0); return true; } catch (error) { return error?.code === 'EPERM'; }
+}
+
+async function groupGone(group, withinMs) {
+  const deadline = Date.now() + withinMs;
+  while (groupAlive(group)) {
+    if (Date.now() >= deadline) return false;
+    await sleep(50);
+  }
+  return true;
+}
+
+async function stopGroup(group, graceMs = stopGraceMs) {
+  const signal = name => { try { process.kill(-group, name); } catch {} };
+  signal('SIGTERM');
+  let gone = await groupGone(group, graceMs);
+  if (!gone) { signal('SIGKILL'); gone = await groupGone(group, killWaitMs); }
+  if (gone) { childGroups.delete(group); execGroups.delete(group); }
+  else log(`process group ${group} is still running after SIGKILL`);
+  return gone;
+}
+
 function startChild(argv, extraEnv = {}) {
-  const started = spawn(argv[0], argv.slice(1), { stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, ...extraEnv, VLOER_RELAY_TOKEN: '', VLOER_POOL_TOKEN: '' } });
+  const started = spawn(argv[0], argv.slice(1), { detached: true, stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, ...extraEnv, VLOER_RELAY_TOKEN: '', VLOER_POOL_TOKEN: '' } });
+  if (started.pid) childGroups.add(started.pid);
+  started.on('error', error => log(`child could not start: ${error.message}`));
   started.on('exit', code => { if (child === started) { log(`child exited with ${code ?? 'signal'}`); if (!stopping && !process.env.VLOER_RELAY_KEEP_ALIVE) process.exit(code ?? 1); child = undefined; } });
   return started;
 }
 
 async function stopChild() {
-  if (!child) return { stopped: true };
-  const current = child;
   child = undefined;
-  await new Promise(resolve => { const timer = setTimeout(() => { current.kill('SIGKILL'); resolve(); }, 10_000); current.once('exit', () => { clearTimeout(timer); resolve(); }); current.kill('SIGTERM'); });
-  return { stopped: true };
+  const results = await Promise.all([...childGroups].map(group => stopGroup(group)));
+  return { stopped: results.every(Boolean) };
 }
 
-async function control(request) {
+function execute(spec, signal) {
+  return new Promise(resolve => {
+    let stdout = ''; let stderr = ''; let finished = false; let timer;
+    const run = spawn(spec.argv[0], spec.argv.slice(1), { detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...sessionEnv, ...(spec.env ?? {}), VLOER_RELAY_TOKEN: '', VLOER_POOL_TOKEN: '' }, cwd: spec.cwd ?? process.cwd() });
+    const group = run.pid;
+    if (group) execGroups.add(group);
+    const finish = async (result, graceMs) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      signal.removeEventListener('abort', cancelled);
+      const stopped = group ? await stopGroup(group, graceMs) : true;
+      resolve(stopped ? result : { ...result, stopped: false });
+    };
+    const cancelled = () => finish({ exitCode: 130, stdout, stderr: `${stderr}\nrelay-worker: the request was cancelled` });
+    signal.addEventListener('abort', cancelled, { once: true });
+    if (signal.aborted) cancelled();
+    if (Number.isInteger(spec.timeoutMs) && spec.timeoutMs > 0) timer = setTimeout(() => finish({ exitCode: 124, stdout, stderr: `${stderr}\nrelay-worker: timed out after ${spec.timeoutMs} ms`, timedOut: true }), spec.timeoutMs);
+    run.stdout.on('data', chunk => { stdout = (stdout + chunk).slice(-65536); });
+    run.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-65536); });
+    run.on('error', error => finish({ exitCode: 127, stdout, stderr: `${stderr}\n${error.message}` }));
+    run.on('exit', code => finish({ exitCode: code ?? 1, stdout, stderr }, 1_000));
+  });
+}
+
+async function control(request, signal) {
   const body = request.body ? Buffer.from(request.body, 'base64').toString('utf8') : '';
   if (request.path.startsWith('/__vloer/stop-child')) return { status: 200, body: JSON.stringify(await stopChild()) };
   if (request.path.startsWith('/__vloer/run')) {
     const spec = JSON.parse(body || '{}');
     if (!Array.isArray(spec.argv) || !spec.argv.length) return { status: 400, body: '{"error":"argv required"}' };
-    await stopChild();
+    const previous = await stopChild();
+    if (!previous.stopped) return { status: 409, body: JSON.stringify({ error: 'the previous child process group has not stopped', stopped: false }) };
     child = startChild(spec.argv, { ...sessionEnv, ...(spec.env ?? {}) });
     return { status: 202, body: JSON.stringify({ started: spec.argv[0] }) };
   }
   if (request.path.startsWith('/__vloer/exec')) {
     const spec = JSON.parse(body || '{}');
     if (!Array.isArray(spec.argv) || !spec.argv.length) return { status: 400, body: '{"error":"argv required"}' };
-    const result = await new Promise(resolve => {
-      let stdout = ''; let stderr = '';
-      const run = spawn(spec.argv[0], spec.argv.slice(1), { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...sessionEnv, ...(spec.env ?? {}), VLOER_RELAY_TOKEN: '', VLOER_POOL_TOKEN: '' }, cwd: spec.cwd ?? process.cwd() });
-      run.stdout.on('data', chunk => { stdout = (stdout + chunk).slice(-65536); });
-      run.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-65536); });
-      run.on('error', error => resolve({ exitCode: 127, stdout, stderr: `${stderr}\n${error.message}` }));
-      run.on('exit', code => resolve({ exitCode: code ?? 1, stdout, stderr }));
-    });
-    return { status: 200, body: JSON.stringify(result) };
+    return { status: 200, body: JSON.stringify(await execute(spec, signal)) };
   }
   if (request.path.startsWith('/__vloer/status')) return { status: 200, body: JSON.stringify({ child: Boolean(child), session: sessionEnv.VLOER_SESSION_ID ?? null, inFlight: inFlight.size }) };
   return { status: 404, body: '{"error":"unknown control path"}' };
@@ -69,8 +136,9 @@ async function relay(request) {
   inFlight.set(request.id, controller);
   try {
     if (request.path.startsWith('/__vloer/')) {
-      const result = await control(request);
-      await respond(request, result.status, { 'content-type': 'application/json' }, result.body, controller.signal);
+      const result = await control(request, controller.signal);
+      if (controller.signal.aborted) return;
+      await respond(request, result.status, { 'content-type': 'application/json' }, result.body, controller.signal).catch(error => log(`control response for ${request.id} ended: ${error?.cause?.code ?? error?.name ?? 'error'}`));
       return;
     }
     let upstream;
@@ -96,7 +164,7 @@ async function poll() {
   while (!stopping) {
     try {
       const response = await fetch(`${relayUrl}/requests?wait=25000`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(40_000) });
-      if (response.status === 401 || response.status === 404) { log(`relay refused the worker (HTTP ${response.status}); stopping`); stop(); return; }
+      if (response.status === 401 || response.status === 404) { log(`relay refused the worker (HTTP ${response.status}); stopping`); void stop(); return; }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const batch = await response.json();
       failures = 0;

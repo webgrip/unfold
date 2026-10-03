@@ -100,7 +100,8 @@ export class SandboxWorkspaces {
         await this.relay.waitForWorker(session.id, signal, Math.max(1000, deadline - Date.now()));
         const transport = this.relay.fetcher(session.id);
         const control = async (path: string, body: unknown, timeoutMs: number) => { const response = await transport(`http://workspace${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) }); if (!response.ok) throw new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, `Warm sandbox control ${path} returned HTTP ${response.status}`); return response.json() as Promise<any>; };
-        const cloned = await control('/__vloer/exec', { argv: ['node', '--input-type=module', '-e', cloneProgram] }, Math.max(5000, deadline - Date.now()));
+        const cloneTimeoutMs = Math.max(5000, deadline - Date.now());
+        const cloned = await control('/__vloer/exec', { argv: ['node', '--input-type=module', '-e', cloneProgram], timeoutMs: cloneTimeoutMs }, cloneTimeoutMs);
         if (cloned.exitCode !== 0) throw new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, `git clone inside the warm sandbox exited with code ${cloned.exitCode}\n${cloned.stderr ?? ''}`);
         try { const record = JSON.parse(String(cloned.stdout ?? '').trim().split('\n').at(-1) ?? ''); if (/^[a-f0-9]{40}$/.test(record.baseSha)) baseSha = record.baseSha; } catch {}
         await control('/__vloer/run', { argv: relayServeCommand.slice(3) }, 15_000);

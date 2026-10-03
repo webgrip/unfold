@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { WorkerRelay } from '../src/runtime/relay.ts';
+import { captureInPlace } from '../src/runtime/kubernetes.ts';
+import type { AppConfig, Repository, Session } from '../src/types.ts';
 import { scaledTimeout, settle, testTimeout, waitFor } from './timeframes.ts';
 
 const workerScript = fileURLToPath(new URL('../ops/agent/relay-worker.mjs', import.meta.url));
@@ -120,4 +125,88 @@ test('a warm worker waits for a pool assignment, receives its session environmen
   assert.equal((await (await fetcher('http://workspace/__vloer/status')).json()).child, false);
   assert.match(logs, /assigned session ws-warm/);
   assert.equal(logs.includes('pool-secret-token'), false);
+});
+
+const writerProgram = (file: string, label: string) => `const { appendFileSync } = require('node:fs'); appendFileSync(${JSON.stringify(file)}, '${label} ' + process.pid + '\\n'); setInterval(() => appendFileSync(${JSON.stringify(file)}, '${label}\\n'), 20);`;
+const familyProgram = (file: string) => `process.on('SIGTERM', () => {}); require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(`process.on('SIGTERM', () => {}); ${writerProgram(file, 'grandchild')}`)}], { stdio: 'ignore' }); ${writerProgram(file, 'child')}`;
+const contents = (file: string) => { try { return readFileSync(file, 'utf8'); } catch { return ''; } };
+const writerPids = (file: string) => [...contents(file).matchAll(/^(?:child|grandchild) ([0-9]+)$/gm)].map(match => Number(match[1]));
+const running = (pid: number) => { try { const stat = readFileSync(`/proc/${pid}/stat`, 'utf8'); return stat[stat.lastIndexOf(')') + 2] !== 'Z'; } catch { return false; } };
+const sizeOf = (file: string) => { try { return statSync(file).size; } catch { return 0; } };
+
+async function relayedWorker(t: { after(fn: () => void): void }, workspaceId: string) {
+  const relay = new WorkerRelay();
+  const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
+  const relayPort = await listen(relayServer);
+  const token = relay.register(workspaceId);
+  const directory = mkdtempSync(join(tmpdir(), 'vloer-stop-'));
+  const worker = spawn(process.execPath, [workerScript], { env: { PATH: process.env.PATH ?? '', VLOER_RELAY_URL: `http://127.0.0.1:${relayPort}/api/relay/${workspaceId}`, VLOER_RELAY_TOKEN: token, VLOER_RELAY_TARGET: 'http://127.0.0.1:9', VLOER_RELAY_KEEP_ALIVE: '1', VLOER_RELAY_STOP_GRACE_MS: '300' }, stdio: ['ignore', 'ignore', 'pipe'] });
+  t.after(() => { worker.kill('SIGKILL'); relayServer.close(); for (const pid of writerPids(join(directory, 'out'))) { try { process.kill(pid, 'SIGKILL'); } catch {} } rmSync(directory, { recursive: true, force: true }); });
+  await relay.waitForWorker(workspaceId, new AbortController().signal, scaledTimeout(10_000));
+  return { fetcher: relay.fetcher(workspaceId), file: join(directory, 'out') };
+}
+
+async function assertNoWritesAfterStop(file: string) {
+  for (const pid of writerPids(file)) assert.equal(running(pid), false, `writer ${pid} must not survive the stop`);
+  const size = sizeOf(file);
+  await settle(300);
+  assert.equal(sizeOf(file), size, 'nothing may write to the workspace after the stop');
+}
+
+test('stopping the harness stops its whole process group, including a grandchild that ignores SIGTERM, before it reports stopped', { timeout: testTimeout(30_000) }, async t => {
+  const { fetcher, file } = await relayedWorker(t, 'ws-stop');
+  const ran = await fetcher('http://workspace/__vloer/run', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', familyProgram(file)] }) });
+  assert.equal(ran.status, 202);
+  await waitFor(() => writerPids(file).length === 2 && contents(file).includes('grandchild\n'), undefined, { reason: 'the child and grandchild must both be writing', withinMs: 10_000 });
+  const stopped = await fetcher('http://workspace/__vloer/stop-child', { method: 'POST' });
+  assert.deepEqual(await stopped.json(), { stopped: true });
+  await assertNoWritesAfterStop(file);
+});
+
+test('an exec subprocess group is stopped when its relay request is cancelled or its timeout passes', { timeout: testTimeout(30_000) }, async t => {
+  const { fetcher, file } = await relayedWorker(t, 'ws-exec');
+  const controller = new AbortController();
+  const pending = fetcher('http://workspace/__vloer/exec', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', familyProgram(file)] }), signal: controller.signal });
+  pending.catch(() => {});
+  await waitFor(() => writerPids(file).length === 2, undefined, { reason: 'the exec child and grandchild must both be writing', withinMs: 10_000 });
+  const cancelled = writerPids(file);
+  controller.abort();
+  await assert.rejects(pending);
+  await waitFor(() => cancelled.every(pid => !running(pid)), undefined, { reason: 'cancelling the request must stop the exec process group', withinMs: 10_000 });
+  await assertNoWritesAfterStop(file);
+  rmSync(file);
+  const timed = await fetcher('http://workspace/__vloer/exec', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', familyProgram(file)], timeoutMs: 500 }) });
+  const result = await timed.json();
+  assert.equal(result.exitCode, 124);
+  assert.equal(result.timedOut, true);
+  assert.equal(result.stopped, undefined, 'the timed-out group was confirmed stopped');
+  assert.equal(writerPids(file).length, 2);
+  await assertNoWritesAfterStop(file);
+});
+
+test('in-place capture refuses to export when the worker cannot confirm the harness stopped', { timeout: testTimeout(20_000) }, async t => {
+  const relay = new WorkerRelay();
+  const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
+  const relayPort = await listen(relayServer);
+  const token = relay.register('ws-unconfirmed');
+  const base = `http://127.0.0.1:${relayPort}/api/relay/ws-unconfirmed`;
+  const paths: string[] = [];
+  let polling = true;
+  t.after(() => { polling = false; relayServer.close(); });
+  void (async () => {
+    while (polling) {
+      const response = await fetch(`${base}/requests?wait=200`, { headers: { authorization: `Bearer ${token}` } }).catch(() => undefined);
+      if (!response?.ok) { await settle(20); continue; }
+      for (const request of (await response.json()).requests ?? []) {
+        paths.push(request.path);
+        const body = request.path.startsWith('/__vloer/stop-child') ? '{"stopped":false}' : '{}';
+        await fetch(`${base}/responses/${request.id}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'x-relay-status': '200', 'x-relay-headers': '{"content-type":"application/json"}' }, body });
+      }
+    }
+  })();
+  const session = { id: 'ws-unconfirmed', workspace: { metadata: { baseSha: 'b'.repeat(40) } } } as unknown as Session;
+  const candidate = await captureInPlace(relay, { dataDir: '/nonexistent' } as AppConfig, session, { id: 'repo' } as Repository, { username: 'opencode', password: 'secret' }, 'b'.repeat(40));
+  assert.equal(candidate.status, 'unavailable');
+  assert.equal((candidate as { reason?: string }).reason, 'stop_unconfirmed');
+  assert.deepEqual(paths, ['/__vloer/stop-child'], 'no export program may start after an unconfirmed stop');
 });
