@@ -112,6 +112,10 @@ type OutcomeReport struct {
 	// Ploeg stores each within the Team's created-work limits and records a
 	// reason for every entry it rejects. The agent never dispatches them.
 	CreatedWorkItems []CreatedWorkItem `json:"createdWorkItems,omitempty"`
+	// Verification is the worker's own run of the configured checks on a
+	// writing Run's checkout. The worker sets it and discards any value an
+	// adapter or agent reported; absent on a payload from an older worker.
+	Verification *Verification `json:"verification,omitempty"`
 }
 
 // CreatedWorkItem is one Work Item a Run proposes. Team is a request, not a

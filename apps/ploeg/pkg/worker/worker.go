@@ -585,9 +585,13 @@ func noLLMTraffic(u *harness.Usage) bool {
 // traffic at all maps to failed/infra_llm; exec adapters and unknown
 // telemetry keep the default no_change_needed so exec-harness smoke runs do
 // not burn attempts.
+//
+// The adapter's Verification is always discarded: only the worker's own run
+// of the configured checks sets it, after this returns.
 func resolveOutcome(adapterName string, report harness.OutcomeReport, runErr, ctxErr error,
 	prURL string, prExisted bool, itemTitle, branch string, logTail []byte, expectsLLM, writes bool) harness.OutcomeReport {
 
+	report.Verification = nil
 	resolved := func(r harness.OutcomeReport) harness.OutcomeReport {
 		if r.Usage == nil {
 			r.Usage = report.Usage

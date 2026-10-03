@@ -2,11 +2,13 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/work"
 )
 
@@ -748,6 +750,10 @@ type RunReport struct {
 	// blank for writers by ReportOutcome, so a writer cannot grade its own
 	// work even if its adapter sends one.
 	Verdict string
+	// Verification is the worker's structured record of a writing Run's
+	// checks; nil when the Run reported none, as a Run from an older worker
+	// did.
+	Verification *harness.Verification
 }
 
 // RoundReports returns every finished Run's report for a Shift, in Round then
@@ -755,7 +761,7 @@ type RunReport struct {
 // the one being claimed, publication wants the round that just completed.
 func (s *Store) RoundReports(ctx context.Context, shiftID int64) ([]RunReport, error) {
 	rows, err := s.pool.Query(ctx, `
-		SELECT role, round, writes, COALESCE(outcome, ''), summary, findings, links, verdict
+		SELECT role, round, writes, COALESCE(outcome, ''), summary, findings, links, verdict, verification
 		FROM agent_runs
 		WHERE shift_id = $1 AND state = 'finished'
 		ORDER BY round, id`, shiftID)
@@ -766,8 +772,15 @@ func (s *Store) RoundReports(ctx context.Context, shiftID int64) ([]RunReport, e
 	var out []RunReport
 	for rows.Next() {
 		var r RunReport
-		if err := rows.Scan(&r.Role, &r.Round, &r.Writes, &r.Outcome, &r.Summary, &r.Findings, &r.Links, &r.Verdict); err != nil {
+		var verification []byte
+		if err := rows.Scan(&r.Role, &r.Round, &r.Writes, &r.Outcome, &r.Summary, &r.Findings, &r.Links, &r.Verdict, &verification); err != nil {
 			return nil, err
+		}
+		if verification != nil {
+			r.Verification = new(harness.Verification)
+			if err := json.Unmarshal(verification, r.Verification); err != nil {
+				return nil, fmt.Errorf("decode run verification: %w", err)
+			}
 		}
 		out = append(out, r)
 	}

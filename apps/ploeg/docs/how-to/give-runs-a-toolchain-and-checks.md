@@ -59,6 +59,8 @@ After Flux applies the release:
 2. The pod log of a Run has `prepared the Run's sandbox` with the counts of skills, toolchains and verify commands.
 3. After a writing Run opens or updates a pull request, the pod log has `verified the writing Run's checkout`, the Run's summary ends with `[Ploeg verification passed]` or `[Ploeg verification failed: <command>]`, and the pull request has a comment headed "Ploeg verification" when the Run belongs to a Shift.
 
+The worker also sends the result as a structured `verification` record on the Run's outcome: the full commit, whether the working tree was dirty, and each check with its exit status and times. Ploeg stores it with the Run, and the usage report on the pull request takes the result and commit from it. The summary and findings text is for people to read; an agent cannot change the reported result by writing a marker of its own.
+
 ## What the agent gets
 
 Every writing and reading Run gets Ploeg's own skills under its `HOME`: `ploeg-verify-before-handoff`, and for readers `ploeg-review-against-work-item`. The environment variable `PLOEG_SKILLS_DIR` names their directory, `PLOEG_VERIFY_SCRIPT` names a script that runs the `verify` lines, and the prompt lists the skills, the toolchains and the checks. Planners get none of them.

@@ -73,19 +73,63 @@ func shellQuote(s string) string {
 }
 
 type checkResult struct {
-	Command  string
-	Ran      bool
-	ExitCode int
-	Output   string
+	Command    string
+	Ran        bool
+	ExitCode   int
+	Output     string
+	StartedAt  time.Time
+	FinishedAt time.Time
 }
 
 type verification struct {
-	Commit string
-	Dirty  bool
-	Checks []checkResult
+	Commit     string
+	Dirty      bool
+	Checks     []checkResult
+	StartedAt  time.Time
+	FinishedAt time.Time
 	// Stopped says why checks after the failing one did not run; empty when
 	// every check ran.
 	Stopped string
+}
+
+const shortCommitLength = 12
+
+func (v verification) shortCommit() string {
+	if len(v.Commit) > shortCommitLength {
+		return v.Commit[:shortCommitLength]
+	}
+	return v.Commit
+}
+
+func (v verification) result() string {
+	if _, failed := v.failed(); failed {
+		return harness.VerificationFailed
+	}
+	if v.Stopped != "" {
+		return harness.VerificationIncomplete
+	}
+	return harness.VerificationPassed
+}
+
+func (v verification) record() *harness.Verification {
+	rec := &harness.Verification{
+		Result: v.result(), Commit: v.Commit, Dirty: v.Dirty, Stopped: v.Stopped,
+		StartedAt: v.StartedAt.UTC(), FinishedAt: v.FinishedAt.UTC(),
+		Checks: make([]harness.VerificationCheck, 0, len(v.Checks)),
+	}
+	for _, c := range v.Checks {
+		check := harness.VerificationCheck{Command: c.Command, Result: harness.VerificationCheckNotRun}
+		if c.Ran {
+			check.Result = harness.VerificationPassed
+			if c.ExitCode != 0 {
+				check.Result = harness.VerificationFailed
+			}
+			exitCode, started, finished := c.ExitCode, c.StartedAt.UTC(), c.FinishedAt.UTC()
+			check.ExitCode, check.StartedAt, check.FinishedAt = &exitCode, &started, &finished
+		}
+		rec.Checks = append(rec.Checks, check)
+	}
+	return rec
 }
 
 func (v verification) failed() (checkResult, bool) {
@@ -101,7 +145,7 @@ func (v verification) failed() (checkResult, bool) {
 // failure. The worker runs it after the harness exits, so what it reports is
 // Ploeg's observation, not the agent's claim.
 func runVerification(ctx context.Context, dir string, env, cmds []string, limit time.Duration) verification {
-	v := verification{Commit: gitOutput(ctx, dir, "rev-parse", "--short=12", "HEAD")}
+	v := verification{StartedAt: time.Now(), Commit: gitOutput(ctx, dir, "rev-parse", "HEAD")}
 	v.Dirty = gitOutput(ctx, dir, "status", "--porcelain") != ""
 	if limit <= 0 {
 		limit = DefaultVerifyTimeout
@@ -120,8 +164,9 @@ func runVerification(ctx context.Context, dir string, env, cmds []string, limit 
 		cmd.WaitDelay = harness.ProcessWaitDelay
 		var out harness.TailBuffer
 		cmd.Stdout, cmd.Stderr = &out, &out
+		started := time.Now()
 		err := cmd.Run()
-		res := checkResult{Command: c, Ran: true, Output: tail(out.Bytes(), verifyOutputLimit)}
+		res := checkResult{Command: c, Ran: true, Output: tail(out.Bytes(), verifyOutputLimit), StartedAt: started, FinishedAt: time.Now()}
 		if cmd.ProcessState != nil {
 			res.ExitCode = cmd.ProcessState.ExitCode()
 		}
@@ -139,6 +184,7 @@ func runVerification(ctx context.Context, dir string, env, cmds []string, limit 
 			v.Stopped = "an earlier check failed"
 		}
 	}
+	v.FinishedAt = time.Now()
 	return v
 }
 
@@ -157,7 +203,7 @@ func (v verification) markdown() string {
 	b.WriteString(verificationHeading + "\n\n")
 	commit := "the Run's checkout"
 	if v.Commit != "" {
-		commit = "commit `" + v.Commit + "`"
+		commit = "commit `" + v.shortCommit() + "`"
 	}
 	fmt.Fprintf(&b, "Ploeg ran the configured checks on %s after the agent finished.", commit)
 	if v.Dirty {
@@ -181,9 +227,11 @@ func (v verification) markdown() string {
 }
 
 // withVerification attaches a writing Run's verification to its report: the
-// findings reach the pull request and the next Round's briefing, and a failure
-// is named in the summary.
+// structured record is what ploegd stores and renders from, the findings
+// reach the pull request and the next Round's briefing, and the summary
+// names the result for a person reading it.
 func withVerification(report harness.OutcomeReport, v verification) harness.OutcomeReport {
+	report.Verification = v.record()
 	report.Findings = strings.TrimSpace(strings.TrimSpace(report.Findings) + "\n\n" + v.markdown())
 	if f, failed := v.failed(); failed {
 		report.Summary += fmt.Sprintf(" [Ploeg verification failed: %s]", f.Command)

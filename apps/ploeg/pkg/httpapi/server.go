@@ -696,6 +696,11 @@ func validateOutcomeReport(req harness.OutcomeReport) error {
 	if !harness.ValidVerdict(req.Verdict) {
 		return errors.New("verdict must be approve or request_changes")
 	}
+	if req.Verification != nil {
+		if err := req.Verification.Validate(); err != nil {
+			return err
+		}
+	}
 	return harness.ValidateCreatedWorkItems(req.CreatedWorkItems)
 }
 
@@ -731,6 +736,7 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 	res, err := s.Store.ReportOutcome(r.Context(), r.PathValue("token"),
 		store.Report(req.Outcome, req.Summary, req.StuckReason, req.Links, usage, failureReason).
 			WithFindings(req.Findings).WithVerdict(req.Verdict).WithProblemAndSolution(req.Problem, req.Solution).
+			WithVerification(req.Verification).
 			WithCreatedWork(req.CreatedWorkItems, s.createdWorkPolicy, s.knownTeam))
 	if err != nil {
 		if errors.Is(err, store.ErrUnknownRun) {

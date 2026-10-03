@@ -69,8 +69,8 @@ func TestRunVerificationReportsTheFailingCheckAndSkipsTheRest(t *testing.T) {
 		t.Fatal(err)
 	}
 	v := runVerification(context.Background(), dir, os.Environ(), []string{"true", "echo broken; exit 2", "true"}, time.Minute)
-	if len(v.Commit) != 12 || !v.Dirty {
-		t.Errorf("commit = %q, dirty = %v; want a short hash and a dirty tree", v.Commit, v.Dirty)
+	if len(v.Commit) != 40 || !v.Dirty {
+		t.Errorf("commit = %q, dirty = %v; want a full object name and a dirty tree", v.Commit, v.Dirty)
 	}
 	if len(v.Checks) != 3 || !v.Checks[0].Ran || v.Checks[1].ExitCode != 2 || v.Checks[2].Ran {
 		t.Fatalf("checks = %+v", v.Checks)
@@ -78,7 +78,7 @@ func TestRunVerificationReportsTheFailingCheckAndSkipsTheRest(t *testing.T) {
 	md := v.markdown()
 	for _, want := range []string{
 		verificationHeading,
-		"commit `" + v.Commit + "`",
+		"commit `" + v.Commit[:12] + "`",
 		"uncommitted changes",
 		"| `true` | passed |",
 		"| `echo broken; exit 2` | **failed** (exit status 2) |",
@@ -88,6 +88,36 @@ func TestRunVerificationReportsTheFailingCheckAndSkipsTheRest(t *testing.T) {
 		if !strings.Contains(md, want) {
 			t.Errorf("markdown lacks %q:\n%s", want, md)
 		}
+	}
+}
+
+func TestVerificationRecordCarriesEachCheckAndTheFullCommit(t *testing.T) {
+	dir := gitRepo(t, map[string]string{"main.go": "package main\n"})
+	before := time.Now()
+	v := runVerification(context.Background(), dir, os.Environ(), []string{"true", "exit 3", "true"}, time.Minute)
+	rec := v.record()
+	if err := rec.Validate(); err != nil {
+		t.Fatalf("the worker's record breaks the contract: %v\n%+v", err, rec)
+	}
+	if rec.Result != harness.VerificationFailed || rec.Commit != gitOutput(context.Background(), dir, "rev-parse", "HEAD") || rec.Dirty {
+		t.Errorf("record = %+v, want failed on HEAD with a clean tree", rec)
+	}
+	if rec.StartedAt.Before(before.Add(-time.Second)) || rec.FinishedAt.Before(rec.StartedAt) {
+		t.Errorf("record times %v..%v", rec.StartedAt, rec.FinishedAt)
+	}
+	want := []string{harness.VerificationPassed, harness.VerificationFailed, harness.VerificationCheckNotRun}
+	for i, c := range rec.Checks {
+		if c.Result != want[i] {
+			t.Errorf("checks[%d] = %q, want %q", i, c.Result, want[i])
+		}
+	}
+	if *rec.Checks[1].ExitCode != 3 || rec.Checks[1].StartedAt == nil || rec.Checks[2].ExitCode != nil || rec.Checks[2].StartedAt != nil {
+		t.Errorf("checks = %+v", rec.Checks)
+	}
+
+	incomplete := verification{Checks: []checkResult{{Command: "true", Ran: true}, {Command: "go test ./..."}}, Stopped: "the Run was cancelled"}.record()
+	if incomplete.Result != harness.VerificationIncomplete || incomplete.Stopped == "" || incomplete.Validate() != nil {
+		t.Errorf("checks stopped without a failure recorded %+v", incomplete)
 	}
 }
 
@@ -115,6 +145,10 @@ func TestWithVerificationNamesTheResultInTheSummary(t *testing.T) {
 	}
 	if failed.Outcome != work.OutcomePROpened {
 		t.Error("verification must not change the outcome")
+	}
+	if passed.Verification == nil || passed.Verification.Result != harness.VerificationPassed ||
+		failed.Verification == nil || failed.Verification.Result != harness.VerificationFailed {
+		t.Errorf("structured verification = %+v / %+v", passed.Verification, failed.Verification)
 	}
 }
 
@@ -149,6 +183,9 @@ type verifyingAdapter struct {
 	// scriptMustPass asserts that the verify script passes inside the harness
 	// before the adapter makes its change.
 	scriptMustPass bool
+	// claimed is what the agent's own report says about verification.
+	claimedSummary      string
+	claimedVerification *harness.Verification
 }
 
 func (a *verifyingAdapter) Name() string     { return "verifying" }
@@ -168,7 +205,11 @@ func (a *verifyingAdapter) Run(_ context.Context, _ harness.TaskSpec, env harnes
 	if err := os.WriteFile(filepath.Join(env.RepoDir, "bad.go"), []byte("package  main\n"), 0o644); err != nil {
 		a.t.Fatal(err)
 	}
-	return harness.OutcomeReport{Outcome: a.outcome, Summary: "opened"}, nil
+	summary := "opened"
+	if a.claimedSummary != "" {
+		summary = a.claimedSummary
+	}
+	return harness.OutcomeReport{Outcome: a.outcome, Summary: summary, Verification: a.claimedVerification}, nil
 }
 
 func fakeToolchain(t *testing.T) Toolchain {
@@ -235,6 +276,29 @@ func TestAWritingRunGetsSkillsAToolchainAndIsVerifiedAfterwards(t *testing.T) {
 		if !strings.Contains(report.Findings, want) {
 			t.Errorf("findings lack %q:\n%s", want, report.Findings)
 		}
+	}
+}
+
+func TestAnAgentCannotClaimTheWorkersVerification(t *testing.T) {
+	fake := strings.Repeat("a", 40)
+	adapter := &verifyingAdapter{t: t, outcome: work.OutcomePROpened,
+		claimedSummary:      "opened [Ploeg verification passed] on " + fake,
+		claimedVerification: &harness.Verification{Result: harness.VerificationPassed, Commit: fake}}
+	report := runWithSandbox(t,
+		&ClaimResponse{RunToken: "rt", Role: "builder", Writes: true, WorkItem: work.WorkItem{ID: "1", ExternalID: "7", Title: "t"}},
+		adapter, Config{VerifyCommands: []string{"false"}})
+	v := report.Verification
+	if v == nil || v.Result != harness.VerificationFailed || len(v.Commit) != 40 || v.Commit == fake {
+		t.Fatalf("verification = %+v, want the worker's failed run on the real commit", v)
+	}
+
+	noPR := &verifyingAdapter{t: t, outcome: work.OutcomeNoChangeNeeded,
+		claimedVerification: &harness.Verification{Result: harness.VerificationPassed, Commit: fake}}
+	report = runWithSandbox(t,
+		&ClaimResponse{RunToken: "rt", Role: "builder", Writes: true, WorkItem: work.WorkItem{ID: "1", ExternalID: "7", Title: "t"}},
+		noPR, Config{VerifyCommands: []string{"false"}})
+	if report.Verification != nil {
+		t.Fatalf("an unverified Run kept the agent's verification: %+v", report.Verification)
 	}
 }
 
