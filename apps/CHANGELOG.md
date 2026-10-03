@@ -1,3 +1,43 @@
+## [unfold-v0.4.0-rc.35](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.34...unfold-v0.4.0-rc.35) (2026-10-03)
+
+### Added
+
+* **site:** deploy candidates to staging.unfoldhq.dev and manage the zone as code ([f6c5e9e](https://forgejo.webgrip.dev/webgrip/unfold/commit/f6c5e9e5900a190644b1afdf4f18a50df9287417))
+* **site:** give Unfold an expressive folded-paper identity ([5a16666](https://forgejo.webgrip.dev/webgrip/unfold/commit/5a166663a931f34d6892be843f9275b75b2b6232))
+* **site:** redesign Unfold around inspectable agent work ([5e75e71](https://forgejo.webgrip.dev/webgrip/unfold/commit/5e75e7195f6b637d4463e76c140b8a9cf9d852c3))
+* **site:** serve the site on unfoldhq.dev ([8a3915b](https://forgejo.webgrip.dev/webgrip/unfold/commit/8a3915b474e4a85a738c479417c306d5a83cd8d0))
+
+### Fixed
+
+* **ploeg:** back off managed accounts the sweep cannot resolve ([15924f7](https://forgejo.webgrip.dev/webgrip/unfold/commit/15924f7f9fde221b976a02f9a013820df27ee6a4))
+* **ploeg:** decode forge proxy paths and limit them to what the Role needs ([1be4a65](https://forgejo.webgrip.dev/webgrip/unfold/commit/1be4a650c6b39f85651fb4f80e0363996699ea33))
+* **ploeg:** keep edited but unpublished writer work from counting as done ([2392960](https://forgejo.webgrip.dev/webgrip/unfold/commit/2392960e1a7736a98d59cef9839857e51e9b96b8))
+* **ploeg:** replay a finished outcome that carries a checkpoint ([ed241ee](https://forgejo.webgrip.dev/webgrip/unfold/commit/ed241eed7add9607805a92fbcb22573aa815b11c))
+* **ploeg:** route ClickUp work by tags and withdraw it when the task closes ([0330f0f](https://forgejo.webgrip.dev/webgrip/unfold/commit/0330f0f5038d3a2b4618c3323216559a79d59ce1))
+* **ploeg:** settle late gateway charges after the first settlement ([746ad48](https://forgejo.webgrip.dev/webgrip/unfold/commit/746ad482094a6fbf0ec508fb7396d644280ef4de))
+* **ploeg:** tie per-Run forge tokens to a live Lease and always revoke them ([da2f3a2](https://forgejo.webgrip.dev/webgrip/unfold/commit/da2f3a2240323bde57f9b714fd5bd392865ee9d2))
+* **release:** publish to webgrip/unfold and fail fast on dead addresses ([4637099](https://forgejo.webgrip.dev/webgrip/unfold/commit/4637099afba5c122512f8647fd72a6a8112ff96a))
+* **vloer:** list every waiting Work Item on Now or say how many are hidden ([7d5331a](https://forgejo.webgrip.dev/webgrip/unfold/commit/7d5331a7cb03563482ccf9c973c635bff0796767))
+* **vloer:** say what actually happened when a session completes ([04e6ccf](https://forgejo.webgrip.dev/webgrip/unfold/commit/04e6ccf10b09419bb2107890f3149b1a978152e8))
+* **vloer:** serve the agent host's WebSocket through ws ([5b20156](https://forgejo.webgrip.dev/webgrip/unfold/commit/5b20156eae83455bd4fedd004ef8897f78ba14df))
+* **vloer:** stop the whole process tree before capturing a candidate ([4d279ab](https://forgejo.webgrip.dev/webgrip/unfold/commit/4d279abbc1875ad0faaf1c390e87fe1aaf64d360))
+
+### Docs
+
+* **ploeg:** propose ADR-0059 delivery facts come from the forge ([6169e40](https://forgejo.webgrip.dev/webgrip/unfold/commit/6169e403a8c3e6f3a1e5448b2e84073b27d1f873)), references [#152](https://forgejo.webgrip.dev/webgrip/unfold/issues/152)
+* **ploeg:** propose ADR-0060 durable webhook inbox and publication outbox ([28876b5](https://forgejo.webgrip.dev/webgrip/unfold/commit/28876b5513a6cf32173ba34130d154f801655569))
+* **site:** preserve design research and reusable product-site skill ([0d3e30d](https://forgejo.webgrip.dev/webgrip/unfold/commit/0d3e30d5d3260cd54b14f75a6a6f102a9ea79cee))
+
+### Tests
+
+* **ploeg:** make the claimable-index plan test independent of statistics ([0d70c43](https://forgejo.webgrip.dev/webgrip/unfold/commit/0d70c43441ee5f9dddfda24ec5203eee0084cd7f))
+
+### Internal
+
+* **ploeg:** retire the legacy Compose demo ([58beb86](https://forgejo.webgrip.dev/webgrip/unfold/commit/58beb86f86d9df92b989fc107fbd8d1c33ef87a6))
+* **site:** re-record the demo replay with complete Now waiting lists ([f29fb23](https://forgejo.webgrip.dev/webgrip/unfold/commit/f29fb236f9389cfc5e13928b16a49d6ae2764159))
+* **site:** re-record the demo replay with the truthful completion message ([26b8d85](https://forgejo.webgrip.dev/webgrip/unfold/commit/26b8d85f15dd09149013301ce6a9ebdae77d90c7))
+
 ## [unfold-v0.4.0-rc.34](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.33...unfold-v0.4.0-rc.34) (2026-10-03)
 
 ### Fixed
