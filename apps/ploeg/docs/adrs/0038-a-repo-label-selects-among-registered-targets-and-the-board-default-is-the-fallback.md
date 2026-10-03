@@ -268,3 +268,8 @@ splinters the per-board pick-up queue.
   provider only; a target on any other forge is not ready. At ingest a forge that cannot be
   reached lets the item queue, and the claim-time check decides. How-to:
   [route a board that serves several repositories](../how-to/route-a-multi-repo-board.md).
+* 2026-10-03: the GitLab provider also checks readiness
+  ([repository.go](../../pkg/provider/gitlab/repository.go), VIK-1753). It reads the project
+  by its URL-encoded full path, counts a pull mirror as a mirror, and checks `AGENTS.md` with a
+  `HEAD` on the repository files API. A target on any forge other than Forgejo or GitLab is
+  still not ready.
