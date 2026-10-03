@@ -1,5 +1,6 @@
 ---
 import {
+  CAPABILITY_MATRIX_URL,
   DEMO_GUIDE_URL,
   DEMO_REPLAY_PATH,
   DOCS_URL,
@@ -55,6 +56,7 @@ const r = t.redesign;
       <p class="eyebrow">{r.guardKicker}</p>
       <h2 id="guards-title" class="section-title">{r.guardTitle}</h2>
       <p>{r.guardIntro}</p>
+      <a class="guard-matrix" href={CAPABILITY_MATRIX_URL}>{t.guards.matrix}</a>
       <div class="guard-brand" aria-hidden="true">
         <Mark size={96} /><span>{t.loop.steps[3]?.term}</span>
       </div>
@@ -253,6 +255,11 @@ const r = t.redesign;
   .guard-intro > p:last-of-type {
     color: var(--fg-muted);
     max-width: 39ch;
+  }
+  .guard-matrix {
+    display: inline-block;
+    margin-top: 1.25rem;
+    font-size: 0.8rem;
   }
   .guard-brand {
     display: flex;

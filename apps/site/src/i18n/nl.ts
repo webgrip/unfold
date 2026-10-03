@@ -85,7 +85,7 @@ export const nl: Dictionary = {
     archKicker: '03 / ONDER DE MOTORKAP',
     archTitle: 'Eén product. Heldere rollen.',
     archIntro:
-      'Ploeg beheert de uitvoering. In Vloer start, stuur en inspecteer je het werk. Beide staan in één repository en delen één Unfold-versie.',
+      'Ploeg autoriseert de beheerde uitvoering en kent er budget aan toe. In Vloer start, stuur en inspecteer je het werk. Beide staan in één repository en delen één Unfold-versie.',
     cluster: 'BEHEERDE UITVOERING',
     front: 'Browser / VS Code',
     engine: 'Autorisatie · budgetten · orkestratie',
@@ -109,7 +109,7 @@ export const nl: Dictionary = {
   meta: {
     homeTitle: 'Unfold: van Work Item naar een pull request dat je zelf beoordeelt',
     homeDescription:
-      'Unfold laat AI-agents aan je Work Items werken, met een budget en kortlevende toegang, en stopt bij een pull request dat een mens beoordeelt. Zelf te hosten, open source, experimenteel.',
+      'Unfold laat AI-agents aan je Work Items werken binnen een budget dat vooraf vastligt, en stopt bij een pull request dat een mens beoordeelt. Zelf te hosten, open source, experimenteel.',
     privacyTitle: 'Privacyverklaring',
     privacyDescription:
       'Wat het aanmeldformulier van Unfold bewaart, waarom, hoe lang en hoe je je afmeldt.',
@@ -138,7 +138,7 @@ export const nl: Dictionary = {
   hero: {
     eyebrow: 'Open source · zelf te hosten · experimenteel',
     title: 'Van Work Item naar een pull request dat klaarligt voor review.',
-    lede: 'Je geeft Unfold een stuk werk. Unfold zet er AI-agents op, met een budget en toegangsgegevens die verlopen, en stopt zodra er een pull request ligt dat een mens kan lezen. Mergen doe je zelf.',
+    lede: 'Je geeft Unfold een stuk werk. Unfold zet er AI-agents op, binnen een budget dat vooraf vastligt, en stopt zodra er een pull request ligt dat een mens kan lezen. Mergen doe je zelf.',
     primary: 'Zet me op de lijst',
     secondary: 'Zo werkt het',
     source: 'Of lees de broncode',
@@ -167,11 +167,11 @@ export const nl: Dictionary = {
       },
       {
         term: 'Shift',
-        text: 'Ploeg opent een Shift en zet een Team op het Work Item. Elke Run is één Role aan het werk, een schrijver of een reviewer, met een eigen budget en eigen toegang.',
+        text: 'Ploeg opent een Shift en zet een Team op het Work Item. Elke Run is één Role aan het werk, een schrijver of een reviewer, met een eigen budget en standaard een eigen modelsleutel.',
       },
       {
         term: 'Pull request',
-        text: 'De Shift eindigt met een pull request op je forge. De wijziging zelf en de uitvoer van de checks die draaiden gaan mee als bewijs.',
+        text: 'In de zelfstandige workerworkflow van Ploeg eindigt de Shift met een pull request op je forge. De wijziging zelf en de uitvoer van de checks die draaiden gaan mee als bewijs.',
       },
       {
         term: 'Review door een mens',
@@ -239,11 +239,11 @@ export const nl: Dictionary = {
     items: [
       {
         title: 'Budgetten',
-        text: 'Ploeg legt het budget vast voordat een Run begint en sluit de toegang tot het model af zodra het op is. Een budget verhogen is een beslissing van een beheerder.',
+        text: 'Ploeg legt het budget vast voordat een Run begint. Standaard hangt dat budget aan de modelsleutel van de Run, en de gateway weigert verdere aanroepen zodra het op is. Een budget verhogen is een beslissing van een beheerder.',
       },
       {
-        title: 'Beperkte toegang',
-        text: 'Beheerde Runs krijgen kortlevende modelsleutels met een budget. Schrijftoegang is beperkt tot het werk; beheersleutels blijven in de controller.',
+        title: 'Toegang',
+        text: 'Standaard krijgt elke beheerde Run een eigen modelsleutel met een budget en een verlooptijd, krijgen reviewers een forge-token dat alleen mag lezen, en blijven beheersleutels in Ploeg. Schrijvers delen één push-token, tenzij je Ploeg een wachtwoord voor een Forgejo-bot geeft; dan krijgt elke schrijvende Run een token voor alleen zijn eigen repository, dat wordt ingetrokken als de Run klaar is. Sleutels en tokens buiten bereik van de agent houden is een instelling die je zelf aanzet.',
       },
       {
         title: 'Bewijs',
@@ -254,6 +254,7 @@ export const nl: Dictionary = {
         text: 'Een goedkeuring van een reviewer-Role telt als bewijs; accepteren doet een mens. Mergen en releasen blijven bij de mensen van wie de repository is.',
       },
     ],
+    matrix: 'Welke instellingen elke bewering nodig heeft',
   },
   pricing: {
     title: 'Zo gaat gehoste Unfold kosten',
@@ -293,12 +294,12 @@ export const nl: Dictionary = {
       {
         name: 'Ploeg',
         role: 'De motor',
-        text: 'Ploeg autoriseert beheerde Runs van agents, kent budgetten toe en orkestreert de uitvoering. Ploeg haalt Work Items uit trackers zoals Vikunja en ClickUp, bepaalt wie op welke branch mag schrijven en legt elke Shift vast in PostgreSQL.',
+        text: 'Ploeg autoriseert beheerde Runs van agents en kent er budget aan toe. Staat de executor aan, dan voert Ploeg de Work Items uit die het uit trackers zoals Vikunja en ClickUp haalt. Ploeg bepaalt wie op welke branch mag schrijven en legt elke Shift vast in PostgreSQL.',
       },
       {
         name: 'Vloer',
         role: 'De werkbank',
-        text: 'Vloer is de voorkant, in de browser of in VS Code. Daar start je werk, stuur je agents bij terwijl ze bezig zijn en bekijk je wat ze hebben gemaakt. Beheerde Runs lopen via Ploeg; de lokale demo is deterministisch.',
+        text: 'Vloer is de voorkant, in de browser of in VS Code. Daar start je werk, stuur je agents bij terwijl ze bezig zijn en bekijk je wat ze hebben gemaakt. Staat gedeelde uitvoering aan, dan autoriseert Ploeg de Runs die je daar start en kent er budget aan toe, maar voert Vloer ze nog zelf uit; staat die uit, dan draait Vloer sessies op eigen houtje. Gepland: Ploeg voert elke Run uit, en Vloer draait zonder Ploeg alleen nog de deterministische demo.',
       },
     ],
     version: 'Beide staan in één repository en krijgen samen één Unfold-versienummer.',
