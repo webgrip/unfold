@@ -28,7 +28,7 @@ Chosen option: "A separate `unfold-site-v…` release train that deploys the sit
 
 * [apps/site/.releaserc.cjs](../../apps/site/.releaserc.cjs) is a monorepo semantic-release train with `package-path: apps/site`, `package-name: unfold-site` and tags `unfold-site-v<version>`. `development` releases `-rc.N` candidates, like Unfold. Unfold's zero-major policy does not apply.
 * Unfold's train in [apps/.releaserc.cjs](../../apps/.releaserc.cjs) never releases a commit scoped `site`, so site commits never bump `unfold-v…`. Neither train reads the other's tags, and Unfold's publication jobs accept only `unfold-v…` tags.
-* A published `unfold-site-v…` release deploys `apps/site` to Cloudflare Workers Static Assets through the shared `cloudflare-deploy` workflow, at `https://unfoldhq.dev` through a Worker route (on the account's `workers.dev` hostname until 2026-10-03). There is no image, chart or cluster change.
+* A published `unfold-site-v…` release deploys `apps/site` to Cloudflare Workers Static Assets through the shared `cloudflare-deploy` workflow, through Worker routes: a candidate to `https://staging.unfoldhq.dev`, a stable release to `https://unfoldhq.dev` (on the account's `workers.dev` hostname until 2026-10-03). There is no image, chart or cluster change.
 * While `SITE_URL` is a platform hostname, every page is `noindex` and `robots.txt` disallows all crawling.
 
 ### Consequences
@@ -59,3 +59,4 @@ Chosen option: "A separate `unfold-site-v…` release train that deploys the sit
 * Refines [ADR-0004](adr-0004-unfold-releases-one-version.md): one Unfold version covers Vloer and Ploeg, not the marketing site.
 * 2026-10-01 — Accepted. The site train and the deploy run from `on_source_change.yml` and `on_release_published.yml`; the deploy reads the `workers.dev` origin from Cloudflare and uses the org-level Cloudflare credential that the bridge publishes from OpenBao.
 * 2026-10-03 — The site moves to `unfoldhq.dev`. The deploy names the origin in `site-release-tag` instead of reading the `workers.dev` subdomain from Cloudflare, and `wrangler.toml` routes `unfoldhq.dev/*` to the Worker.
+* 2026-10-03 — Candidates deploy to `staging.unfoldhq.dev` and stable releases to `unfoldhq.dev`, as twente.dev does. The zone's DNS records live in `apps/site/ops/dns` and `on_dns_change.yml` applies them.

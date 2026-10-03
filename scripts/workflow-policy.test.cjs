@@ -18,7 +18,7 @@ const verifyStep = step => /^set -o pipefail; mise run verify 2>&1 \| tee /.test
 const evaluate = (expression, context) => vm.runInNewContext(expression.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/needs\.([a-z-]+)/g, "needs['$1']"), { startsWith: (value, prefix) => value.startsWith(prefix), always: () => true, ...context });
 
 test('event entry points preserve validation and keep application publication out of pull requests and docs', () => {
-  assert.deepEqual(Object.keys(workflows).sort(), ['on_docs_change.yml', 'on_pull_request.yml', 'on_release_preview.yml', 'on_release_published.yml', 'on_schedule.yml', 'on_source_change.yml']);
+  assert.deepEqual(Object.keys(workflows).sort(), ['on_dns_change.yml', 'on_docs_change.yml', 'on_pull_request.yml', 'on_release_preview.yml', 'on_release_published.yml', 'on_schedule.yml', 'on_source_change.yml']);
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
@@ -179,26 +179,30 @@ test('the site versions on its own train, after Unfold, behind the same gate', (
   assert.equal(release.with['package-name'], 'unfold-site');
 });
 
-test('only a site tag deploys the site, to unfoldhq.dev', () => {
+test('a site candidate deploys to staging and a stable site release to unfoldhq.dev', () => {
   const gate = publisher.jobs['site-release-tag'];
-  assert.equal(gate.if, undefined, 'site-deploy reads these outputs while Forgejo flattens it, so the gate job must never be skipped');
+  assert.equal(gate.if, undefined, 'the site deploy jobs read these outputs while Forgejo flattens them, so the gate job must never be skipped');
   assert.equal(gate.steps[0].env.RELEASES_ENABLED, '${{ vars.UNFOLD_RELEASES_ENABLED }}');
 
-  assert.equal(gate.steps[0].env.SITE_ORIGIN, 'https://unfoldhq.dev');
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'site-gate-'));
   const run = (tag, extra = {}) => {
     const output = path.join(bin, `output-${Math.random()}`);
     fs.writeFileSync(output, '');
     const result = spawnSync('bash', ['-c', gate.steps[0].run], { encoding: 'utf8', env: {
-      PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: output, WORKFLOW_EVENT: 'release', RELEASE_TAG: tag, RELEASES_ENABLED: 'true',
-      CLOUDFLARE_API_TOKEN: 'token', CLOUDFLARE_ACCOUNT_ID: 'account', SITE_ORIGIN: gate.steps[0].env.SITE_ORIGIN, ...extra,
+      PATH: process.env.PATH, GITHUB_OUTPUT: output, WORKFLOW_EVENT: 'release', RELEASE_TAG: tag, RELEASES_ENABLED: 'true',
+      CLOUDFLARE_API_TOKEN: 'token', CLOUDFLARE_ACCOUNT_ID: 'account', ...extra,
     } });
     return { status: result.status, outputs: Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').filter(Boolean).map(line => line.split('='))) };
   };
-  for (const tag of ['unfold-site-v0.1.0', 'unfold-site-v0.1.0-rc.1', 'unfold-site-v1.12.3-rc.40']) {
+  for (const tag of ['unfold-site-v0.1.0-rc.1', 'unfold-site-v1.12.3-rc.40']) {
     const { status, outputs } = run(tag);
     assert.equal(status, 0, tag);
-    assert.deepEqual(outputs, { deploy: 'true', 'site-url': 'https://unfoldhq.dev' }, tag);
+    assert.deepEqual(outputs, { channel: 'prerelease' }, tag);
+  }
+  for (const tag of ['unfold-site-v0.1.0', 'unfold-site-v1.12.3']) {
+    const { status, outputs } = run(tag);
+    assert.equal(status, 0, tag);
+    assert.deepEqual(outputs, { channel: 'stable' }, tag);
   }
   for (const selected of ['unfold', 'unfold-site', 'vloer', 'ploeg', 'unrelated']) {
     for (const open of ['', 'false', 'true']) {
@@ -206,7 +210,7 @@ test('only a site tag deploys the site, to unfoldhq.dev', () => {
       const tag = `${selected}-v0.1.0-rc.1`;
       const { status, outputs } = run(tag, { RELEASES_ENABLED: open, WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development', CLOUDFLARE_API_TOKEN: '' });
       assert.equal(status, 0, `${selected} ${open}`);
-      assert.deepEqual(outputs, { deploy: 'false', 'site-url': '' }, `${selected} ${open}`);
+      assert.deepEqual(outputs, { channel: 'none' }, `${selected} ${open}`);
     }
   }
   for (const tag of ['unfold-site-v01.0.0', 'unfold-site-v0.1.0-rc.0', 'unfold-site-v0.1', 'unfold-site-v0.1.0-beta.1']) {
@@ -215,20 +219,65 @@ test('only a site tag deploys the site, to unfoldhq.dev', () => {
   assert.notEqual(run('unfold-site-v0.1.0', { CLOUDFLARE_API_TOKEN: '' }).status, 0);
   assert.notEqual(run('unfold-site-v0.1.0', { WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development' }).status, 0);
 
-  const deploy = publisher.jobs['site-deploy'];
-  assert.deepEqual(deploy.needs, ['site-release-tag']);
-  assert.equal(deploy.uses, 'webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v2.7.7');
-  assert.equal(deploy.with.enabled, "${{ needs.site-release-tag.outputs.deploy == 'true' }}");
-  assert.equal(deploy.with.environment, 'production');
-  assert.equal(deploy.with['release-channel'], 'prerelease');
-  assert.equal(deploy.with['working-directory'], 'apps/site');
-  assert.equal(deploy.with['apex-url'], '${{ needs.site-release-tag.outputs.site-url }}');
-  assert.equal(deploy.with['build-command'], `UNFOLD_SITE_URL=${deploy.with['apex-url']} pnpm run build:release`);
-  assert.deepEqual(deploy.with['smoke-paths'].trim().split('\n'), ['/', '/nl', '/robots.txt', '/sitemap-index.xml', '/favicon.svg', '/demo/', '/demo/replay/replay.json', '/privacy', '/nl/privacy']);
-  assert.deepEqual(Object.keys(deploy.secrets).sort(), ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN']);
+  const targets = { 'site-deploy-staging': ['prerelease', 'https://staging.unfoldhq.dev', 'staging'], 'site-deploy-production': ['stable', 'https://unfoldhq.dev', undefined] };
+  for (const [name, [channel, origin, env]] of Object.entries(targets)) {
+    const deploy = publisher.jobs[name];
+    assert.deepEqual(deploy.needs, ['site-release-tag'], name);
+    assert.equal(deploy.uses, 'webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v2.7.7', name);
+    assert.equal(deploy.with.enabled, `\${{ needs.site-release-tag.outputs.channel == '${channel}' }}`, name);
+    for (const gateChannel of ['none', 'prerelease', 'stable']) {
+      assert.equal(evaluate(deploy.with.enabled, { needs: { 'site-release-tag': { outputs: { channel: gateChannel } } } }), gateChannel === channel, `${name} ${gateChannel}`);
+    }
+    assert.equal(deploy.with.environment, 'production', name);
+    assert.equal(deploy.with['release-channel'], channel, name);
+    assert.equal(deploy.with['wrangler-env'], env, name);
+    assert.equal(deploy.with['working-directory'], 'apps/site', name);
+    assert.equal(deploy.with['apex-url'], origin, name);
+    assert.equal(deploy.with['build-command'], `UNFOLD_SITE_URL=${origin} pnpm run build:release`, name);
+    assert.deepEqual(deploy.with['smoke-paths'].trim().split('\n'), ['/', '/nl', '/robots.txt', '/sitemap-index.xml', '/favicon.svg', '/demo/', '/demo/replay/replay.json', '/privacy', '/nl/privacy'], name);
+    assert.deepEqual(Object.keys(deploy.secrets).sort(), ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'], name);
+  }
   for (const [name, job] of Object.entries(publisher.jobs)) {
     if (!name.startsWith('site-')) assert.doesNotMatch(JSON.stringify(job), /CLOUDFLARE_/, name);
   }
+});
+
+test('the unfoldhq.dev zone is previewed and pushed from development and checked daily for drift, only with its own DNS token', () => {
+  const dns = workflows['on_dns_change.yml'];
+  assert.deepEqual(dns.on.push.branches, ['development']);
+  assert.deepEqual(dns.on.push.paths, ['apps/site/ops/dns/**', '.forgejo/workflows/on_dns_change.yml']);
+  assert.equal(dns.on.schedule.length, 1);
+  assert.equal(dns.concurrency['cancel-in-progress'], false);
+  const gate = dns.jobs['authorize-dns'];
+  for (const [event, token, expected] of [
+    ['push', '', 'change=false\ndrift=false'],
+    ['schedule', '', 'change=false\ndrift=false'],
+    ['push', 'token', 'change=true\ndrift=false'],
+    ['workflow_dispatch', 'token', 'change=true\ndrift=false'],
+    ['schedule', 'token', 'change=false\ndrift=true'],
+  ]) {
+    const output = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'dns-gate-')), 'output');
+    const result = spawnSync('sh', ['-c', gate.steps[0].run], { encoding: 'utf8', env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, EVENT: event, CLOUDFLARE_DNS_TOKEN: token } });
+    assert.equal(result.status, 0, `${event} ${token}`);
+    assert.equal(fs.readFileSync(output, 'utf8').trim(), expected, `${event} ${token}`);
+  }
+  const calls = { preview: ['dns-preview', 'change'], push: ['dns-push', 'change'], drift: ['dns-drift', 'drift'] };
+  for (const [mode, [name, output]] of Object.entries(calls)) {
+    const job = dns.jobs[name];
+    assert.equal(job.uses, 'webgrip/workflows/.forgejo/workflows/dnscontrol.yml@v2.7.7', mode);
+    assert.ok(job.needs.includes('authorize-dns'), mode);
+    assert.equal(job.with.enabled, `\${{ needs.authorize-dns.outputs.${output} }}`, mode);
+    assert.equal(job.with.mode, mode);
+    assert.equal(job.with['working-directory'], 'apps/site/ops/dns', mode);
+    assert.deepEqual(job.secrets, { CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_DNS_TOKEN }}', CLOUDFLARE_ACCOUNT_ID: '${{ secrets.CLOUDFLARE_ACCOUNT_ID }}' }, mode);
+  }
+  assert.deepEqual(dns.jobs['dns-push'].needs, ['authorize-dns', 'dns-preview']);
+  assert.equal(dns.jobs['dns-push'].with['push-refs'], 'refs/heads/development');
+  for (const [file, workflow] of Object.entries(workflows)) {
+    if (file !== 'on_dns_change.yml') assert.doesNotMatch(JSON.stringify(workflow), /CLOUDFLARE_DNS_TOKEN|dnscontrol\.yml/, file);
+  }
+  assert.ok(fs.existsSync(path.join(root, 'apps/site/ops/dns/dnsconfig.js')));
+  assert.ok(fs.existsSync(path.join(root, 'apps/site/ops/dns/creds.json')));
 });
 
 test('Ploeg mirrors require completed signing even when Forgejo omits job result fields', () => {

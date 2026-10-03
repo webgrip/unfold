@@ -24,3 +24,25 @@ enabled = true
 
 [observability.logs]
 invocation_logs = false
+
+[env.staging]
+name = "unfold-site-staging"
+routes = [{ pattern = "staging.unfoldhq.dev/*", zone_name = "unfoldhq.dev" }]
+
+[env.staging.assets]
+directory = "./dist"
+binding = "ASSETS"
+html_handling = "auto-trailing-slash"
+not_found_handling = "404-page"
+run_worker_first = ["/api/*"]
+
+[[env.staging.d1_databases]]
+binding = "SIGNUPS"
+database_name = "unfold-site-signups"
+database_id = "df25762e-eea2-41be-b772-b74f5e2b187c"
+
+[env.staging.observability]
+enabled = true
+
+[env.staging.observability.logs]
+invocation_logs = false
