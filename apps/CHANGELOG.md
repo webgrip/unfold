@@ -1,3 +1,15 @@
+## [unfold-v0.4.0-rc.34](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.33...unfold-v0.4.0-rc.34) (2026-10-03)
+
+### Fixed
+
+* **ploeg:** keep a writer's problem and solution when Claude stdout is malformed ([f77d8d3](https://forgejo.webgrip.dev/webgrip/unfold/commit/f77d8d3ac39d4f241ccc1886a4a6dda03b4f9ad5))
+* **vloer:** record CVE-2026-93748 as not affecting the agent image ([211e857](https://forgejo.webgrip.dev/webgrip/unfold/commit/211e857e40331130ab106bdc9a37620d491e8eb8))
+* **vloer:** stop every release from staling the demo replay ([6af67f3](https://forgejo.webgrip.dev/webgrip/unfold/commit/6af67f3932e19771eee3b58eaedc03889ee8dd42))
+
+### Internal
+
+* **release:** unfold-site-v0.1.0-rc.8 [skip ci] ([54f7336](https://forgejo.webgrip.dev/webgrip/unfold/commit/54f733681486ce2f3b5a352d375e1dd4e60a0a59))
+
 ## [unfold-v0.4.0-rc.33](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.32...unfold-v0.4.0-rc.33) (2026-10-03)
 
 ### Dependencies

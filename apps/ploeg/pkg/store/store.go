@@ -481,17 +481,12 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 	if rep.Outcome == work.OutcomeStuck && rep.StuckReason == "" {
 		return OutcomeResult{}, errors.New("stuck outcome requires a stuck_reason (R4)")
 	}
-	if rep.Links == nil {
-		// links is NOT NULL; a linkless outcome (stuck, no_change_needed)
-		// must not be rejected — that would swallow the failure it reports.
-		rep.Links = []string{}
-	}
+	rep = rep.normalized()
 	next := work.StateForOutcome(rep.Outcome)
-	encoded, err := json.Marshal(rep)
+	digest, err := rep.digest()
 	if err != nil {
 		return OutcomeResult{}, err
 	}
-	digest := fmt.Sprintf("%x", sha256.Sum256(encoded))
 	var verification []byte
 	if rep.Verification != nil {
 		if verification, err = json.Marshal(rep.Verification); err != nil {
@@ -579,6 +574,37 @@ func (s *Store) ReportOutcome(ctx context.Context, runToken string, rep harnessR
 		return OutcomeResult{}, err
 	}
 	return OutcomeResult{WorkItemID: id, ShiftID: shiftID, ForgeTokenID: forgeTokenID, Created: created}, tx.Commit(ctx)
+}
+
+// IsOutcomeReplay reports whether rep repeats the outcome that already
+// finished the run, which ReportOutcome answers with the original success.
+// The outcome handler asks before writing an inline checkpoint, because a
+// finished run no longer accepts checkpoints.
+func (s *Store) IsOutcomeReplay(ctx context.Context, runToken string, rep harnessReport) (bool, error) {
+	digest, err := rep.normalized().digest()
+	if err != nil {
+		return false, err
+	}
+	var replay bool
+	err = s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM agent_runs
+		WHERE run_token=$1 AND state='finished' AND outcome_digest=$2
+		AND EXISTS (SELECT 1 FROM run_llm_accounts WHERE run_token=$1))`, runToken, digest).Scan(&replay)
+	return replay, err
+}
+
+func (r harnessReport) normalized() harnessReport {
+	if r.Links == nil {
+		r.Links = []string{}
+	}
+	return r
+}
+
+func (r harnessReport) digest() (string, error) {
+	encoded, err := json.Marshal(r)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(encoded)), nil
 }
 
 // harnessReport mirrors harness.OutcomeReport without importing the package

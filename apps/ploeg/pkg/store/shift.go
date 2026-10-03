@@ -465,20 +465,33 @@ func (s *Store) ClaimRoleWithin(ctx context.Context, team, role string, ttl time
 	}, nil
 }
 
-// RecordForgeToken stores the per-run push credential's id on the Lease, so
-// the sweeper knows what to revoke when that Lease lapses (ADR-0013 tier 2).
-// The lease row is the ledger of which credential is live.
+// ErrLeaseLost reports that a Run no longer holds a live Lease: it was
+// withdrawn, expired or settled while ploegd was working on its behalf.
+var ErrLeaseLost = errors.New("run no longer holds a live lease")
+
+// RecordForgeToken stores the per-run push credential's id on the Run's Lease,
+// so the sweeper knows what to revoke when that Lease lapses (ADR-0013 tier
+// 2). It returns ErrLeaseLost, and records nothing, unless the Run is still
+// running and its Lease has not expired.
 func (s *Store) RecordForgeToken(ctx context.Context, runToken, tokenID string) error {
-	_, err := s.pool.Exec(ctx,
-		`UPDATE leases SET forge_token_id = $2 WHERE run_token = $1`, runToken, tokenID)
-	return err
+	tag, err := s.pool.Exec(ctx, `
+		UPDATE leases SET forge_token_id = $2
+		WHERE run_token = $1 AND expires_at > now()
+		  AND EXISTS (SELECT 1 FROM agent_runs r WHERE r.run_token = $1 AND r.state = 'running')`,
+		runToken, tokenID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrLeaseLost
+	}
+	return nil
 }
 
-// LiveForgeTokenIDs lists the push credentials that belong to a live Lease —
-// the boot sweep's "what is legitimately outstanding" set.
-func (s *Store) LiveForgeTokenIDs(ctx context.Context) ([]string, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT forge_token_id FROM leases WHERE forge_token_id <> ''`)
+// LeasedRunTokens lists the run token of every Run that holds a Lease: the
+// Runs whose push credentials the forge sweep must leave alone.
+func (s *Store) LeasedRunTokens(ctx context.Context) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT run_token FROM leases`)
 	if err != nil {
 		return nil, err
 	}

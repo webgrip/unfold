@@ -89,7 +89,7 @@ GROUP BY a.state;
 
 The restored database is missing everything after the backup point. The gateway and the forge still hold what happened in that gap. Ploeg has no tool to compare the two. **Not implemented yet:** a post-restore reconciliation command. Work through the gap by hand:
 
-1. **Keys minted in the gap.** `ploegd` runs an orphan sweep at start and every 15 minutes. It blocks every `ploeg-*` gateway key that no unfinished Run in the database accounts for, and revokes every per-Run forge push token that no Lease records. Confirm with `orphan sweep: revoked stale keys` and `forge orphan sweep: revoked stale push credentials` in the log.
+1. **Keys minted in the gap.** `ploegd` runs an orphan sweep at start and every 15 minutes. It blocks every `ploeg-*` gateway key that no unfinished Run in the database accounts for, and revokes every per-Run forge push token whose Run holds no Lease. Confirm with `orphan sweep: revoked stale keys` and `forge orphan sweep: revoked stale push credentials` in the log.
 2. **Spend in the gap.** Blocking a key does not account for its spend. In the LiteLLM logs, find spend from `ploeg-*` aliases after the backup time whose alias is not in the database:
 
    ```sql

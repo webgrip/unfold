@@ -34,8 +34,11 @@ func (s *Server) withdraw(ctx context.Context, workItemID int64, teams []string,
 		if s.ForgeCreds == nil {
 			break
 		}
-		if err := s.ForgeCreds.Revoke(ctx, forgebroker.Credential{ID: id}); err != nil {
-			s.Log.Error("withdrawn run forge credential revoke failed; the boot sweep will reap it", "work_item", workItemID)
+		revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), forgeCleanupTimeout)
+		err := s.ForgeCreds.Revoke(revokeCtx, forgebroker.Credential{ID: id})
+		cancel()
+		if err != nil {
+			s.Log.Error("withdrawn run forge credential revoke failed; the forge sweep will retry", "work_item", workItemID)
 		}
 	}
 	s.Log.Info("work item withdrawn", "id", workItemID, "reason", reason, "shift", wd.ShiftID,
