@@ -180,19 +180,29 @@ func (env resultEnvelope) usage() *harness.Usage {
 // drop box owns whatever the agent chose to report about itself, which for a
 // reading Run is the review and the verdict.
 //
-// A malformed envelope must not cost us the review, so the drop box is read
-// first and returned even when the envelope fails to decode.
+// The two channels are independent. A malformed envelope costs the Run its
+// usage, which stays nil (unknown) rather than zero, but never anything the
+// agent reported in the drop box: a writer's problem and solution, a reader's
+// findings and verdict, or proposed Work Items. Usage comes only from the
+// envelope; a usage figure the agent wrote into the drop box is discarded.
+//
+// When the drop box carries a report, an undecodable envelope is not returned
+// as an error, because harness.RunCommand answers a parse error by discarding
+// the whole report. The cost is diagnostic: that envelope failure is not
+// logged as a parse warning, and shows only as the Run's missing usage. With
+// no report in the drop box the decode error is returned as before.
 func (a *Adapter) ParseOutcome(_ harness.TaskSpec, res harness.ExecResult) (harness.OutcomeReport, error) {
 	box, err := harness.ReadDropBox(res.OutcomeFile)
 	if err != nil {
 		return harness.OutcomeReport{}, err
 	}
+	box.Usage = nil
 	if len(res.Stdout) == 0 {
 		return box, nil
 	}
 	var env resultEnvelope
 	if err := json.Unmarshal(res.Stdout, &env); err != nil {
-		if box.Outcome != "" || box.Verdict != "" {
+		if agentReported(box) {
 			return box, nil
 		}
 		return box, fmt.Errorf("decode claude result envelope: %w", err)
@@ -201,4 +211,12 @@ func (a *Adapter) ParseOutcome(_ harness.TaskSpec, res harness.ExecResult) (harn
 		return box, nil
 	}
 	return harness.MergeDropBox(harness.OutcomeReport{Usage: env.usage()}, box), nil
+}
+
+func agentReported(box harness.OutcomeReport) bool {
+	return box.Outcome != "" || box.Verdict != "" ||
+		strings.TrimSpace(box.Findings) != "" ||
+		strings.TrimSpace(box.Problem) != "" ||
+		strings.TrimSpace(box.Solution) != "" ||
+		len(box.CreatedWorkItems) > 0
 }

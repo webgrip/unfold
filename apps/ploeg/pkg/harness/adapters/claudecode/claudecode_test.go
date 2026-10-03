@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/harness/harnesstest"
@@ -351,4 +353,154 @@ func TestRun_MalformedEnvelopePreservesIndependentDropBox(t *testing.T) {
 			}
 		})
 	}
+}
+
+type fakeClaude struct {
+	dropBox string
+	stdout  string
+	exit    string
+	sleep   string
+}
+
+func runFakeClaude(ctx context.Context, t *testing.T, fc fakeClaude, idle time.Duration) (harness.OutcomeReport, error) {
+	t.Helper()
+	bin := filepath.Join(t.TempDir(), "claude")
+	script := "#!/bin/sh\n" +
+		`if [ -n "$PLOEG_FAKE_DROPBOX" ]; then printf '%s\n' "$PLOEG_FAKE_DROPBOX" > "$PLOEG_OUTCOME_FILE"; fi` + "\n" +
+		`printf '%s' "$PLOEG_FAKE_STDOUT"` + "\n" +
+		`if [ -n "$PLOEG_FAKE_SLEEP" ]; then exec sleep "$PLOEG_FAKE_SLEEP"; fi` + "\n" +
+		`exit "${PLOEG_FAKE_EXIT:-0}"` + "\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	env := testEnv()
+	env.RepoDir, env.ScratchDir = t.TempDir(), t.TempDir()
+	env.IdleTimeout = idle
+	env.BaseEnv = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"PLOEG_FAKE_DROPBOX=" + fc.dropBox,
+		"PLOEG_FAKE_STDOUT=" + fc.stdout,
+		"PLOEG_FAKE_EXIT=" + fc.exit,
+		"PLOEG_FAKE_SLEEP=" + fc.sleep,
+	}
+	return harness.RunCommand(New(bin, "")).Run(ctx, harness.TaskSpec{TraceID: "writer-account"}, env)
+}
+
+const validEnvelope = `{"type":"result","subtype":"success","result":"done","session_id":"sess-1","total_cost_usd":0.42,"usage":{"input_tokens":1200,"output_tokens":300}}`
+
+func TestRun_MalformedEnvelopeKeepsTheWritersAccount(t *testing.T) {
+	const (
+		problem  = "Refunds over €500 fail with a 500."
+		solution = "`refund.go` checks the limit before the call."
+		account  = `{"problem":"` + problem + `","solution":"` + solution + `"}`
+		created  = `[{"title":"Split the refund limit into config","description":"Found while fixing refunds.","ready":true,"kind":"discovered"}]`
+	)
+	for _, tc := range []struct {
+		name         string
+		dropBox      string
+		stdout       string
+		wantProblem  string
+		wantSolution string
+		wantFindings string
+		wantCreated  int
+	}{
+		{name: "not JSON", dropBox: account, stdout: "not a JSON result envelope\n", wantProblem: problem, wantSolution: solution},
+		{name: "banner before a valid envelope", dropBox: account, stdout: "Claude Code v9.9.9\n" + validEnvelope + "\n", wantProblem: problem, wantSolution: solution},
+		{name: "truncated envelope", dropBox: account, stdout: `{"type":"result","total_cost_usd":0.42,"usage":{"input_tokens":`, wantProblem: problem, wantSolution: solution},
+		{name: "problem alone", dropBox: `{"problem":"` + problem + `"}`, stdout: "garbage", wantProblem: problem},
+		{name: "solution alone", dropBox: `{"solution":"` + solution + `"}`, stdout: "garbage", wantSolution: solution},
+		{name: "findings alone", dropBox: `{"findings":"missing boundary check"}`, stdout: "garbage", wantFindings: "missing boundary check"},
+		{name: "created work alone", dropBox: `{"createdWorkItems":` + created + `}`, stdout: "garbage", wantCreated: 1},
+		{name: "agent-claimed usage is not accounting", dropBox: `{"problem":"` + problem + `","usage":{"costUsd":0,"sessionId":"agent-made-up"}}`, stdout: "garbage", wantProblem: problem},
+		{name: "malformed drop box", dropBox: "not JSON", stdout: "garbage"},
+		{name: "empty drop box", dropBox: "{}", stdout: "garbage"},
+		{name: "whitespace-only account", dropBox: `{"problem":"  ","solution":"\n"}`, stdout: "garbage"},
+		{name: "absent drop box", stdout: "garbage"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			report, err := runFakeClaude(context.Background(), t, fakeClaude{dropBox: tc.dropBox, stdout: tc.stdout}, 0)
+			if err != nil {
+				t.Fatalf("a clean process exit became an error: %v", err)
+			}
+			if strings.TrimSpace(report.Problem) != tc.wantProblem || strings.TrimSpace(report.Solution) != tc.wantSolution {
+				t.Errorf("account = problem %q solution %q, want problem %q solution %q",
+					report.Problem, report.Solution, tc.wantProblem, tc.wantSolution)
+			}
+			if report.Findings != tc.wantFindings {
+				t.Errorf("findings = %q, want %q", report.Findings, tc.wantFindings)
+			}
+			if len(report.CreatedWorkItems) != tc.wantCreated {
+				t.Errorf("created work = %+v, want %d entries", report.CreatedWorkItems, tc.wantCreated)
+			}
+			if report.Outcome != "" || report.Verdict != "" || report.Summary != "" || len(report.Links) != 0 {
+				t.Errorf("an outcome-less drop box gained a conclusion: %+v", report)
+			}
+			if report.Usage != nil {
+				t.Errorf("an unreadable envelope produced usage %+v; usage must stay unknown", report.Usage)
+			}
+		})
+	}
+}
+
+func TestRun_ValidEnvelopeSuppliesUsageBesideTheWritersAccount(t *testing.T) {
+	report, err := runFakeClaude(context.Background(), t, fakeClaude{
+		dropBox: `{"problem":"p","solution":"s","usage":{"costUsd":0,"sessionId":"agent-made-up"}}`,
+		stdout:  validEnvelope + "\n",
+	}, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Problem != "p" || report.Solution != "s" {
+		t.Errorf("account lost: %+v", report)
+	}
+	if report.Usage == nil || report.Usage.SessionID != "sess-1" || report.Usage.CostUSD != 0.42 ||
+		report.Usage.InputTokens != 1200 || report.Usage.OutputTokens != 300 {
+		t.Errorf("usage = %+v, want the envelope's figures", report.Usage)
+	}
+	if report.Outcome != "" {
+		t.Errorf("outcome = %q, want none: Claude does not know whether its PR landed", report.Outcome)
+	}
+}
+
+func TestRun_FailedProcessKeepsItsErrorAndTheWritersAccount(t *testing.T) {
+	report, err := runFakeClaude(context.Background(), t, fakeClaude{
+		dropBox: `{"problem":"p","solution":"s"}`, stdout: "garbage", exit: "7",
+	}, 0)
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) || exitErr.ExitCode() != 7 {
+		t.Fatalf("err = %v, want the process's exit status 7", err)
+	}
+	if report.Problem != "p" || report.Solution != "s" {
+		t.Errorf("account lost on a failed process: %+v", report)
+	}
+	if report.Outcome != "" || report.Usage != nil {
+		t.Errorf("a failed process gained an outcome or usage: %+v", report)
+	}
+}
+
+func TestRun_StoppedProcessStaysStoppedWithTheWritersAccount(t *testing.T) {
+	t.Run("idle timeout", func(t *testing.T) {
+		report, err := runFakeClaude(context.Background(), t, fakeClaude{
+			dropBox: `{"problem":"p","solution":"s"}`, stdout: "garbage", sleep: "30",
+		}, 200*time.Millisecond)
+		if !errors.Is(err, harness.ErrIdle) {
+			t.Fatalf("err = %v, want ErrIdle", err)
+		}
+		if report.Problem != "p" || report.Solution != "s" || report.Outcome != "" {
+			t.Errorf("report = %+v, want the account and no outcome", report)
+		}
+	})
+	t.Run("cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		go func() { time.Sleep(300 * time.Millisecond); cancel() }()
+		report, err := runFakeClaude(ctx, t, fakeClaude{
+			dropBox: `{"problem":"p","solution":"s"}`, stdout: "garbage", sleep: "30",
+		}, 0)
+		if err == nil {
+			t.Fatal("a cancelled process reported success")
+		}
+		if report.Problem != "p" || report.Solution != "s" || report.Outcome != "" {
+			t.Errorf("report = %+v, want the account and no outcome", report)
+		}
+	})
 }
