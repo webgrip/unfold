@@ -86,10 +86,38 @@ func (s *Store) UnfinishedRunTokens(ctx context.Context) ([]string, error) {
 	return tokens, rows.Err()
 }
 
+const migrationLockKey = `hashtextextended('ploeg.schema-migrations', 0)`
+
 // Migrate applies embedded migrations in filename order, tracked in
-// schema_migrations. Safe to run on every boot.
-func (s *Store) Migrate(ctx context.Context) error {
-	if _, err := s.pool.Exec(ctx,
+// schema_migrations. Safe to run on every boot and from several processes at
+// once: it holds a session advisory lock on one connection for the whole
+// check-and-apply loop, so concurrent callers apply each migration once.
+func (s *Store) Migrate(ctx context.Context) (err error) {
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := conn.Exec(ctx, `SELECT pg_advisory_lock(`+migrationLockKey+`)`); err != nil {
+		conn.Release()
+		return fmt.Errorf("migration lock: %w", err)
+	}
+	defer func() {
+		unlockCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		if _, unlockErr := conn.Exec(unlockCtx, `SELECT pg_advisory_unlock(`+migrationLockKey+`)`); unlockErr != nil {
+			_ = conn.Hijack().Close(unlockCtx)
+			if err == nil {
+				err = fmt.Errorf("migration unlock: %w", unlockErr)
+			}
+			return
+		}
+		conn.Release()
+	}()
+	return applyMigrations(ctx, conn.Conn())
+}
+
+func applyMigrations(ctx context.Context, conn *pgx.Conn) error {
+	if _, err := conn.Exec(ctx,
 		`CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
 		return err
 	}
@@ -104,7 +132,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 	sort.Strings(names)
 	for _, name := range names {
 		var applied bool
-		if err := s.pool.QueryRow(ctx,
+		if err := conn.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE name = $1)`, name).Scan(&applied); err != nil {
 			return err
 		}
@@ -115,7 +143,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		tx, err := s.pool.Begin(ctx)
+		tx, err := conn.Begin(ctx)
 		if err != nil {
 			return err
 		}
