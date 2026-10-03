@@ -25,6 +25,7 @@ export const SITE_NAME = 'Unfold';
 
 export const SOURCE_URL = 'https://forgejo.webgrip.dev/webgrip/unfold';
 export const DEMO_GUIDE_URL = `${SOURCE_URL}/src/branch/development/docs/workflows/local-demo.md`;
+export const CAPABILITY_MATRIX_URL = `${SOURCE_URL}/src/branch/development/docs/reference/capability-matrix.md`;
 export const LICENSE_URL = `${SOURCE_URL}/src/branch/development/LICENSE`;
 export const DOCS_URL = 'https://docs.webgrip.dev/glide/';
 export const LICENSE_ID = 'Apache-2.0';

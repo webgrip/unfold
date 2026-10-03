@@ -83,7 +83,7 @@ export const en = {
     archKicker: '03 / UNDER THE SURFACE',
     archTitle: 'One product. Clear responsibilities.',
     archIntro:
-      'Ploeg controls managed execution. Vloer is where you start, steer and inspect the work. Both ship from one repository, under one Unfold version.',
+      'Ploeg authorizes and budgets managed execution. Vloer is where you start, steer and inspect the work. Both ship from one repository, under one Unfold version.',
     cluster: 'MANAGED EXECUTION',
     front: 'Browser / VS Code',
     engine: 'Authorization · budgets · orchestration',
@@ -107,7 +107,7 @@ export const en = {
   meta: {
     homeTitle: 'Unfold: from Work Item to a pull request you review',
     homeDescription:
-      'Unfold runs AI agents on your Work Items with a budget and short-lived credentials, and stops at a pull request for a person to review. Self-hosted, open source, experimental.',
+      'Unfold runs AI agents on your Work Items within a budget set before work starts, and stops at a pull request for a person to review. Self-hosted, open source, experimental.',
     privacyTitle: 'Privacy statement',
     privacyDescription:
       'What the Unfold sign-up form stores, why, for how long, and how to withdraw.',
@@ -136,7 +136,7 @@ export const en = {
   hero: {
     eyebrow: 'Open source · self-hosted · experimental',
     title: 'Turn Work Items into pull requests that are ready for review.',
-    lede: 'You give Unfold a unit of work. It runs AI agents on it with a budget and credentials that expire, and stops when a pull request is ready for a person to read. Merging stays with you.',
+    lede: 'You give Unfold a unit of work. It runs AI agents on it within a budget set before work starts, and stops when a pull request is ready for a person to read. Merging stays with you.',
     primary: 'Join the list',
     secondary: 'See how it works',
     source: 'Or read the source',
@@ -165,11 +165,11 @@ export const en = {
       },
       {
         term: 'Shift',
-        text: 'Ploeg opens a Shift and runs a Team against the Work Item. Each Run is one Role at work, a writer or a reviewer, with its own budget and credentials.',
+        text: 'Ploeg opens a Shift and puts a Team on the Work Item. Each Run is one Role at work, a writer or a reviewer, with its own budget and, by default, its own model key.',
       },
       {
         term: 'Pull request',
-        text: 'The Shift ends with a pull request on your forge. The actual change and the output of the checks that ran come with it as evidence.',
+        text: 'In Ploeg’s unattended worker workflow, the Shift ends with a pull request on your forge. The actual change and the output of the checks that ran come with it as evidence.',
       },
       {
         term: 'Human review',
@@ -236,11 +236,11 @@ export const en = {
     items: [
       {
         title: 'Budgets',
-        text: 'Ploeg sets a budget before a Run starts and blocks its model access once the budget is spent. Raising a budget is an administrator’s decision.',
+        text: 'Ploeg sets a budget before a Run starts. By default the Run’s model key carries that budget, and the gateway refuses further calls once it is spent. Raising a budget is an administrator’s decision.',
       },
       {
-        title: 'Scoped credentials',
-        text: 'Managed Runs receive budgeted, short-lived model keys. Writer access is scoped to the work; management credentials stay in the controller.',
+        title: 'Credentials',
+        text: 'By default each managed Run gets its own model key with a budget and an expiry, reviewers get a read-only forge token, and management keys stay in Ploeg. Writers share one push token unless you give Ploeg a Forgejo bot password; then each writing Run gets a token for its own repository, revoked when the Run ends. Keeping keys and tokens out of the agent’s reach is a setting you turn on.',
       },
       {
         title: 'Evidence',
@@ -251,6 +251,7 @@ export const en = {
         text: 'A reviewer Role’s approval counts as evidence, and acceptance is a human call. Merging and releasing stay with the people who own the repository.',
       },
     ],
+    matrix: 'Which settings each claim needs',
   },
   pricing: {
     title: 'How hosted Unfold will be priced',
@@ -289,12 +290,12 @@ export const en = {
       {
         name: 'Ploeg',
         role: 'The engine',
-        text: 'Ploeg authorizes, budgets and orchestrates managed agent Runs. It takes Work Items from trackers such as Vikunja and ClickUp, decides who may write each branch, and keeps the record of every Shift in PostgreSQL. Ploeg is Dutch for crew.',
+        text: 'Ploeg authorizes and budgets managed agent Runs. With its executor enabled, it runs the Work Items it takes from trackers such as Vikunja and ClickUp. It decides who may write each branch and keeps the record of every Shift in PostgreSQL. Ploeg is Dutch for crew.',
       },
       {
         name: 'Vloer',
         role: 'The workbench',
-        text: 'Vloer is the front end, in the browser or in VS Code. You start work there, steer agents while they run and review what they produced. Managed Runs go through Ploeg; the local demo is deterministic. Vloer is Dutch for floor, as in shop floor.',
+        text: 'Vloer is the front end, in the browser or in VS Code. You start work there, steer agents while they run and review what they produced. With shared execution turned on, Ploeg authorizes and budgets the Runs you start there, and Vloer still executes them itself; without it, Vloer runs sessions on its own. Planned: Ploeg executes every Run, and Vloer on its own runs only the deterministic demo. Vloer is Dutch for floor, as in shop floor.',
       },
     ],
     version:
