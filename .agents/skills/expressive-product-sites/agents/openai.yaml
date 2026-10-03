@@ -1,0 +1,4 @@
+interface:
+  display_name: "Expressive Product Sites"
+  short_description: "Build memorable sites from real product evidence"
+  default_prompt: "Use $expressive-product-sites to research and implement a memorable, on-brand product site with credible storytelling and purposeful motion."

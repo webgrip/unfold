@@ -66,4 +66,6 @@ Ploeg's unattended worker workflow can publish pull requests. Vloer's managed ca
 
 The homepage uses distinct paper, ink and accent chapters. The evidence section has its own dark semantic tokens in both themes; the human-control interlude uses the approved deep accent with on-accent text. These fixed contrast contexts also apply to the hero's paper illustration and the dark footer. The footer's enlarged wordmark still uses the generated outline, not live type. The evidence, architecture and current/planned disclosures remain semantic text.
 
+The [October 2026 design record](design/redesign-2026-10.md) preserves the research rationale, product boundaries and measured validation results.
+
 The mobile menu uses a native disclosure. Without scripting it is in flow and the header is not sticky. With scripting it closes on section navigation or Escape. Both themes share the unchanged brand palette and geometry. The desktop composition becomes a single column on narrow screens; code blocks scroll within their own labelled regions.
