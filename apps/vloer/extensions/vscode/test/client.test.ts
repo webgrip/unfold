@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { VloerClient, ApiError, normalizeServerUrl, type Secrets } from '../src/client.ts';
-import { application, createInput, sessionUntil } from '../../../test/api-support.ts';
+import { application, createInput, request, sessionUntil } from '../../../test/api-support.ts';
+import { signInForEditor, workbench } from '../../../test/oidc-support.ts';
+import { browserLogin } from '../src/browser-login.ts';
 import { hashPassword } from '../../../src/auth.ts';
 import { deadlineAfter, testTimeout } from '../../../test/timeframes.ts';
 import type { SessionInput } from '../src/types.ts';
@@ -86,6 +88,38 @@ test('live login stores only the opaque session cookie, restores it, clears expi
   await assert.rejects(restored.bootstrap(), (error: unknown) => error instanceof ApiError && error.status === 401);
   await secrets.store(restored.secretKey, `vloer=${'a'.repeat(43)}`);
   await assert.rejects(restored.bootstrap(), (error: unknown) => error instanceof ApiError && error.status === 401);
+  assert.equal(secrets.values.size, 0);
+});
+
+test('the extension signs in through the browser end to end: it shows the code, waits for approval and keeps a revocable editor credential', { timeout: testTimeout(30_000) }, async t => {
+  const { server, idp } = await workbench(t);
+  const secrets = new MemorySecrets();
+  const client = new VloerClient(server.url, secrets);
+  const shown: string[] = [];
+  let browserCookie = '';
+  let approvalPage: { userCode?: string; workbench?: string } = {};
+  const user = await browserLogin(client, {
+    showCode: code => { shown.push(code); },
+    open: async url => {
+      const signedIn = await signInForEditor(url, idp);
+      browserCookie = signedIn.cookie;
+      const code = decodeURIComponent(signedIn.location.replace('/#editor-sign-in/', ''));
+      approvalPage = (await request(server.url, `/api/editor-requests/${code}`, { cookie: browserCookie })).body;
+      assert.equal((await request(server.url, `/api/editor-requests/${code}/approve`, { method: 'POST', cookie: browserCookie })).status, 200);
+    },
+    cancelled: () => false,
+    sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
+  }, server.url, 1100);
+  assert.deepEqual(user && { name: user.name }, { name: 'person@example.com' });
+  assert.equal(shown.length, 1);
+  assert.equal(approvalPage.userCode, shown[0]);
+  assert.equal(approvalPage.workbench, new URL(server.url).host);
+  const stored = secrets.values.get(client.secretKey)!;
+  assert.match(stored, /^vle_[A-Za-z0-9_-]{43}$/);
+  assert.equal((await client.bootstrap()).user.name, 'person@example.com');
+  const [editor] = (await request(server.url, '/api/editor-credentials', { cookie: browserCookie })).body.editors;
+  assert.equal((await request(server.url, `/api/editor-credentials/${editor.id}`, { method: 'DELETE', cookie: browserCookie })).status, 200);
+  await assert.rejects(client.bootstrap(), (error: unknown) => error instanceof ApiError && error.status === 401);
   assert.equal(secrets.values.size, 0);
 });
 

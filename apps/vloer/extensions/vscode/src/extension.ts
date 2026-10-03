@@ -9,7 +9,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import { ApiError, VloerClient, normalizeServerUrl } from './client.js';
-import { browserLogin } from './browser-login.js';
+import { browserLogin, codePrompt } from './browser-login.js';
 import { EvidenceDocuments, patchFileLine } from './evidence.js';
 import { AttentionWatcher, show, type NotificationPolicy } from './notifications.js';
 import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome } from './panel.js';
@@ -347,8 +347,8 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       if (!useBrowser) return;
       if (useBrowser.method === 'browser') {
         const client = this.current;
-        const signedIn = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Waiting for your sign-in with ${methods.oidc!.name} in the browser…`, cancellable: true }, (_progress, token) =>
-          browserLogin(client, { open: async url => { await vscode.env.openExternal(vscode.Uri.parse(url)); }, cancelled: () => token.isCancellationRequested, sleep: ms => new Promise(resolve => setTimeout(resolve, ms)) }, origin));
+        const signedIn = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `Sign in with ${methods.oidc!.name} in the browser, then approve this editor.`, cancellable: true }, (progress, token) =>
+          browserLogin(client, { open: async url => { await vscode.env.openExternal(vscode.Uri.parse(url)); }, showCode: userCode => progress.report({ message: codePrompt(userCode) }), cancelled: () => token.isCancellationRequested, sleep: ms => new Promise(resolve => setTimeout(resolve, ms)) }, origin));
         if (!signedIn) return;
         this.cachedBootstrap = await this.current.bootstrap();
         await this.renewAgentHost();

@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
-import { Auth } from './auth.ts';
+import { Auth, editorCredentialDays, type EditorRequestView } from './auth.ts';
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
 import { getTask, listTasks, presentTask, publicTaskSource, TaskError } from './tasks.ts';
@@ -148,7 +148,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         return json(res, 200, { status: 'ok', version: applicationVersion });
       }
       if (relay && await relay.handle(req, res, url)) return;
-      if (['POST','PUT','PATCH','DELETE'].includes(method) && !path.startsWith('/api/auth/editor')) mutationGuard(req, config);
+      const editorCollect = path.match(/^\/api\/auth\/editor\/([A-Za-z0-9_-]{8,32})$/);
+      if (['POST','PUT','PATCH','DELETE'].includes(method) && path !== '/api/auth/editor' && !editorCollect) mutationGuard(req, config);
       if (method === 'POST' && path === '/api/login') {
         const data = await body(req);
         const result = auth.login(text(data.name, 'Name', 100), typeof data.password === 'string' ? data.password : '', req.socket.remoteAddress || 'unknown');
@@ -157,10 +158,9 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       }
       if (method === 'GET' && path === '/api/auth/methods') return json(res, 200, { local: true, oidc: oidc?.configured() ? { name: config.auth.oidc!.displayName, issuer: config.auth.oidc!.issuer } : null });
       if (method === 'POST' && path === '/api/auth/editor' && oidc?.configured()) {
-        const started = auth.beginEditor();
-        return json(res, 200, { code: started.code, secret: started.secret, expiresIn: started.expiresIn, url: `${config.baseUrl ?? `http://${req.headers.host}`}/api/auth/oidc?editor=${encodeURIComponent(started.code)}` });
+        const started = auth.beginEditor(req.socket.remoteAddress || 'unknown');
+        return json(res, 200, { code: started.code, secret: started.secret, userCode: started.userCode, expiresIn: started.expiresIn, interval: started.interval, url: `${config.baseUrl ?? `http://${req.headers.host}`}/api/auth/oidc?editor=${encodeURIComponent(started.code)}` });
       }
-      const editorCollect = path.match(/^\/api\/auth\/editor\/([A-Za-z0-9_-]{8,32})$/);
       if (method === 'POST' && editorCollect) {
         const data = await body(req);
         const result = auth.collectEditor(editorCollect[1], typeof data.secret === 'string' ? data.secret : '');
@@ -181,8 +181,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const identity = await oidc.complete(url.searchParams.get('code') ?? '', url.searchParams.get('state') ?? '', auth.browserBinding(req));
           store.upsertUser({ id: identity.id, name: identity.email ?? identity.name, role: identity.role, passwordHash: '' });
           const issued = auth.issue({ id: identity.id, name: identity.email ?? identity.name, role: identity.role });
-          if (identity.editor) { auth.bindEditor(identity.editor, auth.issue(issued.user)); }
-          res.writeHead(303, { Location: identity.editor ? '/?editor=done' : '/', 'Set-Cookie': issued.cookie });
+          if (identity.editor) auth.claimEditor(identity.editor, issued.user);
+          res.writeHead(303, { Location: identity.editor ? `/#editor-sign-in/${encodeURIComponent(identity.editor)}` : '/', 'Set-Cookie': issued.cookie });
         } catch (error: any) {
           console.error(JSON.stringify({ level: 'warn', event: 'login.failed', method: 'oidc', code: String(error?.code || 'oidc_failed'), message: String(error?.message || '').slice(0, 300) }));
           res.writeHead(303, { Location: `/?login_error=${encodeURIComponent(String(error?.code || 'oidc_failed').replace(/[^a-z0-9_]/gi, '').slice(0, 40))}` });
@@ -217,6 +217,28 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (path.startsWith('/api/')) {
         const user = auth.user(req);
         if (!user) return json(res, 401, { error: { code: 'unauthenticated', message: 'Sign in to your workbench.' } });
+        const editorRequest = path.match(/^\/api\/editor-requests\/([A-Za-z0-9_-]{8,32})(?:\/(approve|deny))?$/);
+        const editorCredential = path.match(/^\/api\/editor-credentials(?:\/([a-f0-9]{24}))?$/);
+        if (editorRequest || editorCredential) {
+          if (auth.scope(req) !== 'browser') fault(403, 'browser_only', 'Approve, list and revoke editor sign-ins from the workbench in your browser.');
+          const requestView = (view: EditorRequestView) => ({ ...view, workbench: new URL(config.baseUrl ?? `http://${req.headers.host}`).host, user: user.name, role: user.role, credentialDays: editorCredentialDays });
+          if (editorRequest && method === 'GET' && !editorRequest[2]) {
+            const found = auth.editorRequest(editorRequest[1], user);
+            if (!found) fault(404, 'editor_login_unknown', 'This editor sign-in is unknown or has expired. Start it again from your editor.');
+            return json(res, 200, requestView(found));
+          }
+          if (editorRequest && method === 'POST' && editorRequest[2]) {
+            const decided = auth.decideEditor(editorRequest[1], user, editorRequest[2] === 'approve' ? 'approved' : 'denied');
+            console.log(JSON.stringify({ level: 'info', event: `editor.${decided.status}`, actor: user.id }));
+            return json(res, 200, requestView(decided));
+          }
+          if (editorCredential && method === 'GET' && !editorCredential[1]) return json(res, 200, { editors: auth.editorCredentials(user) });
+          if (editorCredential && method === 'DELETE' && editorCredential[1]) {
+            agentHost?.revokeSignIn(auth.revokeEditorCredential(user, editorCredential[1]));
+            return json(res, 200, { editors: auth.editorCredentials(user) });
+          }
+          fault(405, 'method', 'Unsupported method.');
+        }
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
           user, mode: config.mode, sharedExecution: Boolean(config.execution), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
           gatewayPolicy: config.gatewayPolicy ?? null,

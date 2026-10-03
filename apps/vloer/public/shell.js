@@ -33,8 +33,8 @@ const groups = [
   { id: 'settings', items: [{ id: 'settings', href: '#settings/preferences', glyph: 'settings', label: 'Settings' }] },
 ];
 const quick = ['now', 'work', 'runs'];
-const settingsPages = [['preferences', '#settings/preferences', 'Preferences'], ['system', '#settings/environment', 'Environment'], ['account', '#settings/accounts', 'Linked accounts'], ['card-identity', '#settings/cards', 'Card logins'], ['designer', '#settings/card-designer', 'Card designer']];
-const areas = { session: 'sessions', account: 'settings', system: 'settings', preferences: 'settings', design: 'settings', 'card-identity': 'settings', designer: 'settings' };
+const settingsPages = [['preferences', '#settings/preferences', 'Preferences'], ['system', '#settings/environment', 'Environment'], ['account', '#settings/accounts', 'Linked accounts'], ['editors', '#settings/editors', 'Signed-in editors'], ['card-identity', '#settings/cards', 'Card logins'], ['designer', '#settings/card-designer', 'Card designer']];
+const areas = { session: 'sessions', account: 'settings', system: 'settings', preferences: 'settings', design: 'settings', 'card-identity': 'settings', designer: 'settings', editors: 'settings', 'editor-sign-in': 'settings' };
 const groupOf = { work: 'Ploeg', proposed: 'Ploeg', runs: 'Ploeg', activity: 'Ploeg', insights: 'Ploeg', tasks: 'Workbench', sessions: 'Workbench', binder: 'Cards', packs: 'Cards', season: 'Cards', settings: 'Settings' };
 const themes = [['system', 'monitor', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']];
 const ploegStates = {

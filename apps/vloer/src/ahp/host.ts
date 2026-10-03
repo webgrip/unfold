@@ -88,7 +88,7 @@ export class AgentHost {
   issueToken(user: User, label = 'agent host', signIn?: string): string {
     const token = connectionToken();
     const key = digest(token);
-    const bound = signIn && this.store.getLogin(signIn) ? signIn : undefined;
+    const bound = signIn && this.store.liveSignIn(signIn) ? signIn : undefined;
     this.store.transaction(() => {
       this.store.setSecret(`ahp-token:${key}`, { userId: user.id, name: user.name, role: user.role, label, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + this.lifetimeMs()).toISOString(), ...(bound ? { signIn: bound } : {}) } satisfies TokenRecord);
       if (bound) this.store.setSecret(`ahp-sign-in:${bound}`, [...(this.store.getSecret<string[]>(`ahp-sign-in:${bound}`) ?? []), key]);
@@ -118,7 +118,7 @@ export class AgentHost {
     const record = this.store.getSecret<TokenRecord>(`ahp-token:${key}`);
     if (!record) return undefined;
     const now = Date.now();
-    if (!record.expiresAt || !(Date.parse(record.expiresAt) > now) || (record.signIn && !this.store.getLogin(record.signIn))) { this.revoke(key); return undefined; }
+    if (!record.expiresAt || !(Date.parse(record.expiresAt) > now) || (record.signIn && !this.store.liveSignIn(record.signIn))) { this.revoke(key); return undefined; }
     const expiresAt = now + this.lifetimeMs();
     if (renew && expiresAt - Date.parse(record.expiresAt) >= 60_000) this.store.setSecret(`ahp-token:${key}`, { ...record, expiresAt: new Date(expiresAt).toISOString() });
     return record;
