@@ -162,7 +162,7 @@ sequenceDiagram
 | Way | When it acts | Close reason |
 | --- | --- | --- |
 | Unassign the Team on the ticket | Any time, if the removed assignee is the Work Item's Team | `withdrawn_unassigned` |
-| Close the ticket | Only while the Work Item is queued and no Run has started or been authorized to spend. Otherwise the close is ignored and the work finishes | `withdrawn_closed` |
+| Close the ticket | While the Work Item is queued and no Run has started or been authorized to spend, or while it has stopped at needs you or ready for review with no Run running. A stopped item settles without a comment on the ticket, and an open pull request stays open. The sweep re-reads stopped tickets, so a missed close webhook settles too. Otherwise the close is ignored and the work finishes | `withdrawn_closed` |
 | Operator cancel, from Vloer's **Cancel Work Item** or `POST /api/v1/operator/work-items/{id}/cancel` | Any time, within the consumer's Teams. Posts a comment on the ticket | `withdrawn_by_operator` |
 
 An operator-owned Work Item (journey C) ignores all three. Cancel its execution instead. Assigning the ticket again starts a new attempt.

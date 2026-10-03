@@ -15,6 +15,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/plan"
@@ -64,7 +65,20 @@ type Engine struct {
 	// When both URLs are empty the links section is omitted and the rest of
 	// the report still renders.
 	VloerURL string
+	// TrackerRecheck is how often the sweep re-reads the tracker task of one
+	// stopped Work Item (needs_human, awaiting_review) to settle it when the
+	// task was closed. Zero means DefaultTrackerRecheck.
+	TrackerRecheck time.Duration
 }
+
+// DefaultTrackerRecheck is the per-item interval between tracker re-reads of
+// a stopped Work Item when Engine.TrackerRecheck is zero.
+const DefaultTrackerRecheck = 15 * time.Minute
+
+const (
+	trackerRecheckBatch   = 20
+	trackerRecheckTimeout = 10 * time.Second
+)
 
 // EnsureShift opens a Shift for a queued Work Item of a planned team, then
 // evaluates it so the first Round materialises. Idempotent: an existing live
@@ -384,6 +398,8 @@ func terminalOutcome(reports []store.RunReport) (work.Outcome, bool) {
 // ran dry. Errors are logged, never returned — one broken Shift must not
 // stall the sweep of the rest (R2).
 func (e *Engine) EvaluateAll(ctx context.Context) {
+	e.settleClosedInTracker(ctx)
+
 	// Queued items with no live Shift: the crash window between
 	// IngestAssigned committing and EnsureShift running. Asked of the
 	// database rather than iterated per configured team, so uniform dispatch
@@ -431,6 +447,49 @@ func (e *Engine) EvaluateAll(ctx context.Context) {
 		// either dispatch shape (shift-orchestration spec).
 		if err := e.close(ctx, si, reason, closeMessage(reasonPoolExhausted), false, nil); err != nil {
 			e.Log.Error("shift sweep: park failed", "shift", b.ShiftID, "err", err)
+		}
+	}
+}
+
+func (e *Engine) settleClosedInTracker(ctx context.Context) {
+	if len(e.Trackers) == 0 {
+		return
+	}
+	providers := make([]string, 0, len(e.Trackers))
+	for name := range e.Trackers {
+		providers = append(providers, name)
+	}
+	every := e.TrackerRecheck
+	if every <= 0 {
+		every = DefaultTrackerRecheck
+	}
+	due, err := e.Store.ClaimStoppedTrackerChecks(ctx, providers, every, trackerRecheckBatch)
+	if err != nil {
+		e.Log.Error("shift sweep: stopped tracker items read failed", "err", err)
+		return
+	}
+	for _, d := range due {
+		tp, ok := e.Trackers[d.Provider]
+		if !ok {
+			continue
+		}
+		readCtx, cancel := context.WithTimeout(ctx, trackerRecheckTimeout)
+		item, err := tp.FetchItem(readCtx, d.ExternalID)
+		cancel()
+		if err != nil {
+			e.Log.Warn("shift sweep: tracker task read failed", "work_item", d.WorkItemID, "provider", d.Provider, "err", err)
+			continue
+		}
+		if !item.Closed {
+			continue
+		}
+		wd, err := e.Store.SettleClosedInTracker(ctx, d.WorkItemID, "sweep:"+d.Provider)
+		if err != nil {
+			e.Log.Error("shift sweep: closed tracker task settle failed", "work_item", d.WorkItemID, "err", err)
+			continue
+		}
+		if wd.Withdrawn {
+			e.Log.Info("work item settled: its task was closed in the tracker", "work_item", d.WorkItemID, "provider", d.Provider)
 		}
 	}
 }

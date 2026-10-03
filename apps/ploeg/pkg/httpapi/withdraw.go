@@ -77,14 +77,25 @@ func (s *Server) trackerUnassigned(ctx context.Context, name string, ev provider
 }
 
 // trackerClosed withdraws a Work Item whose tracker task was closed before any
-// Run started. Started work is left to finish: stopping paid work takes an
-// unassignment or an operator cancel.
+// Run started, and settles a stopped one (needs_human, awaiting_review)
+// without a tracker comment. Started work is left to finish: stopping paid
+// work takes an unassignment or an operator cancel.
 func (s *Server) trackerClosed(ctx context.Context, name string, ev provider.TrackerEvent) error {
 	id, item, err := s.Store.TrackerWorkItemID(ctx, name, ev.ExternalID)
 	if errors.Is(err, store.ErrWorkItemNotFound) {
 		return nil
 	}
 	if err != nil {
+		return err
+	}
+	if item.State == work.StateNeedsHuman || item.State == work.StateAwaitingReview {
+		wd, err := s.Store.SettleClosedInTracker(ctx, id, "webhook:"+name)
+		if errors.Is(err, store.ErrOperatorOwned) {
+			return nil
+		}
+		if err == nil && wd.Withdrawn {
+			s.Log.Info("work item settled: its task was closed in the tracker", "id", id, "previous_state", string(item.State))
+		}
 		return err
 	}
 	if item.State != work.StateQueued {

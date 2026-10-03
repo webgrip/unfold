@@ -378,6 +378,7 @@ func (p *Provider) FetchExecutionItem(ctx context.Context, externalID string) (p
 		Labels:           t.tagNames(),
 		TrackerCreatedAt: unixMillis(t.DateCreated),
 		EstimateSeconds:  estimateSeconds(t.TimeEstimate),
+		Closed:           t.closed(),
 	}}, nil
 }
 
