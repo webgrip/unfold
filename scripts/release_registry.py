@@ -2,6 +2,7 @@ import base64
 import hashlib
 import http.client
 import json
+import os
 import re
 import subprocess
 import time
@@ -22,6 +23,7 @@ class SafeRedirect(urllib.request.HTTPRedirectHandler):
 
 
 READ_ATTEMPTS = 3
+COMMAND_TIMEOUT = 600
 TRANSIENT_STATUS = {429, 500, 502, 503, 504}
 TRANSIENT_ERRORS = (http.client.IncompleteRead, http.client.RemoteDisconnected, ConnectionError, TimeoutError, urllib.error.URLError)
 
@@ -57,7 +59,11 @@ def raise_http_error(url, method, error):
 
 
 def command(*args, env=None, input=None):
-    result = subprocess.run(args, env=env, input=input, capture_output=True, text=True)
+    env = {**(os.environ if env is None else env), 'GIT_TERMINAL_PROMPT': '0'}
+    try:
+        result = subprocess.run(args, env=env, input=input, stdin=None if input is not None else subprocess.DEVNULL, capture_output=True, text=True, timeout=COMMAND_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f'{args[0]} {args[1]} did not finish within {COMMAND_TIMEOUT} seconds') from None
     if result.returncode:
         raise RuntimeError(f'{args[0]} {args[1]} failed: {result.stderr[-2000:]}')
     return result.stdout.strip()

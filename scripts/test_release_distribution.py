@@ -224,6 +224,16 @@ class DistributionTests(unittest.TestCase):
             SafeRedirect().redirect_request(request, None, 301, '', {}, 'https://forgejo.webgrip.dev/api/v1/repos/webgrip/unfold/releases/7/assets')
         self.assertEqual(raised.exception.code, 301)
 
+    def test_a_command_never_waits_for_a_credential_prompt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / 'prompt'
+            script.write_text('#!/bin/sh\nprintf %s "$GIT_TERMINAL_PROMPT"\nread answer\nexit 0\n')
+            script.chmod(0o755)
+            self.assertEqual(release_registry.command(str(script), 'probe'), '0')
+            with patch.object(release_registry, 'COMMAND_TIMEOUT', 0.2):
+                with self.assertRaisesRegex(RuntimeError, 'did not finish'):
+                    release_registry.command('sleep', '5')
+
     def test_go_export_is_repeatable_and_contains_the_exact_application_tree(self):
         previous = os.getcwd()
         with tempfile.TemporaryDirectory() as directory:
