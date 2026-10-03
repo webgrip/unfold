@@ -586,34 +586,11 @@ func (s *Server) respondClaimedRun(w http.ResponseWriter, r *http.Request, req c
 	// able to push are one fact rather than two that can disagree. A reader
 	// gets nothing here — it has no Lease and no business pushing.
 	if run.Writes && s.ForgeCreds != nil && run.Item.Target != nil {
-		cred, err := s.ForgeCreds.Mint(r.Context(), forgebroker.MintRequest{
-			RunToken: run.RunToken, Owner: run.Item.Target.Owner, Repo: run.Item.Target.Repo,
-		})
-		if err != nil {
-			// Nothing can safely push, so nothing should run. Finish the Run
-			// as a retryable infra failure and answer empty-handed: the pod
-			// exits 0 and the item comes back round rather than running with
-			// a credential we did not intend to hand out.
-			s.Log.Error("forge credential mint failed; releasing the run",
-				"team", req.Team, "role", run.Role, "err", err)
-			fr := string(work.FailureInfraNode)
-			if _, rerr := s.Store.ReportOutcome(r.Context(), run.RunToken,
-				store.Report(work.OutcomeFailed, "could not mint a push credential", "", nil, nil, &fr)); rerr != nil {
-				s.Log.Error("releasing the run failed", "err", rerr)
-			}
+		cred, ok := s.mintForgeCredential(r.Context(), req.Team, run)
+		if !ok {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		if cred.ID != "" {
-			if err := s.Store.RecordForgeToken(r.Context(), run.RunToken, cred.ID); err != nil {
-				// The credential exists but is unrecorded: the boot sweep is
-				// the backstop that reaps it.
-				s.Log.Error("could not record the forge credential; the boot sweep will reap it",
-					"run", run.RunToken[:12], "err", err)
-			}
-		}
-		// cred.ID is the truth predicate for "minted, and therefore
-		// revocable" — the Static broker returns the SHARED token with no id.
 		if cred.ID != "" {
 			resp.ForgeToken = cred.Token
 			resp.ForgeTokenPerRun = true
@@ -764,13 +741,12 @@ func (s *Server) handleOutcome(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	// Push rights die with the Run (ADR-0013 tier 2). Best-effort: the
-	// sweeper's lease-expiry path and the boot sweep are the backstops, and
-	// the token's own TTL is the last net.
 	if s.ForgeCreds != nil && res.ForgeTokenID != "" {
-		if err := s.ForgeCreds.Revoke(r.Context(), forgebroker.Credential{ID: res.ForgeTokenID}); err != nil {
-			s.Log.Error("forge credential revoke failed; the sweeper will retry", "err", err)
+		revokeCtx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), forgeCleanupTimeout)
+		if err := s.ForgeCreds.Revoke(revokeCtx, forgebroker.Credential{ID: res.ForgeTokenID}); err != nil {
+			s.Log.Error("forge credential revoke failed; the forge sweep will retry", "err", err)
 		}
+		cancel()
 	}
 	s.Log.Info("outcome reported", "outcome", req.Outcome, "summary", req.Summary,
 		"created_proposed", len(req.CreatedWorkItems), "created_accepted", len(res.Created))

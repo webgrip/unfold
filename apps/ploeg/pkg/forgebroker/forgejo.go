@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -81,11 +82,14 @@ func (f *Forgejo) do(ctx context.Context, method, path string, body, out any) er
 // the forge UI and parseable by the sweep; the run prefix is the same 12 hex
 // that joins spend to ticket in Grafana.
 func tokenName(runToken, owner, repo string) string {
-	id := runToken
-	if len(id) > 12 {
-		id = id[:12]
+	return fmt.Sprintf("%s%s-%s-%s", namePrefix, runPrefix(runToken), owner, repo)
+}
+
+func runPrefix(runToken string) string {
+	if len(runToken) > 12 {
+		return runToken[:12]
 	}
-	return fmt.Sprintf("%s%s-%s-%s", namePrefix, id, owner, repo)
+	return runToken
 }
 
 func (f *Forgejo) tokensPath() string {
@@ -142,36 +146,67 @@ func (f *Forgejo) RevokeByID(ctx context.Context, id string) error {
 	return f.Revoke(ctx, Credential{ID: id})
 }
 
-// SweepOrphans revokes every ploeg-minted token whose id is not in aliveIDs.
-// The boot-time backstop for a ploegd that died between minting and recording
-// — the same reconciliation the LiteLLM sweeper does for spend.
-func (f *Forgejo) SweepOrphans(ctx context.Context, aliveIDs []string) (int, error) {
-	var tokens []struct {
-		ID   int64  `json:"id"`
-		Name string `json:"name"`
+const sweepPageSize = 50
+
+type listedToken struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+func (f *Forgejo) listTokens(ctx context.Context) ([]listedToken, error) {
+	var all []listedToken
+	for page := 1; ; page++ {
+		var batch []listedToken
+		path := fmt.Sprintf("%s?page=%d&limit=%d", f.tokensPath(), page, sweepPageSize)
+		if err := f.do(ctx, http.MethodGet, path, nil, &batch); err != nil {
+			return nil, err
+		}
+		all = append(all, batch...)
+		if len(batch) < sweepPageSize {
+			return all, nil
+		}
 	}
-	if err := f.do(ctx, http.MethodGet,
-		f.tokensPath(), nil, &tokens); err != nil {
+}
+
+// SweepOrphans revokes every ploeg-minted token whose Run is not in leased,
+// paging through the whole token list. It retries every revocation that
+// failed and reaps a token minted by a ploegd that died before recording it.
+// A token it cannot revoke does not stop the rest; the errors are joined.
+// Tokens this package did not mint are never touched.
+func (f *Forgejo) SweepOrphans(ctx context.Context, leased func(context.Context) ([]string, error)) (int, error) {
+	tokens, err := f.listTokens(ctx)
+	if err != nil {
 		return 0, err
 	}
-	alive := make(map[string]bool, len(aliveIDs))
-	for _, id := range aliveIDs {
-		alive[id] = true
+	runTokens, err := leased(ctx)
+	if err != nil {
+		return 0, err
+	}
+	held := make(map[string]bool, len(runTokens))
+	for _, rt := range runTokens {
+		held[runPrefix(rt)] = true
 	}
 	revoked := 0
+	var errs []error
 	for _, t := range tokens {
-		// Only ever touch tokens this package minted. A human's personal
-		// token on the same bot must survive a sweep.
-		if !strings.HasPrefix(t.Name, namePrefix) {
-			continue
-		}
-		if alive[fmt.Sprint(t.ID)] {
+		run, ours := mintedFor(t.Name)
+		if !ours || held[run] {
 			continue
 		}
 		if err := f.Revoke(ctx, Credential{ID: fmt.Sprint(t.ID), Name: t.Name}); err != nil {
-			return revoked, err
+			errs = append(errs, err)
+			continue
 		}
 		revoked++
 	}
-	return revoked, nil
+	return revoked, errors.Join(errs...)
+}
+
+func mintedFor(name string) (string, bool) {
+	rest, ok := strings.CutPrefix(name, namePrefix)
+	if !ok {
+		return "", false
+	}
+	run, _, ok := strings.Cut(rest, "-")
+	return run, ok && run != ""
 }

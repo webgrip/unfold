@@ -10,24 +10,27 @@
 // Holding the Lease and being able to push become one fact rather than two
 // that can disagree.
 //
-// Deliberately the same shape as pkg/llmbroker — mint, hand over, let it die,
+// Deliberately the same shape as pkg/llmbroker — mint, hand over, revoke,
 // reconcile from the sweeper — because that pattern is proven here and a
 // second novel one would be a second thing to get wrong. Callers speak run
 // tokens; forge-specific identity stays inside the implementation.
+//
+// A minted token has no expiry: Forgejo's token API takes no lifetime, and
+// a Forgejo access token lives until it is deleted. Revocation is the only
+// bound. Every minted token carries its Run in its name, so the forge itself
+// is the durable record of what was minted, and the sweeper revokes every
+// token whose Run no longer holds a Lease.
 package forgebroker
 
-import (
-	"context"
-	"time"
-)
+import "context"
 
 // Broker mints and revokes per-run forge credentials.
 type Broker interface {
 	// Mint issues a credential scoped to one repository. The returned
 	// Credential's ID is what Revoke needs and what the lease row stores.
 	Mint(ctx context.Context, req MintRequest) (Credential, error)
-	// Revoke is idempotent and best-effort: the token's own expiry is the
-	// backstop, never the mechanism.
+	// Revoke is idempotent. A failed Revoke is retried by the sweeper,
+	// because nothing else ever ends the token.
 	Revoke(ctx context.Context, cred Credential) error
 }
 
@@ -36,9 +39,12 @@ type Broker interface {
 type Sweeper interface {
 	// RevokeByID revokes one previously minted credential (lease expiry).
 	RevokeByID(ctx context.Context, id string) error
-	// SweepOrphans revokes every ploeg-minted forge token that does not
-	// belong to a live run, returning how many were revoked (boot sweep).
-	SweepOrphans(ctx context.Context, aliveIDs []string) (int, error)
+	// SweepOrphans revokes every ploeg-minted forge token whose Run does not
+	// hold a Lease, returning how many were revoked. It lists the forge's
+	// tokens BEFORE it calls leased, so a token minted while the sweep runs
+	// is either missing from the listing or belongs to a Run that leased
+	// reports: a claim takes its Lease before it mints.
+	SweepOrphans(ctx context.Context, leased func(context.Context) ([]string, error)) (int, error)
 }
 
 // MintRequest describes the push rights one writing Run needs.
@@ -51,8 +57,6 @@ type MintRequest struct {
 	// that can reach a second repo is the blast radius this package exists to
 	// remove.
 	Owner, Repo string
-	// TTL bounds the credential even if every revocation path fails.
-	TTL time.Duration
 }
 
 // Credential is a minted per-run forge token.
