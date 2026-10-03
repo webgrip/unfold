@@ -694,6 +694,14 @@ test('the card proxy passes a contract grade and condition through validated, an
   }
   upstreamApi.cards['101'] = { ...liveCard('101'), grade: null, condition: null };
   assert.deepEqual([(await ploeg.card(admin, '101', true)).card.grade, (await ploeg.card(admin, '101', true)).card.condition], [null, null]);
+  const inputs = { reliability: { crackWeight: 0, reverted: false }, durability: { daysLive: 3, liveSince: '2026-10-01T12:00:00Z', reverts: 0, hotfixes: 0, survival: null }, delivery: { budgetShare: null, defectBounces: 0, extraPlays: 0, failedRuns: 0 }, review: { ciFirstGreen: null, findings: null, changeRequests: 2, reviewRounds: 3, reworkRounds: 1 }, notCollected: ['review.findings'], missing: ['delivery.budgetShare', 'nonsense'] };
+  upstreamApi.cards['101'] = { ...liveCard('101'), grade: { ...grade, formula: '2026.3', qualifiers: [], inputs } };
+  const rated = (await ploeg.card(admin, '101', true)).card.grade;
+  assert.equal(rated?.formula, '2026.3');
+  assert.deepEqual([rated?.inputs?.review.reworkRounds, rated?.inputs?.missing], [1, ['delivery.budgetShare']], 'rework rounds and the inputs Ploeg missed pass through, unknown names dropped');
+  const { missing: _sent, ...older } = inputs;
+  upstreamApi.cards['101'] = { ...liveCard('101'), grade: { ...grade, formula: '2026.2', qualifiers: [], inputs: older } };
+  assert.equal(Object.hasOwn((await ploeg.card(admin, '101', true)).card.grade?.inputs ?? {}, 'missing'), false, 'an older Ploeg that sends no missing list is not read as complete evidence');
   upstreamApi.cards['101'] = { ...liveCard('101'), style: { skin: 'forge', theme: null } };
   assert.deepEqual((await ploeg.card(admin, '101', true)).card.style, { skin: 'forge', theme: null }, 'a Work Target can choose the forge skin');
   upstreamApi.cards['101'] = { ...liveCard('101'), style: { skin: 'arcade', theme: null } };
