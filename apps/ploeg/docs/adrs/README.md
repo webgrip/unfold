@@ -132,6 +132,7 @@ fails otherwise.
 | [0056](0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) | A Run card's rarity is its challenge, predicted at mint and frozen at release | proposed | 2026-10-02 |
 | [0057](0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md) | A Run card's flow figures come from every recorded tracker status and a team calendar | proposed | 2026-10-02 |
 | [0058](0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md) | A Run card's pull request, CI and change-shape figures are read from the forge and kept per play | proposed | 2026-10-02 |
+| [0059](0059-delivery-facts-come-from-the-forge-never-from-the-agents-outcome.md) | Delivery facts come from the forge, never from the agent's outcome | proposed | 2026-10-03 |
 
 ## Review calendar
 
@@ -167,4 +168,5 @@ triggers.
 | 2027-01-31 | [0056](0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) — or sooner, when a Work Target reaches 30 revealed cards in a quarter, complexity or estimates get a source, unrecorded files pass 5 % of a quarter's merged plays, or the owner asks for Team cohorts or a reveal at acceptance |
 | 2027-01-31 | [0057](0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md) — or sooner, when a lost webhook explains a missing status stay, most boards override the default status kinds, a card list with flow passes 1 s at p95, or a tracker offers readable status history |
 | 2027-01-31 | [0058](0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md) — or sooner, when Forgejo exposes jobs per run, capture reads show in forge rate limits, the owner wants complexity in rarity, a card list passes 1 s at p95, or measured cards mislead |
+| 2027-01-31 | [0059](0059-delivery-facts-come-from-the-forge-never-from-the-agents-outcome.md) — or sooner, when a worker shares a process with its agent, `infra_forge` sends five Work Items a week to a human, a third forge provider is added, or no older worker reports for two weeks |
 | 2027-04-01 | [0005](0005-build-a-dedicated-dispatch-plane.md), [0032](0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) — the project review gate (`design.md` §10) |
