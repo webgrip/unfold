@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/httpapi"
 	"github.com/webgrip/ploeg/pkg/store"
@@ -66,7 +67,7 @@ func TestRefreshUsageReports_SwallowsEngineFailure(t *testing.T) {
 // The settlement sweep is a no-op with no LLMControl configured.
 func TestManagedSettlementSweep_WithoutControlIsANoop(t *testing.T) {
 	srv := &httpapi.Server{}
-	if got := managedSettlementSweep(context.Background(), slog.New(slog.DiscardHandler), srv, 0, 0); got != 0 {
+	if got := managedSettlementSweep(context.Background(), slog.New(slog.DiscardHandler), srv, 0, 0, newAccountRetries(time.Second)); got != 0 {
 		t.Errorf("cursor = %d, want 0", got)
 	}
 }

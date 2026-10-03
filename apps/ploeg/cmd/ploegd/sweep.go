@@ -81,6 +81,7 @@ func orphanSweep(ctx context.Context, log *slog.Logger, st *store.Store, sweeper
 func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper llmbroker.Sweeper,
 	forgeSweeper forgebroker.Sweeper, engine *shiftengine.Engine, server *httpapi.Server, every, settleAfter time.Duration) {
 	var managedCursor, settlementCursor int64
+	blockRetries, settlementRetries := newAccountRetries(every), newAccountRetries(every)
 	t := time.NewTicker(every)
 	defer t.Stop()
 	// A second, much slower ticker: reconciling every credential against the
@@ -127,8 +128,8 @@ func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper l
 				// to push, not just its right to.
 				revokeForgeToken(ctx, log, forgeSweeper, e.ForgeTokenID)
 			}
-			managedCursor = managedBlockSweep(ctx, log, server, managedCursor)
-			settlementCursor = managedSettlementSweep(ctx, log, server, settlementCursor, settleAfter)
+			managedCursor = managedBlockSweep(ctx, log, server, managedCursor, blockRetries)
+			settlementCursor = managedSettlementSweep(ctx, log, server, settlementCursor, settleAfter, settlementRetries)
 
 			// Delivery ids outlive a forge's retry window by a wide margin;
 			// the table exists to survive a restart, not to be an archive.
@@ -177,7 +178,7 @@ func blockExpiredRun(ctx context.Context, log *slog.Logger, sweeper llmbroker.Sw
 	revokeKey(ctx, log, sweeper, runToken)
 }
 
-func managedBlockSweep(ctx context.Context, log *slog.Logger, server *httpapi.Server, after int64) int64 {
+func managedBlockSweep(ctx context.Context, log *slog.Logger, server *httpapi.Server, after int64, retries *accountRetries) int64 {
 	if server.LLMControl == nil {
 		return 0
 	}
@@ -191,8 +192,14 @@ func managedBlockSweep(ctx context.Context, log *slog.Logger, server *httpapi.Se
 	}
 	for _, account := range accounts {
 		after = account.RunID
+		now := time.Now()
+		if !retries.due(account.RunID, now) {
+			continue
+		}
 		if err := server.LLMControl.Block(ctx, account.RunToken); err != nil {
-			log.Error("managed key block retry unresolved")
+			log.Error("managed key block retry unresolved", "run", account.RunID, "err", err, "next_attempt_in", retries.failed(account.RunID, now))
+		} else {
+			retries.succeeded(account.RunID)
 		}
 		if ctx.Err() != nil {
 			break
@@ -201,7 +208,7 @@ func managedBlockSweep(ctx context.Context, log *slog.Logger, server *httpapi.Se
 	return after
 }
 
-func managedSettlementSweep(ctx context.Context, log *slog.Logger, server *httpapi.Server, after int64, quietFor time.Duration) int64 {
+func managedSettlementSweep(ctx context.Context, log *slog.Logger, server *httpapi.Server, after int64, quietFor time.Duration, retries *accountRetries) int64 {
 	if server.LLMControl == nil {
 		return 0
 	}
@@ -215,9 +222,14 @@ func managedSettlementSweep(ctx context.Context, log *slog.Logger, server *httpa
 	}
 	for _, account := range accounts {
 		after = account.RunID
+		now := time.Now()
+		if !retries.due(account.RunID, now) {
+			continue
+		}
 		if err := server.LLMControl.Settle(ctx, account); err != nil {
-			log.Warn("managed settlement unresolved", "alias", account.Alias, "state", account.State, "err", err)
+			log.Warn("managed settlement unresolved", "alias", account.Alias, "state", account.State, "err", err, "next_attempt_in", retries.failed(account.RunID, now))
 		} else {
+			retries.succeeded(account.RunID)
 			log.Info("managed account settled", "alias", account.Alias)
 			// Only after the numbers are durable: the report now shows settled
 			// figures. A historical Run with no Shift has no report to
