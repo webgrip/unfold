@@ -3,7 +3,7 @@ import type { Core, StateMeta } from './core.js';
 import type { PloegNow, PloegNowItem, PloegRunRow } from './ploeg-types.js';
 import { codicon, toneColors } from './tones.js';
 import type { Session } from './types.js';
-import { describeItem, describeRun, nowGroup, pullRequestNumber } from './now.js';
+import { describeItem, describeRun, groupTruncated, nowGroup, pullRequestNumber } from './now.js';
 
 export { nowGroup, waitingCount } from './now.js';
 
@@ -47,7 +47,7 @@ export class NowTree implements vscode.TreeDataProvider<NowEntry>, vscode.Dispos
   current(): PloegNow | undefined { return this.now; }
 
   private fire() {
-    const key = JSON.stringify([this.now?.waiting, this.now?.running, this.now?.errors, this.sessions.map(session => [session.id, session.updatedAt]), this.message, this.ploegMessage, this.disconnected]);
+    const key = JSON.stringify([this.now?.waiting, this.now?.running, this.now?.errors, this.now?.truncatedStates, this.sessions.map(session => [session.id, session.updatedAt]), this.message, this.ploegMessage, this.disconnected]);
     if (key === this.shown) return;
     this.shown = key;
     this.changed.fire(undefined);
@@ -75,6 +75,7 @@ export class NowTree implements vscode.TreeDataProvider<NowEntry>, vscode.Dispos
     return [
       ...(entry.id === 'needs' ? this.sessions.map(session => ({ kind: 'session' as const, session })) : []),
       ...this.items(entry.id).map(item => ({ kind: 'item' as const, item, demo })),
+      ...(groupTruncated(this.now, entry.id) ? [{ kind: 'message' as const, label: 'More wait in Ploeg: open the full list', icon: 'link-external', command: entry.id === 'proposed' ? 'vloer.openNow' : 'vloer.openPloeg' }] : []),
     ];
   }
 
@@ -89,7 +90,7 @@ export class NowTree implements vscode.TreeDataProvider<NowEntry>, vscode.Dispos
       case 'group': {
         const item = new vscode.TreeItem(entry.label, entry.id === 'running' && this.items('review').length + this.items('needs').length > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.Expanded);
         item.id = `now:${entry.id}`;
-        item.description = String(entry.count);
+        item.description = `${entry.count}${groupTruncated(this.now, entry.id) ? '+' : ''}`;
         item.contextValue = `now:group:${entry.id}`;
         return item;
       }

@@ -33,6 +33,19 @@ export function mayHoldMore(data, group) {
   return list.length >= (data?.demo ? runPage.demo : runPage.live);
 }
 
+/**
+ * Whether the Now response lists fewer Work Items in `state` than Ploeg holds: the server read that state up to its cap
+ * (`truncatedStates`).
+ * @param {object} data
+ * @param {string} state
+ * @returns {boolean}
+ */
+export function stateTruncated(data, state) {
+  return Array.isArray(data?.truncatedStates) && data.truncatedStates.includes(state);
+}
+
+const waitingStates = ['awaiting_review', 'needs_human', 'proposed'];
+
 /** How many rows each reason group of Needs you lists before it points to the rest in Work. */
 export const subgroupLimit = 3;
 
@@ -269,9 +282,10 @@ function waitingRow(entry, context, grouped = false) {
   return `<li class="now-item">${row}${waitingActions(entry, context, reason)}</li>`;
 }
 
-function moreRow(hidden, group) {
-  if (hidden < 1) return '';
-  return `<li class="now-item now-more-item"><a class="now-more" href="${escape(group.more)}">${escape(`Show ${format.count(hidden)} more in ${group.place}`)}${icon('chevron')}</a></li>`;
+function moreRow(hidden, group, capped = false) {
+  if (hidden < 1 && !capped) return '';
+  const text = hidden < 1 ? `Show more in ${group.place}` : `Show ${format.count(hidden)}${capped ? '+' : ''} more in ${group.place}`;
+  return `<li class="now-item now-more-item"><a class="now-more" href="${escape(group.more)}">${escape(text)}${icon('chevron')}</a></li>`;
 }
 
 function staleRow(stale) {
@@ -305,8 +319,8 @@ function allClear(view, now) {
   return emptyState({ icon: 'check-circle', tone: 'success', title: 'Nothing waits on you', body: sentence[0].toUpperCase() + sentence.slice(1) });
 }
 
-function groupHeader(group, total, id) {
-  return `<header class="now-group-header" data-tone="${group.tone}"><h3 class="now-group-title" id="${id}">${icon(group.glyph)}<span>${escape(group.title)}</span>${total ? count(total) : ''}</h3>${total ? `<p class="now-group-hint">${escape(group.hint)}</p>` : ''}</header>`;
+function groupHeader(group, total, id, capped = false) {
+  return `<header class="now-group-header" data-tone="${group.tone}"><h3 class="now-group-title" id="${id}">${icon(group.glyph)}<span>${escape(group.title)}</span>${total ? (capped ? count(`${format.count(total)}+`, { label: `More than ${format.count(total)}` }) : count(total)) : ''}</h3>${total ? `<p class="now-group-hint">${escape(group.hint)}</p>` : ''}</header>`;
 }
 
 function needsMarkup(rows, group, context, id) {
@@ -314,11 +328,12 @@ function needsMarkup(rows, group, context, id) {
   const flat = blocks.filter(block => !block.grouped).flatMap(block => block.items);
   const shown = flat.slice(0, groupLimit);
   const stale = staleRow(context.stale);
-  const list = shown.length || stale ? `<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context)).join('')}${moreRow(flat.length - shown.length, group)}${stale}</ul>` : '';
+  const capped = Boolean(context.truncated?.has(group.state));
+  const list = shown.length || stale ? `<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context)).join('')}${moreRow(flat.length - shown.length, group, capped)}${stale}</ul>` : '';
   const bands = blocks.filter(block => block.grouped).map(block => {
     const bandId = `now-reason-${block.reason.code}`;
     const first = block.items.slice(0, subgroupLimit);
-    return `<div class="now-band" role="group" aria-labelledby="${bandId}">${reasonBand(block.reason, block.items.length, bandId)}<ul class="list now-list" aria-labelledby="${bandId}">${first.map(entry => waitingRow(entry, context, true)).join('')}${moreRow(block.items.length - first.length, group)}</ul></div>`;
+    return `<div class="now-band" role="group" aria-labelledby="${bandId}">${reasonBand(block.reason, block.items.length, bandId)}<ul class="list now-list" aria-labelledby="${bandId}">${first.map(entry => waitingRow(entry, context, true)).join('')}${moreRow(block.items.length - first.length, group, capped && !shown.length)}</ul></div>`;
   }).join('');
   return `${list}${bands}`;
 }
@@ -327,13 +342,14 @@ function groupMarkup(group, rows, context) {
   const id = `now-group-${group.id}`;
   const stale = group.id === 'needs' ? staleRow(context.stale) : '';
   const banded = group.id === 'needs' && needsYouBlocks(rows, { demo: context.demo }).some(block => block.grouped);
+  const capped = Boolean(context.truncated?.has(group.state));
   let body;
   if (group.id === 'needs' && (rows.length || stale)) body = needsMarkup(rows, group, context, id);
   else if (rows.length || stale) {
     const shown = rows.slice(0, groupLimit);
-    body = `<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context)).join('')}${stale}${moreRow(rows.length - shown.length, group)}</ul>`;
+    body = `<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context)).join('')}${stale}${moreRow(rows.length - shown.length, group, capped)}</ul>`;
   } else body = `<p class="now-group-empty">${escape(group.empty)}</p>`;
-  return `<div class="now-group" data-group="${group.id}"${banded ? ' data-split' : ''} role="group" aria-labelledby="${id}">${groupHeader(group, rows.length, id)}${body}</div>`;
+  return `<div class="now-group" data-group="${group.id}"${banded ? ' data-split' : ''} role="group" aria-labelledby="${id}">${groupHeader(group, rows.length, id, capped)}${body}</div>`;
 }
 
 function waitingCard(view, visible, held, context) {
@@ -344,12 +360,13 @@ function waitingCard(view, visible, held, context) {
   const stale = error ? 0 : staleCount(view);
   const rows = visible.waiting;
   const allNew = rows.length > 0 && rows.every(entry => after(entry.state === 'proposed' ? entry.createdAt : entry.updatedAt, context.since));
-  const local = { ...context, stale, dots: !allNew };
+  const local = { ...context, stale, dots: !allNew, truncated: new Set(waitingStates.filter(state => stateTruncated(view.data, state))) };
+  const capped = local.truncated.size > 0;
   let body;
   if (error) body = errorState('waiting', 'Could not load what waits on you', error);
   else if (!rows.length && !held.waiting) body = `${allClear(view, context.now)}${stale ? `<ul class="list now-list now-after-clear">${staleRow(stale)}</ul>` : ''}`;
   else body = groups.map(group => groupMarkup(group, rows.filter(entry => entry.state === group.state || (group.id === 'needs' && !['awaiting_review', 'proposed'].includes(entry.state))), local)).join('');
-  return `<section class="card flush now-card now-waiting" aria-labelledby="now-waiting-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-waiting-title">Waiting on you${total ? count(total, { tone: 'attention' }) : ''}</h2></div>${hints ? `<div class="card-actions">${hints}</div>` : ''}</header><div class="card-body">${pill}${body}</div></section>`;
+  return `<section class="card flush now-card now-waiting" aria-labelledby="now-waiting-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-waiting-title">Waiting on you${total ? (capped ? count(`${format.count(total)}+`, { tone: 'attention', label: `More than ${format.count(total)}` }) : count(total, { tone: 'attention' })) : ''}</h2></div>${hints ? `<div class="card-actions">${hints}</div>` : ''}</header><div class="card-body">${pill}${body}</div></section>`;
 }
 
 function runningRow(run, context) {
@@ -459,13 +476,14 @@ function statsMarkup(view) {
   const pending = summary?.totals?.runs?.pending;
   const runningCount = running ? running.length : null;
   const runningMore = running && mayHoldMore(data, 'running') ? '+' : '';
+  const waitingMore = waiting && waitingStates.some(state => stateTruncated(data, state)) ? '+' : '';
   const settled = summary?.totals?.spend?.settledUsd;
   const reserved = summary?.totals?.spend?.reservedUsd;
   const spend = demo ? { value: '—', quiet: true, detail: 'Demo · no model calls' }
     : summary ? { value: amount(settled) ? format.money(settled) : format.notReported, quiet: !amount(settled), detail: amount(reserved) && reserved > 0 ? `Settled · ${format.money(reserved)} reserved` : 'Settled' }
     : { value: '—', quiet: true, detail: unreported };
   const tiles = [
-    tile({ label: 'Waiting on you', glyph: 'inbox', tone: 'attention', value: waiting ? format.count(waiting.length) : '—', quiet: !waiting, detail: waiting ? breakdown.length ? joinDots(breakdown.map(part => escape(part))) : 'Nothing to decide' : 'Could not be loaded' }),
+    tile({ label: 'Waiting on you', glyph: 'inbox', tone: 'attention', value: waiting ? `${format.count(waiting.length)}${waitingMore}` : '—', quiet: !waiting, detail: waiting ? breakdown.length ? joinDots(breakdown.map(part => escape(part))) : 'Nothing to decide' : 'Could not be loaded' }),
     tile({ label: 'Running', glyph: 'runs', tone: 'live', href: '#runs?state=running', value: running ? `${format.count(runningCount)}${runningMore}` : '—', quiet: !running, detail: escape(running ? tileDetail.running({ running: runningCount, pending }) : 'Could not be loaded') }),
     tile({ label: 'Queued', glyph: 'circle-dashed', tone: 'neutral', href: '#work?lane=queued', value: amount(queued) ? format.count(queued) : '—', quiet: !amount(queued), detail: escape(amount(queued) ? tileDetail.queued(queued) : unreported) }),
     tile({ label: 'Spend · 24 h', glyph: 'coins', tone: 'neutral', href: '#insights?window=24h', value: spend.value, quiet: spend.quiet, detail: escape(spend.detail) }),

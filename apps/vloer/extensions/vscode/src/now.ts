@@ -17,6 +17,14 @@ export function nowGroup(item: Pick<PloegNowItem, 'state'>): NowGroup | undefine
   return undefined;
 }
 
+const groupStates: Partial<Record<NowGroup, string>> = { review: 'awaiting_review', needs: 'needs_human', proposed: 'proposed' };
+
+/** Whether Ploeg holds more Work Items in a waiting group than the Now response lists, as the server reports in `truncatedStates`. */
+export function groupTruncated(now: PloegNow | undefined, group: NowGroup): boolean {
+  const state = groupStates[group];
+  return Boolean(state && now?.truncatedStates?.includes(state));
+}
+
 /** How many things wait on this person: Work Items ready for review or needing them, and sessions waiting for an answer. */
 export function waitingCount(now: PloegNow | undefined, sessions: Pick<Session, 'status'>[]): number {
   return (now?.waiting ?? []).filter(item => ['review', 'needs'].includes(nowGroup(item) ?? '')).length + sessions.filter(session => session.status === 'waiting_input').length;

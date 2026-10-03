@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nowMarkup, digestCounts, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, awayAfter, reasonGlyph, offersRetry, mayHoldMore, runPage, groupLimit, subgroupLimit } from '../public/now.js';
+import { nowMarkup, digestCounts, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, awayAfter, reasonGlyph, offersRetry, mayHoldMore, stateTruncated, runPage, groupLimit, subgroupLimit } from '../public/now.js';
 import { listReason } from '../public/core/reasons.js';
 import { icon } from '../public/core/icons.js';
 
@@ -316,6 +316,20 @@ test('a long flat group lists the first rows and points to the rest', () => {
   assert.equal((html.match(/id="now-row-w-4\d\d"/g) || []).length, groupLimit);
   assert.match(html, /<a class="now-more" href="#proposed">Show 2 more in Proposed/);
   assert.match(html, /Proposed<\/span><span class="count">10<\/span>/, 'the group counts everything, not only what is shown');
+});
+
+test('a waiting state the server read only up to its cap says there are more and links to the full list', () => {
+  const data = nowData();
+  data.waiting = Array.from({ length: groupLimit + 2 }, (_, index) => ({ ...nowData().waiting[0], id: String(500 + index), title: `Review ${index}` }));
+  data.truncatedStates = ['awaiting_review'];
+  const html = nowMarkup(view({ data }), options, nowAt);
+  assert.match(html, /<a class="now-more" href="#work\?lane=awaiting_review">Show 2\+ more in Work/);
+  assert.match(html, /Ready for your review<\/span><span class="count" aria-label="More than 10">10\+<\/span>/);
+  assert.match(html, /Waiting on you<span class="count" data-tone="attention" aria-label="More than 10">10\+<\/span>/);
+  assert.match(html, /Waiting on you<\/span><strong class="stat-value"[^>]*>10\+<\/strong>/);
+  assert.equal(stateTruncated(data, 'needs_human'), false, 'only the named state is truncated');
+  const complete = nowMarkup(view(), options, nowAt);
+  assert.doesNotMatch(complete, /\d\+</, 'a complete response claims no more');
 });
 
 test('the digest names its start today, yesterday or by date', () => {
