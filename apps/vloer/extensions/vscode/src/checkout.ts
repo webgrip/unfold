@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { CheckoutTarget, Core } from './core.js';
 import type { PloegCard, PloegDetail } from './ploeg-types.js';
-import { cloneUrl, matchingRepositories, type GitApi, type GitRepository } from './git-remotes.js';
+import { cloneUrl, expectedRepository, hostAliases, matchingRepositories, type GitApi, type GitRepository } from './git-remotes.js';
 
 /** What the Work Item's branch checkout reads from the workbench: its detail and, when Ploeg sent one, its Run card. */
 export type CheckoutSource = { detail: PloegDetail; card?: PloegCard };
@@ -41,8 +41,9 @@ async function offerCommand(core: Core, message: string, target: CheckoutTarget,
 
 /**
  * Checks out the branch of a Work Item in the open clone of its target repository: fetches it from the remote that
- * points at `owner/repo`, creates a tracking branch or switches to the existing one, and fast-forwards it when it is
- * only behind. `confirm` asks first, for a request that came from a link rather than a click in VS Code.
+ * points at `owner/repo` on the forge of the Work Item's pull request link (or a host `vloer.remoteHostAliases` maps
+ * to it), creates a tracking branch or switches to the existing one, and fast-forwards it when it is only behind.
+ * Without a pull request link any forge's clone of that full path qualifies. `confirm` asks first, for a request that came from a link rather than a click in VS Code.
  */
 export async function checkOutWorkItemBranch(core: Core, source: CheckoutSource, { confirm = false } = {}): Promise<void> {
   const target = core.checkoutTarget(source.detail, source.card);
@@ -50,8 +51,10 @@ export async function checkOutWorkItemBranch(core: Core, source: CheckoutSource,
   const name = `${target.owner}/${target.repo}`;
   const git = await gitApi();
   if (!git) { await offerCommand(core, `VS Code's Git extension is disabled, so Vloer cannot check out ${target.branch}.`, target); return; }
-  const matches = matchingRepositories(git.repositories, target.owner, target.repo);
-  if (!matches.length) { await offerCommand(core, `No open folder is a clone of ${name}. Open one to check out ${target.branch}.`, target, cloneUrl(pullRequestLink(source), target.owner, target.repo)); return; }
+  const link = pullRequestLink(source);
+  const expected = expectedRepository(link, target.owner, target.repo);
+  const matches = matchingRepositories(git.repositories, expected, hostAliases(vscode.workspace.getConfiguration('vloer').get('remoteHostAliases')));
+  if (!matches.length) { await offerCommand(core, `No open folder is a clone of ${expected.host ? `${expected.host}/` : ''}${name}. Open one to check out ${target.branch}.`, target, cloneUrl(link, target.owner, target.repo)); return; }
   const chosen = matches.length === 1 ? matches[0] : await vscode.window.showQuickPick(matches.map(match => ({ label: folderName(match.repository), description: match.repository.state.HEAD?.name ? `on ${match.repository.state.HEAD.name}` : '', detail: match.repository.rootUri.fsPath, match })), { title: `Check out ${target.branch}`, placeHolder: `Choose the clone of ${name}` }).then(pick => pick?.match);
   if (!chosen) return;
   const { repository, remote } = chosen;
