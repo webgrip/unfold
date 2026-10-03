@@ -13,8 +13,6 @@ Ploeg is a self-hosted service for authorizing and coordinating agent work. Trac
 - [Managed workers](docs/ops/managed-workers.md): required configuration and recovery.
 - [De Vloer's local demonstration](../../docs/workflows/local-demo.md): both applications and PostgreSQL, using a deterministic fixture with no model calls.
 
-The older [Compose fixture](ops/local/docker-compose.yml) and [claim demo](ops/local/demo.sh) predate managed worker authentication. They do not configure the managed bootstrap and signing requirements. Use the shared demonstration above for current onboarding; the old fixture needs migration before it can serve as a current setup guide.
-
 ## How it works
 
 Verified tracker webhooks enqueue work. KEDA or the CronJob executor starts workers that must claim authorized work. Configured Shift plans coordinate roles and review rounds. Workers invoke a harness, report results and renew their leases. KEDA polls queue depth; idle queue checks do not require model calls.
