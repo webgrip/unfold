@@ -140,7 +140,7 @@
         "helm-values"
       ],
       "matchPackageNames": [
-        "harbor.webgrip.dev/webgrip/de-vloer"
+        "ghcr.io/webgrip/de-vloer"
       ],
       "enabled": false
     },
