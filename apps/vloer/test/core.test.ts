@@ -121,6 +121,46 @@ test('missing and inconclusive reviewer verdicts cannot approve work', async t =
   }
 });
 
+test('a writer whose candidate export failed completes without claiming a captured candidate', async t => {
+  const { store, config } = await fixture(t);
+  const runtime = new ControlledRuntime();
+  const failing = Object.assign(runtime, { async captureCandidate(): Promise<never> { throw new Error('export failed'); } });
+  const engine = new Engine(store, config, { demo: failing });
+  t.after(() => engine.shutdown());
+  const session = engine.create(input(), owner);
+  await engine.start(session.id, owner);
+  await until(() => store.getSession(session.id)?.status === 'completed');
+  const final = store.getSession(session.id)!;
+  assert.equal(final.candidate?.reason, 'capture_failed');
+  assert.deepEqual(final.outcome, { work: 'change', candidate: 'unavailable', verification: 'not_performed', review: 'approved' });
+  const completed = store.events(session.id).find(event => event.type === 'session.completed')!;
+  assert.equal(completed.data.message, 'The writer finished, but its candidate could not be captured. The reviewer explicitly approved. Vloer did not verify the change independently. A person must recover it from the retained workspace.');
+  assert.deepEqual(completed.data.outcome, final.outcome);
+});
+
+test('a read-only investigation completes on any reviewer verdict and says which verdict it got', async t => {
+  const { store, config } = await fixture(t);
+  config.crews.push({ id: 'investigation', name: 'Investigation', description: 'Read only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate' }, { id: 'challenger', name: 'Challenger', mode: 'read', instruction: 'Challenge the findings' }] });
+  const expected = { inconclusive: ['inconclusive', 'The reviewer was inconclusive.'], approve: ['approved', 'The reviewer explicitly approved.'] } as const;
+  for (const [verdict, [review, sentence]] of Object.entries(expected)) {
+    const runtime = new ControlledRuntime(); runtime.verdict = verdict as ExecutionResult['verdict'];
+    const engine = new Engine(store, config, { demo: runtime });
+    const session = engine.create({ ...input(), crewId: 'investigation' }, owner);
+    await engine.start(session.id, owner);
+    await until(() => ['completed', 'failed'].includes(store.getSession(session.id)?.status ?? ''));
+    const final = store.getSession(session.id)!;
+    assert.equal(final.status, 'completed', final.blocker);
+    assert.equal(final.runs[1].verdict, verdict);
+    assert.equal(final.outcome?.work, 'investigation');
+    assert.equal(final.outcome?.review, review);
+    assert.equal(final.outcome?.verification, 'not_performed');
+    const completed = store.events(session.id).find(event => event.type === 'session.completed')!;
+    assert.equal(completed.data.message, `The investigation finished. ${sentence} Vloer did not verify the findings independently. A person decides what to do with them.`);
+    assert.doesNotMatch(String(completed.data.message), /all required reviewers/);
+    await engine.shutdown();
+  }
+});
+
 test('session ownership is enforced below HTTP and authorization increases require admin', async t => {
   const { store, config } = await fixture(t);
   const engine = new Engine(store, config, { demo: new ControlledRuntime() });
