@@ -148,6 +148,37 @@ function failure(request: Request, status: number, error: SignupError, locale: L
     : redirect(request, routePath('signupProblem', locale));
 }
 
+/**
+ * Reads a request body, counting the bytes as they arrive; returns undefined and cancels the
+ * stream as soon as the body exceeds `limit`, whatever its Content-Length header claims.
+ */
+export async function readBodyWithin(
+  request: Request,
+  limit: number,
+): Promise<Uint8Array<ArrayBuffer> | undefined> {
+  if (request.body === null) return new Uint8Array(0);
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel().catch(() => undefined);
+      return undefined;
+    }
+    chunks.push(value);
+  }
+  const body = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return body;
+}
+
 /** Handles POST /api/signup from the plain form (303 to a page) and from fetch (JSON). */
 export async function handleSignup(
   request: Request,
@@ -162,11 +193,18 @@ export async function handleSignup(
   const type = request.headers.get('content-type') ?? '';
   if (!/^(application\/x-www-form-urlencoded|multipart\/form-data)\b/.test(type))
     return json(415, { ok: false, error: 'unsupported_media_type' });
-  const length = Number(request.headers.get('content-length') ?? '0');
-  if (length > MAX_BODY_BYTES) return json(413, { ok: false, error: 'too_large' });
+  const declaredLength = Number(request.headers.get('content-length'));
+  if (declaredLength > MAX_BODY_BYTES) return json(413, { ok: false, error: 'too_large' });
+  let body: Uint8Array<ArrayBuffer> | undefined;
+  try {
+    body = await readBodyWithin(request, MAX_BODY_BYTES);
+  } catch {
+    return failure(request, 400, 'invalid_email', 'en');
+  }
+  if (body === undefined) return json(413, { ok: false, error: 'too_large' });
   let form: FormData;
   try {
-    form = await request.formData();
+    form = await new Response(body, { headers: { 'content-type': type } }).formData();
   } catch {
     return failure(request, 400, 'invalid_email', 'en');
   }

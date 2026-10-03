@@ -9,7 +9,9 @@ import {
   DELETE_EXPIRED,
   HONEYPOT_FIELD,
   INTERESTS,
+  MAX_BODY_BYTES,
   UPSERT,
+  readBodyWithin,
   resetTableCache,
   retentionCutoff,
   type D1Like,
@@ -197,6 +199,114 @@ describe('abuse', () => {
     const stored = JSON.stringify(db.calls.map((call) => call.values));
     assert.doesNotMatch(stored, /192\.0\.2\.1|Example\/1\.0/);
     assert.doesNotMatch(CREATE_TABLE, /\bip\b|agent/i);
+  });
+});
+
+function rawPost(body: string, headers: Record<string, string> = {}): Request {
+  return new Request(`${ORIGIN}/api/signup`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
+    body,
+  });
+}
+
+function paddedTo(bytes: number): string {
+  const base = new URLSearchParams({ ...valid, note: '' }).toString();
+  return base + 'x'.repeat(bytes - new TextEncoder().encode(base).byteLength);
+}
+
+describe('body size limit', () => {
+  test('a body of exactly the limit is accepted and stored', async () => {
+    const db = fakeDb();
+    const body = paddedTo(MAX_BODY_BYTES);
+    assert.equal(new TextEncoder().encode(body).byteLength, MAX_BODY_BYTES);
+    const response = await route(rawPost(body), env(db));
+    assert.equal(response.status, 303);
+    assert.equal(db.calls.at(-1)?.sql, UPSERT);
+  });
+
+  test('a body one byte over the limit is refused without a Content-Length header', async () => {
+    const db = fakeDb();
+    const request = rawPost(paddedTo(MAX_BODY_BYTES + 1));
+    assert.equal(request.headers.get('content-length'), null);
+    const response = await route(request, env(db));
+    assert.equal(response.status, 413);
+    assert.deepEqual(await response.json(), { ok: false, error: 'too_large' });
+    assert.equal(db.calls.length, 0);
+  });
+
+  test('a large body without a Content-Length header is refused before the database', async () => {
+    const db = fakeDb();
+    const response = await route(rawPost(paddedTo(65_610)), env(db));
+    assert.equal(response.status, 413);
+    assert.equal(db.calls.length, 0);
+  });
+
+  test('a Content-Length header that understates the body does not let it through', async () => {
+    const db = fakeDb();
+    const response = await route(rawPost(paddedTo(65_610), { 'content-length': '100' }), env(db));
+    assert.equal(response.status, 413);
+    assert.equal(db.calls.length, 0);
+  });
+
+  test('a correct Content-Length header over the limit is refused early', async () => {
+    const db = fakeDb();
+    const body = paddedTo(MAX_BODY_BYTES + 1);
+    const response = await route(
+      rawPost(body, { 'content-length': String(MAX_BODY_BYTES + 1) }),
+      env(db),
+    );
+    assert.equal(response.status, 413);
+    assert.equal(db.calls.length, 0);
+  });
+
+  test('a correct Content-Length header within the limit is accepted', async () => {
+    const db = fakeDb();
+    const body = paddedTo(1024);
+    const response = await route(rawPost(body, { 'content-length': '1024' }), env(db));
+    assert.equal(response.status, 303);
+    assert.equal(db.calls.at(-1)?.sql, UPSERT);
+  });
+
+  test('the limit counts UTF-8 bytes, not characters', async () => {
+    const db = fakeDb();
+    const base = new URLSearchParams({ ...valid, note: '' }).toString();
+    const body = base + '\u20ac'.repeat(Math.ceil((MAX_BODY_BYTES - base.length) / 2));
+    assert.ok(body.length <= MAX_BODY_BYTES);
+    assert.ok(new TextEncoder().encode(body).byteLength > MAX_BODY_BYTES);
+    const response = await route(rawPost(body), env(db));
+    assert.equal(response.status, 413);
+    assert.equal(db.calls.length, 0);
+  });
+
+  test('multibyte input within the limit is read intact', async () => {
+    const db = fakeDb();
+    const response = await route(rawPost(`${paddedTo(512)}\u20ac\u00e9`), env(db));
+    assert.equal(response.status, 303);
+    assert.equal(db.calls.at(-1)?.values[0], 'person@example.nl');
+  });
+
+  test('reading stops and the stream is cancelled once the limit is passed', async () => {
+    const chunk = new Uint8Array(1024);
+    let pulled = 0;
+    let cancelled = false;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1;
+        controller.enqueue(chunk);
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const request = new Request(`${ORIGIN}/api/signup`, {
+      method: 'POST',
+      body: stream,
+      duplex: 'half',
+    } as RequestInit);
+    assert.equal(await readBodyWithin(request, MAX_BODY_BYTES), undefined);
+    assert.ok(cancelled);
+    assert.ok(pulled <= MAX_BODY_BYTES / chunk.byteLength + 2);
   });
 });
 
