@@ -8,7 +8,7 @@ verified_by: "Image, chart and registry identities checked against on_release_pu
 
 # Source mirrors and release artifacts
 
-[Forgejo](https://forgejo.webgrip.dev/webgrip/glide) owns source changes and versioning. [GitHub](https://github.com/webgrip/glide) receives the same branches and tags through a native SSH push mirror. semantic-release's Git notes stay on Forgejo, the only release authority; the native mirror omits them and nothing copies them. GitHub Actions is disabled for the mirror.
+[Forgejo](https://forgejo.webgrip.dev/webgrip/unfold) owns source changes and versioning. [GitHub](https://github.com/webgrip/unfold) receives the same branches and tags through a native SSH push mirror. semantic-release's Git notes stay on Forgejo, the only release authority; the native mirror omits them and nothing copies them. GitHub Actions is disabled for the mirror.
 
 Vloer and Ploeg release together under one `unfold-v0.x.y-rc.N` tag ([ADR-0004](../adr/adr-0004-unfold-releases-one-version.md)); every artifact below carries that version. The imported `vloer-v…` and `ploeg-v…` tags remain as history. The [release workflow](../../.forgejo/workflows/on_release_published.yml) builds each image once in Harbor, holds it to its application's CVE budget with the shared [CVE gate](../../.forgejo/actions/cve-gate/action.yml), signs it through OpenBao, and copies the resulting OCI index and signing artifacts to the other registries. A chart is packaged once; subsequent destinations receive the original OCI manifest and blobs.
 
@@ -21,7 +21,7 @@ Vloer and Ploeg release together under one `unfold-v0.x.y-rc.N` tag ([ADR-0004](
 | Ploeg daemon | `harbor.webgrip.dev/webgrip/ploegd` | `forgejo.webgrip.dev/webgrip/ploegd` | `ghcr.io/webgrip/ploegd` |
 | Vloer chart | `harbor.webgrip.dev/webgrip/charts/de-vloer` | `forgejo.webgrip.dev/webgrip/charts/de-vloer` | `ghcr.io/webgrip/charts/de-vloer` |
 | Ploeg chart | `harbor.webgrip.dev/webgrip/charts/ploeg` | `forgejo.webgrip.dev/webgrip/charts/ploeg` | `ghcr.io/webgrip/charts/ploeg` |
-| Editor extension | VSIX and SHA-256 file on the [Forgejo release](https://forgejo.webgrip.dev/webgrip/glide/releases) | Same release assets | [Open VSX](https://open-vsx.org/extension/webgrip/de-vloer), copied assets on the [GitHub release](https://github.com/webgrip/glide/releases) |
+| Editor extension | VSIX and SHA-256 file on the [Forgejo release](https://forgejo.webgrip.dev/webgrip/unfold/releases) | Same release assets | [Open VSX](https://open-vsx.org/extension/webgrip/de-vloer), copied assets on the [GitHub release](https://github.com/webgrip/unfold/releases) |
 | Ploeg Go module | Source under `apps/ploeg` | Source under `apps/ploeg` | `github.com/webgrip/ploeg@v0.x.y-rc.N` |
 
 Use the bare application version as the image or chart tag. Prereleases never move `latest`. The separate unattended `agent-runner` image is maintained outside Unfold.
