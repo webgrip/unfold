@@ -2,7 +2,7 @@
 type: reference
 audience: [owner, contributor, agent]
 owner: unfold
-last_verified: 2026-10-01
+last_verified: 2026-10-03
 verified_by: "validate_adr_consistency.py registry parity for docs/adr, run by mise run docs-check"
 ---
 
@@ -30,3 +30,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0014](adr-0014-the-unfold-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The Unfold name and mark are trademarks under a usage policy, not CC-licensed artwork | proposed | 2026-10-01 |
 | [ADR-0015](adr-0015-the-hosted-demo-is-a-recorded-replay-of-the-deterministic-demo.md) | The hosted demo is a recorded replay of the deterministic demo | proposed | 2026-10-01 |
 | [ADR-0016](adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | accepted | 2026-10-02 |
+| [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) | A Tenant sits above Teams and bounds what users, sources and budgets can reach | proposed | 2026-10-03 |
