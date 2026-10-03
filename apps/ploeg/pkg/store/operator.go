@@ -271,7 +271,7 @@ const operatorItemJSON = `jsonb_build_object(
 		'agentVerdict', COALESCE((` + operatorAgentVerdictJSON + `)->>'verdict', ''),
 		'agentVerdictRound', (` + operatorAgentVerdictJSON + `)->'round',
 		'humanChangesRequested', EXISTS (SELECT 1 FROM work_item_reviews w WHERE w.work_item_id = i.id AND w.state = 'changes_requested'),
-		'changesRequestedBy', `+operatorChangesRequestedByJSON+`,
+		'changesRequestedBy', ` + operatorChangesRequestedByJSON + `,
 		'repairFollowUps', (SELECT count(*) FROM work_items f WHERE f.source_work_item_id = i.id AND f.source_run_id IS NULL))
 		|| COALESCE(` + operatorPullRequestFactsJSON + `, '{"reviews": []}'::jsonb) ELSE NULL END)`
 
