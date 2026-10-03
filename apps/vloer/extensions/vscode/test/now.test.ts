@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { loadCore } from '../src/core.ts';
-import { describeItem, describeRun, nowGroup, pullRequestNumber, waitingCount } from '../src/now.ts';
+import { describeItem, describeRun, groupTruncated, nowGroup, pullRequestNumber, waitingCount } from '../src/now.ts';
 import type { PloegNow, PloegNowItem, PloegRunRow } from '../src/ploeg-types.ts';
 
 const core = await loadCore(new URL('../media/core/', import.meta.url));
@@ -22,6 +22,15 @@ test('the badge counts what waits on a person: review, needs you and sessions wa
   const value = now([item('awaiting_review'), item('needs_human', { id: '43' }), item('proposed', { id: '44' })]);
   assert.equal(waitingCount(value, [{ status: 'waiting_input' }, { status: 'failed' }]), 3);
   assert.equal(waitingCount(undefined, []), 0);
+});
+
+test('a waiting group is truncated only when the server names its state, and an older server claims nothing', () => {
+  const value = { ...now([item('awaiting_review')]), truncatedStates: ['awaiting_review'] };
+  assert.equal(groupTruncated(value, 'review'), true);
+  assert.equal(groupTruncated(value, 'needs'), false);
+  assert.equal(groupTruncated(value, 'running'), false);
+  assert.equal(groupTruncated(now([item('awaiting_review')]), 'review'), false);
+  assert.equal(groupTruncated(undefined, 'review'), false);
 });
 
 test('a pull request number is read only from a pull request path', () => {

@@ -1,10 +1,10 @@
 {
   "format": 1,
   "vloerVersion": "0.4.0-rc.34",
-  "commit": "9c8b7407ba8c",
+  "commit": "7d5331a7cb03",
   "recordedAt": "2026-10-03",
   "anchor": "2026-09-30T12:00:00.000Z",
-  "replay": "92c13aefe6a1e2521783673baf7e0b027eec6b72ad5ae3dd3a7567259608bc18",
+  "replay": "2643550c627b4ea50cd2ce936a1fabcae3705b67bce14e9428725c4fc0fb948d",
   "files": {
     "android-chrome-192x192.png": "f122ded6fe7fbad89fe69bb2be0563999d31eee21053bb5fb828bdf238b125fd",
     "android-chrome-512x512.png": "476a26d43f05dcf3a2c4a778ac5ace910d9029edb89a11896e57a47183d7b6b4",
@@ -106,7 +106,7 @@
     "fonts/archivo-latin-ext-wght-wdth110.woff2": "a75c792f980dc1dbe0e85efb721808267e32d2e7ef6c4a99d525c842d8712a08",
     "fonts/archivo-latin-wght-wdth110.woff2": "4c98b9d490d1698ec95f2ff17a6c7d0e72691864c0c5d7bc2a2c161b45afe5ad",
     "index.html": "ee1790d79255ced2cb879d3d222dec9f5aafc654719e4eff7ece71ab32157ac8",
-    "now.js": "16563873bb2bbcde5dc7c48ecd825645bdfa30a3137eb6f8440dcadc79fe5d7f",
+    "now.js": "f7b6ff20a92e6c84c8a42fed0b2e2f9c1a6fdd6b25a3eabe45588ee25b93911d",
     "og-image.png": "0b5627b44b02d5dac4c3cf08357eaa509deffafd5627139ebeb5df1be2c706d4",
     "ploeg-activity.js": "efb6dc251d2492aa3f1282fbf446c5b403df01ad52671edd09261cab74ccbb5d",
     "ploeg.js": "efdda7c1ac6f63273603f3df0d74408f64dae5aba69dc7ae41373f10801adb40",

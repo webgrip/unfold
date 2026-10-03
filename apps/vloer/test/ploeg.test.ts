@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { PloegClient, validatePloeg, type PloegDetail } from '../src/ploeg.ts';
+import { PloegClient, nowStateCap, validatePloeg, type PloegDetail } from '../src/ploeg.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { hashPassword } from '../src/auth.ts';
 import { application, configuration, login, request } from './api-support.ts';
@@ -523,7 +523,52 @@ test('the Now projection lists waiting work, running Runs and recent Runs across
   assert.deepEqual(now.running[0].reservedModels, []);
   assert.deepEqual(now.recent.map(run => run.id), ['31', '30']);
   assert.deepEqual([now.runningTruncated, now.recentTruncated], [false, false], 'a page without a cursor is the whole list');
+  assert.deepEqual(now.truncatedStates, [], 'every waiting and active state fits');
   assert.deepEqual(now.errors, {});
+});
+
+test('Now pages each waiting state to the end, so 26 items awaiting review in each of two teams all appear', async (t) => {
+  const upstreamApi = await upstream(t);
+  const template = upstreamApi.details['105'];
+  const added: string[] = [];
+  for (const [offset, team] of [[0, 'delivery'], [100, 'research']] as const) {
+    for (let index = 0; index < 26; index++) {
+      const id = String(9000 + offset + index);
+      const copy = structuredClone(template);
+      copy.item = { ...copy.item, id, team, externalId: `extra-${id}`, title: `Extra review ${id}`, createdAt: '2026-09-01T00:00:00Z', latestShift: null };
+      upstreamApi.details[id] = copy;
+      added.push(id);
+    }
+  }
+  const now = await client(upstreamApi.config).now(admin);
+  assert.equal(now.errors.waiting, undefined);
+  const reviews = now.waiting.filter(entry => entry.state === 'awaiting_review').map(entry => entry.id);
+  for (const id of added) assert(reviews.includes(id), `${id} is listed`);
+  assert.equal(reviews.length, added.length + 1, 'the 26th item of each team is not dropped');
+  assert.deepEqual(now.truncatedStates, [], 'a state read to its last page is not truncated');
+  const reads = upstreamApi.seen.filter(entry => entry.path.includes('state=awaiting_review') && entry.path.includes('team=delivery'));
+  assert.equal(reads.length, 2, 'the second page is read with the first page’s cursor');
+});
+
+test('Now stops reading a state at its cap and names that state as truncated', async (t) => {
+  const upstreamApi = await upstream(t);
+  let served = 0;
+  upstreamApi.intercept((req, res) => {
+    const url = new URL(req.url!, 'http://fixture.invalid');
+    if (!url.pathname.endsWith('/work-items') || url.searchParams.get('state') !== 'needs_human' || url.searchParams.get('team') !== 'delivery') return false;
+    const after = BigInt(url.searchParams.get('after') || '0');
+    const items = Array.from({ length: 25 }, (_, index) => {
+      const id = String(20000n + after + BigInt(index) + 1n);
+      served++;
+      return { ...structuredClone(upstreamApi.details['101'].item), id, team: 'delivery', externalId: `capped-${id}`, latestShift: null };
+    });
+    return reply(res, 200, { schemaVersion: '1.0', items, nextCursor: items.at(-1)!.id });
+  });
+  const now = await client(upstreamApi.config).now(admin);
+  const needs = now.waiting.filter(entry => entry.state === 'needs_human' && entry.team === 'delivery');
+  assert.equal(needs.length, nowStateCap, 'Now lists up to the cap and no further');
+  assert.equal(served, nowStateCap, 'Now stops asking once the cap is reached');
+  assert.deepEqual(now.truncatedStates, ['needs_human']);
 });
 
 test('Now rows carry the close reason, attempts, routing, priority and Shift money that the list payload already has', async (t) => {
