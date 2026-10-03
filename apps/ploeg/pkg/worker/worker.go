@@ -238,6 +238,14 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	}
 
 	writes := claimed.Writes || claimed.Role == ""
+	var writerStart string
+	if writes {
+		start, err := checkoutStart(ctx, cloneDir)
+		if err != nil {
+			return stuckReport("could not record the commit the writer starts from", err.Error())
+		}
+		writerStart = start
+	}
 	var reviewedCommit string
 	if !writes && branch != "" {
 		commit, failure, failed := checkoutBranchUnderReview(ctx, w.Log, cloneDir, cloneURL, forgeToken, branch, ref.BaseBranch, claimed.PreAuthor)
@@ -411,6 +419,7 @@ func (w *Worker) execute(ctx context.Context, claimed *ClaimResponse, branch, tr
 	final := resolveOutcome(w.Adapter.Name(), report, runErr, context.Cause(ctx), prURL, priorPR != "",
 		item.Title, branch, logTail.Bytes(), w.Adapter.ExpectsLLM(), writes)
 	final = withReviewedCommit(final, branch, prURL, reviewedCommit)
+	final = guardUnpublishedWork(context.WithoutCancel(ctx), final, writes, cloneDir, writerStart)
 	if openSpec != nil && openSpecGateApplies(final, writes, onReviewBranch) {
 		gate := runOpenSpecGate(ctx, *openSpec, cloneURL, forgeToken, branch, home)
 		w.Log.Info("OpenSpec gate", "change", openSpec.ID, "ran", gate.Ran, "passed", gate.Passed)
