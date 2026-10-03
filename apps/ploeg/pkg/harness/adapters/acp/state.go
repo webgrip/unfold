@@ -15,7 +15,6 @@ const (
 	maxMessageBytes = 16 << 10
 	maxThoughtBytes = 4 << 10
 	maxTrackedTools = 512
-	maxNamedFiles   = 20
 )
 
 // toolCall is one tool invocation, folded across its tool_call and any number
@@ -209,32 +208,6 @@ func (s *sessionState) mutated() bool {
 		}
 	}
 	return false
-}
-
-// changedFiles lists the paths touched by completed mutating calls, in arrival
-// order, capped.
-func (s *sessionState) changedFiles() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var calls []*toolCall
-	for _, tc := range s.tools {
-		if tc.Kind.Mutates() && tc.Status == ToolCompleted {
-			calls = append(calls, tc)
-		}
-	}
-	sort.Slice(calls, func(i, j int) bool { return calls[i].seq < calls[j].seq })
-	var out []string
-	for _, tc := range calls {
-		for _, p := range tc.Paths {
-			if !contains(out, p) {
-				out = append(out, p)
-				if len(out) == maxNamedFiles {
-					return out
-				}
-			}
-		}
-	}
-	return out
 }
 
 // failedTools lists calls that ended in failure, newest evidence first.

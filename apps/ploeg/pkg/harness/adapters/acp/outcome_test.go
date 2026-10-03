@@ -187,23 +187,6 @@ func TestBuild_StopReasonMatrix(t *testing.T) {
 	}
 }
 
-// The concrete fidelity win over the openhands adapter, which returns "no
-// signal" for both of these and so lets a lost 40-file edit read as "nothing
-// to do" once the forge poll finds no PR.
-func TestBuild_MutatedWithoutPRIsStuckAndNamesFiles(t *testing.T) {
-	s := feed(t, editDone,
-		`{"sessionUpdate":"tool_call","toolCallId":"t3","kind":"delete","status":"completed","locations":[{"path":"old.go"}]}`)
-	got := BuildMutatedWithoutPR(s)
-	if got.Outcome != work.OutcomeStuck {
-		t.Fatalf("outcome = %q, want stuck", got.Outcome)
-	}
-	for _, want := range []string{"main.go", "old.go", "no pull request"} {
-		if !strings.Contains(got.StuckReason, want) {
-			t.Errorf("stuckReason %q missing %q", got.StuckReason, want)
-		}
-	}
-}
-
 func TestBuild_UsageOnlyWhenVolunteered(t *testing.T) {
 	t.Run("silent agent yields nil usage", func(t *testing.T) {
 		// A zero-valued Usage would trip pkg/worker's VIK-586 heuristic and
@@ -296,8 +279,11 @@ func TestState_ToolCallFolding(t *testing.T) {
 	if !s.mutated() {
 		t.Error("completed edit did not register as a mutation")
 	}
-	if files := s.changedFiles(); len(files) != 2 || files[0] != "a.go" || files[1] != "b.go" {
-		t.Errorf("changedFiles = %v, want [a.go b.go]", files)
+	if len(s.tools) != 1 {
+		t.Fatalf("tracked %d calls, want the one call folded", len(s.tools))
+	}
+	if paths := s.tools["t1"].Paths; len(paths) != 2 || paths[0] != "a.go" || paths[1] != "b.go" {
+		t.Errorf("paths = %v, want [a.go b.go]", paths)
 	}
 }
 

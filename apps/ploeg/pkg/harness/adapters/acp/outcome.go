@@ -143,40 +143,18 @@ func Build(s *sessionState, r result) harness.OutcomeReport {
 
 	// end_turn, or an unknown stop reason treated as end_turn.
 	//
-	// If nothing was mutated the agent is telling us there was nothing to do,
-	// and we can say so structurally. If something WAS mutated we deliberately
-	// return no structured outcome and let the worker's forge poll decide —
-	// only it knows whether a PR exists. That fallthrough is the fidelity win:
-	// the openhands adapter returns nothing in BOTH cases, so "edited 40 files
-	// and forgot to push" currently reads as no_change_needed.
+	// If no edit tool call completed the agent is telling us there was nothing
+	// to do, and we can say so structurally. If one did we return no
+	// structured outcome and let the worker's forge poll decide, since only it
+	// knows whether a PR exists. Either way the worker compares the writer's
+	// checkout with its starting commit, which also catches edits made through
+	// a shell command, and turns unpublished changes into stuck.
 	if !s.mutated() {
 		rep.Outcome = work.OutcomeNoChangeNeeded
 		rep.Summary = firstNonEmpty(oneLine(s.lastMessage()), "the agent made no changes")
 		return rep
 	}
 	return rep // zero Outcome: "no structured signal", forge is ground truth
-}
-
-// BuildMutatedWithoutPR is called by the driver only when the worker's forge
-// poll has already found no PR for a run that changed files. Kept separate
-// from Build so the adapter never has to guess at forge state itself.
-func BuildMutatedWithoutPR(s *sessionState) harness.OutcomeReport {
-	files := s.changedFiles()
-	var b strings.Builder
-	b.WriteString("the agent modified the workspace but opened no pull request")
-	if len(files) > 0 {
-		b.WriteString("; changed: ")
-		b.WriteString(strings.Join(files, ", "))
-	}
-	rep := harness.OutcomeReport{
-		Outcome:     work.OutcomeStuck,
-		Summary:     "acp run changed files without opening a PR",
-		StuckReason: b.String(),
-	}
-	if u := buildUsage(s); u != nil {
-		rep.Usage = u
-	}
-	return rep
 }
 
 // buildUsage returns nil unless the agent volunteered something. A non-nil
