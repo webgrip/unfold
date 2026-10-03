@@ -4,12 +4,71 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/webgrip/ploeg/pkg/harness"
 	"github.com/webgrip/ploeg/pkg/work"
 )
 
 const maxNamedUnpublished = 20
+
+var branchReadTimeout = 2 * time.Minute
+
+type branchHead struct {
+	commit string
+	err    error
+}
+
+func (h branchHead) String() string {
+	if h.commit == "" {
+		return "absent"
+	}
+	return shortCommit(h.commit)
+}
+
+func readBranchHead(ctx context.Context, dir, cloneURL, token, branch string) branchHead {
+	readCtx, cancel := context.WithTimeout(ctx, branchReadTimeout)
+	defer cancel()
+	out, err := runGit(readCtx, dir, cloneURL, token, remoteBranchProbeArgs(branch)...)
+	switch {
+	case err == nil:
+		fields := strings.Fields(string(out))
+		if len(fields) == 0 {
+			return branchHead{err: fmt.Errorf("git ls-remote listed nothing for %s", branch)}
+		}
+		return branchHead{commit: fields[0]}
+	case remoteBranchAbsent(err):
+		return branchHead{}
+	default:
+		return branchHead{err: fmt.Errorf("git ls-remote %s: %v: %s", branch, err, strings.TrimSpace(tail(out, 400)))}
+	}
+}
+
+type writerBaseline struct {
+	start  string
+	branch branchHead
+}
+
+func recordWriterBaseline(ctx context.Context, dir, cloneURL, token, branch string) (writerBaseline, error) {
+	out, err := runGit(ctx, dir, "", "", "rev-parse", "HEAD")
+	if err != nil {
+		return writerBaseline{}, fmt.Errorf("git rev-parse HEAD: %v: %s", err, tail(out, 400))
+	}
+	return writerBaseline{
+		start:  strings.TrimSpace(string(out)),
+		branch: readBranchHead(ctx, dir, cloneURL, token, branch),
+	}, nil
+}
+
+type deliveryCheck struct {
+	writes   bool
+	dir      string
+	cloneURL string
+	token    string
+	branch   string
+	baseline writerBaseline
+	prErr    error
+}
 
 type checkoutChanges struct {
 	commits []string
@@ -18,15 +77,12 @@ type checkoutChanges struct {
 
 func (c checkoutChanges) any() bool { return len(c.commits) > 0 || len(c.files) > 0 }
 
-func checkoutStart(ctx context.Context, dir string) (string, error) {
-	out, err := runGit(ctx, dir, "", "", "rev-parse", "HEAD")
-	if err != nil {
-		return "", fmt.Errorf("git rev-parse HEAD: %v: %s", err, tail(out, 400))
-	}
-	return strings.TrimSpace(string(out)), nil
+func commitIsLocal(ctx context.Context, dir, commit string) bool {
+	_, err := runGit(ctx, dir, "", "", "cat-file", "-e", commit+"^{commit}")
+	return err == nil
 }
 
-func inspectCheckout(ctx context.Context, dir, start string) (checkoutChanges, error) {
+func inspectCheckout(ctx context.Context, dir, start, publishedHead string) (checkoutChanges, error) {
 	var changes checkoutChanges
 	out, err := runGit(ctx, dir, "", "", "status", "--porcelain", "--untracked-files=all")
 	if err != nil {
@@ -37,7 +93,11 @@ func inspectCheckout(ctx context.Context, dir, start string) (checkoutChanges, e
 			changes.files = append(changes.files, line[3:])
 		}
 	}
-	out, err = runGit(ctx, dir, "", "", "rev-list", "--oneline", "HEAD", "--branches", "--not", start, "--remotes")
+	args := []string{"rev-list", "--oneline", "HEAD", "--branches", "--not", start, "--remotes"}
+	if publishedHead != "" && commitIsLocal(ctx, dir, publishedHead) {
+		args = append(args, publishedHead)
+	}
+	out, err = runGit(ctx, dir, "", "", args...)
 	if err != nil {
 		return changes, fmt.Errorf("git rev-list: %v: %s", err, tail(out, 400))
 	}
@@ -67,8 +127,11 @@ func capList(xs []string) []string {
 	return append(append([]string{}, xs[:maxNamedUnpublished]...), fmt.Sprintf("and %d more", len(xs)-maxNamedUnpublished))
 }
 
-func guardUnpublishedWork(ctx context.Context, report harness.OutcomeReport, writes bool, dir, start string) harness.OutcomeReport {
-	if !writes || report.Outcome != work.OutcomeNoChangeNeeded {
+func guardUnpublishedWork(ctx context.Context, report harness.OutcomeReport, c deliveryCheck) harness.OutcomeReport {
+	if !c.writes {
+		return report
+	}
+	if report.Outcome != work.OutcomeNoChangeNeeded && report.Outcome != work.OutcomePRUpdated {
 		return report
 	}
 	stuck := func(summary, reason string) harness.OutcomeReport {
@@ -78,16 +141,43 @@ func guardUnpublishedWork(ctx context.Context, report harness.OutcomeReport, wri
 		report.Verdict = ""
 		return report
 	}
-	changes, err := inspectCheckout(ctx, dir, start)
+	unknown := func(err error) harness.OutcomeReport {
+		return stuck("Ploeg could not confirm what the writer delivered",
+			"Ploeg could not read the forge, so whether this Run pushed or opened a pull request is unknown: "+err.Error())
+	}
+	if c.prErr != nil {
+		return unknown(fmt.Errorf("pull request lookup on %s: %w", c.branch, c.prErr))
+	}
+	if c.baseline.branch.err != nil {
+		return unknown(c.baseline.branch.err)
+	}
+	after := readBranchHead(ctx, c.dir, c.cloneURL, c.token, c.branch)
+	if after.err != nil {
+		return unknown(after.err)
+	}
+	moved := after.commit != c.baseline.branch.commit
+	if moved && report.Outcome == work.OutcomePRUpdated {
+		return report
+	}
+	if moved {
+		return stuck("the writer pushed its branch but opened no pull request",
+			fmt.Sprintf("branch %s changed on the forge during the Run (%s to %s), but no pull request was found for it, so nothing was delivered",
+				c.branch, c.baseline.branch, after))
+	}
+	changes, err := inspectCheckout(ctx, c.dir, c.baseline.start, after.commit)
 	if err != nil {
 		return stuck("could not inspect the writer's checkout for unpublished changes", err.Error())
 	}
 	if !changes.any() {
 		return report
 	}
-	return stuck("the writer changed the checkout but delivered no pull request",
-		"the writer reported no change needed, but its checkout differs from "+shortCommit(start)+
-			" and nothing reached a pull request. "+changes.describe())
+	claim := "reported no change needed"
+	if report.Outcome == work.OutcomePRUpdated {
+		claim = "pushed nothing to its open pull request"
+	}
+	return stuck("the writer changed the checkout but delivered none of it",
+		"the writer "+claim+", but its checkout differs from "+shortCommit(c.baseline.start)+
+			" and branch "+c.branch+" on the forge did not move. "+changes.describe())
 }
 
 func shortCommit(sha string) string {
