@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          submodules: recursive
       - id: verify
         uses: ./.forgejo/actions/verify
 
@@ -40,9 +41,25 @@ jobs:
           printf '%s\n' "$REPORT"
           exit 1
 
+  ploeg-pin:
+    runs-on: docker
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+      - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+        with:
+          version: 2026.9.18
+          install_args: node
+          cache: false
+          github_token: ''
+      - name: Require the pinned Ploeg commit on Ploeg's main branch
+        run: node scripts/ploeg-pin.mjs --published
+
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
-    needs: [checks]
+    needs: [checks, ploeg-pin]
     runs-on: docker
     container:
       image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.4@sha256:0d6227231c9258c230360c51f9733fe3d60cc0b33860bb7b8769b8683d637c17

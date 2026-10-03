@@ -1,6 +1,0 @@
-/ploegd
-/dist/
-node_modules/
-*.test
-.env
-cache/

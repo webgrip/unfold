@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { devNull } from 'node:os';
 import { resolve } from 'node:path';
 import { gateKey, resultCache } from './verify-cache.mjs';
 import { runGate } from './verify-gate.mjs';
@@ -11,7 +12,6 @@ const site = task => gate('apps/site', 'corepack', ['pnpm', 'run', task]);
 const helm = [];
 for (const [scope, name, variants] of [
   ['vloer', 'de-vloer', ['', 'values.live.example.yaml']],
-  ['ploeg', 'ploeg', ['', 'ci/executor-values.yaml', 'ci/executor-cronjob-values.yaml', 'ci/executor-gitlab-values.yaml', 'ci/monitoring-values.yaml']],
 ]) {
   const chart = `ops/helm/${name}`;
   for (const variant of variants) {
@@ -27,24 +27,23 @@ const groups = [
   { name: 'vloer-extension', inputs: ['apps/vloer'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(vloer) },
   {
     name: 'ploeg',
-    inputs: ['apps/ploeg'],
+    inputs: ['apps/ploeg', 'apps/vloer/scripts/unified-demo', '.gitmodules', 'scripts/ploeg-pin.mjs'],
     gates: [
-      gate('apps/ploeg', 'gofmt', ['-l', '.'], { emptyStdout: true }),
-      ...['vet', 'build', 'test'].map(task => gate('apps/ploeg', 'go', [task, './...'])),
-      ...['brand-marks.sh', 'license-check.sh'].map(script => gate('apps/ploeg', 'bash', [`scripts/${script}`])),
-      gate('apps/ploeg', 'openspec', ['validate', '--all', '--strict']),
+      gate('.', process.execPath, ['scripts/ploeg-pin.mjs']),
+      gate('apps/ploeg', 'bash', ['scripts/verify.sh']),
+      gate('apps/ploeg', 'go', ['build', '-o', devNull, resolve(root, 'apps/vloer/scripts/unified-demo/main.go')]),
     ],
   },
   { name: 'brand', inputs: ['scripts/build-brand.mjs', 'docs/brand', 'apps/site/src/brand', 'apps/site/src/styles/brand.css', 'README.md'], gates: [gate('.', process.execPath, ['scripts/build-brand.mjs', '--check'])] },
   { name: 'site', inputs: ['apps/site', 'apps/vloer/public'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
   { name: 'site-demo', inputs: ['apps/site', 'apps/vloer/src', 'apps/vloer/examples', 'apps/vloer/package.json'], gates: [gate('apps/site', 'node', ['scripts/demo-timeline.ts', '--check'])] },
-  { name: 'helm', inputs: ['apps/vloer/ops/helm', 'apps/ploeg'], gates: [...helm, gate('apps/ploeg', 'sh', ['scripts/helm-golden.sh', 'check'])] },
+  { name: 'helm', inputs: ['apps/vloer/ops/helm'], gates: helm },
   {
     name: 'release',
     gates: [
       gate('.', 'python3', ['scripts/verify-import.py']),
       gate('.', 'uv', ['run', '--frozen', 'python', '-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_release*.py']),
-      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs', 'scripts/verify-gate.test.mjs', 'scripts/ci-warnings.test.mjs', 'scripts/release-repair.test.mjs', 'scripts/release-floors.test.cjs']),
+      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs', 'scripts/verify-gate.test.mjs', 'scripts/ci-warnings.test.mjs', 'scripts/release-repair.test.mjs', 'scripts/release-floors.test.cjs', 'scripts/ploeg-pin.test.mjs']),
     ],
   },
   { name: 'integration', gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },
@@ -57,7 +56,7 @@ const parallelism = cpus ? { GOMAXPROCS: cpus, GOFLAGS: `${process.env.GOFLAGS ?
 const results = process.env.UNFOLD_VERIFY_RESULTS ? resultCache(process.env.UNFOLD_VERIFY_RESULTS, { reuse: process.env.UNFOLD_VERIFY_REUSE === 'true' }) : undefined;
 const toolVersions = scope => Object.fromEntries(Object.entries(JSON.parse(execFileSync('mise', ['-C', scope, 'ls', '--current', '--json'], { cwd: root, encoding: 'utf8' }))).map(([tool, installs]) => [tool, installs.map(install => install.version)]));
 const shared = results && {
-  paths: ['mise.toml', 'apps/vloer/mise.toml', 'apps/ploeg/mise.toml', 'apps/site/mise.toml', 'scripts/verify.mjs', 'scripts/verify-cache.mjs'],
+  paths: ['mise.toml', 'apps/vloer/mise.toml', 'apps/site/mise.toml', 'scripts/verify.mjs', 'scripts/verify-cache.mjs'],
   tools: Object.fromEntries(['.', 'apps/vloer', 'apps/ploeg', 'apps/site'].map(scope => [scope, toolVersions(scope)])),
   env: { GOFLAGS: process.env.GOFLAGS ?? '', VLOER_TEST_TIMEOUT_SCALE: process.env.VLOER_TEST_TIMEOUT_SCALE ?? '' },
 };

@@ -203,13 +203,11 @@ class DistributionTests(unittest.TestCase):
                 copy_image(source, target, 'webgrip/ploegd', '0.3.0-rc.8', 'selected-sha')
             command.assert_not_called()
 
-    def test_every_chart_names_unfold_as_its_source_and_home(self):
+    def test_the_published_chart_names_unfold_as_its_source_and_home(self):
         root = Path(__file__).resolve().parent.parent
-        for path in ['apps/ploeg/ops/helm/ploeg', 'apps/vloer/ops/helm/de-vloer']:
-            with self.subTest(chart=path):
-                metadata = release_registry.command('helm', 'show', 'chart', str(root / path)).splitlines()
-                self.assertIn('home: https://forgejo.webgrip.dev/webgrip/unfold', metadata)
-                self.assertEqual(metadata[metadata.index('sources:') + 1], '- https://github.com/webgrip/unfold')
+        metadata = release_registry.command('helm', 'show', 'chart', str(root / 'apps/vloer/ops/helm/de-vloer')).splitlines()
+        self.assertIn('home: https://forgejo.webgrip.dev/webgrip/unfold', metadata)
+        self.assertEqual(metadata[metadata.index('sources:') + 1], '- https://github.com/webgrip/unfold')
 
     def test_redirects_never_forward_credentials_to_another_host(self):
         request = urllib.request.Request('https://forgejo.webgrip.dev/asset', headers={'Authorization': 'fixture'})

@@ -24,7 +24,13 @@ parser.add_argument('--check', action='store_true')
 parser.add_argument('--stage-only', action='store_true')
 parser.add_argument('--domain', action='store_true')
 args = parser.parse_args()
-domain_models = ['docs/domain', 'apps/ploeg/docs/domain']
+ploeg = root / 'apps/ploeg'
+if not (ploeg / 'docs').is_dir():
+    raise SystemExit('apps/ploeg is the pinned Ploeg submodule and it is not checked out; run git submodule update --init --recursive')
+ploeg_pin = subprocess.check_output(['git', 'rev-parse', ':apps/ploeg'], cwd=root, text=True).strip()
+ploeg_source_url = f'https://github.com/ploeg-hq/ploeg/blob/{ploeg_pin}/'
+domain_models = ['docs/domain']
+glossary_models = ['docs/domain', 'apps/ploeg/docs/domain']
 glossary = 'docs/reference/glossary.md'
 
 
@@ -33,7 +39,7 @@ def generate_domain(folder, out):
 
 
 def combined_glossary():
-    return subprocess.run([sys.executable, str(root / 'scripts/generate-domain.py'), '--glossary', glossary, '--stdout', *[f'{folder}/model.yaml' for folder in domain_models]], cwd=root, check=True, capture_output=True, text=True).stdout
+    return subprocess.run([sys.executable, str(root / 'scripts/generate-domain.py'), '--glossary', glossary, '--stdout', *[f'{folder}/model.yaml' for folder in glossary_models]], cwd=root, check=True, capture_output=True, text=True).stdout
 
 
 if args.domain:
@@ -41,7 +47,7 @@ if args.domain:
         generate_domain(folder, root / folder)
     (root / glossary).parent.mkdir(parents=True, exist_ok=True)
     (root / glossary).write_text(combined_glossary())
-    print(f'Unfold domain: {len(domain_models)} models and {glossary}')
+    print(f'Unfold domain: {len(domain_models)} model, {glossary} from {len(glossary_models)} models')
     sys.exit()
 staging = root / '.build/docs'
 site = root / '.build/site'
@@ -49,7 +55,7 @@ revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=
 source_url = f'https://forgejo.webgrip.dev/webgrip/glide/src/commit/{revision}/'
 
 if args.check:
-    for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-configuration.test.py', 'docs-adr.test.py', 'agents-files.test.py', 'stage-explicit-paths.test.py', 'docs-vale.test.py', 'tutorial-smoke.test.py']:
+    for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-adr.test.py', 'agents-files.test.py', 'stage-explicit-paths.test.py', 'docs-vale.test.py', 'tutorial-smoke.test.py', 'generate-domain.test.py']:
         subprocess.run([sys.executable, str(root / 'scripts' / test)], check=True)
     for folder in domain_models:
         with tempfile.TemporaryDirectory(prefix='unfold-domain-') as temporary:
@@ -59,10 +65,9 @@ if args.check:
     assert (root / glossary).exists() and (root / glossary).read_text() == combined_glossary(), f'Stale combined glossary: {glossary}; run mise run domain'
     for name, expected in json.loads((root / 'docs/landscape/generated-sources.json').read_text()).items():
         assert hashlib.sha256((root / name).read_bytes()).hexdigest() == expected, f'Stale landscape: {name}; rebuild with node apps/vloer/scripts/build-landscape.mjs'
-    for ledger in ['docs/adr', 'apps/ploeg/docs/adrs', 'apps/vloer/docs/adrs']:
+    for ledger in ['docs/adr', 'apps/vloer/docs/adrs']:
         subprocess.run([sys.executable, str(root / 'scripts/validate_adr_consistency.py'), str(root), '--adr-dir', ledger], check=True)
     subprocess.run([sys.executable, str(root / 'scripts/docs-decisions.py'), '--check'], check=True)
-    subprocess.run([sys.executable, str(root / 'scripts/docs-configuration.py'), '--check'], check=True)
     subprocess.run([sys.executable, str(root / 'scripts/agents-files.py')], check=True)
 
 if staging.exists():
@@ -134,7 +139,10 @@ def target_url(target, source):
         links.setdefault(mapping[source].as_posix(), set()).add(mapping[destination].as_posix())
         result = os.path.relpath(mapping[destination], mapping[source].parent)
         return urlunsplit(('', '', quote(result), parts.query, re.sub('-+', '-', parts.fragment)))
-    return source_url + quote(destination.relative_to(root).as_posix()) + (f'#{parts.fragment}' if parts.fragment else '')
+    fragment = f'#{parts.fragment}' if parts.fragment else ''
+    if destination.is_relative_to(ploeg):
+        return ploeg_source_url + quote(destination.relative_to(ploeg).as_posix()) + fragment
+    return source_url + quote(destination.relative_to(root).as_posix()) + fragment
 
 
 def rewrite(markdown, source):

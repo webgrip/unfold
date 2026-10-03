@@ -2,7 +2,6 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "local>webgrip/renovate-config#v1.13.0",
-    "local>webgrip/renovate-config:golang#v1.13.0",
     "local>webgrip/renovate-config:automerge-non-major#v1.13.0"
   ],
   "ignorePaths": [
@@ -14,7 +13,8 @@
     "**/test/**",
     "**/tests/**",
     "**/__fixtures__/**",
-    "apps/*/.forgejo/**"
+    "apps/*/.forgejo/**",
+    "apps/ploeg/**"
   ],
   "customManagers": [
     {
@@ -135,46 +135,21 @@
       "allowedVersions": "<1.100.0"
     },
     {
-      "description": "Each chart's own image tag is empty on purpose: the release train fills it from appVersion. Renovate would otherwise digest-pin it.",
+      "description": "Vloer's chart image tag is empty on purpose: the release train fills it from appVersion. Renovate would otherwise digest-pin it.",
       "matchManagers": [
         "helm-values"
       ],
       "matchPackageNames": [
-        "harbor.webgrip.dev/webgrip/ploegd",
         "harbor.webgrip.dev/webgrip/de-vloer"
       ],
       "enabled": false
     },
     {
-      "description": "The executor CI values name harness images that exist only to render every branch of the pod template. They are not published, so a lookup always fails and the dashboard reports it as a repository problem.",
+      "description": "Ploeg is a submodule pinned to a commit on github.com/ploeg-hq/ploeg's main. The pin moves by hand after the Ploeg change lands upstream (system ADR-0019).",
       "matchManagers": [
-        "helm-values"
-      ],
-      "matchFileNames": [
-        "apps/ploeg/ops/helm/ploeg/ci/executor-values.yaml"
-      ],
-      "matchPackageNames": [
-        "harbor.webgrip.dev/webgrip/custom-agent",
-        "harbor.webgrip.dev/webgrip/opencode-runner"
+        "git-submodules"
       ],
       "enabled": false
-    },
-    {
-      "description": "An image bump in Ploeg's chart values or CI value files changes rendered manifests, and the golden check makes every rendered byte part of the review. The update regenerates the goldens and the configuration reference, which lists the chart's default images, in the same branch so the pull request carries its own render diff and passes the check.",
-      "matchFileNames": [
-        "apps/ploeg/ops/helm/ploeg/values.yaml",
-        "apps/ploeg/ops/helm/ploeg/ci/*-values.yaml"
-      ],
-      "postUpgradeTasks": {
-        "commands": [
-          "sh apps/ploeg/scripts/helm-golden.sh update"
-        ],
-        "fileFilters": [
-          "apps/ploeg/ops/helm/ploeg/ci/golden/*.yaml",
-          "apps/ploeg/docs/reference/configuration.md"
-        ],
-        "executionMode": "branch"
-      }
     },
     {
       "description": "These pins replace the copies npm bundles in the agent image, and the patch script accepts only the bundled major. Raise the bound when npm bundles a newer major.",
@@ -226,8 +201,7 @@
   ],
   "helm-values": {
     "managerFilePatterns": [
-      "/(^|/)values\\.ya?ml$/",
-      "/^apps/ploeg/ops/helm/ploeg/ci/[^/]+-values\\.ya?ml$/"
+      "/(^|/)values\\.ya?ml$/"
     ]
   }
 }

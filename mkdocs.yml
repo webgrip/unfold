@@ -27,6 +27,7 @@ nav:
       - Run a pilot batch: how-to/run-a-pilot-batch.md
       - Operate Ploeg:
           - Overview: ploeg/index.md
+          - Scope and stewardship: ploeg/cncf/charter.md
           - Runbooks: ploeg/how-to/index.md
           - Recover a stuck Lease or Run: ploeg/how-to/recover-a-stuck-lease-or-run.md
           - Rotate credentials: ploeg/how-to/rotate-credentials.md

@@ -22,7 +22,7 @@ class EphemeralDemoEngine extends Engine {
 const root = fileURLToPath(new URL('../', import.meta.url));
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
-  console.log('Usage: mise exec -- node scripts/unified-demo.ts [--smoke]\nRequires sibling ../ploeg, Go 1.26+, PostgreSQL 17+ binaries and Git.\nPLOEG_PATH overrides the sibling checkout. PG_BIN overrides the PostgreSQL binary directory.\nVLOER_DEMO_PORT selects the loopback workbench port (default: an available port).\nCtrl+C stops both applications and PostgreSQL, then removes temporary data.');
+  console.log('Usage: mise exec -- node scripts/unified-demo.ts [--smoke]\nRequires the pinned Ploeg submodule in ../ploeg (git submodule update --init), Go 1.26+, PostgreSQL 17+ binaries and Git.\nPLOEG_PATH overrides that checkout. PG_BIN overrides the PostgreSQL binary directory.\nVLOER_DEMO_PORT selects the loopback workbench port (default: an available port).\nCtrl+C stops both applications and PostgreSQL, then removes temporary data.');
 } else {
   if (args.some(arg => arg !== '--smoke')) throw new Error('Unknown option; use --help.');
   await main(args.includes('--smoke'));
@@ -31,7 +31,7 @@ if (args.includes('--help')) {
 async function main(smoke: boolean) {
   if (process.platform === 'win32' || process.getuid?.() === 0) throw new Error('Run as a regular macOS or Linux user; PostgreSQL cannot run as root.');
   const ploegPath = resolve(process.env.PLOEG_PATH || join(root, '../ploeg'));
-  assert.ok((await stat(join(ploegPath, 'go.mod'))).isFile(), 'PLOEG_PATH must point to the matching Ploeg checkout.');
+  assert.ok((await stat(join(ploegPath, 'go.mod'))).isFile(), 'PLOEG_PATH must point to the matching Ploeg checkout; run git submodule update --init for the pinned one.');
   const port = Number(process.env.VLOER_DEMO_PORT || 0);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('VLOER_DEMO_PORT must be an integer between 0 and 65535.');
   const binary = (name: string) => process.env.PG_BIN ? join(process.env.PG_BIN, name) : name;
@@ -85,7 +85,7 @@ async function main(smoke: boolean) {
     await command('git', ['--version']);
     await command('go', ['version'], ploegPath);
     await command(binary('postgres'), ['--version']);
-    console.log('Building the Ploeg HTTP helper from the sibling checkout…');
+    console.log('Building the Ploeg HTTP helper from the pinned checkout…');
     const helper = join(directory, 'ploeg-demo');
     await command('go', ['build', '-o', helper, join(root, 'scripts/unified-demo/main.go')], ploegPath);
     await mkdir(socketDir, { mode: 0o700 });

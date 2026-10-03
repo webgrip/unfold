@@ -22,9 +22,10 @@ test('event entry points preserve validation and keep application publication ou
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
-  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'release-policy', 'warnings']);
+  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'ploeg-pin', 'release-policy', 'warnings']);
   assert.deepEqual(pr.jobs.checks, source.jobs.checks);
   assert.deepEqual(pr.jobs.warnings, source.jobs.warnings);
+  assert.deepEqual(pr.jobs['ploeg-pin'], source.jobs['ploeg-pin']);
   assert.deepEqual(pr.jobs['release-policy'].container, source.jobs.release.container);
   assert.deepEqual(pr.jobs['release-policy'].steps, source.jobs.release.steps.slice(0, 2));
   for (const name of ['on_pull_request.yml', 'on_docs_change.yml']) {
@@ -33,14 +34,35 @@ test('event entry points preserve validation and keep application publication ou
   const verification = read('.forgejo/actions/verify/action.yml');
   assert.ok(verification.runs.steps.some(verifyStep));
   assert.doesNotMatch(JSON.stringify(pr), /secrets\./);
-  assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'python3 scripts/docs.py --check --stage-only');
+  assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'git submodule update --init --recursive && python3 scripts/docs.py --check --stage-only');
+});
+
+test('every job that verifies, documents or demonstrates Unfold checks out the pinned Ploeg submodule', () => {
+  const checkout = job => job.steps.find(step => String(step.uses).startsWith('actions/checkout@'));
+  for (const [file, name] of [['on_pull_request.yml', 'checks'], ['on_pull_request.yml', 'ploeg-pin'], ['on_source_change.yml', 'checks'], ['on_source_change.yml', 'ploeg-pin'], ['on_schedule.yml', 'external-links'], ['on_schedule.yml', 'tutorial-smoke'], ['on_docs_change.yml', 'verify-publication']]) {
+    assert.equal(checkout(workflows[file].jobs[name]).with?.submodules, 'recursive', `${file}: ${name}`);
+  }
+  for (const name of ['generate-documentation', 'deploy-docs-site']) {
+    assert.match(workflows['on_docs_change.yml'].jobs[name].with['prepare-command'], /^git submodule update --init --recursive && /, name);
+  }
+  const mise = fs.readFileSync(path.join(root, 'mise.toml'), 'utf8');
+  assert.match(mise, /\[tasks\.setup\]\nrun = \[\n  "git submodule sync --recursive",\n  "git submodule update --init --recursive",/);
+});
+
+test('a pull request and a release need the pinned Ploeg commit on Ploeg main', () => {
+  for (const workflow of [workflows['on_pull_request.yml'], source]) {
+    const steps = workflow.jobs['ploeg-pin'].steps;
+    assert.equal(steps.at(-1).run, 'node scripts/ploeg-pin.mjs --published');
+    assert.doesNotMatch(JSON.stringify(workflow.jobs['ploeg-pin']), /secrets\.|permissions/);
+  }
+  assert.ok(source.jobs.release.needs.includes('ploeg-pin'));
 });
 
 test('only an enabled development push can version Unfold, after the checks and the release policy', () => {
   assert.equal(source.concurrency['cancel-in-progress'], false);
-  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'site-release', 'warnings']);
+  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'ploeg-pin', 'release', 'site-release', 'warnings']);
   const job = source.jobs.release;
-  assert.deepEqual(job.needs, ['checks']);
+  assert.deepEqual(job.needs, ['checks', 'ploeg-pin']);
   const policy = job.steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');
   assert.ok(policy > 0 && policy < job.steps.findIndex(step => step.id === 'release'), 'the release policy runs in the release job before versioning');
   const release = job.steps.find(step => step.id === 'release');

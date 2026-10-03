@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/webgrip/ploeg/pkg/httpapi"
-	"github.com/webgrip/ploeg/pkg/store"
+	"github.com/ploeg-hq/ploeg/pkg/httpapi"
+	"github.com/ploeg-hq/ploeg/pkg/store"
 )
 
 func main() {

@@ -97,7 +97,6 @@ runs:
         set -euo pipefail
         docker build --file apps/vloer/Dockerfile --target app --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/vloer
         docker build --file apps/vloer/ops/agent/Dockerfile --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/vloer/ops/agent
-        docker build --file apps/ploeg/ops/docker/ploegd/Dockerfile --output=type=cacheonly apps/ploeg
     - name: Collect warnings
       id: warnings
       if: always()
