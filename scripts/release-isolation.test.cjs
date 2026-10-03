@@ -48,7 +48,7 @@ test('the shared prerelease configuration needs an existing main baseline', asyn
   }
 });
 
-test('one Unfold release selects commits in either application and ignores the site and changes outside the applications', async () => {
+test('one Unfold release selects Vloer commits and ignores the site, the Ploeg pin and changes outside the applications', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-release-'));
   const previous = process.cwd();
   try {
@@ -67,8 +67,10 @@ test('one Unfold release selects commits in either application and ignores the s
     const commits = [];
     for (const [name, message, paths] of [
       ['vloer', 'fix: correct interactive work', ['apps/vloer/change.txt']],
-      ['ploeg', 'feat: extend managed work', ['apps/ploeg/change.txt']],
-      ['both', 'fix: align a shared contract', ['apps/vloer/change.txt', 'apps/ploeg/change.txt']],
+      ['ploeg-pin', 'build(ploeg): pin ploeg-hq/ploeg v0.1.1', ['apps/ploeg/change.txt']],
+      ['ploeg-fix', 'fix(ploeg): pin the Ploeg fix for stuck reviewers', ['apps/ploeg/change.txt']],
+      ['ploeg-breaking', 'feat(ploeg)!: pin a Ploeg with a new operator contract', ['apps/ploeg/change.txt']],
+      ['both', 'fix: show the field the newly pinned Ploeg sends', ['apps/vloer/change.txt', 'apps/ploeg/change.txt']],
       ['docs', 'fix: clarify shared documentation', ['docs/guide.md']],
       ['site', 'feat(site): add the landing page', ['apps/site/change.txt']],
       ['site-breaking', 'feat(site)!: move the site to a new domain', ['apps/site/change.txt']],
@@ -85,7 +87,7 @@ test('one Unfold release selects commits in either application and ignores the s
     const input = { cwd, env: process.env, logger, stdout: process.stdout, stderr: process.stderr };
     const { options, plugins } = await getConfig(input, { repositoryUrl: 'https://example.invalid/unfold.git' });
     assert.equal(options.tagFormat, 'unfold-v${version}');
-    const expected = { vloer: 'patch', ploeg: 'minor', both: 'patch', docs: null, site: null, 'site-breaking': null };
+    const expected = { vloer: 'patch', 'ploeg-pin': null, 'ploeg-fix': null, 'ploeg-breaking': null, both: 'patch', docs: null, site: null, 'site-breaking': null };
     for (const commit of commits) {
       const actual = await plugins.analyzeCommits({ ...input, options, commits: [commit] });
       assert.equal(actual ?? null, expected[commit.name], commit.name);

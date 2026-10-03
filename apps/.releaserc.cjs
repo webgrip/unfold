@@ -7,7 +7,6 @@ const config = makeConfig({
   prepareCmd: 'node ../scripts/release-prepare.mjs ${nextRelease.version}',
   extraAssets: [
     'vloer/ops/helm/de-vloer/Chart.yaml',
-    'ploeg/ops/helm/ploeg/Chart.yaml',
     'vloer/package.json',
     'vloer/package-lock.json',
     'vloer/extensions/vscode/package.json',
@@ -29,7 +28,7 @@ if (!rules.some((rule) => rule.breaking === true && rule.release === 'major')) {
 analyzers[0][1].releaseRules = rules.map((rule) => rule.breaking === true && rule.release === 'major'
   ? { ...rule, release: 'minor' }
   : rule);
-analyzers[0][1].releaseRules.push({ scope: 'site', release: false });
+analyzers[0][1].releaseRules.push({ scope: 'site', release: false }, { scope: 'ploeg', release: false });
 if (analyzers[0][1].releaseRules.some((rule) => rule.release === 'major')) {
   throw new Error('Unfold release policy rejects additional major release rules.');
 }
