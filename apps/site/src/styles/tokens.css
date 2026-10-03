@@ -35,8 +35,8 @@
   --border-width: 1px;
 
   --width-prose: 68ch;
-  --width-content: 72rem;
-  --header-height: 4.25rem;
+  --width-content: 80rem;
+  --header-height: 5rem;
 
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --duration-fast: 120ms;

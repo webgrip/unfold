@@ -1,4 +1,104 @@
 export const en = {
+  redesign: {
+    heroLine: 'Work, unfolded.',
+    heroAccent: 'Ready for review.',
+    heroIntro:
+      'Turn a Work Item into a pull request with AI agents, explicit budgets and evidence you can inspect. You decide what gets merged.',
+    explore: 'Explore a Shift',
+    source: 'Read the source',
+    category: 'Agent orchestration, with a human finish.',
+    architecture: 'Architecture',
+    menu: 'Menu',
+    recorded: 'Recorded demo',
+    handoff: 'The handoff is yours.',
+    handoffNote: 'Code, checks and a review. Nothing merged.',
+    implementation: 'Implementer',
+    independent: 'Reviewer',
+    testsPass: '3 checks pass',
+    localResult: 'Local demo result',
+    oneChange: '1 file changed',
+    demoBadge: 'Deterministic demo · no model calls · no spend',
+    proof: [
+      'Apache-2.0 licensed',
+      'Self-hosted on Kubernetes',
+      'Your models via LiteLLM',
+      'Experimental · 0.x',
+    ],
+    howKicker: '01 / THE WORK, MADE VISIBLE',
+    howTitle: 'One Shift. Every step in view.',
+    howIntro:
+      'A rounding bug. An implementer. An independent reviewer. Explore the recorded evidence from the deterministic demo that ships with Vloer.',
+    stageLabel: 'Explore the recorded Shift',
+    play: 'Play the Shift',
+    pause: 'Pause',
+    replay: 'Replay the Shift',
+    complete: 'Shift complete. The result is ready for human review.',
+    stages: [
+      {
+        label: 'The Work Item',
+        title: 'Start with a clear piece of work.',
+        text: 'The order service rounds 1.005 to 1.00 instead of 1.01. The Work Item asks for a minimal fix and independent verification.',
+      },
+      {
+        label: 'The implementer',
+        title: 'Reproduce. Change. Check.',
+        text: 'The implementer reproduces the failing tests, changes one line, then runs the checks again. The outputs stay with the Shift.',
+      },
+      {
+        label: 'The reviewer',
+        title: 'A second Run checks the work.',
+        text: 'The reviewer independently runs the checks and approves the change. That approval is evidence for a person to assess.',
+      },
+      {
+        label: 'Your decision',
+        title: 'The agents stop. You decide.',
+        text: 'When you run the local demo, the change stays on your machine. Ploeg’s unattended worker workflow can open a pull request on your forge. Human review, merging and release stay with you.',
+      },
+    ],
+    baseline: 'Before the fix',
+    after: 'After the fix',
+    reviewChecks: 'Independent review',
+    passed: 'passed',
+    failed: 'failed',
+    command: 'Recorded command',
+    diff: 'Recorded change · src/order.js',
+    objective: 'Work Item objective',
+    budget: 'Authorized demo budget',
+    spent: 'Demo spend',
+    reviewVerdict: 'Reviewer verdict',
+    approved: 'Approved',
+    merged: 'Merged',
+    no: 'No',
+    recording: 'Inspect the complete recording',
+    recordingNote: 'Every event, its recorded timing and the original Vloer interface.',
+    guardKicker: '02 / BOUNDED BY DESIGN',
+    guardTitle: 'Give agents work. Keep control.',
+    guardIntro:
+      'Inspect the change, trace the checks and decide whether the result is ready. When a Shift cannot finish, it stops for human attention.',
+    archKicker: '03 / UNDER THE SURFACE',
+    archTitle: 'One product. Clear responsibilities.',
+    archIntro:
+      'Ploeg controls managed execution. Vloer is where you start, steer and inspect the work. Both ship from one repository, under one Unfold version.',
+    cluster: 'MANAGED EXECUTION',
+    front: 'Browser / VS Code',
+    engine: 'Authorization · budgets · orchestration',
+    store: 'Shift record',
+    gateway: 'Model gateway',
+    providers: 'Your model providers',
+    forge: 'Your forge',
+    pullRequest: 'Pull request + evidence',
+    architectureNote:
+      'Conceptual view. Pull request publication is available in Ploeg’s unattended worker workflow; Vloer’s managed candidate path does not publish yet.',
+    workerPath: 'Unattended worker workflow',
+    openKicker: '04 / BUILD WITH YOUR EYES OPEN',
+    openTitle: 'Open source. On your terms.',
+    openIntro:
+      'Run Unfold on your infrastructure, inspect its source and connect your own providers through LiteLLM. It is experimental software, used on its owner’s backlog.',
+    statusTitle: 'What exists. What comes next.',
+    pricingTitle: 'A clear model for hosted work.',
+    signupKicker: 'FOLLOW THE WORK',
+    signupTitle: 'Be part of what unfolds next.',
+  },
   meta: {
     homeTitle: 'Unfold: from Work Item to a pull request you review',
     homeDescription:
@@ -81,7 +181,7 @@ export const en = {
     walkthrough: {
       title: 'Step by step',
       badge: 'Simulation of the deterministic demo — no model calls, no spend',
-      lead: 'Each line is an event the demo recorded when it ran. The page plays them back at the pace they happened.',
+      lead: 'Each line is an event the demo recorded when it ran, with its original timing alongside.',
       play: 'Play',
       replay: 'Play again',
       clock: 'Elapsed',
@@ -108,7 +208,7 @@ export const en = {
       },
       result: 'Ready for your review',
       resultNote:
-        'In the demo the change stays on your machine. With Ploeg it arrives as a pull request on your forge.',
+        'Running the local demo leaves the change on your machine. Ploeg’s unattended worker workflow can publish a pull request on your forge.',
       diff: 'The change the demo made',
     },
     video: {
@@ -135,7 +235,7 @@ export const en = {
       },
       {
         title: 'Scoped credentials',
-        text: 'A Run gets credentials for its own work only, and they expire. Management credentials stay in the controller and never reach an agent.',
+        text: 'Managed Runs receive budgeted, short-lived model keys. Writer access is scoped to the work; management credentials stay in the controller.',
       },
       {
         title: 'Evidence',
@@ -151,15 +251,15 @@ export const en = {
     title: 'How hosted Unfold will be priced',
     badge: 'Planned · not on sale yet',
     intro:
-      'Hosted Unfold does not exist yet. This is the price model we have decided on. The prices themselves are published after the pilot, not before.',
+      'Hosted Unfold does not exist yet. This is the price model we have decided on. We will publish prices after the pilot’s first validation milestone.',
     items: [
       {
         title: 'Pay for accepted work',
-        text: 'A delivery fee is charged only when your reviewer accepts the pull request, by approving or merging it. The fee follows the size of the ticket, not the hours spent.',
+        text: 'The planned delivery fee follows accepted work and ticket size. Acceptance can be explicit or deemed after 10 working days; the full terms will accompany the price list.',
       },
       {
-        title: 'Every attempt pays its tokens',
-        text: 'Model tokens are charged for every attempt, at cost plus a fixed markup that we publish. Rejected work still pays for its tokens, so rejecting is never free.',
+        title: 'Model usage is charged per attempt',
+        text: 'Model tokens are charged at cost plus a published fixed markup, including for rejected work. Attempts that fail because of Unfold’s infrastructure or bugs are exempt.',
       },
       {
         title: 'The Budget comes first',
@@ -170,7 +270,7 @@ export const en = {
         text: 'An agency decides what it charges its own clients. Unfold does not set those prices.',
       },
       {
-        title: 'Self-hosting costs nothing',
+        title: 'No Unfold licence fee',
         text: 'Run Unfold on your own cluster and Unfold charges you nothing. You pay your own model provider and your own infrastructure.',
       },
     ],
@@ -184,12 +284,12 @@ export const en = {
       {
         name: 'Ploeg',
         role: 'The engine',
-        text: 'Ploeg authorizes, budgets and runs every agent Run. It takes Work Items from trackers such as Vikunja and ClickUp, decides who may write each branch, and keeps the record of every Shift in PostgreSQL. Ploeg is Dutch for crew.',
+        text: 'Ploeg authorizes, budgets and orchestrates managed agent Runs. It takes Work Items from trackers such as Vikunja and ClickUp, decides who may write each branch, and keeps the record of every Shift in PostgreSQL. Ploeg is Dutch for crew.',
       },
       {
         name: 'Vloer',
         role: 'The workbench',
-        text: 'Vloer is the front end, in the browser or in VS Code. You start work there, steer agents while they run and review what they produced. Every Run it starts goes through Ploeg. Vloer is Dutch for floor, as in shop floor.',
+        text: 'Vloer is the front end, in the browser or in VS Code. You start work there, steer agents while they run and review what they produced. Managed Runs go through Ploeg; the local demo is deterministic. Vloer is Dutch for floor, as in shop floor.',
       },
     ],
     version:

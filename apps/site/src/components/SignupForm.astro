@@ -12,6 +12,7 @@ interface Props {
 
 const { locale } = Astro.props;
 const t = dictionary(locale).signup;
+const r = dictionary(locale).redesign;
 const labels: Record<Interest, string> = {
   hosted: t.interests.hosted,
   agency: t.interests.agency,
@@ -24,7 +25,8 @@ const mail = `mailto:${CONTROLLER.email}`;
 <section id="signup" class="section signup" aria-labelledby="signup-title">
   <div class="container signup-grid">
     <div class="signup-copy reveal">
-      <h2 id="signup-title" class="section-title">{t.title}</h2>
+      <p class="eyebrow">{r.signupKicker}</p>
+      <h2 id="signup-title" class="section-title">{r.signupTitle}</h2>
       <p class="lede">{t.lead}</p>
       <p class="signup-note">
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
@@ -92,9 +94,6 @@ const mail = `mailto:${CONTROLLER.email}`;
 
         <button type="submit" class="button button--primary signup-submit">
           <span data-signup-label>{t.submit}</span>
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
-            <path d="M5 12h13M13 6l6 6-6 6"></path>
-          </svg>
         </button>
 
         <p class="signup-error" role="alert" data-signup-error hidden></p>
@@ -112,6 +111,9 @@ const mail = `mailto:${CONTROLLER.email}`;
 </section>
 
 <style>
+  .signup-copy .section-title {
+    margin-top: 1.3rem;
+  }
   .signup {
     border-top: var(--border-width) solid var(--border);
   }
@@ -203,7 +205,7 @@ const mail = `mailto:${CONTROLLER.email}`;
   }
 
   .choices {
-    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
   }
 
   .choices legend {

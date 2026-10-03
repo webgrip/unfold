@@ -23,7 +23,7 @@ export function isIndexable(siteUrl: string): boolean {
 export const SITE_INDEXABLE = isIndexable(SITE_URL);
 export const SITE_NAME = 'Unfold';
 
-export const SOURCE_URL = 'https://forgejo.webgrip.dev/webgrip/glide';
+export const SOURCE_URL = 'https://forgejo.webgrip.dev/webgrip/unfold';
 export const DEMO_GUIDE_URL = `${SOURCE_URL}/src/branch/development/docs/workflows/local-demo.md`;
 export const LICENSE_URL = `${SOURCE_URL}/src/branch/development/LICENSE`;
 export const DOCS_URL = 'https://docs.webgrip.dev/glide/';

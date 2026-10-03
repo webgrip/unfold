@@ -24,7 +24,6 @@ const webm = video.sources.find((source) => source.type === 'video/webm');
       height={video.height}
       poster={video.poster}
       muted
-      loop
       playsinline
       controls
       preload="none"
@@ -82,34 +81,3 @@ const webm = video.sources.find((source) => source.type === 'video/webm');
     color: var(--fg-muted);
   }
 </style>
-
-<script>
-  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-  for (const player of document.querySelectorAll<HTMLVideoElement>('[data-demo-video]')) {
-    if (!('IntersectionObserver' in window)) continue;
-    let userPaused = false;
-    player.addEventListener('pause', () => {
-      if (document.visibilityState === 'visible' && player.dataset['autoPause'] !== '1')
-        userPaused = true;
-      delete player.dataset['autoPause'];
-    });
-    player.addEventListener('play', () => {
-      userPaused = false;
-    });
-    new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (reduced.matches || userPaused) continue;
-          if (entry.isIntersecting) {
-            player.preload = 'auto';
-            void player.play().catch(() => undefined);
-          } else if (!player.paused) {
-            player.dataset['autoPause'] = '1';
-            player.pause();
-          }
-        }
-      },
-      { threshold: 0.5 },
-    ).observe(player);
-  }
-</script>

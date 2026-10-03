@@ -1,0 +1,388 @@
+---
+import timeline from '../data/demo-timeline.json';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { formatMoney } from '../lib/timeline.ts';
+interface Props {
+  locale: Locale;
+}
+const r = dictionary(Astro.props.locale).redesign;
+const checks = timeline.events.filter((event) => event.kind === 'check');
+const changes = timeline.diff.split('\n').filter((line) => /^[+-]/.test(line));
+const starts = [
+  0,
+  timeline.events.find((e) => e.kind === 'run-started')?.at ?? 100,
+  timeline.events.find((e) => e.kind === 'run-started' && e.run === 'run-2')?.at ?? 4200,
+  timeline.events.find((e) => e.kind === 'change-ready')?.at ?? 6400,
+];
+---
+
+<div
+  class="explorer"
+  data-explorer
+  data-play={r.play}
+  data-pause={r.pause}
+  data-replay={r.replay}
+  data-complete={r.complete}
+>
+  <div class="explorer-toolbar">
+    <span class="micro">{r.demoBadge}</span
+    ><button type="button" class="button button--secondary" data-shift-play hidden>{r.play}</button>
+  </div>
+  <div class="stage-nav" aria-label={r.stageLabel}>
+    {r.stages.map((stage, index) => <a
+      href={`#shift-stage-${index}`}
+      data-stage-control
+      data-stage={index}
+      ><span class="stage-index">{String(index + 1).padStart(2, '0')}</span
+      ><span>{stage.label}</span><span class="stage-line" aria-hidden="true"
+    /></a>)}
+  </div>
+  <div class="stage-panels">
+    {r.stages.map((stage, index) => <section
+      id={`shift-stage-${index}`}
+      class="stage-panel"
+      data-stage-panel
+      data-at={starts[index]}
+      aria-labelledby={`stage-title-${index}`}
+      tabindex="-1"
+    >
+      <div class="stage-story">
+        <p class="micro">
+          {String(index + 1).padStart(2, '0')} / {r.stages.length.toString().padStart(2, '0')}
+        </p>
+        <h3 id={`stage-title-${index}`}>{stage.title}</h3>
+        <p>{stage.text}</p>
+      </div>
+      <div class="stage-evidence">
+        {index === 0 && <div class="work-evidence">
+          <span class="micro">{r.objective}</span>
+          <h4 lang="en">{timeline.workItem.title}</h4>
+          <p lang="en">{timeline.workItem.objective}</p>
+          <dl class="evidence-facts">
+            <div>
+              <dt>{r.budget}</dt>
+              <dd>{formatMoney(timeline.budget.authorized, timeline.budget.currency, 'nl-NL')}</dd>
+            </div>
+            <div>
+              <dt>{r.spent}</dt>
+              <dd>{formatMoney(timeline.budget.spent, timeline.budget.currency, 'nl-NL')}</dd>
+            </div>
+          </dl>
+        </div>}
+        {index === 1 && <div class="code-evidence">
+          <div class="checks-summary">
+            {checks
+              .slice(0, 2)
+              .map((check, i) => <div>
+                <span>{i === 0 ? r.baseline : r.after}</span
+                ><strong
+                  >{check.tests?.filter((test) => test.ok).length}
+                  {r.passed}{check.tests?.some((test) => !test.ok) && (
+                    <>, {check.tests.filter((test) => !test.ok).length} {r.failed}</>
+                  )}</strong
+                >
+              </div>)}
+          </div>
+          <p class="micro code-title">{r.diff}</p>
+          <pre
+            tabindex="0"
+            role="region"
+            aria-label={r.diff}
+          ><code>{changes.map((line) => <span class={line.startsWith('+') ? 'diff-add' : 'diff-del'}>{line}{'\n'}</span>)}</code></pre>
+        </div>}
+        {index === 2 && <div class="review-evidence">
+          <p class="micro">{r.reviewChecks}</p>
+          <code class="review-command">{checks[2]?.command}</code>
+          <ul class="test-list" lang="en">
+            {checks[2]?.tests?.map((test) => <li><span aria-hidden="true">✓</span>{test.name}</li>)}
+          </ul>
+          <dl class="evidence-facts">
+            <div>
+              <dt>{r.reviewVerdict}</dt>
+              <dd>{r.approved}</dd>
+            </div>
+          </dl>
+        </div>}
+        {index === 3 && <div class="decision-evidence">
+          <span class="decision-symbol" aria-hidden="true">◎</span>
+          <h4>{r.handoff}</h4>
+          <p>{r.handoffNote}</p>
+          <dl class="evidence-facts">
+            <div>
+              <dt>{r.reviewVerdict}</dt>
+              <dd>{r.approved}</dd>
+            </div>
+            <div>
+              <dt>{r.merged}</dt>
+              <dd>{r.no}</dd>
+            </div>
+            <div>
+              <dt>{r.spent}</dt>
+              <dd>{formatMoney(timeline.budget.spent, timeline.budget.currency, 'nl-NL')}</dd>
+            </div>
+          </dl>
+        </div>}
+      </div>
+    </section>)}
+  </div>
+  <p class="sr-only" data-shift-announcement role="status" aria-live="polite"></p>
+</div>
+<style>
+  .explorer {
+    border: 1px solid var(--border-strong);
+    background: var(--bg);
+  }
+  .explorer-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .explorer-toolbar .micro {
+    color: var(--fg-muted);
+    font-size: 0.7rem;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .explorer-toolbar button {
+    min-width: 10rem;
+    min-height: 44px;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.8rem;
+  }
+  .stage-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .stage-nav a {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 1.25rem;
+    min-height: 68px;
+    color: var(--fg-muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.875rem;
+  }
+  .stage-nav a:not(:last-child) {
+    border-right: 1px solid var(--border);
+  }
+  .stage-index {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+  .stage-nav a[aria-current='step'] {
+    color: var(--fg);
+    background: var(--bg-raised);
+    font-weight: 650;
+  }
+  .stage-nav a[aria-current='step'] .stage-index {
+    color: var(--accent);
+  }
+  .stage-line {
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    height: 3px;
+    width: 100%;
+    background: var(--accent-decor);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 300ms var(--ease-out);
+  }
+  a[aria-current='step'] .stage-line {
+    transform: scaleX(1);
+  }
+  .stage-panel {
+    display: grid;
+    grid-template-columns: 0.85fr 1.15fr;
+    gap: 3rem;
+    padding: 3rem;
+    min-height: 360px;
+    align-items: center;
+  }
+  .stage-panel:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+  }
+  [data-enhanced] .stage-panel {
+    border-bottom: 0;
+    grid-area: 1 / 1;
+  }
+  [data-enhanced] .stage-panels {
+    display: grid;
+  }
+  [data-enhanced] .stage-panel[hidden] {
+    display: grid !important;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .stage-story > .micro {
+    color: var(--accent);
+  }
+  .stage-story h3 {
+    font-size: clamp(1.65rem, 2.5vw, 2.25rem);
+    letter-spacing: -0.04em;
+    margin: 0.8rem 0 1.1rem;
+  }
+  .stage-story > p:last-child {
+    color: var(--fg-muted);
+    font-size: 1rem;
+  }
+  .stage-evidence {
+    min-width: 0;
+    border: 1px solid var(--border);
+  }
+  .work-evidence,
+  .review-evidence,
+  .decision-evidence {
+    padding: 1.5rem;
+  }
+  .work-evidence h4 {
+    font-size: 1.2rem;
+    margin: 0.7rem 0;
+  }
+  .work-evidence > p {
+    font-size: 0.875rem;
+    color: var(--fg-muted);
+  }
+  .evidence-facts {
+    margin-top: 1.5rem;
+    font-size: 0.8rem;
+  }
+  .evidence-facts > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.6rem 0;
+    border-top: 1px solid var(--border);
+  }
+  dt {
+    color: var(--fg-muted);
+  }
+  dd {
+    font-family: var(--font-mono);
+  }
+  .checks-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+  .checks-summary > div {
+    padding: 1.2rem;
+    font-size: 0.8rem;
+  }
+  .checks-summary > div + div {
+    border-left: 1px solid var(--border);
+  }
+  .checks-summary span {
+    color: var(--fg-muted);
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+  .checks-summary strong {
+    font-size: 0.9rem;
+  }
+  .code-title {
+    padding: 1.3rem 1.2rem 0.5rem;
+    color: var(--fg-muted);
+  }
+  pre {
+    padding: 1rem 1.2rem 1.5rem;
+    overflow-x: auto;
+    font: 0.8rem/2 var(--font-mono);
+  }
+  pre span {
+    display: block;
+  }
+  .diff-del {
+    color: var(--fg-muted);
+  }
+  .diff-add {
+    font-weight: 700;
+  }
+  .review-command {
+    display: block;
+    font-size: 0.8rem;
+    margin: 1rem 0;
+  }
+  .test-list {
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.7rem;
+    font-size: 0.8rem;
+  }
+  .test-list li {
+    display: flex;
+    gap: 0.8rem;
+  }
+  .test-list li span {
+    color: var(--accent);
+  }
+  .decision-symbol {
+    font-size: 2rem;
+    color: var(--accent);
+  }
+  .decision-evidence h4 {
+    font-size: 1.4rem;
+    margin: 0.5rem 0;
+  }
+  .decision-evidence > p {
+    color: var(--fg-muted);
+    font-size: 0.875rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    [data-enhanced] .stage-panel:not([hidden]) .stage-evidence {
+      animation: evidence-in 400ms var(--ease-out);
+    }
+  }
+  @keyframes evidence-in {
+    from {
+      transform: translateY(10px);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @media (max-width: 55rem) {
+    .stage-panel {
+      padding: 2rem;
+      gap: 2rem;
+    }
+    .stage-nav a {
+      padding: 1rem;
+      font-size: 0.8rem;
+    }
+  }
+  @media (max-width: 42rem) {
+    .stage-panel {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem;
+      min-height: 560px;
+      align-content: start;
+    }
+    .stage-nav {
+      grid-template-columns: 1fr 1fr;
+    }
+    .stage-nav a {
+      min-height: 58px;
+    }
+    .explorer-toolbar {
+      padding: 1rem;
+      flex-wrap: wrap;
+    }
+    .explorer-toolbar button {
+      min-width: 0;
+    }
+  }
+</style>
+<script>
+  import { initShiftExplorers } from '../lib/shift-explorer.ts';
+  initShiftExplorers();
+</script>
