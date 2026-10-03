@@ -70,3 +70,7 @@ func TestManagedSettlementSweep_WithoutControlIsANoop(t *testing.T) {
 		t.Errorf("cursor = %d, want 0", got)
 	}
 }
+
+func TestManagedCorrectionSweep_WithoutControlIsANoop(t *testing.T) {
+	managedCorrectionSweep(context.Background(), slog.New(slog.DiscardHandler), &httpapi.Server{})
+}

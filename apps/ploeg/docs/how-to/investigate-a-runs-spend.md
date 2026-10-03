@@ -43,7 +43,7 @@ The pool is empty when `budget − spent − reserved` is below the minimum a Ru
 | `issued` | Key exists; `gateway_key_id` recorded | The block sweep, once the Run finishes |
 | `unknown` | Issue or spend read failed, so the key's fate is uncertain | The block sweep, while the gateway can report the key |
 | `blocked` | Key revoked; `observed_spend` recorded | The settlement sweep, after `PLOEG_LLM_SETTLE_AFTER` (15 minutes) with no change |
-| `reconciled` | Settled from the gateway's spend logs; evidence stored | Nothing, except a later correction |
+| `reconciled` | Settled from the gateway's spend logs; evidence stored | Nothing. Until `corrections_until`, the correction sweep reads the spend logs again and charges any late entry as an adjustment |
 
 Every sweep interval, the controller tries to block every finished Run's account that is still `minting`, `issued` or `unknown`. It then settles every finished Run's account that is `reserved`, or `blocked` and quiet ([sweep.go](../../cmd/ploegd/sweep.go), [llm_control.go](../../pkg/httpapi/llm_control.go)). Settlement reads LiteLLM's spend logs for the recorded hashed key and any key that still carries the alias. It never settles below `observed_spend` and never treats a missing key as zero spend. A blocked account settles at `run_llm_accounts`' own 4-decimal precision: the spend-log total is rounded half-up to match `observed_spend` and `reconciled_spend` before either is compared or stored.
 
@@ -120,7 +120,16 @@ curl -s -H "Authorization: Bearer $LITELLM_ADMIN_KEY" \
 
 In the LiteLLM admin UI, filter the logs by the key alias `ploeg-<12 hex>` for the same answer. Spend logs must stay enabled on the gateway. With logging off, a minted key would show no entries, and only a recorded `observed_spend` stops it settling at zero.
 
-Late entries can appear after settlement, when a request was already in flight as the key was blocked. The sweeper does not re-read a `reconciled` account. **Not implemented yet:** an operator command that records a correction. The store operation that applies a positive delta and keeps history (`ReconcileLLMAccount`) exists, but only the settlement sweep calls it, and it is not exposed as an endpoint. Record the difference and its evidence in the operational record; do not edit `shifts.spent` or `run_llm_accounts` by hand.
+Late entries can appear after settlement, when a request was already in flight as the key was blocked. A settlement read from the spend logs stays provisional for `PLOEG_LLM_CORRECTION_WINDOW` (default `24h`), until `run_llm_accounts.corrections_until`. Every 15 minutes in that window the correction sweep reads the spend logs again. A higher total charges only the difference to the Shift, raises `reconciled_spend`, adds a `run_llm_adjustments` row with the previous and new totals and the new evidence, and writes an `llm.reconciled` audit event with `"adjustment": true`. The first settlement stays in `settled_at`, `settled_spend` and `reconciliation_evidence`. A lower total is refused and logged as `managed settlement correction unresolved`. After the window the cost is final and nothing re-reads it. **Not implemented yet:** an operator command that records a correction after the window. Record the difference and its evidence in the operational record; do not edit `shifts.spent` or `run_llm_accounts` by hand.
+
+A minted key whose spend logs have no entries settles at zero so its hold is released, but `cost_known` is false: the Run's cost is reported as unknown, not as zero, until a spend-log entry confirms it. An entry that costs zero does confirm zero.
+
+```sql
+SELECT a.settled_at, a.settled_spend, a.reconciled_spend, a.corrections_until, a.cost_known,
+       j.previous_spend, j.spend, j.evidence, j.recorded_at
+FROM run_llm_accounts a LEFT JOIN run_llm_adjustments j USING (run_token)
+WHERE a.run_token = '<run_token>' ORDER BY j.id;
+```
 
 ## 6. Decide whether to wait or act
 
@@ -139,7 +148,7 @@ Late entries can appear after settlement, when a request was already in flight a
 
 - Every finished Run of the Shift shows `account_state = 'reconciled'` or has no account, and `hold` is 0 for each.
 - `spent` in step 2 equals the sum of `reconciled_spend` over the Shift's managed Runs, plus the harness-reported `costUsd` of any Run without an account.
-- For a sample Run, the spend-log total from step 5 equals `reconciled_spend`, and the `entries` count matches the evidence string.
+- For a sample Run, the spend-log total from step 5 equals `reconciled_spend`, and the `entries` count matches the evidence string, or the latest `run_llm_adjustments` evidence when the account was corrected.
 
 ## Symptom, cause, fix
 

@@ -74,6 +74,7 @@ The generator follows each binary's imports inside the module and records every 
 | `PLOEG_HARNESS_TIMEOUT` | ploeg-worker | `100m` | Stops a harness that runs longer than this, with failure reason `timeout`. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_LEASE_TTL` | ploegd | `60s` |  | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_LISTEN` | ploegd | `:8080` |  | [main.go](../../cmd/ploegd/main.go) |
+| `PLOEG_LLM_CORRECTION_WINDOW` | ploegd | `24h` | How long a spend-log settlement stays provisional. Every 15 minutes in this window the correction sweep reads the spend logs again and charges any late entry as an adjustment. `0` makes the first settlement final; a negative value refuses to start. The window is fixed at each account's first settlement. | [main.go](../../cmd/ploegd/main.go) |
 | `PLOEG_LLM_CREDENTIAL_MODE` | ploeg-worker | `managed` | `managed`, or `static-compatibility` for legacy mode, which uses `LLM_API_KEY`. | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_LLM_KEY_ISOLATION` | ploeg-worker |  |  | [main.go](../../cmd/ploeg-worker/main.go) |
 | `PLOEG_LLM_SETTLE_AFTER` | ploegd | `15m` | Quiet period after which the settlement sweep settles a blocked Run's account from LiteLLM spend logs. | [main.go](../../cmd/ploegd/main.go) |

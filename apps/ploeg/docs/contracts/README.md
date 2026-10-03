@@ -191,7 +191,15 @@ bound audit event. Teams appear when they have a Work Item or are registered.
 `before=<runId>`, returning `nextBefore`. `externalRef` is the tracker
 reference agents put in commit trailers, empty for manual Operator Executions.
 `settledUsd` is the reconciled gateway spend, or the reported cost of a
-finished Run without a gateway account, and null otherwise. Summary and Run
+finished Run without a gateway account, and null otherwise. It is also null
+when the account settled from spend logs with no entries for a minted key:
+that cost is unknown, not zero, until an entry arrives. Run detail reports
+the same case as `costStatus: unknown`. Both the Run list and Run detail
+carry `settledAt` (the account's first settlement), `costFinalAt` (the end of
+its correction window, or `settledAt` when it has none) and `costFinal`. A
+settled cost with `costFinal: false` is provisional: the controller still
+reads the gateway's spend logs again and may raise it. A Run without a
+gateway account has `costFinal: true` once it has finished. Summary and Run
 list timestamps are UTC.
 
 Audit pages explicitly say `consistency: snapshot`: sequence allocation is

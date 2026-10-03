@@ -51,3 +51,31 @@ func (s *Store) UnsettledLLMAccounts(ctx context.Context, after int64, quietFor 
 	}
 	return values, rows.Err()
 }
+
+// CorrectableLLMAccounts pages finished Runs whose account is reconciled and
+// still inside its correction window, so the controller can read the
+// gateway's spend logs again and record any late charge. QuietSince is the
+// first settlement time and MintBegan is always true: only a settlement read
+// from the gateway opens a correction window.
+func (s *Store) CorrectableLLMAccounts(ctx context.Context, after int64, limit int) ([]UnsettledLLMAccount, error) {
+	if after < 0 || limit < 1 || limit > 100 {
+		return nil, errors.New("invalid managed correction page")
+	}
+	rows, err := s.pool.Query(ctx, `SELECT r.id,a.run_token,a.gateway_key_id,a.alias,a.state,a.settled_at,r.shift_id
+		FROM run_llm_accounts a JOIN agent_runs r USING(run_token)
+		WHERE r.state='finished' AND r.id>$1 AND a.state='reconciled' AND a.corrections_until>now()
+		ORDER BY r.id LIMIT $2`, after, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	values := []UnsettledLLMAccount{}
+	for rows.Next() {
+		v := UnsettledLLMAccount{MintBegan: true}
+		if err := rows.Scan(&v.RunID, &v.RunToken, &v.GatewayKeyID, &v.Alias, &v.State, &v.QuietSince, &v.ShiftID); err != nil {
+			return nil, err
+		}
+		values = append(values, v)
+	}
+	return values, rows.Err()
+}

@@ -725,6 +725,20 @@
               "type": "null"
             }
           ]
+        },
+        "settledAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the Run's gateway account was first settled. Absent before settlement and for a Run without an account."
+        },
+        "costFinalAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the settled cost stops being corrected for late gateway charges: the end of the correction window, or settledAt when the settlement opened none."
+        },
+        "costFinal": {
+          "type": "boolean",
+          "description": "True once the Run's cost will no longer change. A settled cost before costFinalAt is provisional and may rise."
         }
       }
     },
@@ -1524,6 +1538,20 @@
             "type": "string",
             "maxLength": 256
           }
+        },
+        "settledAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the Run's gateway account was first settled. Absent before settlement and for a Run without an account."
+        },
+        "costFinalAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When the settled cost stops being corrected for late gateway charges: the end of the correction window, or settledAt when the settlement opened none."
+        },
+        "costFinal": {
+          "type": "boolean",
+          "description": "True once the Run's cost will no longer change. A settled cost before costFinalAt is provisional and may rise."
         }
       }
     },
