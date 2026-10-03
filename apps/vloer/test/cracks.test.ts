@@ -62,7 +62,7 @@ test('the card proxy passes gates, evolved, a set, grade inputs, crack weights a
   assert.deepEqual(card.gates, { current: 'done', history: [{ gate: 'development', enteredAt: '2026-08-01T10:00:00Z', leftAt: '2026-08-02T10:00:00Z' }, { gate: 'test', enteredAt: '2026-08-02T10:00:00Z', leftAt: null }], bounces: [{ from: 'test', to: 'development', at: '2026-08-03T10:00:00Z', reason: 'defect', actor: 'iris' }], rightFirstTime: { test: 1, acceptance: 0 } });
   assert.equal(card.evolved, true);
   assert.deepEqual(card.set, { ...set, children: [] });
-  assert.deepEqual(card.grade?.inputs, { ...inputs, notCollected: ['durability.survival', 'review.ciFirstGreen', 'review.findings'] }, 'the inputs pass through, unknown names dropped');
+  assert.deepEqual(card.grade?.inputs, { ...inputs, review: { ...inputs.review, reworkRounds: null }, notCollected: ['durability.survival', 'review.ciFirstGreen', 'review.findings'] }, 'the inputs pass through, unknown names dropped, and rework rounds an older formula never sent stay unknown');
   assert.deepEqual(card.condition?.cracks[0], condition.cracks[0]);
   assert.deepEqual(card.roster, [{ name: 'dev', roles: ['cosigner'] }]);
   const epic = parseCard(contractCard({ set: { role: 'epic', epic: { workItemId: '125', title: 'Checkout hardening' }, position: null, size: 2, children: [{ workItemId: 118, title: 'Postcodes', state: 'merged', settled: true, cracked: true }, { workItemId: '121', title: '404s', state: 'in_review', settled: false, cracked: false, extra: 1 }], complete: false } }));

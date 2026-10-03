@@ -372,6 +372,18 @@ test('a grade and a condition from Ploeg reach the view; anything unreadable sta
   assert.deepEqual([plain.grade, plain.condition, plain.foilPattern], [null, null, null]);
   assert.equal(value(plain, 'life', 'Reverts and linked bugs').value, notCollected);
   assert.equal(value(plain, 'review', 'Grade'), undefined, 'no grade row without a grade');
+
+  const inputs = { reliability: { crackWeight: 0, reverted: false }, durability: { daysLive: 40, liveSince: '2026-08-22T12:00:00Z', reverts: 0, hotfixes: 0, survival: null }, delivery: { budgetShare: null, defectBounces: 0, extraPlays: 0, failedRuns: 0 }, review: { ciFirstGreen: null, findings: null, changeRequests: 2, reviewRounds: 3, reworkRounds: 1 }, notCollected: ['durability.survival', 'review.ciFirstGreen', 'review.findings'], missing: ['delivery.budgetShare'] };
+  const current = cardView({ ...contractCard(), grade: { formula: '2026.3', overall: 9, provisional: true, subgrades: { reliability: 10, durability: 8.5, delivery: 9, review: 9 }, label: null, qualifiers: [], inputs } });
+  assert.match(tab(current, 'grade').note, /Review loses 1 per round in which someone asked for changes/, 'Vloer describes formula 2026.3');
+  assert.deepEqual(value(current, 'grade', 'Evidence'), { label: 'Evidence', value: 'Incomplete · 1 input missing, so no label', status: 'unreported' });
+  const delivery = tab(current, 'grade').groups.find(group => group.title === 'Delivery inputs');
+  assert.deepEqual(delivery.rows.find(entry => entry.label === 'Budget used'), { label: 'Budget used', value: 'Missing for this card · delivery is at most 9', status: 'unreported' });
+  assert.equal(tab(current, 'grade').groups.find(group => group.title === 'Review inputs').rows.find(entry => entry.label === 'Rework rounds').value, '1');
+  assert.equal(value(current, 'condition', 'Condition').value, 'No confirmed crack', 'formula 2026.3 grades cracks, so no condition means no confirmed crack');
+  const complete = cardView({ ...contractCard(), grade: { formula: '2026.3', overall: 9, provisional: true, subgrades: { reliability: 10, durability: 8.5, delivery: 10, review: 9 }, label: null, qualifiers: [], inputs: { ...inputs, missing: [] } } });
+  assert.equal(value(complete, 'grade', 'Evidence').value, 'Complete');
+  assert.equal(value(graded, 'grade', 'Evidence'), undefined, 'a grade from a Ploeg that sends no missing list makes no evidence claim');
   assert.deepEqual(plain.style, { skin: 'vloer-native', theme: '' });
   assert.equal(plain.rounds, 1);
 });

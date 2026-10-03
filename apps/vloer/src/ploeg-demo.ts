@@ -99,7 +99,7 @@ const gradeInputs = (spec: InputSpec): NonNullable<PloegCardGrade['inputs']> => 
   reliability: { crackWeight: spec.weight, reverted: spec.reverted ?? false },
   durability: { daysLive: spec.days, liveSince: ago(spec.days * day + 300), reverts: spec.reverts ?? 0, hotfixes: spec.hotfixes ?? 0, survival: null },
   delivery: { budgetShare: spec.budget ?? null, defectBounces: spec.defects, extraPlays: spec.plays ?? 0, failedRuns: spec.failed ?? 0 },
-  review: { ciFirstGreen: null, findings: null, changeRequests: spec.changes ?? 0, reviewRounds: spec.rounds },
+  review: { ciFirstGreen: null, findings: null, changeRequests: spec.changes ?? 0, reviewRounds: spec.rounds, reworkRounds: null },
   notCollected: notCollectedInputs,
 });
 const demoGrades: Record<string, PloegCardGrade> = {

@@ -23,7 +23,18 @@ func TestHalfStepRoundsToTheNearestHalfWithTiesUp(t *testing.T) {
 func TestComputeGradeFormula(t *testing.T) {
 	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
 	ago := func(days int) *time.Time { at := now.Add(-time.Duration(days)*24*time.Hour - time.Hour); return &at }
-	zero, one, two := 0, 1, 2
+	one, two := 1, 2
+	known := func(f gradeFacts) gradeFacts {
+		f.now = now
+		if f.costUSD == nil {
+			f.costUSD, f.authorizedUSD = f64(1), 2
+		}
+		if f.defectBounces == nil {
+			zero := 0
+			f.defectBounces = &zero
+		}
+		return f
+	}
 	for _, tc := range []struct {
 		name        string
 		facts       gradeFacts
@@ -33,37 +44,41 @@ func TestComputeGradeFormula(t *testing.T) {
 		label       string
 		qualifiers  []string
 	}{
-		{"not live yet: durability starts at 6", gradeFacts{now: now, plays: 1, reviewRounds: 1},
+		{"not live yet: durability starts at 6", known(gradeFacts{plays: 1, reviewRounds: 1}),
 			CardSubgrades{10, 6, 10, 10}, 9, true, "", []string{}},
-		{"45 days live: durability 8", gradeFacts{now: now, liveSince: ago(45), plays: 1, reviewRounds: 1},
+		{"45 days live: durability 8", known(gradeFacts{liveSince: ago(45), plays: 1, reviewRounds: 1}),
 			CardSubgrades{10, 8, 10, 10}, 9, true, "", []string{}},
-		{"179 days live is still provisional: capped at 9 and no label", gradeFacts{now: now, liveSince: ago(179), plays: 1, reviewRounds: 1},
+		{"179 days live is still provisional: capped at 9 and no label", known(gradeFacts{liveSince: ago(179), plays: 1, reviewRounds: 1}),
 			CardSubgrades{10, 10, 10, 10}, 9, true, "", []string{}},
-		{"180 days live, all tens: black", gradeFacts{now: now, liveSince: ago(180), plays: 1, reviewRounds: 1, defectBounces: &zero},
+		{"180 days live, all tens: black", known(gradeFacts{liveSince: ago(180), plays: 1, reviewRounds: 1}),
 			CardSubgrades{10, 10, 10, 10}, 10, false, "black", []string{}},
-		{"180 days live, overall 10 without four tens: gold", gradeFacts{now: now, liveSince: ago(180), plays: 1, reviewRounds: 2},
-			CardSubgrades{10, 10, 10, 9.5}, 10, false, "gold", []string{}},
+		{"180 days live, overall 10 without four tens: gold",
+			known(gradeFacts{liveSince: ago(180), plays: 1, changeRequests: 1, reviewRounds: 2, reworkRounds: 1}),
+			CardSubgrades{10, 10, 10, 9}, 10, false, "gold", []string{}},
 		{"over budget by a quarter or less costs 1 and marks OB",
-			gradeFacts{now: now, liveSince: ago(400), plays: 1, reviewRounds: 1, costUSD: f64(2.5), authorizedUSD: 2},
+			known(gradeFacts{liveSince: ago(400), plays: 1, reviewRounds: 1, costUSD: f64(2.5), authorizedUSD: 2}),
 			CardSubgrades{10, 10, 9, 10}, 10, false, "gold", []string{"OB"}},
 		{"over budget by more than a quarter costs 2",
-			gradeFacts{now: now, liveSince: ago(400), plays: 1, reviewRounds: 1, costUSD: f64(2.51), authorizedUSD: 2},
+			known(gradeFacts{liveSince: ago(400), plays: 1, reviewRounds: 1, costUSD: f64(2.51), authorizedUSD: 2}),
 			CardSubgrades{10, 10, 8, 10}, 9.5, false, "", []string{"OB"}},
-		{"within budget costs nothing", gradeFacts{now: now, plays: 1, reviewRounds: 1, costUSD: f64(2), authorizedUSD: 2},
+		{"within budget costs nothing", known(gradeFacts{plays: 1, reviewRounds: 1, costUSD: f64(2), authorizedUSD: 2}),
 			CardSubgrades{10, 6, 10, 10}, 9, true, "", []string{}},
 		{"failed runs, extra plays and defect bounces lower delivery; RT",
-			gradeFacts{now: now, liveSince: ago(45), plays: 2, failedRuns: 1, defectBounces: &two, reviewRounds: 1},
+			known(gradeFacts{liveSince: ago(45), plays: 2, failedRuns: 1, defectBounces: &two, reviewRounds: 1}),
 			CardSubgrades{10, 8, 5.5, 10}, 8.5, true, "", []string{"RT"}},
-		{"change requests and extra rounds lower review",
-			gradeFacts{now: now, liveSince: ago(45), plays: 1, changeRequests: 2, reviewRounds: 3, defectBounces: &one},
-			CardSubgrades{10, 8, 8.5, 7}, 9, true, "", []string{}},
+		{"approved and comment-only rounds lower nothing",
+			known(gradeFacts{liveSince: ago(400), plays: 1, reviewRounds: 4}),
+			CardSubgrades{10, 10, 10, 10}, 10, false, "black", []string{}},
+		{"each rework round costs 1, however many reviewers asked in it",
+			known(gradeFacts{liveSince: ago(45), plays: 1, changeRequests: 3, reviewRounds: 3, reworkRounds: 2, defectBounces: &one}),
+			CardSubgrades{10, 8, 8.5, 8}, 9, true, "", []string{}},
 		{"subgrades never fall below 1",
-			gradeFacts{now: now, plays: 12, failedRuns: 9, changeRequests: 15, reviewRounds: 4},
+			known(gradeFacts{plays: 12, failedRuns: 9, changeRequests: 15, reviewRounds: 15, reworkRounds: 15}),
 			CardSubgrades{10, 6, 1, 1}, 6, true, "", []string{"RT"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			g := computeGrade(tc.facts)
-			if g.Formula != "2026.2" || g.Subgrades != tc.sub || g.Overall != tc.overall || g.Provisional != tc.provisional {
+			if g.Formula != "2026.3" || g.Subgrades != tc.sub || g.Overall != tc.overall || g.Provisional != tc.provisional {
 				t.Fatalf("grade = %s %v %+v provisional %v; want %v %+v provisional %v", g.Formula, g.Overall, g.Subgrades, g.Provisional,
 					tc.overall, tc.sub, tc.provisional)
 			}
@@ -73,6 +88,86 @@ func TestComputeGradeFormula(t *testing.T) {
 			}
 			if label != tc.label || !reflect.DeepEqual(g.Qualifiers, tc.qualifiers) {
 				t.Fatalf("label %q qualifiers %v; want %q %v", label, g.Qualifiers, tc.label, tc.qualifiers)
+			}
+			if len(g.Inputs.Missing) != 0 {
+				t.Fatalf("missing = %v; every input of these cases is known", g.Inputs.Missing)
+			}
+		})
+	}
+}
+
+func TestComputeGradeMissingInputsCapTheirSubgradeAndWithholdTheLabel(t *testing.T) {
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	live := now.Add(-400 * 24 * time.Hour)
+	zero := 0
+	for _, tc := range []struct {
+		name     string
+		facts    gradeFacts
+		delivery float64
+		overall  float64
+		missing  []string
+	}{
+		{"every input known: a black label", gradeFacts{costUSD: f64(1), authorizedUSD: 2, defectBounces: &zero},
+			10, 10, []string{}},
+		{"cost not reported", gradeFacts{authorizedUSD: 2, defectBounces: &zero},
+			9, 10, []string{"delivery.budgetShare"}},
+		{"nothing authorized", gradeFacts{costUSD: f64(1), defectBounces: &zero},
+			9, 10, []string{"delivery.budgetShare"}},
+		{"the board maps no gates", gradeFacts{costUSD: f64(1), authorizedUSD: 2},
+			9, 10, []string{"delivery.defectBounces"}},
+		{"both unknown", gradeFacts{},
+			9, 10, []string{"delivery.budgetShare", "delivery.defectBounces"}},
+		{"a known penalty below the cap still counts", gradeFacts{costUSD: f64(3), authorizedUSD: 2},
+			8, 9.5, []string{"delivery.defectBounces"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := tc.facts
+			f.now, f.liveSince, f.plays, f.reviewRounds = now, &live, 1, 1
+			g := computeGrade(f)
+			if g.Subgrades.Delivery != tc.delivery || g.Overall != tc.overall || !reflect.DeepEqual(g.Inputs.Missing, tc.missing) {
+				t.Fatalf("delivery %v overall %v missing %v; want %v %v %v", g.Subgrades.Delivery, g.Overall, g.Inputs.Missing,
+					tc.delivery, tc.overall, tc.missing)
+			}
+			if g.Subgrades.Reliability != 10 || g.Subgrades.Durability != 10 || g.Subgrades.Review != 10 {
+				t.Fatalf("subgrades = %+v; a missing delivery input caps only delivery", g.Subgrades)
+			}
+			if complete := len(tc.missing) == 0; (g.Label != nil) != complete {
+				t.Fatalf("label = %v with missing %v; only complete evidence earns a label", g.Label, tc.missing)
+			}
+		})
+	}
+}
+
+func TestCardGradeCountsReworkRoundsNotReviews(t *testing.T) {
+	now := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	review := func(who, state, head string) CardReview {
+		return CardReview{Reviewer: who, State: state, HeadSHA: head, ReceivedAt: now}
+	}
+	for _, tc := range []struct {
+		name                              string
+		reviews                           []CardReview
+		review                            float64
+		changeRequests, rounds, reworkRds int
+	}{
+		{"one approval", []CardReview{review("anna", "approved", "a")}, 10, 0, 1, 0},
+		{"comments then approval over three heads",
+			[]CardReview{review("anna", "commented", "a"), review("bert", "commented", "b"), review("anna", "approved", "c")}, 10, 0, 3, 0},
+		{"two reviewers approving the same head", []CardReview{review("anna", "approved", "a"), review("bert", "approved", "a")}, 10, 0, 1, 0},
+		{"two reviewers asking for changes on one head are one rework round",
+			[]CardReview{review("anna", "changes_requested", "a"), review("bert", "changes_requested", "a"), review("anna", "approved", "b")}, 9, 2, 2, 1},
+		{"changes asked on two heads are two rework rounds",
+			[]CardReview{review("anna", "changes_requested", "a"), review("anna", "changes_requested", "b"), review("anna", "approved", "c")}, 8, 2, 3, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &OperatorCard{Plays: []CardPlay{{Number: 7, State: "open", Reviews: tc.reviews}}}
+			g := c.grade(nil, 0, false, now)
+			if g == nil {
+				t.Fatal("grade = nil; a human verdict grades the card")
+			}
+			in := g.Inputs.Review
+			if g.Subgrades.Review != tc.review || in.ChangeRequests != tc.changeRequests || in.ReviewRounds != tc.rounds || in.ReworkRounds != tc.reworkRds {
+				t.Fatalf("review %v inputs %+v; want %v changeRequests %d rounds %d rework %d", g.Subgrades.Review, in,
+					tc.review, tc.changeRequests, tc.rounds, tc.reworkRds)
 			}
 		})
 	}
@@ -95,6 +190,9 @@ func TestComputeGradeInputsKeepUnknownsUnknown(t *testing.T) {
 	want := []string{"durability.survival", "review.ciFirstGreen", "review.findings"}
 	if !reflect.DeepEqual(in.NotCollected, want) {
 		t.Fatalf("notCollected = %v", in.NotCollected)
+	}
+	if missing := []string{"delivery.budgetShare", "delivery.defectBounces"}; !reflect.DeepEqual(in.Missing, missing) {
+		t.Fatalf("missing = %v; want %v", in.Missing, missing)
 	}
 	share := computeGrade(gradeFacts{now: now, plays: 1, costUSD: f64(0.5), authorizedUSD: 2}).Inputs.Delivery.BudgetShare
 	if share == nil || *share != 0.25 {
@@ -135,6 +233,10 @@ func TestComputeGradeCracksRevertsAndHotfixes(t *testing.T) {
 			CardSubgrades{9, 9, 7.5, 10}, 9, "", []string{"HF", "OB", "RT"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.facts.costUSD == nil {
+				tc.facts.costUSD, tc.facts.authorizedUSD = f64(1), 2
+			}
+			tc.facts.defectBounces = &zero
 			g := computeGrade(tc.facts)
 			label := ""
 			if g.Label != nil {

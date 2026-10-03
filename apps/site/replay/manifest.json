@@ -1,10 +1,10 @@
 {
   "format": 1,
   "vloerVersion": "0.4.0-rc.34",
-  "commit": "7d5331a7cb03",
+  "commit": "4a81f472e6ce",
   "recordedAt": "2026-10-03",
   "anchor": "2026-09-30T12:00:00.000Z",
-  "replay": "2643550c627b4ea50cd2ce936a1fabcae3705b67bce14e9428725c4fc0fb948d",
+  "replay": "f13b103293fc5387f4ae78fd6abf739f6309ef01ce9e34cafaf13fa48c5210c3",
   "files": {
     "android-chrome-192x192.png": "f122ded6fe7fbad89fe69bb2be0563999d31eee21053bb5fb828bdf238b125fd",
     "android-chrome-512x512.png": "476a26d43f05dcf3a2c4a778ac5ace910d9029edb89a11896e57a47183d7b6b4",
@@ -12,7 +12,7 @@
     "apple-touch-icon.png": "5e4a44c8622baa9820634577955218fc8f3970919957a15a4926ba7678bb2b21",
     "cards/art-generator.js": "6137d429696dbba0f5a18af9bd18339c33eb4190a9296d95ada04c45472024bd",
     "cards/card-kpis.js": "e2168f0bb8dc3f34ada841ed2b4f8020259ec942fef358febf8ed44d1c87e4f6",
-    "cards/card-model.js": "1669a1506f68e383497be4cc853933950b7d3c6e4e29b8755961e2759102c3b8",
+    "cards/card-model.js": "0e290e86022ff370eb546e6914f60793cfd2f295288614318552b937203f4cb1",
     "cards/collection-model.js": "e9eef2c44e0a99261b90c60dbe502e2fdaf12e0c43e07f6ffc05bbbfe1ae72a3",
     "cards/effects/director.js": "f3a5467a17bf321a56982d27a8ceae062e7620f52bd2e7a22ef1b9d88703c3bb",
     "cards/effects/moments.js": "18acc9a8ee78db6187404312f8fc661c02f9a366ffc9a2f6f1eeeb84c4f9f72c",

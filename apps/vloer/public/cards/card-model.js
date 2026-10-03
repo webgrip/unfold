@@ -486,7 +486,7 @@ function life(card, all, release, condition, kpis) {
     note = 'This Ploeg does not report deploys or releases yet, so the card stays matte.';
   }
   if (kpis && merged) rows.push(...kpis.rows);
-  rows.push(uncollected('Lines still alive'), condition ? row('Condition', condition.text) : card.grade?.formula === '2026.2' ? row('Condition', 'No confirmed crack') : uncollected('Reverts and linked bugs'));
+  rows.push(uncollected('Lines still alive'), condition ? row('Condition', condition.text) : crackFormulas.has(card.grade?.formula) ? row('Condition', 'No confirmed crack') : uncollected('Reverts and linked bugs'));
   const lists = deployed.length ? [{ title: `Deployments · ${plural(deployed.length, 'environment')}`, items: deployed.map(entry => ({
     title: entry.environment,
     meta: [entry.firstDeployedAt ? `first deployed ${dateTime(entry.firstDeployedAt)}` : 'first deploy time not reported', shortSha(entry.sha)].filter(Boolean).join(' · '),
@@ -513,16 +513,18 @@ function context(card, set) {
   };
 }
 
+const crackFormulas = new Set(['2026.2', '2026.3']);
 const formulas = Object.freeze({
   '2026.1': 'Overall = 0.40 × reliability + 0.25 × durability + 0.20 × delivery + 0.15 × review, each subgrade rounded to the nearest half. Provisional (at most 9) until 180 days live.',
   '2026.2': 'Overall = 0.40 × reliability + 0.25 × durability + 0.20 × delivery + 0.15 × review, each subgrade rounded to the nearest half. Reliability is 10 minus the crack weight, at most 9.5 with a crack in warranty or a revert. Durability loses 2 per revert and 1 per hotfix. Provisional (at most 9) until 180 days live.',
+  '2026.3': 'Overall = 0.40 × reliability + 0.25 × durability + 0.20 × delivery + 0.15 × review, each subgrade rounded to the nearest half. Reliability is 10 minus the crack weight, at most 9.5 with a crack in warranty or a revert. Durability loses 2 per revert and 1 per hotfix. Review loses 1 per round in which someone asked for changes; approvals and comments cost nothing. A subgrade with a missing input is at most 9, and a card with one earns no label. Provisional (at most 9) until 180 days live. Ploeg computes the grade each time the card is read, under its current formula.',
 });
 const yesNo = value => value ? 'Yes' : 'No';
 const gradeInputRows = Object.freeze({
   reliability: [['crackWeight', 'Crack weight', value => decimal(value)], ['reverted', 'Reverted', yesNo]],
   durability: [['daysLive', 'Days live', value => plural(value, 'day')], ['liveSince', 'Live since', value => dateTime(value) || notReported], ['reverts', 'Reverts', count], ['hotfixes', 'Hotfixes', count], ['survival', 'Lines still alive', percent]],
   delivery: [['budgetShare', 'Budget used', percent], ['defectBounces', 'Defect bounces', count], ['extraPlays', 'Extra plays', count], ['failedRuns', 'Failed Runs', count]],
-  review: [['ciFirstGreen', 'CI green first time', yesNo], ['findings', 'Review findings', count], ['changeRequests', 'Change requests', count], ['reviewRounds', 'Review rounds', count]],
+  review: [['ciFirstGreen', 'CI green first time', yesNo], ['findings', 'Review findings', count], ['changeRequests', 'Change requests', count], ['reviewRounds', 'Review rounds', count], ['reworkRounds', 'Rework rounds', count]],
 });
 
 function gradeTab(card, grade) {
@@ -530,11 +532,13 @@ function gradeTab(card, grade) {
   const raw = card.grade || {};
   const inputs = raw.inputs && typeof raw.inputs === 'object' ? raw.inputs : null;
   const missing = new Set(list(inputs?.notCollected).filter(entry => typeof entry === 'string'));
+  const lacking = Array.isArray(inputs?.missing) ? inputs.missing.filter(entry => typeof entry === 'string') : null;
   const groups = subgrades.map(part => ({
     title: `${part.label} inputs`,
     rows: !inputs ? [row('Inputs', 'This Ploeg did not send them', 'unreported')] : gradeInputRows[part.key].map(([key, label, format]) => {
       const value = inputs[part.key]?.[key];
       if (missing.has(`${part.key}.${key}`)) return uncollected(label);
+      if (lacking?.includes(`${part.key}.${key}`)) return row(label, `Missing for this card · ${part.label.toLowerCase()} is at most 9`, 'unreported');
       if (value === null || value === undefined) return row(label, notReported, 'unreported');
       return row(label, format(value));
     }),
@@ -545,6 +549,7 @@ function gradeTab(card, grade) {
       row('Formula', grade.formula || notReported, grade.formula ? 'ok' : 'unreported'),
       row('Provisional', grade.provisional ? 'Yes, until 180 days live' : 'No'),
       row('Label', grade.label || 'None'),
+      ...(lacking ? [lacking.length ? row('Evidence', `Incomplete · ${plural(lacking.length, 'input')} missing, so no label`, 'unreported') : row('Evidence', 'Complete')] : []),
       ...subgrades.map(part => { const found = grade.subgrades.find(entry => entry.key === part.key); return found ? row(part.label, found.text) : row(part.label, notReported, 'unreported'); }),
       row('Qualifiers', grade.qualifiers.length ? grade.qualifiers.map(entry => `${entry.code} · ${entry.text}`).join(', ') : 'None'),
     ],
@@ -572,7 +577,7 @@ function gatesTab(card, gates) {
 }
 
 function conditionTab(card, condition) {
-  if (!condition) return { rows: [row('Condition', card.grade?.formula === '2026.2' ? 'No confirmed crack' : notReported, card.grade?.formula === '2026.2' ? 'ok' : 'unreported'), ...(card.evolved === true ? [row('Requirement changed', 'Yes, the card evolved')] : [])], lists: [], groups: [], note: 'A crack is an inquiry, not a verdict. It appears here only after two people confirmed that a bug came from this card.' };
+  if (!condition) return { rows: [row('Condition', crackFormulas.has(card.grade?.formula) ? 'No confirmed crack' : notReported, crackFormulas.has(card.grade?.formula) ? 'ok' : 'unreported'), ...(card.evolved === true ? [row('Requirement changed', 'Yes, the card evolved')] : [])], lists: [], groups: [], note: 'A crack is an inquiry, not a verdict. It appears here only after two people confirmed that a bug came from this card.' };
   const groups = condition.cracks.map(crack => ({
     title: [crack.ref || 'Bug', crack.title].filter(Boolean).join(' · '),
     rows: [
