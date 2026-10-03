@@ -31,7 +31,7 @@ Chosen option: "Unfold", by the owner on 2026-10-01. A Work Item arrives folded;
 * The product is Unfold on every surface a customer or reviewer sees: the site, pull request comments, the app tile, sales material.
 * Ploeg (the engine) and Vloer (the workbench) keep their names, marks and identities, and appear only where operators work: operator docs, configuration, Helm charts, logs, the workbench and the editor extension.
 * Releases are tagged `unfold-v<version>` and the site `unfold-site-v<version>`. The version continues: `unfold-v` and `unfold-site-v` baseline tags are created on the commits of the last `glide-v` and `glide-site-v` tags before the first release under the new format.
-* Names outside this repository change in a coordinated step, not here: the Forgejo repository `webgrip/glide` and its GitHub mirror, the OpenBao signing role that names it, Ploeg's routing targets and the `repo/glide` tracker label, the Forgejo variables `GLIDE_RELEASES_ENABLED` and `GLIDE_DOCS_PUBLISH_ENABLED`, the docs bucket and the `docs.webgrip.dev/glide` path, the Vikunja project and the "Glide — Loop" Grafana dashboard. Until then the code refers to those by their current names.
+* Names outside this repository change in a coordinated step, not here: the Forgejo repository `webgrip/glide` and its GitHub mirror, the OpenBao signing role that names it, Ploeg's routing targets and the `repo/glide` tracker label, the docs bucket and the `docs.webgrip.dev/glide` path, the Vikunja project and the "Glide — Loop" Grafana dashboard. Until then the code refers to those by their current names.
 * Dated records keep the name they were written under: research notes, evidence, changelogs, published tags and archived OpenSpec changes.
 
 ### Consequences
@@ -49,3 +49,4 @@ Chosen option: "Unfold", by the owner on 2026-10-01. A Work Item arrives folded;
 ## More Information
 
 * 2026-10-01: accepted. Supersedes the working name Glide used in ADR-0001 to ADR-0012, whose text now says Unfold.
+* 2026-10-03: the Forgejo variables are now `UNFOLD_RELEASES_ENABLED` and `UNFOLD_DOCS_PUBLISH_ENABLED`. The owner renamed them in the repository settings, and releases and docs publication stayed skipped from 2026-10-01 until the workflows read the new names.

@@ -41,7 +41,7 @@ jobs:
           exit 1
 
   release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
     needs: [checks]
     runs-on: docker
     container:
@@ -68,7 +68,7 @@ jobs:
         run: node scripts/release-repair.mjs unfold-v
 
   site-release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.GLIDE_RELEASES_ENABLED == 'true'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
     needs: [checks, release]
     runs-on: docker
     container:
