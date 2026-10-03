@@ -7,6 +7,10 @@ import type { Session, Event, PermissionRequest, User } from './types.ts';
 export type StoredUser = User & { passwordHash: string };
 export type Login = { tokenHash: string; userId: string; expiresAt: string };
 
+function eventFromRow(row: Record<string, unknown>): Event {
+  return { id: Number(row.id), sessionId: String(row.session_id), type: String(row.type), at: String(row.at), actor: String(row.actor), ...(row.run_id ? { runId: String(row.run_id) } : {}), data: JSON.parse(String(row.data)) };
+}
+
 export class Store {
   db: DatabaseSync;
   private encryptionKey: Buffer;
@@ -85,10 +89,20 @@ export class Store {
     return { id: Number(result.lastInsertRowid), sessionId, type, at, actor, ...(runId ? { runId } : {}), data };
   }
 
+  /** Every event of a session after the `after` cursor, oldest first. */
   events(sessionId: string, after = 0): Event[] {
     const rows = this.db.prepare('SELECT * FROM events WHERE session_id=? AND id>? ORDER BY id').all(sessionId, after) as Record<string, unknown>[];
-    return rows.map(row => ({ id: Number(row.id), sessionId: String(row.session_id), type: String(row.type), at: String(row.at), actor: String(row.actor), ...(row.run_id ? { runId: String(row.run_id) } : {}), data: JSON.parse(String(row.data)) }));
+    return rows.map(eventFromRow);
   }
+
+  /** At most `limit` events of a session after the `after` cursor, oldest first; a page shorter than `limit` is the last one. */
+  eventPage(sessionId: string, after: number, limit: number): Event[] {
+    const rows = this.db.prepare('SELECT * FROM events WHERE session_id=? AND id>? ORDER BY id LIMIT ?').all(sessionId, after, limit) as Record<string, unknown>[];
+    return rows.map(eventFromRow);
+  }
+
+  /** Runs one trivial query, proving the database answers without reading or decrypting any stored record. */
+  ping(): void { this.db.prepare('SELECT 1').get(); }
 
   savePermission(request: PermissionRequest): void {
     this.db.prepare('INSERT INTO permissions(id,session_id,body) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(request.id, request.sessionId, JSON.stringify(request));
