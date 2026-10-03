@@ -179,33 +179,32 @@ test('the site versions on its own train, after Unfold, behind the same gate', (
   assert.equal(release.with['package-name'], 'unfold-site');
 });
 
-test('only a site tag deploys the site, to the workers.dev origin Cloudflare reports', () => {
+test('only a site tag deploys the site, to unfoldhq.dev', () => {
   const gate = publisher.jobs['site-release-tag'];
   assert.equal(gate.if, undefined, 'site-deploy reads these outputs while Forgejo flattens it, so the gate job must never be skipped');
   assert.equal(gate.steps[0].env.RELEASES_ENABLED, '${{ vars.UNFOLD_RELEASES_ENABLED }}');
 
+  assert.equal(gate.steps[0].env.SITE_ORIGIN, 'https://unfoldhq.dev');
   const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'site-gate-'));
-  fs.writeFileSync(path.join(bin, 'curl'), '#!/bin/sh\nprintf \'%s\' "$FAKE_CLOUDFLARE"\n', { mode: 0o755 });
-  const run = (tag, subdomain = 'example', extra = {}) => {
+  const run = (tag, extra = {}) => {
     const output = path.join(bin, `output-${Math.random()}`);
     fs.writeFileSync(output, '');
     const result = spawnSync('bash', ['-c', gate.steps[0].run], { encoding: 'utf8', env: {
       PATH: `${bin}:${process.env.PATH}`, GITHUB_OUTPUT: output, WORKFLOW_EVENT: 'release', RELEASE_TAG: tag, RELEASES_ENABLED: 'true',
-      CLOUDFLARE_API_TOKEN: 'token', CLOUDFLARE_ACCOUNT_ID: 'account',
-      FAKE_CLOUDFLARE: JSON.stringify({ result: { subdomain } }), ...extra,
+      CLOUDFLARE_API_TOKEN: 'token', CLOUDFLARE_ACCOUNT_ID: 'account', SITE_ORIGIN: gate.steps[0].env.SITE_ORIGIN, ...extra,
     } });
     return { status: result.status, outputs: Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').filter(Boolean).map(line => line.split('='))) };
   };
   for (const tag of ['unfold-site-v0.1.0', 'unfold-site-v0.1.0-rc.1', 'unfold-site-v1.12.3-rc.40']) {
     const { status, outputs } = run(tag);
     assert.equal(status, 0, tag);
-    assert.deepEqual(outputs, { deploy: 'true', 'site-url': 'https://unfold-site.example.workers.dev' }, tag);
+    assert.deepEqual(outputs, { deploy: 'true', 'site-url': 'https://unfoldhq.dev' }, tag);
   }
   for (const selected of ['unfold', 'unfold-site', 'vloer', 'ploeg', 'unrelated']) {
     for (const open of ['', 'false', 'true']) {
       if (selected === 'unfold-site' && open === 'true') continue;
       const tag = `${selected}-v0.1.0-rc.1`;
-      const { status, outputs } = run(tag, 'example', { RELEASES_ENABLED: open, WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development', CLOUDFLARE_API_TOKEN: '' });
+      const { status, outputs } = run(tag, { RELEASES_ENABLED: open, WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development', CLOUDFLARE_API_TOKEN: '' });
       assert.equal(status, 0, `${selected} ${open}`);
       assert.deepEqual(outputs, { deploy: 'false', 'site-url': '' }, `${selected} ${open}`);
     }
@@ -213,9 +212,8 @@ test('only a site tag deploys the site, to the workers.dev origin Cloudflare rep
   for (const tag of ['unfold-site-v01.0.0', 'unfold-site-v0.1.0-rc.0', 'unfold-site-v0.1', 'unfold-site-v0.1.0-beta.1']) {
     assert.notEqual(run(tag).status, 0, tag);
   }
-  assert.notEqual(run('unfold-site-v0.1.0', 'Bad_Name').status, 0);
-  assert.notEqual(run('unfold-site-v0.1.0', 'example', { CLOUDFLARE_API_TOKEN: '' }).status, 0);
-  assert.notEqual(run('unfold-site-v0.1.0', 'example', { WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development' }).status, 0);
+  assert.notEqual(run('unfold-site-v0.1.0', { CLOUDFLARE_API_TOKEN: '' }).status, 0);
+  assert.notEqual(run('unfold-site-v0.1.0', { WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development' }).status, 0);
 
   const deploy = publisher.jobs['site-deploy'];
   assert.deepEqual(deploy.needs, ['site-release-tag']);

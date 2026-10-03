@@ -2,6 +2,7 @@ name = "unfold-site"
 main = "src/worker/index.ts"
 compatibility_date = "2026-09-26"
 workers_dev = true
+routes = [{ pattern = "unfoldhq.dev/*", zone_name = "unfoldhq.dev" }]
 
 [assets]
 directory = "./dist"

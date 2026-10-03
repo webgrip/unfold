@@ -15,6 +15,7 @@ describe('site indexing', () => {
   });
 
   test('a real domain is indexed', () => {
+    assert.equal(isIndexable('https://unfoldhq.dev'), true);
     assert.equal(isIndexable('https://unfold.example'), true);
     assert.equal(isIndexable('https://www.workers.dev.example'), true);
   });
