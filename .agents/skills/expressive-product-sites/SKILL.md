@@ -11,6 +11,8 @@ Make the product recognizable, understandable and worth inspecting. A request fo
 
 Inspect the current site, repository, executable paths, product documentation and brand sources. Establish a small claim ledger: claim → evidence → implemented/planned/uncertain → permitted wording. Accepted architecture is not proof of completed migration. A deterministic fixture is not a production benchmark.
 
+When access or evidence is missing, distinguish supplied facts from independently verified ones. Continue useful design work with explicit assumptions; leave exact artifacts and unsupported claims pending instead of inventing them.
+
 Identify the audience's first decision and the proof they need to make it. Keep a plain category statement near the memorable hook. Preserve availability, limitations and source access where they affect that decision.
 
 ## Research mechanisms
