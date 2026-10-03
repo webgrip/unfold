@@ -1,6 +1,111 @@
 import type { Dictionary } from './en.ts';
 
 export const nl: Dictionary = {
+  redesign: {
+    heroLine: 'Agents werken.',
+    heroAccent: 'Jij beslist.',
+    heroIntro:
+      'Van Work Item naar pull request, met AI-agents, expliciete budgetten en bewijs dat je kunt inspecteren. Jij beslist wat wordt gemerged.',
+    explore: 'Verken een Shift',
+    source: 'Bekijk de broncode',
+    category: 'Zelf gehoste agentorkestratie',
+    assemblyCaption: 'Eén Work Item. Ontvouwen tot bewijs.',
+    unfoldAgain: 'Opnieuw ontvouwen',
+    architecture: 'Architectuur',
+    menu: 'Menu',
+    recorded: 'Opgenomen demo',
+    handoff: 'De beslissing is aan jou.',
+    handoffNote: 'Code, checks en een review. Niets gemerged.',
+    implementation: 'Implementer',
+    independent: 'Reviewer',
+    testsPass: '3 checks slagen',
+    localResult: 'Lokaal demoresultaat',
+    oneChange: '1 bestand gewijzigd',
+    demoBadge: 'Deterministische demo · geen modelaanroepen · geen kosten',
+    proof: [
+      'Apache-2.0-licentie',
+      'Zelf gehost op Kubernetes',
+      'Je modellen via LiteLLM',
+      'Experimenteel · 0.x',
+    ],
+    howKicker: '01 / HET WERK ZICHTBAAR',
+    howTitle: 'Eén Shift. Elke stap in beeld.',
+    howIntro:
+      'Een afrondingsfout. Een implementer. Een onafhankelijke reviewer. Verken het opgenomen bewijs uit de deterministische demo die bij Vloer hoort.',
+    stageLabel: 'Verken de opgenomen Shift',
+    play: 'Speel de Shift af',
+    pause: 'Pauzeren',
+    replay: 'Speel opnieuw',
+    complete: 'Shift afgerond. Het resultaat is klaar voor menselijke review.',
+    stages: [
+      {
+        label: 'Het Work Item',
+        title: 'Begin met een helder stuk werk.',
+        text: 'De orderservice rondt 1.005 af naar 1.00 in plaats van 1.01. Het Work Item vraagt om een minimale oplossing en onafhankelijke verificatie.',
+      },
+      {
+        label: 'De implementer',
+        title: 'Reproduceren. Wijzigen. Controleren.',
+        text: 'De implementer reproduceert de falende tests, wijzigt één regel en voert de checks opnieuw uit. De uitvoer blijft bij de Shift.',
+      },
+      {
+        label: 'De reviewer',
+        title: 'Een tweede Run controleert het werk.',
+        text: 'De reviewer voert de checks onafhankelijk uit en keurt de wijziging goed. Die goedkeuring is bewijs dat een mens beoordeelt.',
+      },
+      {
+        label: 'Jouw beslissing',
+        title: 'De agents stoppen. Jij beslist.',
+        text: 'Als je de lokale demo draait, blijft de wijziging op je machine. De zelfstandige workerworkflow van Ploeg kan een pull request op je forge openen. Menselijke review, mergen en releasen blijven bij jou.',
+      },
+    ],
+    baseline: 'Vóór de oplossing',
+    after: 'Na de oplossing',
+    reviewChecks: 'Onafhankelijke review',
+    passed: 'geslaagd',
+    failed: 'gefaald',
+    command: 'Opgenomen opdracht',
+    diff: 'Opgenomen wijziging · src/order.js',
+    objective: 'Doel van het Work Item',
+    budget: 'Goedgekeurd demobudget',
+    spent: 'Demokosten',
+    reviewVerdict: 'Revieweroordeel',
+    approved: 'Goedgekeurd',
+    merged: 'Gemerged',
+    no: 'Nee',
+    recording: 'Bekijk de volledige opname',
+    recordingNote: 'Elke gebeurtenis, de opgenomen timing en de originele Vloer-interface.',
+    controlLine: 'Het laatste woord',
+    controlAccent: 'is aan jou.',
+    controlNote: 'Agents stellen wijzigingen voor. Mensen accepteren, mergen en releasen.',
+    guardKicker: '02 / BEGRENZD ONTWORPEN',
+    guardTitle: 'Geef agents werk. Houd controle.',
+    guardIntro:
+      'Inspecteer de wijziging, volg de checks en beslis of het resultaat klaar is. Kan een Shift niet afronden, dan stopt die voor menselijke aandacht.',
+    archKicker: '03 / ONDER DE MOTORKAP',
+    archTitle: 'Eén product. Heldere rollen.',
+    archIntro:
+      'Ploeg beheert de uitvoering. In Vloer start, stuur en inspecteer je het werk. Beide staan in één repository en delen één Unfold-versie.',
+    cluster: 'BEHEERDE UITVOERING',
+    front: 'Browser / VS Code',
+    engine: 'Autorisatie · budgetten · orkestratie',
+    store: 'Shift-registratie',
+    gateway: 'Modelgateway',
+    providers: 'Je modelproviders',
+    forge: 'Je forge',
+    pullRequest: 'Pull request + bewijs',
+    architectureNote:
+      'Conceptueel overzicht. De zelfstandige workerworkflow van Ploeg kan pull requests publiceren; het beheerde kandidaatpad van Vloer publiceert nog niet.',
+    workerPath: 'Zelfstandige workerworkflow',
+    openKicker: '04 / BOUW MET OPEN OGEN',
+    openTitle: 'Open source. Op jouw voorwaarden.',
+    openIntro:
+      'Draai Unfold op je eigen infrastructuur, inspecteer de broncode en sluit je eigen providers aan via LiteLLM. Het is experimentele software, in gebruik voor de backlog van de eigenaar.',
+    statusTitle: 'Wat er is. Wat nog komt.',
+    pricingTitle: 'Een helder model voor gehost werk.',
+    signupKicker: 'VOLG HET WERK',
+    signupTitle: 'Bouw mee aan wat zich ontvouwt.',
+  },
   meta: {
     homeTitle: 'Unfold: van Work Item naar een pull request dat je zelf beoordeelt',
     homeDescription:
@@ -83,7 +188,7 @@ export const nl: Dictionary = {
     walkthrough: {
       title: 'Stap voor stap',
       badge: 'Simulatie van de deterministische demo: geen modelaanroepen, geen kosten',
-      lead: 'Elke regel is een gebeurtenis die de demo vastlegde toen hij draaide. De pagina speelt ze af in het tempo waarin ze gebeurden.',
+      lead: 'Elke regel is een gebeurtenis die de demo vastlegde, met de oorspronkelijke timing ernaast.',
       play: 'Afspelen',
       replay: 'Opnieuw afspelen',
       clock: 'Verstreken',
@@ -111,7 +216,7 @@ export const nl: Dictionary = {
       },
       result: 'Klaar voor jouw review',
       resultNote:
-        'In de demo blijft de wijziging op je eigen machine. Met Ploeg komt hij als pull request op je forge.',
+        'Als je de lokale demo draait, blijft de wijziging op je machine. De zelfstandige workerworkflow van Ploeg kan een pull request op je forge publiceren.',
       diff: 'De wijziging die de demo maakte',
     },
     video: {
@@ -138,7 +243,7 @@ export const nl: Dictionary = {
       },
       {
         title: 'Beperkte toegang',
-        text: 'Een Run krijgt alleen toegang tot zijn eigen werk, en die toegang verloopt. Beheersleutels blijven in de controller en komen nooit bij een agent.',
+        text: 'Beheerde Runs krijgen kortlevende modelsleutels met een budget. Schrijftoegang is beperkt tot het werk; beheersleutels blijven in de controller.',
       },
       {
         title: 'Bewijs',
@@ -154,15 +259,15 @@ export const nl: Dictionary = {
     title: 'Zo gaat gehoste Unfold kosten',
     badge: 'Gepland · nog niet te koop',
     intro:
-      'Gehoste Unfold bestaat nog niet. Dit is het prijsmodel waarvoor we hebben gekozen. De prijzen zelf maken we bekend na de pilot, niet eerder.',
+      'Gehoste Unfold bestaat nog niet. Dit is het prijsmodel waarvoor we hebben gekozen. We publiceren de prijzen na het eerste toetsmoment van de pilot.',
     items: [
       {
         title: 'Je betaalt voor geaccepteerd werk',
-        text: 'Een leveringsvergoeding betaal je pas als je reviewer het pull request accepteert, door het goed te keuren of te mergen. De hoogte hangt af van de omvang van het ticket, niet van de bestede uren.',
+        text: 'De geplande leveringsvergoeding volgt geaccepteerd werk en ticketomvang. Acceptatie kan expliciet zijn of na 10 werkdagen worden verondersteld; de volledige voorwaarden verschijnen samen met de prijslijst.',
       },
       {
-        title: 'Elke poging betaalt zijn tokens',
-        text: 'Modeltokens worden bij elke poging gerekend, tegen kostprijs plus een vaste opslag die we publiceren. Ook afgewezen werk betaalt zijn tokens, dus afwijzen is nooit gratis.',
+        title: 'Modelgebruik wordt per poging gerekend',
+        text: 'Modeltokens kosten de kostprijs plus een gepubliceerde vaste opslag, ook bij afgewezen werk. Pogingen die mislukken door de infrastructuur of bugs van Unfold zijn uitgezonderd.',
       },
       {
         title: 'Eerst het Budget',
@@ -173,7 +278,7 @@ export const nl: Dictionary = {
         text: 'Een bureau bepaalt zelf wat het zijn klanten rekent. Unfold bemoeit zich niet met die prijzen.',
       },
       {
-        title: 'Zelf hosten kost niets',
+        title: 'Geen Unfold-licentiekosten',
         text: 'Draai je Unfold op je eigen cluster, dan rekent Unfold je niets. Je betaalt je eigen modelprovider en je eigen infrastructuur.',
       },
     ],
@@ -188,12 +293,12 @@ export const nl: Dictionary = {
       {
         name: 'Ploeg',
         role: 'De motor',
-        text: 'Ploeg geeft toestemming voor elke Run van een agent, kent het budget toe en voert de Run uit. Ploeg haalt Work Items uit trackers zoals Vikunja en ClickUp, bepaalt wie op welke branch mag schrijven en legt elke Shift vast in PostgreSQL.',
+        text: 'Ploeg autoriseert beheerde Runs van agents, kent budgetten toe en orkestreert de uitvoering. Ploeg haalt Work Items uit trackers zoals Vikunja en ClickUp, bepaalt wie op welke branch mag schrijven en legt elke Shift vast in PostgreSQL.',
       },
       {
         name: 'Vloer',
         role: 'De werkbank',
-        text: 'Vloer is de voorkant, in de browser of in VS Code. Daar start je werk, stuur je agents bij terwijl ze bezig zijn en bekijk je wat ze hebben gemaakt. Elke Run die Vloer start, loopt via Ploeg.',
+        text: 'Vloer is de voorkant, in de browser of in VS Code. Daar start je werk, stuur je agents bij terwijl ze bezig zijn en bekijk je wat ze hebben gemaakt. Beheerde Runs lopen via Ploeg; de lokale demo is deterministisch.',
       },
     ],
     version: 'Beide staan in één repository en krijgen samen één Unfold-versienummer.',

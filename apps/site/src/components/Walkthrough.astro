@@ -82,8 +82,8 @@ function describe(event: TimelineEvent): Row {
 }
 
 const rows = timeline.events.map(describe);
-const budget = formatMoney(timeline.budget.authorized, timeline.budget.currency, tag);
-const spent = formatMoney(timeline.budget.spent, timeline.budget.currency, tag);
+const budget = formatMoney(timeline.budget.authorized, timeline.budget.currency, 'nl-NL');
+const spent = formatMoney(timeline.budget.spent, timeline.budget.currency, 'nl-NL');
 const diffLines = timeline.diff.split('\n').map((line) => ({
   text: line,
   kind: line.startsWith('+')
@@ -564,9 +564,3 @@ const diffLines = timeline.diff.split('\n').map((line) => ({
     }
   }
 </style>
-
-<script>
-  import { initWalkthroughs } from '../lib/walkthrough-client.ts';
-
-  initWalkthroughs();
-</script>

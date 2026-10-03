@@ -4,515 +4,701 @@ import timeline from '../data/demo-timeline.json';
 import type { Locale } from '../i18n/config.ts';
 import { dictionary } from '../i18n/index.ts';
 import Mark from './Mark.astro';
-
 interface Props {
   locale: Locale;
 }
-
 const t = dictionary(Astro.props.locale);
-const v = t.hero.visual;
-const checkpoints = [v.writer, v.checks, v.reviewer];
-const added = timeline.diff.split('\n').filter((line) => line.startsWith('+')).length;
-const removed = timeline.diff.split('\n').filter((line) => line.startsWith('-')).length;
+const r = t.redesign;
+const change = timeline.diff.split('\n').filter((line) => /^[+-]/.test(line));
 ---
 
 <section class="hero" aria-labelledby="hero-title">
-  <div class="container hero-grid">
-    <div class="hero-copy">
-      <p class="eyebrow hero-in">{t.hero.eyebrow}</p>
-      <h1 id="hero-title" class="hero-in">{t.hero.title}</h1>
-      <p class="lede hero-lede hero-in">{t.hero.lede}</p>
-      <div class="button-row hero-actions hero-in">
-        <a class="button button--primary" href="#signup">{t.hero.primary}</a>
-        <a class="button button--secondary" href="#how">{t.hero.secondary}</a>
-      </div>
-      <p class="hero-source hero-in"><a href={SOURCE_URL}>{t.hero.source}</a></p>
-      <p class="note hero-in">{t.hero.demoNote}</p>
+  <div class="container">
+    <div class="hero-topline">
+      <p class="eyebrow"><span class="registration" aria-hidden="true" />{r.category}</p>
+      <span class="hero-edition micro">{t.hero.eyebrow}</span>
     </div>
-
-    <div class="stage" role="img" aria-label={v.label}>
-      <svg class="stage-path" viewBox="0 0 500 500" aria-hidden="true" focusable="false">
-        <path class="trail-guide" d="M105 395 C240 410 285 170 395 110"></path>
-        <path class="trail" pathLength="1" d="M105 395 C240 410 285 170 395 110"></path>
-      </svg>
-
-      <div class="stage-card stage-item">
-        <span class="stage-kicker">{v.workItem}</span>
-        <span class="stage-title">{timeline.workItem.title}</span>
-        <span class="stage-line"></span>
-        <span class="stage-line stage-line--short"></span>
-      </div>
-
-      {checkpoints.map((point, index) => <div class={`checkpoint checkpoint--${index + 1}`}>
-        <span class="checkpoint-dot">
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            <path d="M4 8.5l2.5 2.5L12 5.5" />
-          </svg>
-        </span>
-        <span class="checkpoint-label">{point}</span>
-      </div>)}
-
-      <div class="stage-pr">
-        <span class="stage-kicker">{v.pullRequest}</span>
-        <span class="stage-title">{timeline.workItem.title}</span>
-        <span class="stage-diff">
-          <span class="diff-add">+{added}</span>
-          <span class="diff-del">−{removed}</span>
-          <span class="stage-files">src/order.js</span>
-        </span>
-        <span class="stage-status">{v.waiting}</span>
-        <span class="stage-merge">{v.merge}</span>
-      </div>
-
-      <div class="flight" aria-hidden="true">
-        <span class="plane"><Mark size={56} /></span>
+    <div class="hero-masthead">
+      <h1 id="hero-title">{r.heroLine}<br /><span>{r.heroAccent}</span></h1>
+      <div class="hero-copy">
+        <p class="hero-intro">{r.heroIntro}</p>
+        <div class="button-row">
+          <a class="button button--primary" href="#how"
+            >{r.explore}<span aria-hidden="true">↗</span></a
+          >
+          <a class="source-link" href={SOURCE_URL}>{r.source}<span aria-hidden="true">↗</span></a>
+        </div>
       </div>
     </div>
+    <div class="work-sculpture is-opening" data-sculpture>
+      <div class="sculpture-ground" aria-hidden="true"><span /><span /><span /></div>
+      <div class="sculpture-meta">
+        <span class="micro">{r.recorded}</span>
+        <span class="micro">{r.assemblyCaption}</span>
+      </div>
+      <div class="evidence-sheets">
+        <article id="hero-paper-0" class="evidence-sheet brief-sheet" data-paper-current="true">
+          <div class="sheet-tab micro"><span>01</span>{t.hero.visual.workItem}</div>
+          <div class="sheet-content">
+            <div class="brief-mark" aria-hidden="true"><Mark size={88} /></div>
+            <h2 lang="en">{timeline.workItem.title}</h2>
+            <p class="rounding" lang="en">
+              <span>1.005</span><span aria-hidden="true">↗</span><strong>1.01</strong>
+            </p>
+            <div class="sheet-foot micro">{timeline.workItem.repository}</div>
+          </div>
+        </article>
+        <article id="hero-paper-1" class="evidence-sheet code-sheet" data-paper-current="false">
+          <div class="sheet-tab micro"><span>02</span>{r.implementation}</div>
+          <div class="sheet-content">
+            <div class="evidence-heading">
+              <h2>{r.oneChange}</h2>
+              <span class="code-bracket" aria-hidden="true">{`{ }`}</span>
+            </div>
+            <pre
+              role="region"
+              aria-label={r.diff}
+              tabindex="0"
+            ><code>{change.map((line) => <span class={line.startsWith('+') ? 'added' : 'removed'}>{line}{'\n'}</span>)}</code></pre>
+            <div class="check-stamp">
+              <span aria-hidden="true">✓</span><strong>{r.testsPass}</strong
+              ><span class="micro">{r.after}</span>
+            </div>
+            <div class="sheet-foot micro">src/order.js</div>
+          </div>
+        </article>
+        <article id="hero-paper-2" class="evidence-sheet handoff-sheet" data-paper-current="false">
+          <div class="sheet-tab micro"><span>03</span>{t.loop.steps[3]?.term}</div>
+          <div class="sheet-content">
+            <span class="handoff-target" aria-hidden="true"><span /><span /></span>
+            <h2>{r.handoff}</h2>
+            <p>{r.handoffNote}</p>
+            <div class="sheet-foot">
+              <span>{r.independent}: {r.approved}</span><strong>{r.merged}: {r.no}</strong>
+            </div>
+          </div>
+        </article>
+      </div>
+      <div
+        class="paper-controls"
+        data-paper-controls
+        role="group"
+        aria-label={r.assemblyCaption}
+        hidden
+      >
+        {[r.stages[0]?.label, r.stages[1]?.label, r.stages[3]?.label].map((label, index) => <button
+          type="button"
+          data-paper-select={index}
+          aria-label={label}
+          aria-pressed={index === 0}
+          aria-controls={`hero-paper-${index}`}
+        >
+          <span aria-hidden="true">{String(index + 1).padStart(2, '0')}</span
+          ><span class="paper-label">{label}</span>
+        </button>)}
+      </div>
+      <div class="sculpture-bottom">
+        <p>{r.demoBadge}</p>
+        <button type="button" data-unfold-replay hidden>
+          <span aria-hidden="true">↻</span>{r.unfoldAgain}
+        </button>
+      </div>
+    </div>
+    <ul class="proof-strip">
+      {r.proof.map((proof) => <li><span aria-hidden="true">+</span>{proof}</li>)}
+    </ul>
   </div>
 </section>
 
 <style>
   .hero {
-    padding-block: var(--space-8) var(--space-8);
-    overflow: clip;
+    padding-top: 2rem;
+    padding-bottom: 2rem;
   }
-
-  .hero-grid {
-    display: grid;
-    gap: var(--space-7);
+  .hero-topline {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 1.5rem;
     align-items: center;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    padding-bottom: 2rem;
   }
-
-  @media (max-width: 56rem) {
-    .hero-grid {
-      grid-template-columns: minmax(0, 1fr);
-      gap: var(--space-6);
-    }
+  .hero-topline .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
   }
-
-  .eyebrow {
-    font-size: var(--text-sm);
-    font-weight: var(--weight-semibold);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: var(--space-4);
+  .registration {
+    width: 11px;
+    height: 11px;
+    background: var(--accent-decor);
+    flex: none;
   }
-
-  .hero h1 {
-    max-width: 18ch;
-  }
-
-  .hero-lede {
-    margin-top: var(--space-5);
-    max-width: 52ch;
-  }
-
-  .hero-actions {
-    margin-top: var(--space-6);
-  }
-
-  .hero-source {
-    margin-top: var(--space-4);
-    font-weight: var(--weight-medium);
-  }
-
-  .note {
-    margin-top: var(--space-4);
-    font-size: var(--text-sm);
+  .hero-edition {
+    font-size: 0.6rem;
     color: var(--fg-muted);
-    max-width: 52ch;
   }
-
-  .stage {
+  .hero-masthead {
+    display: grid;
+    grid-template-columns: minmax(0, 1.9fr) minmax(0, 0.85fr);
+    gap: 3rem;
+    align-items: end;
+    margin-bottom: 3.5rem;
+  }
+  h1 {
+    font-size: clamp(4rem, 7.6vw, 7.6rem);
+    line-height: 0.96;
+    letter-spacing: -0.065em;
+    text-wrap: initial;
+  }
+  h1 span {
+    color: var(--accent);
+  }
+  .hero-copy {
+    padding-bottom: 0.3rem;
+  }
+  .hero-intro {
+    color: var(--fg-muted);
+    font-size: 1rem;
+    line-height: 1.7;
+    max-width: 38ch;
+    margin-bottom: 1.8rem;
+  }
+  .button-row {
+    align-items: center;
+    gap: 1rem 1.25rem;
+  }
+  .button {
+    justify-content: space-between;
+    gap: 1.5rem;
+  }
+  .button span {
+    font-size: 1.3rem;
+  }
+  .source-link {
+    font-size: 0.8rem;
+    text-decoration: none;
+    color: var(--fg);
+    display: inline-flex;
+    gap: 0.7rem;
+    align-items: center;
+    min-height: 44px;
+  }
+  .source-link:hover {
+    text-decoration: underline;
+  }
+  .work-sculpture {
+    --fg: var(--brand-ink);
+    --fg-muted: var(--brand-muted);
+    --accent: var(--brand-accent-deep);
+    --accent-decor: var(--brand-accent);
+    --focus-ring: var(--brand-accent-deep);
     position: relative;
-    aspect-ratio: 1;
-    width: 100%;
-    max-width: 36rem;
-    justify-self: center;
+    color: var(--brand-paper);
+    background: var(--brand-ground-dark);
+    padding: 1.4rem 2rem;
+    isolation: isolate;
     container-type: inline-size;
-    font-size: clamp(0.7rem, 2.9cqi, 0.95rem);
-    border-radius: var(--radius-lg);
-    background:
-      radial-gradient(circle at 1px 1px, var(--grid-dot) 1px, transparent 1.5px) 0 0 / 20px 20px,
-      var(--bg-band);
-    border: var(--border-width) solid var(--border);
   }
-
-  .stage-path {
+  .sculpture-ground {
     position: absolute;
     inset: 0;
-    width: 100%;
-    height: 100%;
-    overflow: visible;
+    overflow: hidden;
+    z-index: -1;
+    background-image:
+      linear-gradient(color-mix(in oklab, var(--brand-paper) 9%, transparent) 1px, transparent 1px),
+      linear-gradient(
+        90deg,
+        color-mix(in oklab, var(--brand-paper) 9%, transparent) 1px,
+        transparent 1px
+      );
+    background-size: 72px 72px;
   }
-
-  .trail-guide {
-    fill: none;
-    stroke: var(--border-strong);
-    stroke-width: 2;
-    stroke-dasharray: 2 8;
-    stroke-linecap: round;
-  }
-
-  .trail {
-    fill: none;
-    stroke: var(--accent-decor);
-    stroke-width: 2.5;
-    stroke-linecap: round;
-    stroke-dasharray: 1;
-    stroke-dashoffset: 0;
-  }
-
-  .stage-card,
-  .stage-pr {
+  .sculpture-ground > span:first-child {
     position: absolute;
-    display: grid;
-    gap: 0.35em;
-    padding: 0.9em 1em;
-    background: var(--bg-raised);
-    border: var(--border-width) solid var(--border-strong);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-card);
+    width: 65%;
+    height: 150%;
+    inset: -25% 12% auto auto;
+    background: var(--brand-accent-deep);
+    clip-path: polygon(36% 0, 100% 0, 64% 100%, 0 100%);
   }
-
-  .stage-card {
-    left: 4%;
-    top: 75%;
-    width: 34%;
+  .sculpture-ground > span:nth-child(2) {
+    position: absolute;
+    inset: 48% 3% auto;
+    border-top: 1px dashed var(--brand-muted-light);
   }
-
-  .stage-pr {
-    right: 4%;
-    top: 4%;
-    width: 44%;
-    border-color: var(--accent-decor);
+  .sculpture-ground > span:last-child {
+    position: absolute;
+    right: 1.5rem;
+    top: 1.5rem;
+    width: 20px;
+    height: 20px;
+    border-top: 1px solid var(--brand-paper);
+    border-right: 1px solid var(--brand-paper);
   }
-
-  .stage-kicker {
-    font-size: 0.78em;
-    font-weight: var(--weight-semibold);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--accent);
-  }
-
-  .stage-title {
-    font-weight: var(--weight-display);
-    line-height: 1.2;
-  }
-
-  .stage-line {
-    height: 0.4em;
-    border-radius: 999px;
-    background: var(--border);
-  }
-
-  .stage-line--short {
-    width: 60%;
-  }
-
-  .stage-diff {
+  .sculpture-meta,
+  .sculpture-bottom {
     display: flex;
-    gap: 0.6em;
-    font-size: 0.85em;
-    font-variant-numeric: tabular-nums;
-    color: var(--fg-muted);
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    position: relative;
+    z-index: 4;
   }
-
-  .diff-add {
-    color: var(--fg);
-    font-weight: var(--weight-semibold);
+  .sculpture-meta {
+    padding-right: 2rem;
   }
-
-  .diff-del {
-    color: var(--accent);
-    font-weight: var(--weight-semibold);
+  .sculpture-meta .micro {
+    font-size: 0.6rem;
   }
-
-  .stage-status {
-    justify-self: start;
-    padding: 0.2em 0.6em;
-    border-radius: 999px;
-    background: var(--accent-fill);
-    color: var(--accent-fg);
-    font-size: 0.8em;
-    font-weight: var(--weight-semibold);
+  .evidence-sheets {
+    display: grid;
+    grid-template-columns: 1fr 1.12fr 1fr;
+    gap: 0;
+    perspective: 1800px;
+    padding: 3rem 1.5rem 2.5rem;
+    align-items: stretch;
   }
-
-  .stage-merge {
-    font-size: 0.78em;
-    color: var(--fg-muted);
+  .evidence-sheet {
+    background: var(--brand-paper);
+    color: var(--brand-ink);
+    min-width: 0;
+    position: relative;
+    box-shadow: 0 18px 24px -18px color-mix(in oklab, var(--brand-ink) 65%, transparent);
+    transform-origin: center;
+    transition: transform 420ms var(--ease-out);
   }
-
-  .checkpoint {
-    position: absolute;
+  .brief-sheet {
+    transform-origin: right center;
+    transform: rotateY(-16deg) skewY(-3deg);
+    box-shadow:
+      inset -1px 0 color-mix(in oklab, var(--brand-ink) 22%, transparent),
+      inset -8px 0 color-mix(in oklab, var(--brand-ink) 4%, transparent),
+      -12px 18px 24px -18px color-mix(in oklab, var(--brand-ink) 65%, transparent);
+    z-index: 1;
+  }
+  .code-sheet {
+    transform: rotateY(0);
+    z-index: 3;
+  }
+  .handoff-sheet {
+    transform-origin: left center;
+    transform: rotateY(16deg) skewY(3deg);
+    box-shadow:
+      inset 1px 0 color-mix(in oklab, var(--brand-ink) 22%, transparent),
+      inset 8px 0 color-mix(in oklab, var(--brand-ink) 4%, transparent),
+      12px 18px 24px -18px color-mix(in oklab, var(--brand-ink) 65%, transparent);
+    z-index: 2;
+  }
+  .sheet-tab {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.8rem;
+    align-items: center;
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid color-mix(in oklab, var(--brand-ink) 22%, var(--brand-paper));
+    font-size: 0.65rem;
+  }
+  .sheet-tab > span {
+    font-size: 1rem;
+    font-weight: 650;
+  }
+  .sheet-content {
+    padding: 1.3rem;
+  }
+  .brief-mark {
+    margin: -0.5rem 0 0.3rem -0.5rem;
+  }
+  .evidence-sheet h2 {
+    font-size: clamp(1.2rem, 1.8vw, 1.75rem);
+    line-height: 1.08;
+    letter-spacing: -0.045em;
+  }
+  .rounding {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font: 1.2rem var(--font-mono);
+    gap: 0.5rem;
+    margin-block: 1.3rem;
+  }
+  .rounding strong {
+    color: var(--brand-accent-deep);
+  }
+  .sheet-foot {
+    border-top: 1px solid color-mix(in oklab, var(--brand-ink) 22%, var(--brand-paper));
+    padding-top: 0.7rem;
+    margin-top: 1rem;
+    font-size: 0.6rem;
+  }
+  .evidence-heading {
     display: flex;
     align-items: center;
-    gap: 0.4em;
-    translate: -0.75em -0.75em;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 1.3rem;
+  }
+  .code-bracket {
+    color: var(--brand-accent-deep);
+    font: 2rem var(--font-mono);
     white-space: nowrap;
   }
-
-  .checkpoint--1 {
-    left: 41.3%;
-    top: 70.3%;
+  pre {
+    font: 0.68rem/1.9 var(--font-mono);
+    margin-inline: -1.3rem;
+    padding: 1rem 1.3rem;
+    background: color-mix(in oklab, var(--brand-ink) 5%, var(--brand-paper));
+    overflow: auto;
   }
-
-  .checkpoint--2 {
-    left: 52.9%;
-    top: 54.5%;
+  pre span {
+    display: block;
   }
-
-  .checkpoint--3 {
-    left: 62.9%;
-    top: 38.6%;
+  .removed {
+    color: var(--brand-muted);
+    text-decoration: line-through;
   }
-
-  .checkpoint-dot {
+  .added {
+    color: var(--brand-ink);
+  }
+  .check-stamp {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+    padding-top: 1.1rem;
+    font-size: 0.8rem;
+  }
+  .check-stamp > span:first-child {
+    border: 1px solid var(--brand-ink);
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 50%;
     display: grid;
     place-items: center;
-    width: 1.5em;
-    height: 1.5em;
+  }
+  .check-stamp .micro {
+    font-size: 0.55rem;
+  }
+  .handoff-target {
+    width: 3.5rem;
+    height: 3.5rem;
+    border: 1px solid var(--brand-accent-deep);
     border-radius: 50%;
-    background: var(--accent-fill);
-    box-shadow: 0 0 0 3px var(--bg-band);
+    display: grid;
+    place-items: center;
+    position: relative;
+    margin-bottom: 1.25rem;
   }
-
-  .checkpoint-dot svg {
-    width: 1em;
-    height: 1em;
-    fill: none;
-    stroke: var(--accent-fg);
-    stroke-width: 2.2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  .handoff-target > span:first-child {
+    width: 2rem;
+    height: 2rem;
+    border: 1px solid var(--brand-accent-deep);
+    border-radius: 50%;
   }
-
-  .checkpoint-label {
-    padding: 0.15em 0.5em;
-    border-radius: var(--radius-sm);
-    background: var(--bg-raised);
-    border: var(--border-width) solid var(--border);
-    font-size: 0.82em;
-    font-weight: var(--weight-semibold);
-    margin-top: 2.4em;
-  }
-
-  .flight {
+  .handoff-target > span:last-child {
     position: absolute;
-    inset: 0;
-    pointer-events: none;
-    transform: translate(79%, 22%);
+    width: 0.6rem;
+    height: 0.6rem;
+    background: var(--brand-accent-deep);
+    border-radius: 50%;
   }
-
-  .plane {
-    position: absolute;
-    left: 0;
-    top: 0;
-    display: block;
-    width: 14cqi;
-    translate: -50% -50%;
-    opacity: 0;
+  .handoff-sheet p {
+    font-size: 0.8rem;
+    color: var(--brand-muted);
+    margin-top: 0.7rem;
   }
-
-  .plane :global(svg) {
-    width: 100%;
-    height: auto;
+  .handoff-sheet .sheet-foot {
+    display: grid;
+    gap: 0.3rem;
+    font-size: 0.65rem;
   }
-
+  .handoff-sheet .sheet-foot strong {
+    color: var(--brand-accent-deep);
+  }
+  .sculpture-bottom {
+    min-height: 44px;
+    margin-top: 0.8rem;
+    font-size: 0.65rem;
+  }
+  .sculpture-bottom button {
+    color: var(--brand-paper);
+    background: var(--brand-ground-dark);
+    border: 1px solid var(--brand-muted-light);
+    padding: 0.5rem 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-height: 44px;
+    font-size: 0.7rem;
+    flex: none;
+  }
+  .sculpture-bottom button:hover {
+    background: var(--brand-ink);
+  }
+  .proof-strip {
+    list-style: none;
+    padding: 1.5rem 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 0.75rem 1.5rem;
+    font-size: 0.65rem;
+    color: var(--fg-muted);
+  }
+  .paper-controls {
+    display: none;
+  }
+  .proof-strip li {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+  }
+  .proof-strip li > span {
+    color: var(--accent);
+    font: 1.1rem var(--font-mono);
+  }
   @media (prefers-reduced-motion: no-preference) {
-    .hero-in {
-      animation: rise 700ms var(--ease-out) both;
+    .is-opening .brief-sheet {
+      animation: unfold-brief 1600ms var(--ease-out) both;
     }
-
-    .hero-copy > :nth-child(2) {
-      animation-delay: 60ms;
+    .is-opening .code-sheet {
+      animation: unfold-code 1600ms var(--ease-out) both;
     }
-
-    .hero-copy > :nth-child(3) {
-      animation-delay: 120ms;
+    .is-opening .handoff-sheet {
+      animation: unfold-handoff 1600ms var(--ease-out) both;
     }
-
-    .hero-copy > :nth-child(n + 4) {
-      animation-delay: 180ms;
-    }
-
-    .stage-card {
-      animation: rise 600ms var(--ease-out) 200ms both;
-    }
-
-    .plane {
-      animation:
-        plane-unfold 700ms var(--ease-out) 700ms both,
-        plane-arrive 400ms ease-in 3500ms forwards;
-    }
-
-    .plane :global(.mark-accent) {
-      transform-box: fill-box;
-      transform-origin: 100% 0;
-      animation: fold-open 700ms var(--ease-out) 700ms both;
-    }
-
-    .flight {
-      animation: fly 2400ms cubic-bezier(0.45, 0, 0.25, 1) 1300ms both;
-    }
-
-    .trail {
-      animation: draw 2400ms cubic-bezier(0.45, 0, 0.25, 1) 1300ms both;
-    }
-
-    .checkpoint-dot {
-      animation: tick 360ms var(--ease-out) both;
-    }
-
-    .checkpoint-label {
-      animation: rise 400ms var(--ease-out) both;
-    }
-
-    .checkpoint--1 > * {
-      animation-delay: 1900ms;
-    }
-
-    .checkpoint--2 > * {
-      animation-delay: 2550ms;
-    }
-
-    .checkpoint--3 > * {
-      animation-delay: 3150ms;
-    }
-
-    .stage-pr {
-      animation: land 600ms var(--ease-out) 3600ms both;
-    }
-
-    .stage-status {
-      animation: pop 500ms var(--ease-out) 4100ms both;
+    .evidence-sheet:hover,
+    .evidence-sheet:focus-within {
+      transform: rotateY(0) skewY(0);
+      z-index: 5;
     }
   }
-
-  @keyframes rise {
+  @keyframes unfold-brief {
     from {
-      clip-path: inset(0 0 100% 0);
-      transform: translateY(14px);
-    }
-
-    to {
-      clip-path: inset(0 0 -20% 0);
+      transform: rotateY(-64deg) skewY(-3deg);
     }
   }
-
-  @keyframes tick {
+  @keyframes unfold-code {
     from {
-      opacity: 0;
-      transform: scale(0.4);
-    }
-
-    70% {
-      transform: scale(1.12);
+      transform: rotateX(8deg);
     }
   }
-
-  @keyframes land {
+  @keyframes unfold-handoff {
     from {
-      clip-path: inset(100% 0 0 0 round var(--radius-md));
-      transform: translateY(10px) scale(0.94);
-    }
-
-    to {
-      clip-path: inset(-10% -10% -10% -10% round var(--radius-md));
+      transform: rotateY(64deg) skewY(3deg);
     }
   }
-
-  @keyframes pop {
-    from {
-      transform: scale(0);
+  @media (max-width: 64rem) {
+    .hero-masthead {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 1.5rem;
     }
-
-    70% {
-      transform: scale(1.1);
+    h1 {
+      font-size: clamp(3.4rem, 10.5vw, 7.2rem);
     }
-  }
-
-  @keyframes draw {
-    from {
-      stroke-dashoffset: 1;
+    .hero-copy {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem 2rem;
+      align-items: center;
+      justify-content: space-between;
     }
-  }
-
-  @keyframes fold-open {
-    from {
-      transform: scale(0.15, 0.15) rotate(-35deg);
-      opacity: 0;
+    .hero-intro {
+      margin: 0;
     }
-  }
-
-  @keyframes plane-unfold {
-    from {
-      opacity: 0;
-      scale: 0.5;
+    .hero-edition {
+      font-size: 0.6rem;
     }
-
-    to {
-      opacity: 1;
+    .evidence-sheets {
+      padding-inline: 0;
+    }
+    .sheet-content {
+      padding: 1rem;
+    }
+    pre {
+      margin-inline: -1rem;
+      padding: 1rem;
     }
   }
-
-  @keyframes plane-arrive {
-    from {
-      opacity: 1;
+  @container (max-width: 45rem) {
+    .sculpture-bottom button {
+      display: none;
     }
-
-    to {
-      opacity: 0;
-      scale: 0.6;
+    .evidence-sheets {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 1.5rem;
+      padding: 2rem 1rem;
+    }
+    .evidence-sheet {
+      transform: none;
+      transform-origin: center;
+      box-shadow: 8px 10px 0 color-mix(in oklab, var(--brand-ink) 25%, transparent);
+      animation: none !important;
+      max-width: 29rem;
+      width: 100%;
+      margin-inline: auto;
+    }
+    .brief-sheet {
+      transform: rotate(-2deg);
+    }
+    .handoff-sheet {
+      transform: rotate(2deg);
+    }
+    .evidence-sheet h2 {
+      font-size: 1.5rem;
+    }
+    @media (scripting: enabled) {
+      .evidence-sheets {
+        gap: 0;
+        align-items: stretch;
+        padding-block: 1.5rem;
+      }
+      .evidence-sheet {
+        grid-area: 1 / 1;
+        transform: none;
+      }
+      .evidence-sheet[data-paper-current='false'] {
+        visibility: hidden;
+        pointer-events: none;
+      }
+    }
+    .paper-controls {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.35rem;
+    }
+    .paper-controls button {
+      background: var(--brand-ground-dark);
+      color: var(--brand-paper);
+      border: 1px solid var(--brand-muted-light);
+      padding: 0.7rem 0.4rem;
+      font-size: 0.65rem;
+      min-height: 44px;
+      line-height: 1.4;
+    }
+    .paper-controls button > span:first-child {
+      display: block;
+      font: 0.6rem var(--font-mono);
+      margin-bottom: 0.25rem;
+    }
+    .paper-controls button[aria-pressed='true'] {
+      background: var(--brand-paper);
+      color: var(--brand-ink);
+      border-color: var(--brand-paper);
+    }
+    .paper-controls button:focus-visible {
+      outline-color: var(--brand-paper);
+    }
+    .sculpture-meta {
+      flex-wrap: wrap;
+    }
+    .sculpture-bottom {
+      flex-wrap: wrap;
     }
   }
-
-  @keyframes fly {
-    0% {
-      transform: translate(21%, 79%);
+  @container (max-width: 20rem) {
+    .evidence-sheets {
+      padding-inline: 0.25rem;
     }
-
-    10% {
-      transform: translate(28.59%, 78.46%);
+    .sheet-content {
+      padding: 0.75rem;
     }
-
-    20% {
-      transform: translate(35.29%, 75.38%);
+    .code-bracket {
+      display: none;
     }
-
-    30% {
-      transform: translate(41.28%, 70.28%);
+    .evidence-heading h2 {
+      min-width: 0;
     }
-
-    40% {
-      transform: translate(46.74%, 63.69%);
+    pre {
+      margin-inline: -0.75rem;
+      padding-inline: 0.75rem;
     }
-
-    50% {
-      transform: translate(51.88%, 56.12%);
+    .paper-controls .paper-label {
+      display: none;
     }
-
-    60% {
-      transform: translate(56.86%, 48.11%);
+    .paper-controls button > span:first-child {
+      margin: 0;
+      font-size: 0.9rem;
     }
-
-    70% {
-      transform: translate(61.87%, 40.17%);
+  }
+  @media (max-width: 34rem) {
+    .hero {
+      padding-top: 1.5rem;
     }
-
-    80% {
-      transform: translate(67.11%, 32.82%);
+    .hero-topline {
+      padding-bottom: 1.5rem;
     }
-
-    90% {
-      transform: translate(72.76%, 26.59%);
+    .hero-topline .eyebrow {
+      font-size: 0.65rem;
     }
-
-    100% {
-      transform: translate(79%, 22%);
+    .hero-masthead {
+      margin-bottom: 2rem;
+    }
+    h1 {
+      font-size: clamp(2.7rem, 10.8vw, 4rem);
+      letter-spacing: -0.055em;
+    }
+    .hero-intro {
+      font-size: 0.95rem;
+    }
+    .work-sculpture {
+      padding: 1rem;
+    }
+    .proof-strip {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 </style>
+<script>
+  for (const sculpture of document.querySelectorAll<HTMLElement>('[data-sculpture]')) {
+    const controls = sculpture.querySelector<HTMLElement>('[data-paper-controls]');
+    const selectors = [...sculpture.querySelectorAll<HTMLButtonElement>('[data-paper-select]')];
+    const papers = [...sculpture.querySelectorAll<HTMLElement>('[data-paper-current]')];
+    if (controls && selectors.length === papers.length) {
+      controls.hidden = false;
+      const select = (index: number) => {
+        papers.forEach((paper, i) => {
+          paper.dataset['paperCurrent'] = String(i === index);
+        });
+        selectors.forEach((selector, i) =>
+          selector.setAttribute('aria-pressed', String(i === index)),
+        );
+      };
+      papers.forEach((paper, index) => paper.addEventListener('focusin', () => select(index)));
+      selectors.forEach((selector, index) => {
+        selector.addEventListener('click', () => select(index));
+        selector.addEventListener('keydown', (event) => {
+          const next =
+            event.key === 'ArrowRight'
+              ? (index + 1) % papers.length
+              : event.key === 'ArrowLeft'
+                ? (index + papers.length - 1) % papers.length
+                : event.key === 'Home'
+                  ? 0
+                  : event.key === 'End'
+                    ? papers.length - 1
+                    : null;
+          if (next === null) return;
+          event.preventDefault();
+          select(next);
+          selectors[next]?.focus();
+        });
+      });
+    }
+    const button = sculpture.querySelector<HTMLButtonElement>('[data-unfold-replay]');
+    if (!button) continue;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updateMotion = () => {
+      button.hidden = reduced.matches;
+    };
+    updateMotion();
+    reduced.addEventListener('change', updateMotion);
+    button.addEventListener('click', () => {
+      if (reduced.matches) return;
+      sculpture.classList.remove('is-opening');
+      void sculpture.offsetWidth;
+      sculpture.classList.add('is-opening');
+    });
+  }
+</script>
