@@ -602,3 +602,10 @@ A Pack is proposed once per sprint, but Unfold has no sprint concept and some te
 
 **Options:** The tracker's iteration or cycle, where it has one, A fixed calendar period for every team, A period each Team sets in Ploeg's configuration  
 **Recommendation:** Decide before Packs are built; until then the period is the team's sprint as its tracker defines it.  
+
+### a Tenant and a Team
+
+Ploeg and Vloer scope access by Team, but a Team is a capability pool and created work can move between Teams. The Tenant definition says self-hosted Unfold has none, while the owner wants every install to limit users to what they can see.
+
+**Options:** A Tenant sits above Teams and owns users, sources, repositories, budgets, deploy identities and Work Items; every install has at least one, The Team is the Tenant, One deployment per Tenant, with no Tenant inside the software  
+**Recommendation:** A Tenant above Teams, each Team in one Tenant, and a default Tenant in a self-hosted install (Unfold ADR-0017, proposed). The Tenant definition changes only when that ADR is accepted.  
