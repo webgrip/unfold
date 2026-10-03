@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -292,6 +293,52 @@ func TestOperatorWorkItemReportsPullRequestLink(t *testing.T) {
 			got = body.Item.PullRequest
 		}
 		if got == nil || got.URL != prURL || got.AgentVerdict != "" || got.HumanChangesRequested || got.RepairFollowUps != 0 || got.AgentVerdictRound != nil {
+			t.Fatalf("%s: unexpected pullRequest %+v", endpoint, got)
+		}
+	}
+}
+
+func TestOperatorWorkItemNamesWhoAskedForChangesWithinTheSchema(t *testing.T) {
+	reset(t)
+	ctx := context.Background()
+	id, _, err := testStore.IngestAssigned(ctx, work.WorkItem{Provider: "vikunja", ExternalID: "operator-changes", Team: "silver", Title: "Changes item"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testPool.Exec(ctx,
+		`INSERT INTO checkpoints (work_item_id, phase, pr_url) VALUES ($1, 'branch', 'https://forge.example/webgrip/ploeg/pulls/12')`, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testPool.Exec(ctx,
+		`INSERT INTO work_item_reviews (work_item_id, provider, repo, reviewer, received_at) VALUES
+		 ($1, 'forgejo', 'ploeg', 'alice', now() - interval '2 hours'),
+		 ($1, 'forgejo', 'ploeg', 'bob', now() - interval '1 hour')`, id); err != nil {
+		t.Fatal(err)
+	}
+
+	consumers, token := operatorTestConsumers(t, []string{"silver"}, false)
+	s := &Server{Store: testStore, OperatorConfig: OperatorConfig{Consumers: consumers, Teams: map[string][]string{"silver": {"builder"}}}}
+	for _, endpoint := range []string{"work-items", fmt.Sprintf("work-items/%d", id)} {
+		raw := operatorSchemaGET(t, s, token, endpoint)
+		var body struct {
+			Items []struct {
+				PullRequest *store.OperatorPullRequest `json:"pullRequest"`
+			} `json:"items"`
+			Item struct {
+				PullRequest *store.OperatorPullRequest `json:"pullRequest"`
+			} `json:"item"`
+		}
+		if err := json.Unmarshal(raw, &body); err != nil {
+			t.Fatal(err)
+		}
+		got := body.Item.PullRequest
+		if endpoint == "work-items" {
+			if len(body.Items) != 1 {
+				t.Fatalf("%s: want one item, got %s", endpoint, raw)
+			}
+			got = body.Items[0].PullRequest
+		}
+		if got == nil || !got.HumanChangesRequested || !slices.Equal(got.ChangesRequestedBy, []string{"bob", "alice"}) {
 			t.Fatalf("%s: unexpected pullRequest %+v", endpoint, got)
 		}
 	}

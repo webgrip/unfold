@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -378,4 +379,87 @@ func TestOperatorItemReportsPullRequestState(t *testing.T) {
 		t.Fatal(err)
 	}
 	check("pr-verdict", detail.Item.PullRequest)
+}
+
+func TestOperatorPullRequestNamesWhoAskedForChangesNewestFirst(t *testing.T) {
+	resetTables(t)
+	ctx := context.Background()
+
+	withPR := func(external string) int64 {
+		t.Helper()
+		id, _, err := testStore.IngestAssigned(ctx, work.WorkItem{Provider: "vikunja", ExternalID: external, Team: "silver", Title: external})
+		if err != nil {
+			t.Fatalf("ingest %s: %v", external, err)
+		}
+		if _, err := testStore.pool.Exec(ctx,
+			`INSERT INTO checkpoints (work_item_id, phase, pr_url) VALUES ($1, 'branch', 'https://forge.example/glide/glide/pulls/7')`, id); err != nil {
+			t.Fatalf("insert checkpoint: %v", err)
+		}
+		return id
+	}
+	review := func(item int64, reviewer, state, received string) {
+		t.Helper()
+		if _, err := testStore.pool.Exec(ctx,
+			`INSERT INTO work_item_reviews (work_item_id, provider, repo, reviewer, state, received_at)
+			 VALUES ($1, 'forgejo', 'glide', $2, $3, `+received+`)`, item, reviewer, state); err != nil {
+			t.Fatalf("insert review: %v", err)
+		}
+	}
+
+	withPR("none")
+	review(withPR("approved-only"), "carol", "approved", "now()")
+	review(withPR("one"), "alice", "changes_requested", "now()")
+	twice := withPR("twice")
+	review(twice, "alice", "changes_requested", "now() - interval '2 hours'")
+	review(twice, "alice", "changes_requested", "now() - interval '1 hour'")
+	two := withPR("two")
+	review(two, "alice", "changes_requested", "now() - interval '3 hours'")
+	review(two, "bob", "changes_requested", "now() - interval '2 hours'")
+	review(two, "carol", "approved", "now() - interval '1 hour'")
+	reasked := withPR("reasked")
+	review(reasked, "alice", "changes_requested", "now() - interval '3 hours'")
+	review(reasked, "bob", "changes_requested", "now() - interval '2 hours'")
+	review(reasked, "alice", "changes_requested", "now() - interval '1 hour'")
+
+	want := map[string][]string{
+		"none":          {},
+		"approved-only": {},
+		"one":           {"alice"},
+		"twice":         {"alice"},
+		"two":           {"bob", "alice"},
+		"reasked":       {"alice", "bob"},
+	}
+	items, _, err := testStore.OperatorItems(ctx, OperatorFilter{Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := 0
+	for _, item := range items {
+		expected, ok := want[item.ExternalID]
+		if !ok {
+			continue
+		}
+		seen++
+		if item.PullRequest == nil {
+			t.Fatalf("%s: want pullRequest, got null", item.ExternalID)
+		}
+		got := item.PullRequest.ChangesRequestedBy
+		if got == nil || !slices.Equal(got, expected) {
+			t.Fatalf("%s: changesRequestedBy = %#v, want %#v", item.ExternalID, got, expected)
+		}
+		if item.PullRequest.HumanChangesRequested != (len(expected) > 0) {
+			t.Fatalf("%s: humanChangesRequested = %v", item.ExternalID, item.PullRequest.HumanChangesRequested)
+		}
+	}
+	if seen != len(want) {
+		t.Fatalf("saw %d of %d items", seen, len(want))
+	}
+
+	detail, err := testStore.OperatorItem(ctx, two, []string{"silver"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := detail.Item.PullRequest.ChangesRequestedBy; !slices.Equal(got, []string{"bob", "alice"}) {
+		t.Fatalf("detail changesRequestedBy = %#v", got)
+	}
 }

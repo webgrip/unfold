@@ -124,6 +124,14 @@
         "humanChangesRequested": {
           "type": "boolean"
         },
+        "changesRequestedBy": {
+          "type": "array",
+          "description": "Each distinct forge login that asked for changes on the pull request, ordered by its newest request first. Empty when nobody did.",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
         "repairFollowUps": {
           "type": "integer",
           "minimum": 0
