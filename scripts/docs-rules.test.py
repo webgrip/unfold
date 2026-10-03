@@ -32,6 +32,8 @@ class HistoryClassification(unittest.TestCase):
             'vloer/product/go-to-market/',
             'vloer/operations/backlog.md',
             'ploeg/backlog/',
+            'ploeg/history/legacy-changelog.md',
+            'ploeg/history/legacy-changelog/',
         ]:
             self.assertTrue(rules.historical(path), path)
 
