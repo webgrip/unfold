@@ -183,6 +183,14 @@ type OperatorRun struct {
 	Usage         *OperatorUsage `json:"usage"`
 	CostStatus    string         `json:"costStatus"`
 	KeyAlias      *string        `json:"keyAlias"`
+	// SettledAt is when the Run's gateway account was first settled.
+	SettledAt *time.Time `json:"settledAt,omitempty"`
+	// CostFinalAt is when the settled cost stops being corrected: the end of
+	// the correction window, or SettledAt when there is none.
+	CostFinalAt *time.Time `json:"costFinalAt,omitempty"`
+	// CostFinal is true once the Run's cost will no longer change. Before
+	// that a settled cost is provisional.
+	CostFinal bool `json:"costFinal"`
 }
 
 type OperatorCheckpoint struct {
@@ -272,8 +280,15 @@ const operatorPullRequestFactsJSON = `(SELECT jsonb_strip_nulls(jsonb_build_obje
 	FROM pull_requests p WHERE p.work_item_id = i.id ORDER BY p.updated_at DESC, p.id DESC LIMIT 1)`
 
 const operatorRunCost = `CASE WHEN EXISTS (SELECT 1 FROM run_llm_accounts WHERE run_token = r.run_token)
-	THEN (SELECT to_jsonb(COALESCE(reconciled_spend, observed_spend)) FROM run_llm_accounts WHERE run_token = r.run_token)
+	THEN (SELECT to_jsonb(CASE WHEN cost_known THEN COALESCE(reconciled_spend, observed_spend) END) FROM run_llm_accounts WHERE run_token = r.run_token)
 	ELSE CASE WHEN jsonb_typeof(r.usage->'costUsd') = 'number' THEN r.usage->'costUsd' END END`
+
+const operatorRunSettlementJSON = `'settledAt', (SELECT settled_at FROM run_llm_accounts WHERE run_token = r.run_token),
+	'costFinalAt', (SELECT CASE WHEN state = 'reconciled' THEN COALESCE(corrections_until, settled_at) END
+		FROM run_llm_accounts WHERE run_token = r.run_token),
+	'costFinal', CASE WHEN EXISTS (SELECT 1 FROM run_llm_accounts WHERE run_token = r.run_token)
+		THEN (SELECT state = 'reconciled' AND COALESCE(corrections_until <= now(), true) FROM run_llm_accounts WHERE run_token = r.run_token)
+		ELSE r.state = 'finished' END`
 
 func operatorUsageCount(object, key string) string {
 	number := `(` + object + `->>'` + key + `')::numeric`
@@ -324,6 +339,7 @@ var operatorRunJSON = `jsonb_build_object(
 		'costUsd', ` + operatorRunCost + `,
 		` + operatorRunUsageFacts + `)) END,
 	'costStatus', CASE WHEN (` + operatorRunCost + `) IS NOT NULL THEN 'observed' ELSE 'unknown' END,
+	` + operatorRunSettlementJSON + `,
 	'keyAlias', CASE WHEN r.started_at IS NOT NULL THEN 'ploeg-' || left(r.run_token, 12) ELSE NULL END)`
 
 const operatorCheckpointJSON = `jsonb_build_object(

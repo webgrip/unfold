@@ -98,6 +98,7 @@ func sweepLoop(ctx context.Context, log *slog.Logger, st *store.Store, sweeper l
 			mendSweep(ctx, log, st)
 			server.SweepCardComments(ctx)
 			server.SweepCardRarity(ctx)
+			managedCorrectionSweep(ctx, log, server)
 		case <-t.C:
 			if err := server.ReconcileOperatorExecutions(ctx); err != nil {
 				log.Error("operator execution reconciliation failed")
@@ -228,6 +229,36 @@ func managedSettlementSweep(ctx context.Context, log *slog.Logger, server *httpa
 		}
 	}
 	return after
+}
+
+func managedCorrectionSweep(ctx context.Context, log *slog.Logger, server *httpapi.Server) {
+	if server.LLMControl == nil {
+		return
+	}
+	var after int64
+	for ctx.Err() == nil {
+		accounts, err := server.Store.CorrectableLLMAccounts(ctx, after, 100)
+		if err != nil {
+			log.Error("managed correction queue unavailable")
+			return
+		}
+		for _, account := range accounts {
+			after = account.RunID
+			changed, err := server.LLMControl.Correct(ctx, account)
+			if err != nil {
+				log.Warn("managed settlement correction unresolved", "alias", account.Alias, "err", err)
+			} else if changed {
+				log.Info("managed account corrected", "alias", account.Alias)
+				refreshUsageReports(ctx, log, server, account)
+			}
+			if ctx.Err() != nil {
+				return
+			}
+		}
+		if len(accounts) < 100 {
+			return
+		}
+	}
 }
 
 // refreshUsageReports re-renders the settled Run's usage report. Best-effort:

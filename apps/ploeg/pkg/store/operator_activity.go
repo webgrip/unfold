@@ -85,6 +85,14 @@ type OperatorRunListItem struct {
 	Usage           *OperatorRunUsage `json:"usage"`
 	ObservedUSD     *float64          `json:"observedUsd"`
 	ReservedModels  []string          `json:"reservedModels"`
+	// SettledAt is when the Run's gateway account was first settled.
+	SettledAt *time.Time `json:"settledAt,omitempty"`
+	// CostFinalAt is when the settled cost stops being corrected: the end of
+	// the correction window, or SettledAt when there is none.
+	CostFinalAt *time.Time `json:"costFinalAt,omitempty"`
+	// CostFinal is true once the Run's cost will no longer change. Before
+	// that a settled cost is provisional.
+	CostFinal bool `json:"costFinal"`
 }
 
 // OperatorRunFilter selects Runs newest first. Before is an exclusive Run id
@@ -112,8 +120,12 @@ const operatorRunListJSON = `jsonb_build_object(
 	'durationSeconds', CASE WHEN r.started_at IS NOT NULL AND r.finished_at IS NOT NULL
 		THEN GREATEST(0, floor(extract(epoch FROM r.finished_at - r.started_at)))::bigint END,
 	'authorizedUsd', CASE WHEN r.state = 'pending' THEN NULL ELSE r.authorized END,
-	'settledUsd', CASE WHEN a.run_token IS NOT NULL THEN to_jsonb(a.reconciled_spend)
+	'settledUsd', CASE WHEN a.run_token IS NOT NULL THEN to_jsonb(CASE WHEN a.cost_known THEN a.reconciled_spend END)
 		WHEN r.state = 'finished' AND jsonb_typeof(r.usage->'costUsd') = 'number' THEN r.usage->'costUsd' END,
+	'settledAt', a.settled_at,
+	'costFinalAt', CASE WHEN a.state = 'reconciled' THEN COALESCE(a.corrections_until, a.settled_at) END,
+	'costFinal', CASE WHEN a.run_token IS NULL THEN r.state = 'finished'
+		ELSE a.state = 'reconciled' AND COALESCE(a.corrections_until <= now(), true) END,
 	'usage', CASE WHEN jsonb_typeof(r.usage) = 'object' THEN jsonb_build_object(
 		'inputTokens', %[1]s,
 		'outputTokens', %[2]s,

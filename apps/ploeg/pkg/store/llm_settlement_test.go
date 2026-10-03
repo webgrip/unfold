@@ -157,3 +157,77 @@ func TestStoreUnsettledLLMAccountsCarryShiftID(t *testing.T) {
 		t.Errorf("historical run carried ShiftID %d, want nil", *legacy.ShiftID)
 	}
 }
+
+func correctableByToken(t *testing.T) map[string]UnsettledLLMAccount {
+	t.Helper()
+	accounts, err := testStore.CorrectableLLMAccounts(context.Background(), 0, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	byToken := map[string]UnsettledLLMAccount{}
+	for _, a := range accounts {
+		byToken[a.RunToken] = a
+	}
+	return byToken
+}
+
+func TestCorrectableAccountsOfferOnlySettlementsInsideTheirWindow(t *testing.T) {
+	resetTables(t)
+	ctx := context.Background()
+	neverMinted := settlementRunFixture(t, "960")
+	finishManagedRun(t, neverMinted)
+	if err := testStore.ReconcileLLMAccount(ctx, neverMinted.RunToken, 0, "ploegd:mint-never-began"); err != nil {
+		t.Fatal(err)
+	}
+	windowed := settlementRunFixture(t, "961")
+	finishManagedRun(t, windowed)
+	if _, err := testStore.SettleLLMAccount(ctx, windowed.RunToken, LLMSettlement{Spend: 0, Evidence: "fixture", CostKnown: true, CorrectionWindow: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	unsettled := settlementRunFixture(t, "962")
+	finishManagedRun(t, unsettled)
+
+	offered := correctableByToken(t)
+	if len(offered) != 1 {
+		t.Fatalf("correction candidates: %+v", offered)
+	}
+	a, ok := offered[windowed.RunToken]
+	if !ok || a.State != "reconciled" || !a.MintBegan || a.QuietSince.IsZero() || a.ShiftID == nil {
+		t.Fatalf("settlement inside its window not offered as a reconciled candidate: %+v", offered)
+	}
+	if _, err := testStore.pool.Exec(ctx, `UPDATE run_llm_accounts SET corrections_until=now() WHERE run_token=$1`, windowed.RunToken); err != nil {
+		t.Fatal(err)
+	}
+	if offered := correctableByToken(t); len(offered) != 0 {
+		t.Fatalf("settlement past its window offered: %+v", offered)
+	}
+	if _, err := testStore.CorrectableLLMAccounts(ctx, 0, 101); err == nil {
+		t.Fatal("unbounded correction page accepted")
+	}
+	if _, err := testStore.SettleLLMAccount(ctx, unsettled.RunToken, LLMSettlement{Spend: 0, Evidence: "fixture", CorrectionWindow: -time.Second}); err == nil {
+		t.Fatal("negative correction window accepted")
+	}
+}
+
+func TestCorrectionNeverLowersASettlement(t *testing.T) {
+	resetTables(t)
+	ctx := context.Background()
+	run := settlementRunFixture(t, "963")
+	if _, err := testStore.BeginLLMMint(ctx, run.RunToken); err != nil {
+		t.Fatal(err)
+	}
+	finishManagedRun(t, run)
+	if err := testStore.RecordLLMBlocked(ctx, run.RunToken, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testStore.SettleLLMAccount(ctx, run.RunToken, LLMSettlement{Spend: 0.5, Evidence: "first", CostKnown: true, CorrectionWindow: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := testStore.SettleLLMAccount(ctx, run.RunToken, LLMSettlement{Spend: 0.3, Evidence: "lower", CostKnown: true}); err == nil {
+		t.Fatal("a correction lowered the settled spend")
+	}
+	var adjustments int
+	if err := testStore.pool.QueryRow(ctx, `SELECT count(*) FROM run_llm_adjustments WHERE run_token=$1`, run.RunToken).Scan(&adjustments); err != nil || adjustments != 0 {
+		t.Fatalf("adjustments=%d err=%v", adjustments, err)
+	}
+}

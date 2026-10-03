@@ -48,6 +48,10 @@ func run(log *slog.Logger) error {
 	leaseTTL := durationOr("PLOEG_LEASE_TTL", 60*time.Second)
 	sweepEvery := durationOr("PLOEG_SWEEP_INTERVAL", 15*time.Second)
 	settleAfter := durationOr("PLOEG_LLM_SETTLE_AFTER", 15*time.Minute)
+	correctionWindow := durationOr("PLOEG_LLM_CORRECTION_WINDOW", 24*time.Hour)
+	if correctionWindow < 0 {
+		return errors.New("PLOEG_LLM_CORRECTION_WINDOW must not be negative")
+	}
 	reviewEvery := durationOr("PLOEG_REVIEW_RECONCILE_INTERVAL", 10*time.Minute)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -288,6 +292,7 @@ func run(log *slog.Logger) error {
 		if err != nil {
 			return fmt.Errorf("worker inference policy: %w", err)
 		}
+		llmControl.CorrectionWindow = correctionWindow
 	}
 	operator, err := operatorConfig(cfg, plans)
 	if err != nil {

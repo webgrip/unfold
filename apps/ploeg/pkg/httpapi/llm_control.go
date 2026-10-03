@@ -36,6 +36,10 @@ type LLMControl struct {
 	Store    *store.Store
 	Broker   ManagedLLMBroker
 	Policies []LLMPolicy
+	// CorrectionWindow is how long a settlement read from the gateway's spend
+	// logs stays provisional and is read again for late charges. Zero makes
+	// the first settlement final.
+	CorrectionWindow time.Duration
 }
 
 func NewLLMControl(st *store.Store, broker ManagedLLMBroker, policiesJSON string) (*LLMControl, error) {
@@ -191,7 +195,10 @@ func (c *LLMControl) Live(ctx context.Context, runToken string) (store.LiveUsage
 // evidence; a blocked account settles at the gateway's spend-log total for
 // its keys, read after the account has stayed unchanged, and records the
 // tokens and models from the same entries as the Run's usage. A broker that
-// cannot read durable spend never settles a minted account.
+// cannot read durable spend never settles a minted account. A spend-log
+// settlement stays provisional for CorrectionWindow, and a minted account
+// whose spend logs have no entries settles at zero with its cost recorded as
+// unknown.
 func (c *LLMControl) Settle(ctx context.Context, a store.UnsettledLLMAccount) error {
 	if !a.MintBegan {
 		return c.Store.ReconcileLLMAccount(ctx, a.RunToken, 0, "ploegd:mint-never-began account="+a.State+" alias="+a.Alias)
@@ -199,13 +206,29 @@ func (c *LLMControl) Settle(ctx context.Context, a store.UnsettledLLMAccount) er
 	if a.State != "blocked" {
 		return store.ErrLLMAccountState
 	}
+	_, err := c.settleFromSpendLogs(ctx, a)
+	return err
+}
+
+// Correct reads the spend logs of a reconciled account inside its correction
+// window again, as CorrectableLLMAccounts offers it. A higher total is charged
+// as an adjustment; the first settlement stays recorded. It reports whether
+// anything changed.
+func (c *LLMControl) Correct(ctx context.Context, a store.UnsettledLLMAccount) (bool, error) {
+	if a.State != "reconciled" {
+		return false, store.ErrLLMAccountState
+	}
+	return c.settleFromSpendLogs(ctx, a)
+}
+
+func (c *LLMControl) settleFromSpendLogs(ctx context.Context, a store.UnsettledLLMAccount) (bool, error) {
 	settler, ok := c.Broker.(llmbroker.Settler)
 	if !ok {
-		return fmt.Errorf("gateway has no durable spend source; reconciliation required")
+		return false, fmt.Errorf("gateway has no durable spend source; reconciliation required")
 	}
 	spend, err := settler.SettledSpendForRun(ctx, a.RunToken, []string{a.GatewayKeyID})
 	if err != nil {
-		return fmt.Errorf("gateway spend logs unavailable; reconciliation required")
+		return false, fmt.Errorf("gateway spend logs unavailable; reconciliation required")
 	}
 	evidence := fmt.Sprintf("litellm:spend-logs alias=%s keys=%d entries=%d usd=%s unchanged-since=%s read-at=%s",
 		a.Alias, spend.Keys, spend.Entries, strconv.FormatFloat(spend.USD, 'f', -1, 64), a.QuietSince.UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339))
@@ -213,7 +236,8 @@ func (c *LLMControl) Settle(ctx context.Context, a store.UnsettledLLMAccount) er
 	for _, m := range spend.ByModel {
 		usage.ByModel = append(usage.ByModel, store.ModelUsage{Model: m.Model, InputTokens: m.InputTokens, OutputTokens: m.OutputTokens, CostUSD: m.USD})
 	}
-	return c.Store.ReconcileLLMAccountWithUsage(ctx, a.RunToken, spend.USD, evidence, &usage)
+	return c.Store.SettleLLMAccount(ctx, a.RunToken, store.LLMSettlement{Spend: spend.USD, Evidence: evidence, Usage: &usage,
+		CostKnown: spend.Entries > 0, CorrectionWindow: c.CorrectionWindow})
 }
 
 func (s *Server) RegisterLLMControl(mux *http.ServeMux) {

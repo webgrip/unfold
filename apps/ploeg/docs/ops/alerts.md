@@ -94,7 +94,7 @@ Look each alias up in LiteLLM. Then follow [reconcile uncertainty](managed-worke
 
 `max(ploeg_settled_spend_usd_last_hour) > usdPerHour`. Default: 20 USD, `for: 0m`, warning.
 
-More spend was settled in the last hour than the threshold. This counts settled spend, so it lags live gateway spend by the settlement quiet period (`PLOEG_LLM_SETTLE_AFTER`, default `15m`). Use the gateway's own budget alerts for real-time limits. One late reconciliation of a large blocked account can also trigger it.
+More spend was settled in the last hour than the threshold. This counts settled spend, so it lags live gateway spend by the settlement quiet period (`PLOEG_LLM_SETTLE_AFTER`, default `15m`). Use the gateway's own budget alerts for real-time limits. One late reconciliation of a large blocked account can also trigger it, and so can a correction that charges late spend-log entries inside `PLOEG_LLM_CORRECTION_WINDOW`.
 
 **Check first:** which Runs the spend came from.
 

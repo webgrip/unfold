@@ -238,27 +238,55 @@ type ModelUsage struct {
 // charged to the Shift, or stored, so a spend-log total is never refused as
 // an undercut of a value the column already rounded up on write.
 func (s *Store) ReconcileLLMAccountWithUsage(ctx context.Context, token string, spend float64, evidence string, usage *SettledUsage) error {
-	if !validSpend(spend) || evidence == "" {
-		return ErrLLMAccountState
+	_, err := s.SettleLLMAccount(ctx, token, LLMSettlement{Spend: spend, Evidence: evidence, Usage: usage, CostKnown: true})
+	return err
+}
+
+// LLMSettlement is one trusted reading of a finished Run's gateway spend.
+type LLMSettlement struct {
+	Spend    float64
+	Evidence string
+	Usage    *SettledUsage
+	// CostKnown is false when the reading cannot confirm its amount, such as
+	// a minted key with no spend-log entries. The account still settles, so
+	// its hold is released, but its cost is reported as unknown until a later
+	// reading with entries confirms it.
+	CostKnown bool
+	// CorrectionWindow is how long after the first settlement the account
+	// stays provisional and is offered by CorrectableLLMAccounts. Zero makes
+	// the first settlement final. Later settlements keep the first window.
+	CorrectionWindow time.Duration
+}
+
+// SettleLLMAccount settles a finished Run's account at st.Spend, as
+// ReconcileLLMAccountWithUsage describes. The first settlement is kept in
+// settled_at and settled_spend. A later settlement of a reconciled account
+// that raises its spend charges only the difference to the Shift, records it
+// as a run_llm_adjustments row and keeps the first settlement's evidence; one
+// that changes nothing writes nothing and reports false.
+func (s *Store) SettleLLMAccount(ctx context.Context, token string, st LLMSettlement) (bool, error) {
+	spend, evidence, usage := st.Spend, st.Evidence, st.Usage
+	if !validSpend(spend) || evidence == "" || st.CorrectionWindow < 0 {
+		return false, ErrLLMAccountState
 	}
 	if usage != nil && (usage.InputTokens < 0 || usage.OutputTokens < 0) {
-		return ErrLLMAccountState
+		return false, ErrLLMAccountState
 	}
 	if usage != nil {
 		for _, m := range usage.ByModel {
 			if m.Model == "" || m.InputTokens < 0 || m.OutputTokens < 0 || !validSpend(m.CostUSD) {
-				return ErrLLMAccountState
+				return false, ErrLLMAccountState
 			}
 		}
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback(ctx)
 	var roundedSpend float64
 	if err := tx.QueryRow(ctx, `SELECT round($1::numeric,4)::float8`, spend).Scan(&roundedSpend); err != nil {
-		return err
+		return false, err
 	}
 	var usageJSON []byte
 	if usage != nil {
@@ -274,50 +302,72 @@ func (s *Store) ReconcileLLMAccountWithUsage(ctx context.Context, token string, 
 		if usageJSON, err = json.Marshal(map[string]any{
 			"inputTokens": usage.InputTokens, "outputTokens": usage.OutputTokens, "models": models, "byModel": byModel, "costUsd": roundedSpend,
 		}); err != nil {
-			return err
+			return false, err
 		}
 	}
 	var state string
 	var previous, observed *float64
+	var known bool
 	var id int64
 	var shiftID *int64
-	if err := tx.QueryRow(ctx, `SELECT a.state,a.reconciled_spend,a.observed_spend,r.work_item_id,r.shift_id
+	if err := tx.QueryRow(ctx, `SELECT a.state,a.reconciled_spend,a.observed_spend,a.cost_known,r.work_item_id,r.shift_id
 		FROM run_llm_accounts a JOIN agent_runs r USING(run_token) WHERE a.run_token=$1 AND r.state='finished'
-		FOR UPDATE OF a,r`, token).Scan(&state, &previous, &observed, &id, &shiftID); err != nil {
-		return err
+		FOR UPDATE OF a,r`, token).Scan(&state, &previous, &observed, &known, &id, &shiftID); err != nil {
+		return false, err
 	}
 	if state != "blocked" && state != "reconciled" && !(state == "reserved" && spend == 0) {
-		return ErrLLMAccountState
+		return false, ErrLLMAccountState
 	}
 	if observed != nil && roundedSpend < *observed {
-		return ErrLLMAccountState
+		return false, ErrLLMAccountState
 	}
 	delta := roundedSpend
 	if previous != nil {
 		delta -= *previous
 	}
 	if delta < 0 {
-		return ErrLLMAccountState
+		return false, ErrLLMAccountState
+	}
+	correction := state == "reconciled"
+	if correction && delta == 0 && (known || !st.CostKnown) {
+		return false, tx.Commit(ctx)
 	}
 	if shiftID != nil {
 		if _, err := tx.Exec(ctx, `UPDATE shifts SET spent=spent+$2 WHERE id=$1`, *shiftID, delta); err != nil {
-			return err
+			return false, err
 		}
 	}
-	if _, err := tx.Exec(ctx, `UPDATE run_llm_accounts SET state='reconciled',reconciled_spend=$2,
-		reconciliation_evidence=$3,updated_at=now() WHERE run_token=$1`, token, roundedSpend, evidence); err != nil {
-		return err
+	if correction {
+		if _, err := tx.Exec(ctx, `UPDATE run_llm_accounts SET reconciled_spend=$2,cost_known=cost_known OR $3,updated_at=now()
+			WHERE run_token=$1`, token, roundedSpend, st.CostKnown); err != nil {
+			return false, err
+		}
+		if delta > 0 {
+			if _, err := tx.Exec(ctx, `INSERT INTO run_llm_adjustments(run_token,previous_spend,spend,evidence)
+				VALUES($1,$2,$3,$4)`, token, *previous, roundedSpend, evidence); err != nil {
+				return false, err
+			}
+		}
+	} else if _, err := tx.Exec(ctx, `UPDATE run_llm_accounts SET state='reconciled',reconciled_spend=$2,
+		reconciliation_evidence=$3,settled_at=now(),settled_spend=$2,cost_known=$4,
+		corrections_until=CASE WHEN $5::float8>0 THEN now()+make_interval(secs=>$5) END,updated_at=now()
+		WHERE run_token=$1`, token, roundedSpend, evidence, st.CostKnown, st.CorrectionWindow.Seconds()); err != nil {
+		return false, err
 	}
 	if usageJSON != nil {
 		if _, err := tx.Exec(ctx, `UPDATE agent_runs SET usage=CASE WHEN jsonb_typeof(usage)='object' THEN usage ELSE '{}'::jsonb END || $2::jsonb
 			WHERE run_token=$1`, token, usageJSON); err != nil {
-			return err
+			return false, err
 		}
 	}
-	if err := audit(ctx, tx, "ploegd:reconciliation", "llm.reconciled", &id, map[string]any{"spend": roundedSpend, "delta": delta, "evidence": evidence}); err != nil {
-		return err
+	detail := map[string]any{"spend": roundedSpend, "delta": delta, "evidence": evidence, "costKnown": st.CostKnown || (correction && known)}
+	if correction {
+		detail["adjustment"] = true
 	}
-	return tx.Commit(ctx)
+	if err := audit(ctx, tx, "ploegd:reconciliation", "llm.reconciled", &id, detail); err != nil {
+		return false, err
+	}
+	return true, tx.Commit(ctx)
 }
 
 func validSpend(v float64) bool { return v >= 0 && !math.IsNaN(v) && !math.IsInf(v, 0) }
