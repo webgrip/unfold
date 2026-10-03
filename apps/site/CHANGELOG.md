@@ -1,3 +1,21 @@
+## [unfold-site-v0.1.0-rc.9](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v0.1.0-rc.8...unfold-site-v0.1.0-rc.9) (2026-10-03)
+
+### Added
+
+* **site:** deploy candidates to staging.unfoldhq.dev and manage the zone as code ([f6c5e9e](https://forgejo.webgrip.dev/webgrip/unfold/commit/f6c5e9e5900a190644b1afdf4f18a50df9287417))
+* **site:** give Unfold an expressive folded-paper identity ([5a16666](https://forgejo.webgrip.dev/webgrip/unfold/commit/5a166663a931f34d6892be843f9275b75b2b6232))
+* **site:** redesign Unfold around inspectable agent work ([5e75e71](https://forgejo.webgrip.dev/webgrip/unfold/commit/5e75e7195f6b637d4463e76c140b8a9cf9d852c3))
+* **site:** serve the site on unfoldhq.dev ([8a3915b](https://forgejo.webgrip.dev/webgrip/unfold/commit/8a3915b474e4a85a738c479417c306d5a83cd8d0))
+
+### Docs
+
+* **site:** preserve design research and reusable product-site skill ([0d3e30d](https://forgejo.webgrip.dev/webgrip/unfold/commit/0d3e30d5d3260cd54b14f75a6a6f102a9ea79cee))
+
+### Internal
+
+* **site:** re-record the demo replay with complete Now waiting lists ([f29fb23](https://forgejo.webgrip.dev/webgrip/unfold/commit/f29fb236f9389cfc5e13928b16a49d6ae2764159))
+* **site:** re-record the demo replay with the truthful completion message ([26b8d85](https://forgejo.webgrip.dev/webgrip/unfold/commit/26b8d85f15dd09149013301ce6a9ebdae77d90c7))
+
 ## [unfold-site-v0.1.0-rc.8](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v0.1.0-rc.7...unfold-site-v0.1.0-rc.8) (2026-10-03)
 
 ### Added
