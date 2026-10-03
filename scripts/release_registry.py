@@ -13,6 +13,8 @@ from pathlib import Path
 
 class SafeRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if req.get_method() not in ('GET', 'HEAD'):
+            raise urllib.error.HTTPError(req.full_url, code, f'{req.get_method()} redirected to {newurl}; call the new address', headers, fp)
         redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
         if urllib.parse.urlsplit(req.full_url).netloc != urllib.parse.urlsplit(newurl).netloc:
             redirected.remove_header('Authorization')
@@ -156,7 +158,7 @@ def copy_chart(source, target, repository, version):
 def verify_image(registry, repository, version, revision):
     raw = registry.manifest(repository, version)
     index = json.loads(raw)
-    source = 'https://github.com/webgrip/glide'
+    source = 'https://github.com/webgrip/unfold'
     require_same(index.get('annotations', {}).get('org.opencontainers.image.source'), source, 'index source')
     platforms = set()
     for descriptor in index.get('manifests', []):

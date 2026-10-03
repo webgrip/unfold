@@ -13,8 +13,8 @@ from release_registry import Registry, command, copy_chart, copy_image, digest, 
 
 
 ROOT = Path(__file__).resolve().parent.parent
-FORGEJO = 'https://forgejo.webgrip.dev/api/v1/repos/webgrip/glide'
-GITHUB = 'https://api.github.com/repos/webgrip/glide'
+FORGEJO = 'https://forgejo.webgrip.dev/api/v1/repos/webgrip/unfold'
+GITHUB = 'https://api.github.com/repos/webgrip/unfold'
 # on_release_published.yml runs Ploeg's publisher after Vloer's; only the last
 # one may leave the draft, because an immutable release takes no more assets.
 PUBLISHES_LAST = 'ploeg'
@@ -26,7 +26,7 @@ def api(url, token, method='GET', data=None, missing=False):
 
 
 def git(*args, env=None, input=None):
-    return command('git', *args, env=env, input=input)
+    return command('git', *args, env={**(env or os.environ), 'GIT_TERMINAL_PROMPT': '0'}, input=input)
 
 
 def release_tag(application, version):
@@ -75,7 +75,7 @@ def export_module(tag, version, token):
 def link_package(name, token):
     packages = api(f'https://forgejo.webgrip.dev/api/v1/packages/webgrip?type=container&q={urllib.parse.quote(name)}&limit=50', token) or []
     linked = {(package.get('repository') or {}).get('full_name') for package in packages if package['name'] == name}
-    if linked == {'webgrip/glide'}:
+    if linked == {'webgrip/unfold'}:
         return
     path = f'https://forgejo.webgrip.dev/api/v1/packages/webgrip/container/{urllib.parse.quote(name, safe="")}/-'
     try:
@@ -123,7 +123,7 @@ def fetch_github_asset(asset, token, draft):
 
 
 def mirror_release(tag, source, forge_token, github_token, publish=True):
-    remote = git('ls-remote', 'https://github.com/webgrip/glide.git', f'refs/tags/{tag}', f'refs/tags/{tag}^{{}}')
+    remote = git('ls-remote', 'https://github.com/webgrip/unfold.git', f'refs/tags/{tag}', f'refs/tags/{tag}^{{}}')
     refs = dict((line.split()[1], line.split()[0]) for line in remote.splitlines())
     actual = refs.get(f'refs/tags/{tag}^{{}}', refs.get(f'refs/tags/{tag}'))
     require_same(actual, git('rev-parse', f'{tag}^{{commit}}'), 'GitHub Unfold release source')
@@ -164,7 +164,7 @@ def publish(application, version):
     targets = [Registry('forgejo.webgrip.dev', 'webgrip-ci', forge_token), Registry('ghcr.io', os.environ['GHCR_USERNAME'], github_token)]
     images = ['de-vloer', 'de-vloer-agent'] if application == 'vloer' else ['ploegd']
     chart = 'de-vloer' if application == 'vloer' else 'ploeg'
-    evidence = {'schema_version': 1, 'tag': tag, 'source': 'https://github.com/webgrip/glide', 'revision': revision, 'images': [], 'charts': []}
+    evidence = {'schema_version': 1, 'tag': tag, 'source': 'https://github.com/webgrip/unfold', 'revision': revision, 'images': [], 'charts': []}
     for target in targets:
         for name in images:
             reference = copy_image(source, target, f'webgrip/{name}', version, revision)

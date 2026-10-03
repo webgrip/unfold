@@ -25,7 +25,7 @@ def mirrored_refs(remote):
 
 source = mirrored_refs('origin')
 require_same(source['refs/heads/development'], git('rev-parse', 'HEAD'), 'Forgejo trunk')
-mirror = mirrored_refs('https://github.com/webgrip/glide.git')
+mirror = mirrored_refs('https://github.com/webgrip/unfold.git')
 stale = sorted(ref for ref in source.keys() | mirror.keys() if source.get(ref) != mirror.get(ref))
 if stale:
     raise RuntimeError('GitHub mirror differs from Forgejo at ' + ', '.join(stale))
@@ -43,7 +43,7 @@ data, _ = request(url, headers={'Authorization': 'Bearer ' + os.environ['ACTIONS
 jwt = json.loads(data)['value']
 payload = jwt.split('.')[1]
 claims = json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)))
-require_same(claims['repository'], 'webgrip/glide', 'signing identity')
+require_same(claims['repository'], 'webgrip/unfold', 'signing identity')
 data, _ = request('http://openbao.security.svc.cluster.local:8200/v1/auth/forgejo/login', method='POST', data=json.dumps({'jwt': jwt, 'role': 'cosign-signer'}).encode(), headers={'Content-Type': 'application/json'})
 session = json.loads(data)['auth']
 if 'cosign-signer' not in session['policies']:
