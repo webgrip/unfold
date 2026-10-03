@@ -52,6 +52,7 @@ func Run(t *testing.T, fx Fixture) {
 	t.Run("CancelKillsTheHarness", fx.cancelKillsTheHarness)
 	t.Run("ReadingRunFindingsSurviveTheAdapter", fx.readingRunFindingsSurviveTheAdapter)
 	t.Run("WritingRunProblemAndSolutionSurviveTheAdapter", fx.writingRunProblemAndSolutionSurviveTheAdapter)
+	t.Run("WritingRunAccountSurvivesGarbageOnStdout", fx.writingRunAccountSurvivesGarbageOnStdout)
 }
 
 // adapter lifts whichever constructor the fixture supplied to harness.Adapter,
@@ -287,6 +288,42 @@ exit 0`)
 	}
 	if got.Outcome == work.OutcomePROpened || got.Outcome == work.OutcomePRUpdated {
 		t.Errorf("an outcome-less drop box was read as %q — adapters never assert forge state", got.Outcome)
+	}
+}
+
+// writingRunAccountSurvivesGarbageOnStdout: the drop box and stdout are
+// independent channels. A writer that followed its instructions to the letter
+// (problem and solution, nothing else) keeps its account when stdout is
+// unreadable, and the garbage does not become an outcome.
+func (fx Fixture) writingRunAccountSurvivesGarbageOnStdout(t *testing.T) {
+	const (
+		wantProblem  = "Refunds over **€500** fail with a 500."
+		wantSolution = "`refund.go` checks the limit before the call."
+	)
+	body, err := json.Marshal(map[string]string{"problem": wantProblem, "solution": wantSolution})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := script(t, `[ -n "$PLOEG_OUTCOME_FILE" ] || { echo "PLOEG_OUTCOME_FILE unset" >&2; exit 3; }
+cat >"$PLOEG_OUTCOME_FILE" <<'JSON'
+`+string(body)+`
+JSON
+echo "not json {{{"; echo '{"type":"result","total_cost_usd":'
+exit 0`)
+
+	got, err := fx.adapter(t, bin).Run(context.Background(), spec(), env(t))
+	if err != nil {
+		t.Logf("run returned %v (garbage may be a protocol error; the account must survive anyway)", err)
+	}
+	if got.Problem != wantProblem || got.Solution != wantSolution {
+		t.Errorf("garbage on stdout cost the writer its account:\n got problem %q solution %q\nwant problem %q solution %q",
+			got.Problem, got.Solution, wantProblem, wantSolution)
+	}
+	if got.Outcome == work.OutcomePROpened || got.Outcome == work.OutcomePRUpdated {
+		t.Errorf("garbage on stdout was read as %q — adapters never assert forge state", got.Outcome)
+	}
+	if got.Verdict != "" {
+		t.Errorf("a writer's drop box gained verdict %q", got.Verdict)
 	}
 }
 

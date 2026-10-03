@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/webgrip/ploeg/pkg/harness"
+	"github.com/webgrip/ploeg/pkg/harness/adapters/claudecode"
 	"github.com/webgrip/ploeg/pkg/harness/adapters/openhands"
 	"github.com/webgrip/ploeg/pkg/llmbroker"
 	"github.com/webgrip/ploeg/pkg/work"
@@ -446,6 +447,37 @@ func TestRunAgent_StaticBrokerNoKeyStillRuns(t *testing.T) {
 		fakeAgentAdapter(t, 0), testTaskSpec(), runEnv(t), llmbroker.MintRequest{RunToken: "abc123def456ff"}, 0, "")
 	if mintErr != nil || runErr != nil {
 		t.Fatalf("mintErr=%v runErr=%v", mintErr, runErr)
+	}
+}
+
+func TestRunAgent_ClaudeWriterAccountReachesTheNewPullRequestReport(t *testing.T) {
+	const (
+		problem  = "Refunds over €500 fail with a 500."
+		solution = "`refund.go` checks the limit before the call."
+		prURL    = "http://forge/o/r/pulls/8"
+	)
+	bin := filepath.Join(t.TempDir(), "claude")
+	script := "#!/bin/sh\n" +
+		`printf '%s\n' '{"problem":"` + problem + `","solution":"` + solution + `"}' > "$PLOEG_OUTCOME_FILE"` + "\n" +
+		`printf '%s\n' 'Claude Code banner' '{"type":"result","total_cost_usd":'` + "\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	report, mintErr, runErr := runAgent(context.Background(), discardLog(), &recordingBroker{key: "sk-test"},
+		harness.RunCommand(claudecode.New(bin, "")), testTaskSpec(), runEnv(t), llmbroker.MintRequest{RunToken: "abc123def456ff"}, 0, "")
+	if mintErr != nil || runErr != nil {
+		t.Fatalf("mintErr=%v runErr=%v", mintErr, runErr)
+	}
+
+	final := resolveOutcome("claude-code", report, runErr, nil, prURL, false, "Refund limit", "agent/vik-1", nil, true, true)
+	if final.Outcome != work.OutcomePROpened || len(final.Links) != 1 || final.Links[0] != prURL {
+		t.Fatalf("the observed pull request was not the outcome: %+v", final)
+	}
+	if final.Problem != problem || final.Solution != solution {
+		t.Errorf("final report problem %q solution %q, want the writer's account", final.Problem, final.Solution)
+	}
+	if final.Usage != nil {
+		t.Errorf("usage = %+v, want unknown: the envelope was unreadable", final.Usage)
 	}
 }
 
