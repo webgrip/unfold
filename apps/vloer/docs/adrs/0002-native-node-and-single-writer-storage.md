@@ -25,3 +25,5 @@ The development toolchain pins TypeScript and Node types for a separate strict t
 SQLite durability is not high availability. Do not run multiple replicas against a shared file or use a Kubernetes rollout that briefly creates two application writers. Back up and restore the database as a coherent SQLite snapshot, and retain workspace evidence separately.
 
 Reconsider PostgreSQL and distributed coordination together when a measured workload requires multiple control-plane writers, or an availability objective cannot tolerate one server. Reconsider a UI framework when repeated interaction complexity exceeds the maintenance cost of the current native modules. Record evidence rather than choosing infrastructure solely for anticipated scale.
+
+2026-10-03: [ADR 0036](0036-the-agent-host-speaks-websocket-through-ws.md) amends this decision. The production npm dependency set is `ws` only, so starting the server from a checkout needs `npm ci`. Browser modules still have no build step and no npm dependency.

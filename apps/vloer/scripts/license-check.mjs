@@ -66,6 +66,18 @@ for (const [doc, target] of [['README.md', '](LICENSE)'], ['README.md', 'docs/br
   if (!read(doc)?.includes(target)) failures.push(`${doc} no longer links ${target}`);
 }
 
+const permittedRuntimeLicences = new Set(['MIT', 'ISC', 'BSD-2-Clause', 'BSD-3-Clause', 'Apache-2.0']);
+const runtimeDependencies = Object.entries(JSON.parse(read('package.json') ?? '{}').dependencies ?? {});
+for (const [name, version] of runtimeDependencies) {
+  if (!notice?.includes(`${name} ${version}`)) failures.push(`NOTICE does not name the runtime dependency ${name} ${version} that the image ships`);
+  const installed = read(`node_modules/${name}/package.json`);
+  if (!installed) continue;
+  const metadata = JSON.parse(installed);
+  if (metadata.version !== version) failures.push(`node_modules/${name} is ${metadata.version} but package.json pins ${version}; run npm ci`);
+  if (!permittedRuntimeLicences.has(metadata.license)) failures.push(`runtime dependency ${name} is licensed "${metadata.license}", which is not one of ${[...permittedRuntimeLicences].join(', ')}`);
+  if (!read(`node_modules/${name}/LICENSE`)) failures.push(`runtime dependency ${name} ships no LICENSE file, so its licence text would not travel in the image`);
+}
+if (runtimeDependencies.length && !(read('Dockerfile') ?? '').includes('npm ci --omit=dev')) failures.push('Dockerfile does not install the runtime dependencies with npm ci --omit=dev, so the image would ship without them');
 
 const reuseToml = read('REUSE.toml');
 if (!reuseToml) failures.push('REUSE.toml is missing; per-file licensing would stop being declared');
@@ -82,5 +94,5 @@ if (failures.length) {
   process.stderr.write('License consistency\n' + failures.map(line => `  ${line}`).join('\n') + '\nFAIL — see docs/adrs/0022-apache-2-0-is-the-estate-licence.md\n');
   process.exitCode = 1;
 } else {
-  process.stdout.write(`License consistency: ${expected}, copyright line present, 2 manifests, 2 image labels and the bundled extension copy agree; Archivo ships with its OFL text and a served route${vendoredThree ? `; three.js ${vendoredThree} ships with its MIT text, a NOTICE line, a REUSE annotation and a served route` : ""}.\n`);
+  process.stdout.write(`License consistency: ${expected}, copyright line present, 2 manifests, 2 image labels and the bundled extension copy agree; Archivo ships with its OFL text and a served route; runtime dependencies (${runtimeDependencies.map(([name, version]) => `${name} ${version}`).join(', ') || 'none'}) carry a permitted licence and a NOTICE line${vendoredThree ? `; three.js ${vendoredThree} ships with its MIT text, a NOTICE line, a REUSE annotation and a served route` : ""}.\n`);
 }

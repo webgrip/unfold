@@ -43,3 +43,7 @@ The decision stands, but its premise that VS Code "can attach" has never been ex
 One new conformance gap: 1.140 archives chats and marks sessions done with `session/isArchivedChanged` and `chat/isArchivedChanged`. The host broadcasts only `session/isReadChanged` and rejects the others, so a Vloer session cannot be filed as Done from the Agents window. The host should broadcast both now and persist them with PV-048. Read from the code; not yet exercised against a desktop client.
 
 The host must not advertise `_meta["vscode.remoteSessions"]` until a delegated session can only become a proposed Work Item that waits for a person. VS Code agents can delegate work to any host that advertises it, and through this host that would otherwise create budgeted work without Ploeg's authorization.
+
+## Update, 2026-10-03
+
+The WebSocket server is no longer dependency-free. [ADR 0036](0036-the-agent-host-speaks-websocket-through-ws.md) replaces the hand-written framing with `ws`, after local probes showed it read frames RFC 6455 requires a server to reject and ignored write backpressure. The host's connection interface and its token check on the upgrade are unchanged.

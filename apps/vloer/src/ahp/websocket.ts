@@ -1,106 +1,89 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
+import { WebSocket, WebSocketServer, type ServerOptions } from 'ws';
 
-const guid = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
-const maxMessageBytes = 16 * 1024 * 1024;
+/** The largest message, in bytes, a peer may send. A larger message closes the connection with 1009. */
+export const maxMessageBytes = 16 * 1024 * 1024;
+/** The outbound bytes a peer may leave unread before the next send disconnects it. */
+export const maxBufferedBytes = 16 * 1024 * 1024;
 
-export function acceptKey(key: string): string { return createHash('sha1').update(key + guid).digest('base64'); }
+const clientKey = /^[+/0-9A-Za-z]{22}==$/;
+const maxCloseReasonBytes = 123;
+const closingHandshakeMs = 1000;
+
+export type WebSocketOptions = { maxBufferedBytes?: number };
 
 export function isWebSocketUpgrade(req: IncomingMessage): boolean {
-  return req.method === 'GET' && (req.headers.upgrade ?? '').toLowerCase() === 'websocket' && typeof req.headers['sec-websocket-key'] === 'string' && req.headers['sec-websocket-version'] === '13';
+  const key = req.headers['sec-websocket-key'];
+  return req.method === 'GET' && (req.headers.upgrade ?? '').toLowerCase() === 'websocket' && typeof key === 'string' && clientKey.test(key) && req.headers['sec-websocket-version'] === '13';
 }
 
-function frame(opcode: number, payload: Buffer): Buffer {
-  const length = payload.length;
-  let header: Buffer;
-  if (length < 126) { header = Buffer.alloc(2); header[1] = length; }
-  else if (length < 65536) { header = Buffer.alloc(4); header[1] = 126; header.writeUInt16BE(length, 2); }
-  else { header = Buffer.alloc(10); header[1] = 127; header.writeBigUInt64BE(BigInt(length), 2); }
-  header[0] = 0x80 | opcode;
-  return Buffer.concat([header, payload]);
+function closeReason(reason: string): string {
+  let text = reason.slice(0, 120);
+  while (Buffer.byteLength(text, 'utf8') > maxCloseReasonBytes) text = text.slice(0, -1);
+  return text;
 }
 
+/** One accepted WebSocket. Emits `message` (text), `binary` (Buffer), `error` and, once, `close`. */
 export class WebSocketConnection extends EventEmitter {
-  readonly socket: Duplex;
-  private buffer = Buffer.alloc(0);
-  private fragments: Buffer[] = [];
-  private fragmentOpcode = 0;
+  private socket?: WebSocket;
+  private readonly bufferLimit: number;
   private closed = false;
 
-  constructor(socket: Duplex, head: Buffer = Buffer.alloc(0)) {
+  constructor(options: WebSocketOptions = {}) {
     super();
-    this.socket = socket;
-    socket.on('data', chunk => this.receive(chunk));
-    socket.on('close', () => this.finish());
-    socket.on('error', error => { this.emit('error', error); this.finish(); });
-    socket.on('end', () => this.finish());
-    if (head.length) this.receive(head);
+    this.bufferLimit = options.maxBufferedBytes ?? maxBufferedBytes;
   }
 
-  get open(): boolean { return !this.closed; }
+  attach(socket: WebSocket): void {
+    this.socket = socket;
+    socket.on('message', (data: Buffer, isBinary: boolean) => {
+      if (isBinary) this.emit('binary', data);
+      else this.emit('message', data.toString('utf8'));
+    });
+    socket.on('error', error => this.emit('error', error));
+    socket.on('close', () => this.finish());
+  }
+
+  get open(): boolean { return !this.closed && this.socket?.readyState === WebSocket.OPEN; }
 
   send(text: string): void {
-    if (this.closed) return;
-    this.socket.write(frame(0x1, Buffer.from(text, 'utf8')));
+    if (!this.open || !this.socket) return;
+    if (this.socket.bufferedAmount > this.bufferLimit) {
+      this.emit('error', new Error(`Peer left more than ${this.bufferLimit} bytes unread`));
+      this.socket.terminate();
+      this.finish();
+      return;
+    }
+    this.socket.send(text);
   }
 
   close(code = 1000, reason = ''): void {
     if (this.closed) return;
-    const body = Buffer.concat([Buffer.from([code >> 8, code & 0xff]), Buffer.from(reason.slice(0, 120), 'utf8')]);
-    try { this.socket.write(frame(0x8, body)); } catch {}
-    this.socket.end();
-    setTimeout(() => this.socket.destroy(), 1000).unref();
+    if (this.socket?.readyState === WebSocket.OPEN) this.socket.close(code, closeReason(reason));
+    else this.socket?.terminate();
     this.finish();
   }
 
-  private finish(): void {
+  finish(): void {
     if (this.closed) return;
     this.closed = true;
     this.emit('close');
   }
-
-  private receive(chunk: Buffer): void {
-    this.buffer = Buffer.concat([this.buffer, chunk]);
-    while (this.buffer.length >= 2) {
-      const first = this.buffer[0];
-      const second = this.buffer[1];
-      const fin = (first & 0x80) !== 0;
-      const opcode = first & 0x0f;
-      const masked = (second & 0x80) !== 0;
-      let length = second & 0x7f;
-      let offset = 2;
-      if (length === 126) { if (this.buffer.length < 4) return; length = this.buffer.readUInt16BE(2); offset = 4; }
-      else if (length === 127) { if (this.buffer.length < 10) return; const big = this.buffer.readBigUInt64BE(2); if (big > BigInt(maxMessageBytes)) { this.close(1009, 'Message too large'); return; } length = Number(big); offset = 10; }
-      if (!masked) { this.close(1002, 'Client frames must be masked'); return; }
-      if (this.buffer.length < offset + 4 + length) return;
-      const mask = this.buffer.subarray(offset, offset + 4);
-      const payload = Buffer.from(this.buffer.subarray(offset + 4, offset + 4 + length));
-      for (let index = 0; index < payload.length; index++) payload[index] ^= mask[index % 4];
-      this.buffer = this.buffer.subarray(offset + 4 + length);
-      if (opcode === 0x8) { this.close(1000); return; }
-      if (opcode === 0x9) { if (!this.closed) this.socket.write(frame(0xA, payload)); continue; }
-      if (opcode === 0xA) continue;
-      if (opcode === 0x0) { this.fragments.push(payload); }
-      else if (opcode === 0x1 || opcode === 0x2) { this.fragments = [payload]; this.fragmentOpcode = opcode; }
-      else { this.close(1002, 'Unsupported opcode'); return; }
-      const total = this.fragments.reduce((sum, part) => sum + part.length, 0);
-      if (total > maxMessageBytes) { this.close(1009, 'Message too large'); return; }
-      if (fin) {
-        const message = Buffer.concat(this.fragments);
-        this.fragments = [];
-        if (this.fragmentOpcode === 0x1) this.emit('message', message.toString('utf8'));
-        else this.emit('binary', message);
-      }
-    }
-  }
 }
 
-export function upgradeToWebSocket(req: IncomingMessage, socket: Duplex, head: Buffer): WebSocketConnection {
-  const key = String(req.headers['sec-websocket-key']);
-  socket.write(['HTTP/1.1 101 Switching Protocols', 'Upgrade: websocket', 'Connection: Upgrade', `Sec-WebSocket-Accept: ${acceptKey(key)}`, '', ''].join('\r\n'));
-  return new WebSocketConnection(socket, head);
+const serverOptions = { noServer: true, clientTracking: false, perMessageDeflate: false, maxPayload: maxMessageBytes, closeTimeout: closingHandshakeMs, handleProtocols: () => false as const } satisfies ServerOptions & { closeTimeout: number };
+const server = new WebSocketServer(serverOptions);
+
+/** Completes an upgrade the caller has already authorized. A handshake that cannot complete yields a connection that closes on the next tick. */
+export function upgradeToWebSocket(req: IncomingMessage, socket: Duplex, head: Buffer, options: WebSocketOptions = {}): WebSocketConnection {
+  const connection = new WebSocketConnection(options);
+  let accepted = false;
+  server.handleUpgrade(req, socket, head, accept => { accepted = true; connection.attach(accept); });
+  if (!accepted) process.nextTick(() => connection.finish());
+  return connection;
 }
 
 export function rejectUpgrade(socket: Duplex, status: number, message: string): void {

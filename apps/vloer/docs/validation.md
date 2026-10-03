@@ -78,7 +78,7 @@ A live pilot adds one registered repository, one authenticated operator, a worki
 
 ## Known limits of the evidence
 
-Zero npm runtime dependencies does not mean zero external dependencies: live work needs Git, the selected harness and tools required by the target repository; Kubernetes and LiteLLM are separately operated services. A clean TypeScript check does not prove runtime protocol compatibility. A read-only prompt is not a filesystem sandbox. A completed run is not a reviewed merge or a deployment.
+One npm runtime dependency (`ws`) does not mean one external dependency: live work needs Git, the selected harness and tools required by the target repository; Kubernetes and LiteLLM are separately operated services. A clean TypeScript check does not prove runtime protocol compatibility. A read-only prompt is not a filesystem sandbox. A completed run is not a reviewed merge or a deployment.
 
 ## Reproduce browser qualification
 
