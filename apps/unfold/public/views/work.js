@@ -86,7 +86,7 @@ function shellOptions(current) {
   const actions = workRefreshButton(current);
   if (!current.detailId) return { title, subtitle, actions };
   const item = current.detail?.item;
-  return { title, subtitle, actions, documentTitle: item ? tabTitle(item) : undefined, back: { label: laneBackLabel(current.lanePending ? 'all' : current.lane), href: current.listHref }, breadcrumbs: [{ label: 'Ploeg' }, { label: 'Work', href: current.listHref }, { label: item ? workItemRef(item) : `#${current.detailId}` }] };
+  return { title, subtitle, actions, documentTitle: item ? tabTitle(item) : undefined, back: { label: laneBackLabel(current.lanePending ? 'all' : current.lane), href: current.listHref }, breadcrumbs: [{ label: 'Work', href: current.listHref }, { label: item ? workItemRef(item) : `#${current.detailId}` }] };
 }
 
 function focusTarget() {

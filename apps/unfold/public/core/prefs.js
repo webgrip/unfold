@@ -7,7 +7,7 @@ export const prefDefaults = Object.freeze({ theme: 'system', density: 'comfortab
 const choices = { theme: ['system', 'light', 'dark'], density: ['comfortable', 'compact'], format: ['nl', 'browser'], cardMotion: ['auto', 'full', 'calm', 'off'] };
 
 /** The browser theme colour for each theme: the colour of the top bar. */
-export const themeColors = Object.freeze({ light: '#FFFFFF', dark: '#15191C' });
+export const themeColors = Object.freeze({ light: '#FFFFFF', dark: '#141A1D' });
 
 /** Whether `value` is allowed for the preference `key`. */
 export function validPref(key, value) {

@@ -1,36 +1,36 @@
 :root {
   color-scheme: light dark;
 
-  --vlak: #15191C;
-  --peil: #3D84E8;
-  --peil-diep: #2A66D6;
-  --peil-donker: #1F51AC;
-  --krijt: #F3F5F4;
-  --hal: #0F1416;
-  --stof: #5C6A6B;
-  --stof-licht: #8B9A9A;
+  --vouw: #141A1D;
+  --baken: #D23A4E;
+  --baken-nacht: #D65162;
+  --vel: #F4F6F2;
+  --zwerk: #111619;
+  --grafiet: #5E6B66;
+  --grafiet-licht: #8C9A94;
+  --brand-fold: light-dark(var(--baken), var(--baken-nacht));
 
-  --bg-canvas: light-dark(var(--krijt), var(--hal));
-  --bg-surface: light-dark(oklch(100% 0 0), var(--vlak));
+  --bg-canvas: light-dark(var(--vel), var(--zwerk));
+  --bg-surface: light-dark(oklch(100% 0 0), var(--vouw));
   --bg-surface-subtle: light-dark(oklch(99.3% 0.002 197), oklch(24.4% 0.009 234));
-  --bg-sunken: light-dark(var(--krijt), var(--hal));
+  --bg-sunken: light-dark(var(--vel), var(--zwerk));
   --bg-raised: light-dark(oklch(100% 0 0), oklch(24.4% 0.009 234));
   --bg-overlay: light-dark(oklch(100% 0 0), oklch(27.5% 0.011 226));
-  --bg-inverse: light-dark(var(--vlak), oklch(33% 0.012 222));
+  --bg-inverse: light-dark(var(--vouw), oklch(33% 0.012 222));
   --bg-hover: light-dark(oklch(22% 0.02 230 / 0.05), oklch(96% 0.01 220 / 0.06));
   --bg-active: light-dark(oklch(22% 0.02 230 / 0.09), oklch(96% 0.01 220 / 0.10));
-  --bg-selected: light-dark(oklch(95.5% 0.028 259), oklch(28.5% 0.055 259));
-  --bg-selected-hover: light-dark(oklch(93.5% 0.042 259), oklch(31% 0.070 259));
+  --bg-selected: light-dark(oklch(94.5% 0.008 150), oklch(30% 0.012 220));
+  --bg-selected-hover: light-dark(oklch(92.5% 0.010 150), oklch(33% 0.014 220));
   --bg-backdrop: light-dark(oklch(21% 0.02 240 / 0.38), oklch(8% 0.01 240 / 0.62));
   --bg-skeleton: light-dark(oklch(22% 0.02 230 / 0.07), oklch(96% 0.01 220 / 0.08));
   --bg-skeleton-shine: light-dark(oklch(22% 0.02 230 / 0.03), oklch(96% 0.01 220 / 0.13));
   --bg-track: light-dark(oklch(22% 0.02 230 / 0.09), oklch(96% 0.01 220 / 0.10));
 
-  --text: light-dark(var(--vlak), var(--krijt));
+  --text: light-dark(var(--vouw), var(--vel));
   --text-muted: light-dark(oklch(42% 0.016 220), oklch(80% 0.014 205));
-  --text-subtle: light-dark(var(--stof), oklch(72% 0.016 200));
+  --text-subtle: light-dark(var(--grafiet), oklch(72% 0.016 200));
   --text-disabled: light-dark(oklch(72% 0.012 210), oklch(50% 0.012 210));
-  --text-inverse: var(--krijt);
+  --text-inverse: var(--vel);
   --text-inverse-muted: oklch(77.9% 0.014 205);
   --text-on-solid: oklch(100% 0 0);
 
@@ -40,21 +40,23 @@
   --border-control: light-dark(oklch(77.5% 0.013 216), oklch(46.1% 0.017 213));
   --border-control-strong: light-dark(oklch(63.9% 0.016 207), oklch(58.1% 0.018 202));
 
-  --accent-fg: light-dark(var(--peil-diep), oklch(80% 0.10 257));
-  --accent-fg-strong: light-dark(var(--peil-donker), oklch(86% 0.07 257));
-  --accent-solid: var(--peil-diep);
-  --accent-solid-hover: var(--peil-donker);
-  --accent-solid-active: oklch(40% 0.14 261);
-  --accent-graphic: light-dark(var(--peil), oklch(70% 0.15 257));
+  --accent-fg: light-dark(#C0303F, oklch(72% 0.12 18));
+  --accent-fg-strong: light-dark(oklch(45% 0.15 20), oklch(80% 0.09 18));
+  --accent-solid: light-dark(var(--vouw), var(--vel));
+  --accent-solid-hover: light-dark(oklch(32% 0.012 220), oklch(88% 0.008 150));
+  --accent-solid-active: light-dark(oklch(12% 0.01 220), oklch(82% 0.008 150));
+  --accent-on-solid: light-dark(var(--vel), var(--vouw));
+  --accent-emphasis: light-dark(#C0303F, oklch(58% 0.16 20));
+  --accent-graphic: var(--brand-fold);
   --accent-bg: var(--bg-selected);
   --accent-bg-hover: var(--bg-selected-hover);
-  --accent-border: light-dark(oklch(86% 0.07 259), oklch(42% 0.10 259));
+  --accent-border: light-dark(oklch(80% 0.08 18), oklch(48% 0.10 18));
 
   --neutral-bg: light-dark(oklch(22% 0.02 230 / 0.07), oklch(96% 0.01 220 / 0.08));
   --neutral-bg-hover: light-dark(oklch(22% 0.02 230 / 0.10), oklch(96% 0.01 220 / 0.12));
   --neutral-border: light-dark(oklch(88.4% 0.008 217), oklch(37.9% 0.015 224));
   --neutral-fg: var(--text-muted);
-  --neutral-solid: light-dark(oklch(63.9% 0.016 207), var(--stof-licht));
+  --neutral-solid: light-dark(oklch(63.9% 0.016 207), var(--grafiet-licht));
   --neutral-emphasis: oklch(45% 0.016 215);
 
   --success-bg: light-dark(oklch(96.2% 0.031 155), oklch(27% 0.039 155));
@@ -101,7 +103,7 @@
   --live-solid: light-dark(oklch(63% 0.108 205), oklch(64.7% 0.094 205));
   --live-emphasis: oklch(55.1% 0.094 205);
 
-  --focus-ring: light-dark(var(--peil), oklch(70% 0.15 257));
+  --focus-ring: light-dark(var(--baken), oklch(72% 0.12 18));
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
   --focus-ring-inset: -2px;

@@ -13,7 +13,7 @@
     }
     var saved = JSON.parse(window.localStorage.getItem('unfold.prefs') || '{}') || {};
     var root = document.documentElement;
-    var colors = { light: '#FFFFFF', dark: '#15191C' };
+    var colors = { light: '#FFFFFF', dark: '#141A1D' };
     if (saved.theme === 'light' || saved.theme === 'dark') {
       root.setAttribute('data-theme', saved.theme);
       var metas = document.querySelectorAll('meta[name="theme-color"]');

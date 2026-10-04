@@ -131,7 +131,7 @@ function renderPacks() {
   const [title, subtitle] = titles[view.page];
   const content = view.page === 'odds' ? oddsPage() : view.page === 'pack' ? openedPage() : shelf();
   const actions = view.page === 'shelf' ? button({ label: 'Odds', href: '#packs/odds', size: 'sm', variant: 'ghost' }) : button({ label: 'Packs', href: '#packs', size: 'sm', variant: 'ghost', icon: 'pack' });
-  renderHtml(shell(`<div class="packs-page" data-page="${view.page}">${content}</div>`, { title, subtitle, actions, wide: view.page !== 'odds', breadcrumbs: view.page === 'shelf' ? undefined : [{ label: 'Cards' }, { label: 'Packs', href: '#packs' }, { label: title }] }));
+  renderHtml(shell(`<div class="packs-page" data-page="${view.page}">${content}</div>`, { title, subtitle, actions, wide: view.page !== 'odds', breadcrumbs: view.page === 'shelf' ? undefined : [{ label: 'Your cards' }, { label: 'Packs', href: '#packs' }, { label: title }] }));
   if (view.page === 'pack' && view.opened) drawSummaryThumbs(view.opened);
   if (view.page === 'shelf') void startStage();
 }

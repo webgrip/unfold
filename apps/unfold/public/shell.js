@@ -14,28 +14,24 @@ const mark = markSvg({ className: 'app-mark' });
 
 const groups = [
   { id: 'home', items: [{ id: 'now', href: '#now', glyph: 'inbox', label: 'Now', count: 'waiting', describe: n => `${n} waiting on you`, tone: 'attention' }] },
-  { id: 'ploeg', label: 'Ploeg', items: [
+  { id: 'work', items: [
     { id: 'work', href: '#work', glyph: 'work', label: 'Work' },
     { id: 'proposed', href: '#proposed', glyph: 'proposed', label: 'Proposed', count: 'proposed', describe: n => `${n} proposed`, tone: 'neutral' },
+    { id: 'tasks', href: '#tasks', glyph: 'tasks', label: 'Tasks' },
+  ] },
+  { id: 'follow', items: [
     { id: 'runs', href: '#runs', glyph: 'runs', label: 'Runs' },
     { id: 'activity', href: '#activity', glyph: 'activity', label: 'Activity' },
     { id: 'insights', href: '#insights', glyph: 'insights', label: 'Insights' },
-  ] },
-  { id: 'workbench', label: 'Workbench', items: [
-    { id: 'tasks', href: '#tasks', glyph: 'tasks', label: 'Tasks' },
     { id: 'sessions', href: '#sessions', glyph: 'sessions', label: 'Sessions', count: 'sessions', describe: n => `${n} ${n === 1 ? 'needs' : 'need'} you`, tone: 'attention', when: () => showsSessions() },
-  ] },
-  { id: 'cards', label: 'Cards', items: [
-    { id: 'binder', href: '#binder', glyph: 'cards', label: 'Binder' },
-    { id: 'packs', href: '#packs', glyph: 'pack', label: 'Packs' },
-    { id: 'season', href: '#season', glyph: 'calendar', label: 'Season' },
   ] },
   { id: 'settings', items: [{ id: 'settings', href: '#settings/preferences', glyph: 'settings', label: 'Settings' }] },
 ];
+const cardPages = [['binder', '#binder', 'cards', 'Binder'], ['packs', '#packs', 'pack', 'Packs'], ['season', '#season', 'calendar', 'Season']];
 const quick = ['now', 'work', 'runs'];
 const settingsPages = [['preferences', '#settings/preferences', 'Preferences'], ['system', '#settings/environment', 'Environment'], ['account', '#settings/accounts', 'Linked accounts'], ['editors', '#settings/editors', 'Signed-in editors'], ['card-identity', '#settings/cards', 'Card logins'], ['designer', '#settings/card-designer', 'Card designer']];
 const areas = { session: 'sessions', account: 'settings', system: 'settings', preferences: 'settings', design: 'settings', 'card-identity': 'settings', designer: 'settings', editors: 'settings', 'editor-sign-in': 'settings' };
-const groupOf = { work: 'Ploeg', proposed: 'Ploeg', runs: 'Ploeg', activity: 'Ploeg', insights: 'Ploeg', tasks: 'Workbench', sessions: 'Workbench', binder: 'Cards', packs: 'Cards', season: 'Cards', settings: 'Settings' };
+const groupOf = { binder: 'Your cards', packs: 'Your cards', season: 'Your cards', settings: 'Settings' };
 const themes = [['system', 'monitor', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']];
 const ploegStates = {
   demo: ['neutral', 'Ploeg: demo data', 'Illustrative Ploeg records. No Run executes and no model is called.'],
@@ -134,7 +130,7 @@ function themeSwitch() {
 
 function accountItems() {
   const demo = state.bootstrap.mode === 'demo';
-  return `${themeSwitch()}<a class="app-menu-item" href="#settings/preferences">${icon('settings')}<span>Preferences</span></a><button class="app-menu-item" type="button" data-action="shortcuts-open">${icon('keyboard')}<span>Keyboard shortcuts</span>${singleKeysEnabled() ? '<kbd class="app-kbd">?</kbd>' : ''}</button>${demo ? '' : `<button class="app-menu-item" type="button" data-action="logout">${icon('logout')}<span>Sign out</span></button>`}`;
+  return `${themeSwitch()}<p class="app-menu-heading">Your cards</p>${cardPages.map(([, href, glyph, label]) => `<a class="app-menu-item" href="${href}">${icon(glyph)}<span>${label}</span></a>`).join('')}<hr class="app-menu-rule"><a class="app-menu-item" href="#settings/preferences">${icon('settings')}<span>Preferences</span></a><button class="app-menu-item" type="button" data-action="shortcuts-open">${icon('keyboard')}<span>Keyboard shortcuts</span>${singleKeysEnabled() ? '<kbd class="app-kbd">?</kbd>' : ''}</button>${demo ? '' : `<button class="app-menu-item" type="button" data-action="logout">${icon('logout')}<span>Sign out</span></button>`}`;
 }
 
 function userAvatar(size) {

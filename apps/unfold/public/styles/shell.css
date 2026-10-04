@@ -29,8 +29,12 @@
   color-scheme: dark;
 }
 
-.brand-mark-v {
-  stroke: var(--peil);
+.brand-ink {
+  fill: currentColor;
+}
+
+.brand-fold {
+  fill: var(--brand-fold);
 }
 
 .boot {
@@ -169,7 +173,7 @@
   height: 100dvh;
   padding: 14px 12px 12px;
   overflow-y: auto;
-  background: var(--hal);
+  background: var(--zwerk);
   color: var(--shell-text);
   border-right: 1px solid var(--shell-border-subtle);
 }
@@ -180,7 +184,7 @@
   min-height: 40px;
   padding: 8px 10px;
   border-radius: 8px;
-  color: var(--krijt);
+  color: var(--vel);
   text-decoration: none;
 }
 
@@ -729,6 +733,22 @@
   height: 14px;
 }
 
+.app-menu-heading {
+  margin: 0;
+  padding: var(--space-2) 8px var(--space-1);
+  color: var(--shell-text-muted, var(--text-muted));
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.app-menu-rule {
+  margin: var(--space-1) 0;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
 .app-menu-item {
   display: flex;
   align-items: center;
@@ -880,7 +900,7 @@
   padding: 0;
   border: 0;
   border-radius: 0 16px 16px 0;
-  background: var(--hal);
+  background: var(--zwerk);
   color: var(--shell-text);
   box-shadow: var(--shell-shadow);
   font-family: var(--shell-font);
@@ -980,7 +1000,7 @@
   min-height: 0;
   margin: 2px 0 0;
   padding: 0;
-  accent-color: var(--peil-diep);
+  accent-color: var(--accent-solid);
 }
 
 .shortcuts-toggle strong,
@@ -1169,7 +1189,7 @@
     padding: 4px 8px;
     border-radius: 6px;
     background: var(--bg-inverse);
-    color: var(--krijt);
+    color: var(--vel);
     font-size: 12px;
     white-space: nowrap;
     content: attr(data-tip);

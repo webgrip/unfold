@@ -17,7 +17,7 @@ wondering whether a patent claim is coming.
 Two things this does not cover:
 
 - **The name and the mark.** Section 6 grants no rights in trade names or marks, deliberately.
-  [docs/brand/TRADEMARK.md](docs/brand/TRADEMARK.md) states what you may do with them.
+  [docs/brand/TRADEMARK.md](../../docs/brand/TRADEMARK.md) at the repository root states what you may do with them.
 - **Code you do not have the right to license.** Do not paste in work owned by an employer or
   another project unless its licence permits it and you say which licence and where it came from.
 
@@ -34,7 +34,7 @@ npm run typecheck
 npm test
 npm run check
 npm run design:check
-npm run brand:check
+npm run icons:check
 npm run license:check
 helm lint ops/helm/unfold
 ```

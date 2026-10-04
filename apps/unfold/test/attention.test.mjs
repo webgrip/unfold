@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createAttention, newlyWaiting, notificationFor, summaryNotification, spellKey, waitingRows, notifiedKey } from '../public/core/attention.js';
@@ -132,20 +133,22 @@ function recordingContext() {
 }
 
 test('the favicon is the mark from favicon.svg, with a dot cut out of its corner when something waits', () => {
-  const colors = { vee: 'rgb(61, 132, 232)', ground: 'rgb(21, 25, 28)', dot: 'oklch(0.645 0.136 75)' };
+  const colors = { ink: 'rgb(20, 26, 29)', fold: 'rgb(210, 58, 78)', dot: 'oklch(0.645 0.136 75)' };
+  const path = data => ({ data });
+  const svg = readFileSync(new URL('../public/favicon.svg', import.meta.url), 'utf8');
+  assert.deepEqual([...svg.matchAll(/<path d="([^"]+)"/g)].map(match => match[1]), [faviconShape.ink, faviconShape.fold], 'the canvas draws the same paths as favicon.svg');
   const plain = recordingContext();
-  drawFavicon(plain.context, colors, false);
-  assert(plain.calls.some(([name, value]) => name === '=strokeStyle' && value === colors.vee));
-  assert(plain.calls.some(([name, ...args]) => name === 'fillRect' && args.join() === faviconShape.ground.join()));
+  drawFavicon(plain.context, colors, false, path);
+  assert.deepEqual(plain.calls.filter(([name]) => name === '=fillStyle' || name === 'fill').map(([name, value]) => name === 'fill' ? value.data : value), [colors.ink, faviconShape.ink, colors.fold, faviconShape.fold]);
   assert(!plain.calls.some(([name]) => name === 'arc'));
   const dotted = recordingContext();
-  drawFavicon(dotted.context, colors, true);
+  drawFavicon(dotted.context, colors, true, path);
   const arcs = dotted.calls.filter(([name]) => name === 'arc').map(([, x, y, radius]) => [x, y, radius]);
   assert.deepEqual(arcs, [[48, 16, 18], [48, 16, 15]]);
   assert(faviconShape.dot.radius * 2 >= faviconShape.size * 0.45, 'the dot is nearly half the icon wide, so it reads at 16 pixels');
   assert.deepEqual(dotted.calls.filter(([name]) => name === '=globalCompositeOperation').map(([, value]) => value), ['source-over', 'destination-out', 'source-over']);
   assert(dotted.calls.some(([name, value]) => name === '=fillStyle' && value === colors.dot));
-  assert.deepEqual(faviconTokens, { vee: '--peil', groundLight: '--vlak', groundDark: '--krijt', dot: '--attention-signal', dotFallback: '--attention-solid' });
+  assert.deepEqual(faviconTokens, { inkLight: '--vouw', inkDark: '--vel', fold: '--brand-fold', dot: '--attention-signal', dotFallback: '--attention-solid' });
 });
 
 test('the favicon switch points the icon links at a PNG with the dot and puts the originals back', () => {
@@ -159,7 +162,8 @@ test('the favicon switch points the icon links at a PNG with the dot and puts th
     links: () => links,
     dark: () => dark,
     color: (token, fallback) => `color(${token}${fallback ? `, ${fallback}` : ''})`,
-    canvas: () => { canvases++; const { context, calls } = recordingContext(); return { getContext: () => context, toDataURL: type => { grounds.push(calls.find(([name, value]) => name === '=fillStyle' && value.includes('--vlak') || name === '=fillStyle' && value.includes('--krijt'))[1]); dots.push(calls.filter(([name]) => name === '=fillStyle').at(-1)[1]); return `data:${type};base64,${canvases}`; } }; },
+    path: data => ({ data }),
+    canvas: () => { canvases++; const { context, calls } = recordingContext(); return { getContext: () => context, toDataURL: type => { grounds.push(calls.find(([name]) => name === '=fillStyle')[1]); dots.push(calls.filter(([name]) => name === '=fillStyle').at(-1)[1]); return `data:${type};base64,${canvases}`; } }; },
   });
   favicon.show(false);
   assert.equal(links[0].writes, 0, 'nothing changes while the dot stays hidden');
@@ -171,7 +175,7 @@ test('the favicon switch points the icon links at a PNG with the dot and puts th
   dark = true;
   favicon.refresh();
   assert.equal(canvases, 2);
-  assert.deepEqual(grounds, ['color(--vlak)', 'color(--krijt)'], 'the ground follows the browser scheme like the SVG favicon');
+  assert.deepEqual(grounds, ['color(--vouw)', 'color(--vel)'], 'the ink wing follows the browser scheme like the SVG favicon');
   assert.deepEqual(dots, ['color(--attention-signal, --attention-solid)', 'color(--attention-signal, --attention-solid)'], 'the dot is the high-chroma signal, with the solid attention tone as fallback');
   favicon.show(false);
   assert.deepEqual(links.map(item => item.attrs), [{ href: '/favicon.svg', type: 'image/svg+xml' }, { href: '/favicon.ico', sizes: '48x48' }]);

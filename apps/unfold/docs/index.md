@@ -40,7 +40,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Monorepo and runner proposal](../../../docs/migration-proposal.md)
 - [Documentation maintenance](../../../docs/documentation.md)
 - [Model gateway capabilities](product/model-gateway-capabilities.md)
-- [Brand identity](brand/README.md), [trademark policy](brand/TRADEMARK.md) and [profile copy](brand/social-profile-copy.md)
+- [Brand identity](../../../docs/brand/README.md) and [trademark policy](../../../docs/brand/TRADEMARK.md), shared with the rest of Unfold
 
 ## Evidence and planning
 

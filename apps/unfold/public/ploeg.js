@@ -8,6 +8,8 @@ import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph }
 import { grafanaTeam, runExplorer } from './core/observability.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
 import { traceMarkup } from './core/attribution.js';
+import { workStages } from './core/stages.js';
+import { deliveryStages, stageTime } from './core/delivery-track.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -1036,13 +1038,72 @@ function technicalMarkup(detail) {
     ['Attempts', `${escape(item.attempts ?? '—')} agent · ${escape(item.infraFailures ?? '—')} infrastructure`],
     ['Next eligible', item.nextEligibleAt ? ui.timeAt(item.nextEligibleAt) : null],
     ['Lease', item.lease ? `renewed ${ui.timeAt(item.lease.renewedAt)} · expires ${ui.timeAt(item.lease.expiresAt)}` : null],
-    ['Shift', shift ? `<span class="mono">${escape(shift.id)}</span>${shift.closeReason ? ` · <span class="mono">${escape(shift.closeReason)}</span>` : ''}` : null],
+    ['Shift (attempt)', shift ? `<span class="mono">${escape(shift.id)}</span>${shift.closeReason ? ` · <span class="mono">${escape(shift.closeReason)}</span>` : ''}` : null],
     ['Checkpoints', detail.checkpoints?.length ? `<span class="num">${escape(detail.checkpoints.length)}</span> <span class="subtle">(listed in Activity)</span>` : null],
     ['Created', ui.timeAt(item.createdAt)],
     ['Updated', ui.timeAt(item.updatedAt)],
     ['Read from Ploeg', detail.fetchedAt ? ui.timeAt(detail.fetchedAt) : null],
   ];
-  return ui.disclosure({ summary: 'Technical details', id: `work-tech-${item.id}`, body: ui.dl(pairs, { rows: true }) });
+  return ui.disclosure({ summary: 'Execution details', id: `work-tech-${item.id}`, body: ui.dl(pairs, { rows: true }) });
+}
+
+const stageWords = { done: 'done', current: 'current stage', stopped: 'stopped', ahead: 'not reached', skipped: 'nothing to deliver' };
+
+function stageFact(id, status, detail, card) {
+  const item = detail.item;
+  const totals = card?.totals || {};
+  const play = Array.isArray(card?.plays) ? card.plays.at(-1) : null;
+  if (id === 'define') return `${trackerName(item.provider) || 'Task'} ${item.externalId || item.id}`.trim();
+  if (id === 'execute') {
+    const attempts = amount(totals.shifts) ? totals.shifts : detail.shifts?.length || (latestShift(detail) ? 1 : 0);
+    const runs = amount(totals.runs) ? totals.runs : detail.runs.length;
+    if (!runs && status !== 'done') return status === 'current' ? 'Waiting for a Run' : '';
+    return [attempts ? `Attempt ${attempts}` : '', runs ? plural(runs, 'Run') : '', amount(totals.costUsd) ? money(totals.costUsd) : ''].filter(Boolean).join(' · ');
+  }
+  if (id === 'review') return play ? `PR #${play.number}${play.ci?.state ? ` · ${(stateMetaShort(play.ci.state))}` : ''}` : status === 'done' ? 'No pull request' : '';
+  if (status === 'skipped') return 'No change to deliver';
+  if (card?.release?.source === 'deploy') return `Live in ${card.release.environment}`;
+  const deployed = (play?.deployments || card?.deployments || []).filter(entry => entry?.environment).at(-1);
+  if (deployed) return `In ${deployed.environment}`;
+  return play?.state === 'merged' ? 'Merged · no deploy reported' : '';
+}
+
+function stateMetaShort(ci) {
+  return ({ success: 'checks passed', failure: 'checks failed', error: 'checks errored', pending: 'checks running' })[ci] || 'checks not reported';
+}
+
+/**
+ * The head of a Work Item page: its four stages, Define, Execute, Review and Deliver, as one ordered list. The stage
+ * the work is in carries `aria-current="step"`; a stopped stage says why. Facts come from Ploeg's records and the Run
+ * card only; a stage without one shows none.
+ */
+export function stagesMarkup(detail, model) {
+  const card = model.card && String(model.card.workItemId) === detail.item.id ? model.card : null;
+  const result = workStages(detail.item, card);
+  const why = result.stopped ? workItemState(result.stopped).label : '';
+  const items = result.stages.map(stage => {
+    const fact = stageFact(stage.id, stage.status, detail, card);
+    const word = stage.status === 'stopped' && why ? `stopped: ${why}` : stageWords[stage.status];
+    return `<li class="work-stage" data-status="${stage.status}"${stage.status === 'current' || stage.status === 'stopped' ? ' aria-current="step"' : ''}><span class="work-stage-label">${escape(stage.label)}<span class="sr-only">, ${escape(word)}</span></span>${stage.status === 'stopped' && why ? `<span class="work-stage-why">${escape(why)}</span>` : ''}${fact ? `<span class="work-stage-fact">${escape(fact)}</span>` : ''}</li>`;
+  }).join('');
+  return `<ol class="work-stages" aria-label="Where this Work Item stands">${items}</ol>`;
+}
+
+/**
+ * The delivery track below the decision: the pull request, its checks, a person's approval, the merge and every
+ * environment the change reached, from the Run card. Empty until there is a pull request. When Ploeg sends no
+ * deploy facts it says so, instead of implying the change was never deployed.
+ */
+export function deliveryMarkup(detail, model) {
+  const card = model.card && String(model.card.workItemId) === detail.item.id ? model.card : null;
+  const track = deliveryStages(card);
+  if (!track.stages.length) return '';
+  const steps = track.stages.map(stage => {
+    const time = stageTime(stage);
+    return `<li class="work-delivery-step" data-status="${stage.status}"${stage.status === 'current' ? ' aria-current="step"' : ''}><span class="work-delivery-label">${escape(stage.label)}</span><span class="work-delivery-detail">${escape(stage.detail)}</span>${time ? `<span class="work-delivery-time num">${escape(time)}</span>` : ''}</li>`;
+  }).join('');
+  const note = track.known ? '' : '<p class="meta">This Ploeg does not report deploys, so environments are not shown.</p>';
+  return `<section class="card work-delivery" aria-labelledby="work-delivery-title"><h3 id="work-delivery-title">Delivery</h3><ol class="work-delivery-track">${steps}</ol>${note}</section>`;
 }
 
 function sessionsMarkup(detail, sessions) {
@@ -1108,11 +1169,13 @@ export function detailMarkup(detail, model) {
   else decision = statusBox(detail, model);
   const parts = [
     headerMarkup(detail, model, reason),
+    stagesMarkup(detail, model),
     model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : '',
     cancelResultMarkup(model),
     card,
     accountMarkup(detail),
     decision,
+    deliveryMarkup(detail, model),
     model.trace && model.trace.workItemId === item.id ? traceMarkup(model.trace, { now: model.now, busy: model.traceBusy, result: model.traceResult }) : '',
     sessionsMarkup(detail, model.sessions),
     briefMarkup(detail, model),

@@ -22,7 +22,7 @@ for (const [scope, name, variants] of [
 }
 
 const groups = [
-  { name: 'unfold', inputs: ['apps/unfold', 'docs'], gates: ['typecheck', 'test', 'check', 'design:check', 'brand:check', 'license:check', 'backlog -- check'].map(unfold) },
+  { name: 'unfold', inputs: ['apps/unfold', 'docs'], gates: ['typecheck', 'test', 'check', 'design:check', 'icons:check', 'license:check', 'backlog -- check'].map(unfold) },
   { name: 'unfold-extension', inputs: ['apps/unfold'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(unfold) },
   {
     name: 'ploeg',
@@ -33,7 +33,7 @@ const groups = [
       gate('apps/ploeg', 'go', ['build', '-o', devNull, resolve(root, 'apps/unfold/scripts/unified-demo/main.go')]),
     ],
   },
-  { name: 'brand', inputs: ['scripts/build-brand.mjs', 'docs/brand', 'apps/site/src/brand', 'apps/site/src/styles/brand.css', 'README.md'], gates: [gate('.', process.execPath, ['scripts/build-brand.mjs', '--check'])] },
+  { name: 'brand', inputs: ['scripts/build-brand.mjs', 'docs/brand', 'apps/site/src/brand', 'apps/site/src/styles/brand.css', 'README.md', 'apps/unfold/public/core/brand.js', 'apps/unfold/public/favicon.svg', 'apps/unfold/public/index.html'], gates: [gate('.', process.execPath, ['scripts/build-brand.mjs', '--check'])] },
   { name: 'site', inputs: ['apps/site', 'apps/unfold/public', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/scripts/record-replay.ts', 'apps/unfold/package.json'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
   { name: 'site-demo', inputs: ['apps/site', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/package.json'], gates: [gate('apps/site', 'node', ['scripts/demo-timeline.ts', '--check'])] },
   { name: 'helm', inputs: ['apps/unfold/ops/helm'], gates: helm },

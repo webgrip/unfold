@@ -4,7 +4,7 @@ Date: 2026-09-11. Status: accepted for 0.3.0; the policy and its CI check ship w
 
 ## Context
 
-De Vloer now has a visual identity in [docs/brand/](../brand/README.md): a mark, a wordmark,
+De Vloer now has a visual identity in [docs/brand/](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/87b2088ff8500498eb4eace340b3fc72535904a3/apps/vloer/docs/brand/README.md): a mark, a wordmark,
 lockups, colour tokens and a generator that writes them. The repository is
 [Apache-2.0](../../LICENSE), which answers copyright for source. A mark raises a second question
 the code licence does not: may a fork ship under the De Vloer name and mark, and may a vendor
@@ -38,7 +38,7 @@ identical is worth more than a locally clever variation.
 ## Decision
 
 "De Vloer" and the mark are reserved as trademarks under a usage policy at
-[docs/brand/TRADEMARK.md](../brand/TRADEMARK.md). The artwork files stay under the repository's
+[docs/brand/TRADEMARK.md](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/87b2088ff8500498eb4eace340b3fc72535904a3/apps/vloer/docs/brand/TRADEMARK.md). The artwork files stay under the repository's
 existing Apache-2.0, with no second licence file beside them.
 
 The policy grants, without asking: reproduction of the unmodified mark to refer to the project,
@@ -47,7 +47,7 @@ Vloer. It withholds, pending written permission: shipping a modified or forked d
 under the name or mark, implying endorsement or affiliation, adopting the name or a confusingly
 similar one as your own, and altering the mark.
 
-[scripts/brand-marks.sh](../../scripts/brand-marks.sh) confirms the decision in CI: it fails if
+[scripts/brand-marks.sh](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/87b2088ff8500498eb4eace340b3fc72535904a3/apps/vloer/scripts/brand-marks.sh) confirms the decision in CI: it fails if
 the policy goes missing, if a second copyright answer appears beside the assets, or if the
 policy stops being reachable from the repository's front door.
 

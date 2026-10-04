@@ -76,7 +76,7 @@
   --tone-border: var(--accent-border);
   --tone-fg: var(--accent-fg-strong);
   --tone-solid: var(--accent-graphic);
-  --tone-emphasis: var(--accent-solid);
+  --tone-emphasis: var(--accent-emphasis);
 }
 
 .overline {
@@ -262,7 +262,7 @@
 .button.primary {
   background: var(--accent-solid);
   border-color: transparent;
-  color: var(--text-on-solid);
+  color: var(--accent-on-solid);
   box-shadow: var(--shadow-xs), inset 0 1px 0 oklch(100% 0 0 / 0.12);
 }
 
@@ -919,13 +919,13 @@
   }
 }
 
-.peil-line {
+.loading-line {
   position: relative;
   height: var(--border-width-strong);
   overflow: hidden;
 }
 
-.peil-line::after {
+.loading-line::after {
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
@@ -934,13 +934,13 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .peil-line::after {
-    animation: peil-slide 1.2s var(--ease-standard) infinite;
+  .loading-line::after {
+    animation: loading-slide 1.2s var(--ease-standard) infinite;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .peil-line::after {
+  .loading-line::after {
     width: 100%;
     opacity: 0.5;
   }
@@ -2619,7 +2619,7 @@ a.round-cell:hover {
   }
 }
 
-@keyframes peil-slide {
+@keyframes loading-slide {
   from {
     translate: -100% 0;
   }

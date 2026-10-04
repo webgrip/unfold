@@ -73,6 +73,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0022](../../apps/unfold/docs/adrs/0022-apache-2-0-is-the-estate-licence.md) | Apache-2.0 is a decision here, not an inheritance | 2026-09-11 | — |
 | Unfold | [0036](../../apps/unfold/docs/adrs/0036-the-agent-host-speaks-websocket-through-ws.md) | The agent host speaks WebSocket through `ws` | 2026-10-03 | — |
 | Unfold | [0037](../../apps/unfold/docs/adrs/0037-an-editor-signs-in-only-after-its-person-approves-it-and-gets-its-own-credential.md) | An editor signs in only after its person approves it, and gets its own credential | 2026-10-03 | — |
+| Unfold | [0038](../../apps/unfold/docs/adrs/0038-the-application-shows-unfold-and-is-organised-around-work.md) | The application shows Unfold, and is organised around work | 2026-10-04 | — |
 
 ## Proposed
 
