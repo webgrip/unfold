@@ -12,7 +12,7 @@ nav:
   - Start here: index.md
   - Try it:
       - Both applications (demo): workflows/local-demo.md
-      - Vloer alone (demo): vloer/operations/demo.md
+      - Unfold without Ploeg (demo): unfold/operations/demo.md
   - Understand:
       - How work flows: concepts/how-work-flows.md
       - Architecture: concepts/architecture.md
@@ -28,7 +28,7 @@ nav:
       - Operate Ploeg:
           - Overview: ploeg/index.md
           - Runbooks: ploeg/how-to/index.md
-      - Operate Vloer: vloer/index.md
+      - Operate Unfold: unfold/index.md
       - Set up shared execution: workflows/managed-execution.md
       - Release and live test: operations/first-cutover.md
   - Reference:

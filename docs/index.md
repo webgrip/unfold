@@ -17,9 +17,9 @@ A unit of work, a **Work Item**, is something you have decided to do, or a probl
 **Parts:**
 
 * [Ploeg](../apps/ploeg/docs/index.md) authorizes, budgets and runs every agent Run. It is a Go controller plus short-lived worker pods.
-* [Vloer](../apps/vloer/docs/index.md) is its front end, where you follow and steer work, in the browser or in VS Code.
+* [The Unfold application](../apps/unfold/docs/index.md) is the front end, where you follow and steer work, in the browser or in VS Code.
 
-Vloer lives in this repository. Ploeg lives at [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg), and Unfold pins one tested commit of it as a submodule at `apps/ploeg` ([ADR-0019](adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)). The two deploy separately ([ADR-0002](adr/adr-0002-ploeg-is-the-only-engine.md)).
+The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg), and Unfold pins one tested commit of it as a submodule at `apps/ploeg` ([ADR-0019](adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)). The two deploy separately ([ADR-0002](adr/adr-0002-ploeg-is-the-only-engine.md)).
 
 | I want to… | Go to |
 | --- | --- |
@@ -34,7 +34,7 @@ Vloer lives in this repository. Ploeg lives at [github.com/ploeg-hq/ploeg](https
 | Check an agent's pull request before merging | [Review an agent pull request](how-to/review-an-agent-pr.md) |
 | Let agents work in a repository | [Prepare a repository](how-to/prepare-a-repository.md) |
 | Try a Team on ten real Work Items, or compare prompts, models and harnesses | [Run a pilot batch](how-to/run-a-pilot-batch.md) |
-| Operate Ploeg or Vloer | [Ploeg](../apps/ploeg/docs/index.md) · [Vloer](../apps/vloer/docs/index.md) |
+| Operate Ploeg or the Unfold application | [Ploeg](../apps/ploeg/docs/index.md) · [Unfold application](../apps/unfold/docs/index.md) |
 | Use the Unfold name, mark or colours | [Brand](brand/README.md) · [Trademark policy](brand/TRADEMARK.md) (proposed) |
 | Check what the website claims about credentials and execution, and which settings each claim needs | [Capability matrix](reference/capability-matrix.md) |
 | Look up a term or a decision | [Glossary](reference/glossary.md) · [Decisions](reference/decisions.md) |

@@ -3,7 +3,7 @@ type: how-to
 audience: [owner]
 owner: unfold
 last_verified: 2026-09-23
-verified_by: "node --test scripts/eval/eval.test.mjs; mise run evaluate; read apps/vloer/public/ploeg.js, apps/ploeg/pkg/shiftengine/{engine,reviewloop}.go and the assign and review how-tos on 2026-09-23. On 2026-09-30 the Vloer page names and where each recorded value appears were re-read against apps/vloer at 68c90cf on feat/vloer-redesign (public/shell.js, public/ploeg.js)"
+verified_by: "node --test scripts/eval/eval.test.mjs; mise run evaluate; read apps/unfold/public/ploeg.js, apps/ploeg/pkg/shiftengine/{engine,reviewloop}.go and the assign and review how-tos on 2026-09-23. On 2026-09-30 the Unfold page names and where each recorded value appears were re-read against apps/unfold at 68c90cf on feat/unfold-redesign (public/shell.js, public/ploeg.js)"
 ---
 
 # Run a pilot batch
@@ -12,7 +12,7 @@ Use this to put ten real Work Items through Unfold and write down what happened.
 
 Terms: a **Work Item** is Ploeg's copy of a ticket. A **Shift** is one Team's whole attempt at it, run in **Rounds**, and a **Run** is one Role working once. **Ready** means the ticket states something you have decided to do, or describes a problem well enough that a solution can be conceived. See the [glossary](../reference/glossary.md#ready).
 
-**Before you start:** assigning a ticket already works end to end ([assign work to an agent](assign-work-to-an-agent.md)), the target repositories are [prepared](prepare-a-repository.md), and you can find the Work Items awaiting your review on Vloer's **Now** page ([review an agent pull request](review-an-agent-pr.md)).
+**Before you start:** assigning a ticket already works end to end ([assign work to an agent](assign-work-to-an-agent.md)), the target repositories are [prepared](prepare-a-repository.md), and you can find the Work Items awaiting your review on Unfold's **Now** page ([review an agent pull request](review-an-agent-pr.md)).
 
 ## Pick ten Work Items
 
@@ -58,7 +58,7 @@ Terms: a **Work Item** is Ploeg's copy of a ticket. A **Shift** is one Team's wh
 
 ## Record each item
 
-Record one row per Work Item. Read the values from the Work Item's page in Vloer.
+Record one row per Work Item. Read the values from the Work Item's page in Unfold.
 
 | Field | What to write | Where it comes from |
 | --- | --- | --- |
@@ -145,7 +145,7 @@ A fixture is a directory under [`scripts/eval/fixtures`](../../scripts/eval/fixt
 - `task.md`: the ticket text, written to be Ready;
 - `scripted/oracle.json`, `scripted/tamper-tests.json` and `scripted/no-op.json`: the calibration edits.
 
-The `order-rounding` fixture reuses Vloer's demo repository; `split-bill` carries its own `repo/`. A new fixture is only usable when its oracle passes and its no-op and tamper scripts fail.
+The `order-rounding` fixture reuses Unfold's demo repository; `split-bill` carries its own `repo/`. A new fixture is only usable when its oracle passes and its no-op and tamper scripts fail.
 
 ### Add a variant
 

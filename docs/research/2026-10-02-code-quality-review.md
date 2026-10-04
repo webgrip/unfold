@@ -63,13 +63,13 @@ Fix: refuse to start with an enabled live webhook route and no signing secret; m
 
 ### F03 Editor sign-in hands over a session without approval (P0, high)
 
-The editor sign-in in `apps/vloer/src/http.ts` and `apps/vloer/src/auth.ts` lets an unauthenticated caller start a sign-in, send the URL to someone else and collect that person's workbench session once they sign in. Nothing asks the signed-in person to approve the editor request. This is device-flow phishing, not a bypass of the identity provider.
+The editor sign-in in `apps/unfold/src/http.ts` and `apps/unfold/src/auth.ts` lets an unauthenticated caller start a sign-in, send the URL to someone else and collect that person's workbench session once they sign in. Nothing asks the signed-in person to approve the editor request. This is device-flow phishing, not a bypass of the identity provider.
 
 Fix: after sign-in, show an approval page naming the editor request with a short code to compare, with deny and expiry, and issue a scoped, revocable editor credential instead of the full session cookie. Done when signing in alone never makes a ticket collectable, polling before approval returns pending, and the user can revoke the editor credential.
 
 ### F04 OIDC sign-in not bound to the starting browser (P1, medium)
 
-`apps/vloer/src/oidc.ts` keeps pending OIDC state (PKCE verifier, nonce) in a process-wide map, and the start route sets no browser-binding cookie, so any client holding `code` and `state` can finish the transaction. That allows login CSRF: a victim completes an attacker-started sign-in and works inside the attacker's account.
+`apps/unfold/src/oidc.ts` keeps pending OIDC state (PKCE verifier, nonce) in a process-wide map, and the start route sets no browser-binding cookie, so any client holding `code` and `state` can finish the transaction. That allows login CSRF: a victim completes an attacker-started sign-in and works inside the attacker's account.
 
 Fix: a short-lived Secure, HttpOnly transaction cookie (SameSite=Lax for the callback) whose digest is stored with the pending state and checked before the session is issued. Done when a callback without the binding, with another browser's binding or with an expired one fails, and a normal round trip succeeds.
 
@@ -81,25 +81,25 @@ Fix: read the body through a byte-counting stream with a hard cap before parsing
 
 ### F09 VS Code checkout matches repositories across forges (P1, medium)
 
-`remoteMatches` in `apps/vloer/extensions/vscode/src/git-remotes.ts` reduces a remote URL to its last two path parts and compares `owner/repo` case-insensitively, ignoring the host and any namespace. A same-named repository on another forge matches, and `decodeURIComponent` outside the parse guard throws on malformed encoding.
+`remoteMatches` in `apps/unfold/extensions/vscode/src/git-remotes.ts` reduces a remote URL to its last two path parts and compares `owner/repo` case-insensitively, ignoring the host and any namespace. A same-named repository on another forge matches, and `decodeURIComponent` outside the parse guard throws on malformed encoding.
 
 Fix: compare a canonical identity of forge origin, full namespace and name, with explicit mapping for SSH host aliases, and treat malformed URLs as non-matching. Done when tests cover the same name on different hosts, nested GitLab namespaces, ports, SSH aliases and malformed URLs, and no automatic choice crosses forges.
 
 ### F10 ClickUp client secret in the token URL (P1, medium)
 
-The ClickUp token exchange in `apps/vloer/src/links.ts` puts `client_id`, `client_secret` and `code` in the query string of a bodyless POST. URLs end up in proxy logs, traces and error messages; ClickUp documents these as body parameters.
+The ClickUp token exchange in `apps/unfold/src/links.ts` puts `client_id`, `client_secret` and `code` in the query string of a bodyless POST. URLs end up in proxy logs, traces and error messages; ClickUp documents these as body parameters.
 
 Fix: send them as a JSON or form-encoded body and redact token-exchange fields from diagnostics. Done when an intercepted test request shows no secret or code in the URL.
 
 ### F11 Custom WebSocket accepts invalid frames (P1, medium)
 
-`apps/vloer/src/ahp/websocket.ts` accepted text frames with an RSV bit, invalid UTF-8, a fragmented ping and an orphan continuation frame in local probes, and `send()` ignores `socket.write()` backpressure. Masking and the 16 MiB message limit are enforced, and the route needs authentication.
+`apps/unfold/src/ahp/websocket.ts` accepted text frames with an RSV bit, invalid UTF-8, a fragmented ping and an orphan continuation frame in local probes, and `send()` ignores `socket.write()` backpressure. Masking and the 16 MiB message limit are enforced, and the route needs authentication.
 
 Fix (owner's choice): replace it with the `ws` library behind the existing connection interface, with payload and queue bounds. Done when each invalid frame closes the connection with a protocol error, legal fragmentation and ping/pong work, and a slow peer cannot grow memory without bound.
 
 ### F12 Health probes read every session; replay is unbounded (P1, medium)
 
-`/healthz` and `/readyz` in `apps/vloer/src/http.ts` call `listSessions()`, which reads, parses and restores the secret of every session on the synchronous SQLite API. Event replay in `apps/vloer/src/store.ts` reads all later events with no `LIMIT` before the SSE byte threshold applies.
+`/healthz` and `/readyz` in `apps/unfold/src/http.ts` call `listSessions()`, which reads, parses and restores the secret of every session on the synchronous SQLite API. Event replay in `apps/unfold/src/store.ts` reads all later events with no `LIMIT` before the SSE byte threshold applies.
 
 Fix: liveness becomes a process check and readiness a cheap bounded storage query; session listing and replay get indexed pagination capped by count and bytes. Done when probe cost stays flat as sessions grow and a corrupt old session cannot fail liveness.
 

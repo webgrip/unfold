@@ -2,9 +2,9 @@ project: Unfold
 owner: unfold
 description: >
   Unfold turns units of work (Work Items) into pull requests that are ready for human review.
-  Ploeg authorizes, budgets and executes every agent Run; Vloer is its front end
-  (Unfold ADR-0002). Without Ploeg, Vloer runs only its deterministic demo, which
-  makes no model calls. Until Vloer's own engine is retired, a managed execution
+  Ploeg authorizes, budgets and executes every agent Run; Unfold is its front end
+  (system ADR-0002). Without Ploeg, Unfold runs only its deterministic demo, which
+  makes no model calls. Until Unfold's own engine is retired, a managed execution
   never falls back to it. This model includes intended product rules; it is not a
   feature inventory. Current behavior is documented in ../index.md and the
   application architecture guides. Execution terms such as Run, Shift, Lease,
@@ -14,13 +14,13 @@ description: >
 version: "0.5"
 combined_glossary: ../reference/glossary.md
 references:
-  - label: Unfold ADR-0002
+  - label: system ADR-0002
     path: ../adr/adr-0002-ploeg-is-the-only-engine.md
-    note: Ploeg is the only execution engine and Vloer is its front end.
-  - label: Unfold ADR-0005
+    note: Ploeg is the only execution engine and Unfold is its front end.
+  - label: system ADR-0005
     path: ../adr/adr-0005-unfold-is-offered-to-agencies.md
     note: Unfold is offered to agencies; delivery ends at a reviewed pull request with a preview.
-  - label: Unfold ADR-0006
+  - label: system ADR-0006
     path: ../adr/adr-0006-the-ticket-is-the-billing-unit.md
     note: A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
 imports:
@@ -32,7 +32,7 @@ contexts:
   - name: Work
     description: Requested results, their evidence, and their acceptance.
   - name: Participation
-    description: How people take part in AI work through Vloer and inspect what happened.
+    description: How people take part in AI work through Unfold and inspect what happened.
   - name: Execution
     description: The product view of AI work. Ploeg's model owns the execution vocabulary.
   - name: Offering
@@ -42,12 +42,12 @@ contexts:
   - name: Billing
     description: >
       How work is sized, quoted and charged: Sizes, Quotes, Credits and the two
-      parts of a price. Decided in Unfold ADR-0006; not implemented yet.
+      parts of a price. Decided in system ADR-0006; not implemented yet.
   - name: Cards
     description: >
       Run Cards: the record of each delivered change and its life in
-      production. Ploeg assembles a card per Work Item and Vloer renders it
-      (Ploeg ADR-0046, Vloer ADR 0026); the rest of this context is proposed.
+      production. Ploeg assembles a card per Work Item and Unfold renders it
+      (Ploeg ADR-0046, Unfold ADR 0026); the rest of this context is proposed.
       See ../concepts/run-cards.md.
   - name: Release
     description: How Unfold's own source, releases and documentation are proven and switched over.
@@ -56,31 +56,23 @@ contexts:
 terms:
   - name: Unfold
     context: System
+    owner: unfold
     definition: >
-      The product and the monorepo that holds Vloer and Ploeg. A person creates a
-      work item and assigns it to agents; the agents do the code work until a pull
-      request is ready for a person to review and merge. Vloer and Ploeg remain
-      separately deployable applications.
-    see_also: [Vloer, Ploeg]
-  - name: Vloer
-    context: System
-    owner: vloer
-    definition: >
-      Unfold's front end: the web workbench and VS Code extension where people
-      start work, steer agents live and review evidence. It asks Ploeg to admit
-      and run every Run. Without Ploeg it runs only a deterministic demo that makes
-      no model calls. Dutch for "floor", as in shop floor.
-    synonyms: [De Vloer]
-    examples: ["Current state: Vloer's own engine still executes delegated Steps until the Unfold ADR-0002 migration is complete."]
+      The product, its application and the monorepo that holds them. In the
+      Unfold application, in the browser and the VS Code extension, people
+      define work, follow it, steer agents and review evidence; Ploeg, pinned
+      into the monorepo as a submodule, admits and runs every Run. Without Ploeg
+      the application runs only a deterministic demo that makes no model calls.
+    examples: ["Current state: Unfold's own engine still executes delegated Steps until the system ADR-0002 migration is complete."]
     see_also: [Ploeg, Session, Step]
   - name: Ploeg
     context: System
     owner: ploeg
     definition: >
       Unfold's execution engine and its only Authority. It takes work from trackers
-      and from Vloer, admits it, sets its budget, controls who may write each
+      and from Unfold, admits it, sets its budget, controls who may write each
       branch and runs the agents. Dutch for a crew or shift team.
-    see_also: [Vloer, Admission, Authority, Run, Shift]
+    see_also: [Unfold, Admission, Authority, Run, Shift]
   - name: Ready
     context: Work
     definition: >
@@ -126,9 +118,9 @@ terms:
     see_also: [Result, Acceptance Conditions, Evidence, Verdict]
   - name: Session
     context: Participation
-    owner: vloer
+    owner: unfold
     definition: >
-      Vloer's continuing record of a person's interaction around work:
+      Unfold's continuing record of a person's interaction around work:
       instructions, questions, actions and results. Closing a browser does not
       erase it. A started session is linked to one Ploeg Work Item, Shift and Run.
     not_to_be_confused_with:
@@ -137,35 +129,35 @@ terms:
     see_also: [Work Item, Shift, Crew]
   - name: Crew
     context: Participation
-    owner: vloer
+    owner: unfold
     definition: >
-      Vloer's registered, reusable list of one to eight Roles that a Session
+      Unfold's registered, reusable list of one to eight Roles that a Session
       runs in order. Each Role either writes or only reads, and may name its
       model; the final Role gives the review Verdict. An administrator registers
       crews in configuration and a person picks one when starting a Session. In
       Ploeg's language this is a Team. New text says Team; "Start crew" remains
-      a Vloer interface label.
+      an Unfold interface label.
     not_to_be_confused_with:
       - term: Team
         note: Ploeg's manifest of Roles, budget and concurrency that claims a Work Item. Ploeg avoids "crew".
     see_also: [Team, Role, Session, Step]
   - name: Step
     context: Participation
-    owner: vloer
+    owner: unfold
     definition: >
-      A part of one Run that Vloer performs internally, such as one Crew role in
+      A part of one Run that Unfold performs internally, such as one Crew role in
       a delegated Run. A Step is not a separate Ploeg Run and has no Lease or
       budget of its own.
     avoid: [role run]
     not_to_be_confused_with:
       - term: Run
         note: One Role executing against a Work Item, authorized by Ploeg.
-    see_also: [Run, Crew, Vloer]
+    see_also: [Run, Crew, Unfold]
   - name: Candidate
     context: Participation
-    owner: vloer
+    owner: unfold
     definition: >
-      The reviewable change Vloer captures from a Session's Workspace when its
+      The reviewable change Unfold captures from a Session's Workspace when its
       Crew stops: a Git bundle, a binary patch and a manifest, signed when the
       workbench key is available. It is ready, or unavailable with a reason.
       Capturing it never publishes or merges anything.
@@ -177,7 +169,7 @@ terms:
     see_also: [Session, Workspace, Evidence, Review]
   - name: Placement
     context: Participation
-    owner: vloer
+    owner: unfold
     definition: >
       Where a Session's Workspace runs, chosen per Session from the backends a
       deployment enables: a container on the workbench host (docker), a pod in
@@ -187,7 +179,7 @@ terms:
     see_also: [Session, Workspace]
   - name: Supervision
     context: Participation
-    owner: vloer
+    owner: unfold
     definition: >
       Whether a person is watching a Ploeg-authorized Session live (human) or
       has handed it back to run on its own (background). Switching it changes
@@ -270,14 +262,14 @@ terms:
       validation of the change passes.
   - name: AHP
     context: Tooling
-    owner: vloer
+    owner: unfold
     definition: >
       Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent
-      Host and other clients share agent sessions. Vloer implements an AHP host
+      Host and other clients share agent sessions. Unfold implements an AHP host
       for its VS Code extension. Ploeg ADR-0006 keeps AHP out of Ploeg's harness
       boundary.
     synonyms: [Agent Host Protocol]
-    see_also: [Vloer, Harness]
+    see_also: [Unfold, Harness]
   - name: Acceptance
     context: Work
     definition: >
@@ -364,14 +356,14 @@ terms:
     see_also: [Agency, Client Portal, Client Profile, Quote, Request]
   - name: Client Portal
     context: Offering
-    owner: vloer
+    owner: unfold
     definition: >
-      The part of Vloer where Clients submit Requests, talk to the refinement
+      The part of Unfold where Clients submit Requests, talk to the refinement
       agent, approve Quotes and open Preview Environments through signed links.
       It shows the Agency's price; Unfold's own charge is hidden unless the
       Agency shows it.
     synonyms: [Portal]
-    see_also: [Client, Quote, Vloer]
+    see_also: [Client, Quote, Unfold]
   - name: Client Profile
     context: Offering
     definition: >
@@ -490,7 +482,7 @@ terms:
       The record of one Work Item's change and its life in production: who
       carried it, what its Runs cost, its Plays, review, CI and deployments,
       and, as proposed, its Grade, Rarity, Cracks and Mends. Ploeg assembles it
-      from stored facts and Vloer renders it (Ploeg ADR-0046, Vloer ADR 0026).
+      from stored facts and Unfold renders it (Ploeg ADR-0046, Unfold ADR 0026).
       It describes a change, never a person, and its state never changes what
       Ploeg authorizes, budgets or merges.
     synonyms: [card]
@@ -564,13 +556,13 @@ terms:
     see_also: [Crack, Steward, Grade]
   - name: Finish
     context: Cards
-    owner: vloer
+    owner: unfold
     definition: >
       The visual layer a Run Card earns by staying live in production: matte,
       then foil at 7 days, holo at 30, prism at 90, gilded at 180 and infinity
-      at 365. Vloer counts the days from the first production deploy of the
+      at 365. Unfold counts the days from the first production deploy of the
       latest merged Play, or from the merge when the repository has never
-      reported a production deploy (Ploeg ADR-0047, Vloer ADR 0026).
+      reported a production deploy (Ploeg ADR-0047, Unfold ADR 0026).
     see_also: [Run Card, Grade, Rarity, Skin]
   - name: Grade
     context: Cards
@@ -623,15 +615,23 @@ terms:
     see_also: [Binder, Rarity, Grade]
   - name: Skin
     context: Cards
-    owner: vloer
+    owner: unfold
     definition: >
       The look a Run Card is drawn in, chosen per Work Target in Ploeg's
       cardStyle. A Skin changes appearance and motion, never the facts or
-      where they sit. Built: Vloer Native, the 3D forge Skin, and Holo
+      where they sit. Built: Unfold Native, the 3D forge Skin, and Holo
       Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch.
       Proposed: per-Client themes on top.
     see_also: [Run Card, Work Target, Finish]
 retired_terms:
+  - name: Vloer
+    context: System
+    use: [Unfold]
+    because: >
+      The front end was named Vloer while Ploeg and it were separate products.
+      Once Unfold became the product and the application people use, a second
+      name for the same application only added a part people had to learn
+      (system ADR-0020).
   - name: Workload
     context: Execution
     use: [Work Item]
@@ -685,9 +685,9 @@ rules:
     applies_to: [Work Item, Session]
   - id: R8
     statement: >
-      Ploeg is the Authority for every Run (Unfold ADR-0002). Vloer requests Admission through Ploeg's API and never
-      falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Vloer runs only
-      its deterministic demo, which makes no model calls. Current state — Vloer's standalone mode and its own engine
+      Ploeg is the Authority for every Run (system ADR-0002). Unfold requests Admission through Ploeg's API and never
+      falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Unfold runs only
+      its deterministic demo, which makes no model calls. Current state — Unfold's standalone mode and its own engine
       remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
     rationale: One authority, one budget path and one revocable credential per Run; runner location does not decide who authorizes work.
     applies_to: [Run, Work Item, Session]
@@ -804,7 +804,7 @@ ambiguities:
     recommendation: Decide before Packs are built; until then the period is the team's sprint as its tracker defines it.
   - phrase: a Tenant and a Team
     issue: >
-      Ploeg and Vloer scope access by Team, but a Team is a capability pool and
+      Ploeg and Unfold scope access by Team, but a Team is a capability pool and
       created work can move between Teams. The Tenant definition says
       self-hosted Unfold has none, while the owner wants every install to limit
       users to what they can see.
@@ -814,7 +814,7 @@ ambiguities:
       - One deployment per Tenant, with no Tenant inside the software
     recommendation: >
       A Tenant above Teams, each Team in one Tenant, and a default Tenant in a
-      self-hosted install (Unfold ADR-0017, proposed). The Tenant definition
+      self-hosted install (system ADR-0017, proposed). The Tenant definition
       changes only when that ADR is accepted.
 dialogues:
   - title: Research can stop implementation
@@ -839,9 +839,9 @@ dialogues:
     context: Participation
     lines:
       - speaker: Developer
-        text: My Vloer session ran a planner, an implementer and a reviewer. Is that three Runs?
+        text: My Unfold session ran a planner, an implementer and a reviewer. Is that three Runs?
       - speaker: Platform engineer
-        text: Today it is one delegated Run with three Steps inside Vloer. After the Unfold ADR-0002 migration each Role executes as its own Ploeg Run.
+        text: Today it is one delegated Run with three Steps inside the Unfold application. After the system ADR-0002 migration each Role executes as its own Ploeg Run.
       - speaker: Developer
         text: And the whole attempt, with its branch and budget?
       - speaker: Platform engineer

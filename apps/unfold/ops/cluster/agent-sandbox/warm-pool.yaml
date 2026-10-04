@@ -1,0 +1,119 @@
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxTemplate
+metadata:
+  name: unfold-agent
+  namespace: unfold-workspaces
+spec:
+  podTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: unfold-agent
+        unfold/pool: warm
+    spec:
+      runtimeClassName: kata
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          image: harbor.webgrip.dev/webgrip/unfold-agent:0.4.0-rc.38
+          command: ["node", "/usr/local/lib/unfold/relay-worker.mjs"]
+          workingDir: /workspace
+          env:
+            - name: UNFOLD_POOL_URL
+              value: http://unfold.unfold.svc:4080/api/relay/pool
+            - name: UNFOLD_POOL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: unfold-pool
+                  key: UNFOLD_POOL_TOKEN
+            - name: UNFOLD_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: UNFOLD_RELAY_TARGET
+              value: http://127.0.0.1:4096
+            - name: HOME
+              value: /workspace/.home
+            - name: XDG_DATA_HOME
+              value: /workspace/.state
+            - name: XDG_CONFIG_HOME
+              value: /workspace/.home/.config
+            - name: XDG_CACHE_HOME
+              value: /workspace/.cache
+            - name: TMPDIR
+              value: /workspace/.tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "1"
+              memory: 2Gi
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: workspace
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 8Gi
+  networkPolicyManagement: Managed
+  networkPolicy:
+    egress:
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: unfold
+            podSelector:
+              matchLabels:
+                app.kubernetes.io/name: unfold
+        ports:
+          - protocol: TCP
+            port: 4080
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+        ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+---
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: unfold-warm
+  namespace: unfold-workspaces
+spec:
+  replicas: 2
+  sandboxTemplateRef:
+    name: unfold-agent
+  updateStrategy:
+    type: OnReplenish

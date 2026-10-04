@@ -34,7 +34,7 @@ Unfold's goal is one loop: Work Items go to agents, the agents do all the code w
 
 ## Definitions
 
-Every KPI uses the same window: the Grafana time range, default the last 28 days. Durations are percentiles, because a few stuck items skew an average. All KPIs exclude Work Items owned by a Vloer operator execution (`work_items.operator_owned`), because those are interactive sessions, not the unattended loop. They also exclude pre-Shift Runs (`agent_runs.shift_id IS NULL`); with `PLOEG_SHIFTS_UNIFORM=true`, every new Work Item gets a Shift.
+Every KPI uses the same window: the Grafana time range, default the last 28 days. Durations are percentiles, because a few stuck items skew an average. All KPIs exclude Work Items owned by an Unfold operator execution (`work_items.operator_owned`), because those are interactive sessions, not the unattended loop. They also exclude pre-Shift Runs (`agent_runs.shift_id IS NULL`); with `PLOEG_SHIFTS_UNIFORM=true`, every new Work Item gets a Shift.
 
 Owner: Ryan Grippeling, for every KPI. Review by: 2026-12-23, then quarterly.
 
@@ -92,7 +92,7 @@ Two numbers, both about work that had to be done twice.
 ### K6 Owner review minutes per pull request
 
 * **Formula:** p50 and p85 of the minutes you actively spend on one agent pull request, from opening it to merging or closing it.
-* **Source:** none today. Proposed, not implemented: Vloer's Awaiting review screen records how long a Work Item's review screen is open and focused, and reports the total to Ploeg's operator API as an `audit_log` row (`review.viewed`, detail `{"active_seconds": n}`). That is data ticket D2. Review done only on the forge stays invisible to it.
+* **Source:** none today. Proposed, not implemented: Unfold's Awaiting review screen records how long a Work Item's review screen is open and focused, and reports the total to Ploeg's operator API as an `audit_log` row (`review.viewed`, detail `{"active_seconds": n}`). That is data ticket D2. Review done only on the forge stays invisible to it.
 * **Proxy today:** **review wait**, the time from the `awaiting_review` settle to the `ploegd:review` settle. It measures how long a pull request waits for you, not how long you spend on it. Report it as review wait, never as review effort.
 * **Perceptual check:** once a month, rate from 1 to 5: "Reviewing agent pull requests was a good use of my time." Record it next to the dashboard. This is the one survey measure in the set.
 * **Direction:** lower is better, provided K5 holds. **Frequency:** monthly.
@@ -105,7 +105,7 @@ Two numbers, both about work that had to be done twice.
 | Id | Gap | Proposed change | Unblocks | Status |
 | --- | --- | --- | --- | --- |
 | D1 | Review verdict, reviewer, head SHA and Forgejo pushers are recorded (ADR-0045, ADR-0058); GitLab pushes name no pusher | Read who pushed each GitLab merge request version, for example from the push events of the source branch, and store it in `pull_request_events.actor` | K5 human commits on GitLab | partly done |
-| D2 | Review effort is not recorded | Vloer's review screen reports active seconds per Work Item to Ploeg | K6 | open |
+| D2 | Review effort is not recorded | Unfold's review screen reports active seconds per Work Item to Ploeg | K6 | open |
 | D3 | `audit_log` has no index for these queries | An index on `(work_item_id, at)`, added when the dashboard becomes slow | Dashboard speed | open |
 | D4 | The merge settlement was on another branch | Merge `cfd6ec4` to development | K5, the K6 proxy | **done** |
 

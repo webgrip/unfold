@@ -59,14 +59,14 @@ class ReleaseFloorTests(unittest.TestCase):
     def test_recorded_floors_cover_every_version_published_before_the_audit(self):
         recorded = release_floors.load()
         self.assertTrue((ROOT / recorded['evidence']).is_file())
-        for component in ['ploeg', 'vloer']:
+        for component in ['ploeg', 'unfold']:
             self.assertGreaterEqual(release_floors.compare(recorded['components'][component]['floor'], '0.4.0-rc.34'), 0)
             for published in ['0.4.0-rc.34', '0.4.0-rc.32', '0.4.0-rc.1', '0.3.0-rc.16', '0.2.0']:
                 with self.subTest(component=component, version=published), self.assertRaisesRegex(ValueError, 'at or below its release floor'):
                     release_floors.refuse_occupied(component, published, recorded)
         with self.assertRaisesRegex(ValueError, 'already occupied'):
             release_floors.refuse_occupied('ploeg', '1.0.0-rc.1', recorded)
-        self.assertEqual(recorded['trains']['unfold']['components'], ['vloer'])
+        self.assertEqual(recorded['trains']['unfold']['components'], ['unfold'])
         self.assertIn('github.com/ploeg-hq/ploeg', recorded['components']['ploeg']['retired'])
 
     def test_a_retired_component_keeps_its_floor_but_no_train_may_version_it_again(self):
@@ -75,7 +75,7 @@ class ReleaseFloorTests(unittest.TestCase):
             release_floors.refuse_occupied('ploeg', '0.4.0-rc.34', record)
         with self.assertRaisesRegex(ValueError, 'existing tag unfold-v0.4.0-rc.35'):
             release_floors.refuse_occupied('ploeg', '0.4.0-rc.35', record, ['unfold-v0.4.0-rc.35'])
-        record['trains']['unfold']['components'] = ['ploeg', 'vloer']
+        record['trains']['unfold']['components'] = ['ploeg', 'unfold']
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'floors.json'
             path.write_text(json.dumps(record))
@@ -100,28 +100,28 @@ class PublishersRefuseOccupiedVersions(unittest.TestCase):
                 patch.dict('os.environ', {}, clear=True):
             for version in ['0.4.0-rc.34', '0.4.0-rc.33', '0.4.0-rc.8']:
                 with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'release floor'):
-                    publish_release.publish('vloer', version)
+                    publish_release.publish('unfold', version)
         self.assertEqual(calls, [])
 
     def test_the_chart_publisher_refuses_before_reading_the_chart_or_registry(self):
         with patch.object(publish_chart, 'command', lambda *args, **kwargs: self.fail(f'unexpected command {args}')), \
                 patch.dict('os.environ', {}, clear=True):
             with self.assertRaisesRegex(ValueError, 'release floor'):
-                publish_chart.publish('vloer', '0.4.0-rc.34')
+                publish_chart.publish('unfold', '0.4.0-rc.34')
 
     def test_a_version_above_the_floor_reaches_the_publisher(self):
         def git(*args, **kwargs):
             raise RuntimeError('reached git')
 
         with patch.object(publish_release, 'git', git), self.assertRaisesRegex(RuntimeError, 'reached git'):
-            publish_release.publish('vloer', '0.4.0-rc.36')
+            publish_release.publish('unfold', '0.4.0-rc.36')
 
     def test_publishable_tags_keep_the_unfold_name_and_lie_above_the_floor(self):
-        self.assertEqual(publish_release.publishable_tag('vloer', '0.5.0-rc.1'), 'unfold-v0.5.0-rc.1')
-        with self.assertRaisesRegex(ValueError, 'only Vloer, as 0.x.y-rc.N'):
-            publish_release.publishable_tag('vloer', '1.0.0-rc.1')
+        self.assertEqual(publish_release.publishable_tag('unfold', '0.5.0-rc.1'), 'unfold-v0.5.0-rc.1')
+        with self.assertRaisesRegex(ValueError, 'only Unfold, as 0.x.y-rc.N'):
+            publish_release.publishable_tag('unfold', '1.0.0-rc.1')
         with self.assertRaisesRegex(ValueError, 'release floor 0.4.0-rc.34'):
-            publish_release.publishable_tag('vloer', '0.4.0-rc.34')
+            publish_release.publishable_tag('unfold', '0.4.0-rc.34')
 
 
 class RetiredPloegPublisher(unittest.TestCase):

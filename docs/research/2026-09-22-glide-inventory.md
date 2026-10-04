@@ -24,7 +24,7 @@ Claims were checked against source and executable tests before documentation. Th
 | Ploeg controller (`ploegd`) | Turns tracker webhooks into Work Items, Shifts and Runs. Admits, leases and budgets work. Mints and blocks a LiteLLM key for each Run. | About 14.9k source lines and 13.4k test lines. `go test ./...` passes with 409 tests. It has run on the homelab since July. |
 | Ploeg worker | Claims one Run, obtains a scoped key, runs a harness (OpenHands by default) and reports the outcome. | `apps/ploeg/cmd/ploeg-worker`, `pkg/worker`, `pkg/harness` |
 | Vloer | A Node server with one SQLite file. A person watches and steers an AI crew in the browser or VS Code, and the result is captured as a signed patch and bundle for review. | About 6.5k source lines. 211 tests pass. The core engine was written from 9 to 12 September. |
-| Vloer shared mode | Vloer still executes the whole crew. Ploeg admits it, leases it, holds the budget and records spend. | `apps/vloer/src/engine.ts`, `src/execution-authority.ts` |
+| Vloer shared mode | Vloer still executes the whole crew. Ploeg admits it, leases it, holds the budget and records spend. | `apps/unfold/src/engine.ts`, `src/execution-authority.ts` |
 | Cross-application integration | Both execution modes run against a deterministic fixture with zero model calls. | `scripts/integration.mjs` |
 
 ## Findings

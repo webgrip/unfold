@@ -18,13 +18,13 @@
     "unfold_candidate_sha": null,
     "checks_run_url": null,
     "preview_run_url": null,
-    "old_vloer_tip": null,
+    "old_unfold_tip": null,
     "old_ploeg_tip": null,
     "old_release_authorities_frozen_at": null
   },
   "prerequisites": [],
   "releases": {
-    "vloer": {"status": "not_run", "version": null, "tag": null, "commit": null, "release_url": null, "publisher_run_url": null},
+    "unfold": {"status": "not_run", "version": null, "tag": null, "commit": null, "release_url": null, "publisher_run_url": null},
     "ploeg": {"status": "not_run", "version": null, "tag": null, "commit": null, "export_commit": null, "module_install_evidence": null, "release_url": null, "publisher_run_url": null}
   },
   "artifacts": [],

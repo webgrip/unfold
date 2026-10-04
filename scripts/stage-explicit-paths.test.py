@@ -31,7 +31,7 @@ class Denied(unittest.TestCase):
             'git commit -am "fix: x"',
             'git commit --all',
             'git status && git add . && git commit -m x',
-            'cd apps/vloer; git add -A',
+            'cd apps/unfold; git add -A',
             'git add src/a.ts\ngit add .',
             '/usr/bin/git add -A',
         ]:

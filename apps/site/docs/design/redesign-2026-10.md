@@ -14,7 +14,7 @@ The result uses giant Archivo type, a connected paper dossier, a dark evidence c
 
 The [recorded fixture](../../src/data/demo-timeline.json) supplies the Work Item, rounding change, diff and checks. It records one changed file, zero model calls, zero spend and no merge. The site labels it a deterministic local demonstration. Its duration is not a productivity benchmark and its spend is not a production price.
 
-Ploeg authorizes and coordinates managed work; Vloer is the workbench. The accepted single-engine migration remains incomplete. Ploeg's unattended worker can publish a pull request; Vloer's managed candidate path does not publish one yet. Self-hosted 0.x status is explicit. Hosted access, agency features, preview environments and pricing remain planned, with no invented prices, customers or testimonials. See the [site architecture](../architecture.md) for implementation details.
+Ploeg authorizes and coordinates managed work; Unfold is the workbench. The accepted single-engine migration remains incomplete. Ploeg's unattended worker can publish a pull request; Unfold's managed candidate path does not publish one yet. Self-hosted 0.x status is explicit. Hosted access, agency features, preview environments and pricing remain planned, with no invented prices, customers or testimonials. See the [site architecture](../architecture.md) for implementation details.
 
 ## Interaction and accessibility decisions
 

@@ -7,7 +7,7 @@ generated_by: "mise run domain"
 
 # Unfold — Domain Overview
 
-Unfold turns units of work (Work Items) into pull requests that are ready for human review. Ploeg authorizes, budgets and executes every agent Run; Vloer is its front end (Unfold ADR-0002). Without Ploeg, Vloer runs only its deterministic demo, which makes no model calls. Until Vloer's own engine is retired, a managed execution never falls back to it. This model includes intended product rules; it is not a feature inventory. Current behavior is documented in ../index.md and the application architecture guides. Execution terms such as Run, Shift, Lease, Team, Role and Outcome belong to Ploeg's model; this model imports them. The agency offering (Unfold ADRs 0005 to 0010) is decided and not implemented; its terms are in the Offering and Billing contexts.
+Unfold turns units of work (Work Items) into pull requests that are ready for human review. Ploeg authorizes, budgets and executes every agent Run; Unfold is its front end (system ADR-0002). Without Ploeg, Unfold runs only its deterministic demo, which makes no model calls. Until Unfold's own engine is retired, a managed execution never falls back to it. This model includes intended product rules; it is not a feature inventory. Current behavior is documented in ../index.md and the application architecture guides. Execution terms such as Run, Shift, Lease, Team, Role and Outcome belong to Ploeg's model; this model imports them. The agency offering (Unfold ADRs 0005 to 0010) is decided and not implemented; its terms are in the Offering and Billing contexts.
 
 *Model version 0.5. Generated from `model.yaml` — do not edit by hand.*
 
@@ -15,11 +15,11 @@ Unfold turns units of work (Work Items) into pull requests that are ready for hu
 
 - **System** — The applications that make up Unfold and how they divide the work.
 - **Work** — Requested results, their evidence, and their acceptance.
-- **Participation** — How people take part in AI work through Vloer and inspect what happened.
+- **Participation** — How people take part in AI work through Unfold and inspect what happened.
 - **Execution** — The product view of AI work. Ploeg's model owns the execution vocabulary.
 - **Offering** — Who uses Unfold and what they see: Agencies, their Clients and the Client Portal. Decided in Unfold ADRs 0005 to 0010; not implemented yet.
-- **Billing** — How work is sized, quoted and charged: Sizes, Quotes, Credits and the two parts of a price. Decided in Unfold ADR-0006; not implemented yet.
-- **Cards** — Run Cards: the record of each delivered change and its life in production. Ploeg assembles a card per Work Item and Vloer renders it (Ploeg ADR-0046, Vloer ADR 0026); the rest of this context is proposed. See ../concepts/run-cards.md.
+- **Billing** — How work is sized, quoted and charged: Sizes, Quotes, Credits and the two parts of a price. Decided in system ADR-0006; not implemented yet.
+- **Cards** — Run Cards: the record of each delivered change and its life in production. Ploeg assembles a card per Work Item and Unfold renders it (Ploeg ADR-0046, Unfold ADR 0026); the rest of this context is proposed. See ../concepts/run-cards.md.
 - **Release** — How Unfold's own source, releases and documentation are proven and switched over.
 - **Tooling** — External tools and protocols that Unfold builds on or has evaluated.
 
@@ -45,9 +45,9 @@ These terms are contested or vague. Resolve them before writing specs that depen
 - **the period a Pack covers** — A Pack is proposed once per sprint, but Unfold has no sprint concept and some teams do not work in sprints.
   - Options: The tracker's iteration or cycle, where it has one, A fixed calendar period for every team, A period each Team sets in Ploeg's configuration
   - Recommendation: Decide before Packs are built; until then the period is the team's sprint as its tracker defines it.
-- **a Tenant and a Team** — Ploeg and Vloer scope access by Team, but a Team is a capability pool and created work can move between Teams. The Tenant definition says self-hosted Unfold has none, while the owner wants every install to limit users to what they can see.
+- **a Tenant and a Team** — Ploeg and Unfold scope access by Team, but a Team is a capability pool and created work can move between Teams. The Tenant definition says self-hosted Unfold has none, while the owner wants every install to limit users to what they can see.
   - Options: A Tenant sits above Teams and owns users, sources, repositories, budgets, deploy identities and Work Items; every install has at least one, The Team is the Tenant, One deployment per Tenant, with no Tenant inside the software
-  - Recommendation: A Tenant above Teams, each Team in one Tenant, and a default Tenant in a self-hosted install (Unfold ADR-0017, proposed). The Tenant definition changes only when that ADR is accepted.
+  - Recommendation: A Tenant above Teams, each Team in one Tenant, and a default Tenant in a self-hosted install (system ADR-0017, proposed). The Tenant definition changes only when that ADR is accepted.
 
 ## Contents
 

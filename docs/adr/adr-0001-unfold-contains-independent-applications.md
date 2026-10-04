@@ -26,7 +26,7 @@ The owner chose Unfold and instructed execution of the reviewed monorepo plan. C
 
 Chosen option: "Unfold with separate applications and shared system documentation", because it makes joint changes atomic without requiring a shared runtime or release version.
 
-Use `apps/vloer`, `apps/ploeg` and root `docs` on the `development` trunk. Preserve original commits and namespace imported tags by application. Existing package, Go module, image and chart names remain unchanged. Application records retain their scope and acceptance status. Shared product concepts and workflows have one source in root documentation.
+Use `apps/unfold`, `apps/ploeg` and root `docs` on the `development` trunk. Preserve original commits and namespace imported tags by application. Existing package, Go module, image and chart names remain unchanged. Application records retain their scope and acceptance status. Shared product concepts and workflows have one source in root documentation.
 
 Standalone Vloer retains local authority. Ploeg authority applies to explicitly admitted work and never silently changes on a connection failure. Keep the current execution engines; extraction requires a separate comparison showing equivalent responsibilities and a concrete benefit.
 

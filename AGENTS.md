@@ -1,6 +1,6 @@
 # Unfold
 
-Unfold turns units of work (Work Items) into pull requests that are ready for human review. Ploeg (`apps/ploeg`, Go) authorizes, budgets and executes every agent Run. Vloer (`apps/vloer`, TypeScript) is its front end; without Ploeg it runs only the deterministic demo ([ADR-0002](docs/adr/adr-0002-ploeg-is-the-only-engine.md)). Use the [glossary](docs/reference/glossary.md) terms: a Run is one Role executing against a Work Item, and a Shift is the whole attempt.
+Unfold turns units of work (Work Items) into pull requests that are ready for human review. Ploeg (`apps/ploeg`, Go) authorizes, budgets and executes every agent Run. The Unfold application (`apps/unfold`, TypeScript) is where people define, follow and review that work ([ADR-0002](docs/adr/adr-0002-ploeg-is-the-only-engine.md)). Use the [glossary](docs/reference/glossary.md) terms: a Run is one Role executing against a Work Item, and a Shift is the whole attempt.
 
 ## Commands
 
@@ -14,9 +14,9 @@ Unfold turns units of work (Work Items) into pull requests that are ready for hu
 - `apps/ploeg` is a submodule pinned to [ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg). Land Ploeg changes there first, then pin its release in a `ploeg`-scoped commit ([ADR-0019](docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)).
 - Stage only the paths you wrote. Never use `git add -A`, `git add .` or `git commit -a`: other sessions share this checkout, and a whole-tree commit absorbs their uncommitted work.
 - Source comments are limited to machine directives and exported API documentation. Put reasoning in names, tests, docs or an ADR.
-- Until Vloer's engine is retired, a managed execution never falls back to standalone, whatever the failure. Do not add execution features to Vloer's engine.
+- Until the application's engine is retired, a managed execution never falls back to standalone, whatever the failure. Do not add execution features to it.
 - A deterministic demo says it is one and never invents model calls or spend.
-- Keep each application's package, module, image and chart identities.
+- Keep each application's package, module, image and chart identities. [ADR-0020](docs/adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) records the one exception.
 - Never change production desired state as part of a repository refactor. It lives in `webgrip/homelab-cluster`.
 - Code and executable tests describe the implementation. Label proposed behavior as proposed.
 
@@ -25,5 +25,5 @@ Unfold turns units of work (Work Items) into pull requests that are ready for hu
 - Each application's `AGENTS.md` adds its own rules. Read it before changing that application.
 - Product direction: Unfold is self-hosted first, then offered to agencies as a hosted service. [Who Unfold is for](docs/concepts/who-unfold-is-for.md) explains it; ADRs 0005–0010 record the decisions, and none of it is implemented yet. Read that page before product, pricing, portal or tenancy work.
 - Shared guides are in `docs/`, starting at [docs/index.md](docs/index.md). Application contracts, ADRs and research stay inside the application.
-- Before changing behavior that crosses Ploeg and Vloer, read [managed execution](docs/workflows/managed-execution.md).
+- Before changing behavior that crosses Ploeg and Unfold, read [managed execution](docs/workflows/managed-execution.md).
 - `.openhands/`, `.opencode/` and `.agents/` hold configuration for agents working on Unfold itself. What Ploeg supports for other repositories is defined in `apps/ploeg/pkg/harness` and `apps/ploeg/docs/contracts/`.

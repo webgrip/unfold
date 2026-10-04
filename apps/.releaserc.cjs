@@ -6,14 +6,14 @@ const config = makeConfig({
   monorepo: true,
   prepareCmd: 'node ../scripts/release-prepare.mjs ${nextRelease.version}',
   extraAssets: [
-    'vloer/ops/helm/de-vloer/Chart.yaml',
-    'vloer/package.json',
-    'vloer/package-lock.json',
-    'vloer/extensions/vscode/package.json',
-    'vloer/extensions/vscode/package-lock.json',
-    'vloer/extensions/vscode/CHANGELOG.md',
-    'vloer/ops/cluster/agent-sandbox/warm-pool.yaml',
-    'vloer/ops/local/config.live.example.json',
+    'unfold/ops/helm/unfold/Chart.yaml',
+    'unfold/package.json',
+    'unfold/package-lock.json',
+    'unfold/extensions/vscode/package.json',
+    'unfold/extensions/vscode/package-lock.json',
+    'unfold/extensions/vscode/CHANGELOG.md',
+    'unfold/ops/cluster/agent-sandbox/warm-pool.yaml',
+    'unfold/ops/local/config.live.example.json',
   ],
 });
 

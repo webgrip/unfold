@@ -10,7 +10,7 @@ verified_by: "source read of apps/ploeg on development, 2026-09-23; go test ./..
 
 A **Work Item** is a unit of work: something you have decided to do, or a problem described well enough that a solution can be formulated or at least conceived. A Work Item becomes a pull request in four steps:
 
-1. You assign a Work Item to an agent team. Today Work Items arrive from your tracker or from Vloer.
+1. You assign a Work Item to an agent team. Today Work Items arrive from your tracker or from Unfold.
 2. Ploeg turns the assignment into a **Shift**: one team's attempt at that Work Item.
 3. Short-lived worker pods run the Shift's agents, each within a budget and with a credential that expires.
 4. The Shift ends with a pull request for you to review and merge.
@@ -69,7 +69,7 @@ Not every unit of work is code. Deciding what to build, splitting a large Work I
 
 | Source of new work | State |
 | --- | --- |
-| You, through the tracker or Vloer | Implemented |
+| You, through the tracker or Unfold | Implemented |
 | A Run that splits a Work Item, makes it Ready or records work it discovered | Implemented, proposed in [Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md). Created Work Items stay in Ploeg and wait for your approval |
 | A failed check on a Ploeg pull request | Implemented, off by default. With `repairFailedChecks`, Ploeg queues a repair Follow-Up for the Team that owns the branch |
 | A person's review requesting changes on a Ploeg pull request | Implemented, off by default. With `reworkOnChangesRequested`, the review goes back to the same Work Item: it creates no new Work Item |
@@ -87,7 +87,7 @@ Every team has limits on created work. Ploeg rejects each entry over a limit and
 | Limit | Default |
 | --- | --- |
 | Work Items one Run may create (`maxCreatedPerRun`) | 5 |
-| Depth below a Work Item from the tracker or Vloer (`maxDepth`) | 2 |
+| Depth below a Work Item from the tracker or Unfold (`maxDepth`) | 2 |
 | Open created Work Items from one team's Runs (`maxOpen`) | 20 |
 | Shift budget each created Work Item gets (`itemBudgetUsd`) | $2.00 |
 | Budget all created Work Items under one original Work Item may share (`poolUsd`) | $10.00 |
@@ -125,9 +125,9 @@ Ploeg only acts on a pull request branch that one of its Shifts worked, in the r
 
 Every agent run goes through Ploeg ([ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md)).
 
-## Where Vloer fits
+## Where Unfold fits
 
-Vloer is the front end. It is where you watch Shifts, steer work, read evidence and review results. Today Vloer can also execute an interactive crew itself. In that shared mode, Ploeg admits and budgets the session, but the agents run inside Vloer. ADR-0002 retires that path: Vloer will send work to Ploeg's workers instead. Until then, a session admitted by Ploeg never falls back to running without it.
+Unfold is the front end. It is where you watch Shifts, steer work, read evidence and review results. Today Unfold can also execute an interactive crew itself. In that shared mode, Ploeg admits and budgets the session, but the agents run inside the Unfold application. ADR-0002 retires that path: Unfold will send work to Ploeg's workers instead. Until then, a session admitted by Ploeg never falls back to running without it.
 
 ## Limits today
 

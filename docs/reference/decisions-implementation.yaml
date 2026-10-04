@@ -52,40 +52,40 @@ ploeg:
     implemented: partial
     note: Import and tag format done; distribution cutover deliberately pending
     evidence: scripts/release-policy.cjs
-vloer:
+unfold:
   "0005":
     implemented: partial
     note: Guarded commands to Ploeg exist; work orders and fenced takeover do not
-    evidence: apps/vloer/src/execution-authority.ts
+    evidence: apps/unfold/src/execution-authority.ts
   "0006":
     implemented: partial
     note: Independent verifier exists; the trusted publisher does not
-    evidence: apps/vloer/src/delivery-verifier.ts
+    evidence: apps/unfold/src/delivery-verifier.ts
   "0008":
     implemented: "yes"
     note: Implemented in the 0.2.0 prototype; team adoption is what remains proposed
-    evidence: apps/vloer/src/candidates.ts
+    evidence: apps/unfold/src/candidates.ts
   "0015":
     implemented: partial
     note: Read projection exists; lossless fleet events and AHP projection do not
-    evidence: apps/vloer/src/ploeg.ts
+    evidence: apps/unfold/src/ploeg.ts
   "0017":
     implemented: "yes"
     note: Opt-in shared execution; ratification outstanding
-    evidence: apps/vloer/src/execution-authority.ts
+    evidence: apps/unfold/src/execution-authority.ts
   "0018":
     implemented: "yes"
     note: Opt-in tracker binding; ratification outstanding
-    evidence: apps/vloer/src/task-binding.ts
+    evidence: apps/unfold/src/task-binding.ts
   "0019":
     implemented: "yes"
     note: Bounded Docker verifier; live publication stays disabled
-    evidence: apps/vloer/src/trusted-candidate.ts
+    evidence: apps/unfold/src/trusted-candidate.ts
   "0023":
     implemented: "no"
-    note: Design proposal only; Vloer still runs the managed engine
-    evidence: apps/vloer/docs/ploeg-front-end.md
+    note: Design proposal only; Unfold still runs the managed engine
+    evidence: apps/unfold/docs/ploeg-front-end.md
   "0024":
     implemented: "yes"
     note: Every screen rebuilt on the shared vocabulary, formatter and components, legacy stylesheet deleted, Cancel Work Item on the Work Item page (checked 2026-09-30 on the redesign branch)
-    evidence: apps/vloer/test/ploeg-view.test.mjs
+    evidence: apps/unfold/test/ploeg-view.test.mjs

@@ -1,0 +1,25 @@
+:root {
+  --tone-neutral: var(--vscode-descriptionForeground);
+  --tone-live: var(--vscode-unfold-live, var(--vscode-terminal-ansiCyan, #2aa198));
+  --tone-attention: var(--vscode-unfold-attention, var(--vscode-list-warningForeground, #cca700));
+  --tone-review: var(--vscode-unfold-review, var(--vscode-charts-purple, #b180d7));
+  --tone-success: var(--vscode-unfold-success, var(--vscode-testing-iconPassed, #73c991));
+  --tone-danger: var(--vscode-unfold-danger, var(--vscode-errorForeground, #f14c4c));
+  --tone-severe: var(--vscode-unfold-severe, var(--vscode-charts-orange, #d18616));
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
+  --radius-pill: 6px;
+}
+
+.tone, .tone-neutral { --tone: var(--tone-neutral); }
+.tone-live { --tone: var(--tone-live); }
+.tone-attention { --tone: var(--tone-attention); }
+.tone-review { --tone: var(--tone-review); }
+.tone-success { --tone: var(--tone-success); }
+.tone-danger { --tone: var(--tone-danger); }
+.tone-severe { --tone: var(--tone-severe); }
+
+.pill-state { display: inline-flex; align-items: center; gap: 6px; padding: 1px 8px; border: 1px solid color-mix(in srgb, var(--tone) 55%, transparent); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--tone) 14%, transparent); color: var(--vscode-foreground); font-size: 12px; line-height: 20px; white-space: nowrap; }
+.pill-state::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--tone); flex: 0 0 auto; }
+.pill-state.live::before { animation: tone-pulse 1.6s ease-in-out infinite; }
+@keyframes tone-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .pill-state.live::before { animation: none; } }

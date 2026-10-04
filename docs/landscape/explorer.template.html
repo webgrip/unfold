@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Ploeg and Vloer: responsibilities, C4 architecture, alternatives, and bottlenecks.">
-<title>Ploeg + Vloer — Understand the system</title>
+<meta name="description" content="Ploeg and Unfold: responsibilities, C4 architecture, alternatives, and bottlenecks.">
+<title>Ploeg + Unfold — Understand the system</title>
 <style>
 :root{color-scheme:light dark;--paper:light-dark(#fff,#16191c);--text:light-dark(#17242d,#e2e8ed);--muted:light-dark(#52636f,#a9b7c1);--line:light-dark(#d7dfe4,#3c464f);--surface:light-dark(#f3f6f7,#21272c);--accent:light-dark(#146050,#78cbb7);--diagram-node:var(--surface);--diagram-text:var(--text);--diagram-stroke:var(--muted);--diagram-line:var(--muted);--diagram-boundary:var(--paper);--diagram-border:var(--line);--diagram-paper:var(--paper)}
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--text);font:16px/1.65 system-ui,sans-serif}a{color:var(--accent);text-underline-offset:3px}button,select,input{font:inherit;color:inherit}button,select{background:var(--surface);border:1px solid var(--line);padding:8px 12px;border-radius:4px;cursor:pointer}button:focus-visible,a:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:3px}header{padding:30px 36px 24px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;justify-content:space-between;gap:20px;flex-wrap:wrap}.brand{font-size:24px;font-weight:650;letter-spacing:-.5px}header p{margin:4px 0 0;color:var(--muted)}header small{color:var(--muted)}.layout{display:grid;grid-template-columns:230px minmax(0,1fr);max-width:1640px;margin:auto}nav{padding:28px 18px;position:sticky;top:0;height:max-content}nav a{display:block;text-decoration:none;color:var(--muted);padding:9px 14px;border-left:3px solid transparent;font-size:15px}nav a[aria-current=page]{color:var(--accent);border-left-color:var(--accent);background:var(--surface);font-weight:600}main{min-width:0;padding:30px 40px 90px;border-left:1px solid var(--line)}h1{font-size:28px;line-height:1.25;letter-spacing:-.45px;margin:0 0 24px}h2{font-size:21px;line-height:1.35;margin:36px 0 12px}h3{font-size:18px;margin-top:28px}p,li{max-width:84ch}p{margin:14px 0}li{margin:7px 0}ul,ol{padding-left:24px}strong{font-weight:650}code{background:var(--surface);font-size:.9em;padding:2px 5px;border-radius:3px;overflow-wrap:anywhere}pre{background:var(--surface);padding:18px;overflow:auto;font-size:13px}pre code{padding:0}blockquote{border-left:3px solid var(--line);margin-left:0;padding-left:20px;color:var(--muted)}table{border-collapse:collapse;font-size:14px;display:block;overflow-x:auto;width:100%;margin:20px 0}th,td{border-bottom:1px solid var(--line);padding:12px 14px;text-align:left;vertical-align:top;min-width:160px}th{background:var(--surface)}figure{margin:28px 0}.diagram{overflow:auto;border:1px solid var(--line);padding:20px;background:var(--paper)}.diagram svg{display:block;width:100%;height:auto;min-width:640px;max-width:none!important}.diagram svg .label,.diagram svg text{color:var(--text)!important}.diagram svg foreignObject{overflow:visible}figcaption{font-size:13px;color:var(--muted);margin-top:8px}.viewtools{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:18px 0;border-bottom:1px solid var(--line);margin-bottom:24px}.viewtools select{max-width:100%;min-width:240px;flex:1}.kicker{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}.scale-demo{padding:22px 0;border-block:1px solid var(--line);margin:24px 0}.scale-inputs{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:16px}.scale-inputs label{font-size:14px}.scale-inputs input{width:100%;margin-top:8px;background:var(--surface);border:1px solid var(--line);padding:8px}.scale-result{font-size:20px;margin-top:20px;font-weight:600}.barrow{display:grid;grid-template-columns:155px 1fr 65px;align-items:center;gap:14px;margin:16px 0;font-size:14px}.bar{height:14px;background:var(--surface)}.bar span{display:block;height:100%;background:var(--muted)}.barrow.limiting .bar span{background:var(--accent)}.diagram source{display:none}.fine{font-size:13px;color:var(--muted)}.intro-strip{padding:16px 20px;background:var(--surface);margin-bottom:26px;border-left:3px solid var(--accent)}
@@ -14,7 +14,7 @@
 </style>
 </head>
 <body>
-<header><div><div class="brand">Ploeg + Vloer</div><p>Understand the work, the responsibilities, and the choices.</p></div><div><small>Documentation review · 12 September 2026</small><br><button id="print" type="button">Print current view</button></div></header>
+<header><div><div class="brand">Ploeg + Unfold</div><p>Understand the work, the responsibilities, and the choices.</p></div><div><small>Documentation review · 12 September 2026</small><br><button id="print" type="button">Print current view</button></div></header>
 <div class="layout"><nav id="navigation" aria-label="Architecture guide"></nav><main id="content"></main></div>
 <script>
 const landscape="__LANDSCAPE_DATA__";
@@ -40,7 +40,7 @@ function show(){
     if(page.id==='bottlenecks')insertCapacityDemo();
   }
   window.scrollTo(0,0);
-  document.title=page.title+' — Ploeg + Vloer';
+  document.title=page.title+' — Ploeg + Unfold';
 }
 function insertCapacityDemo(){
   const block=document.createElement('section');block.className='scale-demo';

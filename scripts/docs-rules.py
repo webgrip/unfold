@@ -15,12 +15,12 @@ HISTORY_PREFIXES = (
     'landscape/components',
     'landscape/index',
     'migration-proposal',
-    'vloer/PRODUCT-DESIGN',
-    'vloer/contracts/implementation',
-    'vloer/operations/backlog',
-    'vloer/operations/implementation-progress',
-    'vloer/operations/iteration-',
-    'vloer/product/go-to-market',
+    'unfold/PRODUCT-DESIGN',
+    'unfold/contracts/implementation',
+    'unfold/operations/backlog',
+    'unfold/operations/implementation-progress',
+    'unfold/operations/iteration-',
+    'unfold/product/go-to-market',
     'ploeg/backlog',
     'ploeg/history',
 )
@@ -146,10 +146,10 @@ def orphans(pages, nav, links):
     return sorted(page for page in pages if not historical(page) and not pinned(page) and page not in reachable)
 
 
-SOURCE_ROOTS = (('docs', ''), ('apps/vloer/docs', 'vloer'), ('apps/ploeg/docs', 'ploeg'))
+SOURCE_ROOTS = (('docs', ''), ('apps/unfold/docs', 'unfold'), ('apps/ploeg/docs', 'ploeg'))
 PAGE_TYPES = {'landing', 'tutorial', 'how-to', 'explanation', 'reference'}
 AUDIENCES = {'owner', 'operator', 'integrator', 'contributor', 'agent'}
-OWNERS = {'unfold', 'ploeg', 'vloer'}
+OWNERS = {'unfold', 'ploeg', 'unfold'}
 REQUIRED_FOLDERS = ('concepts/', 'how-to/', 'reference/')
 STALE_DAYS = 180
 

@@ -48,21 +48,21 @@ test('a train version must clear the floors of every component it versions', () 
   }
 });
 
-test('the recorded floors cover every published Ploeg and Vloer version from the 2026-10-03 audit', () => {
+test('the recorded floors cover every published Ploeg and Unfold version from the 2026-10-03 audit', () => {
   const recorded = floors.load();
   assert.equal(recorded.evidence, 'docs/research/2026-10-03-release-floors-and-identity.md');
   assert.ok(fs.existsSync(path.join(__dirname, '..', recorded.evidence)));
-  for (const component of ['ploeg', 'vloer']) {
+  for (const component of ['ploeg', 'unfold']) {
     assert.ok(floors.compare(recorded.components[component].floor, '0.4.0-rc.34') >= 0, component);
     for (const published of ['0.4.0-rc.34', '0.4.0-rc.32', '0.4.0-rc.1', '0.3.0-rc.16', '0.2.0']) {
       assert.throws(() => floors.refuseOccupied(component, published, { floors: recorded }), /at or below its release floor/, `${component} ${published}`);
     }
   }
   assert.throws(() => floors.refuseOccupied('ploeg', '1.0.0-rc.1', { floors: recorded }), /already occupied/);
-  assert.deepEqual(recorded.trains.unfold.components, ['vloer']);
+  assert.deepEqual(recorded.trains.unfold.components, ['unfold']);
   assert.equal(recorded.trains.unfold.tag_prefix, 'unfold-v');
   assert.match(recorded.components.ploeg.retired, /github\.com\/ploeg-hq\/ploeg/);
-  assert.equal(recorded.components.vloer.retired, undefined);
+  assert.equal(recorded.components.unfold.retired, undefined);
 });
 
 test('a retired component keeps its floor but no train may version it again', () => {
@@ -72,7 +72,7 @@ test('a retired component keeps its floor but no train may version it again', ()
     const record = structuredClone(floors.load());
     assert.throws(() => floors.refuseOccupied('ploeg', '0.4.0-rc.34', { floors: record }), /at or below its release floor/);
     assert.throws(() => floors.refuseOccupied('ploeg', '0.4.0-rc.35', { floors: record, tags: ['unfold-v0.4.0-rc.35'] }), /existing tag unfold-v0\.4\.0-rc\.35/);
-    record.trains.unfold.components = ['ploeg', 'vloer'];
+    record.trains.unfold.components = ['ploeg', 'unfold'];
     fs.writeFileSync(file, JSON.stringify(record));
     assert.throws(() => floors.load(file), /train unfold versions ploeg, which is retired/);
   } finally {

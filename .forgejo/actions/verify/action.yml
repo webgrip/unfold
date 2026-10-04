@@ -15,19 +15,19 @@ runs:
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.local/share/mise/installs
-        key: unfold-mise-${{ runner.os }}-${{ hashFiles('mise.toml', 'mise.lock', 'apps/vloer/mise.toml', 'apps/vloer/mise.lock', 'apps/ploeg/mise.toml', 'apps/ploeg/mise.lock', 'apps/site/mise.toml') }}
+        key: unfold-mise-${{ runner.os }}-${{ hashFiles('mise.toml', 'mise.lock', 'apps/unfold/mise.toml', 'apps/unfold/mise.lock', 'apps/ploeg/mise.toml', 'apps/ploeg/mise.lock', 'apps/site/mise.toml') }}
         restore-keys: unfold-mise-${{ runner.os }}-
     - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
       with:
         version: 2026.9.18
         cache: false
         github_token: ''
-    - run: mise trust apps/vloer/mise.toml && mise trust apps/ploeg/mise.toml && mise trust apps/site/mise.toml
+    - run: mise trust apps/unfold/mise.toml && mise trust apps/ploeg/mise.toml && mise trust apps/site/mise.toml
       shell: bash
     - name: Prepare the output capture
       shell: bash
       run: mkdir -p "${RUNNER_TEMP:-/tmp}/unfold-output"
-    - run: set -o pipefail; mise -C apps/vloer install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
+    - run: set -o pipefail; mise -C apps/unfold install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
       shell: bash
     - run: set -o pipefail; mise -C apps/ploeg install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
       shell: bash
@@ -48,7 +48,7 @@ runs:
           echo "gomod=$(mise -C apps/ploeg exec -- go env GOMODCACHE)"
           echo "gobuild=$(mise -C apps/ploeg exec -- go env GOCACHE)"
           echo "go=$(mise -C apps/ploeg exec -- go env GOVERSION)"
-          echo "npm=$(mise -C apps/vloer exec -- npm config get cache)"
+          echo "npm=$(mise -C apps/unfold exec -- npm config get cache)"
           echo "pnpm=$(mise -C apps/site exec -- corepack pnpm store path)"
         } >> "$GITHUB_OUTPUT"
     - name: Restore Go module and build caches
@@ -66,7 +66,7 @@ runs:
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.caches.outputs.npm }}
-        key: unfold-npm-${{ runner.os }}-${{ hashFiles('apps/vloer/package-lock.json', 'apps/vloer/extensions/vscode/package-lock.json') }}
+        key: unfold-npm-${{ runner.os }}-${{ hashFiles('apps/unfold/package-lock.json', 'apps/unfold/extensions/vscode/package-lock.json') }}
         restore-keys: unfold-npm-${{ runner.os }}-
     - name: Restore pnpm store
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -87,7 +87,7 @@ runs:
       env:
         UNFOLD_REQUIRE_IMPORT_NOTES: 'true'
         GOFLAGS: -count=1
-        VLOER_TEST_TIMEOUT_SCALE: '2'
+        UNFOLD_TEST_TIMEOUT_SCALE: '2'
         UNFOLD_VERIFY_RESULTS: ~/.cache/unfold-verify
         UNFOLD_VERIFY_REUSE: ${{ github.event_name == 'pull_request' }}
         UNFOLD_VERIFY_CPUS: '4'
@@ -95,8 +95,8 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        docker build --file apps/vloer/Dockerfile --target app --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/vloer
-        docker build --file apps/vloer/ops/agent/Dockerfile --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/vloer/ops/agent
+        docker build --file apps/unfold/Dockerfile --target app --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/unfold
+        docker build --file apps/unfold/ops/agent/Dockerfile --build-arg REGISTRY_DHI=harbor.webgrip.dev/dhi --output=type=cacheonly apps/unfold/ops/agent
     - name: Collect warnings
       id: warnings
       if: always()

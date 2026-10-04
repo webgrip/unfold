@@ -3,14 +3,14 @@ type: explanation
 audience: [owner, operator, contributor, agent]
 owner: unfold
 last_verified: 2026-10-03
-verified_by: "grade read against Ploeg ADR-0050, ADR-0052 and ADR-0061 and apps/ploeg/pkg/store/card_grade.go (formula 2026.3); built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0049, ADR-0057 (apps/ploeg/pkg/flow) and ADR-0058 (apps/ploeg/pkg/playkpi), Vloer ADR 0026, apps/ploeg/pkg/store/card.go and apps/vloer/public/cards on development @ 810c97a; binders, packs and seasons read against Vloer ADR 0029 and apps/vloer/src/{collection,packs,season}.ts on feat/vloer-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Vloer collection was run in its demo browser flow"
+verified_by: "grade read against Ploeg ADR-0050, ADR-0052 and ADR-0061 and apps/ploeg/pkg/store/card_grade.go (formula 2026.3); built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0049, ADR-0057 (apps/ploeg/pkg/flow) and ADR-0058 (apps/ploeg/pkg/playkpi), Unfold ADR 0026, apps/ploeg/pkg/store/card.go and apps/unfold/public/cards on development @ 810c97a; binders, packs and seasons read against Unfold ADR 0029 and apps/unfold/src/{collection,packs,season}.ts on feat/unfold-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Unfold collection was run in its demo browser flow"
 ---
 
 # Run Cards
 
 A **Run Card** is the record of one Work Item's change and its life in production. It shows who carried the change, what its Runs cost, which pull requests it took, how review and CI went and where it is deployed. Over time it is meant to show how well the change held up. It makes caring about a change visible, and it is meant to be fun.
 
-**Most of this page is a proposal.** Ploeg already assembles a card for every Work Item and Vloer draws it, with days live and a finish. Ploeg computes rarity; Vloer does not show it yet. Everything else below is labelled **Proposed** and is not built. The [glossary](../reference/glossary.md) defines each **bold** term.
+**Most of this page is a proposal.** Ploeg already assembles a card for every Work Item and Unfold draws it, with days live and a finish. Ploeg computes rarity; Unfold does not show it yet. Everything else below is labelled **Proposed** and is not built. The [glossary](../reference/glossary.md) defines each **bold** term.
 
 ## A record of a change, not a score of a person
 
@@ -28,23 +28,23 @@ So every number on a card describes the change. The person appears only as its *
 
 ## What is built and what is proposed
 
-The first three build phases are merged on `development`: P0 keeps the facts a card needs, P1 puts the card on the Work Item page, and P2 adds life in production. Their ADRs still have the status `proposed`. Later phases (cracks and mends, epics and full ceremony) are not started; the skins are built and draw grades, cracks and sets when a card carries them. The Vloer side of Binders, Packs and seasons is built against fixtures, waiting for Ploeg's card list.
+The first three build phases are merged on `development`: P0 keeps the facts a card needs, P1 puts the card on the Work Item page, and P2 adds life in production. Their ADRs still have the status `proposed`. Later phases (cracks and mends, epics and full ceremony) are not started; the skins are built and draw grades, cracks and sets when a card carries them. The Unfold side of Binders, Packs and seasons is built against fixtures, waiting for Ploeg's card list.
 
 | Part | State | Where it is recorded |
 | --- | --- | --- |
 | Ploeg keeps every usage figure a harness reports, and every merge and review fact a forge reports | Built; its ADR is still proposed | [Ploeg ADR-0045](../../apps/ploeg/docs/adrs/0045-keep-run-usage-and-merge-facts.md) |
 | One card per Work Item, assembled from stored facts: state, Plays, Steward (fallback rule), Roster (merger and reviewer), agent crew, totals, events, diff size and CI | Built; ADR proposed | [Ploeg ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) |
-| Card style chosen per Work Target (`cardStyle`) | Built; seven skins: Vloer Native, the 3D forge skin and five DOM skin packs | Ploeg ADR-0046, Vloer ADR 0026 and 0028 |
+| Card style chosen per Work Target (`cardStyle`) | Built; seven skins: Unfold Native, the 3D forge skin and five DOM skin packs | Ploeg ADR-0046, Unfold ADR 0026 and 0028 |
 | A generic deploy endpoint, deployments per environment and the release time | Built; ADR proposed | [Ploeg ADR-0047](../../apps/ploeg/docs/adrs/0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) |
 | Usage so far while a Run is running | Built; ADR proposed | [Ploeg ADR-0049](../../apps/ploeg/docs/adrs/0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) |
-| The `<unfold-card>` runtime, the Vloer Native skin, the card on the Work Item page, days live, the finish ladder and a demo card | Built; ADR proposed | [Vloer ADR 0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
+| The `<unfold-card>` runtime, the Unfold Native skin, the card on the Work Item page, days live, the finish ladder and a demo card | Built; ADR proposed | [Unfold ADR 0026](../../apps/unfold/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
 | A card comment on the pull request: the card as a static image above a summary table, kept as one comment and updated at a merge, a release to production, a new finish or a mend. A team turns it on with `cards.prComment` | Built; ADR proposed; off by default | [Ploeg ADR-0055](../../apps/ploeg/docs/adrs/0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) |
-| Rarity: a challenge score, predicted at mint, revealed and frozen at release, tiered per project and quarter | Built in Ploeg; ADR proposed; Vloer still drops it | [Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) |
-| Flow figures: time in every tracker status, lead and cycle time, flow efficiency, blocked time, reopens, queue and agent time, merge to each environment and time to mend, in elapsed and working seconds | Built in Ploeg; ADR proposed; Vloer shows them (Vloer ADR 0035) | [Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md) |
-| Pull request, CI and change figures: time to first feedback, approval and merge, review rounds, comments, commits, CI runs, reruns, queue and minutes, indentation complexity, test ratio | Built in Ploeg; ADR proposed; Vloer shows them (Vloer ADR 0035) | [Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md) |
-| Key figures: time in every tracker status, lead and cycle time, flow efficiency, time to first feedback, CI timings and reruns, indentation complexity, merge to production; three or four on the card's front for its state, the rest on its back, team medians on the season page | Built in Vloer on Ploeg ADR-0057 and ADR-0058; ADRs proposed | [Vloer ADR 0035](../../apps/vloer/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) |
-| Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Vloer side built against the card contract and fixtures; ADR proposed; Ploeg's card list built in parallel | [Vloer ADR 0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
-| Grade: formula 2026.3, computed on read, with the inputs it used and the ones it missed | Built in Ploeg; ADRs proposed; Vloer draws it | [Ploeg ADR-0050](../../apps/ploeg/docs/adrs/0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md), [ADR-0052](../../apps/ploeg/docs/adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md), [ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md) |
+| Rarity: a challenge score, predicted at mint, revealed and frozen at release, tiered per project and quarter | Built in Ploeg; ADR proposed; Unfold still drops it | [Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) |
+| Flow figures: time in every tracker status, lead and cycle time, flow efficiency, blocked time, reopens, queue and agent time, merge to each environment and time to mend, in elapsed and working seconds | Built in Ploeg; ADR proposed; Unfold shows them (Unfold ADR 0035) | [Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md) |
+| Pull request, CI and change figures: time to first feedback, approval and merge, review rounds, comments, commits, CI runs, reruns, queue and minutes, indentation complexity, test ratio | Built in Ploeg; ADR proposed; Unfold shows them (Unfold ADR 0035) | [Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md) |
+| Key figures: time in every tracker status, lead and cycle time, flow efficiency, time to first feedback, CI timings and reruns, indentation complexity, merge to production; three or four on the card's front for its state, the rest on its back, team medians on the season page | Built in Unfold on Ploeg ADR-0057 and ADR-0058; ADRs proposed | [Unfold ADR 0035](../../apps/unfold/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) |
+| Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Unfold side built against the card contract and fixtures; ADR proposed; Ploeg's card list built in parallel | [Unfold ADR 0029](../../apps/unfold/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
+| Grade: formula 2026.3, computed on read, with the inputs it used and the ones it missed | Built in Ploeg; ADRs proposed; Unfold draws it | [Ploeg ADR-0050](../../apps/ploeg/docs/adrs/0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md), [ADR-0052](../../apps/ploeg/docs/adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md), [ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md) |
 | Condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, themes, the effects director, retention | **Proposed** | This page |
 
 To make a project count days live from real deploys, see [Send deploys from a pipeline to Ploeg](../../apps/ploeg/docs/how-to/send-deploys-from-a-pipeline.md). Until a project reports deploys, the release counts from the merge, and the card says so.
@@ -67,7 +67,7 @@ Collectible games keep *what a card is* apart from *what it earned*; mixing them
 
 ### Rarity: decided, built in Ploeg
 
-**Rarity** says how exceptional the change was, apart from how well it was done (Grade) and how long it has held up (Finish). It is cosmetic only. The owner decided on 2026-10-02 that rarity means challenge. Ploeg computes it ([Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md), proposed); Vloer does not draw it yet.
+**Rarity** says how exceptional the change was, apart from how well it was done (Grade) and how long it has held up (Finish). It is cosmetic only. The owner decided on 2026-10-02 that rarity means challenge. Ploeg computes it ([Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md), proposed); Unfold does not draw it yet.
 
 * **Challenge, from facts nobody pads afterwards.** The score adds the change's reach (modules and repositories), its sensitive ground (migrations, schemas, API definitions, deploy and CI files, and paths a Work Target marks for attention), its novelty (files no other card touched in the 180 days before) and its size in lines, damped and without lockfiles or generated files. Cost, time, tokens, bounces and the grade are never inputs. The formula is versioned and printed on the card's back.
 * **Two moments.** From its first Run the card carries a tier predicted from what is known before the merge. At release it is revealed from the real change, and the two may differ.
@@ -79,7 +79,7 @@ Proposed and not built: special printings for genuinely rare events (1st Edition
 
 ### Finish: built
 
-A **Finish** is earned by staying live in production. Vloer computes it from Ploeg's release time and ignores the `finish` Ploeg sends ([Vloer ADR 0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)):
+A **Finish** is earned by staying live in production. Unfold computes it from Ploeg's release time and ignores the `finish` Ploeg sends ([Unfold ADR 0026](../../apps/unfold/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)):
 
 | Days live | Finish |
 | --- | --- |
@@ -94,7 +94,7 @@ Days live are whole days since the first production deploy of the latest merged 
 
 ### Grade
 
-A **Grade** works like a graded slab: 1 to 10 in half steps, computed as 0.40 reliability + 0.25 durability + 0.20 delivery + 0.15 review. Ploeg computes it under formula 2026.3 ([Ploeg ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md), proposed, on top of ADR-0050 and ADR-0052), and Vloer draws it.
+A **Grade** works like a graded slab: 1 to 10 in half steps, computed as 0.40 reliability + 0.25 durability + 0.20 delivery + 0.15 review. Ploeg computes it under formula 2026.3 ([Ploeg ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md), proposed, on top of ADR-0050 and ADR-0052), and Unfold draws it.
 
 * **Provisional cap.** While a card is under 180 days live, its grade is capped at 9. A 10 is possible only once it is Proven.
 * **Labels.** Black Label is 10 on all four subgrades. Gold Label is an overall 10. A card with a missing input earns no label.
@@ -126,7 +126,7 @@ XP follows a log curve over days in production, reaching full value at 180 days,
 
 ## Flow figures: built in Ploeg
 
-Besides the five axes, Ploeg sends the card's flow figures ([Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md), proposed). Vloer does not show them yet. They are timings, not scores: no grade, rarity or finish uses them.
+Besides the five axes, Ploeg sends the card's flow figures ([Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md), proposed). Unfold does not show them yet. They are timings, not scores: no grade, rarity or finish uses them.
 
 * **Time in every status.** Ploeg records every column a ticket enters on a board it watches, mapped to a gate or not, and the card lists the time spent in each, per gate and per kind. A kind is `active` (someone works on it), `waiting`, `blocked` or `done`. A board can set each column's kind; otherwise defaults based on the column name apply.
 * **Lead time** runs from the ticket's creation in the tracker to the release, **cycle time** from the first active column or first Run to the release (else the merge), and **time to start** from creation to the first work. **Flow efficiency** is active time divided by active, waiting and blocked time in the cycle. **Reopens** count moves out of done.
@@ -140,7 +140,7 @@ To configure kinds and working hours, see [Configure status kinds and working ho
 
 ## Pull request, CI and change figures: built in Ploeg
 
-Each Play also carries what its pull request, its CI and its change looked like, and the card sums them up ([Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md), proposed). Vloer does not show them yet. Ploeg reads them from Forgejo or GitLab when the pull request changes and at the merge, keeps who did what and when, and never keeps comment text, code or CI logs. Like the flow figures, they are facts about the change: no grade, rarity or finish uses them, and nobody is ranked by them.
+Each Play also carries what its pull request, its CI and its change looked like, and the card sums them up ([Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md), proposed). Unfold does not show them yet. Ploeg reads them from Forgejo or GitLab when the pull request changes and at the merge, keeps who did what and when, and never keeps comment text, code or CI logs. Like the flow figures, they are facts about the change: no grade, rarity or finish uses them, and nobody is ranked by them.
 
 | Figure | What it means | Where it misleads |
 | --- | --- | --- |
@@ -204,17 +204,17 @@ Proposed lifecycle: drafted (a Run is live) → opened (pull request) → signed
 
 The loot-box rulings in Belgium and the Netherlands concerned packs bought with money ([trading-card design](../research/2026-10-01-run-cards-trading-card-design.md)). A Pack that nobody can buy, with cosmetic pulls and published odds, is built to stay clear of them. An agency should still have its counsel review it.
 
-Vloer implements this proposal against fixtures ([Vloer ADR 0029](../../apps/vloer/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md)):
+Unfold implements this proposal against fixtures ([Unfold ADR 0029](../../apps/unfold/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md)):
 
 * **Period.** A Pack covers an ISO week by default, and a Team can set its sprint length and start date instead, which answers what a Pack covers for a team that does not work in sprints.
 * **Contents.** A Pack holds each card with a moment in its period: minted, merged, released, a finish step crossed, cracked or mended.
 * **Opening.** Packs seal when their period ends, open in order and never expire.
-* **The pull.** A card is pulled once, in its first Pack, with HMAC-SHA256 over the person, the Work Item and the Pack, and Vloer stores the result.
+* **The pull.** A card is pulled once, in its first Pack, with HMAC-SHA256 over the person, the Work Item and the Pack, and Unfold stores the result.
 * **What a pull gives.** The pull picks the foil pattern and may add alternate art, a full-art frame or a gold signature. The earned finish still decides how much of the card the pattern covers.
 
 ## Key figures
 
-*Proposed.* Ploeg ADR-0057 and ADR-0058 add the figures a team asks about: how long the ticket sat in every tracker status, its lead and cycle time, how long until the first human feedback and the merge, how long CI took and how often it reran, and how complex the change was. Vloer shows them ([Vloer ADR 0035](../../apps/vloer/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md)).
+*Proposed.* Ploeg ADR-0057 and ADR-0058 add the figures a team asks about: how long the ticket sat in every tracker status, its lead and cycle time, how long until the first human feedback and the merge, how long CI took and how often it reran, and how complex the change was. Unfold shows them ([Unfold ADR 0035](../../apps/unfold/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md)).
 
 * **Three or four on the front, for the card's state.** In review: time to first feedback, or "waiting 3 h" while nobody has responded, CI's last green run with its reruns, complexity added and cycle time so far. Merged: lead time, first feedback, CI and time to production once a deploy reached it. Drafting: time to start or cycle time so far, lead time, blocked time and the estimate.
 * **Every figure says what it means.** Its meaning is the tooltip and is listed on the back. Durations read "42 min", "3 h 10 min", "2 d 4 h".
@@ -244,7 +244,7 @@ The [works council and DPIA pack](../reference/run-cards-works-council-pack.md) 
 
 ## Looks and motion
 
-A **Skin** changes how a card looks and moves, never its numbers or where they sit, so any card reads the same anywhere. A Work Target picks its skin in Ploeg's `cardStyle`. Seven skins are built: Vloer Native, the 3D forge skin ([Vloer ADR 0028](../../apps/vloer/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md)), and Holo Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch ([Vloer ADR 0026](../../apps/vloer/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)). None of them shows rarity. The forge's art window can be an inner world the card's tilt looks into, lit and filled by its facts, which a person who holds a copy may decorate for themselves only (proposed, [Vloer ADR 0033](../../apps/vloer/docs/adrs/0033-a-forge-card-s-art-window-is-an-inner-world-its-holder-may-decorate-privately.md)). Each plays small moments inside the card when its facts change, such as a signature, a merge, a new finish, a crack or a mend, and holds still when the reader asks for reduced motion. Per-client themes on top are proposed. Proposed ceremony rules scale effects inversely to how often an event happens. They cap full-screen moments at one per 10 minutes and never interrupt typing. Every effect can be skipped, and flashes stay within WCAG limits, with no red flashes ([holo and game feel](../../apps/vloer/docs/research/2026-10-01-run-card-holo-and-game-feel.md)).
+A **Skin** changes how a card looks and moves, never its numbers or where they sit, so any card reads the same anywhere. A Work Target picks its skin in Ploeg's `cardStyle`. Seven skins are built: Unfold Native, the 3D forge skin ([Unfold ADR 0028](../../apps/unfold/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md)), and Holo Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch ([Unfold ADR 0026](../../apps/unfold/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)). None of them shows rarity. The forge's art window can be an inner world the card's tilt looks into, lit and filled by its facts, which a person who holds a copy may decorate for themselves only (proposed, [Unfold ADR 0033](../../apps/unfold/docs/adrs/0033-a-forge-card-s-art-window-is-an-inner-world-its-holder-may-decorate-privately.md)). Each plays small moments inside the card when its facts change, such as a signature, a merge, a new finish, a crack or a mend, and holds still when the reader asks for reduced motion. Per-client themes on top are proposed. Proposed ceremony rules scale effects inversely to how often an event happens. They cap full-screen moments at one per 10 minutes and never interrupt typing. Every effect can be skipped, and flashes stay within WCAG limits, with no red flashes ([holo and game feel](../../apps/unfold/docs/research/2026-10-01-run-card-holo-and-game-feel.md)).
 
 ## Decisions
 
@@ -256,12 +256,12 @@ A **Skin** changes how a card looks and moves, never its numbers or where they s
 | Card style | Decided, built | On the Work Target; per-client themes on top of skins |
 | Visibility | Decided | Binders private; team pages for the team; clients see team aggregates only |
 | Rarity | Decided, built in Ploeg | Challenge, predicted at mint and frozen at release, percentile tiers per project and quarter; see [Rarity](#rarity-decided-built-in-ploeg) |
-| Key figures | Proposed; Vloer side built | Three or four per state on the front, the rest on the back, a calendar or working-hours choice, team medians only; see [Key figures](#key-figures) |
+| Key figures | Proposed; Unfold side built | Three or four per state on the front, the rest on the back, a calendar or working-hours choice, team medians only; see [Key figures](#key-figures) |
 | Steward and roles | Proposed | Role copies with shared fate; the Steward is the developer carrying the Work Item |
 | Gates and bounces | Proposed | Tracker-status mapping per project plus the deploy endpoint |
-| Packs | Proposed; Vloer side built | Earned, cosmetic-only pulls, published odds, one per person per period (an ISO week, or a Team's sprint) |
+| Packs | Proposed; Unfold side built | Earned, cosmetic-only pulls, published odds, one per person per period (an ISO week, or a Team's sprint) |
 
-No product-level ADR records the guardrails yet; this page states them. The decided parts are recorded in the Ploeg and Vloer ADRs above.
+No product-level ADR records the guardrails yet; this page states them. The decided parts are recorded in the Ploeg and Unfold ADRs above.
 
 ## Research
 
@@ -269,4 +269,4 @@ No product-level ADR records the guardrails yet; this page states them. The deci
 * [Gamification evidence, ownership and law](../research/2026-10-01-run-cards-gamification-evidence-and-law.md): the guardrails.
 * [Game theory and mechanism design](../research/2026-10-01-run-cards-game-theory.md): the rules and the Crack flow.
 * [Metrics catalogue](../../apps/ploeg/docs/research/2026-10-01-run-card-metrics-catalogue.md): about 115 candidate numbers with source, cost and gameability.
-* [Holo, foil and game feel](../../apps/vloer/docs/research/2026-10-01-run-card-holo-and-game-feel.md): rendering, ceremony, accessibility and performance.
+* [Holo, foil and game feel](../../apps/unfold/docs/research/2026-10-01-run-card-holo-and-game-feel.md): rendering, ceremony, accessibility and performance.

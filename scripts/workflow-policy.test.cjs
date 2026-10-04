@@ -81,7 +81,7 @@ test('only an enabled development push can version Unfold, after the checks and 
 test('warnings from setup and verification turn their own job red without gating a release', () => {
   const verification = read('.forgejo/actions/verify/action.yml');
   const captured = verification.runs.steps.filter(step => / 2>&1 \| tee (-a )?"\$\{RUNNER_TEMP:-\/tmp\}\/unfold-output\//.test(step.run ?? ''));
-  assert.deepEqual(captured.map(step => step.run.match(/mise (.+?) 2>&1/)[1]), ['-C apps/vloer install', '-C apps/ploeg install', '-C apps/site install', 'run setup', 'run verify']);
+  assert.deepEqual(captured.map(step => step.run.match(/mise (.+?) 2>&1/)[1]), ['-C apps/unfold install', '-C apps/ploeg install', '-C apps/site install', 'run setup', 'run verify']);
   for (const step of captured) assert.match(step.run, /^set -o pipefail; /, 'a captured step still fails when its command fails');
   const collect = verification.runs.steps.at(-1);
   assert.equal(collect.id, 'warnings');
@@ -127,14 +127,14 @@ test('only a pull request reuses verified gate results; a development push runs 
 
 test('every published image passes its application CVE budget before signing', () => {
   const gate = './.forgejo/actions/cve-gate';
-  const vloer = publisher.jobs['vloer-release-distribute-harbor'].steps;
-  const vloerGate = vloer.findIndex(step => step.uses === gate);
-  assert.ok(vloerGate > vloer.findIndex(step => step.id === 'digest'));
-  assert.ok(vloerGate < vloer.findIndex(step => step.uses?.includes('/cosign-sign-attest@')));
-  assert.equal(vloer[vloerGate].with['budgets-file'], 'apps/vloer/ops/security/cve-budgets.yaml');
-  const budgets = parse(fs.readFileSync(path.join(root, 'apps/vloer/ops/security/cve-budgets.yaml'), 'utf8'));
-  assert.equal(budgets.images['de-vloer'].mode, 'enforce');
-  assert.ok(fs.statSync(path.join(root, 'apps/vloer/ops/vex/statements')).isDirectory());
+  const unfold = publisher.jobs['unfold-release-distribute-harbor'].steps;
+  const unfoldGate = unfold.findIndex(step => step.uses === gate);
+  assert.ok(unfoldGate > unfold.findIndex(step => step.id === 'digest'));
+  assert.ok(unfoldGate < unfold.findIndex(step => step.uses?.includes('/cosign-sign-attest@')));
+  assert.equal(unfold[unfoldGate].with['budgets-file'], 'apps/unfold/ops/security/cve-budgets.yaml');
+  const budgets = parse(fs.readFileSync(path.join(root, 'apps/unfold/ops/security/cve-budgets.yaml'), 'utf8'));
+  assert.equal(budgets.images['unfold'].mode, 'enforce');
+  assert.ok(fs.statSync(path.join(root, 'apps/unfold/ops/vex/statements')).isDirectory());
 });
 
 test('Unfold builds, signs and publishes no Ploeg artifact', () => {
@@ -159,13 +159,13 @@ test('preview uses the release toolchain and remains a manual dry run', () => {
   assert.equal(evaluate(job.if, { github: { ref: 'refs/heads/main' } }), false);
 });
 
-test('release routing publishes Vloer for an Unfold tag and nothing for a closed gate or another tag', () => {
+test('release routing publishes Unfold for an Unfold tag and nothing for a closed gate or another tag', () => {
   assert.deepEqual(Object.keys(publisher.on).sort(), ['release', 'workflow_dispatch']);
   assert.deepEqual(publisher.on.release.types, ['published']);
   assert.equal(publisher.concurrency['cancel-in-progress'], false);
   const jobs = Object.entries(publisher.jobs).filter(([name]) => name !== 'parse-release-tag' && !name.startsWith('site-'));
-  assert.ok(jobs.length > 0 && jobs.every(([name]) => name.startsWith('vloer-')), jobs.map(([name]) => name).join());
-  for (const selected of ['unfold', 'unfold-site', 'vloer', 'ploeg', 'unrelated']) {
+  assert.ok(jobs.length > 0 && jobs.every(([name]) => name.startsWith('unfold-')), jobs.map(([name]) => name).join());
+  for (const selected of ['unfold', 'unfold-site', 'unfold', 'ploeg', 'unrelated']) {
     for (const event_name of ['release', 'workflow_dispatch']) {
       for (const gate of ['', 'false', 'true']) {
         const tag = `${selected}-v0.4.0-rc.5`;
@@ -218,7 +218,7 @@ test('a site or Unfold release candidate deploys to staging and a stable site re
     assert.equal(status, 0, tag);
     assert.deepEqual(outputs, { channel: 'stable' }, tag);
   }
-  for (const selected of ['unfold', 'unfold-site', 'vloer', 'ploeg', 'unrelated']) {
+  for (const selected of ['unfold', 'unfold-site', 'unfold', 'ploeg', 'unrelated']) {
     for (const open of ['', 'false', 'true']) {
       if ((selected === 'unfold-site' || selected === 'unfold') && open === 'true') continue;
       const tag = `${selected}-v0.1.0-rc.1`;
@@ -247,7 +247,7 @@ test('a site or Unfold release candidate deploys to staging and a stable site re
     assert.equal(deploy.with['wrangler-env'], env, name);
     assert.equal(deploy.with['working-directory'], 'apps/site', name);
     assert.equal(deploy.with['apex-url'], origin, name);
-    assert.equal(deploy.with['build-command'], `npm --prefix ../vloer ci --omit=dev --no-audit --no-fund && UNFOLD_SITE_URL=${origin} pnpm run build:release`, name);
+    assert.equal(deploy.with['build-command'], `npm --prefix ../unfold ci --omit=dev --no-audit --no-fund && UNFOLD_SITE_URL=${origin} pnpm run build:release`, name);
     assert.deepEqual(deploy.with['smoke-paths'].trim().split('\n'), ['/', '/nl', '/robots.txt', '/sitemap-index.xml', '/favicon.svg', '/demo/', '/demo/replay/replay.json', '/privacy', '/nl/privacy'], name);
     assert.deepEqual(Object.keys(deploy.secrets).sort(), ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'], name);
   }
@@ -294,14 +294,14 @@ test('the unfoldhq.dev zone is previewed and pushed from development and checked
   assert.ok(fs.existsSync(path.join(root, 'apps/site/ops/dns/creds.json')));
 });
 
-test('the Vloer publisher is the only and therefore final publisher', () => {
-  const vloer = publisher.jobs['vloer-release-distribute'];
-  const publish = vloer.steps.findIndex(step => step.run?.includes('python3 scripts/publish_release.py vloer'));
+test('the Unfold publisher is the only and therefore final publisher', () => {
+  const unfold = publisher.jobs['unfold-release-distribute'];
+  const publish = unfold.steps.findIndex(step => step.run?.includes('python3 scripts/publish_release.py unfold'));
   assert.ok(publish >= 0);
-  assert.equal(vloer.steps[publish]['continue-on-error'], undefined);
-  assert.equal(vloer.outputs, undefined, 'no later publisher waits for Vloer');
+  assert.equal(unfold.steps[publish]['continue-on-error'], undefined);
+  assert.equal(unfold.outputs, undefined, 'no later publisher waits for Unfold');
   const callers = Object.entries(publisher.jobs).filter(([, job]) => JSON.stringify(job).includes('scripts/publish_release.py')).map(([name]) => name);
-  assert.deepEqual(callers, ['vloer-release-distribute']);
+  assert.deepEqual(callers, ['unfold-release-distribute']);
 });
 
 test('workflow dependencies resolve, reusable calls are pinned and local actions follow checkout', () => {
@@ -340,7 +340,7 @@ test('workflow dependencies resolve, reusable calls are pinned and local actions
       visit(name);
     }
   }
-  assert.ok(!fs.existsSync(path.join(root, 'apps/vloer/.forgejo')), 'apps/vloer/.forgejo is never read by Forgejo');
+  assert.ok(!fs.existsSync(path.join(root, 'apps/unfold/.forgejo')), 'apps/unfold/.forgejo is never read by Forgejo');
 });
 
 
@@ -381,7 +381,7 @@ test('the tutorial smoke job runs weekly, only runs the deterministic demo and n
   const job = workflows['on_schedule.yml'].jobs['tutorial-smoke'];
   assert.deepEqual(job.steps.map(step => step.uses), [source.jobs.checks.steps[0].uses, './.forgejo/actions/tutorial-smoke']);
   const action = read('.forgejo/actions/tutorial-smoke/action.yml');
-  assert.deepEqual(action.runs.steps.filter(step => step.run).map(step => step.run), ['bash scripts/tutorial-smoke.sh --check', 'mise trust apps/vloer/mise.toml && mise trust apps/ploeg/mise.toml && bash scripts/tutorial-smoke.sh']);
+  assert.deepEqual(action.runs.steps.filter(step => step.run).map(step => step.run), ['bash scripts/tutorial-smoke.sh --check', 'mise trust apps/unfold/mise.toml && mise trust apps/ploeg/mise.toml && bash scripts/tutorial-smoke.sh']);
   assert.equal(action.runs.steps.at(-1).if, "steps.prerequisites.outputs.ready == 'true'");
   assert.doesNotMatch(JSON.stringify(action) + JSON.stringify(job), /secrets\.|UNFOLD_RELEASES_ENABLED|permissions/);
   for (const workflow of ['on_pull_request.yml', 'on_source_change.yml']) assert.ok(!('tutorial-smoke' in workflows[workflow].jobs), workflow);

@@ -6,7 +6,7 @@
 
 The software is [Apache-2.0](../../LICENSE), and so are the files in this directory. Section 6 of that licence grants no rights in trade names or marks, and that carve-out is deliberate. This page fills it.
 
-Ploeg and Vloer, Unfold's parts, keep their own policies: [Ploeg](../../apps/ploeg/docs/brand/TRADEMARK.md) and [Vloer](../../apps/vloer/docs/brand/TRADEMARK.md).
+Ploeg keeps its own policy: [Ploeg](../../apps/ploeg/docs/brand/TRADEMARK.md). The Unfold application has a policy from when it carried its own brand: [application policy](../../apps/unfold/docs/brand/TRADEMARK.md).
 
 ## You may, without asking
 

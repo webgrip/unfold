@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, contributor, operator, agent]
 owner: unfold
 last_verified: 2026-09-22
-verified_by: "source read of apps/ploeg and apps/vloer at 69d1af2; ops/helm charts"
+verified_by: "source read of apps/ploeg and apps/unfold at 69d1af2; ops/helm charts"
 ---
 
 # Architecture
@@ -11,7 +11,7 @@ verified_by: "source read of apps/ploeg and apps/vloer at 69d1af2; ops/helm char
 Unfold has two deployable applications:
 
 * **Ploeg** runs agent work. It is a Go controller with PostgreSQL, plus short-lived worker pods.
-* **Vloer** is the front end where a person follows and steers that work. It is a Node web server, with a VS Code extension.
+* **Unfold** is the front end where a person follows and steers that work. It is a Node web server, with a VS Code extension.
 
 Both run on your own Kubernetes cluster and use your own tracker, forge and model gateway. This page gives the goals, the two diagrams that matter and the main decisions. [How work flows](how-work-flows.md) follows one ticket through the system.
 
@@ -30,7 +30,7 @@ Quality goals, in priority order:
 
 * Self-hosted: Kubernetes, PostgreSQL, a LiteLLM gateway, Forgejo (the leading forge) and Vikunja or ClickUp.
 * One owner operates and maintains it. Simplicity outranks generality.
-* Production desired state lives in the separate `homelab-cluster` repository. Unfold builds Vloer's images, chart and extension. Ploeg's come from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg), which Unfold pins as a submodule at `apps/ploeg` ([ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)).
+* Production desired state lives in the separate `homelab-cluster` repository. Unfold builds its application's images, chart and extension. Ploeg's come from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg), which Unfold pins as a submodule at `apps/ploeg` ([ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)).
 
 ## Context
 
@@ -39,7 +39,7 @@ flowchart LR
     you["You<br/>owner and reviewer"]
     tracker["Tracker<br/>Vikunja or ClickUp"]
     forge["Forge<br/>Forgejo (GitLab adapter exists)"]
-    unfold["Unfold<br/>Ploeg + Vloer"]
+    unfold["Unfold<br/>application + Ploeg"]
     llm["LiteLLM gateway<br/>model providers behind it"]
     k8s["Kubernetes cluster<br/>KEDA, runs worker pods"]
     you -->|create and assign Work Items| tracker
@@ -61,8 +61,8 @@ flowchart TB
         db[("PostgreSQL<br/>Work Items, Shifts, Runs,<br/>Leases, accounts, audit")]
         worker["ploeg-worker<br/>one pod per Run: clone,<br/>harness, push, outcome"]
     end
-    subgraph vloer["Vloer"]
-        server["Vloer server<br/>Node, SQLite: sessions,<br/>events, review"]
+    subgraph unfold["Unfold"]
+        server["Unfold server<br/>Node, SQLite: sessions,<br/>events, review"]
         ext["VS Code extension"]
         browser["Browser UI"]
     end
@@ -83,8 +83,8 @@ flowchart TB
 | --- | --- | --- |
 | `ploegd` | [`apps/ploeg/cmd/ploegd`](../../apps/ploeg/cmd/ploegd/main.go) | The only holder of the LiteLLM master key, forge admin token and database. Turns webhooks into Shifts, admits and leases Runs, mints keys, and advances or closes Shifts. |
 | `ploeg-worker` | [`apps/ploeg/cmd/ploeg-worker`](../../apps/ploeg/cmd/ploeg-worker/main.go) | Runs one Run and exits. Refuses to start if it can see controller secrets. |
-| Vloer server | [`apps/vloer/src`](../../apps/vloer/src/main.ts) | Front end: sessions, live events, human review. It still contains an execution engine, which [ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md) retires. |
-| VS Code extension | [`apps/vloer/extensions/vscode`](../../apps/vloer/extensions/vscode/) | Follows Vloer sessions from the editor. |
+| Unfold server | [`apps/unfold/src`](../../apps/unfold/src/main.ts) | Front end: sessions, live events, human review. It still contains an execution engine, which [ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md) retires. |
+| VS Code extension | [`apps/unfold/extensions/vscode`](../../apps/unfold/extensions/vscode/) | Follows Unfold sessions from the editor. |
 
 ## Solution strategy
 
@@ -96,7 +96,7 @@ flowchart TB
 | The pull request is where agents and people exchange results | [Ploeg ADR-0011](../../apps/ploeg/docs/adrs/0011-the-pull-request-is-the-blackboard.md) |
 | Budgets are authorized before a Run and settled after it | [Ploeg ADR-0012](../../apps/ploeg/docs/adrs/0012-two-level-budgets-authorized-and-settled.md) |
 | Push rights are minted per Run | [Ploeg ADR-0013](../../apps/ploeg/docs/adrs/0013-push-rights-are-minted-per-run.md) |
-| Ploeg is the only engine; Vloer is the front end | [Unfold ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md) |
+| Ploeg is the only engine; Unfold is the front end | [system ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md) |
 
 Every decision across the three ledgers is listed in the [decision register](../reference/decisions.md).
 
@@ -104,10 +104,10 @@ Every decision across the three ledgers is listed in the [decision register](../
 
 | Risk | State |
 | --- | --- |
-| Two execution engines until Vloer delegates to `ploeg-worker` | Accepted in ADR-0002; migration not started |
+| Two execution engines until Unfold delegates to `ploeg-worker` | Accepted in ADR-0002; migration not started |
 | Candidate delivery stores approvals, but nothing publishes | Delivery ends at the pull request |
 | Failed checks and requested changes act only for Teams that set `forgeFollowUps` | Off by default; other forge events are recorded only |
 | Releases have not moved to Unfold yet | See [first cutover](../operations/first-cutover.md) |
 | Agent quality is unmeasured beyond single fixtures | A comparison on real Work Items is an open option. [Proposed KPIs](../reference/kpis.md) define what to measure |
 
-Related: [Ploeg architecture](../../apps/ploeg/docs/architecture.md), [Vloer architecture](../../apps/vloer/docs/architecture.md), [historical C4 views](../landscape/c4.md).
+Related: [Ploeg architecture](../../apps/ploeg/docs/architecture.md), [Unfold architecture](../../apps/unfold/docs/architecture.md), [historical C4 views](../landscape/c4.md).

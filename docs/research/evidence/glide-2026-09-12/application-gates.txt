@@ -290,31 +290,31 @@ apps/vloer: npm run extension:test
 > de-vloer@0.3.0-rc.16 test
 > node --test test/*.test.ts
 
-(node:70632) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/test/accounts.test.ts is not specified and it doesn't parse as CommonJS.
+(node:70632) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/accounts.test.ts is not specified and it doesn't parse as CommonJS.
 Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
-To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/package.json.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
 (Use `node --trace-warnings ...` to show where the warning was created)
 ✔ choices follow the link state and descriptions match the web workbench wording (0.854041ms)
 ✔ linking GitLab opens the authorization URL the workbench returns in the external browser (0.234042ms)
 ✔ unlinking requires confirmation and then calls the workbench (0.91775ms)
 ✔ an unconfigured or absent GitLab link is explained without offering actions (0.135667ms)
 ✔ the client reads links and drives the GitLab link routes with the mutation header (22.842084ms)
-(node:70633) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/test/approval.test.ts is not specified and it doesn't parse as CommonJS.
+(node:70633) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/approval.test.ts is not specified and it doesn't parse as CommonJS.
 Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
-To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/package.json.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
 (Use `node --trace-warnings ...` to show where the warning was created)
 ✔ the approval route receives the authenticated mutation contract with the chosen mode (20.18325ms)
 ✔ automatic approval is offered only for active sessions on an isolated placement (0.218959ms)
 ✔ the set-approval command sends the picked mode and skips a no-op choice (0.251208ms)
-(node:70634) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/test/browser-login.test.ts is not specified and it doesn't parse as CommonJS.
+(node:70634) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/browser-login.test.ts is not specified and it doesn't parse as CommonJS.
 Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
-To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/package.json.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
 (Use `node --trace-warnings ...` to show where the warning was created)
 ✔ a browser sign-in opens the workbench URL, polls until the session is ready, and stores the cookie (0.812292ms)
 ✔ cancelling stops polling without a session, and a foreign origin is refused (0.2605ms)
-(node:70635) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/test/client.test.ts is not specified and it doesn't parse as CommonJS.
+(node:70635) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/client.test.ts is not specified and it doesn't parse as CommonJS.
 Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
-To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/package.json.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
 (Use `node --trace-warnings ...` to show where the warning was created)
 ✔ server origins require HTTPS except loopback and reject credential-bearing or path URLs (0.966ms)
 ✔ the client drives the actual demo server to real checks and independently reviewed evidence (6868.680917ms)
@@ -330,18 +330,18 @@ To eliminate this warning, add "type": "module" to /Users/ryangrippeling/project
 ✔ the live event stream requires the stored login and never invents one (49.561584ms)
 ✔ administrators authorize additional budget through the real mutation contract (67.847375ms)
 ✔ Ploeg inspection shares workbench identity and opens opaque item links without remote execution (3.976459ms)
-(node:70636) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/test/status.test.ts is not specified and it doesn't parse as CommonJS.
+(node:70636) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/status.test.ts is not specified and it doesn't parse as CommonJS.
 Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
-To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/package.json.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
 (Use `node --trace-warnings ...` to show where the warning was created)
 ✔ run labels: write is implementation, a read role before the end is analysis, the final read role is the independent review (0.754125ms)
 ✔ the situation counts only the final read role as a reviewer (0.210792ms)
 ✔ a policy violation is presented as a gateway policy failure (0.086709ms)
 ✔ observed spend is shown only while running and only above the settled figure (0.117375ms)
 ✔ approval wording and isolation (0.073792ms)
-(node:70637) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/test/webview.test.ts is not specified and it doesn't parse as CommonJS.
+(node:70637) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/webview.test.ts is not specified and it doesn't parse as CommonJS.
 Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
-To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/package.json.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
 (Use `node --trace-warnings ...` to show where the warning was created)
 ✔ the webview announces itself to the extension host on load (0.767916ms)
 ✔ markdown keeps hostile text inert: no script, image or anchor elements are created and the raw text survives as text (0.97375ms)
@@ -416,7 +416,7 @@ de-vloer-0.3.0-rc.16.vsix
          ├─ start.md [0.71 KB]
          └─ tasks.md [0.71 KB]
 
- DONE  Packaged: /Users/ryangrippeling/projects/webgrip/glide/apps/vloer/extensions/vscode/de-vloer-0.3.0-rc.16.vsix (28 files, 91.13 KB)
+ DONE  Packaged: /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/de-vloer-0.3.0-rc.16.vsix (28 files, 91.13 KB)
 apps/vloer: npm run extension:verify
 
 > @webgrip/de-vloer@0.3.0-rc.16 extension:verify
@@ -472,12 +472,12 @@ apps/vloer: helm lint ops/helm/de-vloer
 
 1 chart(s) linted, 0 chart(s) failed
 apps/vloer: helm template de-vloer ops/helm/de-vloer
-apps/vloer: helm lint ops/helm/de-vloer -f ops/helm/de-vloer/values.live.example.yaml
+apps/vloer: helm lint ops/helm/de-vloer -f ops/helm/unfold/values.live.example.yaml
 ==> Linting ops/helm/de-vloer
 [INFO] Chart.yaml: icon is recommended
 
 1 chart(s) linted, 0 chart(s) failed
-apps/vloer: helm template de-vloer ops/helm/de-vloer -f ops/helm/de-vloer/values.live.example.yaml
+apps/vloer: helm template de-vloer ops/helm/de-vloer -f ops/helm/unfold/values.live.example.yaml
 apps/ploeg: helm lint ops/helm/ploeg
 ==> Linting ops/helm/ploeg
 [INFO] Chart.yaml: icon is recommended

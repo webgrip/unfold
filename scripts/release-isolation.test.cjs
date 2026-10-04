@@ -48,14 +48,14 @@ test('the shared prerelease configuration needs an existing main baseline', asyn
   }
 });
 
-test('one Unfold release selects Vloer commits and ignores the site, the Ploeg pin and changes outside the applications', async () => {
+test('one Unfold release selects Unfold commits and ignores the site, the Ploeg pin and changes outside the applications', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-release-'));
   const previous = process.cwd();
   try {
     git(directory, 'init', '-b', 'development');
     git(directory, 'config', 'user.name', 'Unfold qualification');
     git(directory, 'config', 'user.email', 'qualification@example.invalid');
-    for (const app of ['vloer', 'ploeg', 'site']) fs.mkdirSync(path.join(directory, 'apps', app), { recursive: true });
+    for (const app of ['unfold', 'ploeg', 'site']) fs.mkdirSync(path.join(directory, 'apps', app), { recursive: true });
     fs.mkdirSync(path.join(directory, 'scripts'));
     fs.mkdirSync(path.join(directory, 'docs'));
     const files = ['apps/.releaserc.cjs', 'scripts/release-policy.cjs', 'scripts/release-floors.cjs', 'scripts/release-floors.json'];
@@ -66,11 +66,11 @@ test('one Unfold release selects Vloer commits and ignores the site, the Ploeg p
     git(directory, 'commit', '-m', 'chore: establish fixture');
     const commits = [];
     for (const [name, message, paths] of [
-      ['vloer', 'fix: correct interactive work', ['apps/vloer/change.txt']],
+      ['unfold', 'fix: correct interactive work', ['apps/unfold/change.txt']],
       ['ploeg-pin', 'build(ploeg): pin ploeg-hq/ploeg v0.1.1', ['apps/ploeg/change.txt']],
       ['ploeg-fix', 'fix(ploeg): pin the Ploeg fix for stuck reviewers', ['apps/ploeg/change.txt']],
       ['ploeg-breaking', 'feat(ploeg)!: pin a Ploeg with a new operator contract', ['apps/ploeg/change.txt']],
-      ['both', 'fix: show the field the newly pinned Ploeg sends', ['apps/vloer/change.txt', 'apps/ploeg/change.txt']],
+      ['both', 'fix: show the field the newly pinned Ploeg sends', ['apps/unfold/change.txt', 'apps/ploeg/change.txt']],
       ['docs', 'fix: clarify shared documentation', ['docs/guide.md']],
       ['site', 'feat(site): add the landing page', ['apps/site/change.txt']],
       ['site-breaking', 'feat(site)!: move the site to a new domain', ['apps/site/change.txt']],
@@ -87,7 +87,7 @@ test('one Unfold release selects Vloer commits and ignores the site, the Ploeg p
     const input = { cwd, env: process.env, logger, stdout: process.stdout, stderr: process.stderr };
     const { options, plugins } = await getConfig(input, { repositoryUrl: 'https://example.invalid/unfold.git' });
     assert.equal(options.tagFormat, 'unfold-v${version}');
-    const expected = { vloer: 'patch', 'ploeg-pin': null, 'ploeg-fix': null, 'ploeg-breaking': null, both: 'patch', docs: null, site: null, 'site-breaking': null };
+    const expected = { unfold: 'patch', 'ploeg-pin': null, 'ploeg-fix': null, 'ploeg-breaking': null, both: 'patch', docs: null, site: null, 'site-breaking': null };
     for (const commit of commits) {
       const actual = await plugins.analyzeCommits({ ...input, options, commits: [commit] });
       assert.equal(actual ?? null, expected[commit.name], commit.name);
@@ -131,7 +131,7 @@ test('the site train selects only site commits and cuts unfold-site-v tags', asy
     git(directory, 'init', '-b', 'development');
     git(directory, 'config', 'user.name', 'Unfold qualification');
     git(directory, 'config', 'user.email', 'qualification@example.invalid');
-    for (const app of ['vloer', 'ploeg', 'site']) fs.mkdirSync(path.join(directory, 'apps', app), { recursive: true });
+    for (const app of ['unfold', 'ploeg', 'site']) fs.mkdirSync(path.join(directory, 'apps', app), { recursive: true });
     fs.mkdirSync(path.join(directory, 'docs'));
     const site = JSON.parse(fs.readFileSync(path.join(root, 'apps/site/package.json'), 'utf8'));
     fs.writeFileSync(path.join(directory, 'apps/site/package.json'), JSON.stringify({ name: site.name, version: site.version, private: true }));
@@ -142,7 +142,7 @@ test('the site train selects only site commits and cuts unfold-site-v tags', asy
     for (const [name, message, paths] of [
       ['site', 'feat(site): add the landing page', ['apps/site/change.txt']],
       ['site-fix', 'fix(site): correct a link', ['apps/site/change.txt']],
-      ['vloer', 'feat: extend interactive work', ['apps/vloer/change.txt']],
+      ['unfold', 'feat: extend interactive work', ['apps/unfold/change.txt']],
       ['ploeg', 'fix: correct managed work', ['apps/ploeg/change.txt']],
       ['docs', 'fix: clarify shared documentation', ['docs/guide.md']],
     ]) {
@@ -160,7 +160,7 @@ test('the site train selects only site commits and cuts unfold-site-v tags', asy
     assert.equal(options.tagFormat, 'unfold-site-v${version}');
     assert.equal(options.tagFormat, `${site.name}-v\${version}`, 'semantic-release-monorepo names release notes after the package');
     assert.ok(!options.plugins.some(plugin => (Array.isArray(plugin) ? plugin[0] : plugin).includes('release-policy')), 'the Unfold zero-major policy is not the site policy');
-    const expected = { site: 'minor', 'site-fix': 'patch', vloer: null, ploeg: null, docs: null };
+    const expected = { site: 'minor', 'site-fix': 'patch', unfold: null, ploeg: null, docs: null };
     for (const commit of commits) {
       const actual = await plugins.analyzeCommits({ ...input, options, commits: [commit] });
       assert.equal(actual ?? null, expected[commit.name], commit.name);
@@ -178,7 +178,7 @@ test('each train reads only its own tags', async () => {
     git(directory, 'config', 'user.name', 'Unfold qualification');
     git(directory, 'config', 'user.email', 'qualification@example.invalid');
     git(directory, 'commit', '--allow-empty', '-m', 'chore: establish fixture');
-    const tags = ['unfold-v0.3.0', 'unfold-v0.4.0-rc.1', 'unfold-site-v0.0.0', 'unfold-site-v0.1.0-rc.1', 'vloer-v0.3.0', 'ploeg-v0.3.0'];
+    const tags = ['vloer-v0.3.0', 'unfold-v0.4.0-rc.1', 'unfold-site-v0.0.0', 'unfold-site-v0.1.0-rc.1', 'unfold-v0.3.0', 'ploeg-v0.3.0'];
     for (const tag of tags) git(directory, 'tag', tag);
     const moduleRoot = path.dirname(require.resolve('semantic-release'));
     const { default: getTags } = await import(pathToFileURL(path.join(moduleRoot, 'lib/branches/get-tags.js')).href);

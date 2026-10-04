@@ -30,8 +30,8 @@ def git(*args, env=None, input=None):
 def release_tag(application, version):
     if application in RETIRED_PUBLISHERS:
         raise ValueError(RETIRED_PUBLISHERS[application])
-    if application != 'vloer' or not re.fullmatch(r'0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.([1-9][0-9]*)', version):
-        raise ValueError('Unfold publishes only Vloer, as 0.x.y-rc.N releases')
+    if application != 'unfold' or not re.fullmatch(r'0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.([1-9][0-9]*)', version):
+        raise ValueError('Unfold publishes only Unfold, as 0.x.y-rc.N releases')
     return f'unfold-v{version}'
 
 
@@ -131,8 +131,8 @@ def publish(application, version):
         raise RuntimeError('Cannot publish a draft release')
     source = Registry('harbor.webgrip.dev', os.environ['HARBOR_ROBOT_USER'], os.environ['HARBOR_ROBOT_TOKEN'])
     targets = [Registry('forgejo.webgrip.dev', 'webgrip-ci', forge_token), Registry('ghcr.io', os.environ['GHCR_USERNAME'], github_token)]
-    images = ['de-vloer', 'de-vloer-agent']
-    chart = 'de-vloer'
+    images = ['unfold', 'unfold-agent']
+    chart = 'unfold'
     evidence = {'schema_version': 1, 'tag': tag, 'source': 'https://github.com/webgrip/unfold', 'revision': revision, 'images': [], 'charts': []}
     for target in targets:
         for name in images:
@@ -150,9 +150,9 @@ def publish(application, version):
             continue
         path, reference = artifact['target'].removeprefix('ghcr.io/').split('@')
         require_same(digest(anonymous.manifest(path, version)), reference, 'anonymous public pull')
-    extension = api(f'https://open-vsx.org/api/webgrip/de-vloer/{version}', '')
+    extension = api(f'https://open-vsx.org/api/webgrip/unfold/{version}', '')
     require_same(extension['version'], version, 'Open VSX version')
-    vsix = next(a for a in source_release['assets'] if a['name'] == f'de-vloer-{version}.vsix')
+    vsix = next(a for a in source_release['assets'] if a['name'] == f'unfold-{version}.vsix')
     data, _ = request(extension['files']['download'])
     require_same(digest(data), digest(fetch_asset(vsix, forge_token)), 'Open VSX VSIX')
     evidence['extension'] = {'version': version, 'sha256': hashlib.sha256(data).hexdigest(), 'url': extension['files']['download']}

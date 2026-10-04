@@ -7,11 +7,11 @@ import { runGate } from './verify-gate.mjs';
 const root = resolve(import.meta.dirname, '..');
 
 const gate = (scope, command, args, options = {}) => ({ scope, command, args, ...options });
-const vloer = task => gate('apps/vloer', 'npm', ['run', ...task.split(' ')]);
+const unfold = task => gate('apps/unfold', 'npm', ['run', ...task.split(' ')]);
 const site = task => gate('apps/site', 'corepack', ['pnpm', 'run', task]);
 const helm = [];
 for (const [scope, name, variants] of [
-  ['vloer', 'de-vloer', ['', 'values.live.example.yaml']],
+  ['unfold', 'unfold', ['', 'values.live.example.yaml']],
 ]) {
   const chart = `ops/helm/${name}`;
   for (const variant of variants) {
@@ -22,21 +22,21 @@ for (const [scope, name, variants] of [
 }
 
 const groups = [
-  { name: 'vloer', inputs: ['apps/vloer', 'docs'], gates: ['typecheck', 'test', 'check', 'design:check', 'brand:check', 'license:check', 'backlog -- check'].map(vloer) },
-  { name: 'vloer-extension', inputs: ['apps/vloer'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(vloer) },
+  { name: 'unfold', inputs: ['apps/unfold', 'docs'], gates: ['typecheck', 'test', 'check', 'design:check', 'brand:check', 'license:check', 'backlog -- check'].map(unfold) },
+  { name: 'unfold-extension', inputs: ['apps/unfold'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(unfold) },
   {
     name: 'ploeg',
-    inputs: ['apps/ploeg', 'apps/vloer/scripts/unified-demo', '.gitmodules', 'scripts/ploeg-pin.mjs'],
+    inputs: ['apps/ploeg', 'apps/unfold/scripts/unified-demo', '.gitmodules', 'scripts/ploeg-pin.mjs'],
     gates: [
       gate('.', process.execPath, ['scripts/ploeg-pin.mjs']),
       gate('apps/ploeg', 'bash', ['scripts/verify.sh']),
-      gate('apps/ploeg', 'go', ['build', '-o', devNull, resolve(root, 'apps/vloer/scripts/unified-demo/main.go')]),
+      gate('apps/ploeg', 'go', ['build', '-o', devNull, resolve(root, 'apps/unfold/scripts/unified-demo/main.go')]),
     ],
   },
   { name: 'brand', inputs: ['scripts/build-brand.mjs', 'docs/brand', 'apps/site/src/brand', 'apps/site/src/styles/brand.css', 'README.md'], gates: [gate('.', process.execPath, ['scripts/build-brand.mjs', '--check'])] },
-  { name: 'site', inputs: ['apps/site', 'apps/vloer/public', 'apps/vloer/src', 'apps/vloer/examples', 'apps/vloer/scripts/record-replay.ts', 'apps/vloer/package.json'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
-  { name: 'site-demo', inputs: ['apps/site', 'apps/vloer/src', 'apps/vloer/examples', 'apps/vloer/package.json'], gates: [gate('apps/site', 'node', ['scripts/demo-timeline.ts', '--check'])] },
-  { name: 'helm', inputs: ['apps/vloer/ops/helm'], gates: helm },
+  { name: 'site', inputs: ['apps/site', 'apps/unfold/public', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/scripts/record-replay.ts', 'apps/unfold/package.json'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
+  { name: 'site-demo', inputs: ['apps/site', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/package.json'], gates: [gate('apps/site', 'node', ['scripts/demo-timeline.ts', '--check'])] },
+  { name: 'helm', inputs: ['apps/unfold/ops/helm'], gates: helm },
   {
     name: 'release',
     gates: [
@@ -50,14 +50,14 @@ const groups = [
 ];
 
 const cpus = process.env.UNFOLD_VERIFY_CPUS;
-const parallelism = cpus ? { GOMAXPROCS: cpus, GOFLAGS: `${process.env.GOFLAGS ?? ''} -p=${cpus}`.trim(), VLOER_TEST_CONCURRENCY: cpus } : {};
+const parallelism = cpus ? { GOMAXPROCS: cpus, GOFLAGS: `${process.env.GOFLAGS ?? ''} -p=${cpus}`.trim(), UNFOLD_TEST_CONCURRENCY: cpus } : {};
 
 const results = process.env.UNFOLD_VERIFY_RESULTS ? resultCache(process.env.UNFOLD_VERIFY_RESULTS, { reuse: process.env.UNFOLD_VERIFY_REUSE === 'true' }) : undefined;
 const toolVersions = scope => Object.fromEntries(Object.entries(JSON.parse(execFileSync('mise', ['-C', scope, 'ls', '--current', '--json'], { cwd: root, encoding: 'utf8' }))).map(([tool, installs]) => [tool, installs.map(install => install.version)]));
 const shared = results && {
-  paths: ['mise.toml', 'apps/vloer/mise.toml', 'apps/site/mise.toml', 'scripts/verify.mjs', 'scripts/verify-cache.mjs'],
-  tools: Object.fromEntries(['.', 'apps/vloer', 'apps/ploeg', 'apps/site'].map(scope => [scope, toolVersions(scope)])),
-  env: { GOFLAGS: process.env.GOFLAGS ?? '', VLOER_TEST_TIMEOUT_SCALE: process.env.VLOER_TEST_TIMEOUT_SCALE ?? '' },
+  paths: ['mise.toml', 'apps/unfold/mise.toml', 'apps/site/mise.toml', 'scripts/verify.mjs', 'scripts/verify-cache.mjs'],
+  tools: Object.fromEntries(['.', 'apps/unfold', 'apps/ploeg', 'apps/site'].map(scope => [scope, toolVersions(scope)])),
+  env: { GOFLAGS: process.env.GOFLAGS ?? '', UNFOLD_TEST_TIMEOUT_SCALE: process.env.UNFOLD_TEST_TIMEOUT_SCALE ?? '' },
 };
 if (shared) for (const group of groups) for (const step of group.gates) {
   if (group.inputs) step.key = gateKey(root, { scope: step.scope, command: step.command === process.execPath ? 'node' : step.command, args: step.args, inputs: group.inputs }, shared);

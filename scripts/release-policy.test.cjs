@@ -91,7 +91,7 @@ test('a computed version at or below the floor or any existing tag stops before 
   }
   assert.throws(() => policy.verifyRelease({}, context('0.4.0-rc.36'), { tags: ['unfold-v0.4.0-rc.36'] }), /existing tag unfold-v0\.4\.0-rc\.36/);
   assert.throws(() => policy.verifyRelease({}, context('0.4.0-rc.35'), { tags: ['unfold-v0.4.0-rc.36'] }), /existing tag unfold-v0\.4\.0-rc\.36/);
-  assert.throws(() => policy.verifyRelease({}, context('0.5.0-rc.1'), { tags: ['vloer-v0.5.0-rc.2'] }), /Vloer 0\.5\.0-rc\.1/);
+  assert.throws(() => policy.verifyRelease({}, context('0.5.0-rc.1'), { tags: ['vloer-v0.5.0-rc.2'] }), /Unfold 0\.5\.0-rc\.1/);
   policy.verifyRelease({}, context('0.5.0-rc.1'), { tags: ['ploeg-v0.5.0-rc.1', 'unfold-v0.4.0-rc.35'] });
   policy.verifyRelease({}, context('0.4.0-rc.35'), { tags: ['unfold-v0.4.0-rc.34', 'unfold-site-v0.9.0-rc.1', 'ploeg-v0.3.0-rc.7'] });
 });
@@ -188,17 +188,17 @@ test('the installed release engine checks conditions before promotion and verifi
   assert.deepEqual([...positions].sort((a, b) => a - b), positions);
 });
 
-test('one release prepares and commits Vloer at the Unfold version and never touches the pinned Ploeg', () => {
+test('one release prepares and commits Unfold at the Unfold version and never touches the pinned Ploeg', () => {
   const exec = pluginOptions(config, '@semantic-release/exec');
   assert.equal(exec.prepareCmd, 'node ../scripts/release-prepare.mjs ${nextRelease.version}');
   const assets = pluginOptions(config, '@semantic-release/git').assets;
-  for (const asset of ['CHANGELOG.md', 'vloer/ops/helm/de-vloer/Chart.yaml', 'vloer/package.json', 'vloer/extensions/vscode/package.json', 'vloer/ops/cluster/agent-sandbox/warm-pool.yaml', 'vloer/ops/local/config.live.example.json']) {
+  for (const asset of ['CHANGELOG.md', 'unfold/ops/helm/unfold/Chart.yaml', 'unfold/package.json', 'unfold/extensions/vscode/package.json', 'unfold/ops/cluster/agent-sandbox/warm-pool.yaml', 'unfold/ops/local/config.live.example.json']) {
     assert.ok(assets.includes(asset), asset);
     if (asset !== 'CHANGELOG.md') assert.ok(fs.existsSync(path.join(root, 'apps', asset)), asset);
   }
   assert.deepEqual(assets.filter(asset => asset.startsWith('ploeg')), []);
   const prepare = fs.readFileSync(path.join(root, 'scripts/release-prepare.mjs'), 'utf8');
-  for (const chart of ['apps/vloer/ops/helm/de-vloer/Chart.yaml', 'apps/vloer/scripts/release-prepare.mjs']) {
+  for (const chart of ['apps/unfold/ops/helm/unfold/Chart.yaml', 'apps/unfold/scripts/release-prepare.mjs']) {
     assert.ok(prepare.includes(chart), chart);
   }
   assert.doesNotMatch(prepare, /apps\/ploeg/);

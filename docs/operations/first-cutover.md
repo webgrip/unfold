@@ -3,7 +3,7 @@ type: how-to
 audience: [owner, operator]
 owner: unfold
 last_verified: 2026-09-27
-verified_by: "Repository claims checked: outcome values in cutover-record.example.json, scripts/release_preflight.py, the dry-run in on_release_preview.yml, the Vloer /healthz route and the order-service test path; external registries, GitOps and cluster state were not re-checked"
+verified_by: "Repository claims checked: outcome values in cutover-record.example.json, scripts/release_preflight.py, the dry-run in on_release_preview.yml, the Unfold /healthz route and the order-service test path; external registries, GitOps and cluster state were not re-checked"
 ---
 
 # First Unfold release and live test
@@ -12,13 +12,13 @@ Use this playbook to transfer release authority to Unfold, publish the first qua
 
 The [12 September readiness record](../research/2026-09-12-cutover-readiness.json) separates observed results from missing evidence. The [23 September readiness record](../research/2026-09-23-cutover-readiness.json) and its [summary](../research/2026-09-23-cutover-readiness.md) show which blockers are fixed and which owner actions remain. The [CI guide](ci.md) maps the current event entry points and publication guards. Copy the [execution record](cutover-record.example.json) for your test and replace its empty fields as each stage completes. Keep credentials, cookies, model prompts containing private data and database contents out of that record. A stage passes only when its evidence is attached; a skipped job is not a pass.
 
-This procedure does not enable general availability. Vloer and Ploeg have independent versions: Unfold releases Vloer, and Ploeg releases from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) ([ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)). Both applications remain on `0.x.y-rc.N`; each release configuration refuses a major or stable version. A release is complete when its required artifacts are verified; a rollout is complete when the selected environment passes the live checks. These are separate checkpoints.
+This procedure does not enable general availability. The Unfold application and Ploeg have independent versions: Unfold releases its application, and Ploeg releases from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) ([ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)). Both applications remain on `0.x.y-rc.N`; each release configuration refuses a major or stable version. A release is complete when its required artifacts are verified; a rollout is complete when the selected environment passes the live checks. These are separate checkpoints.
 
 ## 1. Choose the test and capture the starting state
 
 Use one operator, one registered test repository, one concurrent session and an explicitly approved model budget. The current GitOps configuration sets a per-session ceiling of USD 0.25; confirm the effective setting and model access before using it. An in-flight request can settle after cancellation, so the configured budget is not proof of an exact final charge. Do not enable unattended dispatch for this first interactive test.
 
-Choose either an isolated pilot with a separate database and Vloer volume, or an upgrade of the existing installation. An isolated pilot can qualify the new application pair without proving an upgrade of existing data. Record which claim the test is meant to establish. The existing Vloer contract requires a registered repository and crew; use a disposable repository or an approved fixture branch and review the resulting change without publishing it.
+Choose either an isolated pilot with a separate database and Unfold volume, or an upgrade of the existing installation. An isolated pilot can qualify the new application pair without proving an upgrade of existing data. Record which claim the test is meant to establish. The existing Unfold contract requires a registered repository and crew; use a disposable repository or an approved fixture branch and review the resulting change without publishing it.
 
 From Unfold, record the source revision and check that the checkout is clean:
 
@@ -41,11 +41,11 @@ mise exec -- kubectl config current-context
 mise exec -- kubectl -n flux-system get gitrepository flux-system \
   -o 'custom-columns=NAME:.metadata.name,REVISION:.status.artifact.revision'
 mise exec -- kubectl -n ploeg get helmrelease,ocirepository
-mise exec -- kubectl -n ploeg get deployment de-vloer ploeg \
+mise exec -- kubectl -n ploeg get deployment unfold ploeg \
   -o 'custom-columns=NAME:.metadata.name,READY:.status.availableReplicas,IMAGE:.spec.template.spec.containers[*].image'
 ```
 
-Record the GitOps commit, both chart tags and digests, application image digests, Vloer workspace-image digest, extension version, configuration revision and persistent-volume identifiers. Get the workspace-image setting from the [Vloer HelmRelease](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/de-vloer/app/helmrelease.yaml). These recorded values are the rollback baseline; do not copy a dated version from this playbook.
+Record the GitOps commit, both chart tags and digests, application image digests, Unfold workspace-image digest, extension version, configuration revision and persistent-volume identifiers. Get the workspace-image setting from the [Unfold HelmRelease](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/de-vloer/app/helmrelease.yaml). These recorded values are the rollback baseline; do not copy a dated version from this playbook.
 
 ## 2. Close the release blockers
 
@@ -53,7 +53,7 @@ Complete this table before opening the gate. These are preparation tasks, not cl
 
 | Gate | Required change or check | Evidence that closes it |
 | --- | --- | --- |
-| One release authority | Freeze source changes and release-producing automation in the [old Vloer](https://forgejo.webgrip.dev/webgrip/de-vloer/actions) and [old Ploeg](https://forgejo.webgrip.dev/webgrip/ploeg/actions) repositories. Check for newer commits and tags before freezing. Preserve the repositories and their existing tags. | Recorded old tips and highest published versions; no release job still running or able to race Unfold. Import any approved intervening changes and rerun qualification. |
+| One release authority | Freeze source changes and release-producing automation in the [old front-end](https://forgejo.webgrip.dev/webgrip/de-vloer/actions) and [old Ploeg](https://forgejo.webgrip.dev/webgrip/ploeg/actions) repositories. Check for newer commits and tags before freezing. Preserve the repositories and their existing tags. | Recorded old tips and highest published versions; no release job still running or able to race Unfold. Import any approved intervening changes and rerun qualification. |
 | Release baseline | Keep the remote `main` baseline required by the shared semantic-release branch configuration. Work stays on `development`; the current workflows do not release from `main`. | The [release-policy job](../../.forgejo/workflows/on_source_change.yml) verifies the remote branch exists, and the preview resolves both branch types. Do not promote or remove the baseline as part of the pilot. |
 | Correct GitHub source | Verify the [Unfold GitHub mirror](https://github.com/webgrip/unfold) holds the same branches and tags as Forgejo. Release-channel notes stay on Forgejo. The [artifact publisher](artifacts.md) reads source and release notes from the selected Unfold tag. | A rehearsal proves the exported source is from the selected Unfold tag, and the release notes come from Unfold. No blanket monorepo mirror into an application package repository. |
 | Ploeg module compatibility | Retired by [ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md): Unfold exports no Go module. `github.com/ploeg-hq/ploeg` publishes Ploeg's module, and the old `github.com/webgrip/ploeg` versions stay published. | [The publisher](../../scripts/publish_release.py) refuses `ploeg` before any side effect; its tests in `scripts/test_release_floors.py` prove it. |
@@ -61,7 +61,7 @@ Complete this table before opening the gate. These are preparation tasks, not cl
 | Signing authorization | Add `webgrip/unfold` to the appropriate OpenBao Forgejo signing role through the [bootstrap configuration](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/security/openbao/bootstrap/config.sh), retaining the event/ref restrictions. | Reconciliation is confirmed and an OIDC check from an Unfold workflow can use the intended signing role. A manifest edit alone does not prove that the role was updated. |
 | CI credentials | Verify `WEBGRIP_CI_TOKEN`, Harbor push/pull credentials and GitHub distribution credentials. Extend the repo-scoped Open VSX bridge to Unfold in the [secret reconciler](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/forgejo/forgejo-actions-secrets/app/forgejo-actions-secrets.cronjob.yaml). | Bridge success for Unfold plus actual identity/access checks at each required destination. `ExternalSecret` readiness alone does not prove a Forgejo repo secret exists or can publish. |
 | Dependency maintenance | Add Unfold to the [Renovate repository list](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/renovate/renovate-operator/jobs/webgrip-forgejo.yaml), retiring old repository updates when their write freeze begins. | A Renovate run discovers Unfold. The [deployment rules](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/.renovaterc.json5) still require review for application chart and image updates. |
-| Signature propagation | Vloer's image jobs sign each image before the [release workflow](../../.forgejo/workflows/on_release_published.yml) copies it. Qualify both Vloer images at every destination through the [distribution verifier](../../scripts/release_registry.py). | Each required image destination verifies signatures and attestations after copying. Missing or invalid signatures and attestations must fail the publication job. |
+| Signature propagation | Unfold's image jobs sign each image before the [release workflow](../../.forgejo/workflows/on_release_published.yml) copies it. Qualify both Unfold images at every destination through the [distribution verifier](../../scripts/release_registry.py). | Each required image destination verifies signatures and attestations after copying. Missing or invalid signatures and attestations must fail the publication job. |
 | Retry behavior | Rehearse recovery from an existing image/chart and a failed mirror or extension upload. | Retrying the same tag finishes missing artifacts without replacing an existing version, changing its digest or creating another application release. |
 | Release preview | Run the preview in the next section after all source changes are present. | The preview reports the intended Unfold version, channel and notes, or an explained no-release result, for the recorded source revision. |
 
@@ -73,7 +73,7 @@ Open [Unfold Actions](https://forgejo.webgrip.dev/webgrip/glide/actions), select
 
 Record the source SHA, last recognized Unfold tag, predicted next version, channel and release notes. The first preview must recognize the `glide-v0.3.0` baseline and predict `0.4.0-rc.1` (or `0.3.1-rc.1` if only fixes follow the baseline); anything lower means the baseline tag is missing from Forgejo. Check the proposed versions against every existing registry and extension destination; do not reuse a version already published with different contents.
 
-The [first successful preview](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/7), under the earlier per-application versions, recognized Vloer `rc.16` and Ploeg `rc.7` at source `d39a180`, with no release-worthy changes for either application. It proves configuration, branch/history resolution and push permission for that revision; it does not predict a release for a later change.
+The [first successful preview](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/7), under the earlier per-application versions, recognized Unfold `rc.16` and Ploeg `rc.7` at source `d39a180`, with no release-worthy changes for either application. It proves configuration, branch/history resolution and push permission for that revision; it does not predict a release for a later change.
 
 The preview can legitimately report no release. Documentation, test and maintenance commits do not promise a version bump. Do not invent a feature or hand-edit versions merely to get a tag. If a first release is still required, land the actual reviewed release-related fix in an application, then preview again. A change outside `apps/`, such as a workflow or root documentation, is not selected by the commit filter.
 
@@ -83,7 +83,7 @@ A [semantic-release dry run](https://semantic-release.org/usage/configuration/#d
 
 For an existing-installation upgrade, finish or explicitly pause/cancel active sessions and managed Runs, then confirm that remote work has stopped and inference authorization is resolved or conservatively held. Stop new admission during the rollout. Do not change a managed session into standalone mode to bypass an unavailable Ploeg service.
 
-Verify a recent PostgreSQL backup and restore it into an isolated database. Verify a consistent backup of Vloer's persisted state and the configuration needed to read it, using the storage system's approved backup procedure. Preserve the existing at-rest keys; generating new credentials is not a restore. Review [Ploeg migrations](../../apps/ploeg/pkg/store/migrations/) and [Vloer storage](../../apps/vloer/src/store.ts) between the baseline and candidate before deciding whether the old binaries can read the new state.
+Verify a recent PostgreSQL backup and restore it into an isolated database. Verify a consistent backup of Unfold's persisted state and the configuration needed to read it, using the storage system's approved backup procedure. Preserve the existing at-rest keys; generating new credentials is not a restore. Review [Ploeg migrations](../../apps/ploeg/pkg/store/migrations/) and [Unfold storage](../../apps/unfold/src/store.ts) between the baseline and candidate before deciding whether the old binaries can read the new state.
 
 The 12 September audit saw completed Ploeg backups but an unhealthy `cnpg-disaster-recovery` cluster. That observation does not establish a tested restore, and does not mean the healthy primary database has failed. An upgrade of existing data remains blocked until a fresh restore exercise succeeds or an independently verified recovery path is recorded. An isolated pilot must use separate state and must not claim to have closed this upgrade gate.
 
@@ -93,7 +93,7 @@ With preparation evidence complete and the old release authorities frozen, set t
 
 The [release jobs](../../.forgejo/workflows/on_source_change.yml) run only for a **push to `development`**. Enabling the variable does not start them; manually dispatching the source-change workflow also does not start them. Push the reviewed release-worthy change, or, if the exact qualified tip already contains eligible changes, use one documented `chore: start qualified Unfold release cutover` empty commit to trigger a fresh push. An empty commit triggers evaluation but does not itself earn a version bump. Fetch the resulting tip, wait for its checks and retain its run link.
 
-One release job versions both applications under a `unfold-v…` tag. The release triggers one run of **[Workflow] On Release Published**, which publishes Vloer's and Ploeg's artifacts; Ploeg's final distribution waits for Vloer's. Follow that run through completion; source checks, tag creation and the release page are not the completion criterion.
+One release job versions both applications under a `unfold-v…` tag. The release triggers one run of **[Workflow] On Release Published**, which publishes Unfold's and Ploeg's artifacts; Ploeg's final distribution waits for Unfold's. Follow that run through completion; source checks, tag creation and the release page are not the completion criterion.
 
 Inspect [Unfold releases](https://forgejo.webgrip.dev/webgrip/glide/releases). Record the full tag and its resolved commit after manifest preparation. That release commit differs from the tested source tip. The version must be a zero-major release candidate, and prereleases must not move `latest`.
 
@@ -105,11 +105,11 @@ The [release publication workflow](../../.forgejo/workflows/on_release_published
 
 | Artifact | Required evidence for the first release |
 | --- | --- |
-| Vloer workbench image | Harbor, Forgejo and GHCR: matching OCI index digests, AMD64 and ARM64 manifests, correct version/source labels, signature and attested SBOM verification. |
-| Vloer agent image | Harbor, Forgejo and GHCR: the same checks. |
+| Unfold workbench image | Harbor, Forgejo and GHCR: matching OCI index digests, AMD64 and ARM64 manifests, correct version/source labels, signature and attested SBOM verification. |
+| Unfold agent image | Harbor, Forgejo and GHCR: the same checks. |
 | Ploeg daemon image | Harbor, Forgejo and GHCR: the same checks. Its separate unattended `agent-runner` dependency is not built by Unfold. |
 | Both Helm charts | Harbor, Forgejo and GHCR: pull the selected version, check `version`/`appVersion`, dependencies and rendered image references. Require identical OCI digests: the publisher copies Harbor's original package and manifest. Forgejo chart paths now include `webgrip/charts/`; see [artifact identities](artifacts.md#published-identities). |
-| Vloer extension | VSIX and matching checksum attached to the Unfold release; package verification succeeds; install that exact VSIX in the editor. Require the Open VSX download to match the attached VSIX byte for byte. Marketplace is intentionally excluded for these prerelease versions. |
+| Unfold extension | VSIX and matching checksum attached to the Unfold release; package verification succeeds; install that exact VSIX in the editor. Require the Open VSX download to match the attached VSIX byte for byte. Marketplace is intentionally excluded for these prerelease versions. |
 | Ploeg Go module | The compatibility export at the new ordinary version tag installs through `github.com/webgrip/ploeg` in a fresh consumer. Record the export revision and file comparison. |
 | npm and Composer | No publishable package is currently configured. Both application npm manifests are private; no Composer manifest was found. Record these as out of scope. Adding an SDK or PHP package requires its own package identity, version policy, publisher and install test. |
 | Documentation | Follow the [documentation publishing guide](docs-publishing.md). Check the Zensical home page, both applications, raw Markdown, LLM indexes and source revision. Documentation publication has a separate gate; a successful docs deployment does not authorize application releases. |
@@ -135,11 +135,11 @@ Prepare and review the desired-state change in [homelab-cluster](https://forgejo
 | Application | Values that must agree |
 | --- | --- |
 | Ploeg | [OCIRepository](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/ocirepository.yaml) chart tag and digest; [HelmRelease](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/helmrelease.yaml) daemon image tag and digest. |
-| Vloer | [OCIRepository](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/de-vloer/app/ocirepository.yaml) chart tag and digest; [HelmRelease](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/de-vloer/app/helmrelease.yaml) workbench image tag/digest and workspace image tag/digest. |
+| Unfold | [OCIRepository](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/de-vloer/app/ocirepository.yaml) chart tag and digest; [HelmRelease](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/de-vloer/app/helmrelease.yaml) workbench image tag/digest and workspace image tag/digest. |
 
 Use the [published artifact paths](artifacts.md#published-identities). Harbor and GHCR identities are retained; Forgejo charts move under `charts/` to avoid colliding with image tags. Run that repository's render/validation gate and inspect the rendered deployment before committing. Let Flux reconcile; do not use an imperative Helm upgrade or overwrite the deployment with `kubectl`.
 
-Also review application work targets. Existing Vloer repository URLs and Ploeg tracker routes still point at the old repositories. For a pilot targeting Unfold, register the Unfold URL and `development` branch explicitly, update the matching Ploeg target, and run verification from the correct application directory or Unfold root. The old Vloer command `node --test examples/order-service/test/order.test.js` needs the `apps/vloer/` path when run from Unfold. Do not silently retarget existing queued work or assume changing the image changes its work repository.
+Also review application work targets. Existing front-end repository URLs and Ploeg tracker routes still point at the old repositories. For a pilot targeting Unfold, register the Unfold URL and `development` branch explicitly, update the matching Ploeg target, and run verification from the correct application directory or Unfold root. The old front-end command `node --test examples/order-service/test/order.test.js` needs the `apps/unfold/` path when run from Unfold. Do not silently retarget existing queued work or assume changing the image changes its work repository.
 
 For an existing-installation upgrade, qualify the intermediate pair before sequencing one application ahead of the other. If compatibility with the old peer is not demonstrated, keep admission closed while upgrading the pair and open it only after both are ready. Unattended executors and tracker-driven dispatch stay paused for the interactive pilot.
 
@@ -148,8 +148,8 @@ Use read-only rollout observations:
 ```sh
 mise exec -- kubectl -n ploeg get helmrelease,ocirepository
 mise exec -- kubectl -n ploeg rollout status deployment/ploeg --timeout=180s
-mise exec -- kubectl -n ploeg rollout status deployment/de-vloer --timeout=180s
-mise exec -- kubectl -n ploeg get deployment de-vloer ploeg \
+mise exec -- kubectl -n ploeg rollout status deployment/unfold --timeout=180s
+mise exec -- kubectl -n ploeg get deployment unfold ploeg \
   -o 'custom-columns=NAME:.metadata.name,READY:.status.availableReplicas,IMAGE:.spec.template.spec.containers[*].image'
 ```
 
@@ -157,19 +157,19 @@ For an isolated pilot, substitute its namespace and deployment names. Compare ob
 
 ## 8. Run the first real work session
 
-Follow [managed setup and recovery](../workflows/managed-execution.md) and the [live operation guide](../../apps/vloer/docs/operations/live.md). Keep the first task small: one intentional fixture change, one real verification command, no automatic merge or publication.
+Follow [managed setup and recovery](../workflows/managed-execution.md) and the [live operation guide](../../apps/unfold/docs/operations/live.md). Keep the first task small: one intentional fixture change, one real verification command, no automatic merge or publication.
 
 | Check | Pass condition |
 | --- | --- |
 | Identity and readiness | The intended user signs in through the real login flow. Registered repository, model, crew and spending limit are correct. Authenticated health passes; public `/healthz` alone does not prove provider access. |
-| Standalone independence | In a separate standalone configuration with no Ploeg connection or execution binding, Vloer completes the bounded fixture with its configured live harness/provider. Never test this by removing authority from a managed session. |
+| Standalone independence | In a separate standalone configuration with no Ploeg connection or execution binding, Unfold completes the bounded fixture with its configured live harness/provider. Never test this by removing authority from a managed session. |
 | Managed authority | Starting the managed session creates exactly one corresponding Ploeg Work Item/Shift/Run. The repository, actor, team and budget match. |
 | Actual execution | The workspace clones the intended Unfold or fixture revision, the configured model is called, and the recorded verification command really runs. Evidence identifies the candidate and the test output. |
 | Disconnect and resume | Close and reopen the browser while the session runs; the same session and durable events remain. There is no second start or duplicate paid execution. |
 | Pause and cancel | Exercise pause/resume and cancellation in separately budgeted small sessions. Verify acknowledged stop intent, remote state and settlement; a button changing state is not proof that an in-flight request ended. |
 | Authority loss | In the isolated pilot, test a temporary Ploeg connectivity failure through the approved environment controls. Managed execution must not silently become standalone or retry uncertain paid work. |
 | Restart recovery | In the isolated pilot, perform the reviewed restart drill. The session retains evidence and requires explicit recovery where execution is uncertain. Do not restart the existing installation during paid work merely to test this. |
-| Accounting and cleanup | Gateway usage and Ploeg/Vloer records reconcile after settlement. No unexpected active workspaces, usable abandoned credentials or duplicate Runs remain. Retained evidence is readable. |
+| Accounting and cleanup | Gateway usage and Ploeg/Unfold records reconcile after settlement. No unexpected active workspaces, usable abandoned credentials or duplicate Runs remain. Retained evidence is readable. |
 | Editor and review | Install the exact released extension, connect as the intended user, and inspect the same session and candidate. Review does not imply that a change was published. |
 
 Give each paid session its own approved limit and record the total allowance before starting. Zero-cost fixtures from `mise run verify` remain useful evidence, but are labelled deterministic and cannot satisfy the live model checks. The delegated candidate path currently has no enabled live publisher executor; do not make automatic PR creation part of its acceptance criterion.

@@ -12,7 +12,7 @@ from release_registry import Registry, command, digest, require_same
 
 def publish(application, version):
     publishable_tag(application, version)
-    chart = 'de-vloer'
+    chart = 'unfold'
     path = f'apps/{application}/ops/helm/{chart}'
     metadata = command('helm', 'show', 'chart', path)
     for line in [f'version: {version}', f'appVersion: {version}']:

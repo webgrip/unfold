@@ -14,45 +14,45 @@ function repository(t) {
   const commit = () => { run('add', '-A'); run('commit', '-q', '-m', 'change'); };
   run('init', '-q');
   write('mise.toml', 'node = "24"\n');
-  write('apps/vloer/index.ts', 'export {};\n');
+  write('apps/unfold/index.ts', 'export {};\n');
   write('apps/ploeg/main.go', 'package main\n');
   commit();
   return { root, write, commit };
 }
 
 const shared = { paths: ['mise.toml'], tools: { node: '24.19.0' }, env: { GOFLAGS: '-count=1' } };
-const vloerTest = { scope: 'apps/vloer', command: 'npm', args: ['run', 'test'], inputs: ['apps/vloer'] };
+const unfoldTest = { scope: 'apps/unfold', command: 'npm', args: ['run', 'test'], inputs: ['apps/unfold'] };
 
 test('a gate keeps its key while only another application changes', t => {
   const repo = repository(t);
-  const before = gateKey(repo.root, vloerTest, shared);
+  const before = gateKey(repo.root, unfoldTest, shared);
   repo.write('apps/ploeg/main.go', 'package main\n\nfunc main() {}\n');
   repo.commit();
-  assert.equal(gateKey(repo.root, vloerTest, shared), before);
+  assert.equal(gateKey(repo.root, unfoldTest, shared), before);
 });
 
 test('a gate gets a new key when its inputs, the shared files, its tools, its environment or its command change', t => {
   const repo = repository(t);
-  const before = gateKey(repo.root, vloerTest, shared);
-  assert.notEqual(gateKey(repo.root, vloerTest, { ...shared, tools: { node: '24.21.0' } }), before);
-  assert.notEqual(gateKey(repo.root, vloerTest, { ...shared, env: { GOFLAGS: '' } }), before);
-  assert.notEqual(gateKey(repo.root, { ...vloerTest, args: ['run', 'check'] }, shared), before);
+  const before = gateKey(repo.root, unfoldTest, shared);
+  assert.notEqual(gateKey(repo.root, unfoldTest, { ...shared, tools: { node: '24.21.0' } }), before);
+  assert.notEqual(gateKey(repo.root, unfoldTest, { ...shared, env: { GOFLAGS: '' } }), before);
+  assert.notEqual(gateKey(repo.root, { ...unfoldTest, args: ['run', 'check'] }, shared), before);
   repo.write('mise.toml', 'node = "24.21.0"\n');
   repo.commit();
-  const afterTools = gateKey(repo.root, vloerTest, shared);
+  const afterTools = gateKey(repo.root, unfoldTest, shared);
   assert.notEqual(afterTools, before);
-  repo.write('apps/vloer/index.ts', 'export const changed = true;\n');
+  repo.write('apps/unfold/index.ts', 'export const changed = true;\n');
   repo.commit();
-  assert.notEqual(gateKey(repo.root, vloerTest, shared), afterTools);
+  assert.notEqual(gateKey(repo.root, unfoldTest, shared), afterTools);
 });
 
 test('an uncommitted or untracked input makes the gate uncacheable', t => {
   const repo = repository(t);
-  repo.write('apps/vloer/index.ts', 'export const edited = true;\n');
-  assert.equal(gateKey(repo.root, vloerTest, shared), undefined);
+  repo.write('apps/unfold/index.ts', 'export const edited = true;\n');
+  assert.equal(gateKey(repo.root, unfoldTest, shared), undefined);
   repo.commit();
-  repo.write('apps/vloer/new.ts', 'export {};\n');
-  assert.equal(gateKey(repo.root, vloerTest, shared), undefined);
+  repo.write('apps/unfold/new.ts', 'export {};\n');
+  assert.equal(gateKey(repo.root, unfoldTest, shared), undefined);
 });
 
 test('recorded passes are reused only when reuse is enabled, and stale markers are pruned', t => {
