@@ -122,7 +122,7 @@ Re-evaluate if a screen needs client-side state that string-built markup cannot 
 ## More Information
 
 * [Browser UI reference](../browser-ui.md): routes, redirects, the screens, the view contract, core modules, layers, tokens and accessibility rules.
-* [Brand book §7](../brand/README.md#the-applications-own-palette): the application palette and its status tones.
+* [Brand book §7](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/87b2088ff8500498eb4eace340b3fc72535904a3/apps/vloer/docs/brand/README.md#the-applications-own-palette): the application palette and its status tones.
 * [HTTP contract](../contracts/api.md#ploeg-workbench): the server additions.
 * Supported by [ADR 0002](0002-native-node-and-single-writer-storage.md). The Sessions demotion follows [Unfold ADR-0002](../../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md). Cancel Work Item uses Ploeg's operator cancel, [journey D](../../../../docs/concepts/journeys.md#d-stopping-work).
 * 2026-09-30 — Proposed for the owner's decision, with the foundation implemented and the screens being rebuilt. The build took some choices in the owner's absence (sidebar dark, "Insights" as a page name, Proposed as its own page, a command palette, opt-in desktop notifications); the redesign pull request lists them for review.

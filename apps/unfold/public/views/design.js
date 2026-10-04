@@ -11,11 +11,11 @@ import { shell } from '../shell.js';
 const tones = ['neutral', 'live', 'attention', 'review', 'success', 'danger', 'severe'];
 const toneRoles = ['bg', 'bg-hover', 'border', 'fg', 'solid', 'emphasis'];
 const colorGroups = [
-  ['Brand primitives', ['vlak', 'peil', 'peil-diep', 'peil-donker', 'krijt', 'hal', 'stof', 'stof-licht']],
+  ['Brand primitives', ['vouw', 'baken', 'baken-nacht', 'vel', 'zwerk', 'grafiet', 'grafiet-licht', 'brand-fold']],
   ['Surfaces', ['bg-canvas', 'bg-surface', 'bg-surface-subtle', 'bg-sunken', 'bg-raised', 'bg-overlay', 'bg-inverse', 'bg-hover', 'bg-active', 'bg-selected', 'bg-selected-hover', 'bg-backdrop', 'bg-skeleton', 'bg-skeleton-shine', 'bg-track']],
   ['Text', ['text', 'text-muted', 'text-subtle', 'text-disabled', 'text-inverse', 'text-inverse-muted', 'text-on-solid']],
   ['Borders and focus', ['border-subtle', 'border', 'border-strong', 'border-control', 'border-control-strong', 'focus-ring']],
-  ['Accent (Peil): interaction only', ['accent-fg', 'accent-fg-strong', 'accent-solid', 'accent-solid-hover', 'accent-solid-active', 'accent-graphic', 'accent-bg', 'accent-bg-hover', 'accent-border']],
+  ['Accent: ink actions, Baken text and graphics', ['accent-fg', 'accent-fg-strong', 'accent-solid', 'accent-solid-hover', 'accent-solid-active', 'accent-on-solid', 'accent-emphasis', 'accent-graphic', 'accent-bg', 'accent-bg-hover', 'accent-border']],
   ...tones.map(tone => [`Tone: ${tone}`, toneRoles.map(role => `${tone}-${role}`)]),
 ];
 const typeScale = [
@@ -56,7 +56,7 @@ const classReference = [
   ['.page-header (.page-header-text .page-title .page-subtitle .page-meta .page-actions)', 'Page heading block with the single h1', 'pageHeader()'],
   ['.empty-state (.empty-state-icon .empty-state-title .empty-state-body .empty-state-actions)', 'First use, all clear, no results or error; .compact; [data-tone]', 'emptyState()'],
   ['.skeleton-wrap .skeleton-group .skeleton-row .skeleton-lines .skeleton (.title .text .pill .circle .block)', 'Loading placeholders; shimmer only when motion is allowed', 'skeleton()'],
-  ['.peil-line', 'Indeterminate loading line under a header', 'markup'],
+  ['.loading-line', 'Indeterminate loading line under a header', 'markup'],
   ['.callout (.callout-icon .callout-content .callout-title .callout-body .callout-actions)', 'Inline notice in a tone', 'callout()'],
   ['.meter (.meter-label .meter-text .meter-caption .meter-value .meter-of .meter-end .meter-bar .meter-track .meter-settled .meter-reserved)', 'Budget meter; [data-level=warn|over], [data-unknown], [data-demo]; .sm .lg', 'meter()'],
   ['.stat-row / .stat (.stat-label .stat-value .stat-detail)', 'Stat tiles that summarise and link', 'stat()'],
@@ -176,7 +176,7 @@ function feedbackBlock() {
   const empties = `<div class="design-grid">${ui.card({ body: ui.emptyState({ icon: 'inbox', title: 'No Work Items yet', body: 'Assign a task to a Team in your tracker. It appears here when Ploeg picks it up.', compact: true }) })}${ui.card({ body: ui.emptyState({ icon: 'check-circle', tone: 'success', title: 'Nothing needs you', body: 'Ploeg is working. Decisions show up here first.', compact: true }) })}${ui.card({ body: ui.emptyState({ icon: 'search', title: 'No Work Items match', body: 'Try another lane or Team.', actions: ui.button({ label: 'Clear filters', size: 'sm' }), compact: true }) })}${ui.card({ body: ui.emptyState({ icon: 'x-circle', tone: 'danger', title: 'Could not load Runs', body: 'Ploeg did not answer within 10 s.', actions: ui.button({ label: 'Try again', size: 'sm', icon: 'refresh' }), compact: true }) })}</div>`;
   const skeletons = `<div class="design-grid">${['list', 'text', 'table', 'cards'].map(variant => ui.card({ title: `skeleton({ variant: '${variant}' })`, level: 3, body: ui.skeleton({ rows: 3, variant }) })).join('')}</div>`;
   const callouts = `<div class="stack gap-sm">${[['neutral', 'Ploeg is the engine', 'Unfold shows what it does and asks you when it stops.'], ['accent', 'New: keyboard shortcuts', 'Press ? to see them.'], ['live', 'Running now', 'Two Runs are working on this Work Item.'], ['attention', 'Budget ran out', 'Raise the Team budget or split the ticket, then assign the task to the Team again.'], ['review', 'Agent review is not human review', 'Read the pull request yourself before you merge.'], ['success', 'Approved', 'The proposal is queued for its Team.'], ['severe', 'Stopped retrying', 'The cluster kept stopping the writer. Check the nodes, not the ticket.'], ['danger', 'Cancel failed', 'Ploeg refused: a session owns this Work Item.']].map(([tone, title, body]) => ui.callout({ tone, title, body: `<p>${escape(body)}</p>` })).join('')}${ui.callout({ tone: 'attention', title: 'With actions', body: '<p>Actions sit on the right and wrap under the text on phones.</p>', actions: `${ui.button({ label: 'Open in tracker', size: 'sm' })}${ui.button({ label: 'Dismiss', size: 'sm', variant: 'ghost' })}` })}${ui.callout({ tone: 'neutral', icon: null, body: '<p>A callout without a glyph.</p>' })}</div>`;
-  const loading = `<div class="stack gap-sm"><div class="peil-line" role="presentation"></div><p class="design-note">peil-line: the floor line as an indeterminate progress bar; static under reduced motion.</p></div>`;
+  const loading = `<div class="stack gap-sm"><div class="loading-line" role="presentation"></div><p class="design-note">loading-line: the floor line as an indeterminate progress bar; static under reduced motion.</p></div>`;
   const toasts = `<div class="design-toasts"><div class="toast" data-tone="success" role="status">${icon('check-circle')}<span class="toast-message">Work Item approved. It is queued for delivery.</span></div><div class="toast" data-tone="info" role="status">${icon('info')}<span class="toast-message">Live updates paused.</span></div><div class="toast" data-tone="danger" role="status">${icon('x-circle')}<span class="toast-message">Refresh failed. Ploeg did not answer.</span><div class="toast-actions">${ui.button({ label: 'Retry', size: 'sm', variant: 'ghost' })}</div></div></div>`;
   return block('design-feedback', 'Feedback', 'Empty states say what to do next. Skeletons appear after a short delay with aria-busy on their region. Toasts use the inverse surface; errors persist.', `${group('Empty states', empties)}${group('Skeletons', skeletons)}${group('Callouts', callouts)}${group('Toasts', surface(toasts, true), 'Samples are static; the live region is #toast.')}${group('Loading line', surface(loading))}`);
 }
@@ -237,7 +237,7 @@ function listBlock() {
     ui.listRow({ href: '#design', tone: 'review', lead: icon('pull-request'), title: 'E2E: document the forge id on a routing rule', meta: `${ui.chip({ label: 'PR #42', icon: 'pull-request' })}<span>Agent review: approve</span>`, trail: ago(61) }),
     ui.listRow({ title: 'A plain row without a link or action', meta: '<span>listRow() renders a div when there is nothing to open</span>' }),
   ];
-  return block('design-lists', 'Lists', 'Two-line rows: glyph, title, one meta line and a trailing time. The selected row has the tint and the Peil bar; focus is drawn inside the row so it is never clipped.', `${group('List rows', listFrame(rows), 'The second row carries data-unread.')}`);
+  return block('design-lists', 'Lists', 'Two-line rows: glyph, title, one meta line and a trailing time. The selected row has the tint and the Baken bar; focus is drawn inside the row so it is never clipped.', `${group('List rows', listFrame(rows), 'The second row carries data-unread.')}`);
 }
 
 function overlayBlock() {

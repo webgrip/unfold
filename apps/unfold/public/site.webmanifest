@@ -1,7 +1,7 @@
 {
   "name": "Unfold",
   "short_name": "Unfold",
-  "description": "Self-hosted workbench for remote agent crews",
+  "description": "Define work, follow it and review it. Ploeg runs it.",
   "icons": [
     {
       "src": "android-chrome-192x192.png",
@@ -14,8 +14,8 @@
       "type": "image/png"
     }
   ],
-  "theme_color": "#15191C",
-  "background_color": "#F3F5F4",
+  "theme_color": "#141A1D",
+  "background_color": "#F4F6F2",
   "display": "standalone",
   "start_url": "./"
 }

@@ -51,7 +51,7 @@ for (const badge of manifest.badges ?? []) {
 
 if (manifest.icon) {
   const iconPath = resolve(extensionRoot, manifest.icon);
-  if (!existsSync(iconPath)) fail(`package.json: icon ${manifest.icon} does not exist; run npm run brand:build -- --png`);
+  if (!existsSync(iconPath)) fail(`package.json: icon ${manifest.icon} does not exist; run npm run icons:build`);
   else {
     const bytes = readFileSync(iconPath);
     const png = bytes.length > 24 && bytes.toString('binary', 1, 4) === 'PNG';

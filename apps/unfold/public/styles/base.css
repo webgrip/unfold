@@ -293,7 +293,7 @@ input:is([type="checkbox"], [type="radio"]) {
   vertical-align: -0.1875rem;
   background: var(--bg-surface);
   border: 1px solid var(--border-control-strong);
-  color: var(--text-on-solid);
+  color: var(--accent-on-solid);
   transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
 }
 
@@ -376,7 +376,7 @@ input[type="checkbox"][role="switch"]:checked {
 
 input[type="checkbox"][role="switch"]:checked::before {
   translate: 0.875rem 0;
-  background: var(--text-on-solid);
+  background: var(--accent-on-solid);
 }
 
 input[type="checkbox"][role="switch"]:disabled::before {

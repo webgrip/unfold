@@ -23,9 +23,6 @@
     "backlog:build": "node scripts/backlog.mjs build",
     "design:build": "node scripts/build-design.mjs",
     "design:check": "node scripts/build-design.mjs --check",
-    "brand:build": "node scripts/build-brand.mjs",
-    "brand:social": "node scripts/build-brand.mjs --png --social",
-    "brand:check": "node scripts/build-brand.mjs --check && bash scripts/brand-marks.sh",
     "license:check": "node scripts/license-check.mjs",
     "license:reuse": "uvx --from 'reuse[charset-normalizer]==6.2.0' reuse lint",
     "extension:build": "npm --prefix extensions/vscode run compile",
@@ -33,7 +30,9 @@
     "extension:package": "npm --prefix extensions/vscode run package",
     "extension:verify": "node scripts/extension-verify.mjs",
     "vendor:three": "node scripts/vendor-three.mjs",
-    "vendor:check": "node scripts/vendor-three.mjs --check"
+    "vendor:check": "node scripts/vendor-three.mjs --check",
+    "icons:build": "node scripts/build-icons.mjs --png",
+    "icons:check": "node scripts/build-icons.mjs --check"
   },
   "license": "Apache-2.0",
   "devDependencies": {

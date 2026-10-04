@@ -16,8 +16,8 @@
   padding: var(--space-10) var(--space-12) var(--space-8);
   overflow: hidden;
   border-inline-end: 1px solid var(--border);
-  background: radial-gradient(120% 70% at 0% 100%, color-mix(in oklch, var(--peil) 22%, transparent), transparent 70%), var(--hal);
-  color: var(--krijt);
+  background: radial-gradient(120% 70% at 0% 100%, color-mix(in oklch, var(--brand-fold) 22%, transparent), transparent 70%), var(--zwerk);
+  color: var(--vel);
 }
 
 .signin-lockup {
@@ -36,7 +36,7 @@
 .signin-tagline {
   max-width: 14ch;
   margin: 0;
-  color: var(--krijt);
+  color: var(--vel);
   font-size: var(--text-4xl);
   line-height: var(--leading-4xl);
   font-weight: var(--weight-bold);
@@ -104,7 +104,7 @@
   display: block;
   height: var(--border-width-strong);
   margin-inline: calc(var(--space-12) * -1);
-  background: var(--peil);
+  background: var(--brand-fold);
 }
 
 .signin-trust {

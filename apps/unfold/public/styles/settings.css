@@ -260,7 +260,7 @@
 
 .theme-rail {
   color-scheme: dark;
-  background: var(--hal);
+  background: var(--zwerk);
   box-shadow: inset -1px 0 0 var(--border-subtle);
 }
 

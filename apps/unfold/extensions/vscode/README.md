@@ -1,4 +1,4 @@
-![Unfold](https://forgejo.webgrip.dev/webgrip/de-vloer/raw/branch/development/docs/brand/png/banner-512.png)
+![Unfold](https://forgejo.webgrip.dev/webgrip/unfold/raw/branch/development/apps/unfold/public/og-image.png)
 
 # Unfold for VS Code
 

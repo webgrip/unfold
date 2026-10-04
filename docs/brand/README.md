@@ -1,6 +1,6 @@
 # Unfold brand
 
-Status: v1, 2026-10-01. The product is named Unfold ([ADR-0013](../adr/adr-0013-the-product-is-named-unfold.md)). Ploeg keeps its own brand: [Ploeg](../../apps/ploeg/docs/brand/README.md). The Unfold application still carries the brand it had as a separate front end: [application brand](../../apps/unfold/docs/brand/README.md).
+Status: v1, 2026-10-01. The product is named Unfold ([ADR-0013](../adr/adr-0013-the-product-is-named-unfold.md)). Ploeg keeps its own brand: [Ploeg](../../apps/ploeg/docs/brand/README.md). The Unfold application carries this brand ([ADR-0020](../adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md)); the generator also writes the mark it draws.
 
 This page is the short reference. The full brand book, with the construction drawing, the sizes enlarged pixel by pixel, the family rules, the surfaces and the voice, is published at <https://claude.ai/artifact/TCiHS96whd4m6zbAqqppTX>. Where the two disagree, the generator wins, because it is what ships.
 
@@ -113,7 +113,7 @@ Scale the file; never redraw it.
 - Do not close the crease. Without it the mark is a dart, not a folded sheet.
 - Do not rotate it to point down or left. The mark always climbs.
 - Do not stretch it. Scale both axes together, or the fold changes angle.
-- Do not use a family accent. Klei is Ploeg's. Peil is the accent the Unfold application still uses until it moves to Baken (VIK-1842). The Unfold mark uses Baken only.
+- Do not use a family accent. Klei is Ploeg's. Unfold, the mark and the application, uses Baken only.
 - Do not outline it. An outline loses the weight of the sheet and the fold.
 - Do not add a gradient, a shadow or a glow. Flat colour only.
 - Do not put `mark.svg` on Zwerk: Vouw on Zwerk is 1.04:1. Use `mark-night.svg`.

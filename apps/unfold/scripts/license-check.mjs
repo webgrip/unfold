@@ -62,7 +62,7 @@ if (vendoredThree) {
   if (!(read('src/http.ts') ?? '').includes('vendor\\/three\\/')) failures.push('src/http.ts does not serve /vendor/three/, so the forge skin would 404 in the running workbench');
 }
 
-for (const [doc, target] of [['README.md', '](LICENSE)'], ['README.md', 'docs/brand/TRADEMARK.md']]) {
+for (const [doc, target] of [['README.md', '](LICENSE)'], ['README.md', '../../docs/brand/TRADEMARK.md']]) {
   if (!read(doc)?.includes(target)) failures.push(`${doc} no longer links ${target}`);
 }
 

@@ -48,7 +48,7 @@ On ownership, Apache-2.0 is the stronger instrument, and nothing about that is i
   the contributor says otherwise, so there is no CLA to run and no ambiguity about what was granted.
   MIT says nothing at all about what arrives.
 - **§6 reserves trade names and marks**, which is the clause
-  [ADR 0020](0020-the-name-and-mark-are-trademarks.md) and [TRADEMARK.md](../brand/TRADEMARK.md)
+  [ADR 0020](0020-the-name-and-mark-are-trademarks.md) and [TRADEMARK.md](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/87b2088ff8500498eb4eace340b3fc72535904a3/apps/vloer/docs/brand/TRADEMARK.md)
   rest on. MIT has no equivalent; moving would have made the brand policy carry that alone.
 - **§4(d) makes attribution travel.** `NOTICE` is reproduced by every redistributor, so the
   copyright line and the trademark statement follow a fork instead of being quietly dropped.
@@ -70,10 +70,10 @@ The remaining drivers, adopted from Ploeg and tested against this repository:
   agent-sandbox — are Apache-2.0.
 - **The trademark carve-out is load-bearing here.** §6 grants no rights in trade names or marks,
   which is the clause [ADR 0020](0020-the-name-and-mark-are-trademarks.md) and
-  [TRADEMARK.md](../brand/TRADEMARK.md) rest on. MIT has no equivalent, so moving would have made
+  [TRADEMARK.md](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/87b2088ff8500498eb4eace340b3fc72535904a3/apps/vloer/docs/brand/TRADEMARK.md) rest on. MIT has no equivalent, so moving would have made
   the brand policy carry that alone.
 
-This covers the code, the documentation, the brand assets in [docs/brand/](../brand/README.md),
+This covers the code, the documentation, the brand assets in [docs/brand/](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/87b2088ff8500498eb4eace340b3fc72535904a3/apps/vloer/docs/brand/README.md),
 both published images through their `org.opencontainers.image.licenses` label, and the packaged
 VS Code extension through its own bundled licence file.
 

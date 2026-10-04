@@ -119,15 +119,15 @@
     },
     {
       "from": "/de-vloer/brand/",
-      "to": "/glide/unfold/brand/"
+      "to": "/glide/brand/"
     },
     {
       "from": "/de-vloer/brand/TRADEMARK/",
-      "to": "/glide/unfold/brand/TRADEMARK/"
+      "to": "/glide/brand/TRADEMARK/"
     },
     {
       "from": "/de-vloer/brand/social-profile-copy/",
-      "to": "/glide/unfold/brand/social-profile-copy/"
+      "to": "/glide/brand/"
     },
     {
       "from": "/de-vloer/contracts/api/",
