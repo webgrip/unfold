@@ -56,6 +56,7 @@ Chosen option: "A Git submodule at `apps/ploeg`, pinned to a commit on Ploeg's `
 * [scripts/workflow-policy.test.cjs](../../scripts/workflow-policy.test.cjs) fails when a release job builds or publishes Ploeg, when a verify, documentation or demo checkout skips the submodule, or when the release stops waiting for `ploeg-pin`.
 * [scripts/test_release_floors.py](../../scripts/test_release_floors.py), [scripts/release-floors.test.cjs](../../scripts/release-floors.test.cjs) and [scripts/test_release_distribution.py](../../scripts/test_release_distribution.py) fail when the train versions Ploeg, when Ploeg's record disappears, or when the Ploeg publisher reaches Git, the network or a file.
 * [scripts/release-isolation.test.cjs](../../scripts/release-isolation.test.cjs) fails when a commit scoped `ploeg` releases Unfold.
+* [scripts/docs-rules.test.py](../../scripts/docs-rules.test.py) fails when a Ploeg page counts as an orphan or must carry Unfold's front matter.
 
 ## Pros and Cons of the Options
 
@@ -75,4 +76,5 @@ Chosen option: "A Git submodule at `apps/ploeg`, pinned to a commit on Ploeg's `
 * 2026-10-03 — The owner approved the separation ([webgrip/unfold#1](https://github.com/webgrip/unfold/issues/1)) and the consumer cutover ([webgrip/unfold#2](https://github.com/webgrip/unfold/issues/2)). Changes made in Unfold after the extraction are reconciled upstream in [ploeg-hq/ploeg#45](https://github.com/ploeg-hq/ploeg/issues/45).
 * Supersedes [ADR-0004](adr-0004-unfold-releases-one-version.md). These parts of it stay: the zero-major candidate policy, the `glide-v0.3.0` baseline, Forgejo-only release-channel notes, and Vloer's artifact names.
 * Refines [ADR-0001](adr-0001-unfold-contains-independent-applications.md): Vloer and Ploeg stay independently deployable, and Ploeg's source is a pinned reference.
+* 2026-10-04 — Unfold's documentation build stops applying its own checks to Ploeg's pages. The links, anchors, nav reachability and front matter of `ploeg/` pages belong to Ploeg's `mise run docs-check`, and a link that does not resolve in a Ploeg page points at the pinned file on GitHub instead of failing the build. The nav names only Ploeg's overview, runbook index and configuration reference, and lychee and Vale skip `apps/ploeg/docs`. Unfold's own pages, the combined glossary and the decision register still read Ploeg's files at the pin, so a pin move that changes Ploeg's domain model or ADR ledger also runs `mise run domain` and `mise run docs-decisions`.
 * Overtakes sections 1 and 5 of [ADR-0018](adr-0018-ploeg-releases-on-its-own-schedule-behind-a-tested-contract-version.md), which split the train inside this repository. Its contract version, bundles and cross-version qualification remain proposed.

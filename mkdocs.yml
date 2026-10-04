@@ -1,7 +1,7 @@
 site_name: Unfold
 site_description: Units of work become review-ready pull requests written by AI agents
 site_url: https://docs.webgrip.dev/glide/
-repo_url: https://forgejo.webgrip.dev/webgrip/glide
+repo_url: https://forgejo.webgrip.dev/webgrip/unfold
 edit_uri: ''
 docs_dir: .build/docs
 site_dir: .build/site
@@ -27,14 +27,7 @@ nav:
       - Run a pilot batch: how-to/run-a-pilot-batch.md
       - Operate Ploeg:
           - Overview: ploeg/index.md
-          - Scope and stewardship: ploeg/cncf/charter.md
           - Runbooks: ploeg/how-to/index.md
-          - Recover a stuck Lease or Run: ploeg/how-to/recover-a-stuck-lease-or-run.md
-          - Rotate credentials: ploeg/how-to/rotate-credentials.md
-          - Drain workers: ploeg/how-to/drain-workers.md
-          - Investigate a Run's spend: ploeg/how-to/investigate-a-runs-spend.md
-          - Restore after a database outage: ploeg/how-to/restore-after-a-database-outage.md
-          - Route a multi-repo board: ploeg/how-to/route-a-multi-repo-board.md
       - Operate Vloer: vloer/index.md
       - Set up shared execution: workflows/managed-execution.md
       - Release and live test: operations/first-cutover.md

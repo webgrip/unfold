@@ -116,12 +116,12 @@ description = "Start the documented deterministic demo, then stop it; skips when
 
 [tasks.docs-links-external]
 tools = { lychee = "0.24.2" }
-run = "lychee --config lychee.toml README.md llms.txt docs apps/vloer/docs apps/ploeg/docs"
+run = "lychee --config lychee.toml README.md llms.txt docs apps/vloer/docs"
 description = "Check external links in current docs with lychee; the weekly workflow reports without blocking"
 
 [tasks.docs-vale]
 tools = { vale = "3.23.0" }
-run = ["uv run --frozen python scripts/docs-vale.py", "vale --no-exit --glob='!**/{research,evidence,openspec,design,adr,adrs,backlog}/**' README.md docs apps/vloer/docs apps/ploeg/docs"]
+run = ["uv run --frozen python scripts/docs-vale.py", "vale --no-exit --glob='!**/{research,evidence,openspec,design,adr,adrs,backlog}/**' README.md docs apps/vloer/docs"]
 description = "Lint current docs against the generated Unfold vocabulary; warnings only"
 
 [tasks.docs-live-check]
