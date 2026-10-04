@@ -256,28 +256,33 @@ test('a site or Unfold release candidate deploys to staging and a stable site re
   }
 });
 
-test('the unfoldhq.dev zone is previewed from development and checked daily for drift, only with its read-only token from OpenBao', () => {
+test('the unfoldhq.dev zone is previewed from development and checked daily for drift, in a direct job holding only its read-only token from OpenBao', () => {
   const dns = workflows['on_dns_change.yml'];
   assert.deepEqual(dns.on.push.branches, ['development']);
   assert.deepEqual(dns.on.push.paths, ['apps/site/ops/dns/**', '.forgejo/workflows/on_dns_change.yml']);
   assert.equal(dns.on.schedule.length, 1);
   assert.equal(dns.concurrency['cancel-in-progress'], false);
-  assert.deepEqual(Object.keys(dns.jobs).sort(), ['dns-drift', 'dns-preview']);
-  const calls = { preview: ['dns-preview', "${{ github.event_name != 'schedule' }}"], drift: ['dns-drift', "${{ github.event_name == 'schedule' }}"] };
-  for (const [mode, [name, enabled]] of Object.entries(calls)) {
-    const job = dns.jobs[name];
-    assert.equal(job.uses, 'webgrip/workflows/.forgejo/workflows/dnscontrol.yml@v2.8.0', mode);
-    assert.equal(job['enable-openid-connect'], true, mode);
-    assert.equal(job.with.enabled, enabled, mode);
-    assert.equal(job.with.mode, mode);
-    assert.equal(job.with['working-directory'], 'apps/site/ops/dns', mode);
-    assert.equal(job.with['openbao-role'], 'ci-unfold', mode);
-    assert.equal(job.with['openbao-kv-path'], 'secret/data/cloudflare/dns/unfoldhq-dev-ro', mode);
-    assert.equal(job.secrets, undefined, mode);
+  assert.deepEqual(Object.keys(dns.jobs), ['dns']);
+  const job = dns.jobs.dns;
+  assert.equal(job.uses, undefined);
+  assert.equal(job['runs-on'], 'docker');
+  assert.equal(job['enable-openid-connect'], true);
+  const read = job.steps.find(step => String(step.uses).includes('/composite-actions/openbao-read@'));
+  assert.equal(read.uses, 'https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/openbao-read@v2.8.0');
+  assert.equal(read.with.role, 'ci-unfold');
+  assert.deepEqual(read.with.secrets.trim().split('\n'), [
+    'CLOUDFLARE_API_TOKEN=secret/data/cloudflare/dns/unfoldhq-dev-ro#token',
+    'CLOUDFLARE_ACCOUNT_ID=secret/data/cloudflare/dns/unfoldhq-dev-ro#account_id',
+  ]);
+  const commands = job.steps.map(step => step.run ?? '').join('\n');
+  assert.match(commands, /dnscontrol preview --creds creds\.json/);
+  assert.match(commands, /--expect-no-changes/);
+  assert.doesNotMatch(commands, /dnscontrol push/);
+  for (const step of job.steps.filter(step => step.run && /dnscontrol (check|preview)/.test(step.run))) {
+    assert.equal(step['working-directory'], 'apps/site/ops/dns');
   }
   for (const [file, workflow] of Object.entries(workflows)) {
-    assert.doesNotMatch(JSON.stringify(workflow), /CLOUDFLARE_DNS_TOKEN/, file);
-    if (file !== 'on_dns_change.yml') assert.doesNotMatch(JSON.stringify(workflow), /dnscontrol\.yml/, file);
+    assert.doesNotMatch(JSON.stringify(workflow), /CLOUDFLARE_DNS_TOKEN|dnscontrol\.yml/, file);
   }
   assert.ok(fs.existsSync(path.join(root, 'apps/site/ops/dns/dnsconfig.js')));
   assert.ok(fs.existsSync(path.join(root, 'apps/site/ops/dns/creds.json')));
