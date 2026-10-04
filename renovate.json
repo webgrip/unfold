@@ -62,11 +62,11 @@
       "customType": "regex",
       "description": "The local agent image is tagged with the OpenCode version it carries. The example configurations and the live guide name that tag, so they move with the opencode group.",
       "managerFilePatterns": [
-        "/^apps/vloer/config/[^/]+\\.example\\.json$/",
-        "/^apps/vloer/docs/operations/live\\.md$/"
+        "/^apps/unfold/config/[^/]+\\.example\\.json$/",
+        "/^apps/unfold/docs/operations/live\\.md$/"
       ],
       "matchStrings": [
-        "de-vloer-agent:(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+        "unfold-agent:(?<currentValue>\\d+\\.\\d+\\.\\d+)"
       ],
       "depNameTemplate": "opencode-ai",
       "datasourceTemplate": "npm",
@@ -76,7 +76,7 @@
       "customType": "regex",
       "description": "The landscape build loads Mermaid and Marked from jsDelivr inside Playwright.",
       "managerFilePatterns": [
-        "/^apps/vloer/scripts/build-landscape\\.mjs$/"
+        "/^apps/unfold/scripts/build-landscape\\.mjs$/"
       ],
       "matchStrings": [
         "cdn\\.jsdelivr\\.net/npm/(?<depName>[a-z@][^@/]*)@(?<currentValue>\\d+\\.\\d+\\.\\d+)/"
@@ -92,8 +92,8 @@
         "dockerfile"
       ],
       "matchFileNames": [
-        "apps/vloer/Dockerfile",
-        "apps/vloer/ops/agent/Dockerfile"
+        "apps/unfold/Dockerfile",
+        "apps/unfold/ops/agent/Dockerfile"
       ],
       "enabled": false
     },
@@ -139,17 +139,17 @@
       "allowedVersions": "<1.100.0"
     },
     {
-      "description": "Vloer's chart image tag is empty on purpose: the release train fills it from appVersion. Renovate would otherwise digest-pin it.",
+      "description": "Unfold's chart image tag is empty on purpose: the release train fills it from appVersion. Renovate would otherwise digest-pin it.",
       "matchManagers": [
         "helm-values"
       ],
       "matchPackageNames": [
-        "ghcr.io/webgrip/de-vloer"
+        "ghcr.io/webgrip/unfold"
       ],
       "enabled": false
     },
     {
-      "description": "Ploeg is a submodule pinned to a release of github.com/ploeg-hq/ploeg (system ADR-0019). .gitmodules names the release tag, so Renovate compares release tags as semver and proposes the newest, release candidates included, as a build(ploeg) pull request that never releases Unfold. A person merges it, because each move changes the engine Vloer runs on. A release is already reviewed and gated by Ploeg's CI, so there is no soak.",
+      "description": "Ploeg is a submodule pinned to a release of github.com/ploeg-hq/ploeg (system ADR-0019). .gitmodules names the release tag, so Renovate compares release tags as semver and proposes the newest, release candidates included, as a build(ploeg) pull request that never releases Unfold. A person merges it, because each move changes the engine Unfold runs on. A release is already reviewed and gated by Ploeg's CI, so there is no soak.",
       "matchManagers": [
         "git-submodules"
       ],
@@ -167,7 +167,7 @@
     {
       "description": "These pins replace the copies npm bundles in the agent image, and the patch script accepts only the bundled major. Raise the bound when npm bundles a newer major.",
       "matchFileNames": [
-        "apps/vloer/ops/agent/Dockerfile"
+        "apps/unfold/ops/agent/Dockerfile"
       ],
       "matchPackageNames": [
         "undici"
@@ -177,7 +177,7 @@
     {
       "description": "See the undici rule: brace-expansion is pinned to npm's bundled major.",
       "matchFileNames": [
-        "apps/vloer/ops/agent/Dockerfile"
+        "apps/unfold/ops/agent/Dockerfile"
       ],
       "matchPackageNames": [
         "brace-expansion"
@@ -202,9 +202,9 @@
       "allowedVersions": "<7"
     },
     {
-      "description": "three is vendored into apps/vloer/public/vendor/three (Vloer ADR-0028). A version bump alone breaks the vendored copy's checks; upgrade by hand with npm run vendor:three.",
+      "description": "three is vendored into apps/unfold/public/vendor/three (Unfold ADR-0028). A version bump alone breaks the vendored copy's checks; upgrade by hand with npm run vendor:three.",
       "matchFileNames": [
-        "apps/vloer/package.json"
+        "apps/unfold/package.json"
       ],
       "matchPackageNames": [
         "three"

@@ -10,7 +10,7 @@ if (!version || !/^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/.test(version)) {
   process.exit(2);
 }
 
-const charts = ['apps/vloer/ops/helm/de-vloer/Chart.yaml'];
+const charts = ['apps/unfold/ops/helm/unfold/Chart.yaml'];
 
 for (const chart of charts) {
   const path = join(root, chart);
@@ -25,4 +25,4 @@ for (const chart of charts) {
   writeFileSync(path, after);
 }
 
-execFileSync('node', [join(root, 'apps/vloer/scripts/release-prepare.mjs'), version], { stdio: 'inherit' });
+execFileSync('node', [join(root, 'apps/unfold/scripts/release-prepare.mjs'), version], { stdio: 'inherit' });

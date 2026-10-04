@@ -51,7 +51,7 @@ All paths are relative to `<local path> unless absolute.
 - `public/`: `app.js`, `ploeg.js` (render helpers only; it makes no fetch calls), `ploeg-activity.js`, `delivery.js`.
 - `extensions/vscode/src/`: the VS Code extension, including `ploeg-tree.ts` and `agent-host.ts`.
 - Also: `skills/operate-agent-session`, `backlog/` (PV-### items).
-- Helm chart: `apps/vloer/ops/helm/de-vloer/`. It has `templates/ingress.yaml`; the value `ingress.enabled: false` with an empty host.
+- Helm chart: `apps/unfold/ops/helm/unfold/`. It has `templates/ingress.yaml`; the value `ingress.enabled: false` with an empty host.
 - There is no top-level `deploy/` directory. Production desired state lives in `webgrip/homelab-cluster` (root `AGENTS.md`).
 
 ## 2. Ploeg HTTP API
@@ -223,7 +223,7 @@ Routing: `ScopeTeams` pins (config `team:`), `PLOEG_TEAM_MAP` / `PLOEG_DEFAULT_T
    - For MCP it is a "consumer executes" path, not a "Ploeg runs agents" path.
 2. **Implemented, but not a create path: POST `/work-items/{id}/approve`.** It turns a Run-created `proposed` item into `queued` and opens a Shift. This is a real dispatch trigger without a tracker, but only for items a Run already proposed.
 3. **Proposed, not implemented: POST `/api/v1/operator/work-items`.**
-   - Specified in `apps/vloer/docs/ploeg-front-end.md:38-60` and Vloer ADR-0023.
+   - Specified in `apps/unfold/docs/ploeg-front-end.md:38-60` and Vloer ADR-0023.
    - Body `{requestId, team, target(registry key, never a raw URL), title, description, budgetUsd?(≤ plan pool)}`.
    - Creates `provider='vloer'`, `origin='operator'`, state `queued`, not operator_owned, then calls `EnsureShift`. Returns `{workItemId, shiftId, created}`. Idempotent by requestId plus fingerprint; a changed payload returns 409.
    - It must not reuse `IngestAssigned`, because that re-queues done/stale/needs_human items on conflict.
@@ -243,7 +243,7 @@ Routing: `ScopeTeams` pins (config `team:`), `PLOEG_TEAM_MAP` / `PLOEG_DEFAULT_T
 - Vloer uses **one shared consumer token**. Per-user scope is enforced in Vloer: config `ploeg.teams` and `ploeg.userTeams[userId]`; admin sees all (`ploeg.ts:158-159`).
 - Config keys: `ploeg.{url, tokenEnv, teams, userTeams, trackerUrl, demo}`. `config.ts:218` forbids the token entering the agent environment.
 
-**Vloer's own routes** (`src/http.ts`; contract `apps/vloer/docs/contracts/api.md`):
+**Vloer's own routes** (`src/http.ts`; contract `apps/unfold/docs/contracts/api.md`):
 - Public: `/healthz`, `/readyz`, POST `/api/login`, GET `/api/auth/methods`, GET `/api/auth/oidc`, `/api/auth/oidc/callback`, POST `/api/auth/editor` (editor device-style flow), POST `/api/logout`.
 - Authenticated by cookie (`vloer` or `__Host-vloer`, HttpOnly, SameSite=Strict). Mutations need `X-Vloer-Request: 1` and same-origin checks (`mutationGuard`, `http.ts:57`).
   - Config and account: `/api/bootstrap`, `/api/health`, `/api/agent-host` (GET), POST `/api/agent-host/tokens` (issues personal AHP connection tokens), `/api/attestations/public-key`, `/api/models`, `/api/links`, `/api/links/{gitlab|clickup}` (POST/PUT/DELETE).
@@ -255,7 +255,7 @@ Routing: `ScopeTeams` pins (config `team:`), `PLOEG_TEAM_MAP` / `PLOEG_DEFAULT_T
 - `public/ploeg.js` holds lane, state and closeReason labels, `ploegReview()`, and an instruction-file regex list that includes `.mcp.json`. The fetch calls live in `public/app.js:357-481`.
 
 **The deterministic demo:**
-- `config.mode === 'demo'`, `src/runtime/demo.ts`. It copies an intentionally broken order-service Git fixture, edits real code and runs real Node tests, with zero model calls and zero spend (`apps/vloer/README.md:19`).
+- `config.mode === 'demo'`, `src/runtime/demo.ts`. It copies an intentionally broken order-service Git fixture, edits real code and runs real Node tests, with zero model calls and zero spend (`apps/unfold/README.md:19`).
 - `src/ploeg-demo.ts` supplies fixture Ploeg data: items DEMO-1…5 and proposed items 106/107.
 - `mise run demo` runs Vloer alone. `mise run demo-unified` runs Ploeg, Vloer and Postgres, still with no model calls (root `README.md:12-15`, `docs/workflows/local-demo.md`).
 - Rule in root `AGENTS.md`: "A deterministic demo says it is one and never invents model calls or spend."
@@ -269,7 +269,7 @@ Routing: `ScopeTeams` pins (config `team:`), `PLOEG_TEAM_MAP` / `PLOEG_DEFAULT_T
 - `apps/ploeg/pkg/harness/adapters/acp/acp.go:230`: ACP `session/new` sends `McpServers: []sdk.McpServer{}`, an empty list with no comment. It dates from the relocation commit 9f0103b and the history before that is not in this repo. `acp/client.go:23-31` refuses `fs/*` and `terminal/*` on purpose.
 - `apps/ploeg/pkg/worker/instructions.go:21`: `instructionFileNames` includes `.mcp.json`. It is scanned, SHA-256 recorded and hidden-Unicode checked before the harness runs; it is recorded, not stripped. Tests are in `instructions_test.go:49,70,273-277`.
 - `apps/ploeg/pkg/worker/task.go:244,265`: the delivery-contract prompt tells writers not to change `.mcp.json` (among other files) unless asked, and tells reviewers that a change to it is a finding. Matching test: `prompt_test.go:219,256`.
-- `apps/vloer/public/ploeg.js:6`: the instruction-file regex list includes `.mcp.json`, to flag reviewer findings.
+- `apps/unfold/public/ploeg.js:6`: the instruction-file regex list includes `.mcp.json`, to flag reviewer findings.
 
 **Docs:**
 - `apps/ploeg/docs/adrs/0030-target-repository-instructions-rank-below-the-delivery-contract.md` (12 hits). It names the headless `claude -p` `.mcp.json` / hooks risk and mandates `--strict-mcp-config` with no `--mcp-config`. It says the live conformance run is "Not yet confirmed". Re-evaluation trigger: Claude Code changes `--strict-mcp-config`.
@@ -284,19 +284,19 @@ Routing: `ScopeTeams` pins (config `team:`), `PLOEG_TEAM_MAP` / `PLOEG_DEFAULT_T
 - `docs/research/2026-09-22-agents-md.md` (11 hits): the source finding that the Claude adapter "runs the target's hooks, env block and `.mcp.json` unprompted, with `bypassPermissions`". It cites CVE-2025-59536, CVE-2026-21852 and Codex CVE-2025-61260, and recommends `--strict-mcp-config` and CODEOWNERS on `.mcp.json`.
 - `docs/how-to/prepare-a-repository.md:64,68,90,103`: require human review of `.mcp.json`; claude-code runs with "only Ploeg's MCP configuration", which is effectively none.
 - `docs/how-to/review-an-agent-pr.md:40`: check instruction files including `.mcp.json`.
-- `apps/vloer/docs/design/00-product-system-design.md:219`: see §9.
-- `apps/vloer/docs/design/ticket-integration.md:121`: see §9.
-- `apps/vloer/docs/design/platform-and-governance.md:146`: "MCP results … are untrusted inputs".
-- `apps/vloer/docs/adrs/0003-runtime-workspace-and-credential-seams.md:25`: "MCP may expose tools; it does not replace lifecycle ownership."
-- `apps/vloer/docs/product/model-gateway-capabilities.md:65-66,89`: proposal to serve MCP tools (ClickUp, GitLab, Forgejo) *through the LiteLLM gateway, granted per key*, so the sandbox holds no tool credential. LiteLLM 1.99/1.100 features are listed. The second estate's LiteLLM already runs `supported_db_objects: ["mcp"]` and `require_key_mcp_access_defined: true`.
-- `apps/vloer/docs/operations/live.md:83`: forge tools via the gateway's MCP surface would remove the sandbox forge token.
-- `apps/vloer/backlog/README.md:2963-2990` (also mirrored in `backlog.json`, `clickup-import.csv`, `forgejo-de-vloer.json`): **PV-063 "Expose scoped read-only MCP tools for work inspection"**. Milestone M5, epic E07, risk high, 5 points. Depends on PV-034 (org/client/project/team authz), PV-048 (durable event revision API) and PV-061 (capability catalog). Acceptance criteria: same project authz as HTTP; negotiate tested protocol versions; "No generic execute/admin tool or implicit ability to start paid work"; bound content and preserve provenance and redaction; conformance against a pinned MCP client.
-- `apps/vloer/docs/research/2026-09-11-ecosystem-alternatives.md:154`: the protocol-ledger MCP entry; notes ACP passes an empty MCP list.
-- `apps/vloer/docs/research/market-landscape.md:48,56`: "An MCP connection exposes tools and context; it is not proof of durable ticket ingestion"; Kandev has "task MCP".
-- `apps/vloer/docs/research/2026-09-10-sandbox-landscape.md` and `2026-09-12-documentation-audit.json`: incidental.
-- `apps/vloer/docs/research/2026-09-17-agent-host-roadmap.md` and `2026-09-18-band-and-the-interaction-layer.md`: see §9.
+- `apps/unfold/docs/design/00-product-system-design.md:219`: see §9.
+- `apps/unfold/docs/design/ticket-integration.md:121`: see §9.
+- `apps/unfold/docs/design/platform-and-governance.md:146`: "MCP results … are untrusted inputs".
+- `apps/unfold/docs/adrs/0003-runtime-workspace-and-credential-seams.md:25`: "MCP may expose tools; it does not replace lifecycle ownership."
+- `apps/unfold/docs/product/model-gateway-capabilities.md:65-66,89`: proposal to serve MCP tools (ClickUp, GitLab, Forgejo) *through the LiteLLM gateway, granted per key*, so the sandbox holds no tool credential. LiteLLM 1.99/1.100 features are listed. The second estate's LiteLLM already runs `supported_db_objects: ["mcp"]` and `require_key_mcp_access_defined: true`.
+- `apps/unfold/docs/operations/live.md:83`: forge tools via the gateway's MCP surface would remove the sandbox forge token.
+- `apps/unfold/backlog/README.md:2963-2990` (also mirrored in `backlog.json`, `clickup-import.csv`, `forgejo-de-vloer.json`): **PV-063 "Expose scoped read-only MCP tools for work inspection"**. Milestone M5, epic E07, risk high, 5 points. Depends on PV-034 (org/client/project/team authz), PV-048 (durable event revision API) and PV-061 (capability catalog). Acceptance criteria: same project authz as HTTP; negotiate tested protocol versions; "No generic execute/admin tool or implicit ability to start paid work"; bound content and preserve provenance and redaction; conformance against a pinned MCP client.
+- `apps/unfold/docs/research/2026-09-11-ecosystem-alternatives.md:154`: the protocol-ledger MCP entry; notes ACP passes an empty MCP list.
+- `apps/unfold/docs/research/market-landscape.md:48,56`: "An MCP connection exposes tools and context; it is not proof of durable ticket ingestion"; Kandev has "task MCP".
+- `apps/unfold/docs/research/2026-09-10-sandbox-landscape.md` and `2026-09-12-documentation-audit.json`: incidental.
+- `apps/unfold/docs/research/2026-09-17-agent-host-roadmap.md` and `2026-09-18-band-and-the-interaction-layer.md`: see §9.
 - `docs/landscape/explorer.html`: generated copy.
-- `apps/vloer/extensions/vscode/package-lock.json`: a dependency string.
+- `apps/unfold/extensions/vscode/package-lock.json`: a dependency string.
 
 **How Ploeg treats MCP for executing agents today:**
 - **claude-code:** zero MCP servers. `--strict-mcp-config` without `--mcp-config` means even the target's `.mcp.json` is ignored.
@@ -365,7 +365,7 @@ Routing: `ScopeTeams` pins (config `team:`), `PLOEG_TEAM_MAP` / `PLOEG_DEFAULT_T
 - 0035, proposed: Ploeg-owned skills and mounted toolchains.
 - 0036, proposed: stuck work goes to the owner as a cited proposal; proposes POST `/work-items/{id}/decisions`.
 
-**Vloer `apps/vloer/docs/adrs/` (index README.md):**
+**Vloer `apps/unfold/docs/adrs/` (index README.md):**
 - 0003, accepted: harness, workspace and credential seams stay distinct; "MCP may expose tools; it does not replace lifecycle ownership."
 - 0005, proposed: one work authority.
 - 0012, accepted: every session is an AHP 0.9 host with personal connection tokens.
@@ -381,14 +381,14 @@ Routing: `ScopeTeams` pins (config `team:`), `PLOEG_TEAM_MAP` / `PLOEG_DEFAULT_T
 - Verdict: "adopt nothing now … The one honest fit is a north-facing facade … parked on the watchlist (backlog #102)". A2A fails on fit, not maturity.
 - MCP: quotes A2A's self-positioning, *"MCP inside agents, A2A between agents"*.
 
-**`apps/vloer/docs/research/2026-09-17-agent-host-roadmap.md`**
+**`apps/unfold/docs/research/2026-09-17-agent-host-roadmap.md`**
 - Verdict: "The harness seam is closed and the host seam is open … De Vloer is on the correct side of it"; conformance is the urgent work.
 - Layer table row: "Agent ↔ tools | **MCP** | Inside the harness, below both".
 - "**MCP has vacated the seam.** The 2026-07-28 revision removed protocol-level sessions and `Mcp-Session-Id`, removed the initialize handshake, and removed SSE stream resumability and message redelivery."
 - VS Code quote: "Extensions can still contribute … tools, MCP servers, and custom agents, but the agent runtime itself runs in the Agent Host process."
 - It notes "No protocol-research contract block exists in AGENTS.md".
 
-**`apps/vloer/docs/research/2026-09-18-band-and-the-interaction-layer.md`**
+**`apps/unfold/docs/research/2026-09-18-band-and-the-interaction-layer.md`**
 - Verdict: "**Reject BAND as a dependency and mine it for design.** … Authority, budget, provenance and ticket-to-merge delivery are claimed by no protocol and no standards body".
 - MCP statements:
   - Layer map: "Agent to tools and context | **MCP 2026-07-28** (Linux Foundation / AAIF) | Below the harness; PV-063 proposes read-only MCP tools". Also "Authorization to call a tool or agent | MCP (OAuth 2.1, RFC 9728, CIMD) … | Bearer tokens; ADR-0016 for people".
@@ -402,7 +402,7 @@ Routing: `ScopeTeams` pins (config `team:`), `PLOEG_TEAM_MAP` / `PLOEG_DEFAULT_T
   - §8.5: David Soria Parra: "MCP has a defined purpose: connecting AI applications to data sources."
   - §8.6: "MCP frames multi-agent as an identity problem" (roadmap of 22 Aug 2026: DPoP, Workload Identity Federation, ID-JAG, RFC 8693).
   - Triggers include the AI Catalog adoption vote at the MCP and A2A steering committees, and any WG chartered for cost, authority, provenance or delivery.
-- Landing contract stated in its header: dossier in `apps/vloer/docs/research/`, product ledger `market-landscape.md`, protocol ledger `2026-09-11-ecosystem-alternatives.md`, watchlist as a numbered item in `apps/ploeg/docs/backlog.md`.
+- Landing contract stated in its header: dossier in `apps/unfold/docs/research/`, product ledger `market-landscape.md`, protocol ledger `2026-09-11-ecosystem-alternatives.md`, watchlist as a numbered item in `apps/ploeg/docs/backlog.md`.
 
 **`docs/research/2026-09-22-agents-md.md`**
 - Verdict: keep AGENTS.md canonical with a `CLAUDE.md` symlink. The MCP-relevant finding: "The Claude Code adapter currently runs a target repository's hooks and MCP servers without a prompt. That matters more than any prose."
@@ -410,24 +410,24 @@ Routing: `ScopeTeams` pins (config `team:`), `PLOEG_TEAM_MAP` / `PLOEG_DEFAULT_T
 - Also: CODEOWNERS on `.mcp.json`, and the AAIF governance note ("AGENTS.md, MCP and goose would move to … AAIF").
 
 **Design statements (normative-ish):**
-- `apps/vloer/docs/design/00-product-system-design.md:219`: "MCP is a tool/data interface, not the queue, lease store or budget authority. A future Ploeg/Vloer MCP server can expose narrowly scoped read tools and explicit mutation tools for an already authenticated operator or approved role. It must enforce the same work-order policy as the HTTP API. Never hand a coding agent a generic administrative connector simply because it speaks MCP."
-- `apps/vloer/docs/design/ticket-integration.md:121`: "MCP may support operator-authorized discovery and drafting. It is not the reliable subscription, retry, ownership or financial ledger … put any MCP tool invocation behind the same command authorization and idempotency boundary."
+- `apps/unfold/docs/design/00-product-system-design.md:219`: "MCP is a tool/data interface, not the queue, lease store or budget authority. A future Ploeg/Vloer MCP server can expose narrowly scoped read tools and explicit mutation tools for an already authenticated operator or approved role. It must enforce the same work-order policy as the HTTP API. Never hand a coding agent a generic administrative connector simply because it speaks MCP."
+- `apps/unfold/docs/design/ticket-integration.md:121`: "MCP may support operator-authorized discovery and drafting. It is not the reliable subscription, retry, ownership or financial ledger … put any MCP tool invocation behind the same command authorization and idempotency boundary."
 
 ## 10. Where findings land
 
 - **Protocol research contract block: none exists.** Three dossiers state this explicitly: `2026-09-17-agent-host-roadmap.md:154`, `2026-09-18-band…md:5`, `2026-09-10-unified-workbench-baseline.md:13`. Root `AGENTS.md` has none.
 - Ledgers and alternatives:
-  - Protocol ledger: `apps/vloer/docs/research/2026-09-11-ecosystem-alternatives.md` §"Appendix: adjacent components and communication protocols" (line 142; the MCP entry is at 154).
-  - Product ledger: `apps/vloer/docs/research/market-landscape.md`.
+  - Protocol ledger: `apps/unfold/docs/research/2026-09-11-ecosystem-alternatives.md` §"Appendix: adjacent components and communication protocols" (line 142; the MCP entry is at 154).
+  - Product ledger: `apps/unfold/docs/research/market-landscape.md`.
   - Decision register: `docs/reference/decisions.md`, **generated** by `scripts/docs-decisions.py` / `mise run docs-decisions` from the three ADR ledgers plus `docs/reference/decisions-implementation.yaml`. Do not edit it by hand.
   - Ploeg's `docs/design.md` §8 is the historic "verdict ledger".
 - Watchlist and backlog:
   - `apps/ploeg/docs/backlog.md`, "frozen on 2026-09-23"; the tracker owns status. Watchlists are #101 (AHP) and #102 (A2A); `ploegctl` is #96.
-  - `apps/vloer/backlog/README.md` plus `backlog.json` (PV-063 MCP, PV-081 AHP stream of Ploeg events).
+  - `apps/unfold/backlog/README.md` plus `backlog.json` (PV-063 MCP, PV-081 AHP stream of Ploeg events).
   - Open questions: `docs/landscape/questions.md`.
 - Research directories and conventions:
   - Glide-wide: `docs/research/YYYY-MM-DD-<topic>.md`, with evidence in `docs/research/evidence/<date-topic>/`.
-  - Per app: `apps/ploeg/docs/research/` and `apps/vloer/docs/research/`. `apps/ploeg/CLAUDE.md` sets "Evidence goes in `docs/research/YYYY-MM-DD-<topic>.md`". Root `AGENTS.md:25` says "Application contracts, ADRs and research stay inside the application."
+  - Per app: `apps/ploeg/docs/research/` and `apps/unfold/docs/research/`. `apps/ploeg/CLAUDE.md` sets "Evidence goes in `docs/research/YYYY-MM-DD-<topic>.md`". Root `AGENTS.md:25` says "Application contracts, ADRs and research stay inside the application."
   - Research is a "record" type (`docs/documentation.md:23,55,66`) and is linked where it supports a decision, not from the nav.
 - Nav:
   - `mkdocs.yml` (TechDocs `techdocs-core`, `docs_dir: .build/docs`, staged by `scripts/docs.py`) lists no research pages. Research is reachable only by links.
@@ -449,7 +449,7 @@ Routing: `ScopeTeams` pins (config `team:`), `PLOEG_TEAM_MAP` / `PLOEG_DEFAULT_T
 
 ## 12. Multi-tenancy
 
-- **Code: zero.** `grep -rni tenant` over `apps/ploeg/pkg`, `apps/ploeg/cmd`, `apps/vloer/src` and both Helm charts returns 0. So do `organization`, `org_id` and `tenant_id`.
+- **Code: zero.** `grep -rni tenant` over `apps/ploeg/pkg`, `apps/ploeg/cmd`, `apps/unfold/src` and both Helm charts returns 0. So do `organization`, `org_id` and `tenant_id`.
 - The only scoping primitives today:
   - Ploeg **Team**: `OperatorPrincipal.Teams`, `AllowsTeam`, team-scoped reads returning 404 outside scope.
   - Per-consumer `maxBudgetUsd`.

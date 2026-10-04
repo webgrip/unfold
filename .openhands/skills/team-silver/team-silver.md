@@ -19,7 +19,7 @@ description: >-
 # Team Silver — discipline for a single agent on Unfold
 
 You are running one Work Item end to end as one agent, on the dispatch
-plane's own codebase (Vloer is `apps/vloer`; Ploeg is a submodule at `apps/ploeg`, pinned from
+plane's own codebase (Unfold is `apps/unfold`; Ploeg is a submodule at `apps/ploeg`, pinned from
 github.com/ploeg-hq/ploeg). Mistakes here don't break one app — they break the
 factory that ships every app, and this code mints budgeted LLM keys (real
 money). Read the root `AGENTS.md` and the `AGENTS.md` of each application you

@@ -13,24 +13,24 @@ class HistoryClassification(unittest.TestCase):
         for path in [
             'research/2026-09-12-execution-boundary.md',
             'research/old/#stale',
-            'vloer/research/evidence/delivery-2026-09-11/README.md',
-            'vloer/adrs/0001-the-human-workbench-beside-ploeg.md',
-            'vloer/adrs/0001-the-human-workbench-beside-ploeg/',
+            'unfold/research/evidence/delivery-2026-09-11/README.md',
+            'unfold/adrs/0001-the-human-workbench-beside-ploeg.md',
+            'unfold/adrs/0001-the-human-workbench-beside-ploeg/',
             'adr/adr-0001-unfold-contains-independent-applications.md',
-            'vloer/design/gap-register.md',
+            'unfold/design/gap-register.md',
             'ploeg/design/',
             'ploeg/backlog.md',
-            'vloer/operations/backlog/',
-            'vloer/operations/iteration-0.2.0.md',
+            'unfold/operations/backlog/',
+            'unfold/operations/iteration-0.2.0.md',
             'migration-proposal.md',
             'ploeg/openspec/changes/x/design.md',
-            'vloer/design/00-product-system-design.md',
-            'vloer/design/00-product-system-design/',
-            'vloer/PRODUCT-DESIGN.md',
-            'vloer/PRODUCT-DESIGN/index.html',
-            'vloer/product/go-to-market.md',
-            'vloer/product/go-to-market/',
-            'vloer/operations/backlog.md',
+            'unfold/design/00-product-system-design.md',
+            'unfold/design/00-product-system-design/',
+            'unfold/PRODUCT-DESIGN.md',
+            'unfold/PRODUCT-DESIGN/index.html',
+            'unfold/product/go-to-market.md',
+            'unfold/product/go-to-market/',
+            'unfold/operations/backlog.md',
             'ploeg/backlog/',
             'ploeg/history/legacy-changelog.md',
             'ploeg/history/legacy-changelog/',
@@ -38,14 +38,14 @@ class HistoryClassification(unittest.TestCase):
             self.assertTrue(rules.historical(path), path)
 
     def test_current_pages_and_ledger_indexes_are_not_history(self):
-        for path in ['index.md', 'index.html', '', 'workflows/local-demo.md', 'vloer/operations/live/', 'adr/index.md', 'adr/', 'vloer/adrs/README.md', 'vloer/adrs/', 'reference/decisions.md']:
+        for path in ['index.md', 'index.html', '', 'workflows/local-demo.md', 'unfold/operations/live/', 'adr/index.md', 'adr/', 'unfold/adrs/README.md', 'unfold/adrs/', 'reference/decisions.md']:
             self.assertFalse(rules.historical(path), path)
 
 
     def test_brand_folders_are_parked_except_the_trademark_policy(self):
-        for path in ['vloer/brand/README.md', 'vloer/brand/', 'vloer/brand/social-profile-copy.md', 'vloer/brand/brandbook.html', 'ploeg/brand/README.md', 'ploeg/brand/merkgids.html']:
+        for path in ['unfold/brand/README.md', 'unfold/brand/', 'unfold/brand/social-profile-copy.md', 'unfold/brand/brandbook.html', 'ploeg/brand/README.md', 'ploeg/brand/merkgids.html']:
             self.assertTrue(rules.historical(path), path)
-        for path in ['vloer/brand/TRADEMARK.md', 'vloer/brand/TRADEMARK/', 'ploeg/brand/TRADEMARK.md', 'ploeg/brand/TRADEMARK.html']:
+        for path in ['unfold/brand/TRADEMARK.md', 'unfold/brand/TRADEMARK/', 'ploeg/brand/TRADEMARK.md', 'ploeg/brand/TRADEMARK.html']:
             self.assertFalse(rules.historical(path), path)
 
 
@@ -66,13 +66,13 @@ class Anchors(unittest.TestCase):
 
 class HistoryBanner(unittest.TestCase):
     def test_banner_follows_the_title_and_front_matter_is_merged(self):
-        staged = rules.mark_history('---\nstatus: proposed\ndate: 2026-09-10\n---\n\n# Decision\n\nBody\n', 'vloer/adrs/0017-x.md')
+        staged = rules.mark_history('---\nstatus: proposed\ndate: 2026-09-10\n---\n\n# Decision\n\nBody\n', 'unfold/adrs/0017-x.md')
         self.assertEqual(staged, '---\nstatus: proposed\ndate: 2026-09-10\nsearch:\n  exclude: true\n---\n\n# Decision\n\n> Record from 2026-09-10; not current guidance.\n\nBody\n')
 
     def test_date_sources_and_unknown_date(self):
-        self.assertIn('Record from 2026-09-12;', rules.mark_history('# Audit\n', 'vloer/research/2026-09-12-documentation-audit.md'))
-        self.assertIn('Record from 2026-09-09;', rules.mark_history('# 0001 — Title\n\nDate: 2026-09-09. Status: accepted.\n', 'vloer/adrs/0001-title.md'))
-        self.assertIn('Record from 2026-09-11;', rules.mark_history('# Evidence\n', 'vloer/research/evidence/delivery-2026-09-11/README.md'))
+        self.assertIn('Record from 2026-09-12;', rules.mark_history('# Audit\n', 'unfold/research/2026-09-12-documentation-audit.md'))
+        self.assertIn('Record from 2026-09-09;', rules.mark_history('# 0001 — Title\n\nDate: 2026-09-09. Status: accepted.\n', 'unfold/adrs/0001-title.md'))
+        self.assertIn('Record from 2026-09-11;', rules.mark_history('# Evidence\n', 'unfold/research/evidence/delivery-2026-09-11/README.md'))
         staged = rules.mark_history('Intro without a title\n', 'ploeg/backlog.md')
         self.assertTrue(staged.startswith('---\nsearch:\n  exclude: true\n---\n> Record; not current guidance.\n'))
 
@@ -83,18 +83,18 @@ class HistoryBanner(unittest.TestCase):
 
 class Orphans(unittest.TestCase):
     def test_nav_pages_and_one_hop_links_are_reachable(self):
-        nav = rules.nav_pages([{'Start': 'index.md'}, {'Apps': [{'Vloer': 'vloer/index.md'}, 'https://example.test/']}])
-        self.assertEqual(nav, {'index.md', 'vloer/index.md'})
-        links = {'vloer/index.md': {'vloer/live.md'}, 'vloer/live.md': {'vloer/deep.md'}}
-        pages = ['index.md', 'vloer/index.md', 'vloer/live.md', 'vloer/deep.md', 'vloer/research/old.md']
-        self.assertEqual(rules.orphans(pages, nav, links), ['vloer/deep.md'])
+        nav = rules.nav_pages([{'Start': 'index.md'}, {'Apps': [{'Unfold': 'unfold/index.md'}, 'https://example.test/']}])
+        self.assertEqual(nav, {'index.md', 'unfold/index.md'})
+        links = {'unfold/index.md': {'unfold/live.md'}, 'unfold/live.md': {'unfold/deep.md'}}
+        pages = ['index.md', 'unfold/index.md', 'unfold/live.md', 'unfold/deep.md', 'unfold/research/old.md']
+        self.assertEqual(rules.orphans(pages, nav, links), ['unfold/deep.md'])
 
     def test_a_pinned_dependency_page_is_never_an_orphan(self):
         nav = {'index.md', 'ploeg/index.md'}
         pages = ['index.md', 'ploeg/index.md', 'ploeg/how-to/added-upstream.md', 'loose.md']
         self.assertEqual(rules.orphans(pages, nav, {}), ['loose.md'])
         self.assertTrue(rules.pinned('ploeg/how-to/added-upstream.md'))
-        self.assertFalse(rules.pinned('vloer/how-to/x.md'))
+        self.assertFalse(rules.pinned('unfold/how-to/x.md'))
         self.assertFalse(rules.pinned('reference/ploeg-terms.md'))
 
 
@@ -105,9 +105,9 @@ GENERATED = '---\ntype: reference\naudience: [owner, agent]\nowner: ploeg\ngener
 
 class FrontMatter(unittest.TestCase):
     def test_checked_pages_are_current_nav_pages_and_the_required_folders(self):
-        pages = ['index.md', 'extra.md', 'concepts/new.md', 'how-to/x.md', 'reference/glossary.md', 'reference/data.yaml', 'research/2026-09-12-x.md', 'vloer/index.md', 'adr/adr-0001-x.md']
-        nav = {'index.md', 'vloer/index.md', 'research/2026-09-12-x.md', 'adr/adr-0001-x.md'}
-        self.assertEqual(rules.checked_pages(pages, nav), ['concepts/new.md', 'how-to/x.md', 'index.md', 'reference/glossary.md', 'vloer/index.md'])
+        pages = ['index.md', 'extra.md', 'concepts/new.md', 'how-to/x.md', 'reference/glossary.md', 'reference/data.yaml', 'research/2026-09-12-x.md', 'unfold/index.md', 'adr/adr-0001-x.md']
+        nav = {'index.md', 'unfold/index.md', 'research/2026-09-12-x.md', 'adr/adr-0001-x.md'}
+        self.assertEqual(rules.checked_pages(pages, nav), ['concepts/new.md', 'how-to/x.md', 'index.md', 'reference/glossary.md', 'unfold/index.md'])
 
     def test_pinned_dependency_pages_keep_their_own_front_matter_rules(self):
         pages = ['index.md', 'ploeg/index.md', 'ploeg/how-to/x.md', 'ploeg/reference/configuration.md']

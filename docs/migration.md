@@ -8,22 +8,22 @@ verified_by: "Repository claims checked: Helm pins in apps/*/mise.toml, tag form
 
 # Unfold migration
 
-Unfold brought Vloer and Ploeg into one repository on `development`. Since 2026-10-03 Ploeg lives in its own repository again, and Unfold pins it ([Ploeg moves out](#ploeg-moves-out)). The original repositories remain available. This migration changes the source layout and developer workflow; deployment coordinates and runtime behavior retain their application scope.
+Unfold brought its front end and Ploeg into one repository on `development`. Since 2026-10-03 Ploeg lives in its own repository again, and Unfold pins it ([Ploeg moves out](#ploeg-moves-out)). The original repositories remain available. This migration changes the source layout and developer workflow; deployment coordinates and runtime behavior retain their application scope.
 
 ## What moved
 
 | Before | Unfold |
 | --- | --- |
-| `de-vloer/` | [apps/vloer](../apps/vloer/) |
+| The front end's former repository | [apps/unfold](../apps/unfold/) |
 | `ploeg/` | [apps/ploeg](../apps/ploeg/) |
-| Vloer's shared product model and generated views | [docs/domain](domain/overview.md) |
+| The front end's shared product model and generated views | [docs/domain](domain/overview.md) |
 | System explanation and diagrams | [docs/landscape](landscape/index.md) |
 | Cross-application demo and managed setup | [docs/workflows](workflows/local-demo.md) |
 | Documentation maintenance | [One shared policy](documentation.md) |
 
 Service API schemas, application architecture, operating details and existing ADRs stay with the producing application. Old shared-document paths contain short redirects or a symbolic link to the one structured source. The [complete path mapping](research/2026-09-12-glide-document-paths.json) records these moves.
 
-The import preserves 396 Vloer files and 392 Ploeg files, including the audited working trees. Original commit objects are retained. Separate snapshot and directory-move commits make file history traceable with `git log --follow`. Tags become `vloer-v…` and `ploeg-v…`; non-version tags keep the same application prefix. Release-channel notes use the same namespace. The [import manifest](research/2026-09-12-glide-import.json) records source revisions, tag objects, file modes and SHA-256 digests. Run `mise exec -- python3 scripts/verify-import.py` to verify the immutable import against that manifest.
+The import preserves 396 front-end files and 392 Ploeg files, including the audited working trees. Original commit objects are retained. Separate snapshot and directory-move commits make file history traceable with `git log --follow`. Tags gain an application prefix, such as `ploeg-v…`; non-version tags keep the same prefix. Release-channel notes use the same namespace. The [import manifest](research/2026-09-12-glide-import.json) records source revisions, tag objects, file modes and SHA-256 digests. Run `mise exec -- python3 scripts/verify-import.py` to verify the immutable import against that manifest.
 
 A final comparison with the original remotes found Ploeg's existing [rc.7 release commit](https://forgejo.webgrip.dev/webgrip/unfold/commit/05b93bb4b7c063cb0ca733e4bbf3d699c5044af4) beyond the audited local checkout. Its changelog and chart metadata are merged into Unfold, with the original commit retained as a parent. The immutable import manifest continues to describe the audited snapshots.
 
@@ -31,7 +31,7 @@ The earlier [proposal](migration-proposal.md) remains as history. The [system de
 
 ## Execution boundary
 
-[The comparison](research/2026-09-12-execution-boundary.md) exercises standalone Vloer and Vloer delegated by real Ploeg HTTP and PostgreSQL. The existing engines remain separate. The same Vloer runtime interface already serves both Vloer modes, while Ploeg's unattended worker owns different process and lease responsibilities. A common package would add a new boundary without removing demonstrated duplication.
+[The comparison](research/2026-09-12-execution-boundary.md) exercises the front end standalone and delegated by real Ploeg HTTP and PostgreSQL. The existing engines remain separate. The front end's runtime interface already serves both its modes, while Ploeg's unattended worker owns different process and lease responsibilities. A common package would add a new boundary without removing demonstrated duplication.
 
 ## Checks and release preparation
 
@@ -65,7 +65,7 @@ Unfold artifact publication defaults off through `UNFOLD_RELEASES_ENABLED`. That
 4. Dry-run both release trains, then inspect the actual publishing jobs and verify image/chart provenance. Set `UNFOLD_RELEASES_ENABLED=true` only after both publishers' source and credential requirements are satisfied.
 5. Change production desired state through its GitOps repository when a qualified artifact needs deploying. The inspected [Ploeg OCI source](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/ocirepository.yaml) uses its existing chart coordinate and pinned version/digest; it does not need a new chart name merely because the code moved.
 
-Since [Ploeg moved out](#ploeg-moves-out), items 1 and 2 no longer apply and item 4 covers only Vloer's train: Ploeg publishes its own module, images and chart from `ploeg-hq/ploeg`.
+Since [Ploeg moved out](#ploeg-moves-out), items 1 and 2 no longer apply and item 4 covers only Unfold's train: Ploeg publishes its own module, images and chart from `ploeg-hq/ploeg`.
 
 The original import qualification used local estate checkouts. The later [readiness check](research/2026-09-12-cutover-readiness.json) verifies the current remote GitOps revision and selected live cluster resources. No production desired state was changed and no paid provider run was performed. Until cutover, the original repositories remain the remote release authorities.
 

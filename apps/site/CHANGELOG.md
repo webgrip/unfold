@@ -48,7 +48,7 @@
 
 ### Added
 
-* **site:** serve the recorded Vloer replay at /demo ([66ffe3f](https://forgejo.webgrip.dev/webgrip/unfold/commit/66ffe3faa75e609ab5814870effdf8f1c54855b8)), references [#app](https://forgejo.webgrip.dev/webgrip/unfold/issues/app)
+* **site:** serve the recorded Unfold replay at /demo ([66ffe3f](https://forgejo.webgrip.dev/webgrip/unfold/commit/66ffe3faa75e609ab5814870effdf8f1c54855b8)), references [#app](https://forgejo.webgrip.dev/webgrip/unfold/issues/app)
 * **site:** turn the site into a landing page with sign-ups, pricing and the demo ([3c19c4d](https://forgejo.webgrip.dev/webgrip/unfold/commit/3c19c4d349a16d6e54cde3e3f397f22bddc6a340))
 
 ### Fixed
@@ -56,7 +56,7 @@
 * **site:** cap the sign-up body by bytes read, not Content-Length ([4769b7a](https://forgejo.webgrip.dev/webgrip/unfold/commit/4769b7a35caeda1121fdcf15c3df11c94bcbdf4f))
 * **site:** link the replay at /demo/ once its recording exists, and renumber the sign-up ADR ([dfd0f28](https://forgejo.webgrip.dev/webgrip/unfold/commit/dfd0f2832d21832ee8268083525cd49497ccbed6)), references [#122](https://forgejo.webgrip.dev/webgrip/unfold/issues/122)
 * **site:** set the sign-up database id ([00b36b6](https://forgejo.webgrip.dev/webgrip/unfold/commit/00b36b66f84676317a4451c4cf10820ab4f46dc5))
-* **vloer:** refuse the inner world's route in the hosted demo replay ([7897f61](https://forgejo.webgrip.dev/webgrip/unfold/commit/7897f61e2148f863f3f149e4df21308dd142c6ec)), references [#122](https://forgejo.webgrip.dev/webgrip/unfold/issues/122)
+* **unfold:** refuse the inner world's route in the hosted demo replay ([7897f61](https://forgejo.webgrip.dev/webgrip/unfold/commit/7897f61e2148f863f3f149e4df21308dd142c6ec)), references [#122](https://forgejo.webgrip.dev/webgrip/unfold/issues/122)
 
 ### Docs
 

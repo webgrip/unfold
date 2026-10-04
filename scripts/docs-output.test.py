@@ -19,12 +19,12 @@ class PublishedDocumentation(unittest.TestCase):
         self.staging.mkdir(parents=True)
         self.site.mkdir(parents=True)
         (root / 'mkdocs.yml').write_text('site_url: https://example.test/unfold/\n')
-        (self.staging / 'index.md').write_text('# Current\n\n[Page](vloer/index.md)\n')
-        (self.staging / 'vloer').mkdir()
-        (self.staging / 'vloer/index.md').write_text('# Vloer\n')
+        (self.staging / 'index.md').write_text('# Current\n\n[Page](unfold/index.md)\n')
+        (self.staging / 'unfold').mkdir()
+        (self.staging / 'unfold/index.md').write_text('# Unfold\n')
         (self.staging / 'llms.txt').write_text('# Unfold\n\n- [Start](index.md)\n')
         (self.staging / 'docs-sources.json').write_text(json.dumps({'revision': 'a' * 40, 'sources': []}))
-        for name in ['index.html', 'vloer/index.html', 'ploeg/index.html', 'research/old/index.html', '404.html']:
+        for name in ['index.html', 'unfold/index.html', 'ploeg/index.html', 'research/old/index.html', '404.html']:
             page = self.site / name
             page.parent.mkdir(parents=True, exist_ok=True)
             page.write_text('<body><article>page</article></body>')
@@ -35,7 +35,7 @@ class PublishedDocumentation(unittest.TestCase):
 
     def test_publishable_site_and_curated_bundle(self):
         output.validate(self.site, self.staging)
-        self.assertIn('https://example.test/unfold/vloer/index.md', (self.site / 'llms-full.txt').read_text())
+        self.assertIn('https://example.test/unfold/unfold/index.md', (self.site / 'llms-full.txt').read_text())
         self.assertIn('data-pagefind-ignore', (self.site / 'research/old/index.html').read_text())
         self.assertNotIn('data-pagefind-body', (self.site / 'research/old/index.html').read_text())
         self.assertIn('data-pagefind-body', (self.site / 'index.html').read_text())
@@ -51,7 +51,7 @@ class PublishedDocumentation(unittest.TestCase):
             output.validate(self.site, self.staging)
 
     def test_missing_human_page_blocks_publish(self):
-        (self.site / 'vloer/index.html').unlink()
+        (self.site / 'unfold/index.html').unlink()
         with self.assertRaisesRegex(AssertionError, 'Missing output'):
             output.validate(self.site, self.staging)
 
@@ -77,7 +77,7 @@ class PublishedDocumentation(unittest.TestCase):
     def test_legacy_target_must_exist(self):
         (self.staging / 'research').mkdir()
         mapping = self.staging / 'research/2026-09-12-docs-cutover.json'
-        mapping.write_text(json.dumps({'redirects': [{'to': '/glide/vloer/'}]}))
+        mapping.write_text(json.dumps({'redirects': [{'to': '/glide/unfold/'}]}))
         output.validate(self.site, self.staging)
         mapping.write_text(json.dumps({'redirects': [{'to': '/glide/missing/'}]}))
         with self.assertRaisesRegex(AssertionError, 'Missing legacy redirect'):

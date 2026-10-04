@@ -45,16 +45,16 @@ def fixture():
         config = json.dumps({'config': {'Labels': {'org.opencontainers.image.source': 'https://github.com/webgrip/unfold', 'org.opencontainers.image.version': '0.3.0-rc.8', 'org.opencontainers.image.revision': 'selected-sha'}}}).encode()
         manifest = json.dumps({'config': {'digest': digest(config)}}).encode()
         registry.blobs[digest(config)] = config
-        registry.manifests['webgrip/de-vloer', digest(manifest)] = manifest
+        registry.manifests['webgrip/unfold', digest(manifest)] = manifest
         index['manifests'].append({'platform': {'os': 'linux', 'architecture': arch}, 'digest': digest(manifest)})
-    registry.manifests['webgrip/de-vloer', '0.3.0-rc.8'] = json.dumps(index).encode()
+    registry.manifests['webgrip/unfold', '0.3.0-rc.8'] = json.dumps(index).encode()
     return registry
 
 
 class DistributionTests(unittest.TestCase):
     def test_accepts_only_supported_application_prereleases(self):
-        self.assertEqual(publish_release.release_tag('vloer', '0.3.0-rc.8'), 'unfold-v0.3.0-rc.8')
-        for application, version in [('other', '0.3.0-rc.8'), ('ploeg', '0.3.0-rc.8'), ('ploeg', '1.0.0-rc.1'), ('vloer', '0.3.0'), ('vloer', '0.3.0-beta.1'), ('vloer', '0.3.0-rc.0'), ('vloer', '0.03.0-rc.8'), ('vloer', '0.3.0-rc.8;echo bad')]:
+        self.assertEqual(publish_release.release_tag('unfold', '0.3.0-rc.8'), 'unfold-v0.3.0-rc.8')
+        for application, version in [('other', '0.3.0-rc.8'), ('ploeg', '0.3.0-rc.8'), ('ploeg', '1.0.0-rc.1'), ('unfold', '0.3.0'), ('unfold', '0.3.0-beta.1'), ('unfold', '0.3.0-rc.0'), ('unfold', '0.03.0-rc.8'), ('unfold', '0.3.0-rc.8;echo bad')]:
             with self.assertRaises(ValueError):
                 publish_release.release_tag(application, version)
 
@@ -68,53 +68,53 @@ class DistributionTests(unittest.TestCase):
 
             def api(url, token, method='GET', data=None, missing=False):
                 if method == 'GET':
-                    return [{'name': 'charts/de-vloer', 'repository': {'full_name': current} if current else None}, {'name': 'de-vloer', 'repository': None}]
+                    return [{'name': 'charts/unfold', 'repository': {'full_name': current} if current else None}, {'name': 'unfold', 'repository': None}]
                 calls.append(url.rsplit('/-/', 1)[1])
-                self.assertIn('/container/charts%2Fde-vloer/-/', url)
+                self.assertIn('/container/charts%2Funfold/-/', url)
 
             with self.subTest(current=current), patch.object(publish_release, 'api', api):
-                publish_release.link_package('charts/de-vloer', 'token')
+                publish_release.link_package('charts/unfold', 'token')
                 self.assertEqual(calls, expected)
 
     def test_a_link_the_bot_cannot_move_does_not_stop_publication(self):
         def api(url, token, method='GET', data=None, missing=False):
             if method == 'GET':
-                return [{'name': 'de-vloer-agent', 'repository': {'full_name': 'webgrip/de-vloer'}}]
+                return [{'name': 'unfold-agent', 'repository': {'full_name': 'webgrip/de-vloer'}}]
             raise RuntimeError('POST forgejo.webgrip.dev returned HTTP 500')
 
         with patch.object(publish_release, 'api', api), patch('sys.stderr') as stderr:
-            publish_release.link_package('de-vloer-agent', 'token')
+            publish_release.link_package('unfold-agent', 'token')
         self.assertIn('stays linked to webgrip/de-vloer', ''.join(call.args[0] for call in stderr.write.call_args_list))
 
     def test_every_image_platform_must_identify_the_unfold_release(self):
         source = fixture()
-        verify_image(source, 'webgrip/de-vloer', '0.3.0-rc.8', 'selected-sha')
+        verify_image(source, 'webgrip/unfold', '0.3.0-rc.8', 'selected-sha')
         with self.assertRaises(RuntimeError):
-            verify_image(source, 'webgrip/de-vloer', '0.3.0-rc.8', 'another-sha')
+            verify_image(source, 'webgrip/unfold', '0.3.0-rc.8', 'another-sha')
         for mutation in ['source', 'platform']:
             changed = copy.deepcopy(source)
-            index = json.loads(changed.manifests['webgrip/de-vloer', '0.3.0-rc.8'])
+            index = json.loads(changed.manifests['webgrip/unfold', '0.3.0-rc.8'])
             if mutation == 'source':
                 index['annotations']['org.opencontainers.image.source'] = 'https://github.com/ploeg-hq/ploeg'
             else:
                 index['manifests'].pop()
-            changed.manifests['webgrip/de-vloer', '0.3.0-rc.8'] = json.dumps(index).encode()
+            changed.manifests['webgrip/unfold', '0.3.0-rc.8'] = json.dumps(index).encode()
             with self.assertRaises(RuntimeError):
-                verify_image(changed, 'webgrip/de-vloer', '0.3.0-rc.8', 'selected-sha')
+                verify_image(changed, 'webgrip/unfold', '0.3.0-rc.8', 'selected-sha')
 
     def test_chart_copy_preserves_bytes_and_retries_without_replacing(self):
         source, target = MemoryRegistry(), MemoryRegistry('target')
         config, layer = b'{"version":"0.3.0-rc.8"}', b'packaged-chart'
         manifest = json.dumps({'mediaType': 'application/vnd.oci.image.manifest.v1+json', 'config': {'digest': digest(config), 'mediaType': 'application/vnd.cncf.helm.config.v1+json'}, 'layers': [{'digest': digest(layer)}]}).encode()
-        source.manifests['webgrip/charts/de-vloer', '0.3.0-rc.8'] = manifest
+        source.manifests['webgrip/charts/unfold', '0.3.0-rc.8'] = manifest
         source.blobs = {digest(config): config, digest(layer): layer}
-        self.assertEqual(copy_chart(source, target, 'webgrip/charts/de-vloer', '0.3.0-rc.8'), digest(manifest))
+        self.assertEqual(copy_chart(source, target, 'webgrip/charts/unfold', '0.3.0-rc.8'), digest(manifest))
         self.assertEqual(len(target.writes), 3)
-        copy_chart(source, target, 'webgrip/charts/de-vloer', '0.3.0-rc.8')
+        copy_chart(source, target, 'webgrip/charts/unfold', '0.3.0-rc.8')
         self.assertEqual(len(target.writes), 3)
-        target.manifests['webgrip/charts/de-vloer', '0.3.0-rc.8'] = b'other-version-content'
+        target.manifests['webgrip/charts/unfold', '0.3.0-rc.8'] = b'other-version-content'
         with self.assertRaises(RuntimeError):
-            copy_chart(source, target, 'webgrip/charts/de-vloer', '0.3.0-rc.8')
+            copy_chart(source, target, 'webgrip/charts/unfold', '0.3.0-rc.8')
         self.assertEqual(len(target.writes), 3)
 
     def test_a_helm_manifest_without_a_media_type_uploads_as_an_oci_manifest(self):
@@ -148,7 +148,7 @@ class DistributionTests(unittest.TestCase):
         self.assertEqual(calls[-1][:2], ('PATCH', '/releases/7'))
         self.assertFalse(calls[-1][2]['draft'])
 
-    def test_the_vloer_publisher_takes_the_github_release_out_of_draft_itself(self):
+    def test_the_unfold_publisher_takes_the_github_release_out_of_draft_itself(self):
         source = {'name': 'unfold-v0.4.0-rc.9', 'body': 'notes', 'assets': []}
         draft = {'tag_name': 'unfold-v0.4.0-rc.9', 'name': 'unfold-v0.4.0-rc.9', 'body': 'notes', 'prerelease': True, 'draft': True, 'id': 9, 'assets': [], 'html_url': 'draft-url'}
         for publish, expected in [(False, []), (True, ['PATCH'])]:
@@ -167,8 +167,8 @@ class DistributionTests(unittest.TestCase):
                 self.assertEqual([m for m in calls if m != 'GET'], expected)
         self.assertIs(inspect.signature(publish_release.mirror_release).parameters['publish'].default, True)
         workflow = (Path(__file__).resolve().parent.parent / '.forgejo/workflows/on_release_published.yml').read_text()
-        self.assertEqual(re.findall(r'python3 scripts/publish_release\.py (\S+)', workflow), ['vloer'])
-        self.assertEqual(re.findall(r'python3 scripts/publish_chart\.py (\S+)', workflow), ['vloer'])
+        self.assertEqual(re.findall(r'python3 scripts/publish_release\.py (\S+)', workflow), ['unfold'])
+        self.assertEqual(re.findall(r'python3 scripts/publish_chart\.py (\S+)', workflow), ['unfold'])
 
     def test_a_published_github_release_missing_an_asset_fails_plainly(self):
         source = {'name': 'unfold-v0.4.0-rc.8', 'body': 'notes', 'assets': [{'name': 'a.json', 'browser_download_url': 'https://forgejo.webgrip.dev/a.json'}]}
@@ -183,28 +183,28 @@ class DistributionTests(unittest.TestCase):
         target.host = 'target'
         with patch.object(release_registry, 'verify_signature', side_effect=RuntimeError('unsigned')):
             with self.assertRaisesRegex(RuntimeError, 'unsigned'):
-                copy_image(source, target, 'webgrip/de-vloer', '0.3.0-rc.8', 'selected-sha')
+                copy_image(source, target, 'webgrip/unfold', '0.3.0-rc.8', 'selected-sha')
         with patch.object(release_registry, 'verify_signature'), patch.object(release_registry, 'command', side_effect=RuntimeError('copy failed')):
             with self.assertRaisesRegex(RuntimeError, 'copy failed'):
-                copy_image(source, target, 'webgrip/de-vloer', '0.3.0-rc.8', 'selected-sha')
+                copy_image(source, target, 'webgrip/unfold', '0.3.0-rc.8', 'selected-sha')
         with patch.object(release_registry, 'verify_signature') as verify, patch.object(release_registry, 'command') as command:
-            copy_image(source, target, 'webgrip/de-vloer', '0.3.0-rc.8', 'selected-sha')
+            copy_image(source, target, 'webgrip/unfold', '0.3.0-rc.8', 'selected-sha')
             self.assertEqual(verify.call_count, 2)
-            index = digest(source.manifests['webgrip/de-vloer', '0.3.0-rc.8'])
-            command.assert_called_once_with('regctl', 'image', 'copy', '--referrers', '--digest-tags', f'source/webgrip/de-vloer@{index}', 'target/webgrip/de-vloer:0.3.0-rc.8')
+            index = digest(source.manifests['webgrip/unfold', '0.3.0-rc.8'])
+            command.assert_called_once_with('regctl', 'image', 'copy', '--referrers', '--digest-tags', f'source/webgrip/unfold@{index}', 'target/webgrip/unfold:0.3.0-rc.8')
 
     def test_an_existing_destination_version_with_other_content_is_never_copied_over(self):
         source, target = fixture(), fixture()
         target.host = 'target'
-        target.manifests['webgrip/de-vloer', '0.3.0-rc.8'] = b'{"manifests":[]}'
+        target.manifests['webgrip/unfold', '0.3.0-rc.8'] = b'{"manifests":[]}'
         with patch.object(release_registry, 'verify_signature'), patch.object(release_registry, 'command') as command:
             with self.assertRaisesRegex(RuntimeError, 'immutable'):
-                copy_image(source, target, 'webgrip/de-vloer', '0.3.0-rc.8', 'selected-sha')
+                copy_image(source, target, 'webgrip/unfold', '0.3.0-rc.8', 'selected-sha')
             command.assert_not_called()
 
     def test_the_published_chart_names_unfold_as_its_source_and_home(self):
         root = Path(__file__).resolve().parent.parent
-        metadata = release_registry.command('helm', 'show', 'chart', str(root / 'apps/vloer/ops/helm/de-vloer')).splitlines()
+        metadata = release_registry.command('helm', 'show', 'chart', str(root / 'apps/unfold/ops/helm/unfold')).splitlines()
         self.assertIn('home: https://forgejo.webgrip.dev/webgrip/unfold', metadata)
         self.assertEqual(metadata[metadata.index('sources:') + 1], '- https://github.com/webgrip/unfold')
 

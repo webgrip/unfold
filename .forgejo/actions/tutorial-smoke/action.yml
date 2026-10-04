@@ -16,4 +16,4 @@ runs:
     - name: Start and stop the deterministic demo
       if: steps.prerequisites.outputs.ready == 'true'
       shell: bash
-      run: mise trust apps/vloer/mise.toml && mise trust apps/ploeg/mise.toml && bash scripts/tutorial-smoke.sh
+      run: mise trust apps/unfold/mise.toml && mise trust apps/ploeg/mise.toml && bash scripts/tutorial-smoke.sh

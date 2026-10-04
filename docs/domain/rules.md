@@ -129,7 +129,7 @@ A person initially accepts Results; automatic acceptance requires a separately a
 
 ### R8
 
-Ploeg is the Authority for every Run (Unfold ADR-0002). Vloer requests Admission through Ploeg's API and never falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Vloer runs only its deterministic demo, which makes no model calls. Current state — Vloer's standalone mode and its own engine remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
+Ploeg is the Authority for every Run (system ADR-0002). Unfold requests Admission through Ploeg's API and never falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Unfold runs only its deterministic demo, which makes no model calls. Current state — Unfold's standalone mode and its own engine remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
 
 **Why:** One authority, one budget path and one revocable credential per Run; runner location does not decide who authorizes work.
 

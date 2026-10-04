@@ -31,7 +31,7 @@ For changes that must reach production, release capacity supplies another limit.
 
 ## Where each component helps
 
-**Vloer** can reduce the effort of understanding and reviewing work by putting the ticket, actual changes, executed checks, unresolved questions, and decisions together. It should make weak evidence easy to see. A readable transcript is useful, but it does not prove correctness.
+**Unfold** can reduce the effort of understanding and reviewing work by putting the ticket, actual changes, executed checks, unresolved questions, and decisions together. It should make weak evidence easy to see. A readable transcript is useful, but it does not prove correctness.
 
 **Ploeg** can coordinate authorized work, avoid competing claims, limit concurrent execution and spending, and stop or expose failed work. A future admission rule could hold back more work when review capacity is full. That feedback rule is a proposal, not a current capability.
 

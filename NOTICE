@@ -1,7 +1,7 @@
 Unfold
 Copyright 2026 Ryan Grippeling / WebGrip
 
-This repository contains De Vloer. It pins Ploeg, which is developed at
+This repository contains Unfold. It pins Ploeg, which is developed at
 https://github.com/ploeg-hq/ploeg, as a Git submodule at apps/ploeg. Their
 notices, bundled third-party licenses and trademark policies remain in
-apps/vloer and in Ploeg's repository.
+apps/unfold and in Ploeg's repository.

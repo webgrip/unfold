@@ -2,7 +2,7 @@
 type: explanation
 audience: [owner, contributor]
 owner: unfold
-unverified: "Predates Unfold ADR-0002 and ADR-0003: it still says local work must run without Ploeg and that separate engines are retained, and it uses the retired terms ticket and repair subticket. Reconcile it with the accepted ADRs and the product model, then verify it."
+unverified: "Predates system ADR-0002 and ADR-0003: it still says local work must run without Ploeg and that separate engines are retained, and it uses the retired terms ticket and repair subticket. Reconcile it with the accepted ADRs and the product model, then verify it."
 ---
 
 # Questions that change the architecture
@@ -12,8 +12,8 @@ This is a discussion guide, not an implementation backlog. Open language choices
 ## Product intentions
 
 - The aim is a supported way to work with AI for developers and non-human operators, with visibility into telemetry, costs, decisions, and results.
-- Vloer is the place the developer starts. The particular harness is an implementation choice.
-- Vloer supports the intended start of open AI conversations without a ticket. Ticket systems remain external.
+- Unfold is the place the developer starts. The particular harness is an implementation choice.
+- Unfold supports the intended start of open AI conversations without a ticket. Ticket systems remain external.
 - Local work must be usable without any Ploeg service. Each execution has one explicit authority; Ploeg-managed work cannot switch itself to standalone authority.
 - Software work should be checked and reviewed by agents before human review. A CI failure gets a repair subticket; agents automatically fix it in projects where the behavior is enabled, including human-written changes.
 - A person initially reviews and accepts the prepared result. Automatic acceptance can be agreed later.
@@ -22,9 +22,9 @@ This is a discussion guide, not an implementation backlog. Open language choices
 
 ## Round one: responsibility
 
-**A developer starts local work.** The product direction requires this to work without Ploeg. Current standalone Vloer supports that path, with a registered repository and crew. Repository-free conversation and fully offline model inference are separate capabilities; neither follows from independence from Ploeg.
+**A developer starts local work.** The product direction requires this to work without Ploeg. Current standalone Unfold supports that path, with a registered repository and crew. Repository-free conversation and fully offline model inference are separate capabilities; neither follows from independence from Ploeg.
 
-**Both applications need execution machinery.** Separate three choices: who authorizes work, where the runner executes, and which code is reused. A common runner could implement workspace setup, harness invocation, interruption and evidence capture while Ploeg retains scheduling and budgets and Vloer retains interaction. Unfold retains separate engines after the [fixture comparison](../research/2026-09-12-execution-boundary.md). Reopen extraction when a concrete behavior needs the same fix in both engines. Go and TypeScript do not become a shared library merely by moving into one repository; a process or wire contract may be the useful boundary.
+**Both applications need execution machinery.** Separate three choices: who authorizes work, where the runner executes, and which code is reused. A common runner could implement workspace setup, harness invocation, interruption and evidence capture while Ploeg retains scheduling and budgets and Unfold retains interaction. Unfold retains separate engines after the [fixture comparison](../research/2026-09-12-execution-boundary.md). Reopen extraction when a concrete behavior needs the same fix in both engines. Go and TypeScript do not become a shared library merely by moving into one repository; a process or wire contract may be the useful boundary.
 
 **A Ploeg-managed runner loses its connection.** It retains Ploeg's authority; it cannot turn itself into standalone work. The current workbench interrupts on failed authority reconciliation and preserves unresolved state. Any future policy allowing continuation within an unexpired grant must qualify expiry, revocation, duplicate-start prevention and evidence reconciliation. A deliberately standalone run has no Ploeg connection to lose. The [migration record](../migration.md) links the executed comparison.
 
@@ -38,7 +38,7 @@ Must an agent use the same API as a person, or must they merely follow the same 
 
 When an open conversation becomes code work, which details become required: repository, branch, ticket, acceptance conditions, or release destination? Free conversation is supported intent; the transition into a deliverable needs a clear rule.
 
-Who writes and edits the ticket: the existing tracker, Vloer, an agent, or all three? If more than one can edit it, which copy is authoritative and what happens when its requirements change during execution?
+Who writes and edits the ticket: the existing tracker, Unfold, an agent, or all three? If more than one can edit it, which copy is authoritative and what happens when its requirements change during execution?
 
 ## Round three: decisions and evidence
 
@@ -60,6 +60,6 @@ What should “agents talk to each other” accomplish first: ask an expert a qu
 
 ## Round five: whether custom software is justified
 
-Which requirement would justify maintaining Ploeg and Vloer if a bought or existing product completes the same workflow? Is it the self-hosted tracker/forge combination, control over execution rules, interchangeable providers, organizational support, or something else?
+Which requirement would justify maintaining Ploeg and Unfold if a bought or existing product completes the same workflow? Is it the self-hosted tracker/forge combination, control over execution rules, interchangeable providers, organizational support, or something else?
 
-What would cause us to remove one of our components? Recommendation: agree on a small comparison workflow and accept replacement when an alternative meets it with lower total operating cost. See the [alternatives](../../apps/vloer/docs/research/2026-09-11-ecosystem-alternatives.md).
+What would cause us to remove one of our components? Recommendation: agree on a small comparison workflow and accept replacement when an alternative meets it with lower total operating cost. See the [alternatives](../../apps/unfold/docs/research/2026-09-11-ecosystem-alternatives.md).

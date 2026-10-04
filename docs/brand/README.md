@@ -1,6 +1,6 @@
 # Unfold brand
 
-Status: v1, 2026-10-01. The product is named Unfold ([ADR-0013](../adr/adr-0013-the-product-is-named-unfold.md)). Ploeg and Vloer are its parts and keep their own brands: [Ploeg](../../apps/ploeg/docs/brand/README.md), [Vloer](../../apps/vloer/docs/brand/README.md).
+Status: v1, 2026-10-01. The product is named Unfold ([ADR-0013](../adr/adr-0013-the-product-is-named-unfold.md)). Ploeg keeps its own brand: [Ploeg](../../apps/ploeg/docs/brand/README.md). The Unfold application still carries the brand it had as a separate front end: [application brand](../../apps/unfold/docs/brand/README.md).
 
 This page is the short reference. The full brand book, with the construction drawing, the sizes enlarged pixel by pixel, the family rules, the surfaces and the voice, is published at <https://claude.ai/artifact/TCiHS96whd4m6zbAqqppTX>. Where the two disagree, the generator wins, because it is what ships.
 
@@ -69,7 +69,7 @@ Baken Diep and Baken Nacht clear the text threshold by a few hundredths on their
 
 ## Type
 
-Archivo by Héctor Gatti and Omnibus-Type, [SIL OFL 1.1](https://openfontlicense.org/), the face Ploeg and Vloer use.
+Archivo by Héctor Gatti and Omnibus-Type, [SIL OFL 1.1](https://openfontlicense.org/), the face Ploeg and the Unfold application use.
 
 | Role | Setting |
 | --- | --- |
@@ -81,7 +81,7 @@ Archivo by Héctor Gatti and Omnibus-Type, [SIL OFL 1.1](https://openfontlicense
 
 Fallback stack: `"Archivo", "Helvetica Neue", Arial, sans-serif`.
 
-The wordmark ships as outlines in `wordmark.svg` and the lockups. Never re-set it in a live font. The outlines are cut from the font the site already ships, `apps/site/public/fonts/archivo-latin-wght-wdth110.woff2`: instanced at `wght 800` and `wdth 110` with `fontTools.varLib.instancer`, shaped with HarfBuzz using Archivo's own kerning (`f` + `o` closes by 7 units), tracked by −14 units per letter, and written with fontTools' `SVGPathPen` at two decimals. The generator carries the result as a constant, the way Vloer's does, so building the brand needs neither Python nor the font. To redo it, run that pipeline through `mise exec -- uvx --from 'fonttools[woff]' --with uharfbuzz python` and replace `wordmark.d` and `wordmark.bbox`. Unlike Vloer's, the `l` keeps its full ascender: no glyph is altered.
+The wordmark ships as outlines in `wordmark.svg` and the lockups. Never re-set it in a live font. The outlines are cut from the font the site already ships, `apps/site/public/fonts/archivo-latin-wght-wdth110.woff2`: instanced at `wght 800` and `wdth 110` with `fontTools.varLib.instancer`, shaped with HarfBuzz using Archivo's own kerning (`f` + `o` closes by 7 units), tracked by −14 units per letter, and written with fontTools' `SVGPathPen` at two decimals. The generator carries the result as a constant, the way the application's brand generator does, so building the brand needs neither Python nor the font. To redo it, run that pipeline through `mise exec -- uvx --from 'fonttools[woff]' --with uharfbuzz python` and replace `wordmark.d` and `wordmark.bbox`. Unlike the application's wordmark, the `l` keeps its full ascender: no glyph is altered.
 
 ## Lockups
 
@@ -113,11 +113,11 @@ Scale the file; never redraw it.
 - Do not close the crease. Without it the mark is a dart, not a folded sheet.
 - Do not rotate it to point down or left. The mark always climbs.
 - Do not stretch it. Scale both axes together, or the fold changes angle.
-- Do not use a family accent. Klei is Ploeg's and Peil is Vloer's; Unfold uses Baken only.
+- Do not use a family accent. Klei is Ploeg's. Peil is the accent the Unfold application still uses until it moves to Baken (VIK-1842). The Unfold mark uses Baken only.
 - Do not outline it. An outline loses the weight of the sheet and the fold.
 - Do not add a gradient, a shadow or a glow. Flat colour only.
 - Do not put `mark.svg` on Zwerk: Vouw on Zwerk is 1.04:1. Use `mark-night.svg`.
-- Do not show Ploeg or Vloer beside Unfold at the same size. The parts appear smaller, quieter and after the Unfold name.
+- Do not show Ploeg beside Unfold at the same size. Ploeg appears smaller, quieter and after the Unfold name.
 
 ## Files
 

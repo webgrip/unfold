@@ -29,7 +29,7 @@ def validate(site, staging):
     for path in staging.rglob('*.md'):
         output = site / path.relative_to(staging)
         assert output.is_file() and output.read_text() == path.read_text(), f'Missing or stale Markdown: {output}'
-    for name in ['index.html', 'vloer/index.html', 'ploeg/index.html', 'llms.txt', 'llms-full.txt', 'docs-sources.json']:
+    for name in ['index.html', 'unfold/index.html', 'ploeg/index.html', 'llms.txt', 'llms-full.txt', 'docs-sources.json']:
         assert (site / name).is_file() and (site / name).stat().st_size, f'Missing output: {name}'
     assert json.loads((site / 'docs-sources.json').read_text()) == sources, 'Mismatched source manifest'
     base = yaml.safe_load((staging.parents[1] / 'mkdocs.yml').read_text())['site_url']

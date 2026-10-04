@@ -28,7 +28,7 @@ A page that needs two types becomes two pages. Current pages (every type except 
 ---
 type: how-to
 audience: [owner, operator]
-owner: unfold        # unfold, ploeg or vloer
+owner: unfold        # unfold or ploeg
 last_verified: 2026-09-23
 verified_by: "the command, test or source read that confirmed it"
 ---
@@ -40,7 +40,7 @@ verified_by: "the command, test or source read that confirmed it"
 
 * **The start page and README** open with the problem and the outcome: work items become review-ready pull requests. `llms.txt` repeats that sentence.
 * **System explanation** lives only in `docs/concepts/`. An application's `architecture.md` explains its implementation and links up. When you find a second explanation, merge it and replace it with a link.
-* **Terms** have one definition. Vloer uses Ploeg's execution terms ([ADR-0002](adr/adr-0002-ploeg-is-the-only-engine.md)). The [combined glossary](reference/glossary.md) is generated from the [product model](domain/model.yaml) and [Ploeg's model](../apps/ploeg/docs/domain/model.yaml). A second meaning is recorded as "not to be confused with", never as a second definition.
+* **Terms** have one definition. Unfold uses Ploeg's execution terms ([ADR-0002](adr/adr-0002-ploeg-is-the-only-engine.md)). The [combined glossary](reference/glossary.md) is generated from the [product model](domain/model.yaml) and [Ploeg's model](../apps/ploeg/docs/domain/model.yaml). A second meaning is recorded as "not to be confused with", never as a second definition.
 * **A current rule** appears in a current page, which links the ADR that explains it. An ADR is never the only place a rule lives.
 
 ## Choose the source
@@ -51,7 +51,7 @@ verified_by: "the command, test or source read that confirmed it"
 | Wire format | The publishing service's schema and types | Consumer guide and examples |
 | Product language and open choices | [Product model](domain/model.yaml) | Generated glossary and rules |
 | Ploeg's execution language | [Ploeg model](../apps/ploeg/docs/domain/model.yaml) | Its generated pages and the combined glossary |
-| Architectural decision | The ADR ledger of its scope: [system](adr/index.md), [Ploeg](../apps/ploeg/docs/adrs/README.md) or [Vloer](../apps/vloer/docs/adrs/README.md) | The generated [decision register](reference/decisions.md) |
+| Architectural decision | The ADR ledger of its scope: [system](adr/index.md), [Ploeg](../apps/ploeg/docs/adrs/README.md) or [the Unfold application](../apps/unfold/docs/adrs/README.md) | The generated [decision register](reference/decisions.md) |
 | Research and qualification | A dated record with method, sources and limitations | A short finding linked from a current page |
 | Priority | The tracker | None in the repository |
 
@@ -88,8 +88,8 @@ Research, evidence, superseded explanations, design baselines, planning exports 
 | Command | Effect |
 | --- | --- |
 | `mise run domain` | Regenerates the product model's domain pages and the combined glossary of both models. Ploeg regenerates its own domain pages and [configuration reference](../apps/ploeg/docs/reference/configuration.md) in its repository |
-| `mise exec -- node apps/vloer/scripts/build-landscape.mjs` | Rebuilds the historical landscape explorer |
-| `mise run docs-check` | Checks generated pages, links, anchors, orphans, front matter, the system and Vloer ADR ledgers and the strict TechDocs build |
+| `mise exec -- node apps/unfold/scripts/build-landscape.mjs` | Rebuilds the historical landscape explorer |
+| `mise run docs-check` | Checks generated pages, links, anchors, orphans, front matter, the system and application ADR ledgers and the strict TechDocs build |
 | `mise run docs-site-check` | Builds the Zensical site in the CI image and scans it |
 | `mise run docs-stale` | Lists pages verified more than 180 days ago and pages marked `unverified`; never fails |
 | `mise run docs-tutorial-smoke` | Starts and stops the [local demo](workflows/local-demo.md), then runs its smoke check; skips without PostgreSQL |

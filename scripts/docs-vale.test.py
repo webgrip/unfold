@@ -17,8 +17,8 @@ stale = load('docs_stale', 'docs-stale.py')
 
 class Vocabulary(unittest.TestCase):
     def test_keeps_multi_word_capitalised_and_named_terms_only(self):
-        terms = [{'name': 'Run'}, {'name': 'Work Item'}, {'name': 'Follow-Up'}, {'name': 'OpenSpec', 'context': 'Tooling'}, {'name': 'AHP'}, {'name': 'Vloer', 'context': 'System'}]
-        self.assertEqual(vale.vocabulary(terms), ['AHP', 'Follow-Up', 'OpenSpec', 'Vloer', 'Work Item'])
+        terms = [{'name': 'Run'}, {'name': 'Work Item'}, {'name': 'Follow-Up'}, {'name': 'OpenSpec', 'context': 'Tooling'}, {'name': 'AHP'}, {'name': 'Unfold', 'context': 'System'}]
+        self.assertEqual(vale.vocabulary(terms), ['AHP', 'Follow-Up', 'OpenSpec', 'Unfold', 'Work Item'])
 
     def test_substitutions_skip_single_words_and_qualified_entries(self):
         models = [{'retired_terms': [{'name': 'Ticket', 'use': ['Work Item']}, {'name': 'Repair Subticket', 'use': ['Follow-Up']}], 'terms': [{'name': 'Run', 'avoid': ['job (as a domain term)', 'role run']}]}]

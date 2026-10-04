@@ -8,7 +8,7 @@ decision-makers: Ryan Grippeling
 
 ## Context and Problem Statement
 
-Unfold exists to close one loop: a person creates a work item and assigns it to agents, and the agents do all of the code work until a pull request is ready for human review and merge. The 2026-09-22 [inventory](../research/2026-09-22-glide-inventory.md) found two engines that each run agents: Vloer's `apps/vloer/src/engine.ts` and Ploeg's worker. Both implement harness driving, LiteLLM key brokering, spend holds, crew and review orchestration, workspace credentials and liveness. In shared mode Vloer still executes the whole crew, and Ploeg only admits it and records it. Which application executes agent work, and who authorizes it?
+Unfold exists to close one loop: a person creates a work item and assigns it to agents, and the agents do all of the code work until a pull request is ready for human review and merge. The 2026-09-22 [inventory](../research/2026-09-22-glide-inventory.md) found two engines that each run agents: Vloer's `apps/unfold/src/engine.ts` and Ploeg's worker. Both implement harness driving, LiteLLM key brokering, spend holds, crew and review orchestration, workspace credentials and liveness. In shared mode Vloer still executes the whole crew, and Ploeg only admits it and records it. Which application executes agent work, and who authorizes it?
 
 ## Decision Drivers
 
@@ -33,7 +33,7 @@ Chosen option: "Ploeg authorizes and executes all agent work; Vloer is the front
 
 This record supersedes the parts of [ADR-0001](adr-0001-unfold-contains-independent-applications.md) that keep standalone Vloer authority and both engines. Unfold still contains two independently deployable applications.
 
-It also resolves [Vloer ADR-0005](../../apps/vloer/docs/adrs/0005-one-work-authority.md), [Vloer ADR-0017](../../apps/vloer/docs/adrs/0017-delegate-interactive-execution-to-ploeg.md) and [Ploeg ADR-0024](../../apps/ploeg/docs/adrs/0024-operator-work-uses-one-execution-authority.md) towards Ploeg authority. Those three records keep their own status until the owner updates each ledger.
+It also resolves [Vloer ADR-0005](../../apps/unfold/docs/adrs/0005-one-work-authority.md), [Vloer ADR-0017](../../apps/unfold/docs/adrs/0017-delegate-interactive-execution-to-ploeg.md) and [Ploeg ADR-0024](../../apps/ploeg/docs/adrs/0024-operator-work-uses-one-execution-authority.md) towards Ploeg authority. Those three records keep their own status until the owner updates each ledger.
 
 ### Consequences
 
@@ -46,7 +46,7 @@ It also resolves [Vloer ADR-0005](../../apps/vloer/docs/adrs/0005-one-work-autho
 
 This record is accepted but not yet implemented. Implementation is complete when:
 
-* `apps/vloer/src/engine.ts` no longer launches harnesses outside the demo runtime;
+* `apps/unfold/src/engine.ts` no longer launches harnesses outside the demo runtime;
 * `mise run integration` passes with all non-demo sessions executed by `ploeg-worker`;
 * `AGENTS.md` and the [product model](../domain/model.yaml) state Ploeg authority without a standalone exception.
 

@@ -223,7 +223,7 @@ A DPIA under GDPR article 35(7) needs at least the first four parts below; the f
 
 * Which Run Card features are switched on, built or proposed, with their state on the day of the DPIA.
 * The data inventory above, trimmed to what is switched on.
-* Data flows: forge and tracker to Ploeg, Ploeg to Vloer, and any client view. Where Unfold runs (self-hosted or hosted, and in which country), who administers it, and which processors are involved.
+* Data flows: forge and tracker to Ploeg, Ploeg to Unfold, and any client view. Where Unfold runs (self-hosted or hosted, and in which country), who administers it, and which processors are involved.
 * Who can see what: the visibility matrix above, and who can change the configuration.
 * Retention and pseudonymisation as configured.
 

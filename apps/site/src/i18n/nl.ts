@@ -31,7 +31,7 @@ export const nl: Dictionary = {
     howKicker: '01 / HET WERK ZICHTBAAR',
     howTitle: 'Eén Shift. Elke stap in beeld.',
     howIntro:
-      'Een afrondingsfout. Een implementer. Een onafhankelijke reviewer. Verken het opgenomen bewijs uit de deterministische demo die bij Vloer hoort.',
+      'Een afrondingsfout. Een implementer. Een onafhankelijke reviewer. Verken het opgenomen bewijs uit de deterministische demo die bij Unfold hoort.',
     stageLabel: 'Verken de opgenomen Shift',
     play: 'Speel de Shift af',
     pause: 'Pauzeren',
@@ -74,7 +74,7 @@ export const nl: Dictionary = {
     merged: 'Gemerged',
     no: 'Nee',
     recording: 'Bekijk de volledige opname',
-    recordingNote: 'Elke gebeurtenis, de opgenomen timing en de originele Vloer-interface.',
+    recordingNote: 'Elke gebeurtenis, de opgenomen timing en de originele Unfold-interface.',
     controlLine: 'Het laatste woord',
     controlAccent: 'is aan jou.',
     controlNote: 'Agents stellen wijzigingen voor. Mensen accepteren, mergen en releasen.',
@@ -85,7 +85,7 @@ export const nl: Dictionary = {
     archKicker: '03 / ONDER DE MOTORKAP',
     archTitle: 'Eén product. Heldere rollen.',
     archIntro:
-      'Ploeg autoriseert de beheerde uitvoering en kent er budget aan toe. In Vloer start, stuur en inspecteer je het werk. Beide staan in één repository en delen één Unfold-versie.',
+      'Ploeg autoriseert de beheerde uitvoering en kent er budget aan toe. In Unfold start, stuur en inspecteer je het werk. Beide staan in één repository en delen één Unfold-versie.',
     cluster: 'BEHEERDE UITVOERING',
     front: 'Browser / VS Code',
     engine: 'Autorisatie · budgetten · orkestratie',
@@ -95,7 +95,7 @@ export const nl: Dictionary = {
     forge: 'Je forge',
     pullRequest: 'Pull request + bewijs',
     architectureNote:
-      'Conceptueel overzicht. De zelfstandige workerworkflow van Ploeg kan pull requests publiceren; het beheerde kandidaatpad van Vloer publiceert nog niet.',
+      'Conceptueel overzicht. De zelfstandige workerworkflow van Ploeg kan pull requests publiceren; het beheerde kandidaatpad van Unfold publiceert nog niet.',
     workerPath: 'Zelfstandige workerworkflow',
     openKicker: '04 / BOUW MET OPEN OGEN',
     openTitle: 'Open source. Op jouw voorwaarden.',
@@ -163,7 +163,7 @@ export const nl: Dictionary = {
     steps: [
       {
         term: 'Work Item',
-        text: 'Iets wat je hebt besloten te doen, of een probleem dat zo goed beschreven is dat er een oplossing voor te bedenken is. Het komt uit je tracker of uit Vloer.',
+        text: 'Iets wat je hebt besloten te doen, of een probleem dat zo goed beschreven is dat er een oplossing voor te bedenken is. Het komt uit je tracker of uit Unfold.',
       },
       {
         term: 'Shift',
@@ -184,7 +184,7 @@ export const nl: Dictionary = {
   how: {
     title: 'Kijk mee met één Shift',
     intro:
-      'Hetzelfde kleine klusje, op twee manieren. Een orderservice rondt 1,005 af op 1,00 in plaats van 1,01. Beide komen uit de deterministische demo die bij Vloer hoort. Je kunt hem zelf draaien en krijgt dezelfde uitkomst.',
+      'Hetzelfde kleine klusje, op twee manieren. Een orderservice rondt 1,005 af op 1,00 in plaats van 1,01. Beide komen uit de deterministische demo die bij Unfold hoort. Je kunt hem zelf draaien en krijgt dezelfde uitkomst.',
     walkthrough: {
       title: 'Stap voor stap',
       badge: 'Simulatie van de deterministische demo: geen modelaanroepen, geen kosten',
@@ -221,9 +221,9 @@ export const nl: Dictionary = {
     },
     video: {
       title: 'In de werkbank',
-      lead: 'Dezelfde demo in Vloer, opgenomen door een script dat erdoorheen klikt. Er is niets met de hand klaargezet.',
+      lead: 'Dezelfde demo in Unfold, opgenomen door een script dat erdoorheen klikt. Er is niets met de hand klaargezet.',
       caption:
-        'Opname van de deterministische demo in Vloer: geen modelaanroepen, geen kosten. Opgenomen met Vloer',
+        'Opname van de deterministische demo in Unfold: geen modelaanroepen, geen kosten. Opgenomen met Unfold',
       fallback: 'Je browser kan deze video niet afspelen. Download hem:',
     },
     replay: {
@@ -297,9 +297,9 @@ export const nl: Dictionary = {
         text: 'Ploeg autoriseert beheerde Runs van agents en kent er budget aan toe. Staat de executor aan, dan voert Ploeg de Work Items uit die het uit trackers zoals Vikunja en ClickUp haalt. Ploeg bepaalt wie op welke branch mag schrijven en legt elke Shift vast in PostgreSQL.',
       },
       {
-        name: 'Vloer',
+        name: 'Unfold',
         role: 'De werkbank',
-        text: 'Vloer is de voorkant, in de browser of in VS Code. Daar start je werk, stuur je agents bij terwijl ze bezig zijn en bekijk je wat ze hebben gemaakt. Staat gedeelde uitvoering aan, dan autoriseert Ploeg de Runs die je daar start en kent er budget aan toe, maar voert Vloer ze nog zelf uit; staat die uit, dan draait Vloer sessies op eigen houtje. Gepland: Ploeg voert elke Run uit, en Vloer draait zonder Ploeg alleen nog de deterministische demo.',
+        text: 'Unfold is de voorkant, in de browser of in VS Code. Daar start je werk, stuur je agents bij terwijl ze bezig zijn en bekijk je wat ze hebben gemaakt. Staat gedeelde uitvoering aan, dan autoriseert Ploeg de Runs die je daar start en kent er budget aan toe, maar voert Unfold ze nog zelf uit; staat die uit, dan draait Unfold sessies op eigen houtje. Gepland: Ploeg voert elke Run uit, en Unfold draait zonder Ploeg alleen nog de deterministische demo.',
       },
     ],
     version: 'Beide staan in één repository en krijgen samen één Unfold-versienummer.',

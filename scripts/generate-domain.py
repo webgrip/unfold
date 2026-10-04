@@ -465,7 +465,7 @@ def gen_combined(models, path):
              f"*Generated from the {sources} domain models by `mise run domain`. Do not edit by hand; "
              "change a `model.yaml` and regenerate.*", "",
              "Each term appears once and names the context and application that own it. "
-             "Ploeg owns the execution terms, and Vloer uses them with Ploeg's meaning.", ""]
+             "Ploeg owns the execution terms, and Unfold uses them with Ploeg's meaning.", ""]
     refs = {}
     for m in models:
         for r in m.get("references", []) or []:

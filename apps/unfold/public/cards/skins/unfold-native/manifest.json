@@ -1,0 +1,11 @@
+{
+  "id": "unfold-native",
+  "name": "Unfold Native",
+  "version": "1.1.0",
+  "runtime": 1,
+  "stylesheet": "skin.css",
+  "script": "skin.js",
+  "finishes": ["matte", "foil", "holo", "prism", "gilded", "infinity"],
+  "moments": [],
+  "themeTokens": ["--gc-accent", "--gc-surface", "--gc-radius"]
+}

@@ -15,7 +15,7 @@ The owner's requirement (2026-10-03): Unfold is an RBAC'd, SSO'd, multi-tenant e
 * The deploy endpoint accepts one deployment-wide token for every repository (`NewDeployAuth` in `apps/ploeg/pkg/httpapi/deploys.go`).
 * `File.ScopeTeams` in `apps/ploeg/pkg/config/resolve.go` keys pins by bare container id across Vikunja and ClickUp, so a repeated pin silently overwrites the previous one.
 * Operator admission checks the Team against the consumer's scope, but takes the repository id and URL from the request (`handleAdmitExecution` in `apps/ploeg/pkg/httpapi/operator_execution.go`).
-* Vloer returns every configured repository and task source to every signed-in user and reads tasks with the source's service token without a per-user check (`apps/vloer/src/http.ts`, `src/tasks.ts`, `src/task-handoff.ts`). Only Ploeg team access is enforced, by `PloegClient.allowed` and `authorize` in `apps/vloer/src/ploeg.ts`.
+* Vloer returns every configured repository and task source to every signed-in user and reads tasks with the source's service token without a per-user check (`apps/unfold/src/http.ts`, `src/tasks.ts`, `src/task-handoff.ts`). Only Ploeg team access is enforced, by `PloegClient.allowed` and `authorize` in `apps/unfold/src/ploeg.ts`.
 
 Which entity bounds what a user, a source and a budget can reach, how does it relate to Team and to ADR-0009's Tenant, and where is it enforced?
 

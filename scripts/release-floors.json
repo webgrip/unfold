@@ -11,7 +11,7 @@
       },
       "retired": "Since 2026-10-03 github.com/ploeg-hq/ploeg versions and publishes Ploeg, starting at 0.1.0 (system ADR-0019). The last Ploeg version Unfold published is 0.4.0-rc.35 (unfold-v0.4.0-rc.35). This record keeps every version Unfold published for Ploeg out of reach of any later Unfold train."
     },
-    "vloer": {
+    "unfold": {
       "floor": "0.4.0-rc.34",
       "tag_prefixes": ["vloer-v", "glide-v", "unfold-v"],
       "occupied_above_floor": {}
@@ -20,8 +20,8 @@
   "trains": {
     "unfold": {
       "tag_prefix": "unfold-v",
-      "components": ["vloer"],
-      "note": "An unfold-v release versions Vloer (ADR-0019). Until 2026-10-03 it versioned Ploeg too (ADR-0004). A bundle that versions neither component needs its own train entry."
+      "components": ["unfold"],
+      "note": "An unfold-v release versions Unfold (ADR-0019). Until 2026-10-03 it versioned Ploeg too (ADR-0004). A bundle that versions neither component needs its own train entry."
     }
   }
 }

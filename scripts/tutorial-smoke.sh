@@ -7,7 +7,7 @@ set -uo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 command="${UNFOLD_TUTORIAL_COMMAND:-mise run demo-unified}"
-smoke_command="${UNFOLD_TUTORIAL_SMOKE_COMMAND:-mise exec -- node apps/vloer/scripts/unified-demo.ts --smoke}"
+smoke_command="${UNFOLD_TUTORIAL_SMOKE_COMMAND:-mise exec -- node apps/unfold/scripts/unified-demo.ts --smoke}"
 ready_timeout="${UNFOLD_TUTORIAL_TIMEOUT:-600}"
 stop_timeout=60
 

@@ -64,8 +64,8 @@ if args.check:
                 assert generated.read_bytes() == (root / folder / generated.name).read_bytes(), f'Stale generated domain view: {folder}/{generated.name}; run mise run domain'
     assert (root / glossary).exists() and (root / glossary).read_text() == combined_glossary(), f'Stale combined glossary: {glossary}; run mise run domain'
     for name, expected in json.loads((root / 'docs/landscape/generated-sources.json').read_text()).items():
-        assert hashlib.sha256((root / name).read_bytes()).hexdigest() == expected, f'Stale landscape: {name}; rebuild with node apps/vloer/scripts/build-landscape.mjs'
-    for ledger in ['docs/adr', 'apps/vloer/docs/adrs']:
+        assert hashlib.sha256((root / name).read_bytes()).hexdigest() == expected, f'Stale landscape: {name}; rebuild with node apps/unfold/scripts/build-landscape.mjs'
+    for ledger in ['docs/adr', 'apps/unfold/docs/adrs']:
         subprocess.run([sys.executable, str(root / 'scripts/validate_adr_consistency.py'), str(root), '--adr-dir', ledger], check=True)
     subprocess.run([sys.executable, str(root / 'scripts/docs-decisions.py'), '--check'], check=True)
     subprocess.run([sys.executable, str(root / 'scripts/agents-files.py')], check=True)
@@ -119,7 +119,7 @@ def target_url(target, source):
     global checked
     parts = urlsplit(target)
     destination = None
-    for slug, app in [('de-vloer', 'vloer'), ('ploeg', 'ploeg')]:
+    for slug, app in [('de-vloer', 'unfold'), ('ploeg', 'ploeg')]:
         old = f'https://forgejo.webgrip.dev/webgrip/{slug}/src/branch/development/'
         if target.startswith(old):
             destination = root / 'apps' / app / unquote(urlsplit(target[len(old):]).path)

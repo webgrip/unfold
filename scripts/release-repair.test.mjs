@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { releaseFor, repairRelease } from './release-repair.mjs';
 
-const notes = '## [unfold-v0.4.0-rc.26](https://forgejo.example/compare/unfold-v0.4.0-rc.25...unfold-v0.4.0-rc.26) (2026-10-01)\n\n### Added\n\n* **vloer:** show a run card';
+const notes = '## [unfold-v0.4.0-rc.26](https://forgejo.example/compare/unfold-v0.4.0-rc.25...unfold-v0.4.0-rc.26) (2026-10-01)\n\n### Added\n\n* **unfold:** show a run card';
 
 function repository(t, tags) {
   const root = mkdtempSync(join(tmpdir(), 'release-repair-'));

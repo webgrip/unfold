@@ -1,0 +1,212 @@
+#!/usr/bin/env node
+import { spawn } from 'node:child_process';
+import { readdirSync, readFileSync } from 'node:fs';
+import { Readable } from 'node:stream';
+import { createServer } from 'node:http';
+import { hostname } from 'node:os';
+
+const target = process.env.UNFOLD_RELAY_TARGET ?? 'http://127.0.0.1:4096';
+const separator = process.argv.indexOf('--');
+const childArgv = separator >= 0 ? process.argv.slice(separator + 1) : [];
+const log = (message) => process.stderr.write(`${new Date().toISOString()} relay-worker: ${message}\n`);
+const inFlight = new Map();
+let relayUrl = process.env.UNFOLD_RELAY_URL;
+let token = process.env.UNFOLD_RELAY_TOKEN;
+let sessionEnv = {};
+let child;
+let stopping = false;
+const childGroups = new Set();
+const execGroups = new Set();
+const configuredGrace = Number(process.env.UNFOLD_RELAY_STOP_GRACE_MS);
+const stopGraceMs = Number.isFinite(configuredGrace) && configuredGrace >= 0 ? configuredGrace : 10_000;
+const killWaitMs = 5_000;
+const sleep = milliseconds => new Promise(done => setTimeout(done, milliseconds));
+
+const stop = async () => {
+  if (stopping) return;
+  stopping = true;
+  for (const controller of inFlight.values()) controller.abort();
+  child = undefined;
+  const results = await Promise.all([...childGroups, ...execGroups].map(group => stopGroup(group)));
+  process.exit(results.every(Boolean) ? 0 : 1);
+};
+process.on('SIGTERM', stop);
+process.on('SIGINT', stop);
+
+function groupAlive(group) {
+  let entries;
+  try { entries = readdirSync('/proc'); } catch { entries = undefined; }
+  if (entries) {
+    for (const entry of entries) {
+      if (!/^[0-9]+$/.test(entry)) continue;
+      let stat;
+      try { stat = readFileSync(`/proc/${entry}/stat`, 'utf8'); } catch { continue; }
+      const [state, , processGroup] = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      if (Number(processGroup) === group && state !== 'Z' && state !== 'X') return true;
+    }
+    return false;
+  }
+  try { process.kill(-group, 0); return true; } catch (error) { return error?.code === 'EPERM'; }
+}
+
+async function groupGone(group, withinMs) {
+  const deadline = Date.now() + withinMs;
+  while (groupAlive(group)) {
+    if (Date.now() >= deadline) return false;
+    await sleep(50);
+  }
+  return true;
+}
+
+async function stopGroup(group, graceMs = stopGraceMs) {
+  const signal = name => { try { process.kill(-group, name); } catch {} };
+  signal('SIGTERM');
+  let gone = await groupGone(group, graceMs);
+  if (!gone) { signal('SIGKILL'); gone = await groupGone(group, killWaitMs); }
+  if (gone) { childGroups.delete(group); execGroups.delete(group); }
+  else log(`process group ${group} is still running after SIGKILL`);
+  return gone;
+}
+
+function startChild(argv, extraEnv = {}) {
+  const started = spawn(argv[0], argv.slice(1), { detached: true, stdio: ['ignore', 'inherit', 'inherit'], env: { ...process.env, ...extraEnv, UNFOLD_RELAY_TOKEN: '', UNFOLD_POOL_TOKEN: '' } });
+  if (started.pid) childGroups.add(started.pid);
+  started.on('error', error => log(`child could not start: ${error.message}`));
+  started.on('exit', code => { if (child === started) { log(`child exited with ${code ?? 'signal'}`); if (!stopping && !process.env.UNFOLD_RELAY_KEEP_ALIVE) process.exit(code ?? 1); child = undefined; } });
+  return started;
+}
+
+async function stopChild() {
+  child = undefined;
+  const results = await Promise.all([...childGroups].map(group => stopGroup(group)));
+  return { stopped: results.every(Boolean) };
+}
+
+function execute(spec, signal) {
+  return new Promise(resolve => {
+    let stdout = ''; let stderr = ''; let finished = false; let timer;
+    const run = spawn(spec.argv[0], spec.argv.slice(1), { detached: true, stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...sessionEnv, ...(spec.env ?? {}), UNFOLD_RELAY_TOKEN: '', UNFOLD_POOL_TOKEN: '' }, cwd: spec.cwd ?? process.cwd() });
+    const group = run.pid;
+    if (group) execGroups.add(group);
+    const finish = async (result, graceMs) => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      signal.removeEventListener('abort', cancelled);
+      const stopped = group ? await stopGroup(group, graceMs) : true;
+      resolve(stopped ? result : { ...result, stopped: false });
+    };
+    const cancelled = () => finish({ exitCode: 130, stdout, stderr: `${stderr}\nrelay-worker: the request was cancelled` });
+    signal.addEventListener('abort', cancelled, { once: true });
+    if (signal.aborted) cancelled();
+    if (Number.isInteger(spec.timeoutMs) && spec.timeoutMs > 0) timer = setTimeout(() => finish({ exitCode: 124, stdout, stderr: `${stderr}\nrelay-worker: timed out after ${spec.timeoutMs} ms`, timedOut: true }), spec.timeoutMs);
+    run.stdout.on('data', chunk => { stdout = (stdout + chunk).slice(-65536); });
+    run.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-65536); });
+    run.on('error', error => finish({ exitCode: 127, stdout, stderr: `${stderr}\n${error.message}` }));
+    run.on('exit', code => finish({ exitCode: code ?? 1, stdout, stderr }, 1_000));
+  });
+}
+
+async function control(request, signal) {
+  const body = request.body ? Buffer.from(request.body, 'base64').toString('utf8') : '';
+  if (request.path.startsWith('/__unfold/stop-child')) return { status: 200, body: JSON.stringify(await stopChild()) };
+  if (request.path.startsWith('/__unfold/run')) {
+    const spec = JSON.parse(body || '{}');
+    if (!Array.isArray(spec.argv) || !spec.argv.length) return { status: 400, body: '{"error":"argv required"}' };
+    const previous = await stopChild();
+    if (!previous.stopped) return { status: 409, body: JSON.stringify({ error: 'the previous child process group has not stopped', stopped: false }) };
+    child = startChild(spec.argv, { ...sessionEnv, ...(spec.env ?? {}) });
+    return { status: 202, body: JSON.stringify({ started: spec.argv[0] }) };
+  }
+  if (request.path.startsWith('/__unfold/exec')) {
+    const spec = JSON.parse(body || '{}');
+    if (!Array.isArray(spec.argv) || !spec.argv.length) return { status: 400, body: '{"error":"argv required"}' };
+    return { status: 200, body: JSON.stringify(await execute(spec, signal)) };
+  }
+  if (request.path.startsWith('/__unfold/status')) return { status: 200, body: JSON.stringify({ child: Boolean(child), session: sessionEnv.UNFOLD_SESSION_ID ?? null, inFlight: inFlight.size }) };
+  return { status: 404, body: '{"error":"unknown control path"}' };
+}
+
+async function respond(request, status, headers, body, signal) {
+  await fetch(`${relayUrl}/responses/${request.id}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'x-relay-status': String(status), 'x-relay-headers': JSON.stringify(headers), 'content-type': 'application/octet-stream' }, body, duplex: 'half', signal });
+}
+
+async function relay(request) {
+  const controller = new AbortController();
+  inFlight.set(request.id, controller);
+  try {
+    if (request.path.startsWith('/__unfold/')) {
+      const result = await control(request, controller.signal);
+      if (controller.signal.aborted) return;
+      await respond(request, result.status, { 'content-type': 'application/json' }, result.body, controller.signal).catch(error => log(`control response for ${request.id} ended: ${error?.cause?.code ?? error?.name ?? 'error'}`));
+      return;
+    }
+    let upstream;
+    try {
+      const headers = { ...request.headers };
+      delete headers.host; delete headers['content-length']; delete headers.connection;
+      upstream = await fetch(new URL(request.path, target), { method: request.method, headers, body: request.body ? Buffer.from(request.body, 'base64') : undefined, signal: controller.signal, redirect: 'manual' });
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      await respond(request, 502, { 'content-type': 'text/plain' }, `relay-worker could not reach ${target}: ${error?.cause?.code ?? error?.name ?? 'error'}`).catch(() => {});
+      return;
+    }
+    const responseHeaders = {};
+    upstream.headers.forEach((value, key) => { if (!/^(content-length|transfer-encoding|connection)$/i.test(key)) responseHeaders[key] = value; });
+    const body = upstream.body && upstream.status !== 204 && upstream.status !== 304 ? Readable.fromWeb(upstream.body) : undefined;
+    try { await respond(request, upstream.status, responseHeaders, body ? Readable.toWeb(body) : undefined, controller.signal); }
+    catch (error) { if (!controller.signal.aborted) log(`response relay for ${request.id} ended: ${error?.cause?.code ?? error?.name ?? 'error'}`); controller.abort(); if (body) body.destroy(); }
+  } finally { inFlight.delete(request.id); }
+}
+
+async function poll() {
+  let failures = 0;
+  while (!stopping) {
+    try {
+      const response = await fetch(`${relayUrl}/requests?wait=25000`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(40_000) });
+      if (response.status === 401 || response.status === 404) { log(`relay refused the worker (HTTP ${response.status}); stopping`); void stop(); return; }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const batch = await response.json();
+      failures = 0;
+      for (const id of batch.cancelled ?? []) inFlight.get(id)?.abort();
+      for (const request of batch.requests ?? []) void relay(request);
+    } catch (error) {
+      failures++;
+      if (failures === 1 || failures % 10 === 0) log(`poll failed (${failures}): ${error?.cause?.code ?? error?.name ?? 'error'}`);
+      await new Promise(done => setTimeout(done, Math.min(10_000, 500 * failures)));
+    }
+  }
+}
+
+async function bootstrap() {
+  const poolUrl = process.env.UNFOLD_POOL_URL;
+  const poolToken = process.env.UNFOLD_POOL_TOKEN;
+  const pod = process.env.UNFOLD_POD_NAME ?? hostname();
+  if (!poolUrl || !poolToken) { log('UNFOLD_RELAY_URL and UNFOLD_RELAY_TOKEN, or UNFOLD_POOL_URL and UNFOLD_POOL_TOKEN, are required'); process.exit(64); }
+  log(`warm worker ${pod} waiting for an assignment from ${new URL(poolUrl).origin}`);
+  let failures = 0;
+  while (!stopping) {
+    try {
+      const response = await fetch(`${poolUrl}/claim?pod=${encodeURIComponent(pod)}&wait=25000`, { headers: { authorization: `Bearer ${poolToken}` }, signal: AbortSignal.timeout(40_000) });
+      if (response.status === 401) { log('pool token rejected; stopping'); process.exit(65); }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const { assignment } = await response.json();
+      failures = 0;
+      if (!assignment) continue;
+      sessionEnv = { ...assignment.env, UNFOLD_SESSION_ID: assignment.sessionId };
+      relayUrl = `${poolUrl.replace(/\/pool$/, '')}/${assignment.sessionId}`;
+      token = assignment.token;
+      log(`assigned session ${assignment.sessionId}`);
+      return;
+    } catch (error) {
+      failures++;
+      if (failures === 1 || failures % 10 === 0) log(`claim failed (${failures}): ${error?.cause?.code ?? error?.name ?? 'error'}`);
+      await new Promise(done => setTimeout(done, Math.min(10_000, 500 * failures)));
+    }
+  }
+}
+
+if (!relayUrl || !token) await bootstrap();
+if (childArgv.length) child = startChild(childArgv, sessionEnv);
+log(`relaying ${target} through ${new URL(relayUrl).origin}`);
+void poll();

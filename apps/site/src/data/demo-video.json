@@ -1,17 +1,17 @@
 {
-  "vloerVersion": "0.4.0-rc.32",
+  "unfoldVersion": "0.4.0-rc.32",
   "recordedAt": "2026-10-01",
   "seconds": 19.1,
   "width": 1280,
   "height": 720,
-  "poster": "/media/vloer-demo-poster.webp",
+  "poster": "/media/unfold-demo-poster.webp",
   "sources": [
     {
-      "src": "/media/vloer-demo.webm",
+      "src": "/media/unfold-demo.webm",
       "type": "video/webm"
     },
     {
-      "src": "/media/vloer-demo.mp4",
+      "src": "/media/unfold-demo.mp4",
       "type": "video/mp4"
     }
   ],

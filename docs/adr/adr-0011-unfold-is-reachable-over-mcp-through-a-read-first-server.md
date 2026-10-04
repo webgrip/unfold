@@ -15,9 +15,9 @@ The scope is the north side: a person's client talking to Unfold. It also record
 ## Decision Drivers
 
 * A model must never be able to start paid work on its own ([Ploeg ADR-0012](../../apps/ploeg/docs/adrs/0012-two-level-budgets-authorized-and-settled.md), [Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md)).
-* ploegd holds the LiteLLM master key and forge admin token and is not on a public route ([Vloer ADR-0015](../../apps/vloer/docs/adrs/0015-ploeg-operator-read-api.md)).
+* ploegd holds the LiteLLM master key and forge admin token and is not on a public route ([Vloer ADR-0015](../../apps/unfold/docs/adrs/0015-ploeg-operator-read-api.md)).
 * Runs never call Ploeg's API; they report through the outcome drop box ([Ploeg ADR-0011](../../apps/ploeg/docs/adrs/0011-the-pull-request-is-the-blackboard.md), [Ploeg ADR-0018](../../apps/ploeg/docs/adrs/0018-the-outcome-drop-box-is-every-harnesss-return-path.md)).
-* Vloer ships no production npm dependencies ([Vloer ADR-0002](../../apps/vloer/docs/adrs/0002-native-node-and-single-writer-storage.md)).
+* Vloer ships no production npm dependencies ([Vloer ADR-0002](../../apps/unfold/docs/adrs/0002-native-node-and-single-writer-storage.md)).
 * An install that runs Ploeg without Vloer should still be reachable.
 * MCP carries no budget, authority or tenant; Unfold must keep all three.
 
@@ -36,7 +36,7 @@ Chosen option: "A separate `ploeg-mcp` command", because it is the only option t
 
 * **Where.** `apps/ploeg/cmd/ploeg-mcp`, built on `github.com/modelcontextprotocol/go-sdk`, serving MCP `2026-07-28` statelessly (`StreamableHTTPOptions{Stateless: true}`) and over stdio. It ships in Ploeg's image and chart as its own Deployment, off by default. It reaches Unfold only through the operator API, as a named consumer from `PLOEG_OPERATOR_CONSUMERS`, and shares one Go client for that API with `ploegctl`.
 * **Toolsets.** Read (default): `unfold_overview`, `unfold_find_work`, `unfold_get_work`, `unfold_recent_runs`, `unfold_changes_since`. Propose: `unfold_propose_work`. Steer: `unfold_approve_work`, `unfold_reject_work`, `unfold_cancel_work`. The server enforces which toolsets a consumer or token has; a tool that is not granted is not listed.
-* **Proposals never dispatch.** A Work Item created over MCP is `proposed` and waits for approval under the same per-Team limits as Run-created work. This needs `POST /api/v1/operator/work-items` ([Vloer ADR-0023](../../apps/vloer/docs/adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md)) with a proposed mode. The request is idempotent by a key derived from principal, Team, title and description.
+* **Proposals never dispatch.** A Work Item created over MCP is `proposed` and waits for approval under the same per-Team limits as Run-created work. This needs `POST /api/v1/operator/work-items` ([Vloer ADR-0023](../../apps/unfold/docs/adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md)) with a proposed mode. The request is idempotent by a key derived from principal, Team, title and description.
 * **Approval needs a person.** Approve and cancel return an MCP elicitation form; only `accept` acts. A client without elicitation gets a refusal and a link to approve in Vloer or the tracker.
 * **Identity by phase.** First stdio with an operator token from the environment. Then Streamable HTTP with a static bearer on the internal gateway, for command-line clients. Then an OAuth 2.1 resource server for Authentik tokens, with audience validation and no token passthrough, for Claude.ai and ChatGPT. The OAuth phase requires a public route and gets its own security review.
 * **Long-running work** is addressed by Work Item id and polled; the server keeps no session state and does not use the MCP Tasks extension.

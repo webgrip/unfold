@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, contributor, operator, agent]
 owner: unfold
 last_verified: 2026-09-29
-verified_by: "source read of apps/ploeg (pkg/httpapi, pkg/shiftengine, pkg/store, cmd/ploegd), apps/vloer/src and .forgejo/workflows at 050fa3b; homelab-cluster main at 432fc0d4; read-only kubectl in namespace ploeg on 2026-09-29. On 2026-09-30 the Vloer navigation and Cancel Work Item were re-read in apps/vloer/public/shell.js, public/ploeg.js, public/views/work.js, src/http.ts and src/ploeg.ts at 68c90cf on feat/vloer-redesign"
+verified_by: "source read of apps/ploeg (pkg/httpapi, pkg/shiftengine, pkg/store, cmd/ploegd), apps/unfold/src and .forgejo/workflows at 050fa3b; homelab-cluster main at 432fc0d4; read-only kubectl in namespace ploeg on 2026-09-29. On 2026-09-30 the Unfold navigation and Cancel Work Item were re-read in apps/unfold/public/shell.js, public/ploeg.js, public/views/work.js, src/http.ts and src/ploeg.ts at 68c90cf on feat/unfold-redesign"
 ---
 
 # Journeys
@@ -14,7 +14,7 @@ Five end-to-end paths through Unfold, each from the point of view of the person 
 | --- | --- | --- |
 | [A. Ticket to merged pull request](#a-ticket-to-merged-pull-request) | You assign a Vikunja ticket to a Team | You merge the pull request |
 | [B. Merge to production](#b-merge-to-production) | A commit lands on Unfold's `development` | Flux runs the new release |
-| [C. Starting work from Vloer](#c-starting-work-from-vloer) | You press Start in Vloer | The session completes or is cancelled |
+| [C. Starting work from Unfold](#c-starting-work-from-unfold) | You press Start in Unfold | The session completes or is cancelled |
 | [D. Stopping work](#d-stopping-work) | You change your mind | Runs stop and credentials die |
 | [E. When infrastructure fails](#e-when-infrastructure-fails) | A pod never starts or dies | A retry, or `needs_human` |
 
@@ -65,7 +65,7 @@ sequenceDiagram
 
 ## B. Merge to production
 
-A change to Unfold itself becomes a signed release in CI. It reaches the cluster only when a commit in `webgrip/homelab-cluster` pins it. Unfold never changes production itself. Since [ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) an Unfold release carries Vloer only; Ploeg releases from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) and reaches the cluster through its own pin.
+A change to Unfold itself becomes a signed release in CI. It reaches the cluster only when a commit in `webgrip/homelab-cluster` pins it. Unfold never changes production itself. Since [ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) an Unfold release carries only the Unfold application; Ploeg releases from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) and reaches the cluster through its own pin.
 
 ```mermaid
 sequenceDiagram
@@ -88,23 +88,23 @@ sequenceDiagram
     Flux->>Flux: OCIRepository + HelmRelease upgrade in namespace ploeg
 ```
 
-1. **Validate.** A push to `development` runs [`on_source_change.yml`](../../.forgejo/workflows/on_source_change.yml): Vloer's gates, Ploeg's own gates at the pinned commit, the check that the pin is on Ploeg's `main`, and the release policy.
+1. **Validate.** A push to `development` runs [`on_source_change.yml`](../../.forgejo/workflows/on_source_change.yml): Unfold's gates, Ploeg's own gates at the pinned commit, the check that the pin is on Ploeg's `main`, and the release policy.
 2. **Version.** When `UNFOLD_RELEASES_ENABLED` is `true`, semantic-release reads the commits under `apps/`, tags `unfold-v0.x.y-rc.N` and creates the Forgejo release. `fix:` and `feat:` commits cut a release; `docs:` and `chore:` do not. Only zero-major release candidates are allowed ([ADR-0028](../../apps/ploeg/docs/adrs/0028-automatic-releases-stay-zero-major-candidates.md)).
-3. **Build, gate, sign.** The published release triggers [`on_release_published.yml`](../../.forgejo/workflows/on_release_published.yml). Each image is built once in Harbor, held to its application's CVE budget with grype and OpenVEX statements, then signed and attested with cosign. Vloer's Helm chart is published to Harbor.
+3. **Build, gate, sign.** The published release triggers [`on_release_published.yml`](../../.forgejo/workflows/on_release_published.yml). Each image is built once in Harbor, held to its application's CVE budget with grype and OpenVEX statements, then signed and attested with cosign. Unfold's Helm chart is published to Harbor.
 4. **Distribute.** [`publish_release.py`](../../scripts/publish_release.py) copies the signed images and charts to Forgejo and GHCR, verifies digests, creates a draft GitHub release, attaches the assets and then publishes it without marking it latest. GitHub receives the source through a push mirror ([Source and artifacts](../operations/artifacts.md)).
 5. **Pin.** Production state lives in `homelab-cluster`. The Ploeg chart is pinned by tag and digest in its [OCIRepository](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/ocirepository.yaml), and the `ploegd` image by digest in the HelmRelease. A Renovate rule groups one Unfold release, both charts and three images, into one pull request, without automerge. The pins from `0.4.0-rc.2` to `0.4.0-rc.11` were committed by hand. Releases up to `0.4.0-rc.35` also carried Ploeg; moving production to Ploeg's own `ghcr.io/ploeg-hq` releases is a separate `homelab-cluster` change.
 6. **Apply.** Flux reconciles the change and Helm upgrades the release. On 2026-09-29 the cluster ran `0.4.0-rc.11`.
 
 [CI and releases](../operations/ci.md) covers the workflows and gates in detail.
 
-## C. Starting work from Vloer
+## C. Starting work from Unfold
 
-Vloer is the front end. [ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md) decides that Ploeg executes every Run and that Vloer without Ploeg runs only its deterministic demo, which makes no model calls. That decision is accepted but not implemented yet. Today Vloer's shared execution works like this:
+Unfold is the front end. [ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md) decides that Ploeg executes every Run and that Unfold without Ploeg runs only its deterministic demo, which makes no model calls. That decision is accepted but not implemented yet. Today Unfold's shared execution works like this:
 
 ```mermaid
 sequenceDiagram
     actor You
-    participant VS as Vloer server
+    participant VS as Unfold server
     participant P as ploegd
     participant LL as LiteLLM
     You->>VS: new session: repository, crew, objective, budget
@@ -114,17 +114,17 @@ sequenceDiagram
     VS->>P: POST /operator/executions/{id}/credential
     P->>LL: mint key within the consumer's budget
     P-->>VS: key
-    VS->>LL: Vloer's own engine runs the crew
+    VS->>LL: Unfold's own engine runs the crew
     VS->>P: commands: heartbeat, report
     You->>VS: Cancel
     VS->>P: command cancel
     VS->>P: POST /operator/executions/{id}/block
 ```
 
-* **Admission.** Vloer asks Ploeg to admit an Operator Execution with its operator token ([`execution-authority.ts`](../../apps/vloer/src/execution-authority.ts)). Ploeg records a Work Item marked operator-owned, a Shift, an `operator` Run and a Lease, so its budget and audit cover the session. In production Vloer executes for the `vloer` Team, the `de-vloer` consumer's budget ceiling is US$0.25, and the `vloer`/`operator` key policy allows `deepseek-chat` for 10 minutes.
-* **Execution.** The crew then runs inside Vloer, not in a Ploeg worker. Moving it to `ploeg-worker` is the [proposed front-end migration](../../apps/vloer/docs/ploeg-front-end.md).
-* **No fallback.** A session Ploeg was asked to manage never runs standalone. If Ploeg is unreachable, Vloer interrupts it and tries to block the key ([`engine.ts`](../../apps/vloer/src/engine.ts)). Vloer's standalone broker still exists in the code until ADR-0002 lands.
-* **Watching tracker work.** Vloer opens on **Now**, which lists what waits on you across your Teams. **Work**, **Proposed**, **Runs**, **Activity** and **Insights** read Teams, Work Items, Runs and events through the operator API ([`ploeg.ts`](../../apps/vloer/src/ploeg.ts)). On a Work Item's page, operators and administrators have **Cancel Work Item**. After a confirmation it calls journey D's operator cancel through Vloer's `POST /api/ploeg/work-items/{id}/cancel` and shows what Ploeg reports it stopped. The demo cancels nothing and says so ([HTTP contract](../../apps/vloer/docs/contracts/api.md#cancel)).
+* **Admission.** Unfold asks Ploeg to admit an Operator Execution with its operator token ([`execution-authority.ts`](../../apps/unfold/src/execution-authority.ts)). Ploeg records a Work Item marked operator-owned, a Shift, an `operator` Run and a Lease, so its budget and audit cover the session. In production Unfold executes for the `unfold` Team, the `unfold` consumer's budget ceiling is US$0.25, and the `unfold`/`operator` key policy allows `deepseek-chat` for 10 minutes.
+* **Execution.** The crew then runs inside the Unfold application, not in a Ploeg worker. Moving it to `ploeg-worker` is the [proposed front-end migration](../../apps/unfold/docs/ploeg-front-end.md).
+* **No fallback.** A session Ploeg was asked to manage never runs standalone. If Ploeg is unreachable, Unfold interrupts it and tries to block the key ([`engine.ts`](../../apps/unfold/src/engine.ts)). Unfold's standalone broker still exists in the code until ADR-0002 lands.
+* **Watching tracker work.** Unfold opens on **Now**, which lists what waits on you across your Teams. **Work**, **Proposed**, **Runs**, **Activity** and **Insights** read Teams, Work Items, Runs and events through the operator API ([`ploeg.ts`](../../apps/unfold/src/ploeg.ts)). On a Work Item's page, operators and administrators have **Cancel Work Item**. After a confirmation it calls journey D's operator cancel through Unfold's `POST /api/ploeg/work-items/{id}/cancel` and shows what Ploeg reports it stopped. The demo cancels nothing and says so ([HTTP contract](../../apps/unfold/docs/contracts/api.md#cancel)).
 
 The [managed execution guide](../workflows/managed-execution.md) sets this up, and the [local demo](../workflows/local-demo.md) runs it without spending anything.
 
@@ -136,7 +136,7 @@ There are three ways to take work back. All three go through one store function 
 sequenceDiagram
     actor You
     participant V as Vikunja
-    participant VL as Vloer
+    participant VL as Unfold
     participant P as ploegd
     participant W as ploeg-worker
     alt unassign the Team
@@ -147,7 +147,7 @@ sequenceDiagram
         You->>V: mark done
         V->>P: webhook: closed
         P->>P: withdraw (withdrawn_closed)
-    else Cancel Work Item in Vloer, or the operator API directly
+    else Cancel Work Item in Unfold, or the operator API directly
         You->>VL: Cancel Work Item
         VL->>P: POST /api/v1/operator/work-items/{id}/cancel
         P->>P: withdraw (withdrawn_by_operator)
@@ -163,7 +163,7 @@ sequenceDiagram
 | --- | --- | --- |
 | Unassign the Team on the ticket | Any time, if the removed assignee is the Work Item's Team | `withdrawn_unassigned` |
 | Close the ticket | While the Work Item is queued and no Run has started or been authorized to spend, or while it has stopped at needs you or ready for review with no Run running. A stopped item settles without a comment on the ticket, and an open pull request stays open. The sweep re-reads stopped tickets, so a missed close webhook settles too. Otherwise the close is ignored and the work finishes | `withdrawn_closed` |
-| Operator cancel, from Vloer's **Cancel Work Item** or `POST /api/v1/operator/work-items/{id}/cancel` | Any time, within the consumer's Teams. Posts a comment on the ticket | `withdrawn_by_operator` |
+| Operator cancel, from Unfold's **Cancel Work Item** or `POST /api/v1/operator/work-items/{id}/cancel` | Any time, within the consumer's Teams. Posts a comment on the ticket | `withdrawn_by_operator` |
 
 An operator-owned Work Item (journey C) ignores all three. Cancel its execution instead. Assigning the ticket again starts a new attempt.
 

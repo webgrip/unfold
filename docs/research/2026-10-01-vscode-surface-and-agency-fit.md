@@ -1,6 +1,6 @@
 # The surface Glide shares with VS Code, and who it serves
 
-Research date: 2026-10-01. This record follows [the VS Code 1.140 fit dossier](../../apps/vloer/docs/research/2026-10-01-vscode-1-140-fit.md). That dossier asked what 1.140 changes. This one asks how much of the surface Glide shares with VS Code it can use, for whom, and in what order.
+Research date: 2026-10-01. This record follows [the VS Code 1.140 fit dossier](../../apps/unfold/docs/research/2026-10-01-vscode-1-140-fit.md). That dossier asked what 1.140 changes. This one asks how much of the surface Glide shares with VS Code it can use, for whom, and in what order.
 
 **Method.** Eight research agents ran in parallel, covering:
 
@@ -37,7 +37,7 @@ Four stable surfaces reach the agents that VS Code 1.140 runs on its agent host.
 - extension tools;
 - `vscode://` deep links, Glide's own (through a URI handler) and VS Code's `vscode://agents/new`.
 
-Vloer's AHP host is meant to be a fifth surface, but read against the 1.140 client it cannot yet run a session, and it leaks sessions between users. The fifteen findings are in [the fit dossier](../../apps/vloer/docs/research/2026-10-01-vscode-1-140-fit.md).
+Vloer's AHP host is meant to be a fifth surface, but read against the 1.140 client it cannot yet run a session, and it leaks sessions between users. The fifteen findings are in [the fit dossier](../../apps/unfold/docs/research/2026-10-01-vscode-1-140-fit.md).
 
 The market caps the payoff. Glide's first buyers are PHP agencies, and PHP developers use PhpStorm far more than VS Code:
 
@@ -128,7 +128,7 @@ Each surface comes with its status and what Glide puts on it. "Stable" means usa
 | `lm.registerTool` | Stable | Editor-context actions: attach the selection or diff to a Work Item instruction, open Run evidence | Only while the window is connected |
 | `authentication.registerAuthenticationProvider` | Stable | A `glide` account backed by Authentik with PKCE, replacing the cookie and password | Per-Tenant issuer in phase 2 |
 | Tree badges, status bar, Pseudoterminal | Stable | Needs-you count; Run logs streamed from Vloer's SSE | None |
-| VS Code Marketplace listing | Distribution | The extension is on Open VSX only (2,904 downloads; [API](https://open-vsx.org/api/webgrip/de-vloer)). Microsoft VS Code users, the Agents window users, cannot find it | Amends [ADR 0021](../../apps/vloer/docs/adrs/0021-the-extension-ships-through-open-vsx-first.md) |
+| VS Code Marketplace listing | Distribution | The extension is on Open VSX only (2,904 downloads; [API](https://open-vsx.org/api/webgrip/de-vloer)). Microsoft VS Code users, the Agents window users, cannot find it | Amends [ADR 0021](../../apps/unfold/docs/adrs/0021-the-extension-ships-through-open-vsx-first.md) |
 | VS Code agent OTel (`chat.agentHost.otel.*`) | Stable | The owner's own editor traces in the same Tempo as Runs | Personal setting; identity is personal data in phase 2 |
 | `git.worktreeSymlinkFolders` | Experimental | Faster worktrees for people working on Glide and on target repositories | Development experience only |
 | Dev container agent hosts | Experimental | A `.devcontainer/` for Glide's own repository | Not a Run toolchain path; see the Ploeg rows |
@@ -162,7 +162,7 @@ Each journey names its persona, trigger, steps, surfaces, and what exists today.
   4. It opens that folder and writes the brief, the stop reason and the evidence links into a file next to the code.
   5. It offers `vscode://agents/new` with that context as the prompt, so the developer's own agent can continue.
   6. The developer pushes. Ploeg's review reconcile sees the pull request.
-- **Exists:** the stop reasons and "Finish the work by hand" text in `apps/vloer/public/core/reasons.js`.
+- **Exists:** the stop reasons and "Finish the work by hand" text in `apps/unfold/public/core/reasons.js`.
 - **Missing:** the button, the URI handler, and the git takeover.
 - **JetBrains:** the same via the ACP agent's `take_over` tool, or a plain `git` command shown on the page.
 
@@ -174,7 +174,7 @@ Each journey names its persona, trigger, steps, surfaces, and what exists today.
   2. Work Items appear as sessions: `InputNeeded` for *Needs you*, Done when merged.
   3. Mark as done files an item away for this viewer only.
 - **Exists:** the host and the attach command, for Vloer sessions only.
-- **Missing:** archive and read state; projecting Ploeg Work Items (PV-081). The decision on proposed [ADR 0023](../../apps/vloer/docs/adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) comes first.
+- **Missing:** archive and read state; projecting Ploeg Work Items (PV-081). The decision on proposed [ADR 0023](../../apps/unfold/docs/adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) comes first.
 
 ### J3. Delegate a ticket from my own agent to Glide (phase 1)
 
@@ -270,7 +270,7 @@ All the tickets are children of [VIK-1644](https://vikunja.webgrip.dev/tasks/164
 | `chatSessionsProvider` is finalized | Work Items appear in the Sessions view from the extension. Projecting them through the AHP host becomes optional |
 | `chat.remoteAgentHosts` is removed or gated behind a product allowlist | J2 and J3 over AHP stop working. MCP, skills and the URI handler carry the integration alone |
 | Stack Overflow 2026 or a JetBrains PHP 2026 survey moves the PhpStorm share | Re-weigh recommendation 6 against 4 |
-| A competitor ships Forgejo or Gitea support, client approval or per-ticket billing | Revisit the opening in [the market landscape](../../apps/vloer/docs/research/market-landscape.md) |
+| A competitor ships Forgejo or Gitea support, client approval or per-ticket billing | Revisit the opening in [the market landscape](../../apps/unfold/docs/research/market-landscape.md) |
 | Copilot CLI's licence or terms address hosted third-party use | Unblock or drop the Copilot profile for phase 2 |
 | LiteLLM ships the #38176 fix in a stable release | The Codex profile can count spend in provider budgets |
 

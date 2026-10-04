@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "source": "apps/vloer createApplication(loadConfig(['--demo']))",
+  "source": "apps/unfold createApplication(loadConfig(['--demo']))",
   "modelCalls": 0,
   "workItem": {
     "title": "Fix order total rounding",

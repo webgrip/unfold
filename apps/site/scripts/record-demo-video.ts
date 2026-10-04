@@ -14,7 +14,7 @@ const site = fileURLToPath(new URL('..', import.meta.url));
 const media = join(site, 'public/media');
 const manifestPath = join(site, 'src/data/demo-video.json');
 const SIZE = { width: 1280, height: 720 };
-const BASENAME = 'vloer-demo';
+const BASENAME = 'unfold-demo';
 const MAX_TOTAL_BYTES = 3 * 1024 * 1024;
 
 function findChromium(): string {
@@ -184,11 +184,11 @@ async function main(): Promise<void> {
     const files = [...sources.map((source) => source.src), poster];
     let total = 0;
     for (const file of files) total += (await stat(join(site, 'public', file))).size;
-    const vloer = JSON.parse(
-      await readFile(new URL('../../vloer/package.json', import.meta.url), 'utf8'),
+    const unfold = JSON.parse(
+      await readFile(new URL('../../unfold/package.json', import.meta.url), 'utf8'),
     ) as { version: string };
     const manifest = {
-      vloerVersion: vloer.version,
+      unfoldVersion: unfold.version,
       recordedAt: new Date().toISOString().slice(0, 10),
       seconds: Math.round((to - from) * 10) / 10,
       width: SIZE.width,
@@ -199,7 +199,7 @@ async function main(): Promise<void> {
     };
     await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
     process.stdout.write(
-      `Recorded ${manifest.seconds}s of the deterministic demo with Vloer ${vloer.version}: ${files.join(', ')} (${(total / 1024).toFixed(0)} KiB).\n`,
+      `Recorded ${manifest.seconds}s of the deterministic demo with Unfold ${unfold.version}: ${files.join(', ')} (${(total / 1024).toFixed(0)} KiB).\n`,
     );
     if (total > MAX_TOTAL_BYTES)
       throw new Error(`The recording is ${total} bytes; keep it under ${MAX_TOTAL_BYTES}.`);

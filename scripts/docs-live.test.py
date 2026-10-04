@@ -32,14 +32,14 @@ class LivePublication(unittest.TestCase):
         return live.verify('https://example.test/unfold/', self.staging, lambda url: self.responses['' if url == 'https://example.test/unfold' else url.removeprefix('https://example.test/unfold/')])
 
     def test_directory_redirect_must_keep_the_public_prefix(self):
-        url = 'https://example.test/unfold/vloer'
+        url = 'https://example.test/unfold/unfold'
         with patch.object(live, 'urlopen') as request:
             response = request.return_value.__enter__.return_value
             response.status = 200
             response.read.return_value = b'page'
             response.url = url + '/'
             self.assertEqual(live.read_url(url), b'page')
-            response.url = 'https://example.test/vloer/'
+            response.url = 'https://example.test/unfold/'
             with self.assertRaisesRegex(AssertionError, 'Unexpected redirect'):
                 live.read_url(url)
 

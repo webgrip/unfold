@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:webgrip:unfold:card-theme:1",
+  "title": "Unfold Run card theme, format v1",
+  "description": "A declarative theme on top of a shipped skin pack. The schema states the shape; the skin's manifest further limits tokens, frames, foil patterns, art presets, art kinds, inner worlds and sound banks, and Unfold refuses any value its manifest does not list. See card-themes.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "id", "name", "extends"],
+  "$defs": {
+    "asset": {
+      "description": "A theme asset: the SHA-256 id Unfold answered when it was uploaded, or, for a theme in the mounted themes folder only, a file name in that folder's assets/ directory.",
+      "type": "string",
+      "anyOf": [
+        { "pattern": "^[a-f0-9]{64}$" },
+        { "pattern": "^[a-z0-9][a-z0-9._-]{0,63}\\.(svg|png|jpe?g|webp|mp4|webm|glsl)$" }
+      ]
+    },
+    "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$" }
+  },
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "description": "What a Work Target names as cardStyle.theme in Ploeg's configuration.", "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "extends": { "description": "The shipped skin pack the theme sits on: forge or unfold-native.", "$ref": "#/$defs/name" },
+    "tokens": {
+      "description": "Custom properties the skin's manifest lists in themeTokens. Colours are hex; --gc-radius is whole pixels from 0 to 32. No other CSS is accepted.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "--gc-accent": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
+        "--gc-surface": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
+        "--gc-radius": { "type": "string", "pattern": "^([0-9]|[12][0-9]|3[0-2])px$" },
+        "--forge-frame": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
+        "--forge-accent": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" },
+        "--forge-back": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$" }
+      }
+    },
+    "frame": { "description": "One of the skin's theme.frames (forge: classic, fullart, slab); null means classic.", "oneOf": [{ "$ref": "#/$defs/name" }, { "type": "null" }] },
+    "foilPattern": { "description": "One of the skin's theme.foilPatterns; null means a pattern picked per card. A pack pull still overrides it.", "oneOf": [{ "$ref": "#/$defs/name" }, { "type": "null" }] },
+    "art": {
+      "description": "Exactly one of a preset from the skin's theme.artPresets, a shader asset or an image or video asset; null means art picked per card.",
+      "oneOf": [
+        { "type": "null" },
+        { "type": "object", "additionalProperties": false, "required": ["preset"], "properties": { "preset": { "$ref": "#/$defs/name" } } },
+        { "type": "object", "additionalProperties": false, "required": ["shader"], "properties": { "shader": { "$ref": "#/$defs/asset" } } },
+        { "type": "object", "additionalProperties": false, "required": ["media"], "properties": { "media": { "$ref": "#/$defs/asset" } } }
+      ]
+    },
+    "world": { "description": "The inner world the art window shows instead of the art: one of the skin's theme.worlds (forge: islands, deepsea, city). Null, absent or \"off\" shows the art. A person who holds a copy may decorate their own copy's world; see card-themes.md.", "oneOf": [{ "$ref": "#/$defs/name" }, { "type": "null" }] },
+    "setSymbol": { "description": "A sanitized SVG asset uploaded for the set symbol.", "oneOf": [{ "$ref": "#/$defs/asset" }, { "type": "null" }] },
+    "cardBack": { "description": "A PNG, JPEG or WebP asset uploaded for the card back.", "oneOf": [{ "$ref": "#/$defs/asset" }, { "type": "null" }] },
+    "soundBank": { "description": "One of the skin's theme.soundBanks. No shipped skin lists one yet, so it must be null or absent.", "oneOf": [{ "$ref": "#/$defs/name" }, { "type": "null" }] }
+  }
+}

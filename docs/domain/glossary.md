@@ -46,12 +46,12 @@ A software participant that uses a model and tools to perform assigned work thro
 **See also:** [Harness](../reference/glossary.md#harness), [Model](#model), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run)  
 
 ## AHP
-*Context: Tooling · Owner: Vloer*
+*Context: Tooling · Owner: Unfold*
 
-Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent Host and other clients share agent sessions. Vloer implements an AHP host for its VS Code extension. Ploeg ADR-0006 keeps AHP out of Ploeg's harness boundary.
+Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent Host and other clients share agent sessions. Unfold implements an AHP host for its VS Code extension. Ploeg ADR-0006 keeps AHP out of Ploeg's harness boundary.
 
 **Also known as:** Agent Host Protocol  
-**See also:** [Vloer](#vloer), [Harness](../reference/glossary.md#harness)  
+**See also:** [Unfold](#unfold), [Harness](../reference/glossary.md#harness)  
 
 ## Attention Path
 *Context: Work*
@@ -84,9 +84,9 @@ An authorized spending limit for work. It is separate from a provisional usage e
 **See also:** [Shift](../reference/glossary.md#shift), [Authority](../reference/glossary.md#authority), [Size](#size), [Client](#client), [Agency](#agency)  
 
 ## Candidate
-*Context: Participation · Owner: Vloer*
+*Context: Participation · Owner: Unfold*
 
-The reviewable change Vloer captures from a Session's Workspace when its Crew stops: a Git bundle, a binary patch and a manifest, signed when the workbench key is available. It is ready, or unavailable with a reason. Capturing it never publishes or merges anything.
+The reviewable change Unfold captures from a Session's Workspace when its Crew stops: a Git bundle, a binary patch and a manifest, signed when the workbench key is available. It is ready, or unavailable with a reason. Capturing it never publishes or merges anything.
 
 **Not to be confused with** [Delivery Candidate](../reference/glossary.md#delivery-candidate): Ploeg's immutable record of one canonical commit rebuilt from a Candidate on an approved base, used for verification and approval.  
 **Not to be confused with** [Result](#result): What a Work Item delivers with its Evidence; a Candidate is one piece of that Evidence.  
@@ -101,12 +101,12 @@ An Agency's customer. A Client submits Requests, answers Refinement questions, a
 **See also:** [Agency](#agency), [Client Portal](#client-portal), [Client Profile](#client-profile), [Quote](#quote), [Request](#request)  
 
 ## Client Portal
-*Context: Offering · Owner: Vloer*
+*Context: Offering · Owner: Unfold*
 
-The part of Vloer where Clients submit Requests, talk to the refinement agent, approve Quotes and open Preview Environments through signed links. It shows the Agency's price; Unfold's own charge is hidden unless the Agency shows it.
+The part of Unfold where Clients submit Requests, talk to the refinement agent, approve Quotes and open Preview Environments through signed links. It shows the Agency's price; Unfold's own charge is hidden unless the Agency shows it.
 
 **Also known as:** Portal  
-**See also:** [Client](#client), [Quote](#quote), [Vloer](#vloer)  
+**See also:** [Client](#client), [Quote](#quote), [Unfold](#unfold)  
 
 ## Client Profile
 *Context: Offering*
@@ -131,9 +131,9 @@ The unit of the Delivery Fee: one Credit pays for one accepted S Work Item. Agen
 **See also:** [Delivery Fee](#delivery-fee), [Size](#size)  
 
 ## Crew
-*Context: Participation · Owner: Vloer*
+*Context: Participation · Owner: Unfold*
 
-Vloer's registered, reusable list of one to eight Roles that a Session runs in order. Each Role either writes or only reads, and may name its model; the final Role gives the review Verdict. An administrator registers crews in configuration and a person picks one when starting a Session. In Ploeg's language this is a Team. New text says Team; "Start crew" remains a Vloer interface label.
+Unfold's registered, reusable list of one to eight Roles that a Session runs in order. Each Role either writes or only reads, and may name its model; the final Role gives the review Verdict. An administrator registers crews in configuration and a person picks one when starting a Session. In Ploeg's language this is a Team. New text says Team; "Start crew" remains an Unfold interface label.
 
 **Not to be confused with** [Team](../reference/glossary.md#team): Ploeg's manifest of Roles, budget and concurrency that claims a Work Item. Ploeg avoids "crew".  
 **See also:** [Team](../reference/glossary.md#team), [Role](../reference/glossary.md#role), [Session](#session), [Step](#step)  
@@ -192,9 +192,9 @@ Inspectable material supporting a claim about a Result or a Run, such as cited r
 **See also:** [Result](#result), [Review](#review)  
 
 ## Finish
-*Context: Cards · Owner: Vloer*
+*Context: Cards · Owner: Unfold*
 
-The visual layer a Run Card earns by staying live in production: matte, then foil at 7 days, holo at 30, prism at 90, gilded at 180 and infinity at 365. Vloer counts the days from the first production deploy of the latest merged Play, or from the merge when the repository has never reported a production deploy (Ploeg ADR-0047, Vloer ADR 0026).
+The visual layer a Run Card earns by staying live in production: matte, then foil at 7 days, holo at 30, prism at 90, gilded at 180 and infinity at 365. Unfold counts the days from the first production deploy of the latest merged Play, or from the merge when the repository has never reported a production deploy (Ploeg ADR-0047, Unfold ADR 0026).
 
 **See also:** [Run Card](#run-card), [Grade](#grade), [Rarity](#rarity), [Skin](#skin)  
 
@@ -258,7 +258,7 @@ The once-per-sprint ceremony that hands a person the Run Cards they earned that 
 **See also:** [Binder](#binder), [Rarity](#rarity), [Grade](#grade)  
 
 ## Placement
-*Context: Participation · Owner: Vloer*
+*Context: Participation · Owner: Unfold*
 
 Where a Session's Workspace runs, chosen per Session from the backends a deployment enables: a container on the workbench host (docker), a pod in the cluster (kubernetes) or a working directory shared with the server (local). Omitted, it takes the deployment default. A demonstration lists no placements.
 
@@ -274,9 +274,9 @@ One pull request of a Work Item as its Run Card shows it, oldest first. A pull r
 ## Ploeg
 *Context: System · Owner: Ploeg*
 
-Unfold's execution engine and its only Authority. It takes work from trackers and from Vloer, admits it, sets its budget, controls who may write each branch and runs the agents. Dutch for a crew or shift team.
+Unfold's execution engine and its only Authority. It takes work from trackers and from Unfold, admits it, sets its budget, controls who may write each branch and runs the agents. Dutch for a crew or shift team.
 
-**See also:** [Vloer](#vloer), [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift)  
+**See also:** [Unfold](#unfold), [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift)  
 
 ## Preview Environment
 *Context: Work*
@@ -366,7 +366,7 @@ The humans who acted on a Run Card's change, each with their roles. Built roles:
 ## Run Card
 *Context: Cards*
 
-The record of one Work Item's change and its life in production: who carried it, what its Runs cost, its Plays, review, CI and deployments, and, as proposed, its Grade, Rarity, Cracks and Mends. Ploeg assembles it from stored facts and Vloer renders it (Ploeg ADR-0046, Vloer ADR 0026). It describes a change, never a person, and its state never changes what Ploeg authorizes, budgets or merges.
+The record of one Work Item's change and its life in production: who carried it, what its Runs cost, its Plays, review, CI and deployments, and, as proposed, its Grade, Rarity, Cracks and Mends. Ploeg assembles it from stored facts and Unfold renders it (Ploeg ADR-0046, Unfold ADR 0026). It describes a change, never a person, and its state never changes what Ploeg authorizes, budgets or merges.
 
 **Also known as:** card  
 **Not to be confused with** [Run](../reference/glossary.md#run): One Role executing against a Work Item. A Run Card covers every Run of its Work Item, across all its Shifts.  
@@ -374,9 +374,9 @@ The record of one Work Item's change and its life in production: who carried it,
 **See also:** [Work Item](../reference/glossary.md#work-item), [Play](#play), [Steward](#steward), [Roster](#roster), [Finish](#finish), [Grade](#grade), [Rarity](#rarity), [Skin](#skin)  
 
 ## Session
-*Context: Participation · Owner: Vloer*
+*Context: Participation · Owner: Unfold*
 
-Vloer's continuing record of a person's interaction around work: instructions, questions, actions and results. Closing a browser does not erase it. A started session is linked to one Ploeg Work Item, Shift and Run.
+Unfold's continuing record of a person's interaction around work: instructions, questions, actions and results. Closing a browser does not erase it. A started session is linked to one Ploeg Work Item, Shift and Run.
 
 **Not to be confused with** [Shift](../reference/glossary.md#shift): Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.  
 **See also:** [Work Item](../reference/glossary.md#work-item), [Shift](../reference/glossary.md#shift), [Crew](#crew)  
@@ -397,20 +397,20 @@ The class S, M or L that Refinement proposes for a Work Item and the Client appr
 **See also:** [Quote](#quote), [Credit](#credit), [Budget](#budget), [Diff Limit](#diff-limit)  
 
 ## Skin
-*Context: Cards · Owner: Vloer*
+*Context: Cards · Owner: Unfold*
 
-The look a Run Card is drawn in, chosen per Work Target in Ploeg's cardStyle. A Skin changes appearance and motion, never the facts or where they sit. Built: Vloer Native, the 3D forge Skin, and Holo Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch. Proposed: per-Client themes on top.
+The look a Run Card is drawn in, chosen per Work Target in Ploeg's cardStyle. A Skin changes appearance and motion, never the facts or where they sit. Built: Unfold Native, the 3D forge Skin, and Holo Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch. Proposed: per-Client themes on top.
 
 **See also:** [Run Card](#run-card), [Work Target](../reference/glossary.md#work-target), [Finish](#finish)  
 
 ## Step
-*Context: Participation · Owner: Vloer*
+*Context: Participation · Owner: Unfold*
 
-A part of one Run that Vloer performs internally, such as one Crew role in a delegated Run. A Step is not a separate Ploeg Run and has no Lease or budget of its own.
+A part of one Run that Unfold performs internally, such as one Crew role in a delegated Run. A Step is not a separate Ploeg Run and has no Lease or budget of its own.
 
 **Do not use:** role run  
 **Not to be confused with** [Run](../reference/glossary.md#run): One Role executing against a Work Item, authorized by Ploeg.  
-**See also:** [Run](../reference/glossary.md#run), [Crew](#crew), [Vloer](#vloer)  
+**See also:** [Run](../reference/glossary.md#run), [Crew](#crew), [Unfold](#unfold)  
 
 ## Steward
 *Context: Cards*
@@ -421,7 +421,7 @@ The person a Run Card names as answering for its change while it runs, with firs
 **See also:** [Run Card](#run-card), [Roster](#roster), [Crack](#crack), [Mend](#mend)  
 
 ## Supervision
-*Context: Participation · Owner: Vloer*
+*Context: Participation · Owner: Unfold*
 
 Whether a person is watching a Ploeg-authorized Session live (human) or has handed it back to run on its own (background). Switching it changes only who is paying attention; the same execution keeps running and no new Run starts. Standalone Sessions have no supervision setting.
 
@@ -456,19 +456,11 @@ The part of a Work Item's price charged for every attempt: model tokens and comp
 **See also:** [Delivery Fee](#delivery-fee), [Markup](#markup), [Budget](#budget)  
 
 ## Unfold
-*Context: System*
+*Context: System · Owner: Unfold*
 
-The product and the monorepo that holds Vloer and Ploeg. A person creates a work item and assigns it to agents; the agents do the code work until a pull request is ready for a person to review and merge. Vloer and Ploeg remain separately deployable applications.
+The product, its application and the monorepo that holds them. In the Unfold application, in the browser and the VS Code extension, people define work, follow it, steer agents and review evidence; Ploeg, pinned into the monorepo as a submodule, admits and runs every Run. Without Ploeg the application runs only a deterministic demo that makes no model calls.
 
-**See also:** [Vloer](#vloer), [Ploeg](#ploeg)  
-
-## Vloer
-*Context: System · Owner: Vloer*
-
-Unfold's front end: the web workbench and VS Code extension where people start work, steer agents live and review evidence. It asks Ploeg to admit and run every Run. Without Ploeg it runs only a deterministic demo that makes no model calls. Dutch for "floor", as in shop floor.
-
-**Also known as:** De Vloer  
-**Examples:** Current state: Vloer's own engine still executes delegated Steps until the Unfold ADR-0002 migration is complete.  
+**Examples:** Current state: Unfold's own engine still executes delegated Steps until the system ADR-0002 migration is complete.  
 **See also:** [Ploeg](#ploeg), [Session](#session), [Step](#step)  
 
 ## Workspace
@@ -490,6 +482,11 @@ The static site generator that renders Unfold's published human pages from the s
 ## Retired terms
 
 Do not use these names as terms.
+
+### Vloer
+*Use instead: [Unfold](#unfold)*
+
+The front end was named Vloer while Ploeg and it were separate products. Once Unfold became the product and the application people use, a second name for the same application only added a part people had to learn (system ADR-0020).
 
 ### Workload
 *Use instead: [Work Item](../reference/glossary.md#work-item)*
@@ -517,9 +514,9 @@ This model uses these terms with their owners' meaning: [Admission](../reference
 
 ## Decisions cited
 
-- [Unfold ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md): Ploeg is the only execution engine and Vloer is its front end.
-- [Unfold ADR-0005](../adr/adr-0005-unfold-is-offered-to-agencies.md): Unfold is offered to agencies; delivery ends at a reviewed pull request with a preview.
-- [Unfold ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md): A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
+- [system ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md): Ploeg is the only execution engine and Unfold is its front end.
+- [system ADR-0005](../adr/adr-0005-unfold-is-offered-to-agencies.md): Unfold is offered to agencies; delivery ends at a reviewed pull request with a preview.
+- [system ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md): A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
 
 ---
 
@@ -544,8 +541,8 @@ Short exchanges showing the terms used precisely at concept boundaries.
 ### Run, Step and Shift
 *Context: Participation*
 
-> **Developer:** My Vloer session ran a planner, an implementer and a reviewer. Is that three Runs?
-> **Platform engineer:** Today it is one delegated Run with three Steps inside Vloer. After the Unfold ADR-0002 migration each Role executes as its own Ploeg Run.
+> **Developer:** My Unfold session ran a planner, an implementer and a reviewer. Is that three Runs?
+> **Platform engineer:** Today it is one delegated Run with three Steps inside the Unfold application. After the system ADR-0002 migration each Role executes as its own Ploeg Run.
 > **Developer:** And the whole attempt, with its branch and budget?
 > **Platform engineer:** That is the Shift. Only the writing Run holds the Lease on its branch.
 
@@ -605,7 +602,7 @@ A Pack is proposed once per sprint, but Unfold has no sprint concept and some te
 
 ### a Tenant and a Team
 
-Ploeg and Vloer scope access by Team, but a Team is a capability pool and created work can move between Teams. The Tenant definition says self-hosted Unfold has none, while the owner wants every install to limit users to what they can see.
+Ploeg and Unfold scope access by Team, but a Team is a capability pool and created work can move between Teams. The Tenant definition says self-hosted Unfold has none, while the owner wants every install to limit users to what they can see.
 
 **Options:** A Tenant sits above Teams and owns users, sources, repositories, budgets, deploy identities and Work Items; every install has at least one, The Team is the Tenant, One deployment per Tenant, with no Tenant inside the software  
-**Recommendation:** A Tenant above Teams, each Team in one Tenant, and a default Tenant in a self-hosted install (Unfold ADR-0017, proposed). The Tenant definition changes only when that ADR is accepted.  
+**Recommendation:** A Tenant above Teams, each Team in one Tenant, and a default Tenant in a self-hosted install (system ADR-0017, proposed). The Tenant definition changes only when that ADR is accepted.  

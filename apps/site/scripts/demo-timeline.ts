@@ -8,12 +8,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { maskTimeline, type Timeline, type TimelineEvent } from '../src/lib/timeline.ts';
 
-const vloerSource = fileURLToPath(new URL('../../vloer/src/', import.meta.url));
+const unfoldSource = fileURLToPath(new URL('../../unfold/src/', import.meta.url));
 export const TIMELINE_PATH = fileURLToPath(
   new URL('../src/data/demo-timeline.json', import.meta.url),
 );
 
-interface VloerApplication {
+interface UnfoldApplication {
   server: Server;
   close(): Promise<void>;
 }
@@ -55,19 +55,21 @@ const WORK_ITEM = {
   budgetUsd: 5,
 };
 
-/** Starts Vloer's deterministic demo in-process on a free local port. */
-export async function startDemo(dataDir: string): Promise<{ app: VloerApplication; base: string }> {
-  const previous = process.env['VLOER_DATA_DIR'];
-  process.env['VLOER_DATA_DIR'] = dataDir;
-  const main = (await import(pathToFileURL(join(vloerSource, 'main.ts')).href)) as {
-    createApplication(config: unknown): Promise<VloerApplication>;
+/** Starts Unfold's deterministic demo in-process on a free local port. */
+export async function startDemo(
+  dataDir: string,
+): Promise<{ app: UnfoldApplication; base: string }> {
+  const previous = process.env['UNFOLD_DATA_DIR'];
+  process.env['UNFOLD_DATA_DIR'] = dataDir;
+  const main = (await import(pathToFileURL(join(unfoldSource, 'main.ts')).href)) as {
+    createApplication(config: unknown): Promise<UnfoldApplication>;
   };
-  const config = (await import(pathToFileURL(join(vloerSource, 'config.ts')).href)) as {
+  const config = (await import(pathToFileURL(join(unfoldSource, 'config.ts')).href)) as {
     loadConfig(argv: string[]): unknown;
   };
   const demoConfig = config.loadConfig(['--demo']);
-  if (previous === undefined) delete process.env['VLOER_DATA_DIR'];
-  else process.env['VLOER_DATA_DIR'] = previous;
+  if (previous === undefined) delete process.env['UNFOLD_DATA_DIR'];
+  else process.env['UNFOLD_DATA_DIR'] = previous;
   const app = await main.createApplication(demoConfig);
   await new Promise<void>((done) => app.server.listen(0, '127.0.0.1', done));
   const { port } = app.server.address() as AddressInfo;
@@ -78,7 +80,7 @@ async function api<T>(base: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${base}${path}`, {
     method: body === undefined ? 'GET' : 'POST',
     headers: {
-      'x-vloer-request': '1',
+      'x-unfold-request': '1',
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -89,7 +91,7 @@ async function api<T>(base: string, path: string, body?: unknown): Promise<T> {
   return value;
 }
 
-/** Runs Vloer's deterministic demo in-process and returns its finished session and event history. */
+/** Runs Unfold's deterministic demo in-process and returns its finished session and event history. */
 export async function runDemo(): Promise<{
   session: Session;
   history: HistoryEvent[];
@@ -102,7 +104,7 @@ export async function runDemo(): Promise<{
       base,
       '/api/bootstrap',
     );
-    if (bootstrap.mode !== 'demo') throw new Error('Vloer did not start in demo mode');
+    if (bootstrap.mode !== 'demo') throw new Error('Unfold did not start in demo mode');
     const repository = bootstrap.repositories.find((item) => item.id === 'order-service');
     if (!repository) throw new Error('The demo has no order-service repository');
     const created = await api<Session>(base, '/api/sessions', {
@@ -220,7 +222,7 @@ export function buildTimeline(
   const diff = session.artifacts.find((artifact) => artifact.kind === 'diff')?.content ?? '';
   return {
     schema: 1,
-    source: "apps/vloer createApplication(loadConfig(['--demo']))",
+    source: "apps/unfold createApplication(loadConfig(['--demo']))",
     modelCalls: 0,
     workItem: { title: session.title, objective: session.objective, repository },
     budget: {
@@ -270,14 +272,14 @@ async function videoFreshness(): Promise<string | undefined> {
   try {
     const manifest = JSON.parse(
       await readFile(new URL('../src/data/demo-video.json', import.meta.url), 'utf8'),
-    ) as { vloerVersion: string; sources: unknown[] };
+    ) as { unfoldVersion: string; sources: unknown[] };
     if (!manifest.sources.length)
       return 'notice: there is no demo video yet; run mise run site-video.';
-    const vloer = JSON.parse(
-      await readFile(new URL('../../vloer/package.json', import.meta.url), 'utf8'),
+    const unfold = JSON.parse(
+      await readFile(new URL('../../unfold/package.json', import.meta.url), 'utf8'),
     ) as { version: string };
-    if (manifest.vloerVersion !== vloer.version)
-      return `notice: the demo video was recorded with Vloer ${manifest.vloerVersion}; Vloer is now ${vloer.version}. Run mise run site-video when the workbench looks different.`;
+    if (manifest.unfoldVersion !== unfold.version)
+      return `notice: the demo video was recorded with Unfold ${manifest.unfoldVersion}; Unfold is now ${unfold.version}. Run mise run site-video when the workbench looks different.`;
   } catch {
     return 'notice: src/data/demo-video.json is unreadable; run mise run site-video.';
   }
@@ -293,7 +295,7 @@ async function main(): Promise<void> {
     const difference = firstDifference(maskTimeline(committed), maskTimeline(fresh));
     if (difference) {
       process.stderr.write(
-        `The committed demo timeline no longer matches Vloer's deterministic demo.\n${difference}\nRun: mise run site-timeline\n`,
+        `The committed demo timeline no longer matches Unfold's deterministic demo.\n${difference}\nRun: mise run site-timeline\n`,
       );
       process.exitCode = 1;
       return;

@@ -49,8 +49,8 @@ jobs:
           echo "version=${tag#unfold-v}" >> "$GITHUB_OUTPUT"
           echo "created=$created" >> "$GITHUB_OUTPUT"
 
-  vloer-release-publish-chart:
-    name: Vloer - Publish Helm chart (Harbor)
+  unfold-release-publish-chart:
+    name: Unfold - Publish Helm chart (Harbor)
     needs: [parse-release-tag]
     if: needs.parse-release-tag.outputs.version != ''
     runs-on: docker
@@ -70,11 +70,11 @@ jobs:
           export HELM_REGISTRY_CONFIG="$DOCKER_CONFIG/config.json"
           trap 'rm -rf "$DOCKER_CONFIG"' EXIT
           printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"unfold"}}' > "$DOCKER_CONFIG/config.json"
-          python3 scripts/publish_chart.py vloer "$VERSION"
+          python3 scripts/publish_chart.py unfold "$VERSION"
 
-  vloer-release-distribute-harbor:
+  unfold-release-distribute-harbor:
     if: needs.parse-release-tag.outputs.version != ''
-    name: Vloer - Build, gate and sign images (Harbor)
+    name: Unfold - Build, gate and sign images (Harbor)
     needs: [parse-release-tag]
     runs-on: docker
     enable-openid-connect: true
@@ -85,12 +85,12 @@ jobs:
       max-parallel: 1
       matrix:
         include:
-          - name: de-vloer
-            context: "apps/vloer"
+          - name: unfold
+            context: "apps/unfold"
             dockerfile: Dockerfile
             target: app
-          - name: de-vloer-agent
-            context: apps/vloer/ops/agent
+          - name: unfold-agent
+            context: apps/unfold/ops/agent
             dockerfile: Dockerfile
             target: ""
     env:
@@ -165,8 +165,8 @@ jobs:
         with:
           image-ref: ${{ steps.digest.outputs.ref }}
           image-name: ${{ matrix.name }}
-          budgets-file: apps/vloer/ops/security/cve-budgets.yaml
-          vex-dir: apps/vloer/ops/vex/statements
+          budgets-file: apps/unfold/ops/security/cve-budgets.yaml
+          vex-dir: apps/unfold/ops/vex/statements
 
       - name: Sign, attest and SBOM (Harbor)
         uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v2.7.7
@@ -175,9 +175,9 @@ jobs:
           image-name: harbor.webgrip.dev/webgrip/${{ matrix.name }}
           image-version: ${{ needs.parse-release-tag.outputs.version }}
 
-  vloer-release-publish-extension:
+  unfold-release-publish-extension:
     if: needs.parse-release-tag.outputs.version != ''
-    name: Vloer - Publish VS Code extension
+    name: Unfold - Publish VS Code extension
     needs: [parse-release-tag]
     runs-on: docker
     permissions:
@@ -198,17 +198,17 @@ jobs:
           VERSION: ${{ needs.parse-release-tag.outputs.version }}
         run: |
           set -euo pipefail
-          test "$(node -p "require('./apps/vloer/extensions/vscode/package.json').version")" = "$VERSION"
-          npm ci --no-audit --no-fund --prefix apps/vloer/extensions/vscode
-          npm --prefix apps/vloer run extension:build
-          npm --prefix apps/vloer/extensions/vscode run package -- --out "de-vloer-${VERSION}.vsix"
-          test -s "apps/vloer/extensions/vscode/de-vloer-${VERSION}.vsix"
+          test "$(node -p "require('./apps/unfold/extensions/vscode/package.json').version")" = "$VERSION"
+          npm ci --no-audit --no-fund --prefix apps/unfold/extensions/vscode
+          npm --prefix apps/unfold run extension:build
+          npm --prefix apps/unfold/extensions/vscode run package -- --out "unfold-${VERSION}.vsix"
+          test -s "apps/unfold/extensions/vscode/unfold-${VERSION}.vsix"
       - name: Verify the listing and the packaged contents
         shell: bash
         env:
           VERSION: ${{ needs.parse-release-tag.outputs.version }}
-          VSIX_PATH: extensions/vscode/de-vloer-${{ needs.parse-release-tag.outputs.version }}.vsix
-        run: npm --prefix apps/vloer run extension:verify
+          VSIX_PATH: extensions/vscode/unfold-${{ needs.parse-release-tag.outputs.version }}.vsix
+        run: npm --prefix apps/unfold run extension:verify
       - name: Attach the VSIX and its checksum to the Forgejo release
         shell: bash
         env:
@@ -217,8 +217,8 @@ jobs:
           API: ${{ github.server_url }}/api/v1/repos/${{ github.repository }}
         run: |
           set -euo pipefail
-          cd apps/vloer/extensions/vscode
-          vsix="de-vloer-${VERSION}.vsix"
+          cd apps/unfold/extensions/vscode
+          vsix="unfold-${VERSION}.vsix"
           sha256sum "$vsix" > "${vsix}.sha256"
           release="$(curl -sS --fail --max-time 30 -H "Authorization: token ${TOKEN}" "${API}/releases/tags/unfold-v${VERSION}")"
           release_id="$(printf '%s' "$release" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')"
@@ -235,10 +235,10 @@ jobs:
         env:
           VERSION: ${{ needs.parse-release-tag.outputs.version }}
           WEBGRIP_CI_TOKEN: ${{ secrets.WEBGRIP_CI_TOKEN }}
-          VSIX_PATH: extensions/vscode/de-vloer-${{ needs.parse-release-tag.outputs.version }}.vsix
+          VSIX_PATH: extensions/vscode/unfold-${{ needs.parse-release-tag.outputs.version }}.vsix
         run: |
           python3 scripts/restore_extension_asset.py "$VERSION"
-          npm --prefix apps/vloer run extension:verify
+          npm --prefix apps/unfold run extension:verify
       - name: Publish to Open VSX
         shell: bash
         env:
@@ -246,14 +246,14 @@ jobs:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
           set -euo pipefail
-          cd apps/vloer/extensions/vscode
+          cd apps/unfold/extensions/vscode
           if [ -z "${OVSX_PAT:-}" ]; then
             echo "OVSX_PAT is required for the public extension release." >&2
             exit 1
           fi
           prerelease=""
           [[ "$VERSION" == *-* ]] && prerelease="--pre-release"
-          npx --no-install ovsx publish --packagePath "de-vloer-${VERSION}.vsix" --skip-duplicate $prerelease
+          npx --no-install ovsx publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate $prerelease
       - name: Publish to the Visual Studio Marketplace
         shell: bash
         env:
@@ -263,22 +263,22 @@ jobs:
           AZURE_TENANT_ID: ${{ secrets.MARKETPLACE_AZURE_TENANT_ID }}
         run: |
           set -euo pipefail
-          cd apps/vloer/extensions/vscode
+          cd apps/unfold/extensions/vscode
           if [[ "$VERSION" == *-* ]]; then
             echo "::notice::${VERSION} is a pre-release version. The Visual Studio Marketplace accepts only major.minor.patch; Open VSX carries this build."
             exit 0
           fi
           if [ -n "${AZURE_CLIENT_ID:-}" ] && [ -n "${AZURE_TENANT_ID:-}" ]; then
-            npx --no-install vsce publish --packagePath "de-vloer-${VERSION}.vsix" --skip-duplicate --azure-credential
+            npx --no-install vsce publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate --azure-credential
           elif [ -n "${VSCE_PAT:-}" ]; then
-            npx --no-install vsce publish --packagePath "de-vloer-${VERSION}.vsix" --skip-duplicate
+            npx --no-install vsce publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate
           else
             echo "::notice::No Marketplace credential is configured. ${VERSION} ships to Open VSX only, by decision; see docs/adrs/0021-the-extension-ships-through-open-vsx-first.md."
           fi
 
-  vloer-release-distribute:
-    name: Vloer - Verify and publish all destinations
-    needs: [parse-release-tag, vloer-release-distribute-harbor, vloer-release-publish-chart, vloer-release-publish-extension]
+  unfold-release-distribute:
+    name: Unfold - Verify and publish all destinations
+    needs: [parse-release-tag, unfold-release-distribute-harbor, unfold-release-publish-chart, unfold-release-publish-extension]
     if: needs.parse-release-tag.outputs.version != ''
     runs-on: docker
     timeout-minutes: 30
@@ -307,7 +307,7 @@ jobs:
           export DOCKER_CONFIG="$(mktemp -d)" PATH="$PWD/scripts:$PATH"
           trap 'rm -rf "$DOCKER_CONFIG"' EXIT
           printf '%s' '{"credHelpers":{"harbor.webgrip.dev":"unfold","forgejo.webgrip.dev":"unfold","ghcr.io":"unfold"}}' > "$DOCKER_CONFIG/config.json"
-          python3 scripts/publish_release.py vloer "$VERSION"
+          python3 scripts/publish_release.py unfold "$VERSION"
 
   site-release-tag:
     runs-on: docker
@@ -357,7 +357,7 @@ jobs:
       release-channel: prerelease
       wrangler-env: staging
       working-directory: apps/site
-      build-command: npm --prefix ../vloer ci --omit=dev --no-audit --no-fund && UNFOLD_SITE_URL=https://staging.unfoldhq.dev pnpm run build:release
+      build-command: npm --prefix ../unfold ci --omit=dev --no-audit --no-fund && UNFOLD_SITE_URL=https://staging.unfoldhq.dev pnpm run build:release
       apex-url: https://staging.unfoldhq.dev
       smoke-paths: |
         /
@@ -382,7 +382,7 @@ jobs:
       environment: production
       release-channel: stable
       working-directory: apps/site
-      build-command: npm --prefix ../vloer ci --omit=dev --no-audit --no-fund && UNFOLD_SITE_URL=https://unfoldhq.dev pnpm run build:release
+      build-command: npm --prefix ../unfold ci --omit=dev --no-audit --no-fund && UNFOLD_SITE_URL=https://unfoldhq.dev pnpm run build:release
       apex-url: https://unfoldhq.dev
       smoke-paths: |
         /

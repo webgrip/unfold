@@ -16,9 +16,9 @@
   "packageManager": "pnpm@12.8.2",
   "scripts": {
     "dev": "astro dev",
-    "build": "node ../vloer/scripts/record-replay.ts && node scripts/build-demo.mjs && astro build && webgrip-validate-csp",
+    "build": "node ../unfold/scripts/record-replay.ts && node scripts/build-demo.mjs && astro build && webgrip-validate-csp",
     "build:release": "node scripts/check-release-config.ts && pnpm build",
-    "demo:build": "node ../vloer/scripts/record-replay.ts && node scripts/build-demo.mjs",
+    "demo:build": "node ../unfold/scripts/record-replay.ts && node scripts/build-demo.mjs",
     "preview": "astro preview",
     "astro": "astro",
     "typecheck": "astro check",

@@ -29,7 +29,7 @@ export const en = {
     howKicker: '01 / THE WORK, MADE VISIBLE',
     howTitle: 'One Shift. Every step in view.',
     howIntro:
-      'A rounding bug. An implementer. An independent reviewer. Explore the recorded evidence from the deterministic demo that ships with Vloer.',
+      'A rounding bug. An implementer. An independent reviewer. Explore the recorded evidence from the deterministic demo that ships with Unfold.',
     stageLabel: 'Explore the recorded Shift',
     play: 'Play the Shift',
     pause: 'Pause',
@@ -72,7 +72,7 @@ export const en = {
     merged: 'Merged',
     no: 'No',
     recording: 'Inspect the complete recording',
-    recordingNote: 'Every event, its recorded timing and the original Vloer interface.',
+    recordingNote: 'Every event, its recorded timing and the original Unfold interface.',
     controlLine: 'The last word',
     controlAccent: 'is yours.',
     controlNote: 'Agents propose changes. People accept, merge and release.',
@@ -83,7 +83,7 @@ export const en = {
     archKicker: '03 / UNDER THE SURFACE',
     archTitle: 'One product. Clear responsibilities.',
     archIntro:
-      'Ploeg authorizes and budgets managed execution. Vloer is where you start, steer and inspect the work. Both ship from one repository, under one Unfold version.',
+      'Ploeg authorizes and budgets managed execution. Unfold is where you start, steer and inspect the work. Both ship from one repository, under one Unfold version.',
     cluster: 'MANAGED EXECUTION',
     front: 'Browser / VS Code',
     engine: 'Authorization · budgets · orchestration',
@@ -93,7 +93,7 @@ export const en = {
     forge: 'Your forge',
     pullRequest: 'Pull request + evidence',
     architectureNote:
-      'Conceptual view. Pull request publication is available in Ploeg’s unattended worker workflow; Vloer’s managed candidate path does not publish yet.',
+      'Conceptual view. Pull request publication is available in Ploeg’s unattended worker workflow; Unfold’s managed candidate path does not publish yet.',
     workerPath: 'Unattended worker workflow',
     openKicker: '04 / BUILD WITH YOUR EYES OPEN',
     openTitle: 'Open source. On your terms.',
@@ -161,7 +161,7 @@ export const en = {
     steps: [
       {
         term: 'Work Item',
-        text: 'Something you have decided to do, or a problem described well enough that a solution can be conceived. It comes from your tracker or from Vloer.',
+        text: 'Something you have decided to do, or a problem described well enough that a solution can be conceived. It comes from your tracker or from Unfold.',
       },
       {
         term: 'Shift',
@@ -182,7 +182,7 @@ export const en = {
   how: {
     title: 'Watch one Shift',
     intro:
-      'The same small job, shown two ways. An order service rounds 1.005 to 1.00 instead of 1.01. Both come from the deterministic demo that ships with Vloer, so you can run it yourself and get the same result.',
+      'The same small job, shown two ways. An order service rounds 1.005 to 1.00 instead of 1.01. Both come from the deterministic demo that ships with Unfold, so you can run it yourself and get the same result.',
     walkthrough: {
       title: 'Step by step',
       badge: 'Simulation of the deterministic demo — no model calls, no spend',
@@ -218,9 +218,9 @@ export const en = {
     },
     video: {
       title: 'In the workbench',
-      lead: 'The same demo in Vloer, recorded by a script that clicks through it. Nothing was set up by hand.',
+      lead: 'The same demo in Unfold, recorded by a script that clicks through it. Nothing was set up by hand.',
       caption:
-        'Recording of the deterministic demo in Vloer: no model calls, no spend. Recorded with Vloer',
+        'Recording of the deterministic demo in Unfold: no model calls, no spend. Recorded with Unfold',
       fallback: 'Your browser cannot play this video. Download it:',
     },
     replay: {
@@ -293,9 +293,9 @@ export const en = {
         text: 'Ploeg authorizes and budgets managed agent Runs. With its executor enabled, it runs the Work Items it takes from trackers such as Vikunja and ClickUp. It decides who may write each branch and keeps the record of every Shift in PostgreSQL. Ploeg is Dutch for crew.',
       },
       {
-        name: 'Vloer',
+        name: 'Unfold',
         role: 'The workbench',
-        text: 'Vloer is the front end, in the browser or in VS Code. You start work there, steer agents while they run and review what they produced. With shared execution turned on, Ploeg authorizes and budgets the Runs you start there, and Vloer still executes them itself; without it, Vloer runs sessions on its own. Planned: Ploeg executes every Run, and Vloer on its own runs only the deterministic demo. Vloer is Dutch for floor, as in shop floor.',
+        text: 'Unfold is the front end, in the browser or in VS Code. You start work there, steer agents while they run and review what they produced. With shared execution turned on, Ploeg authorizes and budgets the Runs you start there, and Unfold still executes them itself; without it, Unfold runs sessions on its own. Planned: Ploeg executes every Run, and Unfold on its own runs only the deterministic demo. Unfold is Dutch for floor, as in shop floor.',
       },
     ],
     version:

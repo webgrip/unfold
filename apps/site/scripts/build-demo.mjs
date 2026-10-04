@@ -9,7 +9,7 @@ const option = (name, fallback) => {
   const index = process.argv.indexOf(name);
   return index === -1 ? fallback : resolve(process.argv[index + 1]);
 };
-const vloerPublic = option('--vloer', resolve(site, '../vloer/public'));
+const unfoldPublic = option('--unfold', resolve(site, '../unfold/public'));
 const replayDir = option('--replay', resolve(site, 'replay'));
 const out = option('--out', resolve(site, 'public/demo'));
 
@@ -44,7 +44,7 @@ const escape = (value) =>
 function insert(html, anchor, addition, where) {
   if (!html.includes(anchor))
     throw new Error(
-      `Vloer's public/index.html no longer contains ${JSON.stringify(anchor)}; update apps/site/scripts/build-demo.mjs`,
+      `Unfold's public/index.html no longer contains ${JSON.stringify(anchor)}; update apps/site/scripts/build-demo.mjs`,
     );
   return html.replace(anchor, where === 'before' ? `${addition}${anchor}` : `${anchor}${addition}`);
 }
@@ -54,10 +54,10 @@ const replay = await readFile(join(replayDir, 'replay.json'));
 const stale = [];
 if (createHash('sha256').update(replay).digest('hex') !== manifest.replay)
   stale.push('replay.json does not match its manifest');
-const sources = await files(vloerPublic);
+const sources = await files(unfoldPublic);
 const present = new Set();
 for (const path of sources) {
-  const name = relative(vloerPublic, path).split(sep).join('/');
+  const name = relative(unfoldPublic, path).split(sep).join('/');
   present.add(name);
   const hash = createHash('sha256')
     .update(await readFile(path))
@@ -68,21 +68,21 @@ for (const name of Object.keys(manifest.files))
   if (!present.has(name)) stale.push(`public/${name} was removed since the recording`);
 if (stale.length)
   throw new Error(
-    `The demo replay was recorded against another Vloer UI. Run mise run demo-record.\n  ${stale.join('\n  ')}`,
+    `The demo replay was recorded against another Unfold UI. Run mise run demo-record.\n  ${stale.join('\n  ')}`,
   );
 
 await rm(out, { recursive: true, force: true });
 await mkdir(out, { recursive: true });
 for (const path of sources) {
-  const name = relative(vloerPublic, path);
+  const name = relative(unfoldPublic, path);
   if (name === 'index.html') continue;
   await mkdir(join(out, name, '..'), { recursive: true });
   await cp(path, join(out, name));
 }
 await writeFile(join(out, 'replay', 'replay.json'), replay);
 
-const banner = `<aside class="replay-banner" aria-label="About this replay"><p>Recorded replay of Vloer's deterministic demo at <code>${escape(manifest.commit)}</code> (recorded ${escape(manifest.recordedAt)}). Nothing runs here; run <code>mise run demo</code> locally.</p><div class="replay-banner-actions"><button type="button" class="replay-banner-button" data-replay-restart>Restart the replay</button><a class="replay-banner-link" href="/">Unfold home</a></div></aside>`;
-let html = await readFile(join(vloerPublic, 'index.html'), 'utf8');
+const banner = `<aside class="replay-banner" aria-label="About this replay"><p>Recorded replay of Unfold's deterministic demo at <code>${escape(manifest.commit)}</code> (recorded ${escape(manifest.recordedAt)}). Nothing runs here; run <code>mise run demo</code> locally.</p><div class="replay-banner-actions"><button type="button" class="replay-banner-button" data-replay-restart>Restart the replay</button><a class="replay-banner-link" href="/">Unfold home</a></div></aside>`;
+let html = await readFile(join(unfoldPublic, 'index.html'), 'utf8');
 html = insert(
   html,
   '<meta charset="utf-8">',
@@ -104,5 +104,5 @@ html = insert(
 html = insert(html, '<div id="app">', `${banner}\n  `, 'before');
 await writeFile(join(out, 'index.html'), html);
 process.stdout.write(
-  `demo: Vloer ${manifest.vloerVersion} at ${manifest.commit}, recorded ${manifest.recordedAt}, into ${relative(process.cwd(), out) || out}\n`,
+  `demo: Unfold ${manifest.unfoldVersion} at ${manifest.commit}, recorded ${manifest.recordedAt}, into ${relative(process.cwd(), out) || out}\n`,
 );
