@@ -4,7 +4,7 @@ import { markdown } from './core/markdown.js';
 import { count as formatCount, money, plural, duration, dateTime } from './core/format.js';
 import * as ui from './core/ui.js';
 import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, runFailure, runFailureText, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason } from './core/states.js';
-import { listReason, routingWarning, detailReason, requeueNote, needsYouBlocks, reasonGlyph } from './core/reasons.js';
+import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph } from './core/reasons.js';
 import { grafanaTeam, runExplorer } from './core/observability.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
 import { traceMarkup } from './core/attribution.js';
