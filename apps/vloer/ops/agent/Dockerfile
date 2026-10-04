@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG REGISTRY_DHI=harbor.webgrip.dev/dhi
+ARG REGISTRY_DHI=dhi.io
 # renovate: datasource=docker depName=dhi.io/node versioning=docker
 ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.21.0-alpine3.24-dev@sha256:d5be02eb084358e15c3640b6eb803c961b40fe03501ecf5ec2dc25291f2ee857
 # renovate: datasource=npm depName=opencode-ai

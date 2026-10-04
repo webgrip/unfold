@@ -13,5 +13,5 @@ app.kubernetes.io/name: de-vloer
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 {{- define "vloer.workspaceImage" -}}
-{{- default (printf "harbor.webgrip.dev/webgrip/de-vloer-agent:%s" .Chart.AppVersion) .Values.workspaceImage -}}
+{{- default (printf "ghcr.io/webgrip/de-vloer-agent:%s" .Chart.AppVersion) .Values.workspaceImage -}}
 {{- end -}}
