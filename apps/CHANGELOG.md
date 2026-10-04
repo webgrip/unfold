@@ -1,3 +1,41 @@
+## [unfold-v0.4.0-rc.36](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.35...unfold-v0.4.0-rc.36) (2026-10-04)
+
+### Added
+
+* **deps:** update all non-major dependencies ([711a481](https://forgejo.webgrip.dev/webgrip/unfold/commit/711a481495b8e797432be1102b57c38304ad78a7))
+* **ploeg:** expose who asked for changes on a pull request ([b3a3a5c](https://forgejo.webgrip.dev/webgrip/unfold/commit/b3a3a5c7661246b85ae4a76a80056bf6578f11e4))
+
+### Fixed
+
+* **ploeg:** correct first deploys reported out of order and finish deploy checks without a new deploy ([50ab325](https://forgejo.webgrip.dev/webgrip/unfold/commit/50ab325bb5d32dcbba4af3fa96a9460913d9246c))
+* **ploeg:** grade rework rather than review and say which inputs a grade missed ([8182249](https://forgejo.webgrip.dev/webgrip/unfold/commit/8182249e382cb05f6fa65204fa8966065c3f1943))
+* **ploeg:** read a writer's branch on the forge before it counts as no change or updated ([7fc6f8d](https://forgejo.webgrip.dev/webgrip/unfold/commit/7fc6f8d988e5d7d68107e84be128f777f231353f)), references [#177](https://forgejo.webgrip.dev/webgrip/unfold/issues/177)
+* **ploeg:** settle stopped Work Items whose tracker task was closed ([4dd9849](https://forgejo.webgrip.dev/webgrip/unfold/commit/4dd98497675c9973ed43100262a020d3b9b40775))
+* **site:** name the configuration each security and execution claim needs ([3ddf79e](https://forgejo.webgrip.dev/webgrip/unfold/commit/3ddf79e5a2c96ebf161206b67430fe355f991390))
+* **vloer:** describe grade formula 2026.3 and show the inputs a grade missed ([4a81f47](https://forgejo.webgrip.dev/webgrip/unfold/commit/4a81f472e6ce8a64a00ecd993d64b1d7c83e6278))
+* **vloer:** point the extension's repository links at webgrip/unfold ([43e07e9](https://forgejo.webgrip.dev/webgrip/unfold/commit/43e07e927ff481a22c3e22d916ed576f69be54a8))
+
+### Docs
+
+* record that Unfold pins Ploeg and releases only Vloer ([1bca2ac](https://forgejo.webgrip.dev/webgrip/unfold/commit/1bca2ac69bafccf733c3d1ab1d513da0d457183a))
+
+### Build
+
+* **ploeg:** consume Ploeg from ploeg-hq/ploeg as a submodule pinned at v0.1.0 ([26a27b6](https://forgejo.webgrip.dev/webgrip/unfold/commit/26a27b683dacf0ebd9ce8d2fa706682d8fd714d3))
+
+### CI
+
+* **release:** stop versioning and publishing Ploeg from Unfold ([52a7c89](https://forgejo.webgrip.dev/webgrip/unfold/commit/52a7c89f354213be7fa1a723fbe84816afdbae1c))
+
+### Style
+
+* **ploeg:** gofmt the changesRequestedBy query concatenation ([25c0d26](https://forgejo.webgrip.dev/webgrip/unfold/commit/25c0d268e078165073804407048cec61f6523600))
+
+### Internal
+
+* **release:** unfold-site-v0.1.0-rc.9 [skip ci] ([13b17d5](https://forgejo.webgrip.dev/webgrip/unfold/commit/13b17d5c4e28b46169aab6b12621fb5ba8577345))
+* **site:** re-record the demo replay with the grade formula 2026.3 card model ([20be172](https://forgejo.webgrip.dev/webgrip/unfold/commit/20be1721c2902e2a1b7c586289ee52701334a46f))
+
 ## [unfold-v0.4.0-rc.35](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.34...unfold-v0.4.0-rc.35) (2026-10-03)
 
 ### Added
