@@ -1,3 +1,17 @@
+## [unfold-v0.4.0-rc.40](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.39...unfold-v0.4.0-rc.40) (2026-10-04)
+
+### Fixed
+
+* **unfold:** carry the database's encryption key when adopting the former name ([29513d9](https://forgejo.webgrip.dev/webgrip/unfold/commit/29513d9c09187f0539dd07f216b736bb450ec45c))
+
+### Build
+
+* **ploeg:** pin Ploeg v0.2.0-rc.5 ([080bef9](https://forgejo.webgrip.dev/webgrip/unfold/commit/080bef9199d45681770fbc1380ad11a9f49c562a))
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.1 [skip ci] ([952815d](https://forgejo.webgrip.dev/webgrip/unfold/commit/952815dfa4486bc743d95d05b7cf3cdb398483c7))
+
 ## [unfold-v0.4.0-rc.39](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.38...unfold-v0.4.0-rc.39) (2026-10-04)
 
 ### ⚠ BREAKING CHANGES
