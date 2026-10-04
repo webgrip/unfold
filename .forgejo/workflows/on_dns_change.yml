@@ -18,21 +18,65 @@ permissions:
   contents: read
 
 jobs:
-  dns-preview:
-    uses: webgrip/workflows/.forgejo/workflows/dnscontrol.yml@v2.8.0
+  dns:
+    name: "DNS ${{ github.event_name == 'schedule' && 'drift' || 'preview' }}"
+    runs-on: docker
     enable-openid-connect: true
-    with:
-      enabled: ${{ github.event_name != 'schedule' }}
-      mode: preview
-      working-directory: apps/site/ops/dns
-      openbao-role: ci-unfold
-      openbao-kv-path: secret/data/cloudflare/dns/unfoldhq-dev-ro
-  dns-drift:
-    uses: webgrip/workflows/.forgejo/workflows/dnscontrol.yml@v2.8.0
-    enable-openid-connect: true
-    with:
-      enabled: ${{ github.event_name == 'schedule' }}
-      mode: drift
-      working-directory: apps/site/ops/dns
-      openbao-role: ci-unfold
-      openbao-kv-path: secret/data/cloudflare/dns/unfoldhq-dev-ro
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Cloudflare read-only credentials from OpenBao
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/openbao-read@v2.8.0
+        with:
+          role: ci-unfold
+          secrets: |
+            CLOUDFLARE_API_TOKEN=secret/data/cloudflare/dns/unfoldhq-dev-ro#token
+            CLOUDFLARE_ACCOUNT_ID=secret/data/cloudflare/dns/unfoldhq-dev-ro#account_id
+
+      - name: Install dnscontrol
+        shell: bash
+        env:
+          # renovate: datasource=github-releases depName=StackExchange/dnscontrol
+          VERSION: '5.0.3'
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64) arch=amd64 ;;
+            aarch64 | arm64) arch=arm64 ;;
+            *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          base="https://github.com/StackExchange/dnscontrol/releases/download/v${VERSION}"
+          archive="dnscontrol_${VERSION}_linux_${arch}.tar.gz"
+          workdir="$(mktemp -d)"
+          curl -fsSL "${base}/${archive}" -o "${workdir}/${archive}"
+          curl -fsSL "${base}/checksums.txt" -o "${workdir}/checksums.txt"
+          (cd "${workdir}" && grep " ${archive}\$" checksums.txt | sha256sum -c -)
+          tar -xzf "${workdir}/${archive}" -C "${workdir}" dnscontrol
+          mkdir -p "${HOME}/.local/bin"
+          install -m 0755 "${workdir}/dnscontrol" "${HOME}/.local/bin/dnscontrol"
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Check
+        shell: bash
+        working-directory: apps/site/ops/dns
+        run: dnscontrol check
+
+      - name: Preview
+        shell: bash
+        working-directory: apps/site/ops/dns
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -uo pipefail
+          expect=""
+          if [ "${EVENT}" = schedule ]; then
+            expect="--expect-no-changes"
+          fi
+          dnscontrol preview --creds creds.json ${expect} > preview.raw 2>&1
+          rc=$?
+          sed 's/\x1b\[[0-9;]*m//g' preview.raw > preview.txt
+          cat preview.txt
+          { echo '```'; cat preview.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit "${rc}"
