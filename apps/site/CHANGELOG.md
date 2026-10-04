@@ -1,3 +1,31 @@
+## [unfold-site-v1.0.0-rc.1](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v0.1.0-rc.11...unfold-site-v1.0.0-rc.1) (2026-10-04)
+
+### ⚠ BREAKING CHANGES
+
+* **unfold:** deployments must switch to the unfold image and chart and
+  rename VLOER_* environment variables to UNFOLD_* (homelab: VIK-1856). The
+  default OIDC groups are now unfold-admins, unfold-operators and
+  unfold-viewers.
+
+### Added
+
+* **deps:** update all non-major dependencies ([a14ac65](https://forgejo.webgrip.dev/webgrip/unfold/commit/a14ac65cec518da8a992d67f604f21bae9ef5268))
+* **site:** release the site to unfoldhq.dev from main ([6c724a2](https://forgejo.webgrip.dev/webgrip/unfold/commit/6c724a283476dcd15f48f35da64100d8fe859c31))
+* **site:** unfoldhq.dev handles no mail; drop the registrar's forwarding ([28264b5](https://forgejo.webgrip.dev/webgrip/unfold/commit/28264b5d4bdd852be2a12f6357116605677c6b0a))
+
+### Fixed
+
+* **site:** declare DNSControl's MX and TXT for the linter ([dd97fa6](https://forgejo.webgrip.dev/webgrip/unfold/commit/dd97fa6d48cd5f7f7fdff43d6188e7b7047e036d)), references [#230](https://forgejo.webgrip.dev/webgrip/unfold/issues/230)
+* **site:** run the DNS preview in a direct job so it gets an OIDC token ([92ecf1e](https://forgejo.webgrip.dev/webgrip/unfold/commit/92ecf1e928425ac311bac0990fa0569f8895f226)), references [#222](https://forgejo.webgrip.dev/webgrip/unfold/issues/222)
+
+### Changed
+
+* **unfold:** retire the name Vloer; the application is Unfold ([fa7ebda](https://forgejo.webgrip.dev/webgrip/unfold/commit/fa7ebda02af9ec29c6c06048ccff1e9edfdc0dd7))
+
+### CI
+
+* **site:** preview unfoldhq.dev DNS with a read-only token from OpenBao ([1b8453d](https://forgejo.webgrip.dev/webgrip/unfold/commit/1b8453deda50292659c792b6963a52a6d3e7dd98))
+
 ## [unfold-site-v0.1.0-rc.11](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v0.1.0-rc.10...unfold-site-v0.1.0-rc.11) (2026-10-04)
 
 ### Added
