@@ -1,6 +1,6 @@
 import { closeReasonLabel, displayState, failureReason, humanReview, ciState, playState, runOutcome, runState, unreportedOutcome, verdict, withdrawnReason, workItemState } from './core/states.js';
 import { compactCount, count, date, duration, money, notReported, plural, relative, time } from './core/format.js';
-import { detailReason, requeueNote } from './core/reasons.js';
+import { detailReason } from './core/reasons.js';
 import { checkoutTarget } from './core/checkout.js';
 
 const bridge = acquireVsCodeApi();
@@ -286,7 +286,7 @@ export function crewTable(current) {
 function reasonBlock(reason) {
   return element('div', { className: 'reason' },
     reason.run?.text ? element('blockquote', { className: 'quote' }, element('p', {}, `“${reason.run.text}”`), element('footer', {}, `The ${reason.run.role || 'agent'}${reason.run.round ? ` · Round ${reason.run.round}` : ''}`)) : reason.headline ? element('blockquote', { className: 'quote' }, element('p', {}, `“${reason.headline}”`), element('footer', {}, 'Ploeg')) : null,
-    element('p', { className: 'requeue' }, reason.requeue, ' ', element('span', { className: 'muted' }, requeueNote)));
+    element('p', { className: 'requeue' }, reason.requeue));
 }
 
 function swatch(color) {

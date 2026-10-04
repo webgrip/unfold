@@ -1,4 +1,4 @@
-import { money } from './format.js';
+import { money, plural } from './format.js';
 import { failureReason, parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason } from './states.js';
 
 export { parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason };
@@ -33,12 +33,9 @@ export { parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason 
 const trackers = { forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', vikunja: 'Vikunja' };
 const trackerOf = provider => trackers[provider] ? trackers[provider] : 'its tracker';
 
-/** Re-queueing a Work Item from Vloer does not exist yet; it is proposed Ploeg work. */
-export const requeueNote = 'Starting again from Vloer is proposed Ploeg work. Today only the tracker can start a new attempt.';
-
 const copy = {
   plan_exhausted: {
-    chip: 'Every Round ran',
+    chip: 'Every Round ran, no result',
     sentence: 'Every planned Round ran, but no writer reported a pull request, or the last reviewer asked for changes and this team has no fix rounds.',
     fix: 'Open the Work Item to see whether the writer changed nothing or the reviewer still wants changes.',
   },
@@ -56,6 +53,11 @@ const copy = {
     chip: 'Budget ran out',
     sentence: 'The Shift’s budget could not pay for the next Round.',
     fix: 'Finish the work by hand, or raise the Team’s budget in its configuration.',
+  },
+  budget_held: {
+    chip: 'Budget held, not spent',
+    sentence: 'Ploeg stopped for lack of budget, but most of the budget was only held for Runs whose spend it had not settled yet, not spent.',
+    fix: 'Find out why those Runs failed and fix that first. Raising the budget does not help while the money is only held.',
   },
   writing_run_failed_repeatedly: {
     chip: 'Writer kept failing',
@@ -121,13 +123,19 @@ const planVariants = {
 
 const number = value => typeof value === 'number' && Number.isFinite(value);
 
+const held = (spent, reserved) => number(spent) && number(reserved) && reserved > 0 && reserved >= spent;
+
 const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'budget_exhausted_before_fix_round', 'writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'operator_failed']);
 
 function classify(closeReason) {
   const text = String(closeReason ?? '').trim();
   const lower = text.toLowerCase();
   if (exactCodes.has(text)) return { code: text, text };
-  if (lower.startsWith('budget exhausted')) return { code: 'budget_exhausted', text };
+  if (lower.startsWith('budget held by unsettled runs')) return { code: 'budget_held', text };
+  if (lower.startsWith('budget exhausted')) {
+    const { spent, reserved } = parseBudgetReason(text);
+    return { code: held(spent, reserved) ? 'budget_held' : 'budget_exhausted', text };
+  }
   if (lower.startsWith('run stuck:')) return { code: 'run_stuck', text };
   if (lower === 'plan removed from configuration') return { code: 'plan_removed', text };
   if (text === 'review_approved') return { code: 'pull_request_closed', text };
@@ -138,6 +146,11 @@ function sentenceFor(code, text, item, demo) {
   if (code === 'budget_exhausted') {
     const { pool, spent, reserved } = parseBudgetReason(text);
     if (pool !== null) return `The Shift’s budget of ${money(pool)} could not pay for the next Round${spent !== null && !demo ? ` (spent ${money(spent)}${reserved !== null ? `, reserved ${money(reserved)}` : ''})` : ''}.`;
+  }
+  if (code === 'budget_held') {
+    const { pool, spent, reserved } = parseBudgetReason(text);
+    if (pool !== null && /^budget held/i.test(text)) return `Ploeg stopped because the Shift’s ${money(pool)} budget is held, not spent: ${spent > 0 ? `only ${money(spent)} was spent, and ` : ''}${money(reserved)} is still held for finished Runs whose spend Ploeg could not settle within a day.`;
+    if (pool !== null) return `Ploeg stopped because the Shift’s ${money(pool)} budget could not pay for the next Round, but ${spent > 0 ? `only ${money(spent)} was spent` : 'nothing was spent'}. ${money(reserved)} was held for Runs whose spend Ploeg had not settled yet.`;
   }
   if (code === 'run_stuck') {
     const { role, round } = parseStuckReason(text);
@@ -153,6 +166,7 @@ const reasonGlyphs = Object.freeze({
   fix_round_cap_reached: 'eye',
   budget_exhausted: 'coins',
   budget_exhausted_before_fix_round: 'coins',
+  budget_held: 'lock',
   writing_run_failed_repeatedly: 'x-circle',
   writing_run_killed_repeatedly: 'zap',
   run_stuck: 'pause-circle',
@@ -222,7 +236,7 @@ function relevantRun(detail, reason, closeReason) {
     const { role, round } = parseStuckReason(closeReason);
     return runs.find(run => run.outcome === 'stuck' && (!role || run.role === role) && (round === null || run.round === round)) || runs.find(run => run.outcome === 'stuck') || null;
   }
-  if (['writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'stale_attempts', 'stale_infrastructure'].includes(reason.code)) return runs.find(run => run.writes && (run.outcome === 'failed' || run.failureReason)) || runs.find(run => run.outcome === 'failed' || run.failureReason) || null;
+  if (['writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'stale_attempts', 'stale_infrastructure', 'budget_held'].includes(reason.code)) return runs.find(run => run.writes && (run.outcome === 'failed' || run.failureReason)) || runs.find(run => run.outcome === 'failed' || run.failureReason) || null;
   if (reason.code === 'unknown') return runs.find(run => run.outcome === 'stuck') || null;
   return null;
 }
@@ -247,14 +261,32 @@ function noPullRequestSentence(writer) {
   return 'Every planned Round ran, but no writer reported a pull request.';
 }
 
+const budgetCodes = new Set(['budget_exhausted', 'budget_exhausted_before_fix_round', 'budget_held']);
+
+function heldDetail(detail, shift, reason) {
+  const runs = (detail.runs || []).filter(run => !shift?.id || run.shiftId === shift.id);
+  const failures = runs.map(run => failureReason(run.failureReason)).filter(Boolean);
+  const infra = failures.filter(meta => meta.infra);
+  const { pool, spent, reserved } = parseBudgetReason(shift?.closeReason ?? '');
+  const cause = infra.length ? infra[0] : failures[0];
+  const parts = [reason.sentence];
+  if (cause) parts.push(`${plural(failures.length, 'Run')} failed first: ${cause.label.replace(/^The /, 'the ')}${infra.length && infra.length === failures.length ? ', which is infrastructure, not the agent' : ''}.`);
+  const now = shift?.reservedUsd;
+  if (number(now) && number(reserved) && number(pool) && number(spent) && now < reserved) parts.push(now > 0 ? `Ploeg has since released part of that hold: ${money(now)} is still held.` : `Ploeg has since released that hold, so ${money(Math.max(0, pool - spent))} of the budget is free again.`);
+  const fix = cause ? `${cause.next || cause.action} The budget itself was not the problem.` : reason.fix;
+  return { sentence: parts.join(' '), fix, action: `${fix} ${reason.requeue}` };
+}
+
 /**
  * The detail-level reason: the list reason, with the same `code` and `chip` as every list shows, refined with what the
  * detail shows. It carries Ploeg's own sentence from the latest `work_item.needs_human` event as a quote (`headline`,
- * null when absent, and always null for `plan_exhausted`, whose Ploeg sentence reads as if the work were ready to
- * merge) and, for stuck or failing Runs, the matching Run (`run`: its id, Role, Round, `text` from its stuck reason or
+ * null when absent; always null for `plan_exhausted`, whose Ploeg sentence reads as if the work were ready to
+ * merge, and for the budget reasons, whose Ploeg sentence only repeats Vloer's) and, for stuck or failing Runs, the matching Run (`run`: its id, Role, Round, `text` from its stuck reason or
  * summary, and its failure reason meta). For `plan_exhausted` it tells the two causes apart with `variant`
  * (`no_pull_request`: no writer reported one; `changes_unresolved`: the last reviewer asked for changes), which
- * changes the sentence and the fix but not the chip. Returns null unless the item is `needs_human` or `stale`.
+ * changes the sentence and the fix but not the chip. For `budget_held` it names the failure that came first and
+ * whether Ploeg has released the hold since, and points the fix at that failure instead of the budget. Returns null
+ * unless the item is `needs_human` or `stale`.
  */
 export function detailReason(detail) {
   const item = detail?.item;
@@ -270,6 +302,8 @@ export function detailReason(detail) {
     const killed = (detail.runs || []).filter(entry => entry.writes && (!shift?.id || entry.shiftId === shift.id) && failureReason(entry.failureReason)?.infra).length;
     if (killed > 1) reason = { ...reason, sentence: sentenceFor(reason.code, '', { ...item, infraFailures: killed }) };
   }
+  if (budgetCodes.has(reason.code)) headline = null;
+  if (reason.code === 'budget_held') reason = { ...reason, ...heldDetail(detail, shift, reason) };
   let variant = null;
   if (reason.code === 'plan_exhausted') {
     headline = null;
