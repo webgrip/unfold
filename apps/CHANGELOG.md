@@ -1,3 +1,47 @@
+## [unfold-v0.4.0-rc.39](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.38...unfold-v0.4.0-rc.39) (2026-10-04)
+
+### ⚠ BREAKING CHANGES
+
+* **unfold:** deployments must switch to the unfold image and chart and
+  rename VLOER_* environment variables to UNFOLD_* (homelab: VIK-1856). The
+  default OIDC groups are now unfold-admins, unfold-operators and
+  unfold-viewers.
+
+### Added
+
+* **deps:** update all non-major dependencies ([a14ac65](https://forgejo.webgrip.dev/webgrip/unfold/commit/a14ac65cec518da8a992d67f604f21bae9ef5268))
+* **site:** release the site to unfoldhq.dev from main ([6c724a2](https://forgejo.webgrip.dev/webgrip/unfold/commit/6c724a283476dcd15f48f35da64100d8fe859c31))
+* **site:** unfoldhq.dev handles no mail; drop the registrar's forwarding ([28264b5](https://forgejo.webgrip.dev/webgrip/unfold/commit/28264b5d4bdd852be2a12f6357116605677c6b0a))
+* **unfold:** attach context files to a Ploeg Work Item ([01135fe](https://forgejo.webgrip.dev/webgrip/unfold/commit/01135fef4079bd2df8f2d911f512398c7fe46900))
+* **unfold:** show Unfold's brand and a Work Item's stages and delivery ([bd777a5](https://forgejo.webgrip.dev/webgrip/unfold/commit/bd777a5a1ee493bd1adb3361c7b83c03e6016ade))
+
+### Fixed
+
+* **site:** declare DNSControl's MX and TXT for the linter ([dd97fa6](https://forgejo.webgrip.dev/webgrip/unfold/commit/dd97fa6d48cd5f7f7fdff43d6188e7b7047e036d)), references [#230](https://forgejo.webgrip.dev/webgrip/unfold/issues/230)
+* **site:** run the DNS preview in a direct job so it gets an OIDC token ([92ecf1e](https://forgejo.webgrip.dev/webgrip/unfold/commit/92ecf1e928425ac311bac0990fa0569f8895f226)), references [#222](https://forgejo.webgrip.dev/webgrip/unfold/issues/222)
+* **unfold:** follow Ploeg's operator/<session> branches and report link templates ([2f4cfc9](https://forgejo.webgrip.dev/webgrip/unfold/commit/2f4cfc92d3666a306fa33aee952a7d7ca208c00d)), references [ploeg-hq/ploeg#62](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/62) [#62](https://forgejo.webgrip.dev/webgrip/unfold/issues/62)
+
+### Changed
+
+* **unfold:** retire the name Vloer; the application is Unfold ([fa7ebda](https://forgejo.webgrip.dev/webgrip/unfold/commit/fa7ebda02af9ec29c6c06048ccff1e9edfdc0dd7))
+* **unfold:** stop announcing a URL Ploeg never accepted ([33004aa](https://forgejo.webgrip.dev/webgrip/unfold/commit/33004aa49d84aa7200b501c2fa41beab86ad24c9)), references [ploeg-hq/ploeg#62](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/62)
+
+### Docs
+
+* **adr:** decide context files for Work Items and propose an agent knowledge base ([0c05561](https://forgejo.webgrip.dev/webgrip/unfold/commit/0c055615f937b4109a32c740f653f7fed7fbf197))
+
+### Tests
+
+* **unfold:** space editor polls from the answer, not the request ([fb252a2](https://forgejo.webgrip.dev/webgrip/unfold/commit/fb252a2878480ee621043152306375e38129b4b1))
+
+### Build
+
+* **ploeg:** pin Ploeg v0.2.0-rc.3 ([4cf6e25](https://forgejo.webgrip.dev/webgrip/unfold/commit/4cf6e257d8008c8431036b24033556acb9ccb02f)), references [#61](https://forgejo.webgrip.dev/webgrip/unfold/issues/61) [#62](https://forgejo.webgrip.dev/webgrip/unfold/issues/62)
+
+### CI
+
+* **site:** preview unfoldhq.dev DNS with a read-only token from OpenBao ([1b8453d](https://forgejo.webgrip.dev/webgrip/unfold/commit/1b8453deda50292659c792b6963a52a6d3e7dd98))
+
 ## [unfold-v0.4.0-rc.38](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.37...unfold-v0.4.0-rc.38) (2026-10-04)
 
 ### Added
