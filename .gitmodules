@@ -1,3 +1,4 @@
 [submodule "apps/ploeg"]
 	path = apps/ploeg
 	url = https://github.com/ploeg-hq/ploeg.git
+	branch = main

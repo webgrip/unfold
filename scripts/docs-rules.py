@@ -24,6 +24,7 @@ HISTORY_PREFIXES = (
     'ploeg/backlog',
     'ploeg/history',
 )
+PINNED_PREFIXES = ('ploeg/',)
 FENCE = re.compile(r'^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[^\n]*$', re.M | re.S)
 FRONT_MATTER = re.compile(r'\A---\n(.*?\n)?---\n', re.S)
 DATE = re.compile(r'(\d{4}-\d{2}-\d{2})')
@@ -48,6 +49,14 @@ def historical(location):
     if any(part in PARKED_PARTS for part in parts) and parts[-1] not in CURRENT_POLICY_PAGES:
         return True
     return any(part in HISTORY_PARTS for part in parts)
+
+
+def pinned(page):
+    """Return whether a staged page is a pinned dependency's own documentation.
+
+    Unfold renders those pages; the dependency's own checks own their links, reachability and front matter.
+    """
+    return page.startswith(PINNED_PREFIXES)
 
 
 def slug(text):
@@ -134,7 +143,7 @@ def orphans(pages, nav, links):
     reachable = set(nav)
     for page in nav:
         reachable |= links.get(page, set())
-    return sorted(page for page in pages if not historical(page) and page not in reachable)
+    return sorted(page for page in pages if not historical(page) and not pinned(page) and page not in reachable)
 
 
 SOURCE_ROOTS = (('docs', ''), ('apps/vloer/docs', 'vloer'), ('apps/ploeg/docs', 'ploeg'))
@@ -157,9 +166,9 @@ def front_matter(markdown):
 def checked_pages(pages, nav):
     """Return the staged pages whose front matter is enforced.
 
-    These are the current pages in the nav plus every current page under concepts/, how-to/ and reference/.
+    These are the current pages in the nav plus every current page under concepts/, how-to/ and reference/, except pinned ones.
     """
-    return sorted(page for page in pages if page.endswith('.md') and not historical(page) and (page in nav or page.startswith(REQUIRED_FOLDERS)))
+    return sorted(page for page in pages if page.endswith('.md') and not historical(page) and not pinned(page) and (page in nav or page.startswith(REQUIRED_FOLDERS)))
 
 
 def front_matter_problems(markdown, today):

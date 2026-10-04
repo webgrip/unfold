@@ -89,6 +89,14 @@ class Orphans(unittest.TestCase):
         pages = ['index.md', 'vloer/index.md', 'vloer/live.md', 'vloer/deep.md', 'vloer/research/old.md']
         self.assertEqual(rules.orphans(pages, nav, links), ['vloer/deep.md'])
 
+    def test_a_pinned_dependency_page_is_never_an_orphan(self):
+        nav = {'index.md', 'ploeg/index.md'}
+        pages = ['index.md', 'ploeg/index.md', 'ploeg/how-to/added-upstream.md', 'loose.md']
+        self.assertEqual(rules.orphans(pages, nav, {}), ['loose.md'])
+        self.assertTrue(rules.pinned('ploeg/how-to/added-upstream.md'))
+        self.assertFalse(rules.pinned('vloer/how-to/x.md'))
+        self.assertFalse(rules.pinned('reference/ploeg-terms.md'))
+
 
 TODAY = datetime.date(2026, 9, 23)
 VALID = '---\ntype: how-to\naudience: [owner, operator]\nowner: unfold\nlast_verified: 2026-09-22\nverified_by: "mise run docs-check"\n---\n\n# Page\n'
@@ -100,6 +108,10 @@ class FrontMatter(unittest.TestCase):
         pages = ['index.md', 'extra.md', 'concepts/new.md', 'how-to/x.md', 'reference/glossary.md', 'reference/data.yaml', 'research/2026-09-12-x.md', 'vloer/index.md', 'adr/adr-0001-x.md']
         nav = {'index.md', 'vloer/index.md', 'research/2026-09-12-x.md', 'adr/adr-0001-x.md'}
         self.assertEqual(rules.checked_pages(pages, nav), ['concepts/new.md', 'how-to/x.md', 'index.md', 'reference/glossary.md', 'vloer/index.md'])
+
+    def test_pinned_dependency_pages_keep_their_own_front_matter_rules(self):
+        pages = ['index.md', 'ploeg/index.md', 'ploeg/how-to/x.md', 'ploeg/reference/configuration.md']
+        self.assertEqual(rules.checked_pages(pages, {'index.md', 'ploeg/index.md', 'ploeg/reference/configuration.md'}), ['index.md'])
 
     def test_valid_verified_and_generated_pages_pass(self):
         self.assertEqual(rules.front_matter_problems(VALID, TODAY), [])

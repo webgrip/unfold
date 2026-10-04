@@ -14,8 +14,12 @@
     "**/tests/**",
     "**/__fixtures__/**",
     "apps/*/.forgejo/**",
-    "apps/ploeg/**"
+    "apps/ploeg/**",
+    ".mise/**"
   ],
+  "git-submodules": {
+    "enabled": true
+  },
   "customManagers": [
     {
       "customType": "regex",
@@ -145,11 +149,22 @@
       "enabled": false
     },
     {
-      "description": "Ploeg is a submodule pinned to a commit on github.com/ploeg-hq/ploeg's main. The pin moves by hand after the Ploeg change lands upstream (system ADR-0019).",
+      "description": "Ploeg is a submodule on github.com/ploeg-hq/ploeg's main (system ADR-0019). Once a week Renovate proposes the newest main commit as a build(ploeg) pull request, which never releases Unfold. A person merges it, because each move changes the engine Vloer runs on. Ploeg's commits carry no release timestamp, and its own CI has already gated them, so there is no soak.",
       "matchManagers": [
         "git-submodules"
       ],
-      "enabled": false
+      "enabled": true,
+      "schedule": [
+        "before 6am on monday"
+      ],
+      "automerge": false,
+      "minimumReleaseAge": null,
+      "semanticCommitType": "build",
+      "semanticCommitScope": "ploeg",
+      "commitMessageTopic": "Ploeg",
+      "prBodyNotes": [
+        "When docs-check reports a stale combined glossary or decision register, Ploeg's domain model or ADR ledger changed: run `mise run domain` and `mise run docs-decisions` on this branch and push the result."
+      ]
     },
     {
       "description": "These pins replace the copies npm bundles in the agent image, and the patch script accepts only the bundled major. Raise the bound when npm bundles a newer major.",

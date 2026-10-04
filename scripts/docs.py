@@ -52,7 +52,7 @@ if args.domain:
 staging = root / '.build/docs'
 site = root / '.build/site'
 revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
-source_url = f'https://forgejo.webgrip.dev/webgrip/glide/src/commit/{revision}/'
+source_url = f'https://forgejo.webgrip.dev/webgrip/unfold/src/commit/{revision}/'
 
 if args.check:
     for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-adr.test.py', 'agents-files.test.py', 'stage-explicit-paths.test.py', 'docs-vale.test.py', 'tutorial-smoke.test.py', 'generate-domain.test.py']:
@@ -98,8 +98,20 @@ def page_anchors(path):
     return anchor_cache[path]
 
 
+def pinned(source):
+    return rules.pinned(mapping[source].as_posix())
+
+
+def missing_anchor(destination, fragment):
+    return bool(fragment) and destination.suffix == '.md' and re.sub('-+', '-', unquote(fragment)) not in page_anchors(destination)
+
+
+def pinned_url(destination, fragment):
+    return ploeg_source_url + quote(destination.relative_to(ploeg).as_posix()) + (f'#{fragment}' if fragment else '')
+
+
 def check_anchor(destination, fragment, source, target):
-    if fragment and destination.suffix == '.md' and re.sub('-+', '-', unquote(fragment)) not in page_anchors(destination):
+    if not pinned(source) and missing_anchor(destination, fragment):
         anchor_failures.append(f'{source.relative_to(root)}: {target}')
 
 
@@ -113,21 +125,26 @@ def target_url(target, source):
             destination = root / 'apps' / app / unquote(urlsplit(target[len(old):]).path)
     if destination is None:
         if not parts.scheme and not parts.netloc and not parts.path and parts.fragment and source.suffix == '.md':
+            if pinned(source) and missing_anchor(source, parts.fragment):
+                return pinned_url(source, parts.fragment)
             check_anchor(source, parts.fragment, source, target)
         if parts.scheme or parts.netloc or not parts.path or parts.path.startswith('/'):
             return target
         destination = source.parent / unquote(parts.path)
     destination = destination.resolve()
-    if destination in aliases and not rules.historical(mapping[source].as_posix()):
+    if destination in aliases and not pinned(source) and not rules.historical(mapping[source].as_posix()):
         detours.append(f'{source.relative_to(root)}: {target} -> {aliases[destination].relative_to(root)}')
     destination = aliases.get(destination, destination)
-    if re.fullmatch(r'L\d+(-L\d+)?', parts.fragment) and destination.suffix != '.md' and not rules.historical(mapping[source].as_posix()):
+    if re.fullmatch(r'L\d+(-L\d+)?', parts.fragment) and destination.suffix != '.md' and not pinned(source) and not rules.historical(mapping[source].as_posix()):
         line_anchors.append(f'{source.relative_to(root)}: {target}')
     if not destination.is_relative_to(root):
         return target
     checked += 1
     if not destination.exists():
-        failures.append(f'{source.relative_to(root)}: {target}')
+        if not pinned(source):
+            failures.append(f'{source.relative_to(root)}: {target}')
+        elif destination.is_relative_to(ploeg):
+            return pinned_url(destination, parts.fragment)
         return target
     if destination.is_dir():
         for index in ['index.md', 'README.md', 'index.html']:
@@ -135,13 +152,13 @@ def target_url(target, source):
                 destination /= index
                 break
     check_anchor(destination, parts.fragment, source, target)
-    if destination in mapping:
+    if destination in mapping and not (pinned(source) and missing_anchor(destination, parts.fragment)):
         links.setdefault(mapping[source].as_posix(), set()).add(mapping[destination].as_posix())
         result = os.path.relpath(mapping[destination], mapping[source].parent)
         return urlunsplit(('', '', quote(result), parts.query, re.sub('-+', '-', parts.fragment)))
     fragment = f'#{parts.fragment}' if parts.fragment else ''
     if destination.is_relative_to(ploeg):
-        return ploeg_source_url + quote(destination.relative_to(ploeg).as_posix()) + fragment
+        return pinned_url(destination, parts.fragment)
     return source_url + quote(destination.relative_to(root).as_posix()) + fragment
 
 
