@@ -22,9 +22,10 @@ test('event entry points preserve validation and keep application publication ou
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
-  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'release-policy', 'warnings']);
+  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'ploeg-pin', 'release-policy', 'warnings']);
   assert.deepEqual(pr.jobs.checks, source.jobs.checks);
   assert.deepEqual(pr.jobs.warnings, source.jobs.warnings);
+  assert.deepEqual(pr.jobs['ploeg-pin'], source.jobs['ploeg-pin']);
   assert.deepEqual(pr.jobs['release-policy'].container, source.jobs.release.container);
   assert.deepEqual(pr.jobs['release-policy'].steps, source.jobs.release.steps.slice(0, 2));
   for (const name of ['on_pull_request.yml', 'on_docs_change.yml']) {
@@ -33,14 +34,35 @@ test('event entry points preserve validation and keep application publication ou
   const verification = read('.forgejo/actions/verify/action.yml');
   assert.ok(verification.runs.steps.some(verifyStep));
   assert.doesNotMatch(JSON.stringify(pr), /secrets\./);
-  assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'python3 scripts/docs.py --check --stage-only');
+  assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'git submodule update --init --recursive && python3 scripts/docs.py --check --stage-only');
+});
+
+test('every job that verifies, documents or demonstrates Unfold checks out the pinned Ploeg submodule', () => {
+  const checkout = job => job.steps.find(step => String(step.uses).startsWith('actions/checkout@'));
+  for (const [file, name] of [['on_pull_request.yml', 'checks'], ['on_pull_request.yml', 'ploeg-pin'], ['on_source_change.yml', 'checks'], ['on_source_change.yml', 'ploeg-pin'], ['on_schedule.yml', 'external-links'], ['on_schedule.yml', 'tutorial-smoke'], ['on_docs_change.yml', 'verify-publication']]) {
+    assert.equal(checkout(workflows[file].jobs[name]).with?.submodules, 'recursive', `${file}: ${name}`);
+  }
+  for (const name of ['generate-documentation', 'deploy-docs-site']) {
+    assert.match(workflows['on_docs_change.yml'].jobs[name].with['prepare-command'], /^git submodule update --init --recursive && /, name);
+  }
+  const mise = fs.readFileSync(path.join(root, 'mise.toml'), 'utf8');
+  assert.match(mise, /\[tasks\.setup\]\nrun = \[\n  "git submodule sync --recursive",\n  "git submodule update --init --recursive",/);
+});
+
+test('a pull request and a release need the pinned Ploeg commit on Ploeg main', () => {
+  for (const workflow of [workflows['on_pull_request.yml'], source]) {
+    const steps = workflow.jobs['ploeg-pin'].steps;
+    assert.equal(steps.at(-1).run, 'node scripts/ploeg-pin.mjs --published');
+    assert.doesNotMatch(JSON.stringify(workflow.jobs['ploeg-pin']), /secrets\.|permissions/);
+  }
+  assert.ok(source.jobs.release.needs.includes('ploeg-pin'));
 });
 
 test('only an enabled development push can version Unfold, after the checks and the release policy', () => {
   assert.equal(source.concurrency['cancel-in-progress'], false);
-  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'release', 'site-release', 'warnings']);
+  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'ploeg-pin', 'release', 'site-release', 'warnings']);
   const job = source.jobs.release;
-  assert.deepEqual(job.needs, ['checks']);
+  assert.deepEqual(job.needs, ['checks', 'ploeg-pin']);
   const policy = job.steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');
   assert.ok(policy > 0 && policy < job.steps.findIndex(step => step.id === 'release'), 'the release policy runs in the release job before versioning');
   const release = job.steps.find(step => step.id === 'release');
@@ -110,21 +132,15 @@ test('every published image passes its application CVE budget before signing', (
   assert.ok(vloerGate > vloer.findIndex(step => step.id === 'digest'));
   assert.ok(vloerGate < vloer.findIndex(step => step.uses?.includes('/cosign-sign-attest@')));
   assert.equal(vloer[vloerGate].with['budgets-file'], 'apps/vloer/ops/security/cve-budgets.yaml');
-  const ploeg = publisher.jobs['ploeg-release-distribute-harbor'].steps;
-  const ploegGate = ploeg.find(step => step.uses === gate);
-  assert.ok(ploegGate, 'Ploeg image build must run the CVE gate');
-  assert.ok(ploeg.findIndex(step => step.uses === gate) > ploeg.findIndex(step => step.id === 'digest'));
-  assert.equal(ploegGate.with['image-ref'], '${{ steps.digest.outputs.ref }}');
-  assert.equal(ploegGate.with['image-name'], 'ploegd');
-  assert.ok(publisher.jobs['ploeg-release-sign-harbor'].needs.includes('ploeg-release-distribute-harbor'));
-  assert.ok(publisher.jobs['ploeg-release-distribute'].needs.includes('vloer-release-distribute'), 'one Unfold release mirrors to GitHub one application at a time');
-  assert.match(publisher.jobs['ploeg-release-distribute'].if, /^always\(\) && /, 'completion outputs remain usable when Forgejo omits job result fields');
-  for (const app of ['vloer', 'ploeg']) {
-    const image = app === 'vloer' ? 'de-vloer' : 'ploegd';
-    const budgets = parse(fs.readFileSync(path.join(root, `apps/${app}/ops/security/cve-budgets.yaml`), 'utf8'));
-    assert.equal(budgets.images[image].mode, 'enforce');
-    assert.ok(fs.statSync(path.join(root, `apps/${app}/ops/vex/statements`)).isDirectory());
-  }
+  const budgets = parse(fs.readFileSync(path.join(root, 'apps/vloer/ops/security/cve-budgets.yaml'), 'utf8'));
+  assert.equal(budgets.images['de-vloer'].mode, 'enforce');
+  assert.ok(fs.statSync(path.join(root, 'apps/vloer/ops/vex/statements')).isDirectory());
+});
+
+test('Unfold builds, signs and publishes no Ploeg artifact', () => {
+  assert.deepEqual(Object.keys(publisher.jobs).filter(name => name.startsWith('ploeg-')), []);
+  assert.doesNotMatch(JSON.stringify(publisher), /ploeg/i);
+  assert.doesNotMatch(JSON.stringify(read('.forgejo/actions/verify/action.yml').runs.steps.find(step => step.name === 'Container build contexts')), /ploeg/i);
 });
 
 test('preview uses the release toolchain and remains a manual dry run', () => {
@@ -143,12 +159,12 @@ test('preview uses the release toolchain and remains a manual dry run', () => {
   assert.equal(evaluate(job.if, { github: { ref: 'refs/heads/main' } }), false);
 });
 
-test('release routing publishes both applications for an Unfold tag and nothing for a closed gate or another tag', () => {
+test('release routing publishes Vloer for an Unfold tag and nothing for a closed gate or another tag', () => {
   assert.deepEqual(Object.keys(publisher.on).sort(), ['release', 'workflow_dispatch']);
   assert.deepEqual(publisher.on.release.types, ['published']);
   assert.equal(publisher.concurrency['cancel-in-progress'], false);
   const jobs = Object.entries(publisher.jobs).filter(([name]) => name !== 'parse-release-tag' && !name.startsWith('site-'));
-  for (const app of ['vloer', 'ploeg']) assert.ok(jobs.some(([name]) => name.startsWith(`${app}-`)), app);
+  assert.ok(jobs.length > 0 && jobs.every(([name]) => name.startsWith('vloer-')), jobs.map(([name]) => name).join());
   for (const selected of ['unfold', 'unfold-site', 'vloer', 'ploeg', 'unrelated']) {
     for (const event_name of ['release', 'workflow_dispatch']) {
       for (const gate of ['', 'false', 'true']) {
@@ -157,8 +173,6 @@ test('release routing publishes both applications for an Unfold tag and nothing 
         const parsed = evaluate(publisher.jobs['parse-release-tag'].if, context);
         assert.equal(parsed, selected === 'unfold' && gate === 'true');
         context.needs['parse-release-tag'] = { outputs: { version: parsed ? '0.4.0-rc.5' : '' } };
-        context.needs['ploeg-release-sign-harbor'] = { outputs: { signed: 'true' } };
-        context.needs['vloer-release-distribute'] = { outputs: { distributed: 'true' } };
         for (const [name, job] of jobs) {
           assert.ok(job.needs.includes('parse-release-tag'), name);
           assert.equal(evaluate(job.if, context), parsed, name);
@@ -280,44 +294,14 @@ test('the unfoldhq.dev zone is previewed and pushed from development and checked
   assert.ok(fs.existsSync(path.join(root, 'apps/site/ops/dns/creds.json')));
 });
 
-test('Ploeg mirrors require completed signing even when Forgejo omits job result fields', () => {
-  const sign = publisher.jobs['ploeg-release-sign-harbor'];
-  assert.equal(sign.outputs.signed, '${{ steps.signed.outputs.ready }}');
-  assert.ok(sign.steps.findIndex(step => step.id === 'signed') > sign.steps.findIndex(step => step.uses?.includes('/cosign-sign-attest@')));
-  for (const name of ['ploeg-release-distribute']) {
-    const job = publisher.jobs[name];
-    assert.ok(job.needs.includes('ploeg-release-sign-harbor'));
-    for (const signed of ['', 'false', 'true']) {
-      assert.equal(evaluate(job.if, { needs: {
-        'parse-release-tag': { outputs: { version: '0.4.0-rc.5' } },
-        'ploeg-release-sign-harbor': { outputs: { signed } },
-        'vloer-release-distribute': { outputs: { distributed: 'true' } },
-      } }), signed === 'true', `${name}: ${signed}`);
-    }
-  }
-});
-
-test('the final publisher keeps the joint release in draft until Vloer distribution completes', () => {
+test('the Vloer publisher is the only and therefore final publisher', () => {
   const vloer = publisher.jobs['vloer-release-distribute'];
-  assert.equal(vloer.outputs.distributed, '${{ steps.distributed.outputs.ready }}');
-  const complete = vloer.steps.findIndex(step => step.id === 'distributed');
   const publish = vloer.steps.findIndex(step => step.run?.includes('python3 scripts/publish_release.py vloer'));
-  assert.ok(publish >= 0 && complete > publish);
+  assert.ok(publish >= 0);
   assert.equal(vloer.steps[publish]['continue-on-error'], undefined);
-  assert.equal(vloer.steps[complete].if, undefined, 'the completion marker runs only after successful preceding steps');
-  assert.equal(vloer.steps[complete].run, 'echo "ready=true" >> "$GITHUB_OUTPUT"');
-  const final = publisher.jobs['ploeg-release-distribute'];
-  assert.ok(final.needs.includes('vloer-release-distribute'));
-  for (const result of ['success', 'failure', 'skipped', 'cancelled', undefined]) {
-    for (const distributed of [undefined, '', 'false', 'true']) {
-      const needs = {
-        'parse-release-tag': { outputs: { version: '0.4.0-rc.5' } },
-        'ploeg-release-sign-harbor': { outputs: { signed: 'true' } },
-        'vloer-release-distribute': { result, outputs: { distributed } },
-      };
-      assert.equal(evaluate(final.if, { needs }), distributed === 'true', `${result}: ${distributed}`);
-    }
-  }
+  assert.equal(vloer.outputs, undefined, 'no later publisher waits for Vloer');
+  const callers = Object.entries(publisher.jobs).filter(([, job]) => JSON.stringify(job).includes('scripts/publish_release.py')).map(([name]) => name);
+  assert.deepEqual(callers, ['vloer-release-distribute']);
 });
 
 test('workflow dependencies resolve, reusable calls are pinned and local actions follow checkout', () => {
@@ -356,7 +340,7 @@ test('workflow dependencies resolve, reusable calls are pinned and local actions
       visit(name);
     }
   }
-  for (const app of ['vloer', 'ploeg']) assert.ok(!fs.existsSync(path.join(root, `apps/${app}/.forgejo`)), `apps/${app}/.forgejo is never read by Forgejo`);
+  assert.ok(!fs.existsSync(path.join(root, 'apps/vloer/.forgejo')), 'apps/vloer/.forgejo is never read by Forgejo');
 });
 
 

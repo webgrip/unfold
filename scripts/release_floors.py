@@ -58,6 +58,9 @@ def load(path=FLOORS):
     for name, train in floors['trains'].items():
         if not train.get('tag_prefix') or not all(component in floors['components'] for component in train.get('components', [])):
             raise ValueError(f'{path}: train {name} needs a tag prefix and known components')
+        for component in train['components']:
+            if floors['components'][component].get('retired'):
+                raise ValueError(f'{path}: train {name} versions {component}, which is retired: {floors["components"][component]["retired"]}')
     return floors
 
 

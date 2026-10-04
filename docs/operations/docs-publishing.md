@@ -8,7 +8,7 @@ verified_by: "Checked against on_docs_change.yml, scripts/docs.py, scripts/docs-
 
 # Publish and recover Unfold documentation
 
-Maintain documentation in Unfold and publish it at [the Unfold site](https://docs.webgrip.dev/glide/). Shared guides live in [root docs](../index.md); implementation guidance stays with [Vloer](../../apps/vloer/docs/index.md) and [Ploeg](../../apps/ploeg/docs/index.md). There is no separate documentation source repository or submodule to synchronize.
+Maintain documentation in Unfold and publish it at [the Unfold site](https://docs.webgrip.dev/glide/). Shared guides live in [root docs](../index.md); implementation guidance stays with [Vloer](../../apps/vloer/docs/index.md) and [Ploeg](../../apps/ploeg/docs/index.md). Ploeg's pages come from the commit Unfold pins in the `apps/ploeg` submodule: the documentation jobs initialise it before staging, and moving the pin republishes the site. Change Ploeg's pages in [its repository](https://github.com/ploeg-hq/ploeg).
 
 ## What the pipeline publishes
 

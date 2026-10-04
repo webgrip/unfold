@@ -66,6 +66,21 @@ class ReleaseFloorTests(unittest.TestCase):
                     release_floors.refuse_occupied(component, published, recorded)
         with self.assertRaisesRegex(ValueError, 'already occupied'):
             release_floors.refuse_occupied('ploeg', '1.0.0-rc.1', recorded)
+        self.assertEqual(recorded['trains']['unfold']['components'], ['vloer'])
+        self.assertIn('github.com/ploeg-hq/ploeg', recorded['components']['ploeg']['retired'])
+
+    def test_a_retired_component_keeps_its_floor_but_no_train_may_version_it_again(self):
+        record = release_floors.load()
+        with self.assertRaisesRegex(ValueError, 'at or below its release floor'):
+            release_floors.refuse_occupied('ploeg', '0.4.0-rc.34', record)
+        with self.assertRaisesRegex(ValueError, 'existing tag unfold-v0.4.0-rc.35'):
+            release_floors.refuse_occupied('ploeg', '0.4.0-rc.35', record, ['unfold-v0.4.0-rc.35'])
+        record['trains']['unfold']['components'] = ['ploeg', 'vloer']
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'floors.json'
+            path.write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, 'train unfold versions ploeg, which is retired'):
+                release_floors.load(path)
 
     def test_a_record_with_an_occupied_version_below_its_floor_is_refused(self):
         broken = json.loads(json.dumps(CASES['floors']))
@@ -83,32 +98,57 @@ class PublishersRefuseOccupiedVersions(unittest.TestCase):
         with patch.object(publish_release, 'git', lambda *args, **kwargs: calls.append(args) or 'sha'), \
                 patch.object(publish_release, 'api', lambda *args, **kwargs: calls.append(args)), \
                 patch.dict('os.environ', {}, clear=True):
-            for application, version in [('ploeg', '0.4.0-rc.34'), ('vloer', '0.4.0-rc.33'), ('ploeg', '0.4.0-rc.8')]:
-                with self.subTest(application=application, version=version), self.assertRaisesRegex(ValueError, 'release floor'):
-                    publish_release.publish(application, version)
+            for version in ['0.4.0-rc.34', '0.4.0-rc.33', '0.4.0-rc.8']:
+                with self.subTest(version=version), self.assertRaisesRegex(ValueError, 'release floor'):
+                    publish_release.publish('vloer', version)
         self.assertEqual(calls, [])
 
     def test_the_chart_publisher_refuses_before_reading_the_chart_or_registry(self):
         with patch.object(publish_chart, 'command', lambda *args, **kwargs: self.fail(f'unexpected command {args}')), \
                 patch.dict('os.environ', {}, clear=True):
-            for application in ['ploeg', 'vloer']:
-                with self.subTest(application=application), self.assertRaisesRegex(ValueError, 'release floor'):
-                    publish_chart.publish(application, '0.4.0-rc.34')
+            with self.assertRaisesRegex(ValueError, 'release floor'):
+                publish_chart.publish('vloer', '0.4.0-rc.34')
 
     def test_a_version_above_the_floor_reaches_the_publisher(self):
         def git(*args, **kwargs):
             raise RuntimeError('reached git')
 
         with patch.object(publish_release, 'git', git), self.assertRaisesRegex(RuntimeError, 'reached git'):
-            publish_release.publish('ploeg', '0.4.0-rc.35')
+            publish_release.publish('vloer', '0.4.0-rc.36')
 
     def test_publishable_tags_keep_the_unfold_name_and_lie_above_the_floor(self):
         self.assertEqual(publish_release.publishable_tag('vloer', '0.5.0-rc.1'), 'unfold-v0.5.0-rc.1')
-        self.assertEqual(publish_release.publishable_tag('ploeg', '0.4.0-rc.35'), 'unfold-v0.4.0-rc.35')
-        with self.assertRaisesRegex(ValueError, 'only 0.x.y-rc.N'):
-            publish_release.publishable_tag('ploeg', '1.0.0-rc.1')
+        with self.assertRaisesRegex(ValueError, 'only Vloer, as 0.x.y-rc.N'):
+            publish_release.publishable_tag('vloer', '1.0.0-rc.1')
         with self.assertRaisesRegex(ValueError, 'release floor 0.4.0-rc.34'):
-            publish_release.publishable_tag('ploeg', '0.4.0-rc.34')
+            publish_release.publishable_tag('vloer', '0.4.0-rc.34')
+
+
+class RetiredPloegPublisher(unittest.TestCase):
+    def forbid(self, owner, *names):
+        for name in names:
+            patcher = patch.object(owner, name, lambda *args, _name=name, **kwargs: self.fail(f'retired Ploeg publisher reached {_name}{args}'))
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_publishing_ploeg_fails_before_any_git_network_registry_or_file_side_effect(self):
+        self.forbid(publish_release, 'git', 'api', 'request', 'command', 'copy_image', 'copy_chart', 'attach_forgejo', 'mirror_release', 'link_package', 'refuse_occupied')
+        self.forbid(publish_chart, 'command', 'Registry')
+        with patch.dict('os.environ', {}, clear=True):
+            for version in ['0.4.0-rc.36', '0.5.0-rc.1', '0.1.0', '1.0.0']:
+                with self.subTest(version=version):
+                    with self.assertRaisesRegex(ValueError, 'no longer versions or publishes Ploeg: github.com/ploeg-hq/ploeg'):
+                        publish_release.publish('ploeg', version)
+                    with self.assertRaisesRegex(ValueError, 'no longer versions or publishes Ploeg'):
+                        publish_chart.publish('ploeg', version)
+                    with self.assertRaisesRegex(ValueError, 'no longer versions or publishes Ploeg'):
+                        publish_release.publishable_tag('ploeg', version)
+
+    def test_the_go_module_export_and_its_actions_switch_are_gone(self):
+        source = (ROOT / 'scripts/publish_release.py').read_text()
+        for retired in ['export_module', 'export_commit', 'github.com/webgrip/ploeg', 'actions/permissions', 'PUBLISHES_LAST', 'ploegd']:
+            with self.subTest(retired=retired):
+                self.assertNotIn(retired, source)
 
 
 if __name__ == '__main__':

@@ -19,7 +19,7 @@ A unit of work, a **Work Item**, is something you have decided to do, or a probl
 * [Ploeg](../apps/ploeg/docs/index.md) authorizes, budgets and runs every agent Run. It is a Go controller plus short-lived worker pods.
 * [Vloer](../apps/vloer/docs/index.md) is its front end, where you follow and steer work, in the browser or in VS Code.
 
-Both applications live in this repository and deploy separately ([ADR-0002](adr/adr-0002-ploeg-is-the-only-engine.md)).
+Vloer lives in this repository. Ploeg lives at [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg), and Unfold pins one tested commit of it as a submodule at `apps/ploeg` ([ADR-0019](adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)). The two deploy separately ([ADR-0002](adr/adr-0002-ploeg-is-the-only-engine.md)).
 
 | I want to… | Go to |
 | --- | --- |

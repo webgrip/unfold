@@ -1,8 +1,0 @@
-[settings]
-lockfile = true
-
-[tools]
-helm = "4.3.0"
-uv = "0.12.22"
-node = "24.21.0"  # runtime for the openspec CLI
-"npm:@fission-ai/openspec" = "1.13.2"  # `openspec` — the /opsx workflow (openspec/config.yaml)

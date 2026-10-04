@@ -22,6 +22,7 @@ HISTORY_PREFIXES = (
     'vloer/operations/iteration-',
     'vloer/product/go-to-market',
     'ploeg/backlog',
+    'ploeg/history',
 )
 FENCE = re.compile(r'^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[^\n]*$', re.M | re.S)
 FRONT_MATTER = re.compile(r'\A---\n(.*?\n)?---\n', re.S)

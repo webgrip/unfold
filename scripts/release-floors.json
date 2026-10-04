@@ -8,7 +8,8 @@
       "tag_prefixes": ["ploeg-v", "glide-v", "unfold-v"],
       "occupied_above_floor": {
         "1.0.0-rc.1": "Withdrawn mistaken release of 2026-09-11. github.com/webgrip/ploeg@v1.0.0-rc.1 stays in the Go module proxy and checksum database, and ploegd and charts/ploeg 1.0.0-rc.1 stay on GHCR and Forgejo."
-      }
+      },
+      "retired": "Since 2026-10-03 github.com/ploeg-hq/ploeg versions and publishes Ploeg, starting at 0.1.0 (system ADR-0019). The last Ploeg version Unfold published is 0.4.0-rc.35 (unfold-v0.4.0-rc.35). This record keeps every version Unfold published for Ploeg out of reach of any later Unfold train."
     },
     "vloer": {
       "floor": "0.4.0-rc.34",
@@ -19,8 +20,8 @@
   "trains": {
     "unfold": {
       "tag_prefix": "unfold-v",
-      "components": ["ploeg", "vloer"],
-      "note": "An unfold-v release versions both components together (ADR-0004). A bundle that versions neither component needs its own train entry."
+      "components": ["vloer"],
+      "note": "An unfold-v release versions Vloer (ADR-0019). Until 2026-10-03 it versioned Ploeg too (ADR-0004). A bundle that versions neither component needs its own train entry."
     }
   }
 }

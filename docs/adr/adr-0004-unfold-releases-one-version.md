@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-10-01
+status: superseded by ADR-0019
+date: 2026-10-03
 decision-makers: Ryan Grippeling
 ---
 
@@ -58,3 +58,4 @@ Chosen option: "One Unfold version for both applications", because the applicati
 * 2026-09-27 — The owner chose one Unfold version after the [notes loss](../research/2026-09-23-forgejo-notes-loss.md) happened again and before the first Unfold release.
 * Refined by [ADR-0012](adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md): the marketing site in `apps/site` has its own `unfold-site-v…` train and is not part of the Unfold version.
 * 2026-10-01 — Refined by ADR-0012; site-scoped commits no longer release Unfold.
+* 2026-10-03 — Superseded by [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md). Ploeg moved to github.com/ploeg-hq/ploeg, which versions and publishes it; Unfold pins it as a submodule and the `unfold-v…` train versions Vloer only.

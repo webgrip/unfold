@@ -59,8 +59,25 @@ test('the recorded floors cover every published Ploeg and Vloer version from the
     }
   }
   assert.throws(() => floors.refuseOccupied('ploeg', '1.0.0-rc.1', { floors: recorded }), /already occupied/);
-  assert.deepEqual(recorded.trains.unfold.components, ['ploeg', 'vloer']);
+  assert.deepEqual(recorded.trains.unfold.components, ['vloer']);
   assert.equal(recorded.trains.unfold.tag_prefix, 'unfold-v');
+  assert.match(recorded.components.ploeg.retired, /github\.com\/ploeg-hq\/ploeg/);
+  assert.equal(recorded.components.vloer.retired, undefined);
+});
+
+test('a retired component keeps its floor but no train may version it again', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-floors-'));
+  try {
+    const file = path.join(directory, 'floors.json');
+    const record = structuredClone(floors.load());
+    assert.throws(() => floors.refuseOccupied('ploeg', '0.4.0-rc.34', { floors: record }), /at or below its release floor/);
+    assert.throws(() => floors.refuseOccupied('ploeg', '0.4.0-rc.35', { floors: record, tags: ['unfold-v0.4.0-rc.35'] }), /existing tag unfold-v0\.4\.0-rc\.35/);
+    record.trains.unfold.components = ['ploeg', 'vloer'];
+    fs.writeFileSync(file, JSON.stringify(record));
+    assert.throws(() => floors.load(file), /train unfold versions ploeg, which is retired/);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
 
 test('a floor record that lists an occupied version at or below its floor is refused', () => {

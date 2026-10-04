@@ -10,6 +10,8 @@ regctl = "0.11.6"
 
 [tasks.setup]
 run = [
+  "git submodule sync --recursive",
+  "git submodule update --init --recursive",
   "mise trust apps/vloer/mise.toml",
   "mise trust apps/ploeg/mise.toml",
   "mise trust apps/site/mise.toml",
@@ -55,10 +57,6 @@ description = "Regenerate the domain pages and the combined glossary from the mo
 [tasks.docs-decisions]
 run = "uv run --frozen python scripts/docs-decisions.py"
 description = "Regenerate the decision register from the three ADR ledgers"
-
-[tasks.docs-configuration]
-run = "uv run --frozen python scripts/docs-configuration.py"
-description = "Regenerate Ploeg's configuration reference from its Go source and Helm chart"
 
 [tasks.docs-build]
 run = "uv run --frozen python scripts/docs.py"

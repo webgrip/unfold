@@ -59,6 +59,11 @@ function load(file = FLOORS) {
     if (!train.tag_prefix || !Array.isArray(train.components) || !train.components.every((component) => floors.components[component])) {
       throw new Error(`${file}: train ${name} needs a tag prefix and known components`);
     }
+    for (const component of train.components) {
+      if (floors.components[component].retired) {
+        throw new Error(`${file}: train ${name} versions ${component}, which is retired: ${floors.components[component].retired}`);
+      }
+    }
   }
   return floors;
 }

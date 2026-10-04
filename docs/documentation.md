@@ -55,6 +55,8 @@ verified_by: "the command, test or source read that confirmed it"
 | Research and qualification | A dated record with method, sources and limitations | A short finding linked from a current page |
 | Priority | The tracker | None in the repository |
 
+Ploeg's pages, model and decision ledger come from the commit Unfold pins at `apps/ploeg`. Change them in [Ploeg's repository](https://github.com/ploeg-hq/ploeg), whose own `mise run docs-check` validates them, then move the pin. Unfold's site renders the pinned pages and links Ploeg's source files on GitHub at that commit. A pin that brings new Ploeg pages adds them to `mkdocs.yml`.
+
 Qualify cross-project rule references as "Product R8" or "Ploeg R18". If a shared wire contract changes, edit the publishing source and verify its consumers.
 
 ## Decisions
@@ -85,10 +87,9 @@ Research, evidence, superseded explanations, design baselines, planning exports 
 
 | Command | Effect |
 | --- | --- |
-| `mise run domain` | Regenerates the domain pages of both models and the combined glossary |
-| `mise run docs-configuration` | Regenerates Ploeg's [configuration reference](../apps/ploeg/docs/reference/configuration.md) from its Go source and Helm chart |
+| `mise run domain` | Regenerates the product model's domain pages and the combined glossary of both models. Ploeg regenerates its own domain pages and [configuration reference](../apps/ploeg/docs/reference/configuration.md) in its repository |
 | `mise exec -- node apps/vloer/scripts/build-landscape.mjs` | Rebuilds the historical landscape explorer |
-| `mise run docs-check` | Checks generated pages, links, anchors, orphans, front matter, ADR ledgers and the strict TechDocs build |
+| `mise run docs-check` | Checks generated pages, links, anchors, orphans, front matter, the system and Vloer ADR ledgers and the strict TechDocs build |
 | `mise run docs-site-check` | Builds the Zensical site in the CI image and scans it |
 | `mise run docs-stale` | Lists pages verified more than 180 days ago and pages marked `unverified`; never fails |
 | `mise run docs-tutorial-smoke` | Starts and stops the [local demo](workflows/local-demo.md), then runs its smoke check; skips without PostgreSQL |

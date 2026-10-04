@@ -8,7 +8,7 @@ verified_by: "Repository claims checked: Helm pins in apps/*/mise.toml, tag form
 
 # Unfold migration
 
-Unfold brings Vloer and Ploeg into one repository on `development`. The original repositories remain available. This migration changes the source layout and developer workflow; deployment coordinates and runtime behavior retain their application scope.
+Unfold brought Vloer and Ploeg into one repository on `development`. Since 2026-10-03 Ploeg lives in its own repository again, and Unfold pins it ([Ploeg moves out](#ploeg-moves-out)). The original repositories remain available. This migration changes the source layout and developer workflow; deployment coordinates and runtime behavior retain their application scope.
 
 ## What moved
 
@@ -66,3 +66,7 @@ Unfold artifact publication defaults off through `UNFOLD_RELEASES_ENABLED`. That
 5. Change production desired state through its GitOps repository when a qualified artifact needs deploying. The inspected [Ploeg OCI source](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/ploeg/ploeg/app/ocirepository.yaml) uses its existing chart coordinate and pinned version/digest; it does not need a new chart name merely because the code moved.
 
 The original import qualification used local estate checkouts. The later [readiness check](research/2026-09-12-cutover-readiness.json) verifies the current remote GitOps revision and selected live cluster resources. No production desired state was changed and no paid provider run was performed. Until cutover, the original repositories remain the remote release authorities.
+
+## Ploeg moves out
+
+On 2026-10-03 Ploeg moved to [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) ([ADR-0019](adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)). Its fresh root commit `88cce444` holds the `apps/ploeg` tree of Unfold `9c1d53f` under the new module `github.com/ploeg-hq/ploeg`, and its releases start at `v0.1.0`. Unfold pins Ploeg as a Git submodule at `apps/ploeg`, so the paths above still resolve. Unfold's history up to that commit keeps Ploeg's earlier source, and the imported `ploeg-v…` tags and the versions Unfold published for Ploeg stay as history. Changes to Ploeg land upstream first; [ploeg-hq/ploeg#45](https://github.com/ploeg-hq/ploeg/issues/45) tracks the Unfold changes made after the extraction.

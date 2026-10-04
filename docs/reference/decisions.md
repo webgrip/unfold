@@ -20,7 +20,6 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0001](../adr/adr-0001-unfold-contains-independent-applications.md) | Unfold contains independently deployable Vloer and Ploeg | 2026-09-12 | — |
 | System | [0002](../adr/adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Vloer is its front end | 2026-09-22 | — |
 | System | [0003](../adr/adr-0003-the-unit-of-work-is-the-work-item.md) | The unit of work is the Work Item, and work can create work | 2026-09-22 | — |
-| System | [0004](../adr/adr-0004-unfold-releases-one-version.md) | Unfold releases Vloer and Ploeg under one version | 2026-10-01 | — |
 | System | [0005](../adr/adr-0005-unfold-is-offered-to-agencies.md) | Unfold is offered to agencies, and delivery ends at a reviewed pull request with a preview | 2026-09-29 | — |
 | System | [0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md) | The ticket is the billing unit: a quoted, capped Shift budget charged on delivery | 2026-09-29 | — |
 | System | [0007](../adr/adr-0007-clients-approve-ready-work.md) | Clients approve Ready work, and each client sets its own definitions of Ready and Done | 2026-09-29 | — |
@@ -31,10 +30,11 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0012](../adr/adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md) | The marketing site releases and deploys on its own, outside the Unfold version | 2026-10-01 | — |
 | System | [0013](../adr/adr-0013-the-product-is-named-unfold.md) | The product is named Unfold, and Ploeg and Vloer are its parts | 2026-10-01 | — |
 | System | [0016](../adr/adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | 2026-10-02 | — |
+| System | [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) | Unfold pins Ploeg from its own repository and releases only Vloer | 2026-10-03 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
-| Ploeg | [0004](../../apps/ploeg/docs/adrs/0004-forgejo-leading-home-github-mirror-module-path.md) | Ploeg lives on Forgejo, mirrors to GitHub, and takes its module path from the mirror | 2026-07-29 | — |
+| Ploeg | [0004](../../apps/ploeg/docs/adrs/0004-forgejo-leading-home-github-mirror-module-path.md) | Ploeg lives on Forgejo, mirrors to GitHub, and takes its module path from the mirror | 2026-07-29 | Ploeg [0062](../../apps/ploeg/docs/adrs/0062-github-is-the-independent-project-home.md) |
 | Ploeg | [0005](../../apps/ploeg/docs/adrs/0005-build-a-dedicated-dispatch-plane.md) | Build a dedicated dispatch plane rather than adopt an existing orchestrator | 2026-07-29 | — |
 | Ploeg | [0006](../../apps/ploeg/docs/adrs/0006-ahp-is-the-wrong-layer.md) | AHP is parked: a live-run surface above Ploeg, not a seam inside it | 2026-07-29 | — |
 | Ploeg | [0007](../../apps/ploeg/docs/adrs/0007-a2a-adopt-nothing-watchlist-a-facade.md) | A2A: adopt nothing now; watchlist a north-facing dispatch facade | 2026-07-29 | — |
@@ -51,6 +51,8 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0038](../../apps/ploeg/docs/adrs/0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) | A repo label selects among registered targets, and the board default is the fallback | 2026-09-28 | — |
 | Ploeg | [0043](../../apps/ploeg/docs/adrs/0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md) | A failed reading Run is retried in its Round, and a review that never came closes `review_failed` | 2026-10-01 | — |
 | Ploeg | [0044](../../apps/ploeg/docs/adrs/0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) | An operator restarts stopped work by requeueing it from a Round they choose | 2026-10-01 | — |
+| Ploeg | [0062](../../apps/ploeg/docs/adrs/0062-github-is-the-independent-project-home.md) | GitHub is the independent project home | 2026-10-03 | — |
+| Ploeg | [0063](../../apps/ploeg/docs/adrs/0063-independent-releases-start-at-zero-point-one.md) | Independent releases start at 0.1.0 | 2026-10-03 | — |
 | Vloer | [0001](../../apps/vloer/docs/adrs/0001-the-human-workbench-beside-ploeg.md) | The human workbench beside Ploeg | 2026-09-09 | — |
 | Vloer | [0002](../../apps/vloer/docs/adrs/0002-native-node-and-single-writer-storage.md) | Native Node and one durable writer | 2026-09-09 | — |
 | Vloer | [0003](../../apps/vloer/docs/adrs/0003-runtime-workspace-and-credential-seams.md) | Keep harness, workspace and credential seams distinct | 2026-09-09 | — |
@@ -141,4 +143,6 @@ An accepted record states why a rule exists. A proposed record is an open questi
 
 ## Other statuses
 
-No record is rejected, deprecated or superseded.
+| Scope | ADR | Title | Status | Date | Superseded by |
+| --- | --- | --- | --- | --- | --- |
+| System | [0004](../adr/adr-0004-unfold-releases-one-version.md) | Unfold releases Vloer and Ploeg under one version | superseded by ADR-0019 | 2026-10-03 | System [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) |

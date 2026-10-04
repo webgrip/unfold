@@ -27,6 +27,7 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
+from urllib.parse import urlsplit
 
 try:
     import yaml
@@ -468,9 +469,10 @@ def gen_combined(models, path):
     refs = {}
     for m in models:
         for r in m.get("references", []) or []:
-            refs.setdefault((m["_path"].parent / r["path"]).resolve(), r)
-    for target, r in refs.items():
-        lines += [f"[{r['label']}]({rel(target)}): {str(r.get('note', '')).strip()}", ""]
+            url = urlsplit(str(r["path"])).scheme
+            refs.setdefault(r["label"], (r, r["path"] if url else rel((m["_path"].parent / r["path"]).resolve())))
+    for r, target in refs.values():
+        lines += [f"[{r['label']}]({target}): {str(r.get('note', '')).strip()}", ""]
 
     lines += ["## Words with more than one meaning", "",
               "| Word | Owner | Not to be confused with | Owner | Difference |",

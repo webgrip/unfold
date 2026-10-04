@@ -61,3 +61,4 @@ Run `mise run verify`, `mise run integration` and `mise run docs-check`. The imp
 * The [application decision ledgers](../index.md) remain scoped to their respective applications.
 * 2026-09-22 — [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) supersedes the standalone Vloer authority and the retention of both engines. Two independently deployable applications remain.
 * 2026-09-27 — [ADR-0004](adr-0004-unfold-releases-one-version.md) supersedes the separate release versions: both applications now release under one `unfold-v…` version.
+* 2026-10-03 — [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) moves Ploeg's source to github.com/ploeg-hq/ploeg. Unfold pins it as a submodule at `apps/ploeg`; the two applications stay independently deployable.

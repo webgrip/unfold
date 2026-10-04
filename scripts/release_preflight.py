@@ -50,7 +50,7 @@ def main():
     print(f'GitHub mirror matches Forgejo across {len(source)} refs')
     for host, user, token in [('harbor.webgrip.dev', os.environ['HARBOR_ROBOT_USER'], os.environ['HARBOR_ROBOT_TOKEN']), ('ghcr.io', os.environ['GHCR_USERNAME'], github_token), ('forgejo.webgrip.dev', 'webgrip-ci', forge_token)]:
         registry = Registry(host, user, token)
-        for name in ['de-vloer', 'de-vloer-agent', 'ploegd', 'charts/de-vloer', 'charts/ploeg']:
+        for name in ['de-vloer', 'de-vloer-agent', 'charts/de-vloer']:
             registry.headers('webgrip/' + name, 'pull,push')
         print(host + ': registry authentication passed')
     if not os.environ.get('OVSX_PAT'):

@@ -6,6 +6,8 @@ on:
     paths:
       - 'docs/**'
       - 'apps/*/docs/**'
+      - 'apps/ploeg'
+      - '.gitmodules'
       - '**/README.md'
       - '**/AGENTS.md'
       - 'llms.txt'
@@ -48,7 +50,7 @@ jobs:
     with:
       enabled: 'true'
       source-dir: '.'
-      prepare-command: python3 scripts/docs.py --check --stage-only
+      prepare-command: git submodule update --init --recursive && python3 scripts/docs.py --check --stage-only
       finalize-command: python3 scripts/docs-output.py --site techdocs-site
   deploy-docs-site:
     needs: [generate-documentation, authorize-publication]
@@ -60,7 +62,7 @@ jobs:
       bucket: docs-glide
       dest-prefix: glide
       strict: 'true'
-      prepare-command: python3 scripts/docs.py --check --stage-only
+      prepare-command: git submodule update --init --recursive && python3 scripts/docs.py --check --stage-only
       finalize-command: python3 scripts/docs-output.py --site .build/site
     secrets:
       TECHDOCS_S3_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_S3_ACCESS_KEY_ID }}
@@ -73,6 +75,8 @@ jobs:
     container: harbor.webgrip.dev/webgrip/techdocs-builder:1.8.0@sha256:2726a41cd7f3d40813baf3301a65b7f1cc6fa47d43518d57b3f1f0e4dc95150a
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
       - run: python3 scripts/docs.py --stage-only
       - name: Verify live pages, Markdown, revision and search
         run: python3 scripts/docs-live.py
