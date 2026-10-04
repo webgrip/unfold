@@ -175,7 +175,7 @@ test('an exec subprocess group is stopped when its relay request is cancelled or
   await waitFor(() => cancelled.every(pid => !running(pid)), undefined, { reason: 'cancelling the request must stop the exec process group', withinMs: 10_000 });
   await assertNoWritesAfterStop(file);
   rmSync(file);
-  const timed = await fetcher('http://workspace/__vloer/exec', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', familyProgram(file)], timeoutMs: 500 }) });
+  const timed = await fetcher('http://workspace/__vloer/exec', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', familyProgram(file)], timeoutMs: scaledTimeout(2_000) }) });
   const result = await timed.json();
   assert.equal(result.exitCode, 124);
   assert.equal(result.timedOut, true);
