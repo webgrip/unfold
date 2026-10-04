@@ -50,6 +50,18 @@ export type PloegNowTruncatedState = 'awaiting_review' | 'needs_human' | 'propos
 export const nowStateCap = 200;
 export type PloegDecision = 'approve' | 'reject' | 'cancel';
 export type PloegDecisionResult = { workItemId: string; team: string; state: string; demo: boolean };
+/** When a person attached a context file: before the Work Item's first Shift, or while a Shift was open (steering). */
+export type PloegContextPhase = 'before_start' | 'while_steering';
+/** One context file attached to a Ploeg Work Item, as Ploeg stored it. Its bytes stay in Ploeg; Vloer never executes with them. */
+export type PloegContextItem = { id: string; workItemId: string; name: string; mediaType: string; sha256: string; bytes: number; files: number; note: string; addedBy: string; addedAt: string; phase: PloegContextPhase };
+/** The context attached to one Work Item, in the order Ploeg added it. The demo stores none. */
+export type PloegContextList = { workItemId: string; context: PloegContextItem[]; demo: boolean };
+/** What an upload returns: the stored item, and `created: false` when Ploeg already held the same file for this Work Item. */
+export type PloegContextAdded = { context: PloegContextItem; created: boolean; demo: false };
+/** The largest context file Vloer forwards to Ploeg, in bytes (20 MiB, Ploeg's default per-upload limit). */
+export const contextUploadLimit = 20 * 1024 * 1024;
+/** What the deterministic demo answers an upload: it keeps nothing and says so. */
+export const demoContextRefusal = 'The demo does not store context files.';
 export type PloegCancellation = PloegDecisionResult & { withdrawn: boolean | null; shiftId: string | null; cancelledRuns: number | null; stoppedRuns: number | null; keysBlocked: boolean | null; message: string };
 export type PloegRunFilter = { team?: string; state?: string; outcome?: string; before?: string };
 export type PloegCardStyle = { skin: string; theme: string | null };
@@ -588,6 +600,51 @@ async function attributionRefusal(response: Response, token: string): Promise<Pl
   const plain = message.length > 0 && message.length <= 500 && !/[\u0000-\u001f\u007f]/.test(message) && !message.includes(token);
   return new PloegError(refusal[0], `crack_${code}`, plain ? message : refusal[1]);
 }
+const contextVersions = ['1.0', undefined];
+const contextFailures: Record<number, [string, string]> = {
+  400: ['ploeg_context_refused', 'Ploeg refused the file.'],
+  403: ['ploeg_decision_forbidden', 'Vloer’s Ploeg credential cannot add context. An administrator must grant it execute permission.'],
+  404: ['ploeg_not_found', 'Ploeg work item not found in your authorized teams.'],
+  409: ['ploeg_context_closed', 'This Work Item is done or withdrawn, so it takes no more context.'],
+  413: ['ploeg_context_too_large', 'The file is larger than Ploeg accepts for one upload or for this Work Item.'],
+};
+async function contextRefusal(response: Response, token: string): Promise<PloegError | null> {
+  const failure = contextFailures[response.status];
+  if (!failure) return null;
+  let message = '';
+  if (response.body && Number(response.headers.get('content-length')) <= 65_536) {
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try { while (size <= 65_536) { const chunk = await reader.read(); if (chunk.done) break; size += chunk.value.byteLength; chunks.push(chunk.value); } } catch { chunks.length = 0; } finally { await reader.cancel().catch(() => undefined); }
+    try { const data = JSON.parse(Buffer.concat(chunks).toString('utf8')); message = typeof data?.error === 'string' ? data.error : typeof data?.error?.message === 'string' ? data.error.message : ''; } catch { message = ''; }
+  }
+  const plain = message.length > 0 && message.length <= 500 && !/[\u0000-\u001f\u007f]/.test(message) && !message.includes(token);
+  if (response.status === 404 && !plain) return new PloegError(501, 'ploeg_unsupported', 'This Ploeg version does not store context files yet.');
+  return new PloegError(response.status, failure[0], plain && response.status !== 403 ? message : failure[1]);
+}
+/** Parses one context item from Ploeg strictly: an unexpected shape is an unsupported response, never a guess. */
+export function parseContextItem(value: unknown): PloegContextItem {
+  const data = record(value);
+  const id = field(data.id, 80);
+  const name = field(data.name, 200);
+  const mediaType = field(data.mediaType, 255);
+  const sha256 = field(data.sha256, 64);
+  if (!/^ctx_[A-Za-z0-9]{1,64}$/.test(id) || !name || /[\u0000-\u001f\u007f/\\]/.test(name) || !/^[\w.+-]+\/[\w.+-]+(?:\s*;[^\u0000-\u001f\u007f]*)?$/.test(mediaType) || !/^[0-9a-f]{64}$/.test(sha256)) throw invalid();
+  if (data.phase !== 'before_start' && data.phase !== 'while_steering') throw invalid();
+  return { id, workItemId: identifier(typeof data.workItemId === 'number' ? String(data.workItemId) : data.workItemId), name, mediaType, sha256, bytes: numeric(data.bytes, true), files: numeric(data.files, true), note: data.note === null ? '' : optionalText(data.note, 500), addedBy: field(data.addedBy, 256), addedAt: timestamp(data.addedAt), phase: data.phase };
+}
+/**
+ * Checks a context file's name and note before anything reaches Ploeg: the name is 1 to 200 characters, a base name
+ * without folders or control characters; the note is optional and at most 500 characters. Returns both trimmed.
+ */
+export function contextInput(name: unknown, note: unknown): { name: string; note: string } {
+  const base = typeof name === 'string' ? name.trim() : '';
+  if (!base || base.length > 200 || base === '.' || base === '..' || /[\u0000-\u001f\u007f/\\]/.test(base)) throw new PloegError(400, 'context_name', 'Name the file with 1 to 200 characters: a file name without folders or control characters.');
+  const text = note === undefined || note === null ? '' : typeof note === 'string' ? note.trim() : null;
+  if (text === null || text.length > 500 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) throw new PloegError(400, 'context_note', 'Keep the note to at most 500 characters of text.');
+  return { name: base, note: text };
+}
 const demoAttribution = 'Demo: Ploeg recorded nothing. In a live workbench Ploeg checks the same rules, records this step under your forge login and writes it to its audit log.';
 const samePerson = (a: string | null | undefined, b: string | null | undefined) => Boolean(a) && Boolean(b) && a!.toLowerCase() === b!.toLowerCase();
 const attributionText = (value: unknown, label: string, required = false): string => {
@@ -640,7 +697,7 @@ export class PloegClient {
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
-  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; versions?: unknown[]; attribution?: boolean } = {}): Promise<unknown> {
+  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; attribution?: boolean; context?: boolean; answer?: { status: number } } = {}): Promise<unknown> {
     const token = this.config?.tokenEnv ? process.env[this.config.tokenEnv] : undefined;
     if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new PloegError(503, 'ploeg_credential', 'The Ploeg operator credential is unavailable. An administrator must check the connection.');
     if (token !== this.cachedToken) { this.cache.clear(); this.cachedToken = token; }
@@ -648,17 +705,18 @@ export class PloegClient {
     const cached = this.cache.get(path);
     if (!post && !fresh && cached && cached.until > Date.now()) return structuredClone(cached.value);
     try {
-      const headers: Record<string, string> = { accept: 'application/json', authorization: `Bearer ${token}`, ...(post ? { 'X-Ploeg-Actor': options.actor!, 'X-Ploeg-Acting-User': options.actor! } : {}), ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}) };
-      const response = await fetch(`${this.config!.url}/api/v1/operator/${path}`, { method: post ? 'POST' : 'GET', headers, ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}), signal: AbortSignal.timeout(5000), redirect: 'manual' });
+      const headers: Record<string, string> = { accept: 'application/json', authorization: `Bearer ${token}`, ...(post ? { 'X-Ploeg-Actor': options.actor!, 'X-Ploeg-Acting-User': options.actor! } : {}), ...(options.body !== undefined ? { 'content-type': 'application/json' } : {}), ...(options.raw !== undefined ? { 'content-type': 'application/octet-stream' } : {}) };
+      const response = await fetch(`${this.config!.url}/api/v1/operator/${path}`, { method: post ? 'POST' : 'GET', headers, ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}), ...(options.raw !== undefined ? { body: new Uint8Array(options.raw) } : {}), signal: AbortSignal.timeout(options.raw !== undefined ? 60_000 : 5000), redirect: 'manual' });
       if (post) this.cache.clear();
       if (!response.ok) {
-        const refusal = options.attribution ? await attributionRefusal(response, token) : null;
+        const refusal = options.context ? await contextRefusal(response, token) : options.attribution ? await attributionRefusal(response, token) : null;
         await response.body?.cancel().catch(() => undefined);
         if (refusal) throw refusal;
         if (options.added && (response.status === 404 || (response.status === 400 && /^(?:events|work-items)\?/.test(path)))) throw unsupported();
         if (post && decisionFailures[response.status]) { const [code, message] = decisionFailures[response.status]; throw new PloegError(response.status, code, message); }
         throw new PloegError(response.status === 404 ? 404 : 503, 'ploeg_unavailable', response.status === 404 ? 'Ploeg work item not found in your authorized teams.' : 'Ploeg could not provide its operator data. Check the connection and consumer access.');
       }
+      if (options.answer) options.answer.status = response.status;
       if (!(response.headers.get('content-type') ?? '').includes('application/json') || Number(response.headers.get('content-length')) > 16_777_216 || !response.body) { await response.body?.cancel(); throw new PloegError(502, 'ploeg_response_size', 'Ploeg returned an unsupported response type or a snapshot larger than 16 MiB.'); }
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = [];
@@ -1012,6 +1070,36 @@ export class PloegClient {
     const list = this.demo ? structuredClone(ploegDemo.cracks.filter(entry => entry.bug.workItemId === id || entry.card.workItemId === id)) : array(envelope(await this.request(`work-items/${id}/cracks`, fresh)).cracks, parseCrack, 100);
     if (list.some(entry => entry.bug.workItemId !== id && entry.card.workItemId !== id)) throw invalid();
     return { workItemId: id, cracks: list.filter(entry => this.allowed(user, entry.team)), viewer: this.attributionViewer(user), demo: this.demo, fetchedAt: new Date().toISOString() };
+  }
+  /** Lists the context files attached to Work Item `id` for a caller in its Team, in the order Ploeg added them. The demo stores none, so it lists none. */
+  async listContext(user: User, id: string, fresh = false): Promise<PloegContextList> {
+    await this.detail(user, id, fresh);
+    if (this.demo) return { workItemId: id, context: [], demo: true };
+    const context = array(envelope(await this.request(`work-items/${id}/context`, fresh, { versions: contextVersions, context: true }), contextVersions).context, parseContextItem, 500);
+    if (context.some(entry => entry.workItemId !== id)) throw invalid();
+    return { workItemId: id, context, demo: false };
+  }
+  /**
+   * Forwards one context file (`bytes`, a zip, a tar.gz or a single file) to Ploeg for Work Item `id`, as the caller.
+   * Ploeg stores it and gives it to every Run claimed after the upload; uploaded while a Shift is open, it reaches the
+   * next Run, not the one running. Vloer keeps nothing and never executes with it. The demo refuses with
+   * {@link demoContextRefusal}.
+   */
+  async addContext(user: User, id: string, name: unknown, note: unknown, bytes: Uint8Array): Promise<PloegContextAdded> {
+    if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
+    this.connected(user);
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(user.id)) throw new PloegError(403, 'ploeg_actor', 'Your account identity cannot be recorded by Ploeg. Ask an administrator.');
+    const input = contextInput(name, note);
+    if (!bytes.byteLength) throw new PloegError(400, 'context_empty', 'The file is empty.');
+    if (bytes.byteLength > contextUploadLimit) throw new PloegError(413, 'context_too_large', 'The file is larger than the 20 MiB upload limit.');
+    await this.detail(user, id, true);
+    if (this.demo) throw new PloegError(409, 'ploeg_demo', demoContextRefusal);
+    const query = `name=${encodeURIComponent(input.name)}${input.note ? `&note=${encodeURIComponent(input.note)}` : ''}`;
+    const answer = { status: 0 };
+    const data = envelope(await this.request(`work-items/${id}/context?${query}`, true, { actor: user.id, raw: bytes, versions: contextVersions, context: true, answer }), contextVersions);
+    const context = parseContextItem(data.context);
+    if (context.workItemId !== id) throw invalid();
+    return { context, created: answer.status === 201, demo: false };
   }
   /**
    * Proposes a crack (`propose`: the bug Work Item `bug` caused by `input.card`'s play) or marks the bug as a changed requirement for that card

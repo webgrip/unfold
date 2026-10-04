@@ -12,7 +12,7 @@ import { protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
 import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
-import { PloegClient, PloegError, type PloegDecision, type PloegState } from './ploeg.ts';
+import { PloegClient, PloegError, contextInput, contextUploadLimit, type PloegDecision, type PloegState } from './ploeg.ts';
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
@@ -51,15 +51,15 @@ async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
   } catch { return fault(400, 'invalid_json', 'Expected a JSON object.'); }
 }
 
-async function upload(req: IncomingMessage, limit: number): Promise<Buffer> {
+async function upload(req: IncomingMessage, limit: number, tooLarge = 'asset_too_large'): Promise<Buffer> {
   if (req.headers['content-type'] !== 'application/octet-stream') fault(415, 'content_type', 'Upload the file as application/octet-stream.');
   const declared = Number(req.headers['content-length'] ?? 0);
-  if (declared > limit) fault(413, 'asset_too_large', `The file is larger than the ${Math.round(limit / 1024 / 1024)} MiB upload limit.`);
+  if (declared > limit) fault(413, tooLarge, `The file is larger than the ${Math.round(limit / 1024 / 1024)} MiB upload limit.`);
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > limit) fault(413, 'asset_too_large', `The file is larger than the ${Math.round(limit / 1024 / 1024)} MiB upload limit.`);
+    if (size > limit) fault(413, tooLarge, `The file is larger than the ${Math.round(limit / 1024 / 1024)} MiB upload limit.`);
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
@@ -381,10 +381,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const decision = /^\/api\/ploeg\/work-items\/([^/]+)\/(approve|reject|cancel)$/.exec(path);
           const attribution = /^\/api\/ploeg\/work-items\/([^/]+)\/(cracks|evolved)$/.exec(path);
           const crackStep = /^\/api\/ploeg\/work-items\/([^/]+)\/cracks\/([^/]+)\/(confirm|dispute|resolve)$/.exec(path);
-          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions and crack attributions.');
+          const context = /^\/api\/ploeg\/work-items\/([^/]+)\/context$/.exec(path);
+          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep || context))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions, context files and crack attributions.');
           try {
-            if (method === 'POST' && (decision || attribution || crackStep)) {
+            if (method === 'POST' && (decision || attribution || crackStep || context)) {
               if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot change Ploeg work.');
+              if (context) {
+                const input = contextInput(url.searchParams.get('name'), url.searchParams.get('note') ?? undefined);
+                const added = await ploeg.addContext(user, context[1], input.name, input.note, await upload(req, contextUploadLimit, 'context_too_large'));
+                return json(res, added.created ? 201 : 200, sanitize(added));
+              }
               const data = await body(req);
               if (decision) return json(res, 200, sanitize(await ploeg.decide(user, decision[1], decision[2] as PloegDecision, typeof data.reason === 'string' ? data.reason : '')));
               if (attribution) return json(res, attribution[2] === 'cracks' ? 201 : 200, sanitize(await ploeg.attribute(user, attribution[1], attribution[2] === 'cracks' ? 'propose' : 'evolved', data)));
@@ -406,6 +412,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (candidates) return json(res, 200, sanitize(await ploeg.crackCandidates(user, candidates[1], fresh)));
             const cracks = /^\/api\/ploeg\/work-items\/([^/]+)\/cracks$/.exec(path);
             if (cracks) return json(res, 200, sanitize(await ploeg.cracks(user, cracks[1], fresh)));
+            if (context) return json(res, 200, sanitize(await ploeg.listContext(user, context[1], fresh)));
             const match = /^\/api\/ploeg\/work-items\/([^/]+)$/.exec(path);
             if (match) return json(res, 200, sanitize(await ploeg.detail(user, match[1], fresh)));
             fault(404, 'not_found', 'Ploeg operator view not found.');

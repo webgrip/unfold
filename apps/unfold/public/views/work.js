@@ -1,6 +1,6 @@
-import { workMarkup, ploegLanes, activePloegLane, mergeOverviews, teamOverview, appendPage, refreshOverview, reviewFacts, cancelDialogMarkup, checkoutDialogMarkup, workItemRef, workRefreshButton, laneBackLabel } from '../ploeg.js';
+import { workMarkup, contextDialogMarkup, contextErrors, ploegLanes, activePloegLane, mergeOverviews, teamOverview, appendPage, refreshOverview, reviewFacts, cancelDialogMarkup, checkoutDialogMarkup, workItemRef, workRefreshButton, laneBackLabel } from '../ploeg.js';
 import { state, onForget } from '../core/state.js';
-import { api } from '../core/api.js';
+import { api, unauthorized } from '../core/api.js';
 import { $, renderHtml, notify, announce, safeUrl } from '../core/dom.js';
 import { buildHash } from '../core/route.js';
 import { live } from '../core/live.js';
@@ -20,13 +20,14 @@ const liveInterval = 30000;
 const reviewFactLimit = 12;
 const runCard = 'unfold-card.work-run-card';
 if (globalThis.document) watchCardMoments(runCard);
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, trace: null, traceRequest: 0, traceBusy: false, traceResult: null };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null }));
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued' };
 const laneFor = item => laneOfState[item?.state] || 'all';
 const canCancel = () => ['operator', 'admin'].includes(state.bootstrap?.user?.role);
+const canAddContext = () => Boolean(state.bootstrap?.user?.role) && state.bootstrap.user.role !== 'viewer';
 
 function knownItem(id) {
   if (state.ploegDetail?.item.id === id) return state.ploegDetail.item;
@@ -72,6 +73,10 @@ function model() {
     trace: work.trace?.id === work.detailId ? work.trace.data : null,
     traceBusy: work.traceBusy,
     traceResult: work.traceResult?.id === work.detailId ? work.traceResult : null,
+    context: work.context?.id === work.detailId ? work.context.data : null,
+    contextBusy: work.contextBusy,
+    contextResult: work.contextResult?.id === work.detailId ? work.contextResult : null,
+    canAddContext: canAddContext(),
   };
 }
 
@@ -318,8 +323,80 @@ async function loadTrace(id, { fresh = false } = {}) {
   if (visible() && !state.ploegDetailLoading) renderWork();
 }
 
+async function loadContext(id, { fresh = false } = {}) {
+  const request = ++work.contextRequest;
+  let data;
+  try {
+    const result = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/context${fresh ? '?refresh=1' : ''}`);
+    data = { items: result.context, demo: result.demo, error: '' };
+  } catch (error) {
+    if (work.context?.id === id && work.context.data && !work.context.data.error) return;
+    data = { items: [], demo: false, error: error.message || 'Ploeg did not list the context files.' };
+  }
+  if (request !== work.contextRequest || work.detailId !== id) return;
+  const next = signature(data);
+  if (work.context?.id === id && work.context.signature === next) return;
+  work.context = { id, data, signature: next };
+  if (visible() && !state.ploegDetailLoading) renderWork();
+}
+
+function openContext() {
+  const detail = state.ploegDetail;
+  if (!detail || detail.item.id !== work.detailId || work.contextBusy) return;
+  const dialog = openPloegDialog(contextDialogMarkup(detail));
+  dialog.querySelector('#work-context-file')?.focus();
+  dialog.addEventListener('close', () => { if (!work.contextBusy) $('[data-action="work-context-add"]')?.focus(); }, { once: true });
+}
+
+async function submitContext(data, form) {
+  const id = form.dataset.id;
+  const file = data.file && typeof data.file === 'object' ? data.file : null;
+  const note = String(data.note ?? '').trim();
+  const errors = contextErrors(file, note);
+  for (const element of form.querySelectorAll('[data-error-for]')) { element.hidden = true; element.textContent = ''; }
+  for (const element of form.querySelectorAll('[aria-invalid]')) element.removeAttribute('aria-invalid');
+  const invalid = Object.keys(errors);
+  if (invalid.length) {
+    for (const key of invalid) {
+      const element = form.querySelector(`[data-error-for="${CSS.escape(key)}"]`);
+      if (element) { element.textContent = errors[key]; element.hidden = false; }
+      form.querySelector(`[name="${CSS.escape(key)}"]`)?.setAttribute('aria-invalid', 'true');
+    }
+    form.querySelector(`[name="${CSS.escape(invalid[0])}"]`)?.focus();
+    return;
+  }
+  if (!id || id !== work.detailId) return;
+  form.closest('dialog')?.close();
+  work.contextBusy = true;
+  work.contextResult = null;
+  renderWork();
+  try {
+    const query = new URLSearchParams({ name: file.name, ...(note ? { note } : {}) });
+    const response = await fetch(`/api/ploeg/work-items/${encodeURIComponent(id)}/context?${query}`, { method: 'POST', body: file, headers: { 'Content-Type': 'application/octet-stream', 'X-Unfold-Request': '1' }, credentials: 'same-origin' });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) unauthorized();
+      throw new Error(result.error?.message || 'Ploeg did not store the file.');
+    }
+    work.contextResult = result.created
+      ? { id, tone: 'success', title: 'Context added', text: `Ploeg stored ${result.context?.name || file.name}. The next Run that starts on this Work Item gets it.` }
+      : { id, tone: 'neutral', title: 'Already attached', text: `Ploeg already holds this file for this Work Item, so nothing changed.` };
+    notify(work.contextResult.title);
+  } catch (error) {
+    work.contextResult = { id, tone: 'danger', title: 'Ploeg did not store the file', text: error.message };
+  } finally {
+    work.contextBusy = false;
+    if (visible() && work.detailId === id) {
+      await loadContext(id, { fresh: true });
+      renderWork();
+      $('#work-context-result')?.focus();
+    }
+  }
+}
+
 async function loadDetail(id, { fresh = false, quiet = false } = {}) {
   void loadCard(id, { fresh });
+  void loadContext(id, { fresh });
   void loadTrace(id, { fresh });
   const request = ++work.detailRequest;
   let changed = !quiet;
@@ -708,13 +785,14 @@ export default {
     'work-brief': () => toggleBrief(),
     'work-run': jumpToRun,
     'work-section': jumpToSection,
+    'work-context-add': () => openContext(),
     'trace-propose': openPropose,
     'trace-evolved': openEvolved,
     'trace-confirm': openCrackStep('confirm'),
     'trace-dispute': openCrackStep('dispute'),
     'trace-resolve': openCrackStep('resolve'),
   },
-  forms: { 'trace-step': submitTraceStep },
+  forms: { 'trace-step': submitTraceStep, 'work-context': submitContext },
   changes: {
     '#ploeg-team': changeTeam,
   },

@@ -1,7 +1,7 @@
 import { escape, safeUrl } from './core/dom.js';
 import { icon } from './core/icons.js';
 import { markdown } from './core/markdown.js';
-import { count as formatCount, money, plural, duration, dateTime } from './core/format.js';
+import { count as formatCount, money, plural, duration, dateTime, decimal } from './core/format.js';
 import * as ui from './core/ui.js';
 import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, runFailure, runFailureText, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason } from './core/states.js';
 import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph } from './core/reasons.js';
@@ -1106,6 +1106,79 @@ export function deliveryMarkup(detail, model) {
   return `<section class="card work-delivery" aria-labelledby="work-delivery-title"><h3 id="work-delivery-title">Delivery</h3><ol class="work-delivery-track">${steps}</ol>${note}</section>`;
 }
 
+/** The file types the Add context dialog offers: an archive or one document or image. Ploeg decides what it accepts. */
+export const contextAccept = '.zip,.tar.gz,.tgz,.md,.txt,.json,.yaml,.yml,.pdf,.png,.jpg';
+/** The largest file the Add context dialog sends, in bytes; Vloer's server refuses anything larger. */
+export const contextLimit = 20 * 1024 * 1024;
+const closedStates = ['done', 'withdrawn'];
+
+/** A byte count as people read it: `512 B`, `1,5 KiB`, `20 MiB`. */
+export function contextSize(bytes) {
+  if (typeof bytes !== 'number' || !Number.isFinite(bytes) || bytes < 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${decimal(bytes / 1024, 1)} KiB`;
+  return `${decimal(bytes / 1024 / 1024, 1)} MiB`;
+}
+
+/** What context reaches: the next Run while a Shift is open, every Run before the first Shift, later Runs otherwise. */
+export function contextReach(detail) {
+  const open = Boolean(detail.item.latestShift && !detail.item.latestShift.closedAt) || (detail.shifts || []).some(shift => !shift.closedAt);
+  if (open) return { open: true, text: 'Reaches the next Run, not the one running now.' };
+  if (!detail.item.latestShift && !(detail.shifts || []).length) return { open: false, text: 'Every Run on this Work Item gets these files.' };
+  return { open: false, text: 'Every Run claimed from now on gets these files.' };
+}
+
+function contextItem(entry) {
+  const steering = entry.phase === 'while_steering' ? ui.chip({ label: 'Added while steering', tone: 'attention', title: 'Uploaded while a Shift was open: it reached the next Run, not the one running then.' }) : '';
+  const meta = [contextSize(entry.bytes), plural(entry.files, 'file'), entry.addedBy ? `added by ${entry.addedBy}` : ''].filter(Boolean).map(part => `<span>${escape(part)}</span>`).join('');
+  const note = entry.note ? `<p class="work-context-note">${escape(entry.note)}</p>` : '';
+  return `<li class="work-context-item"><p class="work-context-head">${icon('file')}<span class="work-context-name">${escape(entry.name)}</span>${steering}</p><p class="work-context-meta">${meta}${ui.timeAgo(entry.addedAt)}</p>${note}</li>`;
+}
+
+/**
+ * The Context card on a Work Item: the files people attached for its Runs (name, size, file count, who and when, and
+ * an "Added while steering" chip), what a new file reaches, the result of the last upload and the Add context
+ * button. Ploeg stores the files and gives them to Runs; Vloer only forwards them. `model.context` is
+ * `{ items, demo, error }` or null while loading; `model.contextResult` is `{ tone, title, text }`.
+ */
+export function contextMarkup(detail, model) {
+  const context = model.context;
+  const reach = contextReach(detail);
+  const closed = closedStates.includes(detail.item.state);
+  const demo = Boolean(context?.demo || detail.demo);
+  const parts = [];
+  if (!closed) parts.push(`<p class="work-context-reach"${reach.open ? ' data-open' : ''}>${icon(reach.open ? 'clock' : 'info')}<span>${escape(reach.text)}</span></p>`);
+  const result = model.contextResult;
+  parts.push(`<div class="work-context-result" id="work-context-result" tabindex="-1" role="${result?.tone === 'danger' ? 'alert' : 'status'}" aria-live="polite">${result ? ui.callout({ tone: result.tone, title: result.title, body: `<p>${escape(result.text)}</p>` }) : ''}</div>`);
+  if (!context) parts.push(ui.skeleton({ rows: 2, variant: 'list' }));
+  else if (context.error) parts.push(`<p class="work-context-error" role="alert">${icon('alert')}<span>${escape(context.error)}</span></p>`);
+  else if (!context.items.length) parts.push(`<p class="work-context-empty">${escape(demo ? 'The demo does not store context files.' : 'No context files yet.')}</p>`);
+  else parts.push(`<ul class="work-context-list" aria-label="Context files">${context.items.map(contextItem).join('')}</ul>`);
+  if (closed) parts.push(`<p class="work-note">${icon('info')}<span>${escape('This Work Item is closed, so it takes no more context.')}</span></p>`);
+  const canAdd = !closed && model.canAddContext && !demo;
+  const actions = canAdd ? ui.button({ label: 'Add context', icon: 'plus', size: 'sm', action: 'work-context-add', busy: model.contextBusy }) : '';
+  return `<section class="card work-context" id="work-context" aria-labelledby="work-context-title"${model.contextBusy ? ' aria-busy="true"' : ''}><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-context-title">${icon('folder')}Context</h3><p class="card-subtitle">${escape('Files people attached for the agents. Ploeg keeps them; Vloer only forwards them.')}</p></div>${actions ? `<div class="card-actions">${actions}</div>` : ''}</header><div class="card-body work-context-body">${parts.join('')}</div></section>`;
+}
+
+/** The Add context dialog for `detail`: a file (an archive or one file, up to 20 MiB) and an optional note of at most 500 characters. */
+export function contextDialogMarkup(detail) {
+  const reach = contextReach(detail);
+  const file = `<div class="field"><label class="field-label" for="work-context-file">File</label><input id="work-context-file" name="file" type="file" accept="${escape(contextAccept)}" required aria-describedby="work-context-file-hint"><p class="field-hint" id="work-context-file-hint">${escape('A zip or tar.gz archive, or one file such as Markdown, text, JSON, YAML, PDF or an image. At most 20 MiB.')}</p><p class="field-error" data-error-for="file" hidden></p></div>`;
+  const note = `<div class="field"><label class="field-label" for="work-context-note">Note</label><textarea id="work-context-note" name="note" rows="3" maxlength="500" aria-describedby="work-context-note-hint"></textarea><p class="field-hint" id="work-context-note-hint">${escape('Optional. What the agents should take from these files. At most 500 characters.')}</p><p class="field-error" data-error-for="note" hidden></p></div>`;
+  return `<form data-form="work-context" data-id="${escape(detail.item.id)}" class="work-context-dialog" novalidate><header class="dialog-header"><h2 id="confirm-title">${escape('Add context')}</h2>${ui.iconButton({ icon: 'x', label: 'Close', action: 'close-dialog' })}</header><div class="dialog-body"><p>${escape(`Ploeg stores the file with this Work Item. ${reach.text} The agents read it as evidence, not as instructions.`)}</p>${file}${note}</div><footer class="dialog-footer">${ui.button({ label: 'Cancel', action: 'close-dialog' })}${ui.button({ label: 'Add context', variant: 'primary', type: 'submit' })}</footer></form>`;
+}
+
+/** Checks the Add context form before upload: a non-empty file within {@link contextLimit} and a note of at most 500 characters. */
+export function contextErrors(file, note) {
+  const errors = {};
+  if (!file || typeof file.size !== 'number' || !file.name) errors.file = 'Choose a file.';
+  else if (file.size === 0) errors.file = 'The file is empty.';
+  else if (file.size > contextLimit) errors.file = 'The file is larger than the 20 MiB upload limit.';
+  else if (file.name.length > 200) errors.file = 'The file name is longer than 200 characters.';
+  if (String(note ?? '').trim().length > 500) errors.note = 'Keep the note to at most 500 characters.';
+  return errors;
+}
+
 function sessionsMarkup(detail, sessions) {
   const linked = (sessions || []).filter(session => session.execution?.workItemId === detail.item.id);
   if (!linked.length) return '';
@@ -1179,6 +1252,7 @@ export function detailMarkup(detail, model) {
     model.trace && model.trace.workItemId === item.id ? traceMarkup(model.trace, { now: model.now, busy: model.traceBusy, result: model.traceResult }) : '',
     sessionsMarkup(detail, model.sessions),
     briefMarkup(detail, model),
+    contextMarkup(detail, model),
     storyMarkup(detail, model),
     eventsMarkup(detail, model),
     technicalMarkup(detail),
