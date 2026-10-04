@@ -54,7 +54,7 @@ The smoke script refuses a non-demo server. It creates and runs a session, check
 
 The marketing site's `/demo/` page replays this demo without a server ([ADR-0015](../../../../docs/adr/adr-0015-the-hosted-demo-is-a-recorded-replay-of-the-deterministic-demo.md)). [The recorder](../../scripts/record-replay.ts) runs the demo in-process on a fixed clock and records every view the interface reads and the demo session above, with one fresh session per review decision. [The replay script](../../public/replay/replay.js) answers the interface's API from that recording on the `/demo` page only; the product never serves `public/replay/`. Its [route table](../../public/replay/routes.js) lists what it refuses, such as pausing or a second session.
 
-Run `mise run demo-record` from the Unfold root after changing this interface, the demo runtime or the illustrative Ploeg data, and commit `apps/site/replay/` with the scope `site`. `npm run replay:check` fails until then, and so does the site build.
+The site build records the replay itself, from the same checkout, into `apps/site/replay/`, which Git ignores. Nothing is committed after a change to this interface, the demo runtime or the illustrative Ploeg data. The recording fails, and so does the site build, when Vloer's browser code calls an API path that `routes.js` neither answers nor refuses. `mise run demo-record` from the Unfold root records it on its own.
 
 ## CTO discussion
 

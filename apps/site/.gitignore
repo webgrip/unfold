@@ -5,3 +5,4 @@ node_modules/
 .lighthouseci/
 lhci-report/
 public/demo/
+replay/

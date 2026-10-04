@@ -193,7 +193,7 @@ test('the site versions on its own train, after Unfold, behind the same gate', (
   assert.equal(release.with['package-name'], 'unfold-site');
 });
 
-test('a site candidate deploys to staging and a stable site release to unfoldhq.dev', () => {
+test('a site or Unfold release candidate deploys to staging and a stable site release to unfoldhq.dev', () => {
   const gate = publisher.jobs['site-release-tag'];
   assert.equal(gate.if, undefined, 'the site deploy jobs read these outputs while Forgejo flattens them, so the gate job must never be skipped');
   assert.equal(gate.steps[0].env.RELEASES_ENABLED, '${{ vars.UNFOLD_RELEASES_ENABLED }}');
@@ -208,7 +208,7 @@ test('a site candidate deploys to staging and a stable site release to unfoldhq.
     } });
     return { status: result.status, outputs: Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').filter(Boolean).map(line => line.split('='))) };
   };
-  for (const tag of ['unfold-site-v0.1.0-rc.1', 'unfold-site-v1.12.3-rc.40']) {
+  for (const tag of ['unfold-site-v0.1.0-rc.1', 'unfold-site-v1.12.3-rc.40', 'unfold-v0.4.0-rc.34']) {
     const { status, outputs } = run(tag);
     assert.equal(status, 0, tag);
     assert.deepEqual(outputs, { channel: 'prerelease' }, tag);
@@ -220,14 +220,14 @@ test('a site candidate deploys to staging and a stable site release to unfoldhq.
   }
   for (const selected of ['unfold', 'unfold-site', 'vloer', 'ploeg', 'unrelated']) {
     for (const open of ['', 'false', 'true']) {
-      if (selected === 'unfold-site' && open === 'true') continue;
+      if ((selected === 'unfold-site' || selected === 'unfold') && open === 'true') continue;
       const tag = `${selected}-v0.1.0-rc.1`;
       const { status, outputs } = run(tag, { RELEASES_ENABLED: open, WORKFLOW_EVENT: 'workflow_dispatch', SELECTED_REF: 'refs/heads/development', CLOUDFLARE_API_TOKEN: '' });
       assert.equal(status, 0, `${selected} ${open}`);
       assert.deepEqual(outputs, { channel: 'none' }, `${selected} ${open}`);
     }
   }
-  for (const tag of ['unfold-site-v01.0.0', 'unfold-site-v0.1.0-rc.0', 'unfold-site-v0.1', 'unfold-site-v0.1.0-beta.1']) {
+  for (const tag of ['unfold-site-v01.0.0', 'unfold-site-v0.1.0-rc.0', 'unfold-site-v0.1', 'unfold-site-v0.1.0-beta.1', 'unfold-v0.4.0', 'unfold-v1.0.0-rc.1', 'unfold-v0.4.0-rc.0']) {
     assert.notEqual(run(tag).status, 0, tag);
   }
   assert.notEqual(run('unfold-site-v0.1.0', { CLOUDFLARE_API_TOKEN: '' }).status, 0);
@@ -247,7 +247,7 @@ test('a site candidate deploys to staging and a stable site release to unfoldhq.
     assert.equal(deploy.with['wrangler-env'], env, name);
     assert.equal(deploy.with['working-directory'], 'apps/site', name);
     assert.equal(deploy.with['apex-url'], origin, name);
-    assert.equal(deploy.with['build-command'], `UNFOLD_SITE_URL=${origin} pnpm run build:release`, name);
+    assert.equal(deploy.with['build-command'], `npm --prefix ../vloer ci --omit=dev --no-audit --no-fund && UNFOLD_SITE_URL=${origin} pnpm run build:release`, name);
     assert.deepEqual(deploy.with['smoke-paths'].trim().split('\n'), ['/', '/nl', '/robots.txt', '/sitemap-index.xml', '/favicon.svg', '/demo/', '/demo/replay/replay.json', '/privacy', '/nl/privacy'], name);
     assert.deepEqual(Object.keys(deploy.secrets).sort(), ['CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN'], name);
   }

@@ -76,10 +76,11 @@ description = "Run Vloer without Ploeg or paid model calls"
 [tasks.demo-record]
 dir = "apps/vloer"
 run = "npm run replay:record"
-description = "Record Vloer's deterministic demo into the site's hosted /demo replay (apps/site/replay)"
+description = "Record Vloer's deterministic demo into apps/site/replay, which Git ignores; the site build records it too"
 
 [tasks.demo-replay-conformance]
 dir = "apps/vloer"
+depends = ["demo-record"]
 run = "npm run replay:conformance"
 description = "Replay /demo in Chromium against the real UI: no unmatched request, page error or CSP violation"
 
