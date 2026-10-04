@@ -53,6 +53,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0044](../../apps/ploeg/docs/adrs/0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) | An operator restarts stopped work by requeueing it from a Round they choose | 2026-10-01 | — |
 | Ploeg | [0062](../../apps/ploeg/docs/adrs/0062-github-is-the-independent-project-home.md) | GitHub is the independent project home | 2026-10-03 | — |
 | Ploeg | [0063](../../apps/ploeg/docs/adrs/0063-independent-releases-start-at-zero-point-one.md) | Independent releases start at 0.1.0 | 2026-10-03 | — |
+| Ploeg | [0064](../../apps/ploeg/docs/adrs/0064-development-is-trunk-and-release-candidates-come-from-it.md) | Development is trunk, and release candidates come from it | 2026-10-04 | — |
 | Vloer | [0001](../../apps/vloer/docs/adrs/0001-the-human-workbench-beside-ploeg.md) | The human workbench beside Ploeg | 2026-09-09 | — |
 | Vloer | [0002](../../apps/vloer/docs/adrs/0002-native-node-and-single-writer-storage.md) | Native Node and one durable writer | 2026-09-09 | — |
 | Vloer | [0003](../../apps/vloer/docs/adrs/0003-runtime-workspace-and-credential-seams.md) | Keep harness, workspace and credential seams distinct | 2026-09-09 | — |

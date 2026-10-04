@@ -11,7 +11,7 @@ Unfold turns units of work (Work Items) into pull requests that are ready for hu
 ## Rules
 
 - Trunk is `development`. Use conventional commits.
-- `apps/ploeg` is a submodule pinned to [ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg). Land Ploeg changes there first, then move the pin in a `ploeg`-scoped commit ([ADR-0019](docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)).
+- `apps/ploeg` is a submodule pinned to [ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg). Land Ploeg changes there first, then pin its release in a `ploeg`-scoped commit ([ADR-0019](docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)).
 - Stage only the paths you wrote. Never use `git add -A`, `git add .` or `git commit -a`: other sessions share this checkout, and a whole-tree commit absorbs their uncommitted work.
 - Source comments are limited to machine directives and exported API documentation. Put reasoning in names, tests, docs or an ADR.
 - Until Vloer's engine is retired, a managed execution never falls back to standalone, whatever the failure. Do not add execution features to Vloer's engine.

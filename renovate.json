@@ -149,14 +149,11 @@
       "enabled": false
     },
     {
-      "description": "Ploeg is a submodule on github.com/ploeg-hq/ploeg's main (system ADR-0019). Once a week Renovate proposes the newest main commit as a build(ploeg) pull request, which never releases Unfold. A person merges it, because each move changes the engine Vloer runs on. Ploeg's commits carry no release timestamp, and its own CI has already gated them, so there is no soak.",
+      "description": "Ploeg is a submodule pinned to a release of github.com/ploeg-hq/ploeg (system ADR-0019). .gitmodules names the release tag, so Renovate compares release tags as semver and proposes the newest, release candidates included, as a build(ploeg) pull request that never releases Unfold. A person merges it, because each move changes the engine Vloer runs on. A release is already reviewed and gated by Ploeg's CI, so there is no soak.",
       "matchManagers": [
         "git-submodules"
       ],
       "enabled": true,
-      "schedule": [
-        "before 6am on monday"
-      ],
       "automerge": false,
       "minimumReleaseAge": null,
       "semanticCommitType": "build",
@@ -164,7 +161,8 @@
       "commitMessageTopic": "Ploeg",
       "prBodyNotes": [
         "When docs-check reports a stale combined glossary or decision register, Ploeg's domain model or ADR ledger changed: run `mise run domain` and `mise run docs-decisions` on this branch and push the result."
-      ]
+      ],
+      "ignoreUnstable": false
     },
     {
       "description": "These pins replace the copies npm bundles in the agent image, and the patch script accepts only the bundled major. Raise the bound when npm bundles a newer major.",

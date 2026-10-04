@@ -53,7 +53,7 @@ jobs:
           install_args: node
           cache: false
           github_token: ''
-      - name: Require the pinned Ploeg commit on Ploeg's main branch
+      - name: Require the pinned Ploeg commit to be the Ploeg release it names
         run: node scripts/ploeg-pin.mjs --published
 
   release-policy:
