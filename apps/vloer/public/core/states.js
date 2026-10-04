@@ -250,6 +250,7 @@ export function parseStuckReason(text) {
 const closeLabels = {
   review_approved: ['An agent reviewer approved', 'success'],
   plan_exhausted: ['Every planned Round ran', 'neutral'],
+  review_failed: ['No agent reviewed it: the reviewer kept failing', 'attention'],
   fix_round_cap_reached: ['The fix Rounds ran out', 'attention'],
   budget_exhausted_before_fix_round: ['The budget ran out before a fix Round', 'attention'],
   writing_run_failed_repeatedly: ['The writer kept failing', 'danger'],

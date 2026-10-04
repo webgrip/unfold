@@ -65,6 +65,22 @@ test('the Work list has one lane control with counts and rows that link to the W
   assert.match(empty, /No pull requests wait for your review/);
 });
 
+test('a pull request whose reviewer kept failing reads as unreviewed in the review lane and on its page', () => {
+  const base = ploegDemo.items.find(item => item.id === '105');
+  const item = { ...structuredClone(base), latestShift: { ...structuredClone(base.latestShift), closeReason: 'review_failed' } };
+  const html = workMarkup(model({ data: teamOverview(overview('delivery', [item])), lane: 'awaiting_review', team: 'delivery' }));
+  assert.match(html, /<span class="chip" data-tone="attention" title="The reviewer Run kept failing, so no agent reviewed this pull request\. Review it yourself\.">[^]*?<span>Agent review unavailable<\/span>/);
+  assert.doesNotMatch(html, /No changes requested|Agent approved/);
+  const facts = workMarkup(model({ data: teamOverview(overview('delivery', [item])), lane: 'awaiting_review', team: 'delivery', reviewFacts: { 105: { ...reviewFacts(demoDetail('105')), updatedAt: item.updatedAt } } }));
+  assert.match(facts, /<span>PR #5 · Agent review unavailable<\/span>/);
+  const unreviewed = detail();
+  unreviewed.shifts[0].closeReason = 'review_failed';
+  unreviewed.item.latestShift = unreviewed.shifts[0];
+  const review = ploegReview(unreviewed);
+  assert.equal(review.closeReason, 'review_failed');
+  assert.match(review.closeMeaning, /^No agent reviewed this pull request/);
+});
+
 test('the Needs you lane shows flat rows with their reason chip when no reason repeats', () => {
   const items = ploegDemo.items.filter(item => item.team === 'delivery');
   const html = workMarkup(model({ data: teamOverview(overview('delivery', items)), lane: 'needs_human' }));
