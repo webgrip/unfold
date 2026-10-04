@@ -34,3 +34,5 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0018](adr-0018-ploeg-releases-on-its-own-schedule-behind-a-tested-contract-version.md) | Ploeg releases on its own schedule behind a tested contract version | proposed | 2026-10-03 |
 | [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) | Unfold pins Ploeg from its own repository and releases only Vloer | accepted | 2026-10-03 |
 | [ADR-0020](adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) | Unfold is the application, and the name Vloer is retired | accepted | 2026-10-04 |
+| [ADR-0021](adr-0021-agents-are-briefed-from-a-per-tenant-knowledge-base-exchanged-as-okf.md) | Agents are briefed from a per-Tenant knowledge base exchanged as OKF | proposed | 2026-10-04 |
+| [ADR-0022](adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md) | People give a Work Item context files, at the start and while steering | accepted | 2026-10-04 |

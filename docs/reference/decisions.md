@@ -32,6 +32,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0016](../adr/adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | 2026-10-02 | — |
 | System | [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) | Unfold pins Ploeg from its own repository and releases only Vloer | 2026-10-03 | — |
 | System | [0020](../adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) | Unfold is the application, and the name Vloer is retired | 2026-10-04 | — |
+| System | [0022](../adr/adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md) | People give a Work Item context files, at the start and while steering | 2026-10-04 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
@@ -78,6 +79,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0036](../../apps/unfold/docs/adrs/0036-the-agent-host-speaks-websocket-through-ws.md) | The agent host speaks WebSocket through `ws` | 2026-10-03 | — |
 | Unfold | [0037](../../apps/unfold/docs/adrs/0037-an-editor-signs-in-only-after-its-person-approves-it-and-gets-its-own-credential.md) | An editor signs in only after its person approves it, and gets its own credential | 2026-10-03 | — |
 | Unfold | [0038](../../apps/unfold/docs/adrs/0038-the-application-shows-unfold-and-is-organised-around-work.md) | The application shows Unfold, and is organised around work | 2026-10-04 | — |
+| Unfold | [0039](../../apps/unfold/docs/adrs/0039-unfold-collects-context-files-and-hands-them-to-ploeg.md) | Unfold collects context files and hands them to Ploeg | 2026-10-04 | — |
 
 ## Proposed
 
@@ -89,6 +91,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0015](../adr/adr-0015-the-hosted-demo-is-a-recorded-replay-of-the-deterministic-demo.md) | The hosted demo is a recorded replay of the deterministic demo | 2026-10-01 | unknown | — |
 | System | [0017](../adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) | A Tenant sits above Teams and bounds what users, sources and budgets can reach | 2026-10-03 | unknown | — |
 | System | [0018](../adr/adr-0018-ploeg-releases-on-its-own-schedule-behind-a-tested-contract-version.md) | Ploeg releases on its own schedule behind a tested contract version | 2026-10-03 | unknown | — |
+| System | [0021](../adr/adr-0021-agents-are-briefed-from-a-per-tenant-knowledge-base-exchanged-as-okf.md) | Agents are briefed from a per-Tenant knowledge base exchanged as OKF | 2026-10-04 | unknown | — |
 | Ploeg | [0015](../../apps/ploeg/docs/adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md) | Route work in the core over provider-opaque Scopes | 2026-07-29 | partial | Scope resolver exists; tracker team mapping is still live ([source](../../apps/ploeg/pkg/target/resolver.go)) |
 | Ploeg | [0016](../../apps/ploeg/docs/adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md) | Resolve forges through a registry and mint forge credentials per Run | 2026-07-29 | partial | Per-run forge tokens exist; the worker still calls the forge API directly ([source](../../apps/ploeg/pkg/forgebroker/broker.go)) |
 | Ploeg | [0017](../../apps/ploeg/docs/adrs/0017-the-review-loop-is-verdict-driven-and-capped.md) | The review loop is verdict-driven and capped | 2026-07-29 | yes | Verdict loop and fix-round cap are tested ([source](../../apps/ploeg/pkg/shiftengine/reviewloop_test.go)) |
