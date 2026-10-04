@@ -1,5 +1,6 @@
 import type { PloegCard, PloegDetail, PloegNow, PloegOverview } from './ploeg-types.js';
 import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat } from './types.js';
+import type { BrowserLoginStart } from './browser-login.js';
 
 export type StreamHandlers = { onOpen?: () => void; onEvent: (event: SessionEvent) => void };
 
@@ -44,6 +45,14 @@ function identifier(value: string): string {
   return value;
 }
 
+const editorCredential = /^vle_[A-Za-z0-9_-]{43}$/;
+
+/** The request headers that carry a stored credential: an editor credential as a bearer token, a password sign-in as its session cookie. */
+export function credentialHeaders(stored: string | undefined): Record<string, string> {
+  if (!stored) return {};
+  return editorCredential.test(stored) ? { Authorization: `Bearer ${stored}` } : { Cookie: stored };
+}
+
 export class VloerClient {
   readonly origin: string;
   readonly secretKey: string;
@@ -67,9 +76,9 @@ export class VloerClient {
     }
   }
   private async attempt<T>(path: string, method: string, body?: unknown): Promise<T> {
-    const cookie = await this.secrets.get(this.secretKey);
+    const stored = await this.secrets.get(this.secretKey);
     const headers: Record<string, string> = { Accept: 'application/json', Origin: this.origin, 'X-Vloer-Request': '1' };
-    if (cookie) headers.Cookie = cookie;
+    Object.assign(headers, credentialHeaders(stored));
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     let response: Response;
     try {
@@ -122,20 +131,19 @@ export class VloerClient {
     const result = await this.request<{ local?: boolean; oidc?: { name: string; issuer: string } | null }>('/api/auth/methods');
     return { local: result?.local !== false, oidc: result?.oidc && typeof result.oidc.name === 'string' ? result.oidc : null };
   }
-  async beginBrowserLogin(): Promise<{ code: string; secret: string; url: string; expiresIn: number }> {
-    const result = await this.request<{ code?: string; secret?: string; url?: string; expiresIn?: number }>('/api/auth/editor', 'POST', {});
-    if (typeof result?.code !== 'string' || typeof result?.secret !== 'string' || typeof result?.url !== 'string') throw new ApiError(0, 'invalid_response', 'The workbench did not start a browser sign-in.');
-    return { code: result.code, secret: result.secret, url: result.url, expiresIn: typeof result.expiresIn === 'number' ? result.expiresIn : 600 };
+  async beginBrowserLogin(): Promise<BrowserLoginStart> {
+    const result = await this.request<{ code?: string; secret?: string; userCode?: string; url?: string; expiresIn?: number; interval?: number }>('/api/auth/editor', 'POST', {});
+    if (typeof result?.code !== 'string' || typeof result?.secret !== 'string' || typeof result?.url !== 'string' || typeof result?.userCode !== 'string' || !/^[A-Z]{4}-[A-Z]{4}$/.test(result.userCode)) throw new ApiError(0, 'invalid_response', 'The workbench did not start a browser sign-in with a code to approve. It may need an update.');
+    return { code: result.code, secret: result.secret, userCode: result.userCode, url: result.url, expiresIn: typeof result.expiresIn === 'number' ? result.expiresIn : 600, interval: typeof result.interval === 'number' && result.interval > 0 && result.interval <= 30 ? result.interval : 2 };
   }
-  async collectBrowserLogin(code: string, secret: string): Promise<{ status: 'pending' } | { status: 'ready'; cookie: string; user: { name: string } }> {
-    const result = await this.request<{ status?: string; cookie?: string; user?: { name: string } }>(`/api/auth/editor/${encodeURIComponent(code)}`, 'POST', { secret });
-    if (result?.status === 'ready' && typeof result.cookie === 'string' && result.user) return { status: 'ready', cookie: result.cookie, user: result.user };
+  async collectBrowserLogin(code: string, secret: string): Promise<{ status: 'pending' } | { status: 'ready'; token: string; user: { name: string } }> {
+    const result = await this.request<{ status?: string; token?: string; user?: { name: string } }>(`/api/auth/editor/${encodeURIComponent(code)}`, 'POST', { secret });
+    if (result?.status === 'ready' && typeof result.token === 'string' && result.user) return { status: 'ready', token: result.token, user: result.user };
     return { status: 'pending' };
   }
-  async acceptCookie(cookie: string): Promise<void> {
-    const authenticated = cookie.split(';')[0];
-    if (!/^(?:__Host-)?vloer=[A-Za-z0-9_-]{32,200}$/.test(authenticated)) throw new ApiError(0, 'invalid_cookie', 'The browser sign-in did not return a valid workbench session.');
-    await this.secrets.store(this.secretKey, authenticated);
+  async acceptCredential(token: string): Promise<void> {
+    if (!editorCredential.test(token)) throw new ApiError(0, 'invalid_credential', 'The browser sign-in did not return a valid editor credential.');
+    await this.secrets.store(this.secretKey, token);
   }
   async logout(): Promise<void> { try { await this.request('/api/logout', 'POST', {}); } finally { await this.secrets.delete(this.secretKey); } }
   async models(): Promise<Array<{ id: string; name: string; modelId: string; providerId: string; provider?: string; providers?: string[]; tiers?: Record<string, string> }>> {
@@ -175,9 +183,9 @@ export class VloerClient {
     return this.request(`/api/sessions/${identifier(id)}/budget`, 'POST', { amountUsd });
   }
   async stream(id: string, after: number, handlers: StreamHandlers, signal: AbortSignal): Promise<void> {
-    const cookie = await this.secrets.get(this.secretKey);
+    const stored = await this.secrets.get(this.secretKey);
     const headers: Record<string, string> = { Accept: 'text/event-stream', Origin: this.origin, 'X-Vloer-Request': '1' };
-    if (cookie) headers.Cookie = cookie;
+    Object.assign(headers, credentialHeaders(stored));
     let response: Response;
     try { response = await fetch(`${this.origin}/api/sessions/${identifier(id)}/events?after=${Math.max(0, Math.floor(after))}`, { headers, signal, redirect: 'manual' }); }
     catch (error) { if (signal.aborted) return; throw new ApiError(0, 'unreachable', 'The live event stream could not be opened.'); }
@@ -226,9 +234,9 @@ export class VloerClient {
   async downloadCandidate(id: string, format: CandidateFormat): Promise<Uint8Array> {
     if (!['bundle', 'patch', 'manifest', 'attestation', 'trace'].includes(format)) throw new Error('Invalid candidate format.');
     const path = `/api/sessions/${identifier(id)}/candidate/download?format=${format}`;
-    const cookie = await this.secrets.get(this.secretKey);
+    const stored = await this.secrets.get(this.secretKey);
     const headers: Record<string, string> = { Accept: '*/*', Origin: this.origin, 'X-Vloer-Request': '1' };
-    if (cookie) headers.Cookie = cookie;
+    Object.assign(headers, credentialHeaders(stored));
     let response: Response;
     try { response = await fetch(`${this.origin}${path}`, { headers, redirect: 'manual', signal: AbortSignal.timeout(60_000) }); }
     catch { throw new ApiError(0, 'unreachable', 'The candidate could not be downloaded. Check the workbench connection.'); }

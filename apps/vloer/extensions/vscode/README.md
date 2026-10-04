@@ -33,9 +33,9 @@ The demo runs a fixed repository fixture and real checks without AI calls or Plo
 
 ## Connect and sign in
 
-Run **Vloer: Connect to Workbench** with the deployed HTTPS origin. When configured, **Sign in with <provider>** opens the workbench's browser sign-in with a one-time code. The editor then acts as the same person. Local-account login is also supported.
+Run **Vloer: Connect to Workbench** with the deployed HTTPS origin. When configured, **Sign in with <provider>** shows a short code such as `BCDF-GHJK` and opens the workbench's browser sign-in. After you sign in, the browser names the request and shows the same code: approve it only if the codes match. The editor then acts as you, with its own credential that lasts thirty days and that you can sign out under **Settings › Signed-in editors** in the browser. Local-account login is also supported.
 
-The returned session cookie stays in VS Code SecretStorage, scoped to that origin. There are no password or API-key settings. The extension runs in the local UI host even in a Remote SSH window, so the workbench must be reachable from your machine. HTTPS is required except for loopback development. Use an origin at `/`; reverse-proxy subpaths and browser-only SSO interception are unsupported.
+The editor credential, or the session cookie of a local-account login, stays in VS Code SecretStorage, scoped to that origin. There are no password or API-key settings. The extension runs in the local UI host even in a Remote SSH window, so the workbench must be reachable from your machine. HTTPS is required except for loopback development. Use an origin at `/`; reverse-proxy subpaths and browser-only SSO interception are unsupported.
 
 The server enforces identity and session ownership. Viewers inspect visible sessions, operators change their own sessions, and administrators can access all sessions. Changing the connection invalidates pending actions so they cannot be submitted to the wrong workbench.
 

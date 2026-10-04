@@ -6,6 +6,8 @@ import type { Session, Event, PermissionRequest, User } from './types.ts';
 
 export type StoredUser = User & { passwordHash: string };
 export type Login = { tokenHash: string; userId: string; expiresAt: string };
+/** A credential issued to one editor after its person approved the sign-in in a browser. The token itself is never stored. */
+export type EditorCredential = { id: string; tokenHash: string; userId: string; label: string; scope: 'editor'; createdAt: string; expiresAt: string; lastUsedAt?: string };
 
 function eventFromRow(row: Record<string, unknown>): Event {
   return { id: Number(row.id), sessionId: String(row.session_id), type: String(row.type), at: String(row.at), actor: String(row.actor), ...(row.run_id ? { runId: String(row.run_id) } : {}), data: JSON.parse(String(row.data)) };
@@ -37,6 +39,8 @@ export class Store {
       CREATE TABLE IF NOT EXISTS permissions (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id), body TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, role TEXT NOT NULL, password_hash TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS logins (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id), expires_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS editor_credentials (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, user_id TEXT NOT NULL REFERENCES users(id), label TEXT NOT NULL, scope TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, last_used_at TEXT);
+      CREATE INDEX IF NOT EXISTS editor_credentials_user ON editor_credentials(user_id);
       CREATE TABLE IF NOT EXISTS internal_state (id TEXT PRIMARY KEY, ciphertext TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS card_identities (user_id TEXT PRIMARY KEY, logins TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS card_binders (user_id TEXT PRIMARY KEY, started_at TEXT NOT NULL, seen_at TEXT NOT NULL);
@@ -147,6 +151,40 @@ export class Store {
   }
 
   deleteLogin(tokenHash: string): void { this.db.prepare('DELETE FROM logins WHERE token_hash=?').run(tokenHash); }
+
+  createEditorCredential(credential: EditorCredential): void {
+    this.db.prepare('INSERT INTO editor_credentials(id,token_hash,user_id,label,scope,created_at,expires_at,last_used_at) VALUES(?,?,?,?,?,?,?,?)').run(credential.id, credential.tokenHash, credential.userId, credential.label, credential.scope, credential.createdAt, credential.expiresAt, credential.lastUsedAt ?? null);
+  }
+
+  /** The unexpired editor credential whose token hashes to `tokenHash`. */
+  getEditorCredential(tokenHash: string): EditorCredential | undefined {
+    return this.editorCredential(this.db.prepare('SELECT * FROM editor_credentials WHERE token_hash=? AND expires_at>?').get(tokenHash, new Date().toISOString()));
+  }
+
+  /** A person's unexpired editor credentials, newest first. */
+  editorCredentials(userId: string): EditorCredential[] {
+    return (this.db.prepare('SELECT * FROM editor_credentials WHERE user_id=? AND expires_at>? ORDER BY created_at DESC, id').all(userId, new Date().toISOString())).map(row => this.editorCredential(row)!);
+  }
+
+  touchEditorCredential(id: string, at: string): void { this.db.prepare('UPDATE editor_credentials SET last_used_at=? WHERE id=?').run(at, id); }
+
+  /** Deletes one of a person's editor credentials and returns it, or undefined when that person holds no such credential. */
+  deleteEditorCredential(userId: string, id: string): EditorCredential | undefined {
+    const found = this.editorCredential(this.db.prepare('SELECT * FROM editor_credentials WHERE id=? AND user_id=?').get(id, userId));
+    if (found) this.db.prepare('DELETE FROM editor_credentials WHERE id=?').run(id);
+    return found;
+  }
+
+  deleteEditorCredentialByToken(tokenHash: string): void { this.db.prepare('DELETE FROM editor_credentials WHERE token_hash=?').run(tokenHash); }
+
+  /** Whether `tokenHash` identifies a live sign-in: an unexpired browser login or editor credential. */
+  liveSignIn(tokenHash: string): boolean { return Boolean(this.getLogin(tokenHash) ?? this.getEditorCredential(tokenHash)); }
+
+  private editorCredential(row: unknown): EditorCredential | undefined {
+    if (!row) return undefined;
+    const value = row as Record<string, string | null>;
+    return { id: String(value.id), tokenHash: String(value.token_hash), userId: String(value.user_id), label: String(value.label), scope: 'editor', createdAt: String(value.created_at), expiresAt: String(value.expires_at), ...(value.last_used_at ? { lastUsedAt: value.last_used_at } : {}) };
+  }
 
   setSecret(id: string, value: unknown): void {
     const iv = randomBytes(12);

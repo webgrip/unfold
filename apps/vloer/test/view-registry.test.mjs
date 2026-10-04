@@ -15,7 +15,7 @@ const noop = () => {};
 test('the registered views build one registry with unique view ids', () => {
   const registry = createRegistry(views);
   assert.equal(registry.views.size, views.length);
-  for (const id of ['login', 'now', 'sessions', 'session', 'tasks', 'work', 'proposed', 'runs', 'activity', 'insights', 'ploeg-feeds', 'account', 'system', 'preferences', 'card-identity', 'binder', 'packs', 'season', 'palette', 'chrome', 'dialogs', 'designer']) assert(registry.views.has(id), `no view ${id}`);
+  for (const id of ['login', 'now', 'sessions', 'session', 'tasks', 'work', 'proposed', 'runs', 'activity', 'insights', 'ploeg-feeds', 'account', 'system', 'preferences', 'card-identity', 'editors', 'editor-sign-in', 'binder', 'packs', 'season', 'palette', 'chrome', 'dialogs', 'designer']) assert(registry.views.has(id), `no view ${id}`);
   assert.deepEqual(registry.pages.map(view => view.id), ['now', 'sessions', 'tasks', 'account', 'system', 'preferences', 'designer']);
 });
 
@@ -62,7 +62,7 @@ test('every hash routes to at most one view with the params that view expects', 
     ['now', 'now', {}], ['sessions', 'sessions', {}], ['tasks', 'tasks', {}], ['settings/accounts', 'account', {}], ['settings/environment', 'system', {}], ['settings/preferences', 'preferences', {}],
     ['work', 'work', {}], ['work/105', 'work', { id: '105' }], ['proposed', 'proposed', {}], ['runs', 'runs', {}], ['activity', 'activity', {}], ['insights', 'insights', {}],
     ['session/0f1e', 'session', { id: '0f1e' }], ['compare/a/b', null],
-    ['binder', 'binder', {}], ['season', 'season', {}], ['settings/cards', 'card-identity', {}], ['settings/card-designer', 'designer', {}], ['packs', 'packs', { page: 'shelf' }], ['packs/odds', 'packs', { page: 'odds' }], ['packs/2026-W40', 'packs', { page: 'pack', id: '2026-W40' }], ['packs/delivery~2026-09-28', 'packs', { page: 'pack', id: 'delivery~2026-09-28' }], ['packs/a/b', null], ['binderx', null],
+    ['binder', 'binder', {}], ['season', 'season', {}], ['settings/cards', 'card-identity', {}], ['settings/card-designer', 'designer', {}], ['settings/editors', 'editors', {}], ['editor-sign-in/AbC-12_xyz', 'editor-sign-in', { code: 'AbC-12_xyz' }], ['editor-sign-in/short', null], ['editor-sign-in', null], ['packs', 'packs', { page: 'shelf' }], ['packs/odds', 'packs', { page: 'odds' }], ['packs/2026-W40', 'packs', { page: 'pack', id: '2026-W40' }], ['packs/delivery~2026-09-28', 'packs', { page: 'pack', id: 'delivery~2026-09-28' }], ['packs/a/b', null], ['binderx', null],
     ['nowhere', null], ['sessionsx', null], ['ploeg', null], ['ploeg/105', null], ['account', null], ['system', null], ['work/abc', null], ['work/0', null], ['workx', null], ['', null], ['login', null], ['dialogs', null], ['ploeg-feeds', null], ['palette', null], ['chrome', null], ['settings', null],
   ];
   for (const [hash, id, params] of cases) {
@@ -72,4 +72,9 @@ test('every hash routes to at most one view with the params that view expects', 
     assert.equal(found?.view.id ?? null, id, hash);
     if (id) assert.deepEqual(found.params, params, hash);
   }
+});
+
+test('the editor approval page asks its question in plain language, naming the workbench', async () => {
+  const { editorQuestion } = await import('../public/views/editor-sign-in.js');
+  assert.equal(editorQuestion({ workbench: 'vloer.example' }), 'A VS Code editor is asking to sign in to vloer.example as you.');
 });

@@ -29,7 +29,7 @@ The sidebar is the only navigation. [`shell.js`](../public/shell.js) draws it ar
 | Cards | Binder | `#binder` | Your own copies of Run cards: private, newest moment first | — |
 | Cards | Packs | `#packs`, `#packs/odds`, `#packs/<id>` | Your packs in order, the rip ceremony, the published odds and opened packs | — |
 | Cards | Season | `#season` | A Team's totals per quarter, never per person | — |
-| (bottom) | Settings | `#settings/accounts` | Linked accounts, Environment, Preferences, Card logins and the Card designer | — |
+| (bottom) | Settings | `#settings/accounts` | Linked accounts, Environment, Preferences, Signed-in editors, Card logins and the Card designer | — |
 
 * Sessions shows only in demo mode, when shared execution is configured, when sessions exist, or while a session page is open ([`showsSessions`](../public/shell.js)).
 * A count is hidden when it is zero or unknown. Unknown is `null`, never `0`.
@@ -42,7 +42,7 @@ Every page also has:
 * a status strip: on a session page, whether its event stream is connected; Ploeg's connection state (demo, connected, partly unavailable, unreachable, not configured or no Teams); "Updated … ago" for the page on screen; a Live or Paused switch; and a Demo or Live badge;
 * an account menu with the System · Light · Dark theme switch, Preferences, Keyboard shortcuts and, outside the demo, Sign out;
 * one `<h1 id="page-title" tabindex="-1">`, and `document.title` set to `(<waiting>) <Page> · De Vloer`, without the count when nothing waits;
-* on the five Settings pages, a sub-navigation: Preferences, Environment, Linked accounts, Card logins, Card designer.
+* on the six Settings pages, a sub-navigation: Preferences, Environment, Linked accounts, Signed-in editors, Card logins, Card designer.
 
 When something waits on you, the favicon also carries an amber dot ([attention signals](#attention-signals)).
 
@@ -60,7 +60,8 @@ A hash is `#<path>?<query>`. [`route.js`](../public/core/route.js) splits it wit
 | `insights` | [`insights`](../public/views/insights.js) | `window` (`24h`, `7d`, `30d`). `24h` is the default and is left out of the address |
 | `tasks` | [`tasks`](../public/views/tasks.js) | `source`, `task`: the open task, written with `history.replaceState` so choosing a task adds no history entry |
 | `sessions`, `session/<id>` | [`sessions`](../public/views/sessions.js), [`session`](../public/views/session.js) | On `sessions`: `filter` (`needs`, `active`, `done`) and `q`, the search text |
-| `settings/accounts`, `settings/environment`, `settings/preferences`, `settings/cards`, `settings/card-designer` | [`account`](../public/views/account.js), [`system`](../public/views/system.js), [`preferences`](../public/views/preferences.js), [`card-identity`](../public/views/card-identity.js), [`designer`](../public/views/designer.js) | — |
+| `settings/accounts`, `settings/environment`, `settings/preferences`, `settings/editors`, `settings/cards`, `settings/card-designer` | [`account`](../public/views/account.js), [`system`](../public/views/system.js), [`preferences`](../public/views/preferences.js), [`editors`](../public/views/editors.js), [`card-identity`](../public/views/card-identity.js), [`designer`](../public/views/designer.js) | — |
+| `editor-sign-in/<code>` | [`editor-sign-in`](../public/views/editor-sign-in.js) | — |
 | `binder` | [`binder`](../public/views/binder.js) | `card`: the focused card, written with `history.replaceState` |
 | `packs`, `packs/odds`, `packs/<id>` | [`packs`](../public/views/packs.js) | — |
 | `season` | [`season`](../public/views/season.js) | `team`, `quarter` (`2026-Q3`) |
@@ -149,6 +150,8 @@ These four read Ploeg's operator activity API ([`ploeg-activity.js`](../public/p
 ### Settings and sign-in
 
 * **Linked accounts** lists the GitLab and ClickUp accounts a person links for their own use, with **Unlink** behind a confirmation. An OAuth link reads "Renews when used" instead of an expiry countdown.
+* **Signed-in editors** (`#settings/editors`, [ADR 0037](adrs/0037-an-editor-signs-in-only-after-its-person-approves-it-and-gets-its-own-credential.md)) lists the VS Code editors the person approved, with when each was approved, last used and ends, and **Sign out** behind a confirmation.
+* **Editor sign-in** (`#editor-sign-in/<code>`) is where the browser lands after signing in for an editor. It says "A VS Code editor is asking to sign in to <workbench> as you.", shows the code the editor shows, the role it would act with and what approving gives, warns to deny a link someone else sent, and offers **Approve** and **Deny**. An unknown, expired or someone else's request shows why it cannot be approved.
 * **Environment** is a checklist of six health checks (Ploeg connection, Model gateway, Workspace placements, Agent runtimes, Task connections, Dashboards) with a tally, then the workbench facts and repositories. Administrators see which setting or environment variable fixes a check; everyone else is told to ask an administrator. Dashboards is optional and never a failure.
 * **Preferences** has Appearance (theme, density, and how numbers and dates are written), Behaviour (single-key shortcuts, Refresh automatically and Desktop notifications) and Run cards (card motion: Automatic, Full, Calm or Off; card sound, off by default), and links to the style guide. Its controls stay in step with the top bar's Live switch and the account menu's theme.
 * **Card designer** (`#settings/card-designer`, proposed, [ADR 0031](adrs/0031-card-themes-a-card-designer-and-generated-art.md)) designs Run card themes. A live preview draws the draft on a sample card (a demo card that says it is illustrative and makes no model calls, with a finish switch from Matte to Infinity) or on a Work Item's card by number. **Theme** picks a theme or starts a new one, with its name, id, skin, and for the forge its frame (Classic, Full art, Graded slab), foil pattern, art (per card, a preset, an uploaded image or video, or a shader), its inner world (off, Sky islands, Deep sea or Neon city), the colour and radius tokens the skin reads, a set symbol (SVG) and a card back. **Save theme** stores a version; **Versions** reopens an older one. **Shader art** generates art from a description when `cardThemes.ai` is configured, showing each attempt and its compiler log, and always accepts a pasted shader behind **Compile and use**. **Use it for a project** shows the `cardStyle` block for Ploeg's configuration and the theme JSON. Only administrators edit; everyone else sees the preview. The page is wide and keeps the preview beside the controls from a 60 rem container.

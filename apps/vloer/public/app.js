@@ -69,9 +69,7 @@ async function boot() {
   const params = new URLSearchParams(location.search);
   const linkNotice = params.get('linked') ? `${({ gitlab: 'GitLab', clickup: 'ClickUp' })[params.get('linked')] || params.get('linked')} is linked to your account.` : params.get('link_error') ? linkFailure(params.get('link_error')) : '';
   if (linkNotice) history.replaceState(null, '', `${location.pathname}#settings/accounts`);
-  const editorDone = params.get('editor') === 'done';
-  if (editorDone) history.replaceState(null, '', location.pathname);
-  try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); const returnTo = takeReturnHash(); if (returnTo && (!location.hash || location.hash === '#now')) history.replaceState(null, '', `${location.pathname}${returnTo}`); await route(); if (state.view !== 'now') refreshCounts().catch(() => {}); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); if (editorDone) notify('Signed in for your editor. You can return to it now.'); }
+  try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); const returnTo = takeReturnHash(); if (returnTo && (!location.hash || location.hash === '#now')) history.replaceState(null, '', `${location.pathname}${returnTo}`); await route(); if (state.view !== 'now') refreshCounts().catch(() => {}); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); }
   catch (error) { if (!state.bootstrap) renderLogin(error.message.includes('Sign in') ? '' : error.message); else notify(error.message, true); }
 }
 
