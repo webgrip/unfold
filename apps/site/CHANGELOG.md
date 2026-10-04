@@ -1,3 +1,17 @@
+## [unfold-site-v0.1.0-rc.10](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v0.1.0-rc.9...unfold-site-v0.1.0-rc.10) (2026-10-04)
+
+### Added
+
+* **deps:** update all non-major dependencies ([711a481](https://forgejo.webgrip.dev/webgrip/unfold/commit/711a481495b8e797432be1102b57c38304ad78a7))
+
+### Fixed
+
+* **site:** name the configuration each security and execution claim needs ([3ddf79e](https://forgejo.webgrip.dev/webgrip/unfold/commit/3ddf79e5a2c96ebf161206b67430fe355f991390))
+
+### Internal
+
+* **site:** re-record the demo replay with the grade formula 2026.3 card model ([20be172](https://forgejo.webgrip.dev/webgrip/unfold/commit/20be1721c2902e2a1b7c586289ee52701334a46f))
+
 ## [unfold-site-v0.1.0-rc.9](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v0.1.0-rc.8...unfold-site-v0.1.0-rc.9) (2026-10-03)
 
 ### Added
