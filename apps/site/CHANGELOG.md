@@ -1,3 +1,17 @@
+## [unfold-site-v0.1.0-rc.11](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v0.1.0-rc.10...unfold-site-v0.1.0-rc.11) (2026-10-04)
+
+### Added
+
+* **deps:** update all non-major dependencies ([dbf4083](https://forgejo.webgrip.dev/webgrip/unfold/commit/dbf40833cd26b1eb22be87209cee74829eca2ddf))
+
+### Build
+
+* **site:** lock pnpm 12.8.2 in the site's pnpm-lock.yaml ([c707135](https://forgejo.webgrip.dev/webgrip/unfold/commit/c707135ef10a4fb63674edac24166eb9bb32dec5))
+
+### CI
+
+* **site:** record the /demo replay in the site build instead of committing it ([b10b6c0](https://forgejo.webgrip.dev/webgrip/unfold/commit/b10b6c01086d8a44f49f79df4dec985785bd0e3e))
+
 ## [unfold-site-v0.1.0-rc.10](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v0.1.0-rc.9...unfold-site-v0.1.0-rc.10) (2026-10-04)
 
 ### Added
