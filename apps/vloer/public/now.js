@@ -338,13 +338,71 @@ function needsMarkup(rows, group, context, id) {
   return `${list}${bands}`;
 }
 
+const trackerNames = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp' };
+const sentenceEnd = text => String(text ?? '').trim().replace(/[.\s]+$/, '');
+
+/**
+ * Says in plain words why Ploeg could not start a tracker task, and what fixes it, from the refusal's `code`,
+ * its board name, its `repo/` labels and the labels the board allows. A code Vloer does not know, and
+ * `unclassified`, repeat Ploeg's own reason.
+ * @param {{ code?: string, board?: string, labels?: string[], allowedLabels?: string[], reason?: string }} entry
+ * @returns {string}
+ */
+export function refusalSentence(entry) {
+  const name = String(entry?.board ?? '').trim().replace(/\s+board$/i, '');
+  const board = name ? `the ${name} board` : 'this board';
+  const Board = board[0].toUpperCase() + board.slice(1);
+  const allowed = Array.isArray(entry?.allowedLabels) ? entry.allowedLabels.filter(label => typeof label === 'string' && label).join(', ') : '';
+  const hints = Array.isArray(entry?.labels) ? entry.labels.filter(label => typeof label === 'string' && label.startsWith('repo/')) : [];
+  const label = hints[0] || 'Its repo/ label';
+  switch (entry?.code) {
+    case 'label_missing': return `${Board} needs a repo/ label on this task.${allowed ? ` Allowed: ${allowed}.` : ''}`;
+    case 'label_not_allowed': return `${label} is not allowed on ${board}.${allowed ? ` Use one of ${allowed}.` : ''}`;
+    case 'label_unregistered': return `${label} names no repository Ploeg knows.${allowed ? ` Use one of ${allowed}.` : ' Ask an operator to register it.'}`;
+    case 'multiple_labels': return `This task has more than one repo/ label${hints.length > 1 ? ` (${hints.join(', ')})` : ''}. Keep exactly one.${allowed ? ` Allowed: ${allowed}.` : ''}`;
+    case 'labels_unread': return `Ploeg could not read this task’s labels, and ${board} routes by label. Assign the task again.`;
+    case 'no_board_rule': return `${label} selects a repository, but Ploeg takes no work from this task’s board. Ask an operator to add the board, or remove the label.`;
+    case 'target_not_ready': return `The repository this task selects is not ready for agents: ${sentenceEnd(entry.reason) || 'Ploeg gave no reason'}. Fix the repository, then assign the task again.`;
+    default: return `Ploeg did not queue this task: ${sentenceEnd(entry?.reason) || 'it gave no reason'}.`;
+  }
+}
+
+function refusalRow(entry, context) {
+  const key = `${entry.provider}-${entry.externalId}`.replace(/[^A-Za-z0-9_-]/g, '-');
+  const sentence = refusalSentence(entry);
+  const ref = entry.externalId ? `<span class="now-ref">${escape(workItemRef(entry))}</span>` : '';
+  const meta = `${joinDots([escape(entry.team), ref])}<span class="now-why now-why-fix" title="${escape(sentence)}">${escape(sentence)}</span>`;
+  const when = moment(entry.refusedAt);
+  const row = listRow({ id: `now-row-x-${key}`, tone: 'attention', lead: icon('alert'), title: entry.title || `Task ${entry.externalId}`, meta, trail: when === null ? '' : `<span class="now-when"><span class="now-when-label">Refused </span>${format.timeHtml(when, { now: context.now })}</span>` });
+  const href = safeUrl(entry.url);
+  const tracker = trackerNames[entry.provider] || '';
+  const label = entry.link === 'task' ? `Open in ${tracker || 'its tracker'}` : `Open ${tracker || 'the tracker'}`;
+  const primary = href && entry.link !== 'none' ? button({ id: `now-refused-open-${key}`, label, icon: 'external', variant: 'primary', size: 'sm', href, external: true, ariaLabel: `${label}: “${entry.title || entry.externalId}” (opens in a new tab)` }) : '';
+  return `<li class="now-item">${row}<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary">${primary}</span><span class="now-action-links"></span></div></li>`;
+}
+
+function refusedMarkup(data, context) {
+  const error = data.errors?.refused;
+  if (error) return `<div class="now-band now-refused" role="group" aria-label="Tasks Ploeg could not start">${errorState('refused', 'Could not load tasks Ploeg could not start', error)}</div>`;
+  const refused = data.refused;
+  if (!refused.length) return '';
+  const id = 'now-refused-title';
+  const shown = refused.slice(0, groupLimit);
+  const hidden = refused.length - shown.length;
+  const more = hidden > 0 ? `<li class="now-item now-more-item"><span class="now-more">${escape(`${format.plural(hidden, 'more task')} could not start. Ploeg commented on each one.`)}</span></li>` : '';
+  const band = `<div class="reason-band" data-tone="attention"><span class="reason-band-icon" aria-hidden="true">${icon('alert')}</span><h3 class="reason-band-title" id="${id}">Could not start<span class="reason-band-count num"><span class="sr-only">, </span>${escape(format.count(refused.length))}<span class="sr-only"> ${refused.length === 1 ? 'task' : 'tasks'}</span></span></h3><p class="reason-band-fix">Ploeg queued nothing for these tracker tasks. Fix the task, then assign it again.</p></div>`;
+  return `<div class="now-band now-refused" role="group" aria-labelledby="${id}">${band}<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => refusalRow(entry, context)).join('')}${more}</ul></div>`;
+}
+
 function groupMarkup(group, rows, context) {
   const id = `now-group-${group.id}`;
   const stale = group.id === 'needs' ? staleRow(context.stale) : '';
   const banded = group.id === 'needs' && needsYouBlocks(rows, { demo: context.demo }).some(block => block.grouped);
   const capped = Boolean(context.truncated?.has(group.state));
+  const refused = group.id === 'needs' ? context.refused || '' : '';
   let body;
-  if (group.id === 'needs' && (rows.length || stale)) body = needsMarkup(rows, group, context, id);
+  if (group.id === 'needs' && (rows.length || stale)) body = `${refused}${needsMarkup(rows, group, context, id)}`;
+  else if (refused) body = refused;
   else if (rows.length || stale) {
     const shown = rows.slice(0, groupLimit);
     body = `<ul class="list now-list" aria-labelledby="${id}">${shown.map(entry => waitingRow(entry, context)).join('')}${stale}${moreRow(rows.length - shown.length, group, capped)}</ul>`;
@@ -360,10 +418,12 @@ function waitingCard(view, visible, held, context) {
   const stale = error ? 0 : staleCount(view);
   const rows = visible.waiting;
   const allNew = rows.length > 0 && rows.every(entry => after(entry.state === 'proposed' ? entry.createdAt : entry.updatedAt, context.since));
-  const local = { ...context, stale, dots: !allNew, truncated: new Set(waitingStates.filter(state => stateTruncated(view.data, state))) };
+  const refused = refusedMarkup(view.data, context);
+  const local = { ...context, stale, refused, dots: !allNew, truncated: new Set(waitingStates.filter(state => stateTruncated(view.data, state))) };
   const capped = local.truncated.size > 0;
   let body;
-  if (error) body = errorState('waiting', 'Could not load what waits on you', error);
+  if (error) body = `${errorState('waiting', 'Could not load what waits on you', error)}${refused}`;
+  else if (!rows.length && !held.waiting && refused) body = groupMarkup(groups.find(group => group.id === 'needs'), [], local);
   else if (!rows.length && !held.waiting) body = `${allClear(view, context.now)}${stale ? `<ul class="list now-list now-after-clear">${staleRow(stale)}</ul>` : ''}`;
   else body = groups.map(group => groupMarkup(group, rows.filter(entry => entry.state === group.state || (group.id === 'needs' && !['awaiting_review', 'proposed'].includes(entry.state))), local)).join('');
   return `<section class="card flush now-card now-waiting" aria-labelledby="now-waiting-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-waiting-title">Waiting on you${total ? (capped ? count(`${format.count(total)}+`, { tone: 'attention', label: `More than ${format.count(total)}` }) : count(total, { tone: 'attention' })) : ''}</h2></div>${hints ? `<div class="card-actions">${hints}</div>` : ''}</header><div class="card-body">${pill}${body}</div></section>`;
@@ -532,7 +592,7 @@ function unsettledBanner(view, now) {
 export function offersRetry(input) {
   if (input?.error) return !['ploeg_unconfigured', 'ploeg_scope'].includes(input.error.code) || Boolean(input.data);
   const errors = input?.data?.errors || {};
-  return Boolean(errors.waiting || errors.running || errors.recent);
+  return Boolean(errors.waiting || errors.running || errors.recent || errors.refused);
 }
 
 /**
@@ -549,7 +609,7 @@ export function offersRetry(input) {
 export function nowMarkup(input, options = {}, now = Date.now()) {
   if (!input?.data) return input?.error ? `<div class="now now-failed">${failureMarkup(input.error)}</div>` : loadingMarkup();
   const list = value => Array.isArray(value) ? value : [];
-  const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), running: list(input.data.running), recent: list(input.data.recent) } };
+  const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: list(input.data.running), recent: list(input.data.recent) } };
   const since = view.since === undefined ? null : view.since;
   const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), runs: view.data.errors.recent ? [] : view.data.recent, dots: true };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);

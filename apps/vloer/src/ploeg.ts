@@ -2,6 +2,7 @@ import type { AppConfig, User } from './types.ts';
 import { ploegDemo } from './ploeg-demo.ts';
 import { descriptionMarkdown } from './rich-text.ts';
 import { cardKpis, playKpis } from './card-kpis.ts';
+import { sourceTaskUrl, type TaskSourceConfig } from './tasks.ts';
 import type { PloegCardFlow, PloegCardPipeline, PloegCardShape, PloegPlayCITiming, PloegPlayShape, PloegPlayTimeline } from './card-kpis.ts';
 
 export type PloegState = 'ingested' | 'queued' | 'leased' | 'done' | 'needs_human' | 'awaiting_review' | 'stale' | 'withdrawn' | 'proposed';
@@ -34,8 +35,12 @@ export type PloegProposedItem = PloegPresentedItem & { sourceTitle: string };
 export type PloegProposedPage = { demo: boolean; items: PloegProposedItem[]; truncated: boolean; fetchedAt: string };
 export type PloegNowShift = Pick<PloegShift, 'round' | 'closeReason' | 'budgetUsd' | 'spentUsd' | 'reservedUsd' | 'closedAt'>;
 export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | 'url' | 'createdAt' | 'updatedAt' | 'provider' | 'externalId' | 'priority' | 'attempts' | 'infraFailures' | 'target'> & { closeReason: string | null; latestShift: PloegNowShift | null; spentUsd: number | null; pullRequestUrl: string } & Partial<Pick<PloegProposedItem, 'sourceWorkItemId' | 'sourceTitle' | 'createdKind' | 'ready'>>;
-export type PloegNowGroup = 'waiting' | 'active' | 'running' | 'recent';
-export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; active: PloegNowItem[]; running: PloegRunRow[]; recent: PloegRunRow[]; runningTruncated: boolean; recentTruncated: boolean; truncatedStates: PloegNowTruncatedState[]; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
+/** Why Ploeg's routing refused a tracker task (Ploeg ADR-0038). `unclassified` is a refusal Ploeg recorded before it named codes, or a code this Vloer does not know; its `reason` explains it. */
+export type PloegRefusalCode = 'label_missing' | 'label_not_allowed' | 'label_unregistered' | 'multiple_labels' | 'labels_unread' | 'no_board_rule' | 'target_not_ready' | 'unclassified';
+/** A tracker task Ploeg could not start because routing refused it. It is not a Work Item: none exists. `board` names the task source whose provider and project match the task, or is empty; `link` says whether `url` is the task itself, the tracker's root or absent. */
+export type PloegRefusal = { provider: string; externalId: string; externalScope: string; team: string; title: string; labels: string[]; code: PloegRefusalCode; reason: string; allowedLabels: string[]; refusedAt: string; board: string; url: string; link: 'task' | 'tracker' | 'none' };
+export type PloegNowGroup = 'waiting' | 'active' | 'running' | 'recent' | 'refused';
+export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; active: PloegNowItem[]; refused: PloegRefusal[]; running: PloegRunRow[]; recent: PloegRunRow[]; runningTruncated: boolean; recentTruncated: boolean; truncatedStates: PloegNowTruncatedState[]; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
 export type PloegNowTruncatedState = 'awaiting_review' | 'needs_human' | 'proposed' | 'leased' | 'queued';
 /** How many Work Items Now reads per team and state before it marks that state truncated. */
 export const nowStateCap = 200;
@@ -129,6 +134,12 @@ function link(value: unknown): string {
   } catch { return ''; }
 }
 function envelope(value: unknown, versions: unknown[] = ['1.0']): Record<string, unknown> { const data = record(value); if (!versions.includes(data.schemaVersion)) throw invalid(); return data; }
+const refusalCodes: PloegRefusalCode[] = ['label_missing', 'label_not_allowed', 'label_unregistered', 'multiple_labels', 'labels_unread', 'no_board_rule', 'target_not_ready', 'unclassified'];
+function routeRefusal(value: unknown): Omit<PloegRefusal, 'board' | 'url' | 'link'> {
+  const data = record(value);
+  const code = field(data.code, 64);
+  return { provider: field(data.provider, 128), externalId: field(data.externalId, 256), externalScope: field(data.externalScope, 512), team: field(data.team, 128), title: field(data.title, 4096), labels: array(data.labels, entry => field(entry, 512), 200), code: (refusalCodes as string[]).includes(code) ? code as PloegRefusalCode : 'unclassified', reason: field(data.reason, 4096), allowedLabels: array(data.allowedLabels, entry => field(entry, 512), 200), refusedAt: timestamp(data.refusedAt) };
+}
 function team(value: unknown): PloegTeam {
   const data = record(value);
   return { id: field(data.id, 100), paused: nullable(data.paused, boolean), queueDepth: numeric(data.queueDepth, true), roles: array(data.roles, value => { const role = record(value); return { id: field(role.id, 100), queueDepth: numeric(role.queueDepth, true) }; }, 100), assignees: data.assignees === undefined || data.assignees === null ? [] : array(data.assignees, value => field(value, 256), 100).filter(Boolean), pinnedScopes: data.pinnedScopes === undefined || data.pinnedScopes === null ? [] : array(data.pinnedScopes, value => field(value, 256), 500).filter(Boolean) };
@@ -603,12 +614,13 @@ export function validatePloeg(raw: unknown, mode: AppConfig['mode']): AppConfig[
 
 export class PloegClient {
   private readonly config?: AppConfig['ploeg'];
+  private readonly taskSources: TaskSourceConfig[];
   private readonly demo: boolean;
   private cachedToken: string | undefined;
   private readonly cache = new Map<string, { until: number; value: unknown }>();
   private readonly titles = new Map<string, string>();
   private readonly demoDecisions = new Map<string, PloegDecision>();
-  constructor(config: AppConfig) { this.config = config.ploeg; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); }
+  constructor(config: AppConfig) { this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); }
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
@@ -876,7 +888,20 @@ export class PloegClient {
     const page = async (state: 'running' | 'finished') => { const found = await this.runs(user, { state }, fresh); return { runs: found.runs, more: found.nextBefore !== null }; };
     const running = await capture('running', () => page('running'), { runs: [] as PloegRunRow[], more: false });
     const recent = await capture('recent', () => page('finished'), { runs: [] as PloegRunRow[], more: false });
-    return { demo: this.demo, teams: teams.map(entry => entry.id), waiting: waiting.rows, active: active.rows, running: running.runs, recent: recent.runs, runningTruncated: running.more, recentTruncated: recent.more, truncatedStates: [...waiting.truncated, ...active.truncated], errors, fetchedAt: new Date().toISOString() };
+    const refused = await capture('refused', () => this.refusals(user, fresh), [] as PloegRefusal[]);
+    return { demo: this.demo, teams: teams.map(entry => entry.id), waiting: waiting.rows, active: active.rows, refused, running: running.runs, recent: recent.runs, runningTruncated: running.more, recentTruncated: recent.more, truncatedStates: [...waiting.truncated, ...active.truncated], errors, fetchedAt: new Date().toISOString() };
+  }
+  private async refusals(user: User, fresh: boolean): Promise<PloegRefusal[]> {
+    if (this.demo) return structuredClone(ploegDemo.refusals.filter(entry => this.allowed(user, entry.team)));
+    let data: Record<string, unknown>;
+    try { data = envelope(await this.request('route-refusals', fresh, { added: true })); }
+    catch (error) { if (error instanceof PloegError && error.code === 'ploeg_unsupported') return []; throw error; }
+    return array(data.refusals, routeRefusal, 200).filter(entry => this.allowed(user, entry.team)).map(entry => {
+      const source = this.taskSources.find(candidate => candidate.provider === entry.provider && candidate.project === entry.externalScope);
+      const task = source ? sourceTaskUrl(source, entry.externalId) : '';
+      const root = this.config?.trackerUrl ?? '';
+      return { ...entry, board: source?.name ?? '', url: task || root, link: task ? 'task' : root ? 'tracker' : 'none' };
+    });
   }
   private async activeItems(user: User, teams: PloegTeam[], fresh: boolean): Promise<{ rows: PloegNowItem[]; truncated: PloegNowTruncatedState[] }> {
     const states = ['leased', 'queued'] as const;
