@@ -12,8 +12,9 @@ const lastPoll = new Map<string, number>();
 async function poll(url: string, started: Started, secret = started.secret) {
   const wait = (lastPoll.get(started.code) ?? 0) + 1050 - Date.now();
   if (wait > 0) await delay(wait);
+  const answer = await request(url, `/api/auth/editor/${started.code}`, { method: 'POST', body: { secret }, csrf: false });
   lastPoll.set(started.code, Date.now());
-  return request(url, `/api/auth/editor/${started.code}`, { method: 'POST', body: { secret }, csrf: false });
+  return answer;
 }
 
 async function begin(url: string): Promise<Started> {
