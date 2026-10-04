@@ -87,7 +87,7 @@ Evidence of executed checks is distinct from an Agent's assertion that checks pa
 
 **Also applies to:** Agent, Review
 
-## Model
+## Harness
 
 ### R2
 
@@ -95,7 +95,7 @@ A Model and Harness are implementation choices behind the working experience.
 
 **Why:** People should not have to change their way of organizing work merely to change an AI tool.
 
-**Also applies to:** Harness, Session
+**Also applies to:** Session
 
 ## Pack
 

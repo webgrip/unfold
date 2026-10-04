@@ -191,20 +191,14 @@ terms:
     definition: >
       A software participant that uses a model and tools to perform assigned work
       through a Harness. A named agent Role does not imply a separate running process.
-    see_also: [Harness, Model, Role, Run]
-  - name: Model
-    context: Execution
-    definition: >
-      The trained system that generates responses from supplied input. Its
-      responses are used by a Harness; the model is not the whole working agent.
-    see_also: [Harness, Model Provider]
+    see_also: [Harness, Role, Run]
   - name: Model Provider
     context: Execution
     definition: >
       The service that runs a model and answers inference requests. A provider
       can run outside the cluster that hosts an agent's files and tools.
     examples: [Fireworks.ai, DeepSeek]
-    see_also: [Model, Harness]
+    see_also: [Harness]
   - name: Workspace
     context: Execution
     definition: >
@@ -662,7 +656,7 @@ rules:
   - id: R2
     statement: A Model and Harness are implementation choices behind the working experience.
     rationale: People should not have to change their way of organizing work merely to change an AI tool.
-    applies_to: [Model, Harness, Session]
+    applies_to: [Harness, Session]
   - id: R3
     statement: A research Result may satisfy its Work Item with convincing Evidence and a conclusion not to build.
     rationale: A rejected business case should stop unnecessary implementation and design work.
