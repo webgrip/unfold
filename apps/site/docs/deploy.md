@@ -31,15 +31,16 @@ Both Workers bind the same sign-up database. Staging is the only live site for n
 
 ## DNS
 
-The `unfoldhq.dev` zone's records live in [ops/dns/dnsconfig.js](../ops/dns/dnsconfig.js) as DNSControl config. twente.dev keeps its zone the same way; `webgrip/cloudflare` keeps only account-wide objects. `on_dns_change.yml` calls the shared `dnscontrol.yml` workflow:
+The `unfoldhq.dev` zone's records live in [ops/dns/dnsconfig.js](../ops/dns/dnsconfig.js) as DNSControl config. twente.dev keeps its zone the same way; `webgrip/cloudflare` keeps only account-wide objects. `on_dns_change.yml` calls the shared `dnscontrol.yml` workflow, which only reads:
 
-- A push to `development` that changes `apps/site/ops/dns/` previews the corrections and then applies them. Merging the pull request is the review. A push that would delete a record is refused unless the commit body names it in a `DNS-Allow-Delete: <name>` line.
+- A push to `development` that changes `apps/site/ops/dns/` previews the corrections. A manual run does the same.
 - Every day at 05:45 UTC it fails when the live zone differs from the config.
-- Every job is skipped while the Forgejo secret `CLOUDFLARE_DNS_TOKEN` is missing.
+
+CI never holds a token that can change DNS ([homelab-cluster ADR-0061](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/adr/adr-0061-ci-reads-over-oidc-writes-from-the-cluster.md)). Each job exchanges its Forgejo Actions OIDC token for a ten-minute OpenBao token on the role `ci-unfold`. That role reads only `secret/cloudflare/dns/unfoldhq-dev-ro`: a Cloudflare token with Zone Read, DNS Read and Dynamic URL Redirects Read on `unfoldhq.dev` alone. The `cloudflare-dns-token-minter` CronJob in `webgrip/homelab-cluster` mints it, together with the matching write token at `secret/cloudflare/dns/unfoldhq-dev-rw`, and renews both before they expire.
+
+Applying a change is the job of an in-cluster DNS reconciler that reads `development` and pushes with the write token. It is proposed in the same ADR and is not running yet, so a merged change reaches Cloudflare only when someone runs `dnscontrol push --creds creds.json` in `apps/site/ops/dns` with that write token. The shared workflow refuses a push that would create a zone; a push that deletes a record needs a `DNS-Allow-Delete: <name>` line in the commit body.
 
 The config declares `staging` and a 301 from `www` to the apex. It ignores the apex and `www` address records that came with the zone, so DNSControl never deletes them; production's route depends on the apex one. Any other record that Cloudflare holds and the config does not declare appears in the first preview as a deletion. Copy it into the config, or delete it with the trailer.
-
-`CLOUDFLARE_DNS_TOKEN` is `forgejo-ci-dns`, the DNSControl token that twente.dev uses too. It needs Zone › Zone: Read, Zone › DNS: Edit and Zone › Single Redirect: Edit on `unfoldhq.dev`. It lives in OpenBao `secret/cloudflare/dnscontrol`, and the `forgejo-actions-secrets` bridge in `webgrip/homelab-cluster` publishes it hourly to each repository listed in `CLOUDFLARE_DNS_REPOS`. It is not the deploy token.
 
 ## No indexing outside production
 
