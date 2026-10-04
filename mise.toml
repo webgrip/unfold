@@ -121,7 +121,7 @@ run = "lychee --config lychee.toml README.md llms.txt docs apps/unfold/docs"
 description = "Check external links in current docs with lychee; the weekly workflow reports without blocking"
 
 [tasks.docs-vale]
-tools = { vale = "3.23.0" }
+tools = { vale = "3.24.0" }
 run = ["uv run --frozen python scripts/docs-vale.py", "vale --no-exit --glob='!**/{research,evidence,openspec,design,adr,adrs,backlog}/**' README.md docs apps/unfold/docs"]
 description = "Lint current docs against the generated Unfold vocabulary; warnings only"
 
