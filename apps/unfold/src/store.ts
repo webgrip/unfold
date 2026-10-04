@@ -325,7 +325,7 @@ export function adoptRenamedDatabase(path: string): string | null {
   for (const name of renamedDatabaseFiles) {
     const legacy = join(dirname(path), name);
     if (!existsSync(legacy)) continue;
-    for (const suffix of ['', '-wal', '-shm']) if (existsSync(legacy + suffix)) renameSync(legacy + suffix, path + suffix);
+    for (const suffix of ['', '-wal', '-shm', '.key']) if (existsSync(legacy + suffix)) renameSync(legacy + suffix, path + suffix);
     return legacy;
   }
   return null;
