@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { PloegClient, nowStateCap, validatePloeg, type PloegDetail } from '../src/ploeg.ts';
+import { PloegClient, contextInput, demoContextRefusal, nowStateCap, parseContextItem, validatePloeg, type PloegDetail } from '../src/ploeg.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { hashPassword } from '../src/auth.ts';
 import { application, configuration, login, request } from './api-support.ts';
@@ -937,3 +937,124 @@ test('the demo shows exactly one refusal, marked as illustrative, without callin
   assert.equal(now.errors.refused, undefined);
 });
 
+
+const contextItem = (overrides: Record<string, unknown> = {}) => ({ id: 'ctx_0a1b2c', workItemId: '101', name: 'brief notes.md', mediaType: 'text/markdown; charset=utf-8', sha256: 'a'.repeat(64), bytes: 1536, files: 1, note: 'Use the new API & keep it', addedBy: 'op', addedAt: '2026-10-04T09:00:00Z', phase: 'while_steering', ...overrides });
+
+test('context items parse strictly and inputs are checked before anything reaches Ploeg', () => {
+  assert.deepEqual(parseContextItem(contextItem({ workItemId: 101, note: null })), { ...contextItem(), note: '' });
+  assert.equal(parseContextItem(contextItem({ note: undefined })).note, '');
+  for (const broken of [{ id: 'other_1' }, { sha256: 'abc' }, { phase: 'later' }, { bytes: -1 }, { files: 1.5 }, { name: '../x' }, { name: '' }, { mediaType: 'nonsense' }, { addedAt: 'yesterday' }, { note: 'x'.repeat(501) }, { workItemId: 'abc' }]) {
+    assert.throws(() => parseContextItem(contextItem(broken)), { code: 'ploeg_response' }, JSON.stringify(broken));
+  }
+  assert.deepEqual(contextInput('  notes.md ', '  why  '), { name: 'notes.md', note: 'why' });
+  assert.deepEqual(contextInput('notes.md', undefined), { name: 'notes.md', note: '' });
+  for (const name of ['', ' ', 'a/b.md', 'a\\b.md', '..', 'x'.repeat(201), 'line\nbreak', null]) assert.throws(() => contextInput(name, ''), { status: 400, code: 'context_name' }, String(name));
+  assert.throws(() => contextInput('notes.md', 'x'.repeat(501)), { status: 400, code: 'context_note' });
+  assert.equal(contextInput('notes.md', 'first line\nsecond line').note, 'first line\nsecond line');
+});
+
+test('context files go through an authenticated, CSRF-guarded, role- and team-scoped proxy that forwards the raw file', async t => {
+  const upstreamApi = await upstream(t);
+  const calls: { method: string; path: string; actor?: string; acting?: string; type?: string; body: Buffer }[] = [];
+  let answer: { status: number; body: unknown } = { status: 201, body: { context: contextItem() } };
+  upstreamApi.intercept((req, res) => {
+    if (!/\/context(?:\?|$)/.test(req.url!)) return false;
+    const chunks: Buffer[] = [];
+    req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => {
+      calls.push({ method: req.method!, path: req.url!, actor: req.headers['x-ploeg-actor'] as string, acting: req.headers['x-ploeg-acting-user'] as string, type: req.headers['content-type'], body: Buffer.concat(chunks) });
+      if (req.method === 'GET') { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ context: [contextItem({ phase: 'before_start' }), contextItem({ id: 'ctx_ff' })] })); return; }
+      if (answer.body === null) { res.writeHead(answer.status).end(); return; }
+      res.writeHead(answer.status, { 'content-type': 'application/json' }).end(JSON.stringify(answer.body));
+    });
+    return true;
+  });
+  const server = await application('live', config => { config.ploeg = { ...upstreamApi.config, userTeams: { watcher: ['delivery'], op: ['delivery'] } }; });
+  t.after(() => server.close());
+  const password = randomBytes(24).toString('hex');
+  server.app.store.addUser({ id: 'watcher', name: 'watcher', role: 'viewer', passwordHash: await hashPassword(password) });
+  server.app.store.addUser({ id: 'op', name: 'op', role: 'operator', passwordHash: await hashPassword(password) });
+  const watcher = await login(server.url, 'watcher', password);
+  const op = await login(server.url, 'op', password);
+  const file = Buffer.from('# Notes\n\nThe API moved to v2.\n');
+  const upload = async (id: string, query: Record<string, string>, session?: { cookie: string }, options: { body?: Uint8Array<ArrayBuffer>; type?: string; csrf?: boolean } = {}) => {
+    const response = await fetch(`${server.url}/api/ploeg/work-items/${id}/context?${new URLSearchParams(query)}`, { method: 'POST', body: options.body ?? file, headers: { 'content-type': options.type ?? 'application/octet-stream', ...(options.csrf === false ? {} : { 'x-unfold-request': '1' }), ...(session ? { cookie: session.cookie } : {}) } });
+    const text = await response.text();
+    return { status: response.status, body: text ? JSON.parse(text) : null };
+  };
+
+  assert.equal((await upload('101', { name: 'notes.md' })).status, 401);
+  assert.equal((await upload('101', { name: 'notes.md' }, op, { csrf: false })).body.error.code, 'csrf');
+  assert.equal((await upload('101', { name: 'notes.md' }, watcher)).status, 403);
+  assert.equal((await upload('101', { name: 'a/notes.md' }, op)).body.error.code, 'context_name');
+  assert.equal((await upload('101', {}, op)).body.error.code, 'context_name');
+  assert.equal((await upload('101', { name: 'notes.md', note: 'x'.repeat(501) }, op)).body.error.code, 'context_note');
+  assert.equal((await upload('101', { name: 'notes.md' }, op, { type: 'application/json' })).status, 415);
+  assert.equal((await upload('101', { name: 'notes.md' }, op, { body: new Uint8Array(0) })).body.error.code, 'context_empty');
+  const large = await upload('101', { name: 'big.zip' }, op, { body: new Uint8Array(20 * 1024 * 1024 + 1) });
+  assert.equal(large.status, 413);
+  assert.equal(large.body.error.code, 'context_too_large');
+  assert.equal((await upload('107', { name: 'notes.md' }, op)).status, 404, 'another team’s Work Item is not found');
+  assert.equal((await request(server.url, '/api/ploeg/work-items/107/context', op)).status, 404);
+  assert.equal(calls.length, 0, 'refused uploads never reach Ploeg');
+
+  const added = await upload('101', { name: 'brief notes.md', note: 'Use the new API & keep it' }, op);
+  assert.equal(added.status, 201, JSON.stringify(added.body));
+  assert.deepEqual(added.body, { context: contextItem(), created: true, demo: false });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, 'POST');
+  assert.equal(calls[0].path, '/api/v1/operator/work-items/101/context?name=brief%20notes.md&note=Use%20the%20new%20API%20%26%20keep%20it');
+  assert.equal(calls[0].actor, 'op');
+  assert.equal(calls[0].acting, 'op');
+  assert.equal(calls[0].type, 'application/octet-stream');
+  assert.deepEqual(calls[0].body, file, 'the file reaches Ploeg byte for byte');
+
+  answer = { status: 200, body: { context: contextItem() } };
+  const again = await upload('101', { name: 'brief notes.md' }, op);
+  assert.equal(again.status, 200);
+  assert.equal(again.body.created, false, 'the same file again is not a new item');
+  assert.equal(calls.at(-1)!.path, '/api/v1/operator/work-items/101/context?name=brief%20notes.md', 'an empty note is left out');
+
+  const listed = await request(server.url, '/api/ploeg/work-items/101/context', op);
+  assert.equal(listed.status, 200, listed.text);
+  assert.equal(listed.body.demo, false);
+  assert.deepEqual(listed.body.context.map((entry: { id: string; phase: string }) => [entry.id, entry.phase]), [['ctx_0a1b2c', 'before_start'], ['ctx_ff', 'while_steering']]);
+  assert.equal(calls.at(-1)!.method, 'GET');
+  assert.equal(calls.at(-1)!.actor, undefined, 'a read carries no acting user');
+  assert.equal((await request(server.url, '/api/ploeg/work-items/101/context', watcher)).status, 200, 'a viewer in the Team can read the context');
+
+  const refusals: [number, unknown, number, string, RegExp][] = [
+    [400, { error: 'unsafe archive: entry "../etc/passwd" leaves the context directory' }, 400, 'ploeg_context_refused', /leaves the context directory/],
+    [409, { error: 'work item 101 is done' }, 409, 'ploeg_context_closed', /is done/],
+    [413, { error: { code: 'too_large', message: 'context for this work item would exceed 50 MiB' } }, 413, 'ploeg_context_too_large', /exceed 50 MiB/],
+    [413, null, 413, 'ploeg_context_too_large', /larger than Ploeg accepts/],
+    [404, { error: 'work item 101 not found' }, 404, 'ploeg_not_found', /not found/],
+    [404, null, 501, 'ploeg_unsupported', /does not store context files yet/],
+    [403, { error: 'forbidden' }, 403, 'ploeg_decision_forbidden', /credential cannot add context/],
+    [500, { error: 'boom' }, 503, 'ploeg_unavailable', /could not provide/],
+    [201, { context: contextItem({ sha256: 'nope' }) }, 502, 'ploeg_response', /unsupported/],
+    [201, { context: contextItem({ workItemId: '102' }) }, 502, 'ploeg_response', /unsupported/],
+  ];
+  for (const [status, body, expected, code, message] of refusals) {
+    answer = { status, body };
+    const refused = await upload('101', { name: 'notes.md' }, op);
+    assert.equal(refused.status, expected, `${status} ${JSON.stringify(body)}`);
+    assert.equal(refused.body.error.code, code);
+    assert.match(refused.body.error.message, message);
+  }
+  answer = { status: 400, body: { error: `token ${upstreamApi.token} leaked` } };
+  const leaked = await upload('101', { name: 'notes.md' }, op);
+  assert.equal(leaked.body.error.message, 'Ploeg refused the file.', 'a Ploeg message that carries the credential is replaced');
+});
+
+test('the demo stores no context files and says so', async t => {
+  const demo = await application(); t.after(() => demo.close());
+  const listed = await request(demo.url, '/api/ploeg/work-items/101/context');
+  assert.equal(listed.status, 200, listed.text);
+  assert.deepEqual(listed.body, { workItemId: '101', context: [], demo: true });
+  const response = await fetch(`${demo.url}/api/ploeg/work-items/101/context?name=notes.md`, { method: 'POST', body: Buffer.from('notes'), headers: { 'content-type': 'application/octet-stream', 'x-unfold-request': '1' } });
+  const body = await response.json();
+  assert.equal(response.status, 409);
+  assert.deepEqual(body.error, { code: 'ploeg_demo', message: demoContextRefusal });
+  assert.equal(demoContextRefusal, 'The demo does not store context files.');
+});

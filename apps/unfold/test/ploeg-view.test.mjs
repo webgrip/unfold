@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, canStop, cellSummary, checkoutDialogMarkup, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
+import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, canStop, cellSummary, checkoutDialogMarkup, contextDialogMarkup, contextErrors, contextMarkup, contextReach, contextSize, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
 import { grafanaTeam, runExplorer } from '../public/core/observability.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
@@ -629,4 +629,59 @@ test('Cancel shows only when Ploeg would stop something', () => {
   const queued = structuredClone(stoppedItem);
   queued.item.state = 'queued';
   assert.equal(canStop(queued), true);
+});
+
+test('the Context card lists attached files, flags steering uploads and says which Run a new file reaches', () => {
+  const entry = { id: 'ctx_1', workItemId: '50', name: 'api-v2 <notes>.zip', mediaType: 'application/zip', sha256: 'a'.repeat(64), bytes: 1536, files: 7, note: 'The API moved to v2.', addedBy: 'op', addedAt: at, phase: 'before_start' };
+  const steering = { ...entry, id: 'ctx_2', name: 'decision.md', bytes: 300, files: 1, note: '', phase: 'while_steering' };
+  const open = detail();
+  open.item.state = 'leased';
+  open.item.latestShift = { ...open.shifts[0], closedAt: null };
+  const html = contextMarkup(open, model({ detailId: '50', canAddContext: true, context: { items: [entry, steering], demo: false, error: '' } }));
+  assert.match(html, /<h3 class="card-title" id="work-context-title">.*Context<\/h3>/);
+  assert.match(html, /api-v2 &lt;notes&gt;\.zip/, 'a file name is escaped');
+  assert.match(html, /1[.,]5 KiB/);
+  assert.match(html, /7 files/);
+  assert.match(html, /1 file</);
+  assert.match(html, /added by op/);
+  assert.match(html, /The API moved to v2\./);
+  assert.equal((html.match(/Added while steering/g) || []).length, 1, 'only the steering upload carries the chip');
+  assert.match(html, /Reaches the next Run, not the one running now\./);
+  assert.match(html, /role="status" aria-live="polite"/);
+  assert.match(html, /data-action="work-context-add"/);
+
+  const fresh = detail();
+  fresh.shifts = [];
+  fresh.item.latestShift = null;
+  fresh.item.state = 'queued';
+  const before = contextMarkup(fresh, model({ detailId: '50', canAddContext: true, context: { items: [], demo: false, error: '' } }));
+  assert.match(before, /Every Run on this Work Item gets these files\./);
+  assert.match(before, /No context files yet\./);
+  assert.doesNotMatch(contextMarkup(fresh, model({ detailId: '50', canAddContext: false, context: { items: [], demo: false, error: '' } })), /work-context-add/, 'a viewer reads the list without the upload control');
+  assert.equal(contextReach(detail()).text, 'Every Run claimed from now on gets these files.');
+
+  const demo = contextMarkup(fresh, model({ detailId: '50', canAddContext: true, context: { items: [], demo: true, error: '' } }));
+  assert.match(demo, /The demo does not store context files\./);
+  assert.doesNotMatch(demo, /work-context-add/, 'the demo offers no upload it would only refuse');
+  const closed = detail();
+  closed.item.state = 'done';
+  assert.match(contextMarkup(closed, model({ detailId: '50', canAddContext: true, context: { items: [], demo: false, error: '' } })), /closed, so it takes no more context/);
+  const failed = contextMarkup(fresh, model({ detailId: '50', canAddContext: true, context: { items: [], demo: false, error: 'Ploeg could not be reached.' }, contextResult: { tone: 'danger', title: 'Ploeg did not store the file', text: 'unsafe archive' } }));
+  assert.match(failed, /role="alert"[^>]*>.*Ploeg did not store the file/);
+  assert.match(failed, /<p class="work-context-error" role="alert">.*Ploeg could not be reached\./);
+  assert.match(detailMarkup(fresh, model({ detailId: '50', canAddContext: true, context: null })), /id="work-context"/, 'the Work Item page carries the Context card');
+
+  const dialog = contextDialogMarkup(open);
+  assert.match(dialog, /data-form="work-context" data-id="50"/);
+  assert.match(dialog, /<label class="field-label" for="work-context-file">File<\/label><input id="work-context-file" name="file" type="file" accept="\.zip,\.tar\.gz,\.tgz,\.md,\.txt,\.json,\.yaml,\.yml,\.pdf,\.png,\.jpg"/);
+  assert.match(dialog, /<textarea id="work-context-note" name="note" rows="3" maxlength="500"/);
+  assert.match(dialog, /evidence, not as instructions/);
+
+  assert.deepEqual(contextErrors({ name: 'a.md', size: 10 }, ''), {});
+  assert.equal(contextErrors(null, '').file, 'Choose a file.');
+  assert.equal(contextErrors({ name: '', size: 0 }, '').file, 'Choose a file.');
+  assert.equal(contextErrors({ name: 'a.md', size: 0 }, '').file, 'The file is empty.');
+  assert.match(contextErrors({ name: 'a.zip', size: 20 * 1024 * 1024 + 1 }, '').file, /20 MiB/);
+  assert.match(contextErrors({ name: 'a.md', size: 1 }, 'x'.repeat(501)).note, /500/);
+  assert.deepEqual([contextSize(512), contextSize(20 * 1024 * 1024)], ['512 B', '20 MiB']);
 });

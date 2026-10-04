@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-03
+status: accepted
+date: 2026-10-04
 decision-makers: Ryan Grippeling
 ---
 
@@ -37,7 +37,13 @@ Which entity bounds what a user, a source and a budget can reach, how does it re
 
 Chosen option: "A Tenant above Teams", because it is the only option that gives one shared Ploeg and Vloer the access boundary ADR-0009 assumes while keeping Team as a capability pool.
 
-**The entity.** A Tenant is ADR-0009's Tenant: one per Agency in hosted Unfold. ADR-0009 means one shared Ploeg and Vloer deployment per cluster, with per-Tenant namespaces for Runs and previews; this ADR adds the application boundary inside that shared deployment. Every install has at least one Tenant. A self-hosted install starts with one default Tenant and may add more, so the checks below always run. A Client is a user inside its Agency's Tenant, as ADR-0009 says.
+**The entity.** A Tenant is ADR-0009's Tenant: one per Agency in hosted Unfold. ADR-0009 means one shared Ploeg and Vloer deployment per cluster, with per-Tenant namespaces for Runs and previews; this ADR adds the application boundary inside that shared deployment. Every install has at least one Tenant. A self-hosted install starts with one default Tenant and may add more, so the checks below always run. A Client is a user inside its Agency's Tenant, as ADR-0009 says, and also an entity inside the Tenant that owns tracker sources and repositories (see Clients below). A person may belong to several Tenants, for example a freelancer working for two Agencies; they choose the active Tenant with a switcher, every request carries it, and nothing mixes across Tenants.
+
+**Clients.** A Client owns tracker sources and repositories inside its Tenant, and a Work Item takes its Client from them. A user with a client membership sees, follows and attaches context to ([ADR-0022](adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md)) only the Work Items of their Client, and cannot approve, cancel or steer anything else. A Work Item from a source with no Client is invisible to every client user.
+
+**Sign-in.** SSO groups carry the memberships: `unfold/<tenant>/<role>` with role viewer, member or admin, and `unfold/<tenant>/client/<client>` for a client user. A user with no `unfold/` group gets no data, and a malformed group is ignored, never widened. Vloer's per-user `ploeg.userTeams` setting is removed once the mapping ships.
+
+**Unfold staff.** Platform operators of hosted Unfold never see Tenant content, not even through an audited break-glass role. Support works from what a Tenant admin shows, and operations that repair data run without reading content.
 
 **What a Tenant owns.** Each item belongs to exactly one Tenant:
 
@@ -68,10 +74,13 @@ Chosen option: "A Tenant above Teams", because it is the only option that gives 
 
 * VIK-1740 — Vloer filters task sources and repositories per Tenant, and checks before any service-token read.
 * VIK-1742 — created work keeps its root's Tenant and root budget, with the lock on the root.
-* To file — one deploy identity per Tenant.
-* To file — instance-qualified tracker and forge keys; duplicate pins fail at startup.
-* To file — operator admission accepts only registered repositories of the Team's Tenant.
-* To file — `tenant_id` in Ploeg's store and operator consumer scope, and SSO group to Tenant mapping in Vloer.
+* VIK-1786 — operator admission accepts only registered repositories of the Team's Tenant, and deploy reports need a named repository authority (one deploy identity per Tenant).
+* VIK-1879 — instance-qualified tracker and forge keys; duplicate pins fail at startup.
+* VIK-1876 — `tenant_id` in Ploeg's store, a default Tenant for existing data and self-hosted installs, and operator consumers bound to one Tenant.
+* VIK-1877 — SSO groups mapped to Tenant, Client and role in Vloer, with a Tenant switcher.
+* VIK-1878 — Clients own sources and repositories, and client users reach only theirs.
+
+All of them are in milestone M1 since 2026-10-04.
 
 ### Consequences
 
@@ -108,16 +117,19 @@ Proposed tests, none of which exist yet:
 * Bad, because a Ploeg, Vloer, database and gateway per Agency costs more than a small Agency pays, as ADR-0009 found for clusters.
 * Bad, because a self-hosted install with several departments still needs users limited to what they can see, so the checks are needed anyway.
 
-## Open questions for the owner
+## Owner decisions, 2026-10-04
 
-1. Teams: per Tenant (proposed), or global capability pools that several Tenants can be granted?
-2. Self-hosted: does every install have a default Tenant (proposed), replacing the domain model's "Self-hosted Unfold has no Tenants"?
-3. Can one user belong to several Tenants, for example a freelancer working for two Agencies, and if so how do they switch?
-4. Does a platform operator, meaning Unfold staff in hosted Unfold, see Tenant content? Proposed: no, apart from an audited break-glass role.
-5. Which SSO group format maps to Tenant and role, and does Vloer's per-user `ploeg.userTeams` stay as an override?
+1. Teams are per Tenant. A shared definition may be copied into several Tenants as a template.
+2. Every install has a Tenant: a self-hosted install starts with one default Tenant, so one code path serves self-hosted and hosted Unfold. This replaces the domain model's "Self-hosted Unfold has no Tenants".
+3. A user may belong to several Tenants and switches between them.
+4. Unfold staff never see Tenant content, with no break-glass role.
+5. SSO groups `unfold/<tenant>/<role>` and `unfold/<tenant>/client/<client>` carry memberships; `ploeg.userTeams` goes.
+6. Within a Tenant, a Client owns sources and repositories, and client users are limited to them.
+7. Tenancy and client access are built in milestone M1, before M2's live work through Ploeg.
 
 ## More Information
 
+* 2026-10-04 — Accepted. The owner answered the open questions (see Owner decisions) and moved tenancy and client access into milestone M1, so clients can attach context to their own Work Items sooner.
 * Technical story: VIK-1741.
 * Refines [ADR-0009](adr-0009-one-tenant-per-agency.md): that ADR's Tenant is the entity defined here, and its cluster isolation is unchanged.
 * Relies on [ADR-0002](adr-0002-ploeg-is-the-only-engine.md): Ploeg is the Authority, so Ploeg's checks are the binding ones and Vloer's are the first line.

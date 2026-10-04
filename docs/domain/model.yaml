@@ -191,20 +191,14 @@ terms:
     definition: >
       A software participant that uses a model and tools to perform assigned work
       through a Harness. A named agent Role does not imply a separate running process.
-    see_also: [Harness, Model, Role, Run]
-  - name: Model
-    context: Execution
-    definition: >
-      The trained system that generates responses from supplied input. Its
-      responses are used by a Harness; the model is not the whole working agent.
-    see_also: [Harness, Model Provider]
+    see_also: [Harness, Role, Run]
   - name: Model Provider
     context: Execution
     definition: >
       The service that runs a model and answers inference requests. A provider
       can run outside the cluster that hosts an agent's files and tools.
     examples: [Fireworks.ai, DeepSeek]
-    see_also: [Model, Harness]
+    see_also: [Harness]
   - name: Workspace
     context: Execution
     definition: >
@@ -340,18 +334,23 @@ terms:
   - name: Tenant
     context: Offering
     definition: >
-      The isolated space in hosted Unfold that holds one Agency's Work Items,
-      Shifts, credentials, Preview Environments and Budgets: its own namespaces,
+      The isolated space that holds one Agency's Work Items, Shifts, credentials,
+      Preview Environments and Budgets: in hosted Unfold its own namespaces,
       default-deny network, sandboxed runtime and model budget. Ploeg records it
-      on every Team, Work Item, Shift and credential. Clients are users inside a
-      Tenant, never Tenants. Self-hosted Unfold has no Tenants.
+      on every Team, Work Item, Shift and credential. Every install has at least
+      one; a self-hosted install starts with a default Tenant. Clients are users
+      and owners of sources inside a Tenant, never Tenants. Decided by ADR-0017
+      (2026-10-04); not implemented yet.
     see_also: [Agency, Client, Preview Environment]
   - name: Client
     context: Offering
     definition: >
       An Agency's customer. A Client submits Requests, answers Refinement
       questions, approves Quotes and gives feedback on Preview Environments in
-      the Client Portal. Unfold never contacts a Client directly.
+      the Client Portal. Unfold never contacts a Client directly. Inside a
+      Tenant a Client owns tracker sources and repositories, and its users see
+      only the Work Items from them (ADR-0017, decided 2026-10-04, not
+      implemented yet).
     avoid: [customer, end client, end customer]
     see_also: [Agency, Client Portal, Client Profile, Quote, Request]
   - name: Client Portal
@@ -662,7 +661,7 @@ rules:
   - id: R2
     statement: A Model and Harness are implementation choices behind the working experience.
     rationale: People should not have to change their way of organizing work merely to change an AI tool.
-    applies_to: [Model, Harness, Session]
+    applies_to: [Harness, Session]
   - id: R3
     statement: A research Result may satisfy its Work Item with convincing Evidence and a conclusion not to build.
     rationale: A rejected business case should stop unnecessary implementation and design work.

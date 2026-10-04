@@ -43,7 +43,7 @@ A business that uses Unfold to build software for its Clients and pays for it. A
 
 A software participant that uses a model and tools to perform assigned work through a Harness. A named agent Role does not imply a separate running process.
 
-**See also:** [Harness](../reference/glossary.md#harness), [Model](#model), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run)  
+**See also:** [Harness](../reference/glossary.md#harness), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run)  
 
 ## AHP
 *Context: Tooling · Owner: Unfold*
@@ -95,7 +95,7 @@ The reviewable change Unfold captures from a Session's Workspace when its Crew s
 ## Client
 *Context: Offering*
 
-An Agency's customer. A Client submits Requests, answers Refinement questions, approves Quotes and gives feedback on Preview Environments in the Client Portal. Unfold never contacts a Client directly.
+An Agency's customer. A Client submits Requests, answers Refinement questions, approves Quotes and gives feedback on Preview Environments in the Client Portal. Unfold never contacts a Client directly. Inside a Tenant a Client owns tracker sources and repositories, and its users see only the Work Items from them (ADR-0017, decided 2026-10-04, not implemented yet).
 
 **Do not use:** customer, end client, end customer  
 **See also:** [Agency](#agency), [Client Portal](#client-portal), [Client Profile](#client-profile), [Quote](#quote), [Request](#request)  
@@ -229,20 +229,13 @@ The confirmed fix of a Crack, drawn as gold seams that stay on the card (kintsug
 **Also known as:** kintsugi  
 **See also:** [Crack](#crack), [Steward](#steward), [Grade](#grade)  
 
-## Model
-*Context: Execution*
-
-The trained system that generates responses from supplied input. Its responses are used by a Harness; the model is not the whole working agent.
-
-**See also:** [Harness](../reference/glossary.md#harness), [Model Provider](#model-provider)  
-
 ## Model Provider
 *Context: Execution*
 
 The service that runs a model and answers inference requests. A provider can run outside the cluster that hosts an agent's files and tools.
 
 **Examples:** Fireworks.ai; DeepSeek  
-**See also:** [Model](#model), [Harness](../reference/glossary.md#harness)  
+**See also:** [Harness](../reference/glossary.md#harness)  
 
 ## OpenSpec
 *Context: Tooling · Owner: Ploeg*
@@ -437,7 +430,7 @@ Backstage's documentation format: a static site built from Markdown by MkDocs wi
 ## Tenant
 *Context: Offering*
 
-The isolated space in hosted Unfold that holds one Agency's Work Items, Shifts, credentials, Preview Environments and Budgets: its own namespaces, default-deny network, sandboxed runtime and model budget. Ploeg records it on every Team, Work Item, Shift and credential. Clients are users inside a Tenant, never Tenants. Self-hosted Unfold has no Tenants.
+The isolated space that holds one Agency's Work Items, Shifts, credentials, Preview Environments and Budgets: in hosted Unfold its own namespaces, default-deny network, sandboxed runtime and model budget. Ploeg records it on every Team, Work Item, Shift and credential. Every install has at least one; a self-hosted install starts with a default Tenant. Clients are users and owners of sources inside a Tenant, never Tenants. Decided by ADR-0017 (2026-10-04); not implemented yet.
 
 **See also:** [Agency](#agency), [Client](#client), [Preview Environment](#preview-environment)  
 

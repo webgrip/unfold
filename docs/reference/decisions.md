@@ -30,8 +30,10 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0012](../adr/adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md) | The marketing site releases and deploys on its own, outside the Unfold version | 2026-10-01 | — |
 | System | [0013](../adr/adr-0013-the-product-is-named-unfold.md) | The product is named Unfold, and Ploeg and Vloer are its parts | 2026-10-01 | — |
 | System | [0016](../adr/adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | 2026-10-02 | — |
+| System | [0017](../adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) | A Tenant sits above Teams and bounds what users, sources and budgets can reach | 2026-10-04 | — |
 | System | [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) | Unfold pins Ploeg from its own repository and releases only Vloer | 2026-10-03 | — |
 | System | [0020](../adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) | Unfold is the application, and the name Vloer is retired | 2026-10-04 | — |
+| System | [0022](../adr/adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md) | People give a Work Item context files, at the start and while steering | 2026-10-04 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
@@ -48,6 +50,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0014](../../apps/ploeg/docs/adrs/0014-work-target-is-a-work-item-attribute.md) | Bind the Work Target to the Work Item, not to the Team | 2026-07-29 | — |
 | Ploeg | [0020](../../apps/ploeg/docs/adrs/0020-published-artifacts-name-the-mirror-as-source.md) | Published artifacts name the GitHub mirror as their source, and Forgejo as their URL | 2026-08-26 | — |
 | Ploeg | [0022](../../apps/ploeg/docs/adrs/0022-the-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The name and mark are trademarks under a usage policy, not CC-licensed artwork | 2026-08-27 | — |
+| Ploeg | [0034](../../apps/ploeg/docs/adrs/0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md) | The harness gets placeholders; the worker keeps the credentials | 2026-10-04 | — |
 | Ploeg | [0037](../../apps/ploeg/docs/adrs/0037-teams-opt-into-registry-egress-through-a-logged-allowlist-proxy.md) | Teams opt into registry egress through a logged allowlist proxy; airgapped stays the default | 2026-10-01 | — |
 | Ploeg | [0038](../../apps/ploeg/docs/adrs/0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) | A repo label selects among registered targets, and the board default is the fallback | 2026-09-28 | — |
 | Ploeg | [0043](../../apps/ploeg/docs/adrs/0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md) | A failed reading Run is retried in its Round, and a review that never came closes `review_failed` | 2026-10-01 | — |
@@ -56,6 +59,9 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0062](../../apps/ploeg/docs/adrs/0062-github-is-the-independent-project-home.md) | GitHub is the independent project home | 2026-10-03 | — |
 | Ploeg | [0063](../../apps/ploeg/docs/adrs/0063-independent-releases-start-at-zero-point-one.md) | Independent releases start at 0.1.0 | 2026-10-03 | — |
 | Ploeg | [0064](../../apps/ploeg/docs/adrs/0064-development-is-trunk-and-release-candidates-come-from-it.md) | Development is trunk, and release candidates come from it | 2026-10-04 | — |
+| Ploeg | [0067](../../apps/ploeg/docs/adrs/0067-context-bundles-are-stored-per-work-item-and-unpacked-by-the-worker-under-fixed-limits.md) | Context bundles are stored per Work Item and unpacked by the worker under fixed limits | 2026-10-04 | — |
+| Ploeg | [0068](../../apps/ploeg/docs/adrs/0068-context-added-while-a-shift-runs-reaches-the-next-run.md) | Context added while a Shift runs reaches the next Run | 2026-10-04 | — |
+| Ploeg | [0069](../../apps/ploeg/docs/adrs/0069-ploeg-names-none-of-its-consumers.md) | Ploeg names none of its consumers | 2026-10-04 | — |
 | Unfold | [0001](../../apps/unfold/docs/adrs/0001-the-human-workbench-beside-ploeg.md) | The human workbench beside Ploeg | 2026-09-09 | — |
 | Unfold | [0002](../../apps/unfold/docs/adrs/0002-native-node-and-single-writer-storage.md) | Native Node and one durable writer | 2026-09-09 | — |
 | Unfold | [0003](../../apps/unfold/docs/adrs/0003-runtime-workspace-and-credential-seams.md) | Keep harness, workspace and credential seams distinct | 2026-09-09 | — |
@@ -74,6 +80,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0036](../../apps/unfold/docs/adrs/0036-the-agent-host-speaks-websocket-through-ws.md) | The agent host speaks WebSocket through `ws` | 2026-10-03 | — |
 | Unfold | [0037](../../apps/unfold/docs/adrs/0037-an-editor-signs-in-only-after-its-person-approves-it-and-gets-its-own-credential.md) | An editor signs in only after its person approves it, and gets its own credential | 2026-10-03 | — |
 | Unfold | [0038](../../apps/unfold/docs/adrs/0038-the-application-shows-unfold-and-is-organised-around-work.md) | The application shows Unfold, and is organised around work | 2026-10-04 | — |
+| Unfold | [0039](../../apps/unfold/docs/adrs/0039-unfold-collects-context-files-and-hands-them-to-ploeg.md) | Unfold collects context files and hands them to Ploeg | 2026-10-04 | — |
 
 ## Proposed
 
@@ -83,8 +90,8 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | --- | --- | --- | --- | --- | --- |
 | System | [0014](../adr/adr-0014-the-unfold-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The Unfold name and mark are trademarks under a usage policy, not CC-licensed artwork | 2026-10-01 | unknown | — |
 | System | [0015](../adr/adr-0015-the-hosted-demo-is-a-recorded-replay-of-the-deterministic-demo.md) | The hosted demo is a recorded replay of the deterministic demo | 2026-10-01 | unknown | — |
-| System | [0017](../adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) | A Tenant sits above Teams and bounds what users, sources and budgets can reach | 2026-10-03 | unknown | — |
 | System | [0018](../adr/adr-0018-ploeg-releases-on-its-own-schedule-behind-a-tested-contract-version.md) | Ploeg releases on its own schedule behind a tested contract version | 2026-10-03 | unknown | — |
+| System | [0021](../adr/adr-0021-agents-are-briefed-from-a-per-tenant-knowledge-base-exchanged-as-okf.md) | Agents are briefed from a per-Tenant knowledge base exchanged as OKF | 2026-10-04 | unknown | — |
 | Ploeg | [0015](../../apps/ploeg/docs/adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md) | Route work in the core over provider-opaque Scopes | 2026-07-29 | partial | Scope resolver exists; tracker team mapping is still live ([source](../../apps/ploeg/pkg/target/resolver.go)) |
 | Ploeg | [0016](../../apps/ploeg/docs/adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md) | Resolve forges through a registry and mint forge credentials per Run | 2026-07-29 | partial | Per-run forge tokens exist; the worker still calls the forge API directly ([source](../../apps/ploeg/pkg/forgebroker/broker.go)) |
 | Ploeg | [0017](../../apps/ploeg/docs/adrs/0017-the-review-loop-is-verdict-driven-and-capped.md) | The review loop is verdict-driven and capped | 2026-07-29 | yes | Verdict loop and fix-round cap are tested ([source](../../apps/ploeg/pkg/shiftengine/reviewloop_test.go)) |
@@ -102,7 +109,6 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md) | Runs create Work Items that wait for approval, within per-Team limits | 2026-09-23 | unknown | — |
 | Ploeg | [0032](../../apps/ploeg/docs/adrs/0032-keep-the-dispatch-plane-and-compete-on-authorized-spend.md) | Keep the dedicated dispatch plane, and compete on authorized spend over a self-hosted stack | 2026-09-30 | unknown | — |
 | Ploeg | [0033](../../apps/ploeg/docs/adrs/0033-board-control-planes-are-mined-for-design-never-depended-on.md) | Board control planes are mined for design and never depended on | 2026-09-26 | unknown | — |
-| Ploeg | [0034](../../apps/ploeg/docs/adrs/0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md) | The harness gets placeholders; the worker keeps the credentials | 2026-09-26 | unknown | — |
 | Ploeg | [0035](../../apps/ploeg/docs/adrs/0035-runs-get-ploeg-owned-skills-mounted-toolchains-and-worker-verification.md) | Runs get Ploeg-owned skills, mounted toolchains and a verification the worker runs | 2026-09-27 | unknown | — |
 | Ploeg | [0036](../../apps/ploeg/docs/adrs/0036-stuck-work-reaches-the-owner-as-a-cited-proposal-not-an-agent-decision.md) | Stuck work reaches the owner as a cited proposal, and no agent applies a decision | 2026-09-28 | unknown | — |
 | Ploeg | [0039](../../apps/ploeg/docs/adrs/0039-a-run-calls-only-its-roles-model-and-the-advisor-waits-for-metering.md) | A Run calls only its Role's model, and the advisor waits for metering that prices it | 2026-09-30 | unknown | — |
