@@ -1,3 +1,44 @@
+## [unfold-v0.4.0-rc.37](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.36...unfold-v0.4.0-rc.37) (2026-10-04)
+
+### Added
+
+* **deps:** update all non-major dependencies ([dbf4083](https://forgejo.webgrip.dev/webgrip/unfold/commit/dbf40833cd26b1eb22be87209cee74829eca2ddf))
+* **vloer:** show tasks Ploeg could not start under Needs you ([501a018](https://forgejo.webgrip.dev/webgrip/unfold/commit/501a018f54dec06c3bfdf0f75a6dd4c595ba2159))
+* **vloer:** warn when Runs hold budget Ploeg cannot release ([46819e9](https://forgejo.webgrip.dev/webgrip/unfold/commit/46819e97232b19a34964d4ed47095a9861e9fdb4))
+
+### Fixed
+
+* **vloer:** default the chart and image builds to public registries ([14e7581](https://forgejo.webgrip.dev/webgrip/unfold/commit/14e7581ab909ceb35ae583757df6252131bbaf84))
+* **vloer:** make editor sign-in need approval and issue its own credential ([9ada416](https://forgejo.webgrip.dev/webgrip/unfold/commit/9ada416ab39fe42346eda2a5a57bd7a0d952f143))
+* **vloer:** mark a pull request whose reviewer kept failing as unreviewed ([d842853](https://forgejo.webgrip.dev/webgrip/unfold/commit/d84285390ccbae928835ca17bb6184aa721d7080))
+* **vloer:** say the agent stopped responding when an ACP watchdog stopped it ([d263ce6](https://forgejo.webgrip.dev/webgrip/unfold/commit/d263ce6de9a91bca89bda94ab7b5c274a425239c))
+
+### Docs
+
+* **vloer:** accept ADR-0037 an editor signs in only after its person approves it ([072e3ee](https://forgejo.webgrip.dev/webgrip/unfold/commit/072e3ee340fbdbb292722590676e39fb9034f11f))
+
+### Tests
+
+* **vloer:** give the relay test's timed exec a load-scaled budget ([a05d947](https://forgejo.webgrip.dev/webgrip/unfold/commit/a05d94726fd1eaf567d2ba0d96edfbcb1b3f6e47)), references [#207](https://forgejo.webgrip.dev/webgrip/unfold/issues/207) [#212](https://forgejo.webgrip.dev/webgrip/unfold/issues/212)
+
+### Build
+
+* **ploeg:** pin Ploeg main at 611b3f18 to keep verification provenance ([9f3e9e9](https://forgejo.webgrip.dev/webgrip/unfold/commit/9f3e9e92638aa4fcb0816458ba1ebdf0297fbdf6)), references [ploeg-hq/ploeg#53](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/53) [ploeg-hq/ploeg#47](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/47) [ploeg-hq/ploeg#54](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/54)
+* **ploeg:** pin Ploeg main at 611b3f18 to let only the worker report delivery ([047d605](https://forgejo.webgrip.dev/webgrip/unfold/commit/047d605894566a1d925dc0623a37c05178ceb585)), references [ploeg-hq/ploeg#49](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/49) [ploeg-hq/ploeg#47](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/47) [ploeg-hq/ploeg#54](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/54)
+* **ploeg:** pin Ploeg main at 611b3f18 to list Runs whose spend cannot settle ([721af5b](https://forgejo.webgrip.dev/webgrip/unfold/commit/721af5b8671188e53e5558d22d397e7bdc305c47)), references [ploeg-hq/ploeg#50](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/50) [ploeg-hq/ploeg#47](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/47) [ploeg-hq/ploeg#54](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/54)
+* **ploeg:** pin Ploeg main at 611b3f18 to make the chart portable ([800abf7](https://forgejo.webgrip.dev/webgrip/unfold/commit/800abf77d9f399b9576dca1cae5009c0c1709309)), references [ploeg-hq/ploeg#52](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/52) [ploeg-hq/ploeg#47](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/47) [ploeg-hq/ploeg#54](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/54)
+* **ploeg:** pin Ploeg main at 611b3f18 to name the ACP watchdog that stopped a Run ([94b5e81](https://forgejo.webgrip.dev/webgrip/unfold/commit/94b5e815c72cd71ba47b4ef2ea4b9ccc17ddacea)), references [ploeg-hq/ploeg#48](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/48) [ploeg-hq/ploeg#47](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/47) [ploeg-hq/ploeg#54](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/54)
+* **ploeg:** pin Ploeg main at 611b3f18 to retry a failed reviewer ([fe47d57](https://forgejo.webgrip.dev/webgrip/unfold/commit/fe47d57523ed13d339cd8abcbd4263189660a6e4)), references [ploeg-hq/ploeg#47](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/47) [ploeg-hq/ploeg#47](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/47) [ploeg-hq/ploeg#54](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/54)
+* **site:** lock pnpm 12.8.2 in the site's pnpm-lock.yaml ([c707135](https://forgejo.webgrip.dev/webgrip/unfold/commit/c707135ef10a4fb63674edac24166eb9bb32dec5))
+
+### CI
+
+* **site:** record the /demo replay in the site build instead of committing it ([b10b6c0](https://forgejo.webgrip.dev/webgrip/unfold/commit/b10b6c01086d8a44f49f79df4dec985785bd0e3e))
+
+### Internal
+
+* **release:** unfold-site-v0.1.0-rc.10 [skip ci] ([59823dd](https://forgejo.webgrip.dev/webgrip/unfold/commit/59823dd6bb2fe1f9f589fe93946a387c9d19db36))
+
 ## [unfold-v0.4.0-rc.36](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.35...unfold-v0.4.0-rc.36) (2026-10-04)
 
 ### Added
