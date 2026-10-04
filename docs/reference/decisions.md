@@ -51,6 +51,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0038](../../apps/ploeg/docs/adrs/0038-a-repo-label-selects-among-registered-targets-and-the-board-default-is-the-fallback.md) | A repo label selects among registered targets, and the board default is the fallback | 2026-09-28 | — |
 | Ploeg | [0043](../../apps/ploeg/docs/adrs/0043-a-failed-reading-run-is-retried-and-a-missing-review-closes-review-failed.md) | A failed reading Run is retried in its Round, and a review that never came closes `review_failed` | 2026-10-01 | — |
 | Ploeg | [0044](../../apps/ploeg/docs/adrs/0044-an-operator-restarts-stopped-work-from-a-round-they-choose.md) | An operator restarts stopped work by requeueing it from a Round they choose | 2026-10-01 | — |
+| Ploeg | [0048](../../apps/ploeg/docs/adrs/0048-a-pool-held-by-unsettled-runs-waits-for-settlement-before-it-parks.md) | A pool held by unsettled Runs waits for settlement before it parks | 2026-10-04 | — |
 | Ploeg | [0062](../../apps/ploeg/docs/adrs/0062-github-is-the-independent-project-home.md) | GitHub is the independent project home | 2026-10-03 | — |
 | Ploeg | [0063](../../apps/ploeg/docs/adrs/0063-independent-releases-start-at-zero-point-one.md) | Independent releases start at 0.1.0 | 2026-10-03 | — |
 | Ploeg | [0064](../../apps/ploeg/docs/adrs/0064-development-is-trunk-and-release-candidates-come-from-it.md) | Development is trunk, and release candidates come from it | 2026-10-04 | — |
