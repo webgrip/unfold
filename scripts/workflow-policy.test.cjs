@@ -182,10 +182,24 @@ test('release routing publishes Unfold for an Unfold tag and nothing for a close
   }
 });
 
-test('the site versions on its own train, after Unfold, behind the same gate', () => {
+test('the site versions on its own train: candidates after Unfold on development, stable releases on main', () => {
+  assert.deepEqual(source.on.push.branches, ['development', 'main']);
   const job = source.jobs['site-release'];
   assert.deepEqual(job.needs, ['checks', 'release']);
-  assert.equal(job.if, source.jobs.release.if);
+  for (const event_name of ['push', 'pull_request', 'workflow_dispatch']) {
+    for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic']) {
+      for (const gate of ['', 'true']) {
+        for (const checks of ['success', 'failure', 'skipped']) {
+          for (const release of ['success', 'failure', 'skipped']) {
+            const enabled = evaluate(job.if, { github: { event_name, ref }, vars: { UNFOLD_RELEASES_ENABLED: gate }, needs: { checks: { result: checks }, release: { result: release } } });
+            const expected = event_name === 'push' && gate === 'true' && checks === 'success'
+              && ((ref === 'refs/heads/development' && release === 'success') || (ref === 'refs/heads/main' && release === 'skipped'));
+            assert.equal(enabled, expected, `${event_name} ${ref} ${gate} ${checks} ${release}`);
+          }
+        }
+      }
+    }
+  }
   assert.deepEqual(job.container, source.jobs.release.container);
   const release = job.steps.find(step => step.id === 'release');
   assert.equal(release.uses, source.jobs.release.steps.find(step => step.id === 'release').uses);

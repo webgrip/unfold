@@ -38,8 +38,8 @@ run_worker_first = ["/api/*"]
 
 [[env.staging.d1_databases]]
 binding = "SIGNUPS"
-database_name = "unfold-site-signups"
-database_id = "df25762e-eea2-41be-b772-b74f5e2b187c"
+database_name = "unfold-site-signups-staging"
+database_id = "b8b9dea7-5630-4c8d-8bf0-e7ef62d95bc0"
 
 [env.staging.observability]
 enabled = true
