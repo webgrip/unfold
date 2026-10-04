@@ -14,7 +14,7 @@ function candidateConfiguration(dataDir: string): AppConfig {
   return { mode: 'live', host: '127.0.0.1', port: 0, dataDir, publicDir: '', repositories: [registeredRepository], crews: [], models: [], runtime: { kind: 'opencode', backend: 'kubernetes', timeoutMs: 20000 }, auth: { secureCookies: false, sessionHours: 1, bootstrapName: 'operator' }, maxConcurrentSessions: 1, maxBudgetUsd: 1, kubernetes: { namespace: 'agents', image: 'test-image', storageSize: '1Gi', cpu: '1', memory: '512Mi' } };
 }
 function candidateSession(id: string, workspace: Workspace): Session {
-  return { id, title: 'Candidate fixture', objective: 'Review fixture', repositoryId: registeredRepository.id, crewId: 'review', runtime: 'opencode', ownerId: 'operator', ownerName: 'Operator', status: 'exporting', budgetUsd: 1, spentUsd: 0, costStatus: 'pending', createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString(), branch: `vloer/${id}`, runs: [], artifacts: [], workspace };
+  return { id, title: 'Candidate fixture', objective: 'Review fixture', repositoryId: registeredRepository.id, crewId: 'review', runtime: 'opencode', ownerId: 'operator', ownerName: 'Operator', status: 'exporting', budgetUsd: 1, spentUsd: 0, costStatus: 'pending', createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString(), branch: `operator/${id}`, runs: [], artifacts: [], workspace };
 }
 
 function git(cwd: string, ...args: string[]): string {
