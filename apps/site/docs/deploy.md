@@ -1,6 +1,6 @@
 # Deploy
 
-The site is a static build served by a Cloudflare Worker whose code handles only `/api/*` (the sign-up form). A release candidate from `development` goes to staging at `https://staging.unfoldhq.dev` (Worker `unfold-site-staging`); a stable release goes to production at `https://unfoldhq.dev` (Worker `unfold-site`). `development` cuts only candidates, so until Unfold has a `main` branch that releases stable versions, staging is the only site that is live. It has its own release train and deploys on its own release, outside the Unfold version ([ADR-0012](../../../docs/adr/adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md)).
+The site is a static build served by a Cloudflare Worker whose code handles only `/api/*` (the sign-up form). A release candidate from `development` goes to staging at `https://staging.unfoldhq.dev` (Worker `unfold-site-staging`); a stable release goes to production at `https://unfoldhq.dev` (Worker `unfold-site`). `development` cuts only candidates. A stable site release comes from `main`: promote `development` to `main` with a merge commit, and the site's release job there cuts `unfold-site-vX.Y.Z` and deploys production. Unfold itself does not release from `main`. It has its own release train and deploys on its own release, outside the Unfold version ([ADR-0012](../../../docs/adr/adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md)).
 
 ## How a change goes live
 
@@ -21,9 +21,9 @@ An Unfold release candidate redeploys staging from its own tag; it never deploys
 | `unfold-site-vX.Y.Z-rc.N` | `unfold-site-staging` (`[env.staging]` in `wrangler.toml`) | `https://staging.unfoldhq.dev` | no      |
 | `unfold-site-vX.Y.Z`      | `unfold-site` (top level of `wrangler.toml`)               | `https://unfoldhq.dev`         | yes     |
 
-Each deploy job names its address twice: as `UNFOLD_SITE_URL` in the build command and as `apex-url` for the live checks. Each Worker has a route in `wrangler.toml` for its hostname. A route only takes traffic for a hostname that has a proxied DNS record: the apex has the record the zone came with, and `staging` gets a proxied `AAAA 100::` from the DNS config below. That address goes nowhere, which is fine because the Worker answers first.
+Each deploy job names its address twice: as `UNFOLD_SITE_URL` in the build command and as `apex-url` for the live checks. Each Worker has a route in `wrangler.toml` for its hostname. A route only takes traffic for a hostname that has a proxied DNS record: the apex, `www` and `staging` each get a proxied `AAAA 100::` from the DNS config below. That address goes nowhere, which is fine because the Worker answers first.
 
-Both Workers bind the same sign-up database. Staging is the only live site for now, so the people who sign up there are real. Give staging its own database before production goes live.
+Each Worker binds its own sign-up database: production `unfold-site-signups`, which holds the sign-ups staging collected before 2026-10-04, and staging `unfold-site-signups-staging`. Both are in the EU jurisdiction.
 
 `workers_dev = true` stays on, so each Worker also answers on its `workers.dev` hostname. Those pages still canonicalise to the address the build was given.
 
@@ -40,7 +40,7 @@ CI never holds a token that can change DNS ([homelab-cluster ADR-0061](https://f
 
 The `dns-reconciler` CronJob in `webgrip/homelab-cluster` applies the config every hour at minute 37. It clones `development`, previews with the zone's write token, and pushes only when there are corrections. It refuses a push that would create a zone. It also refuses any deletion unless the last commit touching `apps/site/ops/dns/` names the record in a `DNS-Allow-Delete: <name>` line; DNSControl names a record at the apex `unfoldhq.dev`. A refusal fails the Job, and the zone stays as it was.
 
-The config declares `staging`, a 301 from `www` to the apex, and that the domain handles no mail: a null MX (RFC 7505), SPF `-all` and DMARC `p=reject`. It ignores the apex and `www` address records that came with the zone, so DNSControl never deletes them; production's route depends on the apex one. Any other record that Cloudflare holds and the config does not declare appears in the first preview as a deletion. Copy it into the config, or delete it with the trailer.
+The config declares `staging`, a 301 from `www` to the apex, and that the domain handles no mail: a null MX (RFC 7505), SPF `-all` and DMARC `p=reject`. The apex and `www` carry the same placeholder as `staging`; production's route depends on the apex one, and `www` only needs a proxied record for the redirect. Any other record that Cloudflare holds and the config does not declare appears in the first preview as a deletion. Copy it into the config, or delete it with the trailer.
 
 ## No indexing outside production
 

@@ -6,9 +6,8 @@ D(
   REG_NONE,
   DnsProvider(CF_REDIRECTS),
   DefaultTTL(1),
-  IGNORE('@', 'A,AAAA,CNAME'),
-  IGNORE('www', 'A,AAAA,CNAME'),
-
+  AAAA('@', '100::', CF_PROXY_ON),
+  AAAA('www', '100::', CF_PROXY_ON),
   AAAA('staging', '100::', CF_PROXY_ON),
 
   MX('@', 0, '.'),

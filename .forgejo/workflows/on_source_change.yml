@@ -2,7 +2,7 @@ name: '[Workflow] On Source Change'
 
 on:
   push:
-    branches: [development]
+    branches: [development, main]
   workflow_dispatch:
 
 concurrency:
@@ -85,7 +85,11 @@ jobs:
         run: node scripts/release-repair.mjs unfold-v
 
   site-release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
+    if: >-
+      always() && github.event_name == 'push' && vars.UNFOLD_RELEASES_ENABLED == 'true'
+      && needs.checks.result == 'success'
+      && ((github.ref == 'refs/heads/development' && needs.release.result == 'success')
+      || (github.ref == 'refs/heads/main' && needs.release.result == 'skipped'))
     needs: [checks, release]
     runs-on: docker
     container:
