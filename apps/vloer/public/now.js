@@ -5,7 +5,7 @@ import { runOutcome, verdict as verdictMeta, runFailure, workItemState, tileDeta
 import { listReason, reasonGlyph, routingWarning, needsYouBlocks } from './core/reasons.js';
 import { workItemRef, reasonBand } from './ploeg.js';
 import { grafanaTeam } from './core/observability.js';
-import { badge, button, callout, count, emptyState, iconButton, kbd, listRow, meter, skeleton, stat, demoNote, ploegUnconfigured } from './core/ui.js';
+import { badge, button, callout, count, disclosure, emptyState, iconButton, kbd, listRow, meter, skeleton, stat, demoNote, ploegUnconfigured } from './core/ui.js';
 
 /** How long the Now page must be out of sight before the digest starts a new "since" period. */
 export const awayAfter = 30 * 60 * 1000;
@@ -511,6 +511,18 @@ function staleBanner(view, now) {
   return `<div class="now-banner" role="status">${callout({ tone: 'attention', title: 'Could not refresh', body: `<p>${escape(view.error.message || 'Ploeg did not answer.')}${when}</p>`, actions: retryButton('banner') })}</div>`;
 }
 
+function unsettledBanner(view, now) {
+  const summary = view.summary?.data;
+  const unsettled = summary?.unsettled;
+  if (!summary || summary.demo || view.data.demo || !unsettled || !(unsettled.count > 0)) return '';
+  const accounts = Array.isArray(unsettled.accounts) ? unsettled.accounts : [];
+  const runs = unsettled.count === 1 ? '1 Run holds' : `${format.count(unsettled.count)} Runs hold`;
+  const rows = accounts.map(entry => `<li class="now-unsettled-run"><a href="#work/${escape(entry.workItemId)}">Work Item ${escape(entry.workItemId)}</a> <span class="subtle">Run ${escape(entry.runId)} · ${escape(entry.team)} · key ${escape(entry.accountState)} · ${escape(format.money(entry.heldUsd))} held since ${format.timeHtml(entry.since, { now })}</span></li>`).join('');
+  const list = disclosure({ summary: unsettled.count === 1 ? 'Show the Run' : `Show the ${format.count(unsettled.count)} Runs`, body: `<ul class="now-unsettled-runs">${rows}</ul>` });
+  const body = `<p>Their model keys could not be blocked at the gateway, often because the key is already gone. Each keeps its full hold (${escape(format.money(unsettled.heldUsd))} in total) until someone settles it by hand. Follow <code>apps/ploeg/docs/ops/managed-workers.md</code>, “Reconcile uncertainty”.</p>${list}`;
+  return `<div class="now-banner now-unsettled" role="status">${callout({ tone: 'severe', title: `${runs} budget Ploeg cannot release`, body })}</div>`;
+}
+
 /**
  * Whether the Now page currently shows a "Try again" button: the page failed, a refresh failed over older
  * data, or one of its groups failed. The page's own Refresh button stays hidden while one is on screen.
@@ -542,5 +554,5 @@ export function nowMarkup(input, options = {}, now = Date.now()) {
   const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), runs: view.data.errors.recent ? [] : view.data.recent, dots: true };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
   const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
-  return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${waitingCard(view, visible, held, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}</div></div></div>`;
+  return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${waitingCard(view, visible, held, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}</div></div></div>`;
 }

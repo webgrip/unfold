@@ -22,7 +22,10 @@ export type PloegWorkCounts = Record<'queued' | 'leased' | 'awaitingReview' | 'n
 export type PloegRunCounts = Record<'pending' | 'running' | 'finished' | 'failed' | 'stuck', number>;
 export type PloegSpend = { settledUsd: number; reservedUsd: number };
 export type PloegTeamSummary = { team: string; workItems: PloegWorkCounts; runs: PloegRunCounts; spend: PloegSpend; lastActivityAt: string | null };
-export type PloegSummary = { demo: boolean; window: PloegWindow; generatedAt: string; teams: PloegTeamSummary[]; totals: { workItems: PloegWorkCounts; runs: PloegRunCounts; spend: PloegSpend }; fetchedAt: string };
+export type PloegUnsettledAccount = { runId: string; workItemId: string; team: string; accountState: 'minting' | 'issued' | 'unknown'; heldUsd: number; since: string };
+/** Finished Runs whose budget hold Ploeg cannot release, oldest first, with their count and held total summed from exactly these rows. */
+export type PloegUnsettled = { count: number; heldUsd: number; accounts: PloegUnsettledAccount[] };
+export type PloegSummary = { demo: boolean; window: PloegWindow; generatedAt: string; teams: PloegTeamSummary[]; totals: { workItems: PloegWorkCounts; runs: PloegRunCounts; spend: PloegSpend }; unsettled: PloegUnsettled | null; unsettledError: { code: string; message: string } | null; fetchedAt: string };
 export type PloegRunRow = { id: string; workItemId: string; workItemTitle: string; externalRef: string; team: string; role: string; round: number; writes: boolean; state: string; outcome: string; verdict: string; failureReason: string; startedAt: string | null; finishedAt: string | null; durationSeconds: number | null; authorizedUsd: number | null; settledUsd: number | null; observedUsd: number | null; reservedModels: string[]; usage: { inputTokens: number | null; outputTokens: number | null; models: string[] } | null };
 export type PloegRunsPage = { demo: boolean; runs: PloegRunRow[]; nextBefore: string | null; fetchedAt: string };
 export type PloegActivityEvent = PloegEvent & { workItemTitle: string };
@@ -174,6 +177,17 @@ function teamSummary(value: unknown): PloegTeamSummary { const data = record(val
 export function summaryTotals(teams: PloegTeamSummary[]): PloegSummary['totals'] {
   const add = <K extends string>(keys: readonly K[], pick: (team: PloegTeamSummary) => Record<K, number>) => Object.fromEntries(keys.map(key => [key, teams.reduce((sum, team) => sum + pick(team)[key], 0)])) as Record<K, number>;
   return { workItems: add(workKeys, team => team.workItems), runs: add(runKeys, team => team.runs), spend: add(['settledUsd', 'reservedUsd'] as const, team => team.spend) };
+}
+const unsettledStates = ['minting', 'issued', 'unknown'] as const;
+function unsettledAccount(value: unknown): PloegUnsettledAccount {
+  const data = record(value);
+  const state = oneOf(data.accountState, unsettledStates);
+  if (!state) throw invalid();
+  return { runId: identifier(data.runId), workItemId: identifier(data.workItemId), team: field(data.team, 100), accountState: state, heldUsd: numeric(data.heldUsd), since: timestamp(data.since) };
+}
+/** Sums unsettled accounts into the count and held total a caller sees. */
+export function unsettledTotals(accounts: PloegUnsettledAccount[]): PloegUnsettled {
+  return { count: accounts.length, heldUsd: Math.round(accounts.reduce((sum, entry) => sum + entry.heldUsd, 0) * 10000) / 10000, accounts };
 }
 function runRow(value: unknown): PloegRunRow {
   const data = record(value);
@@ -772,7 +786,19 @@ export class PloegClient {
       record(data.totals);
     }
     const visible = teams.filter(entry => this.allowed(user, entry.team));
-    return { demo: this.demo, window: window as PloegWindow, generatedAt, teams: visible, totals: summaryTotals(visible), fetchedAt: new Date().toISOString() };
+    const { unsettled, unsettledError } = await this.unsettled(user, fresh);
+    return { demo: this.demo, window: window as PloegWindow, generatedAt, teams: visible, totals: summaryTotals(visible), unsettled, unsettledError, fetchedAt: new Date().toISOString() };
+  }
+  private async unsettled(user: User, fresh: boolean): Promise<Pick<PloegSummary, 'unsettled' | 'unsettledError'>> {
+    if (this.demo) return { unsettled: unsettledTotals([]), unsettledError: null };
+    try {
+      const data = envelope(await this.request('unsettled-accounts', fresh, { added: true }));
+      const accounts = array(data.accounts, unsettledAccount, 200).filter(entry => this.allowed(user, entry.team));
+      return { unsettled: unsettledTotals(accounts), unsettledError: null };
+    } catch (error) {
+      const older = error instanceof PloegError && error.code === 'ploeg_unsupported';
+      return { unsettled: null, unsettledError: older ? { code: 'ploeg_unsupported', message: 'This Ploeg version does not report Runs whose budget it cannot release.' } : { code: 'ploeg_unavailable', message: 'Ploeg could not list the Runs whose budget it cannot release.' } };
+    }
   }
   /** Lists Runs newest first; `before` pages to older Runs. */
   async runs(user: User, filter: PloegRunFilter, fresh = false): Promise<PloegRunsPage> {

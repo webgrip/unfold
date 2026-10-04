@@ -419,3 +419,18 @@ test('a live refresh reports an update only for data read without error while it
   assert.equal(await refresh(), false, 'leaving the page reads nothing without counting as a failure');
   Object.assign(state, { bootstrap: null, view: 'now' });
 });
+
+test('Insights shows how many Runs hold budget Ploeg cannot release, or why it cannot say', () => {
+  const tileOf = html => html.match(/<div class="stat"[^>]*><span class="stat-label"><i data-icon="[a-z-]+"><\/i>Cannot release<\/span>[\s\S]*?<\/div>/)?.[0] || '';
+  const read = (extra, demo = false) => tileOf(overviewMarkup({ window: '7d', data: { ...summary('7d', demo), ...extra }, loading: false, error: null }, helpers, now));
+  const accounts = [{ runId: '41', workItemId: '101', team: 'delivery', accountState: 'unknown', heldUsd: 1.5, since: '2026-09-10T06:00:00Z' }, { runId: '43', workItemId: '105', team: 'delivery', accountState: 'issued', heldUsd: 3, since: '2026-09-10T07:00:00Z' }];
+  const held = read({ unsettled: { count: 2, heldUsd: 4.5, accounts }, unsettledError: null });
+  assert.match(held, /data-tone="danger"/);
+  assert.match(held, /<strong class="stat-value">2<\/strong><span class="stat-detail">US\$\s4,50 held by finished Runs<\/span>/);
+  const none = read({ unsettled: { count: 0, heldUsd: 0, accounts: [] }, unsettledError: null });
+  assert.match(none, /<strong class="stat-value">0<\/strong><span class="stat-detail">No budget is stuck<\/span>/);
+  assert.doesNotMatch(none, /data-tone="danger"/);
+  assert.match(read({ unsettled: null, unsettledError: { code: 'ploeg_unavailable', message: 'no' } }), /<strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">Could not be loaded<\/span>/);
+  assert.match(read({ unsettled: null, unsettledError: { code: 'ploeg_unsupported', message: 'no' } }), /<span class="stat-detail">Not reported by this Ploeg<\/span>/);
+  assert.match(read({ unsettled: { count: 0, heldUsd: 0, accounts: [] }, unsettledError: null }, true), /<strong class="stat-value">0<\/strong><span class="stat-detail">Demo · no model calls<\/span>/);
+});
