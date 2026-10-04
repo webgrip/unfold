@@ -145,7 +145,7 @@ Two rules carry over from the Unfold rules: an intentional pause or cancel never
 | Remove | Notes |
 | --- | --- |
 | The Operator Execution handlers in [`operator_execution.go`](../../ploeg/pkg/httpapi/operator_execution.go) and the store in [`store/operator_execution.go`](../../ploeg/pkg/store/operator_execution.go) | First answer `410 Gone` for new admissions. Delete the code after the last open execution is closed. |
-| The placeholder writes: `operator_owned` Work Items, `vloer/<session>` Shifts, `operator` Runs and their Leases | Nothing creates them any more. |
+| The placeholder writes: `operator_owned` Work Items, `operator/<session>` Shifts, `operator` Runs and their Leases | Nothing creates them any more. |
 | The ten scheduler exclusions in [`shift.go`](../../ploeg/pkg/store/shift.go) and the `operator_owned` cases in `IngestAssigned` | Remove them only once no open placeholder rows remain. |
 | `LLMControl.IssueOperator`, the `ReconcileOperatorExecutions` sweep and the 30-second credential timeout in `operatorAuth` | Worker keys use `Issue` through the Run API. |
 | The `operator_executions`, command and event tables | Drop them in a **new** migration. Never edit an existing migration. |
