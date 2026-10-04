@@ -100,15 +100,47 @@ export const failureReasons = table({
   idle: ['The agent went silent', 'danger', 'clock', { infra: false, owner: 'the agent harness', action: 'Read the log tail to see where it stopped.', cause: 'The harness printed nothing and made no model call for its idle timeout', retries: false, next: 'Read its log tail. A hung command or an unanswered prompt is the usual cause. Raising the idle timeout only delays the stop.' }],
 });
 
+const stoppedResponding = Object.freeze({ ...failureReasons.agent_error, label: 'The agent stopped responding', glyph: 'clock', owner: 'the agent harness', action: 'Read the last lines it printed to see where it stopped.', cause: 'The agent stopped responding', next: 'Its reason names the watchdog that stopped it. A hung command or a long silent model call is the usual cause.', outputLabel: 'Last lines it printed' });
+const watchdogSummary = /^acp (?:agent stopped responding|idle watchdog stopped the agent|prompt wall stopped the agent)\b/;
+const stderrPart = /(?:^| \| )stderr: /;
+
+/**
+ * The failure meta of a Run, or null when it did not fail. A Run whose summary says an ACP watchdog stopped it reads
+ * as an agent that stopped responding; every other Run reads as its `failureReason`, whose key it keeps.
+ * @param {{ failureReason?: string | null, summary?: string | null }} run
+ * @returns {object | null}
+ */
+export function runFailure(run) {
+  if (!run?.failureReason) return null;
+  if (run.failureReason === 'agent_error' && watchdogSummary.test(run.summary || '')) return stoppedResponding;
+  return failureReason(run.failureReason);
+}
+
+/**
+ * A failed Run's stuck reason split for display. When its failure meta labels the agent's output, `output` is the
+ * stderr tail and `reason` the rest; otherwise `reason` is the whole stuck reason and `output` is empty.
+ * @param {{ failureReason?: string | null, summary?: string | null, stuckReason?: string | null }} run
+ * @returns {{ reason: string, output: string, outputLabel: string }}
+ */
+export function runFailureText(run) {
+  const text = run?.stuckReason || '';
+  const label = runFailure(run)?.outputLabel || '';
+  const match = label ? stderrPart.exec(text) : null;
+  if (!label) return { reason: text, output: '', outputLabel: '' };
+  if (!match) return { reason: text, output: '', outputLabel: label };
+  return { reason: text.slice(0, match.index), output: text.slice(match.index + match[0].length), outputLabel: label };
+}
+
 /**
  * One plain sentence about a failed Run: its cause, whether Ploeg still retries it (only while `live`, that is while
- * the Work Item is not stopped), and the next step. Returns '' when the Run did not fail.
- * @param {string | null | undefined} key
+ * the Work Item is not stopped), and the next step. Takes a failure reason or a meta from `runFailure`. Returns ''
+ * when the Run did not fail.
+ * @param {string | object | null | undefined} key
  * @param {{ live?: boolean }} [options]
  * @returns {string}
  */
 export function failureNote(key, { live = true } = {}) {
-  const meta = failureReason(key);
+  const meta = key && typeof key === 'object' ? key : failureReason(key);
   if (!meta) return '';
   const cause = meta.cause || meta.label;
   return [`Cause: ${cause[0].toLowerCase()}${cause.slice(1)}.`, meta.retries && live ? 'Ploeg retries it automatically.' : '', meta.next || ''].filter(Boolean).join(' ');

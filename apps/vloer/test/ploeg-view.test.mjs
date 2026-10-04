@@ -445,6 +445,24 @@ test('the demo’s writer accounts say they are illustrative', () => {
   assert.equal(writerAccount(demoDetail('114')).runId, '25', 'the fix Round’s account replaces the first one');
 });
 
+test('a Run an ACP watchdog stopped says the agent stopped responding and labels what it printed', () => {
+  const stopped = detail();
+  stopped.runs[0] = { ...stopped.runs[0], outcome: 'failed', verdict: '', findings: '', failureReason: 'agent_error', summary: 'acp idle watchdog stopped the agent: no protocol activity for 10m0s', stuckReason: 'no protocol activity for 10m0s after 29 events | stderr: npm WARN deprecated' };
+  const html = detailMarkup(stopped, model({ detailId: '50' }));
+  assert.match(html, /The agent stopped responding/);
+  assert.match(html, /Last lines it printed/);
+  assert.match(html, /npm WARN deprecated/);
+  assert.match(html, /no protocol activity for 10m0s after 29 events/);
+  assert.doesNotMatch(html, /exited with an error|Read its log tail|The agent harness failed/);
+
+  const crashed = detail();
+  crashed.runs[0] = { ...crashed.runs[0], outcome: 'failed', verdict: '', findings: '', failureReason: 'agent_error', summary: 'acp agent exited before answering the prompt', stuckReason: 'EOF | stderr: panic' };
+  const other = detailMarkup(crashed, model({ detailId: '50' }));
+  assert.match(other, /The agent harness failed/);
+  assert.match(other, /exited with an error/);
+  assert.doesNotMatch(other, /The agent stopped responding|Last lines it printed/);
+});
+
 test('untrusted text from the tracker, agents and Ploeg stays inert everywhere on the page', () => {
   const hostile = detail();
   const attack = '<img src=x onerror=alert(1)>';

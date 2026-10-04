@@ -1,6 +1,6 @@
 import * as ui from './core/ui.js';
 import { count, dateTime, dayKey, dayLabel, duration as span, money, percent, plural, timeHtml } from './core/format.js';
-import { auditActor, auditEvent, failureReason, runOutcome, runState, tileDetail, unreportedOutcome, verdict as verdictMeta } from './core/states.js';
+import { auditActor, auditEvent, runFailure, runOutcome, runState, tileDetail, unreportedOutcome, verdict as verdictMeta } from './core/states.js';
 import { markdown } from './core/markdown.js';
 import { routingWarning } from './core/reasons.js';
 
@@ -325,7 +325,7 @@ function runBadge(run) {
 function runNotes(run, escape) {
   const notes = [];
   if (run.verdict) { const meta = verdictMeta(run.verdict); notes.push(`<span class="runs-note" data-tone="${meta.tone}" title="${escape(`${meta.label}. Agent review is evidence, not a human review.`)}">${escape(meta.short)}</span>`); }
-  const failure = failureReason(run.failureReason);
+  const failure = runFailure(run);
   if (failure) notes.push(`<span class="runs-note" data-tone="${failure.tone}">${escape(failure.label)}</span>`);
   else if (run.failureReason) notes.push(`<span class="runs-note" data-tone="danger">${escape(capital(run.failureReason))}</span>`);
   const next = failure ? `${failure.infra ? 'Not the agent’s fault. ' : ''}${failure.action}` : '';
