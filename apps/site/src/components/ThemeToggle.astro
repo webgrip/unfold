@@ -1,0 +1,99 @@
+---
+interface Props {
+  label: string;
+}
+
+const { label } = Astro.props;
+---
+
+<button type="button" class="theme-toggle" data-theme-toggle aria-label={label} hidden>
+  <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <circle cx="12" cy="12" r="4.5" fill="currentColor"></circle>
+    <g stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+      <path
+        d="M12 2v2.5M12 19.5V22M22 12h-2.5M4.5 12H2M19.07 4.93l-1.77 1.77M6.7 17.3l-1.77 1.77M19.07 19.07l-1.77-1.77M6.7 6.7L4.93 4.93"
+      ></path>
+    </g>
+  </svg>
+  <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z" fill="currentColor"></path>
+  </svg>
+</button>
+
+<style>
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding: 0;
+    background: transparent;
+    color: var(--fg-muted);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+
+  .theme-toggle[hidden] {
+    display: none;
+  }
+
+  .theme-toggle:hover {
+    color: var(--fg);
+    border-color: var(--border-strong);
+    background: var(--bg-band);
+  }
+
+  .icon-moon {
+    display: none;
+  }
+
+  :global(:root[data-theme='dark']) .icon-sun {
+    display: none;
+  }
+
+  :global(:root[data-theme='dark']) .icon-moon {
+    display: block;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-theme='light'])) .icon-sun {
+      display: none;
+    }
+
+    :global(:root:not([data-theme='light'])) .icon-moon {
+      display: block;
+    }
+  }
+</style>
+
+<script>
+  import { THEME_STORAGE_KEY } from '../config/theme.ts';
+
+  function currentTheme(): 'light' | 'dark' {
+    const explicit = document.documentElement.dataset.theme;
+    if (explicit === 'light' || explicit === 'dark') return explicit;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function syncState(button: HTMLButtonElement): void {
+    button.setAttribute('aria-pressed', String(currentTheme() === 'dark'));
+  }
+
+  document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]').forEach((button) => {
+    button.hidden = false;
+    syncState(button);
+    button.addEventListener('click', () => {
+      const next = currentTheme() === 'dark' ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      try {
+        localStorage.setItem(THEME_STORAGE_KEY, next);
+      } catch {
+        return;
+      } finally {
+        syncState(button);
+      }
+    });
+  });
+</script>

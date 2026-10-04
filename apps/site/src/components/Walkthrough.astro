@@ -1,0 +1,566 @@
+---
+import timelineData from '../data/demo-timeline.json';
+import { LOCALE_TAGS, type Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import {
+  formatMoney,
+  formatOffset,
+  timelineDuration,
+  type Timeline,
+  type TimelineEvent,
+} from '../lib/timeline.ts';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = dictionary(locale).how.walkthrough;
+const e = t.events;
+const tag = LOCALE_TAGS[locale];
+const timeline = timelineData as Timeline;
+const duration = timelineDuration(timeline);
+const roleOf = (run: string) => timeline.roles.find((role) => role.run === run)?.role ?? run;
+
+interface Row {
+  at: number;
+  kind: TimelineEvent['kind'];
+  text: string;
+  detail?: string;
+  role?: string;
+  tests?: { name: string; ok: boolean }[];
+  tone: 'neutral' | 'good' | 'expected' | 'final';
+}
+
+function describe(event: TimelineEvent): Row {
+  const base = { at: event.at, kind: event.kind };
+  switch (event.kind) {
+    case 'work-item':
+      return { ...base, text: e.workItem, tone: 'neutral' };
+    case 'shift-started':
+      return { ...base, text: e.shiftStarted, tone: 'neutral' };
+    case 'run-started':
+      return { ...base, text: e.runStarted, role: event.role, tone: 'neutral' };
+    case 'run-finished':
+      return event.verdict === 'approve'
+        ? { ...base, text: e.approved, role: roleOf(event.run), tone: 'good' }
+        : { ...base, text: e.runFinished, role: roleOf(event.run), tone: 'neutral' };
+    case 'edit':
+      return {
+        ...base,
+        text: e.edit,
+        detail: event.command.replace(/^edit /, ''),
+        role: roleOf(event.run),
+        tone: 'neutral',
+      };
+    case 'check': {
+      const passed = event.tests.filter((test) => test.ok).length;
+      const failed = event.tests.length - passed;
+      const lead =
+        event.phase === 'baseline'
+          ? e.baseline
+          : event.phase === 'review'
+            ? e.review
+            : e.verification;
+      const counts = [passed ? `${passed} ${e.passed}` : '', failed ? `${failed} ${e.failed}` : '']
+        .filter(Boolean)
+        .join(', ');
+      return {
+        ...base,
+        text: lead,
+        detail: counts,
+        role: roleOf(event.run),
+        tests: event.tests,
+        tone: event.expectedFailure ? 'expected' : 'good',
+      };
+    }
+    case 'change-ready':
+      return { ...base, text: e.changeReady, tone: 'final' };
+    case 'shift-finished':
+      return { ...base, text: e.shiftFinished, tone: 'neutral' };
+  }
+}
+
+const rows = timeline.events.map(describe);
+const budget = formatMoney(timeline.budget.authorized, timeline.budget.currency, 'nl-NL');
+const spent = formatMoney(timeline.budget.spent, timeline.budget.currency, 'nl-NL');
+const diffLines = timeline.diff.split('\n').map((line) => ({
+  text: line,
+  kind: line.startsWith('+')
+    ? 'add'
+    : line.startsWith('-')
+      ? 'del'
+      : line.startsWith('@')
+        ? 'hunk'
+        : 'ctx',
+}));
+---
+
+<div
+  class="walk card"
+  data-walkthrough
+  data-duration={duration}
+  data-label-play={t.play}
+  data-label-replay={t.replay}
+>
+  <div class="walk-head">
+    <div>
+      <h3 class="walk-title">{t.title}</h3>
+      <p class="walk-badge">{t.badge}</p>
+    </div>
+    <div class="walk-controls">
+      <p class="walk-clock" aria-hidden="true">
+        <span class="walk-clock-label">{t.clock}</span>
+        <span class="walk-clock-value" data-walk-clock>{formatOffset(duration, tag)}</span>
+        <span>{t.seconds}</span>
+      </p>
+      <button type="button" class="button button--secondary walk-play" data-walk-play hidden>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+          <path d="M4 2.5v11l9-5.5z" fill="currentColor"></path>
+        </svg>
+        <span data-walk-play-label>{t.play}</span>
+      </button>
+    </div>
+  </div>
+  <p class="walk-lead">{t.lead}</p>
+
+  <div class="walk-grid">
+    <aside class="walk-item" aria-label={t.workItem}>
+      <p class="walk-kicker">{t.workItem}</p>
+      <h4 class="walk-item-title">{timeline.workItem.title}</h4>
+      <p class="walk-item-text">{timeline.workItem.objective}</p>
+      <dl class="walk-facts">
+        <div>
+          <dt>{t.repository}</dt>
+          <dd>{timeline.workItem.repository}</dd>
+        </div>
+        <div>
+          <dt>{t.budget}</dt>
+          <dd>{budget}</dd>
+        </div>
+        <div>
+          <dt>{t.spent}</dt>
+          <dd class="walk-spent">{spent}</dd>
+        </div>
+      </dl>
+      <div class="walk-meter" aria-hidden="true">
+        <span class="walk-meter-fill"></span>
+      </div>
+      <p class="walk-note">{t.budgetNote}</p>
+    </aside>
+
+    <ol class="walk-events">
+      {rows.map((row) => <li
+        class={`walk-event walk-event--${row.tone}`}
+        data-at={row.at}
+        data-kind={row.kind}
+      >
+        <span class="walk-time"> {formatOffset(row.at, tag)} {t.seconds} </span>
+        <span class="walk-dot" aria-hidden="true" />
+        <span class="walk-body">
+          {row.role && <span class="walk-role">{row.role}</span>}
+          <span class="walk-text">
+            {row.text}
+            {row.detail && <strong> {row.detail}</strong>}
+          </span>
+          {row.tests && <span class="walk-tests" aria-hidden="true">
+            {row.tests.map((test) => (
+              <span class={test.ok ? 'walk-test walk-test--ok' : 'walk-test walk-test--fail'} />
+            ))}
+          </span>}
+        </span>
+      </li>)}
+    </ol>
+
+    <div class="walk-result" data-at={duration} data-walk-result>
+      <p class="walk-result-status">{t.result}</p>
+      <p class="walk-kicker">{t.diff}</p>
+      <pre
+        class="walk-diff"
+        tabindex="0"
+        role="region"
+        aria-label={t.diff}
+      ><code>{diffLines.map((line) => <span class={`diff-${line.kind}`}>{line.text}{'\n'}</span>)}</code></pre>
+      <p class="walk-note">{t.resultNote}</p>
+    </div>
+  </div>
+</div>
+
+<style>
+  .walk {
+    padding: var(--space-6);
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .walk-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .walk-title {
+    font-size: var(--text-xl);
+  }
+
+  .walk-badge {
+    display: inline-block;
+    margin-top: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    border: var(--border-width) solid var(--accent-decor);
+    border-radius: 999px;
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    color: var(--accent);
+  }
+
+  .walk-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .walk-clock {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-1);
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+  }
+
+  .walk-clock-value {
+    font-size: var(--text-xl);
+    font-weight: var(--weight-display);
+    color: var(--fg);
+    min-width: 3ch;
+    text-align: right;
+  }
+
+  .walk-clock-label {
+    margin-right: var(--space-1);
+  }
+
+  .walk-play {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .walk-play[hidden] {
+    display: none;
+  }
+
+  .walk-lead {
+    color: var(--fg-muted);
+  }
+
+  .walk-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 16rem) minmax(0, 1fr) minmax(0, 20rem);
+    gap: var(--space-5);
+    align-items: start;
+  }
+
+  @media (max-width: 68rem) {
+    .walk-grid {
+      grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+    }
+
+    .walk-result {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 44rem) {
+    .walk {
+      padding: var(--space-4);
+    }
+
+    .walk-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .walk-item,
+  .walk-result {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-4);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg);
+  }
+
+  .walk-result {
+    border-color: var(--accent-decor);
+  }
+
+  .walk-kicker {
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .walk-item-title {
+    line-height: var(--leading-tight);
+    font-weight: var(--weight-display);
+    font-size: var(--text-lg);
+  }
+
+  .walk-item-text,
+  .walk-note {
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+
+  .walk-facts {
+    display: grid;
+    gap: var(--space-1);
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
+  }
+
+  .walk-facts div {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    border-bottom: var(--border-width) solid var(--border);
+    padding-block: var(--space-1);
+  }
+
+  .walk-facts dt {
+    color: var(--fg-muted);
+  }
+
+  .walk-facts dd {
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .walk-meter {
+    height: 8px;
+    border-radius: 999px;
+    background: var(--bg-band);
+    border: var(--border-width) solid var(--border-strong);
+    overflow: hidden;
+  }
+
+  .walk-meter-fill {
+    display: block;
+    height: 100%;
+    width: 0;
+    background: var(--accent-fill);
+  }
+
+  .walk-events {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: 0;
+    position: relative;
+  }
+
+  .walk-event {
+    display: grid;
+    grid-template-columns: 3.75rem 1rem minmax(0, 1fr);
+    gap: var(--space-3);
+    align-items: start;
+    padding-block: var(--space-2);
+    max-width: none;
+    transition:
+      color var(--duration-base) var(--ease-out),
+      transform var(--duration-base) var(--ease-out);
+  }
+
+  .walk-time {
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-muted);
+    text-align: right;
+    padding-top: 0.1em;
+  }
+
+  .walk-dot {
+    position: relative;
+    width: 0.75rem;
+    height: 0.75rem;
+    margin-top: 0.4em;
+    border-radius: 50%;
+    border: 2px solid var(--border-strong);
+    background: var(--bg-raised);
+    justify-self: center;
+  }
+
+  .walk-event:not(:last-child) .walk-dot::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 2px);
+    width: 2px;
+    height: 2.4rem;
+    translate: -50% 0;
+    background: var(--border);
+  }
+
+  .walk-event--good .walk-dot,
+  .walk-event--final .walk-dot {
+    background: var(--accent-fill);
+    border-color: var(--accent-fill);
+  }
+
+  .walk-event--expected .walk-dot {
+    border-color: var(--accent-decor);
+  }
+
+  .walk-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-2);
+  }
+
+  .walk-tests {
+    flex-basis: 100%;
+  }
+
+  .walk-role {
+    font-size: 0.8rem;
+    font-weight: var(--weight-semibold);
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--bg-band);
+    color: var(--fg);
+  }
+
+  .walk-event--final .walk-text {
+    font-weight: var(--weight-display);
+  }
+
+  .walk-tests {
+    transform-origin: 0 50%;
+    transition: transform 400ms var(--ease-out);
+    display: flex;
+    gap: var(--space-1);
+  }
+
+  .walk-test {
+    width: 1.25rem;
+    height: 0.4rem;
+    border-radius: 999px;
+    background: var(--fg-muted);
+  }
+
+  .walk-test--fail {
+    background: var(--accent-decor);
+  }
+
+  .walk-result-status {
+    justify-self: start;
+    padding: var(--space-1) var(--space-3);
+    border-radius: 999px;
+    background: var(--accent-fill);
+    color: var(--accent-fg);
+    font-weight: var(--weight-semibold);
+    font-size: var(--text-sm);
+  }
+
+  .walk-diff {
+    margin: 0;
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--code-bg);
+    border: var(--border-width) solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.55;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .walk-diff span {
+    display: block;
+  }
+
+  .diff-add {
+    font-weight: 700;
+    box-shadow: inset 3px 0 0 var(--fg);
+    padding-left: var(--space-2);
+  }
+
+  .diff-del {
+    color: var(--accent);
+    box-shadow: inset 3px 0 0 var(--accent-decor);
+    padding-left: var(--space-2);
+  }
+
+  .diff-hunk {
+    color: var(--fg-muted);
+  }
+
+  .diff-ctx {
+    color: var(--fg-muted);
+    padding-left: var(--space-2);
+  }
+
+  :global([data-walk-state='armed']) .walk-event,
+  :global([data-walk-state='playing']) .walk-event:not(.is-on) {
+    color: var(--fg-muted);
+    transform: translateX(-6px);
+  }
+
+  :global([data-walk-state='armed']) .walk-event .walk-dot,
+  :global([data-walk-state='playing']) .walk-event:not(.is-on) .walk-dot {
+    background: var(--bg-raised);
+    border-color: var(--border-strong);
+  }
+
+  :global([data-walk-state='armed']) .walk-tests,
+  :global([data-walk-state='playing']) .walk-event:not(.is-on) .walk-tests {
+    transform: scaleX(0);
+  }
+
+  :global([data-walk-state='armed']) .walk-result,
+  :global([data-walk-state='playing']) .walk-result:not(.is-on) {
+    filter: grayscale(1);
+    border-style: dashed;
+    border-color: var(--border-strong);
+  }
+
+  :global([data-walk-state='armed']) .walk-result > *,
+  :global([data-walk-state='playing']) .walk-result:not(.is-on) > * {
+    visibility: hidden;
+  }
+
+  .walk-result {
+    transition: transform 400ms var(--ease-out);
+  }
+
+  :global([data-walk-state='playing']) .walk-result.is-on {
+    animation: walk-land 600ms var(--ease-out);
+  }
+
+  :global([data-walk-state='playing']) .walk-event.is-on .walk-dot {
+    animation: walk-pulse 600ms var(--ease-out);
+  }
+
+  @keyframes walk-land {
+    from {
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+
+  @keyframes walk-pulse {
+    from {
+      box-shadow: 0 0 0 0 var(--accent-decor);
+    }
+
+    to {
+      box-shadow: 0 0 0 10px transparent;
+    }
+  }
+</style>

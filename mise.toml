@@ -1,0 +1,130 @@
+min_version = "2026.9.17"
+
+[tools]
+node = "24.21.0"
+go = "1.27.1"
+helm = "4.3.0"
+uv = "0.12.22"
+"npm:@fission-ai/openspec" = "1.14.0"
+regctl = "0.11.6"
+
+[tasks.setup]
+run = [
+  "git submodule sync --recursive",
+  "git submodule update --init --recursive",
+  "mise trust apps/unfold/mise.toml",
+  "mise trust apps/ploeg/mise.toml",
+  "mise trust apps/site/mise.toml",
+  "if git remote get-url origin >/dev/null 2>&1; then git fetch --no-tags origin '+refs/notes/*:refs/notes/*'; else echo 'setup: no origin remote; imported release notes not fetched'; fi",
+  "mise -C apps/unfold install",
+  "mise -C apps/ploeg install",
+  "mise -C apps/site install",
+  "npm --prefix apps/unfold ci --no-audit --no-fund",
+  "npm --prefix apps/unfold/extensions/vscode ci --no-audit --no-fund",
+  "mise -C apps/site exec -- corepack pnpm install --frozen-lockfile",
+  "uv sync --frozen",
+]
+description = "Install the locked application and documentation dependencies"
+
+[tasks.verify]
+run = "node scripts/verify.mjs"
+description = "Run both application gates, the site gates and cross-application qualification"
+
+[tasks.brand]
+run = "node scripts/build-brand.mjs"
+description = "Regenerate Unfold's mark, lockups and tokens in docs/brand and the site's brand geometry"
+
+[tasks.brand-check]
+run = "node scripts/build-brand.mjs --check"
+description = "Fail when the committed brand files differ from the generator or break the mark's construction"
+
+[tasks.integration]
+run = "node scripts/integration.mjs"
+description = "Qualify standalone and Ploeg-managed execution without paid models"
+
+[tasks.evaluate]
+run = "node scripts/eval/eval.mjs"
+description = "Compare prompt, model and harness variants on fixture Work Items; deterministic unless UNFOLD_EVAL_LIVE=1"
+
+[tasks.docs-check]
+run = "uv run --frozen python scripts/docs.py --check"
+description = "Check generated models, links, agent instruction files and strict TechDocs output"
+
+[tasks.domain]
+run = "uv run --frozen python scripts/docs.py --domain"
+description = "Regenerate the domain pages and the combined glossary from the model YAML files"
+
+[tasks.docs-decisions]
+run = "uv run --frozen python scripts/docs-decisions.py"
+description = "Regenerate the decision register from the three ADR ledgers"
+
+[tasks.docs-build]
+run = "uv run --frozen python scripts/docs.py"
+description = "Build the shared and application TechDocs site"
+
+[tasks.harness-conformance]
+dir = "apps/ploeg"
+env = { PLOEG_HARNESS_CONFORMANCE = "1" }
+run = "go test -p 1 -count=1 -v -run '^TestLive' ./pkg/harness/harnesstest/"
+description = "Measure which instruction files each harness on PATH loads, with live model calls"
+
+[tasks.demo]
+dir = "apps/unfold"
+run = "npm run demo"
+description = "Run Unfold without Ploeg or paid model calls"
+
+[tasks.demo-record]
+dir = "apps/unfold"
+run = "npm run replay:record"
+description = "Record Unfold's deterministic demo into apps/site/replay, which Git ignores; the site build records it too"
+
+[tasks.demo-replay-conformance]
+dir = "apps/unfold"
+depends = ["demo-record"]
+run = "npm run replay:conformance"
+description = "Replay /demo in Chromium against the real UI: no unmatched request, page error or CSP violation"
+
+[tasks.site-timeline]
+dir = "apps/site"
+run = "node scripts/demo-timeline.ts"
+description = "Rewrite the site's walkthrough timeline from a run of Unfold's deterministic demo"
+
+[tasks.site-video]
+dir = "apps/site"
+run = "node scripts/record-demo-video.ts"
+description = "Record the deterministic demo in Unfold for the site; needs a local Chromium, uses ffmpeg when it can"
+
+[tasks.demo-unified]
+dir = "apps/unfold"
+run = "npm run demo:unified"
+description = "Run both applications and PostgreSQL with a deterministic runtime"
+
+[tasks.release-check]
+run = '''docker run --rm --platform linux/amd64 --network none -v "$PWD:/repo:ro" -w /repo --entrypoint sh harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.4 -c 'node --test scripts/release-policy.test.cjs scripts/release-isolation.test.cjs scripts/workflow-policy.test.cjs' '''
+description = "Test release isolation and guards in the pinned release toolchain"
+
+[tasks.docs-site-check]
+run = "sh scripts/docs-site.sh"
+description = "Build and scan the Zensical publishing output in the pinned CI image"
+
+[tasks.docs-stale]
+run = "uv run --frozen python scripts/docs-stale.py"
+description = "List current pages whose last_verified is older than 180 days; reports only"
+
+[tasks.docs-tutorial-smoke]
+run = "bash scripts/tutorial-smoke.sh"
+description = "Start the documented deterministic demo, then stop it; skips when PostgreSQL is missing"
+
+[tasks.docs-links-external]
+tools = { lychee = "0.24.2" }
+run = "lychee --config lychee.toml README.md llms.txt docs apps/unfold/docs"
+description = "Check external links in current docs with lychee; the weekly workflow reports without blocking"
+
+[tasks.docs-vale]
+tools = { vale = "3.23.0" }
+run = ["uv run --frozen python scripts/docs-vale.py", "vale --no-exit --glob='!**/{research,evidence,openspec,design,adr,adrs,backlog}/**' README.md docs apps/unfold/docs"]
+description = "Lint current docs against the generated Unfold vocabulary; warnings only"
+
+[tasks.docs-live-check]
+run = ["uv run --frozen python scripts/docs.py --stage-only", "uv run --frozen python scripts/docs-live.py"]
+description = "Verify that the published human and machine docs match this checkout"

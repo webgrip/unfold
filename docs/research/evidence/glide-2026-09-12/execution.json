@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "at": "2026-09-12T12:19:54.268Z",
+  "runtime": "deterministic fixture; actual HTTP, filesystem checks and PostgreSQL",
+  "modelCalls": 0,
+  "spendUsd": 0,
+  "checks": [
+    {
+      "name": "standalone",
+      "passed": true,
+      "command": [
+        "/Users/ryangrippeling/.local/share/mise/installs/node/24.19.0/bin/node",
+        "--test",
+        "test/api-workflow.test.ts",
+        "test/api-process.test.ts"
+      ],
+      "log": "standalone.txt"
+    },
+    {
+      "name": "managed",
+      "passed": true,
+      "command": [
+        "go",
+        "test",
+        "./pkg/httpapi",
+        "-run",
+        "^TestOperatorWorkbenchQualification$",
+        "-count=1",
+        "-v"
+      ],
+      "log": "managed.txt"
+    }
+  ],
+  "limits": [
+    "No paid provider or Kubernetes qualification",
+    "No proof of interchangeable native harness session state"
+  ]
+}

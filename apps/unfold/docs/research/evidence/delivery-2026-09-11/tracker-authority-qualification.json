@@ -1,0 +1,32 @@
+{
+  "ok": true,
+  "at": "2026-09-11T03:59:18.164Z",
+  "qualification": "real PostgreSQL, Ploeg HTTP and De Vloer task import/start; Vikunja HTTP fixture and deterministic controlled runtime",
+  "workItemId": "2",
+  "executionId": "2181500b071c3c07874250914281f31d",
+  "source": {
+    "provider": "vikunja",
+    "taskId": "585",
+    "scope": "11",
+    "nativeRevision": "2026-09-11T10:00:00Z"
+  },
+  "admissionRequests": 2,
+  "admissionsCreated": 1,
+  "workItemsBefore": 1,
+  "workItemsAfter": 1,
+  "operatorRuns": 1,
+  "modelCalls": 0,
+  "spendUsd": 0,
+  "repositoryChanges": false,
+  "checks": [
+    "distinct content and native revisions",
+    "fresh canonical source pin",
+    "stale preview rejected",
+    "queued import deduplication",
+    "committed admission response loss replayed",
+    "one existing Work Item and one operator Run",
+    "repeated Start never readmits",
+    "background supervision retains execution identity"
+  ],
+  "publication": "not attempted"
+}

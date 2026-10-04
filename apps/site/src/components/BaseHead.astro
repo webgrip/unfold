@@ -1,0 +1,74 @@
+---
+import brandCss from '../styles/brand.css?raw';
+import { SITE_INDEXABLE, SITE_NAME, SITE_URL } from '../config/site.ts';
+import { OG_LOCALES, LOCALES, type Locale } from '../i18n/config.ts';
+import { absoluteUrl, alternatesFor, routePath, type RouteKey } from '../i18n/routes.ts';
+import { brandFontUrls, brandToken } from '../lib/brand.ts';
+import { softwareSchema } from '../lib/jsonld.ts';
+import { LOCALE_TAGS } from '../i18n/config.ts';
+
+interface Props {
+  locale: Locale;
+  routeKey: RouteKey;
+  title: string;
+  description: string;
+  noindex?: boolean;
+  errorPage?: boolean;
+}
+
+const { locale, routeKey, title, description, noindex = false, errorPage = false } = Astro.props;
+
+const canonical = absoluteUrl(routePath(routeKey, locale), SITE_URL);
+const fullTitle = title.startsWith(SITE_NAME) ? title : `${title} | ${SITE_NAME}`;
+const alternates = errorPage ? [] : alternatesFor(routeKey, SITE_URL);
+const otherOgLocales = LOCALES.filter((candidate) => candidate !== locale).map(
+  (candidate) => OG_LOCALES[candidate],
+);
+const preloadFont = brandFontUrls(brandCss)[0];
+const jsonLd = errorPage
+  ? null
+  : JSON.stringify({
+      '@context': 'https://schema.org',
+      '@graph': softwareSchema(description, LOCALE_TAGS[locale]),
+    });
+---
+
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="generator" content={Astro.generator} />
+
+<title>{fullTitle}</title>
+<meta name="description" content={description} />
+{!errorPage && <link rel="canonical" href={canonical} />}
+{alternates.map((alternate) => (
+  <link rel="alternate" hreflang={alternate.hreflang} href={alternate.href} />
+))}
+{(noindex || !SITE_INDEXABLE) && <meta name="robots" content="noindex, nofollow" />}
+
+<meta property="og:type" content="website" />
+<meta property="og:title" content={fullTitle} />
+<meta property="og:description" content={description} />
+{!errorPage && <meta property="og:url" content={canonical} />}
+<meta property="og:site_name" content={SITE_NAME} />
+<meta property="og:locale" content={OG_LOCALES[locale]} />
+{otherOgLocales.map((ogLocale) => (
+  <meta property="og:locale:alternate" content={ogLocale} />
+))}
+<meta name="twitter:card" content="summary" />
+
+<meta
+  name="theme-color"
+  content={brandToken(brandCss, 'paper')}
+  media="(prefers-color-scheme: light)"
+/>
+<meta
+  name="theme-color"
+  content={brandToken(brandCss, 'ground-dark')}
+  media="(prefers-color-scheme: dark)"
+/>
+
+{preloadFont && <link rel="preload" as="font" type="font/woff2" href={preloadFont} crossorigin />}
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<link rel="sitemap" href="/sitemap-index.xml" />
+
+{jsonLd && <script type="application/ld+json" set:html={jsonLd} is:inline />}

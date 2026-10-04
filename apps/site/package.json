@@ -1,0 +1,51 @@
+{
+  "name": "unfold-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The static marketing site for Unfold.",
+  "repository": {
+    "type": "git",
+    "url": "https://forgejo.webgrip.dev/webgrip/glide.git",
+    "directory": "apps/site"
+  },
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24.10.0 <25"
+  },
+  "packageManager": "pnpm@12.8.2",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "node ../unfold/scripts/record-replay.ts && node scripts/build-demo.mjs && astro build && webgrip-validate-csp",
+    "build:release": "node scripts/check-release-config.ts && pnpm build",
+    "demo:build": "node ../unfold/scripts/record-replay.ts && node scripts/build-demo.mjs",
+    "preview": "astro preview",
+    "astro": "astro",
+    "typecheck": "astro check",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
+    "validate:csp": "webgrip-validate-csp",
+    "validate:a11y": "node --experimental-strip-types scripts/axe-scan.ts"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "3.7.4",
+    "astro": "7.3.5"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@axe-core/playwright": "4.13.0",
+    "@webgrip/astro-site-toolkit": "0.6.0",
+    "@webgrip/eslint-config-astro": "0.2.0",
+    "@webgrip/prettier-config": "0.3.0",
+    "@webgrip/tsconfig": "0.2.0",
+    "eslint": "10.11.0",
+    "playwright-core": "1.63.0",
+    "prettier": "3.9.9",
+    "typescript": "6.0.3",
+    "wrangler": "4.145.0"
+  },
+  "prettier": "@webgrip/prettier-config"
+}

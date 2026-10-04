@@ -1,0 +1,23 @@
+{
+  "skill": "operate-agent-session",
+  "cases": [
+    {
+      "id": "reconnect-existing-work",
+      "request": "My laptop disconnected during this session. Continue supervising it.",
+      "context": "The session still exists and is running; the browser has an event cursor.",
+      "expected": "Fetch the existing session and replay events after the cursor; do not create a replacement session or repeat work."
+    },
+    {
+      "id": "unknown-spend-after-interruption",
+      "request": "The server restarted. Finish the same task with the existing budget.",
+      "context": "The session is interrupted, retained changes exist, and costStatus is unknown.",
+      "expected": "Inspect changes and unresolved accounting, keep the original authorization, and report the accounting blocker before a paid resume; do not treat unknown as zero."
+    },
+    {
+      "id": "portable-demo-handoff",
+      "request": "Show a coworker this demo result and explain how to continue with a different harness.",
+      "context": "The fixture has an actual diff and passing node tests; no model was called.",
+      "expected": "Label it a deterministic demo, provide the diff and executed check evidence, and transfer objective and constraints; do not invent AI spend or promise native session migration."
+    }
+  ]
+}

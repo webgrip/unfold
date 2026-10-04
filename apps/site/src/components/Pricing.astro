@@ -1,0 +1,81 @@
+---
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+interface Props {
+  locale: Locale;
+}
+const t = dictionary(Astro.props.locale).pricing;
+const r = dictionary(Astro.props.locale).redesign;
+---
+
+<section id="pricing" class="section" aria-labelledby="pricing-title">
+  <div class="container pricing-layout">
+    <div class="pricing-intro">
+      <p class="eyebrow">{t.badge}</p>
+      <h2 id="pricing-title" class="section-title">{r.pricingTitle}</h2>
+      <p>{t.intro}</p>
+      <a href="#signup" class="button button--secondary">{t.button}</a>
+    </div>
+    <div class="pricing-model">
+      <ul>
+        {t.items.map((item, index) => <li>
+          <span class="micro" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+          <div>
+            <h3>{item.title}</h3>
+            <p>{item.text}</p>
+          </div>
+        </li>)}
+      </ul>
+      <p class="pricing-note">{t.ticket}</p>
+    </div>
+  </div>
+</section>
+<style>
+  .pricing-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6rem;
+  }
+  .pricing-intro .section-title {
+    margin: 1.3rem 0 1.5rem;
+  }
+  .pricing-intro > p:not(.eyebrow) {
+    color: var(--fg-muted);
+  }
+  .pricing-intro .button {
+    margin-top: 1.5rem;
+  }
+  ul {
+    list-style: none;
+    padding: 0;
+  }
+  li {
+    display: flex;
+    gap: 1.5rem;
+    border-top: 1px solid var(--border);
+    padding: 1.5rem 0;
+  }
+  li > .micro {
+    color: var(--fg-muted);
+    padding-top: 0.2rem;
+  }
+  h3 {
+    font-size: 1.05rem;
+    margin-bottom: 0.6rem;
+  }
+  li p,
+  .pricing-note {
+    font-size: 0.875rem;
+    color: var(--fg-muted);
+  }
+  .pricing-note {
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+  }
+  @media (max-width: 50rem) {
+    .pricing-layout {
+      grid-template-columns: 1fr;
+      gap: 2.5rem;
+    }
+  }
+</style>

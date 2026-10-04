@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-12",
+  "localRepository": "/Users/ryangrippeling/projects/webgrip/glide",
+  "localQualifiedCommit": "cec9f13802daabff4f2b8f465cc90a6585f1bc98",
+  "intendedRemote": "ssh://git@forgejo-ssh.webgrip.dev/webgrip/glide.git",
+  "remoteRepositoryCreated": true,
+  "remoteChecks": {
+    "run": {
+      "id": 12201,
+      "index_in_repo": 1,
+      "commit_sha": "2e03f18268794cface5acbc044f29592973461e2",
+      "workflow_id": "checks.yml",
+      "status": "success",
+      "html_url": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/1",
+      "started": "2026-09-12T14:36:54Z",
+      "stopped": "2026-09-12T14:39:53Z",
+      "updated": "2026-09-12T14:39:53Z"
+    },
+    "checks": {
+      "state": "success",
+      "sha": "2e03f18268794cface5acbc044f29592973461e2",
+      "statuses": [
+        {
+          "context": "Glide checks and independent releases / release-policy (push)",
+          "status": "success",
+          "description": "Successful in 9s",
+          "target_url": "/webgrip/glide/actions/runs/1/jobs/1"
+        },
+        {
+          "context": "Glide checks and independent releases / checks (push)",
+          "status": "success",
+          "description": "Successful in 2m54s",
+          "target_url": "/webgrip/glide/actions/runs/1/jobs/0"
+        },
+        {
+          "context": "Glide checks and independent releases / release-vloer (push)",
+          "status": "success",
+          "description": "Has been skipped",
+          "target_url": "/webgrip/glide/actions/runs/1/jobs/2"
+        },
+        {
+          "context": "Glide checks and independent releases / release-ploeg (push)",
+          "status": "success",
+          "description": "Has been skipped",
+          "target_url": "/webgrip/glide/actions/runs/1/jobs/3"
+        }
+      ]
+    }
+  },
+  "blocker": null,
+  "remoteSourceCatchup": {
+    "repository": "ploeg",
+    "revision": "05b93bb4b7c063cb0ca733e4bbf3d699c5044af4",
+    "changes": [
+      "CHANGELOG.md",
+      "ops/helm/ploeg/Chart.yaml"
+    ],
+    "validation": [
+      "all four unchanged Helm golden renders",
+      "Helm lint",
+      "immutable import verifier"
+    ]
+  },
+  "artifactPublication": "disabled; GLIDE_RELEASES_ENABLED is absent at repository scope, both release jobs skipped, no Glide releases exist",
+  "repositoryUrl": "https://forgejo.webgrip.dev/webgrip/glide",
+  "remoteVisibility": "public; as created by the owner",
+  "defaultBranch": "development",
+  "publishedCommit": "2e03f18268794cface5acbc044f29592973461e2",
+  "refsVerified": {
+    "branches": 1,
+    "tags": 70,
+    "notes": 67,
+    "total": 138
+  },
+  "freshRemoteCloneImportVerification": "passed for all 788 imported files, 70 tag objects and original source ancestry",
+  "publicationMethod": "Owner created the repository; agent pushed development, namespaced tags and release-channel notes atomically over SSH",
+  "followupFailure": {
+    "runUrl": "https://forgejo.webgrip.dev/webgrip/glide/actions/runs/2",
+    "commit": "d4eaa13ef56e2ea1dd071f01c6776a99081fa479",
+    "test": "TestLauncher_BannerNeverReachesTheProtocolChannel",
+    "failure": "noise channel missing \"thanks for using opencode\"",
+    "cause": "The test read one protocol line, then called process Wait and asserted noise before the stdout filter had necessarily drained the remaining child output.",
+    "repair": "Drain the protocol channel to EOF before calling Wait and inspecting captured noise. Production launcher behavior is unchanged.",
+    "localChecks": {
+      "baseline": "100 repetitions passed locally; the remote failure demonstrates intermittent scheduling sensitivity",
+      "corrected": "200 repetitions passed",
+      "raceDetector": "10 repetitions passed"
+    }
+  }
+}

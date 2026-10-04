@@ -1,0 +1,236 @@
+---
+import { SOURCE_URL } from '../config/site.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { routePath, type RouteKey } from '../i18n/routes.ts';
+import LocaleSwitcher from './LocaleSwitcher.astro';
+import Lockup from './Lockup.astro';
+import ThemeToggle from './ThemeToggle.astro';
+
+interface Props {
+  locale: Locale;
+  routeKey: RouteKey;
+}
+
+const { locale, routeKey } = Astro.props;
+const t = dictionary(locale);
+const home = routePath('home', locale);
+const anchor = (id: string) => (routeKey === 'home' ? `#${id}` : `${home}#${id}`);
+const nav = [
+  { href: anchor('how'), label: t.nav.how },
+  { href: anchor('parts'), label: t.redesign.architecture },
+  { href: anchor('pricing'), label: t.nav.pricing },
+  { href: anchor('status'), label: t.nav.status },
+  { href: SOURCE_URL, label: t.nav.source },
+];
+---
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href={home} aria-label={t.a11y.homeLink}>
+      <Lockup height={28} />
+    </a>
+
+    <nav aria-label={t.a11y.mainNav} class="site-nav">
+      <ul>
+        {nav.map((item) => <li>
+          <a href={item.href}>{item.label}</a>
+        </li>)}
+      </ul>
+    </nav>
+
+    <details class="mobile-menu">
+      <summary>{t.redesign.menu}</summary>
+      <nav aria-label={t.a11y.mainNav}>
+        <ul>
+          {nav.map((item) => <li><a href={item.href}>{item.label}</a></li>)}
+          <li><a href={anchor('signup')}>{t.nav.signup}</a></li>
+        </ul>
+      </nav>
+    </details>
+    <div class="header-actions">
+      <LocaleSwitcher locale={locale} routeKey={routeKey} label={t.a11y.switchLocale} />
+      <ThemeToggle label={t.a11y.themeToggle} />
+      <a class="button button--primary header-cta" href={anchor('signup')}>{t.nav.signup}</a>
+    </div>
+  </div>
+</header>
+
+<style>
+  .mobile-menu {
+    display: none;
+  }
+  .mobile-menu summary {
+    min-height: 44px;
+    padding: 0.65rem 0.5rem;
+    font-size: 0.875rem;
+  }
+  .mobile-menu nav {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    padding: 1rem 1.25rem;
+  }
+  .mobile-menu ul {
+    list-style: none;
+    padding: 0;
+    display: grid;
+  }
+  .mobile-menu a {
+    display: block;
+    padding: 0.8rem 0;
+    color: var(--fg);
+    text-decoration: none;
+  }
+  .site-header {
+    container-type: inline-size;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--bg);
+    border-bottom: var(--border-width) solid var(--border);
+  }
+
+  .header-inner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-5);
+    min-height: var(--header-height);
+    padding-block: 0.75rem;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+  }
+
+  .site-nav {
+    margin-left: auto;
+  }
+
+  .site-nav ul {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.875rem;
+    list-style: none;
+    padding: 0;
+  }
+
+  .site-nav a {
+    color: var(--fg-muted);
+    text-decoration: none;
+    font-weight: var(--weight-medium);
+  }
+
+  .site-nav a:hover {
+    color: var(--fg);
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .header-cta {
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--text-sm);
+  }
+
+  @container (max-width: 64rem) {
+    .mobile-menu {
+      display: block;
+      margin-left: auto;
+    }
+    .header-inner {
+      gap: 0.65rem;
+    }
+    .site-nav {
+      display: none;
+    }
+    .header-actions {
+      margin-left: 0;
+    }
+  }
+  @media (max-width: 64rem) {
+    .mobile-menu {
+      display: block;
+      margin-left: auto;
+    }
+    .header-inner {
+      gap: 0.65rem;
+    }
+    .site-nav {
+      display: none;
+    }
+
+    .header-actions {
+      margin-left: 0;
+    }
+  }
+
+  @media (scripting: none) {
+    .site-header {
+      position: static;
+    }
+    .mobile-menu nav {
+      position: static;
+    }
+    .header-inner {
+      height: auto;
+      min-height: var(--header-height);
+      flex-wrap: wrap;
+      padding-block: 1rem;
+    }
+    .mobile-menu[open] {
+      flex-basis: 100%;
+      order: 3;
+    }
+  }
+  @media (max-width: 26rem) {
+    .site-header {
+      position: relative;
+    }
+    .header-inner {
+      flex-wrap: wrap;
+    }
+    .brand {
+      width: clamp(100px, 30vw, 124px);
+      flex: none;
+    }
+    .header-inner {
+      gap: 4px;
+    }
+    .header-actions {
+      gap: 4px;
+    }
+    .mobile-menu summary {
+      padding-inline: 4px;
+      white-space: nowrap;
+    }
+
+    .header-cta {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  for (const menu of document.querySelectorAll<HTMLDetailsElement>('.mobile-menu')) {
+    menu.querySelectorAll('a').forEach((link) =>
+      link.addEventListener('click', () => {
+        menu.open = false;
+      }),
+    );
+    menu.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        menu.open = false;
+        menu.querySelector('summary')?.focus();
+      }
+    });
+  }
+</script>

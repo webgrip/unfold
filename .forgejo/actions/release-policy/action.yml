@@ -1,0 +1,17 @@
+name: Verify the Unfold release policy
+description: Verify the Unfold release policy
+runs:
+  using: composite
+  steps:
+    - name: Verify release baseline branch
+      shell: bash
+      run: git show-ref --verify refs/remotes/origin/main
+    - name: Verify Unfold's zero-major release policy
+      shell: bash
+      run: NODE_PATH="${SEMREL_PREBAKED:?release toolchain is required}" node --test scripts/release-policy.test.cjs
+    - name: Verify application commit selection
+      shell: bash
+      run: NODE_PATH="${SEMREL_PREBAKED:?release toolchain is required}" node --test scripts/release-isolation.test.cjs
+    - name: Verify workflow routing and publication gates
+      shell: bash
+      run: NODE_PATH="${SEMREL_PREBAKED:?release toolchain is required}" node --test scripts/workflow-policy.test.cjs

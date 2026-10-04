@@ -1,0 +1,479 @@
+---
+import timeline from '../data/demo-timeline.json';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { formatMoney } from '../lib/timeline.ts';
+interface Props {
+  locale: Locale;
+}
+const r = dictionary(Astro.props.locale).redesign;
+const checks = timeline.events.filter((event) => event.kind === 'check');
+const changes = timeline.diff.split('\n').filter((line) => /^[+-]/.test(line));
+const starts = [
+  0,
+  timeline.events.find((e) => e.kind === 'run-started')?.at ?? 100,
+  timeline.events.find((e) => e.kind === 'run-started' && e.run === 'run-2')?.at ?? 4200,
+  timeline.events.find((e) => e.kind === 'change-ready')?.at ?? 6400,
+];
+---
+
+<div
+  class="explorer"
+  data-explorer
+  data-play={r.play}
+  data-pause={r.pause}
+  data-replay={r.replay}
+  data-complete={r.complete}
+>
+  <div class="explorer-toolbar">
+    <span class="micro recording-label"><span aria-hidden="true" />{r.demoBadge}</span
+    ><button type="button" class="button button--secondary" data-shift-play hidden>{r.play}</button>
+  </div>
+  <div class="stage-nav" aria-label={r.stageLabel}>
+    {r.stages.map((stage, index) => <a
+      href={`#shift-stage-${index}`}
+      data-stage-control
+      data-stage={index}
+      ><span class="stage-index">{String(index + 1).padStart(2, '0')}</span
+      ><span>{stage.label}</span><span class="stage-line" aria-hidden="true"
+    /></a>)}
+  </div>
+  <div class="stage-panels">
+    {r.stages.map((stage, index) => <section
+      id={`shift-stage-${index}`}
+      class="stage-panel"
+      data-stage-panel
+      data-at={starts[index]}
+      aria-labelledby={`stage-title-${index}`}
+      tabindex="-1"
+    >
+      <div class="stage-story">
+        <p class="stage-count" aria-hidden="true">
+          <span>{String(index + 1).padStart(2, '0')}</span
+          ><small> / {r.stages.length.toString().padStart(2, '0')}</small>
+        </p>
+        <h3 id={`stage-title-${index}`}>{stage.title}</h3>
+        <p>{stage.text}</p>
+      </div>
+      <div class="stage-evidence">
+        {index === 0 && <div class="work-evidence">
+          <span class="micro">{r.objective}</span>
+          <h4 lang="en">{timeline.workItem.title}</h4>
+          <p lang="en">{timeline.workItem.objective}</p>
+          <dl class="evidence-facts">
+            <div>
+              <dt>{r.budget}</dt>
+              <dd>{formatMoney(timeline.budget.authorized, timeline.budget.currency, 'nl-NL')}</dd>
+            </div>
+            <div>
+              <dt>{r.spent}</dt>
+              <dd>{formatMoney(timeline.budget.spent, timeline.budget.currency, 'nl-NL')}</dd>
+            </div>
+          </dl>
+        </div>}
+        {index === 1 && <div class="code-evidence">
+          <div class="checks-summary">
+            {checks
+              .slice(0, 2)
+              .map((check, i) => <div>
+                <span>{i === 0 ? r.baseline : r.after}</span
+                ><strong
+                  >{check.tests?.filter((test) => test.ok).length}
+                  {r.passed}{check.tests?.some((test) => !test.ok) && (
+                    <>, {check.tests.filter((test) => !test.ok).length} {r.failed}</>
+                  )}</strong
+                >
+              </div>)}
+          </div>
+          <p class="micro code-title">{r.diff}</p>
+          <pre
+            tabindex="0"
+            role="region"
+            aria-label={r.diff}
+          ><code>{changes.map((line) => <span class={line.startsWith('+') ? 'diff-add' : 'diff-del'}>{line}{'\n'}</span>)}</code></pre>
+        </div>}
+        {index === 2 && <div class="review-evidence">
+          <p class="micro">{r.reviewChecks}</p>
+          <code class="review-command">{checks[2]?.command}</code>
+          <ul class="test-list" lang="en">
+            {checks[2]?.tests?.map((test) => <li><span aria-hidden="true">✓</span>{test.name}</li>)}
+          </ul>
+          <dl class="evidence-facts">
+            <div>
+              <dt>{r.reviewVerdict}</dt>
+              <dd>{r.approved}</dd>
+            </div>
+          </dl>
+        </div>}
+        {index === 3 && <div class="decision-evidence">
+          <span class="decision-symbol" aria-hidden="true">◎</span>
+          <h4>{r.handoff}</h4>
+          <p>{r.handoffNote}</p>
+          <dl class="evidence-facts">
+            <div>
+              <dt>{r.reviewVerdict}</dt>
+              <dd>{r.approved}</dd>
+            </div>
+            <div>
+              <dt>{r.merged}</dt>
+              <dd>{r.no}</dd>
+            </div>
+            <div>
+              <dt>{r.spent}</dt>
+              <dd>{formatMoney(timeline.budget.spent, timeline.budget.currency, 'nl-NL')}</dd>
+            </div>
+          </dl>
+        </div>}
+      </div>
+    </section>)}
+  </div>
+  <p class="sr-only" data-shift-announcement role="status" aria-live="polite"></p>
+</div>
+<style>
+  .explorer {
+    border-block: 1px solid var(--border-strong);
+    background: var(--bg);
+    position: relative;
+  }
+  .explorer-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .explorer-toolbar .micro {
+    color: var(--fg-muted);
+    font-size: 0.72rem;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+  .recording-label {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  .recording-label > span {
+    width: 0.5rem;
+    height: 0.5rem;
+    background: var(--accent-decor);
+    flex: none;
+  }
+  .explorer-toolbar button {
+    min-width: 10rem;
+    min-height: 44px;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.8rem;
+    border-radius: 0;
+  }
+  .stage-nav {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-inline: 1px solid var(--border);
+  }
+  .stage-nav a {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.4rem;
+    min-height: 80px;
+    color: var(--fg-muted);
+    text-decoration: none;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.875rem;
+    transition: background-color 180ms var(--ease-out);
+  }
+  .stage-nav a:not(:last-child) {
+    border-right: 1px solid var(--border);
+  }
+  .stage-nav a:hover {
+    color: var(--fg);
+    background: var(--bg-band);
+  }
+  .stage-index {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+  }
+  .stage-nav a[aria-current='step'] {
+    color: var(--brand-on-accent);
+    background: var(--brand-accent-deep);
+    font-weight: 650;
+  }
+  .stage-nav a[aria-current='step']:focus-visible {
+    outline-color: var(--brand-paper);
+    outline-offset: -5px;
+  }
+  .stage-nav a[aria-current='step'] .stage-index {
+    color: inherit;
+  }
+  .stage-line {
+    position: absolute;
+    left: 0;
+    bottom: -1px;
+    height: 3px;
+    width: 100%;
+    background: var(--brand-on-accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 300ms var(--ease-out);
+  }
+  a[aria-current='step'] .stage-line {
+    transform: scaleX(1);
+  }
+  .stage-panel {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: clamp(2rem, 5vw, 5rem);
+    padding: 3.5rem 1.5rem 3.5rem 0;
+    min-height: 480px;
+    align-items: center;
+  }
+  .stage-panel > * {
+    min-width: 0;
+  }
+  .stage-panel:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+  }
+  [data-enhanced] .stage-panel {
+    border-bottom: 0;
+    grid-area: 1 / 1;
+  }
+  [data-enhanced] .stage-panels {
+    display: grid;
+  }
+  [data-enhanced] .stage-panel[hidden] {
+    display: grid !important;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .stage-count {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    color: var(--accent);
+    margin-bottom: 1.5rem;
+  }
+  .stage-count > span {
+    font-size: clamp(4rem, 6vw, 6rem);
+    font-weight: 800;
+    letter-spacing: -0.075em;
+    line-height: 0.9;
+  }
+  .stage-count small {
+    font: 0.75rem var(--font-mono);
+    color: var(--fg-muted);
+  }
+  .stage-story h3 {
+    font-size: clamp(1.9rem, 3.1vw, 2.8rem);
+    letter-spacing: -0.05em;
+    margin-bottom: 1.2rem;
+    line-height: 1.06;
+  }
+  .stage-story > p:last-child {
+    color: var(--fg-muted);
+    font-size: 0.95rem;
+    max-width: 43ch;
+  }
+  .stage-evidence {
+    min-width: 0;
+    border: 1px solid var(--border-strong);
+    border-top: 3px solid var(--accent-decor);
+    position: relative;
+    background: var(--bg);
+    box-shadow:
+      0.6rem 0.6rem 0 var(--bg),
+      0.6rem 0.6rem 0 1px var(--border);
+  }
+  .work-evidence,
+  .review-evidence,
+  .decision-evidence {
+    padding: clamp(1.5rem, 2.5vw, 2.5rem);
+  }
+  .work-evidence > .micro,
+  .review-evidence > .micro {
+    color: var(--fg-muted);
+  }
+  .work-evidence h4 {
+    font-size: clamp(1.5rem, 2.1vw, 2rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.035em;
+    margin: 1rem 0;
+  }
+  .work-evidence > p {
+    font-size: 0.875rem;
+    color: var(--fg-muted);
+  }
+  .evidence-facts {
+    margin-top: 2rem;
+    font-size: 0.8rem;
+  }
+  .evidence-facts > div {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.8rem 0;
+    border-top: 1px solid var(--border);
+  }
+  dt {
+    color: var(--fg-muted);
+  }
+  dd {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+  }
+  .checks-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+  .checks-summary > div {
+    padding: 1.5rem;
+    font-size: 0.8rem;
+  }
+  .checks-summary > div + div {
+    border-left: 1px solid var(--border);
+  }
+  .checks-summary span {
+    color: var(--fg-muted);
+    display: block;
+    margin-bottom: 0.7rem;
+  }
+  .checks-summary strong {
+    font-size: 1rem;
+  }
+  .code-title {
+    padding: 1.5rem 1.5rem 0.5rem;
+    color: var(--fg-muted);
+  }
+  pre {
+    padding: 1rem 1.5rem 1.5rem;
+    overflow-x: auto;
+    font: 0.8rem/2 var(--font-mono);
+    margin: 0;
+  }
+  pre span {
+    display: block;
+  }
+  .diff-del {
+    color: var(--fg-muted);
+  }
+  .diff-add {
+    font-weight: 700;
+  }
+  .review-command {
+    display: block;
+    font-size: 0.85rem;
+    margin: 1.5rem 0;
+  }
+  .test-list {
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0;
+    font-size: 0.85rem;
+  }
+  .test-list li {
+    display: flex;
+    gap: 0.8rem;
+    border-top: 1px solid var(--border);
+    padding-block: 0.8rem;
+  }
+  .test-list li span {
+    color: var(--accent);
+    flex: none;
+  }
+  .decision-symbol {
+    display: block;
+    font-size: 4rem;
+    line-height: 1;
+    color: var(--accent);
+    margin-bottom: 1rem;
+  }
+  .decision-evidence h4 {
+    font-size: clamp(1.6rem, 2.4vw, 2.15rem);
+    line-height: 1.1;
+    letter-spacing: -0.035em;
+    margin-bottom: 1rem;
+  }
+  .decision-evidence > p {
+    color: var(--fg-muted);
+    font-size: 0.875rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    [data-enhanced] .stage-panel:not([hidden]) .stage-evidence {
+      animation: evidence-in 450ms var(--ease-out);
+    }
+  }
+  @keyframes evidence-in {
+    from {
+      transform: translateY(14px);
+    }
+    to {
+      transform: none;
+    }
+  }
+  @container (max-width: 60rem) {
+    .stage-panel {
+      padding-block: 2.5rem;
+      gap: 2rem;
+      align-content: start;
+      min-height: 0;
+    }
+    .stage-nav a {
+      padding: 1rem;
+      font-size: 0.8rem;
+      min-height: 68px;
+    }
+    .stage-count {
+      margin-bottom: 1.25rem;
+    }
+    .stage-count > span {
+      font-size: 4rem;
+    }
+    .stage-story > p:last-child {
+      max-width: 65ch;
+    }
+    .explorer-toolbar {
+      flex-wrap: wrap;
+    }
+    .explorer-toolbar button {
+      min-width: 0;
+    }
+  }
+  @container (max-width: 32rem) {
+    .stage-panel {
+      padding-right: 0.65rem;
+    }
+    .stage-count > span {
+      font-size: 3.5rem;
+    }
+    .stage-evidence {
+      box-shadow:
+        0.35rem 0.35rem 0 var(--bg),
+        0.35rem 0.35rem 0 1px var(--border);
+    }
+    .work-evidence,
+    .review-evidence,
+    .decision-evidence {
+      padding: 1.2rem;
+    }
+    .evidence-facts > div {
+      flex-wrap: wrap;
+    }
+    .checks-summary {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .checks-summary > div + div {
+      border-left: 0;
+      border-top: 1px solid var(--border);
+    }
+  }
+</style>
+<script>
+  import { initShiftExplorers } from '../lib/shift-explorer.ts';
+  initShiftExplorers();
+</script>

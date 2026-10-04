@@ -1,0 +1,39 @@
+:root {
+  --unfold-vouw:          #141A1D;
+  --unfold-baken:         #D23A4E;
+  --unfold-baken-diep:    #CC394D;
+  --unfold-baken-nacht:   #D65162;
+  --unfold-vel:           #F4F6F2;
+  --unfold-zwerk:         #111619;
+  --unfold-grafiet:       #5E6B66;
+  --unfold-grafiet-licht: #8C9A94;
+
+  --unfold-ground: var(--unfold-vel);
+  --unfold-text:   var(--unfold-vouw);
+  --unfold-muted:  var(--unfold-grafiet);
+  --unfold-mark:   var(--unfold-baken);
+  --unfold-accent: var(--unfold-baken-diep);
+
+  --unfold-font: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --unfold-wordmark-weight: 800;
+  --unfold-wordmark-width: 110%;
+  --unfold-wordmark-tracking: -0.014em;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --unfold-ground: var(--unfold-zwerk);
+    --unfold-text:   var(--unfold-vel);
+    --unfold-muted:  var(--unfold-grafiet-licht);
+    --unfold-mark:   var(--unfold-baken-nacht);
+    --unfold-accent: var(--unfold-baken-nacht);
+  }
+}
+
+:root[data-theme="dark"] {
+  --unfold-ground: var(--unfold-zwerk);
+  --unfold-text:   var(--unfold-vel);
+  --unfold-muted:  var(--unfold-grafiet-licht);
+  --unfold-mark:   var(--unfold-baken-nacht);
+  --unfold-accent: var(--unfold-baken-nacht);
+}

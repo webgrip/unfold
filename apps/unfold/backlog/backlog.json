@@ -1,0 +1,3757 @@
+{
+  "schemaVersion": "1.0",
+  "title": "Ploeg and De Vloer product backlog",
+  "purpose": "Planning/export seed; never an authoritative execution queue or approval ledger.",
+  "priorityConvention": "1 urgent, 2 high, 3 normal, 4 low; map deliberately to target tracker.",
+  "estimateConvention": "Relative engineering points; includes implementation and evidence, not hours or an agent completion promise.",
+  "milestones": {
+    "M0": "Supervised dogfooding and usable editor",
+    "M1": "Trustworthy candidate, checks and mutations",
+    "M2": "One governed ticket-to-review loop",
+    "M3": "Team identity, takeover and shared resources",
+    "M4": "Repeatable customer pilot and evidence",
+    "M5": "Commercialization and ecosystem decision"
+  },
+  "tickets": [
+    {
+      "id": "PV-001",
+      "epic": "E01",
+      "title": "Add keyboard navigation to session evidence tabs",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "review",
+      "priority": 1,
+      "risk": "low",
+      "estimatePoints": 2,
+      "dependsOn": [],
+      "problem": "Evidence tabs expose tab roles but lack a complete keyboard interaction pattern; this is a bounded first self-improvement task.",
+      "acceptanceCriteria": [
+        "Arrow keys move focus among tabs; Home and End reach the first and last tab.",
+        "Only the selected tab participates in the tab sequence and aria-controls identifies its panel.",
+        "Changing tabs preserves operator draft text and stream scroll behavior.",
+        "The change is reviewed as a candidate while the stable workbench remains running."
+      ],
+      "verification": [
+        "Browser test covers keyboard use at desktop and mobile widths.",
+        "Existing pause/message/resume/cancel and export browser checks still pass."
+      ],
+      "sourcePaths": [
+        "de-vloer:public/app.js",
+        "de-vloer:public/index.html",
+        "de-vloer:scripts/browser-check.mjs"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ],
+      "implementation": {
+        "state": "candidate",
+        "summary": "Keyboard evidence navigation, associated panels, draft/focus preservation and live-stream scroll behavior are implemented in the Vloer browser.",
+        "evidence": [
+          "public/app.js and scripts/browser-check.mjs; actual Chromium desktop/mobile regression passes.",
+          "docs/operations/implementation-progress.md records the candidate and qualification boundary."
+        ],
+        "remaining": [
+          "Human review and acceptance against the actual tracker task.",
+          "A supervised live self-improvement run using the stable remote service remains unqualified."
+        ]
+      }
+    },
+    {
+      "id": "PV-002",
+      "epic": "E01",
+      "title": "Retain actionable redacted execution failures",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "review",
+      "priority": 1,
+      "risk": "medium",
+      "estimatePoints": 3,
+      "dependsOn": [],
+      "problem": "Live failures collapse to a generic blocker, making missing binaries, model errors and forbidden egress difficult to distinguish.",
+      "acceptanceCriteria": [
+        "Typed failure category and safe remediation reach history and UI.",
+        "Native credentials, raw headers and response bodies are excluded.",
+        "Ambiguous prompt submission is labeled unknown and never automatically retried."
+      ],
+      "verification": [
+        "Fixture errors cover missing runtime, provider rejection, workspace timeout and ambiguous disconnect.",
+        "Secret redaction is asserted before persistence and after replay."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/engine.ts",
+        "de-vloer:src/runtime/opencode.ts",
+        "de-vloer:src/runtime/workspace.ts",
+        "de-vloer:src/failures.ts",
+        "de-vloer:test/api-failures.test.ts",
+        "de-vloer:extensions/vscode/media/session.js"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ],
+      "implementation": {
+        "state": "candidate",
+        "summary": "Durable fixed-vocabulary failures identify safe remediation and prompt submission certainty; browser and VS Code display them without automatic retry.",
+        "evidence": [
+          "src/failures.ts, authenticated failure/restart/SSE tests, runtime regression tests and both client surfaces.",
+          "Root test/type/static checks and browser checks are recorded in docs/validation.md."
+        ],
+        "remaining": [
+          "Human review and acceptance against the actual tracker task.",
+          "Actual provider/cluster failure qualification and desktop Extension Host qualification remain outstanding."
+        ]
+      }
+    },
+    {
+      "id": "PV-003",
+      "epic": "E01",
+      "title": "Create a qualified self-development execution image",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "planned",
+      "priority": 1,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [],
+      "problem": "The generic agent image lacks a pinned complete toolchain and controlled dependency access for improving the platform.",
+      "acceptanceCriteria": [
+        "Publish or locally qualify an immutable Node/Git/browser toolchain image through existing CI.",
+        "Dependency restore uses approved cache/mirror destinations; agents never need the Docker socket.",
+        "Stable service and candidate test instances use separate state and credentials.",
+        "Record which checks remain in trusted CI when restricted workers cannot run them."
+      ],
+      "verification": [
+        "Build image in authorized CI and execute all required checks on the repository baseline.",
+        "Verify candidate failure cannot stop the stable workbench."
+      ],
+      "sourcePaths": [
+        "de-vloer:ops/agent/Dockerfile",
+        "de-vloer:docs/operations/live.md",
+        "de-vloer:package-lock.json"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-004",
+      "epic": "E01",
+      "title": "Exercise one supervised Vloer self-improvement run",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "planned",
+      "priority": 1,
+      "risk": "medium",
+      "estimatePoints": 3,
+      "dependsOn": [
+        "PV-001",
+        "PV-003"
+      ],
+      "problem": "Local deterministic evidence does not establish that live agents can improve this repository safely.",
+      "acceptanceCriteria": [
+        "Use a registered remote repository and small explicit budget with one scoped credential.",
+        "Produce a candidate for a new bounded task; do not reimplement an already accepted ticket.",
+        "Record actual human interruption, independent human-run checks, review and manual merge decision.",
+        "Keep a failed-run example and exact runtime/gateway/image versions."
+      ],
+      "verification": [
+        "Capture a sanitized evidence bundle and verify the stable service survives candidate failure.",
+        "Confirm provider usage and blocked credential in the actual gateway."
+      ],
+      "sourcePaths": [
+        "de-vloer:docs/design/self-improvement.md",
+        "de-vloer:config/self-development.example.json (proposed path; confirm before implementation)",
+        "de-vloer:docs/validation.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-005",
+      "epic": "E02",
+      "title": "Define immutable candidate and evidence contracts",
+      "targetRepository": "de-vloer",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 3,
+      "dependsOn": [],
+      "problem": "Artifacts lack canonical base/candidate commit identity, full change completeness and authoritative check provenance.",
+      "acceptanceCriteria": [
+        "Versioned schemas cover repository identity, base/candidate SHA, complete file manifest, artifact hashes and retention.",
+        "Verification and human approval reference candidate and policy digests.",
+        "Unsupported artifacts are explicit rather than silently omitted."
+      ],
+      "verification": [
+        "Schema fixtures cover additions/deletions/renames/binaries/submodules and invalid references.",
+        "Contract compatibility rules are documented."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/types.ts",
+        "de-vloer:docs/contracts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-006",
+      "epic": "E02",
+      "title": "Export complete Git candidates from managed workspaces",
+      "targetRepository": "de-vloer",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-005"
+      ],
+      "problem": "Native session diff JSON and uncommitted diffs can omit files or commits needed to recover the actual result.",
+      "acceptanceCriteria": [
+        "Export a retrievable candidate commit or Git bundle including tracked and newly added files.",
+        "Reject unexpected base movement and forbidden paths before declaring candidate ready.",
+        "Capture file modes, renames, deletions and binary changes without path traversal.",
+        "Record working-tree changes that could not be represented."
+      ],
+      "verification": [
+        "Restore exported candidates in a fresh checkout and compare tree hashes.",
+        "Exercise committed changes, untracked files, symlinks and deleted files."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/runtime/opencode.ts",
+        "de-vloer:src/runtime/workspace.ts",
+        "de-vloer:src/runtime/kubernetes.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-007",
+      "epic": "E02",
+      "title": "Persist content-addressed evidence outside worker volumes",
+      "targetRepository": "de-vloer",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-005",
+        "PV-006"
+      ],
+      "problem": "A retained PVC alone is insufficient for dependable handoff, expiration and artifact inspection.",
+      "acceptanceCriteria": [
+        "Store artifacts under client/attempt-scoped content hashes using the approved object store.",
+        "Authorize every fetch and export; browser links do not leak long-lived object credentials.",
+        "Document encrypted retention, deletion and restore behavior.",
+        "Keep metadata-only UI views usable after worker disposal."
+      ],
+      "verification": [
+        "Delete the worker and restore all candidate/check artifacts.",
+        "Cross-client object access and expired download links are denied."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/store.ts",
+        "de-vloer:src/types.ts",
+        "de-vloer:src/http.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-008",
+      "epic": "E02",
+      "title": "Open idempotent draft forge reviews for candidates",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-006",
+        "PV-007",
+        "PV-022",
+        "PV-078",
+        "PV-011"
+      ],
+      "problem": "Vloer does not create a review request and retrying an ambiguous forge call must not create duplicates.",
+      "acceptanceCriteria": [
+        "Create/update a draft Forgejo PR or GitLab MR for the exact attempt and candidate.",
+        "Persist a stable external marker and reconcile unknown create results before retry.",
+        "Push credentials are repository/branch scoped and absent from reviewers.",
+        "Human edits and moved branches produce a conflict instead of force-push.",
+        "A governed review-ready publication requires successful protected checks bound to the exact candidate and policy revision."
+      ],
+      "verification": [
+        "Simulate request accepted then connection lost; exactly one draft is linked.",
+        "Forge integration test rejects updates to a different repository or protected branch."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/provider",
+        "ploeg:pkg/forgebroker",
+        "ploeg:docs/contracts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-009",
+      "epic": "E03",
+      "title": "Define verifier policies outside candidate control",
+      "targetRepository": "de-vloer",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-005"
+      ],
+      "problem": "The writer can influence repository checks and summaries, so required verification needs a separate authority.",
+      "acceptanceCriteria": [
+        "Pin command argv, image digest, expected suites and check policy to the approved base/policy revision.",
+        "Candidate changes to verification configuration are visible and cannot weaken the active mandate.",
+        "Define baseline failure handling and policies for documentation-only changes.",
+        "No model verdict substitutes for required check results."
+      ],
+      "verification": [
+        "Adversarial fixtures remove tests, change npm scripts and print fake PASS while failing.",
+        "Policies reject missing suites and unexpected zero test discovery."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/engine.ts",
+        "de-vloer:src/types.ts",
+        "de-vloer:docs/contracts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-010",
+      "epic": "E03",
+      "title": "Run checks in a separate unprivileged verification job",
+      "targetRepository": "de-vloer",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "critical",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-003",
+        "PV-006",
+        "PV-009"
+      ],
+      "problem": "Live checks currently run inside the writer-controlled harness rather than an independent executor.",
+      "acceptanceCriteria": [
+        "Fresh job checks out exact candidate and pinned verifier policy.",
+        "No forge write, model management or deployment credentials are present.",
+        "Produce exit code, discovered tests, command/image identity, logs and hashes.",
+        "Missing toolchains and unavailable dependencies are blocked, never green."
+      ],
+      "verification": [
+        "Real job test passes expected fixtures and fails malicious/failing/zero-test fixtures.",
+        "Verify network and credential boundaries in the pilot cluster."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/runtime/kubernetes.ts",
+        "de-vloer:src/engine.ts",
+        "de-vloer:ops/agent"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-011",
+      "epic": "E03",
+      "title": "Enforce candidate verification before review-ready state",
+      "targetRepository": "de-vloer",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-009",
+        "PV-010"
+      ],
+      "problem": "An approving reviewer can currently complete a session without mandatory independently successful checks.",
+      "acceptanceCriteria": [
+        "Review-ready requires all mandatory candidate-bound check runs to pass.",
+        "A changed candidate invalidates previous checks and approvals.",
+        "Inconclusive findings, missing artifacts and unknown verifier status remain blockers.",
+        "Existing completed sessions are not retroactively claimed as verified."
+      ],
+      "verification": [
+        "State-machine tests attempt false approval, stale checks and changed candidate.",
+        "Migration preserves historical evidence labels."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/engine.ts",
+        "de-vloer:src/store.ts",
+        "de-vloer:src/types.ts",
+        "de-vloer:public/app.js"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-012",
+      "epic": "E03",
+      "title": "Add evidence-bound reviewer findings and rework limits",
+      "targetRepository": "de-vloer",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-011"
+      ],
+      "problem": "Reviewers need specific evidence and bounded rework rather than approval inferred from conversation text.",
+      "acceptanceCriteria": [
+        "Findings identify candidate files/lines, severity, evidence and uncertainty.",
+        "Rework is a new bounded action with maximum attempts and remaining budget.",
+        "Human approval of privileged work is distinct from model review.",
+        "UI distinguishes verified checks, reviewer opinion and human decision.",
+        "Review runs in a separately provisioned read-only immutable candidate snapshot, with no writer volume, shell mutation or publish credentials."
+      ],
+      "verification": [
+        "Test missing verdicts, changed candidate, exceeded rework limit and stale findings.",
+        "Reviewer cannot update its own capability or approval policy.",
+        "A writer mutation after capture cannot change reviewer input; attempted reviewer writes are denied by the execution boundary."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/runtime/opencode.ts",
+        "de-vloer:src/engine.ts",
+        "de-vloer:public/app.js"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-013",
+      "epic": "E04",
+      "title": "Preserve authoritative ClickUp List scope during intake",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "review",
+      "priority": 2,
+      "risk": "high",
+      "estimatePoints": 3,
+      "dependsOn": [],
+      "problem": "mirror overwrites authoritative FetchItem List scope with an empty scope from a thin ClickUp webhook.",
+      "acceptanceCriteria": [
+        "Retain fetched native scope when the verified event lacks scope.",
+        "Reject material scope conflicts and preserve routing audit evidence.",
+        "Repository/team resolution uses authoritative connection+scope identity."
+      ],
+      "verification": [
+        "Regression webhook with no scope still routes to its fetched List project.",
+        "Conflicting event scope cannot redirect work to another client."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi/server.go",
+        "ploeg:pkg/provider/clickup"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ],
+      "implementation": {
+        "state": "partial_candidate",
+        "summary": "Ploeg patch preserves fetched Scope and rejects conflicting event Scope before routing/ingestion.",
+        "evidence": [
+          "integrations/ploeg/README.md contains the baseline, patch and qualification instructions.",
+          "Ploeg mirror_test.go contains signed ClickUp fetch/routing and scope-conflict regressions; Go/PostgreSQL execution remains pending."
+        ],
+        "remaining": [
+          "Run Go formatting/build/vet, embedded PostgreSQL regressions and required CI gates; prove failure against old behavior.",
+          "Add durable rejection audit and connection-scoped identity under their own contracts.",
+          "Human review and target-instance qualification before unattended use."
+        ]
+      }
+    },
+    {
+      "id": "PV-014",
+      "epic": "E04",
+      "title": "Reject unresolved or ambiguous work targets",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "critical",
+      "estimatePoints": 3,
+      "dependsOn": [
+        "PV-013"
+      ],
+      "problem": "Fallback worker environment repository can route ticket work incorrectly when mapping fails.",
+      "acceptanceCriteria": [
+        "Tracked work must resolve to exactly one approved repository/project before claim.",
+        "Legacy environment fallback is explicit opt-in and forbidden for client-scoped tracked work.",
+        "Blocked mapping is visible to operators and produces no worker credentials."
+      ],
+      "verification": [
+        "Missing/duplicate mapping and moved source item result in zero claims and keys.",
+        "Existing explicitly configured standalone flows have a migration test."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi/server.go",
+        "ploeg:pkg/target",
+        "ploeg:pkg/store"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-015",
+      "epic": "E04",
+      "title": "Authenticate webhook deliveries before reserving dedup IDs",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "review",
+      "priority": 2,
+      "risk": "critical",
+      "estimatePoints": 3,
+      "dependsOn": [],
+      "problem": "A forged delivery identifier must not suppress a later authentic forge event.",
+      "acceptanceCriteria": [
+        "Signature/token verification precedes trusted dedup admission.",
+        "Invalid requests cannot reserve a delivery ID or change workflow state.",
+        "Raw payload size, supported content type and algorithm are bounded."
+      ],
+      "verification": [
+        "Invalid-then-valid same-ID sequence processes the valid event once.",
+        "Malformed/oversized/signature-mismatched requests have no durable side effects."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi/server.go",
+        "ploeg:pkg/provider"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ],
+      "implementation": {
+        "state": "partial_candidate",
+        "summary": "Ploeg patch authenticates and parses before reserving forge delivery IDs, explicitly enforcing the existing one-MiB raw body limit.",
+        "evidence": [
+          "integrations/ploeg/README.md links the patch and qualification record.",
+          "Ploeg forge_admission_test.go covers invalid-then-valid IDs, duplicate raw-body authentication and size limits; Go/PostgreSQL execution is pending."
+        ],
+        "remaining": [
+          "Run Go formatting/build/vet, embedded PostgreSQL regressions and full required CI gates; prove old-code failure.",
+          "Define and qualify the stricter HTTP media-type admission policy without silently changing current compatibility.",
+          "PV-016 transactional inbox/crash-loss work remains separate and unimplemented."
+        ]
+      }
+    },
+    {
+      "id": "PV-016",
+      "epic": "E04",
+      "title": "Commit webhook inbox and normalized events atomically",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-015"
+      ],
+      "problem": "A crash between dedup reservation and durable processing can permanently lose a retried delivery.",
+      "acceptanceCriteria": [
+        "Persist authenticated envelope and idempotency key in one transaction before acknowledgement.",
+        "Async processing can replay a pending inbox item after restart.",
+        "Delivery dedup and semantic change dedup are separate.",
+        "Dead-letter entries include safe category and replay controls."
+      ],
+      "verification": [
+        "Crash at each boundary and retry yields one logical state transition.",
+        "Concurrent duplicate deliveries have one authoritative inbox record."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi/server.go",
+        "ploeg:pkg/store/migrations"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-017",
+      "epic": "E04",
+      "title": "Handle ticket edits, unassignment and cancellation",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-014",
+        "PV-016",
+        "PV-022"
+      ],
+      "problem": "Current tracker handling drops updates/unassignment so a stale assignment can continue executing.",
+      "acceptanceCriteria": [
+        "Authoritative material change creates a new revision and invalidates the old mandate.",
+        "Unassignment/cancellation requests stop and revoke the current owner.",
+        "Cosmetic edits are auditable without unnecessary reruns.",
+        "Permission/approval requests expire with superseded subjects."
+      ],
+      "verification": [
+        "Edit objective, move List, unassign and cancel while queued/running/waiting.",
+        "A stale retry cannot revive the superseded attempt."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi/server.go",
+        "ploeg:pkg/work",
+        "ploeg:pkg/shiftengine"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-018",
+      "epic": "E04",
+      "title": "Add connector polling repair and sync checkpoints",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-016",
+        "PV-017"
+      ],
+      "problem": "Webhooks can be missed and SaaS callbacks may not reach a LAN-only deployment.",
+      "acceptanceCriteria": [
+        "Polling uses per-connection cursor/watermark, bounded overlap and authoritative fetch.",
+        "Dedup matches webhook-originated changes without duplicate execution.",
+        "Backoff honors native rate-limit responses and exposes sync lag.",
+        "An outbound-only deployment can complete the first tracker loop."
+      ],
+      "verification": [
+        "Drop all webhooks and demonstrate eventual convergence with polling.",
+        "Replay across checkpoint crash, deletion, pagination and rate limits."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/provider",
+        "ploeg:pkg/store",
+        "ploeg:cmd/ploegd"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-019",
+      "epic": "E05",
+      "title": "Implement Forgejo issues as a tracker provider",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-014",
+        "PV-016"
+      ],
+      "problem": "Forgejo code-review webhooks do not currently normalize issue tasks into tracked work.",
+      "acceptanceCriteria": [
+        "Issue identity includes connection and repository plus native issue number/ID.",
+        "Configured assignee/label/state rules determine eligibility.",
+        "Exclude PR-backed issues from accidental task intake.",
+        "Support authoritative fetch, event normalization and scoped summary writeback."
+      ],
+      "verification": [
+        "Integration fixtures cover assigned, edited, reopened, closed, transferred and PR issue events.",
+        "Same number in two repositories remains distinct."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/provider",
+        "ploeg:cmd/ploegd",
+        "ploeg:docs/contracts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-020",
+      "epic": "E05",
+      "title": "Qualify ClickUp auth modes and native identifiers",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "high",
+      "estimatePoints": 3,
+      "dependsOn": [
+        "PV-013",
+        "PV-016"
+      ],
+      "problem": "Personal and OAuth tokens have different current authentication conventions; custom task IDs are not canonical native identity.",
+      "acceptanceCriteria": [
+        "Configure PAT versus OAuth explicitly and use the correct header format.",
+        "Use connection+native task ID with authoritative List/workspace mapping.",
+        "Validate revoked identity and pagination behavior.",
+        "Document deployed tenant/plan limits instead of assuming universal API capacity."
+      ],
+      "verification": [
+        "Contract tests cover PAT, OAuth, invalid/revoked token and custom display IDs.",
+        "Actual limited pilot credential confirms declared capability."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/provider/clickup",
+        "ploeg:docs/ops"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-021",
+      "epic": "E05",
+      "title": "Adopt version-aware GitLab signed webhook verification",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "high",
+      "estimatePoints": 3,
+      "dependsOn": [
+        "PV-015",
+        "PV-016"
+      ],
+      "problem": "Current GitLab assumption of token-only verification does not reflect new signed webhook capability.",
+      "acceptanceCriteria": [
+        "Probe configured instance version and supported signature mode.",
+        "Validate signing ID/timestamp/signature including replay window where supported.",
+        "Retain documented constant-time token verification fallback only for configured older instances."
+      ],
+      "verification": [
+        "Official signature fixtures pass and altered/replayed bodies fail.",
+        "Capability mismatch blocks startup or registration with an actionable error."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/provider/gitlab",
+        "ploeg:docs/contracts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-022",
+      "epic": "E06",
+      "title": "Introduce canonical work-order revision identity in Ploeg",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "critical",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-014",
+        "PV-016",
+        "PV-071",
+        "PV-072",
+        "PV-073",
+        "PV-074"
+      ],
+      "problem": "Vloer sessions and Ploeg work lack a shared immutable task mandate and execution identity.",
+      "acceptanceCriteria": [
+        "Persist source connection/native item/revision and immutable mandate.",
+        "Link existing WorkItem/Shift without replacing tracker priority authority.",
+        "Uniqueness prevents two current orders for the same material source revision.",
+        "Versioned contracts support explicit standalone/ad-hoc registration.",
+        "Adopt the versioned WorkOrder schema published in de-vloer as an explicit Ploeg contract dependency; do not depend on a sibling checkout path at runtime."
+      ],
+      "verification": [
+        "Schema and migration tests preserve existing shifts and task identity.",
+        "Concurrent registration from tracker and Vloer converges to one work order."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/work",
+        "ploeg:pkg/store",
+        "de-vloer:docs/contracts/work-order.v1.schema.json (cross-repository reference)"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-023",
+      "epic": "E06",
+      "title": "Add fenced delivery attempts and ownership transitions",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "critical",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-022"
+      ],
+      "problem": "Interactive takeover must not leave two writers acting on the same work.",
+      "acceptanceCriteria": [
+        "One current attempt owner has a monotonic generation/lease.",
+        "Check ownership generation at every privileged write and credential issuance.",
+        "Expired/stale workers cannot renew, publish or resume.",
+        "Atomic transfer records previous/new owner and authorized subject.",
+        "Extend the existing authenticated Run/lease capabilities from PV-072 to bind canonical attempt, role, generation and expiry.",
+        "Ownership transfer waits on active publication barriers and unresolved external effects; release of an expired barrier requires reconciliation, not a timer alone."
+      ],
+      "verification": [
+        "Race a worker renewal, cancellation and editor takeover; only one generation can write.",
+        "Kill/restart coordinator around transfer and preserve ownership invariant."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/store",
+        "ploeg:pkg/httpapi",
+        "ploeg:pkg/shiftengine"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-024",
+      "epic": "E06",
+      "title": "Expose authenticated operator work-order API",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-023",
+        "PV-034",
+        "PV-079"
+      ],
+      "problem": "Current worker token APIs do not constitute a scoped human-facing takeover API; the read half lives in PV-079 and this ticket covers claim, pause, takeover and release.",
+      "acceptanceCriteria": [
+        "Provide authorized read, claim, pause/takeover/release operations separate from worker tokens.",
+        "Request idempotency and expected revision prevent duplicate/obsolete mutations.",
+        "Define typed conflicts and minimum compatible versions.",
+        "No browser receives worker or management credentials."
+      ],
+      "verification": [
+        "Cross-client and expired-role requests deny without existence leakage.",
+        "Repeated requests and ambiguous responses reconcile rather than duplicate."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi",
+        "ploeg:docs/contracts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-025",
+      "epic": "E06",
+      "title": "Link Vloer sessions to Ploeg work orders and attempts",
+      "targetRepository": "de-vloer",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-024"
+      ],
+      "problem": "A tracker link and queue depth cannot coordinate a session with unattended work.",
+      "acceptanceCriteria": [
+        "Session records canonical workOrder/attempt identity and execution owner.",
+        "Ticket-open action attaches to existing work or acquires one authorized claim.",
+        "Old ad-hoc sessions remain readable and are not falsely assigned tracker identities.",
+        "UI distinguishes delayed synchronization from stopped execution."
+      ],
+      "verification": [
+        "Open the same ticket from two clients while a worker claims it and assert one owner.",
+        "Ploeg outage preserves history but blocks conflicting execution."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/types.ts",
+        "de-vloer:src/store.ts",
+        "de-vloer:src/engine.ts",
+        "de-vloer:src/http.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-026",
+      "epic": "E06",
+      "title": "Implement stop-confirmed human takeover and handback",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "critical",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-025",
+        "PV-023",
+        "PV-006",
+        "PV-078"
+      ],
+      "problem": "Pause status currently precedes confirmed interruption and is not a full writer ownership transfer.",
+      "acceptanceCriteria": [
+        "UI represents requested, stopping, confirmed and uncertain states.",
+        "Revoke prior capabilities and fence writes before human/editor write access.",
+        "Handback snapshots human changes into a new candidate/mandate and rechecks policy.",
+        "Out-of-band stop and recovery remain available."
+      ],
+      "verification": [
+        "Native abort failure, unreachable Pod and late worker writes never grant simultaneous writers.",
+        "Human edits survive handback without being overwritten."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/engine.ts",
+        "de-vloer:src/runtime/opencode.ts",
+        "de-vloer:src/runtime/kubernetes.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-027",
+      "epic": "E05",
+      "title": "Implement quiet idempotent tracker summary writeback",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-008",
+        "PV-018"
+      ],
+      "problem": "Token streams in tracker comments create noise, notification cost and duplicate side effects.",
+      "acceptanceCriteria": [
+        "One stable summary per attempt links evidence/review and the next decision.",
+        "Persist external comment identity and update only meaningful changes.",
+        "Do not claim notify flags suppress all ClickUp notifications.",
+        "Tracker completion follows configured delivery/release DoD."
+      ],
+      "verification": [
+        "Lose response after comment creation and reconcile one comment.",
+        "PR opened/merged/deployed events map only to explicitly configured states."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/provider",
+        "ploeg:pkg/shiftengine",
+        "ploeg:pkg/store"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-028",
+      "epic": "E05",
+      "title": "Add repository-specific Forgejo credential capability probes",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-022"
+      ],
+      "problem": "Broker assumptions about token scope may be stale and must not grant every bot repository to one run.",
+      "acceptanceCriteria": [
+        "Probe actual instance support for selected-repository token scope.",
+        "Verify token cannot read/write a second private test repository.",
+        "Use isolated bot fallback for unsupported instances or block incompatible policy.",
+        "Document token TTL/revocation and branch capability limits."
+      ],
+      "verification": [
+        "Actual scoped token positive/negative integration qualification.",
+        "Unknown capabilities fail closed for cross-client workloads."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/forgebroker",
+        "ploeg:pkg/provider/forgejo",
+        "ploeg:docs/ops"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-029",
+      "epic": "E07",
+      "title": "Version crews, skills and repository contracts",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-022",
+        "PV-009"
+      ],
+      "problem": "Reusable procedures are currently config content without immutable run-time provenance.",
+      "acceptanceCriteria": [
+        "Pin crew role graph, skill content and repository facts by digest.",
+        "Record effective precedence and which instructions affected a run.",
+        "Candidate changes cannot rewrite the active crew version.",
+        "Roll back a crew independently from application release."
+      ],
+      "verification": [
+        "Modify skill/config mid-run and verify current mandate remains stable.",
+        "Exported evidence reconstructs effective crew and contract."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/config.ts",
+        "de-vloer:src/types.ts",
+        "de-vloer:skills",
+        "de-vloer:.agents/contracts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-030",
+      "epic": "E07",
+      "title": "Add tested runtime capability negotiation",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-005"
+      ],
+      "problem": "Model portability does not imply identical approvals, resume, streaming or native evidence support.",
+      "acceptanceCriteria": [
+        "Report capabilities for sessions, interruption, questions, evidence and continuation.",
+        "Unsupported actions are disabled with actionable explanation.",
+        "Adapters have pinned compatibility fixtures and native smoke probes.",
+        "Harness replacement records a new execution context rather than claiming hidden-state portability."
+      ],
+      "verification": [
+        "Run conformance suite against OpenCode and command bridge.",
+        "Unsupported capabilities cannot silently degrade governance."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/runtime",
+        "de-vloer:src/types.ts",
+        "de-vloer:docs/research/agent-apis.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-031",
+      "epic": "E07",
+      "title": "Qualify a second open agent runtime via the bridge",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-030",
+        "PV-010"
+      ],
+      "problem": "A generic command protocol alone is not an exercised OpenHands or other harness integration.",
+      "acceptanceCriteria": [
+        "Select a maintained open runtime after a bounded bakeoff.",
+        "Implement native mapping for approvals, cancellation, evidence and costs.",
+        "Run same candidate/check policy and dataset as OpenCode.",
+        "Document version/license/deployment boundary and remaining unsupported features."
+      ],
+      "verification": [
+        "Actual provider-authorized pilot returns retrievable candidate and independent check evidence.",
+        "Crash/ambiguous prompt tests prove no silent replay."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/runtime/command.ts",
+        "de-vloer:docs/contracts",
+        "de-vloer:ops/agent"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-032",
+      "epic": "E07",
+      "title": "Add bounded parallel research with isolated branches",
+      "targetRepository": "ploeg",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-023",
+        "PV-029",
+        "PV-010"
+      ],
+      "problem": "Sequential roles work, but parallel execution requires explicit result ownership and aggregate budgets.",
+      "acceptanceCriteria": [
+        "Parallel readers get scoped contexts and produce independent cited findings.",
+        "Any parallel writers use separate branches/workspaces and an explicit integration task.",
+        "Fanout, depth, attempt count and money are bounded by the mandate.",
+        "No nested harness task bypasses budget or credential restrictions."
+      ],
+      "verification": [
+        "Race/conflict fixtures and budget-exhaustion tests across sibling runs.",
+        "Compare acceptance and human integration effort against sequential baseline."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/plan",
+        "ploeg:pkg/shiftengine",
+        "ploeg:pkg/harness"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-033",
+      "epic": "E07",
+      "title": "Create crew and model evaluation corpus",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-010",
+        "PV-029",
+        "PV-031"
+      ],
+      "problem": "Choosing models or prompts by anecdotes can trade correctness for token savings.",
+      "acceptanceCriteria": [
+        "Version representative defect, maintenance, documentation and failure tasks.",
+        "Measure acceptance, human review effort, cost, retries and flakiness.",
+        "Separate tuning tasks from held-out evaluation tasks.",
+        "No client code enters a shared corpus without authorization."
+      ],
+      "verification": [
+        "Reproduce two runtime/model evaluations with same policy and resources.",
+        "Report uncertainty and failure examples without claiming unsupported productivity gains."
+      ],
+      "sourcePaths": [
+        "de-vloer:docs/product",
+        "de-vloer:skills",
+        "de-vloer:docs/research"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-034",
+      "epic": "E08",
+      "title": "Map organization, client, project and team authorization",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 3,
+      "risk": "critical",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-022"
+      ],
+      "problem": "Owner/admin authorization cannot support shared teams or prove client separation.",
+      "acceptanceCriteria": [
+        "Persist membership and project/client boundary with explicit role capabilities.",
+        "Authorization applies to reads, events, artifacts, decisions, budgets and credentials.",
+        "Administrator bypass scope is explicit and audited.",
+        "Connection and repository mappings belong to one declared boundary."
+      ],
+      "verification": [
+        "Negative matrix crosses users/teams/clients and every API surface.",
+        "Membership removal revokes ongoing interactive access."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/store",
+        "ploeg:pkg/httpapi",
+        "ploeg:docs/contracts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-035",
+      "epic": "E08",
+      "title": "Integrate OIDC browser login and role synchronization",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "critical",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-034"
+      ],
+      "problem": "Local passwords are a prototype identity model and do not reuse company SSO or offboarding.",
+      "acceptanceCriteria": [
+        "Validate issuer/audience/nonce/state and use approved OIDC flow.",
+        "Map groups to scoped roles through reviewed configuration.",
+        "Logout, token expiry and offboarding revoke current sessions/streams.",
+        "Keep a limited audited recovery account outside provider outage path."
+      ],
+      "verification": [
+        "Authentik pilot with allowed/denied/offboarded users and issuer mismatch.",
+        "No secrets or refresh credentials appear in frontend state/logs."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/auth.ts",
+        "de-vloer:src/http.ts",
+        "de-vloer:src/store.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-036",
+      "epic": "E08",
+      "title": "Add public-client editor authentication",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-035"
+      ],
+      "problem": "VS Code cookie support is usable for v0.1 but does not provide scoped SSO/device sessions.",
+      "acceptanceCriteria": [
+        "Use approved PKCE or device authorization with no embedded client secret.",
+        "Store refresh material only in SecretStorage and issue audience-scoped API access.",
+        "Validate callback ownership and bound device grants to server/organization.",
+        "Expiry/revocation does not discard drafts or retry mutations."
+      ],
+      "verification": [
+        "Actual VS Code host tests for login, expiry, revoke, multiple windows and malicious callback.",
+        "Server rejects token from wrong issuer/audience/project."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/auth.ts",
+        "de-vloer:src/http.ts",
+        "de-vloer:extensions/vscode"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-037",
+      "epic": "E08",
+      "title": "Enforce resource policy for untrusted remote workspaces",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "critical",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-034",
+        "PV-003"
+      ],
+      "problem": "Namespaces and environment filtering alone do not qualify hostile-code or cross-client isolation.",
+      "acceptanceCriteria": [
+        "Define client namespace/service account/network/storage boundaries and Pod security.",
+        "Worker pods cannot acquire controller or another client credentials.",
+        "Use stronger runtime/node isolation for policy classes requiring it.",
+        "Document local same-UID backend exclusion from shared hostile workloads."
+      ],
+      "verification": [
+        "Target-cluster deny tests cover metadata, API tokens, master key, sibling volumes and egress.",
+        "Verify actual network-policy/runtime enforcement not only YAML."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/runtime/kubernetes.ts",
+        "de-vloer:ops/helm/de-vloer"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-038",
+      "epic": "E08",
+      "title": "Bind approvals to candidate, policy and permission lifetime",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-011",
+        "PV-034"
+      ],
+      "problem": "An approval must not survive changes to the work, branch, policy or granting identity.",
+      "acceptanceCriteria": [
+        "Record subject hashes, actor, scope, expiry and expected revision.",
+        "Expire approvals on candidate/policy/mandate changes and offboarding.",
+        "Matching persistent tool grants remain limited to one approved run/policy.",
+        "Separation-of-duty rules apply to critical platform changes."
+      ],
+      "verification": [
+        "Replay old approval after changes and confirm denial.",
+        "Reviewer cannot self-authorize policy or budget change."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/engine.ts",
+        "de-vloer:src/store.ts",
+        "de-vloer:src/http.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-039",
+      "epic": "E08",
+      "title": "Add secret redaction and controlled context export policy",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-034"
+      ],
+      "problem": "File selections, diffs, logs and remote tool output can expose secrets or cross-client data.",
+      "acceptanceCriteria": [
+        "Centralize bounded redaction before event/artifact persistence and export.",
+        "Preview exactly which editor content and metadata will be sent.",
+        "Deny automatic bulk workspace upload and cross-client memory reuse.",
+        "Allow authorized investigation of redaction failures without exposing values broadly."
+      ],
+      "verification": [
+        "Canary secrets in nested JSON, diff, terminal output and clipboard selections stay absent from persistence.",
+        "Editor selection tests exclude hidden/unsaved context unless explicitly chosen."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/engine.ts",
+        "de-vloer:src/http.ts",
+        "de-vloer:extensions/vscode"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-040",
+      "epic": "E09",
+      "title": "Move canonical reservations into the work-order ledger",
+      "targetRepository": "ploeg",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "critical",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-023",
+        "PV-034"
+      ],
+      "problem": "Independent session limits cannot enforce aggregate client/team budgets across Ploeg and Vloer.",
+      "acceptanceCriteria": [
+        "Reserve client/project/attempt budgets in the same authoritative ledger used for dispatch.",
+        "Issue scoped gateway keys only after successful reservation.",
+        "Track authorized, reserved, estimated, reconciled and unresolved money separately.",
+        "Takeover preserves commitments and cannot reset available budget."
+      ],
+      "verification": [
+        "Concurrent allocation and crash-after-mint tests cannot oversubscribe the chosen policy.",
+        "Vloer and unattended workers share the same accounting reference."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/store",
+        "ploeg:pkg/httpapi",
+        "ploeg:pkg/llmbroker"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-041",
+      "epic": "E09",
+      "title": "Qualify LiteLLM spend enforcement and late reconciliation",
+      "targetRepository": "ploeg",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-040"
+      ],
+      "problem": "A grace interval is a reporting heuristic and not proof that all upstream spend has settled.",
+      "acceptanceCriteria": [
+        "Pin gateway version and qualify reservation/fail-closed enforcement if supported.",
+        "Define currency/precision, delayed charges and retry accounting.",
+        "Late updates reconcile against retained references without duplicate settlement.",
+        "Unknown gateway state prevents new budget-consuming work under configured policy."
+      ],
+      "verification": [
+        "Concurrent requests, delayed provider logs, gateway outage and key-block tests use a real pilot gateway.",
+        "Produce a documented overshoot/uncertainty envelope rather than claiming exact universal ceilings."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/store",
+        "de-vloer:src/broker.ts (cross-repository reference)",
+        "de-vloer:docs/operations (cross-repository reference)",
+        "ploeg:pkg/llmbroker"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-042",
+      "epic": "E09",
+      "title": "Add fair per-client capacity and admission controls",
+      "targetRepository": "ploeg",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-023",
+        "PV-040"
+      ],
+      "problem": "A global two-session limit does not prevent one project monopolizing a shared cluster.",
+      "acceptanceCriteria": [
+        "Apply per-client/team concurrency, priority and maximum waiting-age policy.",
+        "Reserve workspace capacity independently from model spend.",
+        "Expose queue reason and next admissible action.",
+        "Administrative exceptions are bounded and audited."
+      ],
+      "verification": [
+        "Load mixed client queues and verify fairness and quotas.",
+        "A stopped or orphaned run cannot leak capacity indefinitely."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/plan",
+        "ploeg:pkg/store",
+        "ploeg:ops/helm"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-043",
+      "epic": "E09",
+      "title": "Reconcile orphan workspaces and expired capabilities",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-023",
+        "PV-037",
+        "PV-040"
+      ],
+      "problem": "Crashes during provisioning or cleanup can leave billable resources and usable credentials behind.",
+      "acceptanceCriteria": [
+        "Use stable resource identity labels and persisted provisioning intent.",
+        "Periodic reconciliation detects orphan pods/secrets/services/PVCs and stopped keys.",
+        "Cleanup retries are idempotent and preserve required evidence.",
+        "Show uncertain cleanup to operators with a bounded remediation path."
+      ],
+      "verification": [
+        "Crash after every create/delete boundary and converge without a second writer.",
+        "Verify cost/capacity references remain attributable through cleanup."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/runtime/kubernetes.ts",
+        "de-vloer:src/engine.ts",
+        "de-vloer:src/store.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-044",
+      "epic": "E09",
+      "title": "Expose client cost and delivery economics reports",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-040",
+        "PV-041",
+        "PV-033"
+      ],
+      "problem": "Token charts alone do not tell a CTO whether delegated work improves engineering delivery.",
+      "acceptanceCriteria": [
+        "Report cost per accepted change and attempted task, including failed attempts.",
+        "Separate model charges, runtime costs and measured human review time.",
+        "Provide client/project/period breakdown with uncertainty and currency labels.",
+        "Exports obey the same authorization as sessions/artifacts."
+      ],
+      "verification": [
+        "Reconcile report totals with ledger fixtures containing delayed and failed runs.",
+        "Demonstrate no misleading savings from excluding failed tasks."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/http.ts",
+        "de-vloer:public/app.js",
+        "de-vloer:docs/product"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-045",
+      "epic": "E10",
+      "title": "Qualify the VS Code extension in actual supported hosts",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "planned",
+      "priority": 1,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [],
+      "problem": "Build/client tests alone do not establish extension activation, native command registration or usable webviews.",
+      "acceptanceCriteria": [
+        "Run extension-host integration tests for install/activation/commands/SecretStorage.",
+        "Exercise stable VS Code desktop on supported operating systems and declared remote hosts.",
+        "Record unsupported web/VSCodium cases explicitly.",
+        "Verify the VSIX contains only required runtime assets and no secrets."
+      ],
+      "verification": [
+        "Install packaged VSIX in clean profile and run actual demo workflow.",
+        "Capture keyboard/theme/accessibility results and package hash."
+      ],
+      "sourcePaths": [
+        "de-vloer:extensions/vscode"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-046",
+      "epic": "E10",
+      "title": "Add work-order inbox and ticket quick-open to VS Code",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-025",
+        "PV-036"
+      ],
+      "problem": "The initial extension sees sessions, not a shared task inbox with canonical ticket ownership.",
+      "acceptanceCriteria": [
+        "List eligible/owned work orders with source, client, repository and blocker.",
+        "Open external ticket without leaking credentials or changing its priority.",
+        "Claim/attach via canonical API with expected revision and idempotency.",
+        "Show unavailable/unauthorized mappings without silently creating ad-hoc work."
+      ],
+      "verification": [
+        "Two editor windows open same task and obtain one authoritative owner.",
+        "Expired identity and stale task revision have recoverable UX."
+      ],
+      "sourcePaths": [
+        "de-vloer:extensions/vscode",
+        "de-vloer:src/http.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-047",
+      "epic": "E10",
+      "title": "Provide native immutable candidate diff views",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-006",
+        "PV-007"
+      ],
+      "problem": "Read-only artifact text is useful but a full editor diff needs exact remote base/candidate documents.",
+      "acceptanceCriteria": [
+        "Virtual documents resolve by server/client/candidate/path and are immutable.",
+        "Native diff handles added/deleted/renamed/binary cases appropriately.",
+        "No automatic patch application or dirty local branch checkout.",
+        "Open findings at verified candidate locations."
+      ],
+      "verification": [
+        "Test remote path traversal, same-name files across servers and stale artifacts.",
+        "Dirty local worktrees stay unchanged."
+      ],
+      "sourcePaths": [
+        "de-vloer:extensions/vscode",
+        "de-vloer:src/http.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-048",
+      "epic": "E10",
+      "title": "Add an explicit durable event revision and retention API",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-025"
+      ],
+      "problem": "Current global event IDs do not imply contiguous per-session sequences or retained history completeness.",
+      "acceptanceCriteria": [
+        "Expose state revision, per-session ordering and retention watermark.",
+        "Clients deduplicate/replay and resnapshot when history is unavailable.",
+        "Publish API capability/version information.",
+        "Bound response size and recover slow/offline clients without silent event loss."
+      ],
+      "verification": [
+        "Interleave multiple sessions and truncate history; clients converge correctly.",
+        "No assumption that a numeric ID jump is a missing event."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/store.ts",
+        "de-vloer:src/http.ts",
+        "de-vloer:extensions/vscode"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-049",
+      "epic": "E10",
+      "title": "Make human decisions usable across browser and editor",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-038",
+        "PV-048"
+      ],
+      "problem": "Multiple questions, stale approvals and parallel clients require one consistent decision surface.",
+      "acceptanceCriteria": [
+        "Support structured single/multi-select/freeform questions and actual runtime reject semantics.",
+        "Show action scope, subject revision, expiry and persistent grant limits.",
+        "Decision claimed in one client expires or updates the other.",
+        "Keyboard/screen reader/high contrast flows preserve drafts."
+      ],
+      "verification": [
+        "Cross-client concurrent responses accept one valid current decision.",
+        "UI tests cover multiple-choice questions, partial errors and offline recovery."
+      ],
+      "sourcePaths": [
+        "de-vloer:public/app.js",
+        "de-vloer:extensions/vscode",
+        "de-vloer:src/http.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-050",
+      "epic": "E10",
+      "title": "Design deliberate local context and remote workspace handoff",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-026",
+        "PV-039",
+        "PV-047"
+      ],
+      "problem": "Connecting an editor must not silently upload a repo or overwrite local changes.",
+      "acceptanceCriteria": [
+        "Choose current selection/file/diff explicitly with content/size/client preview.",
+        "Record origin path, revision and unsaved status as evidence rather than authority.",
+        "Remote workspace opening integrates existing SSH/Coder tooling only when authorized.",
+        "Separate supervising from obtaining a write lease."
+      ],
+      "verification": [
+        "Test multi-root, Remote SSH, devcontainer and conflicting local edits.",
+        "No context upload occurs on activation or merely opening a file."
+      ],
+      "sourcePaths": [
+        "de-vloer:extensions/vscode",
+        "de-vloer:docs/design/ide-and-operator-experience.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-051",
+      "epic": "E11",
+      "title": "Add OpenTelemetry and operational decision dashboards",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-023",
+        "PV-040"
+      ],
+      "problem": "Operators need to distinguish slow model work, queue delay, human waiting and broken infrastructure.",
+      "acceptanceCriteria": [
+        "Trace workOrder/attempt/run through intake, execution, checks and writeback.",
+        "Measure queue lag, decision age, unknown spend, stop latency, orphan age and review effort.",
+        "No prompts/secrets/client source in default telemetry.",
+        "Provide actionable alerts with runbook links and owners."
+      ],
+      "verification": [
+        "Inject failures and verify one useful alert with trace correlation.",
+        "Retention/cardinality tests prevent unbounded per-token metrics."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/engine.ts",
+        "de-vloer:src/http.ts",
+        "de-vloer:ops",
+        "de-vloer:docs/operations"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-052",
+      "epic": "E11",
+      "title": "Automate backup, restore and evidence retention drills",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-007",
+        "PV-023"
+      ],
+      "problem": "Durable local files do not prove recoverability after state or cluster loss.",
+      "acceptanceCriteria": [
+        "Back up Ploeg Postgres, Vloer state, encryption metadata and artifact references consistently.",
+        "Define proposed RPO/RTO and measure actual drill outcomes.",
+        "Restored attempts are fenced and credentials reconciled before work resumes.",
+        "Retention/deletion includes volumes, objects and indexes."
+      ],
+      "verification": [
+        "Restore into isolated environment and inspect prior evidence without replaying work.",
+        "Simulate lost encryption key and document recoverability limits."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/store.ts",
+        "de-vloer:ops",
+        "de-vloer:docs/operations"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-053",
+      "epic": "E11",
+      "title": "Release immutable signed platform and extension artifacts",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-003",
+        "PV-045"
+      ],
+      "problem": "Reproducible installation and safe self-improvement need provenance, compatibility and rollback.",
+      "acceptanceCriteria": [
+        "Build/tag/sign application, agent images and VSIX through CI using immutable source refs.",
+        "Publish SBOM and integrity/provenance metadata supported by the chosen toolchain.",
+        "GitOps promotes reviewed image digests; no runtime self-update authority.",
+        "Document compatibility matrix and rollback path including DB migration limits."
+      ],
+      "verification": [
+        "Verify package/image provenance and install prior version in a drill.",
+        "A candidate cannot modify active release credentials."
+      ],
+      "sourcePaths": [
+        "de-vloer:Dockerfile",
+        "de-vloer:ops",
+        "de-vloer:.forgejo",
+        "de-vloer:.github",
+        "de-vloer:extensions/vscode"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-054",
+      "epic": "E11",
+      "title": "Add integration chaos qualification for the delivery loop",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-011",
+        "PV-018",
+        "PV-026",
+        "PV-041",
+        "PV-043"
+      ],
+      "problem": "Mock tests cannot prove a complete deployed system survives distributed failures.",
+      "acceptanceCriteria": [
+        "Qualify webhook retry, ticket edits, worker/controller death, network partition, expired credentials and late billing.",
+        "Assert no duplicate writer, no false completion and retrievable evidence.",
+        "Record exact versions, fixtures and accepted limitations.",
+        "Make high-cost/external tests explicit opt-in with bounded spend."
+      ],
+      "verification": [
+        "Run scenario matrix on target cluster and preserve sanitized results.",
+        "Fail release claim gate when a required invariant is unqualified."
+      ],
+      "sourcePaths": [
+        "de-vloer:test",
+        "de-vloer:ops",
+        "de-vloer:docs/validation.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-055",
+      "epic": "E11",
+      "title": "Create declarative project onboarding and readiness diagnostics",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-018",
+        "PV-028",
+        "PV-035",
+        "PV-037"
+      ],
+      "problem": "Every client project should not require bespoke provider wiring and secret debugging.",
+      "acceptanceCriteria": [
+        "Validate identity, tracker mapping, forge scope, image/toolchain, gateway model and egress.",
+        "Expose pass/blocked/unknown with action and responsible owner.",
+        "Store only secret references in GitOps project profiles.",
+        "Avoid chargeable provider probes unless explicitly requested under a test budget."
+      ],
+      "verification": [
+        "Onboard second project from template without modifying engine code.",
+        "Broken mappings and unavailable network produce precise safe blockers."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/config.ts",
+        "de-vloer:ops/helm",
+        "de-vloer:docs/operations"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-056",
+      "epic": "E11",
+      "title": "Enforce single-owner store migrations and compatibility",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "critical",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-023",
+        "PV-048",
+        "PV-052"
+      ],
+      "problem": "Vloer SQLite is single-server and cannot be scaled by adding replicas; Ploeg already uses Postgres.",
+      "acceptanceCriteria": [
+        "Keep Ploeg canonical claims in existing Postgres; do not add a competing Vloer claim ledger.",
+        "Define trigger and migration for Vloer Session/Decision data if HA is required.",
+        "Outbox consumers are idempotent and contracts evolve with explicit compatibility.",
+        "Mixed-version deployments cannot execute stale mandates."
+      ],
+      "verification": [
+        "Migration/rollback rehearsals preserve audit history and deny duplicate writers.",
+        "HA is not advertised until multi-node failure qualification passes."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/store.ts",
+        "ploeg:pkg/store (cross-repository reference)",
+        "de-vloer:docs/contracts",
+        "de-vloer:src/store.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-057",
+      "epic": "E12",
+      "title": "Run a structured competitor workflow bakeoff",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "low",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-004",
+        "PV-033"
+      ],
+      "problem": "Broad remote-agent claims overlap established products; the specific differentiation must be measured.",
+      "acceptanceCriteria": [
+        "Compare direct OpenCode plus CI, Kandev, OpenHands/Canvas and a relevant enterprise option on identical tasks.",
+        "Measure accepted outcomes, human minutes, cost, setup, recovery and client boundaries.",
+        "Record licenses/features as observed at tested version, not old README assumptions.",
+        "Choose build/integrate/stop based on predeclared outcomes."
+      ],
+      "verification": [
+        "Publish fixture definitions, sanitized results and limitations.",
+        "No selected screenshot or single task determines the product verdict."
+      ],
+      "sourcePaths": [
+        "de-vloer:docs/research/market-landscape.md",
+        "de-vloer:docs/product"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-058",
+      "epic": "E12",
+      "title": "Interview agency/platform buyers around existing workflows",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "low",
+      "estimatePoints": 3,
+      "dependsOn": [],
+      "problem": "The intended customer segment and willingness to pay are unvalidated.",
+      "acceptanceCriteria": [
+        "Conduct consented interviews with technical and budget owners around recent real delegated work.",
+        "Measure existing tool stack, review pain, client restrictions and purchasing process.",
+        "Separate feature interest from willingness to run or pay for a pilot.",
+        "Store anonymized findings with permission and provenance."
+      ],
+      "verification": [
+        "Use the research guide and synthesis rubric in the product plan.",
+        "Record disconfirming evidence and no-go criteria."
+      ],
+      "sourcePaths": [
+        "de-vloer:docs/product/go-to-market.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-059",
+      "epic": "E12",
+      "title": "Publish an honest self-improvement demonstration",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "low",
+      "estimatePoints": 3,
+      "dependsOn": [
+        "PV-004",
+        "PV-045"
+      ],
+      "problem": "Marketing needs inspectable evidence rather than a claim that agents autonomously run an engineering company.",
+      "acceptanceCriteria": [
+        "Show stable instance, actual task, VS Code intervention, candidate, checks and human decision.",
+        "Clearly label demo-only, tested-live and proposed features.",
+        "Include one controlled failure and recovery example.",
+        "Get explicit approval before publishing customer code, names or screenshots."
+      ],
+      "verification": [
+        "Reproduce the demo using documented commands and same release artifacts.",
+        "Claims link to evidence and known limits."
+      ],
+      "sourcePaths": [
+        "de-vloer:docs/product/go-to-market.md",
+        "de-vloer:docs/validation.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-060",
+      "epic": "E12",
+      "title": "Create a paid pilot offer and delivery economics worksheet",
+      "targetRepository": "de-vloer",
+      "milestone": "M5",
+      "status": "planned",
+      "priority": 3,
+      "risk": "low",
+      "estimatePoints": 3,
+      "dependsOn": [
+        "PV-044",
+        "PV-057",
+        "PV-058"
+      ],
+      "problem": "A commercial offer needs a bounded outcome and support economics rather than per-token markup speculation.",
+      "acceptanceCriteria": [
+        "Define one tracker/forge/cluster pilot scope, support responsibilities and success criteria.",
+        "Separate software, support/hosting and pass-through model/runtime costs.",
+        "Use explicit price hypotheses pending buyer validation; no invented market rates.",
+        "Define data ownership, export and exit expectations without claiming legal certification."
+      ],
+      "verification": [
+        "Run proposed unit economics using measured pilot cost and human effort.",
+        "Reject unsustainable support or unverified isolation commitments."
+      ],
+      "sourcePaths": [
+        "de-vloer:docs/product/go-to-market.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-061",
+      "epic": "E12",
+      "title": "Publish capability and compatibility evidence catalog",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "medium",
+      "estimatePoints": 3,
+      "dependsOn": [
+        "PV-030",
+        "PV-054"
+      ],
+      "problem": "Feature lists are misleading if configured, simulated and deployed behavior are mixed.",
+      "acceptanceCriteria": [
+        "Version matrix identifies implementation, mock/native/deployed evidence and unsupported modes.",
+        "Every marketing capability maps to a reproducible scenario and tested component versions.",
+        "Expired evidence prompts review rather than automatic claim carryover.",
+        "Show what upstream tools supply versus what Ploeg/Vloer adds."
+      ],
+      "verification": [
+        "Review all public README/site/pitch claims against catalog.",
+        "Fail documentation check for broken evidence links and unsupported ready labels."
+      ],
+      "sourcePaths": [
+        "de-vloer:docs/validation.md",
+        "de-vloer:docs/research",
+        "de-vloer:README.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-062",
+      "epic": "E12",
+      "title": "Package reusable crew and connector contribution contracts",
+      "targetRepository": "de-vloer",
+      "milestone": "M5",
+      "status": "planned",
+      "priority": 3,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-029",
+        "PV-030",
+        "PV-058"
+      ],
+      "problem": "A community ecosystem needs reproducible contracts and governance before becoming a marketplace.",
+      "acceptanceCriteria": [
+        "Provide templates, conformance tests and license/provenance requirements.",
+        "Disallow arbitrary unsigned privileged hooks in standard crew packages.",
+        "Document maintainer ownership, versioning and deprecation.",
+        "Keep trusted policy independent from untrusted contribution content."
+      ],
+      "verification": [
+        "A third contributor adds a bounded package without modifying the engine.",
+        "Malicious capability escalation fixture is rejected."
+      ],
+      "sourcePaths": [
+        "de-vloer:skills",
+        "de-vloer:docs/contracts",
+        "de-vloer:docs/product"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-063",
+      "epic": "E07",
+      "title": "Expose scoped read-only MCP tools for work inspection",
+      "targetRepository": "de-vloer",
+      "milestone": "M5",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-034",
+        "PV-048",
+        "PV-061"
+      ],
+      "problem": "Other assistants can benefit from standardized evidence access, but MCP must not become an administrative bypass.",
+      "acceptanceCriteria": [
+        "Expose authenticated work/status/evidence reads with same project authorization as HTTP.",
+        "Declare and negotiate tested protocol versions and capabilities.",
+        "No generic execute/admin tool or implicit ability to start paid work.",
+        "Bound content/requests and preserve provenance and redaction."
+      ],
+      "verification": [
+        "Cross-client tool calls and prompt-injection attempts cannot expand scope.",
+        "Conformance tests run against a pinned supported MCP client."
+      ],
+      "sourcePaths": [
+        "de-vloer:docs/contracts",
+        "de-vloer:src/http.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-064",
+      "epic": "E11",
+      "title": "Create explicit local development and safe contributor bootstrap",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "planned",
+      "priority": 1,
+      "risk": "low",
+      "estimatePoints": 3,
+      "dependsOn": [],
+      "problem": "Contributors need one documented path for root app, extension, browser gates and proposed contract tooling.",
+      "acceptanceCriteria": [
+        "Root commands discover and run module-specific checks without executing live provider work.",
+        "Separate source build, VSIX package, demo and live configuration.",
+        "Document Node/tool versions and excluded external checks.",
+        "Repository design/backlog artifacts rebuild deterministically."
+      ],
+      "verification": [
+        "Fresh clone can run local gates and build design/backlog/extension.",
+        "CI catches generated-file drift."
+      ],
+      "sourcePaths": [
+        "de-vloer:package.json",
+        "de-vloer:scripts",
+        "de-vloer:README.md",
+        "de-vloer:extensions/vscode"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-065",
+      "epic": "E05",
+      "title": "Qualify GitLab issues as an optional tracker adapter",
+      "targetRepository": "ploeg",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-018",
+        "PV-022",
+        "PV-021"
+      ],
+      "problem": "A GitLab-first team may want issues as its task source rather than a separate external tracker.",
+      "acceptanceCriteria": [
+        "Normalize project-scoped issue identity and configured assignment/label rules.",
+        "Preserve distinction between issue source and MR delivery feedback.",
+        "Honor private project scope and actual instance capabilities.",
+        "Use the same work-order, polling and summary contracts as other trackers."
+      ],
+      "verification": [
+        "Issue update/close/reopen/move fixtures converge without duplicate attempts.",
+        "Task source can change without changing runtime/verification code."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/provider",
+        "ploeg:docs/contracts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-066",
+      "epic": "E08",
+      "title": "Add scoped audit export and offboarding workflow",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-034",
+        "PV-035",
+        "PV-039",
+        "PV-052"
+      ],
+      "problem": "A client or employee departure needs accountable access revocation and evidence handling.",
+      "acceptanceCriteria": [
+        "Revoke identity, active permissions and scoped credentials in an ordered workflow.",
+        "Export only authorized client evidence with documented retention and money uncertainty.",
+        "Stop or reassign owned attempts through fenced ownership.",
+        "Record successful and incomplete cleanup without assuming deletion everywhere."
+      ],
+      "verification": [
+        "Offboard user/client with active work and verify denied streams/artifacts/keys.",
+        "Restore drill does not revive revoked authorization."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/auth.ts",
+        "de-vloer:src/http.ts",
+        "de-vloer:ops",
+        "de-vloer:docs/operations"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-067",
+      "epic": "E06",
+      "title": "Make operator mutations idempotent and revision-checked",
+      "targetRepository": "de-vloer",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [],
+      "problem": "Network ambiguity and multiple clients can otherwise create duplicate sessions or apply stale decisions.",
+      "acceptanceCriteria": [
+        "Accept scoped request IDs for session creation and privileged lifecycle mutations.",
+        "Persist request/result with payload hash; conflicting reuse returns conflict.",
+        "Expected revision prevents stale decisions.",
+        "Document which requests may be retried and reconciliation after timeout."
+      ],
+      "verification": [
+        "Concurrent same-key creates return one session and one execution.",
+        "Crash after commit before response can be reconciled without paid replay."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/http.ts",
+        "de-vloer:src/store.ts",
+        "de-vloer:src/engine.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-068",
+      "epic": "E09",
+      "title": "Gate model profiles and controlled fallback behavior",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-029",
+        "PV-030",
+        "PV-040"
+      ],
+      "problem": "A model alias can change behavior, data destination or price without the operator understanding the change.",
+      "acceptanceCriteria": [
+        "Pin capability/data-residency/cost policy and record resolved model route per attempt.",
+        "Fallback is permitted only inside approved policy with visible attribution.",
+        "Unsupported tools/context length becomes a blocker, not silent behavior change.",
+        "Provider/subscription identities stay separate; shared budget uses qualified API credentials."
+      ],
+      "verification": [
+        "Model outage/fallback tests verify allowed routes, key scope and cost attribution.",
+        "Unknown route change cannot bypass mandate."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/config.ts",
+        "de-vloer:src/runtime",
+        "de-vloer:src/broker.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-069",
+      "epic": "E12",
+      "title": "Set a maintainable open-source and brand contribution policy",
+      "targetRepository": "de-vloer",
+      "milestone": "M4",
+      "status": "planned",
+      "priority": 3,
+      "risk": "medium",
+      "estimatePoints": 3,
+      "dependsOn": [
+        "PV-058"
+      ],
+      "problem": "Commercialization must preserve the chosen open-source promises and existing Ploeg brand decisions.",
+      "acceptanceCriteria": [
+        "Document Apache-2.0 core scope and avoid implying a restrictive license is open source.",
+        "Respect Ploeg existing trademark policy; do not claim trademark registration or legal clearance.",
+        "Track third-party component licenses and service terms before distribution.",
+        "Separate support/hosting offers from mandatory hosted dependencies."
+      ],
+      "verification": [
+        "Review extension/image dependencies and planned upstream reuse.",
+        "Maintainers approve contribution and compatibility policy before public launch."
+      ],
+      "sourcePaths": [
+        "de-vloer:LICENSE",
+        "de-vloer:README.md",
+        "de-vloer:docs/product"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-070",
+      "epic": "E01",
+      "title": "Validate manual backlog briefs against real session limits",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "planned",
+      "priority": 1,
+      "risk": "low",
+      "estimatePoints": 2,
+      "dependsOn": [
+        "PV-064"
+      ],
+      "problem": "Ticket-ready data must become a bounded objective without pretending the seed file is an authorized dispatch queue.",
+      "acceptanceCriteria": [
+        "Generate explicit session payload using configured repository/crew/runtime and budget arguments.",
+        "Include acceptance criteria, scope, dependencies and no-merge/release limits.",
+        "Never send network requests or mark external work ready from a local seed status.",
+        "Reject objectives or budgets that cannot fit the current API."
+      ],
+      "verification": [
+        "CLI fixtures cover dependency cycles, CSV quoting, formula-like cells and payload length.",
+        "Payload shape is accepted by an isolated demo API when its profile matches."
+      ],
+      "sourcePaths": [
+        "de-vloer:scripts/backlog.mjs",
+        "de-vloer:backlog/backlog.json"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-071",
+      "epic": "E08",
+      "title": "Remove administrative authority from Ploeg worker environments",
+      "targetRepository": "ploeg",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [],
+      "problem": "Ploeg workers read LiteLLM management credentials and current scrubbing does not impose a positive allowlist on writers.",
+      "acceptanceCriteria": [
+        "Move key minting/settlement outside arbitrary-code worker execution.",
+        "Construct a positive environment allowlist for every role and runtime.",
+        "No master key, unrelated forge credential, controller credential or service account mount enters a harness.",
+        "Readers and writers receive only their explicitly scoped capabilities."
+      ],
+      "verification": [
+        "Both roles execute a fixture that inspects environment and allowed mounts without finding canary control secrets.",
+        "Kill the worker and verify external broker cleanup still runs."
+      ],
+      "sourcePaths": [
+        "ploeg:cmd/ploeg-worker",
+        "ploeg:pkg/worker",
+        "ploeg:pkg/llmbroker"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-072",
+      "epic": "E08",
+      "title": "Authenticate and scope Ploeg worker control endpoints",
+      "targetRepository": "ploeg",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [],
+      "problem": "Network reachability currently exposes run-control routes without a product identity middleware boundary.",
+      "acceptanceCriteria": [
+        "Require workload identity or a narrowly scoped bootstrap credential for claims.",
+        "Renew/checkpoint/outcome capabilities bind the existing Ploeg Run, worker, role, current lease identity and expiry; canonical attempt/generation binding follows in PV-023.",
+        "Separate operator APIs and reject token audiences from another surface.",
+        "Rate-limit and audit invalid requests without leaking token values."
+      ],
+      "verification": [
+        "Untrusted in-cluster client cannot claim work or report another run outcome.",
+        "Expired, wrong-run, wrong-worker and invalid-lease tokens fail across all current routes; terminal operations remain idempotent."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi/server.go",
+        "ploeg:pkg/harness",
+        "ploeg:ops/helm/ploeg"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-073",
+      "epic": "E09",
+      "title": "Retain Ploeg budget holds across worker death",
+      "targetRepository": "ploeg",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "critical",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-071",
+        "PV-072"
+      ],
+      "problem": "Run expiration can remove reservations before a killed worker reports actual spend; deleting gateway keys destroys useful accounting references.",
+      "acceptanceCriteria": [
+        "Keep unresolved commitments independent of run liveness or completion.",
+        "External reconciliation blocks orphan keys while preserving durable usage identity.",
+        "Crash-before-report does not refill shift authorization.",
+        "Late provider cost is retained with explicit provisional/reconciled distinction."
+      ],
+      "verification": [
+        "Crash after allocation, mint, request and report boundaries; no false zero or double settlement.",
+        "Missing gateway history remains unresolved with an audited repair path."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/store/shift.go",
+        "ploeg:pkg/llmbroker/litellm.go",
+        "ploeg:pkg/shiftengine"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-074",
+      "epic": "E03",
+      "title": "Require explicit Ploeg reviewer approval in fix rounds",
+      "targetRepository": "ploeg",
+      "milestone": "M1",
+      "status": "review",
+      "priority": 1,
+      "risk": "critical",
+      "estimatePoints": 3,
+      "dependsOn": [],
+      "problem": "The absence of request-changes can currently be treated as approval even when a required verdict is missing.",
+      "acceptanceCriteria": [
+        "Only explicit valid approval by required reviewer roles satisfies the review gate.",
+        "Missing, malformed and inconclusive verdicts block the relevant transition.",
+        "Existing bounded rework remains bounded and cannot reset budget.",
+        "Historical attempts keep their original evidence rather than receiving invented approvals."
+      ],
+      "verification": [
+        "Regression tests cover no verdict, malformed verdict, inconclusive and genuine approval.",
+        "A failed reviewer process cannot approve by absence."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/shiftengine/reviewloop.go",
+        "ploeg:pkg/shiftengine"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ],
+      "implementation": {
+        "state": "candidate",
+        "summary": "Ploeg patch requires successful explicit approval from every configured final reader; incomplete review remains needs_human and never opens new paid work.",
+        "evidence": [
+          "integrations/ploeg/README.md contains the Ploeg patch and baseline.",
+          "Ploeg reviewapproval_test.go and strengthened no-verdict regression cover missing/failed/stale/conflicting approval and retained budget; Go/PostgreSQL execution is pending."
+        ],
+        "remaining": [
+          "Run Go formatting/build/vet, embedded PostgreSQL and full CI gates, including old-code regression proof.",
+          "Human review and actual deployment qualification; existing budget/cap stop reasons remain distinct."
+        ]
+      }
+    },
+    {
+      "id": "PV-075",
+      "epic": "E05",
+      "title": "Turn forge feedback into candidate-bound follow-up work",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-016",
+        "PV-022",
+        "PV-074",
+        "PV-011"
+      ],
+      "problem": "Forge CI and review events are currently audited but do not drive a governed bounded rework loop.",
+      "acceptanceCriteria": [
+        "Correlate feedback to exact repository, proposal and candidate SHA.",
+        "Ignore superseded results and bot echo events for new dispatch.",
+        "Create bounded follow-up through current work-order authorization.",
+        "Unclear feedback is a human decision rather than immediate paid execution."
+      ],
+      "verification": [
+        "Late CI failure on old SHA and duplicate review events create no new attempt.",
+        "Explicit current review changes create one bounded rework proposal."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi/server.go",
+        "ploeg:pkg/shiftengine",
+        "ploeg:pkg/provider"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-076",
+      "epic": "E09",
+      "title": "Park paused workspaces and enforce retained-resource quotas",
+      "targetRepository": "de-vloer",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 3,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-007",
+        "PV-043"
+      ],
+      "problem": "Paused Pods and retained PVCs can accumulate outside the active-session limit.",
+      "acceptanceCriteria": [
+        "Distinguish active, stopping, parked and retained-artifact resource states.",
+        "Apply per-client quotas and visible expiry to paused compute and storage.",
+        "Export evidence before garbage collection and require no model call to park.",
+        "Resume restores an approved candidate and fresh capabilities."
+      ],
+      "verification": [
+        "Pause many sessions and demonstrate bounded compute/storage use.",
+        "Expiry preserves exported evidence and never deletes unexported human changes silently."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/runtime/kubernetes.ts",
+        "de-vloer:src/engine.ts",
+        "de-vloer:ops/helm/de-vloer"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-077",
+      "epic": "E11",
+      "title": "Bound event, artifact and webhook memory surfaces",
+      "targetRepository": "de-vloer",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [],
+      "problem": "Unbounded history arrays and inline artifacts can exhaust the controller or hide critical input requests during noisy runs.",
+      "acceptanceCriteria": [
+        "Limit frames, pages, total inline artifacts and provider payload parsing.",
+        "Provide explicit truncation and a retrievable full artifact where permitted.",
+        "Preserve critical lifecycle/permission events under token-output pressure.",
+        "Document reconnect behavior when retained history is compacted."
+      ],
+      "verification": [
+        "Noisy runtime and slow client tests keep memory bounded while decisions remain actionable.",
+        "Oversized/malicious payloads cannot create false successful evidence."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/http.ts",
+        "de-vloer:src/store.ts",
+        "de-vloer:src/engine.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-078",
+      "epic": "E06",
+      "title": "Fence publication through a trusted forge publisher",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 2,
+      "risk": "critical",
+      "estimatePoints": 8,
+      "dependsOn": [
+        "PV-023",
+        "PV-028",
+        "PV-071",
+        "PV-011"
+      ],
+      "problem": "A database generation alone cannot stop a stale process from using a direct Git push token.",
+      "acceptanceCriteria": [
+        "Only the publisher owns forge write credentials for governed attempts.",
+        "Before effect, reserve publication under the same serialized ownership authority after checking generation, candidate, required checks and human/policy authorization.",
+        "Reconcile ambiguous forge results and refuse superseded owners.",
+        "If direct Git tokens remain in a compatibility mode, explicitly disclaim strong fencing and exclude protected workloads.",
+        "A durable publication barrier blocks generation transfer while an authorized external effect is in flight or unknown; reconcile the actual remote ref/proposal before closing the barrier. Timer expiry alone cannot release it.",
+        "After crash or partition, a negative forge read does not close an unknown barrier: require evidence that the old actor and remote request ended or are fenced; otherwise keep handover blocked."
+      ],
+      "verification": [
+        "After takeover a stale worker can neither push nor create/update a review.",
+        "Pause publication after authorization, request takeover, then complete or lose the forge response: transfer waits until the effect is resolved, and no superseded owner publishes.",
+        "Delay an accepted forge request beyond publisher crash and a negative read; no successor is admitted until the remote effect is terminal or fenced."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/forgebroker",
+        "ploeg:pkg/httpapi",
+        "ploeg:pkg/worker",
+        "ploeg:docs/contracts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-079",
+      "epic": "E06",
+      "title": "Expose a read-only operator API in Ploeg",
+      "targetRepository": "ploeg",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [],
+      "problem": "Ploeg records runs, shifts, verdicts, findings, spend, checkpoints and audit rows but exposes only queue depth and a per-team item list, all unauthenticated, so no front-end can show what Ploeg is doing.",
+      "acceptanceCriteria": [
+        "GET-only routes under /api/v1/operator/ for teams, work-items (paginated, filtered by team, state, needs_human), work-items/{id}, runs/{id}, served from read-only store methods.",
+        "Detail responses include shifts, runs with role, round, state, outcome, failure reason, verdict, findings, usage and authorized versus settled spend, checkpoints, audit rows and forge links.",
+        "Responses carry the LiteLLM key alias and never a run token, forge token or credential.",
+        "Named consumer bearer tokens from the environment, constant-time compared, optionally scoped to teams; an unauthenticated request is denied without existence leakage.",
+        "A versioned JSON schema in docs/contracts describes every response; the external HTTPRoute continues to expose /webhooks/ only."
+      ],
+      "verification": [
+        "Fixture database with a swept run, a finished shift and a needs-human item renders through every route.",
+        "A token scoped to one team cannot list or read another team's items.",
+        "Schema validation of every response in the test suite."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi",
+        "ploeg:pkg/store",
+        "ploeg:docs/contracts",
+        "ploeg:ops/helm/ploeg"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-080",
+      "epic": "E06",
+      "title": "Project Ploeg's operator API in De Vloer",
+      "targetRepository": "de-vloer",
+      "milestone": "M2",
+      "status": "planned",
+      "priority": 1,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-079"
+      ],
+      "problem": "De Vloer's Ploeg view is one depth integer per team, fetched on navigation and discarded, so the workbench cannot act as the front for the unattended lane.",
+      "acceptanceCriteria": [
+        "The ploeg config block accepts tokenEnv; teams becomes optional and is discovered from the API.",
+        "A client module with the broker's posture: http or https only, no credentials in the URL, bounded timeouts, redirects refused, response size and shape validated.",
+        "GET /api/ploeg returns teams, needs-human items, running items with role, round and spend, then the queue; GET /api/ploeg/work-items/:id returns the detail; unavailable Ploeg degrades to available:false.",
+        "The web Ploeg view shows the list with a detail drawer; the VS Code tree gains a Ploeg node with the same data.",
+        "Nothing from Ploeg is persisted in the event log or database; a short in-memory cache is the only state."
+      ],
+      "verification": [
+        "A fixture Ploeg server drives the API and UI tests, including denial, timeout and malformed responses.",
+        "The existing security-http test still asserts 401 for unauthenticated /api/ploeg."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/http.ts",
+        "de-vloer:src/config.ts",
+        "de-vloer:src/types.ts",
+        "de-vloer:public/app.js",
+        "de-vloer:extensions/vscode/src/tree.ts",
+        "de-vloer:docs/contracts/api.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-081",
+      "epic": "E06",
+      "title": "Stream Ploeg events and project runs as read-only Agent Host Protocol sessions",
+      "targetRepository": "ploeg",
+      "milestone": "M3",
+      "status": "planned",
+      "priority": 2,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-079",
+        "PV-080"
+      ],
+      "problem": "Without an event feed a projector must poll lists, and Ploeg runs remain invisible to editors attached to De Vloer's Agent Host Protocol host.",
+      "acceptanceCriteria": [
+        "GET /api/v1/operator/events returns audit rows from a cursor, long-poll first, server-sent events later, under the same bearer scope as PV-079.",
+        "De Vloer lists Ploeg runs as read-only AHP sessions whose transcript is the run's findings, outcome and links, with no send or steer capability.",
+        "A Ploeg outage never blocks De Vloer's own AHP sessions."
+      ],
+      "verification": [
+        "Replay a fixture audit log through the cursor and observe a stable, ordered projection.",
+        "An AHP client sees a Ploeg run appear, progress and finish without any write path."
+      ],
+      "sourcePaths": [
+        "ploeg:pkg/httpapi",
+        "ploeg:pkg/store",
+        "de-vloer:src/ahp",
+        "de-vloer:src/http.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-082",
+      "epic": "E03",
+      "title": "Sign in with the estate's OIDC provider",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [],
+      "problem": "Local passwords are the only login, so a person's sessions, spend and forge writes carry no estate identity.",
+      "acceptanceCriteria": [
+        "Authorization-code flow with PKCE, state and nonce against a configured issuer; issuer, audience, expiry and signature validated; identity is (issuer, subject).",
+        "The VS Code client authenticates as a public client through the system browser with device authorization as fallback; no client secret in the extension.",
+        "The local password remains only as the bootstrap administrator path."
+      ],
+      "verification": [
+        "Login, logout and expiry against an Authentik fixture; a token from another issuer is rejected."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/auth.ts",
+        "de-vloer:src/http.ts",
+        "de-vloer:extensions/vscode/src/extension.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-083",
+      "epic": "E03",
+      "title": "Let a person link their own forge and tracker accounts",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-082"
+      ],
+      "problem": "Forge and tracker credentials are seeded by an administrator into a vault or a shell, so a person cannot connect anything themselves and a missing token stops the workbench.",
+      "acceptanceCriteria": [
+        "A profile page lists links; GitLab OAuth with read_api, read_repository and write_repository is the first provider; a pasted token is accepted where OAuth is unavailable.",
+        "Tokens are stored per user, encrypted with a server key from the environment, refreshed server-side and revocable; revocation stops sessions using the link.",
+        "No link is ever exported to a sandbox or returned by the API."
+      ],
+      "verification": [
+        "OAuth round trip against a GitLab fixture; revoke mid-session and observe the session stop; API responses never contain a token."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/http.ts",
+        "de-vloer:src/store.ts",
+        "de-vloer:public/app.js",
+        "de-vloer:docs/contracts/api.md"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-084",
+      "epic": "E03",
+      "title": "Run sessions without a repository and discover repositories from a link",
+      "targetRepository": "de-vloer",
+      "milestone": "M0",
+      "status": "planned",
+      "priority": 1,
+      "risk": "medium",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-083"
+      ],
+      "problem": "A session requires an administrator-listed repository, so a person cannot start with an objective alone or with a repository only they can see.",
+      "acceptanceCriteria": [
+        "POST /api/sessions accepts no repositoryId and provisions an empty workspace.",
+        "Repositories are listed from the person's forge link; administrator-listed repositories remain as estate defaults and carry executionOwner.",
+        "A private clone runs in the clone step with a token minted for that operation; the agent container starts after it with only its inference key."
+      ],
+      "verification": [
+        "A session with no repository runs the delivery crew to a candidate; a private repository clones without any forge credential in the agent container's environment."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/engine.ts",
+        "de-vloer:src/runtime/workspace.ts",
+        "de-vloer:src/runtime/docker.ts",
+        "de-vloer:src/runtime/kubernetes.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    },
+    {
+      "id": "PV-085",
+      "epic": "E03",
+      "title": "Open the merge request from the workbench as the signed-in person",
+      "targetRepository": "de-vloer",
+      "milestone": "M1",
+      "status": "planned",
+      "priority": 1,
+      "risk": "high",
+      "estimatePoints": 5,
+      "dependsOn": [
+        "PV-083",
+        "PV-084"
+      ],
+      "problem": "Publication is a prompt instruction to a sandboxed writer holding a forge token, which ADR 0006 calls a compatibility mode without a fencing guarantee.",
+      "acceptanceCriteria": [
+        "After review, an action pushes the candidate branch and opens the merge or pull request with the person's link from the control plane.",
+        "Both writes are recorded in the session's event log with the person's identity; the ticket, if linked, receives the link.",
+        "The candidate manifest keeps publication as not performed by the session."
+      ],
+      "verification": [
+        "Publish a fixture candidate to a GitLab fixture and a Forgejo fixture; the sandbox environment never contains a forge credential; the event log shows who published."
+      ],
+      "sourcePaths": [
+        "de-vloer:src/candidates.ts",
+        "de-vloer:src/http.ts",
+        "de-vloer:public/app.js",
+        "de-vloer:extensions/vscode/src/extension.ts"
+      ],
+      "definitionOfReady": [
+        "A human owns the task and confirms its acceptance criteria.",
+        "Target repository, base revision and affected policy are identified.",
+        "Dependencies are accepted in the actual tracker; no local seed status grants execution authority."
+      ],
+      "definitionOfDone": [
+        "The change has reproducible evidence for the listed acceptance criteria.",
+        "Required independent checks and human review passed for the exact candidate.",
+        "Documentation and contracts match the implementation; unknowns remain explicit.",
+        "The existing forge/CI/release policy decides merge, deployment and tracker completion."
+      ]
+    }
+  ],
+  "gapCoverage": {
+    "GAP-01": [
+      "PV-009",
+      "PV-010",
+      "PV-011"
+    ],
+    "GAP-02": [
+      "PV-005",
+      "PV-006",
+      "PV-007"
+    ],
+    "GAP-03": [
+      "PV-008",
+      "PV-078"
+    ],
+    "GAP-04": [
+      "PV-003",
+      "PV-004",
+      "PV-038",
+      "PV-053"
+    ],
+    "GAP-05": [
+      "PV-003",
+      "PV-064",
+      "PV-070"
+    ],
+    "GAP-06": [
+      "PV-010",
+      "PV-012"
+    ],
+    "GAP-07": [
+      "PV-038"
+    ],
+    "GAP-08": [
+      "PV-012",
+      "PV-075"
+    ],
+    "GAP-09": [
+      "PV-071"
+    ],
+    "GAP-10": [
+      "PV-022",
+      "PV-025"
+    ],
+    "GAP-11": [
+      "PV-013",
+      "PV-014"
+    ],
+    "GAP-12": [
+      "PV-023",
+      "PV-024",
+      "PV-026",
+      "PV-072",
+      "PV-078"
+    ],
+    "GAP-13": [
+      "PV-015",
+      "PV-016",
+      "PV-018"
+    ],
+    "GAP-14": [
+      "PV-034",
+      "PV-035",
+      "PV-036",
+      "PV-066"
+    ],
+    "GAP-15": [
+      "PV-019"
+    ],
+    "GAP-16": [
+      "PV-017"
+    ],
+    "GAP-17": [
+      "PV-074",
+      "PV-075"
+    ],
+    "GAP-18": [
+      "PV-073",
+      "PV-040",
+      "PV-041"
+    ],
+    "GAP-19": [
+      "PV-041",
+      "PV-044"
+    ],
+    "GAP-20": [
+      "PV-042",
+      "PV-043",
+      "PV-076"
+    ],
+    "GAP-21": [
+      "PV-026",
+      "PV-043"
+    ],
+    "GAP-22": [
+      "PV-043"
+    ],
+    "GAP-23": [
+      "PV-003",
+      "PV-052",
+      "PV-053",
+      "PV-054"
+    ],
+    "GAP-24": [
+      "PV-007",
+      "PV-039",
+      "PV-048",
+      "PV-077"
+    ],
+    "GAP-25": [
+      "PV-067"
+    ],
+    "GAP-26": [
+      "PV-036",
+      "PV-045",
+      "PV-046",
+      "PV-047",
+      "PV-048",
+      "PV-049",
+      "PV-050"
+    ],
+    "GAP-27": [
+      "PV-029",
+      "PV-068"
+    ],
+    "GAP-28": [
+      "PV-044",
+      "PV-051",
+      "PV-055"
+    ],
+    "GAP-29": [
+      "PV-030",
+      "PV-031",
+      "PV-033",
+      "PV-061"
+    ],
+    "GAP-30": [
+      "PV-057",
+      "PV-058",
+      "PV-059",
+      "PV-060",
+      "PV-061",
+      "PV-062",
+      "PV-069"
+    ]
+  }
+}

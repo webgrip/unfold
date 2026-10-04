@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "at": "2026-09-11T03:59:16.871Z",
+  "qualification": "real PostgreSQL, Ploeg HTTP, De Vloer HTTP, Git objects, fresh Docker verifier, durable restart/replay and candidate-bound approval",
+  "executionId": "e1499bd7b8515782581ae4ba22fa70ca",
+  "workItemId": "1",
+  "canonicalSha": "b250a8b9116777cccc57e47e5e4779391a42e21a",
+  "receiptId": "d19bae242afc6cdd935a8ffff5b2c42a",
+  "approvalId": "51ca124d71926eb84a209294cc76c29a",
+  "tests": 2,
+  "verifierStartsAcrossRestart": 1,
+  "modelCalls": 0,
+  "spendUsd": 0,
+  "publication": "disabled"
+}

@@ -1,0 +1,39 @@
+---
+import geometry from '../brand/geometry.json';
+
+interface Props {
+  height?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  label?: string;
+}
+
+const { height = 24, x, y, width, label } = Astro.props;
+const [, , boxWidth = 1, boxHeight = 1] = geometry.wordmark.viewBox.split(' ').map(Number);
+const drawnWidth = width ?? (height * boxWidth) / boxHeight;
+const a11y = label
+  ? { role: 'img' as const, 'aria-label': label }
+  : { 'aria-hidden': 'true' as const };
+---
+
+<svg
+  class="wordmark"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox={geometry.wordmark.viewBox}
+  x={x}
+  y={y}
+  width={drawnWidth}
+  height={height}
+  focusable="false"
+  {...a11y}
+>
+  <path d={geometry.wordmark.d}></path>
+</svg>
+
+<style>
+  .wordmark {
+    flex: none;
+    fill: var(--fg);
+  }
+</style>

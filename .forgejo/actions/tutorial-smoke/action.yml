@@ -1,0 +1,19 @@
+name: Start the documented local demo
+description: Run the deterministic demo commands from docs/workflows/local-demo.md far enough to prove they start and clean up; skip when the runner lacks PostgreSQL or a non-root user
+runs:
+  using: composite
+  steps:
+    - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      with:
+        version: 2026.9.18
+        install: false
+        cache: false
+        github_token: ''
+    - name: Check the demo prerequisites
+      id: prerequisites
+      shell: bash
+      run: bash scripts/tutorial-smoke.sh --check
+    - name: Start and stop the deterministic demo
+      if: steps.prerequisites.outputs.ready == 'true'
+      shell: bash
+      run: mise trust apps/unfold/mise.toml && mise trust apps/ploeg/mise.toml && bash scripts/tutorial-smoke.sh

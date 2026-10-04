@@ -1,0 +1,52 @@
+---
+import { LOCALE_TAGS, LOCALES, type Locale } from '../i18n/config.ts';
+import { routePath, type RouteKey } from '../i18n/routes.ts';
+
+interface Props {
+  locale: Locale;
+  routeKey: RouteKey;
+  label: string;
+}
+
+const { locale, routeKey, label } = Astro.props;
+const targets = LOCALES.filter((candidate) => candidate !== locale);
+---
+
+<div class="locale-switcher">
+  {targets.map((target) => <a
+    href={routePath(routeKey, target)}
+    hreflang={LOCALE_TAGS[target]}
+    lang={target}
+    aria-label={`${target.toUpperCase()}, ${label}`}
+  >
+    {target.toUpperCase()}
+  </a>)}
+</div>
+
+<style>
+  .locale-switcher {
+    display: inline-flex;
+    gap: var(--space-1);
+  }
+
+  .locale-switcher a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    padding-inline: var(--space-2);
+    border: var(--border-width) solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--fg-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+    text-decoration: none;
+  }
+
+  .locale-switcher a:hover {
+    color: var(--fg);
+    border-color: var(--border-strong);
+    background: var(--bg-band);
+  }
+</style>

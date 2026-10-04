@@ -1,0 +1,104 @@
+---
+import { DOCS_URL, LICENSE_URL, SITE_NAME, SOURCE_URL } from '../config/site.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { routePath } from '../i18n/routes.ts';
+import Lockup from './Lockup.astro';
+import Wordmark from './Wordmark.astro';
+import Mark from './Mark.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const t = dictionary(Astro.props.locale);
+const links = [
+  { href: routePath('privacy', Astro.props.locale), label: t.footer.privacy },
+  { href: SOURCE_URL, label: t.footer.source },
+  { href: DOCS_URL, label: t.footer.docs },
+  { href: LICENSE_URL, label: t.footer.license },
+  { href: '/fonts/OFL.txt', label: t.footer.fontLicense },
+];
+---
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-brand">
+      <Lockup height={24} label={SITE_NAME} />
+      <p>{t.footer.summary}</p>
+      <p class="footer-meta">{t.footer.origin}</p>
+    </div>
+    <ul class="footer-links">
+      {links.map((link) => <li>
+        <a href={link.href}>{link.label}</a>
+      </li>)}
+    </ul>
+  </div>
+  <div class="container footer-signature" aria-hidden="true">
+    <Wordmark height={180} /><Mark size={160} />
+  </div>
+</footer>
+
+<style>
+  .site-footer {
+    --fg: var(--brand-paper);
+    --fg-muted: var(--brand-muted-light);
+    --accent-decor: var(--brand-accent-night);
+    --focus-ring: var(--brand-accent-night);
+    border-top: var(--border-width) solid var(--border);
+    background: var(--brand-ground-dark);
+    color: var(--fg);
+    padding-block: 3.5rem 2.5rem;
+    font-size: var(--text-sm);
+  }
+
+  .footer-inner {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-6);
+    padding-bottom: 3rem;
+    border-bottom: 1px solid color-mix(in oklab, var(--brand-paper) 20%, transparent);
+  }
+
+  .footer-brand p {
+    margin-top: var(--space-3);
+    color: var(--fg-muted);
+  }
+
+  .footer-links {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .footer-links a {
+    color: var(--fg-muted);
+  }
+
+  .footer-links a:hover {
+    color: var(--fg);
+  }
+  .footer-signature {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4rem;
+    padding-top: 4rem;
+  }
+  .footer-signature :global(.wordmark) {
+    width: min(75%, 55rem);
+    height: auto;
+  }
+  .footer-signature :global(.mark) {
+    width: min(17%, 10rem);
+    height: auto;
+  }
+  @media (max-width: 40rem) {
+    .footer-signature {
+      gap: 2rem;
+      padding-top: 2.5rem;
+    }
+  }
+</style>

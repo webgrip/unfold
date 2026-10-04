@@ -1,0 +1,690 @@
+apps/vloer: npm run typecheck
+
+> @webgrip/de-vloer@0.3.0-rc.16 typecheck
+> tsc --noEmit
+
+apps/vloer: npm run test
+
+> @webgrip/de-vloer@0.3.0-rc.16 test
+> node --test test/*.test.ts test/*.test.mjs
+
+✔ the agent host speaks AHP 0.9: initialize, create a session from a chat, stream the crew, share state with a second client and expose the candidate as a changeset (7336.603083ms)
+✔ unified diff artifacts become changeset files when no native diff is available (0.210042ms)
+✔ an analysis role reports without a verdict and only the final reviewer decides the crew (294.63925ms)
+✔ automatic approval needs an isolated placement and can be switched on a live session (266.9975ms)
+✔ a session can pin a configured model for every role and rejects an unknown one (90.787ms)
+✔ a brief of a few words is refused before any budget is authorized (264.522958ms)
+✔ the gateway screens the brief cheaply, asks the operator when it is not actionable, and starts once answered (123.581792ms)
+✔ an investigation crew completes with the challenger's verdict instead of failing, and a runaway role is stopped (201.575292ms)
+✔ live failures persist actionable safe evidence, survive authenticated replay, and never replay a paid submission (757.452666ms)
+✔ mutated typed errors cannot smuggle diagnostics or vocabulary into persisted and replayed failures (47.683459ms)
+✔ links are absent until configured and a start is refused without an application id (279.42725ms)
+{"level":"warn","event":"link.failed","provider":"gitlab","code":"link_state","detail":"The link attempt expired or was not started here. Start again."}
+✔ a person links GitLab through the browser, sees the account without its tokens, and can unlink (134.067ms)
+✔ a task connection without its own token uses the person's link and says so when there is none (117.829125ms)
+{"level":"warn","event":"login.failed","method":"oidc","code":"oidc_state","message":"The sign-in attempt expired or was not started here. Start again."}
+✔ a person signs in through the identity provider, gets the role their groups grant, and returns as the same user (274.614459ms)
+{"level":"warn","event":"login.failed","method":"oidc","code":"oidc_not_entitled","message":"person@example.com signed in, but holds none of the groups this workbench admits."}
+✔ a person outside every admitted group is refused, and a role claim outranks groups (318.184875ms)
+{"level":"warn","event":"login.failed","method":"oidc","code":"oidc_token","message":"The identity token is for another application."}
+{"level":"warn","event":"login.failed","method":"oidc","code":"oidc_token","message":"The identity token does not match this sign-in."}
+{"level":"warn","event":"login.failed","method":"oidc","code":"oidc_exchange","message":"The identity provider refused the sign-in exchange with HTTP 400."}
+✔ a token for another audience or another sign-in is rejected (285.87225ms)
+✔ an editor signs in through the browser: a one-time code, the usual sign-in, then the session collected with its secret (101.383334ms)
+✔ bootstrap advertises enabled placements and session creation validates the choice (348.7495ms)
+✔ the demonstration deployment exposes no placements (16.635084ms)
+✔ a model served outside the allowed providers is refused before the first turn (276.072625ms)
+✔ a request the gateway attributes to a provider or region outside policy stops the session and revokes its key (143.133084ms)
+✔ a real server crash recovers an interrupted session without silently executing it again (1135.893334ms)
+✔ a failed session can be tried again from the beginning once its spend has settled (311.696417ms)
+✔ a person records the human review once a session is completed, and only once (6934.088875ms)
+✔ task sources require authentication, redact credentials, and protect imports from viewers and cross-site requests (236.174625ms)
+✔ task import snapshots provider content into a queued operator session and keeps tracker text inert (95.3485ms)
+✔ stale previews, closed tasks, unknown scope and invalid import parameters create no sessions (115.670334ms)
+✔ concurrent task imports deduplicate durably, keep owner privacy and block a second active revision (219.119208ms)
+✔ Ploeg execution ownership blocks imported and ad hoc work and is rechecked before start and resume (28.929458ms)
+{"level":"error","event":"http.failed","message":"The task service could not complete this request."}
+{"level":"error","event":"http.failed","message":"The task service could not complete this request."}
+{"level":"error","event":"http.failed","message":"The task service could not complete this request."}
+✔ provider failures remain safe and never create a queued or paid attempt (88.888375ms)
+✔ tracker credentials echoed by a provider are removed before session persistence and runtime prompts (20.996292ms)
+✔ a supported task description remains importable when safe JSON encoding expands its characters (75.232667ms)
+✔ demo task import requires explicit start and retains downloadable immutable candidate evidence after restart (6779.733625ms)
+✔ HTTP demo produces real failing and passing checks, review evidence, and replayable durable events (6970.03775ms)
+✔ pause, instructions, resume, and intentional cancel remain deliberate across reconnects (383.28275ms)
+✔ HTTP lifecycle rejects duplicate execution and invalid targets without producing work (33.414542ms)
+✔ DSSE envelopes use the in-toto payload type, the PAE encoding and verify only with the matching Ed25519 key (10.420375ms)
+✔ a captured candidate ships a signed provenance statement and an Agent Trace record that verify against the published key (6993.581458ms)
+✔ candidate provenance signs the canonical tracker binding independently from the preview hash (76.601666ms)
+✔ backlog has complete audit coverage and dependency-safe planning order (2.84875ms)
+✔ backlog rejects cycles, absent dependencies and false gap mappings (2.17325ms)
+✔ ticket exports preserve multiline bodies and neutralize spreadsheet formula cells (1.902459ms)
+✔ session payload requires explicit profiles and budget without inventing tracker identity (1.211917ms)
+✔ exports preserve candidate evidence and review status without claiming tracker acceptance (1.327417ms)
+✔ broker mints scoped finite credentials and keeps administrative secrets out of results (27.809667ms)
+✔ revocation blocks credentials while retaining their accounting across broker restart (28.085875ms)
+✔ post-revocation accounting grace and missing spend remain unknown instead of zero (18.91425ms)
+✔ a gateway outage is connectivity, not a rejection, and names the call (2.054666ms)
+✔ a gateway refusal is a rejection that never echoes the response (1.599875ms)
+✔ usage aggregates the gateway ledger per model with the routed group and failures (15.355667ms)
+✔ providersFor resolves a model, follows an auto-router to its tiers, and is undefined for an unknown name (0.644084ms)
+✔ candidate bundle and binary patch roundtrip full changes without changing source Git state (725.143458ms)
+✔ candidate capture ignores repository hooks, local configuration and content filters (451.886625ms)
+✔ candidate capture fails closed on sensitive new paths and tracked base secrets (407.873208ms)
+✔ candidate capture refuses private key content and oversized files without partial downloads (348.205292ms)
+✔ candidate capture rejects Git indirection and download traversal or corrupted bytes (357.943292ms)
+✔ candidate capture includes staged ignored files and committed changes against the pinned base (431.445958ms)
+✔ candidate preserves a tracked deletion even when the ignored local file remains (432.753666ms)
+✔ Git LFS pointers are refused rather than presented as complete binary content (189.388166ms)
+(node:57109) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Kubernetes export fences the writer and persists authenticated full candidate downloads (396.71675ms)
+✔ Kubernetes export refuses unconfirmed writer termination before creating an exporter (0.310291ms)
+✔ the exact trusted Kubernetes helper executes without TypeScript or repository runtime dependencies (440.412541ms)
+✔ a shallow source produces a self-contained candidate bundle without missing parent history (499.399208ms)
+✔ object database symlinks cannot read files outside the source repository (56.56275ms)
+✔ source-local Git excludes remain excluded without reading executable local configuration (310.859ms)
+✔ remote capture never returns ready from corrupt or mismatched persisted evidence (319.978792ms)
+✔ a single backend keeps its previous shape and becomes the only placement (9.3165ms)
+✔ docker and kubernetes placements require their configuration blocks and the first listed backend becomes the default (22.336459ms)
+✔ gatewayPolicy lists providers and regions as lowercase names (6.522042ms)
+✔ observability names a Grafana, dashboards by uid and datasources by uid (11.911917ms)
+✔ demo executes failing baseline, real patch and passing independent checks in an isolated repository (839.977875ms)
+✔ pause interrupts and holds state until explicit resume; cancel cannot become a retry (51.590209ms)
+✔ missing and inconclusive reviewer verdicts cannot approve work (139.8245ms)
+✔ session ownership is enforced below HTTP and authorization increases require admin (4.697625ms)
+✔ recovery preserves durable events and marks running work interrupted without executing anything (36.839334ms)
+✔ unknown paid spend retains authorization across interruption and blocks another paid start (21.845375ms)
+✔ state transactions roll back together and internal credentials are encrypted on disk (6.63725ms)
+✔ permission requests survive durable reads, require owner response and cannot be replayed (18.162625ms)
+✔ live startup recovery interrupts the previous workspace and revokes its held credential without new execution (27.93525ms)
+✔ stopped-session reconciliation settles late gateway spend exactly once without restarting execution (61.5145ms)
+✔ startup discovers a credential minted before its local persistence and never double settles its alias (9.077125ms)
+✔ placement is validated against the enabled workspace backends and recorded on the session (3.374333ms)
+✔ demonstration sessions carry no placement (3.935042ms)
+✔ canonical delivery preserves the approved ancestry and complete binary tree; replay is deterministic (1150.239ms)
+✔ canonical delivery rejects modified protected policy input and a forged manifest tree (797.524125ms)
+✔ policy fingerprint changes with acceptance criteria; empty checks and agent-exposed verifier credentials are rejected (96.976917ms)
+✔ verifier uses isolated fresh containers and real exit status, never accepts fake PASS output (661.165416ms)
+✔ delivery reads reject malformed or cross-execution identities before rendering (0.444417ms)
+✔ delivery approval rejects a replaced local policy and enforces owner and viewer authorization (99.633ms)
+✔ governed execution refuses unavailable authority and unmapped users before workspace or inference access (58.612792ms)
+✔ concurrent starts reserve one execution and one bounded capability; pause and resume reuse identity, workspace and credential (156.864167ms)
+✔ blocked inference capability cannot resume or silently mint a replacement (72.14125ms)
+✔ uncertain durable commands retain command identity and an outage preserves intentional cancellation (70.950667ms)
+✔ restart interrupts active governed work and cannot automatically repeat paid execution (67.495625ms)
+✔ pause then explicit resume can complete without carrying the previous pause intent forward (85.4495ms)
+✔ cancelling while admission is pending cannot resurrect the local session or begin model access (80.173584ms)
+✔ unconfirmed interruption blocks the existing capability and prevents paid resume until reconciled (64.451583ms)
+✔ expired authority is checked before any credential or workspace is provided (51.132667ms)
+✔ HTTP supervision and durable instructions retain the execution and never start a second runtime (111.193083ms)
+✔ local pause interrupts execution while its remote stop is queued behind another command (80.215416ms)
+✔ pause before the first credential mint retains a reservation and resume mints only after execution is running (84.524584ms)
+✔ an old replay receipt after a newer refresh clears the pending command without rolling back authority (46.392291ms)
+✔ authority revoked during credential delivery prevents even the preliminary brief model request (55.28175ms)
+✔ a newer generation learned between roles cannot authorize the old executor to submit its next turn (67.054ms)
+✔ a link starts with PKCE, completes against the account, and yields clone access for that host only (26.779875ms)
+✔ an expiring link is refreshed before the clone and revocation forgets and revokes both tokens (16.57175ms)
+✔ a rejected code and a broken refresh are failures the session can explain (9.871708ms)
+✔ an unconfigured link describes itself and refuses to start (5.583459ms)
+✔ a ClickUp link exchanges the code with the client secret, keeps the token for task sources, and is listed beside GitLab (7.894125ms)
+✔ a person can paste a personal token for ClickUp or GitLab with no application registered (8.101792ms)
+✔ operator configuration stores only environment references and explicit team access (1.419292ms)
+✔ live operator projection reads all lanes, complete evidence and honest unknown costs with bounded caching (32.76175ms)
+✔ HTTP projection authenticates and intersects local user mapping with deployment and upstream team scope (298.267458ms)
+✔ opaque bigint cursors paginate and unexpected team records or cross-item evidence fail closed (7.15875ms)
+✔ projection strips unknown fields, credential-bearing links and audit data, including an echoed consumer credential (1.587333ms)
+✔ unsupported versions, redirects, oversized payloads and observed costs without usage remain unavailable (6.816583ms)
+✔ demo operator records are explicitly illustrative and never dispatch, while unconfigured live stays unavailable (6.929042ms)
+✔ a response started before consumer credential rotation cannot restore old cached team access (1.5255ms)
+✔ the relay delivers requests to a dial-out worker, streams responses back and cancels aborted streams (353.062167ms)
+✔ the relay rejects foreign tokens and fails pending requests when a workspace is unregistered (10.092292ms)
+✔ a warm worker waits for a pool assignment, receives its session environment over the relay and runs commands on request (558.091666ms)
+✔ command bridge gets only scoped environment, emits native id, returns actual process evidence (67.286041ms)
+✔ command bridge exit without result cannot fabricate completion (69.455292ms)
+✔ command bridge rejects successful-looking result from failed process (64.858291ms)
+✔ command bridge maps operator cancellation to AbortError (1.953792ms)
+✔ command bridge rejects a null record without crashing its host (59.649208ms)
+✔ command bridge supervisor stops its runner after control-plane process death (189.293041ms)
+✔ command supervisor distinguishes missing executable from an actual runner exiting 127 (99.870125ms)
+✔ demo resumes after interrupted repository initialization and preserves subsequent working changes (278.596458ms)
+✔ demo resumes an incomplete Git directory without replacing existing fixture changes (159.80425ms)
+✔ demo cancellation waits until its child has actually stopped (181.663458ms)
+✔ demo cancellation terminates a child that ignores its initial stop signal (1030.972084ms)
+✔ demo finishes an in-flight Git initialization before acknowledging pause (160.331459ms)
+✔ docker container specs carry only the session credential, a hardened host configuration and the explicit environment allow-list (1.475042ms)
+✔ multiplexed docker log streams separate stdout from stderr (0.150333ms)
+✔ docker lifecycle clones inside the image, waits for authenticated health, captures the candidate after a confirmed stop and removes the container on disposal (424.483958ms)
+✔ docker failures record the image, exit code and redacted container output without the socket path (8.506ms)
+✔ session placement selects an enabled backend and rejects the rest (0.165ms)
+✔ docker pull transport publishes no port, hands the container a relay token and reaches the harness through the dial-out worker (281.482792ms)
+✔ a linked repository credential reaches the clone container as a git header and never the agent container (0.368125ms)
+✔ the workspace manager keeps a linked credential on the validated repository it hands to a backend (0.178208ms)
+✔ Kubernetes DELETE frames its complete JSON body and preserves a reused connection after an allowed 404 (15.281708ms)
+✔ OpenCode creates native session, submits once, reconciles final answer and real native diff (7.046292ms)
+✔ OpenCode exposes native approval identifiers and resumes after actual permission response (753.256042ms)
+✔ OpenCode never retries an ambiguous paid prompt and excludes raw error bodies (0.985875ms)
+✔ OpenCode interruption aborts native run and does not turn cancellation into retry (0.794083ms)
+✔ OpenCode cannot complete on HTTP acceptance or a completed tool-call message (82.3715ms)
+✔ OpenCode supplies verification argv and captures only its actual completed tool output (2.306875ms)
+✔ OpenCode recovery releases managed workers when their in-memory native credentials are unavailable (0.07875ms)
+✔ OpenCode interruption reports native abort failures to the controller (0.103166ms)
+✔ automatic approval creates the native session with allow rules and keeps the read-role denials (1.187875ms)
+✔ the report drops the verdict block, the transcript keeps every part, and tool events carry their input and error (0.714042ms)
+✔ cold sandbox manifests put the agent pod behind Kata with a volume claim template, no Service and the relay worker (1.302833ms)
+✔ a cold sandbox becomes a workspace once the CRD is Ready and its worker has dialled in, and disposal removes the sandbox (519.881625ms)
+✔ a warm-pool claim hands the bound pod its session over the relay, clones through exec and starts the harness (210.556833ms)
+✔ live HTTP login requires credentials, same-origin mutation protection, and a revocable cookie (140.45375ms)
+✔ ownership covers details, history, SSE, controls, and permission routes while viewers cannot mutate (286.443042ms)
+✔ public API exposes configured choices while hiding authority and rejecting executable or repository injection (74.57775ms)
+✔ runtime credentials are removed from durable artifacts, nested activity, and reconnect replay (18.332125ms)
+✔ Ploeg tracker mappings require supported singleton provider, exact repository target and consistent aliases (1.458083ms)
+✔ tracker import preserves native revision, binds one existing item, remains queued and deduplicates privately (170.606084ms)
+▶ unmapped, unavailable, mismatched singleton or native revision cannot prepare a shared tracker session
+  ✔ unmapped (74.611042ms)
+{"level":"error","event":"http.failed","message":"Ploeg could not confirm the existing work item. Refresh before importing or starting work."}
+  ✔ unavailable (72.45575ms)
+  ✔ nativeMismatch (75.208ms)
+  ✔ singletonMismatch (74.669ms)
+  ✔ target (71.220917ms)
+✔ unmapped, unavailable, mismatched singleton or native revision cannot prepare a shared tracker session (368.753208ms)
+✔ a Ploeg row change after preview requires a new binding review before import (86.884459ms)
+✔ a cancelled unstarted draft permits a newly reviewed row binding with unchanged task content (94.425584ms)
+✔ an administrator starts a ClickUp draft using the original owner’s linked account (156.793542ms)
+✔ lost owner tracker access cannot fall back to the acting administrator’s credential (134.6695ms)
+✔ the owner’s linked tracker credential is scrubbed before preview hashing, persistence and prompt creation (92.999083ms)
+▶ first start refetches source status, membership, content, row freshness and target before admission
+  ✔ closed (73.154708ms)
+  ✔ moved (75.993958ms)
+  ✔ content (73.773917ms)
+  ✔ native (76.512208ms)
+  ✔ row (77.091ms)
+  ✔ target (77.0765ms)
+  ✔ source-config (73.140083ms)
+✔ first start refetches source status, membership, content, row freshness and target before admission (527.384125ms)
+{"level":"error","event":"http.failed","message":"Ploeg could not confirm this operation. No replacement execution was started."}
+✔ uncertain tracker admission replays the original source pin and keeps the existing work item (93.591125ms)
+✔ cancel while first-start lookup is pending prevents any admission or runtime launch (80.211333ms)
+✔ task source validation binds registered repositories, explicit authority and server environment credentials (2.071ms)
+✔ task sources accept documented cloud and self-hosted API roots and reject ambiguous project IDs (0.301375ms)
+✔ forgejo adapter reads a scoped page and native task using its documented authorization and pagination (19.150125ms)
+✔ github adapter reads a scoped page and native task using its documented authorization and pagination (6.081625ms)
+✔ gitlab adapter reads a scoped page and native task using its documented authorization and pagination (2.603ms)
+✔ clickup adapter reads a scoped page and native task using its documented authorization and pagination (2.338334ms)
+✔ vikunja adapter reads a scoped page and native task using its documented authorization and pagination (3.679375ms)
+✔ canonical task identities deduplicate source aliases while material edits alter the revision (8.54425ms)
+✔ GitLab numeric and namespace aliases use project_id with iid as the stable identity (3.513708ms)
+✔ task adapters reject global task lookups outside their configured project or home list (1.805ms)
+✔ resolved tracker credentials are scrubbed from both list and detail prose before hashing (1.534125ms)
+✔ credential material in opaque native revisions or returned links rejects the snapshot (1.728667ms)
+✔ closed tasks remain readable, unknown states fail closed, and pull requests cannot become tasks (11.400042ms)
+✔ native identifiers and pages cannot inject request paths, queries or filters (0.694958ms)
+✔ remote errors and redirects never disclose bodies or forward credentials to another endpoint (3.401042ms)
+✔ oversized, malformed and mismatched task responses fail explicitly instead of truncating evidence (9.964416ms)
+✔ task list pagination honors provider terminal headers and caps navigable pages (4.677417ms)
+✔ demo tasks are labeled fixtures, bound to the demo repository and unavailable in live config (0.303166ms)
+✔ agent environment contains the session credential and no inherited operator or infrastructure credentials (0.903875ms)
+✔ workspace manifests isolate API authority and default to DNS-only egress (0.581375ms)
+✔ Kubernetes lifecycle provisions real API resource shapes and retains PVC on disposal (0.755917ms)
+✔ local command workspace clones once and preserves human changes on resume (196.063708ms)
+✔ local OpenCode uses private authentication and dies when its owner pipe closes (772.459916ms)
+(node:64880) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ workspace failures carry the failing command and its redacted output (551.975792ms)
+✔ failure details are redacted, bounded and cannot be assigned after construction (0.670125ms)
+✔ agent secrets reach the agent container as envFrom while the clone container never receives them (0.220708ms)
+✔ the environment allow-list copies named host variables and never the reserved ones (0.082625ms)
+✔ pull transport manifests drop the Service and ingress, run the relay worker and carry the token only in the Secret (1.7665ms)
+✔ user namespaces are opt-in and remap both the writer and the export pod (1.287333ms)
+ℹ tests 211
+ℹ suites 0
+ℹ pass 211
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8457.293375
+apps/vloer: npm run check
+
+> @webgrip/de-vloer@0.3.0-rc.16 check
+> node scripts/check.mjs
+
+Checked 123 source modules and 36 JSON files; no application entrypoint executed.
+(node:70133) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+apps/vloer: npm run design:check
+
+> @webgrip/de-vloer@0.3.0-rc.16 design:check
+> node scripts/build-design.mjs --check
+
+Checked design chapter guide: 287 words, 9 source chapters, 85 tickets; local links resolve.
+apps/vloer: npm run brand:check
+
+> @webgrip/de-vloer@0.3.0-rc.16 brand:check
+> node scripts/build-brand.mjs --check && bash scripts/brand-marks.sh
+
+Checked 24 brand sources in docs/brand; stroke 15, envelope 44 x 50.
+ADR-0020 — name and mark
+ok
+apps/vloer: npm run license:check
+
+> @webgrip/de-vloer@0.3.0-rc.16 license:check
+> node scripts/license-check.mjs
+
+License consistency: Apache-2.0, copyright line present, 2 manifests, 2 image labels and the bundled extension copy agree; Archivo ships with its OFL text and a served route.
+apps/vloer: npm run extension:build
+
+> @webgrip/de-vloer@0.3.0-rc.16 extension:build
+> npm --prefix extensions/vscode run compile
+
+
+> de-vloer@0.3.0-rc.16 compile
+> tsc -p .
+
+apps/vloer: npm run extension:test
+
+> @webgrip/de-vloer@0.3.0-rc.16 extension:test
+> npm --prefix extensions/vscode test
+
+
+> de-vloer@0.3.0-rc.16 test
+> node --test test/*.test.ts
+
+(node:70632) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/accounts.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ choices follow the link state and descriptions match the web workbench wording (0.854041ms)
+✔ linking GitLab opens the authorization URL the workbench returns in the external browser (0.234042ms)
+✔ unlinking requires confirmation and then calls the workbench (0.91775ms)
+✔ an unconfigured or absent GitLab link is explained without offering actions (0.135667ms)
+✔ the client reads links and drives the GitLab link routes with the mutation header (22.842084ms)
+(node:70633) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/approval.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the approval route receives the authenticated mutation contract with the chosen mode (20.18325ms)
+✔ automatic approval is offered only for active sessions on an isolated placement (0.218959ms)
+✔ the set-approval command sends the picked mode and skips a no-op choice (0.251208ms)
+(node:70634) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/browser-login.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ a browser sign-in opens the workbench URL, polls until the session is ready, and stores the cookie (0.812292ms)
+✔ cancelling stops polling without a session, and a foreign origin is refused (0.2605ms)
+(node:70635) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/client.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ server origins require HTTPS except loopback and reject credential-bearing or path URLs (0.966ms)
+✔ the client drives the actual demo server to real checks and independently reviewed evidence (6868.680917ms)
+✔ pause, durable instruction, resume and cancel use the real authenticated mutation contract (22.274166ms)
+✔ live login stores only the opaque session cookie, restores it, clears expired credentials and logs out (94.29675ms)
+✔ the actual server enforces object ownership for desktop clients (149.435834ms)
+✔ redirects never forward a stored control-plane cookie to a different destination (1.211708ms)
+✔ invalid route identifiers are rejected before any network action (0.174875ms)
+✔ linked demo task import preserves its revision, deduplicates commands and starts only on operator action (6821.8025ms)
+✔ a desktop client links Vikunja through the actual authenticated server and refuses stale snapshots and Ploeg execution (79.943583ms)
+✔ candidate downloads reject redirects and oversized responses without forwarding credentials or retaining a partial file (1.791416ms)
+✔ the live event stream delivers durable events in order, replays after a cursor and stops cleanly on abort (11056.598917ms)
+✔ the live event stream requires the stored login and never invents one (49.561584ms)
+✔ administrators authorize additional budget through the real mutation contract (67.847375ms)
+✔ Ploeg inspection shares workbench identity and opens opaque item links without remote execution (3.976459ms)
+(node:70636) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/status.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ run labels: write is implementation, a read role before the end is analysis, the final read role is the independent review (0.754125ms)
+✔ the situation counts only the final read role as a reviewer (0.210792ms)
+✔ a policy violation is presented as a gateway policy failure (0.086709ms)
+✔ observed spend is shown only while running and only above the settled figure (0.117375ms)
+✔ approval wording and isolation (0.073792ms)
+(node:70637) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/test/webview.test.ts is not specified and it doesn't parse as CommonJS.
+Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+To eliminate this warning, add "type": "module" to /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/package.json.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the webview announces itself to the extension host on load (0.767916ms)
+✔ markdown keeps hostile text inert: no script, image or anchor elements are created and the raw text survives as text (0.97375ms)
+✔ fenced code blocks stay literal inside markdown (0.123084ms)
+✔ tool events collapse per partId with the latest state winning and earlier fields retained (0.18375ms)
+✔ a tool card shows its title, input, output and error text (14.455708ms)
+✔ run.started renders the brief this role received and run.finished shows role and verdict without the summary (0.660833ms)
+✔ crew labels distinguish implementation, analysis and the final independent review (2.96525ms)
+✔ the situation counts only the final read role as a reviewer (0.259083ms)
+✔ the gateway tab summarises attribution and lists every request with its flags (1.247917ms)
+✔ the budget card prefers the gateway observation while running, lists model usage and draws the cost curve (1.391667ms)
+✔ the approval card offers automatic approval only for active isolated sessions and posts the choice (0.186959ms)
+✔ transcript artifacts appear in the brief as collapsible markdown sections (0.358083ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 41
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 25357.933916
+apps/vloer: npm run extension:package
+
+> @webgrip/de-vloer@0.3.0-rc.16 extension:package
+> npm --prefix extensions/vscode run package
+
+
+> de-vloer@0.3.0-rc.16 package
+> vsce package --no-dependencies
+
+Executing prepublish script 'npm run vscode:prepublish'...
+
+> de-vloer@0.3.0-rc.16 vscode:prepublish
+> npm run compile
+
+
+> de-vloer@0.3.0-rc.16 compile
+> tsc -p .
+
+ INFO  Files included in the VSIX:
+de-vloer-0.3.0-rc.16.vsix
+├─ [Content_Types].xml 
+├─ extension.vsixmanifest 
+└─ extension/
+   ├─ LICENSE.txt [11.09 KB]
+   ├─ changelog.md [4.77 KB]
+   ├─ package.json [19.36 KB]
+   ├─ readme.md [11.75 KB]
+   ├─ dist/
+   │  ├─ accounts.js [4.8 KB]
+   │  ├─ approval.js [1.95 KB]
+   │  ├─ browser-login.js [1.09 KB]
+   │  ├─ client.js [16.33 KB]
+   │  ├─ evidence.js [4.93 KB]
+   │  ├─ extension.js [59.86 KB]
+   │  ├─ notifications.js [3.97 KB]
+   │  ├─ panel.js [14.91 KB]
+   │  ├─ ploeg-tree.js [6.65 KB]
+   │  ├─ ploeg-types.js [0.11 KB]
+   │  ├─ status.js [7.72 KB]
+   │  ├─ tree.js [15.81 KB]
+   │  ├─ types.js [0.11 KB]
+   │  └─ wizard.js [5.52 KB]
+   └─ media/
+      ├─ icon.png [6.03 KB]
+      ├─ session.css [23.7 KB]
+      ├─ session.js [75.18 KB]
+      ├─ vloer.svg [0.33 KB]
+      └─ walkthrough/
+         ├─ connect.md [0.57 KB]
+         ├─ review.md [0.89 KB]
+         ├─ start.md [0.71 KB]
+         └─ tasks.md [0.71 KB]
+
+ DONE  Packaged: /Users/ryangrippeling/projects/webgrip/glide/apps/unfold/extensions/vscode/de-vloer-0.3.0-rc.16.vsix (28 files, 91.13 KB)
+apps/vloer: npm run extension:verify
+
+> @webgrip/de-vloer@0.3.0-rc.16 extension:verify
+> node scripts/extension-verify.mjs
+
+Extension webgrip.de-vloer 0.3.0-rc.16
+  Open VSX            publishable as a pre-release
+  Visual Studio Marketplace  skipped — it accepts only major.minor.patch, never 0.3.0-rc.16
+ok
+apps/vloer: npm run backlog -- check
+
+> @webgrip/de-vloer@0.3.0-rc.16 backlog
+> node scripts/backlog.mjs check
+
+Checked Markdown, ClickUp CSV and two Forgejo payload files for 85 tickets. No network requests.
+apps/ploeg: go vet ./...
+apps/ploeg: go build ./...
+apps/ploeg: go test ./...
+ok  	github.com/webgrip/ploeg/cmd/ploeg-worker	(cached)
+ok  	github.com/webgrip/ploeg/cmd/ploegd	(cached)
+ok  	github.com/webgrip/ploeg/internal/ledger	(cached)
+ok  	github.com/webgrip/ploeg/pkg/config	0.959s
+ok  	github.com/webgrip/ploeg/pkg/forgebroker	(cached)
+ok  	github.com/webgrip/ploeg/pkg/harness	(cached)
+ok  	github.com/webgrip/ploeg/pkg/harness/adapters/acp	(cached)
+ok  	github.com/webgrip/ploeg/pkg/harness/adapters/claudecode	(cached)
+ok  	github.com/webgrip/ploeg/pkg/harness/adapters/execbin	(cached)
+ok  	github.com/webgrip/ploeg/pkg/harness/adapters/openhands	(cached)
+?   	github.com/webgrip/ploeg/pkg/harness/harnesstest	[no test files]
+ok  	github.com/webgrip/ploeg/pkg/httpapi	(cached)
+ok  	github.com/webgrip/ploeg/pkg/litellm	(cached)
+ok  	github.com/webgrip/ploeg/pkg/llmbroker	(cached)
+ok  	github.com/webgrip/ploeg/pkg/plan	(cached)
+ok  	github.com/webgrip/ploeg/pkg/provider	(cached)
+ok  	github.com/webgrip/ploeg/pkg/provider/clickup	(cached)
+ok  	github.com/webgrip/ploeg/pkg/provider/forgejo	(cached)
+ok  	github.com/webgrip/ploeg/pkg/provider/gitlab	(cached)
+ok  	github.com/webgrip/ploeg/pkg/provider/vikunja	(cached)
+ok  	github.com/webgrip/ploeg/pkg/shiftengine	(cached)
+ok  	github.com/webgrip/ploeg/pkg/store	(cached)
+ok  	github.com/webgrip/ploeg/pkg/target	(cached)
+ok  	github.com/webgrip/ploeg/pkg/work	(cached)
+ok  	github.com/webgrip/ploeg/pkg/worker	9.386s
+apps/ploeg: bash scripts/brand-marks.sh
+ADR-0022 — name and mark
+ok
+apps/ploeg: bash scripts/license-check.sh
+License consistency — Apache-2.0
+ok
+apps/vloer: helm lint ops/helm/de-vloer
+==> Linting ops/helm/de-vloer
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+apps/vloer: helm template de-vloer ops/helm/de-vloer
+apps/vloer: helm lint ops/helm/de-vloer -f ops/helm/unfold/values.live.example.yaml
+==> Linting ops/helm/de-vloer
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+apps/vloer: helm template de-vloer ops/helm/de-vloer -f ops/helm/unfold/values.live.example.yaml
+apps/ploeg: helm lint ops/helm/ploeg
+==> Linting ops/helm/ploeg
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+apps/ploeg: helm template ploeg ops/helm/ploeg
+apps/ploeg: helm lint ops/helm/ploeg -f ops/helm/ploeg/ci/executor-values.yaml
+==> Linting ops/helm/ploeg
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+apps/ploeg: helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-values.yaml
+apps/ploeg: helm lint ops/helm/ploeg -f ops/helm/ploeg/ci/executor-cronjob-values.yaml
+==> Linting ops/helm/ploeg
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+apps/ploeg: helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-cronjob-values.yaml
+apps/ploeg: helm lint ops/helm/ploeg -f ops/helm/ploeg/ci/executor-gitlab-values.yaml
+==> Linting ops/helm/ploeg
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+apps/ploeg: helm template ploeg ops/helm/ploeg -f ops/helm/ploeg/ci/executor-gitlab-values.yaml
+apps/ploeg: sh scripts/helm-golden.sh check
+apps/ploeg: openspec validate --all --strict
+- Validating...
+✓ change/assemble-glide-monorepo
+✓ change/audit-current-documentation
+✓ change/bind-tracker-execution
+✓ spec/blackboard
+✓ change/close-the-review-loop
+✓ spec/forge-provider-forgejo
+✓ change/govern-candidate-delivery
+✓ change/guard-zero-major-prereleases
+✓ change/open-change-requests-on-gitlab
+✓ spec/role-claim
+✓ spec/shift-orchestration
+✓ change/unified-operator-execution
+Totals: 12 passed, 0 failed (12 items)
+.: python3 scripts/verify-import.py
+vloer: 396 exact files, 18 exact tag objects, source history reachable
+ploeg: 392 exact files, 52 exact tag objects, source history reachable
+.: /Users/ryangrippeling/.local/share/mise/installs/node/24.19.0/bin/node scripts/integration.mjs
+Qualifying standalone execution
+Qualifying managed execution
+{"schemaVersion":1,"at":"2026-09-12T12:19:54.268Z","runtime":"deterministic fixture; actual HTTP, filesystem checks and PostgreSQL","modelCalls":0,"spendUsd":0,"checks":[{"name":"standalone","passed":true,"command":["/Users/ryangrippeling/.local/share/mise/installs/node/24.19.0/bin/node","--test","test/api-workflow.test.ts","test/api-process.test.ts"],"log":"standalone.log"},{"name":"managed","passed":true,"command":["go","test","./pkg/httpapi","-run","^TestOperatorWorkbenchQualification$","-count=1","-v"],"log":"managed.log"}],"limits":["No paid provider or Kubernetes qualification","No proof of interchangeable native harness session state"]}
+.: uv run --frozen python scripts/docs.py --check
+validate-adr-consistency: OK (1 record(s) in /Users/ryangrippeling/projects/webgrip/glide/docs/adr, registry-checked)
+
+[31m │  ⚠  Warning from the Material for MkDocs team[0m
+[31m │[0m
+[31m │[0m  MkDocs 2.0, the underlying framework of Material for MkDocs,
+[31m │[0m  will introduce backward-incompatible changes, including:
+[31m │[0m
+[31m │  × [0mAll plugins will stop working – the plugin system has been removed
+[31m │  × [0mAll theme overrides will break – the theming system has been rewritten
+[31m │  × [0mNo migration path exists – existing projects cannot be upgraded
+[31m │  × [0mClosed contribution model – community members can't report bugs
+[31m │  × [0mCurrently unlicensed – unsuitable for production use
+[31m │[0m
+[31m │[0m  Our full analysis:
+[31m │[0m
+[31m │[0m  [4mhttps://squidfunk.github.io/mkdocs-material/blog/2026/02/18/mkdocs-2.0/[0m
+[0m
+INFO    -  Cleaning site directory
+INFO    -  Building documentation to directory: /Users/ryangrippeling/projects/webgrip/glide/.build/site
+INFO    -  The following pages exist in the docs directory, but are not included in the "nav" configuration:
+  - migration-proposal.md
+  - adr/adr-0001-unfold-contains-independent-applications.md
+  - domain/entities.md
+  - domain/glossary.md
+  - domain/rules.md
+  - landscape/bottlenecks.md
+  - ploeg/architecture.md
+  - ploeg/backlog.md
+  - ploeg/design.md
+  - ploeg/adrs/README.md
+  - ploeg/adrs/0001-adrs-are-the-decision-ledger.md
+  - ploeg/adrs/0002-go-as-the-implementation-language.md
+  - ploeg/adrs/0003-apache-2-0-license.md
+  - ploeg/adrs/0004-forgejo-leading-home-github-mirror-module-path.md
+  - ploeg/adrs/0005-build-a-dedicated-dispatch-plane.md
+  - ploeg/adrs/0006-ahp-is-the-wrong-layer.md
+  - ploeg/adrs/0007-a2a-adopt-nothing-watchlist-a-facade.md
+  - ploeg/adrs/0008-litellm-is-the-credential-and-metering-seam.md
+  - ploeg/adrs/0009-paperclip-mine-for-design-never-integrate.md
+  - ploeg/adrs/0010-shift-owns-the-item-lease-owns-the-branch.md
+  - ploeg/adrs/0011-the-pull-request-is-the-blackboard.md
+  - ploeg/adrs/0012-two-level-budgets-authorized-and-settled.md
+  - ploeg/adrs/0013-push-rights-are-minted-per-run.md
+  - ploeg/adrs/0014-work-target-is-a-work-item-attribute.md
+  - ploeg/adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md
+  - ploeg/adrs/0016-forge-registry-and-per-run-repo-scoped-credentials.md
+  - ploeg/adrs/0017-the-review-loop-is-verdict-driven-and-capped.md
+  - ploeg/adrs/0018-the-outcome-drop-box-is-every-harnesss-return-path.md
+  - ploeg/adrs/0019-a-failed-writing-run-reopens-its-round.md
+  - ploeg/adrs/0020-published-artifacts-name-the-mirror-as-source.md
+  - ploeg/adrs/0021-infra-failures-and-agent-failures-get-separate-retry-budgets.md
+  - ploeg/adrs/0022-the-name-and-mark-are-trademarks-not-cc-licensed-artwork.md
+  - ploeg/adrs/0023-the-forge-dialect-travels-on-the-work-item.md
+  - ploeg/adrs/0024-operator-work-uses-one-execution-authority.md
+  - ploeg/adrs/0025-management-authority-stays-in-the-control-plane.md
+  - ploeg/adrs/0026-tracker-selections-bind-the-canonical-work-item.md
+  - ploeg/adrs/0027-candidate-delivery-uses-trusted-evidence-and-a-publication-barrier.md
+  - ploeg/adrs/0028-automatic-releases-stay-zero-major-candidates.md
+  - ploeg/adrs/0029-qualify-unfold-before-changing-distribution.md
+  - ploeg/adrs/adr-template.md
+  - ploeg/brand/README.md
+  - ploeg/brand/TRADEMARK.md
+  - ploeg/contracts/README.md
+  - ploeg/contracts/executor.md
+  - ploeg/contracts/operator-delivery.md
+  - ploeg/contracts/tracker-execution.md
+  - ploeg/contracts/worker-control.md
+  - ploeg/domain/entities.md
+  - ploeg/domain/events.md
+  - ploeg/domain/glossary.md
+  - ploeg/domain/overview.md
+  - ploeg/domain/rules.md
+  - ploeg/ops/board.md
+  - ploeg/ops/ci-and-infra.md
+  - ploeg/ops/managed-workers.md
+  - ploeg/ops/release-versioning.md
+  - ploeg/research/2026-07-28-a2a-fit.md
+  - ploeg/research/2026-07-28-agent-roster-ssot.md
+  - ploeg/research/2026-07-28-omniroute-fit.md
+  - ploeg/research/2026-07-28-paperclip-fit.md
+  - ploeg/research/2026-08-08-benchmarking-the-loop.md
+  - ploeg/research/2026-08-28-onboarding-friction.md
+  - ploeg/research/2026-09-11-release-policy-verification.md
+  - vloer/PRODUCT-DESIGN.md
+  - vloer/architecture.md
+  - vloer/documentation.md
+  - vloer/monorepo-transition.md
+  - vloer/validation.md
+  - vloer/adrs/README.md
+  - vloer/adrs/0001-the-human-workbench-beside-ploeg.md
+  - vloer/adrs/0002-native-node-and-single-writer-storage.md
+  - vloer/adrs/0003-runtime-workspace-and-credential-seams.md
+  - vloer/adrs/0004-portable-procedures-and-explicit-contracts.md
+  - vloer/adrs/0005-one-work-authority.md
+  - vloer/adrs/0006-trusted-verifier-and-publisher.md
+  - vloer/adrs/0007-thin-editor-client.md
+  - vloer/adrs/0008-task-connections-and-candidate-handoff.md
+  - vloer/adrs/0009-workspace-placement-is-a-session-choice.md
+  - vloer/adrs/0010-one-release-train-with-zero-cve-images.md
+  - vloer/adrs/0011-sandboxes-dial-out-through-a-relay.md
+  - vloer/adrs/0012-agent-host-protocol-host.md
+  - vloer/adrs/0013-sandbox-crd-placement-with-warm-kata-pools.md
+  - vloer/adrs/0014-signed-candidates.md
+  - vloer/adrs/0015-ploeg-operator-read-api.md
+  - vloer/adrs/0016-sign-in-and-link-your-own-accounts.md
+  - vloer/adrs/0017-delegate-interactive-execution-to-ploeg.md
+  - vloer/adrs/0018-bind-tracker-imports-to-existing-ploeg-work.md
+  - vloer/adrs/0019-verify-canonical-candidates-outside-agent-workspaces.md
+  - vloer/adrs/0020-the-name-and-mark-are-trademarks.md
+  - vloer/adrs/0021-the-extension-ships-through-open-vsx-first.md
+  - vloer/adrs/0022-apache-2-0-is-the-estate-licence.md
+  - vloer/brand/README.md
+  - vloer/brand/TRADEMARK.md
+  - vloer/brand/social-profile-copy.md
+  - vloer/contracts/api.md
+  - vloer/contracts/candidate-delivery.md
+  - vloer/contracts/implementation.md
+  - vloer/contracts/ploeg-execution.md
+  - vloer/contracts/ploeg-tracker-binding.md
+  - vloer/design/00-product-system-design.md
+  - vloer/design/gap-register.md
+  - vloer/design/ide-10x-plan.md
+  - vloer/design/ide-and-operator-experience.md
+  - vloer/design/platform-and-governance.md
+  - vloer/design/self-improvement.md
+  - vloer/design/ticket-integration.md
+  - vloer/domain/entities.md
+  - vloer/domain/glossary.md
+  - vloer/domain/overview.md
+  - vloer/domain/rules.md
+  - vloer/landscape/index.md
+  - vloer/landscape/bottlenecks.md
+  - vloer/landscape/c4.md
+  - vloer/landscape/components.md
+  - vloer/landscape/questions.md
+  - vloer/operations/backlog.md
+  - vloer/operations/implementation-progress.md
+  - vloer/operations/iteration-0.2.0.md
+  - vloer/operations/live.md
+  - vloer/operations/local-unified-demo.md
+  - vloer/operations/release.md
+  - vloer/operations/task-connections.md
+  - vloer/operations/unified-baseline.md
+  - vloer/product/go-to-market.md
+  - vloer/product/model-gateway-capabilities.md
+  - vloer/research/2026-09-10-agent-host-protocol.md
+  - vloer/research/2026-09-10-kubernetes-and-sandbox-crds.md
+  - vloer/research/2026-09-10-ploeg-and-de-vloer-split.md
+  - vloer/research/2026-09-10-sandbox-landscape.md
+  - vloer/research/2026-09-10-unified-workbench-baseline.md
+  - vloer/research/2026-09-11-ecosystem-alternatives.md
+  - vloer/research/2026-09-11-ecosystem-implementation.md
+  - vloer/research/2026-09-12-documentation-audit.md
+  - vloer/research/2026-09-12-documentation-second-pass.md
+  - vloer/research/agent-apis.md
+  - vloer/research/conventions-and-alternatives.md
+  - vloer/research/market-landscape.md
+  - vloer/research/task-connector-sources.md
+  - vloer/research/evidence/delivery-2026-09-11/README.md
+  - vloer/research/evidence/unified-2026-09-10/README.md
+INFO    -  Documentation built in 2.64 seconds
+Glide docs: 316 sources, 1100 repository links, strict build; 526 current search entries

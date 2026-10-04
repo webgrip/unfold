@@ -1,0 +1,334 @@
+Documentation audit validation — 12 September 2026
+
+All commands below returned exit code 0. Go output identifies cached results.
+These are local fixture and repository checks, not live deployment qualification.
+
+De Vloer: mise exec -- npm test
+
+> @webgrip/de-vloer@0.3.0-rc.16 test
+> node --test test/*.test.ts test/*.test.mjs
+
+✔ the agent host speaks AHP 0.9: initialize, create a session from a chat, stream the crew, share state with a second client and expose the candidate as a changeset (7967.699667ms)
+✔ unified diff artifacts become changeset files when no native diff is available (0.252542ms)
+✔ an analysis role reports without a verdict and only the final reviewer decides the crew (380.326958ms)
+✔ automatic approval needs an isolated placement and can be switched on a live session (416.069292ms)
+✔ a session can pin a configured model for every role and rejects an unknown one (257.265042ms)
+✔ a brief of a few words is refused before any budget is authorized (173.645084ms)
+✔ the gateway screens the brief cheaply, asks the operator when it is not actionable, and starts once answered (503.115375ms)
+✔ an investigation crew completes with the challenger's verdict instead of failing, and a runaway role is stopped (830.5715ms)
+✔ live failures persist actionable safe evidence, survive authenticated replay, and never replay a paid submission (1496.369ms)
+✔ mutated typed errors cannot smuggle diagnostics or vocabulary into persisted and replayed failures (69.18575ms)
+✔ links are absent until configured and a start is refused without an application id (361.409125ms)
+{"level":"warn","event":"link.failed","provider":"gitlab","code":"link_state","detail":"The link attempt expired or was not started here. Start again."}
+✔ a person links GitLab through the browser, sees the account without its tokens, and can unlink (391.7905ms)
+✔ a task connection without its own token uses the person's link and says so when there is none (200.169333ms)
+{"level":"warn","event":"login.failed","method":"oidc","code":"oidc_state","message":"The sign-in attempt expired or was not started here. Start again."}
+✔ a person signs in through the identity provider, gets the role their groups grant, and returns as the same user (298.443334ms)
+{"level":"warn","event":"login.failed","method":"oidc","code":"oidc_not_entitled","message":"person@example.com signed in, but holds none of the groups this workbench admits."}
+✔ a person outside every admitted group is refused, and a role claim outranks groups (555.6135ms)
+{"level":"warn","event":"login.failed","method":"oidc","code":"oidc_token","message":"The identity token is for another application."}
+{"level":"warn","event":"login.failed","method":"oidc","code":"oidc_token","message":"The identity token does not match this sign-in."}
+{"level":"warn","event":"login.failed","method":"oidc","code":"oidc_exchange","message":"The identity provider refused the sign-in exchange with HTTP 400."}
+✔ a token for another audience or another sign-in is rejected (822.129917ms)
+✔ an editor signs in through the browser: a one-time code, the usual sign-in, then the session collected with its secret (715.446792ms)
+✔ bootstrap advertises enabled placements and session creation validates the choice (465.362416ms)
+✔ the demonstration deployment exposes no placements (16.82725ms)
+✔ a model served outside the allowed providers is refused before the first turn (370.165209ms)
+✔ a request the gateway attributes to a provider or region outside policy stops the session and revokes its key (338.318333ms)
+✔ a real server crash recovers an interrupted session without silently executing it again (1991.53325ms)
+✔ a failed session can be tried again from the beginning once its spend has settled (329.477125ms)
+✔ a person records the human review once a session is completed, and only once (7840.674333ms)
+✔ task sources require authentication, redact credentials, and protect imports from viewers and cross-site requests (894.821833ms)
+✔ task import snapshots provider content into a queued operator session and keeps tracker text inert (451.642958ms)
+✔ stale previews, closed tasks, unknown scope and invalid import parameters create no sessions (380.855666ms)
+✔ concurrent task imports deduplicate durably, keep owner privacy and block a second active revision (463.261792ms)
+✔ Ploeg execution ownership blocks imported and ad hoc work and is rechecked before start and resume (36.211417ms)
+{"level":"error","event":"http.failed","message":"The task service could not complete this request."}
+{"level":"error","event":"http.failed","message":"The task service could not complete this request."}
+{"level":"error","event":"http.failed","message":"The task service could not complete this request."}
+✔ provider failures remain safe and never create a queued or paid attempt (122.671709ms)
+✔ tracker credentials echoed by a provider are removed before session persistence and runtime prompts (46.854209ms)
+✔ a supported task description remains importable when safe JSON encoding expands its characters (110.027666ms)
+✔ demo task import requires explicit start and retains downloadable immutable candidate evidence after restart (6859.54525ms)
+✔ HTTP demo produces real failing and passing checks, review evidence, and replayable durable events (7702.318ms)
+✔ pause, instructions, resume, and intentional cancel remain deliberate across reconnects (382.574125ms)
+✔ HTTP lifecycle rejects duplicate execution and invalid targets without producing work (24.020334ms)
+✔ DSSE envelopes use the in-toto payload type, the PAE encoding and verify only with the matching Ed25519 key (18.960167ms)
+✔ a captured candidate ships a signed provenance statement and an Agent Trace record that verify against the published key (7787.331416ms)
+✔ candidate provenance signs the canonical tracker binding independently from the preview hash (78.075625ms)
+✔ backlog has complete audit coverage and dependency-safe planning order (5.465667ms)
+✔ backlog rejects cycles, absent dependencies and false gap mappings (8.519375ms)
+✔ ticket exports preserve multiline bodies and neutralize spreadsheet formula cells (2.626416ms)
+✔ session payload requires explicit profiles and budget without inventing tracker identity (0.99625ms)
+✔ exports preserve candidate evidence and review status without claiming tracker acceptance (2.070083ms)
+✔ broker mints scoped finite credentials and keeps administrative secrets out of results (105.521625ms)
+✔ revocation blocks credentials while retaining their accounting across broker restart (296.646ms)
+✔ post-revocation accounting grace and missing spend remain unknown instead of zero (56.342667ms)
+✔ a gateway outage is connectivity, not a rejection, and names the call (6.588916ms)
+✔ a gateway refusal is a rejection that never echoes the response (4.7695ms)
+✔ usage aggregates the gateway ledger per model with the routed group and failures (31.3655ms)
+✔ providersFor resolves a model, follows an auto-router to its tiers, and is undefined for an unknown name (0.732625ms)
+✔ candidate bundle and binary patch roundtrip full changes without changing source Git state (2213.887709ms)
+✔ candidate capture ignores repository hooks, local configuration and content filters (527.726333ms)
+✔ candidate capture fails closed on sensitive new paths and tracked base secrets (395.920083ms)
+✔ candidate capture refuses private key content and oversized files without partial downloads (355.925084ms)
+✔ candidate capture rejects Git indirection and download traversal or corrupted bytes (426.835667ms)
+✔ candidate capture includes staged ignored files and committed changes against the pinned base (490.992ms)
+✔ candidate preserves a tracked deletion even when the ignored local file remains (530.225375ms)
+✔ Git LFS pointers are refused rather than presented as complete binary content (205.44075ms)
+(node:30964) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ Kubernetes export fences the writer and persists authenticated full candidate downloads (454.850334ms)
+✔ Kubernetes export refuses unconfirmed writer termination before creating an exporter (0.359375ms)
+✔ the exact trusted Kubernetes helper executes without TypeScript or repository runtime dependencies (499.159291ms)
+✔ a shallow source produces a self-contained candidate bundle without missing parent history (539.540375ms)
+✔ object database symlinks cannot read files outside the source repository (58.213375ms)
+✔ source-local Git excludes remain excluded without reading executable local configuration (365.288625ms)
+✔ remote capture never returns ready from corrupt or mismatched persisted evidence (394.098375ms)
+✔ a single backend keeps its previous shape and becomes the only placement (13.802208ms)
+✔ docker and kubernetes placements require their configuration blocks and the first listed backend becomes the default (41.927958ms)
+✔ gatewayPolicy lists providers and regions as lowercase names (12.012ms)
+✔ observability names a Grafana, dashboards by uid and datasources by uid (14.485708ms)
+✔ demo executes failing baseline, real patch and passing independent checks in an isolated repository (1887.149541ms)
+✔ pause interrupts and holds state until explicit resume; cancel cannot become a retry (52.905375ms)
+✔ missing and inconclusive reviewer verdicts cannot approve work (142.394041ms)
+✔ session ownership is enforced below HTTP and authorization increases require admin (6.644417ms)
+✔ recovery preserves durable events and marks running work interrupted without executing anything (36.548417ms)
+✔ unknown paid spend retains authorization across interruption and blocks another paid start (21.313833ms)
+✔ state transactions roll back together and internal credentials are encrypted on disk (6.616292ms)
+✔ permission requests survive durable reads, require owner response and cannot be replayed (19.954042ms)
+✔ live startup recovery interrupts the previous workspace and revokes its held credential without new execution (27.844167ms)
+✔ stopped-session reconciliation settles late gateway spend exactly once without restarting execution (62.605917ms)
+✔ startup discovers a credential minted before its local persistence and never double settles its alias (9.709709ms)
+✔ placement is validated against the enabled workspace backends and recorded on the session (3.857916ms)
+✔ demonstration sessions carry no placement (3.671375ms)
+✔ canonical delivery preserves the approved ancestry and complete binary tree; replay is deterministic (2131.692542ms)
+✔ canonical delivery rejects modified protected policy input and a forged manifest tree (827.541959ms)
+✔ policy fingerprint changes with acceptance criteria; empty checks and agent-exposed verifier credentials are rejected (107.608333ms)
+✔ verifier uses isolated fresh containers and real exit status, never accepts fake PASS output (735.270541ms)
+✔ delivery reads reject malformed or cross-execution identities before rendering (0.457583ms)
+✔ delivery approval rejects a replaced local policy and enforces owner and viewer authorization (102.790708ms)
+✔ governed execution refuses unavailable authority and unmapped users before workspace or inference access (85.436792ms)
+✔ concurrent starts reserve one execution and one bounded capability; pause and resume reuse identity, workspace and credential (230.340875ms)
+✔ blocked inference capability cannot resume or silently mint a replacement (230.538833ms)
+✔ uncertain durable commands retain command identity and an outage preserves intentional cancellation (85.1175ms)
+✔ restart interrupts active governed work and cannot automatically repeat paid execution (122.45775ms)
+✔ pause then explicit resume can complete without carrying the previous pause intent forward (127.446208ms)
+✔ cancelling while admission is pending cannot resurrect the local session or begin model access (84.323ms)
+✔ unconfirmed interruption blocks the existing capability and prevents paid resume until reconciled (74.448875ms)
+✔ expired authority is checked before any credential or workspace is provided (50.622959ms)
+✔ HTTP supervision and durable instructions retain the execution and never start a second runtime (118.522542ms)
+✔ local pause interrupts execution while its remote stop is queued behind another command (77.846916ms)
+✔ pause before the first credential mint retains a reservation and resume mints only after execution is running (85.485791ms)
+✔ an old replay receipt after a newer refresh clears the pending command without rolling back authority (51.643417ms)
+✔ authority revoked during credential delivery prevents even the preliminary brief model request (59.28475ms)
+✔ a newer generation learned between roles cannot authorize the old executor to submit its next turn (75.521083ms)
+✔ a link starts with PKCE, completes against the account, and yields clone access for that host only (51.1695ms)
+✔ an expiring link is refreshed before the clone and revocation forgets and revokes both tokens (35.300042ms)
+✔ a rejected code and a broken refresh are failures the session can explain (28.648958ms)
+✔ an unconfigured link describes itself and refuses to start (10.887958ms)
+✔ a ClickUp link exchanges the code with the client secret, keeps the token for task sources, and is listed beside GitLab (21.434542ms)
+✔ a person can paste a personal token for ClickUp or GitLab with no application registered (19.577084ms)
+✔ operator configuration stores only environment references and explicit team access (3.040083ms)
+✔ live operator projection reads all lanes, complete evidence and honest unknown costs with bounded caching (53.645917ms)
+✔ HTTP projection authenticates and intersects local user mapping with deployment and upstream team scope (563.944209ms)
+✔ opaque bigint cursors paginate and unexpected team records or cross-item evidence fail closed (6.940792ms)
+✔ projection strips unknown fields, credential-bearing links and audit data, including an echoed consumer credential (1.521292ms)
+✔ unsupported versions, redirects, oversized payloads and observed costs without usage remain unavailable (7.394375ms)
+✔ demo operator records are explicitly illustrative and never dispatch, while unconfigured live stays unavailable (22.308542ms)
+✔ a response started before consumer credential rotation cannot restore old cached team access (2.582291ms)
+✔ the relay delivers requests to a dial-out worker, streams responses back and cancels aborted streams (592.552334ms)
+✔ the relay rejects foreign tokens and fails pending requests when a workspace is unregistered (11.806083ms)
+✔ a warm worker waits for a pool assignment, receives its session environment over the relay and runs commands on request (555.085208ms)
+✔ command bridge gets only scoped environment, emits native id, returns actual process evidence (72.895375ms)
+✔ command bridge exit without result cannot fabricate completion (66.37075ms)
+✔ command bridge rejects successful-looking result from failed process (65.04975ms)
+✔ command bridge maps operator cancellation to AbortError (1.988291ms)
+✔ command bridge rejects a null record without crashing its host (66.161292ms)
+✔ command bridge supervisor stops its runner after control-plane process death (213.162541ms)
+✔ command supervisor distinguishes missing executable from an actual runner exiting 127 (106.468ms)
+✔ demo resumes after interrupted repository initialization and preserves subsequent working changes (261.338416ms)
+✔ demo resumes an incomplete Git directory without replacing existing fixture changes (169.695917ms)
+✔ demo cancellation waits until its child has actually stopped (188.863291ms)
+✔ demo cancellation terminates a child that ignores its initial stop signal (1032.4015ms)
+✔ demo finishes an in-flight Git initialization before acknowledging pause (176.302125ms)
+✔ docker container specs carry only the session credential, a hardened host configuration and the explicit environment allow-list (1.584542ms)
+✔ multiplexed docker log streams separate stdout from stderr (0.164333ms)
+✔ docker lifecycle clones inside the image, waits for authenticated health, captures the candidate after a confirmed stop and removes the container on disposal (431.2235ms)
+✔ docker failures record the image, exit code and redacted container output without the socket path (13.250333ms)
+✔ session placement selects an enabled backend and rejects the rest (0.186583ms)
+✔ docker pull transport publishes no port, hands the container a relay token and reaches the harness through the dial-out worker (281.713542ms)
+✔ a linked repository credential reaches the clone container as a git header and never the agent container (0.333792ms)
+✔ the workspace manager keeps a linked credential on the validated repository it hands to a backend (0.206708ms)
+✔ Kubernetes DELETE frames its complete JSON body and preserves a reused connection after an allowed 404 (15.012583ms)
+✔ OpenCode creates native session, submits once, reconciles final answer and real native diff (8.248875ms)
+✔ OpenCode exposes native approval identifiers and resumes after actual permission response (753.166333ms)
+✔ OpenCode never retries an ambiguous paid prompt and excludes raw error bodies (1.1345ms)
+✔ OpenCode interruption aborts native run and does not turn cancellation into retry (1.213708ms)
+✔ OpenCode cannot complete on HTTP acceptance or a completed tool-call message (80.9015ms)
+✔ OpenCode supplies verification argv and captures only its actual completed tool output (3.265209ms)
+✔ OpenCode recovery releases managed workers when their in-memory native credentials are unavailable (0.105833ms)
+✔ OpenCode interruption reports native abort failures to the controller (0.112625ms)
+✔ automatic approval creates the native session with allow rules and keeps the read-role denials (1.23975ms)
+✔ the report drops the verdict block, the transcript keeps every part, and tool events carry their input and error (0.807166ms)
+✔ cold sandbox manifests put the agent pod behind Kata with a volume claim template, no Service and the relay worker (1.460875ms)
+✔ a cold sandbox becomes a workspace once the CRD is Ready and its worker has dialled in, and disposal removes the sandbox (520.601959ms)
+✔ a warm-pool claim hands the bound pod its session over the relay, clones through exec and starts the harness (211.519291ms)
+✔ live HTTP login requires credentials, same-origin mutation protection, and a revocable cookie (145.76ms)
+✔ ownership covers details, history, SSE, controls, and permission routes while viewers cannot mutate (293.4585ms)
+✔ public API exposes configured choices while hiding authority and rejecting executable or repository injection (74.906083ms)
+✔ runtime credentials are removed from durable artifacts, nested activity, and reconnect replay (22.338625ms)
+✔ Ploeg tracker mappings require supported singleton provider, exact repository target and consistent aliases (1.514667ms)
+✔ tracker import preserves native revision, binds one existing item, remains queued and deduplicates privately (187.102959ms)
+▶ unmapped, unavailable, mismatched singleton or native revision cannot prepare a shared tracker session
+  ✔ unmapped (74.559542ms)
+{"level":"error","event":"http.failed","message":"Ploeg could not confirm the existing work item. Refresh before importing or starting work."}
+  ✔ unavailable (72.928125ms)
+  ✔ nativeMismatch (72.838625ms)
+  ✔ singletonMismatch (73.860333ms)
+  ✔ target (76.437292ms)
+✔ unmapped, unavailable, mismatched singleton or native revision cannot prepare a shared tracker session (371.271209ms)
+✔ a Ploeg row change after preview requires a new binding review before import (85.080417ms)
+✔ a cancelled unstarted draft permits a newly reviewed row binding with unchanged task content (96.236042ms)
+✔ an administrator starts a ClickUp draft using the original owner’s linked account (219.991125ms)
+✔ lost owner tracker access cannot fall back to the acting administrator’s credential (149.251042ms)
+✔ the owner’s linked tracker credential is scrubbed before preview hashing, persistence and prompt creation (100.285834ms)
+▶ first start refetches source status, membership, content, row freshness and target before admission
+  ✔ closed (78.199917ms)
+  ✔ moved (79.601166ms)
+  ✔ content (74.379083ms)
+  ✔ native (79.249208ms)
+  ✔ row (78.894916ms)
+  ✔ target (79.821833ms)
+  ✔ source-config (76.30725ms)
+✔ first start refetches source status, membership, content, row freshness and target before admission (547.221041ms)
+{"level":"error","event":"http.failed","message":"Ploeg could not confirm this operation. No replacement execution was started."}
+✔ uncertain tracker admission replays the original source pin and keeps the existing work item (94.386917ms)
+✔ cancel while first-start lookup is pending prevents any admission or runtime launch (90.578125ms)
+✔ task source validation binds registered repositories, explicit authority and server environment credentials (2.175833ms)
+✔ task sources accept documented cloud and self-hosted API roots and reject ambiguous project IDs (0.369209ms)
+✔ forgejo adapter reads a scoped page and native task using its documented authorization and pagination (20.224ms)
+✔ github adapter reads a scoped page and native task using its documented authorization and pagination (6.194833ms)
+✔ gitlab adapter reads a scoped page and native task using its documented authorization and pagination (2.838417ms)
+✔ clickup adapter reads a scoped page and native task using its documented authorization and pagination (2.408875ms)
+✔ vikunja adapter reads a scoped page and native task using its documented authorization and pagination (3.167959ms)
+✔ canonical task identities deduplicate source aliases while material edits alter the revision (8.669084ms)
+✔ GitLab numeric and namespace aliases use project_id with iid as the stable identity (3.318333ms)
+✔ task adapters reject global task lookups outside their configured project or home list (1.810583ms)
+✔ resolved tracker credentials are scrubbed from both list and detail prose before hashing (1.495708ms)
+✔ credential material in opaque native revisions or returned links rejects the snapshot (1.972625ms)
+✔ closed tasks remain readable, unknown states fail closed, and pull requests cannot become tasks (11.655459ms)
+✔ native identifiers and pages cannot inject request paths, queries or filters (0.755958ms)
+✔ remote errors and redirects never disclose bodies or forward credentials to another endpoint (4.016625ms)
+✔ oversized, malformed and mismatched task responses fail explicitly instead of truncating evidence (9.876959ms)
+✔ task list pagination honors provider terminal headers and caps navigable pages (4.996666ms)
+✔ demo tasks are labeled fixtures, bound to the demo repository and unavailable in live config (0.262ms)
+✔ agent environment contains the session credential and no inherited operator or infrastructure credentials (0.907959ms)
+✔ workspace manifests isolate API authority and default to DNS-only egress (0.590208ms)
+✔ Kubernetes lifecycle provisions real API resource shapes and retains PVC on disposal (0.774416ms)
+✔ local command workspace clones once and preserves human changes on resume (198.050917ms)
+✔ local OpenCode uses private authentication and dies when its owner pipe closes (860.542375ms)
+(node:38344) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ workspace failures carry the failing command and its redacted output (563.505084ms)
+✔ failure details are redacted, bounded and cannot be assigned after construction (0.767167ms)
+✔ agent secrets reach the agent container as envFrom while the clone container never receives them (0.257583ms)
+✔ the environment allow-list copies named host variables and never the reserved ones (0.080667ms)
+✔ pull transport manifests drop the Service and ingress, run the relay worker and carry the token only in the Secret (1.802667ms)
+✔ user namespaces are opt-in and remap both the writer and the export pod (1.125125ms)
+ℹ tests 211
+ℹ suites 0
+ℹ pass 211
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10545.860333
+
+De Vloer: mise exec -- npm run check
+
+> @webgrip/de-vloer@0.3.0-rc.16 check
+> node scripts/check.mjs
+
+Checked 123 source modules and 28 JSON files; no application entrypoint executed.
+(node:44374) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+De Vloer: mise exec -- npm run typecheck
+
+> @webgrip/de-vloer@0.3.0-rc.16 typecheck
+> tsc --noEmit
+
+
+De Vloer: mise exec -- npm run brand:check
+
+> @webgrip/de-vloer@0.3.0-rc.16 brand:check
+> node scripts/build-brand.mjs --check && bash scripts/brand-marks.sh
+
+Checked 24 brand sources in docs/brand; stroke 15, envelope 44 x 50.
+ADR-0020 — name and mark
+ok
+
+De Vloer: mise exec -- npm run license:check
+
+> @webgrip/de-vloer@0.3.0-rc.16 license:check
+> node scripts/license-check.mjs
+
+License consistency: Apache-2.0, copyright line present, 2 manifests, 2 image labels and the bundled extension copy agree; Archivo ships with its OFL text and a served route.
+
+Ploeg: mise exec -- go test ./...
+ok  	github.com/webgrip/ploeg/cmd/ploeg-worker	(cached)
+ok  	github.com/webgrip/ploeg/cmd/ploegd	(cached)
+ok  	github.com/webgrip/ploeg/internal/ledger	(cached)
+ok  	github.com/webgrip/ploeg/pkg/config	1.322s
+ok  	github.com/webgrip/ploeg/pkg/forgebroker	(cached)
+ok  	github.com/webgrip/ploeg/pkg/harness	(cached)
+ok  	github.com/webgrip/ploeg/pkg/harness/adapters/acp	(cached)
+ok  	github.com/webgrip/ploeg/pkg/harness/adapters/claudecode	(cached)
+ok  	github.com/webgrip/ploeg/pkg/harness/adapters/execbin	(cached)
+ok  	github.com/webgrip/ploeg/pkg/harness/adapters/openhands	(cached)
+?   	github.com/webgrip/ploeg/pkg/harness/harnesstest	[no test files]
+ok  	github.com/webgrip/ploeg/pkg/httpapi	(cached)
+ok  	github.com/webgrip/ploeg/pkg/litellm	(cached)
+ok  	github.com/webgrip/ploeg/pkg/llmbroker	(cached)
+ok  	github.com/webgrip/ploeg/pkg/plan	(cached)
+ok  	github.com/webgrip/ploeg/pkg/provider	(cached)
+ok  	github.com/webgrip/ploeg/pkg/provider/clickup	(cached)
+ok  	github.com/webgrip/ploeg/pkg/provider/forgejo	(cached)
+ok  	github.com/webgrip/ploeg/pkg/provider/gitlab	(cached)
+ok  	github.com/webgrip/ploeg/pkg/provider/vikunja	(cached)
+ok  	github.com/webgrip/ploeg/pkg/shiftengine	(cached)
+ok  	github.com/webgrip/ploeg/pkg/store	(cached)
+ok  	github.com/webgrip/ploeg/pkg/target	(cached)
+ok  	github.com/webgrip/ploeg/pkg/work	(cached)
+ok  	github.com/webgrip/ploeg/pkg/worker	9.662s
+
+Ploeg: mise exec -- go build ./...
+
+Ploeg: mise exec -- go vet ./...
+
+Ploeg: mise exec -- gofmt -l .
+
+Ploeg: mise exec -- helm lint ops/helm/ploeg
+==> Linting ops/helm/ploeg
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+
+Ploeg: mise exec -- sh scripts/helm-golden.sh check
+
+Ploeg: mise exec -- sh scripts/brand-marks.sh
+ADR-0022 — name and mark
+ok
+
+Ploeg: mise exec -- sh scripts/license-check.sh
+License consistency — Apache-2.0
+ok
+
+Ploeg: mise exec -- go test ./pkg/harness ./internal/ledger/
+ok  	github.com/webgrip/ploeg/pkg/harness	2.226s
+ok  	github.com/webgrip/ploeg/internal/ledger	(cached)
+
+Ploeg: mise exec -- openspec validate audit-current-documentation --strict
+Change 'audit-current-documentation' is valid
+

@@ -1,0 +1,82 @@
+name: '[Workflow] On Docs Change'
+
+on:
+  push:
+    branches: [development]
+    paths:
+      - 'docs/**'
+      - 'apps/*/docs/**'
+      - 'apps/ploeg'
+      - '.gitmodules'
+      - '**/README.md'
+      - '**/AGENTS.md'
+      - 'llms.txt'
+      - 'mkdocs.yml'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'mise.toml'
+      - 'scripts/docs*.py'
+      - 'scripts/docs-site.sh'
+      - 'scripts/tutorial-smoke.*'
+      - 'scripts/generate-domain.py'
+      - 'scripts/validate_adr_consistency.py'
+      - '.forgejo/workflows/on_docs_change.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  authorize-publication:
+    runs-on: docker
+    outputs:
+      enabled: ${{ steps.gate.outputs.enabled }}
+    steps:
+      - name: Resolve the documentation publication gate
+        id: gate
+        env:
+          DOCS_REF: ${{ github.ref }}
+          DOCS_ENABLED: ${{ vars.UNFOLD_DOCS_PUBLISH_ENABLED }}
+        run: |
+          enabled=false
+          if [ "$DOCS_REF" = 'refs/heads/development' ] && [ "$DOCS_ENABLED" = 'true' ]; then
+            enabled=true
+          fi
+          printf 'enabled=%s\n' "$enabled" >> "$GITHUB_OUTPUT"
+          printf 'Documentation publication enabled: %s\n' "$enabled"
+  generate-documentation:
+    uses: webgrip/workflows/.forgejo/workflows/techdocs-generate.yml@v2.7.7
+    with:
+      enabled: 'true'
+      source-dir: '.'
+      prepare-command: git submodule update --init --recursive && python3 scripts/docs.py --check --stage-only
+      finalize-command: python3 scripts/docs-output.py --site techdocs-site
+  deploy-docs-site:
+    needs: [generate-documentation, authorize-publication]
+    uses: webgrip/workflows/.forgejo/workflows/techdocs-deploy-docs-site.yml@v2.7.7
+    with:
+      enabled: ${{ needs.authorize-publication.outputs.enabled }}
+      source-dir: '.'
+      site-dir: '.build/site'
+      bucket: docs-glide
+      dest-prefix: glide
+      strict: 'true'
+      prepare-command: git submodule update --init --recursive && python3 scripts/docs.py --check --stage-only
+      finalize-command: python3 scripts/docs-output.py --site .build/site
+    secrets:
+      TECHDOCS_S3_ACCESS_KEY_ID: ${{ secrets.TECHDOCS_S3_ACCESS_KEY_ID }}
+      TECHDOCS_S3_SECRET_ACCESS_KEY: ${{ secrets.TECHDOCS_S3_SECRET_ACCESS_KEY }}
+  verify-publication:
+    needs: [authorize-publication, deploy-docs-site]
+    if: ${{ needs.authorize-publication.outputs.enabled == 'true' }}
+    runs-on: docker
+    timeout-minutes: 5
+    container: harbor.webgrip.dev/webgrip/techdocs-builder:1.8.0@sha256:2726a41cd7f3d40813baf3301a65b7f1cc6fa47d43518d57b3f1f0e4dc95150a
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+      - run: python3 scripts/docs.py --stage-only
+      - name: Verify live pages, Markdown, revision and search
+        run: python3 scripts/docs-live.py

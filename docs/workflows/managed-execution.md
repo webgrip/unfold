@@ -1,0 +1,121 @@
+---
+type: how-to
+audience: [operator, integrator]
+owner: unfold
+last_verified: 2026-09-23
+verified_by: "Checked each named command, setting, environment variable, UI label and qualification test against apps/ploeg (ops/helm/ploeg values and templates, cmd/ploegd/operator.go, pkg/httpapi qualification tests) and apps/unfold (package.json, config/unified.example.json, src/delivery-config.ts, public/app.js, public/delivery.js, scripts/qualify-*.ts); the external Renovate rule was not re-read. On 2026-09-30 the browser pages and lane names in Use it were re-read against apps/unfold at 68c90cf on feat/unfold-redesign (public/shell.js, public/ploeg.js) and the editor view name in extensions/vscode/package.json"
+---
+
+# Run the unified workbench
+
+For a local browser test with real Ploeg authority and PostgreSQL, run `mise run demo-unified` from Unfold. The [local demonstration guide](local-demo.md) covers prerequisites, supervision, pause/resume and cleanup. It uses the actual code from both applications, a deterministic fixture and zero model calls; no cluster deployment is required.
+
+Unfold now combines Ploeg's work overview with an opt-in path for Ploeg-owned interactive execution. Start with the read connection, then enable shared execution for one registered repository and team. The [execution contract](../../apps/unfold/docs/contracts/ploeg-execution.md) describes ownership, recovery and remaining limits.
+
+## Configure the services
+
+For a cluster pilot, use an isolated Ploeg namespace and database, one registered repository/team, one concurrent workbench session and a small explicit inference budget. Start with Unfold and its Docker workspace/verifier on the workstation. Keep unattended executors and publication disabled until this path is qualified with the actual gateway and repository.
+
+Build from matching releases: Unfold from an `unfold-v…` release, and Ploeg from the [ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) release of the commit Unfold pins (`git -C apps/ploeg describe --tags`). Existing Ploeg deployments must review the [managed-worker migration](../../apps/ploeg/docs/ops/managed-workers.md): managed worker authentication is now the default and requires its control-plane credentials and policies. Pin chart and image versions in Git; let Flux reconcile the reviewed manifests.
+
+Publishing a prerelease does not change the `latest` tag, but deployment automation can still select it. On 2026-09-11, the homelab [Renovate configuration](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/.renovaterc.json5) allowed Ploeg prereleases alongside matching patch/minor automerge rules. Review the current rules and deployment pins before a pilot release is adopted into an existing environment. The local demonstration does not modify these settings.
+
+Use [the unified example](../../apps/unfold/config/unified.example.json) as a profile. Supply environment-specific URLs through your deployment configuration. Provision secret values through the estate's vault and existing ExternalSecret workflow; this guide contains names and references only.
+
+1. Configure a Ploeg operator consumer with explicit team scope. Grant read access first. Grant `execute: true` and an explicit `maxBudgetUsd` when enabling execution. Ploeg's chart supports `operator.consumers[].tokenSecret` references; it mounts consumer credentials only on the controller.
+2. Point Unfold's `ploeg.url` at Ploeg's authenticated internal API, and `ploeg.tokenEnv` at that consumer's environment variable. Do not expose the operator API through the public webhook route.
+3. Map actual Unfold user IDs to teams with `ploeg.userTeams`. Unmapped non-administrators are denied. Administrators still remain inside the configured deployment and upstream consumer scope. To let people trace bugs to Run cards, map each Unfold user ID to that person's forge login with `ploeg.forgeLogins`. Ploeg compares it with the card's steward, so only an administrator sets it ([Unfold ADR 0030](../../apps/unfold/docs/adrs/0030-vloer-traces-bugs-under-an-administrator-mapped-forge-login.md)).
+4. Configure `execution.team` to opt in to shared execution. Register the repository in Unfold and set `executionOwner: "ploeg"`. This manual lane does not import a tracker item or create a duplicate assignment.
+5. Configure a Ploeg managed inference policy for the team's `operator` role, including allowed model aliases, a budget ceiling and TTL. The chart exposes `executor.workerAuth.additionalLLMPolicies` for that policy. The actual key authorization is capped by the requested Run budget.
+6. Supply Unfold's inference gateway base URL and the selected workspace backend. A shared workbench does not need the LiteLLM master key. Use the existing authenticated repository-link flow for Git access.
+
+The same consumer token must resolve in Ploeg and Unfold. Ploeg's consumer registry is loaded at startup; rotate it through the deployment's secret lifecycle. Unfold reads its environment value server-side, and never sends it to browsers, editor clients or agent workspaces. Provider and region restrictions must be enforced in the control-plane gateway policy for shared execution.
+
+An example registration shape, with secret material omitted:
+
+```json
+[
+  {
+    "name": "unfold",
+    "tokenEnv": "PLOEG_OPERATOR_UNFOLD_TOKEN",
+    "teams": ["delivery"],
+    "execute": true,
+    "maxBudgetUsd": 1
+  }
+]
+```
+
+The registry is `PLOEG_OPERATOR_CONSUMERS`; the separate named environment variable contains the credential. Ploeg rejects short or malformed consumer credentials and unscoped execution details. Read access and execution access are independent. Existing unconfigured operator routes stay closed.
+
+## Use it
+
+Open **Now** or **Work** in the browser, or the **Ploeg** view in the editor. In Work, choose a Team, or all of them, and a lane: **Ready for review**, **Needs you**, **Running**, **Queued** or the paginated **All**. A Work Item's page gives the writing agent's problem and solution, says why it waits and what to do, then shows its shifts and runs, reviewer findings, safe audit records with the checkpoints, and observed versus unresolved budget. Every snapshot states its limits. In the browser a failed refresh keeps the last data read, with its age in the status strip ("Updated … ago") and, on Now, Proposed, Runs, Activity and Insights, a notice that it could not refresh. The editor clears content it can no longer read rather than presenting it as live.
+
+Create a session with a registered repository, a crew, a concrete objective and a budget. Start explicitly. Its **Ploeg runs this session** card shows the Team, who supervises and the Work Item's state, and links to the Work Item. **Continue in background** and **Supervise here** retain the execution, workspace and history. A message becomes durable before it is accepted for the next turn. Permission and question responses continue through the existing session UI.
+
+Close the client and reconnect: execution remains server-owned. Pause waits for runtime interruption and acknowledges it to Ploeg. Resume is explicit and advances the generation. Cancel persists intent, stops locally even if Ploeg is unreachable, and retries reconciliation without restarting work.
+
+## Recovery
+
+| Situation | Expected behavior |
+| --- | --- |
+| Start response is lost | Replay the same admission or command identity; no second Run |
+| Browser disconnects | Crew continues under its existing grant; history is replayable |
+| Ploeg becomes unreachable | Workbench interrupts, attempts key blocking, preserves unresolved state |
+| Pause cannot confirm interruption | Resume remains blocked; capability blocking is attempted |
+| Unfold restarts | Active sessions become interrupted; no native turn starts automatically |
+| Credential response is lost | Account remains issued or uncertain; another key is not minted |
+| Gateway billing is delayed | Show unknown/provisional spend; retain authorization |
+| Cancellation races with admission | The recorded stop supersedes launch; no workspace or paid turn starts |
+
+Keep both stores and the workbench encryption key backed up. Restoring session JSON without the internal encrypted state cannot recover issued inference keys and must not trigger replacement issuance. Preserve native workspaces and candidate evidence during investigation. A failed shared execution needs an explicit new session after accounting reconciliation; changing a local flag must never revive it.
+
+## Reproduce qualification
+
+From the Unfold root, the ordinary suites need no provider credentials:
+
+```sh
+mise run verify
+mise exec -- npm --prefix apps/unfold run test:browser
+```
+
+The shared qualification also has a root command:
+
+```sh
+mise run integration
+```
+
+The Go test starts real PostgreSQL and Ploeg HTTP handlers, creates an ephemeral scoped consumer and launches [the workbench qualification](../../apps/unfold/scripts/qualify-ploeg.ts). That script uses the real Unfold HTTP API and deterministic runtime: it changes a real Git fixture, executes failing and passing checks, verifies the review, detaches a stream, changes supervision, pauses, resumes, cancels, reopens the application and checks retained evidence. Its output explicitly reports zero inference calls and zero spend. This is distinct from the illustrative records in an unconnected demo workbench.
+
+The same run also exercises the paid path's credential lifecycle against a [local fake LiteLLM gateway](../../scripts/fake-litellm.mjs). Ploeg's real broker and PostgreSQL inference accounts serve [a second workbench qualification](../../apps/unfold/scripts/qualify-ploeg-inference.ts). Admission reserves the budget, the first role mints a capped, model-scoped key, and completion or cancellation blocks it. A blocked capability cannot resume. The fake gateway refuses inference and reports zero spend, so the report still records zero model calls and zero spend. Its limits state that no real gateway, model or budget enforcement ran.
+
+See [validation](../../apps/unfold/docs/validation.md) for the recorded result. A production pilot still needs one live scoped OpenCode run against the estate's LiteLLM/Fireworks route, actual workspace isolation, attributable metering, intervention, key blocking and cleanup. Start with one team and measure time to reviewed result and human intervention minutes before increasing concurrency.
+
+## Planning beyond this baseline
+
+Live publication, agent delegation and broader repair workflows require separate design and qualification. Use the [product questions](../landscape/questions.md), [research baseline](../../apps/unfold/docs/research/2026-09-10-unified-workbench-baseline.md) and [planning guide](../../apps/unfold/docs/operations/backlog.md). This operating procedure does not set implementation priority.
+
+## Adopt an existing tracker item
+
+The [tracker binding contract](../../apps/unfold/docs/contracts/ploeg-tracker-binding.md) extends the manual path. Register an exact source and Work Target in `taskSources[].ploeg`. The first adapters are Ploeg's configured Vikunja and ClickUp instances. Preview and import show the existing Ploeg item; Start refetches the original owner's tracker access and checks the frozen native revision, scope, routing target and Ploeg row version.
+
+Only queued, pristine work can be adopted. Ploeg atomically retires wholly unstarted pending Runs and fences both claim paths and the KEDA scale predicate. Work with a started Run, paid authorization, durable checkpoint or live writer is rejected. The tracker retains its provider, native ID, origin, content and priority. A later webhook cannot requeue the operator-owned item, even after cancellation or completion. General ownership release and active-worker takeover remain separate work.
+
+## Enable independent candidate checks
+
+Follow the [candidate delivery contract](../../apps/unfold/docs/contracts/candidate-delivery.md) to register one trusted policy. Provision its approved base bundle, pinned image and policy files outside workspace storage. Add a distinct Ploeg consumer with `verify: true`, team scope and no execution permission; give only the control service its secret reference through `delivery.verifierTokenEnv`. Register the matching policy digest, `verifierId: "unfold-docker-v1"` and minimum fixed check count in Ploeg's `PLOEG_OPERATOR_DELIVERY_POLICIES`. Keep `publicationEnabled: false`.
+
+Once a shared session has completed and confirmed stop, **Run independent checks** creates a canonical commit on the approved base and executes the policy in fresh Docker containers. Review its canonical bundle and check results, then **Approve this commit**. The approval and receipt live in Ploeg; the UI explicitly states that publication is disabled. The ordinary session review does not authorize publication.
+
+From `apps/ploeg`, the optional delivery qualification is:
+
+```sh
+PLOEG_WORKBENCH_PATH=/absolute/path/to/unfold/apps/unfold \
+UNFOLD_VERIFIER_IMAGE='<existing immutable image ID or digest>' \
+UNFOLD_DOCKER_SOCKET='<Docker Engine socket>' \
+mise exec -- go test ./pkg/httpapi -run TestOperatorDeliveryWorkbenchQualification -v -count=1
+```
+
+The [recorded authority qualification](../../apps/unfold/docs/research/evidence/delivery-2026-09-11/authority-qualification.json) used real PostgreSQL, both HTTP services, Git objects, fixed checks in fresh containers, restart, receipt replay and candidate-bound approval. The [separate verifier qualification](../../apps/unfold/docs/research/evidence/delivery-2026-09-11/docker-verification.json) proves failure before the fix, success after it, and rejection of fake success output with a failing process exit. Neither submitted model inference or published to a forge.
+
+The [tracker admission qualification](../../apps/unfold/docs/research/evidence/delivery-2026-09-11/tracker-authority-qualification.json) is independently reproducible from Ploeg with `PLOEG_WORKBENCH_PATH=/absolute/path/to/unfold/apps/unfold mise exec -- go test ./pkg/httpapi -run TestOperatorTrackerWorkbenchQualification -v -count=1`. It uses a local Vikunja HTTP fixture and controlled runtime, and records the committed-admission response loss plus one retained canonical Work Item.

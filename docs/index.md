@@ -1,0 +1,45 @@
+---
+type: landing
+audience: [owner, operator, integrator, contributor, agent]
+owner: unfold
+last_verified: 2026-09-22
+verified_by: "ADR-0002; mise run docs-check"
+---
+
+# Unfold
+
+Unfold turns units of work into pull requests that AI agents write and you review.
+
+A unit of work, a **Work Item**, is something you have decided to do, or a problem described well enough that a solution can be formulated or at least conceived. You assign it to an agent team. Unfold runs the agents with a budget and a credential that expires, until a pull request is ready for your review, and you merge. Work can also create work: splitting a Work Item, or making it ready, is a job for agents too.
+
+**Status:** internal tool, pre-1.0, one owner, self-hosted on Kubernetes. Not a hosted service.
+
+**Parts:**
+
+* [Ploeg](../apps/ploeg/docs/index.md) authorizes, budgets and runs every agent Run. It is a Go controller plus short-lived worker pods.
+* [The Unfold application](../apps/unfold/docs/index.md) is the front end, where you follow and steer work, in the browser or in VS Code.
+
+The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg), and Unfold pins one tested commit of it as a submodule at `apps/ploeg` ([ADR-0019](adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)). The two deploy separately ([ADR-0002](adr/adr-0002-ploeg-is-the-only-engine.md)).
+
+| I want to… | Go to |
+| --- | --- |
+| See it work without spending money | [Run the local demo](workflows/local-demo.md) (deterministic, no model calls) |
+| Understand how a Work Item becomes a pull request | [How work flows](concepts/how-work-flows.md) |
+| Understand the parts and why they exist | [Architecture](concepts/architecture.md) |
+| See what happens inside one agent Run: pods, sandbox, harness, credentials | [Inside a Run](concepts/inside-a-run.md) |
+| Follow a whole path end to end: ticket to merge, release to production, stopping work, failures | [Journeys](concepts/journeys.md) |
+| See who Unfold is for and where it is heading | [Who Unfold is for](concepts/who-unfold-is-for.md) (the agency offering; not built yet) |
+| See how each delivered change is recorded on a card, and what that means for privacy | [Run Cards](concepts/run-cards.md) (mostly proposed) · [Works council and DPIA pack](reference/run-cards-works-council-pack.md) |
+| Give real work to agents | [Assign work to an agent](how-to/assign-work-to-an-agent.md) |
+| Check an agent's pull request before merging | [Review an agent pull request](how-to/review-an-agent-pr.md) |
+| Let agents work in a repository | [Prepare a repository](how-to/prepare-a-repository.md) |
+| Try a Team on ten real Work Items, or compare prompts, models and harnesses | [Run a pilot batch](how-to/run-a-pilot-batch.md) |
+| Operate Ploeg or the Unfold application | [Ploeg](../apps/ploeg/docs/index.md) · [Unfold application](../apps/unfold/docs/index.md) |
+| Use the Unfold name, mark or colours | [Brand](brand/README.md) · [Trademark policy](brand/TRADEMARK.md) (proposed) |
+| Check what the website claims about credentials and execution, and which settings each claim needs | [Capability matrix](reference/capability-matrix.md) |
+| Look up a term or a decision | [Glossary](reference/glossary.md) · [Decisions](reference/decisions.md) |
+| Change Unfold | [Repository instructions](../AGENTS.md) · [Documentation policy](documentation.md) · [CI and releases](operations/ci.md) |
+
+**Out of scope:** Unfold does not merge or deploy the changes agents make. It does not host models; it reaches providers through your LiteLLM gateway.
+
+Research, dated evidence and superseded explanations are kept as records. They are linked where they support a decision and are not current guidance. The [22 September inventory](research/2026-09-22-glide-inventory.md) explains the current structure.

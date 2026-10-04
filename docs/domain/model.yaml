@@ -1,0 +1,858 @@
+project: Unfold
+owner: unfold
+description: >
+  Unfold turns units of work (Work Items) into pull requests that are ready for human review.
+  Ploeg authorizes, budgets and executes every agent Run; Unfold is its front end
+  (system ADR-0002). Without Ploeg, Unfold runs only its deterministic demo, which
+  makes no model calls. Until Unfold's own engine is retired, a managed execution
+  never falls back to it. This model includes intended product rules; it is not a
+  feature inventory. Current behavior is documented in ../index.md and the
+  application architecture guides. Execution terms such as Run, Shift, Lease,
+  Team, Role and Outcome belong to Ploeg's model; this model imports them.
+  The agency offering (Unfold ADRs 0005 to 0010) is decided and not implemented;
+  its terms are in the Offering and Billing contexts.
+version: "0.5"
+combined_glossary: ../reference/glossary.md
+references:
+  - label: system ADR-0002
+    path: ../adr/adr-0002-ploeg-is-the-only-engine.md
+    note: Ploeg is the only execution engine and Unfold is its front end.
+  - label: system ADR-0005
+    path: ../adr/adr-0005-unfold-is-offered-to-agencies.md
+    note: Unfold is offered to agencies; delivery ends at a reviewed pull request with a preview.
+  - label: system ADR-0006
+    path: ../adr/adr-0006-the-ticket-is-the-billing-unit.md
+    note: A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
+imports:
+  - model: ../../apps/ploeg/docs/domain/model.yaml
+    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Work Target, Tracker Item, Follow-Up, Admission, Authority]
+contexts:
+  - name: System
+    description: The applications that make up Unfold and how they divide the work.
+  - name: Work
+    description: Requested results, their evidence, and their acceptance.
+  - name: Participation
+    description: How people take part in AI work through Unfold and inspect what happened.
+  - name: Execution
+    description: The product view of AI work. Ploeg's model owns the execution vocabulary.
+  - name: Offering
+    description: >
+      Who uses Unfold and what they see: Agencies, their Clients and the Client
+      Portal. Decided in Unfold ADRs 0005 to 0010; not implemented yet.
+  - name: Billing
+    description: >
+      How work is sized, quoted and charged: Sizes, Quotes, Credits and the two
+      parts of a price. Decided in system ADR-0006; not implemented yet.
+  - name: Cards
+    description: >
+      Run Cards: the record of each delivered change and its life in
+      production. Ploeg assembles a card per Work Item and Unfold renders it
+      (Ploeg ADR-0046, Unfold ADR 0026); the rest of this context is proposed.
+      See ../concepts/run-cards.md.
+  - name: Release
+    description: How Unfold's own source, releases and documentation are proven and switched over.
+  - name: Tooling
+    description: External tools and protocols that Unfold builds on or has evaluated.
+terms:
+  - name: Unfold
+    context: System
+    owner: unfold
+    definition: >
+      The product, its application and the monorepo that holds them. In the
+      Unfold application, in the browser and the VS Code extension, people
+      define work, follow it, steer agents and review evidence; Ploeg, pinned
+      into the monorepo as a submodule, admits and runs every Run. Without Ploeg
+      the application runs only a deterministic demo that makes no model calls.
+    examples: ["Current state: Unfold's own engine still executes delegated Steps until the system ADR-0002 migration is complete."]
+    see_also: [Ploeg, Session, Step]
+  - name: Ploeg
+    context: System
+    owner: ploeg
+    definition: >
+      Unfold's execution engine and its only Authority. It takes work from trackers
+      and from Unfold, admits it, sets its budget, controls who may write each
+      branch and runs the agents. Dutch for a crew or shift team.
+    see_also: [Unfold, Admission, Authority, Run, Shift]
+  - name: Ready
+    context: Work
+    definition: >
+      A Work Item is ready when it states something we have decided to do, or
+      describes a problem in enough detail that a solution can be formulated or
+      at least conceived. Ready work can be given to agents. Work that is not
+      ready can itself be given to agents whose job is to make it ready. A
+      Client's Definition of Ready adds conditions for that Client's work; it
+      never removes this baseline.
+    see_also: [Work Item, Acceptance Conditions, Follow-Up, Client Profile, Refinement]
+  - name: Acceptance Conditions
+    context: Work
+    definition: >
+      The observable conditions a Result must satisfy to answer the requested work.
+      They depend on the work; software tests alone cannot validate a business case.
+      For a Client's work, the Client's Definition of Done supplies conditions and
+      the Agency's own definition wins where they conflict.
+    see_also: [Work Item, Result, Review, Acceptance, Client Profile]
+  - name: Result
+    context: Work
+    definition: >
+      What a Work Item delivers, together with the evidence needed to judge it. It
+      can be a code change, a research conclusion, a design or another requested
+      deliverable.
+    not_to_be_confused_with:
+      - term: Outcome
+        note: Ploeg's terminal code for one Run, such as pr_opened or stuck.
+    see_also: [Work Item, Evidence, Review]
+  - name: Evidence
+    context: Work
+    definition: >
+      Inspectable material supporting a claim about a Result or a Run, such as
+      cited research, an actual change, or the output of an executed check.
+    see_also: [Result, Review]
+  - name: Review
+    context: Work
+    definition: >
+      An assessment of a Result against its Acceptance Conditions and supporting
+      Evidence. A favorable assessment is distinct from releasing software to production.
+    not_to_be_confused_with:
+      - term: Verdict
+        note: A reviewing Run's approve or request_changes answer. It is Evidence for a Review, not acceptance.
+    see_also: [Result, Acceptance Conditions, Evidence, Verdict]
+  - name: Session
+    context: Participation
+    owner: unfold
+    definition: >
+      Unfold's continuing record of a person's interaction around work:
+      instructions, questions, actions and results. Closing a browser does not
+      erase it. A started session is linked to one Ploeg Work Item, Shift and Run.
+    not_to_be_confused_with:
+      - term: Shift
+        note: Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.
+    see_also: [Work Item, Shift, Crew]
+  - name: Crew
+    context: Participation
+    owner: unfold
+    definition: >
+      Unfold's registered, reusable list of one to eight Roles that a Session
+      runs in order. Each Role either writes or only reads, and may name its
+      model; the final Role gives the review Verdict. An administrator registers
+      crews in configuration and a person picks one when starting a Session. In
+      Ploeg's language this is a Team. New text says Team; "Start crew" remains
+      an Unfold interface label.
+    not_to_be_confused_with:
+      - term: Team
+        note: Ploeg's manifest of Roles, budget and concurrency that claims a Work Item. Ploeg avoids "crew".
+    see_also: [Team, Role, Session, Step]
+  - name: Step
+    context: Participation
+    owner: unfold
+    definition: >
+      A part of one Run that Unfold performs internally, such as one Crew role in
+      a delegated Run. A Step is not a separate Ploeg Run and has no Lease or
+      budget of its own.
+    avoid: [role run]
+    not_to_be_confused_with:
+      - term: Run
+        note: One Role executing against a Work Item, authorized by Ploeg.
+    see_also: [Run, Crew, Unfold]
+  - name: Candidate
+    context: Participation
+    owner: unfold
+    definition: >
+      The reviewable change Unfold captures from a Session's Workspace when its
+      Crew stops: a Git bundle, a binary patch and a manifest, signed when the
+      workbench key is available. It is ready, or unavailable with a reason.
+      Capturing it never publishes or merges anything.
+    not_to_be_confused_with:
+      - term: Delivery Candidate
+        note: Ploeg's immutable record of one canonical commit rebuilt from a Candidate on an approved base, used for verification and approval.
+      - term: Result
+        note: What a Work Item delivers with its Evidence; a Candidate is one piece of that Evidence.
+    see_also: [Session, Workspace, Evidence, Review]
+  - name: Placement
+    context: Participation
+    owner: unfold
+    definition: >
+      Where a Session's Workspace runs, chosen per Session from the backends a
+      deployment enables: a container on the workbench host (docker), a pod in
+      the cluster (kubernetes) or a working directory shared with the server
+      (local). Omitted, it takes the deployment default. A demonstration lists
+      no placements.
+    see_also: [Session, Workspace]
+  - name: Supervision
+    context: Participation
+    owner: unfold
+    definition: >
+      Whether a person is watching a Ploeg-authorized Session live (human) or
+      has handed it back to run on its own (background). Switching it changes
+      only who is paying attention; the same execution keeps running and no new
+      Run starts. Standalone Sessions have no supervision setting.
+    see_also: [Session, Run, Authority]
+  - name: Agent
+    context: Execution
+    definition: >
+      A software participant that uses a model and tools to perform assigned work
+      through a Harness. A named agent Role does not imply a separate running process.
+    see_also: [Harness, Role, Run]
+  - name: Model Provider
+    context: Execution
+    definition: >
+      The service that runs a model and answers inference requests. A provider
+      can run outside the cluster that hosts an agent's files and tools.
+    examples: [Fireworks.ai, DeepSeek]
+    see_also: [Harness]
+  - name: Workspace
+    context: Execution
+    definition: >
+      The working environment containing the files and tools available to a Run.
+      Its contents are separate from the ticket and from the decision to accept a Result.
+    see_also: [Run, Harness, Evidence]
+  - name: Budget
+    context: Execution
+    definition: >
+      An authorized spending limit for work. It is separate from a provisional
+      usage estimate and from the eventual reconciled charge. Ploeg holds the
+      budget pool of each Shift. A Budget is named by what it limits: a Shift
+      Budget (set by the Work Item's Size), a Client Budget (per Client per
+      month, set by the Agency) or an Agency Budget (metered usage per month).
+      Its cap is the limit amount, not a separate concept.
+    avoid: [cap (as a noun for a limit)]
+    see_also: [Shift, Authority, Size, Client, Agency]
+  - name: Qualification
+    context: Release
+    definition: >
+      Recorded, repeatable proof that a component or path works as required
+      before anyone relies on it. For example, `mise run integration` qualifies
+      the execution paths with a deterministic fixture, no model calls and no
+      spend. A qualification record states what it did not cover.
+    see_also: [Cutover]
+  - name: Cutover
+    context: Release
+    definition: >
+      The switch from the old per-application repositories to Unfold for releases
+      and published documentation, including a first live pilot. Documentation
+      publishing has moved to Unfold; release cutover waits for its own
+      Qualification.
+    see_also: [Qualification]
+  - name: TechDocs
+    context: Tooling
+    definition: >
+      Backstage's documentation format: a static site built from Markdown by
+      MkDocs with the techdocs-core plugin. `mise run docs-check` builds Unfold's
+      TechDocs output in strict mode.
+    see_also: [Zensical]
+  - name: Zensical
+    context: Tooling
+    definition: >
+      The static site generator that renders Unfold's published human pages from
+      the same mkdocs.yml and Markdown sources. The builder image pins its version.
+    see_also: [TechDocs]
+  - name: OpenSpec
+    context: Tooling
+    owner: ploeg
+    definition: >
+      A spec-driven change workflow and CLI. Ploeg keeps its change proposals and
+      specs under apps/ploeg/openspec; mise.toml pins the CLI. A Work Item can
+      name a change with a description line "openspec: <change-id>"; its Run is
+      then briefed from the change and handed off for review only when strict
+      validation of the change passes.
+  - name: AHP
+    context: Tooling
+    owner: unfold
+    definition: >
+      Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent
+      Host and other clients share agent sessions. Unfold implements an AHP host
+      for its VS Code extension. Ploeg ADR-0006 keeps AHP out of Ploeg's harness
+      boundary.
+    synonyms: [Agent Host Protocol]
+    see_also: [Unfold, Harness]
+  - name: Acceptance
+    context: Work
+    definition: >
+      The Agency's decision that a pull request delivers its Work Item. An
+      explicit approval, a merge with or without review, or no decision ten
+      working days after the pull request opened all count. Acceptance charges
+      the Delivery Fee. A Client's feedback on the Preview Environment is input
+      to it, not Acceptance itself.
+    avoid: [client acceptance, silent approval]
+    not_to_be_confused_with:
+      - term: Review
+        note: An assessment of a Result against its Acceptance Conditions; Acceptance is the Agency's decision that follows.
+      - term: Verdict
+        note: A reviewing Run's answer; Evidence for the Agency, never Acceptance.
+    see_also: [Delivery, Delivery Fee, Review, Acceptance Conditions, Agency]
+  - name: Preview Environment
+    context: Work
+    definition: >
+      A running copy of one pull request's change, deployed with generated test
+      data by a CI step in the Agency's own pipeline, to the Agency's
+      infrastructure or to Unfold's preview hosting in the Agency's Tenant. Its
+      address is posted to the pull request and the Client Portal. It is deleted
+      when the pull request merges or closes, or after an idle limit, and never
+      receives production secrets.
+    synonyms: [Preview]
+    avoid: [staging, review app]
+    see_also: [Acceptance, Client Portal, Tenant]
+  - name: Refinement
+    context: Work
+    definition: >
+      Turning a Request into one or more Ready Work Items, each with Acceptance
+      Conditions and a proposed Size. A refinement Role does it, asks for missing information
+      through the Agency, and cannot dispatch the Work Item. Its Ready Check
+      tells the Agency, before any Shift spend, whether the Work Item is ready
+      for agents. Sold on its own, it is request-to-quote.
+    synonyms: [request-to-quote]
+    see_also: [Request, Ready, Quote, Size, Client Profile]
+  - name: Attention Path
+    context: Work
+    definition: >
+      A repository path whose changes need careful review, listed as a glob in
+      .unfold/attention or covered by CODEOWNERS. Agents may change it; a pull
+      request that does is labelled and lists those files first.
+    see_also: [Review, Diff Limit]
+  - name: Diff Limit
+    context: Work
+    definition: >
+      The most changed lines and files a Size allows in one pull request,
+      counted without tests, lockfiles and generated files. A Shift that would
+      exceed it stops and proposes a split into Follow-Ups.
+    avoid: [diff budget]
+    examples: ["S: at most 150 lines in 5 files."]
+    see_also: [Size, Follow-Up, Attention Path]
+  - name: Agency
+    context: Offering
+    definition: >
+      A business that uses Unfold to build software for its Clients and pays for
+      it. A freelancer, or an in-house team that is its own only Client, is an
+      Agency too. An Agency reviews and merges every pull request and owns
+      production. It uses Unfold hosted, in its own Tenant, or self-hosted.
+    avoid: [customer, operator, reseller]
+    not_to_be_confused_with:
+      - term: Tenant
+        note: The isolated space that holds one Agency's work in hosted Unfold.
+      - term: Client
+        note: The Agency's own customer.
+    see_also: [Tenant, Client, Acceptance]
+  - name: Tenant
+    context: Offering
+    definition: >
+      The isolated space that holds one Agency's Work Items, Shifts, credentials,
+      Preview Environments and Budgets: in hosted Unfold its own namespaces,
+      default-deny network, sandboxed runtime and model budget. Ploeg records it
+      on every Team, Work Item, Shift and credential. Every install has at least
+      one; a self-hosted install starts with a default Tenant. Clients are users
+      and owners of sources inside a Tenant, never Tenants. Decided by ADR-0017
+      (2026-10-04); not implemented yet.
+    see_also: [Agency, Client, Preview Environment]
+  - name: Client
+    context: Offering
+    definition: >
+      An Agency's customer. A Client submits Requests, answers Refinement
+      questions, approves Quotes and gives feedback on Preview Environments in
+      the Client Portal. Unfold never contacts a Client directly. Inside a
+      Tenant a Client owns tracker sources and repositories, and its users see
+      only the Work Items from them (ADR-0017, decided 2026-10-04, not
+      implemented yet).
+    avoid: [customer, end client, end customer]
+    see_also: [Agency, Client Portal, Client Profile, Quote, Request]
+  - name: Client Portal
+    context: Offering
+    owner: unfold
+    definition: >
+      The part of Unfold where Clients submit Requests, talk to the refinement
+      agent, approve Quotes and open Preview Environments through signed links.
+      It shows the Agency's price; Unfold's own charge is hidden unless the
+      Agency shows it.
+    synonyms: [Portal]
+    see_also: [Client, Quote, Unfold]
+  - name: Client Profile
+    context: Offering
+    definition: >
+      A Client's Definition of Ready, Definition of Done and extra instructions
+      for agents. It ranks below the delivery contract, like repository
+      instructions. The Definition of Done becomes Acceptance Conditions.
+    see_also: [Client, Ready, Acceptance Conditions, Refinement]
+  - name: Ticket
+    context: Offering
+    definition: >
+      The word Agencies and Clients use for a Work Item with a Quote. Use it
+      only in the Client Portal, sales material and price lists. Everywhere
+      else, including code and these docs, say Work Item: the unit of work is
+      the Work Item, whatever its source.
+    see_also: [Work Item, Quote, Tracker Item]
+  - name: Size
+    context: Billing
+    definition: >
+      The class S, M or L that Refinement proposes for a Work Item and the
+      Client approves in its Quote. A Size sets the Delivery Fee in Credits,
+      the Shift Budget and the Diff Limit. There is no larger Size; Refinement
+      splits work estimated above L.
+    examples: ["S: 1 Credit, a €4 Shift Budget, at most 150 changed lines in 5 files."]
+    see_also: [Quote, Credit, Budget, Diff Limit]
+  - name: Quote
+    context: Billing
+    definition: >
+      A Work Item's Size and the Agency's price for it, drafted by Refinement
+      and approved by the Client or by the Agency on its behalf. A Work Item
+      with a Client waits as proposed until its Quote is approved.
+    see_also: [Size, Refinement, Client, Ticket]
+  - name: Credit
+    context: Billing
+    definition: >
+      The unit of the Delivery Fee: one Credit pays for one accepted S Work
+      Item. Agencies buy Credits in bundles, and a Credit is always shown with
+      its euro value. Paid Credits never expire while the account is active;
+      promotional Credits can expire and are used first. Tokens and hosting are
+      charged in euros, never in Credits.
+    not_to_be_confused_with:
+      - term: Budget
+        note: An authorized spending limit, not something bought.
+    see_also: [Delivery Fee, Size]
+  - name: Delivery Fee
+    context: Billing
+    definition: >
+      The part of a Work Item's price paid in Credits, charged only on
+      Acceptance. A Shift that ends without a Delivery returns its Credits.
+    see_also: [Credit, Token Charge, Acceptance, Delivery]
+  - name: Token Charge
+    context: Billing
+    definition: >
+      The part of a Work Item's price charged for every attempt: model tokens
+      and compute at cost plus the Agency's Markup, up to the Shift Budget.
+      Rejected work still pays it; attempts that fail through Unfold's own fault
+      do not.
+    see_also: [Delivery Fee, Markup, Budget]
+  - name: Markup
+    context: Billing
+    definition: >
+      The published percentage Unfold adds to token and compute cost when
+      billing an Agency. It is the same for every Agency. The price an Agency
+      charges its Client is the Agency's own and is not a Markup.
+    avoid: [markup tier]
+    see_also: [Token Charge, Agency]
+  - name: Delivery
+    context: Billing
+    definition: >
+      A Work Item whose pull request received Acceptance. The Delivery Fee is
+      charged per Delivery. The delivery rate is Deliveries divided by closed
+      Work Items.
+    not_to_be_confused_with:
+      - term: Delivery Candidate
+        note: Ploeg's immutable record of one canonical commit prepared for verification.
+    see_also: [Acceptance, Delivery Fee, Work Item]
+  - name: Request
+    context: Offering
+    definition: >
+      A Client's ask and the conversation about it, received through the Client
+      Portal, a tracker or email. Refinement turns one Request into one or more
+      Work Items, each with its own Quote. A Request is never dispatched; only
+      its Work Items are.
+    avoid: [client ticket]
+    not_to_be_confused_with:
+      - term: Work Item
+        note: The unit of work Ploeg runs Shifts against; a Request becomes one or more of them.
+    see_also: [Client, Refinement, Quote, Client Portal]
+  - name: Edition
+    context: Offering
+    definition: >
+      The plan an Agency is on: Freelancer, Studio, White label or Enterprise.
+      It sets the monthly platform fee and the Credits it includes. Every feature
+      is in the open-source code, so an Edition buys hosting, support or white
+      labelling, never features.
+    see_also: [Agency, Credit]
+  - name: Dispute
+    context: Billing
+    definition: >
+      A disagreement between Unfold and an Agency about a charge, such as a
+      change resembling a closed pull request that landed on the base branch on
+      a weak match. It opens with ten working days' notice before any charge. A
+      Client objecting to a Preview Environment is feedback that the Agency
+      decides against the Acceptance Conditions, not a Dispute.
+    avoid: [preview dispute, client dispute]
+    see_also: [Reversal, Acceptance, Delivery Fee]
+  - name: Reversal
+    context: Billing
+    definition: >
+      The refund of a Delivery Fee when an accepted change is reverted within
+      14 days for a defect inside its Acceptance Conditions.
+    avoid: [chargeback]
+    see_also: [Delivery Fee, Acceptance, Dispute]
+  - name: Run Card
+    context: Cards
+    definition: >
+      The record of one Work Item's change and its life in production: who
+      carried it, what its Runs cost, its Plays, review, CI and deployments,
+      and, as proposed, its Grade, Rarity, Cracks and Mends. Ploeg assembles it
+      from stored facts and Unfold renders it (Ploeg ADR-0046, Unfold ADR 0026).
+      It describes a change, never a person, and its state never changes what
+      Ploeg authorizes, budgets or merges.
+    synonyms: [card]
+    not_to_be_confused_with:
+      - term: Run
+        note: One Role executing against a Work Item. A Run Card covers every Run of its Work Item, across all its Shifts.
+    examples: ["Work Item 138 has one Run Card with two Plays: #57, closed after a test Bounce, and #61, merged."]
+    see_also: [Work Item, Play, Steward, Roster, Finish, Grade, Rarity, Skin]
+  - name: Play
+    context: Cards
+    owner: ploeg
+    definition: >
+      One pull request of a Work Item as its Run Card shows it, oldest first.
+      A pull request closed after a Bounce and its merged successor are two
+      Plays on one card. Cost and lines are summed across Plays, and each
+      Play's Runs appear as its crew.
+    see_also: [Run Card, Bounce, Shift]
+  - name: Steward
+    context: Cards
+    definition: >
+      The person a Run Card names as answering for its change while it runs,
+      with first right to mend it. Built today: whoever merged the latest
+      merged Play, otherwise the last approver; forge bot logins never count.
+      Proposed: the developer carrying the Work Item, meaning the tracker
+      assignee at release, falling back to the merger and then the approver.
+      The agent is never a Steward. A Steward is a role on a change, not a
+      measure of a person.
+    avoid: [owner (of a card)]
+    see_also: [Run Card, Roster, Crack, Mend]
+  - name: Roster
+    context: Cards
+    definition: >
+      The humans who acted on a Run Card's change, each with their roles.
+      Built roles: merger and reviewer. Proposed: developer, QA, PO and
+      acceptor, each holding a copy of the card that shares its fate, so a
+      Crack shows on every copy and a Mend names the mender on every copy.
+    see_also: [Run Card, Steward, Binder]
+  - name: Gate
+    context: Cards
+    definition: >
+      A stage a Work Item passes after review, such as development, test,
+      acceptance and production. Each project maps its tracker statuses and
+      deploy environments to Gates. Not implemented yet.
+    see_also: [Bounce, Run Card, Acceptance]
+  - name: Bounce
+    context: Cards
+    definition: >
+      A Work Item moving from a later Gate back to an earlier one, with a
+      reason: defect, requirement, misunderstood, environment or unknown. Only
+      defect and unknown Bounces count against the Grade. A requirement change
+      marks the card Evolved and leaves no Crack. Not implemented yet.
+    examples: ["A tester moves the ticket from In test back to In progress with the label bounce:defect; the fix becomes the card's next Play."]
+    see_also: [Gate, Play, Grade, Crack]
+  - name: Crack
+    context: Cards
+    definition: >
+      A defect confirmed against a Run Card's change. Ploeg proposes candidate
+      changes, the fixer names the cause, and a second person who is not the
+      Steward confirms it; the Steward may dispute within five working days.
+      A Crack is never applied automatically, carries a severity from S1 to
+      S4, and is never totalled per person. Not implemented yet.
+    see_also: [Mend, Steward, Grade, Bounce]
+  - name: Mend
+    context: Cards
+    definition: >
+      The confirmed fix of a Crack, drawn as gold seams that stay on the card
+      (kintsugi). A mended card looks more distinguished than an untouched one,
+      while its Grade ends slightly lower. Whoever mends another person's card
+      becomes a co-signer. Not implemented yet.
+    synonyms: [kintsugi]
+    see_also: [Crack, Steward, Grade]
+  - name: Finish
+    context: Cards
+    owner: unfold
+    definition: >
+      The visual layer a Run Card earns by staying live in production: matte,
+      then foil at 7 days, holo at 30, prism at 90, gilded at 180 and infinity
+      at 365. Unfold counts the days from the first production deploy of the
+      latest merged Play, or from the merge when the repository has never
+      reported a production deploy (Ploeg ADR-0047, Unfold ADR 0026).
+    see_also: [Run Card, Grade, Rarity, Skin]
+  - name: Grade
+    context: Cards
+    definition: >
+      A Run Card's assessment of its change from 1 to 10 in half steps, from
+      four subgrades: 40 % reliability, 25 % durability, 20 % delivery and
+      15 % review. The formula is versioned and printed on the card, and a card
+      under 180 days live is capped at 9. It grades the change, never a person.
+      Ploeg computes it on read under its current formula, lists the inputs it
+      missed, and sends null until a person reviewed a Play or one merged.
+    not_to_be_confused_with:
+      - term: Verdict
+        note: A reviewing Run's approve or request_changes answer in one Round. It is one input a Grade could use, not a Grade.
+    see_also: [Run Card, Crack, Bounce, Finish]
+  - name: Rarity
+    context: Cards
+    definition: >
+      How exceptional a Run Card's change was, its challenge, kept apart from
+      how well it was done (Grade) and how long it has lasted (Finish).
+      Cosmetic only. Ploeg scores reach, sensitive ground, novelty and damped
+      size under a versioned formula, predicts a tier at mint and reveals one at
+      release, as percentile tiers per project and quarter (common, uncommon,
+      rare, epic, legendary), and freezes the revealed tier (Ploeg ADR-0056,
+      proposed). Nothing Ploeg authorizes, budgets or merges depends on it.
+    see_also: [Run Card, Grade, Finish, Pack]
+  - name: Set Card
+    context: Cards
+    definition: >
+      The Run Card of an epic Work Item, whose children are Run Cards numbered
+      within the set. Proposed: it completes when every child has been live
+      for 30 days with no unmended Crack. Not implemented yet; Ploeg reads no
+      tracker parent relations.
+    see_also: [Run Card, Work Item, Crack]
+  - name: Binder
+    context: Cards
+    definition: >
+      A person's private collection of the Run Cards they hold a copy of. Only
+      its owner sees it, and they may share single cards. There is no manager
+      view of a Binder. Not implemented yet.
+    see_also: [Run Card, Roster, Pack]
+  - name: Pack
+    context: Cards
+    definition: >
+      The once-per-sprint ceremony that hands a person the Run Cards they
+      earned that sprint. Opening it may add one cosmetic variant to a card,
+      such as a foil pattern, alternative art, full art or a gold signature,
+      drawn from published odds with a recorded seed. A Pack cannot be bought,
+      re-rolled or traded, and a pull never changes a Grade, a Rarity or any
+      metric. Not implemented yet.
+    see_also: [Binder, Rarity, Grade]
+  - name: Skin
+    context: Cards
+    owner: unfold
+    definition: >
+      The look a Run Card is drawn in, chosen per Work Target in Ploeg's
+      cardStyle. A Skin changes appearance and motion, never the facts or
+      where they sit. Built: Unfold Native, the 3D forge Skin, and Holo
+      Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch.
+      Proposed: per-Client themes on top.
+    see_also: [Run Card, Work Target, Finish]
+retired_terms:
+  - name: Vloer
+    context: System
+    use: [Unfold]
+    because: >
+      The front end was named Vloer while Ploeg and it were separate products.
+      Once Unfold became the product and the application people use, a second
+      name for the same application only added a part people had to learn
+      (system ADR-0020).
+  - name: Workload
+    context: Execution
+    use: [Work Item]
+    because: A second name for the unit of work made every rule ambiguous about which record it meant.
+  - name: Repair Subticket
+    context: Work
+    use: [Follow-Up]
+    because: A repair is work created by work; Ploeg's Follow-Up already names it.
+  - name: Execution
+    context: Execution
+    use: [Shift, Run]
+    because: >
+      The attempt it named is a Shift, and one Role's part of it is a Run. A
+      second name for a Shift would make every execution statement ambiguous.
+      The word remains a bounded-context name and part of Ploeg's Operator
+      Execution record.
+  - name: Agency Edition
+    context: Offering
+    use: [Edition]
+    because: >
+      Agency names the business that uses Unfold, so "the Agency edition" would
+      mean two things in one sentence. The middle Edition is Studio.
+rules:
+  - id: R1
+    statement: A Work Item states the intended Result; each Shift records one attempt at it, and a failed Shift leaves the Work Item in place.
+    rationale: Retrying work must not erase the request or hide the earlier attempt.
+    applies_to: [Work Item, Shift]
+  - id: R2
+    statement: A Model and Harness are implementation choices behind the working experience.
+    rationale: People should not have to change their way of organizing work merely to change an AI tool.
+    applies_to: [Harness, Session]
+  - id: R3
+    statement: A research Result may satisfy its Work Item with convincing Evidence and a conclusion not to build.
+    rationale: A rejected business case should stop unnecessary implementation and design work.
+    applies_to: [Work Item, Result, Evidence]
+  - id: R4
+    statement: A finished Run or closed Shift does not by itself prove that its Result is accepted or released.
+    rationale: Finishing a process, accepting its output, and changing production are separate decisions.
+    applies_to: [Shift, Run, Result, Review]
+  - id: R5
+    statement: Evidence of executed checks is distinct from an Agent's assertion that checks passed.
+    rationale: A reviewer needs an inspectable basis for accepting a result.
+    applies_to: [Evidence, Agent, Review]
+  - id: R6
+    statement: An unknown or pending charge must not be described as zero spend against a Budget.
+    rationale: Missing cost data cannot justify more expenditure.
+    applies_to: [Budget, Shift]
+  - id: R7
+    statement: Intended behavior — a Work Item may begin as an open conversation without a tracker or repository; repository-free conversation is not implemented in the current session API.
+    rationale: Asking questions and exploring ideas are supported work in their own right.
+    applies_to: [Work Item, Session]
+  - id: R8
+    statement: >
+      Ploeg is the Authority for every Run (system ADR-0002). Unfold requests Admission through Ploeg's API and never
+      falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Unfold runs only
+      its deterministic demo, which makes no model calls. Current state — Unfold's standalone mode and its own engine
+      remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
+    rationale: One authority, one budget path and one revocable credential per Run; runner location does not decide who authorizes work.
+    applies_to: [Run, Work Item, Session]
+  - id: R9
+    statement: Intended behavior — in projects with automatic repair enabled, failed CI creates a Follow-Up Work Item and agents repair it before human Review, regardless of who wrote the change. This general workflow remains unimplemented.
+    rationale: The repair must be visible without replacing the original requested outcome.
+    applies_to: [Work Item, Follow-Up, Evidence]
+  - id: R10
+    statement: Software Results go through automated checks and Agent Review before a person is asked to accept them.
+    rationale: Human reviewers should receive prepared results with unresolved failures made explicit.
+    applies_to: [Result, Agent, Review, Evidence]
+  - id: R11
+    statement: A person initially accepts Results; automatic acceptance requires a separately agreed rule.
+    rationale: Responsibility for accepting work must be explicit while the process is being established.
+    applies_to: [Result, Review]
+  - id: R12
+    statement: >
+      Work can create work. A Run may produce new Work Items: it can split a Work Item into smaller ones, make
+      unready work Ready, or record work it discovered. Each new Work Item names its source and is Ready or
+      explicitly not. Implemented for Runs (Ploeg ADR-0031, proposed): created Work Items stay in Ploeg, wait as
+      proposed until a person approves them unless the Team sets autoDispatch, and are bounded per Team by count,
+      depth, open items and a budget pool. A failed check on a Ploeg pull request also creates a repair Follow-Up
+      for a Team that opted in.
+    rationale: Refining and dividing work is itself work; agents should do it under the same authority, budget and review as code.
+    applies_to: [Work Item, Follow-Up, Ready, Run]
+  - id: R13
+    statement: >
+      Intended behavior — the Delivery Fee is charged only on Acceptance. The Token Charge is charged for every
+      attempt up to the Shift Budget, except attempts that fail through Unfold's own fault.
+    rationale: The Agency pays for delivered work, and rejecting work is never free, so neither side profits from the other's mistakes.
+    applies_to: [Delivery Fee, Token Charge, Acceptance]
+  - id: R14
+    statement: >
+      Intended behavior — Ploeg refuses a Shift it cannot fund and never raises a Budget on its own. A Shift that
+      reaches its Shift Budget stops and offers a split into new Work Items.
+    rationale: A guaranteed ceiling on spend is what Agencies buy.
+    applies_to: [Budget, Shift, Size]
+  - id: R15
+    statement: Intended behavior — Unfold never contacts a Client directly; questions for a Client go through its Agency.
+    rationale: The Agency owns the Client relationship.
+    applies_to: [Client, Agency, Refinement]
+  - id: R16
+    statement: >
+      Intended behavior — Unfold never merges a pull request or deploys to production. A Preview Environment never
+      receives production secrets.
+    rationale: Unfold's responsibility ends at a reviewed pull request and its preview; production stays with the Agency.
+    applies_to: [Agency, Preview Environment, Acceptance]
+  - id: R17
+    statement: >
+      A Run Card describes a change and never scores a person. Its state never changes what Ploeg authorizes,
+      budgets or merges, and no shared view totals card data per person. Intended behavior — card data is never
+      used in pay or performance reviews; Unfold states this in its terms and its works council pack.
+    rationale: >
+      A record of a change makes people care about it; a score of a person gets gamed, and in the Netherlands
+      it needs works council consent.
+    applies_to: [Run Card, Steward, Grade]
+  - id: R18
+    statement: >
+      Intended behavior — a Binder is visible only to its owner, team pages only to the team, and a Client sees
+      team aggregates only, never a named person's history.
+    rationale: Person-level views invite appraisal use, profiling and client pressure on named staff.
+    applies_to: [Binder, Run Card, Client]
+  - id: R19
+    statement: >
+      Intended behavior — a Crack needs human confirmation by the fixer and one person who is not the Steward,
+      and the Steward may dispute it. Ploeg may propose candidates but never applies a Crack on its own.
+    rationale: Automatic bug-to-change tracing is wrong too often, and a wrong Crack on a signed card is a fairness incident.
+    applies_to: [Crack, Steward]
+  - id: R20
+    statement: >
+      Intended behavior — a Pack is earned, never bought. Its random pulls are cosmetic, drawn from published
+      odds, and cannot be re-rolled or traded; a pull never changes a Grade, a Rarity or any metric.
+    rationale: Randomness bought with money is the loot-box problem; cosmetic, earned and published pulls keep Packs clear of it.
+    applies_to: [Pack, Grade, Rarity]
+ambiguities:
+  - phrase: a CI failure with no original ticket
+    issue: Repair subtickets require a parent, but a human-written change may not already have an external ticket.
+    options: [Create a parent work ticket linked to the change, Attach repair to a project incident ticket]
+    recommendation: Preserve a direct link to the failed change and agree the external parent-ticket rule.
+  - phrase: limits on automatic repair
+    issue: Repeated CI failures could create duplicate subtickets or consume an unbounded amount of work.
+    options: [One active repair subticket per failure with bounded attempts, A new subticket per failed check run]
+    recommendation: Reuse an active repair subticket for the same failure and stop at agreed limits.
+  - phrase: agents create and execute follow-up work
+    issue: Creating a proposed ticket and authorizing its execution grant different powers.
+    options: [Agents propose and people authorize, Explicit project rules authorize bounded follow-up work]
+    recommendation: Separate permission to propose from permission to spend and execute. Ploeg's Admission grants the second.
+  - phrase: which decision records are required
+    issue: Visibility into decisions needs a defined record beyond raw model messages and tool logs.
+    options: [Written decision with options and evidence, Transcript and actions alone]
+    recommendation: Capture the decision, responsible person or rule, evidence, and expected consequence.
+  - phrase: a Request that arrives through a tracker
+    issue: >
+      Ploeg mirrors every assigned Tracker Item into a Work Item. A Client's ask
+      that arrives as a ClickUp or Vikunja task is a Request, not yet a Work Item,
+      so either the mirror must wait for Refinement or the Request must live in
+      Unfold beside the Tracker Item.
+    options:
+      - The tracker task is the Request; Refinement's Work Items become new Tracker Items or stay in Ploeg (Ploeg ADR-0031)
+      - Ploeg mirrors it as an unready Work Item that Refinement replaces with the real ones
+      - Requests only come through the Client Portal; tracker tasks are always Work Items
+    recommendation: >
+      The tracker task is the Request. Refinement's Work Items stay in Ploeg as
+      proposed until their Quotes are approved, which reuses Ploeg ADR-0031 and
+      keeps the Agency's tracker as the one place its Clients' asks live.
+  - phrase: the period a Pack covers
+    issue: >
+      A Pack is proposed once per sprint, but Unfold has no sprint concept and
+      some teams do not work in sprints.
+    options:
+      - The tracker's iteration or cycle, where it has one
+      - A fixed calendar period for every team
+      - A period each Team sets in Ploeg's configuration
+    recommendation: Decide before Packs are built; until then the period is the team's sprint as its tracker defines it.
+  - phrase: a Tenant and a Team
+    issue: >
+      Ploeg and Unfold scope access by Team, but a Team is a capability pool and
+      created work can move between Teams. The Tenant definition says
+      self-hosted Unfold has none, while the owner wants every install to limit
+      users to what they can see.
+    options:
+      - A Tenant sits above Teams and owns users, sources, repositories, budgets, deploy identities and Work Items; every install has at least one
+      - The Team is the Tenant
+      - One deployment per Tenant, with no Tenant inside the software
+    recommendation: >
+      A Tenant above Teams, each Team in one Tenant, and a default Tenant in a
+      self-hosted install (system ADR-0017, proposed). The Tenant definition
+      changes only when that ADR is accepted.
+dialogues:
+  - title: Research can stop implementation
+    context: Work
+    lines:
+      - speaker: Developer
+        text: Does this research Work Item require a prototype?
+      - speaker: Product owner
+        text: The Evidence establishes that we should not build. The Result is the supported conclusion to stop.
+      - speaker: Developer
+        text: Then Review should judge that Evidence against the Acceptance Conditions.
+  - title: What a model can do
+    context: Execution
+    lines:
+      - speaker: Developer
+        text: Does changing the Model move the files to a new computer?
+      - speaker: Platform engineer
+        text: No. The Workspace holds the files. The Harness sends input to the Model Provider and runs permitted tools.
+      - speaker: Developer
+        text: So Model, Harness, and Workspace are separate choices for a Run.
+  - title: Run, Step and Shift
+    context: Participation
+    lines:
+      - speaker: Developer
+        text: My Unfold session ran a planner, an implementer and a reviewer. Is that three Runs?
+      - speaker: Platform engineer
+        text: Today it is one delegated Run with three Steps inside the Unfold application. After the system ADR-0002 migration each Role executes as its own Ploeg Run.
+      - speaker: Developer
+        text: And the whole attempt, with its branch and budget?
+      - speaker: Platform engineer
+        text: That is the Shift. Only the writing Run holds the Lease on its branch.
+  - title: Acceptance, Review and the Client
+    context: Billing
+    lines:
+      - speaker: Agency developer
+        text: The Client liked the **Preview Environment**. Is the Work Item accepted now?
+      - speaker: Product owner
+        text: No. The Client's feedback is input. **Acceptance** is our decision on the pull request, by approving it or merging it.
+      - speaker: Agency developer
+        text: And the reviewer Role's approve Verdict?
+      - speaker: Product owner
+        text: That is Evidence for our **Review**. Only our Acceptance makes it a **Delivery** and charges the **Delivery Fee**.

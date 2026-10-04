@@ -1,0 +1,840 @@
+{
+  "name": "unfold",
+  "displayName": "Unfold — Remote Agent Workbench",
+  "description": "Steer agent work from VS Code: review evidence and control sessions on your machine or a remote workbench.",
+  "version": "0.4.0-rc.38",
+  "publisher": "webgrip",
+  "license": "Apache-2.0",
+  "homepage": "https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/extensions/vscode",
+  "repository": {
+    "type": "git",
+    "url": "https://forgejo.webgrip.dev/webgrip/unfold.git",
+    "directory": "apps/unfold/extensions/vscode"
+  },
+  "bugs": {
+    "url": "https://forgejo.webgrip.dev/webgrip/unfold/issues"
+  },
+  "qna": "https://forgejo.webgrip.dev/webgrip/unfold/issues",
+  "pricing": "Free",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#141A1D",
+    "theme": "dark"
+  },
+  "preview": true,
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "agents",
+    "coding agent",
+    "remote agents",
+    "ai",
+    "opencode",
+    "litellm",
+    "self-hosted",
+    "code review",
+    "forgejo",
+    "vikunja"
+  ],
+  "main": "./dist/extension.js",
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Session inspection works. Sending editor content requires a trusted workspace."
+    },
+    "virtualWorkspaces": true
+  },
+  "activationEvents": [
+    "onView:unfold.now",
+    "onView:unfold.sessions",
+    "onView:unfold.tasks",
+    "onView:unfold.ploeg",
+    "onWebviewPanel:unfold.session",
+    "onStartupFinished",
+    "onUri"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "unfold.connect",
+        "title": "Connect to Workbench",
+        "category": "Unfold",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "unfold.signOut",
+        "title": "Sign Out",
+        "category": "Unfold"
+      },
+      {
+        "command": "unfold.linkedAccounts",
+        "title": "Linked Accounts",
+        "category": "Unfold",
+        "icon": "$(account)"
+      },
+      {
+        "command": "unfold.connectAgentHost",
+        "title": "Attach as Agent Host (chat.remoteAgentHosts)",
+        "category": "Unfold",
+        "icon": "$(remote)"
+      },
+      {
+        "command": "unfold.refresh",
+        "title": "Refresh",
+        "category": "Unfold",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "unfold.openWorkItem",
+        "title": "Open Work Item",
+        "category": "Unfold",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "unfold.openPullRequest",
+        "title": "Review Pull Request",
+        "category": "Unfold",
+        "icon": "$(git-pull-request)"
+      },
+      {
+        "command": "unfold.checkoutBranch",
+        "title": "Check Out Branch",
+        "category": "Unfold",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "unfold.openNow",
+        "title": "Open Now in the Browser",
+        "category": "Unfold",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "unfold.create",
+        "title": "New Session",
+        "category": "Unfold",
+        "icon": "$(add)"
+      },
+      {
+        "command": "unfold.findSession",
+        "title": "Find Session",
+        "category": "Unfold",
+        "icon": "$(search)"
+      },
+      {
+        "command": "unfold.reviewNextDecision",
+        "title": "Review Next Decision",
+        "category": "Unfold",
+        "icon": "$(bell-dot)"
+      },
+      {
+        "command": "unfold.reviewDecision",
+        "title": "Review Decision",
+        "category": "Unfold",
+        "icon": "$(bell-dot)"
+      },
+      {
+        "command": "unfold.open",
+        "title": "Open Session",
+        "category": "Unfold",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "unfold.openTab",
+        "title": "Open Session Tab",
+        "category": "Unfold"
+      },
+      {
+        "command": "unfold.openArtifact",
+        "title": "Open Evidence",
+        "category": "Unfold",
+        "icon": "$(file)"
+      },
+      {
+        "command": "unfold.start",
+        "title": "Start Session",
+        "category": "Unfold",
+        "icon": "$(play)"
+      },
+      {
+        "command": "unfold.pause",
+        "title": "Pause Session",
+        "category": "Unfold",
+        "icon": "$(debug-pause)"
+      },
+      {
+        "command": "unfold.resume",
+        "title": "Resume Session",
+        "category": "Unfold",
+        "icon": "$(debug-continue)"
+      },
+      {
+        "command": "unfold.cancel",
+        "title": "Cancel Session",
+        "category": "Unfold",
+        "icon": "$(close)"
+      },
+      {
+        "command": "unfold.retry",
+        "title": "Try Again",
+        "category": "Unfold",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "unfold.review",
+        "title": "Record Review",
+        "category": "Unfold",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "unfold.sendInstruction",
+        "title": "Send Instruction to Session",
+        "category": "Unfold",
+        "icon": "$(comment)"
+      },
+      {
+        "command": "unfold.attachSelection",
+        "title": "Send Selection to Remote Session…",
+        "category": "Unfold"
+      },
+      {
+        "command": "unfold.attachFile",
+        "title": "Send Current File to Remote Session…",
+        "category": "Unfold"
+      },
+      {
+        "command": "unfold.addBudget",
+        "title": "Authorize Additional Budget",
+        "category": "Unfold",
+        "icon": "$(credit-card)"
+      },
+      {
+        "command": "unfold.setApproval",
+        "title": "Set Tool Approval",
+        "category": "Unfold",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "unfold.history",
+        "title": "Open Durable Session History",
+        "category": "Unfold",
+        "icon": "$(history)"
+      },
+      {
+        "command": "unfold.dashboard",
+        "title": "Open Web Dashboard",
+        "category": "Unfold",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "unfold.copyLink",
+        "title": "Copy Session Link",
+        "category": "Unfold",
+        "icon": "$(link)"
+      },
+      {
+        "command": "unfold.openTracker",
+        "title": "Open Original Task in Tracker",
+        "category": "Unfold",
+        "icon": "$(issues)"
+      },
+      {
+        "command": "unfold.browseTasks",
+        "title": "Browse Tasks",
+        "category": "Unfold",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "unfold.refreshTasks",
+        "title": "Refresh Tasks",
+        "category": "Unfold",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "unfold.openTask",
+        "title": "Open Task",
+        "category": "Unfold",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "unfold.openPloegItem",
+        "title": "Open Work Item Task",
+        "category": "Unfold",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "unfold.importTask",
+        "title": "Start a Supervised Session from Task",
+        "category": "Unfold",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "unfold.openTaskLink",
+        "title": "Open Task in Tracker",
+        "category": "Unfold",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "unfold.sourceTask",
+        "title": "Open Imported Task Snapshot",
+        "category": "Unfold",
+        "icon": "$(issues)"
+      },
+      {
+        "command": "unfold.downloadCandidate",
+        "title": "Download Review Candidate",
+        "category": "Unfold",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "unfold.openPloeg",
+        "title": "Open in the Browser",
+        "category": "Unfold",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "unfold.refreshPloeg",
+        "title": "Refresh Work",
+        "category": "Unfold",
+        "icon": "$(refresh)"
+      }
+    ],
+    "configuration": {
+      "title": "Unfold",
+      "properties": {
+        "unfold.serverUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:4080",
+          "scope": "application",
+          "description": "Workbench origin. HTTPS is required except for loopback development. Credentials are stored in SecretStorage."
+        },
+        "unfold.refreshIntervalSeconds": {
+          "type": "number",
+          "default": 5,
+          "minimum": 2,
+          "maximum": 60,
+          "scope": "application",
+          "description": "Refresh visible remote sessions; no agent work runs in this extension."
+        },
+        "unfold.liveUpdates": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "description": "Follow open session panels through the workbench event stream. Polling remains the fallback heartbeat."
+        },
+        "unfold.notifications": {
+          "type": "string",
+          "enum": [
+            "all",
+            "decisions-and-failures",
+            "none"
+          ],
+          "default": "all",
+          "enumDescriptions": [
+            "Notify for new decisions, failures, interruptions and sessions ready for human review",
+            "Notify only when a session needs a decision or attention",
+            "Never show notifications; the sidebar badge and status bar still update"
+          ],
+          "scope": "application",
+          "description": "Which session transitions raise a notification. Streamed tokens and tool completions never notify."
+        },
+        "unfold.remoteHostAliases": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "scope": "application",
+          "markdownDescription": "Git remote host to forge web host, for **Check Out Branch** when a forge's SSH host differs from the host in its pull request links, for example `{\"ssh.git.example.com\": \"git.example.com\"}`. Hosts that differ only in their first label under a shared parent domain, such as `forgejo-ssh.example.dev` and `forgejo.example.dev`, already match without an entry."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "unfold",
+          "title": "Unfold",
+          "icon": "media/unfold.svg"
+        }
+      ]
+    },
+    "views": {
+      "unfold": [
+        {
+          "id": "unfold.now",
+          "name": "Now",
+          "icon": "media/unfold.svg"
+        },
+        {
+          "id": "unfold.tasks",
+          "name": "Tasks",
+          "icon": "media/unfold.svg"
+        },
+        {
+          "id": "unfold.ploeg",
+          "name": "Work",
+          "icon": "media/unfold.svg"
+        },
+        {
+          "id": "unfold.sessions",
+          "name": "Sessions",
+          "icon": "media/unfold.svg",
+          "when": "unfold.sessions",
+          "visibility": "collapsed"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "unfold.now",
+        "when": "!unfold.connected",
+        "contents": "See what waits on you across every Ploeg team: pull requests ready for your review, work that needs you, and what is running now. Agents, model calls and checkouts stay on your workbench server.\n[Connect to your workbench](command:unfold.connect)\n\nLocal files are sent only when you explicitly choose to share them."
+      },
+      {
+        "view": "unfold.sessions",
+        "when": "unfold.connected",
+        "contents": "No remote sessions yet.\n[Create a remote session](command:unfold.create)\n[Start from a linked task](command:unfold.browseTasks)\n\nA session is authorized when created and runs only when you start it."
+      },
+      {
+        "view": "unfold.tasks",
+        "contents": "Pick work from your team’s task boards. Open a task to read it, see what Ploeg is doing with it, and hand it to a Ploeg team.\n[Browse tasks](command:unfold.browseTasks)\n\nForgejo · GitHub · GitLab · ClickUp · Vikunja\nSources and repository routing are configured on the workbench server."
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "unfold.openTab",
+          "when": "false"
+        },
+        {
+          "command": "unfold.reviewDecision",
+          "when": "unfold.connected"
+        },
+        {
+          "command": "unfold.openTaskLink",
+          "when": "false"
+        },
+        {
+          "command": "unfold.importTask",
+          "when": "unfold.connected"
+        },
+        {
+          "command": "unfold.setApproval",
+          "when": "unfold.connected"
+        },
+        {
+          "command": "unfold.linkedAccounts",
+          "when": "unfold.connected"
+        },
+        {
+          "command": "unfold.openTask",
+          "when": "false"
+        },
+        {
+          "command": "unfold.openPloegItem",
+          "when": "false"
+        },
+        {
+          "command": "unfold.openWorkItem",
+          "when": "false"
+        },
+        {
+          "command": "unfold.openPullRequest",
+          "when": "false"
+        },
+        {
+          "command": "unfold.openNow",
+          "when": "unfold.connected"
+        },
+        {
+          "command": "unfold.checkoutBranch",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "unfold.refresh",
+          "when": "view == unfold.now",
+          "group": "navigation@1"
+        },
+        {
+          "command": "unfold.openNow",
+          "when": "view == unfold.now && unfold.connected",
+          "group": "navigation@2"
+        },
+        {
+          "command": "unfold.create",
+          "when": "view == unfold.sessions && unfold.connected",
+          "group": "navigation@1"
+        },
+        {
+          "command": "unfold.findSession",
+          "when": "view == unfold.sessions && unfold.connected",
+          "group": "navigation@2"
+        },
+        {
+          "command": "unfold.refresh",
+          "when": "view == unfold.sessions",
+          "group": "navigation@3"
+        },
+        {
+          "command": "unfold.reviewNextDecision",
+          "when": "view == unfold.now && unfold.connected",
+          "group": "attention@1"
+        },
+        {
+          "command": "unfold.connect",
+          "when": "view == unfold.now",
+          "group": "connection@1"
+        },
+        {
+          "command": "unfold.signOut",
+          "when": "view == unfold.now && unfold.connected",
+          "group": "connection@2"
+        },
+        {
+          "command": "unfold.linkedAccounts",
+          "when": "view == unfold.now && unfold.connected",
+          "group": "connection@3"
+        },
+        {
+          "command": "unfold.dashboard",
+          "when": "view == unfold.sessions",
+          "group": "connection@1"
+        },
+        {
+          "command": "unfold.browseTasks",
+          "when": "view == unfold.tasks && unfold.connected",
+          "group": "navigation@1"
+        },
+        {
+          "command": "unfold.refreshTasks",
+          "when": "view == unfold.tasks",
+          "group": "navigation@2"
+        },
+        {
+          "command": "unfold.openPloeg",
+          "when": "view == unfold.ploeg",
+          "group": "navigation@1"
+        },
+        {
+          "command": "unfold.refreshPloeg",
+          "when": "view == unfold.ploeg",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "unfold.start",
+          "when": "view == unfold.sessions && viewItem =~ /^session:queued(:isolated)?$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "unfold.resume",
+          "when": "view == unfold.sessions && viewItem =~ /^session:(paused|interrupted)(:isolated)?$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "unfold.pause",
+          "when": "view == unfold.sessions && viewItem =~ /^session:running(:isolated)?$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "unfold.reviewDecision",
+          "when": "view == unfold.sessions && viewItem =~ /^session:waiting_input(:isolated)?$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "unfold.open",
+          "when": "view == unfold.sessions && viewItem =~ /^session:/",
+          "group": "inline@2"
+        },
+        {
+          "command": "unfold.start",
+          "when": "view == unfold.sessions && viewItem =~ /^session:queued(:isolated)?$/",
+          "group": "lifecycle@1"
+        },
+        {
+          "command": "unfold.pause",
+          "when": "view == unfold.sessions && viewItem =~ /^session:(running|waiting_input)(:isolated)?$/",
+          "group": "lifecycle@2"
+        },
+        {
+          "command": "unfold.resume",
+          "when": "view == unfold.sessions && viewItem =~ /^session:(paused|interrupted)(:isolated)?$/",
+          "group": "lifecycle@3"
+        },
+        {
+          "command": "unfold.sendInstruction",
+          "when": "view == unfold.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted|failed)(:isolated)?$/",
+          "group": "lifecycle@4"
+        },
+        {
+          "command": "unfold.addBudget",
+          "when": "view == unfold.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted|failed)(:isolated)?$/",
+          "group": "lifecycle@5"
+        },
+        {
+          "command": "unfold.setApproval",
+          "when": "view == unfold.sessions && viewItem =~ /^session:(queued|running|waiting_input|paused|interrupted):isolated$/",
+          "group": "lifecycle@6"
+        },
+        {
+          "command": "unfold.cancel",
+          "when": "view == unfold.sessions && viewItem =~ /^session:(queued|running|exporting|waiting_input|paused|interrupted)(:isolated)?$/",
+          "group": "lifecycle@9"
+        },
+        {
+          "command": "unfold.retry",
+          "when": "view == unfold.sessions && viewItem =~ /^session:failed(:isolated)?$/",
+          "group": "lifecycle@10"
+        },
+        {
+          "command": "unfold.review",
+          "when": "view == unfold.sessions && viewItem =~ /^session:completed(:isolated)?$/",
+          "group": "lifecycle@11"
+        },
+        {
+          "command": "unfold.openArtifact",
+          "when": "view == unfold.sessions && viewItem =~ /^session:/",
+          "group": "evidence@1"
+        },
+        {
+          "command": "unfold.downloadCandidate",
+          "when": "view == unfold.sessions && viewItem =~ /^session:/",
+          "group": "evidence@2"
+        },
+        {
+          "command": "unfold.history",
+          "when": "view == unfold.sessions && viewItem =~ /^session:/",
+          "group": "evidence@3"
+        },
+        {
+          "command": "unfold.sourceTask",
+          "when": "view == unfold.sessions && viewItem =~ /^session:/",
+          "group": "evidence@4"
+        },
+        {
+          "command": "unfold.copyLink",
+          "when": "view == unfold.sessions && viewItem =~ /^session:/",
+          "group": "links@1"
+        },
+        {
+          "command": "unfold.dashboard",
+          "when": "view == unfold.sessions && viewItem =~ /^session:/",
+          "group": "links@2"
+        },
+        {
+          "command": "unfold.openTracker",
+          "when": "view == unfold.sessions && viewItem =~ /^session:/",
+          "group": "links@3"
+        },
+        {
+          "command": "unfold.openTaskLink",
+          "when": "view == unfold.sessions && viewItem == task:linked",
+          "group": "inline"
+        },
+        {
+          "command": "unfold.importTask",
+          "when": "view == unfold.tasks && viewItem =~ /^task:interactive/",
+          "group": "inline@1"
+        },
+        {
+          "command": "unfold.openTaskLink",
+          "when": "view == unfold.tasks && viewItem =~ /^task:.*:linked$/",
+          "group": "inline@2"
+        },
+        {
+          "command": "unfold.openPloeg",
+          "when": "view == unfold.ploeg && viewItem == ploeg:item",
+          "group": "inline@1"
+        },
+        {
+          "command": "unfold.openPullRequest",
+          "when": "view == unfold.now && viewItem =~ /^now:item:.*:pr$/",
+          "group": "inline@1"
+        },
+        {
+          "command": "unfold.openPloeg",
+          "when": "view == unfold.now && viewItem =~ /^now:(item|run)/",
+          "group": "inline@2"
+        },
+        {
+          "command": "unfold.openPullRequest",
+          "when": "view == unfold.now && viewItem =~ /^now:item:.*:pr$/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "unfold.openPloeg",
+          "when": "view == unfold.now && viewItem =~ /^now:(item|run)/",
+          "group": "navigation@2"
+        },
+        {
+          "command": "unfold.checkoutBranch",
+          "when": "view == unfold.now && viewItem =~ /^now:item:/",
+          "group": "navigation@3"
+        },
+        {
+          "command": "unfold.checkoutBranch",
+          "when": "view == unfold.ploeg && viewItem == ploeg:item",
+          "group": "navigation@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "unfold.attachSelection",
+          "when": "editorHasSelection && isWorkspaceTrusted",
+          "group": "unfold"
+        }
+      ]
+    },
+    "walkthroughs": [
+      {
+        "id": "unfold.getStarted",
+        "title": "Get started with Unfold",
+        "description": "Connect to your workbench, see what waits on you, hand a task to Ploeg and review its evidence without running agents on your laptop.",
+        "steps": [
+          {
+            "id": "connect",
+            "title": "Connect to your workbench",
+            "description": "Enter the HTTPS origin of your team server, or the local demo at http://127.0.0.1:4080.\n[Connect](command:unfold.connect)",
+            "media": {
+              "markdown": "media/walkthrough/connect.md"
+            },
+            "completionEvents": [
+              "onContext:unfold.connected"
+            ]
+          },
+          {
+            "id": "task",
+            "title": "Start from a task",
+            "description": "Browse Forgejo, GitHub, GitLab, ClickUp or Vikunja sources configured on the server. Open a task to read it, hand it to a Ploeg team, or start a supervised session from it.\n[Browse tasks](command:unfold.browseTasks)",
+            "media": {
+              "markdown": "media/walkthrough/tasks.md"
+            },
+            "completionEvents": [
+              "onCommand:unfold.openTask",
+              "onCommand:unfold.importTask",
+              "onCommand:unfold.create"
+            ]
+          },
+          {
+            "id": "start",
+            "title": "Start the remote crew",
+            "description": "A session is authorized when created and runs only when you start it. Watch the crew live in the session panel.\n[Open a session](command:unfold.findSession)",
+            "media": {
+              "markdown": "media/walkthrough/start.md"
+            },
+            "completionEvents": [
+              "onCommand:unfold.start"
+            ]
+          },
+          {
+            "id": "review",
+            "title": "Decide and review",
+            "description": "Answer permission requests inline, read per-file changes and check output as native documents, then download the review candidate.\n[Review next decision](command:unfold.reviewNextDecision)",
+            "media": {
+              "markdown": "media/walkthrough/review.md"
+            },
+            "completionEvents": [
+              "onCommand:unfold.openArtifact",
+              "onCommand:unfold.downloadCandidate"
+            ]
+          }
+        ]
+      }
+    ],
+    "colors": [
+      {
+        "id": "unfold.live",
+        "description": "Unfold: running work. Teal, never the accent, because the accent means interaction.",
+        "defaults": {
+          "dark": "terminal.ansiCyan",
+          "light": "terminal.ansiCyan",
+          "highContrast": "terminal.ansiBrightCyan",
+          "highContrastLight": "terminal.ansiCyan"
+        }
+      },
+      {
+        "id": "unfold.attention",
+        "description": "Unfold: a person must act, such as Needs you. The loudest tone.",
+        "defaults": {
+          "dark": "charts.yellow",
+          "light": "editorWarning.foreground",
+          "highContrast": "charts.yellow",
+          "highContrastLight": "editorWarning.foreground"
+        }
+      },
+      {
+        "id": "unfold.review",
+        "description": "Unfold: ready for your review. Violet, so it never looks like Done.",
+        "defaults": {
+          "dark": "charts.purple",
+          "light": "charts.purple",
+          "highContrast": "charts.purple",
+          "highContrastLight": "charts.purple"
+        }
+      },
+      {
+        "id": "unfold.success",
+        "description": "Unfold: done, an approving agent review, accepted.",
+        "defaults": {
+          "dark": "charts.green",
+          "light": "testing.iconPassed",
+          "highContrast": "charts.green",
+          "highContrastLight": "testing.iconPassed"
+        }
+      },
+      {
+        "id": "unfold.danger",
+        "description": "Unfold: failed, and destructive actions.",
+        "defaults": {
+          "dark": "charts.red",
+          "light": "errorForeground",
+          "highContrast": "errorForeground",
+          "highContrastLight": "errorForeground"
+        }
+      },
+      {
+        "id": "unfold.severe",
+        "description": "Unfold: stopped retrying, interrupted, infrastructure failures.",
+        "defaults": {
+          "dark": "charts.orange",
+          "light": "charts.orange",
+          "highContrast": "charts.orange",
+          "highContrastLight": "charts.orange"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "node scripts/sync-core.mjs && tsc -p .",
+    "watch": "node scripts/sync-core.mjs && tsc -p . --watch",
+    "test": "node scripts/sync-core.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test ${UNFOLD_TEST_CONCURRENCY:+--test-concurrency=$UNFOLD_TEST_CONCURRENCY} --test-timeout=120000 --test-force-exit test/*.test.ts",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package --no-dependencies",
+    "test:webview": "node scripts/sync-core.mjs && node test/webview.mjs && node test/task-webview.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "@types/vscode": "1.99.1",
+    "@vscode/vsce": "4.0.0",
+    "ovsx": "1.2.0",
+    "typescript": "7.0.2"
+  },
+  "overrides": {
+    "ovsx": {
+      "@vscode/vsce": "$@vscode/vsce"
+    }
+  },
+  "allowScripts": {
+    "@vscode/vsce-sign": false
+  }
+}

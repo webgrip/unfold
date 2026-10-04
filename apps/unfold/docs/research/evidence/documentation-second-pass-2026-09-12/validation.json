@@ -1,0 +1,247 @@
+{
+  "date": "2026-09-12",
+  "commands": [
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "npm",
+        "test"
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/de-vloer",
+      "exitCode": 0,
+      "elapsedSeconds": 9.85,
+      "log": "de-vloer-1.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "npm",
+        "run",
+        "check"
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/de-vloer",
+      "exitCode": 0,
+      "elapsedSeconds": 4.33,
+      "log": "de-vloer-2.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/de-vloer",
+      "exitCode": 0,
+      "elapsedSeconds": 0.36,
+      "log": "de-vloer-3.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "npm",
+        "run",
+        "design:check"
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/de-vloer",
+      "exitCode": 0,
+      "elapsedSeconds": 0.2,
+      "log": "de-vloer-4.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "npm",
+        "run",
+        "brand:check"
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/de-vloer",
+      "exitCode": 0,
+      "elapsedSeconds": 0.18,
+      "log": "de-vloer-5.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "npm",
+        "run",
+        "license:check"
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/de-vloer",
+      "exitCode": 0,
+      "elapsedSeconds": 0.16,
+      "log": "de-vloer-6.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "npm",
+        "run",
+        "extension:build"
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/de-vloer",
+      "exitCode": 0,
+      "elapsedSeconds": 0.4,
+      "log": "de-vloer-7.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "npm",
+        "run",
+        "extension:test"
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/de-vloer",
+      "exitCode": 0,
+      "elapsedSeconds": 25.82,
+      "log": "de-vloer-8.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "npm",
+        "run",
+        "extension:package"
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/de-vloer",
+      "exitCode": 0,
+      "elapsedSeconds": 1.35,
+      "log": "de-vloer-9.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "npm",
+        "run",
+        "extension:verify"
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/de-vloer",
+      "exitCode": 0,
+      "elapsedSeconds": 0.17,
+      "log": "de-vloer-10.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "go",
+        "test",
+        "./..."
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/ploeg",
+      "exitCode": 0,
+      "elapsedSeconds": 12.09,
+      "log": "ploeg-1.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "go",
+        "vet",
+        "./..."
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/ploeg",
+      "exitCode": 0,
+      "elapsedSeconds": 0.41,
+      "log": "ploeg-2.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "go",
+        "build",
+        "./..."
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/ploeg",
+      "exitCode": 0,
+      "elapsedSeconds": 0.99,
+      "log": "ploeg-3.log"
+    },
+    {
+      "command": [
+        "mise",
+        "exec",
+        "--",
+        "openspec",
+        "validate",
+        "audit-current-documentation",
+        "--strict"
+      ],
+      "cwd": "/Users/ryangrippeling/projects/webgrip/ploeg",
+      "exitCode": 0,
+      "elapsedSeconds": 0.71,
+      "log": "ploeg-4.log"
+    }
+  ],
+  "additionalEvidence": [
+    "site-check.json",
+    "rendered-links.json",
+    "repository-links.json",
+    "standalone.log",
+    "landscape.log",
+    "ledger-final.log",
+    "browser.json"
+  ],
+  "style": "Advisory; broad consolidation exceeds cosmetic-edit guard. See report for factual changes and preserved constraints.",
+  "limits": [
+    "Fixture-based application and extension tests; no paid providers",
+    "Some Go test results were cached",
+    "Isolated local TechDocs toolchain, not deployed estate qualification",
+    "Local search filter does not cover Backstage-wide indexing or external crawlers",
+    "Historical records not all recertified line by line"
+  ],
+  "verifiedResults": {
+    "site-check.json": {
+      "checks": 18,
+      "result": "pass",
+      "searchDocuments": 32,
+      "searchEntries": 314,
+      "sourceLinks": "resolved to Forgejo",
+      "historicalPages": "retained and omitted from local search",
+      "limits": "Backstage ingestion and external crawling are not covered"
+    },
+    "rendered-links.json": {
+      "htmlPages": 81,
+      "checked": 3972,
+      "problems": []
+    },
+    "repository-links.json": {
+      "checked": 1340,
+      "problems": []
+    },
+    "browser.json": {
+      "techdocsPages": 5,
+      "landscapePages": 9,
+      "errors": [],
+      "screenshots": [
+        "techdocs-review.png",
+        "runner-review.png"
+      ]
+    }
+  }
+}

@@ -1,0 +1,55 @@
+site_name: Unfold
+site_description: Units of work become review-ready pull requests written by AI agents
+site_url: https://docs.webgrip.dev/glide/
+repo_url: https://forgejo.webgrip.dev/webgrip/unfold
+edit_uri: ''
+docs_dir: .build/docs
+site_dir: .build/site
+plugins:
+  - techdocs-core:
+      use_material_search: true
+nav:
+  - Start here: index.md
+  - Try it:
+      - Both applications (demo): workflows/local-demo.md
+      - Unfold without Ploeg (demo): unfold/operations/demo.md
+  - Understand:
+      - How work flows: concepts/how-work-flows.md
+      - Architecture: concepts/architecture.md
+      - Inside a Run: concepts/inside-a-run.md
+      - Journeys: concepts/journeys.md
+      - Who Unfold is for: concepts/who-unfold-is-for.md
+      - Run Cards (mostly proposed): concepts/run-cards.md
+  - How-to:
+      - Assign work to an agent: how-to/assign-work-to-an-agent.md
+      - Review an agent pull request: how-to/review-an-agent-pr.md
+      - Prepare a repository: how-to/prepare-a-repository.md
+      - Run a pilot batch: how-to/run-a-pilot-batch.md
+      - Operate Ploeg:
+          - Overview: ploeg/index.md
+          - Runbooks: ploeg/how-to/index.md
+      - Operate Unfold: unfold/index.md
+      - Set up shared execution: workflows/managed-execution.md
+      - Release and live test: operations/first-cutover.md
+  - Reference:
+      - Glossary: reference/glossary.md
+      - Decisions: reference/decisions.md
+      - Ploeg configuration: ploeg/reference/configuration.md
+      - Capability matrix: reference/capability-matrix.md
+      - KPIs (proposal): reference/kpis.md
+      - Run Cards works council pack: reference/run-cards-works-council-pack.md
+      - Product language: domain/overview.md
+      - Open questions: landscape/questions.md
+  - Contribute:
+      - Documentation policy: documentation.md
+      - Documentation publishing: operations/docs-publishing.md
+      - CI and releases: operations/ci.md
+      - Source and artifacts: operations/artifacts.md
+      - Migration: migration.md
+      - System decisions: adr/index.md
+
+validation:
+  links:
+    anchors: warn
+    not_found: warn
+    unrecognized_links: warn

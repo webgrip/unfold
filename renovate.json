@@ -1,0 +1,220 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "local>webgrip/renovate-config#v1.13.0",
+    "local>webgrip/renovate-config:automerge-non-major#v1.13.0"
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/tests/**",
+    "**/__fixtures__/**",
+    "apps/*/.forgejo/**",
+    "apps/ploeg/**",
+    ".mise/**"
+  ],
+  "git-submodules": {
+    "enabled": true
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Update ARGs annotated with '# renovate: datasource=… depName=…'. The Dockerfiles compose their FROM refs from a registry variable and a digest-pinned tag, which the dockerfile manager cannot replace; tag and digest are captured separately so digest-pinned ARGs stay managed.",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s*\\nARG \\S+=\"?(?:\\S*?[:/])?(?<currentValue>[^@:/\\s\"]+)@(?<currentDigest>sha256:[a-f0-9]{64})",
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: versioning=(?<versioning>\\S+))?\\s*\\nARG \\S+=\"?(?<currentValue>[^@\\s\"]+)\"?\\s"
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver{{/if}}"
+    },
+    {
+      "customType": "regex",
+      "description": "Local checks run the CI toolchain images by tag outside any workflow file. Managing them here keeps release-check and docs-site-check on the image CI uses; the update shares the workflow's branch because the dependency name is the same.",
+      "managerFilePatterns": [
+        "/^mise\\.toml$/",
+        "/^scripts/docs-site\\.sh$/"
+      ],
+      "matchStrings": [
+        "(?<depName>harbor\\.webgrip\\.dev/webgrip/(?:semantic-release-monorepo|techdocs-builder)):(?<currentValue>\\d+\\.\\d+\\.\\d+)\\s"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "Composite actions take their BuildKit, SBOM scanner and binfmt images as `with:` strings, which the github-actions manager does not read. Tag and digest are captured so the digest stays managed.",
+      "managerFilePatterns": [
+        "/^\\.forgejo/workflows/[^/]+\\.ya?ml$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>docker\\.io/[^:\"\\s]+):(?<currentValue>[^@\"\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})\""
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "The local agent image is tagged with the OpenCode version it carries. The example configurations and the live guide name that tag, so they move with the opencode group.",
+      "managerFilePatterns": [
+        "/^apps/unfold/config/[^/]+\\.example\\.json$/",
+        "/^apps/unfold/docs/operations/live\\.md$/"
+      ],
+      "matchStrings": [
+        "unfold-agent:(?<currentValue>\\d+\\.\\d+\\.\\d+)"
+      ],
+      "depNameTemplate": "opencode-ai",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": "The landscape build loads Mermaid and Marked from jsDelivr inside Playwright.",
+      "managerFilePatterns": [
+        "/^apps/unfold/scripts/build-landscape\\.mjs$/"
+      ],
+      "matchStrings": [
+        "cdn\\.jsdelivr\\.net/npm/(?<depName>[a-z@][^@/]*)@(?<currentValue>\\d+\\.\\d+\\.\\d+)/"
+      ],
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "The annotated-ARG manager owns the composed base images and the opencode pin.",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchFileNames": [
+        "apps/unfold/Dockerfile",
+        "apps/unfold/ops/agent/Dockerfile"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Bare versions are reused outside the FROM line; digests are captured explicitly.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "pinDigests": false
+    },
+    {
+      "description": "Forgejo-resolved workflow pins keep the CI-only commit shape. The org forgejo overlay sets it too, but as runner-level config it is applied before the preset's per-update-type commit types, which then win.",
+      "matchDatasources": [
+        "gitea-tags"
+      ],
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "actions"
+    },
+    {
+      "description": "The agent image and the mise pin must move together: one OpenCode version is what the workbench, the probe and the image share.",
+      "matchPackageNames": [
+        "opencode-ai"
+      ],
+      "groupName": "opencode",
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "agent"
+    },
+    {
+      "description": "engines ranges are compatibility floors, not dependencies. Pinning or bumping engines.vscode narrows which VS Code builds the extension installs on, and engines.node is the deliberate Node 24 line. Both move by hand.",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchDepTypes": [
+        "engines"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "vsce refuses to package when @types/vscode is newer than engines.vscode (^1.99.0). Raise this bound together with engines.vscode.",
+      "matchPackageNames": [
+        "@types/vscode"
+      ],
+      "allowedVersions": "<1.100.0"
+    },
+    {
+      "description": "Unfold's chart image tag is empty on purpose: the release train fills it from appVersion. Renovate would otherwise digest-pin it.",
+      "matchManagers": [
+        "helm-values"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/webgrip/unfold"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Ploeg is a submodule pinned to a release of github.com/ploeg-hq/ploeg (system ADR-0019). .gitmodules names the release tag, so Renovate compares release tags as semver and proposes the newest, release candidates included, as a build(ploeg) pull request that never releases Unfold. A person merges it, because each move changes the engine Unfold runs on. A release is already reviewed and gated by Ploeg's CI, so there is no soak.",
+      "matchManagers": [
+        "git-submodules"
+      ],
+      "enabled": true,
+      "automerge": false,
+      "minimumReleaseAge": null,
+      "semanticCommitType": "build",
+      "semanticCommitScope": "ploeg",
+      "commitMessageTopic": "Ploeg",
+      "prBodyNotes": [
+        "When docs-check reports a stale combined glossary or decision register, Ploeg's domain model or ADR ledger changed: run `mise run domain` and `mise run docs-decisions` on this branch and push the result."
+      ],
+      "ignoreUnstable": false
+    },
+    {
+      "description": "These pins replace the copies npm bundles in the agent image, and the patch script accepts only the bundled major. Raise the bound when npm bundles a newer major.",
+      "matchFileNames": [
+        "apps/unfold/ops/agent/Dockerfile"
+      ],
+      "matchPackageNames": [
+        "undici"
+      ],
+      "allowedVersions": "<7"
+    },
+    {
+      "description": "See the undici rule: brace-expansion is pinned to npm's bundled major.",
+      "matchFileNames": [
+        "apps/unfold/ops/agent/Dockerfile"
+      ],
+      "matchPackageNames": [
+        "brace-expansion"
+      ],
+      "allowedVersions": "<6"
+    },
+    {
+      "description": "Node types follow the Node 24 runtime that mise, engines and the images pin.",
+      "matchPackageNames": [
+        "@types/node"
+      ],
+      "allowedVersions": "<25"
+    },
+    {
+      "description": "@astrojs/check and typescript-eslint accept TypeScript up to 6. Lift this when both peer ranges include 7.",
+      "matchFileNames": [
+        "apps/site/package.json"
+      ],
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "allowedVersions": "<7"
+    },
+    {
+      "description": "three is vendored into apps/unfold/public/vendor/three (Unfold ADR-0028). A version bump alone breaks the vendored copy's checks; upgrade by hand with npm run vendor:three.",
+      "matchFileNames": [
+        "apps/unfold/package.json"
+      ],
+      "matchPackageNames": [
+        "three"
+      ],
+      "enabled": false
+    }
+  ],
+  "helm-values": {
+    "managerFilePatterns": [
+      "/(^|/)values\\.ya?ml$/"
+    ]
+  }
+}

@@ -1,0 +1,840 @@
+[
+  {
+    "file": "docs/architecture.md",
+    "lang": "en",
+    "markdown": true,
+    "metrics": {
+      "words": 1214,
+      "em_dashes_per_500_words": 0.0,
+      "spaced_en_dashes_per_500_words": 0.0,
+      "sentence_length_variation": 0.93,
+      "paragraph_length_variation": 0.86,
+      "sentences": 71,
+      "paragraphs": 24,
+      "prose_paragraphs": 16,
+      "headings": 7,
+      "bullets": 0,
+      "bold_spans": 1,
+      "sentence_length_mean": 17.1,
+      "long_sentences_per_1000_words": 28.8,
+      "em_dashes_per_1000_words": 0.0,
+      "type_token_ratio": 0.45
+    },
+    "findings": [
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 14,
+        "column": 9,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 37,
+        "column": 381,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 39,
+        "column": 386,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 61,
+        "column": 8,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 61,
+        "column": 91,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 61,
+        "column": 292,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 61,
+        "column": 8,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 61,
+        "column": 91,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 69,
+        "column": 615,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      }
+    ],
+    "structure": []
+  },
+  {
+    "file": "docs/documentation.md",
+    "lang": "en",
+    "markdown": true,
+    "metrics": {
+      "words": 728,
+      "em_dashes_per_500_words": 0.0,
+      "spaced_en_dashes_per_500_words": 0.0,
+      "sentence_length_variation": 1.1,
+      "paragraph_length_variation": 0.95,
+      "sentences": 46,
+      "paragraphs": 17,
+      "prose_paragraphs": 10,
+      "headings": 6,
+      "bullets": 5,
+      "bold_spans": 0,
+      "sentence_length_mean": 15.8,
+      "long_sentences_per_1000_words": 22.0,
+      "em_dashes_per_1000_words": 0.0,
+      "type_token_ratio": 0.51
+    },
+    "findings": [
+      {
+        "id": "inline-header-lists",
+        "category": "structure",
+        "severity": "cluster",
+        "line": 27,
+        "column": 1,
+        "match": "1. **Inventory:**",
+        "hint": "A vertical list where every item opens with a short bold (or wiki-bold) label, a colon, then a sentence that often restates the label ('**Pe",
+        "kind": "pattern"
+      },
+      {
+        "id": "inline-header-lists",
+        "category": "structure",
+        "severity": "cluster",
+        "line": 28,
+        "column": 1,
+        "match": "2. **Check claims:**",
+        "hint": "A vertical list where every item opens with a short bold (or wiki-bold) label, a colon, then a sentence that often restates the label ('**Pe",
+        "kind": "pattern"
+      },
+      {
+        "id": "inline-header-lists",
+        "category": "structure",
+        "severity": "cluster",
+        "line": 29,
+        "column": 1,
+        "match": "3. **Consolidate:**",
+        "hint": "A vertical list where every item opens with a short bold (or wiki-bold) label, a colon, then a sentence that often restates the label ('**Pe",
+        "kind": "pattern"
+      },
+      {
+        "id": "inline-header-lists",
+        "category": "structure",
+        "severity": "cluster",
+        "line": 30,
+        "column": 1,
+        "match": "4. **Edit:**",
+        "hint": "A vertical list where every item opens with a short bold (or wiki-bold) label, a colon, then a sentence that often restates the label ('**Pe",
+        "kind": "pattern"
+      },
+      {
+        "id": "inline-header-lists",
+        "category": "structure",
+        "severity": "cluster",
+        "line": 31,
+        "column": 1,
+        "match": "5. **Verify:**",
+        "hint": "A vertical list where every item opens with a short bold (or wiki-bold) label, a colon, then a sentence that often restates the label ('**Pe",
+        "kind": "pattern"
+      },
+      {
+        "id": "colon-reveal",
+        "category": "rhetoric",
+        "severity": "cluster",
+        "line": 33,
+        "column": 1,
+        "match": "For each current claim ask: what would make this sentence false, and what check would notice?",
+        "hint": "A setup clause, a colon, then a tidy payload in lower case: the colon is used for suspense rather than to introduce a list, a label or a quo",
+        "kind": "pattern"
+      }
+    ],
+    "structure": []
+  },
+  {
+    "file": "docs/monorepo-transition.md",
+    "lang": "en",
+    "markdown": true,
+    "metrics": {
+      "words": 706,
+      "em_dashes_per_500_words": 0.0,
+      "spaced_en_dashes_per_500_words": 0.0,
+      "sentence_length_variation": 1.11,
+      "paragraph_length_variation": 0.76,
+      "sentences": 44,
+      "paragraphs": 19,
+      "prose_paragraphs": 11,
+      "headings": 5,
+      "bullets": 4,
+      "bold_spans": 0,
+      "sentence_length_mean": 16.0,
+      "long_sentences_per_1000_words": 17.0,
+      "em_dashes_per_1000_words": 0.0,
+      "type_token_ratio": 0.53
+    },
+    "findings": [
+      {
+        "id": "colon-reveal",
+        "category": "rhetoric",
+        "severity": "cluster",
+        "line": 3,
+        "column": 1,
+        "match": "Status: proposal.",
+        "hint": "A setup clause, a colon, then a tidy payload in lower case: the colon is used for suspense rather than to introduce a list, a label or a quo",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 12,
+        "column": 26,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 20,
+        "column": 200,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 20,
+        "column": 287,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 20,
+        "column": 200,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 22,
+        "column": 180,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 24,
+        "column": 86,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 31,
+        "column": 81,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      }
+    ],
+    "structure": []
+  },
+  {
+    "file": "docs/operations/release.md",
+    "lang": "en",
+    "markdown": true,
+    "metrics": {
+      "words": 767,
+      "em_dashes_per_500_words": 0.0,
+      "spaced_en_dashes_per_500_words": 0.0,
+      "sentence_length_variation": 0.85,
+      "paragraph_length_variation": 0.69,
+      "sentences": 38,
+      "paragraphs": 18,
+      "prose_paragraphs": 12,
+      "headings": 5,
+      "bullets": 0,
+      "bold_spans": 1,
+      "sentence_length_mean": 20.2,
+      "long_sentences_per_1000_words": 24.8,
+      "em_dashes_per_1000_words": 0.0,
+      "type_token_ratio": 0.45
+    },
+    "findings": [],
+    "structure": []
+  },
+  {
+    "file": "extensions/vscode/README.md",
+    "lang": "en",
+    "markdown": true,
+    "metrics": {
+      "words": 1705,
+      "em_dashes_per_500_words": 0.0,
+      "spaced_en_dashes_per_500_words": 0.0,
+      "sentence_length_variation": 0.71,
+      "paragraph_length_variation": 0.69,
+      "sentences": 120,
+      "paragraphs": 44,
+      "prose_paragraphs": 32,
+      "headings": 10,
+      "bullets": 5,
+      "bold_spans": 21,
+      "sentence_length_mean": 14.2,
+      "long_sentences_per_1000_words": 22.3,
+      "em_dashes_per_1000_words": 0.0,
+      "type_token_ratio": 0.38
+    },
+    "findings": [
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 5,
+        "column": 131,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 11,
+        "column": 249,
+        "match": "**OK**. Then choose **Extensions → … → Install from VSIX**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 15,
+        "column": 188,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 25,
+        "column": 13,
+        "match": "**De Vloer** activity bar and run **Vloer: Connect to Workbench**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "unicode-arrows",
+        "category": "punctuation-format",
+        "severity": "context",
+        "line": 26,
+        "column": 24,
+        "match": "s → D",
+        "hint": "Typographic arrows (→, ⇒) or their ASCII forms (->, =>) used in running prose where a writer would say 'leads to', 'then' or write a sentenc",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 27,
+        "column": 11,
+        "match": "**Set up session**, select a crew, runtime and budget, then confirm **Import task**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 29,
+        "column": 12,
+        "match": "**Checks**, **Changes**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 35,
+        "column": 5,
+        "match": "**Vloer: Connect to Workbench** with the deployed HTTPS origin. When configured, **Sign in with <provider>**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "colon-reveal",
+        "category": "rhetoric",
+        "severity": "cluster",
+        "line": 35,
+        "column": 1,
+        "match": "Run **Vloer: Connect to Workbench** with the deployed HTTPS origin.",
+        "hint": "A setup clause, a colon, then a tidy payload in lower case: the colon is used for suspense rather than to introduce a list, a label or a quo",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 55,
+        "column": 72,
+        "match": "** grants the displayed request; broader choices appear only for declared patterns. Container and Kubernetes sessions can switch between **Approve automatically** and **",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 73,
+        "column": 5,
+        "match": "**Brief** tab shows the review candidate when capture is available. **Download Git bundle**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 73,
+        "column": 98,
+        "match": "**Download patch** and **Download manifest**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 73,
+        "column": 5,
+        "match": "**Brief** tab shows the review candidate when capture is available. **Download Git bundle**, **Download patch** and **Download manifest** each ask for a local destination. ",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      },
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "line": 83,
+        "column": 5,
+        "match": "**Vloer: Send Selection to Remote Session…** or **Vloer: Send Current File to Remote Session…**",
+        "hint": "Boldface applied mechanically instead of marking one real emphasis point: every term or acronym in a sentence, a bolded key phrase in every ",
+        "kind": "pattern"
+      }
+    ],
+    "structure": [
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "kind": "structure",
+        "line": 1,
+        "column": 1,
+        "match": "21 bold spans in 1705 words of prose",
+        "hint": "21 bold spans in 1705 words of prose",
+        "evidence": {
+          "bold_spans": 21,
+          "words": 1705
+        }
+      }
+    ]
+  },
+  {
+    "file": "docs/landscape/questions.md",
+    "lang": "en",
+    "markdown": true,
+    "metrics": {
+      "words": 940,
+      "em_dashes_per_500_words": 0.0,
+      "spaced_en_dashes_per_500_words": 0.0,
+      "sentence_length_variation": 0.43,
+      "paragraph_length_variation": 0.91,
+      "sentences": 63,
+      "paragraphs": 26,
+      "prose_paragraphs": 18,
+      "headings": 7,
+      "bullets": 8,
+      "bold_spans": 5,
+      "sentence_length_mean": 14.9,
+      "long_sentences_per_1000_words": 28.7,
+      "em_dashes_per_1000_words": 0.0,
+      "type_token_ratio": 0.49
+    },
+    "findings": [
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 8,
+        "column": 59,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "colon-subtitle-headings",
+        "category": "structure",
+        "severity": "cluster",
+        "line": 16,
+        "column": 1,
+        "match": "## Round one: responsibility",
+        "hint": "Every heading takes the 'Noun: subtitle' shape, or its transformation variant 'X: from A to B' ('X: A에서 B로')",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 20,
+        "column": 196,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "colon-subtitle-headings",
+        "category": "structure",
+        "severity": "cluster",
+        "line": 28,
+        "column": 1,
+        "match": "## Round two: what the shared entry point promises",
+        "hint": "Every heading takes the 'Noun: subtitle' shape, or its transformation variant 'X: from A to B' ('X: A에서 B로')",
+        "kind": "pattern"
+      },
+      {
+        "id": "colon-reveal",
+        "category": "rhetoric",
+        "severity": "cluster",
+        "line": 34,
+        "column": 1,
+        "match": "Who writes and edits the ticket: the existing tracker, Vloer, an agent, or all three?",
+        "hint": "A setup clause, a colon, then a tidy payload in lower case: the colon is used for suspense rather than to introduce a list, a label or a quo",
+        "kind": "pattern"
+      },
+      {
+        "id": "colon-subtitle-headings",
+        "category": "structure",
+        "severity": "cluster",
+        "line": 36,
+        "column": 1,
+        "match": "## Round three: decisions and evidence",
+        "hint": "Every heading takes the 'Noun: subtitle' shape, or its transformation variant 'X: from A to B' ('X: A에서 B로')",
+        "kind": "pattern"
+      },
+      {
+        "id": "colon-reveal",
+        "category": "rhetoric",
+        "severity": "cluster",
+        "line": 44,
+        "column": 1,
+        "match": "Which spending number may leadership rely on: authorized limit, provisional gateway estimate, or reconciled provider charge?",
+        "hint": "A setup clause, a colon, then a tidy payload in lower case: the colon is used for suspense rather than to introduce a list, a label or a quo",
+        "kind": "pattern"
+      },
+      {
+        "id": "colon-subtitle-headings",
+        "category": "structure",
+        "severity": "cluster",
+        "line": 46,
+        "column": 1,
+        "match": "## Round four: increasing capacity",
+        "hint": "Every heading takes the 'Noun: subtitle' shape, or its transformation variant 'X: from A to B' ('X: A에서 B로')",
+        "kind": "pattern"
+      },
+      {
+        "id": "colon-subtitle-headings",
+        "category": "structure",
+        "severity": "cluster",
+        "line": 54,
+        "column": 1,
+        "match": "## Round five: whether custom software is justified",
+        "hint": "Every heading takes the 'Noun: subtitle' shape, or its transformation variant 'X: from A to B' ('X: A에서 B로')",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 58,
+        "column": 238,
+        "match": "ecosystem",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      }
+    ],
+    "structure": [
+      {
+        "id": "bold-overuse",
+        "category": "punctuation-format",
+        "severity": "cluster",
+        "kind": "structure",
+        "line": 3,
+        "column": 1,
+        "match": "5 bold spans in 940 words of prose",
+        "hint": "5 bold spans in 940 words of prose",
+        "evidence": {
+          "bold_spans": 5,
+          "words": 940
+        }
+      },
+      {
+        "id": "colon-subtitle-headings",
+        "category": "structure",
+        "severity": "cluster",
+        "kind": "structure",
+        "line": 16,
+        "column": 1,
+        "match": "5 of 7 headings take the X: Y shape",
+        "hint": "5 of 7 headings take the X: Y shape",
+        "evidence": {
+          "colon_headings": 5,
+          "headings": 7
+        }
+      }
+    ]
+  },
+  {
+    "file": "/Users/ryangrippeling/projects/webgrip/ploeg/docs/architecture.md",
+    "lang": "en",
+    "markdown": true,
+    "metrics": {
+      "words": 1335,
+      "em_dashes_per_500_words": 0.0,
+      "spaced_en_dashes_per_500_words": 0.0,
+      "sentence_length_variation": 0.95,
+      "paragraph_length_variation": 0.87,
+      "sentences": 86,
+      "paragraphs": 35,
+      "prose_paragraphs": 22,
+      "headings": 11,
+      "bullets": 8,
+      "bold_spans": 0,
+      "sentence_length_mean": 15.5,
+      "long_sentences_per_1000_words": 21.7,
+      "em_dashes_per_1000_words": 0.0,
+      "type_token_ratio": 0.41
+    },
+    "findings": [
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 15,
+        "column": 104,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 28,
+        "column": 353,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 32,
+        "column": 174,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 44,
+        "column": 241,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 44,
+        "column": 333,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 44,
+        "column": 241,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 50,
+        "column": 18,
+        "match": "harnesses",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 54,
+        "column": 6,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 54,
+        "column": 30,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 54,
+        "column": 161,
+        "match": "Harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 54,
+        "column": 6,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 54,
+        "column": 30,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 75,
+        "column": 10,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 75,
+        "column": 41,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      },
+      {
+        "id": "elevated-vocabulary-cluster",
+        "category": "vocabulary",
+        "severity": "cluster",
+        "line": 75,
+        "column": 10,
+        "match": "harness",
+        "hint": "Words that are legitimate alone but become a strong signal when two or more appear in one paragraph: inflated verbs (harness, foster, naviga",
+        "kind": "pattern"
+      }
+    ],
+    "structure": []
+  }
+]

@@ -1,0 +1,54 @@
+---
+import geometry from '../brand/geometry.json';
+
+interface Props {
+  cut?: 'master' | 'favicon';
+  crop?: boolean;
+  size?: number;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  label?: string;
+  colors?: { ink: string; accent: string };
+}
+
+const { cut = 'master', crop = false, size = 32, x, y, width, height, label, colors } = Astro.props;
+const shape = geometry[cut];
+const viewBox = crop ? shape.bounds : shape.frame;
+const [, , boxWidth = 64, boxHeight = 64] = viewBox.split(' ').map(Number);
+const drawnHeight = height ?? size;
+const drawnWidth = width ?? (drawnHeight * boxWidth) / boxHeight;
+const a11y = label
+  ? { role: 'img' as const, 'aria-label': label }
+  : { 'aria-hidden': 'true' as const };
+---
+
+<svg
+  class="mark"
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox={viewBox}
+  x={x}
+  y={y}
+  width={drawnWidth}
+  height={drawnHeight}
+  focusable="false"
+  {...a11y}
+>
+  <path class="mark-ink" d={shape.ink} fill={colors?.ink}></path>
+  <path class="mark-accent" d={shape.accent} fill={colors?.accent}></path>
+</svg>
+
+<style>
+  .mark {
+    flex: none;
+  }
+
+  .mark-ink:not([fill]) {
+    fill: var(--fg);
+  }
+
+  .mark-accent:not([fill]) {
+    fill: var(--accent-decor);
+  }
+</style>

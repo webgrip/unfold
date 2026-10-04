@@ -1,0 +1,35 @@
+✔ the installed release pipeline selects only commits within the application package (1747.857584ms)
+✔ publisher shells reject the other application and mismatched manual refs before producing a version (154.33875ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2406.544751
+semantic-release: 25.0.9
+@semantic-release/commit-analyzer: 14.0.0-beta.3
+@webgrip/semantic-release-config: 1.2.3
+✔ the installed release toolchain is the one exercised by this suite (10.809667ms)
+✔ the actual historical breaking commit reproduces major before the policy and minor after it (341.860417ms)
+✔ the real version calculator advances the last valid candidate to ploeg-v0.3.0-rc.5 (65.4765ms)
+✔ a remaining mistaken 1.x tag is rejected instead of producing another 1.x release (28.981334ms)
+✔ breaking headers and footers remain minor while ordinary commit behavior is preserved (9.966916ms)
+✔ the actual release notes retain the managed-authentication compatibility warning (98.642125ms)
+✔ version verification rejects major, stable, malformed and missing releases (1.257625ms)
+✔ condition verification blocks stable promotion even before a next version exists (0.232ms)
+✔ the installed plugin pipeline loads and enforces both local release gates (75.875542ms)
+✔ the installed release engine checks conditions before promotion and verifies versions before preparation (3.165459ms)
+✔ effective configuration retains standard tags and CI tests it before invoking release (1.814459ms)
+✔ the actual artifact-publisher shell rejects major and stable tags before emitting outputs (186.505291ms)
+﹣ the actual current Git history calculates the corrected replacement without publishing (0.232792ms) # SKIP
+✔ reusable artifact jobs accept validated parse output without unavailable job results (96.811625ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 1
+ℹ todo 0
+ℹ duration_ms 1536.261001

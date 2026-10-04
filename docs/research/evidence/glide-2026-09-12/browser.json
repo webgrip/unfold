@@ -1,0 +1,55 @@
+{
+  "at": "2026-09-12T12:21:05.481Z",
+  "pages": [
+    {
+      "name": "home",
+      "path": "/",
+      "status": 200,
+      "heading": "Glide¶"
+    },
+    {
+      "name": "product",
+      "path": "/domain/overview/",
+      "status": 200,
+      "heading": "Glide — Domain Overview¶"
+    },
+    {
+      "name": "vloerdocs",
+      "path": "/vloer/",
+      "status": 200,
+      "heading": "De Vloer documentation¶"
+    },
+    {
+      "name": "ploegdocs",
+      "path": "/ploeg/",
+      "status": 200,
+      "heading": "Ploeg documentation¶"
+    },
+    {
+      "name": "workflow",
+      "path": "/workflows/local-demo/",
+      "status": 200,
+      "heading": "Local shared execution demonstration¶"
+    },
+    {
+      "name": "migration",
+      "path": "/migration/",
+      "status": 200,
+      "heading": "Glide migration¶"
+    },
+    {
+      "name": "comparison",
+      "path": "/research/2026-09-12-execution-boundary/",
+      "status": 200,
+      "heading": "Execution boundary comparison¶"
+    },
+    {
+      "name": "landscape",
+      "pages": 9
+    }
+  ],
+  "errors": [],
+  "limits": [
+    "Seven selected TechDocs pages and all nine landscape tabs; not a test of the deployed docs service"
+  ]
+}

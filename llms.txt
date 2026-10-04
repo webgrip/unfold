@@ -1,0 +1,34 @@
+# Unfold
+
+> Unfold turns units of work (Work Items: decided intent, or a problem described well enough to conceive a solution) into pull requests written by AI agents. Ploeg authorizes, budgets and runs every agent Run; Unfold is its front end. Self-hosted and pre-1.0; a hosted offering for agencies is decided but not built.
+
+Use Ploeg's terms: a Run is one Role executing against a Work Item, a Shift is the whole attempt, and a Lease is the right to write the Shift's branch. Code and executable tests describe the implementation; research and ADR pages are records.
+
+## Start
+
+- [Start page](docs/index.md): what Unfold is and where to go next
+- [How work flows](docs/concepts/how-work-flows.md): one Work Item from assignment to pull request, and work that creates work
+- [Architecture](docs/concepts/architecture.md): goals, context, containers and key decisions
+- [Who Unfold is for](docs/concepts/who-unfold-is-for.md): the self-hosted first phase and the hosted agency offering (decided, not built)
+
+## Reference
+
+- [Glossary](docs/reference/glossary.md): one definition per term across both applications
+- [Decisions](docs/reference/decisions.md): every ADR across the three ledgers, with status
+- [Ploeg contracts](apps/ploeg/docs/contracts/README.md): published schemas and worker control
+- [Unfold HTTP API](apps/unfold/docs/contracts/api.md): front-end interface
+
+## How-to
+
+- [Assign work to an agent](docs/how-to/assign-work-to-an-agent.md)
+- [Review an agent pull request](docs/how-to/review-an-agent-pr.md)
+- [Prepare a repository](docs/how-to/prepare-a-repository.md)
+- [Run a pilot batch](docs/how-to/run-a-pilot-batch.md): record ten real Work Items; compare variants with the evaluation harness
+- [Run the local demo](docs/workflows/local-demo.md): deterministic, no model calls
+
+## Optional
+
+- [Ploeg architecture](apps/ploeg/docs/architecture.md): implementation detail
+- [Unfold architecture](apps/unfold/docs/architecture.md): implementation detail
+- [CI and releases](docs/operations/ci.md)
+- [Documentation policy](docs/documentation.md)

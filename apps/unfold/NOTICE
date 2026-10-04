@@ -1,0 +1,22 @@
+Unfold
+Copyright 2026 Ryan Grippeling / WebGrip
+
+This product includes software developed at WebGrip (https://webgrip.nl).
+
+"Unfold" and the Unfold mark are trademarks of the Unfold project. Section 6
+of the Apache License grants no rights in them. What you may do with them without
+asking, and the two things that need permission, are in docs/brand/TRADEMARK.md at the root of the Unfold repository.
+
+This product bundles the Archivo typeface (public/fonts/), Copyright 2020 The
+Archivo Project Authors, licensed under the SIL Open Font License 1.1. Its
+licence text is public/fonts/OFL.txt and is served at /fonts/OFL.txt.
+
+This product bundles three.js 0.186.1 (public/vendor/three/), Copyright 2010-2026
+three.js authors, licensed under the MIT License. Its licence text is
+public/vendor/three/LICENSE and travels with the copy. scripts/vendor-three.mjs
+copies it from the pinned npm package.
+
+The container image includes ws 8.22.0 (node_modules/ws/), Copyright 2011 Einar
+Otto Stangvik, 2013 Arnout Kazemier and contributors, and 2016 Luigi Pinca and
+contributors, licensed under the MIT License. Its licence text is
+node_modules/ws/LICENSE and travels with the package.

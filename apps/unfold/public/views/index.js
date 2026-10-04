@@ -1,0 +1,28 @@
+import login from './login.js';
+import session from './session.js';
+import now from './now.js';
+import sessions from './sessions.js';
+import tasks from './tasks.js';
+import work from './work.js';
+import proposed from './proposed.js';
+import runs from './runs.js';
+import activity from './activity.js';
+import insights from './insights.js';
+import ploegFeeds from './ploeg-common.js';
+import account from './account.js';
+import system from './system.js';
+import preferences from './preferences.js';
+import palette from './palette.js';
+import dialogs from './dialogs.js';
+import design from './design.js';
+import binder from './binder.js';
+import packs from './packs.js';
+import season from './season.js';
+import cardIdentity from './card-identity.js';
+import designer from './designer.js';
+import editorSignIn from './editor-sign-in.js';
+import editors from './editors.js';
+import { chrome } from '../shell.js';
+
+/** Every view descriptor. The order is the dispatch order for key bindings and page loaders. */
+export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, insights, ploegFeeds, account, system, preferences, cardIdentity, editors, editorSignIn, binder, packs, season, palette, chrome, dialogs, design, designer];

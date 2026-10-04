@@ -1,0 +1,16 @@
+---
+import Privacy from '../components/Privacy.astro';
+import { dictionary } from '../i18n/index.ts';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const t = dictionary('en');
+---
+
+<BaseLayout
+  locale="en"
+  routeKey="privacy"
+  title={t.meta.privacyTitle}
+  description={t.meta.privacyDescription}
+>
+  <Privacy locale="en" />
+</BaseLayout>

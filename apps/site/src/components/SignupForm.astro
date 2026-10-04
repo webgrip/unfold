@@ -1,0 +1,359 @@
+---
+import { CONTROLLER } from '../config/site.ts';
+import type { Locale } from '../i18n/config.ts';
+import { dictionary } from '../i18n/index.ts';
+import { routePath } from '../i18n/routes.ts';
+import { HONEYPOT_FIELD, INTERESTS, type Interest } from '../worker/signup.ts';
+import { SIGNUP_PATH } from '../worker/app.ts';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const t = dictionary(locale).signup;
+const r = dictionary(locale).redesign;
+const labels: Record<Interest, string> = {
+  hosted: t.interests.hosted,
+  agency: t.interests.agency,
+  both: t.interests.both,
+  'self-host-support': t.interests.selfHost,
+};
+const mail = `mailto:${CONTROLLER.email}`;
+---
+
+<section id="signup" class="section signup" aria-labelledby="signup-title">
+  <div class="container signup-grid">
+    <div class="signup-copy reveal">
+      <p class="eyebrow">{r.signupKicker}</p>
+      <h2 id="signup-title" class="section-title">{r.signupTitle}</h2>
+      <p class="lede">{t.lead}</p>
+      <p class="signup-note">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
+          <path d="M12 3l8 4v5c0 4.5-3.4 8.2-8 9-4.6-.8-8-4.5-8-9V7z"></path>
+        </svg>
+        {t.note}
+      </p>
+    </div>
+
+    <div class="signup-panel card">
+      <form
+        class="signup-form"
+        method="post"
+        action={SIGNUP_PATH}
+        data-signup
+        data-sending={t.sending}
+        data-error-invalid_email={t.errors.invalid_email}
+        data-error-invalid_interest={t.errors.invalid_interest}
+        data-error-consent_required={t.errors.consent_required}
+        data-error-unavailable={`${t.errors.unavailable} ${CONTROLLER.email}.`}
+        data-error-network={t.errors.network}
+      >
+        <input type="hidden" name="locale" value={locale} />
+
+        <div class="field">
+          <label for="signup-email">{t.email}</label>
+          <input
+            id="signup-email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            inputmode="email"
+            required
+            maxlength="254"
+            spellcheck="false"
+          />
+        </div>
+
+        <fieldset class="field choices">
+          <legend>{t.interest}</legend>
+          {INTERESTS.map((interest, index) => <label class="choice">
+            <input type="radio" name="interest" value={interest} required={index === 0} />
+            <span>{labels[interest]}</span>
+          </label>)}
+        </fieldset>
+
+        <div class="honeypot" aria-hidden="true">
+          <label for="signup-homepage">{t.honeypot}</label>
+          <input
+            id="signup-homepage"
+            name={HONEYPOT_FIELD}
+            type="text"
+            tabindex="-1"
+            autocomplete="off"
+          />
+        </div>
+
+        <label class="consent">
+          <input type="checkbox" name="consent" value="yes" required />
+          <span>
+            {t.consentBefore} <a href={routePath('privacy', locale)}>{t.consentLink}</a>
+            {t.consentAfter}
+          </span>
+        </label>
+
+        <button type="submit" class="button button--primary signup-submit">
+          <span data-signup-label>{t.submit}</span>
+        </button>
+
+        <p class="signup-error" role="alert" data-signup-error hidden></p>
+      </form>
+
+      <div class="signup-done" data-signup-done hidden tabindex="-1">
+        <svg viewBox="0 0 24 24" width="40" height="40" aria-hidden="true" focusable="false">
+          <path d="M5 12.5l4.5 4.5L19 7.5"></path>
+        </svg>
+        <p class="signup-done-title">{t.success}</p>
+        <p>{t.successText} <a href={mail}>{CONTROLLER.email}</a>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .signup-copy .section-title {
+    margin-top: 1.3rem;
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+    max-width: 13ch;
+    line-height: 1.04;
+  }
+  .signup-copy .lede {
+    font-size: 1rem;
+    max-width: 42ch;
+  }
+  .signup {
+    border-top: var(--border-width) solid var(--border);
+  }
+
+  .signup-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: var(--space-7);
+    align-items: start;
+  }
+
+  @media (max-width: 56rem) {
+    .signup-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: var(--space-5);
+    }
+  }
+
+  .signup-note {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .signup-note svg,
+  .signup-done svg {
+    fill: none;
+    stroke: var(--accent-decor);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .signup-panel {
+    padding: var(--space-6);
+    border-radius: 0;
+    border-top: 4px solid var(--accent-decor);
+    box-shadow: none;
+  }
+
+  @media (max-width: 44rem) {
+    .signup-panel {
+      padding: var(--space-4);
+    }
+  }
+
+  .signup-form {
+    display: grid;
+    gap: var(--space-5);
+  }
+
+  .field {
+    display: grid;
+    gap: var(--space-2);
+    border: 0;
+    padding: 0;
+    min-width: 0;
+  }
+
+  .field > label,
+  .choices legend {
+    font-weight: var(--weight-semibold);
+  }
+
+  .choices legend {
+    padding: 0;
+    margin-bottom: var(--space-2);
+  }
+
+  input[type='email'] {
+    font: inherit;
+    font-stretch: inherit;
+    width: 100%;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    border: var(--border-width) solid var(--border-strong);
+    background: var(--bg);
+    color: var(--fg);
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      box-shadow var(--duration-fast) var(--ease-out);
+  }
+
+  input[type='email']:focus-visible {
+    outline: none;
+    border-color: var(--focus-ring);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--focus-ring) 35%, transparent);
+  }
+
+  .choices {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  }
+
+  .choices legend {
+    grid-column: 1 / -1;
+  }
+
+  .choice {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: var(--border-width) solid var(--border-strong);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition:
+      border-color var(--duration-fast) var(--ease-out),
+      background-color var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
+  }
+
+  .choice:hover {
+    border-color: var(--accent-decor);
+  }
+
+  .choice:active {
+    transform: scale(0.985);
+  }
+
+  .choice:has(input:checked) {
+    border-color: var(--accent-decor);
+    background: var(--bg-band);
+    box-shadow: inset 0 0 0 1px var(--accent-decor);
+  }
+
+  .choice:has(input:focus-visible) {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .choice input,
+  .consent input {
+    accent-color: var(--accent-fill);
+    width: 1.1rem;
+    height: 1.1rem;
+    flex: none;
+    margin: 0;
+  }
+
+  .consent {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    font-size: var(--text-sm);
+    color: var(--fg-muted);
+  }
+
+  .consent input {
+    margin-top: 0.2em;
+  }
+
+  .honeypot {
+    position: absolute;
+    left: -10000px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .signup-submit {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font: inherit;
+    font-stretch: inherit;
+    font-weight: var(--weight-semibold);
+  }
+
+  .signup-submit svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform var(--duration-base) var(--ease-out);
+  }
+
+  .signup-submit:hover svg {
+    transform: translateX(3px);
+  }
+
+  .signup-submit[aria-busy='true'] {
+    cursor: progress;
+  }
+
+  .signup-error {
+    padding: var(--space-3);
+    border-left: 3px solid var(--accent-decor);
+    background: var(--bg-band);
+    font-weight: var(--weight-semibold);
+  }
+
+  .signup-done {
+    display: grid;
+    gap: var(--space-3);
+    justify-items: start;
+  }
+
+  .signup-done:focus {
+    outline: none;
+  }
+
+  .signup-done-title {
+    font-size: var(--text-xl);
+    font-weight: var(--weight-display);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .signup-done:not([hidden]) svg path {
+      stroke-dasharray: 24;
+      animation: check-draw 600ms var(--ease-out) both;
+    }
+  }
+
+  @keyframes check-draw {
+    from {
+      stroke-dashoffset: 24;
+    }
+
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+</style>
+
+<script>
+  import { enhanceSignupForms } from '../lib/signup-client.ts';
+
+  enhanceSignupForms();
+</script>
