@@ -30,7 +30,7 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0014](adr-0014-the-unfold-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The Unfold name and mark are trademarks under a usage policy, not CC-licensed artwork | proposed | 2026-10-01 |
 | [ADR-0015](adr-0015-the-hosted-demo-is-a-recorded-replay-of-the-deterministic-demo.md) | The hosted demo is a recorded replay of the deterministic demo | proposed | 2026-10-01 |
 | [ADR-0016](adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | accepted | 2026-10-02 |
-| [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) | A Tenant sits above Teams and bounds what users, sources and budgets can reach | proposed | 2026-10-03 |
+| [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) | A Tenant sits above Teams and bounds what users, sources and budgets can reach | accepted | 2026-10-04 |
 | [ADR-0018](adr-0018-ploeg-releases-on-its-own-schedule-behind-a-tested-contract-version.md) | Ploeg releases on its own schedule behind a tested contract version | proposed | 2026-10-03 |
 | [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) | Unfold pins Ploeg from its own repository and releases only Vloer | accepted | 2026-10-03 |
 | [ADR-0020](adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) | Unfold is the application, and the name Vloer is retired | accepted | 2026-10-04 |

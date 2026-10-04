@@ -95,7 +95,7 @@ The reviewable change Unfold captures from a Session's Workspace when its Crew s
 ## Client
 *Context: Offering*
 
-An Agency's customer. A Client submits Requests, answers Refinement questions, approves Quotes and gives feedback on Preview Environments in the Client Portal. Unfold never contacts a Client directly.
+An Agency's customer. A Client submits Requests, answers Refinement questions, approves Quotes and gives feedback on Preview Environments in the Client Portal. Unfold never contacts a Client directly. Inside a Tenant a Client owns tracker sources and repositories, and its users see only the Work Items from them (ADR-0017, decided 2026-10-04, not implemented yet).
 
 **Do not use:** customer, end client, end customer  
 **See also:** [Agency](#agency), [Client Portal](#client-portal), [Client Profile](#client-profile), [Quote](#quote), [Request](#request)  
@@ -430,7 +430,7 @@ Backstage's documentation format: a static site built from Markdown by MkDocs wi
 ## Tenant
 *Context: Offering*
 
-The isolated space in hosted Unfold that holds one Agency's Work Items, Shifts, credentials, Preview Environments and Budgets: its own namespaces, default-deny network, sandboxed runtime and model budget. Ploeg records it on every Team, Work Item, Shift and credential. Clients are users inside a Tenant, never Tenants. Self-hosted Unfold has no Tenants.
+The isolated space that holds one Agency's Work Items, Shifts, credentials, Preview Environments and Budgets: in hosted Unfold its own namespaces, default-deny network, sandboxed runtime and model budget. Ploeg records it on every Team, Work Item, Shift and credential. Every install has at least one; a self-hosted install starts with a default Tenant. Clients are users and owners of sources inside a Tenant, never Tenants. Decided by ADR-0017 (2026-10-04); not implemented yet.
 
 **See also:** [Agency](#agency), [Client](#client), [Preview Environment](#preview-environment)  
 
