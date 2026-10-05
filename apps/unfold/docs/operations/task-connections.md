@@ -204,4 +204,4 @@ The tests exercise provider contracts with local HTTP fixtures. They do not demo
 
 The connection-management proposal includes an administrator wizard, provider authorization where applicable, scope discovery, credential rotation, a health view and explicit source-to-repository mappings. The broader unattended delivery proposal includes authenticated webhooks and reconciliation through Ploeg, transactional deduplication, one canonical WorkOrder, independent verification and fenced publication. Both clients should remain thin views over those shared contracts.
 
-The [ticket integration design](../design/ticket-integration.md), [system design](../PRODUCT-DESIGN.md) and [backlog](../../backlog/README.md) describe that larger system. The five implemented read adapters are a starting point for it; they do not make arbitrary project-management APIs automatically compatible.
+The [ticket integration design](../design/ticket-integration.md) and [system design](../PRODUCT-DESIGN.md) describe that larger system. The five implemented read adapters are a starting point for it; they do not make arbitrary project-management APIs automatically compatible.

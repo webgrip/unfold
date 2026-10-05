@@ -4,15 +4,15 @@ Date: 2026-09-09. Status: proposed for the governed delivery milestones.
 
 ## Context
 
-Ploeg already dispatches work and stores delivery state in PostgreSQL. Vloer stores interactive sessions in SQLite and currently reads only queue depths from Ploeg. Adding independent ticket intake to Vloer would allow two owners to act on the same task. A human clicking Start cannot be a substitute for a distributed claim.
+Ploeg already dispatches work and stores delivery state in PostgreSQL. Unfold stores interactive sessions in SQLite and currently reads only queue depths from Ploeg. Adding independent ticket intake to Unfold would allow two owners to act on the same task. A human clicking Start cannot be a substitute for a distributed claim.
 
 ## Decision
 
-Ploeg owns immutable WorkOrders and fenced DeliveryAttempts. Tracker state remains authoritative for priority and accepted task revisions; the forge remains authoritative for code review and merge. Vloer owns sessions and human decisions that reference the same work and attempt. Add an authenticated, object-authorized operator protocol rather than exposing existing worker endpoints to an editor.
+Ploeg owns immutable WorkOrders and fenced DeliveryAttempts. Tracker state remains authoritative for priority and accepted task revisions; the forge remains authoritative for code review and merge. Unfold owns sessions and human decisions that reference the same work and attempt. Add an authenticated, object-authorized operator protocol rather than exposing existing worker endpoints to an editor.
 
 An interactive takeover requires the current generation, confirmed worker stop, retained candidate state, resolved publication barriers and an explicitly admitted replacement attempt. A stale owner is fenced at the trusted publication boundary. A database lease by itself cannot revoke an already-issued direct Git write token; the governed lane therefore uses the publisher specified in ADR 0006. An external write with an unknown result blocks ownership transfer until reconciled.
 
-Keep Vloer's single-instance SQLite implementation during the initial pilot. Do not query Ploeg tables directly or create a second canonical work queue. Introduce contracts, migrations and compatibility mode explicitly; existing ad hoc Vloer sessions remain recognizable until canonical registration is implemented.
+Keep Unfold's single-instance SQLite implementation during the initial pilot. Do not query Ploeg tables directly or create a second canonical work queue. Introduce contracts, migrations and compatibility mode explicitly; existing ad hoc Unfold sessions remain recognizable until canonical registration is implemented.
 
 ## Consequences and acceptance
 

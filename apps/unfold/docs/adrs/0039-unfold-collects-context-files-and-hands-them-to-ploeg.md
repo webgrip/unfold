@@ -70,7 +70,7 @@ Chosen option: "Forward the file to Ploeg from the Ploeg Work Item page, keep no
 ## More Information
 
 * Design: [RFC: people give a Work Item context files](../../../../docs/research/2026-10-04-rfc-context-bundles-and-steering.md).
-* Related: [ADR-0023](0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) chose to steer between Runs; this record adds files to that.
+* Related: [ADR-0023](0023-unfold-submits-work-to-ploeg-and-never-executes-it.md) chose to steer between Runs; this record adds files to that.
 
 ### History
 

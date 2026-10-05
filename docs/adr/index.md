@@ -14,10 +14,10 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 
 | ADR | Decision | Status | Last updated |
 | --- | --- | --- | --- |
-| [ADR-0001](adr-0001-unfold-contains-independent-applications.md) | Unfold contains independently deployable Vloer and Ploeg | accepted | 2026-09-12 |
-| [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Vloer is its front end | accepted | 2026-09-22 |
+| [ADR-0001](adr-0001-unfold-contains-independent-applications.md) | Unfold contains independently deployable applications | accepted | 2026-09-12 |
+| [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Unfold is its front end | accepted | 2026-09-22 |
 | [ADR-0003](adr-0003-the-unit-of-work-is-the-work-item.md) | The unit of work is the Work Item, and work can create work | accepted | 2026-09-22 |
-| [ADR-0004](adr-0004-unfold-releases-one-version.md) | Unfold releases Vloer and Ploeg under one version | superseded by ADR-0019 | 2026-10-03 |
+| [ADR-0004](adr-0004-unfold-releases-one-version.md) | Unfold releases its application and Ploeg under one version | superseded by ADR-0019 | 2026-10-03 |
 | [ADR-0005](adr-0005-unfold-is-offered-to-agencies.md) | Unfold is offered to agencies, and delivery ends at a reviewed pull request with a preview | accepted | 2026-09-29 |
 | [ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md) | The ticket is the billing unit: a quoted, capped Shift budget charged on delivery | accepted | 2026-09-29 |
 | [ADR-0007](adr-0007-clients-approve-ready-work.md) | Clients approve Ready work, and each client sets its own definitions of Ready and Done | accepted | 2026-09-29 |
@@ -32,7 +32,7 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0016](adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | accepted | 2026-10-02 |
 | [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) | A Tenant sits above Teams and bounds what users, sources and budgets can reach | accepted | 2026-10-04 |
 | [ADR-0018](adr-0018-ploeg-releases-on-its-own-schedule-behind-a-tested-contract-version.md) | Ploeg releases on its own schedule behind a tested contract version | proposed | 2026-10-03 |
-| [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) | Unfold pins Ploeg from its own repository and releases only Vloer | accepted | 2026-10-03 |
+| [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) | Unfold pins Ploeg from its own repository and releases only its application | accepted | 2026-10-03 |
 | [ADR-0020](adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) | Unfold is the application, and the name Vloer is retired | accepted | 2026-10-04 |
 | [ADR-0021](adr-0021-agents-are-briefed-from-a-per-tenant-knowledge-base-exchanged-as-okf.md) | Agents are briefed from a per-Tenant knowledge base exchanged as OKF | proposed | 2026-10-04 |
 | [ADR-0022](adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md) | People give a Work Item context files, at the start and while steering | accepted | 2026-10-04 |

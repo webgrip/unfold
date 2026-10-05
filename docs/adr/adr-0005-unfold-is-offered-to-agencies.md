@@ -47,7 +47,7 @@ Chosen option: "Agencies, with a client portal; delivery ends at a reviewed pull
 * **Agents and Teams:** agencies, and their clients where the agency allows it, define their own agents and Teams (Roles, models, instructions). Unfold ships default Teams. Every Team runs inside the Work Item's Shift Budget.
 * **Invoicing and maintenance:** exporting accepted Work Items to Moneybird, Exact and e-Boekhouden is part of the pilot. Maintenance subscriptions, where dependency updates and failing checks become Work Items automatically, come in version 2 after the delivery rate is measured.
 * **White label and partners:** Unfold suggests retail prices but never fixes them. The agency is first-line support for its clients and Unfold is second line. "Powered by Unfold" is optional. A referral earns 15% of the referred agency's first-year revenue as euro credit that does not expire. Overflow routing between agencies and a marketplace for Teams, packages and client profiles come later. Tool vendors such as Simplicate and Teamleader start as integrations; reselling through them stays an option.
-* **Portal:** the client portal is part of Vloer. Clients see the agency's price. Unfold's charge is hidden by default; an agency can choose to show it.
+* **Portal:** the client portal is part of Unfold. Clients see the agency's price. Unfold's charge is hidden by default; an agency can choose to show it.
 
 Not implemented yet. The [agency offering proposal](../research/2026-09-28-agency-offering-proposal.md) lists the work; the [agency pricing strategy](../research/2026-09-29-agency-pricing-strategy.md) holds the research.
 
@@ -55,7 +55,7 @@ Not implemented yet. The [agency offering proposal](../research/2026-09-28-agenc
 
 * Good, because the ticket model ([ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md)) matches how agencies already quote work.
 * Good, because a human developer stays accountable for every merge, which keeps Unfold inside its review-ready boundary.
-* Bad, because the portal, client accounts and reporting are new surface in Vloer.
+* Bad, because the portal, client accounts and reporting are new surface in Unfold.
 * Bad, because multi-tenancy becomes a precondition for the second agency ([ADR-0009](adr-0009-one-tenant-per-agency.md)).
 
 ### Confirmation

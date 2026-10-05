@@ -5,7 +5,7 @@ Research date: 2026-10-01. This record follows [the VS Code 1.140 fit dossier](.
 **Method.** Eight research agents ran in parallel, covering:
 
 - the VS Code extension API at tag 1.140.0;
-- the AHP surface the Vloer host does not use;
+- the AHP surface the Unfold host does not use;
 - VS Code tooling inside Ploeg;
 - Copilot CLI and Codex as ACP agents, smoke-tested against a mock gateway;
 - server-side AHP hosts;
@@ -37,7 +37,7 @@ Four stable surfaces reach the agents that VS Code 1.140 runs on its agent host.
 - extension tools;
 - `vscode://` deep links, Glide's own (through a URI handler) and VS Code's `vscode://agents/new`.
 
-Vloer's AHP host is meant to be a fifth surface, but read against the 1.140 client it cannot yet run a session, and it leaks sessions between users. The fifteen findings are in [the fit dossier](../../apps/unfold/docs/research/2026-10-01-vscode-1-140-fit.md).
+Unfold's AHP host is meant to be a fifth surface, but read against the 1.140 client it cannot yet run a session, and it leaks sessions between users. The fifteen findings are in [the fit dossier](../../apps/unfold/docs/research/2026-10-01-vscode-1-140-fit.md).
 
 The market caps the payoff. Glide's first buyers are PHP agencies, and PHP developers use PhpStorm far more than VS Code:
 
@@ -108,7 +108,7 @@ That is the per-ticket billing thesis of [ADR-0006](../adr/adr-0006-the-ticket-i
 Two lessons follow:
 
 1. The best takeovers either open the agent's own environment (Ona, Coder) or check out the agent's branch with its context (Devin, Copilot). A pre-filled prompt alone is the weakest form.
-2. Nobody else uses AHP. Vloer's host is the only third-party AHP integration among these products. That costs nothing while `chat.remoteAgentHosts` stays open, and it differentiates nothing either.
+2. Nobody else uses AHP. Unfold's host is the only third-party AHP integration among these products. That costs nothing while `chat.remoteAgentHosts` stays open, and it differentiates nothing either.
 
 ## The leverage map
 
@@ -116,18 +116,18 @@ Each surface comes with its status and what Glide puts on it. "Stable" means usa
 
 | Surface | Status | Glide on it | Rule it must keep |
 | --- | --- | --- | --- |
-| AHP host (`chat.remoteAgentHosts`) | Undocumented but open; on by default | Vloer sessions today. Ploeg Work Items as sessions once ADR 0023 decides the host's role. Archive and read state; peer chats | Steering reaches the next Round, not the running Run. Archiving is not cancelling |
+| AHP host (`chat.remoteAgentHosts`) | Undocumented but open; on by default | Unfold sessions today. Ploeg Work Items as sessions once ADR 0023 decides the host's role. Archive and read state; peer chats | Steering reaches the next Round, not the running Run. Archiving is not cancelling |
 | `_meta["vscode.remoteSessions"]` and `create_remote_session` | Experimental, off by default | A VS Code agent can delegate a ticket to Glide. The delegated session becomes a **proposed** Work Item waiting for a person | Never dispatches. Ploeg authorizes, a person approves ([ADR-0011](../adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md)) |
 | `vscode://agents/new?prompt=&workspace=` | Stable | The fallback "Continue in VS Code" on a Work Item that needs you | Says Glide does not meter work done locally |
-| `vscode://agents/agent-host-session/<provider>/<id>` | Source only | Browser link from a Vloer session to the same session in VS Code | Verify it resolves for a remote host first |
-| `window.registerUriHandler` (`vscode://webgrip.de-vloer/…`) | Stable | Take over a Work Item, open a session, the sign-in callback | Validate every parameter. A link never mutates without confirmation |
+| `vscode://agents/agent-host-session/<provider>/<id>` | Source only | Browser link from an Unfold session to the same session in VS Code | Verify it resolves for a remote host first |
+| `window.registerUriHandler` (`vscode://webgrip.unfold/…`) | Stable | Take over a Work Item, open a session, the sign-in callback | Validate every parameter. A link never mutates without confirmation |
 | Git extension API (`clone`, `createWorktree`, `checkout`) | Stable 1.106 and 1.107; feature-detect | Take over the Work Item's branch locally, in a worktree | Never pushes for the user |
 | `lm.registerMcpServerDefinitionProvider` | Stable 1.101 | Provides `ploeg-mcp` to every harness, through VS Code's forwarding to the agent host | Token from SecretStorage. The Copilot harness reaches only local, unauthenticated servers; test each harness |
 | `chatSkills`, `chatAgents`, `chatInstructions` | Stable 1.109 and 1.105 | Glide skills (find work, propose a Work Item, read a Run, take over) and a Glide agent limited to Glide tools. They sync to the agent host | Skills call `ploeg-mcp`; they carry no authority of their own |
 | Agent Plugins 1.0 package | Stable standard (1.133) | The same skills and MCP entry for Claude Code and Copilot CLI outside VS Code | Distributed from git, not Open VSX |
 | `lm.registerTool` | Stable | Editor-context actions: attach the selection or diff to a Work Item instruction, open Run evidence | Only while the window is connected |
 | `authentication.registerAuthenticationProvider` | Stable | A `glide` account backed by Authentik with PKCE, replacing the cookie and password | Per-Tenant issuer in phase 2 |
-| Tree badges, status bar, Pseudoterminal | Stable | Needs-you count; Run logs streamed from Vloer's SSE | None |
+| Tree badges, status bar, Pseudoterminal | Stable | Needs-you count; Run logs streamed from Unfold's SSE | None |
 | VS Code Marketplace listing | Distribution | The extension is on Open VSX only (2,904 downloads; [API](https://open-vsx.org/api/webgrip/de-vloer)). Microsoft VS Code users, the Agents window users, cannot find it | Amends [ADR 0021](../../apps/unfold/docs/adrs/0021-the-extension-ships-through-open-vsx-first.md) |
 | VS Code agent OTel (`chat.agentHost.otel.*`) | Stable | The owner's own editor traces in the same Tempo as Runs | Personal setting; identity is personal data in phase 2 |
 | `git.worktreeSymlinkFolders` | Experimental | Faster worktrees for people working on Glide and on target repositories | Development experience only |
@@ -157,7 +157,7 @@ Each journey names its persona, trigger, steps, surfaces, and what exists today.
 - **Trigger:** the Work Item page says *Needs you*, for example "Budget ran out — Finish the work by hand".
 - **Steps:**
   1. Click **Continue in VS Code**.
-  2. The link `vscode://webgrip.de-vloer/take-over?item=…` opens the extension.
+  2. The link `vscode://webgrip.unfold/take-over?item=…` opens the extension.
   3. The extension finds or clones the repository through the git API and creates a worktree on the Work Item's branch.
   4. It opens that folder and writes the brief, the stop reason and the evidence links into a file next to the code.
   5. It offers `vscode://agents/new` with that context as the prompt, so the developer's own agent can continue.
@@ -173,14 +173,14 @@ Each journey names its persona, trigger, steps, surfaces, and what exists today.
   1. Attach with **Attach as Agent Host**.
   2. Work Items appear as sessions: `InputNeeded` for *Needs you*, Done when merged.
   3. Mark as done files an item away for this viewer only.
-- **Exists:** the host and the attach command, for Vloer sessions only.
-- **Missing:** archive and read state; projecting Ploeg Work Items (PV-081). The decision on proposed [ADR 0023](../../apps/unfold/docs/adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) comes first.
+- **Exists:** the host and the attach command, for Unfold sessions only.
+- **Missing:** archive and read state; projecting Ploeg Work Items (PV-081). The decision on proposed [ADR 0023](../../apps/unfold/docs/adrs/0023-unfold-submits-work-to-ploeg-and-never-executes-it.md) comes first.
 
 ### J3. Delegate a ticket from my own agent to Glide (phase 1)
 
 - **Trigger:** while coding, the developer asks their agent to "give this to Glide".
 - **Steps:**
-  1. The agent calls `ploeg-mcp` (provided by the extension) to propose a Work Item, or uses `create_remote_session` against Vloer's host.
+  1. The agent calls `ploeg-mcp` (provided by the extension) to propose a Work Item, or uses `create_remote_session` against Unfold's host.
   2. Either path creates a **proposed** Work Item.
   3. The developer, or the owner in Vikunja, approves it.
   4. Ploeg authorizes and dispatches.
@@ -199,12 +199,12 @@ Each journey names its persona, trigger, steps, surfaces, and what exists today.
 
 ### J5. Answer a question or an approval from the editor (phase 1)
 
-- **Exists:** for Vloer sessions, through `vloer.reviewNextDecision` and through AHP tool confirmations.
+- **Exists:** for Unfold sessions, through `unfold.reviewNextDecision` and through AHP tool confirmations.
 - **Missing:** for Ploeg Work Items. An answer becomes an instruction for the next Round, because Ploeg steers between Runs.
 
 ### J6. Move from the browser to the editor and back (phase 1)
 
-- **Missing:** a browser link to `vscode://agents/agent-host-session/de-vloer/<id>` (verify it first), and a link from the extension back to the browser page. The second exists.
+- **Missing:** a browser link to `vscode://agents/agent-host-session/unfold/<id>` (verify it first), and a link from the extension back to the browser page. The second exists.
 
 ### J7. Use Glide inside any agent, any editor (phases 1 and 2)
 
@@ -276,7 +276,7 @@ All the tickets are children of [VIK-1644](https://vikunja.webgrip.dev/tasks/164
 
 ## Method and limits
 
-- Nothing here was run against a live VS Code client attached to Vloer, or against production LiteLLM.
+- Nothing here was run against a live VS Code client attached to Unfold, or against production LiteLLM.
 - The Copilot and Codex smoke tests used a mock gateway that returned HTTP 400. Both harnesses reported that error as a message with `stopReason: end_turn`, not as a protocol error. A profile must not read `end_turn` as success.
 - Reddit, Tweakers and Hacker News were not indexed usefully, so agency pain points come from surveys and trade press.
 - Agency editor share comes from PHP and Laravel surveys, not from Dutch agencies directly.

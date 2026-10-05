@@ -4,17 +4,17 @@ Date: 2026-09-11. Status: accepted for 0.3.0; the policy and its CI check ship w
 
 ## Context
 
-De Vloer now has a visual identity in [docs/brand/](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/87b2088ff8500498eb4eace340b3fc72535904a3/apps/vloer/docs/brand/README.md): a mark, a wordmark,
+Unfold now has a visual identity in [docs/brand/](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/87b2088ff8500498eb4eace340b3fc72535904a3/apps/vloer/docs/brand/README.md): a mark, a wordmark,
 lockups, colour tokens and a generator that writes them. The repository is
 [Apache-2.0](../../LICENSE), which answers copyright for source. A mark raises a second question
-the code licence does not: may a fork ship under the De Vloer name and mark, and may a vendor
+the code licence does not: may a fork ship under the Unfold name and mark, and may a vendor
 put them on a page that implies endorsement?
 
 The obvious reflex is to put a Creative Commons licence on the artwork files. That is the wrong
 instrument, for reasons that are worth recording before the identity is published anywhere it
 can be copied.
 
-A CC licence is irrevocable. De Vloer is pre-1.0 and may yet move to a different steward. A
+A CC licence is irrevocable. Unfold is pre-1.0 and may yet move to a different steward. A
 policy file can be tightened, loosened or reassigned; a CC grant, once made, cannot be withdrawn
 from anyone who already has it. Creative Commons themselves advise against applying their
 licences to trademarks, on the grounds that doing so can cost the right altogether — a mark
@@ -24,7 +24,7 @@ reproduces the logo, discouraging the README badges, integration listings and co
 a young project wants.
 
 The risk here is misattribution, not copying. Nobody is harmed by an article reproducing the
-mark. The harm is a fork or a vendor implying that what they ship is De Vloer, or that De Vloer
+mark. The harm is a fork or a vendor implying that what they ship is Unfold, or that Unfold
 endorses it. Copyright is the wrong tool for that and trademark is the right one. Apache-2.0 §6
 already grants no licence to the licensor's trade names or marks, so the repository licence and
 a trademark reservation compose without conflict and the artwork files need no second copyright
@@ -37,13 +37,13 @@ identical is worth more than a locally clever variation.
 
 ## Decision
 
-"De Vloer" and the mark are reserved as trademarks under a usage policy at
+"De Vloer", the application's name at the time, and the mark are reserved as trademarks under a usage policy at
 [docs/brand/TRADEMARK.md](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/87b2088ff8500498eb4eace340b3fc72535904a3/apps/vloer/docs/brand/TRADEMARK.md). The artwork files stay under the repository's
 existing Apache-2.0, with no second licence file beside them.
 
 The policy grants, without asking: reproduction of the unmodified mark to refer to the project,
-truthful compatibility statements, linking, scaling, and redistribution of an unmodified De
-Vloer. It withholds, pending written permission: shipping a modified or forked distribution
+truthful compatibility statements, linking, scaling, and redistribution of an unmodified
+Unfold. It withholds, pending written permission: shipping a modified or forked distribution
 under the name or mark, implying endorsement or affiliation, adopting the name or a confusingly
 similar one as your own, and altering the mark.
 

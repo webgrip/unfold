@@ -57,7 +57,7 @@ Proposed checks:
 
 * Ploeg tests for safe unpacking (traversal, links, bombs, duplicates, size and count limits), the operator and Run routes, the claim references, digest verification and the prompt section (proof of concept on Ploeg branch `poc/okf-knowledge-pack`).
 * A Shift test: an item added after a Run's claim is absent from that Run's TaskSpec and present in the next Run's.
-* A Unfold route test: the Work Item page's upload is forwarded to Ploeg unchanged, the demo refuses it, and Ploeg's refusals reach the person with their reason.
+* An Unfold route test: the Work Item page's upload is forwarded to Ploeg unchanged, the demo refuses it, and Ploeg's refusals reach the person with their reason.
 * A tenancy test under ADR-0017: another Tenant's Work Item returns 404 for upload, list and download.
 
 ## Pros and Cons of the Options
@@ -82,7 +82,7 @@ Proposed checks:
 
 * Ploeg decisions: ADR-0067 (storage, limits and delivery) and ADR-0068 (steering timing), proposed on Ploeg branch `poc/okf-knowledge-pack`. Unfold decision: [ADR-0038](../../apps/unfold/docs/adrs/0039-unfold-collects-context-files-and-hands-them-to-ploeg.md).
 * Fits the planned Brief Revisions and Context Items (VIK-1835, VIK-1836, VIK-1847): a context file is the `upload` kind of Context Item; before a Shift it joins the draft revision, during a Shift it is a steering input to that Shift and leaves the authorized revision unchanged. The owner confirmed this reconciliation on 2026-10-04.
-* Refines Unfold [ADR-0023](../../apps/unfold/docs/adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md)'s choice to steer between Runs, by adding files to what a person can steer with.
+* Refines Unfold [ADR-0023](../../apps/unfold/docs/adrs/0023-unfold-submits-work-to-ploeg-and-never-executes-it.md)'s choice to steer between Runs, by adding files to what a person can steer with.
 * Companion: [ADR-0021](adr-0021-agents-are-briefed-from-a-per-tenant-knowledge-base-exchanged-as-okf.md); OKF concepts inside a context file join knowledge selection.
 * 2026-10-04 — Proposed after the owner asked for context files at the start and during steering.
 * 2026-10-04 — Accepted by the owner with the proof of concept. Decided the same day: a file attached while a Shift runs is a steering input to that Shift (not a draft Brief Revision); clients may attach context to their own Work Items; Apply now exists with confirmation; a flagged secret holds the file until confirmed; limits stay 20 MiB per upload and 50 MiB per Work Item.

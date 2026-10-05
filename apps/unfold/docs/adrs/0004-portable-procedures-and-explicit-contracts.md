@@ -18,4 +18,4 @@ Use conventional commits and `development` as trunk. Run Node tests and source/c
 
 The procedure can be reused with another harness while repository facts stay reviewable next to code. The initial skill includes three evaluation scenarios; these are expected behavior cases, not evidence that every agent client enforces them.
 
-The workflow mirror inspected during research may lag the authoritative Forgejo repository. De Vloer uses self-contained checks instead of claiming to consume an unverified reusable workflow version. Reconsider shared workflow adoption when its exact Forgejo contract and pinned revision are available and reduce maintenance.
+The workflow mirror inspected during research may lag the authoritative Forgejo repository. Unfold uses self-contained checks instead of claiming to consume an unverified reusable workflow version. Reconsider shared workflow adoption when its exact Forgejo contract and pinned revision are available and reduce maintenance.

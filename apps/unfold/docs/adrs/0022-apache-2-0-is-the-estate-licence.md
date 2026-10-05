@@ -4,7 +4,7 @@ Date: 2026-09-11. Status: accepted; the licence, its copyright line and its CI c
 
 ## Context
 
-De Vloer has shipped under Apache-2.0 since its first commit, and until now that was not a
+Unfold has shipped under Apache-2.0 since its first commit, and until now that was not a
 decision anyone made here. The licence file arrived with the initial scaffold (`491c3a6`),
 copied from the posture of [Ploeg](https://forgejo.webgrip.dev/webgrip/ploeg), and no ADR in this
 repository ever recorded a choice. Two things followed from that.
@@ -14,13 +14,13 @@ The copyright line was never filled in. `LICENSE` carried the Apache appendix bo
 no owner and no year. Ploeg has the same gap.
 
 And the estate disagreed with itself: `webgrip.nl` and the code in `twente.dev` are MIT, while
-De Vloer and Ploeg are Apache-2.0. Nobody had chosen that split either; it accumulated.
+Unfold and Ploeg are Apache-2.0. Nobody had chosen that split either; it accumulated.
 
 A brief move to MIT was made and reverted on the same day. What that exercise settled is that the
 objection was never to Apache-2.0 — it was to a licence nobody had decided on. The reasoning
 below is therefore adopted rather than invented: it is
 [Ploeg's ADR-0003](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/main/docs/adrs/0003-apache-2-0-license.md),
-tested against De Vloer's own audience and found to hold.
+tested against Unfold's own audience and found to hold.
 
 ## Decision
 
@@ -34,7 +34,7 @@ On freedom, MIT is the lighter obligation — keep the notice, nothing else — 
 two: state the files you changed (§4b), and pass on the `NOTICE` file (§4d). But Apache-2.0
 *grants* more than MIT does. Its §3 is an express patent licence from every contributor. MIT grants
 copyright permissions and is silent on patents, so a user's right to practise a patent the code
-reads on is implied at best. The user who redistributes De Vloer is freer under Apache-2.0, because
+reads on is implied at best. The user who redistributes Unfold is freer under Apache-2.0, because
 the thing that could actually stop them — a patent claim from a contributor — is licensed away in
 writing. Two lines of attribution paperwork is a smaller cost than that uncertainty.
 
@@ -60,10 +60,10 @@ inbound terms — all three of which now exist and are checked.
 The remaining drivers, adopted from Ploeg and tested against this repository:
 
 - **The express patent grant.** This is the substantive difference from MIT, and the reason a
-  corporate legal review clears Apache-2.0 faster. De Vloer is installed by the same platform
+  corporate legal review clears Apache-2.0 faster. Unfold is installed by the same platform
   teams Ploeg targets, and it executes model-driven code changes on their repositories — a
   category where an adopter's counsel is more likely to ask about patents, not less.
-- **One answer for two sibling products.** Ploeg and De Vloer are deployed together, documented
+- **One answer for two sibling products.** Ploeg and Unfold are deployed together, documented
   together and now branded together. A licence split between them is a question every adopter has
   to resolve and nobody benefits from.
 - **Ecosystem convention.** The Kubernetes-adjacent projects both sit beside — KEDA, kagent,

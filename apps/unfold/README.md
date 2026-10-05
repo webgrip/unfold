@@ -82,13 +82,6 @@ Run the stable service separately from the candidate checkout, register the Unfo
 
 Use the [documentation index](docs/index.md) for current guidance. The [design chapter guide](docs/PRODUCT-DESIGN.md) links the September planning baseline and market hypotheses. Those chapters contain proposals and dated gaps; the [architecture](docs/architecture.md) describes current behavior. Universal Ploeg authority and a common local or remote runner remain [open choices](../../docs/landscape/questions.md).
 
-The [planning backlog](backlog/README.md) maps every one of [30 audited gaps](docs/design/gap-register.md) to acceptance criteria and dependencies. [Import instructions](docs/operations/backlog.md) cover the included ClickUp CSV and Forgejo payloads. No external tickets have been created. To inspect the first candidate and its remaining acceptance work:
-
-```sh
-npm run backlog -- validate
-node scripts/backlog.mjs brief PV-001
-```
-
 ## Develop and review
 
 ```sh

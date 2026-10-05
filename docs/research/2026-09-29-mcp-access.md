@@ -11,7 +11,7 @@ Date: 29 September 2026, against `origin/development` at `6de34d0`. This is a re
 Summary:
 
 1. **Glide is already reachable over MCP, indirectly.** Creating and assigning a ticket through a tracker's MCP server (the Vikunja MCP bridge the owner uses today, [Vikunja's native server](https://vikunja.io/help/mcp/) from 2.7.0, or [ClickUp's official server](https://developer.clickup.com/docs/connect-an-ai-assistant-to-clickups-mcp-server)) fires the assignment webhook, and Ploeg opens a Shift. What that path cannot show is Glide's own state: Runs, spend, `needs_human`, reviewer Verdicts, the pull request, proposed work waiting for approval. That gap is what a Glide server is for.
-2. **Most of the server's backend already exists.** The operator API has named consumers with Team scope, an `execute` flag and a budget ceiling, plus read routes for teams, Work Items, Runs, summary and events, and write routes for approve, reject and cancel ([operator.go](../../apps/ploeg/pkg/httpapi/operator.go), [operator_proposed.go](../../apps/ploeg/pkg/httpapi/operator_proposed.go), [withdraw.go](../../apps/ploeg/pkg/httpapi/withdraw.go)). The one missing route is `POST /api/v1/operator/work-items`, proposed in [Vloer ADR-0023](../../apps/unfold/docs/adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) and not built on any branch.
+2. **Most of the server's backend already exists.** The operator API has named consumers with Team scope, an `execute` flag and a budget ceiling, plus read routes for teams, Work Items, Runs, summary and events, and write routes for approve, reject and cancel ([operator.go](../../apps/ploeg/pkg/httpapi/operator.go), [operator_proposed.go](../../apps/ploeg/pkg/httpapi/operator_proposed.go), [withdraw.go](../../apps/ploeg/pkg/httpapi/withdraw.go)). The one missing route is `POST /api/v1/operator/work-items`, proposed in [Unfold ADR-0023](../../apps/unfold/docs/adrs/0023-unfold-submits-work-to-ploeg-and-never-executes-it.md) and not built on any branch.
 3. **Paid work stays behind a human.** A Work Item created over MCP enters as `proposed`, the same state Run-created work waits in ([Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md)) and the agency offering uses for client approval. Approval over MCP requires an elicitation form the client shows to the person; a client without elicitation gets a link to approve elsewhere and nothing is dispatched.
 4. **Local first, remote with OAuth later.** Phase one is stdio with an operator token from the environment, which the spec prescribes for local servers and which Claude Code, Codex, Cursor, Zed, opencode, Goose and Qwen Code all run. Claude.ai and ChatGPT accept only OAuth (Claude.ai's static headers are a limited beta), so the remote phase needs an OAuth resource server against Authentik and a public route, and it gets its own security review.
 5. **No Tasks, no sessions.** Every shipped agent-dispatch server returns an id and polls; none uses MCP Tasks, no client documents Tasks support, and the Go SDK does not implement the Tasks extension. Glide does the same: tools return Work Item ids, and a `changes since` tool reads the audit cursor.
@@ -50,10 +50,10 @@ SDKs in Glide's languages ([evidence](evidence/2026-09-29-mcp-access/sdks-and-re
 | --- | --- | --- |
 | Create a Work Item and hand it to agents | Works | Tracker MCP: create a task, assign it to the Team's agent user; the webhook opens the Shift |
 | Stop work | Works | Tracker MCP: unassign or close the task ([withdraw.go](../../apps/ploeg/pkg/httpapi/withdraw.go)) |
-| See Runs, Verdicts, spend, the PR, what is stuck | **No** | Only Vloer's screens and the operator API |
-| Approve or reject work a Run proposed | **No** | Only Vloer or a direct operator API call |
+| See Runs, Verdicts, spend, the PR, what is stuck | **No** | Only Unfold's screens and the operator API |
+| Approve or reject work a Run proposed | **No** | Only Unfold or a direct operator API call |
 | Create a Work Item with no tracker | **No** | No route exists |
-| Ask "what changed since this morning" | **No** | Operator events, polled by Vloer only |
+| Ask "what changed since this morning" | **No** | Operator events, polled by Unfold only |
 
 The first two rows need documentation, not code. The rest need the server this record proposes.
 
@@ -63,9 +63,9 @@ The first two rows need documentation, not code. The rest need the server this r
 | --- | --- | --- | --- |
 | A person's AI client → Glide state | **Nobody** | Tools and resources | **The honest fit** |
 | A person's AI client → creating and steering work | The tracker's own MCP server | Tools | Complementary: MCP adds tracker-less work, approve and cancel |
-| Human approval of paid work | Vloer, tracker assignment, `/approve` | Elicitation (form mode, via MRTR); MCP Apps; SEP-2848 async approval (proposal) | Partial: client support is uneven, so a fallback link is required |
+| Human approval of paid work | Unfold, tracker assignment, `/approve` | Elicitation (form mode, via MRTR); MCP Apps; SEP-2848 async approval (proposal) | Partial: client support is uneven, so a fallback link is required |
 | Long-running Run progress | Operator events, cursor-polled | Tasks extension | Not yet: no client, no Go SDK support |
-| Identity of the person | Static named consumer bearers; Vloer's Authentik OIDC | OAuth 2.1 resource server, CIMD, ID-JAG | Fits for the remote phase |
+| Identity of the person | Static named consumer bearers; Unfold's Authentik OIDC | OAuth 2.1 resource server, CIMD, ID-JAG | Fits for the remote phase |
 | **Budget, spend authorization** | Ploeg ([ADR-0012](../../apps/ploeg/docs/adrs/0012-two-level-budgets-authorized-and-settled.md)) | **Nothing** | Ploeg keeps it |
 | **Tenancy** | Nothing in code; agency ADR-0009 proposes it | **Nothing** | Ploeg will own it |
 | **Leases, claims, exactly-once** | Ploeg ([ADR-0010](../../apps/ploeg/docs/adrs/0010-shift-owns-the-item-lease-owns-the-branch.md)) | **Nothing**; Tasks cancel is cooperative | Ploeg keeps it |
@@ -77,18 +77,18 @@ The bold rows are the same four absences the interaction-layer dossier found: MC
 
 ## 4. Component by component
 
-- **ploegd** — complementary. Its operator API is the backend; it is not exposed to the internet ([Vloer ADR-0015](../../apps/unfold/docs/adrs/0015-ploeg-operator-read-api.md): "the external gateway keeps `/webhooks/` only"), and it holds the LiteLLM master key and forge admin token. Putting an internet-facing OAuth surface into the same process would widen the most privileged process in Glide; a separate command keeps ploegd internal.
+- **ploegd** — complementary. Its operator API is the backend; it is not exposed to the internet ([Unfold ADR-0015](../../apps/unfold/docs/adrs/0015-ploeg-operator-read-api.md): "the external gateway keeps `/webhooks/` only"), and it holds the LiteLLM master key and forge admin token. Putting an internet-facing OAuth surface into the same process would widen the most privileged process in Glide; a separate command keeps ploegd internal.
 - **ploeg-worker and harnesses** — orthogonal, and kept that way. Runs reach only the gateway, the forge and ploegd, and never call Ploeg's API ([ADR-0011](../../apps/ploeg/docs/adrs/0011-the-pull-request-is-the-blackboard.md), [ADR-0034](../../apps/ploeg/docs/adrs/0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md)). What Ploeg does today with MCP inside a Run:
   - `claude-code`: `--strict-mcp-config` with no `--mcp-config`, so no server loads, including the target's `.mcp.json` ([claudecode.go](../../apps/ploeg/pkg/harness/adapters/claudecode/claudecode.go), live test `TestLiveClaudeCodeIgnoresTargetHooksAndMCPServers`).
   - `acp`: `session/new` sends `mcpServers: []` ([acp.go](../../apps/ploeg/pkg/harness/adapters/acp/acp.go)). That empty list does **not** stop an agent reading MCP servers from the repository's own configuration: Goose enables servers from `.agents/plugins/` ([acp-profiles.md](../../apps/ploeg/docs/contracts/acp-profiles.md)), Qwen Code merges `.qwen/settings.json`, and opencode's project `opencode.json` is not addressed in the profile (unverified whether it merges). This is the most urgent finding here.
   - `.mcp.json` is scanned and hashed before the harness starts ([instructions.go](../../apps/ploeg/pkg/worker/instructions.go)) but not stripped.
 - **LiteLLM** — complementary, south side. Its MCP gateway grants servers per key, team or access group, tracks MCP cost and keeps upstream credentials out of the sandbox. VIK-1300 already uses it to give Runs Omnigraph tools. The deployed `v1.102.1` is past the fix for [CVE-2026-30623](https://docs.litellm.ai/blog/mcp-stdio-command-injection-april-2026) (authenticated RCE through MCP server creation, fixed in 1.83.7).
-- **Vloer** — adjacent. It already has Authentik sign-in, roles and per-user Team scope, and it proxies approve, reject and cancel. It is not the home for the server: its production npm dependency set must stay empty ([Vloer ADR-0002](../../apps/unfold/docs/adrs/0002-native-node-and-single-writer-storage.md), enforced by `scripts/check.mjs`), so it would have to hand-roll the protocol, and an install that runs Ploeg without Vloer would have no MCP. Vloer stays the place a person approves work when their client cannot show an elicitation form.
+- **Unfold** — adjacent. It already has Authentik sign-in, roles and per-user Team scope, and it proxies approve, reject and cancel. It is not the home for the server: its production npm dependency set must stay empty ([Unfold ADR-0002](../../apps/unfold/docs/adrs/0002-native-node-and-single-writer-storage.md), enforced by `scripts/check.mjs`), so it would have to hand-roll the protocol, and an install that runs Ploeg without the Unfold application would have no MCP. Unfold stays the place a person approves work when their client cannot show an elicitation form.
 - **Vikunja** — complementary. Its native MCP server (merged 2026-09-15, [PR #3860](https://github.com/go-vikunja/vikunja/pull/3860), released from 2.7.0) is stateless, token-authenticated, has no OAuth ([#3930](https://github.com/go-vikunja/vikunja/issues/3930)), and uses 24 typed tools plus `find_action`/`do_action`.
 - **ClickUp** — complementary. Official remote server, OAuth only with a redirect allowlist, 50 calls a day on the free plan and 300 on Unlimited.
 - **Forgejo** — absent. No official MCP server; the community [forgejo-mcp](https://git.b4mad.industries/agentic-forges/forgejo-mcp) left Codeberg over its LLM policy. `gitea-mcp` never mentions Forgejo.
 - **Authentik** — needed for the remote phase. Whether it supports CIMD or dynamic client registration was not established; Claude.ai and ChatGPT both accept a pre-registered client, which is the safe assumption.
-- **Glide, Ploeg and Vloer by name** — zero external MCP presence (GitHub and code search, 2026-09-29).
+- **Glide, Ploeg and Vloer (now the Unfold application) by name** — zero external MCP presence (GitHub and code search, 2026-09-29).
 
 ## 5. Prior art
 
@@ -109,9 +109,9 @@ Full per-product findings: [prior-art.md](evidence/2026-09-29-mcp-access/prior-a
 
 | Option | Verdict |
 | --- | --- |
-| **A separate `ploeg-mcp` command in `apps/ploeg`, a named operator-API consumer, on go-sdk** | **Chosen.** Tier-1 SDK in Ploeg's language; works without Vloer; ploegd stays internal; the operator API is already the contract for named consumers ([Ploeg ADR-0024](../../apps/ploeg/docs/adrs/0024-operator-work-uses-one-execution-authority.md)). Same image, own Deployment, off by default. |
+| **A separate `ploeg-mcp` command in `apps/ploeg`, a named operator-API consumer, on go-sdk** | **Chosen.** Tier-1 SDK in Ploeg's language; works without the Unfold application; ploegd stays internal; the operator API is already the contract for named consumers ([Ploeg ADR-0024](../../apps/ploeg/docs/adrs/0024-operator-work-uses-one-execution-authority.md)). Same image, own Deployment, off by default. |
 | A `/mcp` route inside ploegd | Rejected: an internet-facing OAuth surface in the process that holds the master keys. |
-| Inside Vloer's server | Rejected: needs a production npm dependency or a hand-rolled protocol, and ties MCP to Vloer. |
+| Inside Unfold's server | Rejected: needs a production npm dependency or a hand-rolled protocol, and ties MCP to Unfold. |
 | Generate MCP from an API description (for example LiteLLM's OpenAPI-to-MCP) | Rejected: Ploeg publishes JSON Schema, not OpenAPI, and a 1:1 wrapper exposes routes without approval semantics. |
 | A CLI and a skill instead (`ploegctl`, VIK-568) | Complementary, not a replacement: works in terminal agents only, never in Claude.ai, ChatGPT or on a phone. Both should share one Go client for the operator API. |
 
@@ -137,7 +137,7 @@ A `glide_message_work` tool waits for the proposed commands route. One prompt, `
 
 - **Toolsets are granted, not requested.** The read toolset is the default. Propose and steer are enabled per consumer or per OAuth scope and enforced by the server; a disabled tool is absent from `tools/list`.
 - **Proposals never dispatch.** `glide_propose_work` creates a `proposed` Work Item with the MCP principal as its source, counted against per-Team limits like Run-created work. Its idempotency key is derived from principal, Team, title and description, so a retried request after a lost response creates nothing new.
-- **Approval needs a person, not a model.** `glide_approve_work` and `glide_cancel_work` return an elicitation form showing the Work Item, Team and budget; only `accept` acts. A client that does not support elicitation gets a refusal with a link to approve in Vloer or the tracker. The operator consumer behind the approve tool needs `execute`.
+- **Approval needs a person, not a model.** `glide_approve_work` and `glide_cancel_work` return an elicitation form showing the Work Item, Team and budget; only `accept` acts. A client that does not support elicitation gets a refusal with a link to approve in Unfold or the tracker. The operator consumer behind the approve tool needs `execute`.
 - **Ploeg still decides.** Every call is authorized again by the operator API (Team scope, `execute`, budget ceiling). Tool annotations are advice to the client, never the control.
 - **Ticket text is untrusted.** Tool results that echo Work Item descriptions, findings or comments are delimited and labelled as third-party content.
 - **Every call is audited** with principal, tool, argument hash, decision and approval, through Ploeg's existing audit log via `X-Ploeg-Actor` and `X-Ploeg-Acting-User`.
@@ -204,9 +204,9 @@ Cheapest first. Epic: [VIK-1512](https://vikunja.webgrip.dev/tasks/1512).
 1. Record the placement and the rules above as [ADR-0011](../adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md) and let the owner accept or reject it before any server code is written.
 2. Close the ACP repository-MCP gap now, regardless of the ADR's outcome.
 3. Write the phase-0 how-to now; it is true today and costs nothing.
-4. Build Ploeg's `POST /api/v1/operator/work-items` once, for Vloer ([VIK-1189](https://vikunja.webgrip.dev/tasks/1189)) and MCP together, with a proposed mode.
+4. Build Ploeg's `POST /api/v1/operator/work-items` once, for Unfold ([VIK-1189](https://vikunja.webgrip.dev/tasks/1189)) and MCP together, with a proposed mode.
 5. Build one Go client for the operator API and use it in both `ploeg-mcp` and `ploegctl`.
-6. Treat Vloer backlog item PV-063 ("scoped read-only MCP tools") as superseded by this design: the same acceptance criteria, placed in Ploeg instead of Vloer.
+6. Treat Unfold backlog item PV-063 ("scoped read-only MCP tools") as superseded by this design: the same acceptance criteria, placed in Ploeg instead of Unfold.
 7. Treat the MCP server as the answer to Ploeg ADR-0007's accepted consequence that "Ploeg has no standard programmatic dispatch API". The A2A facade stays on its watchlist; MCP gets there first because people's clients speak it.
 
 ## 10. Re-evaluation triggers
@@ -220,7 +220,7 @@ Any one of these reopens a part of this record:
 - **The MCP Registry leaves preview** with templated remote URLs → publish a `server.json` for self-hosted installs.
 - **Authentik supports CIMD or dynamic client registration** → drop the pre-registered clients.
 - **Agency ADR-0009's tenancy is implemented** → the tenant becomes a token claim and a filter on every call, and the scopes are reviewed.
-- **Polling `/operator/events` measurably loads ploegd**, the same trigger as Vloer ADR-0023 → `glide_changes_since` becomes a subscription.
+- **Polling `/operator/events` measurably loads ploegd**, the same trigger as Unfold ADR-0023 → `glide_changes_since` becomes a subscription.
 - **The next MCP revision** → rerun the conformance suite.
 - **Vikunja 2.7.0 is deployed** → the phase-0 how-to points at Vikunja's native server.
 
@@ -228,7 +228,7 @@ Any one of these reopens a part of this record:
 
 - **VIK-1189** says the Work Item submission is "in progress on a local branch". No local or remote branch implements `POST /api/v1/operator/work-items` at `6de34d0`, and [operator_test.go](../../apps/ploeg/pkg/httpapi/operator_test.go) still expects `405`.
 - **VIK-1300** plans to hand OpenHands its MCP server through `[mcp] shttp_servers` in `config.toml`. Current OpenHands releases no longer read that section ([OpenHands MCP settings](https://docs.openhands.dev/openhands/usage/settings/mcp-settings): "That format belongs to legacy OpenHands (V0)"). Check which OpenHands version the agent image runs before building that path.
-- **The protocol ledger** in [ecosystem-alternatives](../../apps/unfold/docs/research/2026-09-11-ecosystem-alternatives.md) said a Ploeg/Vloer MCP interface "remains proposed". It now points here.
+- **The protocol ledger** in [ecosystem-alternatives](../../apps/unfold/docs/research/2026-09-11-ecosystem-alternatives.md) said a Ploeg/Unfold MCP interface "remains proposed". It now points here.
 - **The [interaction-layer dossier](../../apps/unfold/docs/research/2026-09-18-band-and-the-interaction-layer.md)** said MCP Tasks "has zero clients on MCP's own extension support matrix". Still true on 2026-09-29, and the Go and TypeScript SDKs do not implement the extension either.
 - **The official MCP client feature matrix was deleted** on 2026-05-27; only the extension matrix remains. Client support in this record comes from each client's own documentation and source ([client-matrix.md](evidence/2026-09-29-mcp-access/client-matrix.md), [ecosystem-and-clients.md](evidence/2026-09-29-mcp-access/ecosystem-and-clients.md)).
 

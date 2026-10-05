@@ -1,6 +1,6 @@
 # Run cards: holo, foil and game feel
 
-Status: research record, 2026-10-01. It informs [Vloer ADR 0026](../adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) and the proposed [Run cards](../../../../docs/concepts/run-cards.md). It is not current guidance; the ADR and the code in `public/cards/` describe what is built.
+Status: research record, 2026-10-01. It informs [Unfold ADR 0026](../adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) and the proposed [Run cards](../../../../docs/concepts/run-cards.md). It is not current guidance; the ADR and the code in `public/cards/` describe what is built.
 
 **Question.** How do you render foil and holographic cards on the web, and how do you make card events (pull request opened, CI passed, merged, level up, a crack, a kintsugi mend) feel good without harming accessibility, battery or focus?
 
@@ -140,7 +140,7 @@ Each skin has an idle state, a common event and an epic variant. Crack and mend 
 * **Arcade Cabinet:** scanlines and a slow roll band, palette cycling ([Attract Mode, TV Tropes](https://tvtropes.org/pmwiki/pmwiki.php/Main/AttractMode), [Color cycling](https://en.wikipedia.org/wiki/Color_cycling), [CRTPlay](https://www.crtplay.com/blog/crt-effect)); stepped score ticks; "NEW HIGH SCORE" with a chromatic split. Blinks stay at 1 Hz.
 * **Ticker Terminal** (Bloomberg): amber on black ([Ted Merz, "Amber on black"](https://ted-merz.com/2021/06/26/amber-on-black/), [IEEE Spectrum](https://spectrum.ieee.org/bloomberg-terminal)), with blue and red for up and down for colour accessibility ([Bloomberg](https://www.bloomberg.com/company/stories/designing-the-terminal-for-color-accessibility/), from a search summary). Split-flap digits; restraint is the signature.
 * **Mission Patch:** thread sheen per stitch group; a stamp slam with a 60 ms hit-stop that stays on the card; redaction bars peel away for epics.
-* **Vloer Native** (Linear or Vercel style): a pointer spotlight and a one-shot conic border sweep ([css-tip glowing border](https://css-tip.com/glowing-border/), [theosoti animated borders](https://theosoti.com/blog/animated-gradient-borders/)); a status change stays under 500 ms. The skin people can leave on all day.
+* **Unfold Native** (Linear or Vercel style): a pointer spotlight and a one-shot conic border sweep ([css-tip glowing border](https://css-tip.com/glowing-border/), [theosoti animated borders](https://theosoti.com/blog/animated-gradient-borders/)); a status change stays under 500 ms. The skin people can leave on all day.
 
 **Crack:** an 80 ms hit-stop, five to eight fracture lines drawn from the impact point in 220 ms, a small flinch, the art desaturated by 30 %, a glass tick. Seed the lines from the card id so a card always cracks the same way. No red flash. **Kintsugi:** the same paths re-stroked in gold from the impact point over 900 ms, a glint along each seam, saturation briefly above the original, a rising sting. The gold seams stay forever.
 

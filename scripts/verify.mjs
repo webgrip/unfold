@@ -22,7 +22,7 @@ for (const [scope, name, variants] of [
 }
 
 const groups = [
-  { name: 'unfold', inputs: ['apps/unfold', 'docs'], gates: ['typecheck', 'test', 'check', 'design:check', 'icons:check', 'license:check', 'backlog -- check'].map(unfold) },
+  { name: 'unfold', inputs: ['apps/unfold', 'docs'], gates: ['typecheck', 'test', 'check', 'design:check', 'icons:check', 'license:check'].map(unfold) },
   { name: 'unfold-extension', inputs: ['apps/unfold'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(unfold) },
   {
     name: 'ploeg',

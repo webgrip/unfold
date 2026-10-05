@@ -20,8 +20,8 @@ After a publisher crash or partition, a negative forge read alone cannot prove t
 
 Verification and publication become explicit steps with independent failure/reconciliation states. Preserve the last valid candidate when either step is unavailable. Test changed heads after approval, modified candidate tests, untracked/binary files, stale publishers, partial uploads, lost forge responses and revoked claims.
 
-For Vloer itself, the intentional failing demonstration fixture must remain intact. A trusted gate runs the approved product suite, not a blanket discovery command that treats the fixture's intended failure as a product regression.
+For Unfold itself, the intentional failing demonstration fixture must remain intact. A trusted gate runs the approved product suite, not a blanket discovery command that treats the fixture's intended failure as a product regression.
 
 Reconsider placement when an existing CI platform can supply the same isolated execution, identity, evidence and fencing guarantees. Reusing trusted forge CI is preferable to maintaining a custom verifier solely for implementation symmetry.
 
-See [self-improvement](../design/self-improvement.md), [gap register](../design/gap-register.md) and PV-005 through PV-011 and PV-078 in [the backlog](../../backlog/README.md).
+See [self-improvement](../design/self-improvement.md), [gap register](../design/gap-register.md) and PV-005 through PV-011 and PV-078 in [the backlog](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/8be5e332ee3bad3fb5e39b640c99de9826ab41a3/apps/unfold/backlog/README.md).

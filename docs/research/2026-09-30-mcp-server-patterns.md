@@ -24,8 +24,8 @@ Nine findings change how `ploeg-mcp` must be built. Each one either corrects the
    - approve and cancel are granted only to the owner's identity;
    - `requestState` is sealed and single-use;
    - Claude Code is forced to prompt with `_meta["anthropic/requiresUserInteraction"]`;
-   - Vloer is the approval path whenever the form is missing.
-4. **The approval form never reaches old-era clients over stateless HTTP.** go-sdk synthesizes their session without capabilities and rejects server-to-client requests. Over HTTP, only new-era clients get the form; everyone else gets the Vloer link. Over stdio the SDK's compatibility shim works.
+   - Unfold is the approval path whenever the form is missing.
+4. **The approval form never reaches old-era clients over stateless HTTP.** go-sdk synthesizes their session without capabilities and rejects server-to-client requests. Over HTTP, only new-era clients get the form; everyone else gets the Unfold link. Over stdio the SDK's compatibility shim works.
 5. **The Go SDK leaves real gaps you must fill:**
    - no panic recovery (a panic kills the process);
    - plain errors go out as JSON-RPC code `0`;
@@ -124,10 +124,10 @@ Hiding a tool is not enforcement. Check the grant again inside the handler, beca
 
 ## 3. Human confirmation
 
-This is how approve, reject and cancel work, within the owner's rules: only the owner may steer, and a client without the form is sent to Vloer.
+This is how approve, reject and cancel work, within the owner's rules: only the owner may steer, and a client without the form is sent to Unfold.
 
 1. **Check the grant.** A caller without the steer toolset gets a tool error and nothing else.
-2. **Check the client.** If the request's `clientCapabilities` do not declare elicitation, return a normal result, not an error, with `status: "awaiting_human_approval"` and the Vloer approval URL. The same applies to Claude.ai web, which has none, and Cowork, which declares it and hangs; detect `clientInfo.name` `Anthropic/ClaudeAI`, or make it configurable.
+2. **Check the client.** If the request's `clientCapabilities` do not declare elicitation, return a normal result, not an error, with `status: "awaiting_human_approval"` and the Unfold approval URL. The same applies to Claude.ai web, which has none, and Cowork, which declares it and hangs; detect `clientInfo.name` `Anthropic/ClaudeAI`, or make it configurable.
 3. **Return the form.** Send an `input_required` result: `InputRequests` with one form elicitation and a sealed `RequestState`.
    - The `message` is a digest: Work Item title, Team, budget authorized and remaining, and the expiry.
    - The schema is a single boolean `confirm`, with no root `title`, which breaks Codex.
@@ -140,7 +140,7 @@ This is how approve, reject and cancel work, within the owner's rules: only the 
 - **Payload:** `iss`, `sub`, `azp`, `tool`, a SHA-256 over the canonical JSON (RFC 8785) of the validated arguments, `iat`, an `exp` of 5 minutes at most, and a 128-bit `jti`.
 - **Keys:** a current and a previous key, the same on every replica, from the secret store. Rotate with an overlap longer than the TTL. Every failure returns one generic error.
 
-**Above a spend threshold, prefer URL mode later.** URL-mode elicitation to a Vloer approval page, where the owner signs in with Authentik, is the only confirmation a local hook cannot answer. It has three rules:
+**Above a spend threshold, prefer URL mode later.** URL-mode elicitation to an Unfold approval page, where the owner signs in with Authentik, is the only confirmation a local hook cannot answer. It has three rules:
 - `accept` means only "opened"; the server checks completion on the retry.
 - The URL is never pre-authenticated.
 - The server checks that the same `sub` completed it.
@@ -195,7 +195,7 @@ The full checklist of 39 testable requirements is in [security.md §10](evidence
 **Identity and the trusted consumer.** `ploeg-mcp` holds one operator consumer token and asserts the acting person in `X-Ploeg-Actor`. Anyone holding that token can claim any actor in its Teams. Mitigations, cheapest first:
 1. **Per-consumer allowlist in Ploeg.** Ploeg gains an allowlist of actors each consumer may assert, like Kubernetes' `impersonate` with `resourceNames`. It also gets a capability set per consumer (read, propose, steer).
 2. **Phase 1: one consumer token per person.** The actor then equals the consumer and cannot diverge.
-3. **Network policy.** A NetworkPolicy admits only `ploeg-mcp` and Vloer to the operator port, and the ingress strips `X-Ploeg-*`.
+3. **Network policy.** A NetworkPolicy admits only `ploeg-mcp` and Unfold to the operator port, and the ingress strips `X-Ploeg-*`.
 4. **Later: signed assertion or token exchange.** Either a short-lived signed assertion per request, or RFC 8693 exchange of the person's Authentik token for a Ploeg token. Authentik 2026.8 supports the exchange.
 
 **Token validation for the remote phase.** Use `lestrrat-go/jwx/v3`, or `golang-jwt/jwt/v5` with `jwkset`. Not go-oidc: it does not rate-limit refetches on an unknown key id, so junk tokens amplify onto Authentik, and it cannot tell an ID token from an access token.
@@ -305,7 +305,7 @@ Phase 1 (stdio with a token) and phase 2 (a static bearer on the internal gatewa
 | A capped wait inside `glide_get_work` | **Later**, if polling feels slow; cap at 30 s with progress |
 | MCP Tasks extension | **Later**: no target client declares it and go-sdk lacks it |
 | Form elicitation for approval | **Now**, as §3 |
-| URL-mode elicitation to Vloer above a threshold | **Later**, with the remote phase |
+| URL-mode elicitation to Unfold above a threshold | **Later**, with the remote phase |
 | Asynchronous tool approval (SEP-2848) | **Later**: still a draft that depends on Tasks |
 | One resource template `glide://work-items/{id}` and two prompts | **Now**, cheap and carries no authority |
 | Resource subscriptions | **Later**: no target client uses them |

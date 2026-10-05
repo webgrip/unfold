@@ -1,6 +1,6 @@
 # Documentation audit: second pass
 
-Reviewed on 12 September 2026 in the De Vloer and Ploeg working trees. This follows the [first audit](2026-09-12-documentation-audit.md); its recorded hashes and test output describe that earlier pass. The [second-pass ledger](2026-09-12-documentation-second-pass.json) records the follow-up scope and dispositions.
+Reviewed on 12 September 2026 in the Unfold and Ploeg working trees. This follows the [first audit](2026-09-12-documentation-audit.md); its recorded hashes and test output describe that earlier pass. The [second-pass ledger](2026-09-12-documentation-second-pass.json) records the follow-up scope and dispositions.
 
 ## Findings and corrections
 
@@ -9,7 +9,7 @@ Reviewed on 12 September 2026 in the De Vloer and Ploeg working trees. This foll
 | Current guides left Ploeg-free local execution unresolved | Record the user's product direction in both domain models and architecture guides. [Product R8](../../../../docs/domain/rules.md#r8) distinguishes standalone authorization from Ploeg-managed authority. The shared runner remains a [proposal to test](../../../../docs/migration-proposal.md) |
 | Extension instructions contradicted implemented SSO, tracker import and review UI | Rewrite the [extension guide](../../extensions/vscode/README.md) around installation, connection, work and evidence. Check against [extension flows](../../extensions/vscode/src/extension.ts) and [panel code](../../extensions/vscode/media/session.js) |
 | Release instructions mixed current workflow with obsolete provisioning notes | Rewrite [release operation](../operations/release.md) against the [publication workflow](../../../../.forgejo/workflows/on_release_published.yml). Distinguish a created release, uploaded assets and conditional registry publication; retain the old guide by immutable link |
-| Vloer's architecture overstated which crew roles gate completion | Document the final read role and writing-crew approval condition from the [engine](../../src/engine.ts) |
+| Unfold's architecture overstated which crew roles gate completion | Document the final read role and writing-crew approval condition from the [engine](../../src/engine.ts) |
 | Ploeg's model described a Job watcher, automatic checkpoint injection and automatic follow-up creation | Correct recovery terminology against the [controller sweep](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/cmd/ploegd/sweep.go), [worker](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/pkg/worker/worker.go) and [webhook handler](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/pkg/httpapi/server.go). Label the broader follow-up behavior as intended |
 | Domain events equated reservation with issued credentials and outcome reporting with settled spend | Distinguish recorded authorization, external effects and settlement using the [inference-account store](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/pkg/store/llm_accounts.go). Preserve holds when effects are uncertain |
 | Repository-valid links broke in the built site | Add a [TechDocs hook](https://forgejo.webgrip.dev/webgrip/glide/src/commit/732162796dee900617bab991e8e9761210a5b104/apps/unfold/scripts/techdocs.py) that resolves existing repository-source targets to Forgejo while retaining Markdown and source examples unchanged |
@@ -33,7 +33,7 @@ The site filter covers the generated local search index. It does not control ext
 
 The [validation record](evidence/documentation-second-pass-2026-09-12/validation.json) links retained command output.
 
-- De Vloer: 211 application tests and 41 extension tests passed. Typecheck, repository checks, design generation, brand and license checks passed; the extension built, packaged and passed listing/content verification.
+- Unfold: 211 application tests and 41 extension tests passed. Typecheck, repository checks, design generation, brand and license checks passed; the extension built, packaged and passed listing/content verification.
 - Ploeg: Go tests, vet and build passed. Strict OpenSpec validation and the repository's ADR-ledger gate passed. Cached test results are identified in the raw output.
 - A separate standalone fixture ran with neither Ploeg connection nor execution authority configured. It retained the baseline failure, repaired checks, independent review, Git diff and 18 durable events. It made no model calls and recorded demonstration spend of zero.
 - TechDocs built in strict mode using `mkdocs-techdocs-core` 1.7.1, MkDocs 1.6.1 and Material 9.7.7 in an isolated local environment. Build assertions checked source links, preserved examples and history, and the filtered search index. Browser verification also exposed a failing default search initializer; the supported Material search option resolved it. The existing deployment workflow still uses its own toolchain; this was not a live site deployment.

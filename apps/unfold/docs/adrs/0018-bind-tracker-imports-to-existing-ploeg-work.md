@@ -8,7 +8,7 @@ decision-makers: Ryan Grippeling
 
 ## Context and Problem Statement
 
-Shared execution currently creates manual Work Items. Tracker imports must reuse the tracker's existing Ploeg mirror without racing unattended dispatch or creating a second execution authority. De Vloer's content hash and Ploeg's native tracker revision have different meanings.
+Shared execution currently creates manual Work Items. Tracker imports must reuse the tracker's existing Ploeg mirror without racing unattended dispatch or creating a second execution authority. Unfold's content hash and Ploeg's native tracker revision have different meanings.
 
 ## Decision Drivers
 
@@ -27,7 +27,7 @@ Shared execution currently creates manual Work Items. Tracker imports must reuse
 
 Chosen option: "Register an explicit source target and claim the existing pristine Work Item on Start", because it preserves the existing authority and supports qualification without transferring opaque runtime state.
 
-The [tracker binding contract](../contracts/ploeg-tracker-binding.md) specifies the supported singleton Vikunja and ClickUp sources, exact target mapping, separate revisions, owner-authorized refresh, lookup and admission expectations. Import prepares a queued De Vloer session; it does not alter assignment or start work. Ploeg performs the atomic claim when Start is explicitly requested. Missing mappings, unsupported providers and historical or active Ploeg work remain unavailable for this path.
+The [tracker binding contract](../contracts/ploeg-tracker-binding.md) specifies the supported singleton Vikunja and ClickUp sources, exact target mapping, separate revisions, owner-authorized refresh, lookup and admission expectations. Import prepares a queued Unfold session; it does not alter assignment or start work. Ploeg performs the atomic claim when Start is explicitly requested. Missing mappings, unsupported providers and historical or active Ploeg work remain unavailable for this path.
 
 ### Consequences
 

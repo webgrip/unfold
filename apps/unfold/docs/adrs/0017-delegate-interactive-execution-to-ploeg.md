@@ -8,7 +8,7 @@ decision-makers: Ryan Grippeling
 
 ## Context and Problem Statement
 
-The owner requested a unified product with De Vloer as the human surface and Ploeg handling backend execution. Both applications already had useful runtimes, workspaces and evidence; combining displays alone would leave two independent execution authorities.
+The owner requested a unified product with Unfold as the human surface and Ploeg handling backend execution. Both applications already had useful runtimes, workspaces and evidence; combining displays alone would leave two independent execution authorities.
 
 ## Decision Drivers
 
@@ -25,7 +25,7 @@ The owner requested a unified product with De Vloer as the human surface and Plo
 
 ## Decision Outcome
 
-Chosen option: "Delegate interactive execution under Ploeg admission and versioned commands." The implementation is opt-in through `execution.team`. Ploeg admits one Work Item, Shift and operator Run; De Vloer executes its crew under that authority and retains the human session and native workspace. The [contract](../contracts/ploeg-execution.md) distinguishes this implemented binding from the broader proposed WorkOrder and trusted-publication design.
+Chosen option: "Delegate interactive execution under Ploeg admission and versioned commands." The implementation is opt-in through `execution.team`. Ploeg admits one Work Item, Shift and operator Run; Unfold executes its crew under that authority and retains the human session and native workspace. The [contract](../contracts/ploeg-execution.md) distinguishes this implemented binding from the broader proposed WorkOrder and trusted-publication design.
 
 Consumer identity, team scope, human ownership, command identity, serialized revision and executor generation guard the boundary. Ploeg holds management authority and unresolved accounting. Confirmed pauses may retain the same capped key; uncertain issuance and blocked keys cannot silently authorize replacements. Cooperative turn fencing does not claim to intercept every inference request or fence arbitrary forge writes.
 

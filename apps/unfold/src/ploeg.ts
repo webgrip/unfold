@@ -52,13 +52,13 @@ export type PloegDecision = 'approve' | 'reject' | 'cancel';
 export type PloegDecisionResult = { workItemId: string; team: string; state: string; demo: boolean };
 /** When a person attached a context file: before the Work Item's first Shift, or while a Shift was open (steering). */
 export type PloegContextPhase = 'before_start' | 'while_steering';
-/** One context file attached to a Ploeg Work Item, as Ploeg stored it. Its bytes stay in Ploeg; Vloer never executes with them. */
+/** One context file attached to a Ploeg Work Item, as Ploeg stored it. Its bytes stay in Ploeg; Unfold never executes with them. */
 export type PloegContextItem = { id: string; workItemId: string; name: string; mediaType: string; sha256: string; bytes: number; files: number; note: string; addedBy: string; addedAt: string; phase: PloegContextPhase };
 /** The context attached to one Work Item, in the order Ploeg added it. The demo stores none. */
 export type PloegContextList = { workItemId: string; context: PloegContextItem[]; demo: boolean };
 /** What an upload returns: the stored item, and `created: false` when Ploeg already held the same file for this Work Item. */
 export type PloegContextAdded = { context: PloegContextItem; created: boolean; demo: false };
-/** The largest context file Vloer forwards to Ploeg, in bytes (20 MiB, Ploeg's default per-upload limit). */
+/** The largest context file Unfold forwards to Ploeg, in bytes (20 MiB, Ploeg's default per-upload limit). */
 export const contextUploadLimit = 20 * 1024 * 1024;
 /** What the deterministic demo answers an upload: it keeps nothing and says so. */
 export const demoContextRefusal = 'The demo does not store context files.';
@@ -603,7 +603,7 @@ async function attributionRefusal(response: Response, token: string): Promise<Pl
 const contextVersions = ['1.0', undefined];
 const contextFailures: Record<number, [string, string]> = {
   400: ['ploeg_context_refused', 'Ploeg refused the file.'],
-  403: ['ploeg_decision_forbidden', 'Vloer’s Ploeg credential cannot add context. An administrator must grant it execute permission.'],
+  403: ['ploeg_decision_forbidden', 'Unfold’s Ploeg credential cannot add context. An administrator must grant it execute permission.'],
   404: ['ploeg_not_found', 'Ploeg work item not found in your authorized teams.'],
   409: ['ploeg_context_closed', 'This Work Item is done or withdrawn, so it takes no more context.'],
   413: ['ploeg_context_too_large', 'The file is larger than Ploeg accepts for one upload or for this Work Item.'],
@@ -1082,7 +1082,7 @@ export class PloegClient {
   /**
    * Forwards one context file (`bytes`, a zip, a tar.gz or a single file) to Ploeg for Work Item `id`, as the caller.
    * Ploeg stores it and gives it to every Run claimed after the upload; uploaded while a Shift is open, it reaches the
-   * next Run, not the one running. Vloer keeps nothing and never executes with it. The demo refuses with
+   * next Run, not the one running. Unfold keeps nothing and never executes with it. The demo refuses with
    * {@link demoContextRefusal}.
    */
   async addContext(user: User, id: string, name: unknown, note: unknown, bytes: Uint8Array): Promise<PloegContextAdded> {

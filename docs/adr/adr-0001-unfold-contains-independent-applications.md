@@ -4,7 +4,7 @@ date: 2026-09-12
 decision-makers: Ryan Grippeling
 ---
 
-# Unfold contains independently deployable Vloer and Ploeg
+# Unfold contains independently deployable applications
 
 ## Context and Problem Statement
 
@@ -13,7 +13,7 @@ The owner chose Unfold and instructed execution of the reviewed monorepo plan. C
 ## Decision Drivers
 
 * Preserve history and the audited working trees.
-* Keep standalone Vloer usable without a Ploeg service.
+* Keep standalone Unfold usable without a Ploeg service.
 * Check both sides of shared contracts in one checkout.
 
 ## Considered Options
@@ -28,7 +28,7 @@ Chosen option: "Unfold with separate applications and shared system documentatio
 
 Use `apps/unfold`, `apps/ploeg` and root `docs` on the `development` trunk. Preserve original commits and namespace imported tags by application. Existing package, Go module, image and chart names remain unchanged. Application records retain their scope and acceptance status. Shared product concepts and workflows have one source in root documentation.
 
-Standalone Vloer retains local authority. Ploeg authority applies to explicitly admitted work and never silently changes on a connection failure. Keep the current execution engines; extraction requires a separate comparison showing equivalent responsibilities and a concrete benefit.
+Standalone Unfold retains local authority. Ploeg authority applies to explicitly admitted work and never silently changes on a connection failure. Keep the current execution engines; extraction requires a separate comparison showing equivalent responsibilities and a concrete benefit.
 
 Remote publication and production cutover require their own verified migration steps. In particular, preserving Ploeg's Go module path requires preserving its public distribution source; moving files alone does not accomplish that.
 
@@ -59,6 +59,6 @@ Run `mise run verify`, `mise run integration` and `mise run docs-check`. The imp
 * Technical story: [migration plan](../migration.md).
 * 2026-09-12 — The owner selected Unfold and explicitly instructed execution of the reviewed plan. This record captures that approval before assembling the source trees.
 * The [application decision ledgers](../index.md) remain scoped to their respective applications.
-* 2026-09-22 — [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) supersedes the standalone Vloer authority and the retention of both engines. Two independently deployable applications remain.
+* 2026-09-22 — [ADR-0002](adr-0002-ploeg-is-the-only-engine.md) supersedes the standalone Unfold authority and the retention of both engines. Two independently deployable applications remain.
 * 2026-09-27 — [ADR-0004](adr-0004-unfold-releases-one-version.md) supersedes the separate release versions: both applications now release under one `unfold-v…` version.
-* 2026-10-03 — [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) moves Ploeg's source to github.com/ploeg-hq/ploeg. Unfold pins it as a submodule at `apps/ploeg`; the two applications stay independently deployable.
+* 2026-10-03 — [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) moves Ploeg's source to github.com/ploeg-hq/ploeg. Unfold pins it as a submodule at `apps/ploeg`; the two applications stay independently deployable.

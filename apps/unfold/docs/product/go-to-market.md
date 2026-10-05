@@ -2,7 +2,7 @@
 
 **Status:** proposed commercial plan and publication-ready draft copy, 9 September 2026. Nothing has been published, no customer has been contacted, and no pilot has been sold. Features described as planned remain planned until their release is qualified.
 
-Read this alongside the [product and system design](../design/00-product-system-design.md), [78-ticket implementation backlog](../../backlog/README.md), [gap register](../design/gap-register.md) and [market research](../research/market-landscape.md). The [validation record](../validation.md) governs what a release can claim.
+Read this alongside the [product and system design](../design/00-product-system-design.md), [78-ticket implementation backlog](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/8be5e332ee3bad3fb5e39b640c99de9826ab41a3/apps/unfold/backlog/README.md), [gap register](../design/gap-register.md) and [market research](../research/market-landscape.md). The [validation record](../validation.md) governs what a release can claim.
 
 ## 1. The initial proposition
 
@@ -116,7 +116,7 @@ Suggested scope: one organization, one isolated deployment boundary, one registe
 
 Deliver a deployment/configuration record, a supported-version list, retained evidence, a cost reconciliation, an operating walkthrough and an end-of-pilot recommendation. The customer receives exportable project materials and a clear continuation or removal path. Initial production changes remain outside the pilot unless separately and explicitly scoped.
 
-Before any paid agent work, complete the applicable prerequisite tickets. M0 enables supervised dogfooding; M1 establishes trustworthy candidates and mutations; M2 establishes the governed ticket loop; M3 adds shared identity and takeover; M4 qualifies the customer pilot. The [backlog](../../backlog/README.md) defines dependencies. A calendar date does not waive a gate.
+Before any paid agent work, complete the applicable prerequisite tickets. M0 enables supervised dogfooding; M1 establishes trustworthy candidates and mutations; M2 establishes the governed ticket loop; M3 adds shared identity and takeover; M4 qualifies the customer pilot. The [backlog](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/8be5e332ee3bad3fb5e39b640c99de9826ab41a3/apps/unfold/backlog/README.md) defines dependencies. A calendar date does not waive a gate.
 
 ### Success gates agreed before starting
 

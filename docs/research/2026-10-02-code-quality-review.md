@@ -4,7 +4,7 @@ Status: research record, 2026-10-03. It summarizes an external code quality, sec
 
 ## Verdict
 
-The review rates the domain model (Work Item, Shift, Run, Lease, authorized versus settled spend) and the control-plane concurrency design as strong. It found the weaknesses where outside input enters, at webhooks, sign-in, the editor handoff and the signup form, and in the unfinished move to Ploeg as the only engine ([ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md), Vloer ADR-0023). It advises against a framework rewrite, microservices, event sourcing or a message broker.
+The review rates the domain model (Work Item, Shift, Run, Lease, authorized versus settled spend) and the control-plane concurrency design as strong. It found the weaknesses where outside input enters, at webhooks, sign-in, the editor handoff and the signup form, and in the unfinished move to Ploeg as the only engine ([ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md), Unfold ADR-0023). It advises against a framework rewrite, microservices, event sourcing or a message broker.
 
 The reviewed snapshot failed `mise run verify`. On `8a834e6` every gate passes, including the PostgreSQL suites and `runtime-docker.test.ts` that the auditor could not run as root.
 
@@ -34,11 +34,11 @@ Evidence labels are the review's own: *reproduced* (a local probe showed it), *s
 
 | # | Recommendation | Where it goes |
 | --- | --- | --- |
-| A01 | Finish the Ploeg-only execution boundary | Vloer ADR-0023's increments |
+| A01 | Finish the Ploeg-only execution boundary | Unfold ADR-0023's increments |
 | A02 | Make worker isolation a deployment contract before hostile code | VIK-1731 (Homelab Roadmap) |
 | A03 | Prove the bot token cannot merge or bypass branch protection | VIK-1731 |
 | A04 | One admission cap across tracker and workbench work | With A01 |
-| A05 | Versioned wire contracts between Ploeg and Vloer | When feature work touches the client |
+| A05 | Versioned wire contracts between Ploeg and Unfold | When feature work touches the client |
 | A06 | Split large modules by invariant (`engine.ts`, `ploeg.ts`, `card.go`, `extension.ts`) | When feature work touches them |
 | A07 | Exact Money type before billing | VIK-1730, phase 2 |
 | A08 | Secret scanning, govulncheck, shipped-asset inventory, pinned actions | VIK-1729; action pinning in VIK-1719 |

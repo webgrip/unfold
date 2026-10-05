@@ -13,7 +13,7 @@ The VS Code extension signs in through the browser ([ADR-0016](0016-sign-in-and-
 
 That is a phishing kit. An attacker starts a ticket, sends the URL to a colleague ("can you look at this Work Item?"), the colleague signs in as they do every day, and the attacker's poll returns a full workbench session with the colleague's role, an administrator's included. The browser binding added in pull request #143 stops a stolen OIDC callback from being completed in another browser; it does nothing here, because the victim completes the flow in their own browser.
 
-The OAuth 2.0 Device Authorization Grant ([RFC 8628](https://www.rfc-editor.org/rfc/rfc8628)) has the same shape (a device starts, a person signs in elsewhere, the device polls) and its security considerations describe this attack as remote phishing (section 5.4). Its mitigations are to show the person what is asking, to make them compare a short code the device also displays, and to ask them to confirm. How should Vloer's editor sign-in apply them, and what should the editor receive once it is approved?
+The OAuth 2.0 Device Authorization Grant ([RFC 8628](https://www.rfc-editor.org/rfc/rfc8628)) has the same shape (a device starts, a person signs in elsewhere, the device polls) and its security considerations describe this attack as remote phishing (section 5.4). Its mitigations are to show the person what is asking, to make them compare a short code the device also displays, and to ask them to confirm. How should Unfold's editor sign-in apply them, and what should the editor receive once it is approved?
 
 ## Decision Drivers
 
@@ -21,7 +21,7 @@ The OAuth 2.0 Device Authorization Grant ([RFC 8628](https://www.rfc-editor.org/
 * The person must be able to tell their own request from someone else's, in plain words and without reading a URL.
 * What the editor holds must not be a browser session: it needs its own lifetime, its own limits, and a way for the person to see and end it.
 * Every mutation needs an authenticated identity and object authorization ([AGENTS.md](../../AGENTS.md)).
-* No new runtime dependency; Vloer runs on Node's standard library and SQLite.
+* No new runtime dependency; Unfold runs on Node's standard library and SQLite.
 * The ticket endpoints are public, so starting and polling must be rate-limited.
 
 ## Considered Options
@@ -48,8 +48,8 @@ Signing in alone never makes a ticket collectable. The attacker in the phishing 
 
 ### The editor credential
 
-* **What it is.** A random 256-bit token with the prefix `vle_`, issued at the poll after approval, returned once, and sent by the extension as `Authorization: Bearer vle_…`. It is never a `vloer` cookie, and a request that carries a malformed or unknown bearer token is unauthenticated even if it also carries a cookie.
-* **Storage.** Vloer stores only the SHA-256 hash of the token, in the `editor_credentials` table with an id, the user, a label (`VS Code`), the scope, the creation, expiry and last-use times. The extension keeps the token in VS Code SecretStorage, where it kept the cookie before. The ticket itself lives in memory for ten minutes and never holds a token: the credential is minted at collection, so an approved ticket that nobody collects leaves nothing behind.
+* **What it is.** A random 256-bit token with the prefix `vle_`, issued at the poll after approval, returned once, and sent by the extension as `Authorization: Bearer vle_…`. It is never an `unfold` cookie, and a request that carries a malformed or unknown bearer token is unauthenticated even if it also carries a cookie.
+* **Storage.** Unfold stores only the SHA-256 hash of the token, in the `editor_credentials` table with an id, the user, a label (`VS Code`), the scope, the creation, expiry and last-use times. The extension keeps the token in VS Code SecretStorage, where it kept the cookie before. The ticket itself lives in memory for ten minutes and never holds a token: the credential is minted at collection, so an approved ticket that nobody collects leaves nothing behind.
 * **Scope `editor`.** The credential acts as its person with their current role on every API route the extension uses, including issuing Agent Host Protocol connection tokens. It cannot approve or deny editor sign-ins, or list or revoke editor credentials: those routes answer 403 `browser_only`, so a stolen editor credential cannot mint more editors.
 * **Lifetime.** Thirty days from approval, absolute: use records `lastUsedAt` but never extends the expiry. The browser session keeps `auth.sessionHours`.
 * **Revocation.** **Settings › Signed-in editors** (`#settings/editors`) lists the person's live editor credentials (when approved, last used, when they end) and signs one out with `DELETE /api/editor-credentials/<id>`. Signing out from the extension (`POST /api/logout` with the bearer token) deletes that credential only. Either way, the Agent Host Protocol connection tokens the credential issued are revoked with it and their connections closed. The browser session is untouched.

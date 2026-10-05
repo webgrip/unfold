@@ -1,8 +1,8 @@
-# Ploeg + De Vloer: market landscape and product opportunity
+# Ploeg + Unfold: market landscape and product opportunity
 
 Research date: **9 September 2026**. Decision horizon: the next two product increments, followed by a new comparison before a commercial launch.
 
-This document separates **documented competitor behavior**, **current repository evidence**, and **proposed product strategy**. Competitors were researched through their own repositories, documentation, product pages and pricing pages. They were not deployed or benchmarked for this study. A documented feature is not an independently verified security guarantee. The source ledger is [market-sources.json](market-sources.json). De Vloer's actual validation remains in [validation.md](../validation.md).
+This document separates **documented competitor behavior**, **current repository evidence**, and **proposed product strategy**. Competitors were researched through their own repositories, documentation, product pages and pricing pages. They were not deployed or benchmarked for this study. A documented feature is not an independently verified security guarantee. The source ledger is [market-sources.json](market-sources.json). Unfold's actual validation remains in [validation.md](../validation.md).
 
 ## 1. The decision
 
@@ -12,9 +12,9 @@ There is a credible product opportunity, but “a dashboard for remote, model-in
 
 The initial audience should be agencies and internal platform teams managing several clients, repositories, forge instances, environments and commercial boundaries. The buyer is likely a CTO or platform lead; the everyday users are developers and reviewers; product owners need progress and acceptance evidence. This is a **customer hypothesis**, grounded in the initiating team's workflow, not measured market demand.
 
-Ploeg and De Vloer should earn a place by making the difficult boundary crossings reliable: tracker to dispatch, dispatch to isolated work, work to evidence, evidence to review, and review back to the original ticket. They should accommodate different harnesses without pretending their native conversations are interchangeable. They should preserve existing priorities instead of creating a second managerial universe that everyone has to keep synchronized.
+Ploeg and Unfold should earn a place by making the difficult boundary crossings reliable: tracker to dispatch, dispatch to isolated work, work to evidence, evidence to review, and review back to the original ticket. They should accommodate different harnesses without pretending their native conversations are interchangeable. They should preserve existing priorities instead of creating a second managerial universe that everyone has to keep synchronized.
 
-Build the narrow workflow and evidence layer. Reuse model gateways, coding harnesses, identity providers, forges, workspaces and IDE capabilities wherever practical. Run a serious buy-versus-build comparison against Kandev, OpenHands and Coder before expanding into a general development environment. The work already invested in De Vloer is not, by itself, a reason to keep building.
+Build the narrow workflow and evidence layer. Reuse model gateways, coding harnesses, identity providers, forges, workspaces and IDE capabilities wherever practical. Run a serious buy-versus-build comparison against Kandev, OpenHands and Coder before expanding into a general development environment. The work already invested in Unfold is not, by itself, a reason to keep building.
 
 ## 2. What changed enough to invalidate older comparisons
 
@@ -51,7 +51,7 @@ A local Git worktree avoids ordinary branch conflicts. It is not a security boun
 
 The entries below summarize official documentation, not this project's test results. “Not established” means the research did not establish that exact capability; it does not assert absence.
 
-| Product | Source and deployment boundary | Ticket and coordination surface | Remote execution / IDE | Why it matters to Ploeg + De Vloer |
+| Product | Source and deployment boundary | Ticket and coordination surface | Remote execution / IDE | Why it matters to Ploeg + Unfold |
 | --- | --- | --- | --- | --- |
 | **Kandev** | AGPL-3.0; self-hostable workbench | Multi-step workflows, parallel tasks, integrations and task MCP | Local, Docker, SSH, Sprites; Kubernetes documented separately; integrated review/editor | Closest open workbench comparison; substantial functionality already exists |
 | **OpenHands Agent Canvas / Enterprise** | MIT Canvas; commercial team/enterprise capabilities differ | Multi-harness conversations and automations | Local, remote and cloud backends; enterprise sandboxes and administration | Strong build-on or replace-workbench candidate |
@@ -85,7 +85,7 @@ Agent Canvas supports multiple agent backends and ACP-compatible agents, while t
 
 Its edition comparison is essential: open Canvas has scheduled/polling automation and reachable-VM event triggers, while authentication, authorization, multi-user organizations and scalable isolated sandboxes are positioned in Cloud/Enterprise. The local Docker launch should not be confused with a complete shared tenant-isolation product. [Edition comparison](https://docs.openhands.dev/enterprise/enterprise-vs-oss). Enterprise advertises integrations, usage management and team controls. [Enterprise repository](https://github.com/OpenHands/enterprise).
 
-**Our inference:** assess three options independently: use the SDK as a harness; use Canvas as an alternative operator surface; buy Enterprise. De Vloer should win only when its open workflow contract and operating fit matter more than the work required to build missing team capabilities. Avoid a custom OpenHands compatibility layer when the maintained client or SDK can carry the same responsibility safely.
+**Our inference:** assess three options independently: use the SDK as a harness; use Canvas as an alternative operator surface; buy Enterprise. Unfold should win only when its open workflow contract and operating fit matter more than the work required to build missing team capabilities. Avoid a custom OpenHands compatibility layer when the maintained client or SDK can carry the same responsibility safely.
 
 ### 4.3 Coder: do not rebuild a workspace platform casually
 
@@ -93,7 +93,7 @@ Coder Agents runs its own agent loop in the control plane, connects to workspace
 
 Community licenses permit five concurrently active agents. AI Premium removes that cap using purchased Agent Time; its documentation describes usage reporting and special arrangements for airgapped cases. This is a licensing and operating boundary to evaluate, not proof that all source is freely available under the workspace license. [Licensing and usage](https://coder.com/docs/ai-coder/agents/licensing-usage), [workspace repository license](https://github.com/coder/coder/blob/main/LICENSE).
 
-**Our inference:** a workspace-provider interface should allow Coder to replace low-level provisioning later. A team already running Coder should evaluate its native agent workflow first. De Vloer would need a compelling external-ticket, policy or evidence advantage to justify another control plane. Its current per-worker scoped inference key is a reasonable PoC boundary, but it must not be advertised as stronger than a design that keeps all inference credentials outside the workspace.
+**Our inference:** a workspace-provider interface should allow Coder to replace low-level provisioning later. A team already running Coder should evaluate its native agent workflow first. Unfold would need a compelling external-ticket, policy or evidence advantage to justify another control plane. Its current per-worker scoped inference key is a reasonable PoC boundary, but it must not be advertised as stronger than a design that keeps all inference credentials outside the workspace.
 
 ### 4.4 Paperclip: governed teams are not an exclusive idea
 
@@ -125,7 +125,7 @@ OpenCode provides a documented HTTP server surface and IDE integration. Its MIT 
 
 Claude Code Remote Control keeps the session executing on the originating machine; its browser/mobile surface controls that session. The current documentation restricts Remote Control to eligible subscription login and disallows gateway/proxy endpoints. This is different from its cloud execution product. [Remote Control](https://code.claude.com/docs/en/remote-control).
 
-**Our inference:** somebody who only needs to supervise one trusted remote machine may require little more than an existing harness and secure remote access. Ploeg/Vloer makes sense when shared state, assignment, evidence, spending and handoffs become organizational work. Optional proprietary harness adapters can preserve developer choice, but the default usable path must remain open. Model compatibility, subscription eligibility and team authorization must be separate entries in the capability matrix.
+**Our inference:** somebody who only needs to supervise one trusted remote machine may require little more than an existing harness and secure remote access. Ploeg/Unfold makes sense when shared state, assignment, evidence, spending and handoffs become organizational work. Optional proprietary harness adapters can preserve developer choice, but the default usable path must remain open. Model compatibility, subscription eligibility and team authorization must be separate entries in the capability matrix.
 
 ### 4.8 Continue and Vibe Kanban: ideas with lifecycle caveats
 
@@ -139,11 +139,11 @@ Vibe Kanban's official site says it is sunsetting and continuing as community-ma
 
 BAND postdates this document's 9 September research date. It raised a $17M seed in April 2026 and sells an "interaction layer with built-in governance" — chat rooms where agents and humans participate together, `@mention` routing, bilateral Contacts and a per-message delegation-token exchange. Its governance page concedes the enforcement half in its own words: *"Keep policy enforcement in your application logic, and use BAND to make the handoff record visible."* Its published [OpenAPI document](https://docs.band.ai/openapi.json) contains zero occurrences of spend, billing, provenance, attestation, repository, commit, pull request or merge across 56 paths.
 
-Two things make it worth a row rather than a footnote. Its desktop product, Jam, is the same shape as De Vloer's workbench — coding agents on a board, autonomous handoff, human intervention points — and it is a free download today. And BAND built the delivery loop we are building, as [Codeband](https://github.com/band-ai/codeband): adversarial cross-model review, a worktree per coder, risk-tiered auto-merge. Codeband is now marked *"maintenance only"* and redirects users to Jam. The coordination vendor retreated from finishing the work to watching it.
+Two things make it worth a row rather than a footnote. Its desktop product, Jam, is the same shape as Unfold's workbench — coding agents on a board, autonomous handoff, human intervention points — and it is a free download today. And BAND built the delivery loop we are building, as [Codeband](https://github.com/band-ai/codeband): adversarial cross-model review, a worktree per coder, risk-tiered auto-merge. Codeband is now marked *"maintenance only"* and redirects users to Jam. The coordination vendor retreated from finishing the work to watching it.
 
 **Our inference:** the differentiator is not "governed agent teams", which BAND will out-market us on, but the four things no vendor and no protocol in this landscape carries — self-hosting, authorized-and-settled model spend, ticket-to-merge delivery, and signed candidates. The [full dossier](2026-09-18-band-and-the-interaction-layer.md) records the design ideas worth mining and the triggers that would reopen the question.
 
-## 5. What De Vloer can claim today, and what must be earned
+## 5. What Unfold can claim today, and what must be earned
 
 The current implementation is the reference, not the desired market position. This table deliberately avoids assigning planned features to v0.1.
 
@@ -153,7 +153,7 @@ The current implementation is the reference, not the desired market position. Th
 | Remote agent execution | OpenCode/command adapters and Kubernetes provisioning implementation | Paid real-repository run on target cluster, cancellation and resource cleanup |
 | Reusable crews | Sequential roles: optional writer then explicit reviewers | Versioned crew contracts, shared catalog, policy validation and evaluation data |
 | Attributable model spending | LiteLLM key lifecycle and conservative reconciliation states | Live invoice/log reconciliation, expiry and in-flight spending tests |
-| Ticket-to-reviewed-change delivery | Ploeg has dispatch context; De Vloer's existing connector is read-only | Durable ticket ingestion, eligibility, dispatch identity, forge publication and writeback |
+| Ticket-to-reviewed-change delivery | Ploeg has dispatch context; Unfold's existing connector is read-only | Durable ticket ingestion, eligibility, dispatch identity, forge publication and writeback |
 | VS Code operator experience | Design and extension work are a new increment | Auth, navigation, event replay, diff review and parity tests with remote execution |
 | Client isolation | Some object authorization and workspace boundaries | Explicit client tenancy, identity propagation, secret/network policy and adversarial tests |
 | Self-improving platform | The repo can be an execution target | Candidate/stable separation, independent gates, rollout, rollback and no self-approval |
@@ -165,7 +165,7 @@ Source: [current architecture](../architecture.md), [validation](../validation.m
 
 A useful differentiator is a bundle of behaviors that customers experience together. None of the following should be claimed as unique in isolation.
 
-**External authority stays legible.** The source ticket remains the place a product owner prioritizes and accepts work. De Vloer shows the authoritative tracker revision and the exact scope the agent received. A changed ticket can invalidate preparation or require an operator decision; it must not silently expand a paid run.
+**External authority stays legible.** The source ticket remains the place a product owner prioritizes and accepts work. Unfold shows the authoritative tracker revision and the exact scope the agent received. A changed ticket can invalidate preparation or require an operator decision; it must not silently expand a paid run.
 
 **A client is an operating boundary.** Repository permissions, model policy, budget ownership, artifact retention, network access and reviewer membership travel together. Selecting a ticket from another client should not reuse a broad credential or a previous conversation's context. The first product should use separate instances where strong shared tenancy has not been proven.
 
@@ -183,7 +183,7 @@ The resulting positioning is stronger than “AI teams”: **consistent delivery
 
 The following are design recommendations. Their usefulness remains to be tested in this product.
 
-| Idea | Inspiration | Concrete Ploeg/Vloer behavior | Proof that it helps |
+| Idea | Inspiration | Concrete Ploeg/Unfold behavior | Proof that it helps |
 | --- | --- | --- | --- |
 | Decision inbox | Review gates and human wait states in Kandev | Group unresolved permissions, questions, stale tickets and failed checks by next responsible person | Reviewer can identify their next action without reading a full transcript |
 | Workflow-as-code | Kandev workflow portability; Continue's reusable definitions | Reviewed task/crew manifests with schema, digest, defaults and project overrides | Same manifest runs in development and team deployment without hand-editing prompts |
@@ -203,10 +203,10 @@ The protocol reference for the adapter idea is [Agent Client Protocol](https://a
 | Situation | Preferred decision | Why |
 | --- | --- | --- |
 | One developer wants remote OpenCode | Use OpenCode on a trusted remote host first | The organizational orchestration problem has not appeared yet |
-| A team wants a broad multi-agent browser workbench now | Evaluate Kandev and OpenHands before extending De Vloer | Their existing surfaces may save substantial UI and lifecycle work |
+| A team wants a broad multi-agent browser workbench now | Evaluate Kandev and OpenHands before extending Unfold | Their existing surfaces may save substantial UI and lifecycle work |
 | A company already uses Coder | Evaluate native Agents and a Ploeg/Coder adapter | Workspace, identity and IDE access are expensive to duplicate |
 | GitHub-only or GitLab-only delivery with acceptable commercial terms | Trial the native agent workflow | Existing permissions, review and procurement may make adoption simpler |
-| An agency has several forges, client trackers and spending boundaries | Pilot Ploeg + De Vloer's narrow delivery contract | The fragmented workflow is the proposed source of value |
+| An agency has several forges, client trackers and spending boundaries | Pilot Ploeg + Unfold's narrow delivery contract | The fragmented workflow is the proposed source of value |
 | Agent organizations across many business functions | Compare Paperclip | That domain is broader than this repository's software-delivery scope |
 | A customer needs supported enterprise controls immediately | Buy an established offering or fund an explicitly scoped qualification | A PoC is not a substitute for an operating team or contractual support |
 
@@ -214,7 +214,7 @@ Avoid implementing a new code editor, remote terminal protocol, model gateway, s
 
 Before a substantial second investment, run a **timeboxed bakeoff**. Suggested scope: twelve representative tickets across three repositories, including one external tracker and one self-hosted forge. Use comparable model families and cost limits where supported, randomize tool assignment, and preserve all results, including failures. A small sample is directional, not a statistical claim of model superiority.
 
-Measure setup effort, time to first useful change, active human supervision, review time, accepted changes, rework after acceptance, failed-run cost, recovery behavior and operator confidence. Compare a native incumbent, one open workbench and Ploeg/Vloer. Treat source rights, data boundary and mandatory client controls as pass/fail requirements rather than points that a pretty UI can compensate for.
+Measure setup effort, time to first useful change, active human supervision, review time, accepted changes, rework after acceptance, failed-run cost, recovery behavior and operator confidence. Compare a native incumbent, one open workbench and Ploeg/Unfold. Treat source rights, data boundary and mandatory client controls as pass/fail requirements rather than points that a pretty UI can compensate for.
 
 **Stop or change direction** if an existing tool satisfies the mandatory workflow and the custom layer produces no meaningful operator benefit; if integrations consume more time than users save; if realistic model costs overwhelm the value of accepted work; or if maintaining security boundaries exceeds available ownership. A successful result can be Ploeg integrations and procedures running on another workbench.
 
@@ -224,7 +224,7 @@ Prices are volatile and not directly comparable: seat access, model usage, agent
 
 | Offering | Verified public pricing fact on research date | Comparison caveat |
 | --- | --- | --- |
-| De Vloer v0.1 | Apache-2.0 repository; no software price set | Infrastructure, inference, integration and operating labor still cost money |
+| Unfold v0.1 | Apache-2.0 repository; no software price set | Infrastructure, inference, integration and operating labor still cost money |
 | Kandev | AGPL-3.0 source repository | Agent subscriptions/API access and infrastructure are separate |
 | OpenHands | Open Source and hosted/commercial plans; BYOK supported | Enterprise deployment and team capabilities require edition review; obtain a quote |
 | Coder | Community is free; AI Premium is custom | Five-agent Community concurrency; AI Premium Agent Time and infrastructure/inference must be accounted for |
@@ -265,7 +265,7 @@ Keep the existing Apache-2.0 project license for this planning increment. A lice
 
 An AGPL-based product would express a different contribution and hosting strategy; dual licensing would introduce contributor-rights and operational decisions. Do not make either change incidentally while borrowing an upstream UI. Component licenses remain component-specific, and proprietary model/harness permissions remain independent of this project's license.
 
-Use **Ploeg** for the execution/dispatch service and **De Vloer** for the human workbench. For external buyers, explain both under one plain category, such as “Ploeg — open agent delivery,” with De Vloer as its operator interface. Two unexplained Dutch names increase onboarding effort for an international audience. No trademark or domain clearance was performed by this study.
+Use **Ploeg** for the execution/dispatch service and **De Vloer** (since renamed Unfold) for the human workbench. For external buyers, explain both under one plain category, such as “Ploeg — open agent delivery,” with De Vloer as its operator interface. Two unexplained Dutch names increase onboarding effort for an international audience. No trademark or domain clearance was performed by this study.
 
 Candidate message hierarchy:
 

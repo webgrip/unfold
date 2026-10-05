@@ -1,17 +1,17 @@
 # Release floors, public Go history and repository identity, 3 October 2026
 
-Status: research record, 2026-10-03, for VIK-1794 (handoff OPS-04). It is a read-only audit of what every Ploeg and Vloer release destination holds after the history rewrite and the move to `webgrip/unfold`. The remote reads were made against `development @ 77f2bda`; the candidate values use `25f0252`. Commit ids are the ones after the 2026-10-03 history rewrite unless a column says *pre-rewrite*. The [inventory](2026-10-03-release-floors-and-identity.json) holds every row behind the tables below.
+Status: research record, 2026-10-03, for VIK-1794 (handoff OPS-04). It is a read-only audit of what every Ploeg and Unfold release destination holds after the history rewrite and the move to `webgrip/unfold`. The remote reads were made against `development @ 77f2bda`; the candidate values use `25f0252`. Commit ids are the ones after the 2026-10-03 history rewrite unless a column says *pre-rewrite*. The [inventory](2026-10-03-release-floors-and-identity.json) holds every row behind the tables below.
 
 ## Verdict
 
-* **Floors.** Every Ploeg and Vloer version up to `0.4.0-rc.34` is taken in at least one destination. Ploeg's withdrawn `1.0.0-rc.1` is also still published. The proposed first independent versions in [ADR-0018](../adr/adr-0018-ploeg-releases-on-its-own-schedule-behind-a-tested-contract-version.md), `0.5.0-rc.1` for both applications, are above every floor. That holds only while the joint train stays below `0.5.0`. Every `unfold-v` tag counts against both components, so [the floor check](#what-this-pull-request-changes) refuses a component version that a later joint release has taken once the component trains call it.
+* **Floors.** Every Ploeg and Unfold version up to `0.4.0-rc.34` is taken in at least one destination. Ploeg's withdrawn `1.0.0-rc.1` is also still published. The proposed first independent versions in [ADR-0018](../adr/adr-0018-ploeg-releases-on-its-own-schedule-behind-a-tested-contract-version.md), `0.5.0-rc.1` for both applications, are above every floor. That holds only while the joint train stays below `0.5.0`. Every `unfold-v` tag counts against both components, so [the floor check](#what-this-pull-request-changes) refuses a component version that a later joint release has taken once the component trains call it.
 * **Public Go history.** `github.com/webgrip/ploeg` has 66 versions in the public module proxy. 35 of them download from the origin with the bytes the checksum database recorded. For 14 versions (`v0.3.0-rc.5` and every `v0.4.0-rc.*` export) the origin now serves different bytes, and a direct download fails with `SECURITY ERROR`. 17 versions exist only in the proxy because GitHub no longer has their tags. Downloads through the proxy are unaffected. `go get github.com/webgrip/ploeg@latest` resolves to `v0.2.0` from August, and the withdrawn `v1.0.0-rc.1` is the highest version.
 * **Identity.** The canonical source is Forgejo `webgrip/unfold`, the mirror is GitHub `webgrip/unfold`, and the signing identity is the Actions OIDC claim `repository: webgrip/unfold`. Release scripts name that identity since `4637099`. Published metadata still names the deleted repositories, and the release preflight would stop at the deleted `webgrip/ploeg` and `webgrip/de-vloer` Forgejo repositories.
 
 ## What this pull request changes
 
 * [scripts/release-floors.json](../../scripts/release-floors.json) records each component's floor, the versions above it that can never be used, and the tag prefixes that have carried it.
-* The [release policy](../../scripts/release-policy.cjs) refuses a computed `unfold-v` version that is at or below either component's floor, or at or below any existing tag that carried Ploeg or Vloer. The tag check covers tags no longer reachable from `development`, so an orphaned release tag (the `glide-v0.4.0-rc.24` case) stops the release before semantic-release commits a duplicate release commit.
+* The [release policy](../../scripts/release-policy.cjs) refuses a computed `unfold-v` version that is at or below either component's floor, or at or below any existing tag that carried Ploeg or Unfold. The tag check covers tags no longer reachable from `development`, so an orphaned release tag (the `glide-v0.4.0-rc.24` case) stops the release before semantic-release commits a duplicate release commit.
 * Both [publishers](../../scripts/publish_release.py) refuse a version at or below its application's floor before they read a registry or the forge.
 * The [preflight](../../scripts/release_preflight.py) requires the Forgejo and GitHub APIs to answer as `webgrip/unfold` itself, so a rename redirect does not pass. It accepts a retired name that is deleted or redirects, and refuses one that has been recreated with Actions enabled.
 * The editor extension's homepage, repository, issue and Q&A links name `webgrip/unfold`.
@@ -23,7 +23,7 @@ The floors file never changes a published version. Raise a floor only with new a
 | Component | Floor | Occupied above the floor | Highest version per destination |
 | --- | --- | --- | --- |
 | Ploeg | `0.4.0-rc.34` | `1.0.0-rc.1` (withdrawn on 2026-09-11, see Ploeg [ADR-0028](../../apps/ploeg/docs/adrs/0028-automatic-releases-stay-zero-major-candidates.md)) | source tag `unfold-v0.4.0-rc.34`; Harbor `ploegd` and `charts/ploeg` `0.4.0-rc.34` (deployed in the estate); GHCR `ploegd` and `charts/ploeg` and Forgejo `ploegd` `1.0.0-rc.1`, otherwise `0.4.0-rc.32`; Forgejo `charts/ploeg` `0.4.0-rc.32`; Go `v1.0.0-rc.1`, otherwise `v0.4.0-rc.32` |
-| Vloer | `0.4.0-rc.34` | none | source tag `unfold-v0.4.0-rc.34`; GHCR and Forgejo `de-vloer`, `de-vloer-agent` and `charts/de-vloer` `0.4.0-rc.34`; Open VSX `webgrip/de-vloer` `0.4.0-rc.34` |
+| Unfold | `0.4.0-rc.34` | none | source tag `unfold-v0.4.0-rc.34`; GHCR and Forgejo `de-vloer`, `de-vloer-agent` and `charts/de-vloer` `0.4.0-rc.34`; Open VSX `webgrip/de-vloer` `0.4.0-rc.34` |
 
 The cutover boundary is the first component release under OPS-05. It must come from release-engine channel state, be above both the floor and every existing tag that carried the component, and never alias an old version. Today a `ploeg-v` train would compute from `ploeg-v0.3.0-rc.7` and propose `0.3.0-rc.8`, whatever the commit type. The floor check refuses that, so OPS-05 needs channel state that starts above `0.4.0-rc.34` before it can cut a component release, and its trains must call `refuseOccupied` for their component the way the `unfold-v` policy calls it for both.
 
@@ -37,11 +37,11 @@ A release is *complete* here when Forgejo holds both applications' `release-arti
 | --- | --- |
 | `0.4.0-rc.8` to `rc.11`, `rc.14`, `rc.18` to `rc.21`, `rc.29` to `rc.32` | Complete: images, charts, Open VSX and Go module |
 | `0.4.0-rc.1` to `rc.7` | Release page, VSIX and Open VSX; registry copies only for some images; no evidence |
-| `0.4.0-rc.13`, `rc.28` | Vloer complete, Ploeg not distributed |
+| `0.4.0-rc.13`, `rc.28` | Unfold complete, Ploeg not distributed |
 | `0.4.0-rc.12`, `rc.15` to `rc.17`, `rc.22` to `rc.25`, `rc.27` | Release page with at most the VSIX; `rc.15` also on Open VSX, `rc.15` and `rc.16` with one Forgejo image (off-site storage full or failed jobs) |
 | `0.4.0-rc.26` | Tag only: Forgejo lost the release to the tag race and it was never created |
 | `0.4.0-rc.33` | VSIX on Forgejo and Open VSX only; the agent image failed its CVE budget |
-| `0.4.0-rc.34` | Vloer images and chart on GHCR and Forgejo (`de-vloer@sha256:fbe104efddff…`), VSIX on Open VSX, no Vloer evidence (the publisher hung on the old repository name); Ploeg only in Harbor |
+| `0.4.0-rc.34` | Unfold images and chart on GHCR and Forgejo (`de-vloer@sha256:fbe104efddff…`), VSIX on Open VSX, no Unfold evidence (the publisher hung on the old repository name); Ploeg only in Harbor |
 
 GitHub `webgrip/unfold` and `webgrip/ploeg` were recreated on 2026-10-02 and hold no releases. The GitHub release copies that the evidence of `rc.8` to `rc.32` refers to were on the deleted `webgrip/glide` and no longer exist. Images built before the rewrite, up to `rc.32`, carry the pre-rewrite source commit in `org.opencontainers.image.revision` (`9a7bda3` for `rc.32`, now `888011d`); `rc.34` carries the current commit but the source label `https://github.com/webgrip/glide`. Published bytes cannot change, so the mapping below resolves them.
 

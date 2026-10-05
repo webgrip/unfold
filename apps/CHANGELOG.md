@@ -60,17 +60,17 @@
 
 ### Added
 
-* **vloer:** read Ploeg's budget held by unsettled runs close reason ([df1452f](https://forgejo.webgrip.dev/webgrip/unfold/commit/df1452f3708605c55d99b48ffb96c6fa43dee403)), references [ploeg-hq/ploeg#59](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/59)
-* **vloer:** show when a waiting pull request conflicts with its base ([21eb72d](https://forgejo.webgrip.dev/webgrip/unfold/commit/21eb72db68dffde87bcec7e41faf1fc58fff6e56)), references [ploeg-hq/ploeg#55](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/55)
+* **unfold:** read Ploeg's budget held by unsettled runs close reason ([df1452f](https://forgejo.webgrip.dev/webgrip/unfold/commit/df1452f3708605c55d99b48ffb96c6fa43dee403)), references [ploeg-hq/ploeg#59](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/59)
+* **unfold:** show when a waiting pull request conflicts with its base ([21eb72d](https://forgejo.webgrip.dev/webgrip/unfold/commit/21eb72db68dffde87bcec7e41faf1fc58fff6e56)), references [ploeg-hq/ploeg#55](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/55)
 
 ### Fixed
 
-* **vloer:** drop the roadmap note from the VS Code task view too ([70db898](https://forgejo.webgrip.dev/webgrip/unfold/commit/70db898714259e46d0b960f86de52e90e8429c3d))
-* **vloer:** say when a budget stop was only held, and count work in Runs ([47849bc](https://forgejo.webgrip.dev/webgrip/unfold/commit/47849bc401a6ba2c52047f90ad6e2125653f08e5))
+* **unfold:** drop the roadmap note from the VS Code task view too ([70db898](https://forgejo.webgrip.dev/webgrip/unfold/commit/70db898714259e46d0b960f86de52e90e8429c3d))
+* **unfold:** say when a budget stop was only held, and count work in Runs ([47849bc](https://forgejo.webgrip.dev/webgrip/unfold/commit/47849bc401a6ba2c52047f90ad6e2125653f08e5))
 
 ### Docs
 
-* **vloer:** describe held budget stops, Run counts and when Cancel shows ([8932639](https://forgejo.webgrip.dev/webgrip/unfold/commit/8932639c4cd1057a748ff18038bad32e4b16e258))
+* **unfold:** describe held budget stops, Run counts and when Cancel shows ([8932639](https://forgejo.webgrip.dev/webgrip/unfold/commit/8932639c4cd1057a748ff18038bad32e4b16e258))
 
 ### Build
 

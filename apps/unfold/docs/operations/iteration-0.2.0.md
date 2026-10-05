@@ -109,7 +109,7 @@ The Kubernetes exporter receives neither repository credentials nor the session'
 Keep the stable service and its data separate from the checkout being improved. The stable release is the control plane; the candidate repository is an ordinary registered target. Never have an agent replace the running server or edit its persistent state as part of a code task.
 
 1. Publish or select the actual Unfold repository on your forge and register its HTTPS clone URL, trunk branch and required toolchain. The delivered repository has local history; it is not an automatically published remote.
-2. Put one bounded improvement in your chosen tracker, with acceptance criteria, required checks and a clear human owner. The [backlog export guide](backlog.md) supplies 78 prepared items. Existing candidate items need review before being assigned again.
+2. Put one bounded improvement in your chosen tracker, with acceptance criteria, required checks and a clear human owner. The [backlog export guide](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/8be5e332ee3bad3fb5e39b640c99de9826ab41a3/apps/unfold/docs/operations/backlog.md) supplies 78 prepared items. Existing candidate items need review before being assigned again.
 3. Connect that task source to the registered Unfold repository. Keep this repository in the interactive lane and outside any unattended Ploeg poller until shared authority is implemented.
 4. Preview and import the task from VS Code or the browser. Authorize a small budget, choose the crew and start a separate remote workspace.
 5. Review the retained source snapshot, instructions, findings, checks and candidate export. If an intervention is needed, pause, record it and explicitly resume after inspecting execution/spend state.

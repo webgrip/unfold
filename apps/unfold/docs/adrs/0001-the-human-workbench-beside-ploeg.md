@@ -10,7 +10,7 @@ Interactive work adds another need: people should supervise a durable engagement
 
 ## Decision
 
-Create a separate, self-hosted operator workbench. De Vloer owns interactive sessions and their human actions. The tracker retains priority and work content; Ploeg retains unattended execution. Expose Ploeg queue information through a read-only connector and retain tracker links on sessions. Do not label a De Vloer session a Ploeg Shift or dispatch work through an imagined Ploeg endpoint.
+Create a separate, self-hosted operator workbench. Unfold owns interactive sessions and their human actions. The tracker retains priority and work content; Ploeg retains unattended execution. Expose Ploeg queue information through a read-only connector and retain tracker links on sessions. Do not label an Unfold session a Ploeg Shift or dispatch work through an imagined Ploeg endpoint.
 
 An operator session has a registered target, objective, crew, authorization limit and durable evidence. A browser connection is replaceable. Pause, cancellation, budget additions and restart recovery are explicit decisions with recorded actors.
 
