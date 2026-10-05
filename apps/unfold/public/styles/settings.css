@@ -807,3 +807,306 @@
   align-items: center;
   gap: var(--space-1-5);
 }
+
+.status-page {
+  container: status-page / inline-size;
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.status-answer {
+  display: grid;
+  gap: var(--space-3);
+  padding-block: var(--space-2) var(--space-4);
+  border-block-end: 1px solid var(--border);
+}
+
+.status-question {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+}
+
+.status-verdict {
+  margin: 0;
+  max-width: 22ch;
+  font-size: clamp(var(--text-3xl), 1.4rem + 2.2vw, 3.25rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+
+.status-reason {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--text);
+  font-size: var(--text-lg);
+  line-height: var(--leading-lg);
+}
+
+.status-line {
+  --knot: 2.25rem;
+  position: relative;
+  display: grid;
+  gap: var(--space-4);
+  margin: var(--space-4) 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+}
+
+.status-line::before {
+  content: "";
+  position: absolute;
+  inset-block: calc(var(--knot) / 2);
+  inset-inline-start: calc(var(--knot) / 2 - 1px);
+  width: 2px;
+  background: var(--border-strong);
+}
+
+.status-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--knot) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: start;
+  align-content: start;
+  min-width: 0;
+}
+
+.status-knot {
+  display: grid;
+  place-items: center;
+  width: var(--knot);
+  height: var(--knot);
+  border: 2px solid var(--success-solid);
+  border-radius: var(--radius-full);
+  background: var(--bg-canvas);
+  color: var(--success-fg);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-step-text {
+  display: grid;
+  gap: var(--space-0-5);
+  min-width: 0;
+  padding-block-start: var(--space-1);
+}
+
+.status-step-name {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.status-step-state,
+.status-step-summary {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.status-step-word {
+  color: var(--success-fg);
+  font-weight: var(--weight-semibold);
+}
+
+.status-step[data-state="degraded"] .status-knot {
+  border-color: var(--attention-solid);
+  color: var(--attention-fg);
+}
+
+.status-step[data-state="degraded"] .status-step-word {
+  color: var(--attention-fg);
+}
+
+.status-step[data-state="down"] .status-knot {
+  border-color: var(--baken);
+  background: var(--baken);
+  color: var(--text-on-solid);
+  box-shadow: 0 0 0 6px color-mix(in oklch, var(--brand-fold) 20%, transparent);
+}
+
+.status-step[data-state="down"] .status-step-name {
+  font-size: var(--text-xl);
+}
+
+.status-step[data-state="down"] .status-step-word {
+  color: var(--accent-fg-strong);
+}
+
+.status-step[data-state="down"] .status-step-summary {
+  color: var(--text);
+}
+
+.status-step:is([data-state="idle"], [data-state="ready"], [data-state="unproven"]) .status-knot {
+  border-color: var(--border-control-strong);
+  color: var(--text-muted);
+}
+
+.status-step:is([data-state="idle"], [data-state="ready"], [data-state="unproven"]) .status-step-word {
+  color: var(--text-muted);
+}
+
+.status-step:is([data-state="not_used"], [data-state="unreached"]) .status-knot {
+  border: 2px dashed var(--border-control);
+  color: var(--text-subtle);
+}
+
+.status-step:is([data-state="not_used"], [data-state="unreached"]) :is(.status-step-name, .status-step-word, .status-step-summary) {
+  color: var(--text-subtle);
+}
+
+.status-step[data-changed] .status-knot {
+  animation: status-changed 900ms var(--ease-enter) 1;
+}
+
+@keyframes status-changed {
+  from { box-shadow: 0 0 0 0 color-mix(in oklch, var(--brand-fold) 55%, transparent); }
+  to { box-shadow: 0 0 0 14px transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-step[data-changed] .status-knot {
+    animation: none;
+  }
+}
+
+@container status-page (min-width: 46rem) {
+  .status-line {
+    grid-template-columns: 1fr 1fr 1.6fr 1fr;
+    gap: var(--space-3);
+  }
+
+  .status-line::before {
+    inset-block: auto;
+    inset-block-start: calc(var(--knot) / 2 - 1px);
+    inset-inline: calc(var(--knot) / 2) calc(var(--knot) / 2);
+    width: auto;
+    height: 2px;
+  }
+
+  .status-step {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-2);
+    padding-inline-end: var(--space-4);
+  }
+}
+
+.status-next {
+  margin: 0;
+  max-width: 62ch;
+  padding: var(--space-3) var(--space-4);
+  border-inline-start: 3px solid var(--border-control-strong);
+  background: var(--bg-surface);
+  font-size: var(--text-md);
+}
+
+
+
+.status-checked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-lists {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@container status-page (min-width: 60rem) {
+  .status-lists {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.status-count {
+  display: grid;
+  place-items: center;
+  flex: none;
+  min-width: 2rem;
+  height: 2rem;
+  border-radius: var(--radius-sm);
+  background: var(--neutral-bg);
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-note-meta {
+  margin: var(--space-1) 0 0;
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
+}
+
+.status-tools {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.status-notes,
+.status-note-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.status-note-form {
+  max-width: 40rem;
+}
+
+.status-sessions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.status-page .settings-item-main {
+  min-width: 0;
+}
+
+.status-page :is(.settings-item-title, .status-sessions a) {
+  overflow-wrap: anywhere;
+}
+
+.status-answer[data-stale] .status-line {
+  filter: grayscale(1);
+}
+
+.status-bone {
+  display: block;
+  width: 10rem;
+  max-width: 100%;
+  height: 0.75rem;
+  border-radius: var(--radius-xs);
+  background: var(--bg-skeleton);
+}
+
+.status-checking,
+.status-answer[data-stale] .status-verdict {
+  color: var(--text-subtle);
+}
+
+.status-answer .status-notes {
+  max-width: 62ch;
+}
+
+.status-page .settings-item-title > a {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}

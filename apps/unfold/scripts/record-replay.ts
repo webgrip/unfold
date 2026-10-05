@@ -105,7 +105,7 @@ async function recordViews() {
   const query = (entries: Record<string, string | undefined>) => new URLSearchParams(Object.entries(entries).filter((entry): entry is [string, string] => Boolean(entry[1]))).toString();
   try {
     const bootstrap = (await get('/api/bootstrap')).body as any;
-    for (const path of ['/api/health', '/api/links', '/api/models', '/api/auth/methods', '/api/me/card-identity', '/api/binder', '/api/packs/odds', '/api/task-sources', '/api/ploeg/proposed', '/api/ploeg/now', '/api/ploeg']) await get(path);
+    for (const path of ['/api/health', '/api/status', '/api/links', '/api/models', '/api/auth/methods', '/api/me/card-identity', '/api/binder', '/api/packs/odds', '/api/task-sources', '/api/ploeg/proposed', '/api/ploeg/now', '/api/ploeg']) await get(path);
     const teams: string[] = (await get('/api/ploeg/teams')).body && ((await get('/api/ploeg/teams')).body as any).teams;
     for (const team of teams) await get(`/api/ploeg?${query({ team })}`);
     for (const [window] of ploegWindows) await get(`/api/ploeg/summary?${query({ window })}`);

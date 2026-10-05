@@ -28,7 +28,7 @@ const id = '[^/]+';
 
 /** GET routes answered from the recorded responses. A recorded key the replay lacks answers 404 and counts as unmatched. */
 export const recordedRoutes = Object.freeze([
-  '/api/bootstrap', '/api/health', '/api/links', '/api/models', '/api/auth/methods', '/api/me/card-identity',
+  '/api/bootstrap', '/api/health', '/api/status', '/api/links', '/api/models', '/api/auth/methods', '/api/me/card-identity',
   '/api/binder', '/api/packs', '/api/packs/odds', `/api/packs/${id}`, '/api/season', `/api/cards/${id}/seen`,
   '/api/card-themes', `/api/card-themes/${id}`, `/api/card-themes/${id}/versions`, `/api/card-themes/${id}/versions/${id}`,
   '/api/task-sources', `/api/task-sources/${id}/tasks`, `/api/task-sources/${id}/tasks/${id}`,
@@ -61,6 +61,7 @@ export const refusedRoutes = Object.freeze([
   { method: '*', path: '/api/links' }, { method: '*', path: `/api/links/${id}` },
   { method: 'PUT', path: '/api/me/card-identity' }, { method: '*', path: `/api/cards/${id}/world` }, { method: 'POST', path: '/api/binder/seen' }, { method: 'POST', path: `/api/packs/${id}/open` },
   { method: '*', path: `/api/card-themes/${id}` }, { method: 'POST', path: '/api/card-assets' }, { method: 'GET', path: `/api/card-assets/${id}` }, { method: 'POST', path: '/api/card-art/generate' },
+  { method: 'POST', path: '/api/status/notes' }, { method: 'POST', path: `/api/status/notes/${id}/resolve` },
   { method: 'POST', path: '/api/task-imports' }, { method: '*', path: `/api/task-sources/${id}/tasks/${id}/${id}` },
   { method: 'POST', path: `/api/ploeg/work-items/${id}/${id}` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/cracks/${id}/${id}` },
   { method: 'GET', path: `/api/sessions/${id}/delivery` }, { method: '*', path: `/api/sessions/${id}/${id}` }, { method: '*', path: `/api/sessions/${id}/${id}/${id}` },

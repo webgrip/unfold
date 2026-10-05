@@ -9,7 +9,7 @@ import { PloegError } from './ploeg.ts';
 import { unavailableCandidate } from './candidates.ts';
 import { SigningKey, attestCandidate, candidatePredicateType, tracePredicateType } from './attestations.ts';
 import { readFileSync } from 'node:fs';
-import type { AgentRuntime, AppConfig, Credential, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest, Crew, SessionOutcome } from './types.ts';
+import type { AgentRuntime, AppConfig, Credential, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest, Crew, SessionOutcome, WorkspaceWait } from './types.ts';
 
 type Broker = {
   mint(session: Session): Promise<Credential>;
@@ -24,6 +24,13 @@ type Broker = {
 type Reservation = { reference: string; authorizedUsd: number; revoked: boolean };
 type Active = { controller: AbortController; task: Promise<void> };
 export type CreateSessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; approval?: 'manual' | 'auto'; model?: string; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot };
+
+export type Provisioning = Omit<WorkspaceWait, 'phase'> & { phase: WorkspaceWait['phase'] | 'preparing' };
+
+const waitMessages: Partial<Record<WorkspaceWait['phase'], string>> = {
+  capacity: 'Waiting for a free machine. Every machine is busy; nothing is being charged while the workspace waits.',
+  image_unavailable: 'The workspace image cannot be downloaded. Unfold keeps trying until the time limit.',
+};
 
 const reviewOutcomes = { approve: 'approved', request_changes: 'changes_requested', inconclusive: 'inconclusive' } as const;
 
@@ -70,6 +77,7 @@ export class Engine {
   private links?: Links;
   private briefs = new Map<string, { resolve: (answers: string[]) => void }>();
   private toolCalls = new Map<string, Set<string>>();
+  private preparing = new Map<string, string>();
 
   constructor(store: Store, config: AppConfig, runtimes: Map<RuntimeKind, AgentRuntime> | Record<string, AgentRuntime>, broker?: Broker, links?: Links) {
     this.store = store; this.config = config; this.runtimes = runtimes instanceof Map ? runtimes : new Map(Object.entries(runtimes) as [RuntimeKind, AgentRuntime][]); this.broker = broker; this.links = links;
@@ -748,7 +756,16 @@ export class Engine {
       stage = 'workspace';
       const access = this.links ? await this.links.access(first.ownerId, configured.url) : undefined;
       const repository = access ? { ...configured, access } : configured;
-      const workspace = await runtime.prepare(first, repository, credential, signal);
+      this.preparing.set(id, new Date().toISOString());
+      let announced: string | undefined;
+      const watch = setInterval(() => {
+        const wait = runtime.provisioning?.().find(item => item.sessionId === id);
+        if (!wait || wait.phase === announced || signal.aborted) return;
+        announced = wait.phase;
+        const message = waitMessages[wait.phase];
+        if (message) this.store.appendEvent(id, 'workspace.waiting', 'system', { phase: wait.phase, message });
+      }, 2000).unref();
+      const workspace = await runtime.prepare(first, repository, credential, signal).finally(() => { clearInterval(watch); this.preparing.delete(id); });
       signal.throwIfAborted();
       let session = this.store.getSession(id)!;
       session.workspace = workspace;
@@ -840,6 +857,12 @@ export class Engine {
       if (this.authority?.current(id) && !['paused', 'cancelled'].includes(finished.status)) await this.finishAuthority(id);
       if (credential) this.keys.delete(credential.key);
     }
+  }
+
+  /** Sessions whose workspace is being prepared, with the reason the runtime reports for the wait when it has one. */
+  provisioning(): Provisioning[] {
+    const waits = new Map([...this.runtimes.values()].flatMap(runtime => runtime.provisioning?.() ?? []).map(wait => [wait.sessionId, wait]));
+    return [...this.preparing].map(([sessionId, since]) => waits.get(sessionId) ?? { sessionId, phase: 'preparing', since });
   }
 
   signing(): SigningKey {

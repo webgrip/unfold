@@ -15,8 +15,8 @@ const noop = () => {};
 test('the registered views build one registry with unique view ids', () => {
   const registry = createRegistry(views);
   assert.equal(registry.views.size, views.length);
-  for (const id of ['login', 'now', 'sessions', 'session', 'tasks', 'work', 'proposed', 'runs', 'activity', 'insights', 'ploeg-feeds', 'account', 'system', 'preferences', 'card-identity', 'editors', 'editor-sign-in', 'binder', 'packs', 'season', 'palette', 'chrome', 'dialogs', 'designer']) assert(registry.views.has(id), `no view ${id}`);
-  assert.deepEqual(registry.pages.map(view => view.id), ['now', 'sessions', 'tasks', 'account', 'system', 'preferences', 'designer']);
+  for (const id of ['login', 'now', 'sessions', 'session', 'tasks', 'work', 'proposed', 'runs', 'activity', 'insights', 'ploeg-feeds', 'account', 'system', 'status', 'preferences', 'card-identity', 'editors', 'editor-sign-in', 'binder', 'packs', 'season', 'palette', 'chrome', 'dialogs', 'designer']) assert(registry.views.has(id), `no view ${id}`);
+  assert.deepEqual(registry.pages.map(view => view.id), ['now', 'sessions', 'tasks', 'account', 'system', 'status', 'preferences', 'designer']);
 });
 
 test('every data-action and data-form in the browser markup has exactly one handler, and every handler has markup', () => {

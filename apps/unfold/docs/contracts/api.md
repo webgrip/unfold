@@ -32,6 +32,18 @@ An editor signs in through the same browser flow, and its person approves it ([A
 
 The `token` is an editor credential, `vle_` followed by 43 base64url characters, sent as `Authorization: Bearer <token>`. Unfold stores only its SHA-256 hash. It lasts thirty days from approval and is not renewed by use. It acts as its person with their current role, except that the `editor-requests` and `editor-credentials` routes answer 403 `browser_only` to it. `POST /api/logout` with the bearer token revokes that credential only. A request with a malformed or unknown bearer token is unauthenticated, whatever cookie it also carries.
 
+## Status
+
+Every signed-in person can read `GET /api/status`; only administrators post and resolve notes. Mutations follow the [identity rules](#identity-and-mutation-requests).
+
+| Method and path | Request or response |
+| --- | --- |
+| `GET /api/status` | `{generatedAt, overall, checks, waiting, failures, notes}`. `overall` is `operational`, `degraded` or `down`: the worst check or open note. `checks` holds `workspaces`, `gateway` and `ploeg`, each `{id, title, state, summary, detail?}` with `state` one of `ok`, `degraded`, `down`, `idle` (no workspace started in 24 hours) or `not_used`; `detail` is for administrators only. `waiting` lists sessions preparing a workspace, `{sessionId?, title?, own, phase, since, reason?}`, where `phase` is `preparing`, `scheduling`, `capacity`, `image_unavailable`, `starting` or `connecting`; another person's session carries no id or title unless the reader is an administrator, and only an administrator sees `reason`. `failures` is `{since, total, causes:[{category, message, count, lastAt, sessions:[{id,title}]}]}` for the last 24 hours without `cancelled` and `review_incomplete`; `sessions` lists only sessions the reader may open. `notes` holds open notes and those resolved in the last seven days |
+| `POST /api/status/notes` | Administrator: `{severity: info\|degraded\|outage, text}` with 1–500 characters → 201 note `{id, severity, text, author, createdAt}` |
+| `POST /api/status/notes/:id/resolve` | Administrator: `{}` → the note with `resolvedAt` and `resolvedBy`; 404 for an unknown id |
+
+The `workspaces` check reads the workspaces Unfold is preparing and the last `workspace.ready` event. A Kubernetes workspace whose Pod the scheduler cannot place reports `capacity` while it waits and records `workspace.waiting` once on the session; when its time limit runs out it fails as `capacity` (or `missing_executable` for an image that cannot be pulled) instead of `timeout`. A `capacity` failure keeps the check `degraded` for 30 minutes unless a workspace starts after it. The gateway check calls LiteLLM's unauthenticated `/health/liveliness` with a three-second limit and keeps the answer for 15 seconds.
+
 ## Sessions
 
 | Method and path | Behavior |
