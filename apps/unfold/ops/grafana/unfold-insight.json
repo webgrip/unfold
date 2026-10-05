@@ -24,7 +24,7 @@
         {
           "datasource": { "type": "victoriametrics-logs-datasource", "uid": "${logsDatasource}" },
           "editorMode": "code",
-          "expr": "event.name:\"needs_you.verdict_shown\" OR event.name:\"needs_you.command_sent\" | stats by (work_item.id) count_uniq(actor) as actors, min(_time) as shown, max(_time) as decided | math decided - shown as seconds | stats median(seconds) as median_seconds",
+          "expr": "event.name:\"needs_you.verdict_shown\" OR event.name:\"needs_you.command_sent\" | stats by (work_item.id) count_uniq(actor) as actors, min(_time) as shown, max(_time) as decided | math decided - shown as seconds | filter actors:>=5 | stats median(seconds) as median_seconds",
           "queryType": "stats",
           "refId": "A"
         }
