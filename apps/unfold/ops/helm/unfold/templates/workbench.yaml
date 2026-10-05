@@ -41,6 +41,7 @@ spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
+      enableServiceLinks: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
