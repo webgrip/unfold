@@ -129,7 +129,7 @@ jobs:
       - name: Build and push (Harbor)
         id: build
         if: steps.probe.outputs.exists != 'true'
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v2.7.7
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/docker-build-push-registry-fast@v2.7.8
         with:
           registry: harbor.webgrip.dev
           docker-context: ${{ matrix.context }}
@@ -169,7 +169,7 @@ jobs:
           vex-dir: apps/unfold/ops/vex/statements
 
       - name: Sign, attest and SBOM (Harbor)
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v2.7.7
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/cosign-sign-attest@v2.7.8
         with:
           registry: harbor.webgrip.dev
           image-name: harbor.webgrip.dev/webgrip/${{ matrix.name }}
@@ -188,7 +188,7 @@ jobs:
           ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
       - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
-          version: 2026.10.1
+          version: 2026.10.2
           install_args: node
           cache: false
           github_token: ''
@@ -289,7 +289,7 @@ jobs:
           ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
       - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
-          version: 2026.10.1
+          version: 2026.10.2
           install_args: regctl
           cache: false
           github_token: ''
@@ -350,7 +350,7 @@ jobs:
 
   site-deploy-staging:
     needs: [site-release-tag]
-    uses: webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v2.7.7
+    uses: webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v2.7.8
     with:
       enabled: ${{ needs.site-release-tag.outputs.channel == 'prerelease' }}
       environment: production
@@ -376,7 +376,7 @@ jobs:
 
   site-deploy-production:
     needs: [site-release-tag]
-    uses: webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v2.7.7
+    uses: webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v2.7.8
     with:
       enabled: ${{ needs.site-release-tag.outputs.channel == 'stable' }}
       environment: production
