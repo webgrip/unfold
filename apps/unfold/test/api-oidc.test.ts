@@ -80,3 +80,19 @@ test('HTTPS OIDC uses a host-only, secure, short-lived browser cookie', async t 
   assert.equal(start.status, 303);
   assert.match(start.headers.get('set-cookie')!, /^__Host-unfold-oauth=[A-Za-z0-9_-]{43}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=600; Secure$/);
 });
+
+test('a person whose email another account already holds still signs in, under a numbered name, and that account is untouched', async t => {
+  const { server, idp } = await workbench(t);
+  server.app.store.addUser({ id: 'local-person', name: 'Person@example.com', role: 'admin', passwordHash: 'local-hash' });
+  const first = await signIn(server, idp);
+  assert.equal(first.callback.headers.get('location'), '/');
+  const bootstrap = await request(server.url, '/api/bootstrap', { cookie: first.callback.headers.get('set-cookie')!.split(';')[0] });
+  assert.equal(bootstrap.body.user.name, 'person@example.com (2)');
+  assert.equal(bootstrap.body.user.role, 'operator');
+  assert.notEqual(bootstrap.body.user.id, 'local-person');
+  assert.deepEqual(server.app.store.getUser('local-person'), { id: 'local-person', name: 'Person@example.com', role: 'admin', passwordHash: 'local-hash' });
+  const second = await signIn(server, idp);
+  const again = await request(server.url, '/api/bootstrap', { cookie: second.callback.headers.get('set-cookie')!.split(';')[0] });
+  assert.equal(again.body.user.id, bootstrap.body.user.id);
+  assert.equal(again.body.user.name, 'person@example.com (2)');
+});

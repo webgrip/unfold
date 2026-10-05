@@ -154,8 +154,23 @@ export class Store {
     this.db.prepare('INSERT INTO users(id,name,role,password_hash) VALUES(?,?,?,?)').run(user.id, user.name, user.role, user.passwordHash);
   }
 
-  upsertUser(user: StoredUser): void {
-    this.db.prepare('INSERT INTO users(id,name,role,password_hash) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, role=excluded.role').run(user.id, user.name, user.role, user.passwordHash);
+  /** Stores a user by id and returns the name it holds: `user.name`, or a numbered variant when another account already holds that name. */
+  upsertUser(user: StoredUser): string {
+    return this.transaction(() => {
+      const name = this.nameFreeFor(user.id, user.name);
+      this.db.prepare('INSERT INTO users(id,name,role,password_hash) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name, role=excluded.role').run(user.id, name, user.role, user.passwordHash);
+      return name;
+    });
+  }
+
+  private nameFreeFor(id: string, name: string): string {
+    const holder = this.db.prepare('SELECT id FROM users WHERE name=? COLLATE NOCASE');
+    for (let attempt = 1; ; attempt++) {
+      const suffix = attempt === 1 ? '' : ` (${attempt})`;
+      const candidate = name.slice(0, 100 - suffix.length) + suffix;
+      const row = holder.get(candidate) as { id: string } | undefined;
+      if (!row || row.id === id) return candidate;
+    }
   }
 
   getUserByName(name: string): StoredUser | undefined {
