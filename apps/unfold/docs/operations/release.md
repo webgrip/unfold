@@ -2,7 +2,7 @@
 
 Forgejo coordinates one version for the workbench image, workspace image, Helm chart and editor extension. Source checks run before a release tag is created; publication jobs consume that tag. A tag or green source job alone does not prove that every artifact was published.
 
-The application's version is the Unfold version, with a `unfold-v<version>` tag ([system ADR-0019](../../../../docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)). Ploeg releases on its own from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg); until `unfold-v0.4.0-rc.35` it released together with the application ([system ADR-0004](../../../../docs/adr/adr-0004-unfold-releases-one-version.md)). Publication remains disabled until the [distribution cutover](../../../../docs/migration.md#distribution-cutover-remains-separate) is qualified.
+The application's version is the Unfold version, with an `unfold-v<version>` tag ([system ADR-0019](../../../../docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md)). Ploeg releases on its own from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg); until `unfold-v0.4.0-rc.35` it released together with the application ([system ADR-0004](../../../../docs/adr/adr-0004-unfold-releases-one-version.md)). Publication remains disabled until the [distribution cutover](../../../../docs/migration.md#distribution-cutover-remains-separate) is qualified.
 
 ## Follow the release
 
@@ -15,7 +15,7 @@ The application's version is the Unfold version, with a `unfold-v<version>` tag 
 
 Unfold checks pushes to `development` and pull requests. The shared semantic-release configuration determines release eligibility from conventional commits. The prepare script synchronizes chart and package versions; do not hand-bump them to repair a failed publication.
 
-Inspect the matching run in [Forgejo Actions](https://forgejo.webgrip.dev/webgrip/de-vloer/actions) and its [release assets](https://forgejo.webgrip.dev/webgrip/de-vloer/releases). Record missing artifacts and the failing job. The publication workflow supports a manual dispatch with the existing tag selected as both the workflow ref and tag input; examine which stages completed before rerunning it. Several stages skip an existing artifact, so a retry is not a blanket rebuild or replacement.
+Inspect the matching run in [Forgejo Actions](https://forgejo.webgrip.dev/webgrip/unfold/actions) and its [release assets](https://forgejo.webgrip.dev/webgrip/unfold/releases). Record missing artifacts and the failing job. The publication workflow supports a manual dispatch with the existing tag selected as both the workflow ref and tag input; examine which stages completed before rerunning it. Several stages skip an existing artifact, so a retry is not a blanket rebuild or replacement.
 
 ## Images and chart
 
@@ -39,10 +39,10 @@ The release publish job packages the tagged extension, runs the [listing and pac
 
 [ADR 0021](../adrs/0021-the-extension-ships-through-open-vsx-first.md) records the Open VSX-first decision. The workflow warns or reports a notice when a registry credential is absent; a successful job with such a notice is not evidence of a registry listing. Account ownership, credentials and external registry availability require a fresh check when publishing there.
 
-For installation, download the matching VSIX and checksum from a completed [Forgejo release](https://forgejo.webgrip.dev/webgrip/de-vloer/releases), verify the checksum, then use the editor's **Install from VSIX** command. The [extension guide](../../extensions/vscode/README.md#install) gives the user-facing steps.
+For installation, download the matching VSIX and checksum from a completed [Forgejo release](https://forgejo.webgrip.dev/webgrip/unfold/releases), verify the checksum, then use the editor's **Install from VSIX** command. The [extension guide](../../extensions/vscode/README.md#install) gives the user-facing steps.
 
 ## Credentials and qualification
 
 Use the secret input names declared in the workflows. Provision bridge credentials through the estate's OpenBao-backed configuration; do not put values in this repository. Signing uses the workflow's OIDC identity and the configured OpenBao Transit role. A workflow declaration proves which input is expected, not that a secret exists or the remote identity is authorized. The estate's [Actions secret configuration](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/kubernetes/apps/forgejo/forgejo-actions-secrets/app) owns provisioning.
 
-[Validation](../validation.md) records dated release and deployment checks. The [previous release guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7/docs/operations/release.md) preserves the initial publisher setup and failures. Those observations are history; use current job output to decide what still needs attention.
+[Validation](../validation.md) records dated release and deployment checks. The [previous release guide](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7/docs/operations/release.md) preserves the initial publisher setup and failures. Those observations are history; use current job output to decide what still needs attention.

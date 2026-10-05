@@ -6,7 +6,7 @@ Primary evidence gathered first-hand from the shipped build is marked **(build)*
 
 ## Verdict
 
-The harness seam is closed and the host seam is open, and that is unlikely to change. De Vloer is on the correct side of it. The urgent work is not new capability but conformance: the host negotiates a single protocol minor against a client that ships weekly on a spec whose minors are wire-breaking by its own rule.
+The harness seam is closed and the host seam is open, and that is unlikely to change. Unfold is on the correct side of it. The urgent work is not new capability but conformance: the host negotiates a single protocol minor against a client that ships weekly on a spec whose minors are wire-breaking by its own rule.
 
 ## What 1.138 actually shipped
 
@@ -106,7 +106,7 @@ The absence of criticism reflects low awareness, not consensus. The real argumen
 
 | Seam | Protocol | Who claims it |
 | --- | --- | --- |
-| Client ↔ session state, multi-client sync | **AHP** | VS Code; De Vloer's host |
+| Client ↔ session state, multi-client sync | **AHP** | VS Code; Unfold's host |
 | Host ↔ agent, 1:1 conversation | **ACP** | Ploeg's `pkg/harness/adapters/acp` |
 | Agent ↔ tools | **MCP** | Inside the harness, below both |
 | Agent ↔ agent | A2A | **Nobody in this estate**, and an explicit AHP anti-goal |
@@ -116,7 +116,7 @@ The absence of criticism reflects low awareness, not consensus. The real argumen
 
 Microsoft's own framing, verbatim: *"AHP is a coordination layer. ACP is a communication layer. They compose naturally."* — *"A useful mental model: AHP is a mutex over ACP."* — and, in the anti-goals, *"A replacement for ACP or other downstream agent protocols."*
 
-**The stack Microsoft documents is the one Glide already has, split across two applications.** Vloer speaks AHP north, Ploeg speaks ACP south. No AHP host in the wild actually does this: `pi-ahp` embeds `pi`, `ahpd` uses the Claude SDK directly, and wyrd's adapters wrap vendor SDKs. The layering is asserted by its author and demonstrated by nobody.
+**The stack Microsoft documents is the one Glide already has, split across two applications.** Unfold speaks AHP north, Ploeg speaks ACP south. No AHP host in the wild actually does this: `pi-ahp` embeds `pi`, `ahpd` uses the Claude SDK directly, and wyrd's adapters wrap vendor SDKs. The layering is asserted by its author and demonstrated by nobody.
 
 **ACP is not stalled, and it is no longer single-vendor** — correcting both an intermediate finding in this sweep and the premise carried in [ADR 0006](../../../ploeg/docs/adrs/0006-ahp-is-the-wrong-layer.md). Schema **v1.21.0** and Rust **v1.7.0** shipped 2026-08-20, eight days before AHP 0.9.0, with **v2.0.0-alpha.3** the same day. ACP has a stable 1.x compatibility line; AHP has no 1.0.
 
@@ -133,7 +133,7 @@ AHP is the only protocol *purpose-built* for this seam, but it is no longer the 
 - **MCP has vacated the seam.** The 2026-07-28 revision removed protocol-level sessions and `Mcp-Session-Id`, removed the initialize handshake, and removed SSE stream resumability and message redelivery.
 - **AG-UI has ruled it out.** Its 1.0 draft carries a section titled "No resumption": the SSE binding does not use `Last-Event-ID` and "a broken stream cannot be re-entered."
 
-And one competitor is a product rather than a protocol: **Zed Delta**, ["a multiplayer environment for coding with agents"](https://zed.dev/blog/introducing-delta), public beta 2026-09-16, syncs third-party harness sessions into a shared thread with cloud runners that keep working after the laptop closes. Closed, proprietary, no spec. It is the closest thing anyone has shipped to De Vloer's premise, and it is worth tracking as a product comparison rather than a protocol decision.
+And one competitor is a product rather than a protocol: **Zed Delta**, ["a multiplayer environment for coding with agents"](https://zed.dev/blog/introducing-delta), public beta 2026-09-16, syncs third-party harness sessions into a shared thread with cloud runners that keep working after the laptop closes. Closed, proprietary, no spec. It is the closest thing anyone has shipped to Unfold's premise, and it is worth tracking as a product comparison rather than a protocol decision.
 
 ## Cost, provenance and budget are outside the protocol
 

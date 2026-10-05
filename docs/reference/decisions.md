@@ -17,8 +17,8 @@ An accepted record states why a rule exists. A proposed record is an open questi
 
 | Scope | ADR | Title | Date | Superseded by |
 | --- | --- | --- | --- | --- |
-| System | [0001](../adr/adr-0001-unfold-contains-independent-applications.md) | Unfold contains independently deployable Vloer and Ploeg | 2026-09-12 | — |
-| System | [0002](../adr/adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Vloer is its front end | 2026-09-22 | — |
+| System | [0001](../adr/adr-0001-unfold-contains-independent-applications.md) | Unfold contains independently deployable applications | 2026-09-12 | — |
+| System | [0002](../adr/adr-0002-ploeg-is-the-only-engine.md) | Ploeg is the only execution engine and Unfold is its front end | 2026-09-22 | — |
 | System | [0003](../adr/adr-0003-the-unit-of-work-is-the-work-item.md) | The unit of work is the Work Item, and work can create work | 2026-09-22 | — |
 | System | [0005](../adr/adr-0005-unfold-is-offered-to-agencies.md) | Unfold is offered to agencies, and delivery ends at a reviewed pull request with a preview | 2026-09-29 | — |
 | System | [0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md) | The ticket is the billing unit: a quoted, capped Shift budget charged on delivery | 2026-09-29 | — |
@@ -31,7 +31,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0013](../adr/adr-0013-the-product-is-named-unfold.md) | The product is named Unfold, and Ploeg and Vloer are its parts | 2026-10-01 | — |
 | System | [0016](../adr/adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | 2026-10-02 | — |
 | System | [0017](../adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) | A Tenant sits above Teams and bounds what users, sources and budgets can reach | 2026-10-04 | — |
-| System | [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) | Unfold pins Ploeg from its own repository and releases only Vloer | 2026-10-03 | — |
+| System | [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) | Unfold pins Ploeg from its own repository and releases only its application | 2026-10-03 | — |
 | System | [0020](../adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) | Unfold is the application, and the name Vloer is retired | 2026-10-04 | — |
 | System | [0022](../adr/adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md) | People give a Work Item context files, at the start and while steering | 2026-10-04 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
@@ -137,18 +137,18 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0005](../../apps/unfold/docs/adrs/0005-one-work-authority.md) | One work authority across unattended and interactive delivery | 2026-09-09 | partial | Guarded commands to Ploeg exist; work orders and fenced takeover do not ([source](../../apps/unfold/src/execution-authority.ts)) |
 | Unfold | [0006](../../apps/unfold/docs/adrs/0006-trusted-verifier-and-publisher.md) | Verify and publish outside the agent workspace | 2026-09-09 | partial | Independent verifier exists; the trusted publisher does not ([source](../../apps/unfold/src/delivery-verifier.ts)) |
 | Unfold | [0008](../../apps/unfold/docs/adrs/0008-task-connections-and-candidate-handoff.md) | Shared task connections and portable candidate handoff | 2026-09-09 | yes | Implemented in the 0.2.0 prototype; team adoption is what remains proposed ([source](../../apps/unfold/src/candidates.ts)) |
-| Unfold | [0015](../../apps/unfold/docs/adrs/0015-ploeg-operator-read-api.md) | Ploeg exposes a read-only operator API and De Vloer projects it | 2026-09-10 | partial | Read projection exists; lossless fleet events and AHP projection do not ([source](../../apps/unfold/src/ploeg.ts)) |
+| Unfold | [0015](../../apps/unfold/docs/adrs/0015-ploeg-operator-read-api.md) | Ploeg exposes a read-only operator API and Unfold projects it | 2026-09-10 | partial | Read projection exists; lossless fleet events and AHP projection do not ([source](../../apps/unfold/src/ploeg.ts)) |
 | Unfold | [0017](../../apps/unfold/docs/adrs/0017-delegate-interactive-execution-to-ploeg.md) | Delegate interactive execution to Ploeg | 2026-09-10 | yes | Opt-in shared execution; ratification outstanding ([source](../../apps/unfold/src/execution-authority.ts)) |
 | Unfold | [0018](../../apps/unfold/docs/adrs/0018-bind-tracker-imports-to-existing-ploeg-work.md) | Bind tracker imports to existing Ploeg work | 2026-09-11 | yes | Opt-in tracker binding; ratification outstanding ([source](../../apps/unfold/src/task-binding.ts)) |
 | Unfold | [0019](../../apps/unfold/docs/adrs/0019-verify-canonical-candidates-outside-agent-workspaces.md) | Verify canonical candidates outside agent workspaces | 2026-09-11 | yes | Bounded Docker verifier; live publication stays disabled ([source](../../apps/unfold/src/trusted-candidate.ts)) |
-| Unfold | [0023](../../apps/unfold/docs/adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) | Vloer submits Work Items to Ploeg and never executes them | 2026-09-23 | no | Design proposal only; Unfold still runs the managed engine ([source](../../apps/unfold/docs/ploeg-front-end.md)) |
-| Unfold | [0024](../../apps/unfold/docs/adrs/0024-vloer-opens-on-now-with-one-vocabulary-and-one-token-system.md) | Vloer opens on Now, names every state one way and draws from one token system | 2026-09-30 | yes | Every screen rebuilt on the shared vocabulary, formatter and components, legacy stylesheet deleted, Cancel Work Item on the Work Item page (checked 2026-09-30 on the redesign branch) ([source](../../apps/unfold/test/ploeg-view.test.mjs)) |
-| Unfold | [0025](../../apps/unfold/docs/adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) | Vloer hands a tracker task to Ploeg by assigning the team's tracker user | 2026-09-30 | unknown | — |
+| Unfold | [0023](../../apps/unfold/docs/adrs/0023-unfold-submits-work-to-ploeg-and-never-executes-it.md) | Unfold submits Work Items to Ploeg and never executes them | 2026-09-23 | no | Design proposal only; Unfold still runs the managed engine ([source](../../apps/unfold/docs/ploeg-front-end.md)) |
+| Unfold | [0024](../../apps/unfold/docs/adrs/0024-unfold-opens-on-now-with-one-vocabulary-and-one-token-system.md) | Unfold opens on Now, names every state one way and draws from one token system | 2026-09-30 | yes | Every screen rebuilt on the shared vocabulary, formatter and components, legacy stylesheet deleted, Cancel Work Item on the Work Item page (checked 2026-09-30 on the redesign branch) ([source](../../apps/unfold/test/ploeg-view.test.mjs)) |
+| Unfold | [0025](../../apps/unfold/docs/adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) | Unfold hands a tracker task to Ploeg by assigning the team's tracker user | 2026-09-30 | unknown | — |
 | Unfold | [0026](../../apps/unfold/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) | Run cards render in a card runtime with skin packs and themes | 2026-10-01 | unknown | — |
 | Unfold | [0027](../../apps/unfold/docs/adrs/0027-the-editor-opens-on-now-and-shares-the-browser-vocabulary.md) | The editor opens on Now and shares the browser's vocabulary | 2026-10-01 | unknown | — |
 | Unfold | [0028](../../apps/unfold/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md) | The forge skin renders Run cards in 3D with vendored three.js | 2026-10-01 | unknown | — |
 | Unfold | [0029](../../apps/unfold/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) | Binders, packs and pulls collect Run cards privately and fairly | 2026-10-01 | unknown | — |
-| Unfold | [0030](../../apps/unfold/docs/adrs/0030-vloer-traces-bugs-under-an-administrator-mapped-forge-login.md) | Vloer traces bugs to Run cards under an administrator-mapped forge login | 2026-10-01 | unknown | — |
+| Unfold | [0030](../../apps/unfold/docs/adrs/0030-unfold-traces-bugs-under-an-administrator-mapped-forge-login.md) | Unfold traces bugs to Run cards under an administrator-mapped forge login | 2026-10-01 | unknown | — |
 | Unfold | [0031](../../apps/unfold/docs/adrs/0031-card-themes-a-card-designer-and-generated-art.md) | Card themes, a card designer and generated art | 2026-10-01 | unknown | — |
 | Unfold | [0032](../../apps/unfold/docs/adrs/0032-an-effects-director-plays-run-card-moments-once-by-tier-within-accessibility-rules.md) | An effects director plays Run card moments once, by tier, within accessibility rules | 2026-10-01 | unknown | — |
 | Unfold | [0033](../../apps/unfold/docs/adrs/0033-a-forge-card-s-art-window-is-an-inner-world-its-holder-may-decorate-privately.md) | A forge card's art window is an inner world its holder may decorate privately | 2026-10-02 | unknown | — |
@@ -159,4 +159,4 @@ An accepted record states why a rule exists. A proposed record is an open questi
 
 | Scope | ADR | Title | Status | Date | Superseded by |
 | --- | --- | --- | --- | --- | --- |
-| System | [0004](../adr/adr-0004-unfold-releases-one-version.md) | Unfold releases Vloer and Ploeg under one version | superseded by ADR-0019 | 2026-10-03 | System [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) |
+| System | [0004](../adr/adr-0004-unfold-releases-one-version.md) | Unfold releases its application and Ploeg under one version | superseded by ADR-0019 | 2026-10-03 | System [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) |

@@ -45,7 +45,7 @@ Every instance-scoped request includes `directory` as a URL-encoded query parame
 | Interrupt | `POST /session/{id}/abort` | Empty body |
 | File evidence | `GET /session/{id}/diff` | Actual native file-diff records |
 
-HTTP 204 acknowledges submission. Completion requires an inactive session and a new completed assistant message with a terminal finish reason. A tool-call message is not a final response. Pending permission requests prevent completion. Polling supplements the stream and recovers missed permission, question and final-message events. This adapter does not assume durable `Last-Event-ID` replay from OpenCode; De Vloer's own event journal supplies browser replay.
+HTTP 204 acknowledges submission. Completion requires an inactive session and a new completed assistant message with a terminal finish reason. A tool-call message is not a final response. Pending permission requests prevent completion. Polling supplements the stream and recovers missed permission, question and final-message events. This adapter does not assume durable `Last-Event-ID` replay from OpenCode; Unfold's own event journal supplies browser replay.
 
 OpenCode abort means stop the current turn. It does not promise resumption of a paused operating-system process. Explicit resume is another prompted turn with existing native history.
 
@@ -84,7 +84,7 @@ Sources: [LiteLLM integration](https://docs.litellm.ai/docs/tutorials/opencode_i
 
 ## Generic command bridge version 1
 
-This is an executable integration seam for other harnesses. It runs a configured argv array without a shell, in the managed workspace on the De Vloer server. It requires backend `local`; a remote server installation moves this computation off the operator's laptop. The adapter does not claim to run this subprocess in a Kubernetes pod.
+This is an executable integration seam for other harnesses. It runs a configured argv array without a shell, in the managed workspace on the Unfold server. It requires backend `local`; a remote server installation moves this computation off the operator's laptop. The adapter does not claim to run this subprocess in a Kubernetes pod.
 
 Only the workspace manager's approved environment reaches the child, including its scoped LiteLLM key when configured. The control plane's ambient credentials are not inherited. Command configuration is administrator-owned. Standard output is exclusively JSON Lines; diagnostics belong on standard error. Standard error is drained without being exposed in user events because it can contain credentials.
 

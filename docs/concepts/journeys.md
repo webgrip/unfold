@@ -65,7 +65,7 @@ sequenceDiagram
 
 ## B. Merge to production
 
-A change to Unfold itself becomes a signed release in CI. It reaches the cluster only when a commit in `webgrip/homelab-cluster` pins it. Unfold never changes production itself. Since [ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md) an Unfold release carries only the Unfold application; Ploeg releases from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) and reaches the cluster through its own pin.
+A change to Unfold itself becomes a signed release in CI. It reaches the cluster only when a commit in `webgrip/homelab-cluster` pins it. Unfold never changes production itself. Since [ADR-0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) an Unfold release carries only the Unfold application; Ploeg releases from [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) and reaches the cluster through its own pin.
 
 ```mermaid
 sequenceDiagram

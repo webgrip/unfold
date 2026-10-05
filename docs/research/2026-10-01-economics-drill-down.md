@@ -9,7 +9,7 @@ Status: research record, 2026-10-01. It checks the decided pricing model in [ADR
 | Decisions | ADR-0005 to ADR-0010 accepted 2026-09-29; ADR-0006 holds the full price table |
 | Research | [Agency pricing strategy](2026-09-29-agency-pricing-strategy.md), [fair credit pricing](2026-09-29-fair-credit-pricing.md) and their evidence folders. External figures came from search summaries |
 | Tickets | VIK-1468 to VIK-1501. The billing set (1487 to 1495, 1498, 1499) is all `phase/2-hosted` and `needs-refinement` |
-| Code | Ploeg authorizes and settles a Shift pool and per-Run caps in US$, from LiteLLM's settled spend (`pkg/store/shift.go` `ClaimRoleWithin`, `pkg/store/llm_accounts.go`). A merge sets the Work Item `done` (`pkg/shiftengine/review.go`). Vloer shows spend per Shift and Run. There are no Sizes, Quotes, credits, euros, markup, acceptance timer, tenants or billing |
+| Code | Ploeg authorizes and settles a Shift pool and per-Run caps in US$, from LiteLLM's settled spend (`pkg/store/shift.go` `ClaimRoleWithin`, `pkg/store/llm_accounts.go`). A merge sets the Work Item `done` (`pkg/shiftengine/review.go`). Unfold shows spend per Shift and Run. There are no Sizes, Quotes, credits, euros, markup, acceptance timer, tenants or billing |
 | Measurement | KPIs K2 (cost per ready pull request) and K5 (clean-merge rate) are on the Glide — Loop dashboard ([KPIs](../reference/kpis.md)). The only baseline ([2026-09-27](2026-09-27-loop-baseline.md)) could not compute cost per merged pull request |
 
 ## Findings
@@ -62,7 +62,7 @@ Taken by the owner on 2026-10-01, after this record's findings:
 * **Measurement:** Ploeg exports cost and outcome per Work Item on its operator API, so the baseline (VIK-1617) can be re-run without database access ([VIK-1686](https://vikunja.webgrip.dev/tasks/1686)).
 * **Client code:** only Mistral-hosted GLM 5.3 (France) may process employer or agency client code, once its DPA and EU terms are read in full (VIK-1651), through a LiteLLM alias ([VIK-1688](https://vikunja.webgrip.dev/tasks/1688)). Every other route is own-code only.
 * **Silver** moves from DeepSeek's own API to Fireworks DeepSeek V4.1 Flash.
-* **Bench:** bronze against Sonnet 5.5 and GPT-6.1 Sol, judged blind in Vloer (VIK-1621, [VIK-1687](https://vikunja.webgrip.dev/tasks/1687)).
+* **Bench:** bronze against Sonnet 5.5 and GPT-6.1 Sol, judged blind in Unfold (VIK-1621, [VIK-1687](https://vikunja.webgrip.dev/tasks/1687)).
 * **Size** comes from a tracker label on Vikunja and a custom field on ClickUp, both in VIK-1622.
 * **Markup:** a flat 25%; Markup Tiers are dropped (ADR-0006, dated entry). VIK-1491 is closed.
 * **Shift Budgets:** per model tier and Size from the measured p90 Shift cost; €4 / €10 / €20 until measured (ADR-0006).
@@ -91,4 +91,4 @@ Made in this record, because they only order work: phase 1 measures and does not
 
 ## Method
 
-Read on 2026-10-01: ADR-0005 and ADR-0006, the research notes and evidence above, the KPI page and 2026-09-27 baseline, the Glide board tickets VIK-1468 to VIK-1501, the Ploeg and Vloer source for budgets, settlement and spend display, and the Ploeg and LiteLLM desired state in `webgrip/homelab-cluster`. Production data was not read. Provider prices were read on the vendors' pages where they render, and are marked otherwise in the evidence notes.
+Read on 2026-10-01: ADR-0005 and ADR-0006, the research notes and evidence above, the KPI page and 2026-09-27 baseline, the Glide board tickets VIK-1468 to VIK-1501, the Ploeg and Unfold source for budgets, settlement and spend display, and the Ploeg and LiteLLM desired state in `webgrip/homelab-cluster`. Production data was not read. Provider prices were read on the vendors' pages where they render, and are marked otherwise in the evidence notes.

@@ -18,11 +18,9 @@ The design chapters began on 9 September 2026. They mix product proposals, comme
 - [IDE and operator experience](design/ide-and-operator-experience.md)
 - [Market landscape and alternatives](research/market-landscape.md)
 - [Positioning and go-to-market](product/go-to-market.md)
-- [From design to tracker and agent work](operations/backlog.md)
 
 ## Structured sources and decisions
 
-- [Backlog JSON](../backlog/backlog.json) generates [the readable backlog](../backlog/README.md). Its 85 records are planning data, not execution grants or proof of completed features.
 - [Domain YAML](../../../docs/domain/model.yaml) generates the [glossary](../../../docs/domain/glossary.md) and [rules](../../../docs/domain/rules.md). Product intentions and open choices are marked explicitly.
 - [ADR index](adrs/README.md) records decisions and their status.
 - [Market source ledger](research/market-sources.json) retains research provenance.
@@ -30,6 +28,6 @@ The design chapters began on 9 September 2026. They mix product proposals, comme
 
 ## History and maintenance
 
-The [former compiled edition](https://forgejo.webgrip.dev/webgrip/de-vloer/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7/docs/PRODUCT-DESIGN.md) remains in Git. Its contents are also retained in the source chapters. The [documentation audit](research/2026-09-12-documentation-audit.md) explains the consolidation.
+The [former compiled edition](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7/docs/PRODUCT-DESIGN.md) remains in Git. Its contents are also retained in the source chapters. The [documentation audit](research/2026-09-12-documentation-audit.md) explains the consolidation.
 
 `npm run design:check` checks this generated guide and local links in its source chapters. It does not validate proposed features or market claims.

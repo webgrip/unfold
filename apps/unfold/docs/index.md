@@ -46,6 +46,6 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 
 [Validation](validation.md) records exercised paths and limitations. [Dated delivery evidence](research/evidence/delivery-2026-09-11/README.md) supports the candidate path. These are observations at their recorded revisions, not blanket production qualification.
 
-The [design chapter guide](PRODUCT-DESIGN.md) links the September planning baseline. [Planning exports](../backlog/README.md) retain acceptance criteria and dependencies; the tracker owns priority. [The documentation audit](research/2026-09-12-documentation-audit.md) records the inventory, corrections and review limits.
+The [design chapter guide](PRODUCT-DESIGN.md) links the September planning baseline. The tracker owns priority. [The documentation audit](research/2026-09-12-documentation-audit.md) records the inventory, corrections and review limits.
 
 People and agents use these same Markdown sources. [llms.txt](../llms.txt) is a short discovery index; structured schemas and domain models supply the machine-readable data.

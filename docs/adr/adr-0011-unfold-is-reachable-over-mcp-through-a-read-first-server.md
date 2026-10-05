@@ -15,29 +15,29 @@ The scope is the north side: a person's client talking to Unfold. It also record
 ## Decision Drivers
 
 * A model must never be able to start paid work on its own ([Ploeg ADR-0012](../../apps/ploeg/docs/adrs/0012-two-level-budgets-authorized-and-settled.md), [Ploeg ADR-0031](../../apps/ploeg/docs/adrs/0031-runs-create-work-items-held-for-approval-within-limits.md)).
-* ploegd holds the LiteLLM master key and forge admin token and is not on a public route ([Vloer ADR-0015](../../apps/unfold/docs/adrs/0015-ploeg-operator-read-api.md)).
+* ploegd holds the LiteLLM master key and forge admin token and is not on a public route ([Unfold ADR-0015](../../apps/unfold/docs/adrs/0015-ploeg-operator-read-api.md)).
 * Runs never call Ploeg's API; they report through the outcome drop box ([Ploeg ADR-0011](../../apps/ploeg/docs/adrs/0011-the-pull-request-is-the-blackboard.md), [Ploeg ADR-0018](../../apps/ploeg/docs/adrs/0018-the-outcome-drop-box-is-every-harnesss-return-path.md)).
-* Vloer ships no production npm dependencies ([Vloer ADR-0002](../../apps/unfold/docs/adrs/0002-native-node-and-single-writer-storage.md)).
-* An install that runs Ploeg without Vloer should still be reachable.
+* Unfold ships no production npm dependencies ([Unfold ADR-0002](../../apps/unfold/docs/adrs/0002-native-node-and-single-writer-storage.md)).
+* An install that runs Ploeg without the Unfold application should still be reachable.
 * MCP carries no budget, authority or tenant; Unfold must keep all three.
 
 ## Considered Options
 
 * A separate `ploeg-mcp` command in `apps/ploeg`, a named consumer of the operator API, read-first, with proposal-only writes and human-confirmed approval
 * A `/mcp` route inside ploegd
-* An MCP server inside Vloer's Node server
+* An MCP server inside Unfold's Node server
 * A server generated from an API description
 * No MCP server; a CLI (`ploegctl`) and an agent skill instead
 * No MCP server; the tracker's MCP server is enough
 
 ## Decision Outcome
 
-Chosen option: "A separate `ploeg-mcp` command", because it is the only option that keeps ploegd internal, works without Vloer, uses a Tier-1 SDK in Ploeg's language, and reuses the operator API's existing authorization instead of adding a second one.
+Chosen option: "A separate `ploeg-mcp` command", because it is the only option that keeps ploegd internal, works without the Unfold application, uses a Tier-1 SDK in Ploeg's language, and reuses the operator API's existing authorization instead of adding a second one.
 
 * **Where.** `apps/ploeg/cmd/ploeg-mcp`, built on `github.com/modelcontextprotocol/go-sdk`, serving MCP `2026-07-28` statelessly (`StreamableHTTPOptions{Stateless: true}`) and over stdio. It ships in Ploeg's image and chart as its own Deployment, off by default. It reaches Unfold only through the operator API, as a named consumer from `PLOEG_OPERATOR_CONSUMERS`, and shares one Go client for that API with `ploegctl`.
 * **Toolsets.** Read (default): `unfold_overview`, `unfold_find_work`, `unfold_get_work`, `unfold_recent_runs`, `unfold_changes_since`. Propose: `unfold_propose_work`. Steer: `unfold_approve_work`, `unfold_reject_work`, `unfold_cancel_work`. The server enforces which toolsets a consumer or token has; a tool that is not granted is not listed.
-* **Proposals never dispatch.** A Work Item created over MCP is `proposed` and waits for approval under the same per-Team limits as Run-created work. This needs `POST /api/v1/operator/work-items` ([Vloer ADR-0023](../../apps/unfold/docs/adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md)) with a proposed mode. The request is idempotent by a key derived from principal, Team, title and description.
-* **Approval needs a person.** Approve and cancel return an MCP elicitation form; only `accept` acts. A client without elicitation gets a refusal and a link to approve in Vloer or the tracker.
+* **Proposals never dispatch.** A Work Item created over MCP is `proposed` and waits for approval under the same per-Team limits as Run-created work. This needs `POST /api/v1/operator/work-items` ([Unfold ADR-0023](../../apps/unfold/docs/adrs/0023-unfold-submits-work-to-ploeg-and-never-executes-it.md)) with a proposed mode. The request is idempotent by a key derived from principal, Team, title and description.
+* **Approval needs a person.** Approve and cancel return an MCP elicitation form; only `accept` acts. A client without elicitation gets a refusal and a link to approve in Unfold or the tracker.
 * **Identity by phase.** First stdio with an operator token from the environment. Then Streamable HTTP with a static bearer on the internal gateway, for command-line clients. Then an OAuth 2.1 resource server for Authentik tokens, with audience validation and no token passthrough, for Claude.ai and ChatGPT. The OAuth phase requires a public route and gets its own security review.
 * **Long-running work** is addressed by Work Item id and polled; the server keeps no session state and does not use the MCP Tasks extension.
 * **Refined on 2026-09-30** by [the build guide](../research/2026-09-30-mcp-server-patterns.md), which binds the implementation:
@@ -54,18 +54,18 @@ Chosen option: "A separate `ploeg-mcp` command", because it is the only option t
 * **Remote is in scope** for the self-hosted phase: all three identity phases are planned, and the OAuth phase still needs its own security review before its public route goes live.
 * **Proposals live in Ploeg only**, like Run-created work. Nothing is written to the tracker, and the `provider` is `operator`.
 * **Only the owner holds the steer toolset** (approve, cancel). Every other identity gets read, and propose only when granted.
-* **A client without elicitation** gets a refusal and a link to approve in Vloer. The model never approves on its own.
+* **A client without elicitation** gets a refusal and a link to approve in Unfold. The model never approves on its own.
 
 The evidence, prior art and security requirements are in [the research record](../research/2026-09-29-mcp-access.md).
 
 ### Consequences
 
-* Good, because a person can ask their own AI client what Unfold is doing, what it cost and what is waiting for them, without opening Vloer.
+* Good, because a person can ask their own AI client what Unfold is doing, what it cost and what is waiting for them, without opening the Unfold application.
 * Good, because the server adds no new authority: every call is authorized again by the operator API, and paid work still needs a person.
-* Good, because `ploegctl` and `ploeg-mcp` share one client, and Vloer and MCP share one submission route.
+* Good, because `ploegctl` and `ploeg-mcp` share one client, and Unfold and MCP share one submission route.
 * Bad, because the remote phase puts a new service on a public route, which needs an Authentik application, a route in `homelab-cluster` and a security review.
-* Bad, because approval over MCP depends on client elicitation support, which is uneven; some people will be sent to Vloer to approve.
-* Bad, because `ploeg-mcp` asserts the acting person to Ploeg, as Vloer does, so it is a trusted consumer and must be reviewed as one.
+* Bad, because approval over MCP depends on client elicitation support, which is uneven; some people will be sent to Unfold to approve.
+* Bad, because `ploeg-mcp` asserts the acting person to Ploeg, as Unfold does, so it is a trusted consumer and must be reviewed as one.
 
 ### Confirmation
 
@@ -82,18 +82,18 @@ Accepted, not implemented. It is implemented when:
 * Good, because ploegd stays off the public network.
 * Good, because the official Go SDK is Tier 1, maintained by Google's Go team, and supports the stateless revision and OAuth resource-server helpers.
 * Neutral, because it is one more Deployment to run.
-* Bad, because it duplicates Vloer's Authentik sign-in for the remote phase.
+* Bad, because it duplicates Unfold's Authentik sign-in for the remote phase.
 
 ### A `/mcp` route inside ploegd
 
 * Good, because it is the least code: direct store access, one process.
 * Bad, because the process holding the master keys would face the internet.
 
-### Inside Vloer's server
+### Inside Unfold's server
 
-* Good, because Vloer already has sign-in, roles and per-user Team scope.
+* Good, because Unfold already has sign-in, roles and per-user Team scope.
 * Bad, because it needs a production npm dependency or a hand-written protocol implementation.
-* Bad, because an install without Vloer would have no MCP.
+* Bad, because an install without the Unfold application would have no MCP.
 
 ### Generated from an API description
 

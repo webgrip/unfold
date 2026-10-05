@@ -1,6 +1,6 @@
 # Sandboxed coding agents: the landscape on 2026-09-10
 
-Research date: 2026-09-10. Context: De Vloer runs `opencode serve` (HTTP with Basic authentication, OpenAPI at `/doc`, SSE at `/event`; [server docs](https://opencode.ai/docs/server/)) in a hardened Docker container on the workbench host or in a pod in a Kubernetes workspace namespace on Talos with Cilium and a Kata RuntimeClass. Every option below is judged against that seam. Verdicts are the researcher's; adoption decisions are recorded in the ADRs.
+Research date: 2026-09-10. Context: Unfold runs `opencode serve` (HTTP with Basic authentication, OpenAPI at `/doc`, SSE at `/event`; [server docs](https://opencode.ai/docs/server/)) in a hardened Docker container on the workbench host or in a pod in a Kubernetes workspace namespace on Talos with Cilium and a Kata RuntimeClass. Every option below is judged against that seam. Verdicts are the researcher's; adoption decisions are recorded in the ADRs.
 
 ## Docker: Sandboxes, Docker Agent, Model Runner
 
@@ -8,7 +8,7 @@ Docker Sandboxes moved to microVMs on 2026-01-30 ([announcement](https://www.doc
 
 MicroVM sandboxes remain macOS and Windows only; Linux gets container sandboxes on Docker Desktop 4.57 and later ([blog, 2026-03-11](https://www.docker.com/blog/building-ai-teams-docker-sandboxes-agent/)), with Docker VMM on Linux "when GA" ([Cloud Native Now](https://cloudnativenow.com/features/docker-desktop-gets-a-hypervisor-of-its-own/)). Docker Agent (`cagent`) is a YAML multi-agent runtime distributed as OCI artifacts with an ACP server since 2025-11-13 and bundled in Docker Desktop 4.49 ([blog](https://www.docker.com/blog/cagent-comes-to-docker-desktop-with-built-in-ide-support-through-acp/), [releases](https://github.com/docker/docker-agent/releases)). Model Runner is GA and OpenAI-compatible with Apple silicon GPU support ([blog](https://www.docker.com/blog/announcing-docker-model-runner-ga/)). There is no REST, gRPC or SDK surface; third parties shell out to `docker sandbox create|run|exec`.
 
-Verdict: the best on-workstation isolation on macOS today, and it already knows OpenCode, so De Vloer's docker placement could become `docker sandbox run` plus SSH. It is a black box with a closed VMM, no API and no Linux microVMs, so it belongs as one placement among several rather than a foundation.
+Verdict: the best on-workstation isolation on macOS today, and it already knows OpenCode, so Unfold's docker placement could become `docker sandbox run` plus SSH. It is a black box with a closed VMM, no API and no Linux microVMs, so it belongs as one placement among several rather than a foundation.
 
 ## Apple `container`
 
@@ -24,7 +24,7 @@ User namespaces went GA in Kubernetes 1.36 on 2026-04-22 with `hostUsers: false`
 
 `PortForwardWebsockets` graduated to stable in 1.35 (`v5.channel.k8s.io`, negotiated through `Sec-WebSocket-Protocol`; [Sysdig on 1.35](https://www.sysdig.com/blog/kubernetes-1-35-whats-new), [transition blog](https://kubernetes.io/blog/2024/08/20/websockets-transition)). A plain WebSocket client in a VS Code extension or a browser can port-forward to a pod with only a bearer token.
 
-Verdict: the strongest fit. Sandbox, SandboxWarmPool and SandboxClaim are exactly De Vloer's Kubernetes placement with a stable API and a router that already proxies WebSockets. Kata 4 on Talos gives the hardware boundary; `hostUsers: false` hardens plain containers. WebSocket port-forward removes the last reason for an API server proxy detour.
+Verdict: the strongest fit. Sandbox, SandboxWarmPool and SandboxClaim are exactly Unfold's Kubernetes placement with a stable API and a router that already proxies WebSockets. Kata 4 on Talos gives the hardware boundary; `hostUsers: false` hardens plain containers. WebSocket port-forward removes the last reason for an API server proxy detour.
 
 ## Hosted sandbox APIs
 
@@ -54,18 +54,18 @@ ACP v1 is stable (SDK 1.4.0) and its registry passed 50 agents by June 2026. The
 
 VS Code's Agent Host and the Agent Host Protocol (blog 2026-08-26, shipped in 1.136 on 2026-09-02) introduce a standalone process owning sessions, JSON-RPC, URI-addressed channels for sessions, chats, terminals and changesets, multi-client synchronisation, and remote hosts over SSH or dev tunnels exposing AHP over WebSocket, with an MIT specification and Rust, TypeScript, Kotlin, Go, Swift and .NET SDKs ([blog](https://code.visualstudio.com/blogs/2026/08/26/agent-host-architecture), [spec](https://microsoft.github.io/agent-host-protocol/), [repo](https://github.com/microsoft/agent-host-protocol), [1.136 notes](https://code.visualstudio.com/updates/v1_136)). Harnesses are hardcoded to Copilot and Claude; an extension API to register third-party hosts is an open, unassigned issue ([#325827](https://github.com/microsoft/vscode/issues/325827)). A community OpenCode AHP plugin exists as a skeleton ([repo](https://github.com/maxious/opencode-plugin-agent-host-protocol)). Cursor's Cloud Agents API v1 is in public beta and requires GitHub ([docs](https://cursor.com/docs/cloud-agent/api/endpoints)); Zed 1.0 shipped on 2026-04-29 with SSH remoting.
 
-Verdict: AHP is the first state-first, multi-client, remote-native session protocol, which is precisely what an operator workbench needs; ACP v2 converges on the same session model. The gap is that VS Code will not let an extension register a foreign host yet, so De Vloer's extension keeps its own UI while the server speaks AHP.
+Verdict: AHP is the first state-first, multi-client, remote-native session protocol, which is precisely what an operator workbench needs; ACP v2 converges on the same session model. The gap is that VS Code will not let an extension register a foreign host yet, so Unfold's extension keeps its own UI while the server speaks AHP.
 
 ## Evidence and handoff
 
 Kubernetes ContainerCheckpoint remains beta on the kubelet API only; 1.37 adds beta CRI pod-checkpoint RPCs ([summary](https://cicd.deployment.to/kubernetes-1-37-beta-statefulset-checkpoint-cri/)); EKS packages CRIU checkpoints as OCI images ([AWS](https://aws.amazon.com/blogs/containers/forensic-container-checkpointing-on-amazon-eks/)). Kata VMs need hypervisor snapshots instead. Agent Trace, Cursor's RFC from January 2026 and on the Thoughtworks Radar, maps code ranges to conversations as JSON records ([repo](https://github.com/cursor/agent-trace/blob/main/README.md), [InfoQ](https://www.infoq.com/news/2026/02/agent-trace-cursor/)). SLSA v1.2 adds the Source Track ([spec](https://slsa.dev/spec/v1.2/)); gitsign 0.16.0 on 2026-05-06 signs commits keylessly with Rekor ([releases](https://github.com/sigstore/gitsign/releases)); sigstore-a2a signs agent cards with SLSA provenance ([repo](https://github.com/sigstore/sigstore-a2a)); Red Hat writes on agent identity provenance ([2026-08-07](https://next.redhat.com/2026/08/07/supply-chain-provenance-for-ai-agent-identity/)). jj workspaces are the emerging per-agent working-copy pattern ([geirsson](https://geirsson.com/jj-workspaces)).
 
-Verdict: nobody yet combines these; De Vloer's candidate handoff is the natural carrier.
+Verdict: nobody yet combines these; Unfold's candidate handoff is the natural carrier.
 
 ## Ranked shortlist for this workbench
 
 1. **AHP-native workbench over WebSocket port-forward.** Expose each workspace's OpenCode as an AHP host with sessions, chats, terminals and changesets channels, and let the VS Code extension, a browser and a second operator attach to the same session, tunnelled through `v5.channel.k8s.io` with only a ServiceAccount token. Feasible now: the SDKs are MIT and the OpenAPI and SSE surface of `opencode serve` maps cleanly. Risk: AHP is weeks old and unversioned.
 2. **Sandbox CRD placement with Kata 4 warm pools and evidence checkpoints.** Replace the hand-rolled pod with agent-sandbox v1.0: a SandboxWarmPool of Kata pods on Talos, a SandboxClaim per session, the sandbox-router for the WebSocket. At candidate time, take a VM snapshot and store it as an OCI artifact next to the git bundle. Feasible: the CRDs are stable; VM snapshotting on Talos needs a Kata extension that bundles Cloud Hypervisor.
 3. **Signed, traced candidate bundles.** Agent commits signed under a per-session short-lived identity, a SLSA v1.2 source-track attestation for the bundle, and an Agent Trace record linking every hunk to the OpenCode session. Feasible immediately; nothing like this ships anywhere yet.
-4. **Pull-based tool execution for local placements.** Mirror Anthropic's work-queue design so the sandbox needs only outbound HTTPS to De Vloer; a Docker Sandbox microVM, an Apple container machine or a Kata pod behind NAT become interchangeable and the inbound Basic-auth listener goes away.
+4. **Pull-based tool execution for local placements.** Mirror Anthropic's work-queue design so the sandbox needs only outbound HTTPS to Unfold; a Docker Sandbox microVM, an Apple container machine or a Kata pod behind NAT become interchangeable and the inbound Basic-auth listener goes away.
 5. **microsandbox on libkrun as the open cross-platform local runtime.** Drive it through `msbd` or the TypeScript SDK for the same experience on Linux and macOS without Docker Desktop, with Docker Sandboxes as the polished fallback and `hostUsers: false` for plain containers. The project is young and KVM-only on Linux.

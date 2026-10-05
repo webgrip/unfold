@@ -4,7 +4,7 @@ Date: 2026-09-10. Status: accepted for 0.3.0.
 
 ## Context
 
-A candidate is the only thing that leaves a session: a Git bundle, a binary patch and a manifest. A reviewer or a CI verifier had no way to know that those bytes came from a De Vloer session, which crew and model produced them, under what budget and in which sandbox, or that they were not altered after capture. The estate signs images with cosign keys held in OpenBao and attests SBOMs and CVE verdicts; nothing signed source changes made by agents. Keyless signing through Fulcio is not used in the estate. Agent Trace, Cursor's record format for mapping code ranges to agent conversations, is on the Thoughtworks Radar and adopted by OpenCode and Cline ([research](../research/2026-09-10-sandbox-landscape.md)).
+A candidate is the only thing that leaves a session: a Git bundle, a binary patch and a manifest. A reviewer or a CI verifier had no way to know that those bytes came from an Unfold session, which crew and model produced them, under what budget and in which sandbox, or that they were not altered after capture. The estate signs images with cosign keys held in OpenBao and attests SBOMs and CVE verdicts; nothing signed source changes made by agents. Keyless signing through Fulcio is not used in the estate. Agent Trace, Cursor's record format for mapping code ranges to agent conversations, is on the Thoughtworks Radar and adopted by OpenCode and Cline ([research](../research/2026-09-10-sandbox-landscape.md)).
 
 ## Decision
 

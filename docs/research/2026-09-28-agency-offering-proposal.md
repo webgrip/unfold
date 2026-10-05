@@ -66,7 +66,7 @@ Areas 1, 2 and 4 can run in parallel; 3 depends on 2; 6 depends on 2 and 3.
 
 ## Open questions
 
-- Is the portal part of Vloer, or a separate application with its own identity? Glide ADR-0001 keeps applications independent.
+- Is the portal part of Unfold, or a separate application with its own identity? Glide ADR-0001 keeps applications independent.
 - Does the client or the agency own the Definition of Done when they disagree?
 - Which preview declaration comes first: a Dockerfile, buildpacks, or a Helm chart in the repository?
 - Do refinement Runs cost credits?

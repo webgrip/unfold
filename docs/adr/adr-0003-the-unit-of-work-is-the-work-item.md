@@ -26,7 +26,7 @@ Unfold's documentation described its input as "tracker tickets", and the product
 
 Chosen option: "The Work Item is the unit of work, from any source, and Runs may create Work Items", because it names the actual unit once and lets agents do the work of producing work.
 
-* A **Work Item** is something we have decided to do, or a problem described well enough that a solution can be formulated or at least conceived. It can come from a tracker (a Tracker Item), from Vloer, or from other work (a Follow-Up).
+* A **Work Item** is something we have decided to do, or a problem described well enough that a solution can be formulated or at least conceived. It can come from a tracker (a Tracker Item), from Unfold, or from other work (a Follow-Up).
 * A Work Item is **Ready** when it meets that threshold. Work that is not Ready can be given to agents whose job is to make it Ready.
 * **Work can create work.** A Run may split a Work Item, make one Ready, or record work it discovered. Each new Work Item names its source and states whether it is Ready ([Product R12](../domain/rules.md#r12)).
 * The terms Ticket, Workload and Repair Subticket are retired in the [glossary](../reference/glossary.md).

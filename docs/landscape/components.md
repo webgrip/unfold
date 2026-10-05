@@ -64,7 +64,7 @@ The homelab hosts Unfold, Ploeg, workers, databases, and LiteLLM. A workspace Po
 
 **The forge stores repositories and proposed code changes; CI runs configured checks.** The current Ploeg unattended path and Unfold candidate path publish differently. Unfold saves a change for review; its separate trusted verification and publication features are disabled in this cluster. Do not draw a completed Unfold session as an automatic production deployment. See the [delivery contract](../../apps/unfold/docs/contracts/candidate-delivery.md).
 
-For the platform itself, Git commits drive release pipelines, registry artifacts, and Flux deployment. That is how the platform is maintained; it does not prove the same path is available for arbitrary agent-produced applications. See the [homelab test guide](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/runbooks/ploeg-vloer-test.md).
+For the platform itself, Git commits drive release pipelines, registry artifacts, and Flux deployment. That is how the platform is maintained; it does not prove the same path is available for arbitrary agent-produced applications. See the [homelab test guide](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/runbooks/ploeg-unfold-test.md).
 
 ## Supporting services
 

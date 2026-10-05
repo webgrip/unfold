@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readBacklog, validateBacklog } from './backlog.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const output = resolve(root, 'docs/PRODUCT-DESIGN.md');
@@ -13,8 +12,7 @@ const chapters = [
   ['Platform and governance', 'docs/design/platform-and-governance.md'],
   ['IDE and operator experience', 'docs/design/ide-and-operator-experience.md'],
   ['Market landscape and alternatives', 'docs/research/market-landscape.md'],
-  ['Positioning and go-to-market', 'docs/product/go-to-market.md'],
-  ['From design to tracker and agent work', 'docs/operations/backlog.md']
+  ['Positioning and go-to-market', 'docs/product/go-to-market.md']
 ];
 function localTarget(from, target) {
   if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(target)) return null;
@@ -33,8 +31,6 @@ function transform(source, from, mapper) {
     return fence ? line : mapper(line, from);
   }).join('\n');
 }
-const backlog = readBacklog();
-validateBacklog(backlog);
 const content = [
   '# Product design: chapter guide',
   '',
@@ -52,7 +48,6 @@ const content = [
   '',
   '## Structured sources and decisions',
   '',
-  '- [Backlog JSON](../backlog/backlog.json) generates [the readable backlog](../backlog/README.md). Its '+backlog.tickets.length+' records are planning data, not execution grants or proof of completed features.',
   '- [Domain YAML](../../../docs/domain/model.yaml) generates the [glossary](../../../docs/domain/glossary.md) and [rules](../../../docs/domain/rules.md). Product intentions and open choices are marked explicitly.',
   '- [ADR index](adrs/README.md) records decisions and their status.',
   '- [Market source ledger](research/market-sources.json) retains research provenance.',
@@ -60,7 +55,7 @@ const content = [
   '',
   '## History and maintenance',
   '',
-  'The [former compiled edition](https://forgejo.webgrip.dev/webgrip/de-vloer/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7/docs/PRODUCT-DESIGN.md) remains in Git. Its contents are also retained in the source chapters. The [documentation audit](research/2026-09-12-documentation-audit.md) explains the consolidation.',
+  'The [former compiled edition](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7/docs/PRODUCT-DESIGN.md) remains in Git. Its contents are also retained in the source chapters. The [documentation audit](research/2026-09-12-documentation-audit.md) explains the consolidation.',
   '',
   '`npm run design:check` checks this generated guide and local links in its source chapters. It does not validate proposed features or market claims.',
   ''
@@ -80,4 +75,4 @@ if (process.argv.includes('--check')) {
 } else if (!failures.length) writeFileSync(output, content);
 if (failures.length) {
   process.stderr.write(failures.join('\n') + '\n'); process.exitCode = 1;
-} else process.stdout.write(`${process.argv.includes('--check') ? 'Checked' : 'Built'} design chapter guide: ${content.split(/\s+/).filter(Boolean).length.toLocaleString('en-US')} words, ${chapters.length} source chapters, ${backlog.tickets.length} tickets; local links resolve.\n`);
+} else process.stdout.write(`${process.argv.includes('--check') ? 'Checked' : 'Built'} design chapter guide: ${content.split(/\s+/).filter(Boolean).length.toLocaleString('en-US')} words, ${chapters.length} source chapters; local links resolve.\n`);

@@ -6,7 +6,7 @@ The loop has not run unattended since 27 August, and as deployed it cannot take 
 
 ## Method
 
-Read-only queries on the Ploeg database (`work_items`, `shifts`, `agent_runs`, `run_llm_accounts`, `audit_log`, `work_item_reviews`), the live HelmRelease values, `ploeg-config`, ScaledJob annotations and ploegd logs. Pull request state came from the Forgejo API for the public `webgrip/ploeg`; for the private `webgrip/erfbeeld` and `webgrip/ploeg-bench-world`, merge status comes from git ancestry only. The LiteLLM spend log was not read, so historical spend is incomplete. Five operator-owned Vloer sessions are excluded. Amounts are in US dollars, LiteLLM's unit. No Work Item was dispatched and nothing was spent.
+Read-only queries on the Ploeg database (`work_items`, `shifts`, `agent_runs`, `run_llm_accounts`, `audit_log`, `work_item_reviews`), the live HelmRelease values, `ploeg-config`, ScaledJob annotations and ploegd logs. Pull request state came from the Forgejo API for the public `webgrip/ploeg`; for the private `webgrip/erfbeeld` and `webgrip/ploeg-bench-world`, merge status comes from git ancestry only. The LiteLLM spend log was not read, so historical spend is incomplete. Five operator-owned Unfold sessions are excluded. Amounts are in US dollars, LiteLLM's unit. No Work Item was dispatched and nothing was spent.
 
 ## Headline
 

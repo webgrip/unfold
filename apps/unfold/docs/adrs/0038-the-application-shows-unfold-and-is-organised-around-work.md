@@ -52,4 +52,4 @@ Chosen option: "Unfold's brand, a work-first sidebar, a stage sheet and a delive
 ## More Information
 
 * 2026-10-04 — Decided by the owner in the design review (Q1, Q3, Q7; VIK-1831); built for VIK-1842, VIK-1843 and VIK-1844.
-* Supersedes the navigation list of [ADR-0024](0024-vloer-opens-on-now-with-one-vocabulary-and-one-token-system.md) and the mark of [ADR-0020](0020-the-name-and-mark-are-trademarks.md); the trademark terms now live in the root [usage policy](../../../../docs/brand/TRADEMARK.md).
+* Supersedes the navigation list of [ADR-0024](0024-unfold-opens-on-now-with-one-vocabulary-and-one-token-system.md) and the mark of [ADR-0020](0020-the-name-and-mark-are-trademarks.md); the trademark terms now live in the root [usage policy](../../../../docs/brand/TRADEMARK.md).

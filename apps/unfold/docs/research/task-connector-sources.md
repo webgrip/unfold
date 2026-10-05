@@ -20,7 +20,7 @@ ClickUp uses a personal API token in its raw `Authorization` header. This releas
 
 Vikunja targets the supported v1 API. Current official documentation also describes v2 and a future v1 removal; confirm compatibility with the deployed instance. The adapter uses the documented global task collection with a fixed `project_id = N && done = false` filter and independently checks every returned task's project. This avoids assuming the older `/projects/{id}/tasks` collection route, which is absent from the inspected current specification. Task links assume the UI is served at the API's origin and reverse-proxy prefix. A separately hosted Vikunja frontend needs a future explicit frontend-URL option.
 
-GitHub and Forgejo repository paths are normalized to lowercase. Identical provider/API-root/project aliases share a stable task key; GitLab response `project_id` additionally identifies numeric/path aliases. Separate hostnames for one service are not resolved as aliases. Conflicting ownership or repository mappings for identical configured source identities are rejected. Stable identity does not establish a distributed execution lease across Vloer and Ploeg.
+GitHub and Forgejo repository paths are normalized to lowercase. Identical provider/API-root/project aliases share a stable task key; GitLab response `project_id` additionally identifies numeric/path aliases. Separate hostnames for one service are not resolved as aliases. Conflicting ownership or repository mappings for identical configured source identities are rejected. Stable identity does not establish a distributed execution lease across Unfold and Ploeg.
 
 ## Bounded behavior
 

@@ -9,7 +9,7 @@ review-by: 2027-04-03
 
 ## Context and Problem Statement
 
-[ADR 0012](0012-agent-host-protocol-host.md) serves the Agent Host Protocol over a dependency-free WebSocket server, because [ADR 0002](0002-native-node-and-single-writer-storage.md) kept Vloer's production npm dependency set empty. That server was a hand-written RFC 6455 frame parser in `src/ahp/websocket.ts`. The [2026-10-02 code quality review](../../../../docs/research/2026-10-02-code-quality-review.md) probed it locally: it accepted a text frame with a reserved bit set, a text frame that is not UTF-8, a fragmented ping and a continuation frame with no message to continue, and kept the connection open each time. Its `send()` ignored `socket.write()` backpressure, so a peer that stops reading grows the server's memory without bound. Node 24 ships a WebSocket client but no server. Should Vloer keep its own framing or take a dependency for it?
+[ADR 0012](0012-agent-host-protocol-host.md) serves the Agent Host Protocol over a dependency-free WebSocket server, because [ADR 0002](0002-native-node-and-single-writer-storage.md) kept Unfold's production npm dependency set empty. That server was a hand-written RFC 6455 frame parser in `src/ahp/websocket.ts`. The [2026-10-02 code quality review](../../../../docs/research/2026-10-02-code-quality-review.md) probed it locally: it accepted a text frame with a reserved bit set, a text frame that is not UTF-8, a fragmented ping and a continuation frame with no message to continue, and kept the connection open each time. Its `send()` ignored `socket.write()` backpressure, so a peer that stops reading grows the server's memory without bound. Node 24 ships a WebSocket client but no server. Should Unfold keep its own framing or take a dependency for it?
 
 ## Decision Drivers
 
@@ -32,7 +32,7 @@ Chosen option: "`ws` as the one runtime dependency", decided by the owner on 202
 2. **Policy.** `npm run check` accepts a production dependency only when its name maps to an ADR in `decidedRuntimeDependencies` and its version is exact, and it lets `src/` import only native modules, repository files and those names. `ws` maps to this ADR. Any other runtime dependency still needs its own decision.
 3. **Licence.** `npm run license:check` requires each runtime dependency to carry a permitted licence (MIT, ISC, BSD-2-Clause, BSD-3-Clause or Apache-2.0) and its own `LICENSE` file when installed, `NOTICE` to name it with its version, and the Dockerfile to install it.
 4. **Image.** The Dockerfile's stage copies `package.json` and `package-lock.json` and runs `npm ci --omit=dev --ignore-scripts`, so the runtime image carries `node_modules/ws` and nothing else from npm.
-5. **Connection.** `src/ahp/websocket.ts` keeps its exports for the host: `isWebSocketUpgrade`, `upgradeToWebSocket`, `rejectUpgrade`, `connectionToken` and `WebSocketConnection` with `open`, `send`, `close` and the `message`, `binary`, `error` and `close` events. It completes the upgrade through a `WebSocketServer` in `noServer` mode with per-message compression off, no subprotocol negotiated, `maxPayload` at 16 MiB and a one-second `closeTimeout`. `isWebSocketUpgrade` now also requires a well-formed `Sec-WebSocket-Key`, so a malformed one gets Vloer's own 400 before the token is checked.
+5. **Connection.** `src/ahp/websocket.ts` keeps its exports for the host: `isWebSocketUpgrade`, `upgradeToWebSocket`, `rejectUpgrade`, `connectionToken` and `WebSocketConnection` with `open`, `send`, `close` and the `message`, `binary`, `error` and `close` events. It completes the upgrade through a `WebSocketServer` in `noServer` mode with per-message compression off, no subprotocol negotiated, `maxPayload` at 16 MiB and a one-second `closeTimeout`. `isWebSocketUpgrade` now also requires a well-formed `Sec-WebSocket-Key`, so a malformed one gets Unfold's own 400 before the token is checked.
 6. **Backpressure.** `send()` disconnects a peer whose unread outbound bytes (`bufferedAmount`) exceed `maxBufferedBytes`, 16 MiB, before writing more. The connection emits `error` and `close`; the host drops the client as it does for any closed connection.
 
 The host authenticates the upgrade exactly as before: the path, then `isWebSocketUpgrade`, then the `tkn` token, and only then the 101 response.
@@ -41,7 +41,7 @@ The host authenticates the upgrade exactly as before: the path, then `isWebSocke
 
 * Good, because reserved bits, invalid UTF-8, fragmented control frames, orphan continuations, unmasked client frames and oversized messages close the connection with 1002, 1007 or 1009 instead of being read.
 * Good, because a slow or stalled peer costs at most the limit plus one message, then it is disconnected.
-* Bad, because Vloer now depends on a third-party package at runtime. A `ws` vulnerability becomes a Vloer image finding, and the release gate holds the image until Renovate's update lands.
+* Bad, because Unfold now depends on a third-party package at runtime. A `ws` vulnerability becomes an Unfold image finding, and the release gate holds the image until Renovate's update lands.
 * Bad, because starting from a checkout now needs `npm ci` (`mise run setup` already runs it). ADR 0002's "startup performs no dependency installation" no longer holds for the server; the browser still has no build step and no npm dependency.
 * Neutral, because after a protocol error the server sends its close frame and ends the socket at once, and after a close it starts (a revoked token, shutdown) it waits one second (`closeTimeout`) for the peer's answer, as the hand-written server did, and then destroys the socket.
 
@@ -60,7 +60,7 @@ Re-evaluate when Node ships a WebSocket server, when `ws` stops being maintained
 ### Repair the hand-written parser
 
 * Good, because the production dependency set stays empty.
-* Bad, because every fix is new parsing code that only Vloer runs, and the probes showed the first version missed four cases.
+* Bad, because every fix is new parsing code that only Unfold runs, and the probes showed the first version missed four cases.
 
 ### Another WebSocket server library
 

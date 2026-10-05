@@ -2,11 +2,11 @@
 
 ## Unreleased
 
-- **Check Out Branch** switches the open clone of a Work Item's repository to the branch Ploeg works on: from the Work Item panel, from Now and Work rows, and from the browser's **Open in VS Code** link (`vscode://webgrip.de-vloer/checkout`). It fetches through VS Code's Git extension, asks before switching a folder with uncommitted changes or when a link asked, and offers the git command or a clone when no open folder matches.
+- **Check Out Branch** switches the open clone of a Work Item's repository to the branch Ploeg works on: from the Work Item panel, from Now and Work rows, and from the browser's **Open in VS Code** link (`vscode://webgrip.unfold/checkout`). It fetches through VS Code's Git extension, asks before switching a folder with uncommitted changes or when a link asked, and offers the git command or a clone when no open folder matches.
 - The sidebar opens on **Now**: Ready for your review (with the pull request number), Needs you (led by its reason), Proposed and Running (Role, Round, elapsed time and cost so far), across every Team you may see. This is the browser's Now page, read from `GET /api/ploeg/now`. Supervised sessions waiting for an answer appear under Needs you. Rows open the Work Item panel; inline icons open the pull request and the browser.
-- The activity-bar badge and status bar count what is ready for your review or needs you, plus running Runs. A failed session no longer keeps the badge lit. New Needs-you items notify, and so do new review items under `vloer.notifications: all`; the demo never notifies.
+- The activity-bar badge and status bar count what is ready for your review or needs you, plus running Runs. A failed session no longer keeps the badge lit. New Needs-you items notify, and so do new review items under `unfold.notifications: all`; the demo never notifies.
 - **Linked Tasks** is now **Tasks**: a task Ploeg holds shows its state and reason. **Ploeg** is now **Work**: lanes and items are named as in the browser, Needs-you items carry their reason, and empty lanes are hidden. **Sessions** moves last, starts collapsed, and shows only in the demo, with shared execution or when sessions exist.
-- States, reasons, amounts and dates come from the browser's own `public/core/states.js`, `reasons.js` and `format.js`, shipped in the extension: `US$ 1.234,50`, 24-hour times, "Not reported" for unknown spend. Status tones are contributed theme colours (`vloer.live`, `vloer.attention`, `vloer.review`, `vloer.success`, `vloer.danger`, `vloer.severe`) that default to the theme's own colours.
+- States, reasons, amounts and dates come from the browser's own `public/core/states.js`, `reasons.js` and `format.js`, shipped in the extension: `US$ 1.234,50`, 24-hour times, "Not reported" for unknown spend. Status tones are contributed theme colours (`unfold.live`, `unfold.attention`, `unfold.review`, `unfold.success`, `unfold.danger`, `unfold.severe`) that default to the theme's own colours.
 - The Work Item panel leads with the state, its reason and one next action, with a facts row (cost marked observed and not settled, budget, Runs, Rounds, Team) and the cost per role. Below it come the pull requests (CI, failing checks, human reviews, size), the writer's problem and solution, and the Runs by Round (outcome, agent verdict, failure cause, cost, duration). The brief comes last. Work Items without a tracker task, such as proposals, open the same panel. Long lines and tables no longer push the toolbar off the page, and team roles no longer start with a stray arrow.
 - Browser links open `#work/<id>` and `#now` instead of the legacy `#ploeg` route.
 
@@ -22,7 +22,7 @@
 
 - Parity with the web workbench for the 0.3.0 server: a **Gateway** tab with per-request attribution, the budget card's spend observed at the gateway with per-model usage and a cost curve, tool cards that collapse per part and show title, input and error, an expandable brief card for each `run.started` event, transcripts in the Brief tab, an approval control for isolated placements, and a **Gateway policy** failure label.
 - Crew roles are labelled implementation, analysis or independent review; only the final read role counts as the reviewer in the situation sentence and tree.
-- `vloer.create` offers automatic tool approval when the placement is a container or pod; new **Set Tool Approval** and **Linked Accounts** commands cover `/api/sessions/:id/approval` and `/api/links`.
+- `unfold.create` offers automatic tool approval when the placement is a container or pod; new **Set Tool Approval** and **Linked Accounts** commands cover `/api/sessions/:id/approval` and `/api/links`.
 - Node tests cover the webview script through a DOM stub, the run labels, and the approval and linked-account flows.
 
 - Rebuilt the session panel around review: a situation sentence with the next permitted action, a crew strip with findings rendered as safe Markdown, and Brief, Changes, Checks and Activity tabs.
@@ -31,10 +31,10 @@
 - The composer reports four delivery states: draft on this device, sending, saved for the next execution, delivery unknown. An explicit pause-first option applies an instruction to an active run.
 - Open panels follow the workbench event stream live from the extension host and fall back to polling. Every panel states when its state was last observed.
 - Session tree items show repository, active role, spend and age; sessions expand into decisions, crew roles, evidence, the review candidate and the imported task. The activity-bar badge and an amber status bar item count waiting decisions; Find Session and Review Next Decision commands were added.
-- Notifications for new decisions, failures, interruptions and sessions ready for human review, configurable with `vloer.notifications`.
+- Notifications for new decisions, failures, interruptions and sessions ready for human review, configurable with `unfold.notifications`.
 - Evidence documents use stable URIs so reopening reuses the tab; checks open as logs, diffs as diffs, summaries as Markdown. Session panels are restored after a window reload.
 - New session and task import run in one guided flow with a back button, retained draft and budget presets. Administrators can authorize more budget from the panel or the tree.
-- Copy session link, open the original task in its tracker, a Get Started walkthrough, and a `vloer.liveUpdates` setting.
+- Copy session link, open the original task in its tracker, a Get Started walkthrough, and an `unfold.liveUpdates` setting.
 - Client tests cover the event stream and budget route against the real server; the webview check covers inline decisions, Markdown safety with hostile content, the changes list, check outcomes, activity filters and composer states.
 
 ## 0.2.0

@@ -67,7 +67,7 @@ Use MADR 4.0 in each ledger. A `proposed` ADR is a question, not a decision. Acc
 
 Research, evidence, superseded explanations, design baselines, planning exports and OpenSpec changes are records.
 
-* A record keeps its path and content. It is dated, and only a superseded-by link may be added.
+* A record keeps its path and content. It is dated, and only a superseded-by link may be added. A product rename is the exception: the rename to Unfold rewrote records and their file names ([ADR-0020](adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md)), and captured evidence still keeps its exact content.
 * The docs build marks records as "not current guidance" and removes them from search and navigation. Explicit links still reach them.
 * Before retiring a record, move any still-true fact into a current page and link the record as evidence.
 * Keep records out of agents' default context: `llms.txt` never links them, and `AGENTS.md` links only decisions that bind.

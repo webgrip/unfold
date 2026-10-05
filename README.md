@@ -2,7 +2,7 @@
 
 Unfold turns units of work into pull requests that AI agents write and you review. A unit of work, a *Work Item*, is something you have decided to do, or a problem described well enough that a solution can be formulated or at least conceived. You assign it to an agent team. Unfold runs the agents with a budget and a credential that expires, until a pull request is ready for your review. Work can also create work: splitting a Work Item or making it ready is a job for agents too.
 
-[Ploeg](https://github.com/ploeg-hq/ploeg) authorizes, budgets and runs every agent Run. The [Unfold application](apps/unfold/README.md) is its front end and lives here. Ploeg is developed and released in its own repository, and this repository pins one tested commit of it as a Git submodule at `apps/ploeg` ([ADR-0019](docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-vloer.md)). They deploy separately. Unfold is an internal, pre-1.0 tool that is self-hosted on Kubernetes.
+[Ploeg](https://github.com/ploeg-hq/ploeg) authorizes, budgets and runs every agent Run. The [Unfold application](apps/unfold/README.md) is its front end and lives here. Ploeg is developed and released in its own repository, and this repository pins one tested commit of it as a Git submodule at `apps/ploeg` ([ADR-0019](docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md)). They deploy separately. Unfold is an internal, pre-1.0 tool that is self-hosted on Kubernetes.
 
 ```sh
 git clone --recurse-submodules https://forgejo.webgrip.dev/webgrip/unfold.git

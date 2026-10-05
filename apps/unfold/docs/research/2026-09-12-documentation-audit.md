@@ -6,11 +6,11 @@ The two repositories can share system explanation, product vocabulary and cross-
 
 ## Scope and method
 
-The baseline inventory covers 237 tracked text sources: 107 in De Vloer and 130 in Ploeg. It includes Markdown, documentation schemas and models, planning exports, instructions and legal source files. One path is an existing CLAUDE.md symlink to AGENTS.md; it is already a shared source. Binary evidence is retained. Generated landscape HTML and its template are checked separately as rendering artifacts.
+The baseline inventory covers 237 tracked text sources: 107 in Unfold and 130 in Ploeg. It includes Markdown, documentation schemas and models, planning exports, instructions and legal source files. One path is an existing CLAUDE.md symlink to AGENTS.md; it is already a shared source. Binary evidence is retained. Generated landscape HTML and its template are checked separately as rendering artifacts.
 
 The [machine-readable ledger](2026-09-12-documentation-audit.json) records each baseline path, hash, size, classification, disposition and review depth. Inventory and structural classification cover the full set; source checks concentrate on current entry points, architecture, execution contracts, domain definitions and operating guidance. Historical research, accepted ADR bodies and archived change specifications were retained, not re-certified as current truth. A file marked classified has not had every claim independently verified.
 
-Baselines: [De Vloer 7c8657e](https://forgejo.webgrip.dev/webgrip/de-vloer/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7) and [Ploeg f2333b9](https://forgejo.webgrip.dev/webgrip/ploeg/src/commit/94c7c8e2dc07037ee2fd38a69343426e40bd680d). These links retain replaced prose and original evidence.
+Baselines: [Unfold 7c8657e](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/c5718cde7e1c7520927c64613c38beee11e087f7) and [Ploeg f2333b9](https://forgejo.webgrip.dev/webgrip/ploeg/src/commit/94c7c8e2dc07037ee2fd38a69343426e40bd680d). These links retain replaced prose and original evidence.
 
 ## Findings and corrections
 
@@ -18,7 +18,7 @@ Baselines: [De Vloer 7c8657e](https://forgejo.webgrip.dev/webgrip/de-vloer/src/c
 | --- | --- |
 | Ploeg's current architecture listed implemented Shift orchestration, roles, providers and write-backs as missing | Rewrote the current explanation against [Shift engine](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/pkg/shiftengine/engine.go), [providers](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/pkg/provider/) and [HTTP service](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/pkg/httpapi/server.go) |
 | Old prose gave workers management-key authority and treated Run tokens as authentication | Aligned architecture and authoring context with [managed worker control](https://forgejo.webgrip.dev/webgrip/ploeg/src/branch/development/docs/contracts/worker-control.md) and its tests |
-| The domain models disagreed about hands-on admission, and one Run definition required Kubernetes | Reconciled shared-mode Start with [Vloer's execution authority](../../src/execution-authority.ts); allowed delegated Runs in Ploeg's model; regenerated both models' readable views |
+| The domain models disagreed about hands-on admission, and one Run definition required Kubernetes | Reconciled shared-mode Start with [Unfold's execution authority](../../src/execution-authority.ts); allowed delegated Runs in Ploeg's model; regenerated both models' readable views |
 | Mandatory Ploeg authority was described as settled product direction | Recorded the owner's reopened question in [the product model](../../../../docs/domain/model.yaml), [landscape](../../../../docs/landscape/index.md) and [discussion guide](../../../../docs/landscape/questions.md) |
 | The live guide said SSO was missing and described fixed-price brief checks and one-minute settlement | Corrected against [configuration](../../src/config.ts), [session engine](../../src/engine.ts) and shared accounting contracts |
 | Retry instructions applied standalone reset behavior to shared executions | Documented the explicit new-session requirement for failed Ploeg execution in [live operation](../operations/live.md#trying-a-failed-session-again) |
@@ -63,13 +63,13 @@ A monorepo does not require one executable. Keep product explanation and cross-s
 
 The [validation record](evidence/documentation-2026-09-12/validation.json) and [command output](evidence/documentation-2026-09-12/validation.txt) retain the checks:
 
-- De Vloer: 211 tests passed, with no failures or skips; typecheck, source/JSON check, design generation check, brand/license checks, Helm lint and the default render passed.
+- Unfold: 211 tests passed, with no failures or skips; typecheck, source/JSON check, design generation check, brand/license checks, Helm lint and the default render passed.
 - Ploeg: Go formatting, build, vet and tests passed. The Go output identifies cached results. Helm lint, all four renders, golden comparisons, brand/license checks and strict OpenSpec validation passed. The harness/schema and decision-ledger tests also passed after the schema description correction.
 - Both domain views were regenerated from YAML. The structural health tool reports open ambiguities; the product model intentionally has vocabulary and rules without an entity schema. Those scores do not certify semantics.
 - The link pass resolved 1,298 Markdown paths and anchors, including cross-repository development links mapped to the local checkouts. It did not check every external URL or pinned remote revision for network availability.
 - The landscape builder rendered 15 diagrams across nine pages. All nine pages opened without JavaScript errors; the [review screenshot](evidence/documentation-2026-09-12/landscape-review.png) shows the open execution question.
 - The advisory writing scan covered 32 pages. Findings fell from 252 to 163, including retained technical vocabulary. One focused prose pass followed the factual corrections; lower counts are not a quality guarantee.
-- Git's whitespace check flags the domain generator's two-space Markdown hard breaks: two in De Vloer and 90 in Ploeg. They are intentional Markdown formatting. No other whitespace defects were found.
+- Git's whitespace check flags the domain generator's two-space Markdown hard breaks: two in Unfold and 90 in Ploeg. They are intentional Markdown formatting. No other whitespace defects were found.
 
 No live model call, cluster change, provider billing check or deployment requalification was performed. A full TechDocs site build and a human fresh-reader task study were not run. The local renderer check establishes display and navigation, not that a new colleague can complete every procedure unaided.
 

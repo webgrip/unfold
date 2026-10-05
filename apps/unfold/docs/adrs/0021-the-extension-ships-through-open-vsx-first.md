@@ -7,7 +7,7 @@ Date: 2026-09-11. Status: accepted for 0.3.0; the publishers themselves are an o
 Through 0.3.0-rc.14 the extension has been distributable only as a VSIX attached to a Forgejo
 release. That works for a pilot and fails as distribution: a sideloaded VSIX never auto-updates,
 so every fix reaches an operator only if that operator goes and fetches it. The extension is the
-half of De Vloer people touch daily, and it is the half that has been hardest to get into their
+half of Unfold people touch daily, and it is the half that has been hardest to get into their
 hands.
 
 Two registries can carry it, and they are not interchangeable.
@@ -41,7 +41,7 @@ nothing.
 
 One detail makes the whole thing worth deciding carefully rather than trying: a Marketplace
 publisher id is permanent, and so is an extension name once it has been published and removed.
-`webgrip.de-vloer` is a one-way door.
+`webgrip.unfold` is a one-way door.
 
 ## Decision
 
@@ -98,5 +98,5 @@ side already.
 
 A plain-VS-Code user asks for it and the Azure subscription becomes worth opening, a registry
 changes its version rules, the extension leaves preview and the `preview` flag should come off,
-or De Vloer acquires a second publishable extension and the publisher identity deserves to be
+or Unfold acquires a second publishable extension and the publisher identity deserves to be
 shared deliberately.

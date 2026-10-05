@@ -24,7 +24,7 @@ The owner authorized the next unified baseline. A captured candidate contains sy
 
 ## Decision Outcome
 
-Chosen option: "Canonicalize using an operator-provided approved base bundle and execute fixed checks in fresh Docker containers." The initial policy explicitly pins the base commit, image content digest, trusted policy files and black-box checks. De Vloer's control service imports and validates Git objects, reconstructs one deterministic commit on the approved base, and supplies its immutable identity to Ploeg. A separately authorized verifier consumer submits the real container exit and control-side assertion results. Worker-generated logs never determine the number of checks or a passing verdict.
+Chosen option: "Canonicalize using an operator-provided approved base bundle and execute fixed checks in fresh Docker containers." The initial policy explicitly pins the base commit, image content digest, trusted policy files and black-box checks. Unfold's control service imports and validates Git objects, reconstructs one deterministic commit on the approved base, and supplies its immutable identity to Ploeg. A separately authorized verifier consumer submits the real container exit and control-side assertion results. Worker-generated logs never determine the number of checks or a passing verdict.
 
 Ploeg owns candidate approval and publication reservation. A stopped execution remains uniquely bound to its Work Item; this increment does not invent a successor-attempt model. Publication effects require their durable operation identity and retain an uncertainty barrier through timeouts. Live publication remains disabled unless an operator configures an explicit adapter and credential.
 

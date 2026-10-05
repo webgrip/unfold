@@ -4,13 +4,13 @@
 
 Start agent work, respond to questions and review results from your editor. An Unfold workbench prepares the workspace and runs the harness; that workbench can be on your machine or on a remote host. The extension connects to its authenticated API.
 
-The [product designs](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/PRODUCT-DESIGN.md) include proposals beyond the implemented extension. This guide describes the current client.
+The [product designs](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/PRODUCT-DESIGN.md) include proposals beyond the implemented extension. This guide describes the current client.
 
 ## Install
 
-Download the VSIX and its matching `.sha256` file from a completed [Forgejo release](https://forgejo.webgrip.dev/webgrip/de-vloer/releases). In the download directory, run `shasum -a 256 -c` with that checksum filename and confirm the VSIX reports **OK**. Then choose **Extensions → … → Install from VSIX** and select that file. Use the filenames attached to your chosen release; a release page without the assets is not ready for this installation path.
+Download the VSIX and its matching `.sha256` file from a completed [Forgejo release](https://forgejo.webgrip.dev/webgrip/unfold/releases). In the download directory, run `shasum -a 256 -c` with that checksum filename and confirm the VSIX reports **OK**. Then choose **Extensions → … → Install from VSIX** and select that file. Use the filenames attached to your chosen release; a release page without the assets is not ready for this installation path.
 
-[Open VSX](https://open-vsx.org/extension/webgrip/unfold) is the preferred registry publication target. Availability depends on successful publication for the chosen version. Marketplace distribution remains conditional; do not assume that searching by identifier in every editor will find the extension. The [release guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/release.md#extension-distribution) explains those conditions.
+[Open VSX](https://open-vsx.org/extension/webgrip/unfold) is the preferred registry publication target. Availability depends on successful publication for the chosen version. Marketplace distribution remains conditional; do not assume that searching by identifier in every editor will find the extension. The [release guide](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/operations/release.md#extension-distribution) explains those conditions.
 
 A sideloaded VSIX does not receive registry updates automatically. Use VS Code 1.99 or later. The extension runs in the editor's Node extension host and does not require provider keys, a harness or Kubernetes tools on the client machine. A local workbench has its own runtime requirements.
 
@@ -29,7 +29,7 @@ mise exec -- npm run demo
 5. Choose **Start remote crew** in the queued session. This command name also controls work on a local workbench.
 6. Inspect **Checks**, **Changes** and the final review, then download the Git bundle, patch or manifest from **Brief**.
 
-The demo runs a fixed repository fixture and real checks without AI calls or Ploeg. An arbitrary objective in demo mode does not turn the fixture into a live coding agent. **New Remote Session** creates an ad hoc session; live work requires a configured live runtime. See the [demo guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/demo.md).
+The demo runs a fixed repository fixture and real checks without AI calls or Ploeg. An arbitrary objective in demo mode does not turn the fixture into a live coding agent. **New Remote Session** creates an ad hoc session; live work requires a configured live runtime. See the [demo guide](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/operations/demo.md).
 
 ## Connect and sign in
 
@@ -76,13 +76,13 @@ Permission and question cards wait for an explicit answer. **Allow once** grants
 
 Start, pause, resume and cancel follow the server's permitted transitions. Cancellation does not create replacement work. An instruction is saved for the next execution; **Pause the active run first** pauses before saving it. The composer distinguishes a local draft, sending, saved and delivery unknown.
 
-No API mutation is retried automatically. A read that meets an unreachable workbench or a gateway error is retried once. If a response is lost, refresh before repeating the action: the server may have accepted it. Shared execution also has stricter recovery and budget rules than standalone mode. In particular, the current shared API does not support the standalone additional-budget operation. See the [HTTP contract](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/contracts/api.md).
+No API mutation is retried automatically. A read that meets an unreachable workbench or a gateway error is retried once. If a response is lost, refresh before repeating the action: the server may have accepted it. Shared execution also has stricter recovery and budget rules than standalone mode. In particular, the current shared API does not support the standalone additional-budget operation. See the [HTTP contract](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/contracts/api.md).
 
 The spending card distinguishes authorization, observations, reservations and settlement. Unknown spend is not zero. Gateway data can arrive late and cannot prove an exact ceiling for requests already in flight.
 
 ## Work from a task
 
-An administrator configures sources on the workbench. Registered Forgejo, GitHub, GitLab, ClickUp and Vikunja sources appear in both clients. Tracker credentials stay on the server. Personal GitLab account linking is available through **Unfold: Linked Accounts**; it does not automatically register a task source. Configuration and scope limits are in the [task connection guide](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/operations/task-connections.md).
+An administrator configures sources on the workbench. Registered Forgejo, GitHub, GitLab, ClickUp and Vikunja sources appear in both clients. Tracker credentials stay on the server. Personal GitLab account linking is available through **Unfold: Linked Accounts**; it does not automatically register a task source. Configuration and scope limits are in the [task connection guide](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/operations/task-connections.md).
 
 Select a task to open its task view. The description is rendered from the tracker as inert text; links open in your browser only when they use HTTPS. The head of the panel says whether Ploeg already has the task, what state it is in, why, and what happens next.
 
@@ -128,6 +128,6 @@ mise exec -- npm run extension:package
 mise exec -- npm run extension:verify
 ```
 
-[Client integration tests](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/extensions/vscode/test/client.test.ts) exercise the actual server with local fixtures. [Webview tests](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/extensions/vscode/test/webview.test.ts) inspect the shipped panel script; other tests cover status, authorization and account flows. These checks do not use paid providers. Node tests and browser rendering do not substitute for an actual Extension Development Host check. The [validation matrix](https://forgejo.webgrip.dev/webgrip/de-vloer/src/branch/development/docs/validation.md) records what has been exercised.
+[Client integration tests](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/extensions/vscode/test/client.test.ts) exercise the actual server with local fixtures. [Webview tests](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/extensions/vscode/test/webview.test.ts) inspect the shipped panel script; other tests cover status, authorization and account flows. These checks do not use paid providers. Node tests and browser rendering do not substitute for an actual Extension Development Host check. The [validation matrix](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/validation.md) records what has been exercised.
 
 For API maintenance, use the official [extension host](https://code.visualstudio.com/api/advanced-topics/extension-host), [webview](https://code.visualstudio.com/api/extension-guides/webview), [SecretStorage](https://code.visualstudio.com/api/references/vscode-api#SecretStorage) and [extension testing](https://code.visualstudio.com/api/working-with-extensions/testing-extension) documentation.

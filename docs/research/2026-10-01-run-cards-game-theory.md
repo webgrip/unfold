@@ -144,7 +144,7 @@ The equilibrium is a team that ships review-sized changes, takes on hard work, r
 | Bug severity, epic membership | no |
 | Fix → candidate changes, hotspots | no |
 
-Suggested order: deploy events and diff stats, then attribution, then reliability, mends and sets, then rarity and seasons. Each is its own Ploeg ADR; Vloer only displays.
+Suggested order: deploy events and diff stats, then attribution, then reliability, mends and sets, then rarity and seasons. Each is its own Ploeg ADR; Unfold only displays.
 
 ## Where the design departed from this record
 

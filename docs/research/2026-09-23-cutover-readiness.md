@@ -17,7 +17,7 @@ No registry, OpenBao or Kubernetes call used credentials. Nothing was pushed, ta
 
 | Blocker on 12 September | Now | Evidence |
 | --- | --- | --- |
-| Release-channel notes | Fixed on Forgejo | 67 note refs on Forgejo; the strict import verifier passes (16 Vloer, 51 Ploeg). |
+| Release-channel notes | Fixed on Forgejo | 67 note refs on Forgejo; the strict import verifier passes (16 Unfold, 51 Ploeg). |
 | Notes mirror could prune GitHub to empty | Fixed | `0968cf0` requires both source gates; `ae10513` also requires a push and `GLIDE_RELEASES_ENABLED`. |
 | Ploeg image had no CVE budget | Fixed | `97bd509` runs the Grype and OpenVEX gate on `ploegd` before signing. |
 | Signature propagation | Fixed in code, not yet exercised | Ploeg distribution waits for the signing output; every copied image is verified before and after the copy. |
@@ -42,7 +42,7 @@ The preview preflight answers all three.
 
 * **GitHub has no notes.** Heads and all 70 tags match. Since `ae10513`, only an enabled release push copies the notes, so the preflight cannot pass while the gate is closed. A one-time manual copy fixes this. After the next native mirror sync, check that the copied notes are still there.
 * **The old repositories are only partly frozen.** Actions are off and neither has released since rc.16 and rc.7. Both still carry the `renovate` topic and received a `chore(renovate)` commit on 22 September, so they still accept writes. Old Ploeg has four open pull requests.
-* **Both applications have release-worthy commits.** There are 7 Vloer and 17 Ploeg `feat`/`fix` commits since the last tags. The empty trigger commit in the playbook should not be needed. Only the preview can predict the versions.
+* **Both applications have release-worthy commits.** There are 7 Unfold and 17 Ploeg `feat`/`fix` commits since the last tags. The empty trigger commit in the playbook should not be needed. Only the preview can predict the versions.
 * **Recent CI:** runs 30 and 31 failed `checks` while the notes were missing; run 33 at `40e574f` passed. No preview has run since the 14 September preflight fix.
 
 ## Stage status

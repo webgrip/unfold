@@ -4,14 +4,14 @@ Date: 23 September 2026, against `development` at `352fa52`. This is a record. T
 
 ## What happened
 
-Release-channel notes are the `refs/notes/semantic-release-*` refs that semantic-release reads to find each application's last release on a channel. The [migration](../migration.md#source-publication) pushed 67 of them to Forgejo on 12 September, and the [publication record](evidence/glide-2026-09-12/publication.json) verified them (`refsVerified.notes: 67`). On 22 September at 20:36 UTC, `git ls-remote origin 'refs/notes/*'` returned nothing. At 22:44 UTC the owner pushed them back from a fresh local copy fetched from the original `webgrip/ploeg` and `webgrip/de-vloer` repositories. Every ref arrived as `[new reference]`, and run 33's `checks` job then passed with `GLIDE_REQUIRE_IMPORT_NOTES=true`. On 23 September, Forgejo lists 67 notes at the objects in the [import manifest](2026-09-12-glide-import.json).
+Release-channel notes are the `refs/notes/semantic-release-*` refs that semantic-release reads to find each application's last release on a channel. The [migration](../migration.md#source-publication) pushed 67 of them to Forgejo on 12 September, and the [publication record](evidence/glide-2026-09-12/publication.json) verified them (`refsVerified.notes: 67`). On 22 September at 20:36 UTC, `git ls-remote origin 'refs/notes/*'` returned nothing. At 22:44 UTC the owner pushed them back from a fresh local copy fetched from the original Ploeg and front-end repositories. Every ref arrived as `[new reference]`, and run 33's `checks` job then passed with `GLIDE_REQUIRE_IMPORT_NOTES=true`. On 23 September, Forgejo lists 67 notes at the objects in the [import manifest](2026-09-12-glide-import.json).
 
 ## Candidates ruled out
 
 | Candidate | Evidence | Verdict |
 | --- | --- | --- |
 | A workflow pushes notes to `origin` with `--prune` or a mirror refspec | The only notes push in the history since 12 September is [`sync_release_notes.py`](https://forgejo.webgrip.dev/webgrip/glide/src/commit/700a3d97a614a66371ebbc78a1796ac87e0ae395/scripts/sync_release_notes.py). It fetches from `origin` and pushes with `--prune` to `https://github.com/webgrip/glide.git`. Nothing pushes notes or prunes refs on `origin`. The shared `semantic-release-monorepo` composite pushes only a seed tag. | Not the cause |
-| semantic-release rewrote notes | Every `release-vloer` and `release-ploeg` job from run 22 to run 33 was skipped because `GLIDE_RELEASES_ENABLED` is unset. semantic-release also adds notes one ref at a time and never deletes them. | Not the cause |
+| semantic-release rewrote notes | Every front-end and Ploeg release job from run 22 to run 33 was skipped because `GLIDE_RELEASES_ENABLED` is unset. semantic-release also adds notes one ref at a time and never deletes them. | Not the cause |
 | A force push rewrote history | Every commit that CI built from 12 to 22 September is an ancestor of `development`. Tags and branches still match GitHub exactly. | No evidence |
 | Forgejo pulls a mirror over the repository | The API reports `mirror: false`. The only configured mirror pushes from Forgejo to GitHub. | Not the cause |
 

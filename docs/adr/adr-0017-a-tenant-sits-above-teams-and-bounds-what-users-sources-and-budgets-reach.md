@@ -8,21 +8,21 @@ decision-makers: Ryan Grippeling
 
 ## Context and Problem Statement
 
-The owner's requirement (2026-10-03): Unfold is an RBAC'd, SSO'd, multi-tenant environment, and a user sees only what they are allowed to see. [ADR-0009](adr-0009-one-tenant-per-agency.md) decided one Tenant per Agency, isolated in the cluster by namespace, network, runtime and credentials, and says Ploeg records the Tenant on every Team, Work Item, Shift and credential. It does not say which entity Ploeg and Vloer check a request against. Today that entity is the Team, and a Team is not an access boundary:
+The owner's requirement (2026-10-03): Unfold is an RBAC'd, SSO'd, multi-tenant environment, and a user sees only what they are allowed to see. [ADR-0009](adr-0009-one-tenant-per-agency.md) decided one Tenant per Agency, isolated in the cluster by namespace, network, runtime and credentials, and says Ploeg records the Tenant on every Team, Work Item, Shift and credential. It does not say which entity Ploeg and Unfold check a request against. Today that entity is the Team, and a Team is not an access boundary:
 
 * In Ploeg a Team is a capability pool: Roles, harness, models and caps such as `bronze` or `silver`. It never names a repository, forge or credential ([Ploeg model](../../apps/ploeg/docs/domain/model.yaml), R11).
 * Created work may go to any registered Team (`followup.Decide` in `apps/ploeg/pkg/followup/followup.go`). `createWorkItems` in `apps/ploeg/pkg/store/created_work.go` locks by the source Team but sums the pool by root Work Item, so children created under different Teams can overrun one root budget.
 * The deploy endpoint accepts one deployment-wide token for every repository (`NewDeployAuth` in `apps/ploeg/pkg/httpapi/deploys.go`).
 * `File.ScopeTeams` in `apps/ploeg/pkg/config/resolve.go` keys pins by bare container id across Vikunja and ClickUp, so a repeated pin silently overwrites the previous one.
 * Operator admission checks the Team against the consumer's scope, but takes the repository id and URL from the request (`handleAdmitExecution` in `apps/ploeg/pkg/httpapi/operator_execution.go`).
-* Vloer returns every configured repository and task source to every signed-in user and reads tasks with the source's service token without a per-user check (`apps/unfold/src/http.ts`, `src/tasks.ts`, `src/task-handoff.ts`). Only Ploeg team access is enforced, by `PloegClient.allowed` and `authorize` in `apps/unfold/src/ploeg.ts`.
+* Unfold returns every configured repository and task source to every signed-in user and reads tasks with the source's service token without a per-user check (`apps/unfold/src/http.ts`, `src/tasks.ts`, `src/task-handoff.ts`). Only Ploeg team access is enforced, by `PloegClient.allowed` and `authorize` in `apps/unfold/src/ploeg.ts`.
 
 Which entity bounds what a user, a source and a budget can reach, how does it relate to Team and to ADR-0009's Tenant, and where is it enforced?
 
 ## Decision Drivers
 
 * A user never sees, imports or runs another Tenant's tasks, repositories, Work Items, Run Cards or spend.
-* Each check happens in the service that owns the data. Ploeg does not trust Vloer to have filtered, and Vloer does not trust the browser.
+* Each check happens in the service that owns the data. Ploeg does not trust Unfold to have filtered, and Unfold does not trust the browser.
 * A Team keeps meaning one thing: what agents and models run the work. Capacity and access stay separate axes, as capacity and codebase already are.
 * One code path for self-hosted and hosted Unfold, so isolation is tested where it is used.
 * A forbidden object looks like an absent one: probing ids must not reveal another Tenant's work.
@@ -35,13 +35,13 @@ Which entity bounds what a user, a source and a budget can reach, how does it re
 
 ## Decision Outcome
 
-Chosen option: "A Tenant above Teams", because it is the only option that gives one shared Ploeg and Vloer the access boundary ADR-0009 assumes while keeping Team as a capability pool.
+Chosen option: "A Tenant above Teams", because it is the only option that gives one shared Ploeg and Unfold the access boundary ADR-0009 assumes while keeping Team as a capability pool.
 
-**The entity.** A Tenant is ADR-0009's Tenant: one per Agency in hosted Unfold. ADR-0009 means one shared Ploeg and Vloer deployment per cluster, with per-Tenant namespaces for Runs and previews; this ADR adds the application boundary inside that shared deployment. Every install has at least one Tenant. A self-hosted install starts with one default Tenant and may add more, so the checks below always run. A Client is a user inside its Agency's Tenant, as ADR-0009 says, and also an entity inside the Tenant that owns tracker sources and repositories (see Clients below). A person may belong to several Tenants, for example a freelancer working for two Agencies; they choose the active Tenant with a switcher, every request carries it, and nothing mixes across Tenants.
+**The entity.** A Tenant is ADR-0009's Tenant: one per Agency in hosted Unfold. ADR-0009 means one shared Ploeg and Unfold deployment per cluster, with per-Tenant namespaces for Runs and previews; this ADR adds the application boundary inside that shared deployment. Every install has at least one Tenant. A self-hosted install starts with one default Tenant and may add more, so the checks below always run. A Client is a user inside its Agency's Tenant, as ADR-0009 says, and also an entity inside the Tenant that owns tracker sources and repositories (see Clients below). A person may belong to several Tenants, for example a freelancer working for two Agencies; they choose the active Tenant with a switcher, every request carries it, and nothing mixes across Tenants.
 
 **Clients.** A Client owns tracker sources and repositories inside its Tenant, and a Work Item takes its Client from them. A user with a client membership sees, follows and attaches context to ([ADR-0022](adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md)) only the Work Items of their Client, and cannot approve, cancel or steer anything else. A Work Item from a source with no Client is invisible to every client user.
 
-**Sign-in.** SSO groups carry the memberships: `unfold/<tenant>/<role>` with role viewer, member or admin, and `unfold/<tenant>/client/<client>` for a client user. A user with no `unfold/` group gets no data, and a malformed group is ignored, never widened. Vloer's per-user `ploeg.userTeams` setting is removed once the mapping ships.
+**Sign-in.** SSO groups carry the memberships: `unfold/<tenant>/<role>` with role viewer, member or admin, and `unfold/<tenant>/client/<client>` for a client user. A user with no `unfold/` group gets no data, and a malformed group is ignored, never widened. Unfold's per-user `ploeg.userTeams` setting is removed once the mapping ships.
 
 **Unfold staff.** Platform operators of hosted Unfold never see Tenant content, not even through an audited break-glass role. Support works from what a Tenant admin shows, and operations that repair data run without reading content.
 
@@ -64,20 +64,20 @@ Chosen option: "A Tenant above Teams", because it is the only option that gives 
 * Deploys: a token resolves to a Tenant, and a report for another Tenant's repository returns 404.
 * Configuration: scope pins and routing keys are instance-qualified. A duplicate key is a startup error, not an overwrite, and a pin's Team must belong to the source's Tenant.
 
-**Enforcement in Vloer.** Not implemented yet.
+**Enforcement in Unfold.** Not implemented yet.
 
 * Sign-in maps the SSO groups claim to Tenant membership and role. A user with no Tenant group gets no data.
 * Repositories, task sources and their tasks are listed, read, imported and handed off only within the user's Tenant. The Tenant check comes before any read with a service token. Anything outside it returns 404.
-* Vloer forwards the user's Tenant and identity to Ploeg, and Ploeg checks them again against the consumer's scope.
+* Unfold forwards the user's Tenant and identity to Ploeg, and Ploeg checks them again against the consumer's scope.
 
 **Follow-up work.** Each item is enforcement of this ADR:
 
-* VIK-1740 — Vloer filters task sources and repositories per Tenant, and checks before any service-token read.
+* VIK-1740 — Unfold filters task sources and repositories per Tenant, and checks before any service-token read.
 * VIK-1742 — created work keeps its root's Tenant and root budget, with the lock on the root.
 * VIK-1786 — operator admission accepts only registered repositories of the Team's Tenant, and deploy reports need a named repository authority (one deploy identity per Tenant).
 * VIK-1879 — instance-qualified tracker and forge keys; duplicate pins fail at startup.
 * VIK-1876 — `tenant_id` in Ploeg's store, a default Tenant for existing data and self-hosted installs, and operator consumers bound to one Tenant.
-* VIK-1877 — SSO groups mapped to Tenant, Client and role in Vloer, with a Tenant switcher.
+* VIK-1877 — SSO groups mapped to Tenant, Client and role in Unfold, with a Tenant switcher.
 * VIK-1878 — Clients own sources and repositories, and client users reach only theirs.
 
 All of them are in milestone M1 since 2026-10-04.
@@ -86,7 +86,7 @@ All of them are in milestone M1 since 2026-10-04.
 
 * Good, because Team keeps one meaning, and access becomes one check in two services rather than a set of per-feature team lists.
 * Good, because self-hosted and hosted Unfold run the same checks, so the isolation tests exercise the code customers use.
-* Good, because it closes the found gaps: the cross-team budget overrun, the shared deploy token, colliding pins and unscoped Vloer reads.
+* Good, because it closes the found gaps: the cross-team budget overrun, the shared deploy token, colliding pins and unscoped Unfold reads.
 * Bad, because every Ploeg table, query and operator contract gains a Tenant column or filter, and existing data needs a migration to a default Tenant.
 * Bad, because two Tenants cannot share one Team's concurrency. A small Tenant pays for its own idle capacity.
 * Neutral, because cluster-level isolation is still ADR-0009's; this ADR does not replace namespaces, network policy or per-Run credentials.
@@ -95,7 +95,7 @@ All of them are in milestone M1 since 2026-10-04.
 
 Proposed tests, none of which exist yet:
 
-* A Vloer HTTP test with two users in disjoint Tenants: neither can list, read, import or hand off the other's tasks, repositories or task sources. Each request for the other Tenant's object returns 404, and the tracker stub records no service-token call.
+* An Unfold HTTP test with two users in disjoint Tenants: neither can list, read, import or hand off the other's tasks, repositories or task sources. Each request for the other Tenant's object returns 404, and the tracker stub records no service-token call.
 * A Ploeg operator API test: a consumer scoped to Tenant A gets 404 for Tenant B's Work Item, Run, Run Card and proposed work, and for every list it is filtered out.
 * A Ploeg store test: a Run proposing created work for another Tenant's Team is refused and audited, and concurrent children under one root in different Teams cannot exceed the root pool.
 * A Ploeg deploy test: Tenant A's token reporting a Tenant B repository gets 404 and records nothing.
@@ -105,7 +105,7 @@ Proposed tests, none of which exist yet:
 
 ### Team is the Tenant
 
-* Good, because Team scoping already exists in Ploeg's operator API and in Vloer's `PloegClient`.
+* Good, because Team scoping already exists in Ploeg's operator API and in Unfold's `PloegClient`.
 * Bad, because a Team is a capability pool. An Agency with `bronze` and `silver` would be two Tenants, or one Team would need every model and cap.
 * Bad, because sources, repositories, deploy tokens and users are not Team-shaped: a repository is reached by several Teams, and a user works across them.
 * Bad, because created work already moves between Teams, so the boundary would leak by design.
@@ -114,7 +114,7 @@ Proposed tests, none of which exist yet:
 
 * Good, because it is the strongest separation and needs no application checks.
 * Good, because it already serves the first pilot, which self-hosts (ADR-0009).
-* Bad, because a Ploeg, Vloer, database and gateway per Agency costs more than a small Agency pays, as ADR-0009 found for clusters.
+* Bad, because a Ploeg, Unfold, database and gateway per Agency costs more than a small Agency pays, as ADR-0009 found for clusters.
 * Bad, because a self-hosted install with several departments still needs users limited to what they can see, so the checks are needed anyway.
 
 ## Owner decisions, 2026-10-04
@@ -132,5 +132,5 @@ Proposed tests, none of which exist yet:
 * 2026-10-04 — Accepted. The owner answered the open questions (see Owner decisions) and moved tenancy and client access into milestone M1, so clients can attach context to their own Work Items sooner.
 * Technical story: VIK-1741.
 * Refines [ADR-0009](adr-0009-one-tenant-per-agency.md): that ADR's Tenant is the entity defined here, and its cluster isolation is unchanged.
-* Relies on [ADR-0002](adr-0002-ploeg-is-the-only-engine.md): Ploeg is the Authority, so Ploeg's checks are the binding ones and Vloer's are the first line.
+* Relies on [ADR-0002](adr-0002-ploeg-is-the-only-engine.md): Ploeg is the Authority, so Ploeg's checks are the binding ones and Unfold's are the first line.
 * 2026-10-03 — Proposed. The owner stated that Unfold is RBAC'd, SSO'd and multi-tenant, and that users are limited to what they can see. The code facts in the problem statement were read on `development` that day.

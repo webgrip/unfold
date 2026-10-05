@@ -215,7 +215,7 @@
     },
     {
       "from": "/de-vloer/operations/backlog/",
-      "to": "/glide/unfold/operations/backlog/"
+      "to": "/glide/unfold/"
     },
     {
       "from": "/de-vloer/operations/demo/",
@@ -267,7 +267,7 @@
     },
     {
       "from": "/de-vloer/research/2026-09-10-ploeg-and-de-vloer-split/",
-      "to": "/glide/unfold/research/2026-09-10-ploeg-and-de-vloer-split/"
+      "to": "/glide/unfold/research/2026-09-10-ploeg-and-unfold-split/"
     },
     {
       "from": "/de-vloer/research/2026-09-10-sandbox-landscape/",

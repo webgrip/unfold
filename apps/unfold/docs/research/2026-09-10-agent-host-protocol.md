@@ -1,4 +1,4 @@
-# Agent Host Protocol 0.9.0 as seen from De Vloer
+# Agent Host Protocol 0.9.0 as seen from Unfold
 
 Research date: 2026-09-10. Sources: the [specification](https://microsoft.github.io/agent-host-protocol/), the [repository](https://github.com/microsoft/agent-host-protocol) at commit `0d6d983` (2026-09-05, spec 0.9.0 released 2026-08-28), the [VS Code blog post](https://code.visualstudio.com/blogs/2026/08/26/agent-host-architecture), the [1.136 release notes](https://code.visualstudio.com/updates/v1_136), the [agent host concept page](https://code.visualstudio.com/docs/agents/concepts/agent-host), [issue #325827](https://github.com/microsoft/vscode/issues/325827) and VS Code's own server under `src/vs/platform/agentHost/node/`.
 
@@ -40,4 +40,4 @@ The TypeScript package `@microsoft/agent-host-protocol` is MIT, has no runtime d
 
 ## Fit
 
-De Vloer maps one session to one chat, projects its durable events into the chat actions above, exposes the candidate as a changeset backed by the harness's native diff, and answers permission and question requests through the engine. Terminals and writes are deliberately absent. The result is in [ADR 0012](../adrs/0012-agent-host-protocol-host.md) and `src/ahp/`.
+Unfold maps one session to one chat, projects its durable events into the chat actions above, exposes the candidate as a changeset backed by the harness's native diff, and answers permission and question requests through the engine. Terminals and writes are deliberately absent. The result is in [ADR 0012](../adrs/0012-agent-host-protocol-host.md) and `src/ahp/`.

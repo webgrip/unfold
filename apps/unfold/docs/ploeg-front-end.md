@@ -8,13 +8,13 @@ verified_by: "source read of apps/unfold/src and apps/ploeg/pkg at 352fa52; no c
 
 # Unfold as Ploeg's front end (proposal)
 
-**Status: proposed. Nothing on this page is implemented yet.** It explains how to finish [system ADR-0002](../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md) in small, safe steps. Under that decision Ploeg executes every Run and Unfold only presents, steers and reviews. [Unfold ADR-0023](adrs/0023-vloer-submits-work-to-ploeg-and-never-executes-it.md) records the choices recommended here. The [current architecture](architecture.md) and the [shared execution contract](contracts/ploeg-execution.md) still describe what runs today.
+**Status: proposed. Nothing on this page is implemented yet.** It explains how to finish [system ADR-0002](../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md) in small, safe steps. Under that decision Ploeg executes every Run and Unfold only presents, steers and reviews. [Unfold ADR-0023](adrs/0023-unfold-submits-work-to-ploeg-and-never-executes-it.md) records the choices recommended here. The [current architecture](architecture.md) and the [shared execution contract](contracts/ploeg-execution.md) still describe what runs today.
 
 ## Where we start
 
 Today a "managed" Unfold session does not run in Ploeg. Unfold asks Ploeg to admit an **Operator Execution**, then runs the whole Crew itself: it builds the workspace, drives OpenCode over HTTP, calls the model with a key that Ploeg issued, and sends heartbeats and reports back. Ploeg keeps records and one inference key. The [22 September inventory](../../../docs/research/2026-09-22-glide-inventory.md) counts the result: two harness drivers, two LiteLLM brokers, two spend-hold state machines, two review orchestrators and two liveness protocols.
 
-For this, Ploeg writes placeholder rows. [`AdmitOperatorExecution`](../../ploeg/pkg/store/operator_execution.go) inserts a Work Item with `operator_owned = true`, a Shift on branch `vloer/<session>`, an `operator` Run and a Lease. The scheduler must then skip these rows in ten queries in [`shift.go`](../../ploeg/pkg/store/shift.go). Seven of those check `NOT EXISTS (… operator_executions …)` and three check `NOT operator_owned`, and [`IngestAssigned`](../../ploeg/pkg/store/store.go) has more `operator_owned` cases.
+For this, Ploeg writes placeholder rows. [`AdmitOperatorExecution`](../../ploeg/pkg/store/operator_execution.go) inserts a Work Item with `operator_owned = true`, a Shift on branch `operator/<session>`, an `operator` Run and a Lease. The scheduler must then skip these rows in ten queries in [`shift.go`](../../ploeg/pkg/store/shift.go). Seven of those check `NOT EXISTS (… operator_executions …)` and three check `NOT operator_owned`, and [`IngestAssigned`](../../ploeg/pkg/store/store.go) has more `operator_owned` cases.
 
 The target shape needs no placeholders. Unfold creates an ordinary Work Item, and Ploeg dispatches it like tracker work. Ploeg's worker claims the Run, and Unfold watches and sends commands.
 

@@ -1108,7 +1108,7 @@ export function deliveryMarkup(detail, model) {
 
 /** The file types the Add context dialog offers: an archive or one document or image. Ploeg decides what it accepts. */
 export const contextAccept = '.zip,.tar.gz,.tgz,.md,.txt,.json,.yaml,.yml,.pdf,.png,.jpg';
-/** The largest file the Add context dialog sends, in bytes; Vloer's server refuses anything larger. */
+/** The largest file the Add context dialog sends, in bytes; Unfold's server refuses anything larger. */
 export const contextLimit = 20 * 1024 * 1024;
 const closedStates = ['done', 'withdrawn'];
 
@@ -1138,7 +1138,7 @@ function contextItem(entry) {
 /**
  * The Context card on a Work Item: the files people attached for its Runs (name, size, file count, who and when, and
  * an "Added while steering" chip), what a new file reaches, the result of the last upload and the Add context
- * button. Ploeg stores the files and gives them to Runs; Vloer only forwards them. `model.context` is
+ * button. Ploeg stores the files and gives them to Runs; Unfold only forwards them. `model.context` is
  * `{ items, demo, error }` or null while loading; `model.contextResult` is `{ tone, title, text }`.
  */
 export function contextMarkup(detail, model) {
@@ -1157,7 +1157,7 @@ export function contextMarkup(detail, model) {
   if (closed) parts.push(`<p class="work-note">${icon('info')}<span>${escape('This Work Item is closed, so it takes no more context.')}</span></p>`);
   const canAdd = !closed && model.canAddContext && !demo;
   const actions = canAdd ? ui.button({ label: 'Add context', icon: 'plus', size: 'sm', action: 'work-context-add', busy: model.contextBusy }) : '';
-  return `<section class="card work-context" id="work-context" aria-labelledby="work-context-title"${model.contextBusy ? ' aria-busy="true"' : ''}><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-context-title">${icon('folder')}Context</h3><p class="card-subtitle">${escape('Files people attached for the agents. Ploeg keeps them; Vloer only forwards them.')}</p></div>${actions ? `<div class="card-actions">${actions}</div>` : ''}</header><div class="card-body work-context-body">${parts.join('')}</div></section>`;
+  return `<section class="card work-context" id="work-context" aria-labelledby="work-context-title"${model.contextBusy ? ' aria-busy="true"' : ''}><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-context-title">${icon('folder')}Context</h3><p class="card-subtitle">${escape('Files people attached for the agents. Ploeg keeps them; Unfold only forwards them.')}</p></div>${actions ? `<div class="card-actions">${actions}</div>` : ''}</header><div class="card-body work-context-body">${parts.join('')}</div></section>`;
 }
 
 /** The Add context dialog for `detail`: a file (an archive or one file, up to 20 MiB) and an optional note of at most 500 characters. */

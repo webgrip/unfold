@@ -24,7 +24,7 @@ Use [the unified example](../../apps/unfold/config/unified.example.json) as a pr
 
 1. Configure a Ploeg operator consumer with explicit team scope. Grant read access first. Grant `execute: true` and an explicit `maxBudgetUsd` when enabling execution. Ploeg's chart supports `operator.consumers[].tokenSecret` references; it mounts consumer credentials only on the controller.
 2. Point Unfold's `ploeg.url` at Ploeg's authenticated internal API, and `ploeg.tokenEnv` at that consumer's environment variable. Do not expose the operator API through the public webhook route.
-3. Map actual Unfold user IDs to teams with `ploeg.userTeams`. Unmapped non-administrators are denied. Administrators still remain inside the configured deployment and upstream consumer scope. To let people trace bugs to Run cards, map each Unfold user ID to that person's forge login with `ploeg.forgeLogins`. Ploeg compares it with the card's steward, so only an administrator sets it ([Unfold ADR 0030](../../apps/unfold/docs/adrs/0030-vloer-traces-bugs-under-an-administrator-mapped-forge-login.md)).
+3. Map actual Unfold user IDs to teams with `ploeg.userTeams`. Unmapped non-administrators are denied. Administrators still remain inside the configured deployment and upstream consumer scope. To let people trace bugs to Run cards, map each Unfold user ID to that person's forge login with `ploeg.forgeLogins`. Ploeg compares it with the card's steward, so only an administrator sets it ([Unfold ADR 0030](../../apps/unfold/docs/adrs/0030-unfold-traces-bugs-under-an-administrator-mapped-forge-login.md)).
 4. Configure `execution.team` to opt in to shared execution. Register the repository in Unfold and set `executionOwner: "ploeg"`. This manual lane does not import a tracker item or create a duplicate assignment.
 5. Configure a Ploeg managed inference policy for the team's `operator` role, including allowed model aliases, a budget ceiling and TTL. The chart exposes `executor.workerAuth.additionalLLMPolicies` for that policy. The actual key authorization is capped by the requested Run budget.
 6. Supply Unfold's inference gateway base URL and the selected workspace backend. A shared workbench does not need the LiteLLM master key. Use the existing authenticated repository-link flow for Git access.
@@ -93,7 +93,7 @@ See [validation](../../apps/unfold/docs/validation.md) for the recorded result. 
 
 ## Planning beyond this baseline
 
-Live publication, agent delegation and broader repair workflows require separate design and qualification. Use the [product questions](../landscape/questions.md), [research baseline](../../apps/unfold/docs/research/2026-09-10-unified-workbench-baseline.md) and [planning guide](../../apps/unfold/docs/operations/backlog.md). This operating procedure does not set implementation priority.
+Live publication, agent delegation and broader repair workflows require separate design and qualification. Use the [product questions](../landscape/questions.md) and [research baseline](../../apps/unfold/docs/research/2026-09-10-unified-workbench-baseline.md). This operating procedure does not set implementation priority.
 
 ## Adopt an existing tracker item
 
