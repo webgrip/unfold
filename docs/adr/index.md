@@ -36,3 +36,6 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0020](adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) | Unfold is the application, and the name Vloer is retired | accepted | 2026-10-04 |
 | [ADR-0021](adr-0021-agents-are-briefed-from-a-per-tenant-knowledge-base-exchanged-as-okf.md) | Agents are briefed from a per-Tenant knowledge base exchanged as OKF | proposed | 2026-10-04 |
 | [ADR-0022](adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md) | People give a Work Item context files, at the start and while steering | accepted | 2026-10-04 |
+| [ADR-0023](adr-0023-unfold-measures-happiness-and-confusion-with-first-party-events-surveys-and-bug-reports.md) | Unfold measures happiness and confusion with first-party events, surveys and bug reports | proposed | 2026-10-05 |
+| [ADR-0024](adr-0024-bug-reports-are-filed-by-unfold-into-the-tenants-own-tracker.md) | Bug reports are filed by Unfold into the tenant's own tracker | proposed | 2026-10-05 |
+| [ADR-0025](adr-0025-unfold-asks-one-ease-question-on-anomalies-and-a-random-baseline.md) | Unfold asks one ease question on anomalies and a random baseline | proposed | 2026-10-05 |
