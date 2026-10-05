@@ -1,3 +1,13 @@
+## [unfold-v0.4.0-rc.42](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.41...unfold-v0.4.0-rc.42) (2026-10-05)
+
+### Added
+
+* **unfold:** keep OIDC accounts across an issuer rename with auth.oidc.subjectNamespace ([1759708](https://forgejo.webgrip.dev/webgrip/unfold/commit/17597080c36919d5237bd67deb556527561e3aa8))
+
+### Fixed
+
+* **unfold:** let an OIDC sign-in through when another account holds its name ([78364ed](https://forgejo.webgrip.dev/webgrip/unfold/commit/78364ed83e59cb256dd2d9b1f579347c43a74819))
+
 ## [unfold-v0.4.0-rc.41](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.40...unfold-v0.4.0-rc.41) (2026-10-05)
 
 ### Added
