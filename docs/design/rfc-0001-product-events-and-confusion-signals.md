@@ -1,10 +1,10 @@
 # RFC-0001: Product events and confusion signals
 
-> Status: **Proposed** · Date: 2026-10-05 · Decision: [ADR-0023](../adr/adr-0023-unfold-measures-happiness-and-confusion-with-first-party-events-surveys-and-bug-reports.md) · Research: [product insight tooling](../research/2026-10-05-product-insight-tooling.md)
+> Status: **Accepted** 2026-10-05 · Date: 2026-10-05 · Decision: [ADR-0023](../adr/adr-0023-unfold-measures-happiness-and-confusion-with-first-party-events-surveys-and-bug-reports.md) · Research: [product insight tooling](../research/2026-10-05-product-insight-tooling.md)
 >
 > **TL;DR.** Unfold's browser posts small, named events to its own server. The server checks each name against a catalogue, adds the tenant and a pseudonymous actor, and stores it next to Unfold's other data. A small detector in the front end adds rage clicks, dead clicks, U-turns and link-out bursts as ordinary events. Anything that leaves the install goes through the server, never the browser, so the CSP stays `'self'`. On the owner's instance the server forwards events to the homelab's Alloy `faro.receiver`, and Grafana shows them as tables.
 
-Nothing here is built. Every table, route, setting and event name is proposed.
+Accepted with its ADR on 2026-10-05. Nothing here is built yet. Every table, route, setting and event name is proposed.
 
 ## Why
 
@@ -145,7 +145,9 @@ The notice links the [works council and DPIA pack](../reference/run-cards-works-
 * A browser test fires 3 clicks within 1 s on a fixture and expects one `ui.rage_click`. A click that opens a menu produces no `ui.dead_click`.
 * The CSP test from ADR-0023's confirmation fails if any origin besides `'self'` appears.
 
-## Open questions
+## Decided questions
 
-1. Does the VS Code extension count as a separate `session`, or share the browser's? Proposed: separate.
-2. Should `aggregate` export include `actors` counts, or only event counts? Proposed: include them, because a count of distinct people is not personal data at n ≥ 5.
+Answered by the owner on 2026-10-05, as proposed.
+
+1. Does the VS Code extension count as a separate `session`, or share the browser's? Decided: separate.
+2. Should `aggregate` export include `actors` counts, or only event counts? Decided: include them, because a count of distinct people is not personal data at n ≥ 5.

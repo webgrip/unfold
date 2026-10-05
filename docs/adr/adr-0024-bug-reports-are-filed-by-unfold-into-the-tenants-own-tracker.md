@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-05
 decision-makers: Ryan Grippeling
 ---
@@ -40,7 +40,7 @@ Chosen option: "Unfold captures in the browser and its server files into the ten
   * Failed filings are retried for 24 hours.
 * Nothing is captured in the background.
 
-Not implemented yet.
+Accepted on 2026-10-05. Not implemented yet.
 
 ### Consequences
 
@@ -87,3 +87,4 @@ Marker.io SRL is in Brussels and stores data in AWS Ireland.
 ## More Information
 
 * 2026-10-05: proposed with [ADR-0023](adr-0023-unfold-measures-happiness-and-confusion-with-first-party-events-surveys-and-bug-reports.md) and [ADR-0025](adr-0025-unfold-asks-one-ease-question-on-anomalies-and-a-random-baseline.md); design in [RFC-0002](../design/rfc-0002-report-a-problem.md).
+* 2026-10-05: accepted by the owner as proposed, together with the open questions of RFC-0002 answered as proposed.

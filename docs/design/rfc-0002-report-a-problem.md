@@ -1,10 +1,10 @@
 # RFC-0002: Report a problem
 
-> Status: **Proposed** · Date: 2026-10-05 · Decision: [ADR-0024](../adr/adr-0024-bug-reports-are-filed-by-unfold-into-the-tenants-own-tracker.md) · Research: [product insight tooling](../research/2026-10-05-product-insight-tooling.md), [bug-reporting evidence](../research/evidence/2026-10-05-product-insight/bug-reporting.md)
+> Status: **Accepted** 2026-10-05 · Date: 2026-10-05 · Decision: [ADR-0024](../adr/adr-0024-bug-reports-are-filed-by-unfold-into-the-tenants-own-tracker.md) · Research: [product insight tooling](../research/2026-10-05-product-insight-tooling.md), [bug-reporting evidence](../research/evidence/2026-10-05-product-insight/bug-reporting.md)
 >
 > **TL;DR.** One button and one palette command. The browser takes a DOM screenshot with code, diffs and pull-request text blurred, lets the person mark it up, and collects recent errors, failed requests and the ids on screen. Unfold's server files it as an issue or task in the tenant's own tracker, with attachments, in two API calls, and shows the link. Nothing is captured in the background, and nothing leaves the install except to the tenant's tracker.
 
-Nothing here is built. Every route, setting and file name is proposed.
+Accepted with its ADR on 2026-10-05. Nothing here is built yet. Every route, setting and file name is proposed.
 
 ## What it looks like
 
@@ -107,7 +107,9 @@ Reports about Unfold itself, from the owner's instance, go to `webgrip/unfold` o
 * A store test shows a `failed` report is retried and becomes `filed` when the fixture recovers.
 * The request buffer test proves no header, query string or body is kept.
 
-## Open questions
+## Decided questions
 
-1. Should Unfold suggest a title from the screen and the first sentence? Proposed: yes, editable.
-2. Should a report on a Work Item also comment on that Work Item's ticket? Proposed: no, the report goes to Unfold's feedback target, not the client's ticket.
+Answered by the owner on 2026-10-05, as proposed.
+
+1. Should Unfold suggest a title from the screen and the first sentence? Decided: yes, editable.
+2. Should a report on a Work Item also comment on that Work Item's ticket? Decided: no, the report goes to Unfold's feedback target, not the client's ticket.

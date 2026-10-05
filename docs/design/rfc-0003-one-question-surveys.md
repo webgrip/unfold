@@ -1,10 +1,10 @@
 # RFC-0003: One-question surveys
 
-> Status: **Proposed** · Date: 2026-10-05 · Decision: [ADR-0025](../adr/adr-0025-unfold-asks-one-ease-question-on-anomalies-and-a-random-baseline.md) · Research: [product insight tooling](../research/2026-10-05-product-insight-tooling.md), [survey evidence](../research/evidence/2026-10-05-product-insight/micro-surveys.md)
+> Status: **Accepted** 2026-10-05 · Date: 2026-10-05 · Decision: [ADR-0025](../adr/adr-0025-unfold-asks-one-ease-question-on-anomalies-and-a-random-baseline.md) · Research: [product insight tooling](../research/2026-10-05-product-insight-tooling.md), [survey evidence](../research/evidence/2026-10-05-product-insight/micro-surveys.md)
 >
 > **TL;DR.** When something unusual happens, such as an undo or an item coming back, Unfold asks one question: "Overall, how difficult or easy was it to …?" on a 7-point scale, with an optional line of text. The server decides who is asked, from product events, and enforces the caps. A small random sample asks the same question without any anomaly, so the answers can be compared with a baseline. Results are reported per trigger, never pooled.
 
-Nothing here is built. Every table, route and trigger is proposed.
+Accepted with its ADR on 2026-10-05. Nothing here is built yet. Every table, route and trigger is proposed.
 
 ## What it looks like
 
@@ -97,7 +97,9 @@ These appear in the Per path table of the Grafana tables in RFC-0001, and in Unf
 * The random baseline selects about 2 % of 10,000 synthetic people in a week, with each person at most once in 12 weeks.
 * Answers outside 1–7 and text over 500 characters are refused.
 
-## Open questions
+## Decided questions
 
-1. Should Dutch-language tenants see the question in Dutch from day one? Proposed: yes, with the stem translated once and reviewed: "Hoe moeilijk of makkelijk was het om …?"
-2. Should a very low score (1 or 2) offer "Report a problem" right away? Proposed: yes, as a link in the thank-you line, prefilled with the trigger.
+Answered by the owner on 2026-10-05, as proposed.
+
+1. Should Dutch-language tenants see the question in Dutch from day one? Decided: yes, with the stem translated once and reviewed: "Hoe moeilijk of makkelijk was het om …?"
+2. Should a very low score (1 or 2) offer "Report a problem" right away? Decided: yes, as a link in the thank-you line, prefilled with the trigger.

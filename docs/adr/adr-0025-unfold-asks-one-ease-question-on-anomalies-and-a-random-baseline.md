@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-05
 decision-makers: Ryan Grippeling
 ---
@@ -48,7 +48,7 @@ Chosen option: "Unfold's own one-question prompt, with triggers and caps on the 
   * "Don't ask me again" stops all prompts until the person turns them back on.
 * **Reporting.** Results are reported per trigger with their n, next to the baseline, and are never pooled into one score. Groups under 5 people are suppressed. Answers are never used to assess individual people.
 
-Not implemented yet.
+Accepted on 2026-10-05. Not implemented yet.
 
 ### Consequences
 
@@ -93,3 +93,4 @@ Formbricks GmbH is in Germany; the core is AGPL-3.0.
 
 * 2026-10-05: proposed with [ADR-0023](adr-0023-unfold-measures-happiness-and-confusion-with-first-party-events-surveys-and-bug-reports.md) and [ADR-0024](adr-0024-bug-reports-are-filed-by-unfold-into-the-tenants-own-tracker.md); design in [RFC-0003](../design/rfc-0003-one-question-surveys.md).
 * Re-open with Formbricks community edition as the renderer if someone who does not write code needs to author surveys.
+* 2026-10-05: accepted by the owner as proposed, together with the open questions of RFC-0003 answered as proposed.

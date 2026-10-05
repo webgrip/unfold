@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-05
 decision-makers: Ryan Grippeling
 ---
@@ -49,7 +49,7 @@ Chosen option: "First-party events, confusion signals, surveys and bug reports, 
   * per-person scores of agency staff;
   * survey answers used in performance reviews.
 
-Not implemented yet.
+Accepted on 2026-10-05. Not implemented yet.
 
 ### Consequences
 
@@ -105,3 +105,4 @@ OpenReplay (Paris, AGPL-3.0, 2 vCPU / 8 GB with ClickHouse) has replay, heatmaps
 * 2026-10-05: proposed after a five-agent survey; record and evidence in [docs/research/2026-10-05-product-insight-tooling.md](../research/2026-10-05-product-insight-tooling.md). Design in [RFC-0001](../design/rfc-0001-product-events-and-confusion-signals.md); the bug-report and survey parts are split into ADR-0024 and ADR-0025.
 * Related: [ADR-0009](adr-0009-one-tenant-per-agency.md) (only anonymous counts leave a tenant without opt-in), [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) (tenant scoping), the [works council and DPIA pack](../reference/run-cards-works-council-pack.md), and KPI data ticket D2 in [kpis.md](../reference/kpis.md), which becomes a product event under this ADR.
 * The research record lists the triggers that reopen this decision.
+* 2026-10-05: accepted by the owner as proposed, together with the open questions of RFC-0001 answered as proposed.
