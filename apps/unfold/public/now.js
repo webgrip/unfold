@@ -179,6 +179,11 @@ export function byFinish(runs) {
   return (runs || []).map((run, index) => ({ run, index, at: moment(run.finishedAt) })).sort((a, b) => (b.at ?? -Infinity) - (a.at ?? -Infinity) || a.index - b.index).map(entry => entry.run);
 }
 
+/** Waiting Work Items newest first by the moment they started waiting: created for a proposal, last updated otherwise; Work Items without that time keep their order at the end. */
+export function byWaitingSince(entries) {
+  return (entries || []).map((entry, index) => ({ entry, index, at: moment(entry.state === 'proposed' ? entry.createdAt : entry.updatedAt) })).sort((a, b) => (b.at ?? -Infinity) - (a.at ?? -Infinity) || a.index - b.index).map(item => item.entry);
+}
+
 function repository(target) {
   if (!target?.repo) return null;
   const full = target.owner ? `${target.owner}/${target.repo}` : target.repo;
@@ -418,7 +423,7 @@ function waitingCard(view, visible, held, context) {
   const pill = held.waiting ? showNew('waiting', format.plural(held.waiting, 'new Work Item')) : '';
   const hints = context.singleKeys && !error && total ? `<p class="now-keys" aria-hidden="true">${kbd(['j', 'k'])}<span>move</span>${kbd('o')}<span>open PR or tracker</span></p>` : '';
   const stale = error ? 0 : staleCount(view);
-  const rows = visible.waiting;
+  const rows = byWaitingSince(visible.waiting);
   const allNew = rows.length > 0 && rows.every(entry => after(entry.state === 'proposed' ? entry.createdAt : entry.updatedAt, context.since));
   const refused = refusedMarkup(view.data, context);
   const local = { ...context, stale, refused, dots: !allNew, truncated: new Set(waitingStates.filter(state => stateTruncated(view.data, state))) };

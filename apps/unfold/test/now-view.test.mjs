@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nowMarkup, digestCounts, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, awayAfter, reasonGlyph, offersRetry, mayHoldMore, stateTruncated, runPage, groupLimit, subgroupLimit } from '../public/now.js';
+import { nowMarkup, digestCounts, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, byWaitingSince, awayAfter, reasonGlyph, offersRetry, mayHoldMore, stateTruncated, runPage, groupLimit, subgroupLimit } from '../public/now.js';
 import { listReason } from '../public/core/reasons.js';
 import { icon } from '../public/core/icons.js';
 
@@ -126,6 +126,18 @@ test('finished Runs show outcome, agent verdict and failure in plain words, newe
   assert.match(html, /Failed<\/span><\/span><span>The worker stopped responding/);
   assert(html.indexOf('id="now-row-f-30"') < html.indexOf('id="now-row-f-31"'), 'the Run that finished last comes first');
   assert.deepEqual(byFinish([{ id: 'a', finishedAt: '2026-09-20T08:00:00Z' }, { id: 'b', finishedAt: null }, { id: 'c', finishedAt: '2026-09-20T09:00:00Z' }]).map(run => run.id), ['c', 'a', 'b']);
+});
+
+test('what waits on you lists the most recently updated Work Item first, proposals by creation', () => {
+  const rows = [
+    { id: 'a', state: 'needs_human', updatedAt: '2026-09-20T08:00:00Z' },
+    { id: 'b', state: 'needs_human', updatedAt: null },
+    { id: 'c', state: 'needs_human', updatedAt: '2026-09-29T08:00:00Z' },
+    { id: 'd', state: 'proposed', createdAt: '2026-09-25T08:00:00Z', updatedAt: '2026-09-01T08:00:00Z' },
+  ];
+  assert.deepEqual(byWaitingSince(rows).map(entry => entry.id), ['c', 'd', 'a', 'b']);
+  const html = nowMarkup(view({ data: { ...nowData(), waiting: [rows[0], rows[2]].map(entry => ({ ...entry, title: `Item ${entry.id}` })) } }), options, nowAt);
+  assert(html.indexOf('id="now-row-w-c"') < html.indexOf('id="now-row-w-a"'), 'the newer Work Item comes first');
 });
 
 test('every moment is a time element, and a running Run shows its elapsed time as a duration', () => {
@@ -440,7 +452,7 @@ test('Needs you lists a task Ploeg could not start first, says why in plain word
   assert.match(html, /ploeg: cap reviewer retries per Round/);
   assert.match(html, /The Unfold board needs a repo\/ label on this task\. Allowed: repo\/homelab-cluster, repo\/unfold\./);
   assert.match(html, /<a class="button[^"]*"[^>]*href="https:\/\/vikunja\.example\.test\/tasks\/1612"[^>]*>[\s\S]*?Open in Vikunja/, 'a primary button opens the task itself');
-  const group = html.slice(html.indexOf('Could not start'), html.indexOf('Review the rounding criteria'));
+  const group = html.slice(html.indexOf('Could not start'), html.indexOf('aria-labelledby="now-group-needs"'));
   assert.doesNotMatch(group, /Work Item/, 'a refused task is not called a Work Item');
 });
 
