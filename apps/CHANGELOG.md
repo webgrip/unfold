@@ -1,3 +1,18 @@
+## [unfold-v0.4.0-rc.41](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.40...unfold-v0.4.0-rc.41) (2026-10-05)
+
+### Added
+
+* **unfold:** add a Status page and report workspace capacity ([eee6799](https://forgejo.webgrip.dev/webgrip/unfold/commit/eee67996801b37e25b99bd7e9a89b28c9e387deb))
+
+### Fixed
+
+* **unfold:** keep Kubernetes service links out of the workbench environment ([1aeb1de](https://forgejo.webgrip.dev/webgrip/unfold/commit/1aeb1de72a0a94daf5d629dfb513559f981a5a1f))
+* **unfold:** list what waits on you on Now newest first ([cca480c](https://forgejo.webgrip.dev/webgrip/unfold/commit/cca480c9f3019a31f52f5728ba394f1717813858))
+
+### Docs
+
+* keep the name Vloer only where a reader must match it ([a8a175a](https://forgejo.webgrip.dev/webgrip/unfold/commit/a8a175aeaf1a74bfe622628502a93150f5240c5b))
+
 ## [unfold-v0.4.0-rc.40](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.39...unfold-v0.4.0-rc.40) (2026-10-04)
 
 ### Fixed
