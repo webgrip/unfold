@@ -41,9 +41,9 @@ export async function provider(options: { groups?: string[]; role?: string; wron
   return { issuer, exchanges, pendingNonce, close: () => new Promise<void>(done => server.close(() => done())) };
 }
 
-export async function workbench(t: test.TestContext, options: Parameters<typeof provider>[0] = {}) {
+export async function workbench(t: test.TestContext, options: Parameters<typeof provider>[0] & { subjectNamespace?: string } = {}) {
   const idp = await provider(options);
-  const server = await application('live', config => { config.baseUrl = undefined; (config.auth as any).oidc = { issuer: idp.issuer, clientId: 'unfold', scopes: ['openid', 'email', 'profile'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: ['unfold-admins'], operator: ['unfold-operators'], viewer: ['unfold-viewers'] } }; });
+  const server = await application('live', config => { config.baseUrl = undefined; (config.auth as any).oidc = { issuer: idp.issuer, ...(options.subjectNamespace ? { subjectNamespace: options.subjectNamespace } : {}), clientId: 'unfold', scopes: ['openid', 'email', 'profile'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: ['unfold-admins'], operator: ['unfold-operators'], viewer: ['unfold-viewers'] } }; });
   t.after(async () => { await server.close(); await idp.close(); });
   return { server, idp };
 }

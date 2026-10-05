@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { application, request } from './api-support.ts';
+import { Oidc } from '../src/oidc.ts';
+import type { AppConfig } from '../src/types.ts';
 import { provider, signIn, workbench } from './oidc-support.ts';
 
 test('a person signs in through the identity provider, gets the role their groups grant, and returns as the same user', async t => {
@@ -95,4 +97,26 @@ test('a person whose email another account already holds still signs in, under a
   const again = await request(server.url, '/api/bootstrap', { cookie: second.callback.headers.get('set-cookie')!.split(';')[0] });
   assert.equal(again.body.user.id, bootstrap.body.user.id);
   assert.equal(again.body.user.name, 'person@example.com (2)');
+});
+
+
+test('a renamed issuer keeps every account id when the subject namespace names the issuer they were created under', () => {
+  const identify = (issuer: string, subjectNamespace?: string) => new Oidc({ auth: { oidc: { issuer, ...(subjectNamespace ? { subjectNamespace } : {}), clientId: 'unfold', scopes: ['openid'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: [], operator: ['unfold-operators'], viewer: [] } } } } as unknown as AppConfig)
+    .identity({ sub: 'hashed-user-1', email: 'person@example.com', groups: ['unfold-operators'] });
+  const created = identify('https://auth.example/application/o/vloer/');
+  assert.notEqual(identify('https://auth.example/application/o/unfold/').id, created.id);
+  assert.equal(identify('https://auth.example/application/o/unfold/', 'https://auth.example/application/o/vloer/').id, created.id);
+  assert.equal(identify('https://auth.example/application/o/unfold/', 'https://auth.example/application/o/vloer').id, created.id);
+});
+
+test('after an issuer rename, a person whose account predates it signs back in to that same account under its own name', async t => {
+  const formerIssuer = 'https://auth.example/application/o/vloer/';
+  const { server, idp } = await workbench(t, { subjectNamespace: formerIssuer });
+  const formerId = 'oidc-' + createHash('sha256').update('https://auth.example/application/o/vloer|person@example.com').digest('hex').slice(0, 32);
+  server.app.store.upsertUser({ id: formerId, name: 'person@example.com', role: 'operator', passwordHash: '' });
+  const signedIn = await signIn(server, idp);
+  assert.equal(signedIn.callback.headers.get('location'), '/');
+  const bootstrap = await request(server.url, '/api/bootstrap', { cookie: signedIn.callback.headers.get('set-cookie')!.split(';')[0] });
+  assert.equal(bootstrap.body.user.id, formerId);
+  assert.equal(bootstrap.body.user.name, 'person@example.com');
 });

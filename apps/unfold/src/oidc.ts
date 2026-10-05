@@ -1,7 +1,7 @@
 import { createHash, createPublicKey, randomBytes, verify as verifySignature, type KeyObject } from 'node:crypto';
 import type { AppConfig, UserRole } from './types.ts';
 
-export type OidcSettings = { issuer: string; clientId: string; clientSecret?: string; scopes: string[]; displayName: string; roleClaim: string; groupsClaim: string; roles: Record<UserRole, string[]> };
+export type OidcSettings = { issuer: string; subjectNamespace?: string; clientId: string; clientSecret?: string; scopes: string[]; displayName: string; roleClaim: string; groupsClaim: string; roles: Record<UserRole, string[]> };
 export type OidcIdentity = { id: string; name: string; role: UserRole; subject: string; email?: string };
 type Discovery = { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string };
 type Pending = { verifier: string; nonce: string; createdAt: number; browserBinding: string; editor?: string };
@@ -157,7 +157,8 @@ export class Oidc {
     if (!role) throw new OidcError(403, 'oidc_not_entitled', `${email ?? subject} signed in, but holds none of the groups this workbench admits.`);
     const preferred = [claims.preferred_username, claims.name, email, subject].find((value): value is string => typeof value === 'string' && value.trim().length > 0)!;
     const name = preferred.trim().slice(0, 100);
-    const id = 'oidc-' + createHash('sha256').update(`${settings.issuer.replace(/\/$/, '')}|${subject}`).digest('hex').slice(0, 32);
+    const namespace = (settings.subjectNamespace ?? settings.issuer).replace(/\/$/, '');
+    const id = 'oidc-' + createHash('sha256').update(`${namespace}|${subject}`).digest('hex').slice(0, 32);
     return { id, name, role, subject, ...(email ? { email } : {}) };
   }
 }

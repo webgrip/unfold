@@ -81,3 +81,10 @@ test('observability names a Grafana, dashboards by uid and datasources by uid', 
     assert.throws(() => loadConfig(['--config', join(dir, 'bad.json')]), /observability.dashboards/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('an OIDC subject namespace is kept without its trailing slash, and an empty one is refused', async t => {
+  const oidc = { issuer: 'https://auth.example/application/o/unfold/', clientId: 'unfold' };
+  assert.equal((await load(t, { auth: { oidc } })).auth.oidc!.subjectNamespace, undefined);
+  assert.equal((await load(t, { auth: { oidc: { ...oidc, subjectNamespace: 'https://auth.example/application/o/vloer/' } } })).auth.oidc!.subjectNamespace, 'https://auth.example/application/o/vloer');
+  await assert.rejects(load(t, { auth: { oidc: { ...oidc, subjectNamespace: ' ' } } }), /auth.oidc.subjectNamespace must be a non-empty string/);
+});

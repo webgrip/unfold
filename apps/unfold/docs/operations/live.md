@@ -169,7 +169,15 @@ Register the workbench as an OAuth2 application at the estate's Authentik: a pub
 "auth": { "oidc": { "issuer": "https://auth.example/application/o/unfold/", "clientId": "unfold", "displayName": "Authentik" } }
 ```
 
-Optional keys: `roleClaim` (default `unfold_role`), `groupsClaim` (default `groups`), `roles` mapping each of admin, operator and viewer to group names (defaults `unfold-admins`, `unfold-operators`, `unfold-viewers`), `scopes`, and `clientSecretEnv` for a confidential client. Who can sign in is decided by the provider: at the second estate only Workspace accounts reach enrolment, and a person who signs in without one of the admitted groups is refused by the workbench with a message naming the group to ask for. The local password stays as the bootstrap administrator's door. The editor extension signs in through the same provider: connecting to a workbench with single sign-on offers "Sign in with Authentik", opens the browser on the workbench's own sign-in with a one-time code, and collects its session once the person has signed in, so the editor holds a session for the same identity as the browser and needs no client registration of its own.
+Optional keys: `roleClaim` (default `unfold_role`), `groupsClaim` (default `groups`), `roles` mapping each of admin, operator and viewer to group names (defaults `unfold-admins`, `unfold-operators`, `unfold-viewers`), `scopes`, `clientSecretEnv` for a confidential client, and `subjectNamespace`. Who can sign in is decided by the provider: at the second estate only Workspace accounts reach enrolment, and a person who signs in without one of the admitted groups is refused by the workbench with a message naming the group to ask for. The local password stays as the bootstrap administrator's door. The editor extension signs in through the same provider: connecting to a workbench with single sign-on offers "Sign in with Authentik", opens the browser on the workbench's own sign-in with a one-time code, and collects its session once the person has signed in, so the editor holds a session for the same identity as the browser and needs no client registration of its own.
+
+A person's account is identified by the provider's subject together with `subjectNamespace`, which defaults to the issuer. Authentik puts the application slug in the issuer, so renaming the application changes the issuer, and without a namespace every person who signs in afterwards gets a new, empty account. Set `subjectNamespace` to the issuer the accounts were created under, and keep it when the issuer changes again:
+
+```json
+"auth": { "oidc": { "issuer": "https://auth.example/application/o/unfold/", "subjectNamespace": "https://auth.example/application/o/vloer/", "clientId": "unfold" } }
+```
+
+This carries accounts across only while the provider keeps issuing the same subject for a person. Authentik's default subject mode, a hashed user id, is the same in every application of one Authentik. A provider set to a per-application subject breaks the link, and so does pointing the namespace at a different provider, which would hand one provider's accounts to another provider's people.
 
 ## Linking GitLab
 
