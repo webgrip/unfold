@@ -41,3 +41,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0025](adr-0025-unfold-asks-one-ease-question-on-anomalies-and-a-random-baseline.md) | Unfold asks one ease question on anomalies and a random baseline | accepted | 2026-10-05 |
 | [ADR-0026](adr-0026-unfold-is-an-installable-web-app-that-notifies-from-the-server.md) | Unfold is an installable web app that notifies from the server | proposed | 2026-10-05 |
 | [ADR-0027](adr-0027-unfold-checks-its-ploeg-client-against-ploegs-published-schemas.md) | Unfold checks its Ploeg client against Ploeg's published schemas | proposed | 2026-10-05 |
+| [ADR-0028](adr-0028-unfold-owns-the-run-card-and-builds-it-from-ploegs-execution-facts.md) | Unfold owns the Run card and builds it from Ploeg's execution facts | proposed | 2026-10-05 |
