@@ -105,7 +105,7 @@ Two numbers, both about work that had to be done twice.
 | Id | Gap | Proposed change | Unblocks | Status |
 | --- | --- | --- | --- | --- |
 | D1 | Review verdict, reviewer, head SHA and Forgejo pushers are recorded (ADR-0045, ADR-0058); GitLab pushes name no pusher | Read who pushed each GitLab merge request version, for example from the push events of the source branch, and store it in `pull_request_events.actor` | K5 human commits on GitLab | partly done |
-| D2 | Review effort is not recorded | Unfold's review screen reports active seconds per Work Item to Ploeg | K6 | open |
+| D2 | Review effort is not recorded | Unfold's review screen reports active seconds per Work Item to Ploeg; under [ADR-0023](../adr/adr-0023-unfold-measures-happiness-and-confusion-with-first-party-events-surveys-and-bug-reports.md) this is a product event, and the monthly 1–5 check one of its survey triggers | K6 | open |
 | D3 | `audit_log` has no index for these queries | An index on `(work_item_id, at)`, added when the dashboard becomes slow | Dashboard speed | open |
 | D4 | The merge settlement was on another branch | Merge `cfd6ec4` to development | K5, the K6 proxy | **done** |
 
