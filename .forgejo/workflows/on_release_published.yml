@@ -201,7 +201,9 @@ jobs:
           test "$(node -p "require('./apps/unfold/extensions/vscode/package.json').version")" = "$VERSION"
           npm ci --no-audit --no-fund --prefix apps/unfold/extensions/vscode
           npm --prefix apps/unfold run extension:build
-          npm --prefix apps/unfold/extensions/vscode run package -- --out "unfold-${VERSION}.vsix"
+          prerelease=()
+          [[ "$VERSION" == *-* ]] && prerelease=(--pre-release)
+          npm --prefix apps/unfold/extensions/vscode run package -- --out "unfold-${VERSION}.vsix" "${prerelease[@]}"
           test -s "apps/unfold/extensions/vscode/unfold-${VERSION}.vsix"
       - name: Verify the listing and the packaged contents
         shell: bash
@@ -251,9 +253,7 @@ jobs:
             echo "OVSX_PAT is required for the public extension release." >&2
             exit 1
           fi
-          prerelease=""
-          [[ "$VERSION" == *-* ]] && prerelease="--pre-release"
-          npx --no-install ovsx publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate $prerelease
+          npx --no-install ovsx publish --packagePath "unfold-${VERSION}.vsix" --skip-duplicate
       - name: Publish to the Visual Studio Marketplace
         shell: bash
         env:
