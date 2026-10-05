@@ -21,6 +21,7 @@ import { Collection, CollectionError } from './collection.ts';
 import { CardThemes, ThemeError } from './card-themes.ts';
 import { AssetError, assetLimits, maxImageSide, maxUploadBytes } from './card-assets.ts';
 import { CardArtError, CardArtGenerator, maxArtAttempts } from './card-art.ts';
+import { InsightService, maxEventPayloadBytes, parseInsightEvents } from './insight.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
@@ -125,6 +126,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const collection = new Collection(config, store, ploeg, config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true));
   const themes = new CardThemes(store, config);
   const cardArt = new CardArtGenerator(config);
+  const insight = new InsightService(store, config, applicationVersion);
   const knownSecrets = [config.cardThemes?.ai ? process.env[config.cardThemes.ai.keyEnv] : undefined, config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined, config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
   function sanitize<T>(value: T): T {
     if (typeof value === 'string') {
@@ -248,6 +250,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             return json(res, 200, { editors: auth.editorCredentials(user) });
           }
           fault(405, 'method', 'Unsupported method.');
+        }
+        if (method === 'POST' && path === '/api/insight/events') {
+          if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot post product events.');
+          const declared = Number(req.headers['content-length'] ?? 0);
+          if (declared > maxEventPayloadBytes) fault(413, 'insight_batch_too_large', `A batch is at most ${maxEventPayloadBytes} bytes.`);
+          const data = await body(req);
+          if (JSON.stringify(data.events ?? data).length > maxEventPayloadBytes) fault(413, 'insight_batch_too_large', `A batch is at most ${maxEventPayloadBytes} bytes.`);
+          const events = parseInsightEvents(data.events, new Date().toISOString());
+          insight.ingest(events, user);
+          return json(res, 202, { accepted: events.length });
         }
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
           user, mode: config.mode, sharedExecution: Boolean(config.execution), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
@@ -581,5 +593,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   });
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
-  return { server, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); } };
+  return { server, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => insight.stop() };
 }

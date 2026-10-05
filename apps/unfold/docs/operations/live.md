@@ -57,6 +57,11 @@ Supply credentials through the deployment's secret mechanism or a short-lived sh
 | `LITELLM_BASE_URL` | Agent inference endpoint, normally the gateway URL including `/v1` |
 | `LITELLM_ADMIN_URL` | Management API root; defaults to inference URL with trailing `/v1` removed |
 | `LITELLM_MASTER_KEY` | Gateway management credential held by the control plane |
+| `UNFOLD_INSIGHT_EXPORT` | Product-event sink: `off` (default), `faro` or `otlp` |
+| `UNFOLD_INSIGHT_EXPORT_URL` | Collector URL the server posts to; required for `faro` and `otlp` |
+| `UNFOLD_INSIGHT_EXPORT_LEVEL` | `aggregate` (default, the hourly daily rollup) or `events` (each event with its pseudonymous actor hash) |
+
+The insight export forwards product events the browser and VS Code extension post to `POST /api/insight/events` ([RFC-0001](../../../../docs/design/rfc-0001-product-events-and-confusion-signals.md)). The call is server to server, so the browser never contacts the collector and the CSP stays `'self'`. `aggregate` sends the `product_event_daily` rollup once an hour, without any actor hash; `events` sends each stored event with its 16-character base32 actor hash, which cannot be reversed to a user id without the tenant actor key. An unreachable collector is logged once an hour and never blocks or slows the event route. On the owner's homelab instance the sink is `faro` at `http://alloy-gateway.observability.svc.cluster.local:12347/collect`; the [dashboard](../../ops/grafana/unfold-insight.json) reads the events back in Grafana.
 
 Then start and sign in:
 

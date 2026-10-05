@@ -137,6 +137,26 @@ export function placements(config: AppConfig): Placement[] {
   return (config.runtime.backends ?? []).map(id => ({ id, name: names[id], isolation: isolation[id], default: id === config.runtime.backend }));
 }
 
+/**
+ * Reads the optional product-event export sink. `UNFOLD_INSIGHT_EXPORT` is `off`, `faro` or `otlp`;
+ * `UNFOLD_INSIGHT_EXPORT_URL` names the collector and is required unless the sink is off; and
+ * `UNFOLD_INSIGHT_EXPORT_LEVEL` is `aggregate` (the daily rollup) or `events` (each event with its actor hash).
+ */
+export function insightSettings(): AppConfig['insight'] {
+  const mode = process.env.UNFOLD_INSIGHT_EXPORT || 'off';
+  if (!['off', 'faro', 'otlp'].includes(mode)) throw new Error('UNFOLD_INSIGHT_EXPORT must be off, faro or otlp');
+  const url = process.env.UNFOLD_INSIGHT_EXPORT_URL;
+  if (mode === 'off') return url === undefined ? undefined : { export: 'off', level: insightLevel(process.env.UNFOLD_INSIGHT_EXPORT_LEVEL) };
+  if (!url) throw new Error('UNFOLD_INSIGHT_EXPORT_URL is required when UNFOLD_INSIGHT_EXPORT is faro or otlp');
+  return { export: mode as 'faro' | 'otlp', url: configuredUrl(url, 'UNFOLD_INSIGHT_EXPORT_URL'), level: insightLevel(process.env.UNFOLD_INSIGHT_EXPORT_LEVEL) };
+}
+
+function insightLevel(value: string | undefined): 'aggregate' | 'events' {
+  if (value === undefined || value === '') return 'aggregate';
+  if (!['aggregate', 'events'].includes(value)) throw new Error('UNFOLD_INSIGHT_EXPORT_LEVEL must be aggregate or events');
+  return value as 'aggregate' | 'events';
+}
+
 export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   const fileIndex = argv.indexOf('--config');
   const configFile = fileIndex >= 0 ? argv[fileIndex + 1] : process.env.UNFOLD_CONFIG;
@@ -265,6 +285,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     links,
     gatewayPolicy,
     observability,
+    insight: insightSettings(),
     cards,
     cardThemes: cardThemeSettings(raw.cardThemes, mode),
     litellm: litellmBase && (adminKey || raw.execution) ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined

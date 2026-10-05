@@ -47,7 +47,12 @@ export type AppConfig = {
   cards?: { backfillPeriods: number; teams: Record<string, { lengthDays: number; anchor: string }> };
   cardThemes?: { directory?: string; assetQuotaMb: number; ai?: { baseUrl: string; model: string; keyEnv: string; maxTokens: number; timeoutMs: number; requestsPerHour: number } };
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; traceQuery?: string; logsQuery?: string };
+  insight?: InsightConfig;
 };
+
+export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
+/** One product event the browser or VS Code extension posted, after the catalogue checked it. */
+export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: string; shiftId?: string; props: Record<string, string | number | boolean> };
 export type RuntimeEvent = { type: string; data: Record<string, unknown> };
 export type Emit = (event: RuntimeEvent) => void;
 export type Credential = { key: string; alias: string; budgetUsd: number; reference: string };

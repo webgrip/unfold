@@ -88,3 +88,26 @@ test('an OIDC subject namespace is kept without its trailing slash, and an empty
   assert.equal((await load(t, { auth: { oidc: { ...oidc, subjectNamespace: 'https://auth.example/application/o/vloer/' } } })).auth.oidc!.subjectNamespace, 'https://auth.example/application/o/vloer');
   await assert.rejects(load(t, { auth: { oidc: { ...oidc, subjectNamespace: ' ' } } }), /auth.oidc.subjectNamespace must be a non-empty string/);
 });
+
+test('the insight export defaults off, needs a collector URL for faro and otlp, and takes an aggregate or events level', async t => {
+  const keys = ['UNFOLD_INSIGHT_EXPORT', 'UNFOLD_INSIGHT_EXPORT_URL', 'UNFOLD_INSIGHT_EXPORT_LEVEL'] as const;
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  t.after(() => { for (const key of keys) { if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key]; } });
+  for (const key of keys) delete process.env[key];
+  assert.equal((await load(t, {})).insight, undefined, 'off with no URL leaves the sink unset');
+  process.env.UNFOLD_INSIGHT_EXPORT = 'faro';
+  process.env.UNFOLD_INSIGHT_EXPORT_URL = 'http://alloy-gateway.observability.svc.cluster.local:12347/collect';
+  assert.deepEqual((await load(t, {})).insight, { export: 'faro', url: 'http://alloy-gateway.observability.svc.cluster.local:12347/collect', level: 'aggregate' });
+  process.env.UNFOLD_INSIGHT_EXPORT_LEVEL = 'events';
+  assert.equal((await load(t, {})).insight?.level, 'events');
+  process.env.UNFOLD_INSIGHT_EXPORT = 'otlp';
+  assert.equal((await load(t, {})).insight?.export, 'otlp');
+  delete process.env.UNFOLD_INSIGHT_EXPORT_URL;
+  await assert.rejects(load(t, {}), /UNFOLD_INSIGHT_EXPORT_URL is required/);
+  process.env.UNFOLD_INSIGHT_EXPORT_URL = 'http://collector.example/collect';
+  process.env.UNFOLD_INSIGHT_EXPORT = 'console';
+  await assert.rejects(load(t, {}), /UNFOLD_INSIGHT_EXPORT must be off, faro or otlp/);
+  process.env.UNFOLD_INSIGHT_EXPORT = 'faro';
+  process.env.UNFOLD_INSIGHT_EXPORT_LEVEL = 'every';
+  await assert.rejects(load(t, {}), /UNFOLD_INSIGHT_EXPORT_LEVEL must be aggregate or events/);
+});
