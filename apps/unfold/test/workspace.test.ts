@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { RuntimeFailure, classifyFailure } from '../src/failures.ts';
 import { WorkspaceManager, isolatedEnvironment, managedConfig } from '../src/runtime/workspace.ts';
-import { KubernetesWorkspaces, workspaceManifests, candidateExportManifest } from '../src/runtime/kubernetes.ts';
+import { KubernetesWorkspaces, workspaceManifests, candidateExportManifest, podWait } from '../src/runtime/kubernetes.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
 import { deadlineAfter } from './timeframes.ts';
 
@@ -79,6 +79,54 @@ test('Kubernetes lifecycle provisions real API resource shapes and retains PVC o
   assert.equal(objects.size, 1);
   assert.equal([...objects.values()][0].kind, 'PersistentVolumeClaim');
   assert.ok(calls.some(call => call.startsWith('POST /apis/networking.k8s.io/')));
+});
+
+function pendingPodClient(status: Record<string, unknown>) {
+  const objects = new Map<string, any>();
+  return { async request(path: string, method = 'GET', body?: any) {
+    if (method === 'GET') return objects.get(path);
+    if (method === 'DELETE') { objects.delete(path); return {}; }
+    const object = structuredClone(body);
+    object.metadata.resourceVersion = '1';
+    if (object.kind === 'Pod') object.status = structuredClone(status);
+    objects.set(method === 'POST' ? path + '/' + object.metadata.name : path, object);
+    return object;
+  } };
+}
+
+const unschedulable = { phase: 'Pending', conditions: [{ type: 'PodScheduled', status: 'False', reason: 'Unschedulable', message: '0/6 nodes are available: 1 Insufficient cpu, 2 Insufficient memory.' }] };
+
+test('a workspace Pod no node has room for reports capacity while it waits and fails as capacity', async () => {
+  const config = configuration();
+  config.kubernetes!.provisionTimeoutMs = 1500;
+  const manager = new KubernetesWorkspaces(config, pendingPodClient(unschedulable) as any);
+  const preparing = manager.prepare(session, repository, credential, new AbortController().signal, managedConfig(config));
+  const caught = preparing.catch(error => error);
+  const until = deadlineAfter(1000);
+  while (!manager.provisioning().length && Date.now() < until) await new Promise(done => setTimeout(done, 50));
+  assert.deepEqual(manager.provisioning().map(wait => [wait.sessionId, wait.phase, wait.reason]), [[session.id, 'capacity', unschedulable.conditions[0].message]]);
+  const error = await caught;
+  assert.ok(error instanceof RuntimeFailure);
+  assert.equal(error.category, 'capacity');
+  assert.equal(error.promptAcceptance, 'not_submitted');
+  assert.match(error.detail!, /Insufficient memory/);
+  assert.deepEqual(manager.provisioning(), []);
+});
+
+test('pod waits read storage binding as scheduling and image pull errors as an unavailable image', () => {
+  assert.deepEqual(podWait({ status: { conditions: [{ type: 'PodScheduled', status: 'False', reason: 'Unschedulable', message: 'pod has unbound immediate PersistentVolumeClaims' }] } }), { phase: 'scheduling' });
+  assert.deepEqual(podWait({ status: { conditions: [{ type: 'PodScheduled', status: 'True' }], containerStatuses: [{ state: { waiting: { reason: 'ImagePullBackOff', message: 'Back-off pulling image' } } }] } }), { phase: 'image_unavailable', reason: 'ImagePullBackOff: Back-off pulling image' });
+  assert.deepEqual(podWait({ status: { conditions: [{ type: 'PodScheduled', status: 'True' }], initContainerStatuses: [{ state: { running: {} } }] } }), { phase: 'starting' });
+  assert.deepEqual(podWait(undefined), { phase: 'scheduling' });
+});
+
+test('a workspace image that cannot be pulled fails as a missing executable', async () => {
+  const config = configuration();
+  config.kubernetes!.provisionTimeoutMs = 700;
+  const manager = new KubernetesWorkspaces(config, pendingPodClient({ phase: 'Pending', conditions: [{ type: 'PodScheduled', status: 'True' }], initContainerStatuses: [{ state: { waiting: { reason: 'ErrImagePull', message: 'not found' } } }] }) as any);
+  const error = await manager.prepare(session, repository, credential, new AbortController().signal, managedConfig(config)).catch(caught => caught);
+  assert.equal(error.category, 'missing_executable');
+  assert.match(error.detail!, /ErrImagePull: not found/);
 });
 
 test('local command workspace clones once and preserves human changes on resume', async t => {

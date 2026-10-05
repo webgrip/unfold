@@ -23,6 +23,7 @@ const groups = [
     { id: 'runs', href: '#runs', glyph: 'runs', label: 'Runs' },
     { id: 'activity', href: '#activity', glyph: 'activity', label: 'Activity' },
     { id: 'insights', href: '#insights', glyph: 'insights', label: 'Insights' },
+    { id: 'status', href: '#status', glyph: 'check-circle', label: 'Status' },
     { id: 'sessions', href: '#sessions', glyph: 'sessions', label: 'Sessions', count: 'sessions', describe: n => `${n} ${n === 1 ? 'needs' : 'need'} you`, tone: 'attention', when: () => showsSessions() },
   ] },
   { id: 'settings', items: [{ id: 'settings', href: '#settings/preferences', glyph: 'settings', label: 'Settings' }] },

@@ -12,6 +12,7 @@ import { protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
 import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
+import { StatusBoard, gatewayProbe } from './status.ts';
 import { PloegClient, PloegError, contextInput, contextUploadLimit, type PloegDecision, type PloegState } from './ploeg.ts';
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
@@ -111,6 +112,14 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const ploeg = new PloegClient(config);
   const delivery = new DeliveryService(config, store);
   const handoff = new TaskHandoff(config, ploeg);
+  const status = new StatusBoard(config, store, () => engine.provisioning(), {
+    gateway: gatewayProbe(config),
+    ploeg: async user => {
+      if (!config.ploeg && config.mode !== 'demo') return 'unconfigured';
+      try { await ploeg.teams(user, true); return 'ok'; }
+      catch (error) { return error instanceof PloegError && error.code === 'ploeg_unconfigured' ? 'unconfigured' : error instanceof PloegError && error.status === 403 ? 'ok' : 'down'; }
+    },
+  });
   const streams = new Set<ServerResponse>();
   const staticFiles = new StaticFiles(config.publicDir);
   const collection = new Collection(config, store, ploeg, config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true));
@@ -249,6 +258,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           placements: placements(config),
           maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions
         }));
+        if (method === 'GET' && path === '/api/status') return json(res, 200, sanitize(await status.report(user)));
+        if (method === 'POST' && path === '/api/status/notes') return json(res, 201, sanitize(status.addNote(user, await body(req))));
+        const statusNote = path.match(/^\/api\/status\/notes\/([0-9a-f-]{36})\/resolve$/);
+        if (method === 'POST' && statusNote) return json(res, 200, sanitize(status.resolveNote(user, statusNote[1])));
         if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: applicationVersion, runtimes: runtimeKinds, litellm: Boolean(config.litellm), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined, workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend, workspaceBackends: placements(config).map(item => item.id) });
         if (path === '/api/agent-host' || path === '/api/agent-host/tokens') {
           if (!agentHost) fault(404, 'agent_host_disabled', 'The agent host is not enabled on this workbench.');

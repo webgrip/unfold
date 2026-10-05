@@ -427,6 +427,8 @@ function briefMarkup(session) {
   return card({ id: 'session-brief', title: 'Brief', subtitle: task.title && task.title !== session.title ? task.title : undefined, actions, body });
 }
 
+const statusCauses = new Set(['capacity', 'timeout', 'connectivity', 'missing_executable', 'gateway_rejected']);
+
 function failureMarkup(session) {
   const failure = session.failure;
   if (!failure && !session.blocker && session.status !== 'interrupted') return '';
@@ -434,7 +436,8 @@ function failureMarkup(session) {
   const message = failure?.message || session.blocker || 'The runtime stopped before the role finished. Resume to continue; nothing restarts on its own.';
   const { steps, notes } = remediationSteps(failure?.remediation);
   const reconciling = session.status === 'failed' && canOperate() && session.costStatus === 'unknown';
-  const actions = session.status === 'failed' && canOperate() ? `${session.costStatus !== 'unknown' ? button({ label: 'Try again', icon: 'refresh', variant: 'primary', action: 'retry' }) : ''}${button({ label: 'Duplicate as a new session', icon: 'copy', action: 'duplicate' })}` : '';
+  const statusLink = statusCauses.has(failure?.category) ? button({ label: 'Open Status', icon: 'check-circle', href: '#status' }) : '';
+  const actions = session.status === 'failed' && canOperate() ? `${session.costStatus !== 'unknown' ? button({ label: 'Try again', icon: 'refresh', variant: 'primary', action: 'retry' }) : ''}${button({ label: 'Duplicate as a new session', icon: 'copy', action: 'duplicate' })}${statusLink}` : statusLink;
   const facts = [submissions[failure?.promptAcceptance], failure?.automaticRetry === false ? 'No automatic retry will be started.' : '', reconciling ? 'Try again becomes available once spend is reconciled.' : ''].filter(Boolean);
   const body = [
     `<p class="session-failure-lead">${escape(message)}</p>`,

@@ -8,6 +8,8 @@ export type StoredUser = User & { passwordHash: string };
 export type Login = { tokenHash: string; userId: string; expiresAt: string };
 /** A credential issued to one editor after its person approved the sign-in in a browser. The token itself is never stored. */
 export type EditorCredential = { id: string; tokenHash: string; userId: string; label: string; scope: 'editor'; createdAt: string; expiresAt: string; lastUsedAt?: string };
+/** A note an administrator posts on the Status page while something affects the workbench. */
+export type StatusNote = { id: string; severity: 'info' | 'degraded' | 'outage'; text: string; author: string; createdAt: string; resolvedAt?: string; resolvedBy?: string };
 
 function eventFromRow(row: Record<string, unknown>): Event {
   return { id: Number(row.id), sessionId: String(row.session_id), type: String(row.type), at: String(row.at), actor: String(row.actor), ...(row.run_id ? { runId: String(row.run_id) } : {}), data: JSON.parse(String(row.data)) };
@@ -51,6 +53,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS card_themes (id TEXT PRIMARY KEY, version INTEGER NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT NOT NULL, body TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS card_theme_versions (theme_id TEXT NOT NULL, version INTEGER NOT NULL, saved_at TEXT NOT NULL, saved_by TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(theme_id, version));
       CREATE TABLE IF NOT EXISTS card_assets (id TEXT PRIMARY KEY, purpose TEXT NOT NULL, media_type TEXT NOT NULL, bytes INTEGER NOT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL, content BLOB NOT NULL);
+      CREATE TABLE IF NOT EXISTS status_notes (id TEXT PRIMARY KEY, severity TEXT NOT NULL, text TEXT NOT NULL, author TEXT NOT NULL, created_at TEXT NOT NULL, resolved_at TEXT, resolved_by TEXT);
     `);
   }
 
@@ -107,6 +110,32 @@ export class Store {
 
   /** Runs one trivial query, proving the database answers without reading or decrypting any stored record. */
   ping(): void { this.db.prepare('SELECT 1').get(); }
+
+  /** When an event of `type` was last recorded for any session. */
+  lastEventAt(type: string): string | undefined {
+    const row = this.db.prepare('SELECT at FROM events WHERE type=? ORDER BY id DESC LIMIT 1').get(type) as { at: string } | undefined;
+    return row?.at;
+  }
+
+  addStatusNote(note: StatusNote): void {
+    this.db.prepare('INSERT INTO status_notes(id,severity,text,author,created_at) VALUES(?,?,?,?,?)').run(note.id, note.severity, note.text, note.author, note.createdAt);
+  }
+
+  resolveStatusNote(id: string, by: string, at: string): StatusNote | undefined {
+    this.db.prepare('UPDATE status_notes SET resolved_at=?, resolved_by=? WHERE id=? AND resolved_at IS NULL').run(at, by, id);
+    return this.statusNote(this.db.prepare('SELECT * FROM status_notes WHERE id=?').get(id));
+  }
+
+  /** Open notes and the notes resolved after `resolvedSince`, newest first. */
+  statusNotes(resolvedSince: string): StatusNote[] {
+    return this.db.prepare('SELECT * FROM status_notes WHERE resolved_at IS NULL OR resolved_at>=? ORDER BY created_at DESC, id').all(resolvedSince).map(row => this.statusNote(row)!);
+  }
+
+  private statusNote(row: unknown): StatusNote | undefined {
+    if (!row) return undefined;
+    const value = row as Record<string, string | null>;
+    return { id: value.id!, severity: value.severity as StatusNote['severity'], text: value.text!, author: value.author!, createdAt: value.created_at!, ...(value.resolved_at ? { resolvedAt: value.resolved_at } : {}), ...(value.resolved_by ? { resolvedBy: value.resolved_by } : {}) };
+  }
 
   savePermission(request: PermissionRequest): void {
     this.db.prepare('INSERT INTO permissions(id,session_id,body) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(request.id, request.sessionId, JSON.stringify(request));

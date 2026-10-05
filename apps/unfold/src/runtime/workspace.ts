@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdir, writeFile, access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { gitAccessVariables } from './git-access.ts';
-import type { AppConfig, Credential, Repository, Session, Workspace, WorkspaceBackend } from '../types.ts';
+import type { AppConfig, Credential, Repository, Session, Workspace, WorkspaceBackend, WorkspaceWait } from '../types.ts';
 import { KubernetesWorkspaces } from './kubernetes.ts';
 import { DockerWorkspaces } from './docker.ts';
 import { WorkerRelay } from './relay.ts';
@@ -116,6 +116,10 @@ export class WorkspaceManager {
     const backends = config.runtime.backends ?? [config.runtime.backend];
     if (backends.includes('kubernetes')) this.kubernetes = options.kubernetes ?? (config.kubernetes?.provisioner === 'sandbox' ? new SandboxWorkspaces(config, undefined, this.relay) : new KubernetesWorkspaces(config, undefined, this.relay));
     if (backends.includes('docker')) this.docker = options.docker ?? new DockerWorkspaces(config, undefined, process.env, this.relay);
+  }
+
+  provisioning(): WorkspaceWait[] {
+    return this.kubernetes && 'provisioning' in this.kubernetes ? this.kubernetes.provisioning() : [];
   }
 
   transport(workspace: Workspace): typeof fetch | undefined {

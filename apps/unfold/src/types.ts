@@ -24,6 +24,8 @@ export type SessionOutcome = { work: 'change' | 'investigation'; candidate: 'cap
 export type ExecutionBinding = { id: string; workItemId: string; team: string; state: string; revision: number; generation: number; supervision: 'human' | 'background'; expiresAt: string; stopConfirmed: boolean };
 export type Session = { execution?: ExecutionBinding; id: string; title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; approval?: 'manual' | 'auto'; model?: string; ownerId: string; ownerName: string; status: SessionStatus; budgetUsd: number; spentUsd: number; observedUsd?: number; usage?: ModelUsage[]; requests?: GatewayRequest[]; review?: SessionReview; costStatus: 'demo' | 'pending' | 'settled' | 'unknown'; createdAt: string; updatedAt: string; branch: string; trackerUrl?: string; sourceTask?: TaskSnapshot; candidate?: Candidate; outcome?: SessionOutcome; workspace?: Workspace; runs: Run[]; artifacts: Artifact[]; blocker?: string; failure?: ExecutionFailure };
 export type Event = { id: number; sessionId: string; type: string; at: string; actor: string; runId?: string; data: Record<string, unknown> };
+export type WorkspaceWaitPhase = 'scheduling' | 'capacity' | 'image_unavailable' | 'starting' | 'connecting';
+export type WorkspaceWait = { sessionId: string; phase: WorkspaceWaitPhase; since: string; reason?: string };
 export type Workspace = { id: string; backend: 'demo' | 'local' | 'external' | 'docker' | 'kubernetes'; directory: string; endpoint?: string; nativeSessionId?: string; metadata?: Record<string, string> };
 export type PermissionRequest = { id: string; sessionId: string; runId: string; nativeId: string; kind: 'permission' | 'question'; title: string; detail: string; options?: string[]; questions?: unknown[]; resolved?: boolean };
 export type ModelConfig = { id: string; name: string; providerId: string; modelId: string };
@@ -54,6 +56,7 @@ export type ExecutionResult = { summary: string; verdict?: 'approve' | 'request_
 export interface AgentRuntime {
   kind: RuntimeKind;
   prepare(session: Session, repository: Repository, credential: Credential | undefined, signal: AbortSignal): Promise<Workspace>;
+  provisioning?(): WorkspaceWait[];
   execute(context: ExecutionContext): Promise<ExecutionResult>;
   captureCandidate?(session: Session, repository: Repository): Promise<Candidate>;
   respond?(workspace: Workspace, request: PermissionRequest, answer: { decision?: 'once' | 'always' | 'reject'; answers?: string[][] }): Promise<void>;

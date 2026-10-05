@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { unavailableCandidate, type Candidate } from '../candidates.ts';
 import { setTimeout as delay } from 'node:timers/promises';
-import type { AgentRuntime, AppConfig, Artifact, Credential, ExecutionContext, ExecutionResult, PermissionRequest, Repository, Session, Workspace } from '../types.ts';
+import type { AgentRuntime, AppConfig, Artifact, Credential, ExecutionContext, ExecutionResult, PermissionRequest, Repository, Session, Workspace, WorkspaceWait } from '../types.ts';
 import { WorkspaceManager } from './workspace.ts';
 import { RuntimeFailure, classifyFailure, transportFailure, type PromptAcceptance } from '../failures.ts';
 
 export interface RuntimeWorkspaces {
   prepare(session: Session, repository: Repository, credential: Credential | undefined, signal: AbortSignal): Promise<Workspace>;
+  provisioning?(): WorkspaceWait[];
   credentials(workspace: Workspace): { username: string; password: string } | undefined;
   executionEnvironment(workspace: Workspace): Record<string, string>;
   dispose(workspace: Workspace): Promise<void>;
@@ -87,6 +88,8 @@ export class OpenCodeRuntime implements AgentRuntime {
   prepare(session: Session, repository: Repository, credential: Credential | undefined, signal: AbortSignal): Promise<Workspace> {
     return this.workspaces.prepare(session, repository, credential, signal);
   }
+
+  provisioning(): WorkspaceWait[] { return this.workspaces.provisioning?.() ?? []; }
 
   private url(workspace: Workspace, path: string): URL {
     if (!workspace.endpoint) throw new Error('The OpenCode workspace has no endpoint');

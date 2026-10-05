@@ -1,4 +1,4 @@
-export type FailureCategory = 'missing_executable' | 'workspace_setup' | 'gateway_rejected' | 'budget_exhausted' | 'policy_violation' | 'runaway' | 'harness_rejected' | 'connectivity' | 'timeout' | 'cancelled' | 'prompt_acceptance_unknown' | 'runtime_failure' | 'review_incomplete' | 'input_unresolved';
+export type FailureCategory = 'missing_executable' | 'workspace_setup' | 'capacity' | 'gateway_rejected' | 'budget_exhausted' | 'policy_violation' | 'runaway' | 'harness_rejected' | 'connectivity' | 'timeout' | 'cancelled' | 'prompt_acceptance_unknown' | 'runtime_failure' | 'review_incomplete' | 'input_unresolved';
 export type FailureStage = 'credentials' | 'workspace' | 'runtime' | 'prompt' | 'execution';
 export type PromptAcceptance = 'not_submitted' | 'rejected' | 'accepted' | 'unknown';
 export type ExecutionFailure = { category: FailureCategory; stage: FailureStage; message: string; remediation: string; promptAcceptance: PromptAcceptance; automaticRetry: false; detail?: string };
@@ -20,7 +20,8 @@ export function safeDetail(value: unknown): string | undefined {
   return cleaned.length > maxDetailChars ? '…' + cleaned.slice(-maxDetailChars) : cleaned;
 }
 
-const descriptions: Record<FailureCategory, { message: string; remediation: string }> = {
+const descriptions: Record<FailureCategory, { message: string; remediation: string; beforePrompt?: string }> = {
+  capacity: { message: 'No machine had room to start the workspace.', remediation: 'Try again in a few minutes. The Status page shows when there is room again.' },
   missing_executable: { message: 'A required runtime or workspace executable is unavailable.', remediation: 'Ask an administrator to check the configured executable, its permissions and the workspace image before starting new work.' },
   workspace_setup: { message: 'The workspace could not be prepared.', remediation: 'Check the registered repository, clone access, workspace storage and provisioning policy. Inspect restricted infrastructure logs using the session identifier.' },
   budget_exhausted: { message: 'The session budget is exhausted at the model gateway.', remediation: 'Authorize more budget and resume. The gateway settles the spend it already recorded within a minute.' },
@@ -28,8 +29,8 @@ const descriptions: Record<FailureCategory, { message: string; remediation: stri
   policy_violation: { message: 'A model request left the providers or regions this workbench allows.', remediation: 'The session was stopped and its gateway credential revoked. Check the gateway route for the model and the workbench policy before starting new work.' },
   gateway_rejected: { message: 'The model gateway rejected a request.', remediation: 'Ask an administrator to check the registered model route, scoped credential, budget and gateway policy. Reconcile prior spend before starting new work.' },
   harness_rejected: { message: 'The agent runtime rejected a request or reported a failure.', remediation: 'Check runtime authentication, model configuration and adapter compatibility. Inspect the retained evidence and reconcile spend before starting new work.' },
-  connectivity: { message: 'The required service could not be reached or its response was interrupted.', remediation: 'Check service health, DNS, TLS and permitted network egress. Inspect the remote session and reconcile spend before starting new work.' },
-  timeout: { message: 'The operation exceeded its configured time limit.', remediation: 'Check workspace readiness, service health and the configured timeout. Confirm the remote turn has stopped and reconcile spend before starting new work.' },
+  connectivity: { message: 'The required service could not be reached or its response was interrupted.', remediation: 'Check service health, DNS, TLS and permitted network egress. Inspect the remote session and reconcile spend before starting new work.', beforePrompt: 'Check service health, DNS, TLS and permitted network egress. The Status page shows what is affected right now.' },
+  timeout: { message: 'The operation exceeded its configured time limit.', remediation: 'Check workspace readiness, service health and the configured timeout. Confirm the remote turn has stopped and reconcile spend before starting new work.', beforePrompt: 'Check workspace readiness, service health and the configured timeout. The Status page shows what is affected right now.' },
   cancelled: { message: 'The operator requested execution to stop.', remediation: 'Wait for interruption and spending reconciliation before an explicit resume. Cancellation never schedules replacement work.' },
   prompt_acceptance_unknown: { message: 'Prompt acceptance is unknown; the runtime may already have started paid work.', remediation: 'Do not resubmit the prompt. Confirm the remote turn has stopped, inspect its evidence and reconcile gateway spend before deciding whether to start new work.' },
   runtime_failure: { message: 'Execution failed without a recognized safe diagnosis.', remediation: 'Inspect the retained evidence and restricted runtime logs using the session identifier. Confirm interruption and reconcile spend before starting new work.' },
@@ -45,7 +46,8 @@ export function executionFailure(category: FailureCategory, stage: FailureStage,
   const safeStage = stages.has(stage) ? stage : 'execution';
   const safeAcceptance = acceptances.has(promptAcceptance) ? promptAcceptance : 'unknown';
   const safe = safeDetail(detail);
-  return { category: safeCategory, stage: safeStage, ...descriptions[safeCategory], promptAcceptance: safeAcceptance, automaticRetry: false, ...(safe ? { detail: safe } : {}) };
+  const { message, remediation, beforePrompt } = descriptions[safeCategory];
+  return { category: safeCategory, stage: safeStage, message, remediation: safeAcceptance === 'not_submitted' && beforePrompt ? beforePrompt : remediation, promptAcceptance: safeAcceptance, automaticRetry: false, ...(safe ? { detail: safe } : {}) };
 }
 
 export class RuntimeFailure extends Error {

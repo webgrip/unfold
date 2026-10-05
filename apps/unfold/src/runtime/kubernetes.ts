@@ -5,7 +5,7 @@ import { stripTypeScriptTypes } from 'node:module';
 import { persistRemoteCandidate, unavailableCandidate, type Candidate, type CandidateManifest } from '../candidates.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { RuntimeFailure, transportFailure } from '../failures.ts';
-import type { AppConfig, Credential, Repository, Session, Workspace } from '../types.ts';
+import type { AppConfig, Credential, Repository, Session, Workspace, WorkspaceWait, WorkspaceWaitPhase } from '../types.ts';
 import { WorkerRelay, relayEndpoint } from './relay.ts';
 
 type KubernetesConfig = NonNullable<AppConfig['kubernetes']> & {
@@ -20,6 +20,25 @@ type KubernetesObject = Record<string, any>;
 
 export function workspaceName(sessionId: string): string {
   return 'unfold-' + createHash('sha256').update(sessionId).digest('hex').slice(0, 24);
+}
+
+const imagePullReasons = new Set(['ErrImagePull', 'ImagePullBackOff', 'InvalidImageName']);
+
+/** Reads why a workspace Pod is not ready yet from its scheduling condition and container states. */
+export function podWait(pod: KubernetesObject | undefined): { phase: WorkspaceWaitPhase; reason?: string } {
+  const scheduled = pod?.status?.conditions?.find((item: any) => item.type === 'PodScheduled');
+  if (scheduled?.status === 'False' && scheduled.reason === 'Unschedulable' && !/PersistentVolumeClaim/.test(String(scheduled.message ?? ''))) return { phase: 'capacity', reason: scheduled.message };
+  if (scheduled?.status !== 'True') return { phase: 'scheduling' };
+  const statuses = [...(pod!.status.initContainerStatuses ?? []), ...(pod!.status.containerStatuses ?? [])];
+  const pulling = statuses.map((item: any) => item.state?.waiting).find((waiting: any) => imagePullReasons.has(waiting?.reason));
+  if (pulling) return { phase: 'image_unavailable', reason: [pulling.reason, pulling.message].filter(Boolean).join(': ') };
+  return { phase: 'starting' };
+}
+
+export function waitFailure(wait: { phase: WorkspaceWaitPhase; reason?: string } | undefined): RuntimeFailure {
+  if (wait?.phase === 'capacity') return new RuntimeFailure('capacity', 'workspace', 'not_submitted', undefined, wait.reason);
+  if (wait?.phase === 'image_unavailable') return new RuntimeFailure('missing_executable', 'workspace', 'not_submitted', undefined, wait.reason);
+  return new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, wait ? `The workspace was still ${wait.phase} when the time limit ran out.${wait.reason ? `\n${wait.reason}` : ''}` : undefined);
 }
 
 export class KubernetesClient {
@@ -234,6 +253,7 @@ export class KubernetesWorkspaces {
   readonly passwords = new Map<string, BasicCredentials>();
   readonly tokens = new Map<string, string>();
   readonly relay: WorkerRelay;
+  readonly waits = new Map<string, WorkspaceWait>();
 
   constructor(config: AppConfig, client?: KubernetesClient, relay: WorkerRelay = new WorkerRelay()) {
     if (!config.kubernetes) throw new Error('Kubernetes workspace configuration missing');
@@ -244,6 +264,13 @@ export class KubernetesWorkspaces {
   }
 
   credentials(workspace: Workspace): BasicCredentials | undefined { return this.passwords.get(workspace.id); }
+
+  provisioning(): WorkspaceWait[] { return [...this.waits.values()]; }
+
+  private observe(sessionId: string, wait: { phase: WorkspaceWaitPhase; reason?: string }): void {
+    const current = this.waits.get(sessionId);
+    this.waits.set(sessionId, { sessionId, phase: wait.phase, since: current?.phase === wait.phase ? current.since : new Date().toISOString(), ...(wait.reason ? { reason: wait.reason } : {}) });
+  }
 
   private relayBinding(sessionId: string): RelayBinding | undefined {
     if (this.kube.transport !== 'pull') return undefined;
@@ -292,7 +319,7 @@ export class KubernetesWorkspaces {
         const pod = await this.client.request(this.path('Pod', name));
         if (pod.status?.phase === 'Failed' || pod.status?.phase === 'Succeeded') throw new Error('Workspace agent exited before readiness');
         if (pod.status?.conditions?.some((item: any) => item.type === 'Ready' && item.status === 'True')) {
-          if (relay && !this.relay.connected(session.id, 5000)) { await new Promise(done => setTimeout(done, 500)); continue; }
+          if (relay && !this.relay.connected(session.id, 5000)) { this.observe(session.id, { phase: 'connecting' }); await new Promise(done => setTimeout(done, 500)); continue; }
           this.passwords.set(session.id, basic);
           let baseSha = session.workspace?.metadata?.baseSha;
           if (!baseSha && !session.workspace) {
@@ -302,12 +329,15 @@ export class KubernetesWorkspaces {
           }
           return { id: session.id, backend: 'kubernetes', directory: '/workspace/repository', endpoint: relay ? relayEndpoint(session.id) : `http://${name}.${this.kube.namespace}.svc:4096`, metadata: { namespace: this.kube.namespace, pod: name, transport: relay ? 'pull' : 'service', ...(baseSha ? { baseSha } : {}) } };
         }
+        this.observe(session.id, podWait(pod));
         await new Promise(done => setTimeout(done, 500));
       }
-      throw new RuntimeFailure('timeout', 'workspace');
+      throw waitFailure(this.waits.get(session.id));
     } catch (error) {
       await this.dispose({ id: session.id, backend: 'kubernetes', directory: '/workspace/repository' }).catch(() => {});
       throw error;
+    } finally {
+      this.waits.delete(session.id);
     }
   }
 
