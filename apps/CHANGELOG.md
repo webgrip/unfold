@@ -1,3 +1,22 @@
+## [unfold-v0.4.0-rc.43](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.42...unfold-v0.4.0-rc.43) (2026-10-06)
+
+### Added
+
+* **actions:** Update all non-major dependencies ([ed00933](https://forgejo.webgrip.dev/webgrip/unfold/commit/ed009336fe77f424806121ee8b1943cdc7674c52))
+* **deps:** update all non-major dependencies ([41c3ba0](https://forgejo.webgrip.dev/webgrip/unfold/commit/41c3ba07be77273ac4e2650cd9baa9a6ae28515f))
+
+### Fixed
+
+* **ci:** repair development after Renovate [#247](https://forgejo.webgrip.dev/webgrip/unfold/issues/247) and [#248](https://forgejo.webgrip.dev/webgrip/unfold/issues/248) ([d033d22](https://forgejo.webgrip.dev/webgrip/unfold/commit/d033d227d95f76671ab765450a29160309971fa4))
+
+### Docs
+
+* add a Report a problem issue template ([91cd503](https://forgejo.webgrip.dev/webgrip/unfold/commit/91cd503bee5df55e01b48a34a55662cb2204c936))
+
+### Tests
+
+* **unfold:** probe writer liveness by signal where /proc does not exist ([4abc871](https://forgejo.webgrip.dev/webgrip/unfold/commit/4abc8717cd51686e0c03f37176224810086e7fc6))
+
 ## [unfold-v0.4.0-rc.42](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.41...unfold-v0.4.0-rc.42) (2026-10-05)
 
 ### Added
