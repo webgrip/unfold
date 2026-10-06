@@ -13,6 +13,7 @@ import { renderLogin, takeReturnHash } from './views/login.js';
 import { updateChrome, updateLiveState, closeTransientChrome, handleChromeClick, handleChromeFocusOut, dismissRailTip } from './shell.js';
 import { refreshCounts, onCountsChange } from './core/counts.js';
 import { linkFailure } from './views/account.js';
+import { insight, startInsight, linkOutTarget, screenFields } from './core/insight.js';
 
 const registry = createRegistry(views);
 const landing = 'now';
@@ -52,9 +53,12 @@ async function route() {
   state.ploegRequest++;
   try {
     const found = findRoute(registry, path);
-    if (found?.view.enter) return await found.view.enter({ ...found.params, query });
-    await openPage(found ? found.view.id : landing);
-    for (const page of registry.pages) if (page.load && state.view === page.id) await page.load();
+    if (found?.view.enter) await found.view.enter({ ...found.params, query });
+    else {
+      await openPage(found ? found.view.id : landing);
+      for (const page of registry.pages) if (page.load && state.view === page.id) await page.load();
+    }
+    insight.track('screen.viewed', screenFields(state.view, path));
   } catch (error) { if (error.status !== 401) notify(error.message, true); if (state.bootstrap) { state.view = landing; registry.views.get(landing).render(); } }
 }
 
@@ -69,13 +73,13 @@ async function boot() {
   const params = new URLSearchParams(location.search);
   const linkNotice = params.get('linked') ? `${({ gitlab: 'GitLab', clickup: 'ClickUp' })[params.get('linked')] || params.get('linked')} is linked to your account.` : params.get('link_error') ? linkFailure(params.get('link_error')) : '';
   if (linkNotice) history.replaceState(null, '', `${location.pathname}#settings/accounts`);
-  try { state.bootstrap = await api('/api/bootstrap'); state.sessions = await api('/api/sessions'); const returnTo = takeReturnHash(); if (returnTo && (!location.hash || location.hash === '#now')) history.replaceState(null, '', `${location.pathname}${returnTo}`); await route(); if (state.view !== 'now') refreshCounts().catch(() => {}); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); }
+  try { state.bootstrap = await api('/api/bootstrap'); insight.configure(state.bootstrap.insight?.events); state.sessions = await api('/api/sessions'); const returnTo = takeReturnHash(); if (returnTo && (!location.hash || location.hash === '#now')) history.replaceState(null, '', `${location.pathname}${returnTo}`); await route(); if (state.view !== 'now') refreshCounts().catch(() => {}); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); }
   catch (error) { if (!state.bootstrap) renderLogin(error.message.includes('Sign in') ? '' : error.message); else notify(error.message, true); }
 }
 
 onUnauthorized(() => {
   const expired = Boolean(state.bootstrap);
-  disconnect(); state.bootstrap = null; state.sessionExpired = state.sessionExpired || expired; forgetUserData();
+  disconnect(); state.bootstrap = null; state.sessionExpired = state.sessionExpired || expired; forgetUserData(); insight.configure(false);
   for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close();
   renderLogin();
 });
@@ -84,7 +88,16 @@ live.subscribe(updateLiveState);
 useNavigation({ render, boot });
 applyPreferences();
 live.start();
+startInsight();
 
+function trackLinkOut(event) {
+  const link = event.target.closest?.('a[href]');
+  const target = link ? linkOutTarget(link.href, location.origin) : null;
+  if (target) insight.track('link_out.opened', { screen: state.view, props: { target } });
+}
+
+document.addEventListener('click', trackLinkOut, true);
+document.addEventListener('auxclick', event => { if (event.button === 1) trackLinkOut(event); }, true);
 document.addEventListener('click', async event => {
   handleChromeClick(event);
   if (event.target.closest('.skip-link')) { event.preventDefault(); $('#main')?.focus(); return; }

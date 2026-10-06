@@ -44,6 +44,7 @@ test('POST /api/insight/events stores the catalogue\u2019s events and forwards a
   });
   assert.equal(posted.status, 202, posted.text);
   assert.equal(posted.body.accepted, 1, 'the unknown name is dropped');
+  assert.equal(posted.body.dropped, 1, 'the dropped event is counted');
 
   const rows = app.app.store.db.prepare('SELECT * FROM product_event ORDER BY id').all() as Record<string, unknown>[];
   assert.equal(rows.length, 1);
@@ -76,4 +77,25 @@ test('a batch over 32 KB is refused and a viewer cannot post', async t => {
   const denied = await request(app.url, '/api/insight/events', { method: 'POST', cookie: viewer.cookie, body: { events: [{ name: 'screen.viewed', at: '2026-10-05T10:00:00.000Z', screen: 'now', props: {} }] } });
   assert.equal(denied.status, 403, denied.text);
   assert.equal(denied.body.error.code, 'forbidden');
+});
+
+test('with product events switched off the route stores nothing and answers 204, and bootstrap tells the browser not to post', async t => {
+  const app = await application('live', config => { config.productEvents = false; });
+  t.after(() => app.close());
+  const { cookie } = await login(app.url);
+  const bootstrap = await request(app.url, '/api/bootstrap', { cookie });
+  assert.deepEqual(bootstrap.body.insight, { events: false });
+  const posted = await request(app.url, '/api/insight/events', { method: 'POST', cookie, body: { events: [{ name: 'screen.viewed', at: '2026-10-06T08:00:00.000Z', screen: 'now' }] } });
+  assert.equal(posted.status, 204, posted.text);
+  assert.equal((app.app.store.db.prepare('SELECT COUNT(*) AS n FROM product_event').get() as { n: number }).n, 0);
+});
+
+test('bootstrap switches posting on for an operator and off for a viewer', async t => {
+  const app = await application('live');
+  t.after(() => app.close());
+  const { cookie } = await login(app.url);
+  assert.deepEqual((await request(app.url, '/api/bootstrap', { cookie })).body.insight, { events: true });
+  app.app.store.addUser({ id: 'viewer-vera', name: 'vera@example.test', role: 'viewer', passwordHash: await hashPassword('viewer-password-2718') });
+  const viewer = await login(app.url, 'vera@example.test', 'viewer-password-2718');
+  assert.deepEqual((await request(app.url, '/api/bootstrap', { cookie: viewer.cookie })).body.insight, { events: false });
 });

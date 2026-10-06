@@ -111,3 +111,14 @@ test('the insight export defaults off, needs a collector URL for faro and otlp, 
   process.env.UNFOLD_INSIGHT_EXPORT_LEVEL = 'every';
   await assert.rejects(load(t, {}), /UNFOLD_INSIGHT_EXPORT_LEVEL must be aggregate or events/);
 });
+
+test('product events are recorded unless UNFOLD_INSIGHT_EVENTS is off', async t => {
+  const previous = process.env.UNFOLD_INSIGHT_EVENTS;
+  t.after(() => { if (previous === undefined) delete process.env.UNFOLD_INSIGHT_EVENTS; else process.env.UNFOLD_INSIGHT_EVENTS = previous; });
+  delete process.env.UNFOLD_INSIGHT_EVENTS;
+  assert.equal((await load(t, {})).productEvents, true);
+  process.env.UNFOLD_INSIGHT_EVENTS = 'off';
+  assert.equal((await load(t, {})).productEvents, false);
+  process.env.UNFOLD_INSIGHT_EVENTS = 'sometimes';
+  await assert.rejects(load(t, {}), /UNFOLD_INSIGHT_EVENTS must be on or off/);
+});

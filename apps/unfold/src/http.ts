@@ -252,19 +252,22 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           fault(405, 'method', 'Unsupported method.');
         }
         if (method === 'POST' && path === '/api/insight/events') {
+          if (config.productEvents === false) { res.writeHead(204, { 'Cache-Control': 'no-store' }); return res.end(); }
           if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot post product events.');
           const declared = Number(req.headers['content-length'] ?? 0);
           if (declared > maxEventPayloadBytes) fault(413, 'insight_batch_too_large', `A batch is at most ${maxEventPayloadBytes} bytes.`);
           const data = await body(req);
           if (JSON.stringify(data.events ?? data).length > maxEventPayloadBytes) fault(413, 'insight_batch_too_large', `A batch is at most ${maxEventPayloadBytes} bytes.`);
+          const posted = Array.isArray(data.events) ? data.events.length : 0;
           const events = parseInsightEvents(data.events, new Date().toISOString());
           insight.ingest(events, user);
-          return json(res, 202, { accepted: events.length });
+          return json(res, 202, { accepted: events.length, dropped: posted - events.length });
         }
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
           user, mode: config.mode, sharedExecution: Boolean(config.execution), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
           gatewayPolicy: config.gatewayPolicy ?? null,
           observability: config.observability ?? null,
+          insight: { events: config.productEvents !== false && user.role !== 'viewer' },
           repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
           taskSources: (config.taskSources ?? []).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null })),
           crews: config.crews, models: config.models,
