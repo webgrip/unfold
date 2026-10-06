@@ -31,7 +31,7 @@ async function collector(): Promise<{ url: string; received: () => Record<string
 test('POST /api/insight/events stores the catalogue\u2019s events and forwards a Faro payload to the collector', async t => {
   const sink = await collector();
   t.after(() => sink.close());
-  const app = await application('demo', config => { config.insight = { export: 'faro', url: sink.url, level: 'events' }; });
+  const app = await application('live', config => { config.insight = { export: 'faro', url: sink.url, level: 'events' }; });
   t.after(() => app.close());
   const { cookie, user } = await login(app.url);
 
@@ -64,7 +64,7 @@ test('POST /api/insight/events stores the catalogue\u2019s events and forwards a
 });
 
 test('a batch over 32 KB is refused and a viewer cannot post', async t => {
-  const app = await application('demo');
+  const app = await application('live');
   t.after(() => app.close());
   const { cookie } = await login(app.url);
   const huge = await request(app.url, '/api/insight/events', { method: 'POST', cookie, body: { events: Array.from({ length: 60 }, (_, index) => ({ name: 'screen.viewed', at: '2026-10-05T10:00:00.000Z', screen: 'now', props: { pad: 'x'.repeat(1000) }, index })) } });

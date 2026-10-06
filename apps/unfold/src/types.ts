@@ -52,7 +52,7 @@ export type AppConfig = {
 
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
 /** One product event the browser or VS Code extension posted, after the catalogue checked it. */
-export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: string; shiftId?: string; props: Record<string, string | number | boolean> };
+export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean> };
 export type RuntimeEvent = { type: string; data: Record<string, unknown> };
 export type Emit = (event: RuntimeEvent) => void;
 export type Credential = { key: string; alias: string; budgetUsd: number; reference: string };
