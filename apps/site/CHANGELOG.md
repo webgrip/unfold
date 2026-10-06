@@ -1,3 +1,14 @@
+## [unfold-site-v1.0.0-rc.2](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.1...unfold-site-v1.0.0-rc.2) (2026-10-06)
+
+### Added
+
+* **actions:** Update all non-major dependencies ([ed00933](https://forgejo.webgrip.dev/webgrip/unfold/commit/ed009336fe77f424806121ee8b1943cdc7674c52))
+* **deps:** update all non-major dependencies ([41c3ba0](https://forgejo.webgrip.dev/webgrip/unfold/commit/41c3ba07be77273ac4e2650cd9baa9a6ae28515f))
+
+### Fixed
+
+* **ci:** repair development after Renovate [#247](https://forgejo.webgrip.dev/webgrip/unfold/issues/247) and [#248](https://forgejo.webgrip.dev/webgrip/unfold/issues/248) ([d033d22](https://forgejo.webgrip.dev/webgrip/unfold/commit/d033d227d95f76671ab765450a29160309971fa4))
+
 ## [unfold-site-v1.0.0-rc.1](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v0.1.0-rc.11...unfold-site-v1.0.0-rc.1) (2026-10-04)
 
 ### ⚠ BREAKING CHANGES
