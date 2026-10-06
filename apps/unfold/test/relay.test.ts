@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WorkerRelay } from '../src/runtime/relay.ts';
@@ -131,7 +131,8 @@ const writerProgram = (file: string, label: string) => `const { appendFileSync }
 const familyProgram = (file: string) => `process.on('SIGTERM', () => {}); require('node:child_process').spawn(process.execPath, ['-e', ${JSON.stringify(`process.on('SIGTERM', () => {}); ${writerProgram(file, 'grandchild')}`)}], { stdio: 'ignore' }); ${writerProgram(file, 'child')}`;
 const contents = (file: string) => { try { return readFileSync(file, 'utf8'); } catch { return ''; } };
 const writerPids = (file: string) => [...contents(file).matchAll(/^(?:child|grandchild) ([0-9]+)$/gm)].map(match => Number(match[1]));
-const running = (pid: number) => { try { const stat = readFileSync(`/proc/${pid}/stat`, 'utf8'); return stat[stat.lastIndexOf(')') + 2] !== 'Z'; } catch { return false; } };
+const signalable = (pid: number) => { try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code === 'EPERM'; } };
+const running = (pid: number) => { if (!existsSync('/proc')) return signalable(pid); try { const stat = readFileSync(`/proc/${pid}/stat`, 'utf8'); return stat[stat.lastIndexOf(')') + 2] !== 'Z'; } catch { return false; } };
 const sizeOf = (file: string) => { try { return statSync(file).size; } catch { return 0; } };
 
 async function relayedWorker(t: { after(fn: () => void): void }, workspaceId: string) {

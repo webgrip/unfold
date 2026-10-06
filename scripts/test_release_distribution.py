@@ -231,6 +231,18 @@ class DistributionTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, 'did not finish'):
                     release_registry.command('sleep', '5')
 
+    def test_open_vsx_is_awaited_while_it_scans_a_fresh_version(self):
+        answers = [None, None, {'version': '0.4.0-rc.41'}]
+        with patch.object(publish_release, 'api', lambda *a, **k: answers.pop(0)), patch.object(publish_release.time, 'sleep') as sleep, patch('sys.stderr'):
+            self.assertEqual(publish_release.open_vsx_extension('0.4.0-rc.41'), {'version': '0.4.0-rc.41'})
+        self.assertEqual(sleep.call_count, 2)
+
+    def test_open_vsx_that_never_serves_the_version_fails_after_the_deadline(self):
+        with patch.object(publish_release, 'api', lambda *a, **k: None), patch.object(publish_release, 'OPEN_VSX_SCAN_DEADLINE', 0), patch.object(publish_release.time, 'sleep') as sleep:
+            with self.assertRaisesRegex(RuntimeError, 'still does not serve webgrip.unfold 0.4.0-rc.41'):
+                publish_release.open_vsx_extension('0.4.0-rc.41')
+        sleep.assert_not_called()
+
 
 class FlakyOpener:
     def __init__(self, *outcomes):

@@ -3,6 +3,7 @@ import json
 import os
 import re
 import sys
+import time
 import urllib.parse
 from pathlib import Path
 
@@ -13,6 +14,8 @@ from release_registry import Registry, command, copy_chart, copy_image, digest, 
 ROOT = Path(__file__).resolve().parent.parent
 FORGEJO = 'https://forgejo.webgrip.dev/api/v1/repos/webgrip/unfold'
 GITHUB = 'https://api.github.com/repos/webgrip/unfold'
+OPEN_VSX_SCAN_DEADLINE = 1200
+OPEN_VSX_POLL_INTERVAL = 30
 RETIRED_PUBLISHERS = {
     'ploeg': 'Unfold no longer versions or publishes Ploeg: github.com/ploeg-hq/ploeg releases it from 0.1.0, and Unfold pins that source (system ADR-0019)',
 }
@@ -39,6 +42,19 @@ def publishable_tag(application, version):
     tag = release_tag(application, version)
     refuse_occupied(application, version)
     return tag
+
+
+def open_vsx_extension(version):
+    url = f'https://open-vsx.org/api/webgrip/unfold/{version}'
+    deadline = time.monotonic() + OPEN_VSX_SCAN_DEADLINE
+    while True:
+        extension = api(url, '', missing=True)
+        if extension is not None:
+            return extension
+        if time.monotonic() >= deadline:
+            raise RuntimeError(f'Open VSX still does not serve webgrip.unfold {version} after {OPEN_VSX_SCAN_DEADLINE} seconds; check its publish scan at https://open-vsx.org/extension/webgrip/unfold')
+        print(f'Open VSX does not serve webgrip.unfold {version} yet; it is still scanning the published VSIX', file=sys.stderr)
+        time.sleep(OPEN_VSX_POLL_INTERVAL)
 
 
 def link_package(name, token):
@@ -150,7 +166,7 @@ def publish(application, version):
             continue
         path, reference = artifact['target'].removeprefix('ghcr.io/').split('@')
         require_same(digest(anonymous.manifest(path, version)), reference, 'anonymous public pull')
-    extension = api(f'https://open-vsx.org/api/webgrip/unfold/{version}', '')
+    extension = open_vsx_extension(version)
     require_same(extension['version'], version, 'Open VSX version')
     vsix = next(a for a in source_release['assets'] if a['name'] == f'unfold-{version}.vsix')
     data, _ = request(extension['files']['download'])
