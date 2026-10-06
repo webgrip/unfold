@@ -69,7 +69,7 @@ Both run inside `mise run verify`, as part of the cross-application qualificatio
 ## More Information
 
 * Evidence: [substrate, language and Run bottlenecks](https://github.com/ploeg-hq/ploeg/blob/development/docs/research/2026-10-05-substrate-language-and-run-bottlenecks.md), §5 and §6.
-* The card formulas Unfold copies (rarity, working-time) stop being copies under [ADR-0028](adr-0028-unfold-owns-the-run-card-and-builds-it-from-ploegs-execution-facts.md), so no cross-language check is needed for them.
-* Ploeg's [ADR-0074](https://github.com/ploeg-hq/ploeg/blob/development/docs/adrs/0074-ploeg-publishes-execution-facts-and-consumers-own-presentation-and-delivery-analytics.md) removes the card definitions from the operator schema; the schema test then guards a smaller, stable surface.
+* The card formulas Unfold copies (rarity, working-time) stop being copies under [ADR-0028](adr-0028-unfold-owns-the-run-card-and-builds-it-from-ploegs-delivery-facts.md), so no cross-language check is needed for them.
+* Ploeg's [ADR-0074](https://github.com/ploeg-hq/ploeg/blob/development/docs/adrs/0074-ploeg-exposes-delivery-facts-and-consumers-own-the-card-and-every-formula-over-them.md) removes the card definitions from the operator schema; the schema test then guards a smaller, stable surface.
 * Related: [ADR-0018](adr-0018-ploeg-releases-on-its-own-schedule-behind-a-tested-contract-version.md), which named schema-generated clients as a follow-up.
 * 2026-10-05: proposed.

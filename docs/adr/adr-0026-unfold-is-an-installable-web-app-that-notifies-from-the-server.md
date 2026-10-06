@@ -41,7 +41,7 @@ Chosen option: "**An installable web app with server-side notifications, and a n
 * A narrow triage view serves phones. It does not merge, because Unfold never merges.
 * Rust enters only as the host of a Tauri shell, if Phase 2 of RFC-0004 is ever triggered. The server and frontend are not rewritten.
 
-Reaching Unfold away from the LAN, by VPN or by a public route behind Authentik, is decided in `webgrip/homelab-cluster` before Phase 1 ships.
+Unfold stays on the LAN; a phone reaches it over the owner's existing VPN.
 
 ### Consequences
 

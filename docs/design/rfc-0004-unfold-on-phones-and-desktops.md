@@ -2,7 +2,7 @@
 
 > Status: **Proposed** 2026-10-05 · Date: 2026-10-05 · Decision: [ADR-0026](../adr/adr-0026-unfold-is-an-installable-web-app-that-notifies-from-the-server.md) · Research: [substrate, language and Run bottlenecks](https://github.com/ploeg-hq/ploeg/blob/development/docs/research/2026-10-05-substrate-language-and-run-bottlenecks.md) §7
 >
-> **TL;DR.** Unfold becomes an installable web app on desktop, Android and iOS from the code it already has. The server notifies a person when work needs them or a pull request is ready, first through ntfy and later through Web Push, so nobody needs an open tab. A phone gets a short triage view. A native shell (Tauri or Capacitor) is built only if a measured need appears. Before any of this, the homelab must decide how a phone reaches Unfold away from home.
+> **TL;DR.** Unfold becomes an installable web app on desktop, Android and iOS from the code it already has. The server notifies a person when work needs them or a pull request is ready, first through ntfy and later through Web Push, so nobody needs an open tab. A phone gets a short triage view. A native shell (Tauri or Capacitor) is built only if a measured need appears. A phone reaches Unfold over the owner's existing VPN.
 
 Nothing here is built yet. Every route, table and setting below is proposed.
 
@@ -21,17 +21,12 @@ In [Work Item 138](https://github.com/ploeg-hq/ploeg/blob/development/docs/resea
 | Live updates | Server-sent events at `src/http.ts:516`; one client scheduler in `public/core/live.js`, which pauses when the tab is hidden |
 | Approve and reject | `POST /api/ploeg/work-items/:id/(approve\|reject\|cancel)` (`src/http.ts:396`); viewers are refused |
 | Cracks and context | Confirm, dispute and resolve; context-file upload (`src/http.ts:398-399`) |
-| Reachability | LAN-only: the HTTPRoute is on `envoy-internal` in homelab-cluster |
+| Reachability | LAN-only on `envoy-internal`; reached remotely over the owner's VPN |
 | ntfy | Deployed and public on `envoy-external`; no upstream base URL, so iOS has no instant delivery |
 
 ## Phase 0: reach Unfold away from home
 
-This is not Unfold's change. It belongs in `webgrip/homelab-cluster`, with its own ADR there. There are two options:
-
-* **A VPN** (WireGuard or Tailscale) to the LAN. Unfold stays internal. Every phone needs the VPN running.
-* **`envoy-external` behind Authentik OIDC.** Unfold already supports OIDC (`src/oidc.ts`). The route becomes public, so the session cookie and rate limits matter more.
-
-Until this is decided, a notification can reach the phone but tapping it opens a page that does not load off-LAN.
+Resolved: the owner reaches the LAN over an existing VPN, so Unfold stays on `envoy-internal` and no route changes. A tapped notification opens Unfold over the VPN. A public route behind Authentik is only needed if someone without the VPN must use Unfold, which is the agency phase, not now.
 
 ## Phase 1: installable app and server-side notifications
 
@@ -109,6 +104,5 @@ Choose Capacitor if push on phones is the driver, and Tauri if desktop integrati
 
 ## Open questions
 
-1. Phase 0: VPN or public route behind Authentik?
-2. Should notifications go to a person (per-person topics and subscriptions) or to a Team channel as well?
-3. Quiet hours: per person, or the Team calendar Ploeg already uses for flow figures?
+1. Should notifications go to a person (per-person topics and subscriptions) or to a Team channel as well?
+2. Quiet hours: per person, or the Team working calendar Unfold keeps for flow figures?
