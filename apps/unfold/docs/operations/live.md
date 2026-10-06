@@ -57,6 +57,7 @@ Supply credentials through the deployment's secret mechanism or a short-lived sh
 | `LITELLM_BASE_URL` | Agent inference endpoint, normally the gateway URL including `/v1` |
 | `LITELLM_ADMIN_URL` | Management API root; defaults to inference URL with trailing `/v1` removed |
 | `LITELLM_MASTER_KEY` | Gateway management credential held by the control plane |
+| `UNFOLD_INSIGHT_EVENTS` | `on` (default) records product events from the browser; `off` stores none, and the browser posts none |
 | `UNFOLD_INSIGHT_EXPORT` | Product-event sink: `off` (default), `faro` or `otlp` |
 | `UNFOLD_INSIGHT_EXPORT_URL` | Collector URL the server posts to; required for `faro` and `otlp` |
 | `UNFOLD_INSIGHT_EXPORT_LEVEL` | `aggregate` (default, the hourly daily rollup) or `events` (each event with its pseudonymous actor hash) |

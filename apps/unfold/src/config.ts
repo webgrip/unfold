@@ -157,6 +157,13 @@ function insightLevel(value: string | undefined): 'aggregate' | 'events' {
   return value as 'aggregate' | 'events';
 }
 
+/** Reads `UNFOLD_INSIGHT_EVENTS`: product events are recorded unless it is `off`, as ADR-0023's tenant default says. */
+export function productEventsSetting(): boolean {
+  const value = process.env.UNFOLD_INSIGHT_EVENTS || 'on';
+  if (!['on', 'off'].includes(value)) throw new Error('UNFOLD_INSIGHT_EVENTS must be on or off');
+  return value === 'on';
+}
+
 export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   const fileIndex = argv.indexOf('--config');
   const configFile = fileIndex >= 0 ? argv[fileIndex + 1] : process.env.UNFOLD_CONFIG;
@@ -286,6 +293,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     gatewayPolicy,
     observability,
     insight: insightSettings(),
+    productEvents: productEventsSetting(),
     cards,
     cardThemes: cardThemeSettings(raw.cardThemes, mode),
     litellm: litellmBase && (adminKey || raw.execution) ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined

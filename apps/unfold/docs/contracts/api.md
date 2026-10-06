@@ -12,8 +12,8 @@ Operators can read and change sessions they own. Administrators can access all s
 | --- | --- |
 | `POST /api/login` | `{name,password}` → `{user}` and login cookie |
 | `POST /api/logout` | `{}` → `{ok:true}` and expired cookie |
-| `GET /api/bootstrap` | Current user, mode, registered repositories/crews/models/runtimes, enabled workspace `placements` and limits |
-| `POST /api/insight/events` | `{events:[{name,at,screen,workItemId?,shiftId?,props?}]}` → `202 {accepted}`. At most 50 events and 32 KB per call; an unknown event name and any property its RFC-0001 catalogue entry does not list are dropped. Administrators and operators may post; viewers get 403 |
+| `GET /api/bootstrap` | Current user, mode, registered repositories/crews/models/runtimes, enabled workspace `placements` and limits, and `insight.events`, which tells the browser whether to post product events |
+| `POST /api/insight/events` | `{events:[{name,at,screen,workItemId?,shiftId?,props?}]}` → `202 {accepted,dropped}`. At most 50 events and 32 KB per call; an unknown event name is dropped and counted in `dropped`, and any property its RFC-0001 catalogue entry does not list is removed. Administrators and operators may post; viewers get 403. With `UNFOLD_INSIGHT_EVENTS=off` it stores nothing and answers `204` |
 | `GET /api/health` | Authenticated configuration/readiness summary; does not prove upstream provider reachability |
 | `GET /healthz`, `GET /readyz` | `{status, version}` for probes. `/healthz` answers from the process without touching storage; `/readyz` runs one trivial database query and reads no session. No provider credentials or endpoints returned |
 
