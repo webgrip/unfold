@@ -1,3 +1,13 @@
+## [unfold-v0.4.0-rc.44](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.43...unfold-v0.4.0-rc.44) (2026-10-07)
+
+### Fixed
+
+* **agent:** update opencode ( 1.18.34 ➔ 1.18.35 ) ([437e7da](https://forgejo.webgrip.dev/webgrip/unfold/commit/437e7da24183a08cc0dbd4333f6d36c1e35210a6))
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.2 [skip ci] ([923f973](https://forgejo.webgrip.dev/webgrip/unfold/commit/923f973e62e8a86e14507889087ca938d1e83cb5))
+
 ## [unfold-v0.4.0-rc.43](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.42...unfold-v0.4.0-rc.43) (2026-10-06)
 
 ### Added
