@@ -59,6 +59,14 @@ const codes = { parse: -32700, invalidRequest: -32600, methodNotFound: -32601, i
 
 class RpcError extends Error { code: number; data?: unknown; constructor(code: number, message: string, data?: unknown) { super(message); this.code = code; this.data = data; } }
 
+const engineCodes: Record<number, number> = { 400: codes.invalidParams, 403: codes.permissionDenied, 404: codes.sessionNotFound, 409: codes.conflict };
+function asRpcError(error: unknown): RpcError {
+  if (error instanceof RpcError) return error;
+  const status = Number((error as { status?: unknown })?.status);
+  return new RpcError(engineCodes[status] ?? codes.internal, error instanceof Error && Number.isFinite(status) ? error.message : 'Internal error');
+}
+const acceptOperation = 'accept';
+
 /** A protocol version that is not three non-negative integers without leading zeros, prerelease or build metadata. */
 export class MalformedVersion extends Error {}
 
@@ -396,7 +404,28 @@ export class AgentHost {
     const key = this.candidateKey(session);
     const view = key ? this.candidates.get(key) : undefined;
     if (key && !view) return { status: 'error', error: { errorType: 'candidate_unreadable', message: 'The captured candidate could not be read from the workbench\'s storage.' }, files: [] };
-    return { status: session.status === 'exporting' ? 'computing' : 'ready', files: view ? this.candidateFiles(session, view) : this.artifactFiles(session), operations: session.candidate?.status === 'ready' ? [{ id: 'download-bundle', label: 'Download candidate bundle', description: 'The immutable Git bundle and patch are available from the workbench.', scopes: ['changeset'], status: 'disabled' }] : [] };
+    const operations = this.operations(session);
+    return { status: session.status === 'exporting' ? 'computing' : 'ready', files: view ? this.candidateFiles(session, view) : this.artifactFiles(session), ...(operations.length ? { operations } : {}) };
+  }
+
+  private operations(session: Session): Json[] {
+    const gated = Boolean(session.execution && this.config.delivery?.policies.some(policy => policy.repositoryId === session.repositoryId));
+    if (session.status !== 'completed' || session.review || gated) return [];
+    return [{ id: acceptOperation, label: 'Accept', description: 'Records your acceptance in the session history, as Accept in the workbench does. Nothing is pushed or merged.', scopes: ['changeset'], icon: 'check', status: 'idle' }];
+  }
+
+  private invokeOperation(client: Client, params: Json): Json {
+    const channel = String(params.channel ?? '');
+    if (parseChannel(channel)?.kind !== 'changeset') throw new RpcError(codes.invalidParams, 'channel must be an ahp-changeset channel');
+    const session = this.sessionFor(client.user, channel);
+    if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
+    const operation = this.operations(session).find(item => item.id === params.operationId);
+    if (!operation) throw new RpcError(codes.invalidParams, `This changeset offers no operation ${JSON.stringify(params.operationId)}`);
+    if (params.target !== undefined) throw new RpcError(codes.invalidParams, `${operation.label} applies to the whole candidate, not to a file or range`);
+    let reviewed: Session;
+    try { reviewed = this.engine.review(session.id, { decision: 'accepted' }, client.user); } catch (error) { throw asRpcError(error); }
+    this.broadcast(this.changesetUri(reviewed), { type: 'changeset/operationsChanged', operations: this.operations(reviewed) });
+    return { message: `Accepted by ${client.user.name}. The decision is in the session history; nothing was pushed or merged.` };
   }
 
   async readResource(user: User, uri: string): Promise<{ data: Buffer; contentType: string }> {
@@ -631,7 +660,7 @@ export class AgentHost {
         for (const request of this.openRequests(session)) this.broadcast(channel, viewer => ({ type: 'session/inputNeededSet', request: this.inputRequest(session, request, viewer) }));
         for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(channel, { type: 'session/inputNeededRemoved', id: request.id });
         this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, changes: summary.changes } }; }, session.ownerId);
-        if (changesets) { await this.loadCandidate(session); if (this.closed) return; const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations }); }
+        if (changesets) { await this.loadCandidate(session); if (this.closed) return; const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations ?? [] }); }
       }
     } finally { this.polling = false; }
   }
@@ -690,7 +719,7 @@ export class AgentHost {
   }
 
   private fingerprint(session: Session): string {
-    return JSON.stringify([sessionStatus(session), activity(session), session.title, session.candidate?.status, this.openRequests(session).map(item => item.id), session.artifacts.length]);
+    return JSON.stringify([sessionStatus(session), activity(session), session.title, session.candidate?.status, this.openRequests(session).map(item => item.id), session.artifacts.length, session.review?.decision]);
   }
 
   private async subscribe(client: Client, channel: string): Promise<Json> {
@@ -739,7 +768,7 @@ export class AgentHost {
         if (decoded !== undefined) return { data: decoded, encoding: 'utf-8', contentType: resource.contentType };
         return { data: resource.data.toString('base64'), encoding: 'base64', contentType: params.encoding === 'base64' && text(resource.data) !== undefined ? resource.contentType : 'application/octet-stream' };
       }
-      case 'invokeChangesetOperation': throw new RpcError(codes.permissionDenied, 'Candidate operations are performed in the workbench, not through the agent host');
+      case 'invokeChangesetOperation': return this.invokeOperation(client, params);
       case 'authenticate': return {};
       case 'getNetworkDiagnosticsInfo': return { version: applicationVersion, os: process.platform, arch: process.arch, proxySettings: {}, proxyEnv: {}, endpoints: [] };
       default: throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);

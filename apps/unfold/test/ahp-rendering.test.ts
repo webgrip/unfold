@@ -103,3 +103,29 @@ test('C9: without a captured candidate, a native file diff is served on both sid
   assert.equal((await client.rpc('subscribe', { channel: `ahp-session:/${patchOnly.id}` })).snapshot.state.changesets, undefined, 'no changeset is advertised for changes that cannot be shown as files');
   assert.deepEqual((await client.rpc('subscribe', { channel: `ahp-changeset:/${patchOnly.id}` })).snapshot.state.files, []);
 });
+
+test('C10: the candidate offers Accept, the workbench\'s own review, under the same authorization, and then offers nothing', { timeout: testTimeout(60_000) }, async t => {
+  const { server, client, id, changeset } = await finishedThroughAgentHost(t);
+  const state = (await client.rpc('subscribe', { channel: changeset })).snapshot.state;
+  assert.deepEqual(state.operations.map((operation: Json) => [operation.id, operation.status, operation.scopes]), [['accept', 'idle', ['changeset']]], 'no disabled operation is advertised');
+
+  server.app.store.addUser({ id: 'bob-render', name: 'bob-render', role: 'operator', passwordHash: 'unused' });
+  const bob = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${server.app.agentHost.issueToken({ id: 'bob-render', name: 'bob-render', role: 'operator' })}`);
+  t.after(() => bob.close());
+  await bob.open;
+  await bob.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'bob-render' });
+  await assert.rejects(bob.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'accept' }), (error: any) => error.code === -32001, 'another person cannot accept someone else\'s candidate');
+  await assert.rejects(client.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'download-bundle' }), (error: any) => error.code === -32602);
+  await assert.rejects(client.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'accept', target: { kind: 'resource', resource: 'file:///workspace/repository/src/order.js' } }), (error: any) => error.code === -32602);
+
+  const result = await client.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'accept' });
+  assert.match(result.message, /nothing was pushed or merged/);
+  const session = server.app.store.listSessions().find(item => item.id === id || server.app.store.getSecret(`ahp-alias:${id}`) === item.id)!;
+  assert.equal(session.review?.decision, 'accepted');
+  assert.equal(session.review?.by, 'demo-operator');
+  assert.equal(server.app.store.events(session.id).filter(event => event.type === 'review.recorded').length, 1);
+  const changed = await client.until(message => action(message, changeset, 'changeset/operationsChanged'));
+  assert.deepEqual(changed.params.action.operations, []);
+  assert.equal((await client.rpc('subscribe', { channel: changeset })).snapshot.state.operations, undefined);
+  await assert.rejects(client.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'accept' }), (error: any) => error.code === -32602, 'a candidate is accepted once');
+});
