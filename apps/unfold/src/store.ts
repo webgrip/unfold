@@ -83,6 +83,11 @@ export class Store {
     return (this.db.prepare('SELECT body FROM sessions ORDER BY updated_at DESC,id').all() as { body: string }[]).map(row => this.restoreSession(row.body));
   }
 
+  /** The owner of every session that is running, waiting for input or exporting its candidate, once per session. */
+  activeSessionOwners(): string[] {
+    return (this.db.prepare("SELECT owner_id AS owner FROM sessions WHERE json_extract(body,'$.status') IN ('running','waiting_input','exporting')").all() as { owner: string }[]).map(row => row.owner);
+  }
+
   private restoreSession(body: string): Session {
     const session: Session = JSON.parse(body);
     const workspace = this.getSecret<Session['workspace']>(`workspace:${session.id}`);

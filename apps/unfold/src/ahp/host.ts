@@ -26,7 +26,7 @@ export const sessionUrisMeta = 'vscode.ahpSessionUris';
 export type SessionScheme = typeof provider | 'ahp-session';
 
 type Json = Record<string, any>;
-type Client = { id: string; clientId?: string; scheme: SessionScheme; connection: WebSocketConnection; user: User; token: string; checkedAt: number; subscriptions: Set<string>; initialized: boolean };
+type Client = { id: string; clientId?: string; scheme: SessionScheme; connection: WebSocketConnection; user: User; token: string; checkedAt: number; subscriptions: Set<string>; initialized: boolean; activeSessions?: number };
 type View = Pick<Client, 'user' | 'scheme'>;
 type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
@@ -304,8 +304,23 @@ export class AgentHost {
         provider, displayName: 'Unfold crews', description: 'Operator-led agent crews in isolated workspaces; every session ends in a reviewable candidate.',
         models: this.config.models.map(model => ({ id: model.id, provider, name: model.name })),
       }],
-      activeSessions: this.visible(user).filter(session => ['running', 'waiting_input', 'exporting'].includes(session.status)).length,
+      activeSessions: this.activeSessionCount(user),
     };
+  }
+
+  private activeSessionCount(user: User, owners = this.store.activeSessionOwners()): number {
+    return owners.filter(owner => this.mayView(user, owner)).length;
+  }
+
+  private announceActiveSessions(): void {
+    const watching = [...this.clients].filter(client => client.initialized && this.subscribedAs(client, rootChannel));
+    if (!watching.length) return;
+    const owners = this.store.activeSessionOwners();
+    const counts = new Map(watching.map(client => [client, this.activeSessionCount(client.user, owners)]));
+    const changed = watching.filter(client => counts.get(client) !== client.activeSessions);
+    if (!changed.length) return;
+    for (const client of changed) client.activeSessions = counts.get(client);
+    this.broadcast(rootChannel, viewer => ({ type: 'root/activeSessionsChanged', activeSessions: counts.get(viewer) }), undefined, viewer => changed.includes(viewer));
   }
 
   private configSchema(): Json {
@@ -731,6 +746,7 @@ export class AgentHost {
         this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, changes: summary.changes } }; }, session.ownerId);
         if (changesets) { await this.loadCandidate(session); if (this.closed) return; const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations ?? [] }); }
       }
+      this.announceActiveSessions();
     } finally { this.polling = false; }
   }
 
@@ -760,7 +776,7 @@ export class AgentHost {
   }
 
   private snapshot(client: Client, channel: string): Json {
-    if (channel === rootChannel) return { resource: rootChannel, state: this.rootState(client.user), fromSeq: this.serverSeq };
+    if (channel === rootChannel) { const state = this.rootState(client.user); client.activeSessions = state.activeSessions; return { resource: rootChannel, state, fromSeq: this.serverSeq }; }
     const parsed = parseChannel(channel);
     if (!parsed) throw new RpcError(codes.notFound, 'Unknown channel');
     const pending = this.pending.get(parsed.id);

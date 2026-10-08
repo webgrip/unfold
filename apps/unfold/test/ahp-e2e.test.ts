@@ -78,3 +78,21 @@ test('the chat channel follows its activity with chat/activityChanged and clears
   assert.deepEqual(sessionChanges, changes.map(item => item.activity), 'the session and its chat report the same changes');
   assert.ok(sessionChanges.every((value, index) => index === 0 || value !== sessionChanges[index - 1]), 'an unchanged activity is not announced again');
 });
+
+test('root/activeSessionsChanged tells each person how many of their own sessions are active', { timeout: testTimeout(60_000) }, async t => {
+  const { server, address, open } = await attached(t);
+  const client = await open(randomUUID());
+  assert.equal(client.initialized.snapshots[0].state.activeSessions, 0);
+  server.app.store.addUser({ id: 'carol-e2e', name: 'carol-e2e', role: 'operator', passwordHash: 'unused' });
+  const carol = connect(`${address.replace(/tkn=.*/, '')}tkn=${server.app.agentHost.issueToken({ id: 'carol-e2e', name: 'carol-e2e', role: 'operator' })}`);
+  t.after(() => carol.close());
+  await carol.open;
+  await carol.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'carol', initialSubscriptions: ['ahp-root://'] });
+  await runTurn(client);
+  await client.until(message => action(message, 'ahp-root://', 'root/activeSessionsChanged') && message.params.action.activeSessions === 0);
+  const counts = actionsOn(client, 'ahp-root://').filter(item => item.type === 'root/activeSessionsChanged').map(item => item.activeSessions);
+  assert.deepEqual(counts, [1, 0], 'the count rises while the crew works and falls when it is done');
+  const reduced = counts.at(-1);
+  assert.equal(reduced, (await client.rpc('subscribe', { channel: 'ahp-root://' })).snapshot.state.activeSessions);
+  assert.deepEqual(actionsOn(carol, 'ahp-root://').filter(item => item.type === 'root/activeSessionsChanged'), [], 'someone who cannot see the session is told nothing');
+});
