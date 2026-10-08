@@ -318,7 +318,7 @@ export class AgentHost {
   private changesets(session: Session): Json[] | undefined {
     if (session.candidate?.status !== 'ready' && !session.artifacts.some(artifact => artifact.kind === 'diff')) return undefined;
     const repository = this.config.repositories.find(repo => repo.id === session.repositoryId);
-    return [{ label: 'Candidate', uriTemplate: this.changesetUri(session), description: repository ? `Changes against ${repository.baseBranch} of ${repository.name}` : 'Reviewable change', changeKind: 'candidate', capabilities: { review: {} } }];
+    return [{ label: 'Candidate', uriTemplate: this.changesetUri(session), description: repository ? `Changes against ${repository.baseBranch} of ${repository.name}` : 'Reviewable change', changeKind: 'session', capabilities: { review: {} } }];
   }
 
   sessionState(session: Session, view: View): Json {
@@ -338,7 +338,8 @@ export class AgentHost {
 
   chatState(session: Session, view: View): Json {
     const projection = this.projection(session);
-    return { ...this.chatSummary(session, view), turns: projection.turns.slice(-maxTurnsInSnapshot), ...(projection.activeTurn ? { activeTurn: projection.activeTurn } : {}) };
+    const changesets = this.changesets(session);
+    return { ...this.chatSummary(session, view), turns: projection.turns.slice(-maxTurnsInSnapshot), ...(projection.activeTurn ? { activeTurn: projection.activeTurn } : {}), ...(changesets ? { changesets } : {}) };
   }
 
   changesetState(session: Session): Json {
@@ -576,7 +577,9 @@ export class AgentHost {
         const status = sessionStatus(session);
         this.broadcast(channel, { type: 'session/activityChanged', activity: activity(session) });
         this.broadcast(channel, viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: status | this.viewOf(viewer, publicId).chat, activity: activity(session), modifiedAt: session.updatedAt } }));
-        this.broadcast(channel, { type: 'session/changesetsChanged', changesets: this.changesets(session) });
+        const changesets = this.changesets(session);
+        this.broadcast(channel, { type: 'session/changesetsChanged', changesets });
+        this.broadcast(chat, { type: 'chat/changesetsChanged', changesets });
         for (const request of this.openRequests(session)) this.broadcast(channel, viewer => ({ type: 'session/inputNeededSet', request: this.inputRequest(session, request, viewer) }));
         for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(channel, { type: 'session/inputNeededRemoved', id: request.id });
         this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, changes: summary.changes } }; }, session.ownerId);

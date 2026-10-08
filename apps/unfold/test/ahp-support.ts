@@ -40,3 +40,28 @@ export const closed = (socket: WebSocket) => new Promise<number>(resolve => { if
 
 /** The default chat VS Code derives for a session URI: `ahp-chat://default/` and the URI in unpadded base64url. */
 export const defaultChatOf = (sessionUri: string) => `ahp-chat://default/${Buffer.from(sessionUri).toString('base64url')}`;
+
+const renderedChangeKinds = new Set(['branch', 'uncommitted', 'session', 'turn', 'agent-merge']);
+
+/**
+ * The changesets VS Code 1.141 and main show for a chat: `resolveChatChangesetCatalogue` over the chat's and the
+ * session's catalogue, then `createChangesets`, which instantiates only the kinds it knows and drops the rest.
+ */
+export function vscodeChangesets(chat: Json, session: Json): Json[] {
+  const chatChangesets: Json[] | undefined = chat.changesets;
+  const sessionChangesets: Json[] | undefined = session.changesets;
+  let resolved: Json[] | undefined;
+  if (sessionChangesets === undefined) resolved = chatChangesets;
+  else if (chatChangesets === undefined) {
+    const legacy = sessionChangesets.filter(changeset => changeset.changeKind !== 'session');
+    resolved = !legacy.length ? undefined : chat.resource === session.defaultChat ? sessionChangesets : sessionChangesets.filter(changeset => ['session', 'turn', 'compare-turns'].includes(changeset.changeKind));
+  } else {
+    resolved = [...chatChangesets];
+    const sessionEntry = sessionChangesets.find(changeset => changeset.changeKind === 'session');
+    if (sessionEntry && !chatChangesets.some(changeset => changeset.changeKind === 'session')) {
+      const turn = resolved.findIndex(changeset => changeset.changeKind === 'turn');
+      resolved.splice(turn < 0 ? resolved.length : turn, 0, sessionEntry);
+    }
+  }
+  return (resolved ?? []).filter(changeset => renderedChangeKinds.has(changeset.changeKind));
+}
