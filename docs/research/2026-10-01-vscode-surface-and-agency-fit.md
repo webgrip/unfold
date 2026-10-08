@@ -281,3 +281,12 @@ All the tickets are children of [VIK-1644](https://vikunja.webgrip.dev/tasks/164
 - Reddit, Tweakers and Hacker News were not indexed usefully, so agency pain points come from surveys and trade press.
 - Agency editor share comes from PHP and Laravel surveys, not from Dutch agencies directly.
 - Visual Studio Magazine returned 403.
+
+## Update, 2026-10-08
+
+Evidence: [the VS Code 1.141 sweep](../../apps/unfold/docs/research/2026-10-08-vscode-1-141-fit.md). Four entries above have moved.
+
+- **The leak and the session lifecycle (recommendation 1).** The cross-user leak (VIK-1661) and session creation and following (VIK-1662) were fixed on 2026-10-01 in `5ecd610e` and `78d4d6fd`. The archive actions (VIK-1631) and version negotiation (VIK-1645) are still open. VS Code main, due as 1.142, adds two more: it sends `chat/isReadChanged` to a 0.9.0 host and creates sessions as `ahp-session:/` URIs.
+- **`lm.registerMcpServerDefinitionProvider`.** Read in 1.141's source, extension-provided servers reach all three agent-host harnesses, not only Copilot. VS Code forwards only the definition from `provideMcpServerDefinitions` and never calls `resolveMcpServerDefinition` on that path. It writes `env` values and headers in plaintext to a `.mcp.json` under the user data directory. A token from SecretStorage therefore never reaches the harness, and a token placed in `env` lands on disk. Settle credential delivery before VIK-1653.
+- **`vscode://agents/agent-host-session/…` (J6).** VS Code main adds `connectionAuthority` and `session` query parameters, so a link can name a remote host. The VIK-1660 spike becomes testable once 1.142 ships.
+- **Distribution (recommendation 3).** Open VSX now quarantines new versions in a namespace that exists on the Microsoft Marketplace and is unclaimed on Open VSX. `webgrip` is unverified there, so claim it before the Marketplace listing goes live.
