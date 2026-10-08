@@ -145,6 +145,16 @@ Every OpenCode session starts with `ask` for every tool, so each read, search an
 
 The gateway can refuse requests with `budget_exhausted`. Displayed spend is an observation, and final accounting may arrive later. The settlement delay is configurable; it does not guarantee provider billing latency or a strict ceiling for requests in flight. Qualify the configured model and crew with a small explicit budget.
 
+## Gateway tools for a repository
+
+A repository can give its sessions read-only tools that the LiteLLM gateway serves over MCP. It is off unless the repository names a gateway team and the MCP access groups that team allows:
+
+```json
+{ "id": "orders", "mcp": { "litellmTeamId": "agents-orders", "accessGroups": ["observability-read-orders"] } }
+```
+
+A standalone session's key is then minted with `team_id` and `object_permission.mcp_access_groups`, and the gateway refuses the mint when the team does not allow those groups. With `require_key_mcp_access_defined` on the gateway, a key minted without them gets no tools at all, whatever team it is in. Under Ploeg execution Ploeg mints the key, so it must apply the same team and groups; Unfold only writes the agent configuration. Either way the agent gets one remote MCP server, `litellm`, at the gateway root with `/v1` removed plus `/mcp`, authenticated with the session key in `x-litellm-api-key`. The tools fall under the session's approval mode like every other tool, so they ask unless the session approves automatically.
+
 ## What "awaiting your review" means
 
 A completed session has done everything the machine does: every role finished, the final reviewer's verdict is on its run, the candidate is captured as a bundle, patch and manifest with two signed statements over them, the workspace is released, and nothing was pushed or merged. The label now says what is missing: a person's review. Accept records that you inspected the candidate and consider it fit to take further, with an optional note; reject requires a reason, which the next attempt receives. Both are recorded with your name in the session history and shown on the session instead of the label. Until the publish action exists, taking an accepted candidate further is still a manual push and merge request from the downloaded bundle.

@@ -6,7 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { application, createInput, login, request } from './api-support.ts';
 import { deadlineAfter, settle } from './timeframes.ts';
 import { ExecutionAuthority } from '../src/execution-authority.ts';
-import type { AgentRuntime, Credential, ExecutionContext, ExecutionResult, Session, User } from '../src/types.ts';
+import type { AgentRuntime, Credential, ExecutionContext, ExecutionResult, Repository, RepositoryMcp, Session, User } from '../src/types.ts';
 
 const owner: User = { id: 'owner', name: 'Owner', role: 'operator' };
 const outsider: User = { id: 'outsider', name: 'Outsider', role: 'operator' };
@@ -16,16 +16,16 @@ async function until(predicate: () => boolean, reason: string) { const deadline 
 
 class ControlledExecution implements AgentRuntime {
   readonly kind = 'opencode';
-  prepared: { session: string; key?: string; workspace: string }[] = [];
+  prepared: { session: string; key?: string; workspace: string; mcp?: RepositoryMcp }[] = [];
   calls = 0;
   interrupted = 0;
   aborted = 0;
   stopFails = false;
   finishImmediately = false;
   beforeResult?: (context: ExecutionContext) => Promise<void> | void;
-  async prepare(session: Session, _repository: unknown, credential: Credential | undefined) {
+  async prepare(session: Session, repository: Repository, credential: Credential | undefined) {
     const workspace = session.workspace?.id || `workspace-${session.id}`;
-    this.prepared.push({ session: session.id, key: credential?.key, workspace });
+    this.prepared.push({ session: session.id, key: credential?.key, workspace, mcp: repository.mcp });
     return { id: workspace, backend: 'kubernetes' as const, directory: '/managed' };
   }
   async execute(context: ExecutionContext): Promise<ExecutionResult> {
@@ -385,11 +385,12 @@ test('a newer generation learned between roles cannot authorize the old executor
 
 function standaloneBroker() {
   const minted: string[] = [];
+  const grants: (RepositoryMcp | undefined)[] = [];
   const broker = {
-    mint: async (session: Session): Promise<Credential> => { minted.push(session.id); return { key: randomBytes(32).toString('hex'), alias: 'standalone-fixture', reference: `standalone-${session.id}`, budgetUsd: session.budgetUsd }; },
+    mint: async (session: Session, mcp?: RepositoryMcp): Promise<Credential> => { minted.push(session.id); grants.push(mcp); return { key: randomBytes(32).toString('hex'), alias: 'standalone-fixture', reference: `standalone-${session.id}`, budgetUsd: session.budgetUsd }; },
     spend: async () => 0, revoke: async () => {},
   };
-  return { broker, minted };
+  return { broker, minted, grants };
 }
 
 async function withoutExecutionConfig(f: Awaited<ReturnType<typeof governed>>) {
@@ -474,4 +475,37 @@ test('losing Ploeg authority mid-run interrupts execution and blocks resume unti
   assert.equal(f.runtime.calls, 1, 'authority loss must never become an automatic retry');
   assert.equal(f.state.credentialRequests, 1);
   assert.equal(f.state.gatewayRequests, 0);
+});
+
+const gatewayTools: RepositoryMcp = { litellmTeamId: 'agents-orders', accessGroups: ['observability-read-orders'] };
+
+test('a governed session on an opted-in repository takes its key from Ploeg and still receives the gateway MCP scope for its agent configuration', async t => {
+  const f = await governed(t);
+  f.server.config.repositories[0] = { ...f.server.config.repositories[0], mcp: gatewayTools };
+  const session = f.create();
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'runtime did not start');
+  assert.equal(f.state.credentialRequests, 1);
+  assert.equal(f.state.gatewayRequests, 0, 'a governed session must not mint its own scoped key');
+  assert.deepEqual(f.runtime.prepared.map(value => [value.key, value.mcp]), [[f.inferenceKey, gatewayTools]]);
+  await f.server.app.engine.cancel(session.id, owner);
+});
+
+test('a standalone session mints its key with the repository MCP scope, and without one when the repository does not opt in', async t => {
+  const runtime = new ControlledExecution();
+  runtime.finishImmediately = true;
+  const server = await application('live', config => {
+    config.runtime.briefCheck = false;
+    config.repositories.push({ ...config.repositories[0], id: 'scoped', mcp: gatewayTools });
+  }, new Map([['opencode', runtime]]));
+  t.after(() => server.close());
+  const standalone = standaloneBroker();
+  server.app.engine.broker = standalone.broker;
+  for (const repositoryId of [server.config.repositories[0].id, 'scoped']) {
+    const session = server.app.engine.create(createInput({ runtime: 'opencode', budgetUsd: 2, repositoryId }) as any, owner);
+    await server.app.engine.start(session.id, owner);
+    await until(() => ['completed', 'failed'].includes(server.app.store.getSession(session.id)!.status), 'session did not finish');
+  }
+  assert.deepEqual(standalone.grants, [undefined, gatewayTools]);
+  assert.deepEqual(runtime.prepared.map(value => value.mcp), [undefined, gatewayTools]);
 });

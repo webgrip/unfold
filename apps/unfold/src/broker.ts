@@ -1,11 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { RuntimeFailure, transportFailure } from './failures.ts';
-import type { AppConfig, Credential, GatewayRequest, ModelUsage, Session } from './types.ts';
+import type { AppConfig, Credential, GatewayRequest, ModelUsage, RepositoryMcp, Session } from './types.ts';
 
 type GatewayKey = { token: string; key_alias: string; spend?: number; blocked?: boolean; metadata?: Record<string, unknown> };
 
 export interface BudgetBroker {
-  mint(session: Session): Promise<Credential>;
+  mint(session: Session, mcp?: RepositoryMcp): Promise<Credential>;
   spend(reference: string): Promise<number | undefined>;
   revoke(reference: string): Promise<void>;
   usage?(reference: string): Promise<ModelUsage[] | undefined>;
@@ -36,7 +36,7 @@ export class LiteLLMBroker implements BudgetBroker {
     try { return await response.json(); } catch { throw new Error('LiteLLM returned invalid JSON'); }
   }
 
-  async mint(session: Session): Promise<Credential> {
+  async mint(session: Session, mcp?: RepositoryMcp): Promise<Credential> {
     if (!Number.isFinite(session.budgetUsd) || session.budgetUsd <= 0) throw new Error('Refusing an uncapped LiteLLM credential');
     if (!/^[a-zA-Z0-9_-]{1,80}$/.test(session.id)) throw new Error('Invalid session identity');
     const alias = `unfold-${session.id}-${randomBytes(6).toString('hex')}`;
@@ -44,6 +44,7 @@ export class LiteLLMBroker implements BudgetBroker {
       key_alias: alias, max_budget: session.budgetUsd, budget_duration: null,
       models: this.config.models, duration: this.config.ttl,
       metadata: { application: 'unfold', session_id: session.id, operator_id: session.ownerId },
+      ...(mcp ? { team_id: mcp.litellmTeamId, object_permission: { mcp_access_groups: [...mcp.accessGroups] } } : {}),
     });
     if (typeof result?.key !== 'string' || !result.key) throw new Error('LiteLLM returned no credential');
     return { key: result.key, alias, reference: alias, budgetUsd: session.budgetUsd };

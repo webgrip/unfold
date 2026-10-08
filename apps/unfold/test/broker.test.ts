@@ -53,6 +53,18 @@ test('broker mints scoped finite credentials and keeps administrative secrets ou
   assert.equal(requests[0].body.budget_duration, null);
 });
 
+test('broker mints into the repository LiteLLM team with exactly its MCP access groups only when the repository opts in', async t => {
+  const { broker, requests } = await gateway(t);
+  await broker.mint(session);
+  assert.equal('team_id' in requests[0].body, false);
+  assert.equal('object_permission' in requests[0].body, false);
+  await broker.mint(session, { litellmTeamId: 'agents-orders', accessGroups: ['observability-read-orders'] });
+  assert.equal(requests[1].body.team_id, 'agents-orders');
+  assert.deepEqual(requests[1].body.object_permission, { mcp_access_groups: ['observability-read-orders'] });
+  assert.deepEqual(requests[1].body.models, ['coding']);
+  assert.equal(requests[1].body.max_budget, 5);
+});
+
 test('revocation blocks credentials while retaining their accounting across broker restart', async t => {
   const { broker, config, keys, requests } = await gateway(t);
   const credential = await broker.mint(session);

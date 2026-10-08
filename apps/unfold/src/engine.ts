@@ -9,10 +9,10 @@ import { PloegError } from './ploeg.ts';
 import { unavailableCandidate } from './candidates.ts';
 import { SigningKey, attestCandidate, candidatePredicateType, tracePredicateType } from './attestations.ts';
 import { readFileSync } from 'node:fs';
-import type { AgentRuntime, AppConfig, Credential, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest, Crew, SessionOutcome, WorkspaceWait } from './types.ts';
+import type { AgentRuntime, AppConfig, Credential, RepositoryMcp, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest, Crew, SessionOutcome, WorkspaceWait } from './types.ts';
 
 type Broker = {
-  mint(session: Session): Promise<Credential>;
+  mint(session: Session, mcp?: RepositoryMcp): Promise<Credential>;
   spend(reference: string): Promise<number | undefined>;
   revoke(reference: string): Promise<void>;
   aliasesForSession?(sessionId: string): Promise<string[]>;
@@ -741,7 +741,7 @@ export class Engine {
         credential = await this.authority.credential(first);
         if (credential) this.keys.add(credential.key);
       } else if (first.runtime !== 'demo') {
-        credential = await this.broker!.mint({ ...first, budgetUsd: first.budgetUsd - first.spentUsd });
+        credential = await this.broker!.mint({ ...first, budgetUsd: first.budgetUsd - first.spentUsd }, this.config.repositories.find(item => item.id === first.repositoryId)?.mcp);
         this.keys.add(credential.key);
         this.store.setSecret(`budget:${id}`, [...this.reservations(id), { reference: credential.reference, authorizedUsd: credential.budgetUsd, revoked: false }]);
         signal.throwIfAborted();

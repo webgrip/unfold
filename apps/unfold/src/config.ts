@@ -78,6 +78,16 @@ function dockerSettings(raw: unknown): NonNullable<AppConfig['docker']> {
  * their packs reach back (0–12; 1 by default, 4 in the demo), and `teams`, a sprint per Team (`lengthDays` 7–42 and
  * an `anchor` date on which a sprint starts) in place of the ISO week.
  */
+const gatewayName = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
+
+function validateRepositoryMcp(value: unknown, repositoryId: string): void {
+  const invalid = () => new Error(`Repository ${repositoryId} mcp requires litellmTeamId and 1–16 unique accessGroups, and nothing else`);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid();
+  const { litellmTeamId, accessGroups, ...rest } = value as Record<string, unknown>;
+  if (Object.keys(rest).length || typeof litellmTeamId !== 'string' || !gatewayName.test(litellmTeamId)) throw invalid();
+  if (!Array.isArray(accessGroups) || !accessGroups.length || accessGroups.length > 16 || new Set(accessGroups).size !== accessGroups.length || accessGroups.some(group => typeof group !== 'string' || !gatewayName.test(group))) throw invalid();
+}
+
 export function validateCards(raw: unknown, mode: AppConfig['mode']): NonNullable<AppConfig['cards']> {
   const value = raw === undefined ? {} : raw;
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('cards must be an object');
@@ -156,6 +166,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (mode === 'live') configuredUrl(repo.url, `Repository ${repo.id}`);
     if (repo.trackerUrl) configuredUrl(repo.trackerUrl, `Repository ${repo.id} trackerUrl`);
     if (repo.executionOwner !== undefined && !['interactive', 'ploeg'].includes(repo.executionOwner)) throw new Error(`Invalid execution owner for repository ${repo.id}`);
+    if (repo.mcp !== undefined) validateRepositoryMcp(repo.mcp, repo.id);
   }
   const crews = mode === 'demo' ? defaultCrews.filter(crew => crew.id === 'delivery') : raw.crews || defaultCrews;
   if (!Array.isArray(crews) || !crews.length) throw new Error('At least one crew is required');
@@ -175,6 +186,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   const litellmBase = process.env.LITELLM_BASE_URL || raw.litellm?.baseUrl;
   const adminKey = process.env.LITELLM_MASTER_KEY || '';
   if (raw.litellm?.masterKey) throw new Error('Set LITELLM_MASTER_KEY in the environment, not in a configuration file');
+  if (mode === 'live' && !litellmBase && repositories.some(repo => repo.mcp)) throw new Error('Repository mcp requires the LiteLLM gateway base URL');
   const models = raw.models || [{ id: 'coding', name: 'Coding', providerId: 'litellm', modelId: 'coding' }];
   const runtime = { kind: mode === 'demo' ? 'demo' : 'opencode', backend: 'local', binary: 'opencode', timeoutMs: 20 * 60 * 1000, ...raw.runtime };
   if (mode === 'demo') runtime.kind = 'demo';
