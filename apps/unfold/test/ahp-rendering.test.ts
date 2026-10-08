@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { application, request } from './api-support.ts';
-import { action, connect, defaultChatOf, vscodeChangesets, type Json } from './ahp-support.ts';
+import { action, connect, defaultChatOf, reduceChat, vscodeChangesets, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
 import { diffEntries } from '../src/ahp/host.ts';
 import { patchLineCounts } from '../src/candidates.ts';
@@ -203,4 +203,62 @@ test('C11: questions carry a message and their choices, answers map back to the 
   assert.equal(echoed.params.rejectionReason, undefined);
   assert.deepEqual(echoed.params.action, { type: 'chat/inputCompleted', requestId: asked.id, response: 'accept', answers }, 'the echo carries the answers the client sent');
   assert.deepEqual(runtime.answers, [{ answers: [['Half even'], ['EUR', 'JPY'], ['Keep the helper signature.']] }], 'the runtime receives the chosen labels');
+});
+
+const chatActions = (client: { inbox: Json[] }, chat: string, upTo = Infinity) => client.inbox.filter(message => message.method === 'action' && message.params.channel === chat && !message.params.rejectionReason && message.params.serverSeq <= upTo).map(message => message.params.action);
+
+test('C12: an answer the crew still waits for moves into the turn an instruction opens, so the client can still answer it', { timeout: testTimeout(60_000) }, async t => {
+  const { runtime, client, chat } = await asking(t);
+  const requested = await client.until(message => action(message, chat, 'chat/inputRequested'));
+  const requestId = requested.params.action.request.id;
+  client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/turnStarted', turnId: 'steer-turn', startedAt: new Date().toISOString(), message: { text: 'Prefer the rule the finance team uses.', origin: { kind: 'user' } } } });
+  const steered = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 2);
+  assert.equal(steered.params.rejectionReason, undefined);
+  const raised = await client.until(message => action(message, chat, 'chat/inputRequested') && message.params.serverSeq > steered.params.serverSeq);
+  assert.equal(raised.params.action.request.id, requestId);
+  const reduced = chatActions(client, chat).reduce(reduceChat, { turns: [] });
+  assert.equal(reduced.activeTurn.id, 'steer-turn');
+  assert.deepEqual(reduced.activeTurn.responseParts.filter((part: Json) => part.kind === 'inputRequest').map((part: Json) => [part.request.id, part.response]), [[requestId, undefined]], 'the open question is in the active turn the client holds');
+
+  client.notify('dispatchAction', { channel: chat, clientSeq: 3, action: { type: 'chat/inputCompleted', requestId, response: 'accept', answers: { '0': { state: 'submitted', value: { kind: 'selected', value: '0' } }, '1': { state: 'skipped' }, '2': { state: 'skipped' } } } });
+  const completed = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 3);
+  assert.equal(completed.params.rejectionReason, undefined);
+  const answered = chatActions(client, chat, completed.params.serverSeq).reduce(reduceChat, { turns: [] });
+  assert.equal(answered.activeTurn.responseParts.find((part: Json) => part.kind === 'inputRequest' && part.request.id === requestId).response, 'accept');
+  assert.deepEqual(runtime.answers, [{ answers: [['Half up'], [], []] }]);
+});
+
+test('C12: a brief question opens a host turn when none is active, the way VS Code\'s own host starts host-initiated turns', { timeout: testTimeout(60_000) }, async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'brief' } });
+  const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
+  t.after(() => client.close());
+  await client.open;
+  await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'brief' });
+  const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };
+  const session = server.app.engine.create({ title: 'Unclear brief', objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  await server.app.engine.message(session.id, 'Keep the public rounding helper signature unchanged.', operator);
+  const chat = defaultChatOf(`ahp-session:/${session.id}`);
+  const snapshot = (await client.rpc('subscribe', { channel: chat })).snapshot.state;
+  assert.equal(snapshot.activeTurn, undefined, 'the instruction\'s turn has ended and no turn is active');
+
+  const requestId = randomUUID();
+  const questions = ['What should the crew change?', 'How will you know it is done?'];
+  server.app.store.savePermission({ id: requestId, sessionId: session.id, runId: session.runs[0].id, nativeId: `brief:${randomUUID()}`, kind: 'question', title: 'The brief needs more before the crew starts', detail: 'It names no observable outcome.', questions: questions.map(question => ({ question })), resolved: false });
+  const waiting = server.app.store.getSession(session.id)!;
+  waiting.status = 'waiting_input';
+  server.app.store.saveSession(waiting);
+  server.app.store.appendEvent(session.id, 'brief.unclear', 'system', { reason: 'It names no observable outcome.', questions, requestId });
+
+  const requested = await client.until(message => action(message, chat, 'chat/inputRequested'));
+  assert.deepEqual(requested.params.action.request.questions.map((question: Json) => [question.kind, question.message]), questions.map(question => ['text', question]));
+  assert.equal(requested.params.action.request.message, 'The brief needs more before the crew starts\n\nIt names no observable outcome.');
+  const started = client.inbox.find(message => action(message, chat, 'chat/turnStarted'))!;
+  assert.ok(started.params.serverSeq < requested.params.serverSeq, 'the host opens the turn before it asks');
+  assert.equal(started.params.action.message.origin.kind, 'systemNotification', 'a host-initiated turn does not pretend the person typed');
+  const reduced = chatActions(client, chat).reduce(reduceChat, snapshot);
+  assert.equal(reduced.activeTurn.responseParts.at(-1).request.id, requestId, 'the client keeps the question instead of dropping it');
+  const subscribed = (await client.rpc('subscribe', { channel: chat })).snapshot.state;
+  assert.equal(subscribed.activeTurn.responseParts.at(-1).request.id, requestId, 'a fresh snapshot carries the same open question');
 });

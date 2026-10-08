@@ -492,11 +492,11 @@ export class AgentHost {
     return projection;
   }
 
-  private openTurn(projection: Projection, session: Session, text: string, startedAt: string, requestedTurnId?: unknown): Json[] {
+  private openTurn(projection: Projection, session: Session, text: string, startedAt: string, requestedTurnId?: unknown, origin: 'user' | 'systemNotification' = 'user'): Json[] {
     if (projection.activeTurn) this.closeTurn(projection, 'complete', startedAt);
     const hostTurnId = `${session.id}-turn-${++projection.turnCounter}`;
     const turnId = this.acceptableTurnId(projection, requestedTurnId) ?? hostTurnId;
-    const message = { text, origin: { kind: 'user' }, ...(session.runs[0] ? { model: { id: this.config.models[0]?.id ?? 'coding' } } : {}) };
+    const message = { text, origin: { kind: origin }, ...(origin === 'user' && session.runs[0] ? { model: { id: this.config.models[0]?.id ?? 'coding' } } : {}) };
     projection.activeTurn = { id: turnId, startedAt, message, responseParts: [], usage: undefined };
     return [this.tag(projection, { type: 'chat/turnStarted', turnId, startedAt, message }, `turn:${turnId}`)];
   }
@@ -537,6 +537,33 @@ export class AgentHost {
     return [];
   }
 
+  private openInputs(projection: Projection): Json[] {
+    return (projection.activeTurn?.responseParts ?? []).filter((part: Json) => {
+      const id = part.kind === 'inputRequest' && part.response === undefined ? part.request.id : part.kind === 'toolCall' && part.toolCall.status === 'pending-confirmation' ? part.toolCall.toolCallId : undefined;
+      const request = id === undefined ? undefined : this.store.getPermission(id);
+      return Boolean(request && !request.resolved);
+    });
+  }
+
+  private raiseInput(projection: Projection, session: Session, part: Json, at: string): Json[] {
+    const actions = projection.activeTurn ? [] : this.openTurn(projection, session, part.kind === 'inputRequest' ? part.request.message : part.toolCall.confirmationTitle, at, undefined, 'systemNotification');
+    const turn = projection.activeTurn!;
+    if (part.kind === 'inputRequest') {
+      turn.responseParts.push({ kind: 'inputRequest', request: part.request });
+      return [...actions, { type: 'chat/inputRequested', request: part.request }];
+    }
+    const { toolCall } = part;
+    turn.responseParts.push({ kind: 'toolCall', toolCall });
+    projection.toolCalls.set(toolCall.toolCallId, { turnId: turn.id, toolCallId: toolCall.toolCallId });
+    return [...actions,
+      { type: 'chat/toolCallStart', turnId: turn.id, toolCallId: toolCall.toolCallId, toolName: 'permission', displayName: toolCall.displayName },
+      { type: 'chat/toolCallReady', turnId: turn.id, toolCallId: toolCall.toolCallId, invocationMessage: toolCall.invocationMessage, confirmationTitle: toolCall.confirmationTitle, options: toolCall.options }];
+  }
+
+  private requestPart(request: PermissionRequest): Json {
+    return request.kind === 'question' ? { kind: 'inputRequest', request: this.questionRequest(request) } : { kind: 'toolCall', toolCall: this.pendingToolCall(request) };
+  }
+
   private addPart(projection: Projection, part: Json): Json[] {
     const active = projection.activeTurn;
     if (!active) return [];
@@ -555,8 +582,10 @@ export class AgentHost {
       case 'run.started': { ensureTurn(); actions.push(...this.addPart(projection, { kind: 'systemNotification', content: `${data.role} started (${data.mode === 'read' ? 'read-only' : 'writer'}).` })); break; }
       case 'message': {
         if (data.role === 'operator' && typeof data.text === 'string') {
+          const waiting = this.openInputs(projection);
           actions.push(...this.closeTurn(projection, 'complete', event.at));
           actions.push(...this.openTurn(projection, session, data.text, event.at, data.turnId));
+          for (const part of waiting) actions.push(...this.raiseInput(projection, session, part, event.at));
           actions.push(...this.addPart(projection, { kind: 'systemNotification', content: 'Instruction saved. It applies to the next execution; pause and resume to apply it now.' }));
           if (!['running', 'waiting_input', 'exporting'].includes(session.status)) actions.push(...this.closeTurn(projection, 'complete', event.at));
           break;
@@ -598,19 +627,15 @@ export class AgentHost {
         break;
       }
       case 'permission': {
-        const turn = ensureTurn();
-        const requestId = String(data.requestId ?? data.nativeId ?? randomUUID());
-        if (data.kind === 'question') {
-          const request = this.questionRequest({ id: requestId, sessionId: session.id, runId: event.runId ?? '', nativeId: String(data.nativeId ?? ''), kind: 'question', title: String(data.title ?? 'Question'), detail: String(data.detail ?? ''), questions: Array.isArray(data.questions) ? data.questions : [] });
-          turn.responseParts.push({ kind: 'inputRequest', request });
-          actions.push({ type: 'chat/inputRequested', request });
-          break;
-        }
-        const toolCall = this.pendingToolCall({ id: requestId, sessionId: session.id, runId: event.runId ?? '', nativeId: String(data.nativeId ?? ''), kind: 'permission', title: String(data.title ?? 'Permission'), detail: String(data.detail ?? '') });
-        turn.responseParts.push({ kind: 'toolCall', toolCall });
-        projection.toolCalls.set(requestId, { turnId: turn.id, toolCallId: requestId });
-        actions.push({ type: 'chat/toolCallStart', turnId: turn.id, toolCallId: requestId, toolName: 'permission', displayName: toolCall.displayName });
-        actions.push({ type: 'chat/toolCallReady', turnId: turn.id, toolCallId: requestId, invocationMessage: toolCall.invocationMessage, confirmationTitle: toolCall.confirmationTitle, options: toolCall.options });
+        const question = data.kind === 'question';
+        const request: PermissionRequest = { id: String(data.requestId ?? data.nativeId ?? randomUUID()), sessionId: session.id, runId: event.runId ?? '', nativeId: String(data.nativeId ?? ''), kind: question ? 'question' : 'permission', title: String(data.title ?? (question ? 'Question' : 'Permission')), detail: String(data.detail ?? ''), ...(question ? { questions: Array.isArray(data.questions) ? data.questions : [] } : {}) };
+        actions.push(...this.raiseInput(projection, session, this.requestPart(request), event.at));
+        break;
+      }
+      case 'brief.unclear': {
+        const requestId = String(data.requestId ?? '');
+        const request = this.store.getPermission(requestId) ?? { id: requestId, sessionId: session.id, runId: '', nativeId: '', kind: 'question', title: 'The brief needs more before the crew starts', detail: String(data.reason ?? ''), questions: (Array.isArray(data.questions) ? data.questions : []).map((question: unknown) => ({ question: String(question) })) };
+        if (requestId) actions.push(...this.raiseInput(projection, session, this.requestPart(request), event.at));
         break;
       }
       case 'permission.resolved': {

@@ -65,3 +65,38 @@ export function vscodeChangesets(chat: Json, session: Json): Json[] {
   }
   return (resolved ?? []).filter(changeset => renderedChangeKinds.has(changeset.changeKind));
 }
+
+/**
+ * The chat reducer of AHP 0.9 (`types/channels-chat/reducer.ts`), reduced to the actions this host sends: a client
+ * applies them to its snapshot exactly so, dropping parts and input that arrive without a matching active turn.
+ */
+export function reduceChat(state: Json, action: Json): Json {
+  const active = state.activeTurn;
+  const openInput = (requestId: string) => active?.responseParts.findIndex((part: Json) => part.kind === 'inputRequest' && part.response === undefined && part.request.id === requestId) ?? -1;
+  switch (action.type) {
+    case 'chat/turnStarted': return { ...state, activeTurn: { id: action.turnId, startedAt: action.startedAt, message: action.message, responseParts: [] } };
+    case 'chat/responsePart': return active?.id === action.turnId ? { ...state, activeTurn: { ...active, responseParts: [...active.responseParts, action.part] } } : state;
+    case 'chat/delta': return active?.id === action.turnId ? { ...state, activeTurn: { ...active, responseParts: active.responseParts.map((part: Json) => part.kind === 'markdown' && part.id === action.partId ? { ...part, content: part.content + action.content } : part) } } : state;
+    case 'chat/turnComplete': case 'chat/turnCancelled': case 'chat/error':
+      return active?.id === action.turnId ? { ...state, activeTurn: undefined, turns: [...state.turns, { ...active, state: action.type === 'chat/turnComplete' ? 'complete' : action.type === 'chat/turnCancelled' ? 'cancelled' : 'error' }] } : state;
+    case 'chat/inputRequested': {
+      if (!active) return state;
+      const index = openInput(action.request.id);
+      const responseParts = [...active.responseParts];
+      if (index >= 0) responseParts[index] = { kind: 'inputRequest', request: { ...action.request, answers: action.request.answers ?? responseParts[index].request.answers } };
+      else responseParts.push({ kind: 'inputRequest', request: action.request });
+      return { ...state, activeTurn: { ...active, responseParts } };
+    }
+    case 'chat/inputCompleted': {
+      const index = openInput(action.requestId);
+      if (index < 0) return state;
+      const responseParts = [...active.responseParts];
+      const part = responseParts[index];
+      const answers = { ...(part.request.answers ?? {}), ...(action.answers ?? {}) };
+      responseParts[index] = { ...part, request: { ...part.request, answers: Object.keys(answers).length ? answers : undefined }, response: action.response };
+      return { ...state, activeTurn: { ...active, responseParts } };
+    }
+    case 'chat/activityChanged': return { ...state, activity: action.activity };
+    default: return state;
+  }
+}
