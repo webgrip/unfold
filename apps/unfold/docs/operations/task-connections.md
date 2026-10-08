@@ -71,6 +71,7 @@ These entries use the same registered `application` repository. Choose the rows 
 | --- | --- | --- | --- |
 | Forgejo | `https://forge.example/api/v1` | `webgrip/application` | `UNFOLD_TASK_FORGEJO_TOKEN` |
 | GitHub.com | `https://api.github.com` | `webgrip/application` | `UNFOLD_TASK_GITHUB_TOKEN` |
+| GitHub Enterprise Cloud with data residency (GHE.com) | `https://api.octocorp.ghe.com` | `webgrip/application` | `UNFOLD_TASK_GITHUB_TOKEN` |
 | GitHub Enterprise Server | `https://github.example/api/v3` | `webgrip/application` | `UNFOLD_TASK_GITHUB_TOKEN` |
 | GitLab | `https://gitlab.example/api/v4` | `webgrip/platform/application` or `"123"` | `UNFOLD_TASK_GITLAB_TOKEN` |
 | ClickUp | `https://api.clickup.com/api/v2` | `"901234567890"` | `UNFOLD_TASK_CLICKUP_TOKEN` |
@@ -88,7 +89,9 @@ The adapter uses the configured repository scope, excludes pull requests, and fe
 
 Use a fine-grained personal access token limited to the selected repository with **Issues: read**. The list and get issue endpoints support that permission. GitHub's issues API also returns pull requests; the adapter excludes records containing `pull_request`. See the [official issue endpoint contract](https://docs.github.com/en/rest/issues/issues#list-repository-issues).
 
-The current connection accepts a provisioned token. It does not install a GitHub App, renew installation tokens, or create pull requests. Public and private connectivity must still be qualified against the configured GitHub.com or Enterprise Server instance.
+The `baseUrl` is `https://api.github.com` for GitHub.com and `https://api.SUBDOMAIN.ghe.com`, with no path, for an enterprise on GHE.com, where `SUBDOMAIN` is the enterprise's dedicated subdomain ([GitHub's REST API base URL](https://docs.github.com/en/enterprise-cloud@latest/rest/using-the-rest-api/getting-started-with-the-rest-api), [GHE.com network details](https://docs.github.com/en/enterprise-cloud@latest/admin/data-residency/network-details-for-ghecom)). Enterprise Server keeps its own host with the `/api/v3` path. Any other `ghe.com` host or path is rejected, and issue links open on the matching web host: `github.com`, `SUBDOMAIN.ghe.com` or the Enterprise Server host.
+
+The current connection accepts a provisioned token. It does not install a GitHub App, renew installation tokens, or create pull requests. Public and private connectivity must still be qualified against the configured GitHub.com, GHE.com or Enterprise Server instance.
 
 ### GitLab
 
