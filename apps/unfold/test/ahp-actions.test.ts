@@ -107,9 +107,10 @@ test('every accepted client action is echoed with its origin in server order, an
   assert.equal(new Set(sequence).size, sequence.length);
   assert.ok(!watcher.inbox.some(message => JSON.stringify(message).includes('file:///home/operator/private')), 'root configuration is echoed only to its sender');
 
+  server.app.agentHost.activeClientGraceMs = 50;
   vscode.close();
   const dropped = await watcher.until(message => action(message, sessionUri, 'session/activeClientRemoved'));
-  assert.equal(dropped.params.action.clientId, 'vscode-window', 'a disconnected client stops being an active client');
+  assert.equal(dropped.params.action.clientId, 'vscode-window', 'a client that does not come back within the grace period stops being an active client');
 
   await server.restart();
   const reissued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'after restart' } });

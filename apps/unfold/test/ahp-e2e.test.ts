@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { application, request } from './api-support.ts';
 import { action, connect, defaultChatOf, reduceChat, type Json } from './ahp-support.ts';
-import { testTimeout } from './timeframes.ts';
+import { scaledTimeout, settle, testTimeout } from './timeframes.ts';
 
 const objective = 'Reproduce the rounding regression and fix it with the tests intact.';
 const vscodeMain = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };
@@ -192,4 +192,53 @@ test('a reconnect keeps the session spelling decided at initialize, even when it
   await declaring.open;
   const upgraded = await declaring.rpc('reconnect', { channel: 'ahp-root://', clientId: windowId, lastSeenServerSeq: 0, subscriptions: [session], _meta: { 'vscode.ahpSessionUris': true } });
   assert.equal(upgraded.snapshots[0].state.resource, session, 'a reconnect that declares the capability switches to ahp-session');
+});
+
+test('an active client that drops keeps its place for the grace period, keeps it through a reconnect, and loses it when the period ends or it does not resubscribe', { timeout: testTimeout(60_000) }, async t => {
+  const { server, address, open } = await attached(t);
+  const grace = scaledTimeout(800);
+  server.app.agentHost.activeClientGraceMs = grace;
+  const clientId = randomUUID();
+  const activeClient = { clientId, tools: [] };
+  const session = `ahp-session:/${randomUUID()}`;
+  const first = await open(clientId);
+  await first.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1 }, activeClient });
+  await first.until(message => action(message, session, 'session/activeClientSet'));
+  const watcher = await open(randomUUID());
+  await watcher.rpc('subscribe', { channel: session });
+  const removals = () => watcher.inbox.filter(message => action(message, session, 'session/activeClientRemoved'));
+  const resume = async (subscriptions: string[]) => {
+    const connection = connect(address);
+    t.after(() => connection.close());
+    await connection.open;
+    return Object.assign(connection, { result: await connection.rpc('reconnect', { channel: 'ahp-root://', clientId, lastSeenServerSeq: 0, subscriptions }) });
+  };
+
+  first.close();
+  await settle(100);
+  assert.deepEqual((await watcher.rpc('subscribe', { channel: session })).snapshot.state.activeClients, [activeClient], 'a dropped client keeps its place while it may still come back');
+  const resumed = await resume(['ahp-root://', session]);
+  assert.deepEqual(resumed.result.snapshots[1].state.activeClients, [activeClient], 'the reconnect snapshot still lists it');
+  await settle(1200);
+  assert.deepEqual(removals(), [], 'a client that came back in time is never removed');
+
+  resumed.close();
+  const closedAt = Date.now();
+  const removed = await watcher.until(message => action(message, session, 'session/activeClientRemoved'));
+  assert.ok(Date.now() - closedAt >= grace - 50, 'the removal waits for the grace period');
+  assert.deepEqual(removed.params.action, { type: 'session/activeClientRemoved', clientId });
+  assert.equal(removed.params.origin, undefined, 'the host removes it, not a client');
+  assert.deepEqual((await watcher.rpc('subscribe', { channel: session })).snapshot.state.activeClients, []);
+
+  const again = await open(clientId);
+  await again.rpc('subscribe', { channel: session });
+  again.notify('dispatchAction', { channel: session, clientSeq: 1, action: { type: 'session/activeClientSet', activeClient } });
+  await again.until(message => message.method === 'action' && message.params.origin?.clientSeq === 1);
+  again.close();
+  await settle(100);
+  const elsewhere = await resume(['ahp-root://']);
+  const leftAt = Date.now();
+  await watcher.until(message => action(message, session, 'session/activeClientRemoved') && message.params.serverSeq > removed.params.serverSeq);
+  assert.ok(Date.now() - leftAt < grace, 'a reconnect that does not resubscribe to the session gives its place up at once');
+  assert.equal(elsewhere.result.type, 'snapshot');
 });

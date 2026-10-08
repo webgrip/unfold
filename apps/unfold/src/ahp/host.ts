@@ -171,6 +171,9 @@ export class AgentHost {
   private readonly summaries = new Map<string, string>();
   private readonly activeClients = new Map<string, Map<string, Json>>();
   private readonly knownClients = new Map<string, { userId: string; scheme: SessionScheme }>();
+  private readonly departing = new Map<string, ReturnType<typeof setTimeout>>();
+  /** How long an active client whose last connection closed keeps its place, waiting for its reconnect: 30 seconds, as in VS Code's own host. */
+  activeClientGraceMs = 30_000;
   private readonly candidates = new Map<string, CandidateView>();
   private readonly loadingCandidates = new Map<string, Promise<void>>();
   private timer?: ReturnType<typeof setInterval>;
@@ -247,7 +250,7 @@ export class AgentHost {
     return true;
   }
 
-  close(): void { this.closed = true; this.stopPolling(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
+  close(): void { this.closed = true; this.stopPolling(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
 
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
@@ -845,6 +848,7 @@ export class AgentHost {
       const declaresSessionUris = params._meta?.[sessionUrisMeta] === true;
       client.clientId = params.clientId; client.scheme = sessionSchemeFor(params.clientInfo, params._meta); client.initialized = true;
       this.remember(params.clientId, client.user, client.scheme);
+      this.resumeActiveClient(params.clientId, Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
       return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };
@@ -854,6 +858,7 @@ export class AgentHost {
       if (!known || known.userId !== client.user.id) throw new RpcError(codes.notFound, 'This host does not know that client; initialize');
       client.clientId = params.clientId; client.scheme = params._meta?.[sessionUrisMeta] === true ? 'ahp-session' : known.scheme; client.initialized = true;
       this.remember(params.clientId, client.user, client.scheme);
+      this.resumeActiveClient(params.clientId, Array.isArray(params.subscriptions) ? params.subscriptions : []);
     }
     if (!client.initialized) throw new RpcError(codes.invalidRequest, 'initialize first');
     switch (method) {
@@ -995,11 +1000,29 @@ export class AgentHost {
     return undefined;
   }
 
+  private connected(clientId: string): boolean { return [...this.clients].some(other => other.clientId === clientId); }
+
   private dropActiveClient(client: Client): void {
     const clientId = client.clientId;
-    if (!clientId || [...this.clients].some(other => other.clientId === clientId)) return;
+    if (this.closed || !clientId || this.connected(clientId) || ![...this.activeClients.values()].some(clients => clients.has(clientId))) return;
+    clearTimeout(this.departing.get(clientId));
+    const timer = setTimeout(() => { this.departing.delete(clientId); if (!this.connected(clientId)) this.removeActiveClient(clientId); }, this.activeClientGraceMs);
+    timer.unref();
+    this.departing.set(clientId, timer);
+  }
+
+  private resumeActiveClient(clientId: string, subscriptions: unknown[]): void {
+    const timer = this.departing.get(clientId);
+    if (!timer) return;
+    clearTimeout(timer);
+    this.departing.delete(clientId);
+    const resubscribed = new Set(subscriptions.map(channel => typeof channel === 'string' ? parseChannel(channel) : undefined).filter(parsed => parsed && parsed.kind !== 'changeset').map(parsed => parsed!.id));
+    this.removeActiveClient(clientId, publicId => resubscribed.has(publicId));
+  }
+
+  private removeActiveClient(clientId: string, keep: (publicId: string) => boolean = () => false): void {
     for (const [publicId, clients] of [...this.activeClients]) {
-      if (!clients.delete(clientId)) continue;
+      if (keep(publicId) || !clients.delete(clientId)) continue;
       if (!clients.size) this.activeClients.delete(publicId);
       this.broadcast(sessionChannel(publicId), { type: 'session/activeClientRemoved', clientId });
     }
