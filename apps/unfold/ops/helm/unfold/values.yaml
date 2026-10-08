@@ -16,6 +16,13 @@ resources:
   limits:
     cpu: "1"
     memory: 1Gi
+podAnnotations: {}
+podLabels: {}
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+affinity: {}
+extraEnv: []
 mode: demo
 baseUrl: ""
 credentialsSecret: unfold-credentials

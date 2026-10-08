@@ -190,7 +190,7 @@ Each person then opens Linked accounts, links GitLab, and approves the applicati
 The `docker` backend runs the clone and the OpenCode server inside a container from the pinned agent image, through the Docker Engine socket. The workbench never invokes a shell or the Docker CLI. Build the image once from the repository and reference it by tag, or pull a digest-pinned build from the registry:
 
 ```sh
-docker build -t unfold-agent:1.18.34 ops/agent
+docker build -t unfold-agent:1.18.35 ops/agent
 ```
 
 The Dockerfile pulls its hardened base from `dhi.io`, which needs `docker login dhi.io` with a Docker account; pass `--build-arg REGISTRY_DHI=<your-proxy>` to use a mirror. Released builds are at `ghcr.io/webgrip/unfold-agent:<version>`, signed and within a zero critical, zero high CVE budget ([releases](release.md)).
@@ -199,7 +199,7 @@ Add a `docker` block next to `runtime`:
 
 ```json
 {
-  "image": "unfold-agent:1.18.34",
+  "image": "unfold-agent:1.18.35",
   "cpus": 2,
   "memoryMb": 4096,
   "pidsLimit": 512,
@@ -215,7 +215,7 @@ Set `"transport": "pull"` in the `docker` block to let the container dial out in
 Candidate capture stops the container, confirms the stop and snapshots the host directory. The container is removed on disposal; the session directory is retained like the local backend's. Reproduce the no-inference qualification against your image with:
 
 ```sh
-node scripts/probe-docker.mjs unfold-agent:1.18.34
+node scripts/probe-docker.mjs unfold-agent:1.18.35
 ```
 
 The probe serves a fixture repository to the container, verifies the hardened container configuration, authenticated health, managed configuration, adapter session creation, the event stream, abort, candidate capture and container removal, and records that zero inference requests reached its sink.
