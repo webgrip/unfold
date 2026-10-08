@@ -5,6 +5,7 @@ import type { Duplex } from 'node:stream';
 import type { AgentHostView, Store } from '../store.ts';
 import type { Engine } from '../engine.ts';
 import { placements } from '../config.ts';
+import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile } from '../candidates.ts';
 import type { AppConfig, Event, PermissionRequest, Session, User, WorkspaceBackend } from '../types.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
 
@@ -32,6 +33,7 @@ type ChannelKind = 'session' | 'chat' | 'changeset';
 type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
 type Projection = { turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin> };
 type PendingSession = { id: string; uri: string; config: Json; user: User; createdAt: string; starting?: boolean };
+type CandidateView = { files: CandidateFile[]; counts: Map<string, { added: number; removed: number }> };
 
 /** A session's channel in a client's spelling. VS Code 1.141 names it by the provider; VS Code 1.142 by `ahp-session`. */
 export const sessionChannel = (id: string, scheme: SessionScheme = provider) => `${scheme}:/${id}`;
@@ -100,16 +102,20 @@ function activity(session: Session): string | undefined {
 }
 const digest = (token: string) => createHash('sha256').update(token).digest('hex');
 
+/**
+ * The files a runtime's diff artifact describes. A native file diff carries each file's `before` and `after` text; a
+ * unified diff yields only the path and its line counts, because a patch does not hold the files themselves.
+ */
 export function diffEntries(content: string): Json[] {
   try { const parsed = JSON.parse(content); if (Array.isArray(parsed)) return parsed.filter(entry => entry && typeof entry.file === 'string'); } catch {}
-  const entries: Json[] = [];
-  for (const section of content.split(/^(?=diff --git )/m)) {
-    const header = /^diff --git a\/(\S+) b\/(\S+)/.exec(section);
-    if (!header) continue;
-    entries.push({ file: header[2], after: section, additions: (section.match(/^\+(?!\+\+)/gm) ?? []).length, deletions: (section.match(/^-(?!--)/gm) ?? []).length });
-  }
-  return entries;
+  return [...patchLineCounts(content)].map(([file, counts]) => ({ file, additions: counts.added, deletions: counts.removed }));
 }
+
+const workspaceFile = (path: string) => `file:///workspace/repository/${path.split('/').map(encodeURIComponent).join('/')}`;
+const candidateContent = /^unfold-candidate:\/([A-Za-z0-9_-]{1,80})\/(\d{1,6})\/(before|after)$/;
+const artifactContent = /^unfold-diff:\/([A-Za-z0-9_-]{1,80})\/(\d{1,6})\/(\d{1,6})\/(before|after)$/;
+const utf8 = new TextDecoder('utf-8', { fatal: true });
+function text(data: Buffer): string | undefined { if (data.includes(0)) return undefined; try { return utf8.decode(data); } catch { return undefined; } }
 
 export class AgentHost {
   readonly config: AppConfig;
@@ -121,8 +127,11 @@ export class AgentHost {
   private readonly pending = new Map<string, PendingSession>();
   private readonly summaries = new Map<string, string>();
   private readonly activeClients = new Map<string, Map<string, Json>>();
+  private readonly candidates = new Map<string, CandidateView>();
+  private readonly loadingCandidates = new Map<string, Promise<void>>();
   private timer?: ReturnType<typeof setInterval>;
   private polling = false;
+  private closed = false;
 
   constructor(config: AppConfig, store: Store, engine: Engine) {
     this.config = config; this.store = store; this.engine = engine;
@@ -194,7 +203,7 @@ export class AgentHost {
     return true;
   }
 
-  close(): void { this.stopPolling(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
+  close(): void { this.closed = true; this.stopPolling(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
 
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
@@ -316,7 +325,7 @@ export class AgentHost {
   }
 
   private changesets(session: Session): Json[] | undefined {
-    if (session.candidate?.status !== 'ready' && !session.artifacts.some(artifact => artifact.kind === 'diff')) return undefined;
+    if (session.candidate?.status !== 'ready' && session.status !== 'exporting' && !this.artifactFiles(session).length) return undefined;
     const repository = this.config.repositories.find(repo => repo.id === session.repositoryId);
     return [{ label: 'Candidate', uriTemplate: this.changesetUri(session), description: repository ? `Changes against ${repository.baseBranch} of ${repository.name}` : 'Reviewable change', changeKind: 'session', capabilities: { review: {} } }];
   }
@@ -342,32 +351,71 @@ export class AgentHost {
     return { ...this.chatSummary(session, view), turns: projection.turns.slice(-maxTurnsInSnapshot), ...(projection.activeTurn ? { activeTurn: projection.activeTurn } : {}), ...(changesets ? { changesets } : {}) };
   }
 
-  changesetState(session: Session): Json {
-    const files: Json[] = [];
-    session.artifacts.filter(artifact => artifact.kind === 'diff').forEach((artifact, artifactIndex) => {
-      const entries = diffEntries(artifact.content);
-      entries.forEach((entry, index) => {
-        if (typeof entry?.file !== 'string') return;
-        const base = `unfold-diff://${session.id}/${artifactIndex}/${index}`;
-        files.push({ id: `${artifactIndex}-${index}`, edit: {
-          ...(typeof entry.before === 'string' ? { before: { uri: `file:///workspace/repository/${entry.file}`, content: { uri: `${base}/before`, contentType: 'text/plain', sizeHint: entry.before.length } } } : {}),
-          ...(typeof entry.after === 'string' ? { after: { uri: `file:///workspace/repository/${entry.file}`, content: { uri: `${base}/after`, contentType: 'text/plain', sizeHint: entry.after.length } } } : {}),
-          diff: { added: Number(entry.additions) || 0, removed: Number(entry.deletions) || 0 },
-        } });
-      });
-    });
-    return { status: session.status === 'exporting' ? 'computing' : 'ready', files, operations: session.candidate?.status === 'ready' ? [{ id: 'download-bundle', label: 'Download candidate bundle', description: 'The immutable Git bundle and patch are available from the workbench.', scopes: ['changeset'], status: 'disabled' }] : [] };
+  private candidateKey(session: Session): string | undefined {
+    return session.candidate?.status === 'ready' && session.candidate.sha256 ? `${session.id}:${session.candidate.sha256.bundle}` : undefined;
   }
 
-  readResource(user: User, uri: string): { data: string; contentType: string } {
-    const match = /^unfold-diff:\/\/([A-Za-z0-9_-]+)\/(\d+)\/(\d+)\/(before|after)$/.exec(uri);
-    if (!match) throw new RpcError(codes.notFound, 'Resource not found');
-    const session = this.sessionFor(user, `ahp-session:/${match[1]}`);
+  private async loadCandidate(session: Session): Promise<void> {
+    const key = this.candidateKey(session);
+    if (!key || this.candidates.has(key)) return;
+    let loading = this.loadingCandidates.get(key);
+    if (!loading) {
+      loading = (async () => {
+        try {
+          const manifest = JSON.parse((await readCandidate(this.config.dataDir, session.id, 'manifest')).content.toString('utf8'));
+          const patch = await readCandidate(this.config.dataDir, session.id, 'patch');
+          if (Array.isArray(manifest.files)) this.candidates.set(key, { files: manifest.files, counts: patchLineCounts(patch.content.toString('utf8')) });
+        } catch {} finally { this.loadingCandidates.delete(key); }
+      })();
+      this.loadingCandidates.set(key, loading);
+    }
+    await loading;
+  }
+
+  private artifactFiles(session: Session): Json[] {
+    const files: Json[] = [];
+    const publicId = this.publicId(session.id);
+    session.artifacts.filter(artifact => artifact.kind === 'diff').forEach((artifact, artifactIndex) => diffEntries(artifact.content).forEach((entry, index) => {
+      if (typeof entry.before !== 'string' && typeof entry.after !== 'string') return;
+      const content = (side: 'before' | 'after') => ({ uri: workspaceFile(entry.file), content: { uri: `unfold-diff:/${publicId}/${artifactIndex}/${index}/${side}`, contentType: 'text/plain', sizeHint: Buffer.byteLength(entry[side]) } });
+      files.push({ id: `${artifactIndex}-${index}`, edit: { ...(typeof entry.before === 'string' ? { before: content('before') } : {}), ...(typeof entry.after === 'string' ? { after: content('after') } : {}), diff: { added: Number(entry.additions) || 0, removed: Number(entry.deletions) || 0 } } });
+    }));
+    return files;
+  }
+
+  private candidateFiles(session: Session, view: CandidateView): Json[] {
+    const publicId = this.publicId(session.id);
+    return view.files.map((file, index) => {
+      const content = (side: 'before' | 'after') => ({ uri: workspaceFile(file.path), content: { uri: `unfold-candidate:/${publicId}/${index}/${side}`, ...(side === 'after' ? { sizeHint: file.bytes } : {}) } });
+      const counts = view.counts.get(file.path);
+      return { id: file.path, edit: { ...(file.baseBlob ? { before: content('before') } : {}), ...(file.blob ? { after: content('after') } : {}), ...(counts ? { diff: counts } : {}) } };
+    });
+  }
+
+  changesetState(session: Session): Json {
+    const key = this.candidateKey(session);
+    const view = key ? this.candidates.get(key) : undefined;
+    if (key && !view) return { status: 'error', error: { errorType: 'candidate_unreadable', message: 'The captured candidate could not be read from the workbench\'s storage.' }, files: [] };
+    return { status: session.status === 'exporting' ? 'computing' : 'ready', files: view ? this.candidateFiles(session, view) : this.artifactFiles(session), operations: session.candidate?.status === 'ready' ? [{ id: 'download-bundle', label: 'Download candidate bundle', description: 'The immutable Git bundle and patch are available from the workbench.', scopes: ['changeset'], status: 'disabled' }] : [] };
+  }
+
+  async readResource(user: User, uri: string): Promise<{ data: Buffer; contentType: string }> {
+    const candidate = candidateContent.exec(uri);
+    const artifact = candidate ? undefined : artifactContent.exec(uri);
+    const session = candidate || artifact ? this.sessionFor(user, sessionChannel((candidate ?? artifact)![1])) : undefined;
     if (!session) throw new RpcError(codes.notFound, 'Resource not found');
-    const artifact = session.artifacts.filter(item => item.kind === 'diff')[Number(match[2])];
-    const value = diffEntries(artifact?.content ?? '')[Number(match[3])]?.[match[4]];
+    if (candidate) {
+      const key = this.candidateKey(session);
+      if (key) await this.loadCandidate(session);
+      const file = key ? this.candidates.get(key)?.files[Number(candidate[2])] : undefined;
+      const blob = candidate[3] === 'before' ? file?.baseBlob : file?.blob;
+      if (!blob || !session.candidate?.sha256) throw new RpcError(codes.notFound, 'Resource not found');
+      return { data: await readCandidateBlob(this.config.dataDir, session.id, session.candidate.sha256.bundle, blob), contentType: 'text/plain' };
+    }
+    const entry = diffEntries(session.artifacts.filter(item => item.kind === 'diff')[Number(artifact![2])]?.content ?? '')[Number(artifact![3])];
+    const value = entry?.[artifact![4]];
     if (typeof value !== 'string') throw new RpcError(codes.notFound, 'Resource not found');
-    return { data: value, contentType: 'text/plain' };
+    return { data: Buffer.from(value), contentType: 'text/plain' };
   }
 
   private projection(session: Session): Projection {
@@ -583,7 +631,7 @@ export class AgentHost {
         for (const request of this.openRequests(session)) this.broadcast(channel, viewer => ({ type: 'session/inputNeededSet', request: this.inputRequest(session, request, viewer) }));
         for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(channel, { type: 'session/inputNeededRemoved', id: request.id });
         this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, changes: summary.changes } }; }, session.ownerId);
-        if (session.artifacts.some(artifact => artifact.kind === 'diff')) { const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations }); }
+        if (changesets) { await this.loadCandidate(session); if (this.closed) return; const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations }); }
       }
     } finally { this.polling = false; }
   }
@@ -645,7 +693,9 @@ export class AgentHost {
     return JSON.stringify([sessionStatus(session), activity(session), session.title, session.candidate?.status, this.openRequests(session).map(item => item.id), session.artifacts.length]);
   }
 
-  private subscribe(client: Client, channel: string): Json {
+  private async subscribe(client: Client, channel: string): Promise<Json> {
+    const parsed = parseChannel(channel);
+    if (parsed?.kind === 'changeset') { const session = this.sessionFor(client.user, channel); if (session) await this.loadCandidate(session); }
     const snapshot = this.snapshot(client, channel);
     client.subscriptions.add(channel);
     const publicId = sessionIdFrom(channel);
@@ -664,14 +714,15 @@ export class AgentHost {
       if (typeof params.clientId !== 'string') throw new RpcError(codes.invalidParams, 'clientId is required');
       const declaresSessionUris = params._meta?.[sessionUrisMeta] === true;
       client.clientId = params.clientId; client.scheme = declaresSessionUris ? 'ahp-session' : provider; client.initialized = true;
-      const snapshots = (Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]).map((channel: string) => this.subscribe(client, channel));
+      const snapshots: Json[] = [];
+      for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
       return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };
     }
     if (method === 'reconnect' && !client.initialized) throw new RpcError(codes.notFound, 'This host keeps no client across connections; initialize');
     if (!client.initialized) throw new RpcError(codes.invalidRequest, 'initialize first');
     switch (method) {
-      case 'reconnect': { const snapshots = (Array.isArray(params.subscriptions) ? params.subscriptions : []).map((channel: string) => this.subscribe(client, channel)); return { type: 'snapshot', snapshots }; }
-      case 'subscribe': { if (typeof params.channel !== 'string') throw new RpcError(codes.invalidParams, 'channel is required'); return { snapshot: this.subscribe(client, params.channel) }; }
+      case 'reconnect': { const snapshots: Json[] = []; for (const channel of Array.isArray(params.subscriptions) ? params.subscriptions : []) snapshots.push(await this.subscribe(client, channel)); return { type: 'snapshot', snapshots }; }
+      case 'subscribe': { if (typeof params.channel !== 'string') throw new RpcError(codes.invalidParams, 'channel is required'); return { snapshot: await this.subscribe(client, params.channel) }; }
       case 'listSessions': return { items: this.visible(client.user).map(session => this.summary(session, client)) };
       case 'resolveSessionConfig': return { schema: this.configSchema(), values: { ...this.defaultConfig(), ...(params.config ?? {}) } };
       case 'sessionConfigCompletions': { const schema = this.configSchema().properties[String(params.property)]; const values: string[] = schema?.enum ?? []; return { items: values.map((value, index) => ({ value, label: schema.enumDescriptions?.[index] ?? value })) }; }
@@ -681,7 +732,13 @@ export class AgentHost {
       case 'disposeChat': return {};
       case 'fetchTurns': return {};
       case 'completions': return { items: [] };
-      case 'resourceRead': { if (typeof params.uri !== 'string') throw new RpcError(codes.invalidParams, 'uri is required'); const resource = this.readResource(client.user, params.uri); return params.encoding === 'base64' ? { data: Buffer.from(resource.data).toString('base64'), encoding: 'base64', contentType: resource.contentType } : { data: resource.data, encoding: 'utf-8', contentType: resource.contentType }; }
+      case 'resourceRead': {
+        if (typeof params.uri !== 'string') throw new RpcError(codes.invalidParams, 'uri is required');
+        const resource = await this.readResource(client.user, params.uri);
+        const decoded = params.encoding === 'base64' ? undefined : text(resource.data);
+        if (decoded !== undefined) return { data: decoded, encoding: 'utf-8', contentType: resource.contentType };
+        return { data: resource.data.toString('base64'), encoding: 'base64', contentType: params.encoding === 'base64' && text(resource.data) !== undefined ? resource.contentType : 'application/octet-stream' };
+      }
       case 'invokeChangesetOperation': throw new RpcError(codes.permissionDenied, 'Candidate operations are performed in the workbench, not through the agent host');
       case 'authenticate': return {};
       case 'getNetworkDiagnosticsInfo': return { version: applicationVersion, os: process.platform, arch: process.arch, proxySettings: {}, proxyEnv: {}, endpoints: [] };

@@ -83,10 +83,10 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   const changeset = await bob.rpc('subscribe', { channel: `ahp-changeset:/${sessionId}` });
   assert.equal(changeset.snapshot.state.status, 'ready');
   assert.ok(changeset.snapshot.state.files.length > 0);
-  const contentUri = changeset.snapshot.state.files[0].edit.after.content.uri;
+  const contentUri = changeset.snapshot.state.files.find((file: Json) => file.id === 'src/order.js').edit.after.content.uri;
   const read = await bob.rpc('resourceRead', { channel: 'ahp-root://', uri: contentUri });
-  assert.match(read.data, /^diff --git/);
-  await assert.rejects(bob.rpc('resourceRead', { channel: 'ahp-root://', uri: 'unfold-diff://nope/0/0/after' }), (error: any) => error.code === -32008);
+  assert.match(read.data, /Number\.EPSILON/);
+  await assert.rejects(bob.rpc('resourceRead', { channel: 'ahp-root://', uri: 'unfold-diff:/nope/0/0/after' }), (error: any) => error.code === -32008);
 
   bob.notify('dispatchAction', { channel: realChat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 't', startedAt: new Date().toISOString(), message: { text: 'again', origin: { kind: 'user' } } } });
   const rejected = await bob.until(message => action(message, realChat, 'chat/turnStarted') && message.params.rejectionReason);
@@ -97,9 +97,9 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   await settle(50);
 });
 
-test('unified diff artifacts become changeset files when no native diff is available', () => {
+test('a unified diff artifact yields paths and line counts but no file content; a native diff keeps both sides', () => {
   const entries = diffEntries('diff --git a/src/a.js b/src/a.js\n--- a/src/a.js\n+++ b/src/a.js\n@@ -1 +1 @@\n-old\n+new\ndiff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -0,0 +1 @@\n+hello\n');
-  assert.deepEqual(entries.map(entry => [entry.file, entry.additions, entry.deletions]), [['src/a.js', 1, 1], ['README.md', 1, 0]]);
+  assert.deepEqual(entries.map(entry => [entry.file, entry.additions, entry.deletions, entry.before, entry.after]), [['src/a.js', 1, 1, undefined, undefined], ['README.md', 1, 0, undefined, undefined]]);
   assert.deepEqual(diffEntries('[{"file":"x","before":"a","after":"b"}]').map(entry => entry.file), ['x']);
 });
 

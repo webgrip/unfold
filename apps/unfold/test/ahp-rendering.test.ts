@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { application, request } from './api-support.ts';
 import { action, connect, defaultChatOf, vscodeChangesets, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
+import { diffEntries } from '../src/ahp/host.ts';
+import { patchLineCounts } from '../src/candidates.ts';
 
 const objective = 'Reproduce the rounding regression and fix it with the tests intact.';
 
@@ -37,4 +39,67 @@ test('C8: the candidate is a session changeset on the chat, so VS Code instantia
   assert.equal(shown[0].uriTemplate, changeset);
   assert.equal(shown[0].label, 'Candidate');
   assert.deepEqual(sessionState.changesets, chatState.changesets, 'the session and its chat advertise the same catalogue');
+});
+
+test('C9: every candidate file is served whole on both sides, read from the candidate bundle, with the patch\'s line counts', { timeout: testTimeout(60_000) }, async t => {
+  const { server, client, id, changeset } = await finishedThroughAgentHost(t);
+  const state = (await client.rpc('subscribe', { channel: changeset })).snapshot.state;
+  assert.equal(state.status, 'ready');
+  const order = state.files.find((file: Json) => file.id === 'src/order.js');
+  assert.ok(order, `the candidate lists src/order.js: ${JSON.stringify(state.files.map((file: Json) => file.id))}`);
+  assert.equal(order.edit.before.uri, 'file:///workspace/repository/src/order.js');
+  assert.equal(order.edit.after.uri, order.edit.before.uri, 'a modified file keeps its path, so VS Code shows an edit, not a creation');
+  const read = async (uri: string) => (await client.rpc('resourceRead', { channel: 'ahp-root://', uri })).data as string;
+  const before = await read(order.edit.before.content.uri);
+  const after = await read(order.edit.after.content.uri);
+  assert.match(before, /Math\.round\(amount \* 100\)/, 'the before side is the base file');
+  assert.match(after, /Math\.round\(\(amount \+ Number\.EPSILON\) \* 100\)/, 'the after side is the changed file');
+  for (const content of [before, after]) assert.doesNotMatch(content, /^diff --git/m, 'no side is a patch');
+  const session = server.app.store.listSessions().find(item => item.id === id || server.app.store.getSecret(`ahp-alias:${id}`) === item.id)!;
+  const download = await request(server.url, `/api/sessions/${session.id}/candidate/download?format=patch`);
+  const counts = patchLineCounts(download.text).get('src/order.js')!;
+  assert.deepEqual(order.edit.diff, counts);
+  assert.ok(counts.added > 0 && counts.removed > 0);
+  const base64 = await client.rpc('resourceRead', { channel: 'ahp-root://', uri: order.edit.after.content.uri, encoding: 'base64' });
+  assert.equal(Buffer.from(base64.data, 'base64').toString('utf8'), after);
+  await assert.rejects(client.rpc('resourceRead', { channel: 'ahp-root://', uri: `unfold-candidate:/${id}/999/after` }), (error: any) => error.code === -32008);
+});
+
+test('C9: patch line counts unquote Git paths and count only hunk lines', () => {
+  const patch = [
+    'diff --git a/src/a.js b/src/a.js', 'index 1111111..2222222 100644', '--- a/src/a.js', '+++ b/src/a.js', '@@ -1,2 +1,2 @@', ' keep', '-old', '+++counter;', '+new',
+    'diff --git "a/docs/caf\\303\\251 \\"x\\".md" "b/docs/caf\\303\\251 \\"x\\".md"', 'new file mode 100644', '--- /dev/null', '+++ "b/docs/caf\\303\\251 \\"x\\".md"', '@@ -0,0 +1 @@', '+hello',
+    'diff --git a/logo.png b/logo.png', 'index 3333333..4444444 100644', 'GIT binary patch', 'literal 3', 'KcmZQzU|;|M0RR91', '',
+    'diff --git a/with space.txt b/with space.txt', 'deleted file mode 100644', '--- a/with space.txt', '+++ /dev/null', '@@ -1 +0,0 @@', '---dashes', '',
+  ].join('\n');
+  assert.deepEqual([...patchLineCounts(patch)], [['src/a.js', { added: 2, removed: 1 }], ['docs/café "x".md', { added: 1, removed: 0 }], ['logo.png', { added: 0, removed: 0 }], ['with space.txt', { added: 0, removed: 1 }]]);
+  assert.deepEqual(diffEntries(patch).map(entry => [entry.file, entry.after, entry.before]), [['src/a.js', undefined, undefined], ['docs/café "x".md', undefined, undefined], ['logo.png', undefined, undefined], ['with space.txt', undefined, undefined]], 'a patch is never offered as a file\'s content');
+});
+
+test('C9: without a captured candidate, a native file diff is served on both sides and a bare patch is not passed off as a file', { timeout: testTimeout(60_000) }, async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'artifacts' } });
+  const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
+  t.after(() => client.close());
+  await client.open;
+  await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'artifacts' });
+  const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };
+  const create = (title: string) => server.app.engine.create({ title, objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const native = create('Native diff');
+  native.artifacts = [{ id: randomUUID(), kind: 'diff', name: 'Writer native file diff', content: JSON.stringify([{ file: 'src/order.js', before: 'old\n', after: 'new\n', additions: 1, deletions: 1 }]) }];
+  server.app.store.saveSession(native);
+  const patchOnly = create('Patch only');
+  patchOnly.artifacts = [{ id: randomUUID(), kind: 'diff', name: 'Workspace changes', content: 'diff --git a/src/order.js b/src/order.js\n--- a/src/order.js\n+++ b/src/order.js\n@@ -1 +1 @@\n-old\n+new\n' }];
+  server.app.store.saveSession(patchOnly);
+
+  const files = (await client.rpc('subscribe', { channel: `ahp-changeset:/${native.id}` })).snapshot.state.files;
+  assert.equal(files.length, 1);
+  assert.deepEqual(files[0].edit.diff, { added: 1, removed: 1 });
+  assert.equal((await client.rpc('resourceRead', { channel: 'ahp-root://', uri: files[0].edit.before.content.uri })).data, 'old\n');
+  assert.equal((await client.rpc('resourceRead', { channel: 'ahp-root://', uri: files[0].edit.after.content.uri })).data, 'new\n');
+  assert.equal((await client.rpc('subscribe', { channel: `ahp-session:/${native.id}` })).snapshot.state.changesets[0].changeKind, 'session');
+
+  assert.equal((await client.rpc('subscribe', { channel: `ahp-session:/${patchOnly.id}` })).snapshot.state.changesets, undefined, 'no changeset is advertised for changes that cannot be shown as files');
+  assert.deepEqual((await client.rpc('subscribe', { channel: `ahp-changeset:/${patchOnly.id}` })).snapshot.state.files, []);
 });

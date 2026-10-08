@@ -266,3 +266,80 @@ export async function persistRemoteCandidate(dataDir: string, sessionId: string,
   } catch (error) { return unavailableCandidate(error instanceof CaptureError ? error.reason : 'capture_failed'); }
   finally { if (temporary) await rm(temporary, { recursive: true, force: true }).catch(() => {}); }
 }
+
+const quoteEscapes: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, '"': 34, '\\': 92 };
+
+function unquotePath(value: string): string | undefined {
+  const bytes: number[] = [];
+  for (let index = 1; index < value.length; index++) {
+    const char = value[index];
+    if (char === '"') return new TextDecoder().decode(Uint8Array.from(bytes));
+    if (char !== '\\') { const point = String.fromCodePoint(value.codePointAt(index)!); bytes.push(...Buffer.from(point)); index += point.length - 1; continue; }
+    const next = value[++index];
+    if (/^[0-7]{3}$/.test(value.slice(index, index + 3))) { bytes.push(parseInt(value.slice(index, index + 3), 8)); index += 2; }
+    else if (next !== undefined && Object.hasOwn(quoteEscapes, next)) bytes.push(quoteEscapes[next]);
+    else return undefined;
+  }
+  return undefined;
+}
+
+function patchHeaderPath(header: string): string | undefined {
+  const sides = header.slice('diff --git '.length);
+  if (sides.startsWith('"')) { const side = unquotePath(sides); return side?.startsWith('a/') ? side.slice(2) : undefined; }
+  const length = (sides.length - 5) / 2;
+  const path = sides.slice(2, 2 + length);
+  return Number.isInteger(length) && sides === `a/${path} b/${path}` ? path : undefined;
+}
+
+/** Added and removed lines per changed path in a Git patch made without rename detection, keyed by the unquoted path. */
+export function patchLineCounts(patch: string): Map<string, { added: number; removed: number }> {
+  const counts = new Map<string, { added: number; removed: number }>();
+  let current: { added: number; removed: number } | undefined;
+  let inHunk = false;
+  for (const line of patch.split('\n')) {
+    if (line.startsWith('diff --git ')) {
+      const path = patchHeaderPath(line);
+      current = path === undefined ? undefined : { added: 0, removed: 0 };
+      if (path !== undefined) counts.set(path, current!);
+      inHunk = false;
+    } else if (current && line.startsWith('@@')) inHunk = true;
+    else if (current && inHunk && line.startsWith('+')) current.added++;
+    else if (current && inHunk && line.startsWith('-')) current.removed++;
+  }
+  return counts;
+}
+
+const unbundled = new Map<string, Promise<string>>();
+
+async function candidateObjects(dataDir: string, sessionId: string, bundleSha256: string): Promise<string> {
+  const root = resolve(dataDir, 'candidate-objects');
+  const directory = join(root, `${identity(sessionId)}-${bundleSha256}`);
+  try { if ((await lstat(join(directory, 'objects'))).isDirectory()) return directory; } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  await mkdir(root, { recursive: true, mode: 0o700 });
+  const temporary = await mkdtemp(join(root, `.unbundle-${sessionId}-`));
+  try {
+    const gitDirectory = join(temporary, 'git');
+    const signal = AbortSignal.timeout(120_000);
+    await mkdir(gitDirectory, { mode: 0o700 });
+    await git(['init', '--bare', '--object-format=sha1'], gitDirectory, temporary, signal);
+    const bundle = await readCandidate(dataDir, sessionId, 'bundle');
+    if (sha256(bundle.content) !== bundleSha256) reject('capture_failed');
+    await writeFile(join(temporary, names.bundle), bundle.content, { mode: 0o600 });
+    await git(['bundle', 'unbundle', join(temporary, names.bundle)], gitDirectory, temporary, signal);
+    try { await rename(gitDirectory, directory); } catch (error) { if (!['EEXIST', 'ENOTEMPTY'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error; }
+    return directory;
+  } finally { await rm(temporary, { recursive: true, force: true }).catch(() => {}); }
+}
+
+/**
+ * Reads one blob of a captured candidate from its integrity-checked bundle, which holds both the base and the
+ * candidate tree. The bundle is unpacked once per candidate under `candidate-objects` in the data directory.
+ */
+export async function readCandidateBlob(dataDir: string, sessionId: string, bundleSha256: string, blob: string): Promise<Buffer> {
+  if (!/^[a-f0-9]{64}$/.test(bundleSha256) || !/^[a-f0-9]{40}$/.test(blob)) throw new Error('Unsupported candidate object');
+  const key = `${dataDir}\0${sessionId}\0${bundleSha256}`;
+  let pending = unbundled.get(key);
+  if (!pending) { pending = candidateObjects(dataDir, sessionId, bundleSha256); unbundled.set(key, pending); pending.catch(() => unbundled.delete(key)); }
+  const gitDirectory = await pending;
+  return git(['cat-file', 'blob', blob], gitDirectory, gitDirectory, AbortSignal.timeout(60_000));
+}
