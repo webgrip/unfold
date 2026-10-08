@@ -1,3 +1,13 @@
+## [unfold-v0.4.0-rc.45](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.44...unfold-v0.4.0-rc.45) (2026-10-08)
+
+### Added
+
+* **unfold:** chart values for workbench scheduling, pod metadata and extra env ([26fb8fc](https://forgejo.webgrip.dev/webgrip/unfold/commit/26fb8fc5bcd7bea87d7b71592a4a90a0a283c940))
+
+### Build
+
+* **ploeg:** pin Ploeg v0.2.0-rc.7 ([fa26d0a](https://forgejo.webgrip.dev/webgrip/unfold/commit/fa26d0aae3c9fb6563dd7899302aaced3f16361c))
+
 ## [unfold-v0.4.0-rc.44](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.43...unfold-v0.4.0-rc.44) (2026-10-07)
 
 ### Fixed
