@@ -7,7 +7,10 @@ import { placements } from '../config.ts';
 import type { AppConfig, Event, PermissionRequest, Session, User, WorkspaceBackend } from '../types.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
 
+/** The AHP compatibility baseline this host implements. It accepts any offered version in `>=0.9.0 <0.10.0`. */
 export const protocolVersion = '0.9.0';
+/** What the host names in `data.supportedVersions` when no offered version is in its range. */
+export const supportedVersions = ['^0.9.0'];
 export const provider = 'unfold';
 const rootChannel = 'ahp-root://';
 const pollMs = 300;
@@ -41,6 +44,27 @@ const channelKey = (uri: string) => { const parsed = parseChannel(uri); return p
 const codes = { parse: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internal: -32603, sessionNotFound: -32001, providerNotFound: -32002, sessionExists: -32003, turnInProgress: -32004, unsupportedVersion: -32005, authRequired: -32007, notFound: -32008, permissionDenied: -32009, conflict: -32011 };
 
 class RpcError extends Error { code: number; data?: unknown; constructor(code: number, message: string, data?: unknown) { super(message); this.code = code; this.data = data; } }
+
+/** A protocol version that is not three non-negative integers without leading zeros, prerelease or build metadata. */
+export class MalformedVersion extends Error {}
+
+const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+const numericOrder = (a: string, b: string) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * Selects the highest offered version in `>=0.9.0 <0.10.0` and returns that exact offered string, regardless of offer
+ * order, or undefined when none is in range. Throws {@link MalformedVersion} when any entry is malformed.
+ */
+export function negotiateProtocolVersion(offered: readonly unknown[]): string | undefined {
+  let selected: { version: string; patch: string } | undefined;
+  for (const version of offered) {
+    const parts = typeof version === 'string' ? semver.exec(version) : null;
+    if (!parts) throw new MalformedVersion(`Invalid protocol version: ${JSON.stringify(version)}`);
+    const [, major, minor, patch] = parts;
+    if (major === '0' && minor === '9' && (!selected || numericOrder(patch, selected.patch) > 0)) selected = { version: parts[0], patch };
+  }
+  return selected?.version;
+}
 
 const statusBits = { idle: 1, error: 2, inProgress: 8, inputNeeded: 24 };
 function sessionStatus(session: Session): number {
@@ -521,6 +545,7 @@ export class AgentHost {
     } catch (error) {
       const rpc = error instanceof RpcError ? error : new RpcError(codes.internal, error instanceof Error && 'status' in error ? String(error.message) : 'Internal error');
       this.send(client, { jsonrpc: '2.0', id: message.id, error: { code: rpc.code, message: rpc.message, ...(rpc.data !== undefined ? { data: rpc.data } : {}) } });
+      if (rpc.code === codes.unsupportedVersion) { this.clients.delete(client); client.connection.close(1000, 'Unsupported protocol version'); }
     }
   }
 
@@ -560,12 +585,14 @@ export class AgentHost {
   private async request(client: Client, method: string, params: Json): Promise<Json> {
     if (method === 'ping') return {};
     if (method === 'initialize') {
-      const versions: string[] = Array.isArray(params.protocolVersions) ? params.protocolVersions : [];
-      if (!versions.some(version => /^0\.9\.\d+$/.test(version))) throw new RpcError(codes.unsupportedVersion, 'Unsupported protocol version', { supportedVersions: ['^0.9.0'] });
+      let negotiated: string | undefined;
+      try { negotiated = negotiateProtocolVersion(Array.isArray(params.protocolVersions) ? params.protocolVersions : []); }
+      catch (error) { throw new RpcError(codes.invalidParams, (error as Error).message); }
+      if (!negotiated) throw new RpcError(codes.unsupportedVersion, `None of the offered protocol versions is in ${supportedVersions.join(', ')}`, { supportedVersions });
       if (typeof params.clientId !== 'string') throw new RpcError(codes.invalidParams, 'clientId is required');
       client.clientId = params.clientId; client.initialized = true;
       const snapshots = (Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]).map((channel: string) => this.subscribe(client, channel));
-      return { protocolVersion, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, snapshots, terminalCommandPrefix: undefined };
+      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, snapshots, terminalCommandPrefix: undefined };
     }
     if (!client.initialized) throw new RpcError(codes.invalidRequest, 'initialize first');
     switch (method) {

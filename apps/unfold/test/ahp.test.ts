@@ -52,12 +52,19 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   const refused = connect(`${address}/?tkn=not-a-real-token-value`);
   await assert.rejects(refused.open);
 
+  const stale = connect(`${address}/?tkn=${issued.body.token}`);
+  t.after(() => stale.close());
+  await stale.open;
+  await assert.rejects(stale.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9', '0.9.0'], clientId: 'malformed' }), (error: any) => error.code === -32602 && /0\.9/.test(error.message), 'a malformed offer is an explicit error');
+  const staleClosed = closed(stale.socket);
+  await assert.rejects(stale.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['1.0.0', '0.10.0', '0.5.0'], clientId: 'old' }), (error: any) => error.code === -32005 && Array.isArray(error.data.supportedVersions) && error.data.supportedVersions.includes('^0.9.0'));
+  assert.equal(await staleClosed, 1000, 'the host closes the connection after an unsupported offer');
+
   const alice = connect(`${address}/?tkn=${issued.body.token}`);
   t.after(() => alice.close());
   await alice.open;
-  await assert.rejects(alice.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.5.0'], clientId: 'old' }), (error: any) => error.code === -32005 && Array.isArray(error.data.supportedVersions));
-  const initialized = await alice.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'alice', clientInfo: { name: 'test' }, initialSubscriptions: ['ahp-root://'] });
-  assert.equal(initialized.protocolVersion, '0.9.0');
+  const initialized = await alice.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.10.0', '0.9.0', '0.9.3', '0.7.0'], clientId: 'alice', clientInfo: { name: 'test' }, initialSubscriptions: ['ahp-root://'] });
+  assert.equal(initialized.protocolVersion, '0.9.3', 'the highest offered 0.9.x, as offered');
   assert.equal(initialized.snapshots[0].state.agents[0].provider, 'unfold');
   assert.deepEqual(await alice.rpc('ping', { channel: 'ahp-root://' }), {});
   const resolved = await alice.rpc('resolveSessionConfig', { channel: 'ahp-root://' });
