@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { AgentHostView, Store } from '../store.ts';
@@ -13,6 +14,7 @@ export const protocolVersion = '0.9.0';
 export const supportedVersions = ['^0.9.0'];
 export const provider = 'unfold';
 const rootChannel = 'ahp-root://';
+const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 const pollMs = 300;
 const maxTurnsInSnapshot = 200;
 
@@ -679,6 +681,7 @@ export class AgentHost {
       case 'resourceRead': { if (typeof params.uri !== 'string') throw new RpcError(codes.invalidParams, 'uri is required'); const resource = this.readResource(client.user, params.uri); return params.encoding === 'base64' ? { data: Buffer.from(resource.data).toString('base64'), encoding: 'base64', contentType: resource.contentType } : { data: resource.data, encoding: 'utf-8', contentType: resource.contentType }; }
       case 'invokeChangesetOperation': throw new RpcError(codes.permissionDenied, 'Candidate operations are performed in the workbench, not through the agent host');
       case 'authenticate': return {};
+      case 'getNetworkDiagnosticsInfo': return { version: applicationVersion, os: process.platform, arch: process.arch, proxySettings: {}, proxyEnv: {}, endpoints: [] };
       default: throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
     }
   }

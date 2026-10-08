@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { application, login, request } from './api-support.ts';
 import { chatChannel, diffEntries, parseChannel } from '../src/ahp/host.ts';
 import { settle, testTimeout } from './timeframes.ts';
@@ -391,4 +392,17 @@ test('read and archived marks belong to the person who set them, survive summary
   const returned = await attach('alice-marks', 'operator-password-314159', { 'vscode.ahpSessionUris': true });
   assert.equal(await statusOf(returned) & (read | archived), read | archived, 'the marks survive a restart');
   assert.equal(await statusOf(await attach('admin', 'test-admin-password-314159')) & (read | archived), 0);
+});
+
+test('the host answers VS Code\'s getNetworkDiagnosticsInfo with its version, platform and architecture and no account', async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'diagnostics' } });
+  const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
+  t.after(() => client.close());
+  await client.open;
+  await assert.rejects(client.rpc('getNetworkDiagnosticsInfo', {}), (error: any) => error.code === -32600, 'only an initialized client is answered');
+  await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.10.0', '0.9.0'], clientId: 'diagnostics' });
+  const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.deepEqual(await client.rpc('getNetworkDiagnosticsInfo', {}), { version, os: process.platform, arch: process.arch, proxySettings: {}, proxyEnv: {}, endpoints: [] });
 });
