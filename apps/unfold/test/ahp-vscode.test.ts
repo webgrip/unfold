@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { application, request } from './api-support.ts';
-import { action, connect, defaultChatOf, type AgentHostClient, type Json } from './ahp-support.ts';
+import { action, connect, defaultChatOf, vscodeAgentsWindow, type AgentHostClient, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
 
 const read = 32;
@@ -42,7 +42,7 @@ test('VS Code main (1.142) attaches: ahp-session URIs, read and archive marks th
   const clientMeta = { 'vscode.clientConnectionKind': 'remote', 'vscode.telemetryLevel': 0, 'vscode.ahpSessionUris': true };
   const vscode = client(address, t);
   await vscode.open;
-  const initialized = await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['1.0.0', '0.10.0', '0.9.0'], clientId, clientInfo: { name: 'vscode', version: '1.142.0' }, _meta: clientMeta, initialSubscriptions: ['ahp-root://'] });
+  const initialized = await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['1.0.0', '0.10.0', '0.9.0'], clientId, clientInfo: vscodeAgentsWindow, _meta: clientMeta, initialSubscriptions: ['ahp-root://'] });
   assert.equal(initialized.protocolVersion, '0.9.0');
   assert.deepEqual(initialized._meta, { 'vscode.ahpSessionUris': true }, 'the host confirms the URI capability and claims nothing native');
   await accepted(vscode.dispatch('ahp-root://', { type: 'root/configChanged', config: vscodeConfig }), 'ahp-root://', 'root/configChanged');
@@ -83,7 +83,7 @@ test('VS Code main (1.142) attaches: ahp-session URIs, read and archive marks th
   const reconnecting = client(address, t);
   await reconnecting.open;
   await assert.rejects(reconnecting.rpc('reconnect', { channel: 'ahp-root://', clientId, lastSeenServerSeq: started.params.serverSeq, subscriptions: [session, chat], _meta: clientMeta }), (error: any) => error.code === -32008);
-  const again = await reconnecting.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['1.0.0', '0.10.0', '0.9.0'], clientId, clientInfo: { name: 'vscode', version: '1.142.0' }, _meta: clientMeta, initialSubscriptions: ['ahp-root://', session, chat] });
+  const again = await reconnecting.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['1.0.0', '0.10.0', '0.9.0'], clientId, clientInfo: vscodeAgentsWindow, _meta: clientMeta, initialSubscriptions: ['ahp-root://', session, chat] });
   assert.equal(again.protocolVersion, '0.9.0');
   const [root, sessionState, chatState] = again.snapshots.map((snapshot: Json) => snapshot.state);
   assert.equal(root.agents[0].provider, 'unfold');
@@ -107,7 +107,7 @@ test('VS Code 1.141 attaches: unfold URIs, the 0.10.0 offer negotiated down to 0
   const clientId = randomUUID();
   const vscode = client(address, t);
   await vscode.open;
-  const initialized = await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.10.0', '0.9.0', '0.7.0', '0.6.0', '0.5.2', '0.5.1'], clientId, clientInfo: { name: 'vscode', version: '1.141.0' }, _meta: { 'vscode.clientConnectionKind': 'remote' }, initialSubscriptions: ['ahp-root://'] });
+  const initialized = await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.10.0', '0.9.0', '0.7.0', '0.6.0', '0.5.2', '0.5.1'], clientId, clientInfo: vscodeAgentsWindow, _meta: { 'vscode.clientConnectionKind': 'remote' }, initialSubscriptions: ['ahp-root://'] });
   assert.equal(initialized.protocolVersion, '0.9.0');
   assert.equal(initialized._meta, undefined);
   await accepted(vscode.dispatch('ahp-root://', { type: 'root/configChanged', config: vscodeConfig }), 'ahp-root://', 'root/configChanged');

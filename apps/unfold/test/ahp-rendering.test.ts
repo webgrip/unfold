@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { application, request } from './api-support.ts';
-import { action, connect, defaultChatOf, reduceChat, vscodeChangesets, type Json } from './ahp-support.ts';
+import { action, connect, defaultChatOf, reduceChat, vscodeAgentsWindow, vscodeChangesets, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
 import { diffEntries } from '../src/ahp/host.ts';
 import { patchLineCounts } from '../src/candidates.ts';
@@ -21,7 +21,7 @@ async function finishedThroughAgentHost(t: { after: (fn: () => unknown) => void 
   const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
   t.after(() => client.close());
   await client.open;
-  await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'rendering', clientInfo: { name: 'vscode', version: '1.142.0' }, _meta: { 'vscode.ahpSessionUris': true }, initialSubscriptions: ['ahp-root://'] });
+  await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'rendering', clientInfo: vscodeAgentsWindow, _meta: { 'vscode.ahpSessionUris': true }, initialSubscriptions: ['ahp-root://'] });
   const id = randomUUID();
   const session = `ahp-session:/${id}`;
   const chat = defaultChatOf(session);
@@ -163,7 +163,7 @@ async function asking(t: { after: (fn: () => unknown) => void }) {
   const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
   t.after(() => client.close());
   await client.open;
-  await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'questions', clientInfo: { name: 'vscode', version: '1.142.0' }, _meta: { 'vscode.ahpSessionUris': true }, initialSubscriptions: ['ahp-root://'] });
+  await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'questions', clientInfo: vscodeAgentsWindow, _meta: { 'vscode.ahpSessionUris': true }, initialSubscriptions: ['ahp-root://'] });
   const session = `ahp-session:/${randomUUID()}`;
   const chat = defaultChatOf(session);
   await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Questions' } });

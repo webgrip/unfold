@@ -22,8 +22,16 @@ const maxTurnsInSnapshot = 200;
 /** The `initialize` and `InitializeResult` `_meta` key by which VS Code declares it addresses sessions as `ahp-session:/<id>`. */
 export const sessionUrisMeta = 'vscode.ahpSessionUris';
 
-/** How a client spells session channels: by the provider as VS Code 1.141 does, or as `ahp-session` once it declares {@link sessionUrisMeta}. */
+/** How a client spells session channels: by the provider for a VS Code window that does not declare {@link sessionUrisMeta}, as 1.141 does, and as `ahp-session` for every other client. */
 export type SessionScheme = typeof provider | 'ahp-session';
+
+const vscodeWindows = new Set(['vscode-editor-window', 'vscode-agents-window']);
+
+/** VS Code's own host rule: only a client whose `clientInfo` names a VS Code window and that does not declare {@link sessionUrisMeta} gets the provider spelling. */
+export function sessionSchemeFor(clientInfo: unknown, meta: unknown): SessionScheme {
+  const name = (clientInfo as { name?: unknown } | undefined)?.name;
+  return typeof name === 'string' && vscodeWindows.has(name) && (meta as Record<string, unknown> | undefined)?.[sessionUrisMeta] !== true ? provider : 'ahp-session';
+}
 
 type Json = Record<string, any>;
 type Client = { id: string; clientId?: string; scheme: SessionScheme; connection: WebSocketConnection; user: User; token: string; checkedAt: number; subscriptions: Set<string>; initialized: boolean; activeSessions?: number };
@@ -827,7 +835,7 @@ export class AgentHost {
       if (!negotiated) throw new RpcError(codes.unsupportedVersion, `None of the offered protocol versions is in ${supportedVersions.join(', ')}`, { supportedVersions });
       if (typeof params.clientId !== 'string') throw new RpcError(codes.invalidParams, 'clientId is required');
       const declaresSessionUris = params._meta?.[sessionUrisMeta] === true;
-      client.clientId = params.clientId; client.scheme = declaresSessionUris ? 'ahp-session' : provider; client.initialized = true;
+      client.clientId = params.clientId; client.scheme = sessionSchemeFor(params.clientInfo, params._meta); client.initialized = true;
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
       return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };

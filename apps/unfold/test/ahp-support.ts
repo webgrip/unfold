@@ -100,3 +100,6 @@ export function reduceChat(state: Json, action: Json): Json {
     default: return state;
   }
 }
+
+/** The `clientInfo` VS Code 1.141 and main send from the Agents window (`agentHostClientInfo.ts`); the editor window sends `vscode-editor-window`. */
+export const vscodeAgentsWindow = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };

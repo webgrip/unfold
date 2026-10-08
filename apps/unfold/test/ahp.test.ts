@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import { application, login, request } from './api-support.ts';
 import { chatChannel, diffEntries, parseChannel } from '../src/ahp/host.ts';
 import { settle, testTimeout } from './timeframes.ts';
-import { action, closed, connect, defaultChatOf, type Json } from './ahp-support.ts';
+import { action, closed, connect, defaultChatOf, vscodeAgentsWindow, type Json } from './ahp-support.ts';
 
 test('the agent host speaks AHP 0.9: initialize, create a session from a chat, stream the crew, share state with a second client and expose the candidate as a changeset', { timeout: testTimeout(60_000) }, async t => {
   const server = await application();
@@ -31,7 +31,7 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   const alice = connect(`${address}/?tkn=${issued.body.token}`);
   t.after(() => alice.close());
   await alice.open;
-  const initialized = await alice.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.10.0', '0.9.0', '0.9.3', '0.7.0'], clientId: 'alice', clientInfo: { name: 'test' }, initialSubscriptions: ['ahp-root://'] });
+  const initialized = await alice.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.10.0', '0.9.0', '0.9.3', '0.7.0'], clientId: 'alice', clientInfo: vscodeAgentsWindow, initialSubscriptions: ['ahp-root://'] });
   assert.equal(initialized.protocolVersion, '0.9.3', 'the highest offered 0.9.x, as offered');
   assert.equal(initialized.snapshots[0].state.agents[0].provider, 'unfold');
   assert.deepEqual(await alice.rpc('ping', { channel: 'ahp-root://' }), {});
@@ -66,7 +66,7 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   const bob = connect(`${address}/?tkn=${issued.body.token}`);
   t.after(() => bob.close());
   await bob.open;
-  const bobInit = await bob.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'bob', initialSubscriptions: ['ahp-root://'] });
+  const bobInit = await bob.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'bob', clientInfo: vscodeAgentsWindow, initialSubscriptions: ['ahp-root://'] });
   assert.equal(bobInit.snapshots[0].state.activeSessions, 0);
   const listed = await bob.rpc('listSessions', { channel: 'ahp-root://' });
   assert.ok(listed.items.some((item: Json) => item.resource === realSession && item.title === 'Agent host demo'));
@@ -182,7 +182,7 @@ test('the agent host keeps each user to their own sessions, summaries and reject
     const client = connect(`${address}/?tkn=${issued.body.token}`);
     t.after(() => client.close());
     await client.open;
-    await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: name, initialSubscriptions: ['ahp-root://'] });
+    await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: name, clientInfo: vscodeAgentsWindow, initialSubscriptions: ['ahp-root://'] });
     return client;
   };
   const alice = await attach('alice-ahp');
@@ -227,7 +227,7 @@ test('channels parse in the VS Code spelling and in the earlier ahp- spelling', 
   assert.equal(parseChannel('ahp-root://'), undefined);
 });
 
-test('a session created with the earlier ahp-session spelling is listed and streamed under the VS Code spelling', { timeout: testTimeout(60_000) }, async t => {
+test('a client that is not VS Code keeps the ahp-session spelling it created a session with, across the first turn and a restart', { timeout: testTimeout(60_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'legacy' } });
@@ -238,12 +238,13 @@ test('a session created with the earlier ahp-session spelling is listed and stre
   const id = randomUUID();
   await client.rpc('createSession', { channel: `ahp-session:/${id}`, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Legacy spelling' } });
   await client.until(message => action(message, `ahp-session:/${id}`, 'session/ready'));
-  await client.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === `unfold:/${id}`);
+  await client.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === `ahp-session:/${id}`);
   await client.rpc('subscribe', { channel: `ahp-chat:/${id}` });
   client.notify('dispatchAction', { channel: `ahp-chat:/${id}`, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'legacy-turn', startedAt: new Date().toISOString(), message: { text: 'Reproduce the rounding regression and fix it with the tests intact.', origin: { kind: 'user' } } } });
   await client.until(message => action(message, `ahp-chat:/${id}`, 'chat/turnComplete'));
   const listed = await client.rpc('listSessions', { channel: 'ahp-root://' });
-  assert.ok(listed.items.some((item: Json) => item.resource === `unfold:/${id}`), 'the client-chosen id survives the first turn');
+  assert.ok(listed.items.some((item: Json) => item.resource === `ahp-session:/${id}`), 'the client-chosen URI survives the first turn');
+  assert.ok(!JSON.stringify(client.inbox).includes(`unfold:/${id}`), 'the provider spelling never reaches a client that is not VS Code');
 
   client.close();
   await server.restart();
@@ -252,25 +253,31 @@ test('a session created with the earlier ahp-session spelling is listed and stre
   t.after(() => again.close());
   await again.open;
   await again.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'again' });
-  assert.ok((await again.rpc('listSessions', { channel: 'ahp-root://' })).items.some((item: Json) => item.resource === `unfold:/${id}`), 'the client-chosen id survives a restart');
+  assert.ok((await again.rpc('listSessions', { channel: 'ahp-root://' })).items.some((item: Json) => item.resource === `ahp-session:/${id}`), 'the client-chosen URI survives a restart');
+  const window = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${reissued.body.token}`);
+  t.after(() => window.close());
+  await window.open;
+  await window.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'window', clientInfo: vscodeAgentsWindow });
+  assert.ok((await window.rpc('listSessions', { channel: 'ahp-root://' })).items.some((item: Json) => item.resource === `unfold:/${id}`), 'a VS Code 1.141 window sees it under the provider spelling');
   const chat = await again.rpc('subscribe', { channel: chatChannel(id) });
   assert.equal(chat.snapshot.state.turns.at(-1).state, 'complete');
 });
 
-test('each client sees every session in its own spelling: unfold:/ for VS Code 1.141, ahp-session:/ once it declares vscode.ahpSessionUris', { timeout: testTimeout(60_000) }, async t => {
+test('each client sees every session in its own spelling: unfold:/ for a VS Code 1.141 window, ahp-session:/ for VS Code once it declares vscode.ahpSessionUris and for any other client', { timeout: testTimeout(60_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'spelling' } });
   const address = `${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`;
-  const attach = async (clientId: string, meta?: Json) => {
+  const attach = async (clientId: string, meta?: Json, clientInfo: Json | undefined = vscodeAgentsWindow) => {
     const client = connect(address);
     t.after(() => client.close());
     await client.open;
-    const result = await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId, ...(meta ? { _meta: meta } : {}), initialSubscriptions: ['ahp-root://'] });
+    const result = await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId, ...(clientInfo ? { clientInfo } : {}), ...(meta ? { _meta: meta } : {}), initialSubscriptions: ['ahp-root://'] });
     return { client, result };
   };
   const { client: modern, result: modernInit } = await attach('modern', { 'vscode.ahpSessionUris': true });
   const { client: legacy, result: legacyInit } = await attach('legacy');
+  const { client: plain } = await attach('plain', undefined, { name: 'agent-host-protocol-sdk', version: '1.0.0' });
   assert.equal(modernInit._meta?.['vscode.ahpSessionUris'], true, 'the host confirms the capability the client declared');
   assert.equal(modernInit._meta?.['vscode.agentHost'], undefined, 'the host never presents itself as VS Code\'s own');
   assert.equal(legacyInit._meta, undefined);
@@ -282,6 +289,7 @@ test('each client sees every session in its own spelling: unfold:/ for VS Code 1
   await modern.rpc('createSession', { channel: modernUri, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Spelled per client' } });
   assert.equal((await modern.until(message => message.method === 'root/sessionAdded')).params.summary.resource, modernUri);
   assert.equal((await legacy.until(message => message.method === 'root/sessionAdded')).params.summary.resource, legacyUri);
+  assert.equal((await plain.until(message => message.method === 'root/sessionAdded')).params.summary.resource, modernUri, 'a client that is not VS Code gets the ahp-session spelling without declaring anything');
   const drafted = (await modern.rpc('subscribe', { channel: modernUri })).snapshot.state;
   assert.equal(drafted.resource, modernUri);
   assert.equal(drafted.defaultChat, modernChat, 'the default chat is derived from the session URI the client chose');
@@ -296,6 +304,9 @@ test('each client sees every session in its own spelling: unfold:/ for VS Code 1
   assert.ok(chatUpdates.length > 0 && chatUpdates.every(message => message.params.action.chat === modernChat));
   assert.deepEqual((await modern.rpc('listSessions', { channel: 'ahp-root://' })).items.map((item: Json) => item.resource), [modernUri]);
   assert.deepEqual((await legacy.rpc('listSessions', { channel: 'ahp-root://' })).items.map((item: Json) => item.resource), [legacyUri]);
+  assert.deepEqual((await plain.rpc('listSessions', { channel: 'ahp-root://' })).items.map((item: Json) => item.resource), [modernUri]);
+  const plainState = (await plain.rpc('subscribe', { channel: modernUri })).snapshot.state;
+  assert.deepEqual([plainState.resource, plainState.defaultChat], [modernUri, modernChat], 'its session state names the URI it subscribed to');
 
   const legacyState = (await legacy.rpc('subscribe', { channel: legacyUri })).snapshot.state;
   assert.equal(legacyState.resource, legacyUri);
@@ -325,7 +336,7 @@ test('read and archived marks belong to the person who set them, survive summary
     const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
     t.after(() => client.close());
     await client.open;
-    await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: `${name}-${randomUUID()}`, ...(meta ? { _meta: meta } : {}), initialSubscriptions: ['ahp-root://'] });
+    await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: `${name}-${randomUUID()}`, clientInfo: vscodeAgentsWindow, ...(meta ? { _meta: meta } : {}), initialSubscriptions: ['ahp-root://'] });
     return client;
   };
   const alice = await attach('alice-marks', 'operator-password-314159', { 'vscode.ahpSessionUris': true });
