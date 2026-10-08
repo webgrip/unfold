@@ -717,13 +717,13 @@ export class AgentHost {
         if (previous === undefined) continue;
         const status = sessionStatus(session);
         this.broadcast(channel, { type: 'session/activityChanged', activity: activity(session) });
-        this.broadcast(channel, viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: status | this.viewOf(viewer, publicId).chat, activity: activity(session), modifiedAt: session.updatedAt } }));
+        this.broadcast(channel, viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: status | this.viewOf(viewer, publicId).chat, activity: activity(session) ?? null, modifiedAt: session.updatedAt } }));
         const changesets = this.changesets(session);
         this.broadcast(channel, { type: 'session/changesetsChanged', changesets });
         this.broadcast(chat, { type: 'chat/changesetsChanged', changesets });
         for (const request of this.openRequests(session)) this.broadcast(channel, viewer => ({ type: 'session/inputNeededSet', request: this.inputRequest(session, request, viewer) }));
         for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(channel, { type: 'session/inputNeededRemoved', id: request.id });
-        this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, changes: summary.changes } }; }, session.ownerId);
+        this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, changes: summary.changes } }; }, session.ownerId);
         if (changesets) { await this.loadCandidate(session); if (this.closed) return; const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations ?? [] }); }
       }
     } finally { this.polling = false; }
@@ -909,7 +909,7 @@ export class AgentHost {
     this.pending.delete(pending.id);
     this.summaries.set(session.id, this.fingerprint(session));
     this.store.clearAgentHostFlags(pending.id, statusBits.isRead, session.createdAt);
-    this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, ...(summary.project ? { project: summary.project } : {}) } }; }, session.ownerId);
+    this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, ...(summary.project ? { project: summary.project } : {}) } }; }, session.ownerId);
     this.broadcast(sessionChannel(pending.id), viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: sessionStatus(session) | this.viewOf(viewer, pending.id).chat, modifiedAt: session.updatedAt } }));
     const projection = this.projection(session);
     const turn = projection.activeTurn ?? projection.turns.at(-1);

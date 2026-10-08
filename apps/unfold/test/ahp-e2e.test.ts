@@ -46,3 +46,21 @@ test('a streamed markdown part reduces to the text once: the response part carri
   assert.ok(markdown(fresh.turns[0]).some((content: string) => content.length > 0));
   assert.deepEqual(markdown(reduced.turns[0]), markdown(fresh.turns[0]), 'the reduced chat equals a fresh snapshot, with no chunk doubled');
 });
+
+const merged = (state: Json | undefined, changes: Json) => ({ ...state, ...changes });
+
+test('activity that ends is cleared with null in root summaries and in the session\'s chat catalogue, as VS Code\'s own host does', { timeout: testTimeout(60_000) }, async t => {
+  const { open } = await attached(t);
+  const client = await open(randomUUID());
+  const { session, chat, sessionSnapshot } = await runTurn(client);
+  const summaries = client.inbox.filter(message => message.method === 'root/sessionSummaryChanged' && message.params.session === session).map(message => message.params.changes);
+  assert.ok(summaries.some(changes => typeof changes.activity === 'string'), 'the session had activity while its crew worked');
+  const root = summaries.reduce(merged, client.inbox.find(message => message.method === 'root/sessionAdded' && message.params.summary.resource === session)!.params.summary);
+  const listed = (await client.rpc('listSessions', { channel: 'ahp-root://' })).items.find((item: Json) => item.resource === session);
+  assert.equal(listed.activity, undefined);
+  assert.equal(root.activity ?? undefined, undefined, 'the reduced root summary no longer carries the finished activity');
+  const updates = actionsOn(client, session).filter(item => item.type === 'session/chatUpdated' && item.chat === chat).map(item => item.changes);
+  const catalogued = updates.reduce(merged, sessionSnapshot.state.chats[0]);
+  assert.equal(catalogued.activity ?? undefined, undefined, 'the chat catalogue entry no longer carries it either');
+  assert.ok(updates.at(-1) && Object.hasOwn(updates.at(-1)!, 'activity') && updates.at(-1)!.activity === null);
+});
