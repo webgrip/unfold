@@ -31,7 +31,7 @@ type View = Pick<Client, 'user' | 'scheme'>;
 type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
 type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
-type Projection = { turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin> };
+type Projection = { turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json> };
 type PendingSession = { id: string; uri: string; config: Json; user: User; createdAt: string; starting?: boolean };
 type CandidateView = { files: CandidateFile[]; counts: Map<string, { added: number; removed: number }> };
 
@@ -66,6 +66,31 @@ function asRpcError(error: unknown): RpcError {
   return new RpcError(engineCodes[status] ?? codes.internal, error instanceof Error && Number.isFinite(status) ? error.message : 'Internal error');
 }
 const acceptOperation = 'accept';
+const declineReason = 'Unfold cannot decline a question: the crew waits for its answer. Answer it, or stop the turn to pause the session.';
+
+type Choice = { label: string; description?: string };
+function choicesOf(question: Json): Choice[] {
+  return (Array.isArray(question?.options) ? question.options : []).map((option: unknown) => typeof option === 'string' ? { label: option } : { label: String((option as Json)?.label ?? ''), ...((option as Json)?.description ? { description: String((option as Json).description) } : {}) }).filter((choice: Choice) => choice.label);
+}
+function inputQuestion(question: Json, index: number, fallback: string): Json {
+  const text = String(question?.question ?? question?.header ?? fallback);
+  const header = typeof question?.header === 'string' && question.header.trim() && question.header.trim() !== text ? question.header.trim() : undefined;
+  const message = typeof question?.description === 'string' && question.description.trim() ? `${text}\n\n${question.description.trim()}` : text;
+  const choices = choicesOf(question);
+  const base = { id: String(index), ...(header ? { title: header } : {}), message };
+  if (!choices.length) return { ...base, kind: 'text' };
+  return { ...base, kind: question.multiple === true ? 'multi-select' : 'single-select', options: choices.map((choice, option) => ({ id: String(option), ...choice })), allowFreeformInput: question.custom !== false };
+}
+function answerValues(question: Json | undefined, answer: Json | undefined): string[] {
+  if (!answer || answer.state === 'skipped') return [];
+  const value = answer.value ?? {};
+  const choices = choicesOf(question ?? {});
+  const label = (id: unknown) => { const choice = typeof id === 'string' && /^\d{1,4}$/.test(id) ? choices[Number(id)] : undefined; if (!choice) throw new Error(`The answer names an option the question does not offer: ${JSON.stringify(id)}`); return choice.label; };
+  const freeform = Array.isArray(value.freeformValues) ? value.freeformValues.map(String) : [];
+  if (value.kind === 'selected') return [label(value.value), ...freeform];
+  if (value.kind === 'selected-many') return [...(Array.isArray(value.value) ? value.value : []).map(label), ...freeform];
+  return value.value === undefined ? [] : [String(value.value)];
+}
 
 /** A protocol version that is not three non-negative integers without leading zeros, prerelease or build metadata. */
 export class MalformedVersion extends Error {}
@@ -325,7 +350,15 @@ export class AgentHost {
 
   private questionRequest(request: PermissionRequest): Json {
     const questions = Array.isArray(request.questions) ? request.questions as Json[] : [];
-    return { id: request.id, title: request.title, questions: questions.map((question, index) => ({ id: String(index), kind: 'text', title: String(question.question ?? question.header ?? request.title), ...(question.description ? { description: String(question.description) } : {}) })) };
+    const asked = questions.map(question => String(question?.question ?? '')).join('\n').trim();
+    const detail = request.detail?.trim() && request.detail.trim() !== asked ? `\n\n${request.detail.trim()}` : '';
+    return { id: request.id, message: `${request.title}${detail}`, questions: questions.map((question, index) => inputQuestion(question, index, request.title)) };
+  }
+
+  private answersFor(request: PermissionRequest, answers: Json | undefined): string[][] {
+    const questions = Array.isArray(request.questions) ? request.questions as Json[] : [];
+    if (!questions.length) return Object.values(answers ?? {}).map(answer => answerValues(undefined, answer as Json));
+    return questions.map((question, index) => answerValues(question, answers?.[String(index)]));
   }
 
   private pendingToolCall(request: PermissionRequest): Json {
@@ -450,7 +483,7 @@ export class AgentHost {
   private projection(session: Session): Projection {
     let projection = this.projections.get(session.id);
     if (!projection) {
-      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map() };
+      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map(), answers: new Map() };
       this.projections.set(session.id, projection);
       this.openTurn(projection, session, session.objective, session.createdAt, this.store.getSecret<string>(`ahp-turn:${session.id}`));
       for (const event of this.store.events(session.id)) this.reduce(projection, session, event);
@@ -593,7 +626,13 @@ export class AgentHost {
           if (approved) actions.push({ type: 'chat/toolCallComplete', turnId: turn.id, toolCallId: requestId, result: { success: true, pastTenseMessage: 'Allowed by the operator' } });
         }
         const input = turn.responseParts.find((item: Json) => item.kind === 'inputRequest' && item.request.id === requestId);
-        if (input) { input.response = 'accept'; actions.push(this.tag(projection, { type: 'chat/inputCompleted', requestId, response: 'accept' }, `request:${requestId}`)); }
+        if (input) {
+          const answers = projection.answers.get(requestId);
+          projection.answers.delete(requestId);
+          input.response = 'accept';
+          if (answers) input.request = { ...input.request, answers };
+          actions.push(this.tag(projection, { type: 'chat/inputCompleted', requestId, response: 'accept', ...(answers ? { answers } : {}) }, `request:${requestId}`));
+        }
         break;
       }
       case 'usage': {
@@ -905,11 +944,12 @@ export class AgentHost {
     return undefined;
   }
 
-  private async answer(session: Session, requestId: string, answer: { decision?: 'once' | 'always' | 'reject'; answers?: string[][] }, user: User, origin: Origin): Promise<undefined> {
+  private async answer(session: Session, requestId: string, answer: { decision?: 'once' | 'always' | 'reject'; answers?: string[][] }, user: User, origin: Origin, submitted?: Json): Promise<undefined> {
     const projection = this.projection(session);
     projection.origins.set(`request:${requestId}`, origin);
+    if (submitted) projection.answers.set(requestId, submitted);
     try { await this.engine.respond(session.id, requestId, answer, user); }
-    catch (error) { projection.origins.delete(`request:${requestId}`); throw error; }
+    catch (error) { projection.origins.delete(`request:${requestId}`); projection.answers.delete(requestId); throw error; }
     return undefined;
   }
 
@@ -956,10 +996,11 @@ export class AgentHost {
       }
       case 'chat/inputCompleted': {
         const request = this.store.getPermission(String(action.requestId ?? ''));
-        if (!request || request.sessionId !== session.id) return 'Unknown question';
-        if (action.response !== 'accept') return this.answer(session, request.id, { decision: 'reject' }, client.user, origin);
-        const answers = Object.values((action.answers ?? {}) as Record<string, Json>).map(answer => [String(answer?.value?.value ?? answer?.value?.text ?? '')]);
-        return this.answer(session, request.id, { answers: answers.length ? answers : [['']] }, client.user, origin);
+        if (!request || request.sessionId !== session.id || request.kind !== 'question') return 'Unknown question';
+        if (action.response !== 'accept') return declineReason;
+        const submitted = action.answers && typeof action.answers === 'object' ? action.answers as Json : undefined;
+        const answers = this.answersFor(request, submitted);
+        return this.answer(session, request.id, { answers: answers.length ? answers : [['']] }, client.user, origin, submitted);
       }
       case 'chat/pendingMessageSet': {
         if (notOnChat) return notOnChat;

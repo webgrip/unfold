@@ -1,11 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { application, request } from './api-support.ts';
 import { action, connect, defaultChatOf, vscodeChangesets, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
 import { diffEntries } from '../src/ahp/host.ts';
 import { patchLineCounts } from '../src/candidates.ts';
+import { DemoRuntime } from '../src/runtime/demo.ts';
+import type { AgentRuntime, ExecutionContext, ExecutionResult, PermissionRequest, RuntimeKind, Workspace } from '../src/types.ts';
 
 const objective = 'Reproduce the rounding regression and fix it with the tests intact.';
 
@@ -128,4 +133,74 @@ test('C10: the candidate offers Accept, the workbench\'s own review, under the s
   assert.deepEqual(changed.params.action.operations, []);
   assert.equal((await client.rpc('subscribe', { channel: changeset })).snapshot.state.operations, undefined);
   await assert.rejects(client.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'accept' }), (error: any) => error.code === -32602, 'a candidate is accepted once');
+});
+
+const askedQuestions = [
+  { question: 'Which rounding rule should money use?', header: 'Rounding', options: [{ label: 'Half up', description: 'Round 0.5 away from zero.' }, { label: 'Half even' }], multiple: false },
+  { question: 'Which currencies must the fix cover?', header: 'Currencies', options: [{ label: 'EUR' }, { label: 'USD' }, { label: 'JPY' }], multiple: true, custom: false },
+  { question: 'Anything else the crew should know?' },
+];
+
+class QuestionRuntime extends DemoRuntime {
+  readonly answers: Array<{ decision?: string; answers?: string[][] }> = [];
+  private release?: () => void;
+  override async execute(context: ExecutionContext): Promise<ExecutionResult> {
+    if (context.role.mode === 'read') return { summary: 'Reviewed.', verdict: 'approve', artifacts: [], costUsd: 0 };
+    context.emit({ type: 'permission', data: { nativeId: 'native-question-1', kind: 'question', title: 'Agent needs your answer', detail: askedQuestions.map(question => question.question).join('\n'), questions: askedQuestions } });
+    await new Promise<void>((resolve, reject) => { this.release = resolve; context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true }); });
+    return { summary: 'Applied the answers.', artifacts: [], costUsd: 0 };
+  }
+  async respond(_workspace: Workspace, _request: PermissionRequest, answer: { decision?: 'once' | 'always' | 'reject'; answers?: string[][] }): Promise<void> { this.answers.push(answer); this.release?.(); }
+}
+
+async function asking(t: { after: (fn: () => unknown) => void }) {
+  const dataDir = await mkdtemp(join(tmpdir(), 'unfold-ahp-questions-'));
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
+  const runtime = new QuestionRuntime({ dataDir, delayMs: 5 });
+  const server = await application('demo', undefined, new Map<RuntimeKind, AgentRuntime>([['demo', runtime]]));
+  t.after(() => server.close());
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'questions' } });
+  const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
+  t.after(() => client.close());
+  await client.open;
+  await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'questions', clientInfo: { name: 'vscode', version: '1.142.0' }, _meta: { 'vscode.ahpSessionUris': true }, initialSubscriptions: ['ahp-root://'] });
+  const session = `ahp-session:/${randomUUID()}`;
+  const chat = defaultChatOf(session);
+  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Questions' } });
+  for (const channel of [session, chat]) await client.rpc('subscribe', { channel });
+  client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'question-turn', startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } } });
+  return { server, runtime, client, session, chat };
+}
+
+test('C11: questions carry a message and their choices, answers map back to the options, and a decline is refused with the way out', { timeout: testTimeout(60_000) }, async t => {
+  const { server, runtime, client, chat } = await asking(t);
+  const requested = await client.until(message => action(message, chat, 'chat/inputRequested'));
+  const { request: asked } = requested.params.action;
+  assert.match(asked.message, /^Agent needs your answer$/, 'the request names itself and does not repeat the questions');
+  for (const question of asked.questions) assert.equal(typeof question.message, 'string', 'every question has the message VS Code requires');
+  assert.deepEqual(asked.questions.map((question: Json) => [question.id, question.kind, question.title, question.message]), [
+    ['0', 'single-select', 'Rounding', 'Which rounding rule should money use?'],
+    ['1', 'multi-select', 'Currencies', 'Which currencies must the fix cover?'],
+    ['2', 'text', undefined, 'Anything else the crew should know?'],
+  ]);
+  assert.deepEqual(asked.questions[0].options, [{ id: '0', label: 'Half up', description: 'Round 0.5 away from zero.' }, { id: '1', label: 'Half even' }]);
+  assert.equal(asked.questions[0].allowFreeformInput, true);
+  assert.equal(asked.questions[1].allowFreeformInput, false, 'a question that refuses custom answers says so');
+
+  client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/inputCompleted', requestId: asked.id, response: 'cancel' } });
+  const declined = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 2);
+  assert.match(declined.params.rejectionReason, /cannot decline a question.*stop the turn to pause/);
+  assert.deepEqual(runtime.answers, [], 'a decline never reaches the engine');
+  assert.equal(server.app.store.permissions(server.app.store.listSessions()[0].id).filter(item => !item.resolved).length, 1, 'the question stays open');
+
+  const answers = {
+    '0': { state: 'submitted', value: { kind: 'selected', value: '1' } },
+    '1': { state: 'submitted', value: { kind: 'selected-many', value: ['0', '2'] } },
+    '2': { state: 'submitted', value: { kind: 'text', value: 'Keep the helper signature.' } },
+  };
+  client.notify('dispatchAction', { channel: chat, clientSeq: 3, action: { type: 'chat/inputCompleted', requestId: asked.id, response: 'accept', answers } });
+  const echoed = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 3);
+  assert.equal(echoed.params.rejectionReason, undefined);
+  assert.deepEqual(echoed.params.action, { type: 'chat/inputCompleted', requestId: asked.id, response: 'accept', answers }, 'the echo carries the answers the client sent');
+  assert.deepEqual(runtime.answers, [{ answers: [['Half even'], ['EUR', 'JPY'], ['Keep the helper signature.']] }], 'the runtime receives the chosen labels');
 });
