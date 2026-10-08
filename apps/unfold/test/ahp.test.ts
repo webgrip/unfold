@@ -3,41 +3,8 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { application, login, request } from './api-support.ts';
 import { chatChannel, diffEntries, parseChannel } from '../src/ahp/host.ts';
-import { scaledTimeout, settle, testTimeout } from './timeframes.ts';
-
-type Json = Record<string, any>;
-
-function connect(url: string) {
-  const socket = new WebSocket(url);
-  const inbox: Json[] = [];
-  const waiters: Array<{ predicate: (message: Json) => boolean; resolve: (message: Json) => void }> = [];
-  let nextId = 1;
-  const pending = new Map<number, { resolve: (value: Json) => void; reject: (error: Error) => void }>();
-  socket.addEventListener('message', event => {
-    const message = JSON.parse(String(event.data));
-    if (message.id !== undefined && pending.has(message.id)) {
-      const waiter = pending.get(message.id)!; pending.delete(message.id);
-      if (message.error) waiter.reject(Object.assign(new Error(message.error.message), { code: message.error.code, data: message.error.data })); else waiter.resolve(message.result);
-      return;
-    }
-    inbox.push(message);
-    for (const waiter of [...waiters]) if (waiter.predicate(message)) { waiters.splice(waiters.indexOf(waiter), 1); waiter.resolve(message); }
-  });
-  const open = new Promise<void>((resolve, reject) => { socket.addEventListener('open', () => resolve()); socket.addEventListener('error', () => reject(new Error('connection refused'))); });
-  return {
-    socket, inbox, open,
-    rpc(method: string, params: Json): Promise<Json> { const id = nextId++; socket.send(JSON.stringify({ jsonrpc: '2.0', id, method, params })); return new Promise((resolve, reject) => pending.set(id, { resolve, reject })); },
-    notify(method: string, params: Json) { socket.send(JSON.stringify({ jsonrpc: '2.0', method, params })); },
-    until(predicate: (message: Json) => boolean, timeoutMs = scaledTimeout(25_000)): Promise<Json> {
-      const existing = inbox.find(predicate);
-      if (existing) return Promise.resolve(existing);
-      return new Promise((resolve, reject) => { const timer = setTimeout(() => reject(new Error(`timed out waiting for a message; seen: ${inbox.map(message => `${message.method}:${message.params?.action?.type ?? message.params?.channel ?? ''}`).join(', ')}`)), timeoutMs); waiters.push({ predicate, resolve: message => { clearTimeout(timer); resolve(message); } }); });
-    },
-    close() { socket.close(); },
-  };
-}
-
-const action = (message: Json, channel: string, type: string) => message.method === 'action' && message.params.channel === channel && message.params.action.type === type;
+import { settle, testTimeout } from './timeframes.ts';
+import { action, closed, connect, defaultChatOf, type Json } from './ahp-support.ts';
 
 test('the agent host speaks AHP 0.9: initialize, create a session from a chat, stream the crew, share state with a second client and expose the candidate as a changeset', { timeout: testTimeout(60_000) }, async t => {
   const server = await application();
@@ -136,7 +103,6 @@ test('unified diff artifacts become changeset files when no native diff is avail
 });
 
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
-const closed = (socket: WebSocket) => new Promise<number>(resolve => { if (socket.readyState === WebSocket.CLOSED) resolve(1006); else socket.addEventListener('close', event => resolve(event.code), { once: true }); });
 
 test('agent host tokens expire without use, renew when used and are rejected afterwards', async t => {
   const server = await application('live');
@@ -281,4 +247,61 @@ test('a session created with the earlier ahp-session spelling is listed and stre
   assert.ok((await again.rpc('listSessions', { channel: 'ahp-root://' })).items.some((item: Json) => item.resource === `unfold:/${id}`), 'the client-chosen id survives a restart');
   const chat = await again.rpc('subscribe', { channel: chatChannel(id) });
   assert.equal(chat.snapshot.state.turns.at(-1).state, 'complete');
+});
+
+test('each client sees every session in its own spelling: unfold:/ for VS Code 1.141, ahp-session:/ once it declares vscode.ahpSessionUris', { timeout: testTimeout(60_000) }, async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'spelling' } });
+  const address = `${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`;
+  const attach = async (clientId: string, meta?: Json) => {
+    const client = connect(address);
+    t.after(() => client.close());
+    await client.open;
+    const result = await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId, ...(meta ? { _meta: meta } : {}), initialSubscriptions: ['ahp-root://'] });
+    return { client, result };
+  };
+  const { client: modern, result: modernInit } = await attach('modern', { 'vscode.ahpSessionUris': true });
+  const { client: legacy, result: legacyInit } = await attach('legacy');
+  assert.equal(modernInit._meta?.['vscode.ahpSessionUris'], true, 'the host confirms the capability the client declared');
+  assert.equal(modernInit._meta?.['vscode.agentHost'], undefined, 'the host never presents itself as VS Code\'s own');
+  assert.equal(legacyInit._meta, undefined);
+
+  const id = randomUUID();
+  const modernUri = `ahp-session:/${id}`;
+  const legacyUri = `unfold:/${id}`;
+  const modernChat = defaultChatOf(modernUri);
+  await modern.rpc('createSession', { channel: modernUri, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Spelled per client' } });
+  assert.equal((await modern.until(message => message.method === 'root/sessionAdded')).params.summary.resource, modernUri);
+  assert.equal((await legacy.until(message => message.method === 'root/sessionAdded')).params.summary.resource, legacyUri);
+  const drafted = (await modern.rpc('subscribe', { channel: modernUri })).snapshot.state;
+  assert.equal(drafted.resource, modernUri);
+  assert.equal(drafted.defaultChat, modernChat, 'the default chat is derived from the session URI the client chose');
+  assert.deepEqual(drafted.chats.map((chat: Json) => chat.resource), [modernChat]);
+  assert.equal((await modern.rpc('subscribe', { channel: modernChat })).snapshot.state.resource, modernChat);
+
+  modern.notify('dispatchAction', { channel: modernChat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'modern-turn', startedAt: new Date().toISOString(), message: { text: 'Reproduce the rounding regression and fix it with the tests intact.', origin: { kind: 'user' } } } });
+  await modern.until(message => action(message, modernChat, 'chat/turnComplete'));
+  assert.equal((await modern.until(message => message.method === 'root/sessionSummaryChanged')).params.session, modernUri);
+  assert.equal((await legacy.until(message => message.method === 'root/sessionSummaryChanged')).params.session, legacyUri);
+  const chatUpdates = modern.inbox.filter(message => action(message, modernUri, 'session/chatUpdated'));
+  assert.ok(chatUpdates.length > 0 && chatUpdates.every(message => message.params.action.chat === modernChat));
+  assert.deepEqual((await modern.rpc('listSessions', { channel: 'ahp-root://' })).items.map((item: Json) => item.resource), [modernUri]);
+  assert.deepEqual((await legacy.rpc('listSessions', { channel: 'ahp-root://' })).items.map((item: Json) => item.resource), [legacyUri]);
+
+  const legacyState = (await legacy.rpc('subscribe', { channel: legacyUri })).snapshot.state;
+  assert.equal(legacyState.resource, legacyUri);
+  assert.equal(legacyState.defaultChat, defaultChatOf(legacyUri));
+  assert.equal((await legacy.rpc('subscribe', { channel: defaultChatOf(legacyUri) })).snapshot.state.turns.at(-1).state, 'complete');
+  const mentions = (client: typeof modern, text: string) => client.inbox.some(message => JSON.stringify(message).includes(text));
+  assert.ok(!mentions(legacy, modernUri) && !mentions(legacy, modernChat), 'the 1.141 client never sees the ahp-session spelling');
+  assert.ok(!mentions(modern, legacyUri) && !mentions(modern, defaultChatOf(legacyUri)), 'the declaring client never sees the provider spelling');
+
+  const returning = connect(address);
+  t.after(() => returning.close());
+  await returning.open;
+  await assert.rejects(returning.rpc('reconnect', { channel: 'ahp-root://', clientId: 'modern', lastSeenServerSeq: 0, subscriptions: [modernUri], _meta: { 'vscode.ahpSessionUris': true } }), (error: any) => error.code === -32008, 'a reconnect on a new connection is told to initialize');
+  const again = await returning.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['1.0.0', '0.10.0', '0.9.0'], clientId: 'modern', _meta: { 'vscode.ahpSessionUris': true }, initialSubscriptions: ['ahp-root://', modernUri] });
+  assert.equal(again.snapshots[1].state.resource, modernUri);
+  assert.equal(again.snapshots[1].state.defaultChat, modernChat);
 });

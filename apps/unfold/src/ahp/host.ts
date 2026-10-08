@@ -16,17 +16,25 @@ const rootChannel = 'ahp-root://';
 const pollMs = 300;
 const maxTurnsInSnapshot = 200;
 
+/** The `initialize` and `InitializeResult` `_meta` key by which VS Code declares it addresses sessions as `ahp-session:/<id>`. */
+export const sessionUrisMeta = 'vscode.ahpSessionUris';
+
+/** How a client spells session channels: by the provider as VS Code 1.141 does, or as `ahp-session` once it declares {@link sessionUrisMeta}. */
+export type SessionScheme = typeof provider | 'ahp-session';
+
 type Json = Record<string, any>;
-type Client = { id: string; clientId?: string; connection: WebSocketConnection; user: User; token: string; checkedAt: number; subscriptions: Set<string>; initialized: boolean };
+type Client = { id: string; clientId?: string; scheme: SessionScheme; connection: WebSocketConnection; user: User; token: string; checkedAt: number; subscriptions: Set<string>; initialized: boolean };
+type View = Pick<Client, 'user' | 'scheme'>;
+type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
 type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
 type Projection = { turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string };
-type PendingSession = { id: string; uri: string; config: Json; user: User; starting?: boolean };
+type PendingSession = { id: string; uri: string; config: Json; user: User; createdAt: string; starting?: boolean };
 
-/** A session's channel as VS Code names it: the provider is the URI scheme. */
-export const sessionChannel = (id: string) => `${provider}:/${id}`;
-/** A session's default chat, in the shape VS Code derives from the session URI. */
-export const chatChannel = (id: string) => `ahp-chat://default/${Buffer.from(sessionChannel(id)).toString('base64url')}`;
+/** A session's channel in a client's spelling. VS Code 1.141 names it by the provider; VS Code 1.142 by `ahp-session`. */
+export const sessionChannel = (id: string, scheme: SessionScheme = provider) => `${scheme}:/${id}`;
+/** A session's default chat, in the shape VS Code derives from the session URI in the same spelling. */
+export const chatChannel = (id: string, scheme: SessionScheme = provider) => `ahp-chat://default/${Buffer.from(sessionChannel(id, scheme)).toString('base64url')}`;
 export const changesetChannel = (id: string) => `ahp-changeset:/${id}`;
 
 /** Parses a session, chat or changeset channel in its current or earlier spelling into its kind and public session id. */
@@ -165,7 +173,7 @@ export class AgentHost {
     const authenticated = this.authenticate(url.searchParams.get('tkn'));
     if (!authenticated) { rejectUpgrade(socket, 403, 'Forbidden'); return true; }
     const connection = upgradeToWebSocket(req, socket, head);
-    const client: Client = { id: randomUUID(), connection, user: authenticated.user, token: authenticated.key, checkedAt: Date.now(), subscriptions: new Set(), initialized: false };
+    const client: Client = { id: randomUUID(), scheme: provider, connection, user: authenticated.user, token: authenticated.key, checkedAt: Date.now(), subscriptions: new Set(), initialized: false };
     this.clients.add(client);
     connection.on('message', text => void this.receive(client, text));
     connection.on('close', () => { this.clients.delete(client); if (!this.clients.size) this.stopPolling(); });
@@ -181,20 +189,22 @@ export class AgentHost {
 
   private send(client: Client, message: Json): void { client.connection.send(JSON.stringify(message)); }
 
-  private notify(channelFilter: string, method: string, params: Json, ownerId?: string): void {
-    for (const client of this.clients) if (client.initialized && client.subscriptions.has(channelFilter) && (ownerId === undefined || this.mayView(client.user, ownerId))) this.send(client, { jsonrpc: '2.0', method, params });
+  private notify(channelFilter: string, method: string, params: Json | ((client: Client) => Json), ownerId?: string): void {
+    for (const client of this.clients) if (client.initialized && client.subscriptions.has(channelFilter) && (ownerId === undefined || this.mayView(client.user, ownerId))) this.send(client, { jsonrpc: '2.0', method, params: typeof params === 'function' ? params(client) : params });
   }
 
-  private reject(sender: Client, channel: string, action: Json, origin: { clientId: string; clientSeq: number }, rejectionReason: string): void {
+  private reject(sender: Client, channel: string, action: Json, origin: Origin, rejectionReason: string): void {
     const serverSeq = ++this.serverSeq;
     this.send(sender, { jsonrpc: '2.0', method: 'action', params: { channel, action, serverSeq, origin, rejectionReason } });
     for (const client of this.clients) if (client !== sender && client.initialized && client.user.id === sender.user.id) { const subscribed = this.subscribedAs(client, channel); if (subscribed) this.send(client, { jsonrpc: '2.0', method: 'action', params: { channel: subscribed, action, serverSeq, origin, rejectionReason } }); }
   }
 
-  private broadcast(channel: string, action: Json, origin?: { clientId: string; clientSeq: number }, rejectionReason?: string): Json {
-    const envelope = { channel, action, serverSeq: ++this.serverSeq, origin, ...(rejectionReason ? { rejectionReason } : {}) };
-    for (const client of this.clients) { const subscribed = client.initialized ? this.subscribedAs(client, channel) : undefined; if (subscribed) this.send(client, { jsonrpc: '2.0', method: 'action', params: { ...envelope, channel: subscribed } }); }
-    return envelope;
+  private broadcast(channel: string, action: Json | ((client: Client) => Json), origin?: Origin): void {
+    const serverSeq = ++this.serverSeq;
+    for (const client of this.clients) {
+      const subscribed = client.initialized ? this.subscribedAs(client, channel) : undefined;
+      if (subscribed) this.send(client, { jsonrpc: '2.0', method: 'action', params: { channel: subscribed, action: typeof action === 'function' ? action(client) : action, serverSeq, origin } });
+    }
   }
 
   private subscribedAs(client: Client, channel: string): string | undefined {
@@ -206,8 +216,8 @@ export class AgentHost {
 
   private engineId(publicId: string): string { return this.store.getSecret<string>(`ahp-alias:${publicId}`) ?? publicId; }
   private publicId(engineId: string): string { return this.store.getSecret<string>(`ahp-public:${engineId}`) ?? engineId; }
-  private sessionUri(session: Session): string { return sessionChannel(this.publicId(session.id)); }
-  private chatUri(session: Session): string { return chatChannel(this.publicId(session.id)); }
+  private sessionUri(session: Session, view: View): string { return sessionChannel(this.publicId(session.id), view.scheme); }
+  private chatUri(session: Session, view: View): string { return chatChannel(this.publicId(session.id), view.scheme); }
   private changesetUri(session: Session): string { return changesetChannel(this.publicId(session.id)); }
   private pendingFor(uri: string): PendingSession | undefined { const id = sessionIdFrom(uri); return id ? this.pending.get(id) : undefined; }
 
@@ -249,10 +259,10 @@ export class AgentHost {
     return { repository: this.config.repositories[0]?.id, crew: this.config.crews[0]?.id, budgetUsd: Math.min(5, this.config.maxBudgetUsd), ...(placement ? { placement } : {}) };
   }
 
-  summary(session: Session): Json {
+  summary(session: Session, view: View): Json {
     const repository = this.config.repositories.find(repo => repo.id === session.repositoryId);
     return {
-      resource: this.sessionUri(session), provider, title: session.title, status: sessionStatus(session), activity: activity(session),
+      resource: this.sessionUri(session, view), provider, title: session.title, status: sessionStatus(session), activity: activity(session),
       createdAt: session.createdAt, modifiedAt: session.updatedAt,
       ...(repository ? { project: { uri: repository.url, displayName: repository.name } } : {}),
       ...(session.candidate?.status === 'ready' ? { changes: { files: session.candidate.fileCount } } : {}),
@@ -260,15 +270,17 @@ export class AgentHost {
     };
   }
 
-  private inputNeeded(session: Session): Json[] {
-    return this.store.permissions(session.id).filter(request => !request.resolved).map(request => this.inputRequest(session, request));
+  private openRequests(session: Session): PermissionRequest[] { return this.store.permissions(session.id).filter(request => !request.resolved); }
+
+  private inputNeeded(session: Session, view: View): Json[] {
+    return this.openRequests(session).map(request => this.inputRequest(session, request, view));
   }
 
-  private inputRequest(session: Session, request: PermissionRequest): Json {
+  private inputRequest(session: Session, request: PermissionRequest, view: View): Json {
     const projection = this.projection(session);
     const turnId = projection.activeTurn?.id ?? projection.turns.at(-1)?.id ?? `${session.id}-turn-1`;
-    if (request.kind === 'question') return { id: request.id, chat: this.chatUri(session), kind: 'chatInput', request: this.questionRequest(request) };
-    return { id: request.id, chat: this.chatUri(session), kind: 'toolConfirmation', turnId, toolCall: this.pendingToolCall(request) };
+    if (request.kind === 'question') return { id: request.id, chat: this.chatUri(session, view), kind: 'chatInput', request: this.questionRequest(request) };
+    return { id: request.id, chat: this.chatUri(session, view), kind: 'toolConfirmation', turnId, toolCall: this.pendingToolCall(request) };
   }
 
   private questionRequest(request: PermissionRequest): Json {
@@ -280,24 +292,30 @@ export class AgentHost {
     return { toolCallId: request.id, toolName: 'permission', displayName: request.title, status: 'pending-confirmation', invocationMessage: request.detail || request.title, confirmationTitle: request.title, options: [{ id: 'once', label: 'Allow once', kind: 'approve' }, { id: 'always', label: 'Always allow', kind: 'approve' }, { id: 'reject', label: 'Reject', kind: 'deny' }] };
   }
 
-  sessionState(session: Session): Json {
+  private changesets(session: Session): Json[] | undefined {
+    if (session.candidate?.status !== 'ready' && !session.artifacts.some(artifact => artifact.kind === 'diff')) return undefined;
     const repository = this.config.repositories.find(repo => repo.id === session.repositoryId);
+    return [{ label: 'Candidate', uriTemplate: this.changesetUri(session), description: repository ? `Changes against ${repository.baseBranch} of ${repository.name}` : 'Reviewable change', changeKind: 'candidate', capabilities: { review: {} } }];
+  }
+
+  sessionState(session: Session, view: View): Json {
+    const changesets = this.changesets(session);
     return {
-      ...this.summary(session), lifecycle: 'ready', activeClients: [],
-      chats: [this.chatSummary(session)], defaultChat: this.chatUri(session),
+      ...this.summary(session, view), lifecycle: 'ready', activeClients: [],
+      chats: [this.chatSummary(session, view)], defaultChat: this.chatUri(session, view),
       config: { schema: this.configSchema(), values: { repository: session.repositoryId, crew: session.crewId, budgetUsd: session.budgetUsd, title: session.title, ...(session.placement ? { placement: session.placement } : {}) } },
-      ...(session.candidate?.status === 'ready' || session.artifacts.some(artifact => artifact.kind === 'diff') ? { changesets: [{ label: 'Candidate', uriTemplate: this.changesetUri(session), description: repository ? `Changes against ${repository.baseBranch} of ${repository.name}` : 'Reviewable change', changeKind: 'candidate', capabilities: { review: {} } }] } : {}),
-      inputNeeded: this.inputNeeded(session),
+      ...(changesets ? { changesets } : {}),
+      inputNeeded: this.inputNeeded(session, view),
     };
   }
 
-  chatSummary(session: Session): Json {
-    return { resource: this.chatUri(session), title: session.title, status: sessionStatus(session), activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: ['completed', 'cancelled', 'failed'].includes(session.status) ? 'read-only' : 'full' };
+  chatSummary(session: Session, view: View): Json {
+    return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session), activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: ['completed', 'cancelled', 'failed'].includes(session.status) ? 'read-only' : 'full' };
   }
 
-  chatState(session: Session): Json {
+  chatState(session: Session, view: View): Json {
     const projection = this.projection(session);
-    return { ...this.chatSummary(session), turns: projection.turns.slice(-maxTurnsInSnapshot), ...(projection.activeTurn ? { activeTurn: projection.activeTurn } : {}) };
+    return { ...this.chatSummary(session, view), turns: projection.turns.slice(-maxTurnsInSnapshot), ...(projection.activeTurn ? { activeTurn: projection.activeTurn } : {}) };
   }
 
   changesetState(session: Session): Json {
@@ -502,24 +520,24 @@ export class AgentHost {
       for (const client of this.clients) for (const channel of client.subscriptions) { const publicId = sessionIdFrom(channel); const id = publicId ? this.engineId(publicId) : undefined; if (id && !watched.has(id)) { const session = this.store.getSession(id); if (session) watched.set(id, session); } }
       for (const [id, session] of watched) {
         const projection = this.projection(session);
-        for (const event of this.store.events(id, projection.cursor)) for (const action of this.reduce(projection, session, event)) this.broadcast(this.chatUri(session), action);
-        for (const action of this.settle(projection, session)) this.broadcast(this.chatUri(session), action);
-        const summary = this.summary(session);
-        const fingerprint = JSON.stringify([summary.status, summary.activity, summary.title, session.candidate?.status, this.inputNeeded(session).map(item => item.id), session.artifacts.length]);
-        if (this.summaries.get(id) !== fingerprint) {
-          const previous = this.summaries.get(id);
-          this.summaries.set(id, fingerprint);
-          if (previous !== undefined) {
-            this.broadcast(this.sessionUri(session), { type: 'session/activityChanged', activity: summary.activity });
-            this.broadcast(this.sessionUri(session), { type: 'session/chatUpdated', chat: this.chatUri(session), changes: { status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt } });
-            const state = this.sessionState(session);
-            this.broadcast(this.sessionUri(session), { type: 'session/changesetsChanged', changesets: state.changesets });
-            for (const request of state.inputNeeded) this.broadcast(this.sessionUri(session), { type: 'session/inputNeededSet', request });
-            for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(this.sessionUri(session), { type: 'session/inputNeededRemoved', id: request.id });
-            this.notify(rootChannel, 'root/sessionSummaryChanged', { channel: rootChannel, session: this.sessionUri(session), changes: { status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, changes: summary.changes } }, session.ownerId);
-            if (session.artifacts.some(artifact => artifact.kind === 'diff')) { const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations }); }
-          }
-        }
+        const publicId = this.publicId(id);
+        const chat = chatChannel(publicId);
+        const channel = sessionChannel(publicId);
+        for (const event of this.store.events(id, projection.cursor)) for (const action of this.reduce(projection, session, event)) this.broadcast(chat, action);
+        for (const action of this.settle(projection, session)) this.broadcast(chat, action);
+        const fingerprint = this.fingerprint(session);
+        const previous = this.summaries.get(id);
+        if (previous === fingerprint) continue;
+        this.summaries.set(id, fingerprint);
+        if (previous === undefined) continue;
+        const status = sessionStatus(session);
+        this.broadcast(channel, { type: 'session/activityChanged', activity: activity(session) });
+        this.broadcast(channel, viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status, activity: activity(session), modifiedAt: session.updatedAt } }));
+        this.broadcast(channel, { type: 'session/changesetsChanged', changesets: this.changesets(session) });
+        for (const request of this.openRequests(session)) this.broadcast(channel, viewer => ({ type: 'session/inputNeededSet', request: this.inputRequest(session, request, viewer) }));
+        for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(channel, { type: 'session/inputNeededRemoved', id: request.id });
+        this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, changes: summary.changes } }; }, session.ownerId);
+        if (session.artifacts.some(artifact => artifact.kind === 'diff')) { const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations }); }
       }
     } finally { this.polling = false; }
   }
@@ -555,22 +573,30 @@ export class AgentHost {
     if (!parsed) throw new RpcError(codes.notFound, 'Unknown channel');
     const pending = this.pending.get(parsed.id);
     if (pending && !this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
-    if (pending && parsed.kind === 'session') return { resource: channel, state: this.pendingState(pending), fromSeq: this.serverSeq };
-    if (pending && parsed.kind === 'chat') return { resource: channel, state: { ...this.pendingChat(pending), turns: [] }, fromSeq: this.serverSeq };
+    if (pending && parsed.kind === 'session') return { resource: channel, state: this.pendingState(pending, client), fromSeq: this.serverSeq };
+    if (pending && parsed.kind === 'chat') return { resource: channel, state: { ...this.pendingChat(pending, client), turns: [] }, fromSeq: this.serverSeq };
     if (pending) throw new RpcError(codes.notFound, 'Unknown channel');
     const session = this.sessionFor(client.user, channel);
     if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
-    if (parsed.kind === 'session') return { resource: channel, state: this.sessionState(session), fromSeq: this.serverSeq };
-    if (parsed.kind === 'chat') return { resource: channel, state: this.chatState(session), fromSeq: this.serverSeq };
+    if (parsed.kind === 'session') return { resource: channel, state: this.sessionState(session, client), fromSeq: this.serverSeq };
+    if (parsed.kind === 'chat') return { resource: channel, state: this.chatState(session, client), fromSeq: this.serverSeq };
     return { resource: channel, state: this.changesetState(session), fromSeq: this.serverSeq };
   }
 
-  private pendingChat(pending: PendingSession): Json {
-    return { resource: chatChannel(pending.id), title: pending.config.title ?? 'New session', status: statusBits.idle, modifiedAt: new Date().toISOString(), origin: { kind: 'user' }, interactivity: 'full' };
+  private pendingSummary(pending: PendingSession, view: View): Json {
+    return { resource: sessionChannel(pending.id, view.scheme), provider, title: pending.config.title ?? 'New session', status: statusBits.idle, createdAt: pending.createdAt, modifiedAt: pending.createdAt };
   }
 
-  private pendingState(pending: PendingSession): Json {
-    return { provider, title: pending.config.title ?? 'New session', status: statusBits.idle, lifecycle: 'ready', activeClients: [], chats: [this.pendingChat(pending)], defaultChat: chatChannel(pending.id), config: { schema: this.configSchema(), values: pending.config }, inputNeeded: [] };
+  private pendingChat(pending: PendingSession, view: View): Json {
+    return { resource: chatChannel(pending.id, view.scheme), title: pending.config.title ?? 'New session', status: statusBits.idle, modifiedAt: pending.createdAt, origin: { kind: 'user' }, interactivity: 'full' };
+  }
+
+  private pendingState(pending: PendingSession, view: View): Json {
+    return { ...this.pendingSummary(pending, view), lifecycle: 'ready', activeClients: [], chats: [this.pendingChat(pending, view)], defaultChat: chatChannel(pending.id, view.scheme), config: { schema: this.configSchema(), values: pending.config }, inputNeeded: [] };
+  }
+
+  private fingerprint(session: Session): string {
+    return JSON.stringify([sessionStatus(session), activity(session), session.title, session.candidate?.status, this.openRequests(session).map(item => item.id), session.artifacts.length]);
   }
 
   private subscribe(client: Client, channel: string): Json {
@@ -578,7 +604,7 @@ export class AgentHost {
     client.subscriptions.add(channel);
     const publicId = sessionIdFrom(channel);
     const id = publicId ? this.engineId(publicId) : undefined;
-    if (id && !this.summaries.has(id)) { const session = this.store.getSession(id); if (session) this.summaries.set(id, JSON.stringify([this.summary(session).status, this.summary(session).activity, session.title, session.candidate?.status, this.inputNeeded(session).map(item => item.id), session.artifacts.length])); }
+    if (id && !this.summaries.has(id)) { const session = this.store.getSession(id); if (session) this.summaries.set(id, this.fingerprint(session)); }
     return snapshot;
   }
 
@@ -590,15 +616,17 @@ export class AgentHost {
       catch (error) { throw new RpcError(codes.invalidParams, (error as Error).message); }
       if (!negotiated) throw new RpcError(codes.unsupportedVersion, `None of the offered protocol versions is in ${supportedVersions.join(', ')}`, { supportedVersions });
       if (typeof params.clientId !== 'string') throw new RpcError(codes.invalidParams, 'clientId is required');
-      client.clientId = params.clientId; client.initialized = true;
+      const declaresSessionUris = params._meta?.[sessionUrisMeta] === true;
+      client.clientId = params.clientId; client.scheme = declaresSessionUris ? 'ahp-session' : provider; client.initialized = true;
       const snapshots = (Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]).map((channel: string) => this.subscribe(client, channel));
-      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, snapshots, terminalCommandPrefix: undefined };
+      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };
     }
+    if (method === 'reconnect' && !client.initialized) throw new RpcError(codes.notFound, 'This host keeps no client across connections; initialize');
     if (!client.initialized) throw new RpcError(codes.invalidRequest, 'initialize first');
     switch (method) {
       case 'reconnect': { const snapshots = (Array.isArray(params.subscriptions) ? params.subscriptions : []).map((channel: string) => this.subscribe(client, channel)); return { type: 'snapshot', snapshots }; }
       case 'subscribe': { if (typeof params.channel !== 'string') throw new RpcError(codes.invalidParams, 'channel is required'); return { snapshot: this.subscribe(client, params.channel) }; }
-      case 'listSessions': return { items: this.visible(client.user).map(session => this.summary(session)) };
+      case 'listSessions': return { items: this.visible(client.user).map(session => this.summary(session, client)) };
       case 'resolveSessionConfig': return { schema: this.configSchema(), values: { ...this.defaultConfig(), ...(params.config ?? {}) } };
       case 'sessionConfigCompletions': { const schema = this.configSchema().properties[String(params.property)]; const values: string[] = schema?.enum ?? []; return { items: values.map((value, index) => ({ value, label: schema.enumDescriptions?.[index] ?? value })) }; }
       case 'createSession': return this.createSession(client, params);
@@ -617,15 +645,15 @@ export class AgentHost {
   private createSession(client: Client, params: Json): Json {
     const channel = String(params.channel ?? params.session ?? '');
     const parsed = parseChannel(channel);
-    if (parsed?.kind !== 'session') throw new RpcError(codes.invalidParams, `session must be ${provider}:/<id>`);
+    if (parsed?.kind !== 'session') throw new RpcError(codes.invalidParams, `session must be ${provider}:/<id> or ahp-session:/<id>`);
     if (params.provider && params.provider !== provider) throw new RpcError(codes.providerNotFound, 'Unknown provider');
     if (this.pending.has(parsed.id) || this.store.getSession(this.engineId(parsed.id)) || this.store.getSession(parsed.id)) throw new RpcError(codes.sessionExists, 'Session already exists');
     const config = { ...this.defaultConfig(), ...(params.config && typeof params.config === 'object' ? params.config : {}) };
     if (!this.config.repositories.some(repo => repo.id === config.repository) || !this.config.crews.some(crew => crew.id === config.crew)) throw new RpcError(codes.invalidParams, 'Choose a configured repository and crew');
-    const pending: PendingSession = { id: parsed.id, uri: channel, config, user: client.user };
+    const pending: PendingSession = { id: parsed.id, uri: channel, config, user: client.user, createdAt: new Date().toISOString() };
     this.pending.set(parsed.id, pending);
     client.subscriptions.add(channel);
-    queueMicrotask(() => { this.broadcast(channel, { type: 'session/ready' }); this.notify(rootChannel, 'root/sessionAdded', { channel: rootChannel, summary: { resource: sessionChannel(parsed.id), provider, title: config.title ?? 'New session', status: statusBits.idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString() } }, client.user.id); });
+    queueMicrotask(() => { this.broadcast(channel, { type: 'session/ready' }); this.notify(rootChannel, 'root/sessionAdded', viewer => ({ channel: rootChannel, summary: this.pendingSummary(pending, viewer) }), client.user.id); });
     return {};
   }
 
@@ -635,7 +663,7 @@ export class AgentHost {
     const pending = this.pendingFor(channel);
     if (pending) {
       if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
-      if (channelKey(chat) !== channelKey(chatChannel(pending.id))) throw new RpcError(codes.conflict, `An Unfold session has exactly one chat: ${chatChannel(pending.id)}`);
+      if (channelKey(chat) !== channelKey(chatChannel(pending.id))) throw new RpcError(codes.conflict, `An Unfold session has exactly one chat: ${chatChannel(pending.id, client.scheme)}`);
       client.subscriptions.add(chat);
       if (params.initialMessage?.text) queueMicrotask(() => void this.startFromPending(client, pending, params.initialMessage, { clientId: client.clientId!, clientSeq: 0 }));
       return {};
@@ -651,7 +679,7 @@ export class AgentHost {
     if (pending) {
       if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
       this.pending.delete(pending.id);
-      this.notify(rootChannel, 'root/sessionRemoved', { channel: rootChannel, session: sessionChannel(pending.id) }, pending.user.id);
+      this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(pending.id, viewer.scheme) }), pending.user.id);
       return {};
     }
     const session = this.sessionFor(client.user, channel);
@@ -659,7 +687,7 @@ export class AgentHost {
     if (['running', 'waiting_input', 'queued', 'paused', 'interrupted'].includes(session.status)) void this.engine.cancel(session.id, client.user).catch(() => {});
     const publicId = this.publicId(session.id);
     for (const item of this.clients) for (const subscription of [...item.subscriptions]) if (sessionIdFrom(subscription) === publicId) item.subscriptions.delete(subscription);
-    this.notify(rootChannel, 'root/sessionRemoved', { channel: rootChannel, session: sessionChannel(publicId) }, session.ownerId);
+    this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme) }), session.ownerId);
     return {};
   }
 
@@ -671,12 +699,11 @@ export class AgentHost {
       const session = this.engine.create({ title: String(pending.config.title ?? text.split('\n')[0]).slice(0, 160) || 'Agent host session', objective: text, repositoryId: String(pending.config.repository), crewId: String(pending.config.crew), runtime: this.config.mode === 'demo' ? 'demo' : this.config.runtime.kind, placement: pending.config.placement as WorkspaceBackend | undefined, budgetUsd: Number(pending.config.budgetUsd) }, pending.user);
       if (session.id !== pending.id) this.store.transaction(() => { this.store.setSecret(`ahp-alias:${pending.id}`, session.id); this.store.setSecret(`ahp-public:${session.id}`, pending.id); });
       this.pending.delete(pending.id);
-      const summary = this.summary(session);
-      this.notify(rootChannel, 'root/sessionSummaryChanged', { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, ...(summary.project ? { project: summary.project } : {}) } }, session.ownerId);
-      this.broadcast(this.sessionUri(session), { type: 'session/chatUpdated', chat: this.chatUri(session), changes: { title: session.title, status: summary.status, modifiedAt: summary.modifiedAt } });
+      this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, ...(summary.project ? { project: summary.project } : {}) } }; }, session.ownerId);
+      this.broadcast(sessionChannel(pending.id), viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: sessionStatus(session), modifiedAt: session.updatedAt } }));
       const projection = this.projection(session);
       const turn = projection.activeTurn ?? projection.turns.at(-1);
-      if (turn) this.broadcast(this.chatUri(session), { type: 'chat/turnStarted', turnId: turn.id, startedAt: turn.startedAt, message: turn.message }, origin);
+      if (turn) this.broadcast(chatChannel(pending.id), { type: 'chat/turnStarted', turnId: turn.id, startedAt: turn.startedAt, message: turn.message }, origin);
       await this.engine.start(session.id, pending.user);
     } catch (error) {
       pending.starting = false;
