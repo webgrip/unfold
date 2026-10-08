@@ -51,6 +51,17 @@ test('an SSH host under the same parent domain as the forge matches without a se
   for (const [remote, forge] of [['github.com', 'forgejo.webgrip.dev'], ['gitlab.com', 'github.com'], ['webgrip.dev', 'forgejo.webgrip.dev'], ['forgejo.webgrip.dev', 'forgejo.other.dev'], ['10.0.0.5', '11.0.0.5']]) assert.equal(hostsMatch(remote!, forge!), false, `${remote} ~ ${forge}`);
 });
 
+test('a GHE.com enterprise matches its own clones over HTTPS and SSH, never another enterprise on GHE.com', () => {
+  const shop = expectedRepository('https://octocorp.ghe.com/acme/shop/pull/7', 'acme', 'shop');
+  assert.deepEqual(shop, { host: 'octocorp.ghe.com', path: 'acme/shop' });
+  for (const url of ['https://octocorp.ghe.com/acme/shop.git', 'octocorp@octocorp.ghe.com:acme/shop.git', 'ssh://octocorp@octocorp.ghe.com/acme/shop.git']) assert.equal(remoteMatches(url, shop), true, url);
+  for (const url of ['https://othercorp.ghe.com/acme/shop.git', 'othercorp@othercorp.ghe.com:acme/shop.git', 'https://github.com/acme/shop.git', 'https://api.octocorp.ghe.com/acme/shop.git', 'https://ghe.com/acme/shop.git']) assert.equal(remoteMatches(url, shop), false, url);
+  assert.equal(hostsMatch('othercorp.ghe.com', 'octocorp.ghe.com'), false);
+  assert.equal(hostsMatch('OctoCorp.GHE.com.', 'octocorp.ghe.com'), true);
+  assert.equal(hostsMatch('ssh.example.net', 'octocorp.ghe.com', hostAliases({ 'ssh.example.net': 'octocorp.ghe.com' })), true);
+  assert.equal(cloneUrl('https://octocorp.ghe.com/acme/shop/pull/7', 'acme', 'shop'), 'https://octocorp.ghe.com/acme/shop.git');
+});
+
 test('a host mapped by unfold.remoteHostAliases matches the forge it names, in either direction', () => {
   const shop = expectedRepository('https://git.example.com/acme/shop/pulls/3', 'acme', 'shop');
   const aliases = hostAliases({ 'SSH.Example.NET': 'git.example.com', broken: 7, '': 'x' });
