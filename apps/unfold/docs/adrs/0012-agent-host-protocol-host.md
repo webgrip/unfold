@@ -67,6 +67,6 @@ Implemented the same day; the commits are listed in the dossier's follow-up:
 * **Messages during a Run.** Steering and queued messages become instructions for the next execution, as typed messages already did. `chat/truncated` is still refused, because the history is durable evidence.
 * **Changesets.** The candidate is a `session` changeset with whole before and after files read from its Git bundle. Its one operation is **Accept**, through the browser's review path and owner check.
 * **Questions.** They carry a message, a title and their choices. Declining one is still refused, because the engine takes only answers.
-* **Reconnect.** A client known to the process resumes with a snapshot.
+* **Reconnect.** A client known to the process resumes with a snapshot. It keeps its session spelling, and its active-client entry for 30 seconds.
 
 An end-to-end run with Microsoft's AHP 1.0.0 client found six further defects, fixed the same day. Terminals and resource writes stay declined. No desktop VS Code has attached yet.
