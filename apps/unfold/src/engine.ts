@@ -423,12 +423,24 @@ export class Engine {
     return this.store.getSession(id)!;
   }
 
-  message(id: string, text: string, user: User): Session | Promise<Session> {
+  /**
+   * Records an operator instruction for the next execution. `turnId` is the turn an agent host client opened for it,
+   * kept on the event so every client shows the instruction under the same turn.
+   */
+  message(id: string, text: string, user: User, turnId?: string): Session | Promise<Session> {
     const session = this.owned(id, user);
     if (['exporting', 'completed', 'cancelled', 'failed'].includes(session.status)) throw new EngineError(409, 'invalid_state', 'Start a new session to change finished work.');
     text = this.text(text, 'message', 20000);
-    const record = () => { const current = this.owned(id, user); this.save(current, 'message', user.id, { text, role: 'operator', applies: 'next_execution', live: false }); return current; };
+    const record = () => { const current = this.owned(id, user); this.save(current, 'message', user.id, { text, role: 'operator', applies: 'next_execution', live: false, ...(turnId ? { turnId } : {}) }); return current; };
     return this.authority?.current(id) ? this.authority.command(session, 'message', { text: this.cleanText(text) }, user.id).then(record) : record();
+  }
+
+  /** Renames a session its owner or an administrator may change. The title is display text; the work does not change. */
+  rename(id: string, title: unknown, user: User): Session {
+    const session = this.owned(id, user);
+    session.title = this.text(title, 'title', 200);
+    this.save(session, 'session.renamed', user.id, { title: session.title });
+    return session;
   }
 
   async addBudget(id: string, amount: number, user: User): Promise<Session> {

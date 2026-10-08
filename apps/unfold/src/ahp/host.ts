@@ -28,7 +28,7 @@ type View = Pick<Client, 'user' | 'scheme'>;
 type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
 type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
-type Projection = { turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string };
+type Projection = { turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin> };
 type PendingSession = { id: string; uri: string; config: Json; user: User; createdAt: string; starting?: boolean };
 
 /** A session's channel in a client's spelling. VS Code 1.141 names it by the provider; VS Code 1.142 by `ahp-session`. */
@@ -47,6 +47,8 @@ export function parseChannel(uri: string): { kind: ChannelKind; id: string } | u
   return owner?.kind === 'session' ? { kind: 'chat', id: owner.id } : undefined;
 }
 const sessionIdFrom = (uri: string) => parseChannel(uri)?.id;
+const clientTurnId = /^[A-Za-z0-9_.:-]{1,128}$/;
+const actionOrigins = new WeakMap<Json, Origin>();
 const channelKey = (uri: string) => { const parsed = parseChannel(uri); return parsed ? `${parsed.kind}:${parsed.id}` : uri; };
 
 const codes = { parse: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internal: -32603, sessionNotFound: -32001, providerNotFound: -32002, sessionExists: -32003, turnInProgress: -32004, unsupportedVersion: -32005, authRequired: -32007, notFound: -32008, permissionDenied: -32009, conflict: -32011 };
@@ -116,6 +118,7 @@ export class AgentHost {
   private readonly projections = new Map<string, Projection>();
   private readonly pending = new Map<string, PendingSession>();
   private readonly summaries = new Map<string, string>();
+  private readonly activeClients = new Map<string, Map<string, Json>>();
   private timer?: ReturnType<typeof setInterval>;
   private polling = false;
 
@@ -183,7 +186,7 @@ export class AgentHost {
     const client: Client = { id: randomUUID(), scheme: provider, connection, user: authenticated.user, token: authenticated.key, checkedAt: Date.now(), subscriptions: new Set(), initialized: false };
     this.clients.add(client);
     connection.on('message', text => void this.receive(client, text));
-    connection.on('close', () => { this.clients.delete(client); if (!this.clients.size) this.stopPolling(); });
+    connection.on('close', () => { this.clients.delete(client); this.dropActiveClient(client); if (!this.clients.size) this.stopPolling(); });
     connection.on('error', () => {});
     this.startPolling();
     return true;
@@ -319,7 +322,7 @@ export class AgentHost {
   sessionState(session: Session, view: View): Json {
     const changesets = this.changesets(session);
     return {
-      ...this.summary(session, view), lifecycle: 'ready', activeClients: [],
+      ...this.summary(session, view), lifecycle: 'ready', activeClients: this.activeClientsOf(this.publicId(session.id)),
       chats: [this.chatSummary(session, view)], defaultChat: this.chatUri(session, view),
       config: { schema: this.configSchema(), values: { repository: session.repositoryId, crew: session.crewId, budgetUsd: session.budgetUsd, title: session.title, ...(session.placement ? { placement: session.placement } : {}) } },
       ...(changesets ? { changesets } : {}),
@@ -367,21 +370,33 @@ export class AgentHost {
   private projection(session: Session): Projection {
     let projection = this.projections.get(session.id);
     if (!projection) {
-      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0 };
+      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map() };
       this.projections.set(session.id, projection);
-      this.openTurn(projection, session, session.objective, session.createdAt);
+      this.openTurn(projection, session, session.objective, session.createdAt, this.store.getSecret<string>(`ahp-turn:${session.id}`));
       for (const event of this.store.events(session.id)) this.reduce(projection, session, event);
       this.settle(projection, session);
     }
     return projection;
   }
 
-  private openTurn(projection: Projection, session: Session, text: string, startedAt: string): Json[] {
+  private openTurn(projection: Projection, session: Session, text: string, startedAt: string, requestedTurnId?: unknown): Json[] {
     if (projection.activeTurn) this.closeTurn(projection, 'complete', startedAt);
-    const turnId = `${session.id}-turn-${++projection.turnCounter}`;
+    const hostTurnId = `${session.id}-turn-${++projection.turnCounter}`;
+    const turnId = this.acceptableTurnId(projection, requestedTurnId) ?? hostTurnId;
     const message = { text, origin: { kind: 'user' }, ...(session.runs[0] ? { model: { id: this.config.models[0]?.id ?? 'coding' } } : {}) };
     projection.activeTurn = { id: turnId, startedAt, message, responseParts: [], usage: undefined };
-    return [{ type: 'chat/turnStarted', turnId, startedAt, message }];
+    return [this.tag(projection, { type: 'chat/turnStarted', turnId, startedAt, message }, `turn:${turnId}`)];
+  }
+
+  private acceptableTurnId(projection: Projection, turnId: unknown): string | undefined {
+    if (typeof turnId !== 'string' || !clientTurnId.test(turnId)) return undefined;
+    return projection.activeTurn?.id === turnId || projection.turns.some(turn => turn.id === turnId) ? undefined : turnId;
+  }
+
+  private tag(projection: Projection, action: Json, key: string): Json {
+    const origin = projection.origins.get(key);
+    if (origin) { projection.origins.delete(key); actionOrigins.set(action, origin); }
+    return action;
   }
 
   private closeTurn(projection: Projection, state: 'complete' | 'cancelled' | 'error', at: string, error?: Json): Json[] {
@@ -428,7 +443,7 @@ export class AgentHost {
       case 'message': {
         if (data.role === 'operator' && typeof data.text === 'string') {
           actions.push(...this.closeTurn(projection, 'complete', event.at));
-          actions.push(...this.openTurn(projection, session, data.text, event.at));
+          actions.push(...this.openTurn(projection, session, data.text, event.at, data.turnId));
           actions.push(...this.addPart(projection, { kind: 'systemNotification', content: 'Instruction saved. It applies to the next execution; pause and resume to apply it now.' }));
           if (!['running', 'waiting_input', 'exporting'].includes(session.status)) actions.push(...this.closeTurn(projection, 'complete', event.at));
           break;
@@ -494,11 +509,11 @@ export class AgentHost {
         if (part) {
           const approved = decision !== 'reject';
           part.toolCall = approved ? { ...part.toolCall, status: 'completed', confirmed: 'user-action', success: true, pastTenseMessage: 'Allowed by the operator' } : { ...part.toolCall, status: 'cancelled', reason: 'denied' };
-          actions.push({ type: 'chat/toolCallConfirmed', turnId: turn.id, toolCallId: requestId, ...(approved ? { approved: true, confirmed: 'user-action', selectedOptionId: decision } : { approved: false, reason: 'denied', selectedOptionId: 'reject' }) });
+          actions.push(this.tag(projection, { type: 'chat/toolCallConfirmed', turnId: turn.id, toolCallId: requestId, ...(approved ? { approved: true, confirmed: 'user-action', selectedOptionId: decision } : { approved: false, reason: 'denied', selectedOptionId: 'reject' }) }, `request:${requestId}`));
           if (approved) actions.push({ type: 'chat/toolCallComplete', turnId: turn.id, toolCallId: requestId, result: { success: true, pastTenseMessage: 'Allowed by the operator' } });
         }
         const input = turn.responseParts.find((item: Json) => item.kind === 'inputRequest' && item.request.id === requestId);
-        if (input) { input.response = 'accept'; actions.push({ type: 'chat/inputCompleted', requestId, response: 'accept' }); }
+        if (input) { input.response = 'accept'; actions.push(this.tag(projection, { type: 'chat/inputCompleted', requestId, response: 'accept' }, `request:${requestId}`)); }
         break;
       }
       case 'usage': {
@@ -521,7 +536,13 @@ export class AgentHost {
       case 'session.cancelled': actions.push(...this.closeTurn(projection, 'cancelled', event.at)); break;
       case 'session.failed': actions.push(...this.closeTurn(projection, 'error', event.at, { errorType: String(data.code ?? 'failed'), message: String(data.message ?? 'The session failed') })); break;
       case 'session.paused': case 'session.interrupted': {
-        if (projection.activeTurn) { actions.push(...this.addPart(projection, { kind: 'systemNotification', content: String(data.message ?? 'Execution paused.') })); actions.push(...this.closeTurn(projection, 'complete', event.at)); }
+        const cancelled = event.type === 'session.paused' && projection.origins.has('cancel');
+        if (projection.activeTurn) {
+          actions.push(...this.addPart(projection, { kind: 'systemNotification', content: String(data.message ?? 'Execution paused.') }));
+          const closed = this.closeTurn(projection, cancelled ? 'cancelled' : 'complete', event.at);
+          actions.push(...(cancelled ? closed.map(action => this.tag(projection, action, 'cancel')) : closed));
+        }
+        if (event.type === 'session.paused') projection.origins.delete('cancel');
         break;
       }
       default: break;
@@ -542,7 +563,7 @@ export class AgentHost {
         const chat = chatChannel(publicId);
         const channel = sessionChannel(publicId);
         const fresh = [...this.store.events(id, projection.cursor).flatMap(event => this.reduce(projection, session, event)), ...this.settle(projection, session)];
-        for (const action of fresh) this.broadcast(chat, action);
+        for (const action of fresh) this.broadcast(chat, action, actionOrigins.get(action));
         const unread = fresh.some(action => action.type === 'chat/turnStarted' || action.type === 'chat/inputRequested' || (action.type === 'chat/toolCallReady' && action.confirmationTitle !== undefined));
         const cleared = unread ? this.store.clearAgentHostFlags(publicId, statusBits.isRead, new Date().toISOString()) : [];
         const fingerprint = this.fingerprint(session);
@@ -612,7 +633,7 @@ export class AgentHost {
   }
 
   private pendingState(pending: PendingSession, view: View): Json {
-    return { ...this.pendingSummary(pending, view), lifecycle: 'ready', activeClients: [], chats: [this.pendingChat(pending, view)], defaultChat: chatChannel(pending.id, view.scheme), config: { schema: this.configSchema(), values: pending.config }, inputNeeded: [] };
+    return { ...this.pendingSummary(pending, view), lifecycle: 'ready', activeClients: this.activeClientsOf(pending.id), chats: [this.pendingChat(pending, view)], defaultChat: chatChannel(pending.id, view.scheme), config: { schema: this.configSchema(), values: pending.config }, inputNeeded: [] };
   }
 
   private fingerprint(session: Session): string {
@@ -685,7 +706,7 @@ export class AgentHost {
       if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
       if (channelKey(chat) !== channelKey(chatChannel(pending.id))) throw new RpcError(codes.conflict, `An Unfold session has exactly one chat: ${chatChannel(pending.id, client.scheme)}`);
       client.subscriptions.add(chat);
-      if (params.initialMessage?.text) queueMicrotask(() => void this.startFromPending(client, pending, params.initialMessage, { clientId: client.clientId!, clientSeq: 0 }));
+      if (params.initialMessage?.text) queueMicrotask(() => void this.startFromPending(pending, params.initialMessage, { clientId: client.clientId!, clientSeq: 0 }));
       return {};
     }
     const session = this.sessionFor(client.user, channel);
@@ -712,25 +733,34 @@ export class AgentHost {
     return {};
   }
 
-  private async startFromPending(client: Client, pending: PendingSession, message: Json, origin: { clientId: string; clientSeq: number }): Promise<void> {
+  private async startFromPending(pending: PendingSession, message: Json, origin: Origin, requestedTurnId?: unknown): Promise<string | undefined> {
     const text = String(message.text ?? '').trim();
-    if (pending.starting || this.pending.get(pending.id) !== pending) return;
+    if (pending.starting || this.pending.get(pending.id) !== pending) return 'The session is already starting';
     pending.starting = true;
+    let session: Session;
     try {
-      const session = this.engine.create({ title: String(pending.config.title ?? text.split('\n')[0]).slice(0, 160) || 'Agent host session', objective: text, repositoryId: String(pending.config.repository), crewId: String(pending.config.crew), runtime: this.config.mode === 'demo' ? 'demo' : this.config.runtime.kind, placement: pending.config.placement as WorkspaceBackend | undefined, budgetUsd: Number(pending.config.budgetUsd) }, pending.user);
-      if (session.id !== pending.id) this.store.transaction(() => { this.store.setSecret(`ahp-alias:${pending.id}`, session.id); this.store.setSecret(`ahp-public:${session.id}`, pending.id); });
-      this.pending.delete(pending.id);
-      this.store.clearAgentHostFlags(pending.id, statusBits.isRead, session.createdAt);
-      this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, ...(summary.project ? { project: summary.project } : {}) } }; }, session.ownerId);
-      this.broadcast(sessionChannel(pending.id), viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: sessionStatus(session) | this.viewOf(viewer, pending.id).chat, modifiedAt: session.updatedAt } }));
-      const projection = this.projection(session);
-      const turn = projection.activeTurn ?? projection.turns.at(-1);
-      if (turn) this.broadcast(chatChannel(pending.id), { type: 'chat/turnStarted', turnId: turn.id, startedAt: turn.startedAt, message: turn.message }, origin);
-      await this.engine.start(session.id, pending.user);
+      session = this.engine.create({ title: String(pending.config.title ?? text.split('\n')[0]).slice(0, 160) || 'Agent host session', objective: text, repositoryId: String(pending.config.repository), crewId: String(pending.config.crew), runtime: this.config.mode === 'demo' ? 'demo' : this.config.runtime.kind, placement: pending.config.placement as WorkspaceBackend | undefined, budgetUsd: Number(pending.config.budgetUsd) }, pending.user);
     } catch (error) {
       pending.starting = false;
       this.broadcast(pending.uri, { type: 'session/creationFailed', error: { errorType: (error as Json)?.code ?? 'create_failed', message: (error as Error)?.message ?? 'Could not create the session' } });
+      return (error as Error)?.message ?? 'Could not create the session';
     }
+    const turnId = typeof requestedTurnId === 'string' && clientTurnId.test(requestedTurnId) ? requestedTurnId : undefined;
+    this.store.transaction(() => {
+      if (session.id !== pending.id) { this.store.setSecret(`ahp-alias:${pending.id}`, session.id); this.store.setSecret(`ahp-public:${session.id}`, pending.id); }
+      if (turnId) this.store.setSecret(`ahp-turn:${session.id}`, turnId);
+    });
+    this.pending.delete(pending.id);
+    this.summaries.set(session.id, this.fingerprint(session));
+    this.store.clearAgentHostFlags(pending.id, statusBits.isRead, session.createdAt);
+    this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, ...(summary.project ? { project: summary.project } : {}) } }; }, session.ownerId);
+    this.broadcast(sessionChannel(pending.id), viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: sessionStatus(session) | this.viewOf(viewer, pending.id).chat, modifiedAt: session.updatedAt } }));
+    const projection = this.projection(session);
+    const turn = projection.activeTurn ?? projection.turns.at(-1);
+    if (turn) this.broadcast(chatChannel(pending.id), { type: 'chat/turnStarted', turnId: turn.id, startedAt: turn.startedAt, message: turn.message }, origin);
+    try { await this.engine.start(session.id, pending.user); }
+    catch (error) { this.broadcast(pending.uri, { type: 'session/creationFailed', error: { errorType: (error as Json)?.code ?? 'start_failed', message: (error as Error)?.message ?? 'Could not start the session' } }); }
+    return undefined;
   }
 
   private setViewFlag(client: Client, channel: string, kind: ChannelKind, pending: PendingSession | undefined, action: Json, origin: Origin, flag: ViewFlag): string | undefined {
@@ -750,6 +780,117 @@ export class AgentHost {
     return undefined;
   }
 
+  private activeClientsOf(publicId: string): Json[] { return [...(this.activeClients.get(publicId)?.values() ?? [])]; }
+
+  private setActiveClient(client: Client, channel: string, publicId: string, action: Json, origin: Origin): string | undefined {
+    const setting = action.type === 'session/activeClientSet';
+    const clientId = setting ? action.activeClient?.clientId : action.clientId;
+    if (clientId !== origin.clientId) return 'A client can only set or remove itself as an active client';
+    const clients = this.activeClients.get(publicId) ?? new Map<string, Json>();
+    if (setting) clients.set(clientId, action.activeClient); else clients.delete(clientId);
+    if (clients.size) this.activeClients.set(publicId, clients); else this.activeClients.delete(publicId);
+    this.echo(client, channel, action, origin);
+    return undefined;
+  }
+
+  private dropActiveClient(client: Client): void {
+    const clientId = client.clientId;
+    if (!clientId || [...this.clients].some(other => other.clientId === clientId)) return;
+    for (const [publicId, clients] of [...this.activeClients]) {
+      if (!clients.delete(clientId)) continue;
+      if (!clients.size) this.activeClients.delete(publicId);
+      this.broadcast(sessionChannel(publicId), { type: 'session/activeClientRemoved', clientId });
+    }
+  }
+
+  private renameSession(client: Client, channel: string, session: Session, action: Json, origin: Origin): undefined {
+    const renamed = this.engine.rename(session.id, action.title, client.user);
+    const publicId = this.publicId(session.id);
+    this.echo(client, channel, { ...action, title: renamed.title }, origin);
+    if (parseChannel(channel)?.kind === 'chat') this.broadcast(sessionChannel(publicId), { type: 'session/titleChanged', title: renamed.title });
+    this.broadcast(sessionChannel(publicId), viewer => ({ type: 'session/chatUpdated', chat: chatChannel(publicId, viewer.scheme), changes: { title: renamed.title } }));
+    this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme), changes: { title: renamed.title } }), session.ownerId);
+    return undefined;
+  }
+
+  private async answer(session: Session, requestId: string, answer: { decision?: 'once' | 'always' | 'reject'; answers?: string[][] }, user: User, origin: Origin): Promise<undefined> {
+    const projection = this.projection(session);
+    projection.origins.set(`request:${requestId}`, origin);
+    try { await this.engine.respond(session.id, requestId, answer, user); }
+    catch (error) { projection.origins.delete(`request:${requestId}`); throw error; }
+    return undefined;
+  }
+
+  private async dispatchToPending(client: Client, channel: string, kind: ChannelKind, pending: PendingSession, action: Json, origin: Origin): Promise<string | undefined> {
+    switch (action.type) {
+      case 'chat/turnStarted': return kind === 'chat' ? this.startFromPending(pending, action.message ?? {}, origin, action.turnId) : 'chat/turnStarted is dispatched on the chat channel';
+      case 'session/activeClientSet': case 'session/activeClientRemoved': return kind === 'session' ? this.setActiveClient(client, channel, pending.id, action, origin) : `${action.type} is dispatched on the session channel`;
+      case 'chat/draftChanged': this.echo(client, channel, action, origin); return undefined;
+      default: return `${String(action.type)} waits until the first message starts the session`;
+    }
+  }
+
+  private async dispatchToSession(client: Client, channel: string, kind: ChannelKind, session: Session, action: Json, origin: Origin): Promise<string | undefined> {
+    const ended = ['completed', 'cancelled', 'failed'].includes(session.status);
+    const notOnChat = kind === 'chat' ? undefined : `${String(action.type)} is dispatched on the chat channel`;
+    switch (action.type) {
+      case 'chat/turnStarted': {
+        if (notOnChat) return notOnChat;
+        const text = String(action.message?.text ?? '').trim();
+        if (!text) return 'Empty message';
+        if (ended) return 'The session has ended; start a new session';
+        const projection = this.projection(session);
+        const turnId = this.acceptableTurnId(projection, action.turnId) ?? randomUUID();
+        projection.origins.set(`turn:${turnId}`, origin);
+        try { await this.engine.message(session.id, text, client.user, turnId); }
+        catch (error) { projection.origins.delete(`turn:${turnId}`); throw error; }
+        if (session.status === 'queued') await this.engine.start(session.id, client.user);
+        else if (['paused', 'interrupted'].includes(session.status)) await this.engine.resume(session.id, client.user);
+        return undefined;
+      }
+      case 'chat/turnCancelled': {
+        if (notOnChat) return notOnChat;
+        const projection = this.projection(session);
+        projection.origins.set('cancel', origin);
+        try { await this.engine.pause(session.id, client.user); }
+        catch (error) { projection.origins.delete('cancel'); throw error; }
+        return undefined;
+      }
+      case 'chat/toolCallConfirmed': {
+        const request = this.store.getPermission(String(action.toolCallId ?? ''));
+        if (!request || request.sessionId !== session.id) return 'Unknown permission request';
+        const decision = action.approved === false ? 'reject' : ['once', 'always'].includes(String(action.selectedOptionId)) ? String(action.selectedOptionId) as 'once' | 'always' : 'once';
+        return this.answer(session, request.id, { decision }, client.user, origin);
+      }
+      case 'chat/inputCompleted': {
+        const request = this.store.getPermission(String(action.requestId ?? ''));
+        if (!request || request.sessionId !== session.id) return 'Unknown question';
+        if (action.response !== 'accept') return this.answer(session, request.id, { decision: 'reject' }, client.user, origin);
+        const answers = Object.values((action.answers ?? {}) as Record<string, Json>).map(answer => [String(answer?.value?.value ?? answer?.value?.text ?? '')]);
+        return this.answer(session, request.id, { answers: answers.length ? answers : [['']] }, client.user, origin);
+      }
+      case 'chat/pendingMessageSet': {
+        if (notOnChat) return notOnChat;
+        if (!['steering', 'queued'].includes(action.kind) || typeof action.id !== 'string' || !action.id) return 'A pending message needs a kind, steering or queued, and an id';
+        if (action.message?.origin?.kind !== 'user') return 'Only a person\'s own message becomes an instruction';
+        const text = String(action.message?.text ?? '').trim();
+        if (!text) return 'Empty message';
+        if (ended) return 'The session has ended; start a new session';
+        await this.engine.message(session.id, text, client.user);
+        this.echo(client, channel, action, origin);
+        this.broadcast(channel, { type: 'chat/pendingMessageRemoved', kind: action.kind, id: action.id });
+        return undefined;
+      }
+      case 'chat/pendingMessageRemoved': return 'A pending message becomes an instruction for the next execution as soon as it arrives, so none is left to remove';
+      case 'chat/queuedMessagesReordered': { if (notOnChat) return notOnChat; this.echo(client, channel, action, origin); return undefined; }
+      case 'chat/truncated': return 'Unfold keeps a session\'s history as durable evidence, so it cannot be truncated; start a new session instead';
+      case 'session/titleChanged': return kind === 'changeset' ? 'session/titleChanged is dispatched on the session or chat channel' : this.renameSession(client, channel, session, action, origin);
+      case 'session/activeClientSet': case 'session/activeClientRemoved': return kind === 'session' ? this.setActiveClient(client, channel, this.publicId(session.id), action, origin) : `${action.type} is dispatched on the session channel`;
+      case 'chat/draftChanged': case 'chat/inputAnswerChanged': case 'changeset/filesReviewChanged': this.echo(client, channel, action, origin); return undefined;
+      default: return `Unsupported action ${String(action.type)}`;
+    }
+  }
+
   private async notification(client: Client, method: string, params: Json): Promise<void> {
     if (method === 'unsubscribe') { if (typeof params.channel === 'string') client.subscriptions.delete(params.channel); return; }
     if (method !== 'dispatchAction') return;
@@ -758,44 +899,22 @@ export class AgentHost {
     const origin = { clientId: client.clientId ?? client.id, clientSeq: Number(params.clientSeq) || 0 };
     const reject = (reason: string) => this.reject(client, channel, action, origin, reason);
     try {
+      if (channel === rootChannel) {
+        if (action.type === 'root/configChanged') this.echo(client, channel, action, origin, () => false);
+        else reject(`Unsupported action ${String(action.type)}`);
+        return;
+      }
       const parsed = parseChannel(channel);
-      const pending = parsed && parsed.kind !== 'changeset' ? this.pending.get(parsed.id) : undefined;
+      if (!parsed) { reject('Unknown channel'); return; }
+      const pending = parsed.kind !== 'changeset' ? this.pending.get(parsed.id) : undefined;
       if (pending && !this.mayView(client.user, pending.user.id)) { reject('Session not found'); return; }
       const flag = viewFlags[String(action.type)];
-      if (parsed && flag) { const reason = this.setViewFlag(client, channel, parsed.kind, pending, action, origin, flag); if (reason) reject(reason); return; }
-      if (pending && parsed?.kind === 'chat' && action.type === 'chat/turnStarted') { await this.startFromPending(client, pending, action.message ?? {}, origin); return; }
-      const session = this.sessionFor(client.user, channel);
-      if (!session) { reject('Session not found'); return; }
-      switch (action.type) {
-        case 'chat/turnStarted': {
-          const text = String(action.message?.text ?? '').trim();
-          if (!text) { reject('Empty message'); return; }
-          if (['completed', 'cancelled', 'failed'].includes(session.status)) { reject('The session has ended; start a new session'); return; }
-          await this.engine.message(session.id, text, client.user);
-          if (session.status === 'queued') await this.engine.start(session.id, client.user);
-          else if (['paused', 'interrupted'].includes(session.status)) await this.engine.resume(session.id, client.user);
-          return;
-        }
-        case 'chat/turnCancelled': { await this.engine.pause(session.id, client.user); return; }
-        case 'chat/toolCallConfirmed': {
-          const request = this.store.getPermission(String(action.toolCallId ?? ''));
-          if (!request || request.sessionId !== session.id) { reject('Unknown permission request'); return; }
-          const decision = action.approved === false ? 'reject' : ['once', 'always'].includes(String(action.selectedOptionId)) ? String(action.selectedOptionId) as 'once' | 'always' : 'once';
-          await this.engine.respond(session.id, request.id, { decision }, client.user);
-          return;
-        }
-        case 'chat/inputCompleted': {
-          const request = this.store.getPermission(String(action.requestId ?? ''));
-          if (!request || request.sessionId !== session.id) { reject('Unknown question'); return; }
-          if (action.response !== 'accept') { await this.engine.respond(session.id, request.id, { decision: 'reject' }, client.user); return; }
-          const answers = Object.values((action.answers ?? {}) as Record<string, Json>).map(answer => [String(answer?.value?.value ?? answer?.value?.text ?? '')]);
-          await this.engine.respond(session.id, request.id, { answers: answers.length ? answers : [['']] }, client.user);
-          return;
-        }
-        case 'chat/draftChanged': case 'chat/inputAnswerChanged': { this.broadcast(channel, action, origin); return; }
-        case 'changeset/filesReviewChanged': { this.broadcast(channel, action, origin); return; }
-        default: reject(`Unsupported action ${String(action.type)}`);
-      }
+      const session = pending ? undefined : this.sessionFor(client.user, channel);
+      if (!pending && !session) { reject('Session not found'); return; }
+      const reason = flag ? this.setViewFlag(client, channel, parsed.kind, pending, action, origin, flag)
+        : pending ? await this.dispatchToPending(client, channel, parsed.kind, pending, action, origin)
+        : await this.dispatchToSession(client, channel, parsed.kind, session!, action, origin);
+      if (reason) reject(reason);
     } catch (error) {
       reject(error instanceof Error ? error.message : 'Action failed');
     }

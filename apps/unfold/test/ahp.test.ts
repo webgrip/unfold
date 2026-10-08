@@ -193,9 +193,16 @@ test('the agent host keeps each user to their own sessions, summaries and reject
   await assert.rejects(bob.rpc('subscribe', { channel: sessionUri }), (error: any) => error.code === -32001, 'another user cannot subscribe to a pending session');
   await assert.rejects(bob.rpc('disposeSession', { channel: sessionUri }), (error: any) => error.code === -32001, 'another user cannot dispose a pending session');
 
-  alice.notify('dispatchAction', { channel: 'ahp-root://', clientSeq: 7, action: { type: 'root/configChanged', config: { secret: 'alice-only' } } });
-  const rejected = await alice.until(message => message.method === 'action' && message.params.origin?.clientId === 'alice-ahp' && message.params.origin?.clientSeq === 7);
+  const aliceElsewhere = await attach('alice-ahp');
+  await aliceElsewhere.rpc('subscribe', { channel: sessionUri });
+  alice.notify('dispatchAction', { channel: 'ahp-root://', clientSeq: 7, action: { type: 'root/configChanged', config: { trustedUris: ['file:///home/alice/alice-only'] } } });
+  const configured = await alice.until(message => message.method === 'action' && message.params.origin?.clientId === 'alice-ahp' && message.params.origin?.clientSeq === 7);
+  assert.equal(configured.params.rejectionReason, undefined, 'the sender\'s root configuration is accepted and echoed back to it');
+  alice.notify('dispatchAction', { channel: sessionUri, clientSeq: 8, action: { type: 'session/titleChanged', title: 'Alice private work, renamed' } });
+  const rejected = await alice.until(message => message.method === 'action' && message.params.origin?.clientSeq === 8);
   assert.ok(rejected.params.rejectionReason, 'the sender is told its action was rejected');
+  await aliceElsewhere.until(message => message.method === 'action' && message.params.origin?.clientSeq === 8);
+  assert.ok(!aliceElsewhere.inbox.some(message => JSON.stringify(message).includes('alice-only')), 'root configuration never reaches another client, even the same person\'s');
 
   await alice.rpc('disposeSession', { channel: sessionUri });
   await alice.until(message => message.method === 'root/sessionRemoved' && message.params.session === sessionUri);
