@@ -162,3 +162,34 @@ test('reconnect as the first request on a new connection resumes a client this h
   const legacy = await windowAgain.rpc('reconnect', { channel: 'ahp-root://', clientId: windowId, lastSeenServerSeq: 0, subscriptions: [`unfold:/${session.slice('ahp-session:/'.length)}`] });
   assert.equal(legacy.snapshots[0].state.resource, `unfold:/${session.slice('ahp-session:/'.length)}`, 'a VS Code 1.141 window resumes with the provider spelling');
 });
+
+test('a reconnect keeps the session spelling decided at initialize, even when it repeats no _meta', { timeout: testTimeout(60_000) }, async t => {
+  const { address, open } = await attached(t);
+  const clientId = randomUUID();
+  const first = await open(clientId);
+  const session = `ahp-session:/${randomUUID()}`;
+  await first.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1 } });
+  await first.until(message => action(message, session, 'session/ready'));
+  first.close();
+
+  const resumed = connect(address);
+  t.after(() => resumed.close());
+  await resumed.open;
+  const result = await resumed.rpc('reconnect', { channel: 'ahp-root://', clientId, lastSeenServerSeq: 0, subscriptions: ['ahp-root://', session] });
+  const state = result.snapshots[1].state;
+  assert.deepEqual([result.snapshots[1].resource, state.resource, state.defaultChat], [session, session, defaultChatOf(session)], 'the declared ahp-session spelling survives a reconnect without _meta');
+  await resumed.rpc('subscribe', { channel: defaultChatOf(session) });
+  resumed.notify('dispatchAction', { channel: defaultChatOf(session), clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'resumed-turn', startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } } });
+  await resumed.until(message => action(message, defaultChatOf(session), 'chat/turnComplete'));
+  assert.deepEqual((await resumed.rpc('listSessions', { channel: 'ahp-root://' })).items.map((item: Json) => item.resource), [session]);
+  assert.ok(!JSON.stringify(resumed.inbox).includes(`unfold:/${session.slice('ahp-session:/'.length)}`), 'no later notification falls back to the provider spelling');
+
+  const windowId = randomUUID();
+  const window = await open(windowId, { _meta: { 'vscode.clientConnectionKind': 'remote' } });
+  window.close();
+  const declaring = connect(address);
+  t.after(() => declaring.close());
+  await declaring.open;
+  const upgraded = await declaring.rpc('reconnect', { channel: 'ahp-root://', clientId: windowId, lastSeenServerSeq: 0, subscriptions: [session], _meta: { 'vscode.ahpSessionUris': true } });
+  assert.equal(upgraded.snapshots[0].state.resource, session, 'a reconnect that declares the capability switches to ahp-session');
+});

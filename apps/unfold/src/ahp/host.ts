@@ -170,7 +170,7 @@ export class AgentHost {
   private readonly pending = new Map<string, PendingSession>();
   private readonly summaries = new Map<string, string>();
   private readonly activeClients = new Map<string, Map<string, Json>>();
-  private readonly knownClients = new Map<string, { userId: string; clientInfo?: unknown }>();
+  private readonly knownClients = new Map<string, { userId: string; scheme: SessionScheme }>();
   private readonly candidates = new Map<string, CandidateView>();
   private readonly loadingCandidates = new Map<string, Promise<void>>();
   private timer?: ReturnType<typeof setInterval>;
@@ -828,9 +828,9 @@ export class AgentHost {
     return snapshot;
   }
 
-  private remember(clientId: string, user: User, clientInfo: unknown): void {
+  private remember(clientId: string, user: User, scheme: SessionScheme): void {
     this.knownClients.delete(clientId);
-    this.knownClients.set(clientId, { userId: user.id, clientInfo });
+    this.knownClients.set(clientId, { userId: user.id, scheme });
     if (this.knownClients.size > maxKnownClients) this.knownClients.delete(this.knownClients.keys().next().value!);
   }
 
@@ -844,7 +844,7 @@ export class AgentHost {
       if (typeof params.clientId !== 'string') throw new RpcError(codes.invalidParams, 'clientId is required');
       const declaresSessionUris = params._meta?.[sessionUrisMeta] === true;
       client.clientId = params.clientId; client.scheme = sessionSchemeFor(params.clientInfo, params._meta); client.initialized = true;
-      this.remember(params.clientId, client.user, params.clientInfo);
+      this.remember(params.clientId, client.user, client.scheme);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
       return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };
@@ -852,7 +852,8 @@ export class AgentHost {
     if (method === 'reconnect' && !client.initialized) {
       const known = typeof params.clientId === 'string' ? this.knownClients.get(params.clientId) : undefined;
       if (!known || known.userId !== client.user.id) throw new RpcError(codes.notFound, 'This host does not know that client; initialize');
-      client.clientId = params.clientId; client.scheme = sessionSchemeFor(known.clientInfo, params._meta); client.initialized = true;
+      client.clientId = params.clientId; client.scheme = params._meta?.[sessionUrisMeta] === true ? 'ahp-session' : known.scheme; client.initialized = true;
+      this.remember(params.clientId, client.user, client.scheme);
     }
     if (!client.initialized) throw new RpcError(codes.invalidRequest, 'initialize first');
     switch (method) {
