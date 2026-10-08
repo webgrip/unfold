@@ -134,6 +134,7 @@ function activity(session: Session): string | undefined {
   return undefined;
 }
 const digest = (token: string) => createHash('sha256').update(token).digest('hex');
+const fingerprintActivity = (fingerprint: string): string | undefined => JSON.parse(fingerprint)[1] ?? undefined;
 
 /**
  * The files a runtime's diff artifact describes. A native file diff carries each file's `before` and `after` text; a
@@ -716,7 +717,11 @@ export class AgentHost {
         this.summaries.set(id, fingerprint);
         if (previous === undefined) continue;
         const status = sessionStatus(session);
-        this.broadcast(channel, { type: 'session/activityChanged', activity: activity(session) });
+        const current = activity(session);
+        if (fingerprintActivity(previous) !== current) {
+          this.broadcast(channel, { type: 'session/activityChanged', activity: current });
+          this.broadcast(chat, { type: 'chat/activityChanged', ...(current ? { activity: current } : {}) });
+        }
         this.broadcast(channel, viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: status | this.viewOf(viewer, publicId).chat, activity: activity(session) ?? null, modifiedAt: session.updatedAt } }));
         const changesets = this.changesets(session);
         this.broadcast(channel, { type: 'session/changesetsChanged', changesets });

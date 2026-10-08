@@ -64,3 +64,17 @@ test('activity that ends is cleared with null in root summaries and in the sessi
   assert.equal(catalogued.activity ?? undefined, undefined, 'the chat catalogue entry no longer carries it either');
   assert.ok(updates.at(-1) && Object.hasOwn(updates.at(-1)!, 'activity') && updates.at(-1)!.activity === null);
 });
+
+test('the chat channel follows its activity with chat/activityChanged and clears it when the work ends', { timeout: testTimeout(60_000) }, async t => {
+  const { open } = await attached(t);
+  const client = await open(randomUUID());
+  const { session, chat, chatSnapshot } = await runTurn(client);
+  const changes = actionsOn(client, chat).filter(item => item.type === 'chat/activityChanged');
+  assert.ok(changes.some(item => /is working/.test(item.activity ?? '')), `the chat reports the crew working: ${JSON.stringify(changes)}`);
+  assert.equal(changes.at(-1)!.activity, undefined, 'the last change clears the activity');
+  const reduced = actionsOn(client, chat).reduce(reduceChat, chatSnapshot.state);
+  assert.equal(reduced.activity, (await client.rpc('subscribe', { channel: chat })).snapshot.state.activity);
+  const sessionChanges = actionsOn(client, session).filter(item => item.type === 'session/activityChanged').map(item => item.activity);
+  assert.deepEqual(sessionChanges, changes.map(item => item.activity), 'the session and its chat report the same changes');
+  assert.ok(sessionChanges.every((value, index) => index === 0 || value !== sessionChanges[index - 1]), 'an unchanged activity is not announced again');
+});
