@@ -568,7 +568,7 @@ export class AgentHost {
     const active = projection.activeTurn;
     if (!active) return [];
     active.responseParts.push(part);
-    return [{ type: 'chat/responsePart', turnId: active.id, part }];
+    return [{ type: 'chat/responsePart', turnId: active.id, part: { ...part } }];
   }
 
   private reduce(projection: Projection, session: Session, event: Event): Json[] {
