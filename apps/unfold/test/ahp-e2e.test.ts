@@ -96,3 +96,26 @@ test('root/activeSessionsChanged tells each person how many of their own session
   assert.equal(reduced, (await client.rpc('subscribe', { channel: 'ahp-root://' })).snapshot.state.activeSessions);
   assert.deepEqual(actionsOn(carol, 'ahp-root://').filter(item => item.type === 'root/activeSessionsChanged'), [], 'someone who cannot see the session is told nothing');
 });
+
+test('createSession.activeClient makes the creating client active, as a session/activeClientSet right after creation would', { timeout: testTimeout(60_000) }, async t => {
+  const { open } = await attached(t);
+  const clientId = randomUUID();
+  const client = await open(clientId);
+  const activeClient = { clientId, tools: [{ name: 'open_file', description: 'Open a file in the editor', inputSchema: { type: 'object' } }] };
+  const config = { repository: 'order-service', crew: 'delivery', budgetUsd: 1 };
+  const refused = `ahp-session:/${randomUUID()}`;
+  await assert.rejects(client.rpc('createSession', { channel: refused, provider: 'unfold', config, activeClient: { clientId: 'someone-else', tools: [] } }), (error: any) => error.code === -32602, 'a client may only claim itself');
+  assert.ok(!(await client.rpc('listSessions', { channel: 'ahp-root://' })).items.some((item: Json) => item.resource === refused), 'a refused creation creates nothing');
+
+  const session = `ahp-session:/${randomUUID()}`;
+  await client.rpc('createSession', { channel: session, provider: 'unfold', config, activeClient });
+  const set = await client.until(message => action(message, session, 'session/activeClientSet'));
+  assert.deepEqual(set.params.action.activeClient, activeClient);
+  assert.ok(set.params.serverSeq > (await client.until(message => action(message, session, 'session/ready'))).params.serverSeq);
+  assert.deepEqual((await client.rpc('subscribe', { channel: session })).snapshot.state.activeClients, [activeClient]);
+  const chat = defaultChatOf(session);
+  await client.rpc('subscribe', { channel: chat });
+  client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'active-turn', startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } } });
+  await client.until(message => action(message, chat, 'chat/turnStarted'));
+  assert.deepEqual((await client.rpc('subscribe', { channel: session })).snapshot.state.activeClients, [activeClient], 'the claim survives the first message');
+});
