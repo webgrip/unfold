@@ -224,6 +224,8 @@ A connection token lives as long as a login. It expires after `auth.sessionHours
 
 The WebSocket endpoint is the workbench address, on path `/` or `/ahp`, with `?tkn=<token>`; it speaks Agent Host Protocol 0.9.0 ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)). Without an agent host, both routes answer 404 `agent_host_disabled`.
 
+The host answers `initialize` with the highest `0.9.x` the client offered, as the exact string offered. An offer with no `0.9.x` gets `-32005` with `supportedVersions: ['^0.9.0']` and the connection closes; a malformed version gets `-32602`. A VS Code client whose `clientInfo.name` is `vscode-agents-window` or `vscode-editor-window` and that does not send `_meta["vscode.ahpSessionUris"]` sees sessions as `unfold:/<id>`. Every other client sees `ahp-session:/<id>`, and both spellings are accepted on input. Read and archive marks are kept per person; they never pause, cancel or change a session. Accepting a candidate from a client's Changes view uses the same review route and owner check as the browser. A client that this process initialized can resume with `reconnect` on a new connection and receives snapshots; any other client must initialize again (`-32008`).
+
 ## Workspace relay
 
 Routes under `/api/relay/` are for sandbox workers, authenticated by per-workspace or pool bearer tokens rather than login cookies, and are not part of the operator contract.
