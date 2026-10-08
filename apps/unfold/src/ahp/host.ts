@@ -18,6 +18,7 @@ const rootChannel = 'ahp-root://';
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 const pollMs = 300;
 const maxTurnsInSnapshot = 200;
+const maxKnownClients = 1000;
 
 /** The `initialize` and `InitializeResult` `_meta` key by which VS Code declares it addresses sessions as `ahp-session:/<id>`. */
 export const sessionUrisMeta = 'vscode.ahpSessionUris';
@@ -169,6 +170,7 @@ export class AgentHost {
   private readonly pending = new Map<string, PendingSession>();
   private readonly summaries = new Map<string, string>();
   private readonly activeClients = new Map<string, Map<string, Json>>();
+  private readonly knownClients = new Map<string, { userId: string; clientInfo?: unknown }>();
   private readonly candidates = new Map<string, CandidateView>();
   private readonly loadingCandidates = new Map<string, Promise<void>>();
   private timer?: ReturnType<typeof setInterval>;
@@ -826,6 +828,12 @@ export class AgentHost {
     return snapshot;
   }
 
+  private remember(clientId: string, user: User, clientInfo: unknown): void {
+    this.knownClients.delete(clientId);
+    this.knownClients.set(clientId, { userId: user.id, clientInfo });
+    if (this.knownClients.size > maxKnownClients) this.knownClients.delete(this.knownClients.keys().next().value!);
+  }
+
   private async request(client: Client, method: string, params: Json): Promise<Json> {
     if (method === 'ping') return {};
     if (method === 'initialize') {
@@ -836,11 +844,16 @@ export class AgentHost {
       if (typeof params.clientId !== 'string') throw new RpcError(codes.invalidParams, 'clientId is required');
       const declaresSessionUris = params._meta?.[sessionUrisMeta] === true;
       client.clientId = params.clientId; client.scheme = sessionSchemeFor(params.clientInfo, params._meta); client.initialized = true;
+      this.remember(params.clientId, client.user, params.clientInfo);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
       return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };
     }
-    if (method === 'reconnect' && !client.initialized) throw new RpcError(codes.notFound, 'This host keeps no client across connections; initialize');
+    if (method === 'reconnect' && !client.initialized) {
+      const known = typeof params.clientId === 'string' ? this.knownClients.get(params.clientId) : undefined;
+      if (!known || known.userId !== client.user.id) throw new RpcError(codes.notFound, 'This host does not know that client; initialize');
+      client.clientId = params.clientId; client.scheme = sessionSchemeFor(known.clientInfo, params._meta); client.initialized = true;
+    }
     if (!client.initialized) throw new RpcError(codes.invalidRequest, 'initialize first');
     switch (method) {
       case 'reconnect': { const snapshots: Json[] = []; for (const channel of Array.isArray(params.subscriptions) ? params.subscriptions : []) snapshots.push(await this.subscribe(client, channel)); return { type: 'snapshot', snapshots }; }

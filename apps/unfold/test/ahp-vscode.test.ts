@@ -82,9 +82,9 @@ test('VS Code main (1.142) attaches: ahp-session URIs, read and archive marks th
 
   const reconnecting = client(address, t);
   await reconnecting.open;
-  await assert.rejects(reconnecting.rpc('reconnect', { channel: 'ahp-root://', clientId, lastSeenServerSeq: started.params.serverSeq, subscriptions: [session, chat], _meta: clientMeta }), (error: any) => error.code === -32008);
-  const again = await reconnecting.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['1.0.0', '0.10.0', '0.9.0'], clientId, clientInfo: vscodeAgentsWindow, _meta: clientMeta, initialSubscriptions: ['ahp-root://', session, chat] });
-  assert.equal(again.protocolVersion, '0.9.0');
+  const again = await reconnecting.rpc('reconnect', { channel: 'ahp-root://', clientId, lastSeenServerSeq: started.params.serverSeq, subscriptions: ['ahp-root://', session, chat], _meta: clientMeta });
+  assert.equal(again.type, 'snapshot', 'the host resumes the client it knows with fresh snapshots');
+  assert.deepEqual(again.snapshots.map((snapshot: Json) => snapshot.resource), ['ahp-root://', session, chat]);
   const [root, sessionState, chatState] = again.snapshots.map((snapshot: Json) => snapshot.state);
   assert.equal(root.agents[0].provider, 'unfold');
   assert.equal(sessionState.resource, session);

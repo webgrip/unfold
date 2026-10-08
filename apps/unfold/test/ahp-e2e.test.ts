@@ -119,3 +119,46 @@ test('createSession.activeClient makes the creating client active, as a session/
   await client.until(message => action(message, chat, 'chat/turnStarted'));
   assert.deepEqual((await client.rpc('subscribe', { channel: session })).snapshot.state.activeClients, [activeClient], 'the claim survives the first message');
 });
+
+test('reconnect as the first request on a new connection resumes a client this host has seen, in that client\'s spelling', { timeout: testTimeout(60_000) }, async t => {
+  const { server, address, open } = await attached(t);
+  const clientId = randomUUID();
+  const first = await open(clientId);
+  const session = `ahp-session:/${randomUUID()}`;
+  await first.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1 } });
+  await first.until(message => action(message, session, 'session/ready'));
+  const lastSeen = first.inbox.filter(message => message.method === 'action').at(-1)!.params.serverSeq;
+  first.close();
+
+  const resumed = connect(address);
+  t.after(() => resumed.close());
+  await resumed.open;
+  const result = await resumed.rpc('reconnect', { channel: 'ahp-root://', clientId, lastSeenServerSeq: lastSeen, subscriptions: ['ahp-root://', session], _meta: { 'vscode.ahpSessionUris': true } });
+  assert.equal(result.type, 'snapshot');
+  assert.deepEqual(result.snapshots.map((snapshot: Json) => [snapshot.resource, snapshot.state.resource ?? snapshot.resource]), [['ahp-root://', 'ahp-root://'], [session, session]]);
+  resumed.notify('dispatchAction', { channel: session, clientSeq: 1, action: { type: 'session/isReadChanged', isRead: true } });
+  const echoed = await resumed.until(message => message.method === 'action' && message.params.origin?.clientSeq === 1);
+  assert.equal(echoed.params.rejectionReason, undefined, 'the resumed client may act');
+  assert.equal(echoed.params.origin.clientId, clientId, 'under the clientId it resumed');
+
+  const stranger = connect(address);
+  t.after(() => stranger.close());
+  await stranger.open;
+  await assert.rejects(stranger.rpc('reconnect', { channel: 'ahp-root://', clientId: randomUUID(), lastSeenServerSeq: 0, subscriptions: ['ahp-root://'] }), (error: any) => error.code === -32008, 'a client this host never saw must initialize');
+  await assert.rejects(stranger.rpc('subscribe', { channel: session }), (error: any) => error.code === -32600, 'a refused reconnect leaves the connection uninitialized');
+
+  server.app.store.addUser({ id: 'dave-e2e', name: 'dave-e2e', role: 'operator', passwordHash: 'unused' });
+  const dave = connect(`${address.replace(/tkn=.*/, '')}tkn=${server.app.agentHost.issueToken({ id: 'dave-e2e', name: 'dave-e2e', role: 'operator' })}`);
+  t.after(() => dave.close());
+  await dave.open;
+  await assert.rejects(dave.rpc('reconnect', { channel: 'ahp-root://', clientId, lastSeenServerSeq: 0, subscriptions: ['ahp-root://'] }), (error: any) => error.code === -32008, 'another person cannot resume someone else\'s client');
+
+  const windowId = randomUUID();
+  const window = await open(windowId, { _meta: { 'vscode.clientConnectionKind': 'remote' } });
+  window.close();
+  const windowAgain = connect(address);
+  t.after(() => windowAgain.close());
+  await windowAgain.open;
+  const legacy = await windowAgain.rpc('reconnect', { channel: 'ahp-root://', clientId: windowId, lastSeenServerSeq: 0, subscriptions: [`unfold:/${session.slice('ahp-session:/'.length)}`] });
+  assert.equal(legacy.snapshots[0].state.resource, `unfold:/${session.slice('ahp-session:/'.length)}`, 'a VS Code 1.141 window resumes with the provider spelling');
+});

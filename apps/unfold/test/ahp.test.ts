@@ -319,8 +319,8 @@ test('each client sees every session in its own spelling: unfold:/ for a VS Code
   const returning = connect(address);
   t.after(() => returning.close());
   await returning.open;
-  await assert.rejects(returning.rpc('reconnect', { channel: 'ahp-root://', clientId: 'modern', lastSeenServerSeq: 0, subscriptions: [modernUri], _meta: { 'vscode.ahpSessionUris': true } }), (error: any) => error.code === -32008, 'a reconnect on a new connection is told to initialize');
-  const again = await returning.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['1.0.0', '0.10.0', '0.9.0'], clientId: 'modern', _meta: { 'vscode.ahpSessionUris': true }, initialSubscriptions: ['ahp-root://', modernUri] });
+  const again = await returning.rpc('reconnect', { channel: 'ahp-root://', clientId: 'modern', lastSeenServerSeq: 0, subscriptions: ['ahp-root://', modernUri], _meta: { 'vscode.ahpSessionUris': true } });
+  assert.equal(again.type, 'snapshot');
   assert.equal(again.snapshots[1].state.resource, modernUri);
   assert.equal(again.snapshots[1].state.defaultChat, modernChat);
 });
