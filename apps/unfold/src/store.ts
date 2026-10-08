@@ -54,6 +54,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS card_theme_versions (theme_id TEXT NOT NULL, version INTEGER NOT NULL, saved_at TEXT NOT NULL, saved_by TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(theme_id, version));
       CREATE TABLE IF NOT EXISTS card_assets (id TEXT PRIMARY KEY, purpose TEXT NOT NULL, media_type TEXT NOT NULL, bytes INTEGER NOT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL, content BLOB NOT NULL);
       CREATE TABLE IF NOT EXISTS status_notes (id TEXT PRIMARY KEY, severity TEXT NOT NULL, text TEXT NOT NULL, author TEXT NOT NULL, created_at TEXT NOT NULL, resolved_at TEXT, resolved_by TEXT);
+      CREATE TABLE IF NOT EXISTS agent_host_views (user_id TEXT NOT NULL, session_id TEXT NOT NULL, session_flags INTEGER NOT NULL, chat_flags INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, session_id));
     `);
   }
 
@@ -136,6 +137,25 @@ export class Store {
     const value = row as Record<string, string | null>;
     return { id: value.id!, severity: value.severity as StatusNote['severity'], text: value.text!, author: value.author!, createdAt: value.created_at!, ...(value.resolved_at ? { resolvedAt: value.resolved_at } : {}), ...(value.resolved_by ? { resolvedBy: value.resolved_by } : {}) };
   }
+
+  /** One person's view of an agent host session, by the id the host advertises for it. A view never set reads as zero. */
+  agentHostView(userId: string, sessionId: string): AgentHostView {
+    const row = this.db.prepare('SELECT session_flags, chat_flags FROM agent_host_views WHERE user_id=? AND session_id=?').get(userId, sessionId) as { session_flags: number; chat_flags: number } | undefined;
+    return { session: Number(row?.session_flags ?? 0), chat: Number(row?.chat_flags ?? 0) };
+  }
+
+  setAgentHostView(userId: string, sessionId: string, view: AgentHostView, at: string): void {
+    this.db.prepare('INSERT INTO agent_host_views(user_id,session_id,session_flags,chat_flags,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id, session_id) DO UPDATE SET session_flags=excluded.session_flags, chat_flags=excluded.chat_flags, updated_at=excluded.updated_at').run(userId, sessionId, view.session, view.chat, at);
+  }
+
+  /** Clears `flags` from every person's view of one agent host session and its chat, and answers the people whose view changed. */
+  clearAgentHostFlags(sessionId: string, flags: number, at: string): string[] {
+    const changed = (this.db.prepare('SELECT user_id FROM agent_host_views WHERE session_id=? AND ((session_flags & ?) != 0 OR (chat_flags & ?) != 0)').all(sessionId, flags, flags) as { user_id: string }[]).map(row => row.user_id);
+    if (changed.length) this.db.prepare('UPDATE agent_host_views SET session_flags=session_flags & ~?, chat_flags=chat_flags & ~?, updated_at=? WHERE session_id=?').run(flags, flags, at, sessionId);
+    return changed;
+  }
+
+  deleteAgentHostViews(sessionId: string): void { this.db.prepare('DELETE FROM agent_host_views WHERE session_id=?').run(sessionId); }
 
   savePermission(request: PermissionRequest): void {
     this.db.prepare('INSERT INTO permissions(id,session_id,body) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(request.id, request.sessionId, JSON.stringify(request));
@@ -340,6 +360,11 @@ export class Store {
   }
 }
 
+/**
+ * What one person marked on an agent host session, as AHP `SessionStatus` bits (32 read, 64 archived): `session` on the
+ * session itself, `chat` on its default chat. A view belongs to the viewer and never changes the work.
+ */
+export type AgentHostView = { session: number; chat: number };
 export type CardBinderMark = { startedAt: string; seenAt: string };
 /** What a person last saw of a card that its moments cannot tell: its overall grade and whether its set was complete. */
 export type CardSeenSnapshot = { grade: number | null; setComplete: boolean };

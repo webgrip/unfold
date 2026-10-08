@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
-import type { Store } from '../store.ts';
+import type { AgentHostView, Store } from '../store.ts';
 import type { Engine } from '../engine.ts';
 import { placements } from '../config.ts';
 import type { AppConfig, Event, PermissionRequest, Session, User, WorkspaceBackend } from '../types.ts';
@@ -74,7 +74,14 @@ export function negotiateProtocolVersion(offered: readonly unknown[]): string | 
   return selected?.version;
 }
 
-const statusBits = { idle: 1, error: 2, inProgress: 8, inputNeeded: 24 };
+const statusBits = { idle: 1, error: 2, inProgress: 8, inputNeeded: 24, isRead: 32, isArchived: 64 };
+type ViewFlag = { channel: 'session' | 'chat'; field: 'isRead' | 'isArchived'; bit: number };
+const viewFlags: Record<string, ViewFlag> = {
+  'session/isReadChanged': { channel: 'session', field: 'isRead', bit: statusBits.isRead },
+  'session/isArchivedChanged': { channel: 'session', field: 'isArchived', bit: statusBits.isArchived },
+  'chat/isReadChanged': { channel: 'chat', field: 'isRead', bit: statusBits.isRead },
+  'chat/isArchivedChanged': { channel: 'chat', field: 'isArchived', bit: statusBits.isArchived },
+};
 function sessionStatus(session: Session): number {
   if (session.status === 'waiting_input') return statusBits.inputNeeded;
   if (['running', 'exporting'].includes(session.status)) return statusBits.inProgress;
@@ -189,8 +196,8 @@ export class AgentHost {
 
   private send(client: Client, message: Json): void { client.connection.send(JSON.stringify(message)); }
 
-  private notify(channelFilter: string, method: string, params: Json | ((client: Client) => Json), ownerId?: string): void {
-    for (const client of this.clients) if (client.initialized && client.subscriptions.has(channelFilter) && (ownerId === undefined || this.mayView(client.user, ownerId))) this.send(client, { jsonrpc: '2.0', method, params: typeof params === 'function' ? params(client) : params });
+  private notify(channelFilter: string, method: string, params: Json | ((client: Client) => Json), ownerId?: string, audience?: (client: Client) => boolean): void {
+    for (const client of this.clients) if (client.initialized && client.subscriptions.has(channelFilter) && (ownerId === undefined || this.mayView(client.user, ownerId)) && (!audience || audience(client))) this.send(client, { jsonrpc: '2.0', method, params: typeof params === 'function' ? params(client) : params });
   }
 
   private reject(sender: Client, channel: string, action: Json, origin: Origin, rejectionReason: string): void {
@@ -199,11 +206,20 @@ export class AgentHost {
     for (const client of this.clients) if (client !== sender && client.initialized && client.user.id === sender.user.id) { const subscribed = this.subscribedAs(client, channel); if (subscribed) this.send(client, { jsonrpc: '2.0', method: 'action', params: { channel: subscribed, action, serverSeq, origin, rejectionReason } }); }
   }
 
-  private broadcast(channel: string, action: Json | ((client: Client) => Json), origin?: Origin): void {
+  private broadcast(channel: string, action: Json | ((client: Client) => Json), origin?: Origin, audience?: (client: Client) => boolean): void {
     const serverSeq = ++this.serverSeq;
     for (const client of this.clients) {
-      const subscribed = client.initialized ? this.subscribedAs(client, channel) : undefined;
+      const subscribed = client.initialized && (!audience || audience(client)) ? this.subscribedAs(client, channel) : undefined;
       if (subscribed) this.send(client, { jsonrpc: '2.0', method: 'action', params: { channel: subscribed, action: typeof action === 'function' ? action(client) : action, serverSeq, origin } });
+    }
+  }
+
+  private echo(sender: Client, channel: string, action: Json, origin: Origin, audience?: (client: Client) => boolean): void {
+    const serverSeq = ++this.serverSeq;
+    for (const client of this.clients) {
+      if (!client.initialized || (client !== sender && audience && !audience(client))) continue;
+      const subscribed = client === sender ? channel : this.subscribedAs(client, channel);
+      if (subscribed) this.send(client, { jsonrpc: '2.0', method: 'action', params: { channel: subscribed, action, serverSeq, origin } });
     }
   }
 
@@ -222,6 +238,8 @@ export class AgentHost {
   private pendingFor(uri: string): PendingSession | undefined { const id = sessionIdFrom(uri); return id ? this.pending.get(id) : undefined; }
 
   private mayView(user: User, ownerId: string): boolean { return ownerId === user.id || user.role === 'admin'; }
+
+  private viewOf(view: View, publicId: string): AgentHostView { return this.store.agentHostView(view.user.id, publicId); }
 
   private visible(user: User): Session[] { return this.store.listSessions().filter(session => this.mayView(user, session.ownerId)); }
 
@@ -262,7 +280,7 @@ export class AgentHost {
   summary(session: Session, view: View): Json {
     const repository = this.config.repositories.find(repo => repo.id === session.repositoryId);
     return {
-      resource: this.sessionUri(session, view), provider, title: session.title, status: sessionStatus(session), activity: activity(session),
+      resource: this.sessionUri(session, view), provider, title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).session, activity: activity(session),
       createdAt: session.createdAt, modifiedAt: session.updatedAt,
       ...(repository ? { project: { uri: repository.url, displayName: repository.name } } : {}),
       ...(session.candidate?.status === 'ready' ? { changes: { files: session.candidate.fileCount } } : {}),
@@ -310,7 +328,7 @@ export class AgentHost {
   }
 
   chatSummary(session: Session, view: View): Json {
-    return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session), activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: ['completed', 'cancelled', 'failed'].includes(session.status) ? 'read-only' : 'full' };
+    return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).chat, activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: ['completed', 'cancelled', 'failed'].includes(session.status) ? 'read-only' : 'full' };
   }
 
   chatState(session: Session, view: View): Json {
@@ -523,16 +541,18 @@ export class AgentHost {
         const publicId = this.publicId(id);
         const chat = chatChannel(publicId);
         const channel = sessionChannel(publicId);
-        for (const event of this.store.events(id, projection.cursor)) for (const action of this.reduce(projection, session, event)) this.broadcast(chat, action);
-        for (const action of this.settle(projection, session)) this.broadcast(chat, action);
+        const fresh = [...this.store.events(id, projection.cursor).flatMap(event => this.reduce(projection, session, event)), ...this.settle(projection, session)];
+        for (const action of fresh) this.broadcast(chat, action);
+        const unread = fresh.some(action => action.type === 'chat/turnStarted' || action.type === 'chat/inputRequested' || (action.type === 'chat/toolCallReady' && action.confirmationTitle !== undefined));
+        const cleared = unread ? this.store.clearAgentHostFlags(publicId, statusBits.isRead, new Date().toISOString()) : [];
         const fingerprint = this.fingerprint(session);
         const previous = this.summaries.get(id);
-        if (previous === fingerprint) continue;
+        if (previous === fingerprint && !cleared.length) continue;
         this.summaries.set(id, fingerprint);
         if (previous === undefined) continue;
         const status = sessionStatus(session);
         this.broadcast(channel, { type: 'session/activityChanged', activity: activity(session) });
-        this.broadcast(channel, viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status, activity: activity(session), modifiedAt: session.updatedAt } }));
+        this.broadcast(channel, viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: status | this.viewOf(viewer, publicId).chat, activity: activity(session), modifiedAt: session.updatedAt } }));
         this.broadcast(channel, { type: 'session/changesetsChanged', changesets: this.changesets(session) });
         for (const request of this.openRequests(session)) this.broadcast(channel, viewer => ({ type: 'session/inputNeededSet', request: this.inputRequest(session, request, viewer) }));
         for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(channel, { type: 'session/inputNeededRemoved', id: request.id });
@@ -584,11 +604,11 @@ export class AgentHost {
   }
 
   private pendingSummary(pending: PendingSession, view: View): Json {
-    return { resource: sessionChannel(pending.id, view.scheme), provider, title: pending.config.title ?? 'New session', status: statusBits.idle, createdAt: pending.createdAt, modifiedAt: pending.createdAt };
+    return { resource: sessionChannel(pending.id, view.scheme), provider, title: pending.config.title ?? 'New session', status: statusBits.idle | this.viewOf(view, pending.id).session, createdAt: pending.createdAt, modifiedAt: pending.createdAt };
   }
 
   private pendingChat(pending: PendingSession, view: View): Json {
-    return { resource: chatChannel(pending.id, view.scheme), title: pending.config.title ?? 'New session', status: statusBits.idle, modifiedAt: pending.createdAt, origin: { kind: 'user' }, interactivity: 'full' };
+    return { resource: chatChannel(pending.id, view.scheme), title: pending.config.title ?? 'New session', status: statusBits.idle | this.viewOf(view, pending.id).chat, modifiedAt: pending.createdAt, origin: { kind: 'user' }, interactivity: 'full' };
   }
 
   private pendingState(pending: PendingSession, view: View): Json {
@@ -679,6 +699,7 @@ export class AgentHost {
     if (pending) {
       if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
       this.pending.delete(pending.id);
+      this.store.deleteAgentHostViews(pending.id);
       this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(pending.id, viewer.scheme) }), pending.user.id);
       return {};
     }
@@ -699,8 +720,9 @@ export class AgentHost {
       const session = this.engine.create({ title: String(pending.config.title ?? text.split('\n')[0]).slice(0, 160) || 'Agent host session', objective: text, repositoryId: String(pending.config.repository), crewId: String(pending.config.crew), runtime: this.config.mode === 'demo' ? 'demo' : this.config.runtime.kind, placement: pending.config.placement as WorkspaceBackend | undefined, budgetUsd: Number(pending.config.budgetUsd) }, pending.user);
       if (session.id !== pending.id) this.store.transaction(() => { this.store.setSecret(`ahp-alias:${pending.id}`, session.id); this.store.setSecret(`ahp-public:${session.id}`, pending.id); });
       this.pending.delete(pending.id);
+      this.store.clearAgentHostFlags(pending.id, statusBits.isRead, session.createdAt);
       this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity, modifiedAt: summary.modifiedAt, ...(summary.project ? { project: summary.project } : {}) } }; }, session.ownerId);
-      this.broadcast(sessionChannel(pending.id), viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: sessionStatus(session), modifiedAt: session.updatedAt } }));
+      this.broadcast(sessionChannel(pending.id), viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: sessionStatus(session) | this.viewOf(viewer, pending.id).chat, modifiedAt: session.updatedAt } }));
       const projection = this.projection(session);
       const turn = projection.activeTurn ?? projection.turns.at(-1);
       if (turn) this.broadcast(chatChannel(pending.id), { type: 'chat/turnStarted', turnId: turn.id, startedAt: turn.startedAt, message: turn.message }, origin);
@@ -711,6 +733,23 @@ export class AgentHost {
     }
   }
 
+  private setViewFlag(client: Client, channel: string, kind: ChannelKind, pending: PendingSession | undefined, action: Json, origin: Origin, flag: ViewFlag): string | undefined {
+    if (kind !== flag.channel) return `${action.type} is dispatched on the ${flag.channel} channel`;
+    if (typeof action[flag.field] !== 'boolean') return `${flag.field} must be true or false`;
+    const session = pending ? undefined : this.sessionFor(client.user, channel);
+    if (!pending && !session) return 'Session not found';
+    const publicId = session ? this.publicId(session.id) : pending!.id;
+    const current = this.viewOf(client, publicId);
+    const next = { ...current, [flag.channel]: action[flag.field] ? current[flag.channel] | flag.bit : current[flag.channel] & ~flag.bit };
+    this.store.setAgentHostView(client.user.id, publicId, next, new Date().toISOString());
+    const sameUser = (other: Client) => other.user.id === client.user.id;
+    const activityBits = session ? sessionStatus(session) : statusBits.idle;
+    this.echo(client, channel, action, origin, sameUser);
+    if (flag.channel === 'session') this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme), changes: { status: activityBits | next.session } }), undefined, sameUser);
+    else this.broadcast(sessionChannel(publicId), viewer => ({ type: 'session/chatUpdated', chat: chatChannel(publicId, viewer.scheme), changes: { status: activityBits | next.chat } }), undefined, sameUser);
+    return undefined;
+  }
+
   private async notification(client: Client, method: string, params: Json): Promise<void> {
     if (method === 'unsubscribe') { if (typeof params.channel === 'string') client.subscriptions.delete(params.channel); return; }
     if (method !== 'dispatchAction') return;
@@ -719,9 +758,12 @@ export class AgentHost {
     const origin = { clientId: client.clientId ?? client.id, clientSeq: Number(params.clientSeq) || 0 };
     const reject = (reason: string) => this.reject(client, channel, action, origin, reason);
     try {
-      const pending = parseChannel(channel)?.kind === 'chat' ? this.pendingFor(channel) : undefined;
+      const parsed = parseChannel(channel);
+      const pending = parsed && parsed.kind !== 'changeset' ? this.pending.get(parsed.id) : undefined;
       if (pending && !this.mayView(client.user, pending.user.id)) { reject('Session not found'); return; }
-      if (pending && action.type === 'chat/turnStarted') { await this.startFromPending(client, pending, action.message ?? {}, origin); return; }
+      const flag = viewFlags[String(action.type)];
+      if (parsed && flag) { const reason = this.setViewFlag(client, channel, parsed.kind, pending, action, origin, flag); if (reason) reject(reason); return; }
+      if (pending && parsed?.kind === 'chat' && action.type === 'chat/turnStarted') { await this.startFromPending(client, pending, action.message ?? {}, origin); return; }
       const session = this.sessionFor(client.user, channel);
       if (!session) { reject('Session not found'); return; }
       switch (action.type) {
@@ -750,7 +792,7 @@ export class AgentHost {
           await this.engine.respond(session.id, request.id, { answers: answers.length ? answers : [['']] }, client.user);
           return;
         }
-        case 'chat/draftChanged': case 'chat/inputAnswerChanged': case 'session/isReadChanged': { this.broadcast(channel, action, origin); return; }
+        case 'chat/draftChanged': case 'chat/inputAnswerChanged': { this.broadcast(channel, action, origin); return; }
         case 'changeset/filesReviewChanged': { this.broadcast(channel, action, origin); return; }
         default: reject(`Unsupported action ${String(action.type)}`);
       }

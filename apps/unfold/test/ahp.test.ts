@@ -305,3 +305,83 @@ test('each client sees every session in its own spelling: unfold:/ for VS Code 1
   assert.equal(again.snapshots[1].state.resource, modernUri);
   assert.equal(again.snapshots[1].state.defaultChat, modernChat);
 });
+
+test('read and archived marks belong to the person who set them, survive summary updates and restarts, and never change the work', { timeout: testTimeout(60_000) }, async t => {
+  const server = await application('live');
+  t.after(() => server.close());
+  const { hashPassword } = await import('../src/auth.ts');
+  for (const name of ['alice-marks', 'bob-marks']) server.app.store.addUser({ id: name, name, role: 'operator', passwordHash: await hashPassword('operator-password-314159') });
+  const attach = async (name: string, password: string, meta?: Json) => {
+    const auth = await login(server.url, name, password);
+    const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: auth.cookie, body: { label: name } });
+    const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
+    t.after(() => client.close());
+    await client.open;
+    await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: `${name}-${randomUUID()}`, ...(meta ? { _meta: meta } : {}), initialSubscriptions: ['ahp-root://'] });
+    return client;
+  };
+  const alice = await attach('alice-marks', 'operator-password-314159', { 'vscode.ahpSessionUris': true });
+  const aliceElsewhere = await attach('alice-marks', 'operator-password-314159');
+  const admin = await attach('admin', 'test-admin-password-314159');
+  const bob = await attach('bob-marks', 'operator-password-314159');
+  const session = server.app.engine.create({ title: 'Alice marks this', objective: 'Fix the order rounding regression and provide the actual verification result.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode', budgetUsd: 1 }, { id: 'alice-marks', name: 'alice-marks', role: 'operator' });
+  const aliceUri = `ahp-session:/${session.id}`;
+  const aliceChat = defaultChatOf(aliceUri);
+  const legacyUri = `unfold:/${session.id}`;
+  for (const channel of [aliceUri, aliceChat]) await alice.rpc('subscribe', { channel });
+  for (const client of [aliceElsewhere, admin]) for (const channel of [legacyUri, defaultChatOf(legacyUri)]) await client.rpc('subscribe', { channel });
+  const read = 32;
+  const archived = 64;
+  const statusOf = async (client: typeof alice) => (await client.rpc('listSessions', { channel: 'ahp-root://' })).items.find((item: Json) => item.resource.endsWith(session.id)).status;
+
+  alice.notify('dispatchAction', { channel: aliceChat, clientSeq: 1, action: { type: 'session/isReadChanged', isRead: true } });
+  assert.match((await alice.until(message => message.params?.origin?.clientSeq === 1)).params.rejectionReason, /session channel/, 'a session mark belongs on the session channel');
+  alice.notify('dispatchAction', { channel: aliceUri, clientSeq: 2, action: { type: 'session/isArchivedChanged', isArchived: 'yes' } });
+  assert.ok((await alice.until(message => message.params?.origin?.clientSeq === 2)).params.rejectionReason);
+  const marks = [
+    { channel: aliceUri, action: { type: 'session/isReadChanged', isRead: true } },
+    { channel: aliceUri, action: { type: 'session/isArchivedChanged', isArchived: true } },
+    { channel: aliceChat, action: { type: 'chat/isReadChanged', isRead: true } },
+    { channel: aliceChat, action: { type: 'chat/isArchivedChanged', isArchived: true } },
+  ];
+  for (const [index, mark] of marks.entries()) {
+    alice.notify('dispatchAction', { channel: mark.channel, clientSeq: 10 + index, action: mark.action });
+    const echoed = await alice.until(message => message.params?.origin?.clientSeq === 10 + index);
+    assert.equal(echoed.params.channel, mark.channel);
+    assert.deepEqual(echoed.params.action, mark.action);
+    assert.equal(echoed.params.rejectionReason, undefined, `${mark.action.type} is accepted and echoed`);
+  }
+  const elsewhere = await aliceElsewhere.until(message => action(message, legacyUri, 'session/isArchivedChanged') && !message.params.rejectionReason);
+  assert.equal(elsewhere.params.origin.clientSeq, 11, 'the same person\'s other client sees the mark in its own spelling');
+  await aliceElsewhere.until(message => action(message, defaultChatOf(legacyUri), 'chat/isArchivedChanged'));
+  const summaryChanges = aliceElsewhere.inbox.filter(message => message.method === 'root/sessionSummaryChanged' && message.params.session === legacyUri);
+  assert.equal(summaryChanges.at(-1)?.params.changes.status & (read | archived), read | archived);
+  assert.equal(await statusOf(alice) & (read | archived), read | archived);
+  assert.equal((await alice.rpc('subscribe', { channel: aliceUri })).snapshot.state.status & (read | archived), read | archived);
+  assert.equal((await alice.rpc('subscribe', { channel: aliceUri })).snapshot.state.chats[0].status & (read | archived), read | archived);
+  assert.equal((await alice.rpc('subscribe', { channel: aliceChat })).snapshot.state.status & (read | archived), read | archived);
+  assert.equal(await statusOf(admin) & (read | archived), 0, 'an administrator viewing the session keeps their own marks');
+  assert.equal(server.app.store.getSession(session.id)!.status, 'queued', 'archiving never cancels or changes the work');
+
+  alice.inbox.length = 0;
+  await server.app.engine.message(session.id, 'Keep the public rounding helper signature unchanged.', { id: 'alice-marks', name: 'alice-marks', role: 'operator' });
+  const unread = await alice.until(message => message.method === 'root/sessionSummaryChanged' && message.params.session === aliceUri);
+  assert.equal(unread.params.changes.status & (read | archived), archived, 'a new turn makes the session unread, and the summary update keeps it archived');
+  const chatUnread = await alice.until(message => action(message, aliceUri, 'session/chatUpdated'));
+  assert.equal(chatUnread.params.action.changes.status & (read | archived), archived);
+  alice.notify('dispatchAction', { channel: aliceUri, clientSeq: 20, action: { type: 'session/isReadChanged', isRead: true } });
+  await alice.until(message => message.params?.origin?.clientSeq === 20);
+  assert.equal(await statusOf(alice) & (read | archived), read | archived);
+
+  await settle(200);
+  const adminSummaries = admin.inbox.filter(message => message.method === 'root/sessionSummaryChanged' && message.params.session === legacyUri);
+  assert.ok(adminSummaries.length > 0 && adminSummaries.every(message => (message.params.changes.status & (read | archived)) === 0), 'the administrator\'s summaries carry none of Alice\'s marks');
+  const leaked = [...admin.inbox, ...bob.inbox].filter(message => /is(Read|Archived)Changed/.test(String(message.params?.action?.type)));
+  assert.deepEqual(leaked, [], 'nobody else receives the marks');
+  assert.ok(!bob.inbox.some(message => JSON.stringify(message).includes(session.id)));
+
+  await server.restart();
+  const returned = await attach('alice-marks', 'operator-password-314159', { 'vscode.ahpSessionUris': true });
+  assert.equal(await statusOf(returned) & (read | archived), read | archived, 'the marks survive a restart');
+  assert.equal(await statusOf(await attach('admin', 'test-admin-password-314159')) & (read | archived), 0);
+});
