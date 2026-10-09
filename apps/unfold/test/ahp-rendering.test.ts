@@ -155,10 +155,10 @@ class QuestionRuntime extends DemoRuntime {
 
 async function asking(t: { after: (fn: () => unknown) => void }) {
   const dataDir = await mkdtemp(join(tmpdir(), 'unfold-ahp-questions-'));
-  t.after(() => rm(dataDir, { recursive: true, force: true }));
   const runtime = new QuestionRuntime({ dataDir, delayMs: 5 });
   const server = await application('demo', undefined, new Map<RuntimeKind, AgentRuntime>([['demo', runtime]]));
   t.after(() => server.close());
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'questions' } });
   const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
   t.after(() => client.close());
