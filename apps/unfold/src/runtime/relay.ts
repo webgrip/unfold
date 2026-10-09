@@ -148,7 +148,7 @@ export class WorkerRelay {
     registration.lastSeen = Date.now();
     if (match[2] === 'requests' && req.method === 'GET') {
       const wait = Math.min(maxPollMs, Math.max(0, Number(url.searchParams.get('wait') ?? maxPollMs) || 0));
-      if (!registration.queue.length && wait > 0) {
+      if (!registration.queue.length && !registration.cancelled.size && wait > 0) {
         await new Promise<void>(done => {
           const timer = setTimeout(() => { registration.waiters.delete(wake); done(); }, wait);
           const wake = () => { clearTimeout(timer); registration.waiters.delete(wake); done(); };

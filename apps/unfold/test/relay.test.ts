@@ -11,6 +11,23 @@ import { captureInPlace } from '../src/runtime/kubernetes.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
 import { scaledTimeout, settle, testTimeout, waitFor } from './timeframes.ts';
 
+test('a cancellation that arrives while no poll is waiting is handed to the next poll at once', { timeout: 20_000 }, async t => {
+  const relay = new WorkerRelay();
+  const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
+  const relayPort = await listen(relayServer);
+  t.after(() => relayServer.close());
+  const token = relay.register('ws-between');
+  const poll = async (wait: number) => (await fetch(`http://127.0.0.1:${relayPort}/api/relay/ws-between/requests?wait=${wait}`, { headers: { authorization: `Bearer ${token}` } })).json();
+  const controller = new AbortController();
+  const pending = relay.fetcher('ws-between')('http://workspace/__unfold/exec', { method: 'POST', body: '{}', signal: controller.signal });
+  pending.catch(() => {});
+  const picked = await poll(0);
+  assert.equal(picked.requests.length, 1);
+  controller.abort();
+  await assert.rejects(pending);
+  assert.deepEqual(await poll(25_000), { requests: [], cancelled: [picked.requests[0].id] }, 'the poll after the abort carries the cancellation instead of waiting out its 25 s');
+});
+
 const workerScript = fileURLToPath(new URL('../ops/agent/relay-worker.mjs', import.meta.url));
 
 async function listen(server: Server, host = '127.0.0.1'): Promise<number> {
