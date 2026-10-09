@@ -16,6 +16,11 @@ export function testTimeout(milliseconds: number): number {
   return scaledTimeout(milliseconds);
 }
 
+export function threadCpuMilliseconds(): number {
+  const { user, system } = process.threadCpuUsage();
+  return (user + system) / 1000;
+}
+
 export async function settle(milliseconds: number): Promise<void> {
   await delay(scaledTimeout(milliseconds));
 }

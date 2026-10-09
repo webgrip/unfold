@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { markdown } from '../public/core/markdown.js';
-import { scaledTimeout } from './timeframes.ts';
+import { scaledTimeout, threadCpuMilliseconds } from './timeframes.ts';
 
 const tagPattern = /<(\/?)([a-z0-9]+)([^>]*)>/g;
 const allowed = {
@@ -127,7 +127,8 @@ test('a link, code span or code block never lands inside another link\'s address
 });
 
 test('pathological input renders in bounded time', () => {
-  const started = Date.now();
+  const started = threadCpuMilliseconds();
   for (const input of ['['.repeat(60_000), `# a${' '.repeat(60_000)}b`, `x${' '.repeat(60_000)}y`, '*a'.repeat(30_000), '_a '.repeat(20_000), `${'`'.repeat(3)}${'a'.repeat(60_000)}`, 'https://'.repeat(8_000), `${'- '.repeat(20_000)}deep`]) assertInert(markdown(input), input.slice(0, 12));
-  assert(Date.now() - started < scaledTimeout(3000), `took ${Date.now() - started} ms`);
+  const spent = threadCpuMilliseconds() - started;
+  assert(spent < scaledTimeout(3000), `took ${Math.round(spent)} ms of CPU`);
 });
