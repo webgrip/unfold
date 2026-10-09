@@ -10,19 +10,20 @@ import { settle, testTimeout } from './timeframes.ts';
 import { DemoRuntime } from '../src/runtime/demo.ts';
 import type { AgentRuntime, ExecutionContext, ExecutionResult, RuntimeKind } from '../src/types.ts';
 
-async function heldRun(t: { after: (fn: () => Promise<void>) => void }) {
+async function heldRun() {
   const dataDir = await mkdtemp(join(tmpdir(), 'unfold-ahp-held-'));
-  t.after(() => rm(dataDir, { recursive: true, force: true }));
   const pace = (signal: AbortSignal) => new Promise<void>((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
-  return new Map<RuntimeKind, AgentRuntime>([['demo', new DemoRuntime({ dataDir, pace })]]);
+  return { dataDir, runtimes: new Map<RuntimeKind, AgentRuntime>([['demo', new DemoRuntime({ dataDir, pace })]]) };
 }
 
 const objective = 'Reproduce the rounding regression and fix it with the tests intact.';
 const echoOf = (seq: number) => (message: Json) => message.method === 'action' && message.params.origin?.clientSeq === seq;
 
 test('every accepted client action is echoed with its origin in server order, and a turn the client starts keeps its id', { timeout: testTimeout(60_000) }, async t => {
-  const server = await application('demo', undefined, await heldRun(t));
+  const held = await heldRun();
+  const server = await application('demo', undefined, held.runtimes);
   t.after(() => server.close());
+  t.after(() => rm(held.dataDir, { recursive: true, force: true }));
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'echoes' } });
   const address = `${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`;
   const attach = async (clientId: string) => {
@@ -141,10 +142,10 @@ class AskingRuntime extends DemoRuntime {
 
 test('a confirmed permission is echoed to its sender in server order, and an input request makes the session unread', { timeout: testTimeout(60_000) }, async t => {
   const dataDir = await mkdtemp(join(tmpdir(), 'unfold-ahp-asking-'));
-  t.after(() => rm(dataDir, { recursive: true, force: true }));
   const runtime = new AskingRuntime({ dataDir, delayMs: 10 });
   const server = await application('demo', undefined, new Map<RuntimeKind, AgentRuntime>([['demo', runtime]]));
   t.after(() => server.close());
+  t.after(() => rm(dataDir, { recursive: true, force: true }));
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'asking' } });
   const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
   t.after(() => client.close());
