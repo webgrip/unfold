@@ -375,6 +375,7 @@ test('a newer generation learned between roles cannot authorize the old executor
     f.state.remote!.generation++; f.state.remote!.revision++;
     await observer.refresh(context.session);
   };
+  t.mock.timers.enable({ apis: ['setInterval'] });
   await f.server.app.engine.start(session.id, owner);
   await until(() => ['failed', 'completed'].includes(f.server.app.store.getSession(session.id)!.status), 'crew did not resolve after authority generation changed');
   assert.equal(f.server.app.store.getSession(session.id)?.status, 'failed');
