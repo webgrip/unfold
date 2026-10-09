@@ -1,0 +1,1 @@
+{"name":"unfold-ahp-e2e","private":true,"type":"module","dependencies":{"@microsoft/agent-host-protocol":"^1.0.0","ws":"^8.22.0"}}
