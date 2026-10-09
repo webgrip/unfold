@@ -48,9 +48,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
-      - uses: https://github.com/jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
-          version: 2026.10.2
+          version: 2026.10.4
           install_args: node
           cache: false
           github_token: ''
@@ -72,7 +72,7 @@ jobs:
       - uses: ./.forgejo/actions/release-policy
       - name: Semantic Release
         id: release
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.7.8
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.8.1
         with:
           package-path: apps
           package-name: unfold
@@ -102,7 +102,7 @@ jobs:
           fetch-depth: 0
       - name: Semantic Release
         id: release
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.7.8
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.8.1
         with:
           package-path: apps/site
           package-name: unfold-site

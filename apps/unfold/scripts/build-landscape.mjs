@@ -24,7 +24,7 @@ try {
   rendered = await page.evaluate(async (inputs) => {
     const [{ default: mermaid }, { marked }] = await Promise.all([
       import('https://cdn.jsdelivr.net/npm/mermaid@12.1.0/dist/mermaid.esm.min.mjs'),
-      import('https://cdn.jsdelivr.net/npm/marked@18.0.14/lib/marked.esm.js'),
+      import('https://cdn.jsdelivr.net/npm/marked@18.1.0/lib/marked.esm.js'),
     ]);
     mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'base', layout: 'dagre', fontFamily: 'Arial, sans-serif', flowchart: { htmlLabels: true, useMaxWidth: false, nodeSpacing: 35, rankSpacing: 55 }, sequence: { useMaxWidth: false, wrap: true }, themeVariables: { primaryColor: '#eef2f6', primaryTextColor: '#152738', primaryBorderColor: '#527082', lineColor: '#647884', secondaryColor: '#eef2f6', tertiaryColor: '#f7f9fa', clusterBkg: '#f7f9fa', clusterBorder: '#b3c0c9', edgeLabelBackground: '#ffffff', actorBkg: '#eef2f6', actorBorder: '#527082', actorTextColor: '#152738', signalColor: '#647884', signalTextColor: '#152738', labelBoxBkgColor: '#eef2f6', labelBoxBorderColor: '#527082', labelTextColor: '#152738', noteBkgColor: '#f7f9fa', noteTextColor: '#152738', noteBorderColor: '#b3c0c9' } });
     let sequence = 0;
