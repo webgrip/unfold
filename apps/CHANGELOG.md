@@ -1,3 +1,27 @@
+## [unfold-v0.4.0-rc.49](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.48...unfold-v0.4.0-rc.49) (2026-10-09)
+
+### Added
+
+* **deps:** update all non-major dependencies ([85f09c5](https://forgejo.webgrip.dev/webgrip/unfold/commit/85f09c54418cee86ac853a3ff06e26d9892e5eab))
+* **unfold:** export insight events to Faro or OTLP ([f62fbfd](https://forgejo.webgrip.dev/webgrip/unfold/commit/f62fbfdd678db09da782773b1164ec4faff76bc3))
+* **unfold:** jump from a Now digest count to the rows it counts ([d153982](https://forgejo.webgrip.dev/webgrip/unfold/commit/d15398247c17c0812e1d9d79cf7d42b357db731b))
+* **unfold:** post screen views and link-outs as product events ([6a8ad79](https://forgejo.webgrip.dev/webgrip/unfold/commit/6a8ad791d07ac08a7c6ed02a74bbc0ffe6cec49a))
+
+### Fixed
+
+* **ci:** adopt the pnpm 12.9.1, marked 18.1.0 and workflows v2.8.1 updates ([41434f2](https://forgejo.webgrip.dev/webgrip/unfold/commit/41434f29483461ffdfe470fd7500f412d4ebcd16))
+* **unfold:** acknowledge product events in the hosted replay without keeping them ([02c6138](https://forgejo.webgrip.dev/webgrip/unfold/commit/02c61388e75f96b9131dcf7840984b272d43271e))
+* **unfold:** suppress small groups in the median time to resolve panel ([046e012](https://forgejo.webgrip.dev/webgrip/unfold/commit/046e01208fa407883b8e3b90a5c43c3fa7497367))
+* **unfold:** type insight ids as integers and sign in to a live app in the route tests ([0ae6ee5](https://forgejo.webgrip.dev/webgrip/unfold/commit/0ae6ee51959dce57f5dc37668166b411b321a0de))
+
+### Docs
+
+* **unfold:** point the 1.141 dossier's open items at their tickets ([486e26c](https://forgejo.webgrip.dev/webgrip/unfold/commit/486e26ceff18b353ec8e409e3e7f7b764b40c3b6))
+
+### Tests
+
+* **unfold:** close the AHP action fixtures' servers before removing their data directories ([e5ca755](https://forgejo.webgrip.dev/webgrip/unfold/commit/e5ca755e5205aae76da127aee3842df627c5a3a9))
+
 ## [unfold-v0.4.0-rc.48](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.47...unfold-v0.4.0-rc.48) (2026-10-09)
 
 ### Fixed
