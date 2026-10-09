@@ -258,7 +258,10 @@ test('a shallow source produces a self-contained candidate bundle without missin
 test('object database symlinks cannot read files outside the source repository', async () => {
   const options = await fixture();
   try {
-    await symlink(options.root, join(options.directory, '.git/objects/ab'));
+    const objects = join(options.directory, '.git/objects');
+    const present = new Set(await readdir(objects));
+    const fanout = Array.from({ length: 256 }, (_, value) => value.toString(16).padStart(2, '0')).find(name => !present.has(name))!;
+    await symlink(options.root, join(objects, fanout));
     assert.equal((await captureLocalCandidate(options)).reason, 'unsupported_repository');
   } finally { await rm(options.root, { recursive: true, force: true }); }
 });
