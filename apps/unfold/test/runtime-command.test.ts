@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -12,13 +12,24 @@ import type { AppConfig, RuntimeEvent } from '../src/types.ts';
 import { executionFixture } from './runtime-fixture.ts';
 import { deadlineAfter } from './timeframes.ts';
 
+const timeLimitMs = 3000;
+
+function disarmTimeLimit(t: TestContext) {
+  const arm = globalThis.setTimeout;
+  t.mock.method(globalThis, 'setTimeout', (...args: Parameters<typeof setTimeout>) => {
+    const timer = arm(...args);
+    if (args[1] === timeLimitMs) clearTimeout(timer);
+    return timer;
+  });
+}
+
 async function fixture(code: string, argv?: string[]) {
   const directory = await mkdtemp(join(tmpdir(), 'unfold-command-'));
   const script = join(directory, 'bridge.mjs');
   await writeFile(script, code);
   const workspace = { id: directory, backend: 'local' as const, directory };
   const manager: RuntimeWorkspaces = { prepare: async () => workspace, credentials: () => undefined, executionEnvironment: () => ({ PATH: process.env.PATH ?? '', LITELLM_API_KEY: 'scoped-key' }), dispose: async () => {} };
-  const config = { runtime: { backend: 'local', command: argv ?? [process.execPath, script], timeoutMs: 3000 }, models: [] } as unknown as AppConfig;
+  const config = { runtime: { backend: 'local', command: argv ?? [process.execPath, script], timeoutMs: timeLimitMs }, models: [] } as unknown as AppConfig;
   const events: RuntimeEvent[] = [];
   const context = executionFixture({ runtime: 'command', role: { id: 'writer', name: 'Writer', mode: 'write', instruction: 'Implement' }, workspace, verify: [], prompt: 'Do it', signal: new AbortController().signal, emit: event => { events.push(event); } });
   return { runtime: new CommandRuntime(config, manager), context, events, cleanup: () => rm(directory, { recursive: true, force: true }) };
@@ -60,7 +71,8 @@ test('command bridge maps operator cancellation to AbortError', async () => {
   try { await assert.rejects(pending, { name: 'AbortError' }); } finally { await f.cleanup(); }
 });
 
-test('command bridge rejects a null record without crashing its host', async () => {
+test('command bridge rejects a null record without crashing its host', async t => {
+  disarmTimeLimit(t);
   const f = await fixture("console.log('null');setInterval(()=>{},1000)");
   try { await assert.rejects(f.runtime.execute(f.context), /invalid record/); } finally { await f.cleanup(); }
 });
