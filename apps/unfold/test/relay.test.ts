@@ -29,6 +29,8 @@ test('a cancellation that arrives while no poll is waiting is handed to the next
 });
 
 const workerScript = fileURLToPath(new URL('../ops/agent/relay-worker.mjs', import.meta.url));
+const heldTimeouts = fileURLToPath(new URL('./held-timeouts.ts', import.meta.url));
+const heldTimeoutMs = 86_400_000;
 
 async function listen(server: Server, host = '127.0.0.1'): Promise<number> {
   await new Promise<void>(resolve => server.listen(0, host, () => resolve()));
@@ -152,16 +154,17 @@ const signalable = (pid: number) => { try { process.kill(pid, 0); return true; }
 const running = (pid: number) => { if (!existsSync('/proc')) return signalable(pid); try { const stat = readFileSync(`/proc/${pid}/stat`, 'utf8'); return stat[stat.lastIndexOf(')') + 2] !== 'Z'; } catch { return false; } };
 const sizeOf = (file: string) => { try { return statSync(file).size; } catch { return 0; } };
 
-async function relayedWorker(t: { after(fn: () => void): void }, workspaceId: string) {
+async function relayedWorker(t: { after(fn: () => void): void }, workspaceId: string, holdTimeoutsOf?: number) {
   const relay = new WorkerRelay();
   const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
   const relayPort = await listen(relayServer);
   const token = relay.register(workspaceId);
   const directory = mkdtempSync(join(tmpdir(), 'unfold-stop-'));
-  const worker = spawn(process.execPath, [workerScript], { env: { PATH: process.env.PATH ?? '', UNFOLD_RELAY_URL: `http://127.0.0.1:${relayPort}/api/relay/${workspaceId}`, UNFOLD_RELAY_TOKEN: token, UNFOLD_RELAY_TARGET: 'http://127.0.0.1:9', UNFOLD_RELAY_KEEP_ALIVE: '1', UNFOLD_RELAY_STOP_GRACE_MS: '300' }, stdio: ['ignore', 'ignore', 'pipe'] });
+  const held = holdTimeoutsOf === undefined ? {} : { UNFOLD_TEST_HELD_TIMEOUT_MS: String(holdTimeoutsOf) };
+  const worker = spawn(process.execPath, [...(holdTimeoutsOf === undefined ? [] : ['--import', heldTimeouts]), workerScript], { env: { PATH: process.env.PATH ?? '', UNFOLD_RELAY_URL: `http://127.0.0.1:${relayPort}/api/relay/${workspaceId}`, UNFOLD_RELAY_TOKEN: token, UNFOLD_RELAY_TARGET: 'http://127.0.0.1:9', UNFOLD_RELAY_KEEP_ALIVE: '1', UNFOLD_RELAY_STOP_GRACE_MS: '300', ...held }, stdio: ['ignore', 'ignore', 'pipe'] });
   t.after(() => { worker.kill('SIGKILL'); relayServer.close(); for (const pid of writerPids(join(directory, 'out'))) { try { process.kill(pid, 'SIGKILL'); } catch {} } rmSync(directory, { recursive: true, force: true }); });
   await relay.waitForWorker(workspaceId, new AbortController().signal, scaledTimeout(10_000));
-  return { fetcher: relay.fetcher(workspaceId), file: join(directory, 'out') };
+  return { fetcher: relay.fetcher(workspaceId), file: join(directory, 'out'), worker };
 }
 
 async function assertNoWritesAfterStop(file: string) {
@@ -182,7 +185,7 @@ test('stopping the harness stops its whole process group, including a grandchild
 });
 
 test('an exec subprocess group is stopped when its relay request is cancelled or its timeout passes', { timeout: testTimeout(30_000) }, async t => {
-  const { fetcher, file } = await relayedWorker(t, 'ws-exec');
+  const { fetcher, file, worker } = await relayedWorker(t, 'ws-exec', heldTimeoutMs);
   const controller = new AbortController();
   const pending = fetcher('http://workspace/__unfold/exec', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', familyProgram(file)] }), signal: controller.signal });
   pending.catch(() => {});
@@ -193,8 +196,10 @@ test('an exec subprocess group is stopped when its relay request is cancelled or
   await waitFor(() => cancelled.every(pid => !running(pid)), undefined, { reason: 'cancelling the request must stop the exec process group', withinMs: 10_000 });
   await assertNoWritesAfterStop(file);
   rmSync(file);
-  const timed = await fetcher('http://workspace/__unfold/exec', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', familyProgram(file)], timeoutMs: scaledTimeout(2_000) }) });
-  const result = await timed.json();
+  const timing = fetcher('http://workspace/__unfold/exec', { method: 'POST', body: JSON.stringify({ argv: [process.execPath, '-e', familyProgram(file)], timeoutMs: heldTimeoutMs }) });
+  await waitFor(() => writerPids(file).length === 2, undefined, { reason: 'the timed exec child and grandchild must both be writing', withinMs: 10_000 });
+  worker.kill('SIGUSR2');
+  const result = await (await timing).json();
   assert.equal(result.exitCode, 124);
   assert.equal(result.timedOut, true);
   assert.equal(result.stopped, undefined, 'the timed-out group was confirmed stopped');
