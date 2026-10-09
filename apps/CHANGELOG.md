@@ -1,3 +1,9 @@
+## [unfold-v0.4.0-rc.47](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.46...unfold-v0.4.0-rc.47) (2026-10-09)
+
+### Added
+
+* **unfold:** scoped read-only gateway MCP tools per repository ([91b1c87](https://forgejo.webgrip.dev/webgrip/unfold/commit/91b1c87b9abe27e0796a04f94e8c6dc82c90c8b0))
+
 ## [unfold-v0.4.0-rc.46](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.45...unfold-v0.4.0-rc.46) (2026-10-08)
 
 ### Added
