@@ -1,3 +1,20 @@
+## [unfold-v0.4.0-rc.48](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.47...unfold-v0.4.0-rc.48) (2026-10-09)
+
+### Fixed
+
+* **unfold:** hand a relay cancellation to the next poll without waiting ([bb5d5b1](https://forgejo.webgrip.dev/webgrip/unfold/commit/bb5d5b195aa58c7775aacaeadbc609caf1a405f2))
+
+### Tests
+
+* **unfold:** bound the pathological HTML tokenizing by its thread's CPU time ([598c8a4](https://forgejo.webgrip.dev/webgrip/unfold/commit/598c8a4942a2f6447957433dc6991814ea655da6))
+* **unfold:** bound the pathological Markdown render by its thread's CPU time ([c00d899](https://forgejo.webgrip.dev/webgrip/unfold/commit/c00d899b39b0462d7f081c0a67df2c2bb52a32ff)), references [#53](https://forgejo.webgrip.dev/webgrip/unfold/issues/53) [#64](https://forgejo.webgrip.dev/webgrip/unfold/issues/64)
+* **unfold:** close the question fixture's server before removing its data directory ([484dd92](https://forgejo.webgrip.dev/webgrip/unfold/commit/484dd926defe7f2c976c51909c185401538bc43c))
+* **unfold:** disarm the command runtime's time limit in the null-record test ([e2d714b](https://forgejo.webgrip.dev/webgrip/unfold/commit/e2d714bc09d70c9ad431aa19de7efec54b9512f9)), references [#107](https://forgejo.webgrip.dev/webgrip/unfold/issues/107)
+* **unfold:** freeze the heartbeat clock in the between-roles generation test ([392bc16](https://forgejo.webgrip.dev/webgrip/unfold/commit/392bc1687d0b29de78514dbee47a8ffde44a3e7d))
+* **unfold:** freeze the heartbeat clock while credential delivery is held ([ad21243](https://forgejo.webgrip.dev/webgrip/unfold/commit/ad212430f2425952a42bd368d67a5c285db0ff3d))
+* **unfold:** let the relay test fire the timed exec's limit on a signal ([41337b4](https://forgejo.webgrip.dev/webgrip/unfold/commit/41337b4e8ad348aff86f52cef16d73b42f937679)), references [#184](https://forgejo.webgrip.dev/webgrip/unfold/issues/184) [#191](https://forgejo.webgrip.dev/webgrip/unfold/issues/191) [#192](https://forgejo.webgrip.dev/webgrip/unfold/issues/192) [#207](https://forgejo.webgrip.dev/webgrip/unfold/issues/207) [#212](https://forgejo.webgrip.dev/webgrip/unfold/issues/212) [#213](https://forgejo.webgrip.dev/webgrip/unfold/issues/213)
+* **unfold:** plant the object-database symlink at a fan-out name the fixture left free ([3712999](https://forgejo.webgrip.dev/webgrip/unfold/commit/37129998d499ed7be2885771701ef410432cf632))
+
 ## [unfold-v0.4.0-rc.47](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.46...unfold-v0.4.0-rc.47) (2026-10-09)
 
 ### Added
