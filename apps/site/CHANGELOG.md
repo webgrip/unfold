@@ -1,3 +1,13 @@
+## [unfold-site-v1.0.0-rc.3](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.2...unfold-site-v1.0.0-rc.3) (2026-10-09)
+
+### Added
+
+* **deps:** update all non-major dependencies ([85f09c5](https://forgejo.webgrip.dev/webgrip/unfold/commit/85f09c54418cee86ac853a3ff06e26d9892e5eab))
+
+### Fixed
+
+* **ci:** adopt the pnpm 12.9.1, marked 18.1.0 and workflows v2.8.1 updates ([41434f2](https://forgejo.webgrip.dev/webgrip/unfold/commit/41434f29483461ffdfe470fd7500f412d4ebcd16))
+
 ## [unfold-site-v1.0.0-rc.2](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.1...unfold-site-v1.0.0-rc.2) (2026-10-06)
 
 ### Added
