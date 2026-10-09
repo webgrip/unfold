@@ -54,6 +54,10 @@ export class Store {
       CREATE TABLE IF NOT EXISTS card_theme_versions (theme_id TEXT NOT NULL, version INTEGER NOT NULL, saved_at TEXT NOT NULL, saved_by TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(theme_id, version));
       CREATE TABLE IF NOT EXISTS card_assets (id TEXT PRIMARY KEY, purpose TEXT NOT NULL, media_type TEXT NOT NULL, bytes INTEGER NOT NULL, created_at TEXT NOT NULL, created_by TEXT NOT NULL, content BLOB NOT NULL);
       CREATE TABLE IF NOT EXISTS status_notes (id TEXT PRIMARY KEY, severity TEXT NOT NULL, text TEXT NOT NULL, author TEXT NOT NULL, created_at TEXT NOT NULL, resolved_at TEXT, resolved_by TEXT);
+      CREATE TABLE IF NOT EXISTS product_event (id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL, actor TEXT NOT NULL, session TEXT NOT NULL, name TEXT NOT NULL, screen TEXT NOT NULL DEFAULT '', work_item_id INTEGER, shift_id INTEGER, props TEXT NOT NULL DEFAULT '{}', at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS product_event_at ON product_event(at);
+      CREATE INDEX IF NOT EXISTS product_event_day ON product_event(name, screen, at);
+      CREATE TABLE IF NOT EXISTS product_event_daily (tenant_id TEXT NOT NULL, day TEXT NOT NULL, name TEXT NOT NULL, screen TEXT NOT NULL DEFAULT '', count INTEGER NOT NULL, actors INTEGER NOT NULL, PRIMARY KEY (tenant_id, day, name, screen));
       CREATE TABLE IF NOT EXISTS agent_host_views (user_id TEXT NOT NULL, session_id TEXT NOT NULL, session_flags INTEGER NOT NULL, chat_flags INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, session_id));
     `);
   }
@@ -363,6 +367,41 @@ export class Store {
     const rows = this.db.prepare('SELECT * FROM card_pulls WHERE user_id=?').all(userId) as Record<string, string | number | null>[];
     return new Map(rows.map(row => [String(row.work_item_id), { workItemId: String(row.work_item_id), packId: String(row.pack_id), pattern: String(row.pattern), altArt: row.alt_art === null ? null : Number(row.alt_art), fullArt: row.full_art === 1, goldSignature: row.gold_signature === 1, oddsVersion: String(row.odds_version), message: String(row.message), digest: String(row.digest), pulledAt: String(row.pulled_at) }]));
   }
+
+  /** Stores one product event after the catalogue checked it and returns its row id. */
+  recordProductEvent(event: StoredProductEvent): number {
+    const result = this.db.prepare('INSERT INTO product_event(tenant_id,actor,session,name,screen,work_item_id,shift_id,props,at) VALUES(?,?,?,?,?,?,?,?,?)')
+      .run(event.tenantId, event.actor, event.session, event.name, event.screen, event.workItemId ?? null, event.shiftId ?? null, JSON.stringify(event.props), event.at);
+    return Number(result.lastInsertRowid);
+  }
+
+  /**
+   * Replaces one UTC day's rows in `product_event_daily` with the rollup of that day's events, keeping the
+   * count and the number of distinct actors per tenant, event and screen. It returns the number of rows written.
+   */
+  foldProductEventDay(day: string): number {
+    const rows = this.db.prepare(`INSERT INTO product_event_daily(tenant_id,day,name,screen,count,actors)
+      SELECT tenant_id, substr(at,1,10) AS day, name, screen, COUNT(*), COUNT(DISTINCT actor)
+      FROM product_event WHERE substr(at,1,10)=? GROUP BY tenant_id,name,screen
+      ON CONFLICT(tenant_id,day,name,screen) DO UPDATE SET count=excluded.count, actors=excluded.actors`).run(day);
+    return Number(rows.changes);
+  }
+
+  /** The UTC days that hold at least one stored product event, oldest first. */
+  productEventDays(): string[] {
+    return (this.db.prepare('SELECT DISTINCT substr(at,1,10) AS day FROM product_event ORDER BY day').all() as { day: string }[]).map(row => row.day);
+  }
+
+  /** Deletes stored product events older than `cutoff` and returns how many rows went. */
+  pruneProductEventsBefore(cutoff: string): number {
+    return Number(this.db.prepare('DELETE FROM product_event WHERE at < ?').run(cutoff).changes);
+  }
+
+  /** Every daily rollup row, oldest first, for the aggregate export. */
+  productEventDaily(): ProductEventDaily[] {
+    return (this.db.prepare('SELECT tenant_id, day, name, screen, count, actors FROM product_event_daily ORDER BY day, name, screen').all() as Record<string, string | number>[])
+      .map(row => ({ tenantId: String(row.tenant_id), day: String(row.day), name: String(row.name), screen: String(row.screen), count: Number(row.count), actors: Number(row.actors) }));
+  }
 }
 
 /**
@@ -379,6 +418,8 @@ export const cardSeenLimit = 2000;
 export type StoredPackEntry = { workItemId: string; kind: 'new' | 'upgrade'; moments: { kind: string; at: string; detail: Record<string, string | number> }[] };
 export type StoredPack = { packId: string; openedAt: string; period: Record<string, unknown>; entries: StoredPackEntry[]; demo: boolean };
 export type StoredPull = { workItemId: string; packId: string; pattern: string; altArt: number | null; fullArt: boolean; goldSignature: boolean; oddsVersion: string; message: string; digest: string; pulledAt: string };
+export type StoredProductEvent = { tenantId: string; actor: string; session: string; name: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean>; at: string };
+export type ProductEventDaily = { tenantId: string; day: string; name: string; screen: string; count: number; actors: number };
 
 export function publicSession(session: Session): Session {
   const copy = structuredClone(session);

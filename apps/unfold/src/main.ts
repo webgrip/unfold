@@ -35,7 +35,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const engine = new Engine(store, config, runtimes, broker, links);
   engine.recover();
   const agentHost = new AgentHost(config, store, engine);
-  const { server, closeStreams } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config));
+  const { server, closeStreams, stopInsight } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config));
   server.on('upgrade', (req, socket, head) => { if (!agentHost.handleUpgrade(req, socket, head)) socket.destroy(); });
   let closed = false;
   async function close() {
@@ -43,6 +43,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
     closed = true;
     agentHost.close();
     closeStreams();
+    stopInsight();
     await engine.shutdown();
     if (server.listening) await new Promise<void>((done) => { server.close(() => done()); server.closeIdleConnections(); });
     store.close();

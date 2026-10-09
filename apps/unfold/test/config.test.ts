@@ -89,6 +89,40 @@ test('an OIDC subject namespace is kept without its trailing slash, and an empty
   await assert.rejects(load(t, { auth: { oidc: { ...oidc, subjectNamespace: ' ' } } }), /auth.oidc.subjectNamespace must be a non-empty string/);
 });
 
+test('the insight export defaults off, needs a collector URL for faro and otlp, and takes an aggregate or events level', async t => {
+  const keys = ['UNFOLD_INSIGHT_EXPORT', 'UNFOLD_INSIGHT_EXPORT_URL', 'UNFOLD_INSIGHT_EXPORT_LEVEL'] as const;
+  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  t.after(() => { for (const key of keys) { if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key]; } });
+  for (const key of keys) delete process.env[key];
+  assert.equal((await load(t, {})).insight, undefined, 'off with no URL leaves the sink unset');
+  process.env.UNFOLD_INSIGHT_EXPORT = 'faro';
+  process.env.UNFOLD_INSIGHT_EXPORT_URL = 'http://alloy-gateway.observability.svc.cluster.local:12347/collect';
+  assert.deepEqual((await load(t, {})).insight, { export: 'faro', url: 'http://alloy-gateway.observability.svc.cluster.local:12347/collect', level: 'aggregate' });
+  process.env.UNFOLD_INSIGHT_EXPORT_LEVEL = 'events';
+  assert.equal((await load(t, {})).insight?.level, 'events');
+  process.env.UNFOLD_INSIGHT_EXPORT = 'otlp';
+  assert.equal((await load(t, {})).insight?.export, 'otlp');
+  delete process.env.UNFOLD_INSIGHT_EXPORT_URL;
+  await assert.rejects(load(t, {}), /UNFOLD_INSIGHT_EXPORT_URL is required/);
+  process.env.UNFOLD_INSIGHT_EXPORT_URL = 'http://collector.example/collect';
+  process.env.UNFOLD_INSIGHT_EXPORT = 'console';
+  await assert.rejects(load(t, {}), /UNFOLD_INSIGHT_EXPORT must be off, faro or otlp/);
+  process.env.UNFOLD_INSIGHT_EXPORT = 'faro';
+  process.env.UNFOLD_INSIGHT_EXPORT_LEVEL = 'every';
+  await assert.rejects(load(t, {}), /UNFOLD_INSIGHT_EXPORT_LEVEL must be aggregate or events/);
+});
+
+test('product events are recorded unless UNFOLD_INSIGHT_EVENTS is off', async t => {
+  const previous = process.env.UNFOLD_INSIGHT_EVENTS;
+  t.after(() => { if (previous === undefined) delete process.env.UNFOLD_INSIGHT_EVENTS; else process.env.UNFOLD_INSIGHT_EVENTS = previous; });
+  delete process.env.UNFOLD_INSIGHT_EVENTS;
+  assert.equal((await load(t, {})).productEvents, true);
+  process.env.UNFOLD_INSIGHT_EVENTS = 'off';
+  assert.equal((await load(t, {})).productEvents, false);
+  process.env.UNFOLD_INSIGHT_EVENTS = 'sometimes';
+  await assert.rejects(load(t, {}), /UNFOLD_INSIGHT_EVENTS must be on or off/);
+});
+
 test('a repository opts into gateway MCP tools with one LiteLLM team and its access groups, and is off by default', async t => {
   const runtime = { kind: 'opencode', backend: 'local', timeoutMs: 60000 };
   const gateway = { baseUrl: 'https://gateway.example/v1' };

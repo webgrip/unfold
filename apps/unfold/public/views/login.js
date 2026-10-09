@@ -1,4 +1,5 @@
 import { state, disconnect, forgetUserData } from '../core/state.js';
+import { insight } from '../core/insight.js';
 import { api } from '../core/api.js';
 import { $, escape } from '../core/dom.js';
 import { icon } from '../core/icons.js';
@@ -73,7 +74,7 @@ async function signIn(data) {
   catch (error) { invalid = error.status === 401 || error.status === 400; renderLogin(error.message); }
 }
 
-async function signOut() { await api('/api/logout', { method: 'POST', body: '{}' }); state.sessionExpired = false; state.bootstrap = null; disconnect(); forgetUserData(); renderLogin(); }
+async function signOut() { insight.flush(); await api('/api/logout', { method: 'POST', body: '{}' }); insight.configure(false); state.sessionExpired = false; state.bootstrap = null; disconnect(); forgetUserData(); renderLogin(); }
 
 function revealPassword(control) {
   const input = $('#login-password');

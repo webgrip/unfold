@@ -141,6 +141,7 @@ async function answer(method, url, body) {
     const now = new Date().toISOString();
     return json(200, { workItemId: decodeURIComponent(seen[1]), seenAt: now, snapshot: readBody(body).snapshot ?? null, now });
   }
+  if (method === 'POST' && url.pathname === '/api/insight/events') return new Response(null, { status: 204 });
   const recorded = data.routes[key];
   if (recorded) return json(recorded.status, shiftTimes(recorded.body, viewShift(data)));
   if (method === 'GET' && findRoute(recordedRoutes, method, url.pathname)) return unmatched(key);
