@@ -1,3 +1,82 @@
+## [unfold-v0.4.0-rc.46](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.45...unfold-v0.4.0-rc.46) (2026-10-08)
+
+### Added
+
+* **unfold:** answer VS Code's getNetworkDiagnosticsInfo on the AHP host ([b4009da](https://forgejo.webgrip.dev/webgrip/unfold/commit/b4009da67d51e5a79e79978cb3ef95236e0b393f))
+* **unfold:** keep AHP read and archive state per person ([d91f8db](https://forgejo.webgrip.dev/webgrip/unfold/commit/d91f8db0a1bde5fb911a5b275e071a5bc026fa38))
+* **unfold:** let an AHP client accept a candidate, and drop the dead operation ([288c2bb](https://forgejo.webgrip.dev/webgrip/unfold/commit/288c2bb23e07bb1492cf01f26c794cddd2483223))
+* **unfold:** resume a known AHP client with reconnect on a new connection ([68e3da7](https://forgejo.webgrip.dev/webgrip/unfold/commit/68e3da765bac19cd0e0d4072511a018d640865ee))
+
+### Fixed
+
+* **unfold:** accept GHE.com API roots for GitHub task sources ([39a7e75](https://forgejo.webgrip.dev/webgrip/unfold/commit/39a7e7574fda64a5c01d706b9e05f0c78f09e6bb))
+* **unfold:** advertise the AHP candidate as a session changeset on the chat ([c2ee2f6](https://forgejo.webgrip.dev/webgrip/unfold/commit/c2ee2f6699059c58c5a1e1dc977b7825f5b24cdd))
+* **unfold:** announce AHP chat activity with chat/activityChanged ([2ad38a0](https://forgejo.webgrip.dev/webgrip/unfold/commit/2ad38a0cca2c4bfd8dfbcd1d6fd76592befd9cd3))
+* **unfold:** clear finished AHP activity with null in summary changes ([e1ed1dc](https://forgejo.webgrip.dev/webgrip/unfold/commit/e1ed1dc0f16f4dde3c8601c362db6b97eafb469e))
+* **unfold:** echo every accepted AHP client action in server order ([a921c21](https://forgejo.webgrip.dev/webgrip/unfold/commit/a921c2189cb39c446f6df170ccbbf25629294626))
+* **unfold:** honour createSession.activeClient on the AHP host ([18f908e](https://forgejo.webgrip.dev/webgrip/unfold/commit/18f908e51c25326370a29dbd6c62d85da367f3b3))
+* **unfold:** keep a dropped AHP active client through its reconnect ([b614313](https://forgejo.webgrip.dev/webgrip/unfold/commit/b614313b3ac10f20f98c92d96a7bef8631182fa2))
+* **unfold:** keep a resumed AHP client's session spelling ([2ee4ce5](https://forgejo.webgrip.dev/webgrip/unfold/commit/2ee4ce5a300b6c2dbfa20cfd9ae0a5644ea760ba))
+* **unfold:** keep every AHP input request inside a turn the client holds ([fd334a6](https://forgejo.webgrip.dev/webgrip/unfold/commit/fd334a68b23ece7bdd5e98d2ed5914b373fedc62))
+* **unfold:** keep GHE.com enterprises apart when matching checkout remotes ([1039e00](https://forgejo.webgrip.dev/webgrip/unfold/commit/1039e00e1ebd6b8dfe538060bc2deffcbc19c899))
+* **unfold:** negotiate the AHP protocol version by the 1.0 rule ([748ddf5](https://forgejo.webgrip.dev/webgrip/unfold/commit/748ddf5c3eff6dad0ee495a2d15b6c2be67b2875))
+* **unfold:** send AHP questions with a message, their choices and a real answer path ([3334a9e](https://forgejo.webgrip.dev/webgrip/unfold/commit/3334a9e0d1b11e5a355d60d9989889def62977ac))
+* **unfold:** send root/activeSessionsChanged to each AHP viewer ([eaf46e4](https://forgejo.webgrip.dev/webgrip/unfold/commit/eaf46e4c1130fa2ea029fb807387e4ef747de3a5))
+* **unfold:** serve each AHP candidate file whole on both sides ([78d9951](https://forgejo.webgrip.dev/webgrip/unfold/commit/78d995166e2e33c14e98da531c43d91244f4ac39))
+* **unfold:** spell AHP session URIs by VS Code's own host rule ([f087609](https://forgejo.webgrip.dev/webgrip/unfold/commit/f0876092b6467000a6f70fbe8252da71cfd282b1))
+* **unfold:** spell AHP session URIs the way each client asked ([f71edfb](https://forgejo.webgrip.dev/webgrip/unfold/commit/f71edfb512c6e74094f45149d04c85496a25f185))
+* **unfold:** stop doubling the first chunk of every streamed AHP markdown part ([a97a9ec](https://forgejo.webgrip.dev/webgrip/unfold/commit/a97a9ececc9983a9a3a1f2329e5e55fe21a0bb5b))
+
+### Docs
+
+* add LiteLLM agent() to the market landscape ([b6ddb52](https://forgejo.webgrip.dev/webgrip/unfold/commit/b6ddb527dbffa49e54ad6233827613b1b2c970da)), references [BerriAI/litellm#43885](https://forgejo.webgrip.dev/BerriAI/litellm/issues/43885)
+* record the VS Code 1.141 fit, AHP 1.0 and the two 1.142 host breaks ([1d0fef3](https://forgejo.webgrip.dev/webgrip/unfold/commit/1d0fef3e5271e60c3a66e3ea36b320584a2c1a01))
+* **unfold:** record the AHP host fixes and correct the Open VSX risk ([c9ec4f0](https://forgejo.webgrip.dev/webgrip/unfold/commit/c9ec4f0fb2f4df58bf287cecc32921c1ff55c4b3))
+* **unfold:** record the final AHP end-to-end run and reconnect fixes ([62d0e65](https://forgejo.webgrip.dev/webgrip/unfold/commit/62d0e6555692cce85e8984db79ee4a067548ed23))
+
+### Tests
+
+* **unfold:** replay VS Code main and 1.141 against the AHP host ([9b884ec](https://forgejo.webgrip.dev/webgrip/unfold/commit/9b884ecbb6191e0373a90c9880fb34f9c2fea708))
+
+## [unfold-v0.4.0-rc.45](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.44...unfold-v0.4.0-rc.45) (2026-10-08)
+
+### Added
+
+* **unfold:** chart values for workbench scheduling, pod metadata and extra env ([26fb8fc](https://forgejo.webgrip.dev/webgrip/unfold/commit/26fb8fc5bcd7bea87d7b71592a4a90a0a283c940))
+
+### Build
+
+* **ploeg:** pin Ploeg v0.2.0-rc.7 ([fa26d0a](https://forgejo.webgrip.dev/webgrip/unfold/commit/fa26d0aae3c9fb6563dd7899302aaced3f16361c))
+
+## [unfold-v0.4.0-rc.44](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.43...unfold-v0.4.0-rc.44) (2026-10-07)
+
+### Fixed
+
+* **agent:** update opencode ( 1.18.34 ➔ 1.18.35 ) ([437e7da](https://forgejo.webgrip.dev/webgrip/unfold/commit/437e7da24183a08cc0dbd4333f6d36c1e35210a6))
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.2 [skip ci] ([923f973](https://forgejo.webgrip.dev/webgrip/unfold/commit/923f973e62e8a86e14507889087ca938d1e83cb5))
+
+## [unfold-v0.4.0-rc.43](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.42...unfold-v0.4.0-rc.43) (2026-10-06)
+
+### Added
+
+* **actions:** Update all non-major dependencies ([ed00933](https://forgejo.webgrip.dev/webgrip/unfold/commit/ed009336fe77f424806121ee8b1943cdc7674c52))
+* **deps:** update all non-major dependencies ([41c3ba0](https://forgejo.webgrip.dev/webgrip/unfold/commit/41c3ba07be77273ac4e2650cd9baa9a6ae28515f))
+
+### Fixed
+
+* **ci:** repair development after Renovate [#247](https://forgejo.webgrip.dev/webgrip/unfold/issues/247) and [#248](https://forgejo.webgrip.dev/webgrip/unfold/issues/248) ([d033d22](https://forgejo.webgrip.dev/webgrip/unfold/commit/d033d227d95f76671ab765450a29160309971fa4))
+
+### Docs
+
+* add a Report a problem issue template ([91cd503](https://forgejo.webgrip.dev/webgrip/unfold/commit/91cd503bee5df55e01b48a34a55662cb2204c936))
+
+### Tests
+
+* **unfold:** probe writer liveness by signal where /proc does not exist ([4abc871](https://forgejo.webgrip.dev/webgrip/unfold/commit/4abc8717cd51686e0c03f37176224810086e7fc6))
+
 ## [unfold-v0.4.0-rc.42](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.41...unfold-v0.4.0-rc.42) (2026-10-05)
 
 ### Added

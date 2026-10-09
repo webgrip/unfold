@@ -54,6 +54,7 @@ export type HostAliases = Readonly<Record<string, string>>;
 
 const normalHost = (host: string) => host.trim().toLowerCase().replace(/\.$/, '');
 const isAddress = (host: string) => /^[0-9.]+$/.test(host) || host.startsWith('[');
+const tenantParentDomains = new Set(['ghe.com']);
 
 /** The entries of a `unfold.remoteHostAliases` value that map one host name to another; anything else is dropped. */
 export function hostAliases(value: unknown): HostAliases {
@@ -66,7 +67,8 @@ export function hostAliases(value: unknown): HostAliases {
 /**
  * Whether a remote's host and a forge's host name the same forge: they are equal, `aliases` maps one to the other,
  * or both have at least three labels and share the parent domain left after their first label
- * (`forgejo-ssh.webgrip.dev` and `forgejo.webgrip.dev`).
+ * (`forgejo-ssh.webgrip.dev` and `forgejo.webgrip.dev`). That parent never joins two hosts on GHE.com, where each
+ * first label is another enterprise (`octocorp.ghe.com` and `othercorp.ghe.com`).
  */
 export function hostsMatch(remoteHost: string, forgeHost: string, aliases: HostAliases = {}): boolean {
   const remote = normalHost(remoteHost);
@@ -78,7 +80,8 @@ export function hostsMatch(remoteHost: string, forgeHost: string, aliases: HostA
   if (isAddress(remote) || isAddress(forge)) return false;
   const remoteLabels = remote.split('.');
   const forgeLabels = forge.split('.');
-  return remoteLabels.length >= 3 && forgeLabels.length >= 3 && remoteLabels.slice(1).join('.') === forgeLabels.slice(1).join('.');
+  const parent = forgeLabels.slice(1).join('.');
+  return remoteLabels.length >= 3 && forgeLabels.length >= 3 && remoteLabels.slice(1).join('.') === parent && !tenantParentDomains.has(parent);
 }
 
 /**

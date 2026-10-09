@@ -58,6 +58,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS product_event_at ON product_event(at);
       CREATE INDEX IF NOT EXISTS product_event_day ON product_event(name, screen, at);
       CREATE TABLE IF NOT EXISTS product_event_daily (tenant_id TEXT NOT NULL, day TEXT NOT NULL, name TEXT NOT NULL, screen TEXT NOT NULL DEFAULT '', count INTEGER NOT NULL, actors INTEGER NOT NULL, PRIMARY KEY (tenant_id, day, name, screen));
+      CREATE TABLE IF NOT EXISTS agent_host_views (user_id TEXT NOT NULL, session_id TEXT NOT NULL, session_flags INTEGER NOT NULL, chat_flags INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, session_id));
     `);
   }
 
@@ -84,6 +85,11 @@ export class Store {
 
   listSessions(): Session[] {
     return (this.db.prepare('SELECT body FROM sessions ORDER BY updated_at DESC,id').all() as { body: string }[]).map(row => this.restoreSession(row.body));
+  }
+
+  /** The owner of every session that is running, waiting for input or exporting its candidate, once per session. */
+  activeSessionOwners(): string[] {
+    return (this.db.prepare("SELECT owner_id AS owner FROM sessions WHERE json_extract(body,'$.status') IN ('running','waiting_input','exporting')").all() as { owner: string }[]).map(row => row.owner);
   }
 
   private restoreSession(body: string): Session {
@@ -140,6 +146,25 @@ export class Store {
     const value = row as Record<string, string | null>;
     return { id: value.id!, severity: value.severity as StatusNote['severity'], text: value.text!, author: value.author!, createdAt: value.created_at!, ...(value.resolved_at ? { resolvedAt: value.resolved_at } : {}), ...(value.resolved_by ? { resolvedBy: value.resolved_by } : {}) };
   }
+
+  /** One person's view of an agent host session, by the id the host advertises for it. A view never set reads as zero. */
+  agentHostView(userId: string, sessionId: string): AgentHostView {
+    const row = this.db.prepare('SELECT session_flags, chat_flags FROM agent_host_views WHERE user_id=? AND session_id=?').get(userId, sessionId) as { session_flags: number; chat_flags: number } | undefined;
+    return { session: Number(row?.session_flags ?? 0), chat: Number(row?.chat_flags ?? 0) };
+  }
+
+  setAgentHostView(userId: string, sessionId: string, view: AgentHostView, at: string): void {
+    this.db.prepare('INSERT INTO agent_host_views(user_id,session_id,session_flags,chat_flags,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id, session_id) DO UPDATE SET session_flags=excluded.session_flags, chat_flags=excluded.chat_flags, updated_at=excluded.updated_at').run(userId, sessionId, view.session, view.chat, at);
+  }
+
+  /** Clears `flags` from every person's view of one agent host session and its chat, and answers the people whose view changed. */
+  clearAgentHostFlags(sessionId: string, flags: number, at: string): string[] {
+    const changed = (this.db.prepare('SELECT user_id FROM agent_host_views WHERE session_id=? AND ((session_flags & ?) != 0 OR (chat_flags & ?) != 0)').all(sessionId, flags, flags) as { user_id: string }[]).map(row => row.user_id);
+    if (changed.length) this.db.prepare('UPDATE agent_host_views SET session_flags=session_flags & ~?, chat_flags=chat_flags & ~?, updated_at=? WHERE session_id=?').run(flags, flags, at, sessionId);
+    return changed;
+  }
+
+  deleteAgentHostViews(sessionId: string): void { this.db.prepare('DELETE FROM agent_host_views WHERE session_id=?').run(sessionId); }
 
   savePermission(request: PermissionRequest): void {
     this.db.prepare('INSERT INTO permissions(id,session_id,body) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(request.id, request.sessionId, JSON.stringify(request));
@@ -379,6 +404,11 @@ export class Store {
   }
 }
 
+/**
+ * What one person marked on an agent host session, as AHP `SessionStatus` bits (32 read, 64 archived): `session` on the
+ * session itself, `chat` on its default chat. A view belongs to the viewer and never changes the work.
+ */
+export type AgentHostView = { session: number; chat: number };
 export type CardBinderMark = { startedAt: string; seenAt: string };
 /** What a person last saw of a card that its moments cannot tell: its overall grade and whether its set was complete. */
 export type CardSeenSnapshot = { grade: number | null; setComplete: boolean };

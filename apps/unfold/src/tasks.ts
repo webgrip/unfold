@@ -31,6 +31,7 @@ const timeoutMs = 10000;
 const slug = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const numericId = /^[1-9][0-9]{0,19}$/;
 const projectPart = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,254}$/;
+const gheComApiHost = /^api\.([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.ghe\.com$/;
 const sourceFields = new Set(['id', 'name', 'provider', 'baseUrl', 'project', 'repositoryId', 'tokenEnv', 'executionOwner', 'ploeg']);
 
 function record(value: unknown): Record<string, unknown> {
@@ -51,8 +52,18 @@ function apiRoot(value: unknown, provider: TaskProvider): string {
   const path = parsed.pathname.replace(/\/+$/, '');
   const suffix = provider === 'gitlab' ? '/api/v4' : provider === 'clickup' ? '/api/v2' : '/api/v1';
   if (provider !== 'demo' && provider !== 'github' && !path.endsWith(suffix)) throw new Error(`Task source baseUrl must end with ${suffix}`);
-  if (provider === 'github' && !(parsed.hostname === 'api.github.com' && path === '') && !path.endsWith('/api/v3')) throw new Error('GitHub baseUrl must be https://api.github.com or an enterprise API root ending with /api/v3');
+  if (provider === 'github') githubApiRoot(parsed, path);
   return `${parsed.origin}${path}`;
+}
+
+function githubApiRoot(parsed: URL, path: string): void {
+  const rule = 'GitHub baseUrl must be https://api.github.com, a GHE.com API root https://api.SUBDOMAIN.ghe.com, or a GitHub Enterprise Server API root ending with /api/v3';
+  const host = parsed.hostname.replace(/\.$/, '');
+  if (host === 'ghe.com' || host.endsWith('.ghe.com')) {
+    if (!gheComApiHost.test(parsed.hostname) || parsed.port || path !== '') throw new Error(rule);
+    return;
+  }
+  if (!(parsed.hostname === 'api.github.com' && path === '') && !path.endsWith('/api/v3')) throw new Error(rule);
 }
 
 function configuredProject(value: unknown, provider: TaskProvider): string {
@@ -150,7 +161,12 @@ function updated(value: unknown, milliseconds = false): string | undefined {
 }
 
 function webRoot(source: TaskSourceConfig): string {
-  if (source.provider === 'github' && new URL(source.baseUrl).hostname === 'api.github.com') return 'https://github.com';
+  if (source.provider === 'github') {
+    const host = new URL(source.baseUrl).hostname;
+    if (host === 'api.github.com') return 'https://github.com';
+    const gheCom = gheComApiHost.exec(host);
+    if (gheCom) return `https://${gheCom[1]}.ghe.com`;
+  }
   return source.baseUrl.replace(/\/api\/v[1-4]$/, '');
 }
 

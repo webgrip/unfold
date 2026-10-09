@@ -13,6 +13,13 @@
       "required": ["repository", "tag", "pullPolicy"]
     },
     "mode": { "enum": ["demo", "live"] },
+    "podAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
+    "podLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "priorityClassName": { "type": "string" },
+    "nodeSelector": { "type": "object", "additionalProperties": { "type": "string" } },
+    "tolerations": { "type": "array", "items": { "type": "object" } },
+    "affinity": { "type": "object" },
+    "extraEnv": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string", "minLength": 1 } }, "required": ["name"] } },
     "workspaceNamespace": { "type": "string", "maxLength": 63, "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" },
     "createWorkspaceNamespace": { "type": "boolean" },
     "workspaceImage": { "type": "string" },

@@ -20,7 +20,11 @@ let stopping=false;const stop=()=>{if(stopping)return;stopping=true;try{process.
 process.stdin.resume();process.stdin.on('end',stop);process.on('SIGTERM',stop);process.on('SIGINT',stop);
 child.once('error',error=>{if(process.send)process.send({type:'launch.error',missing:error.code==='ENOENT'||error.code==='EACCES'},()=>process.exit(1));else process.exit(1)});child.once('exit',code=>process.exit(code??1));`;
 
-export function managedConfig(config: AppConfig): Record<string, unknown> {
+function gatewayMcpUrl(baseUrl: string): string {
+  return baseUrl.replace(/\/+$/, '').replace(/\/v1$/, '') + '/mcp';
+}
+
+export function managedConfig(config: AppConfig, repository?: Pick<Repository, 'mcp'>): Record<string, unknown> {
   const providers: Record<string, any> = {};
   for (const model of config.models) {
     providers[model.providerId] ??= {
@@ -30,21 +34,23 @@ export function managedConfig(config: AppConfig): Record<string, unknown> {
     providers[model.providerId].models[model.modelId] = { name: model.name };
   }
   const first = config.models[0];
+  const gateway = repository?.mcp && config.litellm?.baseUrl;
   return {
     provider: providers, enabled_providers: Object.keys(providers),
     ...(first ? { model: `${first.providerId}/${first.modelId}`, small_model: `${first.providerId}/${first.modelId}` } : {}),
     share: 'disabled', autoupdate: false, permission: { '*': 'ask', external_directory: 'deny' },
+    ...(gateway ? { mcp: { litellm: { type: 'remote', url: gatewayMcpUrl(gateway), headers: { 'x-litellm-api-key': 'Bearer {env:LITELLM_API_KEY}' }, oauth: false, enabled: true } } } : {}),
   };
 }
 
-export function isolatedEnvironment(directory: string, credential: Credential | undefined, config: AppConfig, host: NodeJS.ProcessEnv = process.env): Record<string, string> {
+export function isolatedEnvironment(directory: string, credential: Credential | undefined, config: AppConfig, host: NodeJS.ProcessEnv = process.env, repository?: Pick<Repository, 'mcp'>): Record<string, string> {
   const env: Record<string, string> = {
     PATH: process.env.PATH ?? '/usr/local/bin:/usr/bin:/bin',
     HOME: join(directory, '.home'), XDG_CONFIG_HOME: join(directory, '.home', '.config'),
     XDG_DATA_HOME: join(directory, '.state'), XDG_CACHE_HOME: join(directory, '.cache'),
     TMPDIR: join(directory, '.tmp'), LANG: 'C.UTF-8', GIT_TERMINAL_PROMPT: '0',
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null',
-    OPENCODE_CONFIG_CONTENT: JSON.stringify(managedConfig(config)),
+    OPENCODE_CONFIG_CONTENT: JSON.stringify(managedConfig(config, repository)),
     OPENCODE_DISABLE_AUTOUPDATE: 'true', OPENCODE_DISABLE_SHARE: 'true',
   };
   if (config.litellm?.baseUrl) env.LITELLM_BASE_URL = config.litellm.baseUrl;
@@ -151,11 +157,11 @@ export class WorkspaceManager {
     if (this.config.runtime.kind === 'command' && placement !== 'local') throw new Error('The command adapter requires the local backend');
     if (placement === 'kubernetes') {
       if (!this.kubernetes) throw new Error('The kubernetes workspace backend is not enabled on this workbench');
-      return this.kubernetes.prepare(session, target, credential, signal, managedConfig(this.config));
+      return this.kubernetes.prepare(session, target, credential, signal, managedConfig(this.config, configured));
     }
     if (placement === 'docker') {
       if (!this.docker) throw new Error('The docker workspace backend is not enabled on this workbench');
-      return this.docker.prepare(session, target, credential, signal, managedConfig(this.config));
+      return this.docker.prepare(session, target, credential, signal, managedConfig(this.config, configured));
     }
     if (placement === 'external') {
       if (!this.config.runtime.endpoint || !this.config.runtime.password) throw new Error('External OpenCode requires an endpoint and server password');
@@ -165,7 +171,7 @@ export class WorkspaceManager {
     const root = resolve(this.config.dataDir, 'workspaces', session.id);
     const directory = join(root, 'repository');
     await mkdir(root, { recursive: true, mode: 0o700 });
-    const env = isolatedEnvironment(root, credential, this.config);
+    const env = isolatedEnvironment(root, credential, this.config, process.env, configured);
     for (const path of [env.HOME, env.XDG_CONFIG_HOME, env.XDG_DATA_HOME, env.XDG_CACHE_HOME, env.TMPDIR]) await mkdir(path, { recursive: true, mode: 0o700 });
     let exists = false;
     try { await access(join(directory, '.git')); exists = true; } catch {}
@@ -183,7 +189,7 @@ export class WorkspaceManager {
     if (this.config.runtime.kind !== 'opencode') return workspace;
     const port = await unusedPort();
     workspace.endpoint = `http://127.0.0.1:${port}`;
-    await writeFile(join(root, 'opencode.json'), JSON.stringify(managedConfig(this.config), null, 2), { mode: 0o600 });
+    await writeFile(join(root, 'opencode.json'), JSON.stringify(managedConfig(this.config, configured), null, 2), { mode: 0o600 });
     const child = spawn(process.execPath, ['-e', supervisorProgram, this.config.runtime.binary ?? 'opencode', 'serve', '--hostname', '127.0.0.1', '--port', String(port)], {
       cwd: directory, env: { ...env, OPENCODE_SERVER_USERNAME: state.username, OPENCODE_SERVER_PASSWORD: state.password }, stdio: ['pipe', 'ignore', 'pipe', 'ipc'],
     });

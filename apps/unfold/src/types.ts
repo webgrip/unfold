@@ -8,7 +8,9 @@ export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | '
 export type UserRole = 'admin' | 'operator' | 'viewer';
 export type User = { id: string; name: string; role: UserRole };
 export type RepositoryAccess = { username: string; password: string };
-export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg'; access?: RepositoryAccess };
+/** Read-only gateway MCP tools for sessions on one repository: keys are minted into this LiteLLM team with exactly these MCP access groups. */
+export type RepositoryMcp = { litellmTeamId: string; accessGroups: string[] };
+export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg'; access?: RepositoryAccess; mcp?: RepositoryMcp };
 export type CrewRole = { id: string; name: string; mode: 'write' | 'read'; instruction: string; model?: string; maxToolCalls?: number };
 export type Crew = { id: string; name: string; description: string; roles: CrewRole[] };
 export type RuntimeKind = 'demo' | 'opencode' | 'command';

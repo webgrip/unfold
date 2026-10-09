@@ -47,3 +47,26 @@ The host must not advertise `_meta["vscode.remoteSessions"]` until a delegated s
 ## Update, 2026-10-03
 
 The WebSocket server is no longer dependency-free. [ADR 0036](0036-the-agent-host-speaks-websocket-through-ws.md) replaces the hand-written framing with `ws`, after local probes showed it read frames RFC 6455 requires a server to reject and ignored write backpressure. The host's connection interface and its token check on the upgrade are unchanged.
+
+## Update, 2026-10-08
+
+Evidence: [the VS Code 1.141 sweep](../research/2026-10-08-vscode-1-141-fit.md).
+
+The 2026-10-01 update was already out of date when it landed. The same day, `5ecd610e` limited root notifications, rejections and `activeSessions` to the owning user. `78d4d6fd` adopted VS Code's `unfold:/<id>` session URIs, created the default chat with the session, kept the client's session id behind a persisted alias, stopped advertising `multipleChats` and `multipleWorkingDirectories`, and stopped sending the host path. Seven of the fifteen findings are fixed in code and in `ahp.test.ts`. Attachment against a running desktop client is still unexercised.
+
+AHP 1.0.0 was released on 2026-10-02. Its versioning rule keeps `0.9.x` as one of two compatibility baselines, so this host is still conforming. VS Code 1.141 speaks a private `0.10.0` and still offers `0.9.0`. Two changes merged on VS Code main for 1.142 reach this host. Read state arrives as `chat/isReadChanged`. New sessions arrive as `ahp-session:/<uuid>`, while the host advertises them as `unfold:/<uuid>`. Both need a host change before 1.142 reaches Stable. The archive actions recorded on 2026-10-01 are still rejected. So is `root/configChanged`, which VS Code sends on every connect, and whose rejection echoes the client's trusted folders to the same user's other clients.
+
+The single-minor defect recorded on 2026-09-17 is narrower than it looked: the AHP rule keeps 0.9 as a baseline until 2.0. The host should still answer with the exact offered version and reject malformed ones.
+
+Implemented the same day; the commits are listed in the dossier's follow-up:
+
+* **Negotiation.** The host returns the highest offered `0.9.x` as the exact string, rejects malformed versions, and closes after `-32005`.
+* **Session URIs.** They are spelled per client by VS Code's own host rule: `unfold:/<id>` for a VS Code client without `_meta["vscode.ahpSessionUris"]`, `ahp-session:/<id>` for every other client. Both are accepted on input.
+* **Read and archive marks.** Both are kept per person in `agent_host_views`, as status bits 32 and 64, and never change the session.
+* **Echoes.** `root/configChanged` is echoed to the sender only. Every accepted client action is echoed in server order, and turns keep the client's turn id.
+* **Messages during a Run.** Steering and queued messages become instructions for the next execution, as typed messages already did. `chat/truncated` is still refused, because the history is durable evidence.
+* **Changesets.** The candidate is a `session` changeset with whole before and after files read from its Git bundle. Its one operation is **Accept**, through the browser's review path and owner check.
+* **Questions.** They carry a message, a title and their choices. Declining one is still refused, because the engine takes only answers.
+* **Reconnect.** A client known to the process resumes with a snapshot. It keeps its session spelling, and its active-client entry for 30 seconds.
+
+An end-to-end run with Microsoft's AHP 1.0.0 client found six further defects, fixed the same day. Terminals and resource writes stay declined. No desktop VS Code has attached yet.

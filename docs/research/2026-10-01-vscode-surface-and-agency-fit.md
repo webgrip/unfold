@@ -281,3 +281,12 @@ All the tickets are children of [VIK-1644](https://vikunja.webgrip.dev/tasks/164
 - Reddit, Tweakers and Hacker News were not indexed usefully, so agency pain points come from surveys and trade press.
 - Agency editor share comes from PHP and Laravel surveys, not from Dutch agencies directly.
 - Visual Studio Magazine returned 403.
+
+## Update, 2026-10-08
+
+Evidence: [the VS Code 1.141 sweep](../../apps/unfold/docs/research/2026-10-08-vscode-1-141-fit.md). Four entries above have moved.
+
+- **The leak and the session lifecycle (recommendation 1).** The cross-user leak (VIK-1661) and session creation and following (VIK-1662) were fixed on 2026-10-01 in `5ecd610e` and `78d4d6fd`. VS Code main, due as 1.142, sends `chat/isReadChanged` to a 0.9.0 host and creates sessions as `ahp-session:/` URIs. Those two, the archive actions (VIK-1631) and version negotiation (VIK-1645) were fixed the same day; the 1.141 dossier's follow-up lists the commits. A desktop VS Code pass is still to come.
+- **`lm.registerMcpServerDefinitionProvider`.** Read in 1.141's source, extension-provided servers reach all three agent-host harnesses, not only Copilot. VS Code forwards only the definition from `provideMcpServerDefinitions` and never calls `resolveMcpServerDefinition` on that path. It writes `env` values and headers in plaintext to a `.mcp.json` under the user data directory. A token from SecretStorage therefore never reaches the harness, and a token placed in `env` lands on disk. Settle credential delivery before VIK-1653.
+- **`vscode://agents/agent-host-session/…` (J6).** VS Code main adds `connectionAuthority` and `session` query parameters, so a link can name a remote host. The VIK-1660 spike becomes testable once 1.142 ships.
+- **Distribution (recommendation 3).** `webgrip` is unverified on Open VSX. Open VSX's new ownership check skips extensions that are already active, so new versions of `webgrip.unfold` are not at risk, but a new extension name in the namespace could be quarantined once `WebGrip` publishes on the Marketplace. Claim it before the Marketplace listing goes live.

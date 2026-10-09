@@ -31,11 +31,30 @@ spec:
     matchLabels: {{- include "unfold.labels" . | nindent 6 }}
   template:
     metadata:
-      labels: {{- include "unfold.labels" . | nindent 8 }}
+      labels:
+        {{- include "unfold.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
     spec:
       serviceAccountName: {{ include "unfold.name" . }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
       automountServiceAccountToken: {{ eq .Values.mode "live" }}
       terminationGracePeriodSeconds: 90
       {{- with .Values.imagePullSecrets }}
@@ -70,6 +89,9 @@ spec:
               value: /etc/unfold/config.json
             - name: UNFOLD_DATA_DIR
               value: /data/workbench
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- if eq .Values.mode "live" }}
           envFrom:
             - secretRef:

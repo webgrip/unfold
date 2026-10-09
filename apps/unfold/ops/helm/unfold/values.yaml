@@ -16,6 +16,13 @@ resources:
   limits:
     cpu: "1"
     memory: 1Gi
+podAnnotations: {}
+podLabels: {}
+priorityClassName: ""
+nodeSelector: {}
+tolerations: []
+affinity: {}
+extraEnv: []
 mode: demo
 baseUrl: ""
 credentialsSecret: unfold-credentials
@@ -40,6 +47,9 @@ config:
   maxConcurrentSessions: 2
   maxBudgetUsd: 10
   models: []
+  # Each repository may add `mcp: {litellmTeamId: agents-orders, accessGroups: [observability-read-orders]}`.
+  # Session keys are then minted into that LiteLLM team with exactly those MCP access groups, and the
+  # agent gets one remote MCP server `litellm` at <litellm root>/mcp. Absent means no MCP tools.
   repositories: []
   taskSources: []
   litellm:

@@ -151,6 +151,16 @@ Every OpenCode session starts with `ask` for every tool, so each read, search an
 
 The gateway can refuse requests with `budget_exhausted`. Displayed spend is an observation, and final accounting may arrive later. The settlement delay is configurable; it does not guarantee provider billing latency or a strict ceiling for requests in flight. Qualify the configured model and crew with a small explicit budget.
 
+## Gateway tools for a repository
+
+A repository can give its sessions read-only tools that the LiteLLM gateway serves over MCP. It is off unless the repository names a gateway team and the MCP access groups that team allows:
+
+```json
+{ "id": "orders", "mcp": { "litellmTeamId": "agents-orders", "accessGroups": ["observability-read-orders"] } }
+```
+
+A standalone session's key is then minted with `team_id` and `object_permission.mcp_access_groups`, and the gateway refuses the mint when the team does not allow those groups. With `require_key_mcp_access_defined` on the gateway, a key minted without them gets no tools at all, whatever team it is in. Under Ploeg execution Ploeg mints the key, so it must apply the same team and groups; Unfold only writes the agent configuration. Either way the agent gets one remote MCP server, `litellm`, at the gateway root with `/v1` removed plus `/mcp`, authenticated with the session key in `x-litellm-api-key`. The tools fall under the session's approval mode like every other tool, so they ask unless the session approves automatically.
+
 ## What "awaiting your review" means
 
 A completed session has done everything the machine does: every role finished, the final reviewer's verdict is on its run, the candidate is captured as a bundle, patch and manifest with two signed statements over them, the workspace is released, and nothing was pushed or merged. The label now says what is missing: a person's review. Accept records that you inspected the candidate and consider it fit to take further, with an optional note; reject requires a reason, which the next attempt receives. Both are recorded with your name in the session history and shown on the session instead of the label. Until the publish action exists, taking an accepted candidate further is still a manual push and merge request from the downloaded bundle.
@@ -196,7 +206,7 @@ Each person then opens Linked accounts, links GitLab, and approves the applicati
 The `docker` backend runs the clone and the OpenCode server inside a container from the pinned agent image, through the Docker Engine socket. The workbench never invokes a shell or the Docker CLI. Build the image once from the repository and reference it by tag, or pull a digest-pinned build from the registry:
 
 ```sh
-docker build -t unfold-agent:1.18.34 ops/agent
+docker build -t unfold-agent:1.18.35 ops/agent
 ```
 
 The Dockerfile pulls its hardened base from `dhi.io`, which needs `docker login dhi.io` with a Docker account; pass `--build-arg REGISTRY_DHI=<your-proxy>` to use a mirror. Released builds are at `ghcr.io/webgrip/unfold-agent:<version>`, signed and within a zero critical, zero high CVE budget ([releases](release.md)).
@@ -205,7 +215,7 @@ Add a `docker` block next to `runtime`:
 
 ```json
 {
-  "image": "unfold-agent:1.18.34",
+  "image": "unfold-agent:1.18.35",
   "cpus": 2,
   "memoryMb": 4096,
   "pidsLimit": 512,
@@ -221,7 +231,7 @@ Set `"transport": "pull"` in the `docker` block to let the container dial out in
 Candidate capture stops the container, confirms the stop and snapshots the host directory. The container is removed on disposal; the session directory is retained like the local backend's. Reproduce the no-inference qualification against your image with:
 
 ```sh
-node scripts/probe-docker.mjs unfold-agent:1.18.34
+node scripts/probe-docker.mjs unfold-agent:1.18.35
 ```
 
 The probe serves a fixture repository to the container, verifies the hardened container configuration, authenticated health, managed configuration, adapter session creation, the event stream, abort, candidate capture and container removal, and records that zero inference requests reached its sink.
@@ -291,7 +301,7 @@ curl -sS -X POST -H 'X-Unfold-Request: 1' -H 'Content-Type: application/json' -b
   http://127.0.0.1:4080/api/agent-host/tokens -d '{"label":"laptop"}'
 ```
 
-The response contains `address` and a ready-made `vscodeSetting.entry` with the token. Sessions appear in VS Code's agent sessions list; a new session asks for repository, crew, budget and placement, and its first message starts the crew. Every other client attached with a token of the same user sees the same session. Tokens are bound to the user who created them and honour the same ownership rules as the HTTP API. A token expires after `auth.sessionHours` without use; each connection or message renews it. Signing out, or the end of the sign-in session that issued it, revokes it and closes its open connections. The VS Code extension re-issues the token of an existing entry when you sign in again and removes the entry it issued when you sign out ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)). Whether a given VS Code build offers plain WebSocket hosts in its picker is not something this repository can verify; the setting itself is read by the 1.136 client.
+The response contains `address` and a ready-made `vscodeSetting.entry` with the token. Sessions appear in VS Code's agent sessions list; a new session asks for repository, crew, budget and placement, and its first message starts the crew. Every other client attached with a token of the same user sees the same session. Tokens are bound to the user who created them and honour the same ownership rules as the HTTP API. A token expires after `auth.sessionHours` without use; each connection or message renews it. Signing out, or the end of the sign-in session that issued it, revokes it and closes its open connections. The VS Code extension re-issues the token of an existing entry when you sign in again and removes the entry it issued when you sign out ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)). Whether a given VS Code build offers plain WebSocket hosts in its picker is not something this repository can verify; the setting itself is read by the 1.136 client. Marking a session read or done in VS Code's Agents window is kept per person and changes nothing about the session itself, and a ready candidate appears in the Changes view with an **Accept** action while its review is open.
 
 The Unfold extension in [extensions/vscode](../../extensions/vscode/README.md) is the other way in, and it now mirrors what the browser shows for a 0.3.0 server: the same run labels (implementation, analysis, independent review), the brief each role received, tool input and error text in the Activity tab, a Gateway tab with the gateway's per-request attribution, the spend observed at the gateway with the cost curve, transcripts, the approval switch for `docker` and `kubernetes` sessions, and GitLab linking through **Unfold: Linked Accounts**. Both clients read the same API and event stream, so a session opened in one is the same session in the other.
 

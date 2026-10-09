@@ -17,6 +17,17 @@ By default it runs the deterministic **demo**, which needs nothing outside the c
 helm install unfold oci://ghcr.io/webgrip/charts/unfold --version <version> -n unfold --create-namespace
 ```
 
+## Scheduling and pod metadata
+
+All of these apply to the workbench pod only and are empty by default. Agent workspace pods are created by Unfold at runtime and take their settings from the `workspace*` values.
+
+| Value | Use it to |
+| --- | --- |
+| `priorityClassName` | Rank the workbench in a cluster that uses priority classes. |
+| `nodeSelector`, `tolerations`, `affinity` | Place the workbench on particular nodes. |
+| `podLabels`, `podAnnotations` | Add metadata that other tools act on, such as a policy engine or Reloader. They are added to the chart's own labels and its config checksum, never replacing them. |
+| `extraEnv` | Add environment variables, for example a credential read from a Secret other than `credentialsSecret`. Entries take the Kubernetes `env` form and come after the chart's own. |
+
 ## Live mode
 
 Live mode reaches services the chart cannot guess, and none of them has a default. The chart does not check them; Unfold does at startup. With `config.execution` set, it refuses to start without a Ploeg connection and a gateway URL. Set them in values or in the `credentialsSecret` environment:
