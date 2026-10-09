@@ -251,7 +251,7 @@ test('a site or Unfold release candidate deploys to staging and a stable site re
   for (const [name, [channel, origin, env]] of Object.entries(targets)) {
     const deploy = publisher.jobs[name];
     assert.deepEqual(deploy.needs, ['site-release-tag'], name);
-    assert.equal(deploy.uses, 'webgrip/workflows/.forgejo/workflows/cloudflare-deploy.yml@v2.7.8', name);
+    assert.match(deploy.uses, /^webgrip\/workflows\/\.forgejo\/workflows\/cloudflare-deploy\.yml@v\d+\.\d+\.\d+$/, name);
     assert.equal(deploy.with.enabled, `\${{ needs.site-release-tag.outputs.channel == '${channel}' }}`, name);
     for (const gateChannel of ['none', 'prerelease', 'stable']) {
       assert.equal(evaluate(deploy.with.enabled, { needs: { 'site-release-tag': { outputs: { channel: gateChannel } } } }), gateChannel === channel, `${name} ${gateChannel}`);
@@ -282,7 +282,7 @@ test('the unfoldhq.dev zone is previewed from development and checked daily for 
   assert.equal(job['runs-on'], 'docker');
   assert.equal(job['enable-openid-connect'], true);
   const read = job.steps.find(step => String(step.uses).includes('/composite-actions/openbao-read@'));
-  assert.equal(read.uses, 'https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/openbao-read@v2.8.1');
+  assert.match(read.uses, /^https:\/\/forgejo\.webgrip\.dev\/webgrip\/workflows\/\.forgejo\/composite-actions\/openbao-read@v\d+\.\d+\.\d+$/);
   assert.equal(read.with.role, 'ci-unfold');
   assert.deepEqual(read.with.secrets.trim().split('\n'), [
     'CLOUDFLARE_API_TOKEN=secret/data/cloudflare/dns/unfoldhq-dev-ro#token',

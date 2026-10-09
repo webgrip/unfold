@@ -9,7 +9,7 @@ import { loadConfig } from '../src/config.ts';
 import { startFakeArtModel } from './browser/fake-art-model.mjs';
 
 const flows = [
-  ['now', 'the Now page: waiting groups with reason chips, the digest and Mark as caught up, stat links, the running meter, keyboard row navigation and o at desktop/mobile widths'],
+  ['now', 'the Now page: waiting groups with reason chips, the digest with counts that jump to their rows and Mark as caught up, stat links, the running meter, keyboard row navigation and o at desktop/mobile widths'],
   ['tasks', 'task connections for five providers, fixture import with explicit start, duplicate import, binary candidate downloads, changed-revision draft preservation and inert source text, task desktop/mobile layout, task selection in the address, j/k, wide auto-open, the sticky Create session and the phone master-detail'],
   ['sessions', 'demo, diff, checks, export, reload, create, pause, evidence keyboard navigation at desktop/mobile widths, draft preservation, stream reading-position and tail-follow preservation, instruction, resume, cancel, actionable ambiguous-failure guidance and escaped error text, the review decision at phone width and its contrast, reviewed labels and list search'],
   ['shell', 'redirects from old links, heading focus, title and announcement on route changes, the status strip, the account menu, live updates, the shortcut help, g chords, opening the command palette, the skip link, mobile navigation'],

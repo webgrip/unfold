@@ -1,0 +1,173 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "panels": [],
+      "title": "Unfold product events",
+      "type": "row"
+    },
+    {
+      "description": "Median seconds between a Needs-you verdict appearing and the command it led to, per Work Item, over the selected window. Cells with fewer than 5 distinct people are suppressed.",
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "${logsDatasource}" },
+          "editorMode": "code",
+          "expr": "event.name:\"needs_you.verdict_shown\" OR event.name:\"needs_you.command_sent\" | stats by (work_item.id) count_uniq(actor) as actors, min(_time) as shown, max(_time) as decided | math decided - shown as seconds | filter actors:>=5 | stats median(seconds) as median_seconds",
+          "queryType": "stats",
+          "refId": "A"
+        }
+      ],
+      "title": "Median time to resolve",
+      "type": "stat"
+    },
+    {
+      "description": "Mean number of command events a person sends before a Needs-you row settles, by path. Cells with fewer than 5 distinct people are suppressed.",
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "${logsDatasource}" },
+          "editorMode": "code",
+          "expr": "event.name:\"needs_you.command_sent\" | stats by (path, tenant.id) count_uniq(actor) as actors, count() as commands | math commands / actors as tabs_per_decision | filter actors:>=5 | stats avg(tabs_per_decision) as tabs_per_decision",
+          "queryType": "stats",
+          "refId": "A"
+        }
+      ],
+      "title": "Tabs per decision",
+      "type": "stat"
+    },
+    {
+      "description": "Undone commands as a share of sent commands. Cells with fewer than 5 distinct people are suppressed.",
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 1 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "${logsDatasource}" },
+          "editorMode": "code",
+          "expr": "event.name:\"needs_you.command_sent\" OR event.name:\"needs_you.undone\" | stats by (tenant.id) count_uniq(actor) as actors, count(if(event.name:=\"needs_you.command_sent\",1,0)) as sent, count(if(event.name:=\"needs_you.undone\",1,0)) as undone | math undone / sent as undo_rate | filter actors:>=5",
+          "queryType": "stats",
+          "refId": "A"
+        }
+      ],
+      "title": "Undo rate",
+      "type": "stat"
+    },
+    {
+      "description": "Work Items that returned to Needs you within 7 days as a share of resolved commands. Cells with fewer than 5 distinct people are suppressed.",
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
+      "id": 4,
+      "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "${logsDatasource}" },
+          "editorMode": "code",
+          "expr": "event.name:\"needs_you.command_sent\" OR event.name:\"work_item.back_in_needs_you\" | stats by (tenant.id) count_uniq(actor) as actors, count(if(event.name:=\"needs_you.command_sent\",1,0)) as resolved, count(if(event.name:=\"work_item.back_in_needs_you\",1,0)) as returned | math returned / resolved as regret_rate | filter actors:>=5",
+          "queryType": "stats",
+          "refId": "A"
+        }
+      ],
+      "title": "Regret rate",
+      "type": "stat"
+    },
+    {
+      "description": "Every Needs-you path with its verdicts, sent commands, undo rate and regret rate. Groups of fewer than 5 distinct people are suppressed by the transformation.",
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "id": 5,
+      "options": { "showHeader": true },
+      "targets": [
+        {
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "${logsDatasource}" },
+          "editorMode": "code",
+          "expr": "event.name:\"needs_you.verdict_shown\" OR event.name:\"needs_you.command_sent\" OR event.name:\"needs_you.undone\" OR event.name:\"work_item.back_in_needs_you\" | stats by (path, tenant.id) count_uniq(actor) as actors, count(if(event.name:=\"needs_you.verdict_shown\",1,0)) as verdicts, count(if(event.name:=\"needs_you.command_sent\",1,0)) as sent, count(if(event.name:=\"needs_you.undone\",1,0)) as undone, count(if(event.name:=\"work_item.back_in_needs_you\",1,0)) as returned",
+          "queryType": "stats",
+          "refId": "A"
+        }
+      ],
+      "title": "Per path",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": { "type": "include", "match": "all", "filters": [ { "fieldName": "actors", "config": { "id": "greaterOrEqual", "options": { "value": 5 } } } ] }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "description": "Rage clicks, dead clicks, U-turns and link-out bursts per screen. Groups of fewer than 5 distinct people are suppressed by the transformation.",
+      "fieldConfig": { "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "inspect": false } }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "id": 6,
+      "options": { "showHeader": true },
+      "targets": [
+        {
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "${logsDatasource}" },
+          "editorMode": "code",
+          "expr": "event.name:\"ui.rage_click\" OR event.name:\"ui.dead_click\" OR event.name:\"ui.u_turn\" OR event.name:\"ui.link_out_burst\" | stats by (screen, event.name) count_uniq(actor) as actors, count() as events",
+          "queryType": "stats",
+          "refId": "A"
+        }
+      ],
+      "title": "Confusion signals per screen",
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": { "type": "include", "match": "all", "filters": [ { "fieldName": "actors", "config": { "id": "greaterOrEqual", "options": { "value": 5 } } } ] }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 15 },
+      "id": 7,
+      "options": { "content": "Queries are LogsQL against the VictoriaLogs datasource the `logsDatasource` variable selects, using the fields Unfold's insight export writes (`event.name`, `screen`, `tenant.id`, `actor`, `work_item.id`, `path`, `count`, `actors`, `day`). Stat panels and tables, not time series: each question has one current value. Cells and groups with fewer than 5 distinct people are suppressed, as the other DevEx dashboards do. These queries are proposed with RFC-0001 and may need adjusting to the homelab's VictoriaLogs field mapping.", "mode": "markdown" },
+      "title": "About this dashboard",
+      "type": "text"
+    }
+  ],
+  "refresh": "1h",
+  "schemaVersion": 39,
+  "tags": ["unfold", "insight", "needs-you"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "label": "Logs datasource",
+        "multi": false,
+        "name": "logsDatasource",
+        "options": [],
+        "query": "victoriametrics-logs-datasource",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": { "from": "now-24h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Unfold · Needs-you insight",
+  "uid": "unfold-insight",
+  "version": 1,
+  "weekStart": ""
+}
