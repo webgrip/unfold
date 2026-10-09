@@ -49,6 +49,7 @@ export const timelineRoutes = Object.freeze([
   { method: 'POST', path: `/api/sessions/${id}/review` },
   { method: 'POST', path: `/api/ploeg/work-items/${id}/cancel` },
   { method: 'POST', path: `/api/cards/${id}/seen` },
+  { method: 'POST', path: '/api/insight/events' },
 ]);
 
 /**
