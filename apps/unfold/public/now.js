@@ -491,9 +491,9 @@ function recentCard(view, visible, held, context) {
   return `<section class="card flush now-card now-recent" aria-labelledby="now-recent-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-recent-title">Recently finished</h2></div><div class="card-actions">${button({ id: 'now-recent-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=finished', ariaLabel: 'View all finished Runs' })}</div></header><div class="card-body">${pill}${body}</div></section>`;
 }
 
-function digestItem(value, singular, pluralForm, tone, more = false) {
+function digestItem(value, singular, pluralForm, tone, target, more = false) {
   if (!value) return '';
-  return `<li class="now-digest-item"><span class="status-dot" data-tone="${tone}" aria-hidden="true"></span><strong class="num">${escape(format.count(value))}${more ? '+' : ''}</strong> ${escape(value === 1 ? singular : pluralForm)}</li>`;
+  return `<li class="now-digest-item"><button type="button" class="now-digest-jump" id="now-digest-${target}" data-action="now-digest-jump" data-target="${target}" title="Show on this page"><span class="status-dot" data-tone="${tone}" aria-hidden="true"></span><strong class="num">${escape(format.count(value))}${more ? '+' : ''}</strong> ${escape(value === 1 ? singular : pluralForm)}</button></li>`;
 }
 
 function digestFrame(kind, glyph, title, body, action = '') {
@@ -507,10 +507,10 @@ function digestMarkup(view, since, now) {
   const start = moment(since);
   const counts = digestCounts(data, since);
   const items = [
-    digestItem(counts.review, 'ready for review', 'ready for review', 'review'),
-    digestItem(counts.needsYou, 'needs you', 'need you', 'attention'),
-    digestItem(counts.proposed, 'proposed', 'proposed', 'neutral'),
-    digestItem(counts.finished, 'Run finished', 'Runs finished', 'success', counts.finishedCapped),
+    digestItem(counts.review, 'ready for review', 'ready for review', 'review', 'review'),
+    digestItem(counts.needsYou, 'needs you', 'need you', 'attention', 'needs'),
+    digestItem(counts.proposed, 'proposed', 'proposed', 'neutral', 'proposed'),
+    digestItem(counts.finished, 'Run finished', 'Runs finished', 'success', 'recent', counts.finishedCapped),
   ].filter(Boolean);
   const unknown = [counts.review, counts.finished].some(value => value === null);
   if (!items.length) {
@@ -588,6 +588,17 @@ function unsettledBanner(view, now) {
   const list = disclosure({ summary: unsettled.count === 1 ? 'Show the Run' : `Show the ${format.count(unsettled.count)} Runs`, body: `<ul class="now-unsettled-runs">${rows}</ul>` });
   const body = `<p>Their model keys could not be blocked at the gateway, often because the key is already gone. Each keeps its full hold (${escape(format.money(unsettled.heldUsd))} in total) until someone settles it by hand. Follow <code>apps/ploeg/docs/ops/managed-workers.md</code>, “Reconcile uncertainty”.</p>${list}`;
   return `<div class="now-banner now-unsettled" role="status">${callout({ tone: 'severe', title: `${runs} budget Ploeg cannot release`, body })}</div>`;
+}
+
+/**
+ * The section of the Now page a digest count points at: a waiting group (`review`, `needs`, `proposed`) or the
+ * Recently finished card (`recent`). Null for an unknown target.
+ * @param {string} target
+ * @returns {string|null} A CSS selector.
+ */
+export function digestSection(target) {
+  if (target === 'recent') return '.now-recent';
+  return groups.some(group => group.id === target) ? `.now-group[data-group="${target}"]` : null;
 }
 
 /**

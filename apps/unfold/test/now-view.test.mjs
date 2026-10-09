@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nowMarkup, digestCounts, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, byWaitingSince, awayAfter, reasonGlyph, offersRetry, mayHoldMore, stateTruncated, runPage, groupLimit, subgroupLimit } from '../public/now.js';
+import { nowMarkup, digestCounts, digestSection, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, byWaitingSince, awayAfter, reasonGlyph, offersRetry, mayHoldMore, stateTruncated, runPage, groupLimit, subgroupLimit } from '../public/now.js';
 import { listReason } from '../public/core/reasons.js';
 import { icon } from '../public/core/icons.js';
 
@@ -263,7 +263,14 @@ test('the digest counts what changed since the last visit and welcomes a first v
   assert.match(html, /<strong class="num">2<\/strong> need you/, 'two Work Items started needing you after 09:10');
   assert.match(html, /<strong class="num">1<\/strong> proposed/);
   assert.match(html, /<strong class="num">2<\/strong> Runs finished/);
-  assert.doesNotMatch(html, /ready for review<\/li>/, 'a count of zero is left out');
+  assert.doesNotMatch(html, /ready for review<\/button>/, 'a count of zero is left out');
+  assert.match(html, /<button type="button" class="now-digest-jump" id="now-digest-needs" data-action="now-digest-jump" data-target="needs" title="Show on this page"><span class="status-dot" data-tone="attention" aria-hidden="true"><\/span><strong class="num">2<\/strong> need you<\/button>/, 'a digest count opens what it counts');
+  assert.match(html, /id="now-digest-proposed"[^>]*data-target="proposed"/);
+  assert.match(html, /id="now-digest-recent"[^>]*data-target="recent"/);
+  for (const target of ['review', 'needs', 'proposed']) assert.match(html, new RegExp(`class="now-group" data-group="${target}"`), `the digest points at a ${target} group that is not on the page`);
+  assert.equal(digestSection('needs'), '.now-group[data-group="needs"]');
+  assert.equal(digestSection('recent'), '.now-recent');
+  assert.equal(digestSection('elsewhere'), null);
   assert.match(html, /id="now-caught-up"[^>]*data-action="now-caught-up"/);
   const welcome = nowMarkup(view({ since: null }), options, nowAt);
   assert.match(welcome, /Welcome to Unfold<\/h2> <p class="now-digest-body">From your next visit, this line sums up what changed while you were away\.<\/p>/);

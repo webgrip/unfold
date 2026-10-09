@@ -1,4 +1,4 @@
-import { nowMarkup, nextBaseline, shownIds, visibleNow, offersRetry } from '../now.js';
+import { nowMarkup, nextBaseline, shownIds, visibleNow, offersRetry, digestSection } from '../now.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { renderHtml, announce } from '../core/dom.js';
@@ -178,6 +178,20 @@ function caughtUp() {
   document.getElementById('page-title')?.focus({ preventScroll: true });
 }
 
+function jumpToDigest(element) {
+  const selector = digestSection(element.dataset.target);
+  if (!selector) return;
+  const held = visibleNow(view.data, view.shown).held;
+  if (held.waiting || held.recent) { view.shown = shownIds(view.data); renderNow(); }
+  const section = document.querySelector(selector);
+  if (!section) return;
+  const first = section.querySelector('[data-now-row][data-unread]') || section.querySelector('[data-now-row]');
+  const heading = section.querySelector('h2, h3');
+  section.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  if (first) first.focus({ preventScroll: true });
+  else if (heading) { heading.setAttribute('tabindex', '-1'); heading.focus({ preventScroll: true }); }
+}
+
 function leave() { if (onNow()) markSeen(); }
 
 globalThis.addEventListener?.('hashchange', leave);
@@ -206,6 +220,7 @@ export default {
     'now-refresh': manualLoad,
     'now-show-new': showNew,
     'now-caught-up': caughtUp,
+    'now-digest-jump': jumpToDigest,
   },
   keys: [nowKeys],
 };

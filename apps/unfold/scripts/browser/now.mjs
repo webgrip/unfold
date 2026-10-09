@@ -1,4 +1,4 @@
-/** The Now page: landing route, the first-visit welcome, waiting groups with reasons, the phone's first screen, j/k/Enter/o keyboard, the "since you were away" digest, marking it as caught up, and focus that survives Refresh and Try again. */
+/** The Now page: landing route, the first-visit welcome, waiting groups with reasons, the phone's first screen, j/k/Enter/o keyboard, the "since you were away" digest, its counts jumping to the rows they count by mouse and keyboard, marking it as caught up, and focus that survives Refresh and Try again. */
 export async function run({ page, app, assert, screenshot }) {
   const base = `http://127.0.0.1:${app.server.address().port}`;
   const active = () => page.evaluate(() => document.activeElement?.id || document.activeElement?.tagName);
@@ -60,6 +60,12 @@ export async function run({ page, app, assert, screenshot }) {
   assert(await page.locator('[data-now-row][data-unread]').count() > 0, 'rows that changed while away carry no unread dot');
   assert.equal(await page.locator('[data-now-row][data-unread] .sr-only').first().innerText(), 'New since your last visit.', 'an unread dot has no text alternative');
   await screenshot('now-mobile');
+  await page.locator('#now-digest-recent').click();
+  assert(await page.evaluate(() => document.activeElement?.matches('.now-recent [data-now-row][data-unread]')), 'a finished-Runs count does not focus the first Run that finished while away');
+  assert.equal(await page.evaluate(() => location.hash), '#now', 'a digest count left the Now page');
+  await page.locator('#now-digest-review').focus();
+  await page.keyboard.press('Enter');
+  assert(await page.evaluate(() => document.activeElement?.matches('.now-group[data-group="review"] [data-now-row][data-unread]')), 'Enter on a ready-for-review count does not focus the new row it counts');
   await page.getByRole('button', { name: 'Mark as caught up' }).click();
   await page.locator('.now-digest').getByText(/^Marked as read at \d\d:\d\d/).waitFor();
   assert.equal(await page.locator('[data-now-row][data-unread]').count(), 0, 'catching up does not clear the unread dots');
