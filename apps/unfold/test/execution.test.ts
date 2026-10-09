@@ -356,6 +356,7 @@ test('authority revoked during credential delivery prevents even the preliminary
   const f = await governed(t); const session = f.create();
   f.server.config.runtime.briefCheck = true;
   f.state.credentialGate = deferred();
+  t.mock.timers.enable({ apis: ['setInterval'] });
   await f.server.app.engine.start(session.id, owner);
   await until(() => f.state.credentialRequests === 1, 'credential request did not reach the gate');
   f.state.remote!.state = 'paused'; f.state.remote!.stopConfirmed = true; f.state.remote!.revision++;
