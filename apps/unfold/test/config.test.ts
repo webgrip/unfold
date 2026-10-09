@@ -88,3 +88,16 @@ test('an OIDC subject namespace is kept without its trailing slash, and an empty
   assert.equal((await load(t, { auth: { oidc: { ...oidc, subjectNamespace: 'https://auth.example/application/o/vloer/' } } })).auth.oidc!.subjectNamespace, 'https://auth.example/application/o/vloer');
   await assert.rejects(load(t, { auth: { oidc: { ...oidc, subjectNamespace: ' ' } } }), /auth.oidc.subjectNamespace must be a non-empty string/);
 });
+
+test('a repository opts into gateway MCP tools with one LiteLLM team and its access groups, and is off by default', async t => {
+  const runtime = { kind: 'opencode', backend: 'local', timeoutMs: 60000 };
+  const gateway = { baseUrl: 'https://gateway.example/v1' };
+  const mcp = { litellmTeamId: 'agents-orders', accessGroups: ['observability-read-orders'] };
+  assert.equal((await load(t, { runtime, litellm: gateway })).repositories[0].mcp, undefined);
+  const config = await load(t, { runtime, litellm: gateway, repositories: [{ ...base.repositories[0], mcp }] });
+  assert.deepEqual(config.repositories[0].mcp, mcp);
+  for (const invalid of [{}, { litellmTeamId: 'agents-orders' }, { ...mcp, accessGroups: [] }, { ...mcp, accessGroups: ['a', 'a'] }, { ...mcp, accessGroups: ['bad group'] }, { ...mcp, litellmTeamId: '' }, { ...mcp, tools: ['*'] }, ['agents-orders']]) {
+    await assert.rejects(load(t, { runtime, litellm: gateway, repositories: [{ ...base.repositories[0], mcp: invalid }] }), /mcp requires litellmTeamId/);
+  }
+  if (!process.env.LITELLM_BASE_URL) await assert.rejects(load(t, { runtime, repositories: [{ ...base.repositories[0], mcp }] }), /LiteLLM gateway base URL/);
+});

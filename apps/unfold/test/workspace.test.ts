@@ -281,3 +281,40 @@ test('user namespaces are opt-in and remap both the writer and the export pod', 
   assert.equal(workspaceManifests(config, session, repository, credential, { username: 'opencode', password: 'p' }, managedConfig(config)).find(item => item.kind === 'Pod')!.spec.hostUsers, false);
   assert.equal(candidateExportManifest(config, { ...session, workspace: { id: session.id, backend: 'kubernetes', directory: '/workspace/repository', metadata: { baseSha: 'a'.repeat(40) } } }, repository).spec.hostUsers, false);
 });
+
+const gatewayTools = { litellmTeamId: 'agents-orders', accessGroups: ['observability-read-orders'] };
+
+test('managed agent configuration adds the gateway MCP server only for a repository that opts in', () => {
+  const config = configuration();
+  const plain = managedConfig(config);
+  assert.equal('mcp' in plain, false);
+  assert.deepEqual(managedConfig(config, repository), plain);
+  const scoped = managedConfig(config, { mcp: gatewayTools });
+  assert.deepEqual(scoped.mcp, { litellm: { type: 'remote', url: 'https://gateway.example/mcp', headers: { 'x-litellm-api-key': 'Bearer {env:LITELLM_API_KEY}' }, oauth: false, enabled: true } });
+  const { mcp: _, ...rest } = scoped;
+  assert.deepEqual(rest, plain);
+  assert.deepEqual(scoped.permission, { '*': 'ask', external_directory: 'deny' });
+  assert.equal(JSON.stringify(scoped).includes('MASTER-NEVER-AGENT'), false);
+  assert.equal(JSON.stringify(scoped).includes('agents-orders'), false);
+  config.litellm!.baseUrl = 'https://gateway.example/litellm/v1/';
+  assert.equal((managedConfig(config, { mcp: gatewayTools }).mcp as any).litellm.url, 'https://gateway.example/litellm/mcp');
+  delete config.litellm;
+  assert.equal('mcp' in managedConfig(config, { mcp: gatewayTools }), false);
+  const env = isolatedEnvironment('/work/one', credential, configuration(), {}, { mcp: gatewayTools });
+  assert.equal(JSON.parse(env.OPENCODE_CONFIG_CONTENT).mcp.litellm.url, 'https://gateway.example/mcp');
+});
+
+test('the workspace backend receives the gateway MCP server from the configured repository whoever issued the credential', async () => {
+  const config = configuration();
+  config.repositories = [{ ...repository, mcp: gatewayTools }];
+  const prepared: Record<string, any>[] = [];
+  const backend = { async prepare(_session: Session, _repository: Repository, _credential: unknown, _signal: AbortSignal, managed: Record<string, any>) { prepared.push(managed); return { id: session.id, backend: 'kubernetes' as const, directory: '/workspace' }; } };
+  const manager = new WorkspaceManager(config, { kubernetes: backend as any });
+  await manager.prepare(session, repository, credential, new AbortController().signal);
+  await manager.prepare(session, { ...repository, mcp: undefined }, { ...credential, key: 'sk-issued-by-ploeg' }, new AbortController().signal);
+  assert.equal(prepared.length, 2);
+  for (const managed of prepared) assert.equal(managed.mcp.litellm.url, 'https://gateway.example/mcp');
+  config.repositories = [repository];
+  await manager.prepare(session, repository, credential, new AbortController().signal);
+  assert.equal('mcp' in prepared[2], false);
+});
