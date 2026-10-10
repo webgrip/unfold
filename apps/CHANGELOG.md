@@ -1,3 +1,26 @@
+## [unfold-v0.4.0-rc.62](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.61...unfold-v0.4.0-rc.62) (2026-10-10)
+
+### Added
+
+* **unfold:** answer standing questions about a Work Item from the record before asking a model ([36675ec](https://forgejo.webgrip.dev/webgrip/unfold/commit/36675ecfa879f9b6040fba2eba952a98ca143ca6))
+* **unfold:** ask about a session's Work Item from the Agents window chat ([25d8a12](https://forgejo.webgrip.dev/webgrip/unfold/commit/25d8a127b5e9b10c5d914d5ed6d66c875f618c12))
+
+### Fixed
+
+* **unfold:** keep candidate feedback an instruction in a stopped session ([5de7f6f](https://forgejo.webgrip.dev/webgrip/unfold/commit/5de7f6fa292660007075585acbd353cea859ea13))
+
+### Docs
+
+* record steering and asking in the Agents window chat ([592d5ae](https://forgejo.webgrip.dev/webgrip/unfold/commit/592d5ae38445522e053e11065c9400cbd81aa962))
+
+### Build
+
+* **ploeg:** pin Ploeg v0.2.0-rc.15 ([c24be88](https://forgejo.webgrip.dev/webgrip/unfold/commit/c24be8806ef012780a9f9acac52a7c20a9bae62f)), references [ploeg#99](https://forgejo.webgrip.dev/ploeg/issues/99)
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.5 [skip ci] ([d970c5b](https://forgejo.webgrip.dev/webgrip/unfold/commit/d970c5b630751dbd374afdd61d6f32a0a8e37fca))
+
 ## [unfold-v0.4.0-rc.61](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.60...unfold-v0.4.0-rc.61) (2026-10-10)
 
 ### Added
