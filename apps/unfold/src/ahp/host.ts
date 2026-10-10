@@ -4,10 +4,11 @@ import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { AgentHostView, Store } from '../store.ts';
 import type { Engine } from '../engine.ts';
-import { placements } from '../config.ts';
 import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile } from '../candidates.ts';
 import type { AppConfig, Event, PermissionRequest, Repository, Session, User, WorkspaceBackend } from '../types.ts';
 import type { Recovery } from '../engine.ts';
+import { SessionConfigError, acceptSessionConfig, approvalOf, changePendingConfig, composerModel, resolveSessionConfig, sessionConfigCompletions, sessionConfigSchema, sessionConfigState, startedConfigChange } from './session-config.ts';
+import { TrackerAutomations, automationsChannel, autonomousAutomationsMeta } from './automations.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
 import { IdleSessions, RememberedClients, ServerSequence, restoreActiveClients, saveActiveClients } from './continuity.ts';
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
@@ -260,6 +261,9 @@ export class AgentHost {
   private polling = false;
   private closed = false;
 
+  /** Ploeg's tracker routes as a read-only automation catalogue. */
+  readonly automations: TrackerAutomations;
+
   constructor(config: AppConfig, store: Store, engine: Engine) {
     this.config = config; this.store = store; this.engine = engine;
     this.sequence = new ServerSequence(store);
@@ -268,6 +272,11 @@ export class AgentHost {
     for (const clientId of new Set([...this.activeClients.values()].flatMap(clients => [...clients.keys()]))) this.awaitReturn(clientId);
     this.sweeper = setInterval(() => this.evictIdleSessions(), Math.min(60_000, this.idleSessions.idleMs));
     this.sweeper.unref();
+    this.automations = new TrackerAutomations(config, {
+      watchers: () => [...new Map([...this.clients].filter(client => client.initialized && client.subscriptions.has(automationsChannel)).map(client => [client.user.id, client.user])).values()],
+      publish: (userId, action) => this.broadcast(automationsChannel, action, undefined, client => client.user.id === userId),
+      workspaceFolder: repositoryId => { const name = repositoryWorkspaceNames(this.config.repositories).get(repositoryId); return name ? `${repositoriesDirectory}/${encodeURIComponent(name)}` : undefined; },
+    });
   }
 
   /** Evicts the projection and summary of every ended session nobody has subscribed to for the idle period; a later subscribe rebuilds them from the durable events. Returns the evicted session ids. */
@@ -378,7 +387,7 @@ export class AgentHost {
       .sort((a, b) => a.connectedAt.localeCompare(b.connectedAt));
   }
 
-  close(): void { this.closed = true; this.stopPolling(); clearInterval(this.sweeper); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
+  close(): void { this.closed = true; this.stopPolling(); clearInterval(this.sweeper); this.automations.close(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
 
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
@@ -443,7 +452,7 @@ export class AgentHost {
     return {
       agents: [{
         provider, displayName: 'Unfold crews', description: 'Operator-led agent crews in isolated workspaces; every session ends in a reviewable candidate.',
-        models: this.config.models.map(model => ({ id: model.id, provider, name: model.name })),
+        models: [{ ...composerModel(this.config), provider }],
         protectedResources: [],
       }],
       activeSessions: this.activeSessionCount(user),
@@ -463,23 +472,6 @@ export class AgentHost {
     if (!changed.length) return;
     for (const client of changed) client.activeSessions = counts.get(client);
     this.broadcast(rootChannel, viewer => ({ type: 'root/activeSessionsChanged', activeSessions: counts.get(viewer) }), undefined, viewer => changed.includes(viewer));
-  }
-
-  private configSchema(): Json {
-    const properties: Json = {
-      repository: { type: 'string', title: 'Repository', enum: this.config.repositories.map(repo => repo.id), enumDescriptions: this.config.repositories.map(repo => repo.name) },
-      crew: { type: 'string', title: 'Crew', enum: this.config.crews.map(crew => crew.id), enumDescriptions: this.config.crews.map(crew => crew.name) },
-      budgetUsd: { type: 'number', title: 'Session budget (USD)', minimum: 0.01, maximum: this.config.maxBudgetUsd },
-      title: { type: 'string', title: 'Session title' },
-    };
-    const options = placements(this.config);
-    if (options.length > 1) properties.placement = { type: 'string', title: 'Workspace placement', enum: options.map(item => item.id), enumDescriptions: options.map(item => item.name) };
-    return { type: 'object', properties, required: ['repository', 'crew', 'budgetUsd'] };
-  }
-
-  private defaultConfig(): Json {
-    const placement = placements(this.config).find(item => item.default)?.id;
-    return { repository: this.config.repositories[0]?.id, crew: this.config.crews[0]?.id, budgetUsd: Math.min(5, this.config.maxBudgetUsd), ...(placement ? { placement } : {}) };
   }
 
   summary(session: Session, view: View): Json {
@@ -534,7 +526,7 @@ export class AgentHost {
     return {
       ...this.summary(session, view), lifecycle: 'ready', activeClients: this.activeClientsOf(this.publicId(session.id)),
       chats: [this.chatSummary(session, view)], defaultChat: this.chatUri(session, view),
-      config: { schema: this.configSchema(), values: { repository: session.repositoryId, crew: session.crewId, budgetUsd: session.budgetUsd, title: session.title, ...(session.placement ? { placement: session.placement } : {}) } },
+      config: sessionConfigState(this.config, session),
       ...(changesets ? { changesets } : {}),
       inputNeeded: this.inputNeeded(session, view),
     };
@@ -656,7 +648,7 @@ export class AgentHost {
     if (projection.activeTurn) this.closeTurn(projection, 'complete', startedAt);
     const hostTurnId = `${session.id}-turn-${++projection.turnCounter}`;
     const turnId = this.acceptableTurnId(projection, requestedTurnId) ?? hostTurnId;
-    const message = { text, origin: { kind: origin }, ...(origin === 'user' && session.runs[0] ? { model: { id: this.config.models[0]?.id ?? 'coding' } } : {}) };
+    const message = { text, origin: { kind: origin }, ...(origin === 'user' && session.runs[0] ? { model: { id: composerModel(this.config).id } } : {}) };
     projection.activeTurn = { id: turnId, startedAt, message, responseParts: [], usage: undefined };
     return [this.tag(projection, { type: 'chat/turnStarted', turnId, startedAt, message }, `turn:${turnId}`)];
   }
@@ -1101,7 +1093,7 @@ export class AgentHost {
   }
 
   private pendingState(pending: PendingSession, view: View): Json {
-    return { ...this.pendingSummary(pending, view), lifecycle: 'ready', activeClients: this.activeClientsOf(pending.id), chats: [this.pendingChat(pending, view)], defaultChat: chatChannel(pending.id, view.scheme), config: { schema: this.configSchema(), values: pending.config }, inputNeeded: [] };
+    return { ...this.pendingSummary(pending, view), lifecycle: 'ready', activeClients: this.activeClientsOf(pending.id), chats: [this.pendingChat(pending, view)], defaultChat: chatChannel(pending.id, view.scheme), config: { schema: sessionConfigSchema(this.config, pending.config), values: pending.config }, inputNeeded: [] };
   }
 
   private fingerprint(session: Session): string {
@@ -1109,6 +1101,7 @@ export class AgentHost {
   }
 
   private async subscribe(client: Client, channel: string): Promise<Json> {
+    if (channel === automationsChannel && this.automations.available) { const state = await this.automations.snapshot(client.user); client.subscriptions.add(channel); return { resource: channel, state, fromSeq: this.serverSeq }; }
     const parsed = parseChannel(channel);
     if (parsed?.kind === 'changeset') { const session = this.sessionFor(client.user, channel); if (session) await this.loadCandidate(session); }
     const snapshot = this.snapshot(client, channel);
@@ -1139,7 +1132,7 @@ export class AgentHost {
       this.resumeActiveClient(params.clientId, Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
-      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, defaultDirectory: repositoriesDirectory, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };
+      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, defaultDirectory: repositoriesDirectory, ...(this.automations.available ? { automations: this.automations.capabilities() } : {}), ...(declaresSessionUris || this.automations.available ? { _meta: { ...(declaresSessionUris ? { [sessionUrisMeta]: true } : {}), ...(this.automations.available ? { [autonomousAutomationsMeta]: true } : {}) } } : {}), snapshots, terminalCommandPrefix: undefined };
     }
     if (method === 'reconnect' && !client.initialized) {
       const known = typeof params.clientId === 'string' ? this.knownClients.get(params.clientId) : undefined;
@@ -1153,9 +1146,9 @@ export class AgentHost {
       case 'reconnect': { const snapshots: Json[] = []; for (const channel of Array.isArray(params.subscriptions) ? params.subscriptions : []) snapshots.push(await this.subscribe(client, channel)); return { type: 'snapshot', snapshots }; }
       case 'subscribe': { if (typeof params.channel !== 'string') throw new RpcError(codes.invalidParams, 'channel is required'); return { snapshot: await this.subscribe(client, params.channel) }; }
       case 'listSessions': return { items: this.visible(client.user).map(session => this.summary(session, client)) };
-      case 'resolveSessionConfig': { const picked = this.repositoryFromPickedFolder(params.workingDirectory); return { schema: this.configSchema(), values: { ...this.defaultConfig(), ...(params.config ?? {}), ...(picked ? { repository: picked } : {}) } }; }
+      case 'resolveSessionConfig': return resolveSessionConfig(this.config, params.config, this.repositoryFromPickedFolder(params.workingDirectory));
       case 'resourceList': return this.listDirectory(params.uri);
-      case 'sessionConfigCompletions': { const schema = this.configSchema().properties[String(params.property)]; const values: string[] = schema?.enum ?? []; return { items: values.map((value, index) => ({ value, label: schema.enumDescriptions?.[index] ?? value })) }; }
+      case 'sessionConfigCompletions': return sessionConfigCompletions(resolveSessionConfig(this.config, params.config, this.repositoryFromPickedFolder(params.workingDirectory)).schema, String(params.property));
       case 'createSession': return this.createSession(client, params);
       case 'createChat': return this.createChat(client, params);
       case 'disposeSession': return this.disposeSession(client, params);
@@ -1170,6 +1163,12 @@ export class AgentHost {
         return { data: resource.data.toString('base64'), encoding: 'base64', contentType: params.encoding === 'base64' && text(resource.data) !== undefined ? resource.contentType : 'application/octet-stream' };
       }
       case 'invokeChangesetOperation': return this.invokeOperation(client, params);
+      case 'runAutomation': case 'fetchAutomationRuns': case 'listAutomationTriggerDefinitions': {
+        if (!this.automations.available) throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
+        const answer = await this.automations.command(client.user, method, params);
+        if ('refused' in answer) throw new RpcError(codes[answer.code], answer.refused);
+        return answer.result;
+      }
       case 'authenticate': return {};
       case 'getNetworkDiagnosticsInfo': return { version: applicationVersion, os: process.platform, arch: process.arch, proxySettings: {}, proxyEnv: {}, endpoints: [] };
       default: throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
@@ -1183,8 +1182,7 @@ export class AgentHost {
     if (params.provider && params.provider !== provider) throw new RpcError(codes.providerNotFound, 'Unknown provider');
     if (this.pending.has(parsed.id) || this.store.getSession(this.engineId(parsed.id)) || this.store.getSession(parsed.id)) throw new RpcError(codes.sessionExists, 'Session already exists');
     const picked = Array.isArray(params.workingDirectories) ? this.repositoryFromPickedFolder(params.workingDirectories[0]) : undefined;
-    const config = { ...this.defaultConfig(), ...(params.config && typeof params.config === 'object' ? params.config : {}), ...(picked ? { repository: picked } : {}) };
-    if (!this.config.repositories.some(repo => repo.id === config.repository) || !this.config.crews.some(crew => crew.id === config.crew)) throw new RpcError(codes.invalidParams, 'Choose a configured repository and crew');
+    const config = this.acceptedConfig(params.config, picked);
     const activeClient = params.activeClient as Json | undefined;
     if (activeClient !== undefined && (!activeClient || typeof activeClient !== 'object' || activeClient.clientId !== client.clientId)) throw new RpcError(codes.invalidParams, 'activeClient.clientId must be the clientId this client initialized with');
     const pending: PendingSession = { id: parsed.id, uri: channel, config, user: client.user, createdAt: new Date().toISOString() };
@@ -1239,7 +1237,7 @@ export class AgentHost {
     pending.starting = true;
     let session: Session;
     try {
-      session = this.engine.create({ title: String(pending.config.title ?? text.split('\n')[0]).slice(0, 160) || 'Agent host session', objective: text, repositoryId: String(pending.config.repository), crewId: String(pending.config.crew), runtime: this.config.mode === 'demo' ? 'demo' : this.config.runtime.kind, placement: pending.config.placement as WorkspaceBackend | undefined, budgetUsd: Number(pending.config.budgetUsd) }, pending.user);
+      session = this.engine.create({ title: String(pending.config.title ?? text.split('\n')[0]).slice(0, 160) || 'Agent host session', objective: text, repositoryId: String(pending.config.repository), crewId: String(pending.config.crew), runtime: this.config.mode === 'demo' ? 'demo' : this.config.runtime.kind, placement: pending.config.placement as WorkspaceBackend | undefined, approval: approvalOf(pending.config), budgetUsd: Number(pending.config.budgetUsd) }, pending.user);
     } catch (error) {
       pending.starting = false;
       this.broadcast(pending.uri, { type: 'session/creationFailed', error: { errorType: (error as Json)?.code ?? 'create_failed', message: (error as Error)?.message ?? 'Could not create the session' } });
@@ -1325,6 +1323,28 @@ export class AgentHost {
       this.persistActiveClients();
       this.broadcast(sessionChannel(publicId), { type: 'session/activeClientRemoved', clientId });
     }
+  }
+
+  private acceptedConfig(requested: unknown, picked?: string): Json {
+    try { return acceptSessionConfig(this.config, requested, picked); }
+    catch (error) { if (error instanceof SessionConfigError) throw new RpcError(codes.invalidParams, error.message); throw error; }
+  }
+
+  private changePendingConfig(client: Client, channel: string, pending: PendingSession, action: Json, origin: Origin): string | undefined {
+    if (pending.starting) return 'The session is already starting';
+    try { pending.config = changePendingConfig(this.config, pending.config, action.config, action.replace === true); }
+    catch (error) { if (error instanceof SessionConfigError) return error.message; throw error; }
+    this.echo(client, channel, { type: 'session/configChanged', config: pending.config, replace: true }, origin);
+    return undefined;
+  }
+
+  private async changeStartedConfig(client: Client, channel: string, session: Session, action: Json, origin: Origin): Promise<string | undefined> {
+    let change: ReturnType<typeof startedConfigChange>;
+    try { change = startedConfigChange(session, action.config); }
+    catch (error) { if (error instanceof SessionConfigError) return error.message; throw error; }
+    const current = change.approval ? await this.engine.setApproval(session.id, change.approval, client.user) : session;
+    this.echo(client, channel, { type: 'session/configChanged', config: sessionConfigState(this.config, current).values, replace: true }, origin);
+    return undefined;
   }
 
   private renameSession(client: Client, channel: string, session: Session, action: Json, origin: Origin): undefined {
@@ -1525,6 +1545,7 @@ export class AgentHost {
       case 'chat/turnStarted': return kind === 'chat' ? this.startFromPending(pending, action.message ?? {}, origin, action.turnId) : 'chat/turnStarted is dispatched on the chat channel';
       case 'session/activeClientSet': case 'session/activeClientRemoved': return kind === 'session' ? this.setActiveClient(client, channel, pending.id, action, origin) : `${action.type} is dispatched on the session channel`;
       case 'chat/draftChanged': this.echo(client, channel, action, origin); return undefined;
+      case 'session/configChanged': return kind === 'session' ? this.changePendingConfig(client, channel, pending, action, origin) : 'session/configChanged is dispatched on the session channel';
       default: return `${String(action.type)} waits until the first message starts the session`;
     }
   }
@@ -1600,6 +1621,7 @@ export class AgentHost {
       case 'chat/truncated': return 'Unfold keeps a session\'s history as durable evidence, so it cannot be truncated; start a new session instead';
       case 'session/titleChanged': return kind === 'changeset' ? 'session/titleChanged is dispatched on the session or chat channel' : this.renameSession(client, channel, session, action, origin);
       case 'session/activeClientSet': case 'session/activeClientRemoved': return kind === 'session' ? this.setActiveClient(client, channel, this.publicId(session.id), action, origin) : `${action.type} is dispatched on the session channel`;
+      case 'session/configChanged': return kind === 'session' ? this.changeStartedConfig(client, channel, session, action, origin) : 'session/configChanged is dispatched on the session channel';
       case 'chat/draftChanged': case 'chat/inputAnswerChanged': case 'changeset/filesReviewChanged': this.echo(client, channel, action, origin); return undefined;
       default: return `Unsupported action ${String(action.type)}`;
     }
@@ -1618,6 +1640,7 @@ export class AgentHost {
         else reject(`Unsupported action ${String(action.type)}`);
         return;
       }
+      if (channel === automationsChannel && this.automations.available) { reject(this.automations.refuse(action)); return; }
       const parsed = parseChannel(channel);
       if (!parsed) { reject('Unknown channel'); return; }
       const pending = parsed.kind !== 'changeset' ? this.pending.get(parsed.id) : undefined;

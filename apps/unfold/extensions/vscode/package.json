@@ -341,7 +341,13 @@
           "scope": "application",
           "description": "Follow open session panels through the workbench event stream. Polling remains the fallback heartbeat."
         },
-        "unfold.notifications": {
+        "unfold.notifications.needsYou": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "Notify when a session you own needs you: a question or permission request (**Answer**), a result ready for review (**Review**), a stop with a recovery on offer (**Deliver** or **Open**) or a failure (**Open**). Each state change notifies once. Streamed tokens and tool completions never notify, and the demo raises none. VS Code shows extension notifications inside the window only; see the README for what happens while the window is in the background."
+        },
+        "unfold.notifications.workItems": {
           "type": "string",
           "enum": [
             "all",
@@ -350,12 +356,12 @@
           ],
           "default": "all",
           "enumDescriptions": [
-            "Notify for new decisions, failures, interruptions and sessions ready for human review",
-            "Notify only when a session needs a decision or attention",
-            "Never show notifications; the sidebar badge and status bar still update"
+            "Notify when a Ploeg Work Item on Now newly needs you or becomes ready for review",
+            "Notify only when a Ploeg Work Item newly needs you",
+            "Never notify for Ploeg Work Items; the badge and status bar still update"
           ],
           "scope": "application",
-          "description": "Which session transitions raise a notification. Streamed tokens and tool completions never notify."
+          "description": "Which Ploeg Work Items on Now raise a notification. A Work Item that one of your sessions drives notifies once, as that session."
         },
         "unfold.remoteHostAliases": {
           "type": "object",
