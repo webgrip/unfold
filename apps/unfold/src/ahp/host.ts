@@ -316,6 +316,7 @@ export class AgentHost {
       agents: [{
         provider, displayName: 'Unfold crews', description: 'Operator-led agent crews in isolated workspaces; every session ends in a reviewable candidate.',
         models: this.config.models.map(model => ({ id: model.id, provider, name: model.name })),
+        protectedResources: [],
       }],
       activeSessions: this.activeSessionCount(user),
     };

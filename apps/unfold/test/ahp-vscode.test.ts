@@ -137,3 +137,23 @@ test('VS Code 1.141 attaches: unfold URIs, the 0.10.0 offer negotiated down to 0
   assert.deepEqual(listed.map((item: Json) => [item.resource, item.status & (read | archived)]), [[session, read | archived]]);
   assert.ok(!JSON.stringify(vscode.inbox).includes(`ahp-session:/${id}`), 'a 1.141 client never sees the ahp-session spelling');
 });
+
+function resolveAgentAuthRequirementOfVscode1141(agent: Json): 'github' | 'none' | 'unusable' {
+  const copilot = (agent.protectedResources ?? []).some((resource: Json) => /githubcopilot|api\.github\.com/.test(String(resource.resource)));
+  if (!agent.protectedResources || copilot) return 'github';
+  return agent.models.length > 0 ? 'none' : 'unusable';
+}
+
+test('the agent declares no protected resource, so VS Code 1.141 does not gate Unfold behind GitHub sign-in', async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'VS Code 1.141 auth' } });
+  const vscode = client(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`, t);
+  await vscode.open;
+  const initialized = await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: randomUUID(), clientInfo: vscodeAgentsWindow, initialSubscriptions: ['ahp-root://'] });
+  const [agent] = initialized.snapshots[0].state.agents;
+  assert.deepEqual(agent.protectedResources, [], 'the connection token already authenticated the person');
+  assert.ok(agent.models.length > 0);
+  assert.equal(resolveAgentAuthRequirementOfVscode1141(agent), 'none');
+  assert.equal(resolveAgentAuthRequirementOfVscode1141({ ...agent, protectedResources: undefined }), 'github', 'without the field VS Code would ask for Copilot');
+});
