@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowState, agentsWindowStatusText, attachAgentHost, connectionAddress, detachAgentHost, editSetting, fileStore, hasAgentHost,
-  probeAgentHostToken, userSettingsFile, withAgentHost, withoutIssuedAgentHost,
+  isUnfoldAgentHostName, probeAgentHostToken, userSettingsFile, withAgentHost, withAgentHostNames, withoutIssuedAgentHost,
   type AgentHostEntry, type AgentHostStore, type AttachRequest, type SettingsConfiguration, type TokenProbe,
 } from '../src/agent-host.ts';
 
@@ -249,4 +249,27 @@ test('the Agents window counts as attached only when it connected with this edit
   assert.match(agentsWindowStatusText({ status: 'connected', client: window }, 'unfold.example')!.tooltip, /unfold\.example \(VS Code 1\.141\.0\)/);
   assert.match(agentsWindowStatusText({ status: 'not-connected' }, 'unfold.example')!.text, /not connected/);
   assert.equal(agentsWindowStatusText({ status: 'unknown' }, 'unfold.example'), undefined);
+});
+
+test('the entry is named Unfold for one workbench and Unfold (<host>) for each once there are several, keeping names the person chose', async t => {
+  const path = join(await folder(t), 'settings.json');
+  const entries = async () => JSON.parse(await readFile(path, 'utf8'))['chat.remoteAgentHosts'] as AgentHostEntry[];
+  const second = 'wss://second.example';
+  await writeFile(path, JSON.stringify({ 'chat.remoteAgentHosts': [{ address: 'dev-box:8080', name: 'Dev box' }] }));
+  await attachAgentHost(attachRequest(fileStore(path)).request);
+  assert.deepEqual((await entries()).map(item => item.name), ['Dev box', 'Unfold'], 'one workbench is just Unfold, and other hosts are left alone');
+  await attachAgentHost(attachRequest(fileStore(path), { address: second, mint: async () => ({ token: 'second-token', entry: { address: second, name: 'Unfold', connectionToken: 'second-token' } }) }).request);
+  assert.deepEqual((await entries()).map(item => [item.address, item.name]), [['dev-box:8080', 'Dev box'], [address, 'Unfold (unfold.example)'], [second, 'Unfold (second.example)']]);
+  assert.deepEqual(await attachAgentHost(attachRequest(fileStore(path), { storedToken: 'minted-1', probed: 'valid' }).request), { status: 'unchanged', minted: false });
+  assert.equal(await detachAgentHost(fileStore(path), second, 'second-token'), true);
+  assert.deepEqual((await entries()).map(item => item.name), ['Dev box', 'Unfold'], 'back to one workbench, back to Unfold');
+});
+
+test('a renamed entry keeps its name and no longer counts as one of Unfold\'s', () => {
+  const renamed = withAgentHostNames([{ address: 'wss://a.example', name: 'Team workbench' }, { address: 'wss://b.example', name: 'Unfold (old.example)' }]);
+  assert.deepEqual(renamed.map(item => item.name), ['Team workbench', 'Unfold']);
+  assert.deepEqual(withAgentHostNames([{ address: 'wss://a.example', name: 'Unfold' }, { address: 'wss://a.example/', name: 'Unfold' }]).map(item => item.name), ['Unfold', 'Unfold'], 'two spellings of one address are one workbench');
+  assert.equal(isUnfoldAgentHostName('Unfold (127.0.0.1:4080)'), true);
+  assert.equal(isUnfoldAgentHostName('Unfold staging'), false);
+  assert.equal(isUnfoldAgentHostName(undefined), false);
 });

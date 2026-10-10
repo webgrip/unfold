@@ -36,6 +36,28 @@ export function withAgentHost(entries: readonly AgentHostEntry[] | undefined, en
   return [...(entries ?? []).filter(item => !sameHost(item, entry.address ?? '')), entry];
 }
 
+/** A name Unfold gives its own entries: `Unfold`, or `Unfold (<host>)` when the person has more than one workbench. Any other name is the person's. */
+export function isUnfoldAgentHostName(name: string | undefined): boolean {
+  return name === 'Unfold' || (typeof name === 'string' && /^Unfold \([^()]+\)$/.test(name));
+}
+
+function hostOf(address: string): string {
+  try { return new URL(/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(address) ? address : `ws://${address}`).host || address; } catch { return address; }
+}
+
+/**
+ * Names every entry that carries an Unfold name: `Unfold` while it is the only one, `Unfold (<host>)` for each once there
+ * are several workbenches. Entries the person renamed, and other hosts, keep their names.
+ */
+export function withAgentHostNames(entries: readonly AgentHostEntry[]): AgentHostEntry[] {
+  const unfold = new Set(entries.filter(item => item.address && isUnfoldAgentHostName(item.name)).map(item => agentHostAddressKey(item.address)));
+  return entries.map(item => {
+    if (!item.address || !isUnfoldAgentHostName(item.name)) return item;
+    const name = unfold.size > 1 ? `Unfold (${hostOf(item.address)})` : 'Unfold';
+    return item.name === name ? item : { ...item, name };
+  });
+}
+
 export function hasAgentHost(entries: readonly AgentHostEntry[] | undefined, address: string): boolean {
   return Boolean(agentHostEntry(entries, address));
 }
@@ -251,7 +273,6 @@ export type IssuedAgentHost = { token: string; entry: AgentHostEntry };
 export type AttachRequest = {
   store: AgentHostStore;
   address: string;
-  name?: string;
   storedToken: string | undefined;
   when: 'always' | 'missing' | 'present';
   probe(token: string): Promise<TokenProbe>;
@@ -271,14 +292,21 @@ export async function attachAgentHost(request: AttachRequest): Promise<AttachOut
   const existingEntry = agentHostEntry(await request.store.read(), request.address);
   if ((request.when === 'missing' && existingEntry) || (request.when === 'present' && !existingEntry)) return { status: 'skipped', minted: false };
   const reusable = request.storedToken && (await request.probe(request.storedToken)) !== 'invalid' ? request.storedToken : undefined;
-  if (reusable && existingEntry?.connectionToken === reusable) return { status: 'unchanged', minted: false };
-  const issued = reusable ? { token: reusable, entry: { address: request.address, name: request.name ?? 'Unfold', connectionToken: reusable } } : await request.mint();
+  const named = (entries: readonly AgentHostEntry[] | undefined, entry: AgentHostEntry) => withAgentHostNames(withAgentHost(entries, entry));
+  if (reusable && existingEntry?.connectionToken === reusable) {
+    const entries = await request.store.read();
+    const renamed = named(entries, existingEntry);
+    if (JSON.stringify(renamed) === JSON.stringify(withAgentHost(entries, existingEntry))) return { status: 'unchanged', minted: false };
+    await request.store.update(current => named(current, existingEntry));
+    return { status: 'attached', minted: false };
+  }
+  const issued = reusable ? { token: reusable, entry: { address: request.address, name: 'Unfold', connectionToken: reusable } } : await request.mint();
   if (!reusable) {
     await request.remember(issued.token);
     if (request.storedToken) await request.retire?.(request.storedToken).catch(() => undefined);
   }
-  const entry = { ...issued.entry, name: existingEntry?.name ?? issued.entry.name };
-  await request.store.update(current => withAgentHost(current, entry));
+  const entry = { ...issued.entry, name: existingEntry?.name && !isUnfoldAgentHostName(existingEntry.name) ? existingEntry.name : 'Unfold' };
+  await request.store.update(current => named(current, entry));
   return { status: 'attached', minted: !reusable };
 }
 
@@ -287,7 +315,7 @@ export async function detachAgentHost(store: AgentHostStore, address: string, is
   if (!issuedToken) return false;
   const entries = await store.read();
   if (withoutIssuedAgentHost(entries, address, issuedToken).length === (entries ?? []).length) return false;
-  await store.update(current => withoutIssuedAgentHost(current, address, issuedToken));
+  await store.update(current => withAgentHostNames(withoutIssuedAgentHost(current, address, issuedToken)));
   return true;
 }
 
