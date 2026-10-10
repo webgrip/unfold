@@ -83,6 +83,10 @@ async function governed(t: TestContext) {
         else if (input.action === 'report') { state.remote.state = input.state; state.remote.stopConfirmed = input.stopConfirmed ?? state.remote.stopConfirmed; }
         else if (input.action === 'handback') state.remote.supervision = 'background';
         else if (input.action === 'take-control') state.remote.supervision = 'human';
+        else if (input.action === 'close') {
+          if (state.remote.state !== 'failed' || state.remote.closed) { res.writeHead(409).end(); return; }
+          state.remote.closed = true;
+        }
         state.remote.revision++;
         state.remote.expiresAt = new Date(Date.now() + 60000).toISOString();
         receipts.set(input.commandId, structuredClone(state.remote));
@@ -510,4 +514,27 @@ test('a standalone session mints its key with the repository MCP scope, and with
   }
   assert.deepEqual(standalone.grants, [undefined, gatewayTools]);
   assert.deepEqual(runtime.prepared.map(value => value.mcp), [undefined, gatewayTools]);
+});
+
+test('a failed session closes its Work Item in Ploeg once, and a live session cannot', async t => {
+  const f = await governed(t); const session = f.create();
+  const auth = await login(f.server.url);
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.state.remote?.state === 'running', 'execution did not start');
+  const live = await request(f.server.url, `/api/sessions/${session.id}/close-work-item`, { ...auth, method: 'POST', body: {} });
+  assert.equal(live.status, 409);
+  f.state.remote!.expiresAt = new Date(Date.now() - 1000).toISOString();
+  await until(() => f.server.app.store.getSession(session.id)?.status === 'failed', 'expired authority did not end the session');
+  f.state.remote!.state = 'failed';
+  const closed = await request(f.server.url, `/api/sessions/${session.id}/close-work-item`, { ...auth, method: 'POST', body: {} });
+  assert.equal(closed.status, 200);
+  assert.ok(closed.body.workItemClosedAt);
+  assert.equal(closed.body.status, 'failed', 'closing the Work Item does not rewrite the session');
+  assert.equal((f.state.remote as any).closed, true);
+  const revision = f.state.remote!.revision;
+  const again = await request(f.server.url, `/api/sessions/${session.id}/close-work-item`, { ...auth, method: 'POST', body: {} });
+  assert.equal(again.status, 200);
+  assert.equal(f.state.remote!.revision, revision, 'a second close sends no second command');
+  assert.equal(f.server.app.store.events(session.id).filter(event => event.type === 'session.work_item_closed').length, 1);
+  await assert.rejects(f.server.app.engine.closeWorkItem(session.id, outsider), { code: 'not_found' });
 });

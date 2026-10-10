@@ -291,6 +291,19 @@ export class Engine {
   async pause(id: string, user: User): Promise<Session> { return this.stop(id, user, 'paused'); }
   async cancel(id: string, user: User): Promise<Session> { return this.stop(id, user, 'cancelled'); }
 
+  async closeWorkItem(id: string, user: User): Promise<Session> {
+    const session = this.owned(id, user);
+    if (!['failed', 'cancelled'].includes(session.status)) throw new EngineError(409, 'invalid_state', 'Only an ended session can close its Work Item.');
+    if (session.workItemClosedAt) return session;
+    if (!this.authority?.current(id)) throw new EngineError(409, 'invalid_state', 'This session has no Ploeg Work Item to close.');
+    this.authority.authorize(user);
+    await this.authority.command(session, 'close', {}, user.id);
+    const current = this.store.getSession(id)!;
+    current.workItemClosedAt = new Date().toISOString();
+    this.save(current, 'session.work_item_closed', user.id, { message: 'Ploeg closed this session\'s Work Item. The session and its history stay as they are.' });
+    return this.store.getSession(id)!;
+  }
+
   async setSupervision(id: string, supervision: unknown, user: User): Promise<Session> {
     const session = this.owned(id, user);
     if (!['human', 'background'].includes(String(supervision))) throw new EngineError(400, 'invalid_supervision', 'Choose human or background supervision.');
