@@ -73,6 +73,7 @@ test('session statuses keep their labels, with the review decision and failure f
   assert.equal(statusLabel({ status: 'failed' }), 'Failed');
   assert.deepEqual(['waiting_input', 'failed', 'interrupted', 'completed', 'running', 'queued', 'paused', 'cancelled'].filter(status => sessionNeedsYou({ status })), ['waiting_input', 'failed', 'interrupted', 'completed']);
   assert.equal(sessionNeedsYou({ status: 'completed', review: { decision: 'accepted' } }), false);
+  assert.equal(sessionNeedsYou({ status: 'failed', workItemClosedAt: '2026-10-10T13:20:56Z' }), false, 'a failed session whose Work Item was closed waits on nobody');
 });
 
 test('a prefixed key picks its kind, an unprefixed key prefers Work Item states, and an unknown key is humanized', () => {
