@@ -119,7 +119,7 @@ def target_url(target, source):
     global checked
     parts = urlsplit(target)
     destination = None
-    for slug, app in [('de-vloer', 'unfold'), ('ploeg', 'ploeg')]:
+    for slug, app in [('ploeg', 'ploeg')]:
         old = f'https://forgejo.webgrip.dev/webgrip/{slug}/src/branch/development/'
         if target.startswith(old):
             destination = root / 'apps' / app / unquote(urlsplit(target[len(old):]).path)

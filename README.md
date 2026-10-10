@@ -82,7 +82,7 @@ Before you change behavior that crosses Ploeg and Unfold, read [managed executio
 
 ## History
 
-This repository was assembled from two applications, and it preserves both histories and 70 namespaced tags. On 2026-10-03 Ploeg moved to its own repository, with the module `github.com/ploeg-hq/ploeg` and releases from `v0.1.0`. The versions of Ploeg that Unfold published before the move are still available. The application formerly called Vloer is now named `unfold` across its package, image and chart ([ADR-0020](docs/adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md)). The [migration record](docs/migration.md) tracks the release cutover.
+This repository was assembled from two applications, and it preserves both histories and 70 namespaced tags. On 2026-10-03 Ploeg moved to its own repository, with the module `github.com/ploeg-hq/ploeg` and releases from `v0.1.0`. The versions of Ploeg that Unfold published before the move are still available. The [migration record](docs/migration.md) tracks the release cutover.
 
 ## License
 

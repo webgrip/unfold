@@ -128,7 +128,7 @@ Each surface comes with its status and what Glide puts on it. "Stable" means usa
 | `lm.registerTool` | Stable | Editor-context actions: attach the selection or diff to a Work Item instruction, open Run evidence | Only while the window is connected |
 | `authentication.registerAuthenticationProvider` | Stable | A `glide` account backed by Authentik with PKCE, replacing the cookie and password | Per-Tenant issuer in phase 2 |
 | Tree badges, status bar, Pseudoterminal | Stable | Needs-you count; Run logs streamed from Unfold's SSE | None |
-| VS Code Marketplace listing | Distribution | The extension is on Open VSX only (2,904 downloads; [API](https://open-vsx.org/api/webgrip/de-vloer)). Microsoft VS Code users, the Agents window users, cannot find it | Amends [ADR 0021](../../apps/unfold/docs/adrs/0021-the-extension-ships-through-open-vsx-first.md) |
+| VS Code Marketplace listing | Distribution | The extension is on Open VSX only (2,904 downloads under its former id at the time). Microsoft VS Code users, the Agents window users, cannot find it | Amends [ADR 0021](../../apps/unfold/docs/adrs/0021-the-extension-ships-through-open-vsx-first.md) |
 | VS Code agent OTel (`chat.agentHost.otel.*`) | Stable | The owner's own editor traces in the same Tempo as Runs | Personal setting; identity is personal data in phase 2 |
 | `git.worktreeSymlinkFolders` | Experimental | Faster worktrees for people working on Glide and on target repositories | Development experience only |
 | Dev container agent hosts | Experimental | A `.devcontainer/` for Glide's own repository | Not a Run toolchain path; see the Ploeg rows |
