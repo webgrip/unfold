@@ -58,8 +58,7 @@ test('the 059675b9 session reads as stopped in the Agents window: activity, an o
   assert.ok(state._meta['dev.webgrip.unfold'], 'Unfold\'s own facts stay');
   const turns = (await client.rpc('subscribe', { channel: chat })).snapshot.state.turns;
   const parts = turns.flatMap((turn: Json) => turn.responseParts);
-  assert.ok(parts.some((part: Json) => part.kind === 'systemNotification' && part.content === 'Implementer started · writes the change'));
-  assert.ok(parts.some((part: Json) => part.kind === 'systemNotification' && part.content === 'Reviewer started · reads the change and gives a verdict'));
+  assert.deepEqual(parts.filter((part: Json) => part.kind === 'toolCall' && part.toolCall.toolName === 'unfold_run').map((part: Json) => part.toolCall.invocationMessage), ['Implementer · writes the change', 'Reviewer · reads the change and gives a verdict'], 'each Run shows as a subagent, not as a notice');
   assert.ok(parts.some((part: Json) => part.kind === 'markdown' && /^\*\*Implementer\*\* finished\./.test(part.content)));
   const outcome = turns.at(-1).responseParts.at(-1);
   assert.equal(outcome.kind, 'markdown');
@@ -235,7 +234,9 @@ test('a message into a running session is acknowledged for the next Role and mar
   assert.equal(pickup.params.action.part.content, `Picked up by ${reader.roleName} at ${started.at.slice(11, 16)} UTC.`);
   assert.equal(pickup.params.action.turnId, 'steer');
   const reduced = chatActions(client, chat).reduce(reduceChat, { turns: [] });
-  assert.deepEqual(reduced.activeTurn.responseParts.filter((part: Json) => part.kind === 'systemNotification').map((part: Json) => part.content.split(' ')[0]), ['Queued', 'Reviewer', 'Picked'].map((word, index) => index === 1 ? reader.roleName : word));
+  assert.deepEqual(reduced.activeTurn.responseParts.filter((part: Json) => part.kind === 'systemNotification').map((part: Json) => part.content.split(' ')[0]), ['Queued', 'Picked']);
+  const spawned = chatActions(client, chat).filter(item => item.type === 'chat/toolCallStart' && item.toolName === 'unfold_run' && item.turnId === 'steer').map(item => item.displayName);
+  assert.deepEqual(spawned, [writer.roleName, reader.roleName], 'the working Role carries into the new turn as a subagent, and the next Role joins it');
 });
 
 test('a message into a queued session names the first Role, which picks it up when the session starts', { timeout: testTimeout(60_000) }, async t => {

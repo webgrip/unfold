@@ -11,6 +11,7 @@ import type { Recovery } from '../engine.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
 import { money } from '../../public/core/format.js';
+import { candidateEdits, carryRuns, parseRunChannel, runChatState, runChats, runFinished, runMessage, runRoute, runStarted, runTool, runTranscripts, stopRuns, toolActions, type RunTranscripts, type Spelling } from './runs.ts';
 
 /** The AHP compatibility baseline this host implements. It accepts any offered version in `>=0.9.0 <0.10.0`. */
 export const protocolVersion = '0.9.0';
@@ -75,7 +76,7 @@ type View = Pick<Client, 'user' | 'scheme'>;
 type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
 type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
-type Projection = { finalStop?: number; turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json>; choices: Map<string, Json>; holding?: string; startedRuns: Set<string>; finishedRuns: Set<string>; workingRun?: string; queuedInstructions: number };
+type Projection = { finalStop?: number; turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json>; choices: Map<string, Json>; holding?: string; startedRuns: Set<string>; finishedRuns: Set<string>; workingRun?: string; queuedInstructions: number; runs: RunTranscripts };
 type PendingSession = { id: string; uri: string; config: Json; user: User; createdAt: string; starting?: boolean };
 type CandidateView = { files: CandidateFile[]; counts: Map<string, { added: number; removed: number }> };
 
@@ -86,7 +87,9 @@ export const chatChannel = (id: string, scheme: SessionScheme = provider) => `ah
 export const changesetChannel = (id: string) => `ahp-changeset:/${id}`;
 
 /** Parses a session, chat or changeset channel in its current or earlier spelling into its kind and public session id. */
-export function parseChannel(uri: string): { kind: ChannelKind; id: string } | undefined {
+export function parseChannel(uri: string): { kind: ChannelKind; id: string; run?: string } | undefined {
+  const run = parseRunChannel(uri);
+  if (run) return { kind: 'chat', ...run };
   const plain = /^(unfold|ahp-session|ahp-chat|ahp-changeset):\/([A-Za-z0-9_-]{1,80})$/.exec(uri);
   if (plain) return { kind: plain[1] === 'ahp-chat' ? 'chat' : plain[1] === 'ahp-changeset' ? 'changeset' : 'session', id: plain[2] };
   const chat = /^ahp-chat:\/\/default\/([A-Za-z0-9_-]{1,400})$/.exec(uri);
@@ -97,7 +100,7 @@ export function parseChannel(uri: string): { kind: ChannelKind; id: string } | u
 const sessionIdFrom = (uri: string) => parseChannel(uri)?.id;
 const clientTurnId = /^[A-Za-z0-9_.:-]{1,128}$/;
 const actionOrigins = new WeakMap<Json, Origin>();
-const channelKey = (uri: string) => { const parsed = parseChannel(uri); return parsed ? `${parsed.kind}:${parsed.id}` : uri; };
+const channelKey = (uri: string) => { const parsed = parseChannel(uri); return parsed ? `${parsed.kind}:${parsed.id}${parsed.run ? `:${parsed.run}` : ''}` : uri; };
 
 const codes = { parse: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internal: -32603, sessionNotFound: -32001, providerNotFound: -32002, sessionExists: -32003, turnInProgress: -32004, unsupportedVersion: -32005, authRequired: -32007, notFound: -32008, permissionDenied: -32009, conflict: -32011 };
 
@@ -489,12 +492,14 @@ export class AgentHost {
     const changesets = this.changesets(session);
     return {
       ...this.summary(session, view), lifecycle: 'ready', activeClients: this.activeClientsOf(this.publicId(session.id)),
-      chats: [this.chatSummary(session, view)], defaultChat: this.chatUri(session, view),
+      chats: [this.chatSummary(session, view), ...runChats(this.projection(session).runs, this.spelling(session, view))], defaultChat: this.chatUri(session, view),
       config: { schema: this.configSchema(), values: { repository: session.repositoryId, crew: session.crewId, budgetUsd: session.budgetUsd, title: session.title, ...(session.placement ? { placement: session.placement } : {}) } },
       ...(changesets ? { changesets } : {}),
       inputNeeded: this.inputNeeded(session, view),
     };
   }
+
+  private spelling(session: Session, view: Pick<View, 'scheme'>): Spelling { return { session: sessionChannel(this.publicId(session.id), view.scheme), chat: chatChannel(this.publicId(session.id), view.scheme) }; }
 
   chatSummary(session: Session, view: View): Json {
     return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).chat, activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: session.status === 'completed' ? 'read-only' : 'full' };
@@ -597,7 +602,7 @@ export class AgentHost {
   private projection(session: Session): Projection {
     let projection = this.projections.get(session.id);
     if (!projection) {
-      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map(), answers: new Map(), choices: new Map(), startedRuns: new Set(), finishedRuns: new Set(), queuedInstructions: 0 };
+      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map(), answers: new Map(), choices: new Map(), startedRuns: new Set(), finishedRuns: new Set(), queuedInstructions: 0, runs: runTranscripts(sessionChannel(this.publicId(session.id))) };
       this.projections.set(session.id, projection);
       this.openTurn(projection, session, session.objective, session.createdAt, this.store.getSecret<string>(`ahp-turn:${session.id}`));
       const events = this.store.events(session.id);
@@ -614,7 +619,7 @@ export class AgentHost {
     const turnId = this.acceptableTurnId(projection, requestedTurnId) ?? hostTurnId;
     const message = { text, origin: { kind: origin }, ...(origin === 'user' && session.runs[0] ? { model: { id: this.config.models[0]?.id ?? 'coding' } } : {}) };
     projection.activeTurn = { id: turnId, startedAt, message, responseParts: [], usage: undefined };
-    return [this.tag(projection, { type: 'chat/turnStarted', turnId, startedAt, message }, `turn:${turnId}`)];
+    return [this.tag(projection, { type: 'chat/turnStarted', turnId, startedAt, message }, `turn:${turnId}`), ...carryRuns(projection.runs, projection.activeTurn)];
   }
 
   private acceptableTurnId(projection: Projection, turnId: unknown): string | undefined {
@@ -726,13 +731,14 @@ export class AgentHost {
     const data = event.data as Json;
     const actions: Json[] = [];
     const ensureTurn = () => { if (!projection.activeTurn) actions.push(...this.openTurn(projection, session, session.objective, event.at)); return projection.activeTurn!; };
+    actions.push(...stopRuns(projection.runs, event, projection.activeTurn, projection.turns));
     switch (event.type) {
       case 'session.started': { ensureTurn(); actions.push(...this.addPart(projection, { kind: 'systemNotification', content: data.resumed ? 'Session resumed by the operator.' : 'Session started.' })); break; }
       case 'workspace.ready': { ensureTurn(); actions.push(...this.addPart(projection, { kind: 'systemNotification', content: `Workspace ready (${data.backend}, ${data.isolation}).` })); break; }
       case 'run.started': {
         ensureTurn();
         if (event.runId) { projection.startedRuns.add(event.runId); projection.workingRun = event.runId; }
-        actions.push(...this.addPart(projection, { kind: 'systemNotification', content: `${data.role} started · ${data.mode === 'read' ? 'reads the change and gives a verdict' : 'writes the change'}` }));
+        actions.push(...runStarted(projection.runs, session, event, projection.activeTurn!));
         if (projection.queuedInstructions) {
           const count = projection.queuedInstructions;
           projection.queuedInstructions = 0;
@@ -753,6 +759,7 @@ export class AgentHost {
           break;
         }
         if (typeof data.text !== 'string') break;
+        actions.push(...runMessage(projection.runs, event));
         const turn = ensureTurn();
         const key = `${event.runId ?? 'run'}:${data.partId ?? 'summary'}`;
         let partId = projection.parts.get(key);
@@ -767,25 +774,8 @@ export class AgentHost {
         break;
       }
       case 'tool': {
-        const turn = ensureTurn();
-        const name = String(data.name ?? 'tool');
-        const status = String(data.status ?? 'unknown');
-        let toolCallId = projection.openTools.get(name);
-        if (!toolCallId) {
-          toolCallId = `${turn.id}-tool-${turn.responseParts.length + 1}`;
-          projection.openTools.set(name, toolCallId);
-          const toolCall = { toolCallId, toolName: name, displayName: name, status: 'running', invocationMessage: `Running ${name}`, confirmed: 'not-needed' };
-          turn.responseParts.push({ kind: 'toolCall', toolCall });
-          actions.push({ type: 'chat/toolCallStart', turnId: turn.id, toolCallId, toolName: name, displayName: name });
-          actions.push({ type: 'chat/toolCallReady', turnId: turn.id, toolCallId, invocationMessage: `Running ${name}`, confirmed: 'not-needed' });
-        }
-        if (['completed', 'error'].includes(status)) {
-          const part = turn.responseParts.find((item: Json) => item.kind === 'toolCall' && item.toolCall.toolCallId === toolCallId)!;
-          const result = { success: status === 'completed', pastTenseMessage: status === 'completed' ? `Ran ${name}` : `${name} failed` };
-          part.toolCall = { ...part.toolCall, status: 'completed', ...result };
-          projection.openTools.delete(name);
-          actions.push({ type: 'chat/toolCallComplete', turnId: turn.id, toolCallId, result });
-        }
+        const routed = runTool(projection.runs, event);
+        actions.push(...(routed ?? toolActions(ensureTurn(), projection.openTools, event)));
         break;
       }
       case 'permission': {
@@ -833,6 +823,7 @@ export class AgentHost {
       case 'run.finished': {
         if (event.runId) { if (data.status === 'completed') projection.finishedRuns.add(event.runId); if (projection.workingRun === event.runId) projection.workingRun = undefined; }
         const turn = ensureTurn();
+        actions.push(...runFinished(projection.runs, session, event, turn, projection.turns, artifact => this.artifactFiles(session).filter(file => file.id.startsWith(`${artifact}-`)).map(file => file.edit)));
         const role = session.runs.find(run => run.id === event.runId)?.roleName ?? 'Role';
         const verdict = typeof data.verdict === 'string' ? verdictWords[data.verdict] ?? data.verdict : '';
         const text = [`**${role}** ${data.status === 'completed' ? verdict || 'finished' : `stopped (${String(data.status ?? 'ended').replaceAll('_', ' ')})`}.`, data.summary ? String(data.summary) : ''].filter(Boolean).join('\n\n');
@@ -840,7 +831,7 @@ export class AgentHost {
         actions.push(...this.addPart(projection, { kind: 'markdown', id: partId, content: text }));
         break;
       }
-      case 'candidate.ready': { const turn = projection.activeTurn; if (turn) actions.push(...this.addPart(projection, { kind: 'systemNotification', content: 'A reviewable candidate has been captured.' })); break; }
+      case 'candidate.ready': { const turn = projection.activeTurn; if (turn) actions.push(...this.addPart(projection, { kind: 'systemNotification', content: 'A reviewable candidate has been captured.' }), ...candidateEdits(session, turn, this.loadedCandidateEdits(this.store.getSession(session.id) ?? session))); break; }
       case choiceEvents.offered: actions.push(...this.offerChoice(projection, session, event)); break;
       case choiceEvents.answered: actions.push(...this.choiceAnswered(projection, session, event)); break;
       case choiceEvents.reported: actions.push(...this.choiceReply(projection, session, event)); break;
@@ -862,6 +853,12 @@ export class AgentHost {
       default: break;
     }
     return actions;
+  }
+
+  private loadedCandidateEdits(session: Session): Json[] {
+    const key = this.candidateKey(session);
+    const view = key ? this.candidates.get(key) : undefined;
+    return view ? this.candidateFiles(session, view).map(file => file.edit) : [];
   }
 
   /** The outcome part, when `event` is the session's last stop and the session has not run since. */
@@ -933,15 +930,18 @@ export class AgentHost {
       const watchers = new Map<string, User>();
       for (const client of this.clients) for (const channel of client.subscriptions) { const publicId = sessionIdFrom(channel); const id = publicId ? this.engineId(publicId) : undefined; if (id && !watched.has(id)) { const session = this.store.getSession(id); if (session) watched.set(id, session); } if (id && client.initialized && client.user.role !== 'viewer' && !watchers.has(id)) watchers.set(id, client.user); }
       for (const [id, session] of watched) {
+        if (!this.projections.has(id)) { await this.loadCandidate(session); if (this.closed) return; }
         const projection = this.projection(session);
         const publicId = this.publicId(id);
         const chat = chatChannel(publicId);
         const channel = sessionChannel(publicId);
         const arriving = this.store.events(id, projection.cursor);
+        if (arriving.some(event => event.type === 'candidate.ready')) { await this.loadCandidate(this.store.getSession(id) ?? session); if (this.closed) return; }
         const stop = arriving.findLast(event => finalStopTypes.has(event.type));
         if (stop) projection.finalStop = stop.id;
         const fresh = [...arriving.flatMap(event => this.reduce(projection, session, event)), ...this.settle(projection, session)];
-        for (const action of fresh) this.broadcast(chat, action, actionOrigins.get(action));
+        const spelling = (viewer: View) => this.spelling(session, viewer);
+        for (const action of fresh) { const route = runRoute(action, spelling, this.spelling(session, { scheme: provider })); this.broadcast(route?.channel ?? chat, route?.action ?? action, actionOrigins.get(action)); }
         const watcher = watchers.get(id);
         if (watcher) this.offerNextSteps(session, watcher);
         const unread = fresh.some(action => action.type === 'chat/turnStarted' || action.type === 'chat/inputRequested' || (action.type === 'chat/toolCallReady' && action.confirmationTitle !== undefined));
@@ -999,6 +999,7 @@ export class AgentHost {
     if (channel === rootChannel) { const state = this.rootState(client.user); client.activeSessions = state.activeSessions; return { resource: rootChannel, state, fromSeq: this.serverSeq }; }
     const parsed = parseChannel(channel);
     if (!parsed) throw new RpcError(codes.notFound, 'Unknown channel');
+    if (parsed.run) { const session = this.sessionFor(client.user, channel); const state = session && runChatState(this.projection(session).runs, parsed.run, this.spelling(session, client)); if (!state) throw new RpcError(codes.notFound, 'Unknown channel'); return { resource: channel, state, fromSeq: this.serverSeq }; }
     const pending = this.pending.get(parsed.id);
     if (pending && !this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
     if (pending && parsed.kind === 'session') return { resource: channel, state: this.pendingState(pending, client), fromSeq: this.serverSeq };
@@ -1056,7 +1057,8 @@ export class AgentHost {
 
   private async subscribe(client: Client, channel: string): Promise<Json> {
     const parsed = parseChannel(channel);
-    if (parsed?.kind === 'changeset') { const session = this.sessionFor(client.user, channel); if (session) await this.loadCandidate(session); }
+    const loading = parsed ? this.sessionFor(client.user, channel) : undefined;
+    if (loading) await this.loadCandidate(loading);
     const snapshot = this.snapshot(client, channel);
     client.subscriptions.add(channel);
     const publicId = sessionIdFrom(channel);
@@ -1516,6 +1518,7 @@ export class AgentHost {
       }
       const parsed = parseChannel(channel);
       if (!parsed) { reject('Unknown channel'); return; }
+      if (parsed.run) { reject('A Run\'s chat is read-only; send messages in the session\'s chat'); return; }
       const pending = parsed.kind !== 'changeset' ? this.pending.get(parsed.id) : undefined;
       if (pending && !this.mayView(client.user, pending.user.id)) { reject('Session not found'); return; }
       const flag = viewFlags[String(action.type)];

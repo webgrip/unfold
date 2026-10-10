@@ -378,7 +378,8 @@ test('each client sees every session in its own spelling: unfold:/ for a VS Code
   assert.equal((await modern.until(message => message.method === 'root/sessionSummaryChanged')).params.session, modernUri);
   assert.equal((await legacy.until(message => message.method === 'root/sessionSummaryChanged')).params.session, legacyUri);
   const chatUpdates = modern.inbox.filter(message => action(message, modernUri, 'session/chatUpdated'));
-  assert.ok(chatUpdates.length > 0 && chatUpdates.every(message => message.params.action.chat === modernChat));
+  const modernRunChats = `ahp-chat://subagent/${Buffer.from(modernUri).toString('base64url')}/`;
+  assert.ok(chatUpdates.some(message => message.params.action.chat === modernChat) && chatUpdates.every(message => message.params.action.chat === modernChat || message.params.action.chat.startsWith(modernRunChats)), 'the default chat and each Run\'s chat are named in the client\'s spelling');
   assert.deepEqual((await modern.rpc('listSessions', { channel: 'ahp-root://' })).items.map((item: Json) => item.resource), [modernUri]);
   assert.deepEqual((await legacy.rpc('listSessions', { channel: 'ahp-root://' })).items.map((item: Json) => item.resource), [legacyUri]);
   assert.deepEqual((await plain.rpc('listSessions', { channel: 'ahp-root://' })).items.map((item: Json) => item.resource), [modernUri]);
