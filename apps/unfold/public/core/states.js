@@ -252,8 +252,9 @@ export function sessionStatus(session) {
   return stateMeta(`session:${session?.status}`);
 }
 
-/** Whether a session waits on a person: it needs input, failed, was interrupted, or completed without a recorded review. */
+/** Whether a session waits on a person: it needs input, failed without its Work Item being closed, was interrupted, or completed without a recorded review. */
 export function sessionNeedsYou(session) {
+  if (session?.status === 'failed' && session.workItemClosedAt) return false;
   return ['waiting_input', 'failed', 'interrupted'].includes(session?.status) || (session?.status === 'completed' && !session.review);
 }
 
