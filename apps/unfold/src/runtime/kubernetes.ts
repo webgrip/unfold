@@ -23,6 +23,7 @@ export function workspaceName(sessionId: string): string {
 }
 
 const imagePullReasons = new Set(['ErrImagePull', 'ImagePullBackOff', 'InvalidImageName']);
+const creatingReasons = new Set(['ContainerCreating', 'PodInitializing']);
 
 /** Reads why a workspace Pod is not ready yet from its scheduling condition and container states. */
 export function podWait(pod: KubernetesObject | undefined): { phase: WorkspaceWaitPhase; reason?: string } {
@@ -30,14 +31,21 @@ export function podWait(pod: KubernetesObject | undefined): { phase: WorkspaceWa
   if (scheduled?.status === 'False' && scheduled.reason === 'Unschedulable' && !/PersistentVolumeClaim/.test(String(scheduled.message ?? ''))) return { phase: 'capacity', reason: scheduled.message };
   if (scheduled?.status !== 'True') return { phase: 'scheduling' };
   const statuses = [...(pod!.status.initContainerStatuses ?? []), ...(pod!.status.containerStatuses ?? [])];
-  const pulling = statuses.map((item: any) => item.state?.waiting).find((waiting: any) => imagePullReasons.has(waiting?.reason));
+  const waits = statuses.map((item: any) => item.state?.waiting).filter(Boolean);
+  const pulling = waits.find((waiting: any) => imagePullReasons.has(waiting.reason));
   if (pulling) return { phase: 'image_unavailable', reason: [pulling.reason, pulling.message].filter(Boolean).join(': ') };
+  const blocked = waits.find((waiting: any) => waiting.reason && !creatingReasons.has(waiting.reason));
+  if (blocked) return { phase: 'container_error', reason: [blocked.reason, blocked.message].filter(Boolean).join(': ') };
+  const clone = pod!.status.initContainerStatuses?.find((item: any) => item.name === 'clone');
+  if (clone?.state?.running) return { phase: 'cloning' };
+  if (!clone?.state?.terminated) return { phase: 'creating' };
   return { phase: 'starting' };
 }
 
 export function waitFailure(wait: { phase: WorkspaceWaitPhase; reason?: string } | undefined): RuntimeFailure {
   if (wait?.phase === 'capacity') return new RuntimeFailure('capacity', 'workspace', 'not_submitted', undefined, wait.reason);
   if (wait?.phase === 'image_unavailable') return new RuntimeFailure('missing_executable', 'workspace', 'not_submitted', undefined, wait.reason);
+  if (wait?.phase === 'container_error') return new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, wait.reason);
   return new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, wait ? `The workspace was still ${wait.phase} when the time limit ran out.${wait.reason ? `\n${wait.reason}` : ''}` : undefined);
 }
 

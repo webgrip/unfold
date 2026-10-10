@@ -8,6 +8,7 @@ import { shell } from '../shell.js';
 import { live } from '../core/live.js';
 import { parseHash } from '../core/route.js';
 import { applyStatusReport } from '../core/status-signal.js';
+import { workspacePhaseLabel, workspacePhaseProblem } from '../core/states.js';
 
 const waitingShown = 5;
 const linksShown = 3;
@@ -19,14 +20,6 @@ const steps = [
 ];
 const stateWords = { ok: 'Working', degraded: 'Unreliable', down: 'Stopped here', idle: 'Not proven recently', not_used: 'Not used here', ready: 'Ready', unproven: 'Not proven', unreached: 'Not reached' };
 const noteLooks = { info: { tone: 'info', label: 'Information' }, degraded: { tone: 'attention', label: 'Work starts, but not reliably' }, outage: { tone: 'danger', label: 'New work cannot start' } };
-const phases = {
-  capacity: 'Waiting for a free machine',
-  image_unavailable: 'Workspace image unavailable',
-  scheduling: 'Finding a machine',
-  starting: 'Starting the workspace',
-  connecting: 'Connecting to the workspace',
-  preparing: 'Preparing the workspace',
-};
 
 let report = null;
 let failure = '';
@@ -90,7 +83,7 @@ export function answer(value) {
  * @param {string} phase
  * @returns {string}
  */
-export function phaseLabel(phase) { return phases[phase] ?? 'Preparing the workspace'; }
+export { workspacePhaseLabel as phaseLabel };
 
 function minutes(seconds) {
   return seconds < 90 ? plural(seconds, 'second') : plural(Math.round(seconds / 60), 'minute');
@@ -133,7 +126,7 @@ function waitingMarkup() {
   const shown = named.slice(0, waitingShown);
   const row = (glyph, title, text, extra = '') => `<li class="settings-item"><span class="settings-item-icon" aria-hidden="true">${icon(glyph)}</span><div class="settings-item-main"><p class="settings-item-title">${title}</p><p class="settings-item-text">${text}</p>${extra}</div></li>`;
   const rows = [
-    ...shown.map(wait => row(wait.phase === 'capacity' || wait.phase === 'image_unavailable' ? 'alert' : 'clock', `<a href="#session/${encodeURIComponent(wait.sessionId)}">${escape(wait.title || 'Untitled session')}</a>`, `${escape(phaseLabel(wait.phase))} · since ${timeAgo(wait.since)}`, wait.reason && wait.reason !== report.checks.find(check => check.id === 'workspaces')?.detail ? disclosure({ id: `status-wait-${wait.sessionId}`, plain: true, summary: 'Scheduler message', body: `<pre class="session-pre">${escape(wait.reason)}</pre>` }) : '')),
+    ...shown.map(wait => row(workspacePhaseProblem(wait.phase) ? 'alert' : 'clock', `<a href="#session/${encodeURIComponent(wait.sessionId)}">${escape(wait.title || 'Untitled session')}</a>`, `${escape(phaseLabel(wait.phase))} · since ${timeAgo(wait.since)}`, wait.reason && wait.reason !== report.checks.find(check => check.id === 'workspaces')?.detail ? disclosure({ id: `status-wait-${wait.sessionId}`, plain: true, summary: 'Scheduler message', body: `<pre class="session-pre">${escape(wait.reason)}</pre>` }) : '')),
     named.length > shown.length ? row('more', escape(plural(named.length - shown.length, 'more session')), 'Open Sessions to see them all.') : '',
     others.length ? row('user', escape(plural(others.length, 'other person’s session', 'other people’s sessions')), `Waiting since ${timeAgo(others.map(wait => wait.since).sort()[0])}`) : '',
   ].join('');

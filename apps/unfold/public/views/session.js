@@ -6,7 +6,7 @@ import { money, moneyHtml, parseAmount, plural, duration, time, dateTime, timeHt
 import { icon } from '../core/icons.js';
 import { markdown } from '../core/markdown.js';
 import { avatar, badge, button, card, chip, disclosure, dl, emptyState, iconButton, meter, skeleton, stateBadge, tabs, timeAgo, timeAt } from '../core/ui.js';
-import { sessionStatus, verdict as verdictMeta, workItemState } from '../core/states.js';
+import { sessionStatus, verdict as verdictMeta, workItemState, workspacePhaseLabel, workspacePhaseProblem, executionStateText } from '../core/states.js';
 import { repoName, crewName, runtimeName, placementName, isActive, providerName, statusLabel } from '../core/lookup.js';
 import { observabilityLinks, dashboardLinks } from '../core/observability.js';
 import { live } from '../core/live.js';
@@ -232,6 +232,8 @@ function eventMarkup(event) {
     const verdict = data.verdict ? verdictMeta(data.verdict) : null;
     return streamItem({ kind: 'system', tone: verdict?.tone === 'attention' ? 'attention' : 'success', marker: icon(verdict ? verdict.glyph : 'check'), head: `<span class="stream-text-inline"><strong>${escape(role)}</strong> finished${verdict ? ` · <span title="${escape(verdict.label)}">${escape(verdict.short)}</span>` : ''}</span>${at}`, body: data.summary ? `<p class="stream-note">${escape(data.summary)}</p>` : '' });
   }
+  if (event.type === 'workspace.waiting') return streamItem({ kind: 'system', tone: workspacePhaseProblem(data.phase) ? 'attention' : '', marker: icon(workspacePhaseProblem(data.phase) ? 'alert' : 'clock'), head: `<span class="stream-text-inline">${escape(data.message || workspacePhaseLabel(data.phase))}</span>${at}` });
+  if (event.type === 'execution.authority') return streamItem({ kind: 'system', tone: '', head: `<span class="stream-text-inline">${escape(executionStateText(data))}</span>${at}` });
   const display = data.message || data.summary || (event.type === 'workspace.ready' ? `Workspace ready · ${data.backend}` : event.type === 'run.started' ? `${data.role} started` : event.type === 'session.created' ? 'Session created. Budget authorized; no work started.' : event.type === 'session.started' ? data.resumed ? 'Resumed by the operator' : 'Session started' : event.type === 'run.completed' ? `${role} completed` : event.type === 'budget.increased' ? `Additional authorization: ${money(data.amountUsd)}` : event.type.startsWith('permission.') ? 'An operator decision was recorded' : event.type.startsWith('budget.') ? `Budget accounting: ${event.type.split('.').at(-1)}` : humanize(event.type));
   const tone = event.type.includes('failed') ? 'danger' : event.type.includes('completed') || event.type.endsWith('.ready') ? 'success' : '';
   return streamItem({ kind: 'system', tone, marker: tone === 'danger' ? icon('x-circle') : tone === 'success' ? icon('check') : '', head: `<span class="stream-text-inline">${escape(display)}</span>${at}` });
@@ -253,10 +255,17 @@ function visibleEvents() {
   return visible;
 }
 
+function startingPhase() {
+  const last = state.events.findLast(event => ['workspace.waiting', 'workspace.ready', 'session.started', 'run.started'].includes(event.type));
+  return last?.type === 'workspace.waiting' ? last : null;
+}
+
 function workingMarkup(session) {
   const run = session.runs.find(item => ['running', 'waiting_input'].includes(item.status));
   if (session.status === 'waiting_input') return streamItem({ kind: 'status', tone: 'attention', marker: icon('alert'), head: `<span class="stream-text-inline">${escape(run?.roleName || 'The crew')} is waiting for your decision at the top of this page.</span>` });
   if (!isActive(session)) return '';
+  const starting = !run && session.status !== 'exporting' ? startingPhase() : null;
+  if (starting) return `<li class="stream-item" data-kind="status" data-tone="live"><span class="stream-marker" aria-hidden="true"><span class="live-dot"></span></span><div class="stream-body"><div class="stream-head"><span class="stream-text-inline">${escape(workspacePhaseLabel(starting.data.phase))} · since ${timeHtml(starting.at, { display: 'time' })}</span></div></div></li>`;
   const text = session.status === 'exporting' ? 'Preparing the repository handoff' : `${run?.roleName || 'The crew'} is working`;
   return `<li class="stream-item" data-kind="status" data-tone="live"><span class="stream-marker" aria-hidden="true"><span class="live-dot"></span></span><div class="stream-body"><div class="stream-head"><span class="stream-text-inline">${escape(text)}${run?.startedAt ? ` · started ${timeHtml(run.startedAt, { display: 'time' })}` : ''}</span></div></div></li>`;
 }
@@ -396,13 +405,14 @@ function evidenceMarkup(session) {
   return `<section class="card flush session-evidence" aria-label="Evidence">${list}${panels}${composerMarkup(session)}</section>`;
 }
 
-function stepState(run) {
+function stepState(run, starting) {
   if (run.status === 'completed') return run.verdict ? (meta => ({ tone: meta.tone, html: `<span title="${escape(meta.label)}">${escape(meta.short)}</span>`, marker: icon(meta.glyph), verdict: true }))(verdictMeta(run.verdict)) : { tone: 'success', html: 'Done', marker: icon('check') };
   if (run.status === 'running') return { tone: 'live', html: run.startedAt ? `Working since ${timeHtml(run.startedAt, { display: 'time' })}` : 'Working', marker: '<span class="live-dot"></span>' };
   if (run.status === 'waiting_input') return { tone: 'attention', html: 'Waiting for you', marker: icon('alert') };
   if (run.status === 'failed') return { tone: 'danger', html: 'Failed', marker: icon('x') };
   if (run.status === 'paused') return { tone: 'neutral', html: 'Paused', marker: icon('pause') };
   if (run.status === 'cancelled') return { tone: 'neutral', html: 'Cancelled', marker: icon('stop') };
+  if (starting) return { tone: 'live', html: escape(workspacePhaseLabel(starting.data.phase)), marker: '<span class="live-dot"></span>' };
   return { tone: '', html: 'Waiting for its turn', marker: '' };
 }
 
@@ -410,7 +420,7 @@ function crewMarkup(session) {
   if (!session.runs.length) return '';
   const current = session.runs.findIndex(run => ['running', 'waiting_input', 'paused', 'failed'].includes(run.status));
   const steps = session.runs.map((run, index) => {
-    const shown = stepState(run);
+    const shown = stepState(run, index === session.runs.findIndex(item => item.status !== 'completed') && isActive(session) ? startingPhase() : null);
     const kind = run.mode === 'write' ? 'Writes the change' : index === session.runs.length - 1 ? 'Reviews independently' : 'Analyses';
     return `<li class="step session-step"${shown.tone ? ` data-tone="${shown.tone}"` : ''}${index === current ? ' aria-current="step"' : ''}><span class="step-marker">${shown.marker}</span><span class="session-step-text"><span class="step-label">${escape(run.roleName)}</span><span class="session-step-state">${shown.html}</span><span class="session-step-kind">${escape(kind)}</span></span></li>`;
   }).join('');

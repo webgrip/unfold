@@ -124,7 +124,11 @@ test('a workspace Pod no node has room for reports capacity while it waits and f
 test('pod waits read storage binding as scheduling and image pull errors as an unavailable image', () => {
   assert.deepEqual(podWait({ status: { conditions: [{ type: 'PodScheduled', status: 'False', reason: 'Unschedulable', message: 'pod has unbound immediate PersistentVolumeClaims' }] } }), { phase: 'scheduling' });
   assert.deepEqual(podWait({ status: { conditions: [{ type: 'PodScheduled', status: 'True' }], containerStatuses: [{ state: { waiting: { reason: 'ImagePullBackOff', message: 'Back-off pulling image' } } }] } }), { phase: 'image_unavailable', reason: 'ImagePullBackOff: Back-off pulling image' });
-  assert.deepEqual(podWait({ status: { conditions: [{ type: 'PodScheduled', status: 'True' }], initContainerStatuses: [{ state: { running: {} } }] } }), { phase: 'starting' });
+  const placed = (initContainerStatuses: unknown[], containerStatuses: unknown[] = []) => ({ status: { conditions: [{ type: 'PodScheduled', status: 'True' }], initContainerStatuses, containerStatuses } });
+  assert.deepEqual(podWait(placed([{ name: 'clone', state: { waiting: { reason: 'PodInitializing' } } }])), { phase: 'creating' });
+  assert.deepEqual(podWait(placed([{ name: 'clone', state: { running: {} } }])), { phase: 'cloning' });
+  assert.deepEqual(podWait(placed([{ name: 'clone', state: { terminated: { exitCode: 0 } } }], [{ name: 'agent', state: { running: {} } }])), { phase: 'starting' });
+  assert.deepEqual(podWait(placed([{ name: 'clone', state: { waiting: { reason: 'CreateContainerConfigError', message: 'secret "agent-keys" not found' } } }])), { phase: 'container_error', reason: 'CreateContainerConfigError: secret "agent-keys" not found' });
   assert.deepEqual(podWait(undefined), { phase: 'scheduling' });
 });
 
