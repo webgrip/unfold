@@ -143,6 +143,20 @@ test('a refresh publishes a paused team as a disabled route and a team that lost
   assert.equal(client.inbox.length, before, 'an unchanged catalogue publishes nothing');
 });
 
+test('the catalogue answers in the spelling VS Code 1.141 sends, ahp-automations: without the slashes', { timeout: testTimeout(20_000) }, async t => {
+  const f = await fixture(t);
+  const { client } = await f.attach('op-1');
+  const spelled = 'ahp-automations:';
+  const snapshot = (await client.rpc('subscribe', { channel: spelled })).snapshot;
+  assert.equal(snapshot.resource, spelled);
+  assert.ok(snapshot.state.entries.length > 0);
+  client.notify('dispatchAction', { channel: spelled, clientSeq: 1, action: { type: 'automation/removed', resource: snapshot.state.entries[0].resource } });
+  assert.match((await client.until(message => action(message, spelled, 'automation/removed'))).params.rejectionReason, /Ploeg team routing/);
+  f.state.teams = [team('silver', ['silver'], [], true), team('bronze', ['bronze']), team('unfold', []), team('gold', ['gold'], ['77'])];
+  await f.server.app.agentHost.automations.refresh();
+  assert.equal((await client.until(message => action(message, spelled, 'automation/set'))).params.action.automation.resource, 'ahp-automation:/tracker.board.silver');
+});
+
 test('a demo workbench advertises no automations and serves VS Code an empty catalogue, so initialize and reconnect succeed', { timeout: testTimeout(20_000) }, async t => {
   const server = await application('demo');
   t.after(() => server.close());

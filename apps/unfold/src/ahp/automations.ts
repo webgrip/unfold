@@ -7,6 +7,8 @@ type Json = Record<string, any>;
 
 /** The automation catalogue channel of AHP 0.9 and 1.0. */
 export const automationsChannel = 'ahp-automations://';
+/** Whether a channel is the catalogue: VS Code sends it as `URI.parse(automationsChannel).toString()`, which drops the empty authority's `//`. */
+export const isAutomationsChannel = (uri: string) => uri === automationsChannel || uri === 'ahp-automations:';
 /** The `InitializeResult._meta` key without which VS Code 1.141 reports a host's automations as needing an update. It declares that the host, not the client, evaluates triggers and runs automations. */
 export const autonomousAutomationsMeta = 'vscode.autonomousAutomations';
 /** The event-trigger type of a tracker route: Ploeg queues a Work Item when a team's tracker user is assigned to a task on the board. */

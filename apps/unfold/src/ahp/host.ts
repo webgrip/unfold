@@ -8,7 +8,7 @@ import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile }
 import type { AppConfig, Event, PermissionRequest, Repository, Session, User, WorkspaceBackend } from '../types.ts';
 import type { Recovery } from '../engine.ts';
 import { SessionConfigError, acceptSessionConfig, approvalOf, changePendingConfig, composerModel, resolveSessionConfig, sessionConfigCompletions, sessionConfigSchema, sessionConfigState, startedConfigChange } from './session-config.ts';
-import { TrackerAutomations, automationsChannel, autonomousAutomationsMeta } from './automations.ts';
+import { TrackerAutomations, automationsChannel, autonomousAutomationsMeta, isAutomationsChannel } from './automations.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
 import { IdleSessions, RememberedClients, ServerSequence, restoreActiveClients, saveActiveClients } from './continuity.ts';
 import { AnnouncedCustomizations, customizationRefusal, gatewayToolCall, rootConfigRefusal, sessionCustomizations, type GatewaySubject } from './customizations.ts';
@@ -112,7 +112,7 @@ const sessionIdFrom = (uri: string) => parseChannel(uri)?.id;
 const subscribedSessionId = (uri: string) => sessionIdFrom(uri) ?? parseTerminalChannel(uri)?.sessionId;
 const clientTurnId = /^[A-Za-z0-9_.:-]{1,128}$/;
 const actionOrigins = new WeakMap<Json, Origin>();
-const channelKey = (uri: string) => { const parsed = parseChannel(uri); const annotations = parsed ? undefined : parseAnnotationsChannel(uri); return parsed ? `${parsed.kind}:${parsed.id}${parsed.run ? `:${parsed.run}` : ''}` : annotations ? `annotations:${annotations.id}` : uri; };
+const channelKey = (uri: string) => { if (isAutomationsChannel(uri)) return automationsChannel; const parsed = parseChannel(uri); const annotations = parsed ? undefined : parseAnnotationsChannel(uri); return parsed ? `${parsed.kind}:${parsed.id}${parsed.run ? `:${parsed.run}` : ''}` : annotations ? `annotations:${annotations.id}` : uri; };
 
 const codes = { parse: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internal: -32603, sessionNotFound: -32001, providerNotFound: -32002, sessionExists: -32003, turnInProgress: -32004, unsupportedVersion: -32005, authRequired: -32007, notFound: -32008, permissionDenied: -32009, conflict: -32011 };
 
@@ -291,7 +291,7 @@ export class AgentHost {
       sessionPage: session => this.sessionPage(session),
     });
     this.automations = new TrackerAutomations(config, {
-      watchers: () => [...new Map([...this.clients].filter(client => client.initialized && client.subscriptions.has(automationsChannel)).map(client => [client.user.id, client.user])).values()],
+      watchers: () => [...new Map([...this.clients].filter(client => client.initialized && [...client.subscriptions].some(isAutomationsChannel)).map(client => [client.user.id, client.user])).values()],
       publish: (userId, action) => this.broadcast(automationsChannel, action, undefined, client => client.user.id === userId),
       workspaceFolder: repositoryId => { const name = repositoryWorkspaceNames(this.config.repositories).get(repositoryId); return name ? `${repositoriesDirectory}/${encodeURIComponent(name)}` : undefined; },
     });
@@ -1185,7 +1185,7 @@ export class AgentHost {
       client.subscriptions.add(channel);
       return snapshot;
     }
-    if (channel === automationsChannel) { const state = await this.automations.snapshot(client.user); client.subscriptions.add(channel); return { resource: channel, state, fromSeq: this.serverSeq }; }
+    if (isAutomationsChannel(channel)) { const state = await this.automations.snapshot(client.user); client.subscriptions.add(channel); return { resource: channel, state, fromSeq: this.serverSeq }; }
     const parsed = parseChannel(channel);
     if (parsed && isWorkItemSession(parsed.id)) { const snapshot = await this.workItemSnapshot(client, channel, parsed); client.subscriptions.add(channel); return snapshot; }
     const loading = parsed ? this.sessionFor(client.user, channel) : undefined;
@@ -2088,7 +2088,7 @@ export class AgentHost {
         return;
       }
       if (parseAnnotationsChannel(channel)) { const refused = this.review.dispatchAnnotation(client, channel, action, origin); if (refused) reject(refused); return; }
-      if (channel === automationsChannel) { reject(this.automations.refuse(action)); return; }
+      if (isAutomationsChannel(channel)) { reject(this.automations.refuse(action)); return; }
       const terminal = parseTerminalChannel(channel);
       if (terminal) { reject(this.sessionFor(client.user, sessionChannel(terminal.sessionId)) ? readOnlyTerminal : 'Terminal not found'); return; }
       const parsed = parseChannel(channel);
