@@ -23,6 +23,7 @@ class ControlledExecution implements AgentRuntime {
   stopFails = false;
   finishImmediately = false;
   beforeResult?: (context: ExecutionContext) => Promise<void> | void;
+  onStart?: (context: ExecutionContext) => void;
   async prepare(session: Session, repository: Repository, credential: Credential | undefined) {
     const workspace = session.workspace?.id || `workspace-${session.id}`;
     this.prepared.push({ session: session.id, key: credential?.key, workspace, mcp: repository.mcp });
@@ -30,6 +31,7 @@ class ControlledExecution implements AgentRuntime {
   }
   async execute(context: ExecutionContext): Promise<ExecutionResult> {
     this.calls++;
+    this.onStart?.(context);
     if (!this.finishImmediately) {
       try { await delay(60000, undefined, { signal: context.signal }); }
       catch (error) { this.aborted++; throw error; }
@@ -48,7 +50,7 @@ async function governed(t: TestContext) {
   const inferenceKey = randomBytes(32).toString('hex');
   const forbiddenMaster = randomBytes(32).toString('hex');
   process.env[env] = consumerToken;
-  const state = { unavailable: false, admissionGate: undefined as ReturnType<typeof deferred> | undefined, commandGate: undefined as ReturnType<typeof deferred> | undefined, commandGates: new Map<string, ReturnType<typeof deferred>>(), credentialGate: undefined as ReturnType<typeof deferred> | undefined, credentialStates: [] as string[], failCommands: new Set<string>(), afterApplyFailure: new Set<string>(), admissions: 0, credentialRequests: 0, blocks: 0, gatewayRequests: 0, commandAttempts: [] as { id: string; action: string }[], remote: undefined as RemoteExecution | undefined, capability: 'reserved', dropAdmissionResponse: false };
+  const state = { unavailable: false, admissionGate: undefined as ReturnType<typeof deferred> | undefined, commandGate: undefined as ReturnType<typeof deferred> | undefined, commandGates: new Map<string, ReturnType<typeof deferred>>(), credentialGate: undefined as ReturnType<typeof deferred> | undefined, credentialStates: [] as string[], failCommands: new Set<string>(), afterApplyFailure: new Set<string>(), admissions: 0, credentialRequests: 0, blocks: 0, gatewayRequests: 0, commandAttempts: [] as { id: string; action: string }[], remote: undefined as RemoteExecution | undefined, capability: 'reserved', dropAdmissionResponse: false, leaseMs: 60000, revisions: [] as { revision: number; at: string; actor: string; kind: string; detail: object }[] };
   const receipts = new Map<string, RemoteExecution>();
   const api = createServer(async (req, res) => {
     try {
@@ -62,7 +64,7 @@ async function governed(t: TestContext) {
       if (req.method === 'POST' && req.url === '/api/v1/operator/executions') {
         state.admissions++;
         if (state.admissionGate) await state.admissionGate.promise;
-        state.remote ??= { id: randomBytes(16).toString('hex'), workItemId: '9007199254740993', sessionId: input.sessionId, actor: String(req.headers['x-ploeg-actor']), team: input.team, demo: input.demo, state: 'admitted', revision: 1, generation: 1, supervision: 'human', expiresAt: new Date(Date.now() + 60000).toISOString(), stopConfirmed: true };
+        state.remote ??= { id: randomBytes(16).toString('hex'), workItemId: '9007199254740993', sessionId: input.sessionId, actor: String(req.headers['x-ploeg-actor']), team: input.team, demo: input.demo, state: 'admitted', revision: 1, generation: 1, supervision: 'human', expiresAt: new Date(Date.now() + state.leaseMs).toISOString(), stopConfirmed: true };
         if (state.dropAdmissionResponse) { state.dropAdmissionResponse = false; res.writeHead(503).end(); return; }
         send({ execution: state.remote }); return;
       }
@@ -88,11 +90,13 @@ async function governed(t: TestContext) {
           state.remote.closed = true;
         }
         state.remote.revision++;
-        state.remote.expiresAt = new Date(Date.now() + 60000).toISOString();
+        state.remote.expiresAt = new Date(Date.now() + state.leaseMs).toISOString();
         receipts.set(input.commandId, structuredClone(state.remote));
+        state.revisions.push({ revision: state.remote.revision, at: new Date().toISOString(), actor: state.remote.actor, kind: `execution.${input.action}`, detail: { state: state.remote.state } });
         if (state.afterApplyFailure.delete(input.action)) { res.writeHead(503).end(); return; }
         send({ execution: state.remote }); return;
       }
+      if (req.url.includes(`${state.remote.id}/events`)) { send({ events: state.revisions, nextCursor: state.revisions.at(-1)?.revision ?? 0, hasMore: false }); return; }
       if (req.url.endsWith('/spend')) { send({ capabilityState: state.capability, costStatus: 'unknown', observedUsd: null }); return; }
       if (req.url.endsWith('/credential')) {
         state.credentialRequests++;
@@ -467,6 +471,7 @@ test('a confirmed Ploeg execution requires its authority and never resumes stand
 test('losing Ploeg authority mid-run interrupts execution and blocks resume until reconciled', async t => {
   const f = await governed(t); const session = f.create();
   f.server.config.execution!.heartbeatMs = 50;
+  f.state.leaseMs = 5500;
   await f.server.app.engine.start(session.id, owner);
   await until(() => f.runtime.calls === 1, 'runtime did not start');
   f.state.unavailable = true;
@@ -476,6 +481,9 @@ test('losing Ploeg authority mid-run interrupts execution and blocks resume unti
   assert.equal(f.runtime.aborted, 1);
   const lost = f.server.app.store.events(session.id).find(event => event.type === 'execution.authority_lost');
   assert.equal(lost?.data.autoResumed, false);
+  assert.equal(lost?.data.cause, 'http');
+  assert.equal(lost?.data.status, 503);
+  assert.equal(typeof lost?.data.leaseLeftMs, 'number');
   assert.equal(f.server.app.store.getSecret(`authority-unresolved:${session.id}`), true);
   await assert.rejects(f.server.app.engine.resume(session.id, owner), { code: 'execution_unconfirmed' });
   f.state.unavailable = false;
@@ -483,6 +491,104 @@ test('losing Ploeg authority mid-run interrupts execution and blocks resume unti
   assert.equal(f.runtime.calls, 1, 'authority loss must never become an automatic retry');
   assert.equal(f.state.credentialRequests, 1);
   assert.equal(f.state.gatewayRequests, 0);
+});
+
+test('a missed heartbeat is recorded and the Run keeps going while the Ploeg lease holds', async t => {
+  const f = await governed(t); const session = f.create();
+  f.server.config.execution!.heartbeatMs = 50;
+  const errors: string[] = []; const original = console.error;
+  console.error = (line: string) => { errors.push(String(line)); };
+  t.after(() => { console.error = original; });
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'runtime did not start');
+  f.state.failCommands.add('heartbeat');
+  await until(() => f.server.app.store.events(session.id).filter(event => event.type === 'execution.heartbeat_missed').length >= 2, 'missed heartbeats were not recorded');
+  f.state.failCommands.delete('heartbeat');
+  const before = f.state.commandAttempts.filter(command => command.action === 'heartbeat').length;
+  await until(() => f.state.commandAttempts.filter(command => command.action === 'heartbeat').length > before + 1, 'heartbeats did not resume');
+  const current = f.server.app.store.getSession(session.id)!;
+  assert.equal(current.status, 'running');
+  assert.equal(f.runtime.aborted, 0);
+  assert(!f.server.app.store.events(session.id).some(event => event.type === 'execution.authority_lost'));
+  const missed = f.server.app.store.events(session.id).find(event => event.type === 'execution.heartbeat_missed')!;
+  assert.equal(missed.data.cause, 'http');
+  assert.equal(missed.data.status, 503);
+  assert(Number(missed.data.leaseLeftMs) > 5000, 'the lease had time left');
+  assert(errors.some(line => line.includes('"event":"execution.heartbeat_missed"')), 'the miss was not logged');
+  assert(!errors.some(line => line.includes(f.consumerToken)), 'the log leaked the Ploeg token');
+  await f.server.app.engine.cancel(session.id, owner);
+});
+
+test('a heartbeat Ploeg rejects as stale stops the Run at once, whatever the lease', async t => {
+  const f = await governed(t); const session = f.create();
+  f.server.config.execution!.heartbeatMs = 50;
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'runtime did not start');
+  f.state.remote!.revision += 5;
+  await until(() => f.server.app.store.events(session.id).some(event => event.type === 'execution.authority_lost'), 'a stale heartbeat did not stop the Run');
+  const lost = f.server.app.store.events(session.id).find(event => event.type === 'execution.authority_lost')!;
+  assert.equal(lost.data.cause, 'stale');
+  assert(Number(lost.data.leaseLeftMs) > 5000, 'the lease still had time left');
+  assert.equal(f.runtime.aborted, 1);
+  assert.equal(f.server.app.store.getSession(session.id)!.status, 'interrupted');
+});
+
+test('streamed message deltas are stored as a few events per part without losing or reordering text', async t => {
+  const f = await governed(t); const session = f.create();
+  f.runtime.finishImmediately = true;
+  const deltas = Array.from({ length: 2000 }, (_, index) => `t${index} `);
+  f.runtime.beforeResult = context => {
+    if (context.role.mode !== 'write') return;
+    for (const delta of deltas) context.emit({ type: 'message', data: { role: 'assistant', text: delta, nativeSessionId: 'native', partId: 'first' } });
+    context.emit({ type: 'tool', data: { name: 'read', status: 'completed', nativeSessionId: 'native', partId: 'tool-1' } });
+    for (const delta of ['after ', 'the ', 'tool']) context.emit({ type: 'message', data: { role: 'assistant', text: delta, nativeSessionId: 'native', partId: 'second' } });
+  };
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => !['queued', 'running', 'waiting_input'].includes(f.server.app.store.getSession(session.id)!.status), 'session did not finish');
+  const events = f.server.app.store.events(session.id).filter(event => ['message', 'tool'].includes(event.type) && event.data.nativeSessionId === 'native');
+  const messages = events.filter(event => event.type === 'message');
+  assert(messages.length < 50, `expected fewer than 50 stored message events, got ${messages.length}`);
+  assert.equal(messages.filter(event => event.data.partId === 'first').map(event => event.data.text).join(''), deltas.join(''));
+  assert.equal(messages.filter(event => event.data.partId === 'second').map(event => event.data.text).join(''), 'after the tool');
+  const toolAt = events.findIndex(event => event.type === 'tool');
+  assert(events.slice(0, toolAt).every(event => event.data.partId === 'first'), 'text before the tool must be stored before it');
+  assert(events.slice(toolAt + 1).every(event => event.data.partId === 'second'), 'text after the tool must be stored after it');
+});
+
+test('buffered message text is stored when the Run is stopped mid-stream', async t => {
+  const f = await governed(t); const session = f.create();
+  f.runtime.onStart = context => { if (context.role.mode === 'write') for (const delta of ['partial ', 'answer']) context.emit({ type: 'message', data: { role: 'assistant', text: delta, nativeSessionId: 'native', partId: 'only' } }); };
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'runtime did not start');
+  await f.server.app.engine.pause(session.id, owner);
+  const text = f.server.app.store.events(session.id).filter(event => event.type === 'message' && event.data.partId === 'only').map(event => event.data.text).join('');
+  assert.equal(text, 'partial answer');
+  await f.server.app.engine.cancel(session.id, owner);
+});
+
+test('Investigate reads both sides of an interrupted session without changing it', async t => {
+  const f = await governed(t); const session = f.create();
+  f.server.config.execution!.heartbeatMs = 50;
+  f.state.leaseMs = 5500;
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'runtime did not start');
+  f.state.failCommands.add('heartbeat');
+  await until(() => f.server.app.store.events(session.id).some(event => event.type === 'execution.reconciliation_required' || event.type === 'execution.reconciliation_pending'), 'the session did not stop');
+  f.state.failCommands.clear();
+  const commandsBefore = f.state.commandAttempts.length;
+  const eventsBefore = f.server.app.store.events(session.id).length;
+  const result = await request(f.server.url, `/api/sessions/${session.id}/investigation`, await login(f.server.url));
+  assert.equal(result.status, 200, result.text);
+  const body = JSON.parse(result.text);
+  assert.equal(body.class, 'ploeg_unreachable');
+  assert.equal(body.ploeg, 'read');
+  assert(body.timeline.some((item: { source: string }) => item.source === 'ploeg'), 'Ploeg revisions are part of the timeline');
+  assert.equal(f.state.commandAttempts.length, commandsBefore, 'investigating must not send Ploeg commands');
+  assert.equal(f.server.app.store.events(session.id).length, eventsBefore, 'investigating must not record events');
+  assert(![f.inferenceKey, f.consumerToken].some(value => result.text.includes(value)));
+  f.state.unavailable = true;
+  const offline = JSON.parse((await request(f.server.url, `/api/sessions/${session.id}/investigation`, await login(f.server.url))).text);
+  assert.equal(offline.ploeg, 'unavailable');
 });
 
 const gatewayTools: RepositoryMcp = { litellmTeamId: 'agents-orders', accessGroups: ['observability-read-orders'] };

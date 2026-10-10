@@ -537,6 +537,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             const after = Math.max(0, Math.floor(Number(url.searchParams.get('after')) || 0));
             return json(res, 200, sanitize(store.events(id, after)));
           }
+          if (method === 'GET' && action === 'investigation') return json(res, 200, sanitize(await engine.investigation(id)));
           if (method === 'GET' && action === 'permissions') return json(res, 200, sanitize(store.permissions(id).map(({ nativeId, ...request }) => request)));
           if (method === 'GET' && action === 'events') {
             if (streams.size >= 100) fault(429, 'streams', 'Too many live connections.');
