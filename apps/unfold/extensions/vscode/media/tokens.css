@@ -8,7 +8,9 @@
   --tone-severe: var(--vscode-unfold-severe, var(--vscode-charts-orange, #d18616));
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
   --radius-pill: 6px;
+  --unfold-fold: #D65162;
 }
+body.vscode-light, body.vscode-high-contrast-light { --unfold-fold: #D23A4E; }
 
 .tone, .tone-neutral { --tone: var(--tone-neutral); }
 .tone-live { --tone: var(--tone-live); }

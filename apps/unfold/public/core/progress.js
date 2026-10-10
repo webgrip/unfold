@@ -112,7 +112,7 @@ export function stopReason(session, events) {
   const at = stop?.at || session.updatedAt;
   const lostFirst = (events || []).find(event => event?.type === 'execution.authority_lost');
   const cause = lostFirst ? `Unfold lost Ploeg's authority to run it at ${time(lostFirst.at)}${lostFirst.data?.cause ? `, after Ploeg ${causeWords[lostFirst.data.cause] || 'did not answer'}` : ''}. ` : '';
-  if (reconciling) return { code: 'reconciliation', short: 'Ploeg holds it for reconciliation', sentence: `${cause}Ploeg stopped the execution and holds it for reconciliation. It will not retry by itself.`, at, retained: true };
+  if (reconciling) return { code: 'reconciliation', short: 'Ploeg holds it for reconciliation', sentence: `${cause}Ploeg stopped the execution and holds it for reconciliation. It will not retry by itself.`, cause: cause.trim(), at, retained: true };
   if (pending) return { code: 'reconciliation_pending', short: 'waiting for Ploeg to confirm the stop', sentence: 'Execution stopped here, and Ploeg has not confirmed the stop yet. Its budget stays reserved and nothing retries by itself.', at, retained: true };
   if (lost) return { code: 'authority_lost', short: 'Ploeg authority lost', sentence: 'Unfold lost Ploeg\'s authority to run it and stopped. Nothing retries by itself.', at, retained: Boolean(session.execution) };
   if (restarted) return { code: 'restart', short: 'Unfold restarted', sentence: 'The workbench restarted while it ran. Nothing resumed by itself.', at, retained: false };
@@ -284,7 +284,8 @@ export function sessionProgress(session, { events = [], now = Date.now(), viewer
       headline = [achieved, delivered || `stopped: ${reason?.short || 'interrupted'}`].filter(Boolean).join(' · ');
       short = lastReader ? `Stopped · ${lower(achieved)}` : reason ? `Stopped · ${reason.short}` : 'Stopped';
       const offered = recoveryActions(recovery);
-      next = recovery?.summary ? `${reason?.sentence ? `${reason.sentence} ` : ''}${recovery.summary}` : `${reason?.sentence || 'Execution stopped.'} ${offered.size ? 'You can act on it from here.' : approved ? 'This workbench does not offer delivery of approved work yet; Investigate shows the evidence, and the earlier Runs stay.' : 'Investigate shows the evidence; the earlier Runs stay.'}`;
+      const why = reason?.cause || reason?.sentence;
+      next = recovery?.summary ? `${why ? `${why} ` : ''}${recovery.summary}` : `${reason?.sentence || 'Execution stopped.'} ${offered.size ? 'You can act on it from here.' : approved ? 'This workbench does not offer delivery of approved work yet; Investigate shows the evidence, and the earlier Runs stay.' : 'Investigate shows the evidence; the earlier Runs stay.'}`;
       break;
     }
     case 'failed': headline = `${session.failure?.stage ? `${capital(String(session.failure.stage).replaceAll('_', ' '))} failed` : 'Failed'}${session.failure?.message ? `: ${session.failure.message}` : session.blocker ? `: ${session.blocker}` : ''}`; short = 'Failed'; next = session.failure?.remediation || 'Investigate to see why; nothing retries by itself.'; break;
@@ -296,13 +297,11 @@ export function sessionProgress(session, { events = [], now = Date.now(), viewer
   }
   const facts = [];
   for (const step of steps) {
-    if (step.state === 'cut_off') facts.push(`${capital(step.role)}'s Run was still recorded as running when the session stopped${step.finishedAt ? ` at ${time(step.finishedAt)}` : ''}; it is shown as cut off.`);
     if (step.verdict && !step.verdict.recorded) facts.push(`${capital(step.role)} ${verdictWords[step.verdict.key] || step.verdict.key} in its own transcript before it was cut off; no finished Run recorded that verdict. It is evidence for your review, not a decision.`);
   }
   const ploegRunning = (ploeg?.runs || []).filter(entry => entry?.state === 'running' || entry?.listedAs === 'running');
   if (ploegRunning.length && !sessionActive) facts.push(`Ploeg still lists ${ploegRunning.length === 1 ? `its ${ploegRunning[0].role || 'operator'} Run` : `${ploegRunning.length} Runs`} as running; this session stopped${reason?.at ? ` at ${time(reason.at)}` : ''}.`);
-  if (spend.status === 'observed') facts.push(`Spend is the gateway's observed ${spend.text}; it is not settled yet.`);
-  if (!demo && change.candidate !== 'ready' && ['stopped', 'failed'].includes(phase) && (writer || change.files)) facts.push('No candidate was captured, so the change is only in the Run\'s evidence.');
+  if (!demo && change.candidate !== 'ready' && ['stopped', 'failed'].includes(phase) && (writer || change.files)) facts.push(recoveryActions(recovery).has('deliver') ? 'No candidate was captured yet, so the change is only in the Run\'s evidence. Delivering captures it from the workspace first.' : 'No candidate was captured, so the change is only in the Run\'s evidence.');
   const actions = actionsFor(phase, session, { reason, change, approved, unrecorded: Boolean(lastReader && !lastReader.verdict.recorded), viewer, demo, budget: spend.budgetUsd, recovery });
   const activity = phase === 'working' ? `${capital(current?.role || 'The crew')} is working` : phase === 'preparing' ? 'Preparing the workspace' : short;
   return { phase, meta, headline, short, next, reason, current, steps, change, spend, facts, actions, activity, demo, workItemId: session?.execution?.workItemId ? String(session.execution.workItemId) : '', sessionId: session?.id || '' };

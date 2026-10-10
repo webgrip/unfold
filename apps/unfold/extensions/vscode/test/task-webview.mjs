@@ -167,8 +167,10 @@ try {
   await page.locator('.reason-chip', { hasText: 'Ploeg holds it for reconciliation' }).waitFor();
   const stoppedText = (await page.locator('#app').innerText()).replace(/\s+/g, ' ');
   assert.doesNotMatch(stoppedText, /1 Run running|1 running|Ploeg stopped this Work Item without a reason/, 'a stopped Work Item never reads as running or as an unknown stop');
-  assert.match((await page.locator('.stat', { hasText: 'Runs' }).innerText()).replace(/\s+/g, ' '), /2 implementer finished · reviewer cut off/);
-  assert.match((await page.locator('.stat', { hasText: 'Cost' }).innerText()).replace(/\s+/g, ' '), /US\$ 0,03 observed, not settled/);
+  assert.match((await page.locator('.stat', { hasText: 'Runs' }).innerText()).replace(/\s+/g, ' '), /2 1 Round · 1 Shift/);
+  assert.match((await page.locator('.stat-spend').innerText()).replace(/\s+/g, ' '), /US\$ 0,03 of US\$ [\d,]+ observed, not settled/, 'spend reads against its budget in one figure');
+  assert.equal(await page.locator('.stat', { hasText: 'Team' }).count(), 0, 'the Team is in the eyebrow, not repeated as a tile');
+  assert.equal(await page.locator('.eyebrow .brand-mark path').count(), 2, 'the eyebrow carries the Vouwvlieger: sheet and fold');
   await page.locator('.step', { hasText: 'Reviewer' }).getByText('Approved · from its transcript').waitFor();
   await page.locator('.change').getByText('unfold/059675b9-clown-readme').waitFor();
   await page.locator('.fact-list').getByText(/Ploeg still lists its operator Run as running/).waitFor();
@@ -184,11 +186,21 @@ try {
   assert.match(await page.locator('#announcement').textContent(), /^Stopped\. Reviewer approved in its transcript · stopped before delivery$/);
   await both('stopped-059675b9', () => page.getByRole('heading', { name: 'Reviewer approved in its transcript · stopped before delivery', level: 2 }).waitFor());
 
-  const recoverable = { ...stopped, linked: { ...stopped.linked, recovery: { summary: 'Reviewer approved the work before Ploeg stopped the session. It will not run again on its own: deliver the approved work, or run it again as a new session.', actions: [{ id: 'deliver', label: 'Deliver the approved work', available: true }, { id: 'resume', label: 'Resume', available: false }, { id: 'run_again', label: 'Run again', available: true }] } } };
+  const longReport = `I inspected the working-tree \`README.md\` directly and cross-checked its factual claims against the repo. Findings:\n\n- **Tone/objective:** fully rewritten in clown voice with every section still present.\n- **Facts preserved:** commands match \`mise.toml\`.\n- **Links:** referenced files exist.\n\n${'Recorded evidence is git diff --check plus the implementer report. '.repeat(6)}VERDICT: approve`;
+  const reviewedSession = { ...fixture.session, runs: fixture.session.runs.map((entry, index) => index === 1 ? { ...entry, summary: longReport } : entry) };
+  const recoverable = { ...stopped, linked: { ...stopped.linked, session: reviewedSession, recovery: { summary: 'Reviewer approved the work before Ploeg stopped the session. It will not run again on its own: deliver the approved work, or run it again as a new session.', actions: [{ id: 'deliver', label: 'Deliver the approved work', available: true }, { id: 'resume', label: 'Resume', available: false }, { id: 'run_again', label: 'Run again', available: true }] } } };
   await post({ type: 'state', view: recoverable });
   const deliver = page.getByRole('button', { name: 'Deliver the approved work' });
   await deliver.waitFor();
   assert.match(await deliver.getAttribute('class'), /primary/, 'delivering the approved work leads when the server offers it');
+  assert.equal(await page.locator('.reason-chip').count(), 0, 'the server\'s recovery summary explains the stop, so the internal hold is not a second chip');
+  assert.equal(await page.locator('.actions-elsewhere').getByRole('button', { name: 'Investigate' }).count(), 1, 'looking closer is a quieter row under the decision');
+  const report = page.locator('.step', { hasText: 'Reviewer' }).locator('.step-report');
+  assert.equal(await report.evaluate(node => node.open), false, 'a long report starts folded');
+  await report.locator('summary').click();
+  await report.locator('strong', { hasText: 'Facts preserved:' }).waitFor();
+  await post({ type: 'state', view: recoverable });
+  assert.equal(await page.locator('.step', { hasText: 'Reviewer' }).locator('.step-report').evaluate(node => node.open), true, 'an opened report stays open when the panel refreshes');
   await page.getByRole('button', { name: 'Run again' }).click();
   assert.deepEqual(await lastMessage(), { type: 'session-action', action: 'run-again', session: fixture.session.id });
   await post({ type: 'idle' });

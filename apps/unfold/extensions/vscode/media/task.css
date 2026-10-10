@@ -113,14 +113,39 @@ footer { flex-wrap: wrap; font-size: 11px; }
 .actions .destructive { color: var(--tone-danger); }
 .live-tag { font-size: 11px; padding: 1px 8px; }
 .step-list { list-style: none; margin: 0; padding: 0; counter-reset: step; }
-.step { position: relative; padding: var(--space-2) 0 var(--space-2) var(--space-6); border-top: 1px solid var(--border); counter-increment: step; }
-.step:first-child { border-top: 0; padding-top: 0; }
-.step::before { content: counter(step); position: absolute; left: 0; top: var(--space-2); width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); font-size: 11px; line-height: 16px; text-align: center; color: var(--muted); }
-.step:first-child::before { top: 0; }
-.step-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); font-size: 12px; }
+.step { position: relative; padding: 0 0 var(--space-4) calc(var(--space-6) + 4px); counter-increment: step; }
+.step:last-child { padding-bottom: 0; }
+.step::before { content: counter(step); position: absolute; left: 0; top: 0; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--tone, var(--border)); background: var(--vscode-editor-background); font-size: 11px; line-height: 18px; text-align: center; color: var(--muted); z-index: 1; }
+.step:not(:last-child)::after { content: ''; position: absolute; left: 10px; top: 22px; bottom: 2px; border-left: 1px solid var(--border); }
+.step-done { --tone: var(--tone-success); }
+.step-cut_off, .step-stopped { --tone: var(--tone-attention); }
+.step-working, .step-asking { --tone: var(--tone-live); }
+.step-failed { --tone: var(--tone-danger); }
+.step-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); font-size: 12px; min-height: 20px; }
 .step-head .access { margin-left: 0; }
 .step-time { margin-left: auto; white-space: nowrap; }
 .step-summary { margin: var(--space-1) 0 0; color: var(--muted); }
+.step-summary .markdown { font-size: 12px; }
+.step-summary .markdown > :first-child { margin-top: 0; }
+.step-summary .markdown > :last-child { margin-bottom: 0; }
+.step-report { margin-top: var(--space-1); }
+.step-report > summary { list-style: none; cursor: pointer; display: grid; gap: 2px; }
+.step-report > summary::-webkit-details-marker { display: none; }
+.step-preview { color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.step-more { color: var(--accent); }
+.step-more::after { content: ' ▾'; }
+.step-report[open] .step-preview { display: none; }
+.step-report[open] .step-more::after { content: ' ▴'; }
+.step-report[open] > summary { margin-bottom: var(--space-1); }
+.step-report[open] .step-summary { padding: var(--space-2) var(--space-3); border-left: 2px solid var(--border); max-height: 28em; overflow: auto; }
+
+.actions-elsewhere { margin-top: var(--space-2) !important; padding-top: var(--space-2); border-top: 1px solid var(--border); gap: var(--space-1) !important; }
+.actions-elsewhere button { padding-left: var(--space-2); padding-right: var(--space-2); }
+.stat-spend .stat-of { font-size: 12px; font-weight: 400; color: var(--muted); }
+.meter { display: block; height: 4px; margin: 6px 0 4px; border-radius: 2px; background: color-mix(in srgb, var(--border) 70%, transparent); overflow: hidden; }
+.meter-fill { display: block; height: 100%; min-width: 2px; border-radius: 2px; background: var(--tone-success); }
+.meter-high .meter-fill { background: var(--tone-attention); }
+.external-id { font-family: var(--mono); font-size: 11px; }
 .change-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-1) var(--space-4); margin: 0; font-size: 12px; }
 .change-facts .fact { display: contents; }
 .change-facts dt { color: var(--muted); }
@@ -135,6 +160,7 @@ footer { flex-wrap: wrap; font-size: 11px; }
 @media (min-width: 720px) {
   .head-card.with-facts { grid-template-columns: minmax(0, 1fr) minmax(0, 300px); column-gap: var(--space-6); }
   .head-card.with-facts .head-facts .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .head-card.with-facts .head-facts .stats:has(.stat-spend) { grid-template-columns: minmax(0, 1fr); }
   .head-card .crew, .head-card .handoff { grid-column: 1 / -1; }
   .account-grid { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
   .account-arrow { display: block; }

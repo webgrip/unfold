@@ -1,13 +1,15 @@
 function brandMark() {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 64 64');
-  svg.setAttribute('width', '15');
-  svg.setAttribute('height', '15');
+  svg.setAttribute('width', '16');
+  svg.setAttribute('height', '16');
   svg.setAttribute('aria-hidden', 'true');
-  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-  path.setAttribute('d', 'M10.571 17.371L25.071 52.371A7.5 7.5 0 0 0 38.929 52.371L53.429 17.371A7.5 7.5 0 0 0 39.571 11.629L32 29.904L24.429 11.629A7.5 7.5 0 0 0 10.571 17.371ZM10 42V50H54V42Z');
-  path.setAttribute('fill', 'currentColor');
-  svg.append(path);
+  for (const [d, part] of [['M54.61 6.826L8.824 26.31A2.5 2.5 0 0 0 8.643 30.825L27.671 40.792A2.1 2.1 0 0 0 30.254 40.281L56.347 9.17A1.5 1.5 0 0 0 54.61 6.826Z', 'sheet'], ['M55.414 21.903L45.927 55.474A2.5 2.5 0 0 1 41.754 56.562L32.699 47.507A2.1 2.1 0 0 1 32.575 44.672L52.822 20.532A1.5 1.5 0 0 1 55.414 21.903Z', 'fold']]) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('class', `brand-${part}`);
+    svg.append(path);
+  }
   return svg;
 }
 
