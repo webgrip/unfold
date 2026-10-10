@@ -41,9 +41,9 @@ export class ExecutionAuthority {
   }
 
   private bind(session: Session, value: any): ExecutionBinding {
-    if (!value || !/^[a-f0-9]{32}$/.test(value.id) || !/^[1-9][0-9]{0,19}$/.test(value.workItemId) || value.sessionId !== session.id || value.actor !== session.ownerId || value.team !== this.config.execution!.team || value.demo !== (session.runtime === 'demo') || !Number.isSafeInteger(value.revision) || value.revision < 1 || !Number.isSafeInteger(value.generation) || value.generation < 1 || !states.includes(value.state) || !['human', 'background'].includes(value.supervision) || typeof value.stopConfirmed !== 'boolean' || !Number.isFinite(Date.parse(value.expiresAt))) throw unavailable();
-    const binding: ExecutionBinding = { id: value.id, workItemId: value.workItemId, team: value.team, state: value.state, revision: value.revision, generation: value.generation, supervision: value.supervision, expiresAt: value.expiresAt, stopConfirmed: value.stopConfirmed };
     const prior = this.current(session.id);
+    if (!value || !/^[a-f0-9]{32}$/.test(value.id) || !/^[1-9][0-9]{0,19}$/.test(value.workItemId) || value.sessionId !== session.id || value.actor !== session.ownerId || value.team !== (prior?.team ?? this.config.execution!.team) || value.demo !== (session.runtime === 'demo') || !Number.isSafeInteger(value.revision) || value.revision < 1 || !Number.isSafeInteger(value.generation) || value.generation < 1 || !states.includes(value.state) || !['human', 'background'].includes(value.supervision) || typeof value.stopConfirmed !== 'boolean' || !Number.isFinite(Date.parse(value.expiresAt))) throw unavailable();
+    const binding: ExecutionBinding = { id: value.id, workItemId: value.workItemId, team: value.team, state: value.state, revision: value.revision, generation: value.generation, supervision: value.supervision, expiresAt: value.expiresAt, stopConfirmed: value.stopConfirmed };
     if (prior && prior.id !== binding.id || session.sourceTask?.ploeg && session.sourceTask.ploeg.workItemId !== binding.workItemId) throw unavailable();
     if (prior && prior.revision > binding.revision) return prior;
     this.store.transaction(() => {

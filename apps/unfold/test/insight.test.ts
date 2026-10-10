@@ -264,3 +264,15 @@ test('an unreachable collector is logged at most once an hour and never blocks i
   assert.equal(errors.filter(line => line.includes('insight.export_failed')).length, 1, 'the failure is logged once, not once per batch');
   assert.equal(store.db.prepare('SELECT COUNT(*) AS n FROM product_event').get()!['n'], 2, 'the events are still stored');
 });
+
+test('an actor key stored in the rc.49 string form is replaced by a fresh key instead of hashing with undefined', async t => {
+  const store = await withStore(t);
+  store.setSecret('insight:actorKey', 'legacy-install-wide-key');
+  const insight = service(t, store, { export: 'off', level: 'aggregate' });
+  const events = parseInsightEvents([{ name: 'screen.viewed', at: '2026-10-05T11:50:00.000Z', screen: 'now', props: {} }], now().toISOString());
+  assert.equal(insight.ingest(events, admin), 1);
+  const stored = store.getSecret<{ key: string; createdAt: string }>('insight:actorKey');
+  assert.equal(typeof stored?.key, 'string');
+  assert.notEqual(stored?.key, 'legacy-install-wide-key');
+  assert.equal(stored?.createdAt, now().toISOString());
+});
