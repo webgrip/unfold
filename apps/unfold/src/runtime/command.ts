@@ -10,10 +10,9 @@ import { reportedVerdict, type RuntimeWorkspaces } from './opencode.ts';
 type ActiveProcess = { child: ChildProcessWithoutNullStreams; stop: () => void; closed: Promise<void> };
 
 const supervisorProgram = `const {spawn}=require('node:child_process');
-const child=spawn(process.argv[1],process.argv.slice(2),{env:process.env,stdio:['pipe','inherit','inherit'],detached:process.platform!=='win32'});
-if(process.send&&child.pid)process.send({type:'bridge.started',pid:child.pid});
+const child=spawn(process.argv[1],process.argv.slice(2),{env:process.env,stdio:['pipe','inherit','inherit']});
 let stopped=false,timer;
-const kill=signal=>{try{if(process.platform!=='win32'&&child.pid)process.kill(-child.pid,signal);else child.kill(signal)}catch{}};
+const kill=signal=>{try{if(process.platform!=='win32')process.kill(-process.pid,signal);else child.kill(signal)}catch{}};
 const stop=()=>{if(stopped)return;stopped=true;kill('SIGTERM');timer=setTimeout(()=>kill('SIGKILL'),1000)};
 process.stdin.pipe(child.stdin);process.stdin.on('end',stop);process.on('SIGTERM',stop);process.on('SIGINT',stop);
 child.stdin.on('error',()=>{});child.on('error',error=>{if(process.send)process.send({type:'launch.error',missing:error.code==='ENOENT'||error.code==='EACCES'},()=>process.exit(1));else process.exit(1)});
@@ -52,7 +51,6 @@ export class CommandRuntime implements AgentRuntime {
       let stopped = false;
       let finished = false;
       let killTimer: ReturnType<typeof setTimeout> | undefined;
-      let bridgePid: number | undefined;
       let releaseTimer: ReturnType<typeof setTimeout> | undefined;
       const stop = (): void => {
         if (stopped || finished) return;
@@ -81,15 +79,11 @@ export class CommandRuntime implements AgentRuntime {
         else resolve(result);
       };
       const killOrphanedBridge = (): void => {
-        if (bridgePid && process.platform !== 'win32') try { process.kill(-bridgePid, 'SIGKILL'); } catch {}
+        if (child.pid && process.platform !== 'win32') try { process.kill(-child.pid, 'SIGKILL'); } catch {}
       };
       child.on('error', () => finish(new RuntimeFailure('runtime_failure', 'runtime')));
       child.on('message', record => {
         if (record && typeof record === 'object' && 'type' in record && record.type === 'launch.error') failure = new RuntimeFailure('missing' in record && record.missing === true ? 'missing_executable' : 'runtime_failure', 'runtime');
-        if (record && typeof record === 'object' && 'type' in record && record.type === 'bridge.started' && 'pid' in record && Number.isInteger(record.pid) && (record.pid as number) > 0) {
-          bridgePid = record.pid as number;
-          if (child.exitCode !== null || child.signalCode !== null) killOrphanedBridge();
-        }
       });
       child.once('exit', () => {
         killOrphanedBridge();
