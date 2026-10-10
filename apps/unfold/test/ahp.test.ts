@@ -92,7 +92,7 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
 
   bob.notify('dispatchAction', { channel: realChat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 't', startedAt: new Date().toISOString(), message: { text: 'again', origin: { kind: 'user' } } } });
   const rejected = await bob.until(message => action(message, realChat, 'chat/turnStarted') && message.params.rejectionReason);
-  assert.match(rejected.params.rejectionReason, /completed; start a new session/);
+  assert.match(rejected.params.rejectionReason, /waits for your review/, 'a typed message on a candidate waiting for review points at the review operations');
   const aliceSaw = await alice.until(message => action(message, realChat, 'chat/turnStarted') && message.params.origin?.clientId === 'bob');
   assert.equal(aliceSaw.params.serverSeq, rejected.params.serverSeq, 'both clients receive the same envelope');
   await assert.rejects(alice.rpc('noSuchMethod', { channel: 'ahp-root://' }), (error: any) => error.code === -32601);

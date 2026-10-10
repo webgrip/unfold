@@ -112,7 +112,7 @@ test('C9: without a captured candidate, a native file diff is served on both sid
 test('C10: the candidate offers Accept, the workbench\'s own review, under the same authorization, and then offers nothing', { timeout: testTimeout(60_000) }, async t => {
   const { server, client, id, changeset } = await finishedThroughAgentHost(t);
   const state = (await client.rpc('subscribe', { channel: changeset })).snapshot.state;
-  assert.deepEqual(state.operations.map((operation: Json) => [operation.id, operation.status, operation.scopes]), [['accept', 'idle', ['changeset']]], 'no disabled operation is advertised');
+  assert.deepEqual(state.operations.map((operation: Json) => [operation.id, operation.status, operation.scopes]), [['accept', 'idle', ['changeset']], ['request-changes', 'idle', ['changeset']], ['reject', 'idle', ['changeset']]], 'no disabled operation is advertised');
 
   server.app.store.addUser({ id: 'bob-render', name: 'bob-render', role: 'operator', passwordHash: 'unused' });
   const bob = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${server.app.agentHost.issueToken({ id: 'bob-render', name: 'bob-render', role: 'operator' })}`);
