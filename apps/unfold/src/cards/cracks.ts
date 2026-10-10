@@ -39,6 +39,7 @@ const validSeverity = (s: string) => Object.hasOwn(severities, s);
 const validShare = (s: string) => s === 'primary' || s === 'contributing';
 const samePerson = (a: string | null | undefined, b: string | null | undefined) => Boolean(a) && a!.toLowerCase() === (b ?? '').toLowerCase();
 const t = rfc3339Micros;
+const bytes = (value: string) => Buffer.byteLength(value, 'utf8');
 
 /** A reverted card's crack is at least S2. */
 export function severityFloor(severity: string, reverted: boolean): string {
@@ -64,7 +65,7 @@ export class CrackWorkflow {
   /** The fixer names the card whose play caused the bug. Play 0 means the card's latest play merged before the bug Work Item was created. Discovery is `self` whatever was asked when the fixer is the card's steward. */
   propose(args: { bug: WorkItemFacts; card: WorkItemFacts; cardJson: CardJson; play: number; severity: string; share: string; discovery: string; note: string; by: CrackActor; now: number }): CrackRecord {
     const { bug, card, cardJson, by } = args;
-    if (!validSeverity(args.severity) || !validShare(args.share) || card.workItem.id === bug.workItem.id || args.play < 0 || args.note.length > 2000 || (args.discovery !== '' && args.discovery !== 'discovered' && args.discovery !== 'concealed') || !by.person) {
+    if (!validSeverity(args.severity) || !validShare(args.share) || card.workItem.id === bug.workItem.id || args.play < 0 || bytes(args.note) > 2000 || (args.discovery !== '' && args.discovery !== 'discovered' && args.discovery !== 'concealed') || !by.person) {
       throw new CrackError('invalid_request', 'A proposal names a card, a severity S1 to S4, a share primary or contributing and at most a 2000-character note.');
     }
     if (card.workItem.team !== bug.workItem.team) throw new CrackError('not_found', 'Ploeg work item not found in your authorized teams.');
@@ -115,7 +116,7 @@ export class CrackWorkflow {
 
   /** A second person, neither the card's steward nor the proposer, confirms a proposed crack and may correct its severity and share. */
   confirm(args: { crackId: string; teams: (team: string) => boolean; by: CrackActor; severity: string; share: string; note: string; cardReverted: boolean; now: number }): CrackRecord {
-    if ((args.severity && !validSeverity(args.severity)) || (args.share && !validShare(args.share)) || args.note.length > 2000) throw new CrackError('invalid_request', 'Severity is S1 to S4 and share is primary or contributing.');
+    if ((args.severity && !validSeverity(args.severity)) || (args.share && !validShare(args.share)) || bytes(args.note) > 2000) throw new CrackError('invalid_request', 'Severity is S1 to S4 and share is primary or contributing.');
     return this.decide(args.crackId, args.teams, args.by, args.now, c => {
       if (c.state !== 'proposed') throw new CrackError('invalid_state', 'Only a proposed crack can be confirmed.');
       if (samePerson(args.by.person, c.steward) || samePerson(args.by.person, c.proposedBy)) throw new CrackError('forbidden_actor', "The second person is neither the card's steward nor the proposer.");
@@ -128,7 +129,7 @@ export class CrackWorkflow {
 
   /** The card's steward disputes a confirmed crack within five working days of its confirmation. The crack keeps counting until a referee unlinks it. */
   dispute(args: { crackId: string; teams: (team: string) => boolean; by: CrackActor; reason: string; now: number }): CrackRecord {
-    if (!args.reason.trim() || args.reason.length > 2000) throw new CrackError('invalid_request', 'A dispute gives a reason of at most 2000 characters.');
+    if (!args.reason.trim() || bytes(args.reason) > 2000) throw new CrackError('invalid_request', 'A dispute gives a reason of at most 2000 characters.');
     return this.decide(args.crackId, args.teams, args.by, args.now, c => {
       if (c.state !== 'confirmed') throw new CrackError('invalid_state', 'Only a confirmed crack can be disputed.');
       if (c.resolution) throw new CrackError('invalid_state', 'A referee already decided this crack; the decision is final.');
@@ -141,7 +142,7 @@ export class CrackWorkflow {
 
   /** A referee decides a disputed crack: upheld confirms it again, unlinked removes it from the card. A referee took no part in the crack and is on the Team's referee list when it names one. */
   resolve(args: { crackId: string; teams: (team: string) => boolean; by: CrackActor; resolution: string; note: string; referees: (team: string) => string[]; now: number }): CrackRecord {
-    if ((args.resolution !== 'upheld' && args.resolution !== 'unlinked') || args.note.length > 2000) throw new CrackError('invalid_request', 'A resolution is upheld or unlinked.');
+    if ((args.resolution !== 'upheld' && args.resolution !== 'unlinked') || bytes(args.note) > 2000) throw new CrackError('invalid_request', 'A resolution is upheld or unlinked.');
     return this.decide(args.crackId, args.teams, args.by, args.now, c => {
       if (c.state !== 'disputed') throw new CrackError('invalid_state', 'Only a disputed crack is resolved.');
       if ([c.steward, c.proposedBy, c.confirmedBy, c.disputedBy].some(involved => samePerson(args.by.person, involved))) throw new CrackError('forbidden_actor', 'A referee took no part in the crack.');
@@ -155,7 +156,7 @@ export class CrackWorkflow {
   /** Someone other than the card's steward says the bug is no defect of the card: the requirement changed. A proposed attribution becomes evolved; a confirmed, disputed or unlinked one is refused. */
   evolved(args: { bug: WorkItemFacts; card: WorkItemFacts; cardJson: CardJson; note: string; by: CrackActor; now: number }): CrackRecord {
     const { bug, card, by } = args;
-    if (card.workItem.id === bug.workItem.id || args.note.length > 2000 || !by.person) throw new CrackError('invalid_request', 'Name a card other than the bug and at most a 2000-character note.');
+    if (card.workItem.id === bug.workItem.id || bytes(args.note) > 2000 || !by.person) throw new CrackError('invalid_request', 'Name a card other than the bug and at most a 2000-character note.');
     if (card.workItem.team !== bug.workItem.team) throw new CrackError('not_found', 'Ploeg work item not found in your authorized teams.');
     const steward = args.cardJson.steward?.name ?? '';
     return this.store.transaction(() => {
