@@ -101,3 +101,4 @@ Re-evaluate when Ploeg PR #121 merges or changes the contract, when Ploeg publis
 * [Game-feel research](../research/2026-10-01-run-card-holo-and-game-feel.md): "Ceremony scaled by rarity and frequency".
 * ADR 0033 is reserved for the forge's inner-world art, written in parallel.
 * 2026-10-02: proposed with the proxy, the view, the mark and ring on every skin, the forge's frame metal, the Rarity tab, the reveal moment, the binder and pack display and the demo's rarity implemented on the Unfold side.
+* 2026-10-10: [root ADR-0030](../../../../docs/adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md): Unfold computes rarity itself (formula 2026.1, ported from Ploeg's `pkg/rarity` with its tests) and freezes it at reveal in its own store. Rarities Ploeg froze before are imported unchanged. The reveal moment and its display are unchanged.

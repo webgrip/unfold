@@ -109,3 +109,4 @@ Re-evaluate when rarity is decided, when someone asks to show a decoration to ot
 
 * The owner's inner world prototype: a working document outside the repository; its look and parameters were ported, its invented level was replaced by the merged state.
 * 2026-10-02: proposed with the world runtime, fact-driven unlocks, theme worlds, the designer choice and private per-copy decorations implemented in Unfold.
+* 2026-10-10: [root ADR-0030](../../../../docs/adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md): the facts that light and unlock a card's inner world now come from the card Unfold assembles from Ploeg's delivery facts; the world itself is unchanged.
