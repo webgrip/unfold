@@ -19,7 +19,7 @@ runs:
         restore-keys: unfold-mise-${{ runner.os }}-
     - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
       with:
-        version: 2026.10.4
+        version: 2026.10.6
         cache: false
         github_token: ''
     - run: mise trust apps/unfold/mise.toml && mise trust apps/ploeg/mise.toml && mise trust apps/site/mise.toml
