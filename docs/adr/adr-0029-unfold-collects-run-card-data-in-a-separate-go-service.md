@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-06
+status: superseded by ADR-0030
+date: 2026-10-10
 decision-makers: Ryan Grippeling
 ---
 
@@ -99,3 +99,4 @@ Chosen option: "**A separate Go service, `apps/collector`, with its own Postgres
 * Evidence: Ploeg's [KEDA, plug-and-play integrations, and card collection](https://github.com/ploeg-hq/ploeg/blob/development/docs/research/2026-10-06-keda-integrations-and-card-collection.md), §3.
 * Related: [ADR-0028](adr-0028-unfold-owns-the-run-card-and-collects-its-inputs-itself.md), and Ploeg ADR-0073 (Rust only for a measured need), ADR-0074 and ADR-0077.
 * 2026-10-06: proposed.
+* 2026-10-10: superseded by [ADR-0030](adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md). The owner chose the card domain inside the Unfold application on Ploeg's delivery facts; no collector service is built.

@@ -19,7 +19,7 @@ export type StatusReport = {
   notes: StatusNote[];
 };
 export type PloegProbe = 'ok' | 'unconfigured' | 'down';
-export type StatusProbes = { gateway(): Promise<boolean>; ploeg(user: User): Promise<PloegProbe> };
+export type StatusProbes = { gateway(): Promise<boolean>; ploeg(user: User): Promise<PloegProbe>; cards?(): string | null };
 
 const hour = 3_600_000;
 export const failureWindowMs = 24 * hour;
@@ -133,9 +133,11 @@ export class StatusBoard {
     const probe = this.ploegCache.probe;
     base.checkedAt = new Date(this.ploegCache.at).toISOString();
     if (probe === 'unconfigured') return { ...base, state: 'not_used', summary: 'This workbench is not connected to Ploeg.' };
+    const cards = this.probes.cards?.() ?? null;
+    const detail = cards ? { detail: `Run cards: ${cards}` } : {};
     return probe === 'ok'
-      ? { ...base, state: 'ok', summary: 'Ploeg answered. Work Items and Runs are up to date.' }
-      : { ...base, state: 'down', summary: 'Ploeg did not answer. Work it dispatches waits, and pages show the last data they read.' };
+      ? { ...base, state: 'ok', summary: 'Ploeg answered. Work Items and Runs are up to date.', ...detail }
+      : { ...base, state: 'down', summary: 'Ploeg did not answer. Work it dispatches waits, and pages show the last data they read.', ...detail };
   }
 
   addNote(user: User, input: { severity?: unknown; text?: unknown }): StatusNote {

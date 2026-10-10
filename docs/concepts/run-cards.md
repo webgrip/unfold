@@ -2,15 +2,15 @@
 type: explanation
 audience: [owner, operator, contributor, agent]
 owner: unfold
-last_verified: 2026-10-03
-verified_by: "grade read against Ploeg ADR-0050, ADR-0052 and ADR-0061 and apps/ploeg/pkg/store/card_grade.go (formula 2026.3); built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0049, ADR-0057 (apps/ploeg/pkg/flow) and ADR-0058 (apps/ploeg/pkg/playkpi), Unfold ADR 0026, apps/ploeg/pkg/store/card.go and apps/unfold/public/cards on development @ 810c97a; binders, packs and seasons read against Unfold ADR 0029 and apps/unfold/src/{collection,packs,season}.ts on feat/unfold-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Unfold collection was run in its demo browser flow"
+last_verified: 2026-10-10
+verified_by: "ownership read against root ADR-0030, Ploeg ADR-0079 and apps/unfold/src/cards on feat/unfold-owns-run-cards, whose parity tests replay the cards Ploeg v0.2.0-rc.9 assembles; grade read against Ploeg ADR-0050, ADR-0052 and ADR-0061 and apps/ploeg/pkg/store/card_grade.go (formula 2026.3); built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0049, ADR-0057 (apps/ploeg/pkg/flow) and ADR-0058 (apps/ploeg/pkg/playkpi), Unfold ADR 0026, apps/ploeg/pkg/store/card.go and apps/unfold/public/cards on development @ 810c97a; binders, packs and seasons read against Unfold ADR 0029 and apps/unfold/src/{collection,packs,season}.ts on feat/unfold-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Unfold collection was run in its demo browser flow"
 ---
 
 # Run Cards
 
 A **Run Card** is the record of one Work Item's change and its life in production. It shows who carried the change, what its Runs cost, which pull requests it took, how review and CI went and where it is deployed. Over time it is meant to show how well the change held up. It makes caring about a change visible, and it is meant to be fun.
 
-**Most of this page is a proposal.** Ploeg already assembles a card for every Work Item and Unfold draws it, with days live and a finish. Ploeg computes rarity; Unfold does not show it yet. Everything else below is labelled **Proposed** and is not built. The [glossary](../reference/glossary.md) defines each **bold** term.
+**Much of this page is a proposal.** Unfold assembles a card for every Work Item from Ploeg's delivery facts and draws it with its grade, rarity, condition, key figures, days live and finish. Everything labelled **Proposed** below is not built. The [glossary](../reference/glossary.md) defines each **bold** term.
 
 ## A record of a change, not a score of a person
 
@@ -26,6 +26,16 @@ So every number on a card describes the change. The person appears only as its *
 * **Nothing on a card is bought, traded or tied to pay.** Card data is never used in pay or performance reviews.
 * **Nobody is ranked.** No shared view totals card data per person.
 
+## Where cards are computed
+
+Run cards are an Unfold domain on top of Ploeg ([root ADR-0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md)). Ploeg schedules and runs the agents and supplies plain delivery facts ([Ploeg ADR-0079](https://github.com/ploeg-hq/ploeg/blob/development/docs/adrs/0079-run-cards-belong-to-the-consumer-and-ploeg-supplies-delivery-facts.md)). Those facts are what it stored about a Work Item's Runs, pull requests, CI, deploys and tracker moves.
+
+* **Unfold computes the card from those facts** each time it is read (`apps/unfold/src/cards/`). That covers the grade, rarity, flow and play figures, condition, sets, steward and roster.
+* **Unfold keeps what people decide** in its own store: cracks and their audit trail. It also keeps what is frozen once: revealed rarities, play shapes measured from diffs nobody kept, and the card comment record.
+* **Configuration moved too.** Status kinds, the team calendar, path rules, release environments, hotfix labels, referees and card styles are Unfold's `cards.rules` setting.
+
+The formulas moved from Ploeg's Go code with identical behaviour; Ploeg's own tests and a replay of the cards it assembled are Unfold's parity tests. A Ploeg that does not supply facts yet still serves its own card, and Unfold shows that one. To move an installation, follow [Move Run cards from Ploeg to Unfold](../../apps/unfold/docs/operations/run-cards-upgrade.md).
+
 ## What is built and what is proposed
 
 The first three build phases are merged on `development`: P0 keeps the facts a card needs, P1 puts the card on the Work Item page, and P2 adds life in production. Their ADRs still have the status `proposed`. Later phases (cracks and mends, epics and full ceremony) are not started; the skins are built and draw grades, cracks and sets when a card carries them. The Unfold side of Binders, Packs and seasons is built against fixtures, waiting for Ploeg's card list.
@@ -34,18 +44,19 @@ The first three build phases are merged on `development`: P0 keeps the facts a c
 | --- | --- | --- |
 | Ploeg keeps every usage figure a harness reports, and every merge and review fact a forge reports | Built; its ADR is still proposed | [Ploeg ADR-0045](../../apps/ploeg/docs/adrs/0045-keep-run-usage-and-merge-facts.md) |
 | One card per Work Item, assembled from stored facts: state, Plays, Steward (fallback rule), Roster (merger and reviewer), agent crew, totals, events, diff size and CI | Built; ADR proposed | [Ploeg ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) |
-| Card style chosen per Work Target (`cardStyle`) | Built; seven skins: Unfold Native, the 3D forge skin and five DOM skin packs | Ploeg ADR-0046, Unfold ADR 0026 and 0028 |
+| Card style chosen per repository (`cards.rules.repositories.<repo>.style`, formerly Ploeg's `cardStyle`) | Built; seven skins: Unfold Native, the 3D forge skin and five DOM skin packs | Ploeg ADR-0046, Unfold ADR 0026 and 0028, root ADR-0030 |
 | A generic deploy endpoint, deployments per environment and the release time | Built; ADR proposed | [Ploeg ADR-0047](../../apps/ploeg/docs/adrs/0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) |
 | Usage so far while a Run is running | Built; ADR proposed | [Ploeg ADR-0049](../../apps/ploeg/docs/adrs/0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) |
 | The `<unfold-card>` runtime, the Unfold Native skin, the card on the Work Item page, days live, the finish ladder and a demo card | Built; ADR proposed | [Unfold ADR 0026](../../apps/unfold/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
-| A card comment on the pull request: the card as a static image above a summary table, kept as one comment and updated at a merge, a release to production, a new finish or a mend. A team turns it on with `cards.prComment` | Built; ADR proposed; off by default | [Ploeg ADR-0055](../../apps/ploeg/docs/adrs/0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) |
-| Rarity: a challenge score, predicted at mint, revealed and frozen at release, tiered per project and quarter | Built in Ploeg; ADR proposed; Unfold still drops it | [Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) |
-| Flow figures: time in every tracker status, lead and cycle time, flow efficiency, blocked time, reopens, queue and agent time, merge to each environment and time to mend, in elapsed and working seconds | Built in Ploeg; ADR proposed; Unfold shows them (Unfold ADR 0035) | [Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md) |
-| Pull request, CI and change figures: time to first feedback, approval and merge, review rounds, comments, commits, CI runs, reruns, queue and minutes, indentation complexity, test ratio | Built in Ploeg; ADR proposed; Unfold shows them (Unfold ADR 0035) | [Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md) |
+| A card comment on the pull request: the card as a static image above a summary table, kept as one comment and updated at a merge, a release to production, a new finish or a mend. Unfold publishes it through Ploeg's keyed comment once an operator turns on `cards.publishPullRequestComment` and a team's `pullRequestComment` | Built; ADR proposed; off by default | [Ploeg ADR-0055](../../apps/ploeg/docs/adrs/0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) |
+| Rarity: a challenge score, predicted at mint, revealed and frozen at release, tiered per project and quarter | Built; computed by Unfold, frozen in its store; ADR proposed | [Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) |
+| Flow figures: time in every tracker status, lead and cycle time, flow efficiency, blocked time, reopens, queue and agent time, merge to each environment and time to mend, in elapsed and working seconds | Built; computed by Unfold; ADR proposed (Unfold ADR 0035 shows them) | [Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md) |
+| Pull request, CI and change figures: time to first feedback, approval and merge, review rounds, comments, commits, CI runs, reruns, queue and minutes, indentation complexity, test ratio | Built; computed by Unfold from per-file measurements; ADR proposed (Unfold ADR 0035 shows them) | [Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md) |
 | Key figures: time in every tracker status, lead and cycle time, flow efficiency, time to first feedback, CI timings and reruns, indentation complexity, merge to production; three or four on the card's front for its state, the rest on its back, team medians on the season page | Built in Unfold on Ploeg ADR-0057 and ADR-0058; ADRs proposed | [Unfold ADR 0035](../../apps/unfold/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) |
-| Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Unfold side built against the card contract and fixtures; ADR proposed; Ploeg's card list built in parallel | [Unfold ADR 0029](../../apps/unfold/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
-| Grade: formula 2026.3, computed on read, with the inputs it used and the ones it missed | Built in Ploeg; ADRs proposed; Unfold draws it | [Ploeg ADR-0050](../../apps/ploeg/docs/adrs/0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md), [ADR-0052](../../apps/ploeg/docs/adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md), [ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md) |
-| Condition (Cracks and Mends), level, Gates and Bounces, Roster roles and copies, the Steward rule, Set Cards, themes, the effects director, retention | **Proposed** | This page |
+| Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Built; the card list comes from Ploeg's facts list and Unfold's order; ADR proposed | [Unfold ADR 0029](../../apps/unfold/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
+| Grade: formula 2026.3, computed on read, with the inputs it used and the ones it missed | Built; computed by Unfold, every formula version kept; ADRs proposed | [Ploeg ADR-0050](../../apps/ploeg/docs/adrs/0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md), [ADR-0052](../../apps/ploeg/docs/adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md), [ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md) |
+| Condition: Cracks proposed, confirmed, disputed and resolved by people, and Mends from the bug's merged fix | Built; Unfold's crack workflow and store; ADR proposed | [Ploeg ADR-0052](../../apps/ploeg/docs/adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md), root ADR-0030 |
+| Level, Roster copies, the full Steward rule, themes, the effects director, retention | **Proposed** | This page |
 
 To make a project count days live from real deploys, see [Send deploys from a pipeline to Ploeg](../../apps/ploeg/docs/how-to/send-deploys-from-a-pipeline.md). Until a project reports deploys, the release counts from the merge, and the card says so.
 
@@ -59,15 +70,15 @@ The owner decided the unit on 2026-10-01.
 * **Chores are tokens** (Proposed). A chore such as a dependency bump gets a minimal frame and stacks in the Binder; volume earns nothing.
 * **Failures are scuffs, not separate cards** (Proposed). A failed Shift scuffs its Work Item's card. A Work Item never delivered is shelved as withdrawn. A sprint or a release is a page, not a card.
 
-Ploeg derives the card's state today: `drafting` before the first pull request, `in_review` while one is open, `merged`, `closed` or `withdrawn` ([ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md)).
+The card's state is derived today: `drafting` before the first pull request, `in_review` while one is open, `merged`, `closed` or `withdrawn` ([ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md)).
 
 ## Five axes
 
 Collectible games keep *what a card is* apart from *what it earned*; mixing them causes inflation and grind ([trading-card design](../research/2026-10-01-run-cards-trading-card-design.md)). A Run Card has five axes, each with its own visual channel.
 
-### Rarity: decided, built in Ploeg
+### Rarity: decided, built
 
-**Rarity** says how exceptional the change was, apart from how well it was done (Grade) and how long it has held up (Finish). It is cosmetic only. The owner decided on 2026-10-02 that rarity means challenge. Ploeg computes it ([Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md), proposed); Unfold does not draw it yet.
+**Rarity** says how exceptional the change was, apart from how well it was done (Grade) and how long it has held up (Finish). It is cosmetic only. The owner decided on 2026-10-02 that rarity means challenge. Unfold computes it and freezes it in its store at reveal ([Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md), proposed; root ADR-0030). Rarities Ploeg froze before were imported unchanged.
 
 * **Challenge, from facts nobody pads afterwards.** The score adds the change's reach (modules and repositories), its sensitive ground (migrations, schemas, API definitions, deploy and CI files, and paths a Work Target marks for attention), its novelty (files no other card touched in the 180 days before) and its size in lines, damped and without lockfiles or generated files. Cost, time, tokens, bounces and the grade are never inputs. The formula is versioned and printed on the card's back.
 * **Two moments.** From its first Run the card carries a tier predicted from what is known before the merge. At release it is revealed from the real change, and the two may differ.
@@ -79,7 +90,7 @@ Proposed and not built: special printings for genuinely rare events (1st Edition
 
 ### Finish: built
 
-A **Finish** is earned by staying live in production. Unfold computes it from Ploeg's release time and ignores the `finish` Ploeg sends ([Unfold ADR 0026](../../apps/unfold/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)):
+A **Finish** is earned by staying live in production. Unfold computes it from the card's release time ([Unfold ADR 0026](../../apps/unfold/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)):
 
 | Days live | Finish |
 | --- | --- |
@@ -94,23 +105,23 @@ Days live are whole days since the first production deploy of the latest merged 
 
 ### Grade
 
-A **Grade** works like a graded slab: 1 to 10 in half steps, computed as 0.40 reliability + 0.25 durability + 0.20 delivery + 0.15 review. Ploeg computes it under formula 2026.3 ([Ploeg ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md), proposed, on top of ADR-0050 and ADR-0052), and Unfold draws it.
+A **Grade** works like a graded slab: 1 to 10 in half steps, computed as 0.40 reliability + 0.25 durability + 0.20 delivery + 0.15 review. Unfold computes it under formula 2026.3 ([Ploeg ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md), proposed, on top of ADR-0050 and ADR-0052). The earlier formulas 2026.1 and 2026.2 are kept in Unfold's code and tests, so an old grade can be recomputed.
 
 * **Provisional cap.** While a card is under 180 days live, its grade is capped at 9. A 10 is possible only once it is Proven.
 * **Labels.** Black Label is 10 on all four subgrades. Gold Label is an overall 10. A card with a missing input earns no label.
 * **Qualifiers** name one honest defect instead of hiding it: `RV` reverted, `HF` hotfixed, `OB` over budget, `RT` retried Run. `MN`, manual takeover, is proposed.
 * **Review counts rework, not care.** Review loses a point for each round in which a person asked for changes, once per commit however many reviewers asked. Approvals, comments and extra rounds of review cost nothing, so a careful review never lowers a card.
-* **Missing evidence is shown, never scored as perfect.** When Ploeg can collect an input but has no fact for this card, such as a cost the harness did not report or bounces on a board without gates, the grade lists it as missing. That subgrade is then at most 9, and the card earns no label. Inputs Ploeg cannot collect on any card yet are listed as not collected and move no grade.
-* **Versioned formula, computed on read.** The formula carries a version, and its inputs are printed on the back, so anyone can recompute a grade by hand. Ploeg computes the grade each time the card is read, always under the current formula. When the formula changes, every card shows the new version and the grade it gives; Ploeg does not keep the old grade.
+* **Missing evidence is shown, never scored as perfect.** When an input can be collected but there is no fact for this card, such as a cost the harness did not report or bounces on a board without gates, the grade lists it as missing. That subgrade is then at most 9, and the card earns no label. Inputs nobody collects on any card yet are listed as not collected and move no grade.
+* **Versioned formula, computed on read.** The formula carries a version, and its inputs are printed on the back, so anyone can recompute a grade by hand. Unfold computes the grade each time the card is read, always under the current formula. When the formula changes, every card shows the new version and the grade it gives; no old grade is stored.
 * **Bounces.** Only defect and unknown bounces count against delivery (see [Gates and bounces](#gates-and-bounces)).
 
-### Condition: Cracks and Mends (proposed)
+### Condition: Cracks and Mends
 
 Wear runs from factory new to battle-scarred. A confirmed defect gives the card a **Crack**. Its fix, a **Mend**, fills the crack with gold seams that stay forever: kintsugi. A mended card looks more distinguished than an untouched one, but its reliability ends slightly lower, so repair is celebrated and shipping bugs still never pays. Code deliberately replaced later retires with honours and loses nothing.
 
 **A Crack is an inquiry, not a verdict.** Automatic bug-to-change tracing (SZZ) is right only about 64 to 73 % of the time per commit, and much less per pull request. A large share of bugs have no causing change at all ([game theory](../research/2026-10-01-run-cards-game-theory.md)). So the owner decided that a Crack happens **only with human confirmation**:
 
-1. When a bug Work Item is fixed, Ploeg proposes the likely causing changes.
+1. When a bug Work Item is fixed, Unfold proposes the likely causing changes: earlier merged pull requests of the Team that touched a file the fix touched, within a year.
 2. The fixer names the cause. "Requirement changed" marks the card Evolved and leaves no Crack, and so does "environment".
 3. A second person who is not the Steward confirms. The Steward has 5 working days to dispute, and a rotating referee settles disputes.
 4. The triager sets severity S1 to S4 (weights 4, 2, 1 and 0.25). At most three cards share a bug, as primary or contributing.
@@ -118,15 +129,17 @@ Wear runs from factory new to battle-scarred. A confirmed defect gives the card 
 6. Discovery factor: self-reported 0.5, discovered 1.0, concealed 1.5. Self-reporting is the best move whenever there is a real chance of being found.
 7. A Mend by the Steward counts 0.5 and by someone else 0.75. Whoever mends another person's card becomes a co-signer. A Mend is confirmed when the bug closes and nothing cracks again within 30 days.
 
+The fixer, the second person, the steward and the referee act through Unfold under their administrator-mapped forge login ([Unfold ADR 0030](../../apps/unfold/docs/adrs/0030-unfold-traces-bugs-under-an-administrator-mapped-forge-login.md)). Unfold records every step in its crack audit trail. Steps 1 to 3 and 7 are built; the rotating referee is a Team's referee list, and the triager role is the confirmer.
+
 Reporters, menders and Stewards all get visible credit. A team that feels safe reports more errors, so Cracks per team should *rise* after rollout. That is a good sign, and the team page should say so.
 
 ### Level: proposed
 
 XP follows a log curve over days in production, reaching full value at 180 days, scaled by Size × risk (risk 1 to 1.75). Small bonuses come from pull request, CI, review and merge events. Levels need 25·n² XP, so each level takes longer. Accrual pauses while a Crack is unmended. XP is never spent, and nothing is tradeable. A reviewer who leaves a substantive review gets 25 % of the card's XP as an assist and never takes Cracks. A Steward's weekly Size points have diminishing returns (100 %, then 50 %, then 25 %).
 
-## Flow figures: built in Ploeg
+## Flow figures: built
 
-Besides the five axes, Ploeg sends the card's flow figures ([Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md), proposed). Unfold does not show them yet. They are timings, not scores: no grade, rarity or finish uses them.
+Besides the five axes, the card carries flow figures ([Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md), proposed). Unfold computes them from the status moves Ploeg records. They are timings, not scores: no grade, rarity or finish uses them.
 
 * **Time in every status.** Ploeg records every column a ticket enters on a board it watches, mapped to a gate or not, and the card lists the time spent in each, per gate and per kind. A kind is `active` (someone works on it), `waiting`, `blocked` or `done`. A board can set each column's kind; otherwise defaults based on the column name apply.
 * **Lead time** runs from the ticket's creation in the tracker to the release, **cycle time** from the first active column or first Run to the release (else the merge), and **time to start** from creation to the first work. **Flow efficiency** is active time divided by active, waiting and blocked time in the cycle. **Reopens** count moves out of done.
@@ -136,11 +149,11 @@ Besides the five axes, Ploeg sends the card's flow figures ([Ploeg ADR-0057](../
 * **Working time.** Every duration except agent time also counts working seconds under the team's calendar: Monday to Friday, 09:00 to 17:00 in Europe/Amsterdam unless the team configures another, without holidays unless it lists them.
 * **What it is not.** Waiting and blocked time say how work moves through the team's process, not how the Steward worked. No view adds flow figures up per person. Estimate against actual is not collected while the tracker has no estimate (Vikunja); ClickUp's estimate is read.
 
-To configure kinds and working hours, see [Configure status kinds and working hours](../../apps/ploeg/docs/how-to/configure-status-kinds-and-working-hours.md).
+Status kinds and working hours are Unfold settings (`cards.rules.boards` and `cards.rules.teams`); see [Configuration to move](../../apps/unfold/docs/operations/run-cards-upgrade.md#configuration-to-move).
 
-## Pull request, CI and change figures: built in Ploeg
+## Pull request, CI and change figures: built
 
-Each Play also carries what its pull request, its CI and its change looked like, and the card sums them up ([Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md), proposed). Unfold does not show them yet. Ploeg reads them from Forgejo or GitLab when the pull request changes and at the merge, keeps who did what and when, and never keeps comment text, code or CI logs. Like the flow figures, they are facts about the change: no grade, rarity or finish uses them, and nobody is ranked by them.
+Each Play also carries what its pull request, its CI and its change looked like, and the card sums them up ([Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md), proposed). Ploeg reads the facts from Forgejo or GitLab when the pull request changes and at the merge, keeps who did what and when, and never keeps comment text, code or CI logs. It measures each changed file's indentation once at the merge; Unfold computes every figure from those facts. Like the flow figures, they are facts about the change: no grade, rarity or finish uses them, and nobody is ranked by them.
 
 | Figure | What it means | Where it misleads |
 | --- | --- | --- |
@@ -155,7 +168,7 @@ Each Play also carries what its pull request, its CI and its change looked like,
 | Complexity | Indentation complexity of the changed lines: each line counts how deeply it is indented, a language-independent stand-in for nesting (Hindle, Godfrey and Holt, 2008). Added, removed, net, the deepest line and the three files with the most added complexity. | It is a proxy. Deeply nested data files such as YAML score high, and it says nothing about whether nesting was needed. |
 | Size, test ratio, docs, languages | Counted lines without lockfiles, generated and vendored code (as rarity counts them), test lines over other lines, documentation files touched, and the top three languages. | Test paths are matched by pattern, so a test helper outside them counts as code. A Work Target can set its own patterns. |
 
-To set which files count as tests and documentation, see [Count tests and docs on Run cards](../../apps/ploeg/docs/how-to/count-tests-and-docs-on-run-cards.md).
+Which files count as tests and documentation is set per repository in `cards.rules.repositories.<repo>.shape`; see [Configuration to move](../../apps/unfold/docs/operations/run-cards-upgrade.md#configuration-to-move).
 
 ## Life in production
 
@@ -189,7 +202,7 @@ Proposed lifecycle: drafted (a Run is live) → opened (pull request) → signed
 
 **The Steward rule (proposed).** The Steward is the developer who carries the Work Item: the tracker assignee at release, handed over explicitly when needed. It falls back to the person who merged, then to the approver, and bot logins never count. The Steward answers for the change while it runs and has first right to mend it. It must be one name, so someone is told when the card cracks. A card without a Steward is an Orphan that anyone on the Roster may adopt within 14 days. Signing asks what was checked (tests read, behaviour run, risk areas), so the human is not made answerable for code they barely touched.
 
-**Built today:** the Steward is whoever merged the latest merged Play, otherwise the last approver. The Roster lists humans with the roles merger and reviewer ([ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md)).
+**Built today:** the Steward is whoever merged the latest merged Play, otherwise the last approver ([ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md)). The Roster lists humans with the roles merger, reviewer, qa, acceptor and cosigner. Ploeg's facts carry no tracker assignee, so the assignee part of the proposed rule needs a tracker read in Unfold first.
 
 ## Packs
 
@@ -244,7 +257,7 @@ The [works council and DPIA pack](../reference/run-cards-works-council-pack.md) 
 
 ## Looks and motion
 
-A **Skin** changes how a card looks and moves, never its numbers or where they sit, so any card reads the same anywhere. A Work Target picks its skin in Ploeg's `cardStyle`. Seven skins are built: Unfold Native, the 3D forge skin ([Unfold ADR 0028](../../apps/unfold/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md)), and Holo Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch ([Unfold ADR 0026](../../apps/unfold/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)). None of them shows rarity. The forge's art window can be an inner world the card's tilt looks into, lit and filled by its facts, which a person who holds a copy may decorate for themselves only (proposed, [Unfold ADR 0033](../../apps/unfold/docs/adrs/0033-a-forge-card-s-art-window-is-an-inner-world-its-holder-may-decorate-privately.md)). Each plays small moments inside the card when its facts change, such as a signature, a merge, a new finish, a crack or a mend, and holds still when the reader asks for reduced motion. Per-client themes on top are proposed. Proposed ceremony rules scale effects inversely to how often an event happens. They cap full-screen moments at one per 10 minutes and never interrupt typing. Every effect can be skipped, and flashes stay within WCAG limits, with no red flashes ([holo and game feel](../../apps/unfold/docs/research/2026-10-01-run-card-holo-and-game-feel.md)).
+A **Skin** changes how a card looks and moves, never its numbers or where they sit, so any card reads the same anywhere. A repository picks its skin in Unfold's `cards.rules.repositories.<repo>.style`. Seven skins are built: Unfold Native, the 3D forge skin ([Unfold ADR 0028](../../apps/unfold/docs/adrs/0028-the-forge-skin-renders-run-cards-in-3d-with-vendored-three-js.md)), and Holo Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch ([Unfold ADR 0026](../../apps/unfold/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md)). None of them shows rarity. The forge's art window can be an inner world the card's tilt looks into, lit and filled by its facts, which a person who holds a copy may decorate for themselves only (proposed, [Unfold ADR 0033](../../apps/unfold/docs/adrs/0033-a-forge-card-s-art-window-is-an-inner-world-its-holder-may-decorate-privately.md)). Each plays small moments inside the card when its facts change, such as a signature, a merge, a new finish, a crack or a mend, and holds still when the reader asks for reduced motion. Per-client themes on top are proposed. Proposed ceremony rules scale effects inversely to how often an event happens. They cap full-screen moments at one per 10 minutes and never interrupt typing. Every effect can be skipped, and flashes stay within WCAG limits, with no red flashes ([holo and game feel](../../apps/unfold/docs/research/2026-10-01-run-card-holo-and-game-feel.md)).
 
 ## Decisions
 
@@ -253,9 +266,10 @@ A **Skin** changes how a card looks and moves, never its numbers or where they s
 | Unit | Decided | One card per Work Item; pull requests are Plays; an epic is its own Set Card |
 | Cracks | Decided | Only with human confirmation |
 | Deploy signal | Decided, built | A generic "commit is live in environment" endpoint; merge as the fallback |
-| Card style | Decided, built | On the Work Target; per-client themes on top of skins |
+| Card style | Decided, built | Per repository in Unfold's settings; per-client themes on top of skins |
+| Where cards are computed | Decided, built | In Unfold, from Ploeg's delivery facts ([root ADR-0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md)) |
 | Visibility | Decided | Binders private; team pages for the team; clients see team aggregates only |
-| Rarity | Decided, built in Ploeg | Challenge, predicted at mint and frozen at release, percentile tiers per project and quarter; see [Rarity](#rarity-decided-built-in-ploeg) |
+| Rarity | Decided, built | Challenge, predicted at mint and frozen at release, percentile tiers per project and quarter; see [Rarity](#rarity-decided-built) |
 | Key figures | Proposed; Unfold side built | Three or four per state on the front, the rest on the back, a calendar or working-hours choice, team medians only; see [Key figures](#key-figures) |
 | Steward and roles | Proposed | Role copies with shared fate; the Steward is the developer carrying the Work Item |
 | Gates and bounces | Proposed | Tracker-status mapping per project plus the deploy endpoint |

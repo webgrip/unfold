@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { AppConfig, Repository, Crew, Placement, WorkspaceBackend } from './types.ts';
 import { validateTaskSources } from './tasks.ts';
 import { validatePloeg } from './ploeg.ts';
+import { validateCardRules } from './cards/settings.ts';
 import { validateDeliveryConfig } from './delivery-config.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -92,7 +93,9 @@ export function validateCards(raw: unknown, mode: AppConfig['mode']): NonNullabl
   const value = raw === undefined ? {} : raw;
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('cards must be an object');
   const data = value as Record<string, unknown>;
-  if (Object.keys(data).some(key => !['backfillPeriods', 'teams'].includes(key))) throw new Error('cards accepts backfillPeriods and teams');
+  if (Object.keys(data).some(key => !['backfillPeriods', 'teams', 'publishPullRequestComment', 'rules'].includes(key))) throw new Error('cards accepts backfillPeriods, teams, publishPullRequestComment and rules');
+  if (data.publishPullRequestComment !== undefined && typeof data.publishPullRequestComment !== 'boolean') throw new Error('cards.publishPullRequestComment must be true or false');
+  const rules = validateCardRules(data.rules);
   const backfillPeriods = number(data.backfillPeriods, mode === 'demo' ? 4 : 1, 0, 12, 'cards.backfillPeriods');
   if (!Number.isInteger(backfillPeriods)) throw new Error('cards.backfillPeriods must be a whole number');
   const teams: Record<string, { lengthDays: number; anchor: string }> = {};
@@ -108,7 +111,7 @@ export function validateCards(raw: unknown, mode: AppConfig['mode']): NonNullabl
       teams[team] = { lengthDays, anchor: rule.anchor as string };
     }
   }
-  return { backfillPeriods, teams };
+  return { backfillPeriods, teams, ...(data.publishPullRequestComment === true ? { publishPullRequestComment: true } : {}), ...(data.rules !== undefined ? { rules } : {}) };
 }
 
 /**

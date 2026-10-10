@@ -35,12 +35,19 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const engine = new Engine(store, config, runtimes, broker, links);
   engine.recover();
   const agentHost = new AgentHost(config, store, engine);
-  const { server, closeStreams, stopInsight } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config));
+  const { server, cards, closeStreams, stopInsight } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config));
   server.on('upgrade', (req, socket, head) => { if (!agentHost.handleUpgrade(req, socket, head)) socket.destroy(); });
   let closed = false;
+  const cardTimers: NodeJS.Timeout[] = [];
+  function startCardSweeps() {
+    if (!cards) return;
+    const sweep = () => { void cards.sweep().catch(error => console.error(JSON.stringify({ level: 'warn', event: 'cards.sweep_failed', message: String(error?.message ?? error).slice(0, 200) }))); };
+    cardTimers.push(setTimeout(sweep, 30_000).unref(), setInterval(sweep, 300_000).unref());
+  }
   async function close() {
     if (closed) return;
     closed = true;
+    for (const timer of cardTimers) clearTimeout(timer);
     agentHost.close();
     closeStreams();
     stopInsight();
@@ -48,7 +55,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
     if (server.listening) await new Promise<void>((done) => { server.close(() => done()); server.closeIdleConnections(); });
     store.close();
   }
-  return { server, store, engine, agentHost, close };
+  return { server, store, engine, agentHost, close, startCardSweeps };
 }
 
 async function main() {
@@ -59,6 +66,7 @@ async function main() {
     await app.close();
     throw new Error('Set UNFOLD_ADMIN_PASSWORD to a password of at least 12 characters for the first launch, or create an account with npm run user:add.');
   }
+  app.startCardSweeps();
   app.server.listen(config.port, config.host, () => {
     const address = app.server.address();
     const port = typeof address === 'object' && address ? address.port : config.port;

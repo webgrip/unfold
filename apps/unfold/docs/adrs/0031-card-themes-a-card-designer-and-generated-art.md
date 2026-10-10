@@ -85,3 +85,4 @@ Re-evaluate when Ploeg sends more than the theme's name, when the effects direct
 
 * Card Forge prototype and its generator guide: working documents outside the repository; the template is copied verbatim into `src/card-art.ts`.
 * 2026-10-01: proposed with format v1, theme storage and resolution, the designer and optional generated art implemented in Unfold.
+* 2026-10-10: [root ADR-0030](../../../../docs/adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md): a theme's card style is now set per repository in Unfold's `cards.rules`, not in Ploeg's `cardStyle`; themes themselves are unchanged.

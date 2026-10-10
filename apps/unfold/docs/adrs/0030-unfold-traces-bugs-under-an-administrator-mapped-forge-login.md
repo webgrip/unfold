@@ -66,3 +66,4 @@ In `apps/unfold`, `mise exec -- npm test` pins it: [`test/cracks.test.ts`](../..
 ## More Information
 
 * 2026-10-01: proposed with the Unfold side implemented against Ploeg pull request #109, while ADR 0029 (binders and packs) was proposed in parallel with self-declared card logins.
+* 2026-10-10: [root ADR-0030](../../../../docs/adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md): the crack workflow runs in Unfold. Unfold checks each step's rules, as Ploeg did, under the same administrator-mapped forge login, keeps cracks and their audit trail in its own store and imports the cracks Ploeg recorded once. With an older Ploeg the steps still go to Ploeg.

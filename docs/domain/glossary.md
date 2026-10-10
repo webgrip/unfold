@@ -118,7 +118,7 @@ A Client's Definition of Ready, Definition of Done and extra instructions for ag
 ## Crack
 *Context: Cards*
 
-A defect confirmed against a Run Card's change. Ploeg proposes candidate changes, the fixer names the cause, and a second person who is not the Steward confirms it; the Steward may dispute within five working days. A Crack is never applied automatically, carries a severity from S1 to S4, and is never totalled per person. Not implemented yet.
+A defect confirmed against a Run Card's change. Unfold proposes candidate changes, the fixer names the cause, and a second person who is not the Steward confirms it; the Steward may dispute within five working days. A Crack is never applied automatically, carries a severity from S1 to S4, and is never totalled per person.
 
 **See also:** [Mend](#mend), [Steward](#steward), [Grade](#grade), [Bounce](#bounce)  
 
