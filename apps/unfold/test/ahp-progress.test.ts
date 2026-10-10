@@ -235,7 +235,7 @@ test('a message into a running session is acknowledged for the next Role and mar
   assert.equal(pickup.params.action.part.content, `Picked up by ${reader.roleName} at ${started.at.slice(11, 16)} UTC.`);
   assert.equal(pickup.params.action.turnId, 'steer');
   const reduced = chatActions(client, chat).reduce(reduceChat, { turns: [] });
-  assert.deepEqual(reduced.activeTurn.responseParts.filter((part: Json) => part.kind === 'systemNotification').map((part: Json) => part.content.split(' ')[0]), ['Queued', 'Reviewer', 'Picked'].map((word, index) => index === 1 ? reader.roleName : word));
+  assert.deepEqual(reduced.activeTurn.responseParts.filter((part: Json) => part.kind === 'systemNotification').map((part: Json) => part.content.split(' ')[0]), ['Queued', 'Demo', 'Reviewer', 'Picked'].map((word, index) => index === 2 ? reader.roleName : word), 'a finished Run says what was spent, and a demo says it spends nothing');
 });
 
 test('a message into a queued session names the first Role, which picks it up when the session starts', { timeout: testTimeout(60_000) }, async t => {
