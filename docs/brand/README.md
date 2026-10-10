@@ -113,9 +113,11 @@ The mark moves in two ways, both drawn from the same outlines: only position, ro
 | --- | --- | --- |
 | What happens | The plane winds up, the fold snaps open, it flies a figure eight tilted onto the 52° flight axis with a trail of approach lights, lands on the mark with a squash and a burst of eight lights | A squash, the fold snaps open with an overshoot, the plane jiggles and twelve lights burst out; it does not move from the mark |
 | Length | 1.46 s, then 1.1 s at rest before the next flight | 0.94 s |
-| Where | The application's loading screen, on repeat while it loads | Hovering over or focusing the mark or lockup in the application and on the site |
+| Where | The application's loading screen, on repeat while it loads; the screen stays up until the flight in progress lands, at most 2.5 s | Hovering over, tapping or focusing the mark or lockup in the application and on the site |
 
-Both are spring-driven squash and stretch, so they overshoot and settle rather than ease to a stop. The trail and the burst take the fold's colour. With reduced motion requested, the mark stays still. Touch input does not pop it.
+Both are spring-driven squash and stretch, so they overshoot and settle rather than ease to a stop. The trail and the burst take the fold's colour. With reduced motion requested, the mark stays still and the loading screen is never held.
+
+Two Playwright checks cover it at desktop, tablet and three phone sizes (390, 360 and 320 px wide): `UNFOLD_BROWSER_FLOWS=brand npm run test:browser` in `apps/unfold` (the loading flight, the sidebar and phone-drawer pop, the sign-in pop, no sideways scroll, reduced motion) and `pnpm run validate:motion` in `apps/site` after a build (every mark on both home pages, no sideways scroll, reduced motion). Neither runs in `mise run verify` or CI yet, because both need a Chromium.
 
 ## Misuse
 

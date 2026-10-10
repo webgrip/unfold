@@ -28,7 +28,8 @@
     "format:check": "prettier --check .",
     "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
     "validate:csp": "webgrip-validate-csp",
-    "validate:a11y": "node --experimental-strip-types scripts/axe-scan.ts"
+    "validate:a11y": "node --experimental-strip-types scripts/axe-scan.ts",
+    "validate:motion": "node --experimental-strip-types scripts/motion-check.ts"
   },
   "dependencies": {
     "@astrojs/sitemap": "3.7.4",

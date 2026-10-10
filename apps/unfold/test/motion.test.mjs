@@ -57,8 +57,14 @@ test('without a motion preference to read, the mark stays still', () => {
   loop.stop();
 });
 
-test('the loading screen loops the mark and the brand link pops it', () => {
+test('the loading screen keeps flying until the application replaces it, and the brand link pops', () => {
   const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
-  assert.match(app, /loopMark\(bootMark\.querySelector\('\.brand-ink'\), bootMark\.querySelector\('\.brand-fold'\)\)/);
+  assert.match(app, /flyWhileLoading\(document\.querySelector\('#app > \.boot'\)\)/);
   assert.match(app, /popOnHover\(document, '\.app-brand, \.signin-brand'/);
+});
+
+test('landing a loop that reduced motion never started settles at once', async () => {
+  const loop = loopMark(null, null);
+  await loop.land();
+  await loop.stop();
 });

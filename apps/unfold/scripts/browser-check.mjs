@@ -28,8 +28,14 @@ const flows = [
   ['kpis', 'Run card KPIs: three or four headline figures on Unfold Native, the forge and each DOM skin pack, waiting while nobody has responded, reruns and blocked time as the only colours, the Flow tab’s stacked bar, status table, calendar line and what is not collected, the calendar ↔ working-hours toggle remembered across a reload, the Review & CI steps and CI rows, the Change tab’s complexity, Life’s merge to each environment, and phone width without horizontal scrolling'],
   ['designer', 'the card designer: a new theme changes the live forge preview (frame, foil pattern, art preset, colour tokens through the CSSOM, an uploaded set symbol, a pasted shader), a hostile SVG and a broken shader are refused with a reason, the theme saves, versions, reloads and previews on a real Work Item, the page fits 390px, and in live mode generated art retries once with the browser compiler log from a fake model and ends as the card art'],
   ['confusion', 'confusion signals from real clicks: a rage click and a dead click on named elements, no dead click when a menu opens, no rage click for triple-click text selection, a U-turn after two quick visits to one Work Item, and no screen text in any signal'],
+  ['brand', 'the Vouwvlieger at desktop, tablet and three phone sizes: the loading flight lands before the loading screen lifts and never widens the page, the brand link pops on hover in the sidebar and on tap in the phone drawer, the sign-in lockup pops, and reduced motion keeps every mark still'],
   ['login', 'live login with a failed attempt that keeps the account name, the password reveal, logout, an expired session that keeps its deep link, and a sign-out after which the next person never sees the previous Now page'],
 ];
+
+const only = (process.env.UNFOLD_BROWSER_FLOWS ?? '').split(',').map(name => name.trim()).filter(Boolean);
+const unknown = only.filter(name => !flows.some(([flow]) => flow === name));
+if (unknown.length) throw new Error(`UNFOLD_BROWSER_FLOWS names unknown flows: ${unknown.join(', ')}`);
+const selected = only.length ? flows.filter(([name]) => only.includes(name)) : flows;
 
 const root = await mkdtemp(join(tmpdir(), 'unfold-browser-'));
 const previousDataDir = process.env.UNFOLD_DATA_DIR;
@@ -54,13 +60,13 @@ try {
   const refusedOnPurpose = message => /\b400\b/.test(message.text()) && String(message.location()?.url ?? '').includes('/api/card-assets?purpose=symbol');
   page.on('console', message => { if (message.type() === 'error' && !/\b(401|409|503)\b/.test(message.text()) && !refusedOnPurpose(message)) errors.push(message.text()); });
   const screenshot = async name => { if (screenshots) { await mkdir(screenshots, { recursive: true }); await page.screenshot({ path: join(screenshots, `${name}.png`), fullPage: true }); } };
-  for (const [name] of flows) {
+  for (const [name] of selected) {
     const { run } = await import(`./browser/${name}.mjs`);
     try { await run({ page, app, live, password, assert, screenshot, artModel }); }
     catch (error) { error.message = `[${name} flow] ${error.message}`; throw error; }
   }
   assert.deepEqual(errors, [], 'Browser script or CSP errors occurred');
-  process.stdout.write(`PASS: Chromium ${browser.version()}; ${flows.map(([, covers]) => covers).join(', ')}, navigation. No inference requests: generated art comes from a local fake model.\n`);
+  process.stdout.write(`PASS: Chromium ${browser.version()}; ${selected.map(([, covers]) => covers).join(', ')}, navigation. No inference requests: generated art comes from a local fake model.\n`);
 } finally {
   await browser?.close();
   await Promise.all([app.close(), live.close(), artModel.close()]);

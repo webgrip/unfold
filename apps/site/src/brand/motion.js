@@ -317,43 +317,50 @@ export function popMark(ink, fold) {
 }
 
 /**
- * Plays the sting on repeat, resting `LOOP_REST` seconds between flights, until `stop()` is called or the mark leaves
- * the document. With reduced motion the mark stays still.
+ * Plays the sting on repeat, resting `LOOP_REST` seconds between flights, until the mark leaves the document.
+ * `land()` lets the flight in progress finish on the drawn mark and then ends the loop; `stop()` ends it at once.
+ * Both return a promise that settles when the loop has ended. With reduced motion the mark stays still.
  * @param {SVGPathElement} ink
  * @param {SVGPathElement} fold
- * @returns {{ stop: () => void }}
+ * @returns {{ land: () => Promise<void>, stop: () => Promise<void> }}
  */
 export function loopMark(ink, fold) {
-  let stopped = false;
-  if (prefersStill()) return { stop: () => {} };
+  if (prefersStill()) return { land: () => Promise.resolve(), stop: () => Promise.resolve() };
   const r = rig(ink, fold);
+  let stopped = false;
+  let landing = false;
+  const going = () => !stopped && !landing && r.plane.isConnected;
   r.busy = true;
-  (async () => {
-    while (!stopped && r.plane.isConnected) {
+  const done = (async () => {
+    while (going()) {
       await play(r, STING, stingPose, STING_LENGTH, () => !stopped);
       const until = performance.now() + LOOP_REST * 1000;
-      while (!stopped && r.plane.isConnected && performance.now() < until)
+      while (going() && performance.now() < until)
         await new Promise((next) => requestAnimationFrame(next));
     }
     r.busy = false;
   })();
   return {
+    land: () => {
+      landing = true;
+      return done;
+    },
     stop: () => {
       stopped = true;
+      return done;
     },
   };
 }
 
 /**
  * Pops the first mark inside `root` whenever a pointer or keyboard focus enters an element matching `selector`.
- * The listener is delegated, so marks rendered later are covered too. Touch input does not pop.
+ * The listener is delegated, so marks rendered later are covered too. A tap counts as entering, so touch screens pop too.
  * @param {ParentNode & EventTarget} root
  * @param {string} selector
  * @param {{ ink: string, fold: string }} classes
  */
 export function popOnHover(root, selector, classes) {
   const trigger = (event) => {
-    if (event.pointerType === 'touch') return;
     const host = event.target instanceof Element ? event.target.closest(selector) : null;
     if (!host || (event.relatedTarget instanceof Node && host.contains(event.relatedTarget)))
       return;

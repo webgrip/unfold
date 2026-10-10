@@ -53,6 +53,19 @@
   outline: none;
 }
 
+.boot-curtain {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-curtain);
+  background: var(--bg-canvas);
+  pointer-events: none;
+  transition: opacity 160ms ease-out;
+}
+
+.boot-curtain.is-lifting {
+  opacity: 0;
+}
+
 .boot .brand-mark {
   width: 4rem;
   height: 4rem;
