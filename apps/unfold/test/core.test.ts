@@ -188,9 +188,9 @@ test('recovery preserves durable events and marks running work interrupted witho
   assert.equal(store.getSession(session.id)!.runs[0].status, 'paused');
   await settle(30);
   assert.equal(runtime.calls, 0);
-  assert.equal(store.events(session.id, before)[0].type, 'session.interrupted');
+  assert.deepEqual(store.events(session.id, before).map(event => event.type), ['session.interrupted', 'run.halted']);
   engine.recover();
-  assert.equal(store.events(session.id, before).length, 1);
+  assert.equal(store.events(session.id, before).length, 2);
   await engine.shutdown();
 });
 

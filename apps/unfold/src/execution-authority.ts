@@ -157,11 +157,16 @@ export class ExecutionAuthority {
   }
 
   async checkResume(session: Session): Promise<void> {
+    if (await this.canPayAgain(session)) return;
+    throw new PloegError(409, 'inference_blocked', 'This execution capability is blocked or uncertain. Reconcile it before authorizing further paid work.');
+  }
+
+  /** Whether the execution's inference capability can pay for another generation: never minted, or minted and still held by this workbench. */
+  async canPayAgain(session: Session): Promise<boolean> {
     const binding = this.current(session.id)!;
     const account = await this.request(session, `/${binding.id}/spend`);
     const saved = this.store.getSecret<Credential>(`inference:${session.id}`);
-    if ((account.capabilityState === 'reserved' && !saved) || (account.capabilityState === 'issued' && saved)) return;
-    throw new PloegError(409, 'inference_blocked', 'This execution capability is blocked or uncertain. Reconcile it before authorizing further paid work.');
+    return (account.capabilityState === 'reserved' && !saved) || (account.capabilityState === 'issued' && Boolean(saved));
   }
 
   async block(session: Session): Promise<void> {
@@ -193,8 +198,15 @@ export class ExecutionAuthority {
     if (!binding || session.runtime === 'demo') return;
     const data = await this.request(session, `/${binding.id}/spend`);
     const latest = this.store.getSession(session.id)!;
-    if (data.costStatus === 'observed' && typeof data.observedUsd === 'number' && Number.isFinite(data.observedUsd) && data.observedUsd >= 0) { latest.observedUsd = Math.max(latest.observedUsd ?? 0, data.observedUsd); latest.costStatus = 'pending'; }
+    const observed = data.costStatus === 'observed' && typeof data.observedUsd === 'number' && Number.isFinite(data.observedUsd) && data.observedUsd >= 0 ? data.observedUsd as number : undefined;
+    const settles = observed !== undefined && data.capabilityState === 'reconciled';
+    const wasSettled = latest.costStatus === 'settled';
+    if (settles) { latest.observedUsd = observed; latest.spentUsd = Math.round(observed * 1e8) / 1e8; latest.costStatus = 'settled'; }
+    else if (observed !== undefined) { latest.observedUsd = Math.max(latest.observedUsd ?? 0, observed); latest.costStatus = 'pending'; }
     else latest.costStatus = 'unknown';
-    this.store.saveSession(latest);
+    this.store.transaction(() => {
+      this.store.saveSession(latest);
+      if (settles && !wasSettled) this.store.appendEvent(session.id, 'budget.settled', 'ploeg', { spentUsd: latest.spentUsd, costStatus: 'settled', source: 'gateway', capabilityState: 'reconciled' });
+    });
   }
 }
