@@ -25,6 +25,7 @@ type Broker = {
 };
 type Reservation = { reference: string; authorizedUsd: number; revoked: boolean };
 type Active = { controller: AbortController; task: Promise<void> };
+const stillReportingToPloeg = 'The session is still telling Ploeg how its execution ended. Close its Work Item once that is done.';
 export type CreateSessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; approval?: 'manual' | 'auto'; model?: string; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot; previousSessionId?: string };
 
 export type Provisioning = Omit<WorkspaceWait, 'phase'> & { phase: WorkspaceWait['phase'] | 'preparing' };
@@ -324,6 +325,7 @@ export class Engine {
     if (!['failed', 'cancelled'].includes(session.status)) throw new EngineError(409, 'invalid_state', 'Only an ended session can close its Work Item.');
     if (session.workItemClosedAt) return session;
     if (!this.authority?.current(id)) throw new EngineError(409, 'invalid_state', 'This session has no Ploeg Work Item to close.');
+    if (this.active.has(id)) throw new EngineError(409, 'stopping', stillReportingToPloeg);
     this.authority.authorize(user);
     await this.authority.command(session, 'close', {}, user.id);
     const current = this.store.getSession(id)!;
@@ -403,7 +405,7 @@ export class Engine {
     if (stopped) add({ id: 'resume', label: 'Resume', description: 'Continue this session in its next generation. Every Run that did not finish runs again.', path: `${base}/resume` }, runsAgain ? undefined : current ? 'Ploeg blocked this execution\'s inference key when it stopped, so it cannot pay for another generation.' : 'The session cannot resume now.');
     if (stopped || ['failed', 'cancelled'].includes(session.status)) add({ id: 'run_again', label: 'Run again', description: 'Create a new session with the same brief, crew, repository and budget. It is a new Ploeg authorization and waits for an explicit start.', path: `${base}/run-again` }, session.sourceTask ? 'A tracker task is imported again from its tracker.' : undefined);
     if (!ended) add({ id: 'cancel', label: 'Cancel', description: 'End this session. Ploeg closes its Work Item\'s execution and releases its held budget; nothing runs again.', path: `${base}/cancel` }, this.active.has(id) && session.status === 'exporting' ? 'The session is capturing its candidate.' : undefined);
-    if (current && ['failed', 'cancelled'].includes(session.status) && !session.workItemClosedAt) add({ id: 'close_work_item', label: 'Close its Work Item', description: 'Withdraw this ended session\'s Work Item in Ploeg.', path: `${base}/close-work-item` });
+    if (current && ['failed', 'cancelled'].includes(session.status) && !session.workItemClosedAt) add({ id: 'close_work_item', label: 'Close its Work Item', description: 'Withdraw this ended session\'s Work Item in Ploeg.', path: `${base}/close-work-item` }, this.active.has(id) ? stillReportingToPloeg : undefined);
     const summary = stranded
       ? review?.verdict === 'approve' && !deliveryBlocker
         ? `${review.roleName} approved the work before Ploeg stopped the session. It will not run again on its own: deliver the approved work, or run it again as a new session.`
