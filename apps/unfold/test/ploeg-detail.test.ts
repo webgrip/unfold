@@ -22,3 +22,13 @@ test('a Work Item detail is still refused when a Run belongs to another Work Ite
   sample.runs.at(-1).workItemId = '999';
   assert.throws(() => detail({ schemaVersion: '1.0', ...sample }), /unsupported operator response/);
 });
+
+test('a Work Item detail parses when a finished Run from before Shifts existed ran under another team', () => {
+  const sample = structuredClone((ploegDemo.details as any)['104']) as any;
+  const legacy = { ...structuredClone(sample.runs.at(-1)), id: String(Number(sample.runs.at(-1).id) + 200), shiftId: null, round: 0, team: 'bronze', role: '', state: 'finished' };
+  sample.runs.push(legacy);
+  const parsed = detail({ schemaVersion: '1.0', ...sample });
+  assert.equal(parsed.runs.at(-1)!.team, 'bronze');
+  legacy.state = 'running';
+  assert.throws(() => detail({ schemaVersion: '1.0', ...sample }), /unsupported operator response/, 'a Run of another team that is still running is refused');
+});
