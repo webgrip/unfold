@@ -4,7 +4,6 @@ import { test } from 'node:test';
 import { cardActivity, cardListLogins, namesAny, orderCards } from '../src/cards/list.ts';
 import { assembleCard, defaultCardRules, rarityRecord, type CardContext, type CrackRecord, type RarityRecord } from '../src/cards/assemble.ts';
 import { parseWorkItemFacts, type WorkItemFacts } from '../src/cards/facts.ts';
-import { importedCrack } from '../src/cards/service.ts';
 import { micros, rfc3339Micros } from '../src/cards/go.ts';
 import { newCalendar, newKindMap } from '../src/cards/flow.ts';
 import type { CI, Shape, Timeline } from '../src/cards/playkpi.ts';
@@ -21,7 +20,25 @@ const kindsByTest: Record<string, Record<string, Record<string, ReturnType<typeo
   TestOperatorCard_FlowFromStoredFacts: { vikunja: { 10: newKindMap({ active: ['UAT'] }) } },
 };
 
-/** Builds the context Unfold would have after seeing every Work Item of the fixture's world and importing Ploeg's card state. */
+function text(value: unknown): string | null { return value === null || value === undefined ? null : String(value); }
+
+function fixtureCrack(raw: unknown): CrackRecord {
+  const c = raw as Record<string, unknown>;
+  const ref = (value: unknown): CrackRecord['pullRequest'] => { if (!value || typeof value !== 'object') return null; const r = value as Record<string, unknown>; return { id: String(r.id), forge: String(r.forge), owner: String(r.owner), repo: String(r.repo), number: Number(r.number) }; };
+  const time = (value: unknown) => (value === null || value === undefined ? null : rfc3339Micros(micros(String(value))));
+  const bug = (c.bug ?? {}) as Record<string, unknown>;
+  return {
+    id: String(c.id), team: String(c.team), state: c.state as CrackRecord['state'], cardWorkItemId: String(c.cardWorkItemId), bugWorkItemId: String(c.bugWorkItemId),
+    bug: { provider: String(bug.provider ?? ''), externalId: String(bug.externalId ?? '') }, pullRequest: ref(c.pullRequest), severity: text(c.severity), share: text(c.share), discovery: text(c.discovery),
+    steward: String(c.steward ?? ''), note: text(c.note), proposedBy: String(c.proposedBy), proposedAt: time(c.proposedAt)!, confirmedBy: text(c.confirmedBy), confirmedAt: time(c.confirmedAt),
+    disputeUntil: time(c.disputeUntil), disputedBy: text(c.disputedBy), disputedAt: time(c.disputedAt), disputeReason: text(c.disputeReason), resolvedBy: text(c.resolvedBy), resolvedAt: time(c.resolvedAt),
+    resolution: text(c.resolution) as CrackRecord['resolution'], evolvedBy: text(c.evolvedBy), evolvedAt: time(c.evolvedAt), mendPullRequest: ref(c.mendPullRequest),
+    mendNumber: c.mendNumber === null || c.mendNumber === undefined ? null : Number(c.mendNumber), mendedAt: time(c.mendedAt), mendedBy: text(c.mendedBy),
+    mendBySteward: c.mendBySteward === null || c.mendBySteward === undefined ? null : Boolean(c.mendBySteward), mendConfirmedAt: time(c.mendConfirmedAt), mendReopenedAt: time(c.mendReopenedAt),
+  };
+}
+
+/** Builds the context Unfold would have after seeing every Work Item of the fixture's world and holding the card state Ploeg had recorded. */
 export function fixtureContext(fixture: Fixture): { facts: WorkItemFacts; ctx: CardContext; frozen: RarityRecord[] } {
   const live = new Map((fixture.liveReadings ?? []).filter(r => !r.error).map(r => [r.runId, r]));
   const world = new Map<string, WorkItemFacts>();
@@ -31,7 +48,7 @@ export function fixtureContext(fixture: Fixture): { facts: WorkItemFacts; ctx: C
     world.set(facts.workItem.id, facts);
   }
   const frozen: RarityRecord[] = [];
-  const cracks = fixture.state.cracks.map(importedCrack);
+  const cracks = fixture.state.cracks.map(fixtureCrack);
   const stored = new Map(fixture.state.rarity.map(r => [r.workItemId, r]));
   const now = micros(fixture.options.now);
   const calendar = fixture.options.flow?.cardCalendar;

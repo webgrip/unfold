@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test, type TestContext } from 'node:test';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { randomBytes } from 'node:crypto';
-import { PloegClient, contextInput, demoContextRefusal, nowStateCap, parseContextItem, validatePloeg, type PloegDetail } from '../src/ploeg.ts';
+import { PloegClient, PloegError, contextInput, demoContextRefusal, nowStateCap, parseCard, parseContextItem, validatePloeg, type PloegDetail } from '../src/ploeg.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { hashPassword } from '../src/auth.ts';
 import { application, configuration, login, request } from './api-support.ts';
@@ -731,65 +731,69 @@ function liveCard(id: string, team = 'delivery') {
   };
 }
 
-test('the card proxy passes a contract grade and condition through validated, and nulls any other shape', async t => {
-  const upstreamApi = await upstream(t);
-  const ploeg = client(upstreamApi.config);
+function cardInput() { return { token: randomBytes(16).toString('hex'), cards: {} as Record<string, unknown> }; }
+async function parsedCard(input: ReturnType<typeof cardInput>, id: string) {
+  const card = parseCard(input.cards[id]);
+  if (card.workItemId !== id) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+  return { card, demo: false };
+}
+
+test('the browser card parser passes a contract grade and condition through validated, and nulls any other shape', async () => {
+  const upstreamApi = cardInput();
   const grade = { formula: '2026.1', overall: 8.5, provisional: true, subgrades: { reliability: 10, durability: 8.5, delivery: 9, review: 8, extra: 3 }, label: null, qualifiers: ['HF', 'ZZ'], inputs: { secret: upstreamApi.token } };
   const condition = { state: 'mended', cracks: [{ id: 'c1', bug: { workItemId: 140, ref: 'VIK-1642', title: 'Lease renewal raced the watcher', note: 'x' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: '2026-09-20T10:00:00Z', confirmedAt: '2026-09-21T10:00:00Z', confirmedBy: ['iris', 'sam'], disputed: false, mended: { at: '2026-09-25T10:00:00Z', by: 'ryan', pr: 68, bySteward: true } }] };
   upstreamApi.cards['101'] = { ...liveCard('101'), rarity: 'legendary', grade, condition };
-  const view = await ploeg.card(admin, '101');
+  const view = await parsedCard(upstreamApi, '101');
   assert.equal(view.card.rarity, null, 'a rarity that is a bare word is dropped');
   assert.deepEqual(view.card.grade, { formula: '2026.1', overall: 8.5, provisional: true, subgrades: { reliability: 10, durability: 8.5, delivery: 9, review: 8 }, label: null, qualifiers: ['HF'] }, 'known subgrades and qualifiers only; inputs are not passed on');
   assert.deepEqual(view.card.condition, { state: 'mended', cracks: [{ id: 'c1', bug: { workItemId: '140', ref: 'VIK-1642', title: 'Lease renewal raced the watcher' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: '2026-09-20T10:00:00Z', confirmedAt: '2026-09-21T10:00:00Z', confirmedBy: ['iris', 'sam'], disputed: false, mended: { at: '2026-09-25T10:00:00Z', by: 'ryan', pr: 68, bySteward: true } }] });
   assert.equal(JSON.stringify(view).includes(upstreamApi.token), false);
   for (const [bad, why] of [[{ ...grade, overall: 8.4 }, 'off the half-step scale'], [{ ...grade, overall: 11 }, 'above 10'], [{ ...grade, label: 'platinum' }, 'an unknown label'], [{ ...grade, formula: '' }, 'no formula'], [{ ...grade, provisional: 'yes' }, 'a provisional flag that is not a boolean'], [9, 'a bare number']] as const) {
     upstreamApi.cards['101'] = { ...liveCard('101'), grade: bad };
-    assert.equal((await ploeg.card(admin, '101', true)).card.grade, null, `a grade with ${why} is dropped`);
+    assert.equal((await parsedCard(upstreamApi, '101')).card.grade, null, `a grade with ${why} is dropped`);
   }
   for (const [bad, why] of [[{ ...condition, state: 'shattered' }, 'an unknown state'], [{ ...condition, cracks: [{ ...condition.cracks[0], severity: 'S9' }] }, 'an unknown severity'], [{ ...condition, cracks: [{ ...condition.cracks[0], confirmedAt: 'soon' }] }, 'a time that is not a time'], ['cracked', 'a bare string']] as const) {
     upstreamApi.cards['101'] = { ...liveCard('101'), condition: bad };
-    assert.equal((await ploeg.card(admin, '101', true)).card.condition, null, `a condition with ${why} is dropped`);
+    assert.equal((await parsedCard(upstreamApi, '101')).card.condition, null, `a condition with ${why} is dropped`);
   }
   upstreamApi.cards['101'] = { ...liveCard('101'), grade: null, condition: null };
-  assert.deepEqual([(await ploeg.card(admin, '101', true)).card.grade, (await ploeg.card(admin, '101', true)).card.condition], [null, null]);
+  assert.deepEqual([(await parsedCard(upstreamApi, '101')).card.grade, (await parsedCard(upstreamApi, '101')).card.condition], [null, null]);
   const inputs = { reliability: { crackWeight: 0, reverted: false }, durability: { daysLive: 3, liveSince: '2026-10-01T12:00:00Z', reverts: 0, hotfixes: 0, survival: null }, delivery: { budgetShare: null, defectBounces: 0, extraPlays: 0, failedRuns: 0 }, review: { ciFirstGreen: null, findings: null, changeRequests: 2, reviewRounds: 3, reworkRounds: 1 }, notCollected: ['review.findings'], missing: ['delivery.budgetShare', 'nonsense'] };
   upstreamApi.cards['101'] = { ...liveCard('101'), grade: { ...grade, formula: '2026.3', qualifiers: [], inputs } };
-  const rated = (await ploeg.card(admin, '101', true)).card.grade;
+  const rated = (await parsedCard(upstreamApi, '101')).card.grade;
   assert.equal(rated?.formula, '2026.3');
   assert.deepEqual([rated?.inputs?.review.reworkRounds, rated?.inputs?.missing], [1, ['delivery.budgetShare']], 'rework rounds and the inputs Ploeg missed pass through, unknown names dropped');
   const { missing: _sent, ...older } = inputs;
   upstreamApi.cards['101'] = { ...liveCard('101'), grade: { ...grade, formula: '2026.2', qualifiers: [], inputs: older } };
-  assert.equal(Object.hasOwn((await ploeg.card(admin, '101', true)).card.grade?.inputs ?? {}, 'missing'), false, 'an older Ploeg that sends no missing list is not read as complete evidence');
+  assert.equal(Object.hasOwn((await parsedCard(upstreamApi, '101')).card.grade?.inputs ?? {}, 'missing'), false, 'an older Ploeg that sends no missing list is not read as complete evidence');
   upstreamApi.cards['101'] = { ...liveCard('101'), style: { skin: 'forge', theme: null } };
-  assert.deepEqual((await ploeg.card(admin, '101', true)).card.style, { skin: 'forge', theme: null }, 'a Work Target can choose the forge skin');
+  assert.deepEqual((await parsedCard(upstreamApi, '101')).card.style, { skin: 'forge', theme: null }, 'a Work Target can choose the forge skin');
   upstreamApi.cards['101'] = { ...liveCard('101'), style: { skin: 'arcade', theme: null } };
-  assert.deepEqual((await ploeg.card(admin, '101', true)).card.style, { skin: 'arcade', theme: null }, 'a Work Target can choose a DOM skin pack');
+  assert.deepEqual((await parsedCard(upstreamApi, '101')).card.style, { skin: 'arcade', theme: null }, 'a Work Target can choose a DOM skin pack');
 });
 
-test('the card proxy passes a contract rarity through (Ploeg ADR-0056, proposed), drops fields it does not know, and nulls a rarity it cannot read', async t => {
-  const upstreamApi = await upstream(t);
-  const ploeg = client(upstreamApi.config);
+test('the browser card parser passes a contract rarity through, drops fields it does not know, and nulls a rarity it cannot read', async () => {
+  const upstreamApi = cardInput();
   const rarity = { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'webgrip/glide', quarter: '2026Q4', size: 57, region: 'eu' }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'], secret: upstreamApi.token }, revealedAt: '2026-10-01T12:00:00Z', mood: 'shiny' };
   upstreamApi.cards['101'] = { ...liveCard('101'), rarity };
-  const view = await ploeg.card(admin, '101');
+  const view = await parsedCard(upstreamApi, '101');
   assert.deepEqual(view.card.rarity, { formula: '2026.1', predicted: 'epic', revealed: 'rare', tier: 'rare', score: 61.4, percentile: 91.2, cohort: { target: 'webgrip/glide', quarter: '2026Q4', size: 57 }, inputs: { reach: { modules: 4, repos: 1 }, sensitive: { files: 2, paths: ['src/auth/session.ts', 'migrations/0042.sql'] }, novelty: { share: 0.5, files: 6, novel: 3 }, size: { countedLines: 252 }, set: null, truncated: false, notCollected: ['complexity', 'estimate'] }, revealedAt: '2026-10-01T12:00:00Z' });
   assert.equal(JSON.stringify(view).includes(upstreamApi.token), false, 'an unknown input is not passed on');
   for (const [bad, why] of [[{ ...rarity, tier: 'mythic' }, 'an unknown tier'], [{ ...rarity, score: 140 }, 'a score above 100'], [{ ...rarity, percentile: 0 }, 'a percentile of zero'], [{ ...rarity, cohort: { ...rarity.cohort, quarter: '2026-Q4' } }, 'a quarter in another form'], [{ ...rarity, revealedAt: 'at release' }, 'a time that is not a time'], [{ ...rarity, inputs: { ...rarity.inputs, novelty: { share: 1.5, files: 6, novel: 3 } } }, 'a share above one'], ['legendary', 'a bare word']] as const) {
     upstreamApi.cards['101'] = { ...liveCard('101'), rarity: bad };
-    assert.equal((await ploeg.card(admin, '101', true)).card.rarity, null, `a rarity with ${why} is dropped`);
+    assert.equal((await parsedCard(upstreamApi, '101')).card.rarity, null, `a rarity with ${why} is dropped`);
   }
   upstreamApi.cards['101'] = { ...liveCard('101'), rarity: null };
-  assert.equal((await ploeg.card(admin, '101', true)).card.rarity, null, 'an older Ploeg sends null');
+  assert.equal((await parsedCard(upstreamApi, '101')).card.rarity, null, 'an older Ploeg sends null');
   const { rarity: _absent, ...older } = liveCard('101');
   upstreamApi.cards['101'] = older;
-  assert.equal((await ploeg.card(admin, '101', true)).card.rarity, null, 'an absent rarity reads null');
+  assert.equal((await parsedCard(upstreamApi, '101')).card.rarity, null, 'an absent rarity reads null');
 });
 
-test('the card proxy reads Ploeg card facts, keeps unknowns absent, drops a rarity it cannot read and Ploeg\'s finish, and drops a grade or condition it cannot read', async t => {
-  const upstreamApi = await upstream(t);
+test('the browser card parser keeps unknowns absent, drops a rarity it cannot read and a sent finish, and drops a grade or condition it cannot read', async () => {
+  const upstreamApi = cardInput();
   upstreamApi.cards['101'] = liveCard('101');
-  const ploeg = client(upstreamApi.config);
-  const view = await ploeg.card(admin, '101');
+  const view = await parsedCard(upstreamApi, '101');
   assert.equal(view.demo, false);
   assert.equal(view.card.workItemId, '101');
   assert.deepEqual([view.card.rarity, view.card.finish, view.card.grade, view.card.condition], [null, 'matte', null, null]);
@@ -800,69 +804,58 @@ test('the card proxy reads Ploeg card facts, keeps unknowns absent, drops a rari
   assert.equal(view.card.totals.turns, undefined);
   assert.equal(view.card.totals.usageComplete, false);
   assert.deepEqual(view.card.events[0].detail, { number: 57 });
-  assert(upstreamApi.seen.some(call => call.path === '/api/v1/operator/work-items/101/card' && call.method === 'GET'));
   assert.equal('release' in view.card, false, 'an older Ploeg without releases keeps release absent');
   assert.equal('deployments' in view.card, false);
   assert.equal('live' in view.card, false, 'an older Ploeg without live usage keeps live absent');
   upstreamApi.cards['101'] = { ...liveCard('101'), live: { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 2040, costUsd: 0.27, inputTokens: 10418740, outputTokens: 127480, usageComplete: true, extra: 'x' } };
-  assert.deepEqual((await ploeg.card(admin, '101', true)).card.live, { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 2040, costUsd: 0.27, inputTokens: 10418740, outputTokens: 127480, usageComplete: true }, 'live usage passes through validated, unknown keys stripped');
+  assert.deepEqual((await parsedCard(upstreamApi, '101')).card.live, { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 2040, costUsd: 0.27, inputTokens: 10418740, outputTokens: 127480, usageComplete: true }, 'live usage passes through validated, unknown keys stripped');
   upstreamApi.cards['101'] = { ...liveCard('101'), live: { runningRuns: 1, observedAt: '2026-10-01T13:32:00Z', runSeconds: 60, usageComplete: false } };
-  assert.equal('costUsd' in (await ploeg.card(admin, '101', true)).card.live!, false, 'an unread gateway keeps live cost absent, never zero');
+  assert.equal('costUsd' in (await parsedCard(upstreamApi, '101')).card.live!, false, 'an unread gateway keeps live cost absent, never zero');
   upstreamApi.cards['101'] = { ...liveCard('101'), live: null };
-  assert.equal((await ploeg.card(admin, '101', true)).card.live, null);
+  assert.equal((await parsedCard(upstreamApi, '101')).card.live, null);
   upstreamApi.cards['101'] = { ...liveCard('101'), live: { runningRuns: 1, usageComplete: true } };
-  await assert.rejects(ploeg.card(admin, '101', true), /unsupported operator response/, 'live usage needs its run time');
+  await assert.rejects(parsedCard(upstreamApi, '101'), /unsupported operator response/, 'live usage needs its run time');
   upstreamApi.cards['101'] = { ...liveCard('101'), finish: 'infinity', release: { at: '2026-09-01T10:00:00Z', source: 'deploy', environment: 'Production' }, deployments: [{ environment: 'Production', firstDeployedAt: '2026-09-01T10:00:00Z', sha: 'abc123', url: `https://ci.example.test/run/9?token=${upstreamApi.token}` }, { environment: 'test', firstDeployedAt: '2026-08-31T10:00:00Z', sha: 'abc123', url: 'https://ci.example.test/run/8', extra: 'x' }, { environment: '', sha: 'abc' }] };
-  const deployed = await ploeg.card(admin, '101', true);
+  const deployed = await parsedCard(upstreamApi, '101');
   assert.equal(deployed.card.finish, 'matte', 'Unfold computes the finish and ignores Ploeg\'s');
   assert.deepEqual(deployed.card.release, { at: '2026-09-01T10:00:00Z', source: 'deploy', environment: 'production' });
   assert.deepEqual(deployed.card.deployments, [{ environment: 'production', firstDeployedAt: '2026-09-01T10:00:00Z', sha: 'abc123', url: '' }, { environment: 'test', firstDeployedAt: '2026-08-31T10:00:00Z', sha: 'abc123', url: 'https://ci.example.test/run/8' }], 'environments lowercased, secret links and unnamed entries dropped, unknown keys stripped');
   upstreamApi.cards['101'] = { ...liveCard('101'), plays: [{ ...liveCard('101').plays[0], deployments: [{ environment: 'test', firstDeployedAt: '2026-08-31T10:00:00Z', sha: 'b'.repeat(40), url: 'https://ci.example.test/run/7' }] }], release: null, deployments: [] };
-  assert.deepEqual((await ploeg.card(admin, '101', true)).card.plays[0].deployments, [{ environment: 'test', firstDeployedAt: '2026-08-31T10:00:00Z', sha: 'b'.repeat(40), url: 'https://ci.example.test/run/7' }], 'per-play deployments pass through validated');
-  assert.deepEqual([(await ploeg.card(admin, '101', true)).card.release, (await ploeg.card(admin, '101', true)).card.deployments], [null, []]);
+  assert.deepEqual((await parsedCard(upstreamApi, '101')).card.plays[0].deployments, [{ environment: 'test', firstDeployedAt: '2026-08-31T10:00:00Z', sha: 'b'.repeat(40), url: 'https://ci.example.test/run/7' }], 'per-play deployments pass through validated');
+  assert.deepEqual([(await parsedCard(upstreamApi, '101')).card.release, (await parsedCard(upstreamApi, '101')).card.deployments], [null, []]);
   upstreamApi.cards['101'] = { ...liveCard('101'), release: { at: '2026-09-01T10:00:00Z', source: 'merge' } };
-  assert.deepEqual((await ploeg.card(admin, '101', true)).card.release, { at: '2026-09-01T10:00:00Z', source: 'merge', environment: 'production' });
+  assert.deepEqual((await parsedCard(upstreamApi, '101')).card.release, { at: '2026-09-01T10:00:00Z', source: 'merge', environment: 'production' });
   upstreamApi.cards['101'] = { ...liveCard('101'), release: { at: 'soon', source: 'deploy' } };
-  await assert.rejects(ploeg.card(admin, '101', true), /unsupported operator response/, 'a release needs a time');
+  await assert.rejects(parsedCard(upstreamApi, '101'), /unsupported operator response/, 'a release needs a time');
   upstreamApi.cards['101'] = { ...liveCard('101'), url: `https://tracker.example.test/task?token=${upstreamApi.token}`, style: { skin: '../../evil', theme: 'acme-blue' } };
-  const sanitized = await ploeg.card(admin, '101', true);
+  const sanitized = await parsedCard(upstreamApi, '101');
   assert.equal(sanitized.card.url, '');
   assert.deepEqual(sanitized.card.style, { skin: 'unfold-native', theme: 'acme-blue' });
   assert.equal(JSON.stringify(sanitized).includes(upstreamApi.token), false);
   const manual = { ...liveCard('101'), target: null, plays: [{ number: 58, reviews: [{ reviewer: 'ryan', state: 'commented' }], ci: { state: 'pending', checks: [], headSha: 'def', capturedAt: '2026-10-01T11:00:00Z' } }], events: [{ at: '2026-10-01T09:00:00Z', kind: 'review', actor: 'ryan', detail: { number: 58, source: 'forge' } }] } as Record<string, unknown>;
   delete manual.url; delete manual.externalRef;
   upstreamApi.cards['101'] = manual;
-  const omitted = await ploeg.card(admin, '101', true);
+  const omitted = await parsedCard(upstreamApi, '101');
   assert.deepEqual([omitted.card.target, omitted.card.url, omitted.card.externalRef], [null, '', '']);
   assert.equal(omitted.card.plays[0].state, '', 'a play the forge did not describe has no state');
   assert.deepEqual(omitted.card.plays[0].ci, { state: 'pending', checks: [], headSha: 'def', capturedAt: '2026-10-01T11:00:00Z' });
   assert.deepEqual(omitted.card.events[0].detail, { number: 58, source: 'forge' });
   upstreamApi.cards['101'] = { ...liveCard('101'), plays: [{ number: '57' }] };
-  await assert.rejects(ploeg.card(admin, '101', true), /unsupported operator response/);
+  await assert.rejects(parsedCard(upstreamApi, '101'), /unsupported operator response/);
   upstreamApi.cards['101'] = { ...liveCard('101'), totals: { costStatus: 'estimated' } };
-  await assert.rejects(ploeg.card(admin, '101', true), /unsupported operator response/);
+  await assert.rejects(parsedCard(upstreamApi, '101'), /unsupported operator response/);
   upstreamApi.cards['101'] = liveCard('102');
-  await assert.rejects(ploeg.card(admin, '101', true), /not found/, 'a card for another Work Item is refused');
-  await assert.rejects(ploeg.card(admin, '105'), /not found/, 'an older Ploeg without the card route answers 404');
-  await assert.rejects(ploeg.card(admin, 'abc'), /valid Ploeg work item/);
+  await assert.rejects(parsedCard(upstreamApi, '101'), /not found/, 'a card for another Work Item is refused');
 });
 
 test('the card route is scoped to the caller\'s Teams, read-only, and a demo card says so with no spend', async t => {
   const upstreamApi = await upstream(t);
-  upstreamApi.cards['101'] = liveCard('101');
-  upstreamApi.cards['104'] = liveCard('104', 'research');
   const server = await application('live', config => { config.ploeg = { ...upstreamApi.config, userTeams: { reader: ['delivery'] } }; });
   t.after(() => server.close());
   const password = randomBytes(24).toString('hex');
   server.app.store.addUser({ id: 'reader', name: 'reader', role: 'viewer', passwordHash: await hashPassword(password) });
   const reader = await login(server.url, 'reader', password);
   assert.equal((await request(server.url, '/api/ploeg/work-items/101/card')).status, 401);
-  const card = await request(server.url, '/api/ploeg/work-items/101/card', reader);
-  assert.equal(card.status, 200);
-  assert.equal(card.body.card.title, 'Retry sandbox claims');
-  assert.equal(card.body.demo, false);
-  assert.equal((await request(server.url, '/api/ploeg/work-items/104/card', reader)).status, 404, 'another Team\'s card stays hidden');
-  assert.equal((await request(server.url, '/api/ploeg/work-items/105/card', reader)).status, 404);
   assert.equal((await request(server.url, '/api/ploeg/work-items/101/card', { ...reader, method: 'POST', body: {} })).status, 405);
   const demo = await application(); t.after(() => demo.close());
   const merged = await request(demo.url, '/api/ploeg/work-items/114/card');

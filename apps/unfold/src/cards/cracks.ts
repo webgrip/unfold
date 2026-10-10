@@ -10,7 +10,7 @@ export class CrackError extends Error {
   constructor(code: string, message: string) {
     super(message);
     this.code = code;
-    this.status = code === 'invalid_request' ? 400 : code === 'forbidden_actor' ? 403 : code === 'not_found' ? 404 : code === 'importing' ? 503 : 409;
+    this.status = code === 'invalid_request' ? 400 : code === 'forbidden_actor' ? 403 : code === 'not_found' ? 404 : 409;
     this.name = 'CrackError';
   }
 }

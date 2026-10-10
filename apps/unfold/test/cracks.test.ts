@@ -14,46 +14,26 @@ async function upstream(t: TestContext) {
   const bearer = randomBytes(24).toString('hex');
   process.env[env] = bearer;
   const posts: Post[] = [];
-  const reads: string[] = [];
-  const state = { cracks: structuredClone(ploegDemo.cracks) as unknown[], candidates: structuredClone(ploegDemo.crackCandidates['124']) as unknown, refusal: null as null | { status: number; code: string; message: string } };
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     if (req.headers.authorization !== `Bearer ${bearer}`) { res.writeHead(401).end(); return; }
     const url = new URL(req.url!, 'http://fixture.invalid');
-    const send = (status: number, data: object) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...data }));
-    if (req.method === 'POST') {
-      const chunks: Buffer[] = [];
-      req.on('data', chunk => chunks.push(chunk));
-      req.on('end', () => {
-        posts.push({ path: url.pathname, actor: req.headers['x-ploeg-actor'] as string, acting: req.headers['x-ploeg-acting-user'] as string, body: Buffer.concat(chunks).toString('utf8') });
-        if (state.refusal) { send(state.refusal.status, { error: { code: state.refusal.code, message: state.refusal.message } }); return; }
-        const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-        const propose = /\/work-items\/(\d+)\/(cracks|evolved)$/.exec(url.pathname);
-        if (propose) { send(propose[2] === 'cracks' ? 201 : 200, { crack: { ...ploegDemo.cracks[1], id: '7200', state: propose[2] === 'cracks' ? 'proposed' : 'evolved', card: { workItemId: body.card, title: 'Card', externalRef: '' }, bug: { workItemId: propose[1], title: 'Bug', externalRef: '' }, proposedBy: req.headers['x-ploeg-acting-user'] } }); return; }
-        const step = /\/cracks\/(\d+)\/(confirm|dispute|resolve)$/.exec(url.pathname);
-        if (step) { send(200, { crack: { ...ploegDemo.cracks[1], id: step[1], state: 'confirmed', confirmedBy: ['demo-dev', req.headers['x-ploeg-acting-user']], confirmedAt: '2026-10-01T10:00:00Z' } }); return; }
-        send(404, { error: { code: 'not_found', message: 'nope' } });
-      });
-      return;
-    }
-    reads.push(url.pathname);
-    if (/\/work-items\/\d+\/cracks$/.test(url.pathname)) { send(200, { cracks: state.cracks }); return; }
-    if (/\/work-items\/124\/crack-candidates$/.test(url.pathname)) { send(200, { crackCandidates: state.candidates }); return; }
+    if (req.method === 'POST') posts.push({ path: url.pathname, actor: req.headers['x-ploeg-actor'] as string, acting: req.headers['x-ploeg-acting-user'] as string, body: '' });
     const id = url.pathname.split('/').at(-1)!;
-    if (ploegDemo.details[id]) { send(200, ploegDemo.details[id]); return; }
+    if (req.method === 'GET' && ploegDemo.details[id]) { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...ploegDemo.details[id] })); return; }
     res.writeHead(404).end();
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); delete process.env[env]; });
   const address = server.address(); assert(address && typeof address !== 'string');
-  return { config: { url: `http://127.0.0.1:${address.port}`, tokenEnv: env }, posts, reads, state, bearer };
+  return { config: { url: `http://127.0.0.1:${address.port}`, tokenEnv: env }, posts };
 }
 
 const contractCard = (extra: Record<string, unknown> = {}) => ({ workItemId: '118', title: 'Validate postcodes', team: 'delivery', target: null, style: { skin: 'unfold-native', theme: null }, state: 'merged', rarity: null, finish: 'matte', grade: null, condition: null, steward: { name: 'ryan', source: 'merged_by' }, roster: [], crew: [], plays: [], totals: { costStatus: 'not_reported', usageComplete: null, firstRunAt: null, lastRunAt: null }, events: [], deployments: [], release: null, live: null, demo: false, ...extra });
 const inputs = { reliability: { crackWeight: 1.25, reverted: false }, durability: { daysLive: 41, liveSince: '2026-08-20T10:00:00Z', reverts: 0, hotfixes: 1, survival: null }, delivery: { budgetShare: 0.5, defectBounces: 1, extraPlays: 0, failedRuns: 0 }, review: { ciFirstGreen: null, findings: null, changeRequests: 2, reviewRounds: 2 }, notCollected: ['durability.survival', 'review.ciFirstGreen', 'review.findings', 'bogus key'] };
 
-test('the card proxy passes gates, evolved, a set, grade inputs, crack weights and the cosigner through validated, and keeps them absent for an older Ploeg', () => {
+test('the browser card parser passes gates, evolved, a set, grade inputs, crack weights and the cosigner through validated, and keeps them absent when the card has none', () => {
   const older = parseCard(contractCard());
-  assert.deepEqual(['gates', 'evolved', 'set'].filter(key => key in older), [], 'an older Ploeg sends none of them and they stay absent');
+  assert.deepEqual(['gates', 'evolved', 'set'].filter(key => key in older), [], 'a card without them keeps them absent');
   const gates = { current: 'done', history: [{ gate: 'development', enteredAt: '2026-08-01T10:00:00Z', leftAt: '2026-08-02T10:00:00Z' }, { gate: 'test', enteredAt: '2026-08-02T10:00:00Z' }], bounces: [{ from: 'test', to: 'development', at: '2026-08-03T10:00:00Z', reason: 'defect', actor: 'iris', extra: 1 }], rightFirstTime: { test: 1, acceptance: 0, bogus: 3 } };
   const grade = { formula: '2026.2', overall: 9, provisional: true, subgrades: { reliability: 9, durability: 9, delivery: 9, review: 9 }, label: null, qualifiers: ['HF'], inputs };
   const condition = { state: 'cracked', cracks: [{ id: '7101', bug: { workItemId: '124', ref: 'DEMO-24', title: 'Postcode with a space' }, severity: 'S3', share: 'primary', discovery: 'discovered', proposedAt: '2026-09-29T10:00:00Z', confirmedAt: '2026-09-30T10:00:00Z', confirmedBy: ['dev', 'tester'], disputed: false, weight: 1, warranty: 'full', mended: { at: '2026-09-29T12:00:00Z', by: 'dev', pr: 24, bySteward: false, confirmedAt: null } }] };
@@ -74,7 +54,7 @@ test('the card proxy passes gates, evolved, a set, grade inputs, crack weights a
   assert.equal(parseCard(contractCard({ grade: { ...grade, inputs: { reliability: {} } } })).grade?.inputs, undefined, 'inputs missing a subgrade are dropped, the grade stays');
 });
 
-test('crack attribution goes through an authenticated, CSRF-guarded, role-, forge-login- and team-scoped proxy', async t => {
+test('crack attribution is authenticated, CSRF-guarded and role-, forge-login- and team-scoped before any step is taken', async t => {
   const fixture = await upstream(t);
   const server = await application('live', config => { config.ploeg = { ...fixture.config, userTeams: { op: ['delivery'], nologin: ['delivery'], watcher: ['delivery'] }, forgeLogins: { op: 'op-forge', watcher: 'watch-forge' } }; });
   t.after(() => server.close());
@@ -86,61 +66,22 @@ test('crack attribution goes through an authenticated, CSRF-guarded, role-, forg
   const post = (path: string, session: { cookie: string } | undefined, body: unknown = {}, csrf = true) => request(server.url, `/api/ploeg/work-items/${path}`, { method: 'POST', body, csrf, ...session });
   const proposal = { card: '118', severity: 'S3', share: 'primary', discovery: 'discovered', note: '  The pattern rejects a space.  ' };
 
-  const cracks = await request(server.url, '/api/ploeg/work-items/124/cracks', op);
-  assert.equal(cracks.status, 200, cracks.text);
-  assert.deepEqual(cracks.body.viewer, { login: 'op-forge', canAct: true, reason: '' });
-  assert.deepEqual(cracks.body.cracks.map((entry: { id: string; state: string }) => [entry.id, entry.state]), [['7101', 'confirmed'], ['7102', 'proposed']]);
-  assert.equal((await request(server.url, '/api/ploeg/work-items/124/cracks', watcher)).body.viewer.canAct, false, 'a viewer reads but cannot act');
-  assert.match((await request(server.url, '/api/ploeg/work-items/124/cracks', nologin)).body.viewer.reason, /no forge login yet/);
-  const candidates = await request(server.url, '/api/ploeg/work-items/124/crack-candidates', op);
-  assert.equal(candidates.status, 200, candidates.text);
-  assert.deepEqual(candidates.body.crackCandidates.candidates.map((entry: { card: { workItemId: string }; attribution: string | null }) => [entry.card.workItemId, entry.attribution]), [['118', 'confirmed'], ['121', 'proposed'], ['120', null]]);
   assert.equal((await request(server.url, '/api/ploeg/work-items/104/cracks', op)).status, 404, 'another Team’s Work Item is not found');
   assert.equal((await request(server.url, '/api/ploeg/work-items/124/cracks')).status, 401);
-
   assert.equal((await post('124/cracks', undefined, proposal)).status, 401);
   assert.equal((await post('124/cracks', op, proposal, false)).body.error.code, 'csrf');
   assert.equal((await post('124/cracks', watcher, proposal)).status, 403, 'viewers cannot attribute');
   const unmapped = await post('124/cracks', nologin, proposal);
-  assert.deepEqual([unmapped.status, unmapped.body.error.code], [403, 'ploeg_forge_login'], 'an account without a forge login cannot act, because Ploeg compares it with the steward');
+  assert.deepEqual([unmapped.status, unmapped.body.error.code], [403, 'ploeg_forge_login'], 'an account without a forge login cannot act, because the crack rules compare it with the steward');
   assert.equal((await post('124/cracks', op, { ...proposal, severity: 'S9' })).status, 400);
   assert.equal((await post('124/cracks', op, { ...proposal, card: '124' })).status, 400, 'a bug cannot crack its own card');
   assert.equal((await post('124/cracks', op, { ...proposal, note: 'x'.repeat(2001) })).status, 400);
   assert.equal((await post('124/cracks', op, { ...proposal, card: '104' })).status, 404, 'a card in another Team is not found');
   assert.equal((await post('104/cracks', op, proposal)).status, 404, 'a bug in another Team is not found');
-  assert.equal((await post('124/cracks/9999/confirm', op)).status, 404, 'a crack that is not on this Work Item is not found');
   assert.equal((await post('124/cracks/7101/dispute', op, { reason: '   ' })).status, 400, 'a dispute needs a reason');
   assert.equal((await post('124/cracks/7101/resolve', op, { resolution: 'maybe' })).status, 400);
   assert.equal((await request(server.url, '/api/ploeg/work-items/124/cracks/7102/withdraw', { method: 'POST', body: {}, ...op })).status, 405);
-  assert.equal(fixture.posts.length, 0, 'refused steps never reach Ploeg');
-
-  const proposed = await post('124/cracks', op, proposal);
-  assert.equal(proposed.status, 201, proposed.text);
-  assert.deepEqual([proposed.body.demo, proposed.body.crack.state, proposed.body.crack.card.workItemId], [false, 'proposed', '118']);
-  const confirmed = await post('124/cracks/7102/confirm', op, { severity: 'S3', note: 'Agreed.' });
-  assert.equal(confirmed.status, 200, confirmed.text);
-  assert.deepEqual(confirmed.body.crack.confirmedBy, ['demo-dev', 'op-forge']);
-  assert.equal((await post('124/evolved', op, { card: '121' })).status, 200);
-  assert.deepEqual(fixture.posts, [
-    { path: '/api/v1/operator/work-items/124/cracks', actor: 'op-forge', acting: 'op-forge', body: '{"card":"118","severity":"S3","share":"primary","discovery":"discovered","note":"The pattern rejects a space."}' },
-    { path: '/api/v1/operator/cracks/7102/confirm', actor: 'op-forge', acting: 'op-forge', body: '{"severity":"S3","note":"Agreed."}' },
-    { path: '/api/v1/operator/work-items/124/evolved', actor: 'op-forge', acting: 'op-forge', body: '{"card":"121"}' },
-  ], 'Ploeg hears the forge login as the actor, never the Unfold account');
-
-  fixture.state.refusal = { status: 403, code: 'forbidden_actor', message: 'The second person is neither the card’s steward nor the proposer.' };
-  const forbidden = await post('124/cracks/7102/confirm', op);
-  assert.deepEqual([forbidden.status, forbidden.body.error.code, forbidden.body.error.message], [403, 'crack_forbidden_actor', 'The second person is neither the card’s steward nor the proposer.'], 'Ploeg’s refusal reaches the person in its own words');
-  fixture.state.refusal = { status: 409, code: 'dispute_closed', message: `bad\u0000${fixture.bearer}` };
-  const closed = await post('124/cracks/7101/dispute', op, { reason: 'Not mine.' });
-  assert.deepEqual([closed.status, closed.body.error.code, closed.body.error.message], [409, 'crack_dispute_closed', 'The five working days to dispute this crack have passed.'], 'an unsafe Ploeg message is replaced by Unfold’s own');
-  fixture.state.refusal = { status: 403, code: 'execution_forbidden', message: 'This consumer cannot control executions.' };
-  assert.equal((await post('124/evolved', op, { card: '121' })).body.error.code, 'ploeg_decision_forbidden');
-  fixture.state.refusal = null;
-  fixture.state.candidates = { ...ploegDemo.crackCandidates['124'], candidates: [{ ...ploegDemo.crackCandidates['124'].candidates[0], share: 3 }] };
-  assert.equal((await request(server.url, '/api/ploeg/work-items/124/crack-candidates?refresh=1', op)).status, 502, 'a candidate list outside the contract fails closed');
-  fixture.state.cracks = [{ ...ploegDemo.cracks[0], bug: { workItemId: '999', title: 'Elsewhere' }, card: { workItemId: '998', title: 'Elsewhere' } }];
-  assert.equal((await request(server.url, '/api/ploeg/work-items/124/cracks?refresh=1', op)).status, 502, 'an attribution about other Work Items fails closed');
-  assert.equal(JSON.stringify(fixture.posts).includes(fixture.bearer), false);
+  assert.deepEqual(fixture.posts, [], 'Ploeg hears no crack step');
 });
 
 test('the demo traces bug DEMO-24 with candidates and a pending crack, applies Ploeg’s rules and records nothing', async t => {

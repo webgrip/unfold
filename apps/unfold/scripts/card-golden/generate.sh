@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Regenerates test/fixtures/cards/assembly from the pinned Ploeg: every card its store tests assemble, with the delivery facts and card state it read.
+# Regenerates test/fixtures/cards/assembly from a Ploeg checkout: every card its store tests assemble, with the delivery facts and card state it read.
 # Run from the repository root: mise exec -- bash apps/unfold/scripts/card-golden/generate.sh
-# It needs a Ploeg with the facts and export store functions (ploeg-hq/ploeg#92 or later); PLOEG_DIR picks a checkout other than the pinned submodule.
+# It needs a Ploeg from v0.2.0-rc.10 to v0.2.0-rc.11 in PLOEG_DIR: rc.12 removed the card code (Ploeg ADR-0080), so the pinned submodule can no longer run it.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 unfold="$(cd "$here/../.." && pwd)"

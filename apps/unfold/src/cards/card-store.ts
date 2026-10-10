@@ -4,12 +4,12 @@ import type { WorkItemFacts } from './facts.ts';
 import type { CrackRecord, PullRequestRef, RarityRecord, CardRarityInputs } from './assemble.ts';
 import type { Shape } from './playkpi.ts';
 
-/** The first id of a crack Unfold records itself; imported Ploeg cracks keep Ploeg's lower ids. */
+/** The first id of a crack Unfold records itself; cracks imported from Ploeg keep Ploeg's lower ids. */
 export const firstLocalCrackId = 1_000_000_000;
 
 /** What Unfold recorded about one Work Item's card comment, taken over from Ploeg or published by Unfold. */
 export type CardCommentRecord = { workItemId: string; pullRequest: PullRequestRef | null; moment: string; commentId: number | null; image: boolean; publishedAt: string | null; checkedAt: string; origin: 'ploeg' | 'unfold'; adopted: boolean };
-/** How the one-time import of Ploeg's card state went. */
+/** How the one-time import of Ploeg's card state went. Ploeg v0.2.0-rc.12 no longer offers it, so the record is history. */
 export type CardImportRecord = { state: 'pending' | 'running' | 'done' | 'failed' | 'unsupported'; after: string | null; cracks: number; rarities: number; comments: number; shapes: number; attempts: number; message: string; startedAt: string | null; finishedAt: string | null };
 /** One audited crack step. */
 export type CrackAuditRecord = { crackId: string; cardWorkItemId: string; action: string; actor: string; at: string; detail: Record<string, unknown> };
@@ -42,7 +42,7 @@ function crackValues(c: CrackRecord, origin: string): (string | number | null)[]
     c.mendPullRequest ? JSON.stringify(c.mendPullRequest) : null, c.mendNumber, c.mendedAt, c.mendedBy, c.mendBySteward === null ? null : c.mendBySteward ? 1 : 0, c.mendConfirmedAt, c.mendReopenedAt, origin];
 }
 
-/** Unfold's own Run card state (root ADR-0030) in its SQLite store: cracks and their audit trail, frozen rarities, frozen play shapes, card comments, the import marker and the indexes it keeps of Ploeg's facts. Every write is additive to the existing schema. */
+/** Unfold's own Run card state (root ADR-0030) in its SQLite store: cracks and their audit trail, frozen rarities, frozen play shapes, card comments, the import marker kept as history and the indexes it keeps of Ploeg's facts. Every write is additive to the existing schema. */
 export class CardStore {
   readonly db: DatabaseSync;
 
@@ -112,11 +112,6 @@ export class CardStore {
     const result = this.db.prepare(`INSERT INTO card_cracks(${crackColumns.slice(1).join(',')}) VALUES(${crackColumns.slice(1).map(() => '?').join(',')})`).run(...values);
     return this.crack(String(result.lastInsertRowid))!;
   }
-  /** Imports a crack under Ploeg's id; a crack already imported or recorded for the same pair is left as it is. Returns whether it was new. */
-  importCrack(c: CrackRecord): boolean {
-    const result = this.db.prepare(`INSERT INTO card_cracks(${crackColumns.join(',')}) VALUES(${crackColumns.map(() => '?').join(',')}) ON CONFLICT DO NOTHING`).run(...crackValues(c, 'ploeg'));
-    return Number(result.changes) > 0;
-  }
   updateCrack(id: string, fields: Partial<Record<(typeof crackColumns)[number], string | number | null>>): void {
     const keys = Object.keys(fields);
     if (!keys.length) return;
@@ -152,10 +147,6 @@ export class CardStore {
     const row = this.db.prepare('SELECT shape FROM card_play_shapes WHERE pull_request_id=?').get(pullRequestId) as { shape: string } | undefined;
     return row ? JSON.parse(row.shape) as Shape : null;
   }
-  importShape(pullRequestId: string, workItemId: string, shape: unknown): boolean {
-    return Number(this.db.prepare('INSERT INTO card_play_shapes(pull_request_id,work_item_id,shape) VALUES(?,?,?) ON CONFLICT DO NOTHING').run(pullRequestId, workItemId, JSON.stringify(shape)).changes) > 0;
-  }
-
   comment(workItemId: string): CardCommentRecord | null {
     const row = this.db.prepare('SELECT * FROM card_comments WHERE work_item_id=?').get(workItemId) as Row | undefined;
     return row ? { workItemId: String(row.work_item_id), pullRequest: json<PullRequestRef>(row.pull_request), moment: String(row.moment), commentId: row.comment_id === null ? null : Number(row.comment_id), image: Boolean(row.image), publishedAt: text(row.published_at), checkedAt: String(row.checked_at), origin: row.origin as 'ploeg' | 'unfold', adopted: Boolean(row.adopted) } : null;
@@ -165,11 +156,6 @@ export class CardStore {
       ON CONFLICT(work_item_id) DO UPDATE SET pull_request=excluded.pull_request, moment=excluded.moment, comment_id=excluded.comment_id, image=excluded.image, published_at=excluded.published_at, checked_at=excluded.checked_at, origin=excluded.origin, adopted=excluded.adopted`)
       .run(c.workItemId, c.pullRequest ? JSON.stringify(c.pullRequest) : null, c.moment, c.commentId, c.image ? 1 : 0, c.publishedAt, c.checkedAt, c.origin, c.adopted ? 1 : 0);
   }
-  importComment(c: CardCommentRecord): boolean {
-    const result = this.db.prepare('INSERT INTO card_comments(work_item_id,pull_request,moment,comment_id,image,published_at,checked_at,origin,adopted) VALUES(?,?,?,?,?,?,?,?,0) ON CONFLICT DO NOTHING')
-      .run(c.workItemId, c.pullRequest ? JSON.stringify(c.pullRequest) : null, c.moment, c.commentId, c.image ? 1 : 0, c.publishedAt, c.checkedAt, 'ploeg');
-    return Number(result.changes) > 0;
-  }
   markCommentChecked(workItemId: string, at: string): void {
     this.db.prepare("INSERT INTO card_comments(work_item_id,checked_at,origin) VALUES(?,?,'unfold') ON CONFLICT(work_item_id) DO UPDATE SET checked_at=excluded.checked_at").run(workItemId, at);
   }
@@ -178,17 +164,12 @@ export class CardStore {
     return (this.db.prepare('SELECT work_item_id AS id FROM card_comments WHERE checked_at<? ORDER BY checked_at, work_item_id LIMIT ?').all(before, limit) as { id: string }[]).map(row => String(row.id));
   }
 
+  /** The recorded result of the one-time import of Ploeg's card state (Ploeg ADR-0079), kept as history; `pending` when none was recorded. */
   importState(): CardImportRecord {
     const row = this.db.prepare("SELECT * FROM card_import WHERE id='ploeg-legacy'").get() as Row | undefined;
     if (!row) return { state: 'pending', after: null, cracks: 0, rarities: 0, comments: 0, shapes: 0, attempts: 0, message: '', startedAt: null, finishedAt: null };
     return { state: row.state as CardImportRecord['state'], after: text(row.after), cracks: Number(row.cracks), rarities: Number(row.rarities), comments: Number(row.comments), shapes: Number(row.shapes), attempts: Number(row.attempts), message: String(row.message), startedAt: text(row.started_at), finishedAt: text(row.finished_at) };
   }
-  saveImportState(s: CardImportRecord): void {
-    this.db.prepare(`INSERT INTO card_import(id,state,after,cracks,rarities,comments,shapes,attempts,message,started_at,finished_at) VALUES('ploeg-legacy',?,?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(id) DO UPDATE SET state=excluded.state, after=excluded.after, cracks=excluded.cracks, rarities=excluded.rarities, comments=excluded.comments, shapes=excluded.shapes, attempts=excluded.attempts, message=excluded.message, started_at=excluded.started_at, finished_at=excluded.finished_at`)
-      .run(s.state, s.after, s.cracks, s.rarities, s.comments, s.shapes, s.attempts, s.message, s.startedAt, s.finishedAt);
-  }
-
   /** Records what a facts document says about other cards: the Work Item, its tracker parents and its merged files. */
   observe(facts: WorkItemFacts, now: string): void {
     const item = facts.workItem;
