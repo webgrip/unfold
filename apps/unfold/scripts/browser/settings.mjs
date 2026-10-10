@@ -1,6 +1,6 @@
 import { navigate } from './navigate.mjs';
 
-/** Settings: the Environment health checks, one content width on every Settings page, Preferences for theme, density, single-key shortcuts and live updates, kept across a reload and in step with the top bar and account menu, and the style guide's preview that leaving restores. */
+/** Settings: the Environment health checks, one content width on every Settings page, Preferences for theme, density, single-key shortcuts and live updates, kept across a reload and in step with the top bar and account menu, the style guide's preview that leaving restores, and Connect VS Code from the account menu with its install links and a manual address minted only on click. */
 export async function run({ page, assert, screenshot }) {
   const root = name => page.evaluate(attribute => document.documentElement.getAttribute(attribute), name);
   const pageWidth = () => page.locator('.settings-page').evaluate(element => element.getBoundingClientRect().width);
@@ -65,4 +65,22 @@ export async function run({ page, assert, screenshot }) {
   await page.evaluate(() => { location.hash = 'settings/preferences'; });
   await page.getByRole('heading', { level: 1, name: 'Preferences', exact: true }).waitFor();
   assert.deepEqual([await root('data-theme'), await root('data-density')], [null, null], 'leaving the style guide kept its preview instead of the saved preference');
+
+  await page.getByRole('button', { name: /^Account and theme/ }).click();
+  await page.locator('.app-user-menu').getByRole('link', { name: 'Connect VS Code', exact: true }).click();
+  const connectCard = page.locator('section.card', { has: page.getByRole('heading', { level: 2, name: 'Connect VS Code', exact: true }) });
+  await connectCard.waitFor();
+  assert.equal(await pageWidth(), environmentWidth, 'Signed-in editors and Environment use different content widths');
+  const origin = await page.evaluate(() => location.origin);
+  assert.equal(await connectCard.getByRole('link', { name: 'Connect VS Code', exact: true }).getAttribute('href'), `vscode://webgrip.unfold/connect-agents-window?origin=${encodeURIComponent(origin)}`);
+  await connectCard.getByText('No Unfold extension in VS Code?', { exact: true }).click();
+  assert.equal(await connectCard.getByRole('link', { name: 'Open VSX' }).getAttribute('href'), 'https://open-vsx.org/extension/webgrip/unfold');
+  assert.equal(await connectCard.getByRole('link', { name: 'the Extensions view in VS Code' }).getAttribute('href'), 'vscode:extension/webgrip.unfold');
+  await connectCard.getByText('Sessions: Add Remote Agent Host…', { exact: true }).waitFor();
+  assert.equal(await page.locator('#vscode-connect-address').count(), 0, 'no token is minted or shown before the click');
+  await page.evaluate(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('denied')); });
+  await connectCard.getByRole('button', { name: 'Copy address', exact: true }).click();
+  const address = await page.locator('#vscode-connect-address').inputValue();
+  assert.match(address, /^wss?:\/\/[^/]+\/\?tkn=[0-9A-Za-z_-]{16,128}$/, 'a refused clipboard shows the address to copy by hand');
+  await screenshot('connect-vscode');
 }

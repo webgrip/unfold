@@ -305,6 +305,8 @@ The workbench serves the Agent Host Protocol on its own port. With the Unfold ex
 
 The connection token sits in that setting in plain text, because VS Code reads it from there. The extension also keeps a copy in VS Code's SecretStorage and reuses it while the workbench still accepts it; it mints a new one only when the workbench has rejected the old one. If `settings.json` cannot be parsed or written, the extension changes nothing, mints nothing, and offers **Copy address**. Set `unfold.agentHost.autoConnect` to `false` to stop the automatic step. A signed-in editor that is missing its entry is attached again when the extension starts. After attaching, the extension checks every 20 seconds whether an Agents window is connected with its token, through the `attached` list of `GET /api/agent-host`. The status bar shows **Unfold · Agents window ✓** or **Unfold · Agents window not connected**; clicking it offers to open the Agents window, reconnect, or [troubleshoot](#troubleshooting-the-agents-window).
 
+From the browser, **Connect VS Code** on **Settings › Signed-in editors** (also in the account menu) opens `vscode://webgrip.unfold/connect-agents-window?origin=<workbench>`. The extension adds the entry for that workbench, signing in first if it has to, and offers **Open Agents Window**; a link for another workbench than the one the extension uses asks before switching. Without the extension, the same card links the extension in VS Code's Extensions view and on Open VSX, and **Copy address** mints a token only when clicked and copies `wss://…/?tkn=…` for **Sessions: Add Remote Agent Host…**.
+
 Without the extension, or as a fallback, add the host by hand. Create a personal connection token:
 
 ```sh

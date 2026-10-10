@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
-import { ApiError, UnfoldClient, normalizeServerUrl } from './client.js';
+import { ApiError, UnfoldClient, normalizeServerUrl, parseUnfoldLink } from './client.js';
 import { browserLogin, codePrompt } from './browser-login.js';
 import { EvidenceDocuments, patchFileLine } from './evidence.js';
 import { AttentionWatcher, show, type NotificationPolicy } from './notifications.js';
@@ -713,19 +713,20 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   }
 
   private async handleUri(uri: vscode.Uri): Promise<void> {
-    if (uri.path !== '/checkout') throw new Error(`Unfold does not handle ${uri.path || 'this link'}.`);
-    const query = new URLSearchParams(uri.query);
-    const origin = query.get('origin');
-    if (origin) {
-      let wanted: string;
-      try { wanted = normalizeServerUrl(origin); } catch { throw new Error('This checkout link names an invalid workbench.'); }
-      if (wanted !== this.current.origin) {
-        const choice = await vscode.window.showWarningMessage(`This link is for the workbench at ${wanted}, but VS Code is connected to ${this.current.origin}.`, 'Connect');
-        if (choice === 'Connect') await this.connect();
-        return;
-      }
+    const link = parseUnfoldLink(uri.path, uri.query);
+    if (link.origin && link.origin !== this.current.origin) {
+      const choice = await vscode.window.showWarningMessage(`This link is for the workbench at ${link.origin}, but VS Code is connected to ${this.current.origin}.`, 'Connect');
+      if (choice === 'Connect') await this.connect();
+      return;
     }
-    await this.checkoutBranch(query.get('workItem') ?? undefined, { confirm: true });
+    if (link.kind === 'checkout') { await this.checkoutBranch(link.workItem, { confirm: true }); return; }
+    try { await this.bootstrap(); }
+    catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 401) throw error;
+      await this.connect();
+      if (!this.cachedBootstrap) return;
+    }
+    await this.connectAgentHost();
   }
 
   async openPloeg(id: string): Promise<void> {

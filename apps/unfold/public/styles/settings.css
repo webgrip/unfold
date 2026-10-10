@@ -1144,3 +1144,29 @@
   margin: 0;
   font-weight: var(--weight-semibold);
 }
+
+.vscode-connect {
+  display: grid;
+  gap: var(--space-2);
+  justify-items: start;
+  margin-bottom: var(--space-3);
+}
+
+.vscode-connect-steps {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3) 0 0;
+  padding-inline-start: var(--space-5);
+}
+
+.vscode-connect-steps p {
+  margin: 0;
+}
+
+.vscode-connect-address {
+  margin-top: var(--space-2);
+}
+
+.vscode-connect-address input {
+  inline-size: 100%;
+}

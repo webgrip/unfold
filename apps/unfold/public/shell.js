@@ -139,7 +139,7 @@ function themeSwitch() {
 
 function accountItems() {
   const demo = state.bootstrap.mode === 'demo';
-  return `${themeSwitch()}<p class="app-menu-heading">Your cards</p>${cardPages.map(([, href, glyph, label]) => `<a class="app-menu-item" href="${href}">${icon(glyph)}<span>${label}</span></a>`).join('')}<hr class="app-menu-rule"><a class="app-menu-item" href="#settings/preferences">${icon('settings')}<span>Preferences</span></a><button class="app-menu-item" type="button" data-action="shortcuts-open">${icon('keyboard')}<span>Keyboard shortcuts</span>${singleKeysEnabled() ? '<kbd class="app-kbd">?</kbd>' : ''}</button>${demo ? '' : `<button class="app-menu-item" type="button" data-action="logout">${icon('logout')}<span>Sign out</span></button>`}`;
+  return `${themeSwitch()}<p class="app-menu-heading">Your cards</p>${cardPages.map(([, href, glyph, label]) => `<a class="app-menu-item" href="${href}">${icon(glyph)}<span>${label}</span></a>`).join('')}<hr class="app-menu-rule"><a class="app-menu-item" href="#settings/preferences">${icon('settings')}<span>Preferences</span></a><a class="app-menu-item" href="#settings/editors">${icon('code')}<span>Connect VS Code</span></a><button class="app-menu-item" type="button" data-action="shortcuts-open">${icon('keyboard')}<span>Keyboard shortcuts</span>${singleKeysEnabled() ? '<kbd class="app-kbd">?</kbd>' : ''}</button>${demo ? '' : `<button class="app-menu-item" type="button" data-action="logout">${icon('logout')}<span>Sign out</span></button>`}`;
 }
 
 function userAvatar(size) {
