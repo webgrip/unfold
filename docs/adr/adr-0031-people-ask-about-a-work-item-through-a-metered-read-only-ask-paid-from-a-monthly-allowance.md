@@ -90,4 +90,21 @@ The Session page's Investigate button already does this for "why did it stop".
 * 2026-10-10 — The owner decided that Clients only ask for now; steering and other ways to influence running work may come later.
 * 2026-10-10 — The owner chose an allowance as the charging model, and decided that prices and allowances are discussed in the open.
 * 2026-10-10 — Proposed.
+* 2026-10-10 — The owner approved "deterministic first, model last": standing questions are answered from the record for free, and only the rest becomes a metered Ask. See [the update below](#update-2026-10-10-deterministic-first-model-last).
 * Related: [ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md), [ADR-0007](adr-0007-clients-approve-ready-work.md), [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md)
+
+## Update, 2026-10-10: deterministic first, model last
+
+The owner approved answering the standing questions about a Work Item without a model. Most questions people ask are the same few, and the record already answers them; paying a model to restate the Work Item page costs allowance and can disagree with what the page shows.
+
+**Standing questions are answered from the record.** Unfold answers eight intents itself, free and with no Ploeg admission: what it is doing now, why it stopped or waits, what it cost so far, what to do next, who or which Role is working, whether it is done, where the pull request is, and whether there is a preview. The answer is built from the same Work Item brief and, when a session drives the Work Item, from the progress statechart ([`public/core/progress.js`](../../apps/unfold/public/core/progress.js)) that the browser, VS Code and the Agents window read, so the answer says what the UI says. The stored Ask has `source: "record"`, the `intent` it answered, cost 0 settled (`demo` in the demo), and no `ploegAskId` or model. The UI labels it "Answered from the record · no model call".
+
+**The matcher prefers precision over recall.** A wrong free answer is worse than a paid one. A question matches only when, after trimming a greeting, "please" and closing punctuation, the whole question is one of a fixed set of short English phrasings, at most 80 characters and one sentence, and matches exactly one intent. Compound questions, other languages, predictions ("when will it be done") and questions about content ("what changed") go to the model. When the record cannot answer a matched intent for the audience, for example the next step for a Client or for an `awaiting_review` Work Item without a session, the question goes to the model as well.
+
+**The brief's rules still bind the record.** Record answers use only brief fields and the parts of the statechart that are fixed vocabulary or Role names: phase, headline, Role steps and verdict labels, spend with its status, the stop reason for the stop kinds whose sentence is fixed, and the action labels. A failure message, a blocker, a review note, tool activity and transcripts are left out. The brief text given to the model gains the same progress lines, so a model answer starts from the same facts.
+
+**Asking the model anyway is explicit.** `POST /api/ploeg/work-items/:id/asks` takes `askModel: true` to skip the record. Outside the demo, the Ask dialog offers "Ask the model even if the record answers it", and each record answer offers "Ask the model anyway" while the Team's Ask Allowance covers an Ask.
+
+**The demo uses the same rules.** The demo's own fixed rules are gone; it answers standing questions through the same matcher and says it has no model for any other question. Asking the model anyway in the demo is refused with no spend.
+
+This changes the decision's "Answer from the record with rules" option from "the demo's answer" to the first step of every Ask. The rest of the decision stands: every model answer is still admitted, capped and metered by Ploeg.
