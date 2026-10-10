@@ -192,6 +192,8 @@ Acceptance for (a): the branch picker shows the session branch and **Show Change
 
 ### 3.3 Crew, budget and placement in the new-session picker; the model label; OS notifications · M
 
+The picker and the model label were built on 2026-10-10 and recorded in ADR 0012: crew, budget and placement carry `enumLabels`, approvals use `approvalMode`, a draft accepts `session/configChanged`, the composer's model is the crew, and user turns carry no `message.model`. `usage.model` and the notification bits remain.
+
 **Picker.** **(bundle 9818265, 9835439)** The generic picker shows a property when it is `boolean`, or a `string` with `enum` or `enumDynamic`, and the session is new or the property is `sessionMutable`. Labels come from `enumLabels`; Unfold sends only `enumDescriptions`, so the picker shows raw ids. `budgetUsd` is a number and never shows.
 
 - Send `enumLabels`.
