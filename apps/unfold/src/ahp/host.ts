@@ -24,7 +24,8 @@ import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBase
 import { ChatAsks, askMarkdown, commandCompletions, messageIntent, type ChatAskEntry, type ChatAskService } from './asks.ts';
 import { candidateEdits, carryRuns, parseRunChannel, runChatChannel, runChatState, runChats, runFinished, runMessage, runRoute, runStarted, runTool, runTranscripts, stopRuns, toolActions, type RunTranscripts, type Spelling } from './runs.ts';
 import { WorkItemSessions, isWorkItemSession, workItemChatState, workItemIdOf, workItemRefusal, workItemRefusals, workItemRunChatState, workItemSessionState, workItemStatus, workItemSummary, type RoutedAction, type WorkItemRecord } from './work-items.ts';
-import { WorkItemCommands, promptClosedActions, promptInputNeeded, promptOpenActions, restartable, withPrompts, workItemCommandText, type WorkItemPrompt } from './work-item-commands.ts';
+import { WorkItemCommands, openShiftOf, promptClosedActions, promptInputNeeded, promptOpenActions, restartable, takesNotes, withPrompts, workItemCommandText, type WorkItemPrompt } from './work-item-commands.ts';
+import { PloegError } from '../ploeg.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
@@ -1398,7 +1399,7 @@ export class AgentHost {
     const open = this.workItemCommands.open(client.user.id, found.entry.workItemId);
     const state = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling)
       : parsed.kind === 'session' ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id)), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] }
-      : parsed.kind === 'chat' ? withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId))
+      : parsed.kind === 'chat' ? withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId), this.workItemCommands.notes(client.user.id, found.entry.workItemId))
       : undefined;
     if (!state) throw new RpcError(codes.notFound, 'Unknown channel');
     return { resource: channel, state, fromSeq: this.serverSeq };
@@ -1464,6 +1465,7 @@ export class AgentHost {
    */
   private async stopWorkItem(client: Client, channel: string, publicId: string, action: Json, origin: Origin): Promise<string | undefined> {
     const user = client.user;
+    const projected = this.workItems.remembered(user, publicId);
     let found: Awaited<ReturnType<WorkItemSessions['session']>>;
     try { found = await this.workItems.session(user, workItemIdOf(publicId)!); } catch { return 'Ploeg could not be read, so nothing stopped. Try again shortly.'; }
     if (!found) return 'Session not found';
@@ -1477,40 +1479,49 @@ export class AgentHost {
     }
     if (entry.item.state === 'done' || entry.item.state === 'withdrawn') return workItemCommandText.ended(entry.item.id);
     const round = workItemChatState(entry, detail, this.workItemSpelling(publicId, client), this.viewOf(client, publicId)).activeTurn?.id as string | undefined;
-    const { prompt, created, replaced } = this.workItemCommands.ask(user, entry, 'withdraw', round ? { attachTo: round } : {});
+    const expectedShiftId = openShiftOf(projected ?? entry);
+    const { prompt, created, replaced } = this.workItemCommands.ask(user, entry, 'withdraw', { ...(round ? { attachTo: round } : {}), ...(expectedShiftId !== undefined ? { expectedShiftId } : {}) });
     this.reject(client, channel, action, origin, workItemCommandText.confirmStop(entry.item.id));
     if (replaced) this.publishPromptDismissed(user, replaced);
     if (created) this.publishPromptOpened(user, prompt);
     return undefined;
   }
 
-  /** Reads a Work Item a person commands and refuses the command when Ploeg would not restart it, or the person may not act. */
-  private async restartableWorkItem(client: Client, publicId: string, refusal: string): Promise<{ entry: WorkItemRecord } | { refused: string }> {
+  private async readWorkItem(client: Client, publicId: string): Promise<{ entry: WorkItemRecord } | { refused: string }> {
     let found: Awaited<ReturnType<WorkItemSessions['session']>>;
     try { found = await this.workItems.session(client.user, workItemIdOf(publicId)!); } catch { return { refused: 'Ploeg could not be read, so nothing changed. Try again shortly.' }; }
-    if (!found) return { refused: 'Session not found' };
-    const { entry } = found;
+    return found ? { entry: found.entry } : { refused: 'Session not found' };
+  }
+
+  /** Reads a Work Item a person commands and refuses the command when Ploeg would not restart it, or the person may not act. */
+  private async restartableWorkItem(client: Client, publicId: string, refusal: string): Promise<{ entry: WorkItemRecord } | { refused: string }> {
+    const found = await this.readWorkItem(client, publicId);
+    return 'refused' in found ? found : this.restartRefusal(client.user, found.entry, refusal);
+  }
+
+  private restartRefusal(user: User, entry: WorkItemRecord, refusal: string): { entry: WorkItemRecord } | { refused: string } {
     if (entry.item.state === 'withdrawn') return { refused: workItemCommandText.withdrawn };
     if (!restartable(entry.item.state)) return { refused: refusal };
-    if (!this.workItemCommands.mayAct(client.user, entry.item.team)) return { refused: workItemCommandText.viewer(entry.item.team) };
+    if (!this.workItemCommands.mayAct(user, entry.item.team)) return { refused: workItemCommandText.viewer(entry.item.team) };
     return { entry };
   }
 
   /**
-   * A message on a Work Item that needs a person or went stale becomes the note of a restart the person confirms first, in
-   * the message's own turn. A message on a withdrawn Work Item says how Ploeg restarts it; on other work it is refused,
-   * because steering reaches the next Round, not the running Run.
+   * A message on a running or queued Work Item becomes a Ploeg note for its next Round (ADR 0023: steering reaches the next
+   * Round, not the running Run), and its turn says so. A message on a Work Item that needs a person or went stale becomes
+   * the note of a restart the person confirms first, in the message's own turn. A message on a withdrawn Work Item says how
+   * Ploeg restarts it; on other work, or against a Ploeg that takes no notes, it is refused.
    */
   private async messageWorkItem(client: Client, channel: string, publicId: string, action: Json, origin: Origin): Promise<string | undefined> {
-    const found = await this.restartableWorkItem(client, publicId, workItemRefusals.message);
+    const projected = this.workItems.remembered(client.user, publicId);
+    const read = await this.readWorkItem(client, publicId);
+    if ('refused' in read) return read.refused;
+    if (takesNotes(read.entry.item.state)) return this.noteWorkItem(client, channel, read.entry, projected ?? read.entry, action, origin);
+    const found = this.restartRefusal(client.user, read.entry, workItemRefusals.message);
     if ('refused' in found) return found.refused;
-    if (action.message?.origin?.kind !== 'user') return 'Only a person\'s own message becomes a note';
-    const text = typeof action.message?.text === 'string' ? action.message.text.trim() : '';
-    if (!text) return 'Empty message';
-    if (text.length > 4096) return 'A note is at most 4096 characters';
-    const queued = action.type === 'chat/pendingMessageSet';
-    if (queued && (typeof action.id !== 'string' || !action.id)) return 'A pending message needs an id';
-    if (!queued && (typeof action.turnId !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(action.turnId))) return 'A turn needs an id';
+    const message = this.workItemMessage(action);
+    if ('refused' in message) return message.refused;
+    const { text, queued } = message;
     const user = client.user;
     const own = (viewer: Client) => viewer.user.id === user.id;
     const opening = { text, origin: 'user' as const };
@@ -1519,6 +1530,45 @@ export class AgentHost {
     if (replaced) this.publishPromptDismissed(user, replaced);
     if (!queued) this.echo(client, channel, action, origin, own);
     this.publishPromptOpened(user, prompt, !queued);
+    return undefined;
+  }
+
+  private workItemMessage(action: Json): { text: string; queued: boolean } | { refused: string } {
+    if (action.message?.origin?.kind !== 'user') return { refused: 'Only a person\'s own message becomes a note' };
+    const text = typeof action.message?.text === 'string' ? action.message.text.trim() : '';
+    if (!text) return { refused: 'Empty message' };
+    if (text.length > 4096) return { refused: 'A note is at most 4096 characters' };
+    const queued = action.type === 'chat/pendingMessageSet';
+    if (queued && (typeof action.id !== 'string' || !action.id)) return { refused: 'A pending message needs an id' };
+    if (!queued && (typeof action.turnId !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(action.turnId))) return { refused: 'A turn needs an id' };
+    return { text, queued };
+  }
+
+  /**
+   * Stores a message on a running or queued Work Item as a Ploeg note for its next Round, naming the Shift the person's
+   * projection shows open, and only then shows the message's turn with what became of it. Nothing reaches the running Run.
+   */
+  private async noteWorkItem(client: Client, channel: string, entry: WorkItemRecord, projected: WorkItemRecord, action: Json, origin: Origin): Promise<string | undefined> {
+    const user = client.user;
+    if (!this.workItemCommands.mayAct(user, entry.item.team)) return workItemCommandText.viewer(entry.item.team);
+    const message = this.workItemMessage(action);
+    if ('refused' in message) return message.refused;
+    const { text, queued } = message;
+    const turnId = queued ? `${entry.publicId}-note-${randomUUID()}` : String(action.turnId);
+    let reply: string;
+    try { reply = (await this.workItemCommands.note(user, entry, text, turnId, openShiftOf(projected))).reply; }
+    catch (error) {
+      if (!(error instanceof PloegError)) throw error;
+      return error.code === 'ploeg_notes_unsupported' ? workItemRefusals.message : error.message;
+    }
+    const own = (viewer: Client) => viewer.user.id === user.id;
+    this.echo(client, channel, action, origin, own);
+    if (queued) {
+      this.broadcast(channel, { type: 'chat/pendingMessageRemoved', kind: action.kind, id: action.id }, undefined, own);
+      this.broadcast(channel, { type: 'chat/turnStarted', turnId, startedAt: new Date().toISOString(), message: { text, origin: { kind: 'user' } } }, undefined, own);
+    }
+    this.broadcast(channel, { type: 'chat/responsePart', turnId, part: { kind: 'markdown', id: `${turnId}-reply`, content: reply } }, undefined, own);
+    this.broadcast(channel, { type: 'chat/turnComplete', turnId, duration: 0 }, undefined, own);
     return undefined;
   }
 

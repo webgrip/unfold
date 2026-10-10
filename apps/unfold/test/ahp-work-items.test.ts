@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { hashPassword } from '../src/auth.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
-import { PloegClient, type PloegItem } from '../src/ploeg.ts';
+import { PloegClient, cancelShiftChanged, noteFailures, type PloegItem } from '../src/ploeg.ts';
 import { money } from '../public/core/format.js';
 import { noAgentMessages, noRunMessages, ploegRunToolName, workItemActivity, workItemRefusals } from '../src/ahp/work-items.ts';
 import { workItemCommandText } from '../src/ahp/work-item-commands.ts';
@@ -49,7 +49,7 @@ function world() {
     { id: '1002', at: daysAgo(3), actor: 'operator:unfold:op-1', action: 'work_item.withdrawn', workItemId: '208', team: 'delivery', detail: {} },
     { id: '1003', at: daysAgo(2), actor: 'ploegd:merge', action: 'work_item.done', workItemId: '207', team: 'delivery', detail: {} },
   ];
-  return { details, events, down: false, seen: [] as string[], writes: [] as Write[], requeues: new Map<string, Json>(), consumerMaxBudgetUsd: 5, pendingCommand: (_key: string): unknown => undefined };
+  return { details, events, down: false, seen: [] as string[], writes: [] as Write[], requeues: new Map<string, Json>(), notes: new Map<string, Json>(), notesRoute: true, cancelBody: true, consumerMaxBudgetUsd: 5, pendingCommand: (_key: string): unknown => undefined };
 }
 
 type Write = { path: string; actor?: string; acting?: string; body: string; pending: unknown };
@@ -70,10 +70,22 @@ function ploegWrite(state: World, path: string, body: string): [Json, number] {
     return [{ decision: { workItemId: id, team: item.team, state: item.state, approved: command === 'approve' } }, 200];
   }
   if (command === 'cancel') {
-    if (body) return [{ error: { code: 'invalid_request', message: 'Cancel takes no request body.' } }, 400];
+    if (body && !state.cancelBody) return [{ error: { code: 'invalid_request', message: 'Cancel takes no request body.' } }, 400];
+    if (input.expectedShiftId !== undefined && (item.latestShift?.closedAt !== null || item.latestShift?.id !== input.expectedShiftId)) return [{ error: { code: 'shift_changed', message: 'The work item\'s open Shift is not the expected one.' } }, 409];
     const withdrawn = item.state !== 'withdrawn';
     if (withdrawn) moved('withdrawn');
     return [{ cancellation: { workItemId: id, state: 'withdrawn', withdrawn, shiftId: item.latestShift?.id ?? null, cancelledRuns: 0, stoppedRuns: withdrawn ? 1 : 0, keysBlocked: withdrawn } }, 200];
+  }
+  if (command === 'notes') {
+    const replay = state.notes.get(input.commandId);
+    if (replay) return replay.text === input.text ? [{ note: { ...replay, replayed: true } }, 200] : [{ error: { code: 'command_conflict', message: 'Another note holds this commandId.' } }, 409];
+    if (['done', 'needs_human', 'awaiting_review', 'stale', 'withdrawn'].includes(item.state)) return [{ error: { code: 'work_item_terminal', message: 'The work item is terminal.' } }, 409];
+    const open = item.latestShift && item.latestShift.closedAt === null ? item.latestShift.id : null;
+    if (input.expectedShiftId !== undefined && input.expectedShiftId !== open) return [{ error: { code: 'shift_changed', message: 'The work item\'s open Shift is not the expected one.' } }, 409];
+    const note = { id: String(500 + state.notes.size), workItemId: id, commandId: input.commandId, shiftId: open, createdAt: new Date().toISOString(), consumed: false, replayed: false, text: input.text };
+    state.notes.set(input.commandId, note);
+    const { text: _text, ...stored } = note;
+    return [{ note: stored }, 201];
   }
   if (command === 'requeue') {
     if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(String(input.commandId ?? ''))) return [{ error: { code: 'command_required', message: 'A requeue body needs a commandId of 1 to 128 identifier characters.' } }, 400];
@@ -104,6 +116,7 @@ async function ploegServer(t: TestContext, bearer: string, state: World): Promis
       const acting = req.headers['x-ploeg-acting-user'] as string | undefined;
       state.writes.push({ path, actor: req.headers['x-ploeg-actor'] as string | undefined, acting, body, pending: state.pendingCommand(`work-item-command:${acting}:${path.split('/')[1]}`) });
       if (state.down) return send({ error: { code: 'unavailable', message: 'down' } }, 503);
+      if (path.endsWith('/notes') && !state.notesRoute) return res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('404 page not found\n');
       const [answer, status] = ploegWrite(state, path, body);
       return send(answer, status);
     }
@@ -354,6 +367,7 @@ test('every change to a Work Item session is refused with what to do instead, an
   const chat = defaultChatOf(session);
   await op.rpc('subscribe', { channel: session });
   await op.rpc('subscribe', { channel: chat });
+  f.state.notesRoute = false;
   const dispatch = (channel: string, clientSeq: number, body: Json) => op.notify('dispatchAction', { channel, clientSeq, action: body });
   const answer = (seq: number) => op.until(message => message.method === 'action' && message.params.origin?.clientSeq === seq);
   dispatch(chat, 1, { type: 'chat/turnStarted', turnId: 't1', message: { text: 'Use the other rounding mode', origin: { kind: 'user' } } });
@@ -469,8 +483,9 @@ test('confirming Stop withdraws the Work Item once, as the person, with a comman
   await f.replied(chat, /^Withdrew #202\. Ploeg stopped 1 Run and blocked their keys/);
   assert.equal(f.state.writes.length, 1, 'exactly one cancel');
   const [write] = f.state.writes;
-  assert.deepEqual([write.path, write.actor, write.acting, write.body], ['work-items/202/cancel', 'op-1', 'op-1', '']);
+  assert.deepEqual([write.path, write.actor, write.acting], ['work-items/202/cancel', 'op-1', 'op-1']);
   assert.match((write.pending as Json).commandId, /^[0-9a-f-]{36}$/, 'the command id was persisted before the call');
+  assert.deepEqual(JSON.parse(write.body), { commandId: (write.pending as Json).commandId, expectedShiftId: '9202' }, 'the cancel names the Shift the person saw');
   assert.equal(f.server.app.store.getSecret('work-item-command:op-1:202'), undefined, 'and forgotten once Ploeg answered');
   await f.client.until(message => message.method === 'root/sessionSummaryChanged' && message.params.session === 'unfold:/wi-202' && message.params.changes.status === 1);
 });
@@ -565,4 +580,119 @@ test('when the budget ran out a restart offers a raised pool, and a pool above P
   await f.replied(chat, /^Raise the Team's budget to try again with more\.$/);
   assert.equal(JSON.parse(f.state.writes[0].body).poolUsd, max);
   assert.equal(f.state.details.get('204')!.item.state, 'needs_human', 'nothing restarted');
+});
+
+const newAttempt = (state: World, id: string) => {
+  const detail = state.details.get(id)!;
+  const shift = { ...detail.item.latestShift, id: `99${id}`, openedAt: minutesAgo(1) };
+  detail.item.latestShift = shift; detail.shifts = [shift];
+  for (const run of detail.runs) run.shiftId = shift.id;
+};
+
+test('a message on a running Work Item is saved as a note for the next Round, naming the Shift the person saw and a command recorded first', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const chat = defaultChatOf('unfold:/wi-202');
+  await f.client.rpc('subscribe', { channel: chat });
+  const text = 'Use the decimal rounding helper in totals.ts.';
+  const sent = f.dispatch(chat, { type: 'chat/turnStarted', turnId: 'note-1', message: { text, origin: { kind: 'user' } } });
+  assert.equal((await f.answered(sent)).params.rejectionReason, undefined, 'the message keeps its own turn');
+  await f.replied(chat, /^Saved for the next Round\. The running agent won't see it until then\.$/);
+  await f.client.until(message => action(message, chat, 'chat/turnComplete') && message.params.action.turnId === 'note-1');
+  assert.deepEqual(f.state.writes.map(write => [write.path, write.actor, write.acting]), [['work-items/202/notes', 'op-1', 'op-1']], 'only a note: nothing is cancelled or restarted');
+  const body = JSON.parse(f.state.writes[0].body);
+  assert.deepEqual(body, { commandId: body.commandId, text, expectedShiftId: '9202' });
+  assert.equal((f.state.writes[0].pending as Json).commandId, body.commandId, 'the command id was persisted before the call');
+  assert.equal(f.server.app.store.getSecret('work-item-command:op-1:202'), undefined, 'and forgotten once Ploeg answered');
+  assert.ok(!f.client.inbox.some(message => message.method === 'action' && /interrupt/i.test(JSON.stringify(message.params.action))), 'it never claims to interrupt the running Run');
+  const state = (await f.client.rpc('subscribe', { channel: chat })).snapshot.state;
+  const turn = state.turns.find((entry: Json) => entry.id === 'note-1');
+  assert.equal(turn.message.text, text);
+  assert.equal(turn.responseParts[0].content, workItemCommandText.noteSaved, 'the saved note stays in the chat');
+
+  const queuedChat = defaultChatOf('unfold:/wi-201');
+  await f.client.rpc('subscribe', { channel: queuedChat });
+  const pending = f.dispatch(queuedChat, { type: 'chat/pendingMessageSet', kind: 'steering', id: 'p1', message: { text: 'Start with the tests.', origin: { kind: 'user' } } });
+  assert.equal((await f.answered(pending)).params.rejectionReason, undefined);
+  await f.replied(queuedChat, /^Saved for the next Round/);
+  assert.deepEqual(JSON.parse(f.state.writes[1].body), { commandId: JSON.parse(f.state.writes[1].body).commandId, text: 'Start with the tests.' }, 'queued work has no open Shift to name');
+});
+
+test('a note Ploeg could not take is retried under the same command id', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const chat = defaultChatOf('unfold:/wi-202');
+  await f.client.rpc('subscribe', { channel: chat });
+  const text = 'Prefer the existing helper.';
+  f.state.down = true;
+  const first = f.dispatch(chat, { type: 'chat/turnStarted', turnId: 'note-1', message: { text, origin: { kind: 'user' } } });
+  assert.equal((await f.answered(first)).params.rejectionReason, noteFailures.unreachable());
+  assert.ok(f.server.app.store.getSecret('work-item-command:op-1:202'), 'an unanswered note stays recorded');
+  f.state.down = false;
+  const second = f.dispatch(chat, { type: 'chat/turnStarted', turnId: 'note-2', message: { text, origin: { kind: 'user' } } });
+  assert.equal((await f.answered(second)).params.rejectionReason, undefined);
+  await f.replied(chat, /^Saved for the next Round/);
+  const [failed, saved] = f.state.writes.map(write => JSON.parse(write.body));
+  assert.equal(saved.commandId, failed.commandId, 'the retry reuses the command id');
+  assert.equal(f.state.notes.size, 1);
+});
+
+test('a note on an attempt newer than the one the person saw is not saved, and says so', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const chat = defaultChatOf('unfold:/wi-202');
+  await f.client.rpc('subscribe', { channel: chat });
+  newAttempt(f.state, '202');
+  const sent = f.dispatch(chat, { type: 'chat/turnStarted', turnId: 'note-1', message: { text: 'Use the helper.', origin: { kind: 'user' } } });
+  assert.equal((await f.answered(sent)).params.rejectionReason, noteFailures.shift_changed('202'));
+  assert.equal(JSON.parse(f.state.writes[0].body).expectedShiftId, '9202', 'it named the Shift the person saw');
+  assert.equal(f.state.notes.size, 0);
+});
+
+test('a viewer\'s message on a running Work Item is refused and reaches no Ploeg note', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t, 'viewer-2');
+  const chat = defaultChatOf('unfold:/wi-202');
+  await f.client.rpc('subscribe', { channel: chat });
+  const sent = f.dispatch(chat, { type: 'chat/turnStarted', turnId: 'note-1', message: { text: 'Hurry up.', origin: { kind: 'user' } } });
+  assert.equal((await f.answered(sent)).params.rejectionReason, workItemCommandText.viewer('delivery'));
+  await settled(f.client);
+  assert.equal(f.state.writes.length, 0);
+});
+
+test('a Ploeg without the notes route refuses instructions for running work, and the process stops asking it', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  f.state.notesRoute = false;
+  const chat = defaultChatOf('unfold:/wi-202');
+  await f.client.rpc('subscribe', { channel: chat });
+  const first = f.dispatch(chat, { type: 'chat/turnStarted', turnId: 'note-1', message: { text: 'Use the helper.', origin: { kind: 'user' } } });
+  assert.equal((await f.answered(first)).params.rejectionReason, 'Ploeg can\'t take instructions for running work yet. Stop it, or wait until it needs you.');
+  const second = f.dispatch(chat, { type: 'chat/pendingMessageSet', kind: 'steering', id: 'p1', message: { text: 'Again.', origin: { kind: 'user' } } });
+  assert.equal((await f.answered(second)).params.rejectionReason, workItemRefusals.message);
+  assert.deepEqual(f.state.writes.map(write => write.path), ['work-items/202/notes'], 'the missing route is learnt once and nothing else is called');
+  assert.equal(f.server.app.store.getSecret('work-item-command:op-1:202'), undefined, 'and no command waits for a retry');
+});
+
+test('a confirmed Stop on an attempt newer than the one the person saw withdraws nothing', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const chat = defaultChatOf('unfold:/wi-202');
+  await f.client.rpc('subscribe', { channel: chat });
+  f.dispatch(chat, { type: 'chat/turnCancelled', turnId: 'wi-202-round-1-1' });
+  const question = (await f.requested(chat)).params.action.request;
+  newAttempt(f.state, '202');
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: question.id, response: 'accept', answers: picked('withdraw') });
+  await f.replied(chat, /started a new attempt/);
+  const reply = f.client.inbox.find(message => action(message, chat, 'chat/responsePart') && message.params.action.part.id === `${question.id}-reply`)!;
+  assert.equal(reply.params.action.part.content, cancelShiftChanged('202'));
+  assert.equal(reply.params.action.part.content, '#202 started a new attempt since you looked; nothing was withdrawn. Look again and stop it if you still want to.');
+  assert.equal(JSON.parse(f.state.writes[0].body).expectedShiftId, '9202');
+  assert.equal(f.state.details.get('202')!.item.state, 'leased', 'nothing was withdrawn');
+});
+
+test('a Ploeg that takes no cancel body still withdraws on a confirmed Stop, unguarded', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  f.state.cancelBody = false;
+  const chat = defaultChatOf('unfold:/wi-202');
+  await f.client.rpc('subscribe', { channel: chat });
+  f.dispatch(chat, { type: 'chat/turnCancelled', turnId: 'wi-202-round-1-1' });
+  const question = (await f.requested(chat)).params.action.request;
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: question.id, response: 'accept', answers: picked('withdraw') });
+  await f.replied(chat, /^Withdrew #202\./);
+  assert.deepEqual(f.state.writes.map(write => write.body === '' ? '' : Object.keys(JSON.parse(write.body)).sort().join()), ['commandId,expectedShiftId', '']);
 });

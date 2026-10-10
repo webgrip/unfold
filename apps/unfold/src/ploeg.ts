@@ -69,6 +69,12 @@ export const demoContextRefusal = 'The demo does not store context files.';
 export type PloegRequeueCommand = { commandId: string; expectedState: PloegState; note?: string; poolUsd?: number };
 /** Ploeg's answer to a requeue: the new state and pool, and whether it replayed an earlier command with the same id. */
 export type PloegRequeued = { workItemId: string; team: string; state: string; fromRound: number; poolUsd: number | null; commandId: string | null; replayed: boolean; demo: boolean };
+/** What a note asks of Ploeg (Ploeg ADR-0068): the command id a retry reuses, the instruction, and the Shift the person saw open, if any. */
+export type PloegNoteCommand = { commandId: string; text: string; expectedShiftId?: string };
+/** Ploeg's answer to a note: the Shift it was stored against and whether it replayed an earlier command with the same id. */
+export type PloegNoted = { workItemId: string; noteId: string; commandId: string; shiftId: string | null; replayed: boolean };
+/** What guards a cancel: the command id a retry reuses and the Shift the person saw open, if any. A Ploeg that refuses a cancel body withdraws unguarded. */
+export type PloegCancelGuard = { commandId: string; expectedShiftId?: string };
 export type PloegCancellation = PloegDecisionResult & { withdrawn: boolean | null; shiftId: string | null; cancelledRuns: number | null; stoppedRuns: number | null; keysBlocked: boolean | null; message: string };
 export type PloegRunFilter = { team?: string; state?: string; outcome?: string; before?: string };
 export type PloegCardStyle = { skin: string; theme: string | null };
@@ -282,12 +288,43 @@ const requeueFailures: Record<string, string> = {
   operator_owned: 'A workbench session drives this Work Item. Restart that session instead.',
   command_conflict: 'Ploeg already took a different restart under this command. Refresh to see where it stands.',
 };
+async function refusalCode(response: Response): Promise<string> {
+  if (!response.body || Number(response.headers.get('content-length')) > 65_536) return '';
+  try { const data = JSON.parse(await response.text()); return typeof data?.error?.code === 'string' ? data.error.code : ''; } catch { return ''; }
+}
 async function requeueRefusal(response: Response): Promise<PloegError | null> {
-  if (!response.body || Number(response.headers.get('content-length')) > 65_536) return null;
-  let code = '';
-  try { const data = JSON.parse(await response.text()); code = typeof data?.error?.code === 'string' ? data.error.code : ''; } catch { return null; }
+  const code = await refusalCode(response);
   const message = requeueFailures[code];
   return message ? new PloegError(response.status, code, message) : null;
+}
+/** Ploeg's plain answer when a person's note on a running Work Item was not stored. */
+export const noteFailures = {
+  shift_changed: (id: string) => `#${id} started a new attempt since you looked; your note was not saved. Look again and send it if you still want to.`,
+  work_item_terminal: (id: string) => `#${id} is no longer running, so your note was not saved. Look again to see where it stands.`,
+  operator_owned: (id: string) => `A workbench session drives #${id}. Give your instruction there instead.`,
+  command_conflict: (id: string) => `Ploeg already holds a different note for #${id} under this command, so this one was not saved. Send it again.`,
+  not_found: () => 'Ploeg work item not found in your authorized teams.',
+  invalid: () => 'Ploeg refused the note. A note is 1 to 4096 characters.',
+  unreachable: () => 'Ploeg could not be reached, so your note was not saved. Send it again to retry.',
+} as const;
+/** What the host says when a guarded cancel found a newer attempt than the one the person saw. */
+export const cancelShiftChanged = (id: string) => `#${id} started a new attempt since you looked; nothing was withdrawn. Look again and stop it if you still want to.`;
+const notesUnsupported = () => new PloegError(501, 'ploeg_notes_unsupported', 'This Ploeg version cannot take notes for running work.');
+async function noteRefusal(response: Response, id: string): Promise<PloegError> {
+  const code = await refusalCode(response);
+  if (response.status === 405 || (response.status === 404 && code !== 'not_found')) return notesUnsupported();
+  if (response.status === 404) return new PloegError(404, 'ploeg_not_found', noteFailures.not_found());
+  if (response.status === 409 && code in noteFailures) return new PloegError(409, code, noteFailures[code as keyof typeof noteFailures](id));
+  if (response.status === 400) return new PloegError(400, 'ploeg_note', noteFailures.invalid());
+  if (response.status >= 500) return new PloegError(503, 'ploeg_unavailable', noteFailures.unreachable());
+  return new PloegError(response.status, code || 'ploeg_note', noteFailures.invalid());
+}
+async function cancelRefusal(response: Response, id: string): Promise<PloegError | null> {
+  const code = await refusalCode(response);
+  if (response.status === 409 && code === 'shift_changed') return new PloegError(409, code, cancelShiftChanged(id));
+  if (response.status === 409) return new PloegError(409, 'ploeg_decision_conflict', 'Ploeg did not cancel this Work Item: a workbench session drives it. Cancel that session instead.');
+  if (response.status === 400 && code === 'invalid_request') return new PloegError(400, 'ploeg_cancel_body', 'This Ploeg version takes no cancel body.');
+  return null;
 }
 const demoCancellation = 'Illustrative demo record. Nothing was cancelled: no Run was stopped, no model key or push token was blocked and the tracker was not told.';
 const unsupported = () => new PloegError(501, 'ploeg_unsupported', 'This Ploeg version does not provide activity data yet.');
@@ -749,6 +786,8 @@ export class PloegClient {
   private readonly demoDecisions = new Map<string, PloegDecision>();
   private cardService: CardService | undefined;
   private factsProbe: { until: number; supported: boolean } | null = null;
+  private notesRoute: boolean | undefined;
+  private cancelGuard: boolean | undefined;
   /** Lets Unfold's own card domain (root ADR-0030) serve every card and crack route outside the demo. */
   useCards(service: CardService): void { this.cardService = service; }
   private async cards(fresh = false): Promise<CardService> {
@@ -800,7 +839,7 @@ export class PloegClient {
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
-  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; requeue?: boolean; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {
+  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; requeue?: boolean; note?: string; cancel?: string; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {
     const token = this.config?.tokenEnv ? process.env[this.config.tokenEnv] : undefined;
     if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new PloegError(503, 'ploeg_credential', 'The Ploeg operator credential is unavailable. An administrator must check the connection.');
     if (token !== this.cachedToken) { this.cache.clear(); this.cachedToken = token; }
@@ -812,7 +851,7 @@ export class PloegClient {
       const response = await fetch(`${this.config!.url}/api/v1/operator/${path}`, { method: options.method ?? (post ? 'POST' : 'GET'), headers, ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}), ...(options.raw !== undefined ? { body: new Uint8Array(options.raw) } : {}), signal: AbortSignal.timeout(options.raw !== undefined ? 60_000 : options.comment ? 45_000 : 5000), redirect: 'manual' });
       if (post) this.cache.clear();
       if (!response.ok) {
-        const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : options.ask ? await askRefusal(response) : options.requeue ? await requeueRefusal(response) : null;
+        const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : options.ask ? await askRefusal(response) : options.requeue ? await requeueRefusal(response) : options.note !== undefined ? await noteRefusal(response, options.note) : options.cancel !== undefined ? await cancelRefusal(response, options.cancel) : null;
         await response.body?.cancel().catch(() => undefined);
         if (refusal) throw refusal;
         if (options.added && (response.status === 404 || (response.status === 400 && /^(?:events|work-items)\?/.test(path)))) throw unsupported();
@@ -1105,7 +1144,7 @@ export class PloegClient {
     try { return pullRequestUrl(await this.detail(user, id, fresh)); } catch { return ''; }
   }
   /** Approves, rejects or cancels a Work Item for an operator or administrator, as that user. A cancellation also reports what Ploeg stopped; the demo reports that nothing was cancelled. */
-  async decide(user: User, id: string, decision: PloegDecision, reason = ''): Promise<PloegDecisionResult | PloegCancellation> {
+  async decide(user: User, id: string, decision: PloegDecision, reason = '', guard?: PloegCancelGuard): Promise<PloegDecisionResult | PloegCancellation> {
     if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
     this.connected(user);
     if (!decisionKinds.includes(decision)) throw new PloegError(404, 'not_found', 'Ploeg operator view not found.');
@@ -1119,17 +1158,56 @@ export class PloegClient {
       this.demoDecisions.set(id, decision);
       return { workItemId: id, team: current.item.team, state: decision === 'approve' ? 'queued' : 'withdrawn', demo: true };
     }
-    const body = decision === 'cancel' ? undefined : text ? { reason: text } : {};
-    const response = await this.request(`work-items/${id}/${decision}`, true, { actor: user.id, body }).catch(error => {
-      if (decision === 'cancel' && error instanceof PloegError && error.status === 409) throw new PloegError(409, error.code, 'Ploeg did not cancel this Work Item: a workbench session drives it. Cancel that session instead.');
-      throw error;
-    });
+    const response = decision === 'cancel' ? await this.cancel(user, id, guard) : await this.request(`work-items/${id}/${decision}`, true, { actor: user.id, body: text ? { reason: text } : {} });
     const data = envelope(response);
     const result = record(decision === 'cancel' ? data.cancellation : data.decision);
     const workItemId = identifier(typeof result.workItemId === 'number' ? String(result.workItemId) : result.workItemId);
     if (workItemId !== id) throw invalid();
     const decided = { workItemId, team: typeof result.team === 'string' ? result.team : current.item.team, state: token(result.state), demo: false };
     return decision === 'cancel' ? { ...decided, ...cancellation(result) } : decided;
+  }
+  private async cancel(user: User, id: string, guard: PloegCancelGuard | undefined): Promise<unknown> {
+    const unguarded = () => this.request(`work-items/${id}/cancel`, true, { actor: user.id, cancel: id });
+    if (!guard || this.cancelGuard === false) return unguarded();
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(guard.commandId) || (guard.expectedShiftId !== undefined && !/^[1-9][0-9]{0,18}$/.test(guard.expectedShiftId))) throw new PloegError(400, 'ploeg_command', 'A guarded cancel needs a command id and a Shift identifier.');
+    const body = { commandId: guard.commandId, ...(guard.expectedShiftId !== undefined ? { expectedShiftId: guard.expectedShiftId } : {}) };
+    try { const response = await this.request(`work-items/${id}/cancel`, true, { actor: user.id, body, cancel: id }); this.cancelGuard = true; return response; }
+    catch (error) {
+      if (!(error instanceof PloegError && error.code === 'ploeg_cancel_body')) throw error;
+      this.cancelGuard = false;
+      return unguarded();
+    }
+  }
+  /**
+   * Leaves a note on a running or queued Work Item for an operator or administrator, as that user (Ploeg ADR-0068). The
+   * note reaches the Work Item's next Run, never the running one. The same `commandId` replays Ploeg's first answer, so a
+   * retry never stores it twice. A Ploeg without the notes route throws `ploeg_notes_unsupported`, and this process stops
+   * calling it.
+   */
+  async note(user: User, id: string, command: PloegNoteCommand): Promise<PloegNoted> {
+    if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
+    this.connected(user);
+    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(user.id)) throw new PloegError(403, 'ploeg_actor', 'Your account identity cannot be recorded by Ploeg. Ask an administrator.');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(command.commandId)) throw new PloegError(400, 'ploeg_command', 'A note needs a command id of 1 to 128 identifier characters.');
+    if (command.expectedShiftId !== undefined && !/^[1-9][0-9]{0,18}$/.test(command.expectedShiftId)) throw new PloegError(400, 'ploeg_note', 'Use a valid Ploeg Shift identifier.');
+    const text = command.text.trim();
+    if (!text || text.length > 4096) throw new PloegError(400, 'ploeg_note', noteFailures.invalid());
+    if (this.demo || this.notesRoute === false) throw notesUnsupported();
+    const body = { commandId: command.commandId, text, ...(command.expectedShiftId !== undefined ? { expectedShiftId: command.expectedShiftId } : {}) };
+    let response: unknown;
+    try { response = await this.request(`work-items/${id}/notes`, true, { actor: user.id, body, note: id }); }
+    catch (error) {
+      if (error instanceof PloegError && error.code === 'ploeg_notes_unsupported') this.notesRoute = false;
+      if (error instanceof PloegError && error.code === 'ploeg_unavailable') throw new PloegError(503, 'ploeg_unavailable', noteFailures.unreachable());
+      throw error;
+    }
+    this.notesRoute = true;
+    const note = record(envelope(response).note);
+    const workItemId = identifier(typeof note.workItemId === 'number' ? String(note.workItemId) : note.workItemId);
+    if (workItemId !== id) throw invalid();
+    const shift = typeof note.shiftId === 'number' ? String(note.shiftId) : note.shiftId;
+    return { workItemId, noteId: identifier(typeof note.id === 'number' ? String(note.id) : note.id), commandId: typeof note.commandId === 'string' ? note.commandId : command.commandId, shiftId: typeof shift === 'string' && /^[1-9][0-9]{0,19}$/.test(shift) ? shift : null, replayed: note.replayed === true };
   }
   /** Restarts a stopped Work Item from Round 1 for an operator or administrator, as that user (Ploeg ADR-0044). The same `commandId` replays Ploeg's first answer, so a retry never restarts twice. */
   async requeue(user: User, id: string, command: PloegRequeueCommand): Promise<PloegRequeued> {
