@@ -1,3 +1,54 @@
+## [unfold-v0.4.0-rc.52](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.51...unfold-v0.4.0-rc.52) (2026-10-10)
+
+### Added
+
+* **unfold:** add an Agents window step to the extension walkthrough ([0fbf095](https://forgejo.webgrip.dev/webgrip/unfold/commit/0fbf095e198e8f628974cd14249312bdd72b34b2))
+* **unfold:** assemble Run cards from Ploeg's delivery facts ([2881fbd](https://forgejo.webgrip.dev/webgrip/unfold/commit/2881fbd88aa3392ca854fd10433be34b6f3fe6f3))
+* **unfold:** confirm that the Agents window attached ([5e730ad](https://forgejo.webgrip.dev/webgrip/unfold/commit/5e730ad2b7442de8bb29aa625a62c3a3dd03991f))
+* **unfold:** connect VS Code's Agents window in one click from the browser ([c529699](https://forgejo.webgrip.dev/webgrip/unfold/commit/c52969934c6f9caaa8cd493b0e6a12f4ab53ab81))
+* **unfold:** declare no protected resource on the agent host's agent ([3650e3c](https://forgejo.webgrip.dev/webgrip/unfold/commit/3650e3c248f67a9a1c949470309bb12b4de3c1a1))
+* **unfold:** keep crack, rarity and comment state in Unfold's store ([c1c2d57](https://forgejo.webgrip.dev/webgrip/unfold/commit/c1c2d57a20c8e288aab11958d3f817c2515cc94d))
+* **unfold:** name each Agents window entry after its workbench when there are several ([c5ff7b9](https://forgejo.webgrip.dev/webgrip/unfold/commit/c5ff7b94d99231cb604a9d2afa6b0871c929f693))
+* **unfold:** offer repositories in the Agents window's workspace picker ([e5a105c](https://forgejo.webgrip.dev/webgrip/unfold/commit/e5a105c0876020c83389003020a358454a20c59a))
+* **unfold:** port Run card gates and flow figures, at microsecond precision ([862b2a5](https://forgejo.webgrip.dev/webgrip/unfold/commit/862b2a55274f6f8b42e66ad78f5a00b67a955bf4))
+* **unfold:** port Run card rarity paths and play KPIs from Ploeg ([6fafb55](https://forgejo.webgrip.dev/webgrip/unfold/commit/6fafb55c7ce5dd31947a263aec3324eb8cdbe9ea))
+* **unfold:** port the Run card comment image and summary from Ploeg ([76cac5f](https://forgejo.webgrip.dev/webgrip/unfold/commit/76cac5f50cf86df0c3699b25ca41e240c2f22984))
+* **unfold:** read the board, admission, checkpoints and budget holds from Ploeg's facts ([617c82a](https://forgejo.webgrip.dev/webgrip/unfold/commit/617c82a2f7f175809a0bd5ef3de68b644e47132e)), references [#92](https://forgejo.webgrip.dev/webgrip/unfold/issues/92)
+* **unfold:** revoke one agent host token and retire it from the editor ([29b3326](https://forgejo.webgrip.dev/webgrip/unfold/commit/29b3326849a35db91de86acc154596079e954c4e))
+* **unfold:** serve Run cards and cracks from Ploeg's delivery facts ([9206cdb](https://forgejo.webgrip.dev/webgrip/unfold/commit/9206cdb585d56a08ee19b678c2244fc353ad3bf6))
+* **unfold:** set product events and their export from chart values ([4d52a34](https://forgejo.webgrip.dev/webgrip/unfold/commit/4d52a343e8a18901119728be60dec0444ffc3731))
+* **unfold:** show screen views and link-outs on the insight dashboard ([8d0f54d](https://forgejo.webgrip.dev/webgrip/unfold/commit/8d0f54dd58c111449ee4e4f301c03de0d5eeb38b))
+* **unfold:** tell the Agents window why a session failed ([69e4a37](https://forgejo.webgrip.dev/webgrip/unfold/commit/69e4a376c4d2ad2d014aae7a3f22c1a8fe0f94e2))
+
+### Fixed
+
+* **unfold:** keep old bindings and old actor keys working after an upgrade ([73f49bc](https://forgejo.webgrip.dev/webgrip/unfold/commit/73f49bcdf697cf0703fea06c66a1aa479248bd39)), references [#260](https://forgejo.webgrip.dev/webgrip/unfold/issues/260)
+* **unfold:** refuse the Agents window routes in the hosted replay ([daeb27d](https://forgejo.webgrip.dev/webgrip/unfold/commit/daeb27d20107e33c0db7ef41234726fbbc256e5e))
+* **unfold:** say plainly when an insight panel has nothing to show ([1f3ba5d](https://forgejo.webgrip.dev/webgrip/unfold/commit/1f3ba5d97eb76439c944a3bd264c7be4124f7477))
+* **unfold:** show a Work Item that changed team, and stop counting closed sessions ([c9e7384](https://forgejo.webgrip.dev/webgrip/unfold/commit/c9e7384dbfa06ae4383925cf79e75e8b7967bae0))
+
+### Changed
+
+* **unfold:** name the picked-folder lookup instead of documenting it ([0f58eae](https://forgejo.webgrip.dev/webgrip/unfold/commit/0f58eae741b2f885d7e69da46236907c53fab107))
+
+### Docs
+
+* **adr:** record Run cards as an Unfold domain on Ploeg's delivery facts ([b507ed1](https://forgejo.webgrip.dev/webgrip/unfold/commit/b507ed10c7a42e7147b770db9d01ca0336951100))
+* drop the last mentions of Vloer that nothing needs ([2c09c82](https://forgejo.webgrip.dev/webgrip/unfold/commit/2c09c826e57df210c5c42f4244673893b12aa484))
+* **unfold:** describe card routes served from Ploeg's facts and the card rules ([feee941](https://forgejo.webgrip.dev/webgrip/unfold/commit/feee9414483b5344045699575a3f81c7a69a197c))
+* **unfold:** explain where Run cards are computed and how to move them ([9c6b144](https://forgejo.webgrip.dev/webgrip/unfold/commit/9c6b144a88a69f4b1eee880e0df02be320c3ccaa))
+* **unfold:** note on the card ADRs that Unfold now computes Run cards ([dc10c6b](https://forgejo.webgrip.dev/webgrip/unfold/commit/dc10c6b79308b0ed887367fe86459bf921cee149))
+
+### Tests
+
+* **unfold:** cover the facts parser, the card service, the import and the comment ([0e50bb1](https://forgejo.webgrip.dev/webgrip/unfold/commit/0e50bb18ad9ab36901563d01cba6317c32968c47))
+* **unfold:** type the fixture's closed flag so development typechecks ([d665154](https://forgejo.webgrip.dev/webgrip/unfold/commit/d66515409f7906e2ef52489b8de0fb078f624ffd)), references [#261](https://forgejo.webgrip.dev/webgrip/unfold/issues/261)
+
+### Build
+
+* **ploeg:** pin Ploeg v0.2.0-rc.10 ([1398a41](https://forgejo.webgrip.dev/webgrip/unfold/commit/1398a414216a9d82cc996d2f73d669e28f25088e)), references [ploeg#91](https://forgejo.webgrip.dev/ploeg/issues/91)
+* **ploeg:** pin Ploeg v0.2.0-rc.11 ([d91ff42](https://forgejo.webgrip.dev/webgrip/unfold/commit/d91ff427a930f7e39d4fb963a1356c7826a3b0d6)), references [ploeg#90](https://forgejo.webgrip.dev/ploeg/issues/90)
+
 ## [unfold-v0.4.0-rc.51](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.50...unfold-v0.4.0-rc.51) (2026-10-10)
 
 ### Added
