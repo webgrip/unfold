@@ -1740,7 +1740,7 @@ export class AgentHost {
         if (!text) return intent === 'ask' ? 'Type a question after /ask' : 'Empty message';
         if (!feedback && (intent === 'ask' || (intent !== 'steer' && this.chatAsks.covers(session) && this.asksByDefault(session)))) return this.askInTurn(client, session, text, origin, action.turnId ?? null);
         if (session.status === 'completed') return this.reviewOperations(session).length ? 'This candidate waits for your review. Accept it, request changes or reject it from the Changes view, or comment on its files and submit the comments.' : 'The session has completed; start a new session';
-        if (feedback) return this.dispatchToSession(client, channel, kind, session, { ...action, message: { ...action.message, text: this.review.feedbackInstruction(action.message, feedback), attachments: undefined } }, origin);
+        if (feedback) return this.dispatchToSession(client, channel, kind, session, { ...action, message: { ...action.message, text: `/steer ${this.review.feedbackInstruction(action.message, feedback)}`, attachments: undefined } }, origin);
         if (ended || this.openChoice(this.projection(session))) return this.offerForMessage(client, session, text, origin, action.turnId ?? null);
         const projection = this.projection(session);
         const turnId = this.acceptableTurnId(projection, action.turnId) ?? randomUUID();
