@@ -12,7 +12,7 @@ export type GitRepository = {
   pull(): Promise<void>;
   status(): Promise<void>;
 };
-export type GitApi = { state: 'uninitialized' | 'initialized'; onDidChangeState(listener: (state: 'uninitialized' | 'initialized') => void): { dispose(): void }; repositories: GitRepository[] };
+export type GitApi = { git?: { path: string }; state: 'uninitialized' | 'initialized'; onDidChangeState(listener: (state: 'uninitialized' | 'initialized') => void): { dispose(): void }; repositories: GitRepository[] };
 
 /** A repository as a forge host (lowercase, no port) and its full path (`group/subgroup/repo`, no `.git` suffix). */
 export type RepositoryIdentity = { host: string; path: string };
@@ -107,5 +107,19 @@ export function matchingRepositories(repositories: GitRepository[], expected: Re
     const remotes = repository.state.remotes.filter(remote => remoteMatches(remote.fetchUrl, expected, aliases) || remoteMatches(remote.pushUrl, expected, aliases));
     const remote = remotes.find(entry => entry.name === 'origin') ?? remotes[0];
     return remote ? [{ repository, remote: remote.name }] : [];
+  });
+}
+
+/** A worktree as `git worktree list --porcelain` reports it: its folder and the local branch it has checked out, if any. */
+export type Worktree = { path: string; branch?: string };
+
+/** The worktrees in `git worktree list --porcelain` output, the main one first. */
+export function parseWorktrees(output: string): Worktree[] {
+  return output.split(/\n\s*\n/).flatMap(block => {
+    const lines = block.split('\n');
+    const path = lines.find(line => line.startsWith('worktree '))?.slice('worktree '.length);
+    if (!path) return [];
+    const branch = lines.find(line => line.startsWith('branch refs/heads/'))?.slice('branch refs/heads/'.length);
+    return [branch ? { path, branch } : { path }];
   });
 }

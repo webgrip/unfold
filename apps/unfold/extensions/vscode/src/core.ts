@@ -49,7 +49,8 @@ export type Core = {
   duration(seconds: unknown): string;
   notReported: string;
   checkoutTarget(detail: unknown, card?: unknown): CheckoutTarget | null;
-  checkoutCommand(branch: string, remote?: string): string;
+  checkoutCommand(branch: string, remote?: string, repo?: string): string;
+  worktreeFolder(clone: string, branch: string): string;
   checkoutableBranch(name: unknown): boolean;
   sessionProgress(session: unknown, options?: { events?: unknown[]; now?: number; viewer?: boolean; ploeg?: unknown; card?: unknown; recovery?: unknown }): Progress;
   progressGroup(progress: Progress): 'needs' | 'review' | 'running' | null;
@@ -70,7 +71,7 @@ export async function loadCore(base: string | URL): Promise<Core> {
     playState: states.playState, ciState: states.ciState, humanReview: states.humanReview, sessionStatus: states.sessionStatus,
     listReason: reasons.listReason, detailReason: reasons.detailReason,
     money: format.money, moneyExact: format.moneyExact, count: format.count, dateTime: format.dateTime, time: format.time, relative: format.relative, duration: format.duration, notReported: format.notReported,
-    checkoutTarget: checkout.checkoutTarget, checkoutCommand: checkout.checkoutCommand, checkoutableBranch: checkout.checkoutableBranch,
+    checkoutTarget: checkout.checkoutTarget, checkoutCommand: checkout.checkoutCommand, worktreeFolder: checkout.worktreeFolder, checkoutableBranch: checkout.checkoutableBranch,
     sessionProgress: progress.sessionProgress, progressGroup: progress.progressGroup, sessionForWorkItem: progress.sessionForWorkItem, elapsedClock: progress.elapsedClock, changedFiles: progress.changedFiles,
   };
 }

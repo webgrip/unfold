@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { checkoutCommand, checkoutLink, checkoutTarget, checkoutableBranch, workItemBranch } from '../public/core/checkout.js';
+import { checkoutCommand, checkoutLink, checkoutTarget, checkoutableBranch, workItemBranch, worktreeFolder } from '../public/core/checkout.js';
 
 const item = (extra = {}) => ({ id: '50', target: { forge: 'forgejo', owner: 'acme', repo: 'shop', baseBranch: 'main' }, latestShift: null, ...extra });
 
@@ -20,11 +20,19 @@ test('only branch names that need no quoting and cannot read as an option are of
   assert.equal(workItemBranch({ item: item({ latestShift: { branch: 'a;rm -rf ~' } }), shifts: [], checkpoints: [{ id: '1', branch: 'agent/safe' }] }), 'agent/safe', 'an unsafe branch is skipped, not quoted');
 });
 
-test('the git command fetches, switches and fast-forwards, and refuses what it cannot write safely', () => {
-  assert.equal(checkoutCommand('agent/vik-50'), 'git fetch origin agent/vik-50 && git switch agent/vik-50 && git merge --ff-only origin/agent/vik-50');
-  assert.equal(checkoutCommand('agent/vik-50', 'forge'), 'git fetch forge agent/vik-50 && git switch agent/vik-50 && git merge --ff-only forge/agent/vik-50');
+test('the git command fetches, adds a worktree beside the clone and fast-forwards, and refuses what it cannot write safely', () => {
+  assert.equal(checkoutCommand('agent/vik-50', 'origin', 'shop'), 'git fetch origin agent/vik-50 && git worktree add ../shop-agent-vik-50 agent/vik-50 && cd ../shop-agent-vik-50 && git merge --ff-only origin/agent/vik-50');
+  assert.equal(checkoutCommand('agent/vik-50', 'forge', 'shop'), 'git fetch forge agent/vik-50 && git worktree add ../shop-agent-vik-50 agent/vik-50 && cd ../shop-agent-vik-50 && git merge --ff-only forge/agent/vik-50');
+  assert.equal(checkoutCommand('agent/vik-50'), 'git fetch origin agent/vik-50 && git worktree add ../repo-agent-vik-50 agent/vik-50 && cd ../repo-agent-vik-50 && git merge --ff-only origin/agent/vik-50');
   assert.equal(checkoutCommand('$(id)'), '');
   assert.equal(checkoutCommand('agent/x', '-oops'), '');
+  assert.equal(checkoutCommand('agent/x', 'origin', 'my shop'), '');
+});
+
+test('a worktree folder is the clone’s name and the branch with slashes as dashes, and needs no quoting', () => {
+  assert.equal(worktreeFolder('glide', 'agent/vik-1993'), 'glide-agent-vik-1993');
+  assert.equal(worktreeFolder(' shop ', 'main'), 'shop-main');
+  for (const [clone, branch] of [['', 'main'], ['-x', 'main'], ['.git', 'main'], ['a b', 'main'], ['../up', 'main'], ['shop', '$(id)'], ['shop', '']]) assert.equal(worktreeFolder(clone, branch), '', `${clone} ${branch}`);
 });
 
 test('the VS Code link carries only the Work Item id and the workbench it came from', () => {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cloneUrl, expectedRepository, hostAliases, hostsMatch, matchingRepositories, parseRemote, remoteMatches, type GitRepository } from '../src/git-remotes.ts';
+import { cloneUrl, expectedRepository, hostAliases, hostsMatch, matchingRepositories, parseRemote, parseWorktrees, remoteMatches, type GitRepository } from '../src/git-remotes.ts';
 
 test('a remote parses to its forge host and full repository path over HTTPS, ssh:// and SCP-style', () => {
   const cases: [string, { host: string; path: string } | undefined][] = [
@@ -97,4 +97,10 @@ test('a clone of the same owner/repo on another forge is not offered', () => {
   const broken = repository('/src/broken', [{ name: 'origin', fetchUrl: 'https://forge.example/acme/%E0%A4%A' }]);
   const ours = repository('/src/shop', [{ name: 'origin', fetchUrl: 'ssh://git@forge.example:2222/acme/shop.git' }]);
   assert.deepEqual(matchingRepositories([elsewhere, broken, ours], { host: 'forge.example', path: 'acme/shop' }).map(match => match.repository.rootUri.path), ['/src/shop']);
+});
+
+test('worktrees parse from porcelain output with the local branch each has checked out', () => {
+  const output = 'worktree /src/shop\nHEAD aaaa\nbranch refs/heads/main\n\nworktree /src/shop-agent-vik-50\nHEAD bbbb\nbranch refs/heads/agent/vik-50\n\nworktree /src/shop-detached\nHEAD cccc\ndetached\n\n';
+  assert.deepEqual(parseWorktrees(output), [{ path: '/src/shop', branch: 'main' }, { path: '/src/shop-agent-vik-50', branch: 'agent/vik-50' }, { path: '/src/shop-detached' }]);
+  assert.deepEqual(parseWorktrees(''), []);
 });

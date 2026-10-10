@@ -36,10 +36,21 @@ export function checkoutTarget(detail, card) {
   return { branch, owner: text(target.owner), repo: text(target.repo), baseBranch: text(target.baseBranch) };
 }
 
-/** The shell command that fetches `branch` from `remote` and switches to it, fast-forwarding a local copy that already exists. */
-export function checkoutCommand(branch, remote = 'origin') {
-  if (!checkoutableBranch(branch) || !/^[A-Za-z0-9._-]+$/.test(remote) || remote.startsWith('-')) return '';
-  return `git fetch ${remote} ${branch} && git switch ${branch} && git merge --ff-only ${remote}/${branch}`;
+/** The folder name of a worktree for `branch` beside a clone named `clone`: `shop` and `agent/vik-50` give `shop-agent-vik-50`. `''` when either is unusable. */
+export function worktreeFolder(clone, branch) {
+  const base = text(clone);
+  if (!checkoutableBranch(branch) || !/^[A-Za-z0-9._-]+$/.test(base) || base.startsWith('-') || base.startsWith('.')) return '';
+  return `${base}-${branch.replace(/\//g, '-')}`;
+}
+
+/**
+ * The shell command that fetches `branch` from `remote`, adds a worktree for it beside the clone of `repo`, enters it and
+ * fast-forwards a local copy that already existed. The clone itself stays on its branch.
+ */
+export function checkoutCommand(branch, remote = 'origin', repo = 'repo') {
+  const folder = worktreeFolder(repo, branch);
+  if (!folder || !/^[A-Za-z0-9._-]+$/.test(remote) || remote.startsWith('-')) return '';
+  return `git fetch ${remote} ${branch} && git worktree add ../${folder} ${branch} && cd ../${folder} && git merge --ff-only ${remote}/${branch}`;
 }
 
 /** The `vscode://` link that asks the Unfold extension to check out Work Item `workItemId`, read from the workbench at `origin`. */

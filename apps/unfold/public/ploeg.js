@@ -1380,11 +1380,11 @@ export function checkoutDialogMarkup(detail, card, { origin = '' } = {}) {
   const target = checkoutTarget(detail, card);
   if (!target) return '';
   const repo = `${target.owner}/${target.repo}`;
-  const command = checkoutCommand(target.branch);
+  const command = checkoutCommand(target.branch, 'origin', target.repo.split('/').at(-1));
   const link = checkoutLink(detail.item.id, origin);
   const facts = ui.dl([['Branch', `<span class="mono">${escape(target.branch)}</span>`], ['Repository', `${escape(repo)}${target.baseBranch ? ` <span class="subtle">→ ${escape(target.baseBranch)}</span>` : ''}`]], { rows: true });
-  const editor = `<div class="work-checkout-part"><a class="button primary" href="${escape(link)}">${icon('external')}<span class="button-label">Open in VS Code</span></a><p class="meta">${escape(`Needs the Unfold extension, connected to this workbench, and a clone of ${repo} open in VS Code. It asks before it switches branches.`)}</p></div>`;
-  const terminal = `<div class="work-checkout-part"><p>${escape(`Or, in a terminal in your clone of ${repo}:`)}</p><pre class="work-checkout-command mono">${escape(command)}</pre>${ui.button({ label: 'Copy command', icon: 'copy', variant: 'secondary', action: 'work-copy-command', data: { value: command } })}</div>`;
+  const editor = `<div class="work-checkout-part"><a class="button primary" href="${escape(link)}">${icon('external')}<span class="button-label">Open in VS Code</span></a><p class="meta">${escape(`Needs the Unfold extension, connected to this workbench, and a clone of ${repo} open in VS Code. It asks first, then adds a worktree for the branch beside that clone and opens it in a new window. Your clone stays on its branch.`)}</p></div>`;
+  const terminal = `<div class="work-checkout-part"><p>${escape(`Or, in a terminal in your clone of ${repo}, to add a worktree beside it:`)}</p><pre class="work-checkout-command mono">${escape(command)}</pre>${ui.button({ label: 'Copy command', icon: 'copy', variant: 'secondary', action: 'work-copy-command', data: { value: command } })}</div>`;
   return `<form method="dialog" class="work-checkout-form"><header class="dialog-header"><h2 id="confirm-title">Check out this branch</h2><button type="submit" class="button ghost icon-only sm" value="close" aria-label="Close" title="Close">${icon('x')}</button></header><div class="dialog-body"><p><strong>${escape(detail.item.title || `Work Item ${detail.item.id}`)}</strong> <span class="subtle">${escape(workItemRef(detail.item))}</span></p>${facts}${editor}${terminal}</div><footer class="dialog-footer"><button type="submit" class="button secondary" value="close" autofocus>Close</button></footer></form>`;
 }
 
