@@ -4,7 +4,10 @@ export type AskAudience = 'internal' | 'client';
 /** Where an Ask is: admitted and waiting for its answer, answered, failed after admission, or refused before any spend. */
 export type AskStatus = 'answering' | 'answered' | 'failed' | 'refused';
 
-/** A question about one Work Item and its answer, as Unfold stores it apart from Session events. `costUsd` is null until Ploeg settles the Ask; a demo Ask has no cost. */
+/** Where an answer came from: the record, with no model call and no spend, or one metered model call admitted by Ploeg. */
+export type AskSource = 'record' | 'model';
+
+/** A question about one Work Item and its answer, as Unfold stores it apart from Session events. `costUsd` is null until Ploeg settles the Ask; a demo Ask has no cost. An answer from the record costs nothing and names the standing question it answered in `intent`. */
 export type Ask = {
   id: string;
   workItemId: string;
@@ -21,6 +24,8 @@ export type Ask = {
   costUsd: number | null;
   costStatus: 'demo' | 'pending' | 'settled' | 'unknown';
   failure: string | null;
+  source: AskSource;
+  intent: string | null;
   createdAt: string;
   answeredAt: string | null;
 };

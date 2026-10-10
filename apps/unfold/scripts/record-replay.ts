@@ -156,10 +156,11 @@ async function recordViews() {
       for (const id of fresh) {
         visited.add(id);
         const base = `/api/ploeg/work-items/${encodeURIComponent(id)}`;
-        for (const path of [base, `${base}/card`, `${base}/cracks`, `${base}/crack-candidates`, `${base}/context`]) await get(path);
+        for (const path of [base, `${base}/card`, `${base}/cracks`, `${base}/crack-candidates`, `${base}/context`, `${base}/asks`]) await get(path);
         if (routes.get(replayKey('GET', `${base}/card`))!.status === 200) await get(`/api/cards/${encodeURIComponent(id)}/seen`);
       }
     }
+    await get('/api/asks');
     for (const id of [...visited].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }))) {
       const path = `/api/ploeg/work-items/${encodeURIComponent(id)}/cancel`;
       routes.set(replayKey('POST', path), await demo.call('POST', path, {}));

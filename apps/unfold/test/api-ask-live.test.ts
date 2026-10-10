@@ -111,3 +111,18 @@ test('live: Ask Runs stay off the Work Item\'s Runs and the Runs list; the Ask c
   assert.equal(before.status, 200, before.text);
   assert.ok(before.body.runs.every((run: { role: string }) => run.role !== 'ask'));
 });
+
+test('live: a standing question is answered from the record with no admission, and askModel asks the model anyway', async t => {
+  const { api, cookie, calls, prompts } = await live(t);
+  const admitted = () => calls.filter(call => call.method === 'POST' && /\/work-items\/101\/asks$/.test(call.path)).length;
+  const record = await request(api.url, '/api/ploeg/work-items/101/asks', { method: 'POST', cookie, body: { question: 'Why did it stop?' } });
+  assert.equal(record.status, 201, record.text);
+  assert.deepEqual([record.body.status, record.body.source, record.body.intent, record.body.costUsd, record.body.costStatus], ['answered', 'record', 'stopped', 0, 'settled']);
+  assert.equal(admitted(), 0);
+  assert.equal(prompts.length, 0);
+  const anyway = await request(api.url, '/api/ploeg/work-items/101/asks', { method: 'POST', cookie, body: { question: 'Why did it stop?', askModel: true } });
+  assert.equal(anyway.status, 201, anyway.text);
+  assert.deepEqual([anyway.body.source, anyway.body.answer], ['model', 'It is done and merged.']);
+  assert.equal(admitted(), 1);
+  assert.equal(prompts.length, 1);
+});

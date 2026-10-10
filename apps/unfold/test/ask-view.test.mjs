@@ -89,3 +89,23 @@ test('the Ask card shows what is left of the allowance, and disables asking once
   assert.match(empty, /Your Team&#39;s Ask Allowance is used up\. It resets on 1 November\./);
   assert.match(empty, /disabled/);
 });
+
+test('an answer from the record says it made no model call and offers to ask the model anyway', () => {
+  const record = ask({ id: 'r1', source: 'record', intent: 'stopped', costUsd: 0, costStatus: 'settled', ploegAskId: null, model: null });
+  const html = askMarkup(detail(), { asks: { items: [record, ask({ id: 'm1', source: 'model' })], demo: false, error: '' }, askBusy: false });
+  assert.match(html, /Answered from the record · no model call/);
+  assert.equal((html.match(/data-action="work-ask-model"/g) || []).length, 1);
+  assert.match(html, /data-action="work-ask-model" data-id="r1"/);
+  assert.match(html, /answered from the record for free/);
+  const usedUp = askMarkup(detail(), { asks: { items: [record], demo: false, error: '', allowance: { limitUsd: 2, remainingUsd: 0, askBudgetUsd: 0.02, asksEnabled: true, resetAt: '2026-11-01T00:00:00Z' } }, askBusy: false });
+  assert.doesNotMatch(usedUp, /work-ask-model/);
+  const demo = askMarkup(detail(true), { asks: { items: [{ ...record, demo: true, costStatus: 'demo', costUsd: null }], demo: true, error: '' } });
+  assert.match(demo, /Answered from the record · no model call/);
+  assert.doesNotMatch(demo, /work-ask-model/);
+});
+
+test('the Ask dialog offers to ask the model even for a standing question, except in the demo', () => {
+  assert.match(askDialogMarkup(detail()), /name="askModel" value="true"/);
+  assert.match(askDialogMarkup(detail()), /answered from the record for free/);
+  assert.doesNotMatch(askDialogMarkup(detail(true)), /askModel/);
+});

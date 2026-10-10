@@ -441,7 +441,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               if (method === 'GET') return json(res, 200, sanitize(await asks.about(user, asked[1])));
               if (method !== 'POST') fault(405, 'method', 'Ask with POST; list Asks with GET.');
               const data = await body(req);
-              return json(res, 201, sanitize(await asks.ask(user, asked[1], data.question)));
+              return json(res, 201, sanitize(await asks.ask(user, asked[1], data.question, 'internal', { model: data.askModel === true })));
             } catch (error) {
               if (error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } });
               throw error;

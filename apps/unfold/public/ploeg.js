@@ -1163,53 +1163,57 @@ export function contextMarkup(detail, model) {
 }
 
 function askCost(ask) {
+  if (ask.source === 'record' && ask.status === 'answered') return `<span class="work-ask-cost">${ui.badge({ label: 'Answered from the record · no model call', tone: 'neutral', size: 'sm' })}</span>`;
   if (ask.costStatus === 'demo') return `<span class="work-ask-cost">${ui.badge({ label: 'Demo answer · no model call', tone: 'neutral', size: 'sm' })}</span>`;
   if (ask.costStatus === 'pending') return `<span class="work-ask-cost">${escape('Cost pending')}</span>`;
   if (ask.costStatus === 'unknown' || typeof ask.costUsd !== 'number') return `<span class="work-ask-cost">${escape('Cost not reported')}</span>`;
   return `<span class="work-ask-cost">${escape('Cost ')}${moneyHtml(ask.costUsd)}</span>`;
 }
 
-function askItem(ask) {
+function askItem(ask, { modelOffered = false } = {}) {
   const reply = ask.status === 'answered'
     ? `<p class="work-ask-answer">${escape(ask.answer)}</p>`
     : ask.status === 'answering'
       ? `<p class="work-ask-answer" aria-busy="true">${escape('Answering…')}</p>`
       : `<p class="work-ask-failure" role="note">${icon(ask.status === 'refused' ? 'info' : 'alert')}<span>${escape(ask.failure || 'No answer.')}</span></p>`;
   const when = ask.createdAt ? `<time datetime="${escape(ask.createdAt)}">${escape(dateTime(ask.createdAt))}</time>` : '';
-  return `<li class="work-ask-item"><p class="work-ask-question"><strong>${escape(ask.askerName || 'Someone')}</strong> ${escape('asked')}: ${escape(ask.question)}</p>${reply}<p class="work-ask-meta">${when}${askCost(ask)}</p></li>`;
+  const anyway = modelOffered && ask.source === 'record' && ask.status === 'answered' ? ui.button({ label: 'Ask the model anyway', icon: 'help-circle', size: 'xs', variant: 'ghost', action: 'work-ask-model', data: { id: ask.id }, title: 'One model call, paid from your Team\'s Ask Allowance' }) : '';
+  return `<li class="work-ask-item"><p class="work-ask-question"><strong>${escape(ask.askerName || 'Someone')}</strong> ${escape('asked')}: ${escape(ask.question)}</p>${reply}<p class="work-ask-meta">${when}${askCost(ask)}${anyway}</p></li>`;
 }
 
 /**
  * The Ask card on a Work Item (system ADR-0031): the Asks about this Work Item, newest first, each with its answer or why
- * there is none, and its cost, and the Ask a question button. `model.asks` is `{ items, demo, error }` or null while
- * loading; while `model.askBusy`, `model.askDraft` is shown first as the question being answered.
+ * there is none, and its cost, and the Ask a question button. An answer from the record says it made no model call and,
+ * outside the demo, offers to ask the model anyway. `model.asks` is `{ items, demo, error }` or null while loading;
+ * while `model.askBusy`, `model.askDraft` is shown first as the question being answered.
  */
 export function askMarkup(detail, model) {
   const asks = model.asks;
   const demo = Boolean(asks?.demo || detail.demo);
   const intro = demo
     ? 'This is a demo: answers come from fixed rules about this Work Item, with no model call and no spend.'
-    : 'Ask in your own words where this work stands. The agents do not see your question and it does not change the work. Each answer is paid from your Team\'s Ask Allowance.';
+    : 'Ask in your own words where this work stands. The agents do not see your question and it does not change the work. Standing questions, such as why it stopped or what it cost, are answered from the record for free; any other answer is paid from your Team\'s Ask Allowance.';
   const pending = model.askBusy && model.askDraft ? askItem({ askerName: 'You', question: model.askDraft, status: 'answering', costStatus: demo ? 'demo' : 'pending', createdAt: '' }) : '';
+  const allowance = !demo ? asks?.allowance : null;
+  const usedUp = Boolean(allowance && (!allowance.asksEnabled || allowance.remainingUsd < allowance.askBudgetUsd));
   let list;
   if (!asks) list = ui.skeleton({ rows: 2, variant: 'list' });
   else if (asks.error) list = `<p class="work-ask-error" role="alert">${icon('alert')}<span>${escape(asks.error)}</span></p>`;
   else if (!asks.items.length && !pending) list = `<p class="work-ask-empty">${escape('Nobody has asked about this Work Item yet.')}</p>`;
-  else list = `<ol class="work-ask-list" id="work-ask-list" tabindex="-1" aria-label="Asks about this Work Item">${pending}${asks.items.map(askItem).join('')}</ol>`;
-  const allowance = !demo ? asks?.allowance : null;
-  const usedUp = Boolean(allowance && (!allowance.asksEnabled || allowance.remainingUsd < allowance.askBudgetUsd));
+  else list = `<ol class="work-ask-list" id="work-ask-list" tabindex="-1" aria-label="Asks about this Work Item">${pending}${asks.items.map(ask => askItem(ask, { modelOffered: !demo && !usedUp && !model.askBusy })).join('')}</ol>`;
   const resets = allowance ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(allowance.resetAt)) : '';
   const left = allowance ? `<p class="work-ask-allowance" role="${usedUp ? 'alert' : 'status'}">${icon(usedUp ? 'alert' : 'coins')}<span>${usedUp ? escape(`Your Team's Ask Allowance is used up. It resets on ${resets}.`) : `${moneyHtml(Math.max(0, allowance.remainingUsd))} ${escape(`of ${money(allowance.limitUsd)} left this month · resets on ${resets}`)}`}</span></p>` : '';
   const action = ui.button({ label: 'Ask a question', icon: 'help-circle', size: 'sm', action: 'work-ask-open', busy: model.askBusy, disabled: usedUp });
   return `<section class="card work-ask" id="work-ask" aria-labelledby="work-ask-title"${model.askBusy ? ' aria-busy="true"' : ''}><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-ask-title">${icon('help-circle')}Ask about this work</h3><p class="card-subtitle">${escape(intro)}</p></div><div class="card-actions">${action}</div></header><div class="card-body work-ask-body">${left}${list}</div></section>`;
 }
 
-/** The Ask a question dialog for `detail`: one question of at most 2000 characters, which never reaches the agents. */
+/** The Ask a question dialog for `detail`: one question of at most 2000 characters, which never reaches the agents, and outside the demo a choice to ask the model even for a standing question. */
 export function askDialogMarkup(detail) {
   const demo = Boolean(detail.demo);
   const field = `<div class="field"><label class="field-label" for="work-ask-question">${escape('Your question')}</label><textarea id="work-ask-question" name="question" rows="3" maxlength="2000" required aria-describedby="work-ask-hint"></textarea><p class="field-hint" id="work-ask-hint">${escape('For example: why did it stop, what changed, what has it cost so far?')}</p><p class="field-error" data-error-for="question" hidden></p></div>`;
-  const note = demo ? 'This is a demo: the answer comes from fixed rules, with no model call and no spend.' : 'The answer comes from what Unfold knows about this Work Item. The agents do not see your question, and the answer is paid from your Team\'s Ask Allowance.';
-  return `<form data-form="work-ask" data-id="${escape(detail.item.id)}" class="work-ask-dialog" novalidate><header class="dialog-header"><h2 id="confirm-title">${escape('Ask about this work')}</h2>${ui.iconButton({ icon: 'x', label: 'Close', action: 'close-dialog' })}</header><div class="dialog-body"><p>${escape(note)}</p>${field}</div><footer class="dialog-footer">${ui.button({ label: 'Cancel', action: 'close-dialog' })}${ui.button({ label: 'Ask', variant: 'primary', type: 'submit' })}</footer></form>`;
+  const note = demo ? 'This is a demo: the answer comes from fixed rules, with no model call and no spend.' : 'The answer comes from what Unfold knows about this Work Item. The agents do not see your question. A standing question, such as where it stands, why it stopped, what it cost or what to do next, is answered from the record for free; any other answer is one model call paid from your Team\'s Ask Allowance.';
+  const anyway = demo ? '' : `<div class="session-choice"><input type="checkbox" id="work-ask-model" name="askModel" value="true" aria-describedby="work-ask-model-hint"><div><label class="field-label" for="work-ask-model">${escape('Ask the model even if the record answers it')}</label><p class="field-hint" id="work-ask-model-hint">${escape('One model call, paid from your Team\'s Ask Allowance.')}</p></div></div>`;
+  return `<form data-form="work-ask" data-id="${escape(detail.item.id)}" class="work-ask-dialog" novalidate><header class="dialog-header"><h2 id="confirm-title">${escape('Ask about this work')}</h2>${ui.iconButton({ icon: 'x', label: 'Close', action: 'close-dialog' })}</header><div class="dialog-body"><p>${escape(note)}</p>${field}${anyway}</div><footer class="dialog-footer">${ui.button({ label: 'Cancel', action: 'close-dialog' })}${ui.button({ label: 'Ask', variant: 'primary', type: 'submit' })}</footer></form>`;
 }
 
 /** The Add context dialog for `detail`: a file (an archive or one file, up to 20 MiB) and an optional note of at most 500 characters. */

@@ -371,6 +371,7 @@ function openAsk() {
 async function submitAsk(data, form) {
   const id = form.dataset.id;
   const question = String(data.question ?? '').trim();
+  const askModel = data.askModel === 'true';
   const error = form.querySelector('[data-error-for="question"]');
   const field = form.querySelector('[name="question"]');
   if (error) { error.hidden = true; error.textContent = ''; }
@@ -383,13 +384,23 @@ async function submitAsk(data, form) {
   }
   if (!id || id !== work.detailId || work.askBusy) return;
   form.closest('dialog')?.close();
+  await postAsk(id, question, askModel);
+}
+
+function askModelAnyway(button) {
+  const ask = work.asks?.id === work.detailId ? work.asks.data?.items?.find(entry => entry.id === button.dataset.id) : null;
+  if (!ask || work.askBusy) return;
+  void postAsk(work.detailId, ask.question, true);
+}
+
+async function postAsk(id, question, askModel) {
   work.askBusy = true;
   work.askDraft = question;
   renderWork();
   try {
-    const ask = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/asks`, { method: 'POST', body: JSON.stringify({ question }) });
+    const ask = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/asks`, { method: 'POST', body: JSON.stringify(askModel ? { question, askModel: true } : { question }) });
     work.askDraft = '';
-    announce(ask.status === 'answered' ? 'Answered.' : ask.failure || 'No answer.');
+    announce(ask.status === 'answered' ? (ask.source === 'record' ? 'Answered from the record, with no model call.' : 'Answered.') : ask.failure || 'No answer.');
   } catch (failure) {
     notify(failure.message, true);
   } finally {
@@ -850,6 +861,7 @@ export default {
     'work-section': jumpToSection,
     'work-context-add': () => openContext(),
     'work-ask-open': () => openAsk(),
+    'work-ask-model': askModelAnyway,
     'trace-propose': openPropose,
     'trace-evolved': openEvolved,
     'trace-confirm': openCrackStep('confirm'),

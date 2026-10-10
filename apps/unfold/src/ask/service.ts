@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { User } from '../types.ts';
+import { sessionForWorkItem } from '../../public/core/progress.js';
 import type { PloegCard, PloegCardView, PloegDetail } from '../ploeg.ts';
 import { AskAllowanceUsedUp, PloegError, type PloegAskAllowance } from '../ploeg.ts';
 import { withoutKnownSecrets } from '../redaction.ts';
 import type { Store } from '../store.ts';
 import { briefText, workItemBrief, type WorkItemBrief } from './brief.ts';
-import { demoAnswer } from './demo.ts';
+import { demoUnanswered, matchIntent, recordAnswer } from './record.ts';
 import type { Ask, AskAudience } from './types.ts';
 
 export { AskAllowanceUsedUp };
@@ -30,6 +31,9 @@ export interface AskWorkItems {
   card(user: User, id: string, fresh?: boolean): Promise<PloegCardView>;
 }
 
+/** How one Ask is answered: `model` true skips the record and asks the model even for a standing question. */
+export type AskRequest = { model?: boolean };
+
 export type AskOptions = { demo: boolean; gatewayUrl?: string; secrets: readonly string[]; fetch?: typeof fetch; now?: () => Date };
 
 const questionLimit = 2000;
@@ -44,9 +48,15 @@ const instructions = [
   'Answer in the language of the question, in plain text, in at most 120 words.',
 ].join('\n');
 
+const sourced = (ask: Ask): Ask => ({ ...ask, source: ask.source ?? (ask.demo ? 'record' : 'model'), intent: ask.intent ?? null });
+
 const resetDate = (iso: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(iso));
 
-/** Answers questions about Work Items (system ADR-0031). In the demo it answers from fixed rules; otherwise every Ask is admitted and metered by Ploeg and answered with one model call. */
+/**
+ * Answers questions about Work Items (system ADR-0031). Deterministic first, model last: a standing question is answered
+ * from the brief and the progress statechart with no model call, in the demo and live alike. Any other question is
+ * admitted and metered by Ploeg and answered with one model call; the demo has no model and says so.
+ */
 export class AskService {
   private readonly store: Store;
   private readonly workItems: AskWorkItems;
@@ -61,24 +71,39 @@ export class AskService {
     const text = value.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').replace(/[^\P{C}\n\t]/gu, '').replace(/:\/\/[^\s/@]+@/g, '://[redacted]@').replace(/\bsk-[\w-]+/g, '[redacted]');
     return withoutKnownSecrets(text, this.options.secrets).trim().slice(0, max);
   }
-  private now(): string { return (this.options.now?.() ?? new Date()).toISOString(); }
+  private clock(): Date { return this.options.now?.() ?? new Date(); }
+  private now(): string { return this.clock().toISOString(); }
 
   private async brief(user: User, workItemId: string): Promise<WorkItemBrief> {
     const detail = await this.workItems.detail(user, workItemId, true);
     let card: PloegCard | undefined;
     try { card = (await this.workItems.card(user, workItemId)).card; } catch { card = undefined; }
-    return workItemBrief(detail, card);
+    const session = sessionForWorkItem(this.store.listSessions(), detail.item.id);
+    return workItemBrief(detail, card, session ? { session, events: this.store.events(session.id), now: this.clock().getTime(), viewer: user.role === 'viewer' } : undefined);
   }
 
-  /** Asks one question about a Work Item the caller can see and returns the stored Ask, answered, refused or failed. */
-  async ask(user: User, workItemId: string, rawQuestion: unknown, audience: AskAudience = 'internal'): Promise<Ask> {
+  /**
+   * Asks one question about a Work Item the caller can see and returns the stored Ask, answered, refused or failed.
+   * A standing question is answered from the record first, free and with no model call (`source: 'record'`); any other
+   * question, or any question with `request.model`, is admitted by Ploeg and answered with one model call.
+   */
+  async ask(user: User, workItemId: string, rawQuestion: unknown, audience: AskAudience = 'internal', request: AskRequest = {}): Promise<Ask> {
     if (typeof rawQuestion !== 'string' || !rawQuestion.trim()) throw new PloegError(400, 'ask_question', 'Type a question.');
     if (rawQuestion.length > questionLimit) throw new PloegError(400, 'ask_question', `Keep the question under ${questionLimit} characters.`);
     const question = this.clean(rawQuestion, questionLimit);
     const brief = await this.brief(user, workItemId);
-    const ask: Ask = { id: randomUUID(), workItemId, workItemTitle: brief.title, askerId: user.id, askerName: user.name, audience, question, answer: '', status: 'answering', demo: brief.demo || this.options.demo, ploegAskId: null, model: null, costUsd: null, costStatus: 'pending', failure: null, createdAt: this.now(), answeredAt: null };
+    const ask: Ask = { id: randomUUID(), workItemId, workItemTitle: brief.title, askerId: user.id, askerName: user.name, audience, question, answer: '', status: 'answering', demo: brief.demo || this.options.demo, ploegAskId: null, model: null, costUsd: null, costStatus: 'pending', failure: null, source: 'model', intent: null, createdAt: this.now(), answeredAt: null };
+    const intent = request.model ? null : matchIntent(question);
+    const fromRecord = intent ? recordAnswer(intent, brief, audience) : null;
+    if (intent && fromRecord) {
+      Object.assign(ask, { answer: this.clean(fromRecord, answerLimit), status: 'answered', source: 'record', intent, costUsd: ask.demo ? null : 0, costStatus: ask.demo ? 'demo' : 'settled', answeredAt: this.now() });
+      this.store.saveAsk(ask);
+      return ask;
+    }
     if (ask.demo) {
-      Object.assign(ask, { answer: demoAnswer(brief, question), status: 'answered', costStatus: 'demo', answeredAt: this.now() });
+      Object.assign(ask, request.model
+        ? { status: 'refused', failure: 'This is a demo: there is no model to ask, so nothing was asked or spent.', costStatus: 'demo', answeredAt: this.now() }
+        : { answer: demoUnanswered, status: 'answered', source: 'record', costStatus: 'demo', answeredAt: this.now() });
       this.store.saveAsk(ask);
       return ask;
     }
@@ -130,7 +155,7 @@ export class AskService {
     const asks = this.store.asksAbout(workItemId, listLimit);
     await this.refresh(user, asks);
     const allowance = this.authority && !this.options.demo ? await this.authority.allowance(user, detail.item.team).catch(() => null) : null;
-    return { asks, allowance };
+    return { asks: asks.map(sourced), allowance };
   }
 
   /** The caller's own most recent Asks, newest first, leaving out any whose Work Item the caller can no longer see. */
@@ -143,7 +168,7 @@ export class AskService {
       if (visible.get(ask.workItemId)) asks.push(ask);
       if (asks.length > limit) break;
     }
-    return { asks: asks.slice(0, limit), more: asks.length > limit || candidates.length > limit * 2 };
+    return { asks: asks.slice(0, limit).map(sourced), more: asks.length > limit || candidates.length > limit * 2 };
   }
 
   private async refresh(user: User, asks: Ask[]): Promise<void> {

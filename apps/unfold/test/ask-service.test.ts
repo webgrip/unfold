@@ -59,6 +59,7 @@ test('a demo Ask answers from the brief without a model call or spend', async ()
   assert.equal(ask.costStatus, 'demo');
   assert.equal(ask.demo, true);
   assert.match(ask.answer, /being worked on now/);
+  assert.deepEqual([ask.source, ask.intent], ['record', 'doing']);
   assert.equal(net.requests.length, 0);
   assert.deepEqual(store.asksAbout('42', 10).map(entry => entry.id), [ask.id]);
 });
@@ -67,18 +68,18 @@ test('an Ask is admitted by Ploeg, answered with its key from the brief, and fin
   const store = new Store(':memory:');
   const auth = authority();
   const net = gateway('It is being worked on now.');
-  const ask = await service(store, workItems(), auth.value, net.fetcher).ask(owner, '42', 'How far is it?');
+  const ask = await service(store, workItems(), auth.value, net.fetcher).ask(owner, '42', 'Which browsers did it test?');
   assert.equal(ask.status, 'answered');
   assert.equal(ask.answer, 'It is being worked on now.');
   assert.equal(ask.ploegAskId, 'p-1');
   assert.equal(ask.costStatus, 'pending');
-  assert.deepEqual(auth.calls, ['admit 42 36 How far is it?', 'finish 42 p-1']);
+  assert.deepEqual(auth.calls, ['admit 42 36 Which browsers did it test?', 'finish 42 p-1']);
   assert.equal(net.requests[0].url, 'http://gateway.test/v1/chat/completions');
   assert.equal(net.requests[0].auth, 'Bearer sk-ask-key');
   assert.equal(net.requests[0].body.model, 'glm-5.3-flash');
   assert.equal(net.requests[0].body.tools, undefined);
   const prompt = net.requests[0].body.messages.map((message: { content: string }) => message.content).join('\n');
-  assert.match(prompt, /<question>\nHow far is it\?\n<\/question>/);
+  assert.match(prompt, /<question>\nWhich browsers did it test\?\n<\/question>/);
   assert.match(prompt, /login: fix Safari/);
   assert.doesNotMatch(prompt, /PROMPT-SECRET/);
 });
@@ -93,7 +94,7 @@ test('a used-up allowance refuses the Ask before any model call and says when it
   const store = new Store(':memory:');
   const auth = authority({ async admit() { throw new AskAllowanceUsedUp('2026-11-01T00:00:00Z'); } });
   const net = gateway('should not be called');
-  const ask = await service(store, workItems(), auth.value, net.fetcher).ask(owner, '42', 'How far is it?');
+  const ask = await service(store, workItems(), auth.value, net.fetcher).ask(owner, '42', 'Which browsers did it test?');
   assert.equal(ask.status, 'refused');
   assert.equal(ask.failure, 'Ask Allowance used up. It resets on 1 November.');
   assert.deepEqual([ask.costUsd, ask.costStatus], [0, 'settled']);
@@ -103,14 +104,14 @@ test('a used-up allowance refuses the Ask before any model call and says when it
 test('a failed admission leaves the cost unknown rather than zero', async () => {
   const store = new Store(':memory:');
   const auth = authority({ async admit() { throw new PloegError(503, 'ploeg_unavailable', 'down'); } });
-  const ask = await service(store, workItems(), auth.value, gateway('x').fetcher).ask(owner, '42', 'How far is it?');
+  const ask = await service(store, workItems(), auth.value, gateway('x').fetcher).ask(owner, '42', 'Which browsers did it test?');
   assert.deepEqual([ask.status, ask.costUsd, ask.costStatus], ['failed', null, 'unknown']);
 });
 
 test('a model failure still finishes the Ask so its key is blocked', async () => {
   const store = new Store(':memory:');
   const auth = authority();
-  const ask = await service(store, workItems(), auth.value, gateway(new Error('gateway down')).fetcher).ask(owner, '42', 'How far is it?');
+  const ask = await service(store, workItems(), auth.value, gateway(new Error('gateway down')).fetcher).ask(owner, '42', 'Which browsers did it test?');
   assert.equal(ask.status, 'failed');
   assert.match(ask.failure ?? '', /did not answer/);
   assert.deepEqual(auth.calls.at(-1), 'finish 42 p-1');
@@ -119,7 +120,7 @@ test('a model failure still finishes the Ask so its key is blocked', async () =>
 test('a Work Item outside the caller\'s Teams is not found and nothing is stored or admitted', async () => {
   const store = new Store(':memory:');
   const auth = authority();
-  await assert.rejects(service(store, workItems(false, false), auth.value, gateway('x').fetcher).ask(owner, '42', 'How far is it?'), (error: PloegError) => error.status === 404);
+  await assert.rejects(service(store, workItems(false, false), auth.value, gateway('x').fetcher).ask(owner, '42', 'Which browsers did it test?'), (error: PloegError) => error.status === 404);
   assert.deepEqual(auth.calls, []);
   assert.equal(store.asksAbout('42', 10).length, 0);
 });
@@ -141,7 +142,7 @@ test('listing Asks refreshes pending costs from Ploeg', async () => {
   const store = new Store(':memory:');
   const auth = authority();
   const asks = service(store, workItems(), auth.value, gateway('Fine.').fetcher);
-  await asks.ask(owner, '42', 'How far is it?');
+  await asks.ask(owner, '42', 'Which browsers did it test?');
   const { asks: [listed], allowance: shown } = await asks.about(owner, '42');
   assert.deepEqual([listed.costUsd, listed.costStatus], [0.0011, 'settled']);
   assert.deepEqual(shown, allowance);
@@ -169,6 +170,6 @@ test('your recent Asks leave out Work Items you can no longer see', async () => 
 test('a configuration refusal from Ploeg is shown as it is, with the cost unknown', async () => {
   const store = new Store(':memory:');
   const auth = authority({ async admit() { throw new PloegError(409, 'ask_unconfigured', 'Asking is not set up for this Team yet: Ploeg has no ask model policy for it.'); } });
-  const ask = await service(store, workItems(), auth.value, gateway('x').fetcher).ask(owner, '42', 'How far is it?');
+  const ask = await service(store, workItems(), auth.value, gateway('x').fetcher).ask(owner, '42', 'Which browsers did it test?');
   assert.deepEqual([ask.status, ask.failure], ['failed', 'Asking is not set up for this Team yet: Ploeg has no ask model policy for it.']);
 });
