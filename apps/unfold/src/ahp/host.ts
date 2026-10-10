@@ -7,8 +7,10 @@ import type { Engine } from '../engine.ts';
 import { placements } from '../config.ts';
 import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile } from '../candidates.ts';
 import type { AppConfig, Event, PermissionRequest, Repository, Session, User, WorkspaceBackend } from '../types.ts';
+import type { Recovery } from '../engine.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
+import { money } from '../../public/core/format.js';
 
 /** The AHP compatibility baseline this host implements. It accepts any offered version in `>=0.9.0 <0.10.0`. */
 export const protocolVersion = '0.9.0';
@@ -73,7 +75,7 @@ type View = Pick<Client, 'user' | 'scheme'>;
 type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
 type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
-type Projection = { finalStop?: number; turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json> };
+type Projection = { finalStop?: number; turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json>; choices: Map<string, Json>; holding?: string; startedRuns: Set<string>; finishedRuns: Set<string>; workingRun?: string; queuedInstructions: number };
 type PendingSession = { id: string; uri: string; config: Json; user: User; createdAt: string; starting?: boolean };
 type CandidateView = { files: CandidateFile[]; counts: Map<string, { added: number; removed: number }> };
 
@@ -108,6 +110,20 @@ function asRpcError(error: unknown): RpcError {
   return new RpcError(engineCodes[status] ?? codes.internal, error instanceof Error && Number.isFinite(status) ? error.message : 'Internal error');
 }
 const acceptOperation = 'accept';
+
+/** The events by which the host records a choice it offered in a chat, the person's answer and what came of it. */
+export const choiceEvents = { offered: 'choice.offered', answered: 'choice.answered', reported: 'choice.reported' } as const;
+/** The options a host choice can offer. Each maps to one call of the recovery API, under the same owner checks. */
+export type ChoiceOptionId = 'run_again_start' | 'run_again' | 'deliver' | 'resume' | 'dismiss';
+type ChoiceOption = { id: ChoiceOptionId; label: string };
+const dismissReply = 'Nothing changed. This session stays as it is.';
+const clockUtc = (at: string) => { const moment = new Date(at); return Number.isFinite(moment.getTime()) ? `${moment.toISOString().slice(11, 16)} UTC` : 'an unknown time'; };
+
+/** A host choice as an AHP input request: one single-select question whose options VS Code 1.141 shows by label only, so each option's meaning is in the question's message. */
+export function choiceRequest(offered: Json): Json {
+  const options = (Array.isArray(offered.options) ? offered.options : []) as ChoiceOption[];
+  return { id: String(offered.choiceId), message: String(offered.title), questions: [{ id: '0', title: String(offered.question ?? offered.title), message: String(offered.detail ?? ''), kind: 'single-select', required: true, options: options.map(option => ({ id: option.id, label: option.label })), allowFreeformInput: false }] };
+}
 const declineReason = 'Unfold cannot decline a question: the crew waits for its answer. Answer it, or stop the turn to pause the session.';
 
 type Choice = { label: string; description?: string };
@@ -224,6 +240,9 @@ export class AgentHost {
   /** How long an active client whose last connection closed keeps its place, waiting for its reconnect: 30 seconds, as in VS Code's own host. */
   activeClientGraceMs = 30_000;
   private readonly candidates = new Map<string, CandidateView>();
+  private readonly answering = new Set<string>();
+  private readonly offering = new Set<string>();
+  private readonly offeredAfter = new Map<string, number>();
   private readonly loadingCandidates = new Map<string, Promise<void>>();
   private timer?: ReturnType<typeof setInterval>;
   private polling = false;
@@ -466,19 +485,10 @@ export class AgentHost {
     return [{ label: 'Candidate', uriTemplate: this.changesetUri(session), description: repository ? `Changes against ${repository.baseBranch} of ${repository.name}` : 'Reviewable change', changeKind: 'session', capabilities: { review: {} } }];
   }
 
-  /** The session `_meta` VS Code reads: Unfold's own facts, and an input block with the reason when no crew will read a message. */
-  private sessionMeta(session: Session, view: View): Json {
-    const own = this.summary(session, view)._meta;
-    if (!closedToMessages(session)) return own;
-    const progress = sessionProgress(session, { events: this.store.events(session.id) });
-    const message = `${progress.meta.label}: ${progress.headline}. No crew will read a message here. ${progress.next}`.trim();
-    return { ...own, 'vscode.chatInputState': { [this.chatUri(session, view)]: { kind: 'blocked', error: { errorType: 'UnfoldSessionClosed', message } } } };
-  }
-
   sessionState(session: Session, view: View): Json {
     const changesets = this.changesets(session);
     return {
-      ...this.summary(session, view), _meta: this.sessionMeta(session, view), lifecycle: 'ready', activeClients: this.activeClientsOf(this.publicId(session.id)),
+      ...this.summary(session, view), lifecycle: 'ready', activeClients: this.activeClientsOf(this.publicId(session.id)),
       chats: [this.chatSummary(session, view)], defaultChat: this.chatUri(session, view),
       config: { schema: this.configSchema(), values: { repository: session.repositoryId, crew: session.crewId, budgetUsd: session.budgetUsd, title: session.title, ...(session.placement ? { placement: session.placement } : {}) } },
       ...(changesets ? { changesets } : {}),
@@ -487,7 +497,7 @@ export class AgentHost {
   }
 
   chatSummary(session: Session, view: View): Json {
-    return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).chat, activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: ['completed', 'cancelled', 'failed'].includes(session.status) ? 'read-only' : 'full' };
+    return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).chat, activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: session.status === 'completed' ? 'read-only' : 'full' };
   }
 
   chatState(session: Session, view: View): Json {
@@ -587,7 +597,7 @@ export class AgentHost {
   private projection(session: Session): Projection {
     let projection = this.projections.get(session.id);
     if (!projection) {
-      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map(), answers: new Map() };
+      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map(), answers: new Map(), choices: new Map(), startedRuns: new Set(), finishedRuns: new Set(), queuedInstructions: 0 };
       this.projections.set(session.id, projection);
       this.openTurn(projection, session, session.objective, session.createdAt, this.store.getSecret<string>(`ahp-turn:${session.id}`));
       const events = this.store.events(session.id);
@@ -626,13 +636,15 @@ export class AgentHost {
     projection.turns.push({ id: active.id, startedAt: active.startedAt, duration, message: active.message, responseParts: active.responseParts, usage: active.usage, state });
     projection.activeTurn = undefined;
     projection.openTools.clear();
+    projection.choices.clear();
+    projection.holding = undefined;
     if (state === 'complete') return [{ type: 'chat/turnComplete', turnId: active.id, duration }];
     if (state === 'cancelled') return [{ type: 'chat/turnCancelled', turnId: active.id, duration }];
     return [{ type: 'chat/error', turnId: active.id, duration, part: { kind: 'error', error: error ?? { errorType: 'failed', message: 'The session failed' } } }];
   }
 
   private settle(projection: Projection, session: Session): Json[] {
-    if (!projection.activeTurn) return [];
+    if (!projection.activeTurn || projection.holding) return [];
     if (['completed'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'complete', session.updatedAt)];
     if (['cancelled'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'cancelled', session.updatedAt)];
     if (['failed'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'error', session.updatedAt, { errorType: session.failure?.category ?? 'failed', message: session.failure?.message ?? session.blocker ?? 'The session failed' })];
@@ -651,7 +663,8 @@ export class AgentHost {
     if (!turn || turn.outcome) return [];
     turn.outcome = true;
     const progress = sessionProgress(session, { events: this.store.events(session.id) });
-    return this.addPart(projection, { kind: 'markdown', id: `${turn.id}-outcome`, content: outcomeMarkdown(progress, { sessionUrl: this.sessionPage(session) }) });
+    const again = session.status === 'cancelled' && !session.sourceTask ? '\n\nSend a message here to run it again with your message as an instruction for its crew; nothing runs until you choose.' : '';
+    return this.addPart(projection, { kind: 'markdown', id: `${turn.id}-outcome`, content: `${outcomeMarkdown(progress, { sessionUrl: this.sessionPage(session) })}${again}` });
   }
 
   /** What a person reads after sending an instruction: when a Run will read it, or that no crew will and what to do instead. */
@@ -661,8 +674,17 @@ export class AgentHost {
       const progress = sessionProgress(session);
       return `No crew will read this message: ${lowerFirst(progress.reason?.sentence ?? `the session is ${progress.meta.label.toLowerCase()}.`)} ${progress.actions.length ? `Instead: ${progress.actions.filter(action => !['open-session', 'cancel'].includes(action.id)).map(action => action.label).join(', ') || 'start a new session'}, from VS Code's Work Item view or the session page.` : 'Start a new session to try again.'}`;
     }
-    if (['queued', 'paused', 'interrupted'].includes(session.status)) return 'Instruction saved. The crew reads it when the session starts or resumes.';
-    return 'Instruction saved for the next Run. Pause and resume to apply it to the Run that is working now.';
+    const role = (runId?: string) => session.runs.find(run => run.id === runId)?.roleName ?? 'Role';
+    if (projection.workingRun) {
+      const working = role(projection.workingRun);
+      const next = session.runs.find(run => run.id !== projection.workingRun && !projection.startedRuns.has(run.id));
+      return next
+        ? `Queued for the ${next.roleName}'s next step. The ${working} is working now and does not read it; pause and resume to give it to the ${working}.`
+        : `Queued, but the ${working} is the last Role and is working now, so no later step reads it. Pause and resume to give it to the ${working}.`;
+    }
+    const first = session.runs.find(run => !projection.finishedRuns.has(run.id));
+    const when = session.status === 'queued' ? 'when the session starts' : 'when the session resumes';
+    return first ? `Queued for the ${first.roleName}'s next step, ${when}.` : `Queued for the next step, ${when}.`;
   }
 
   private openInputs(projection: Projection): Json[] {
@@ -707,14 +729,26 @@ export class AgentHost {
     switch (event.type) {
       case 'session.started': { ensureTurn(); actions.push(...this.addPart(projection, { kind: 'systemNotification', content: data.resumed ? 'Session resumed by the operator.' : 'Session started.' })); break; }
       case 'workspace.ready': { ensureTurn(); actions.push(...this.addPart(projection, { kind: 'systemNotification', content: `Workspace ready (${data.backend}, ${data.isolation}).` })); break; }
-      case 'run.started': { ensureTurn(); actions.push(...this.addPart(projection, { kind: 'systemNotification', content: `${data.role} started · ${data.mode === 'read' ? 'reads the change and gives a verdict' : 'writes the change'}` })); break; }
+      case 'run.started': {
+        ensureTurn();
+        if (event.runId) { projection.startedRuns.add(event.runId); projection.workingRun = event.runId; }
+        actions.push(...this.addPart(projection, { kind: 'systemNotification', content: `${data.role} started · ${data.mode === 'read' ? 'reads the change and gives a verdict' : 'writes the change'}` }));
+        if (projection.queuedInstructions) {
+          const count = projection.queuedInstructions;
+          projection.queuedInstructions = 0;
+          actions.push(...this.addPart(projection, { kind: 'systemNotification', content: `Picked up by ${data.role} at ${clockUtc(event.at)}${count > 1 ? ` (${count} messages)` : ''}.` }));
+        }
+        break;
+      }
       case 'message': {
         if (data.role === 'operator' && typeof data.text === 'string') {
           const waiting = this.openInputs(projection);
           actions.push(...this.closeTurn(projection, 'complete', event.at));
           actions.push(...this.openTurn(projection, session, data.text, event.at, data.turnId));
           for (const part of waiting) actions.push(...this.raiseInput(projection, session, part, event.at));
-          actions.push(...this.addPart(projection, { kind: 'systemNotification', content: this.instructionNotice(projection, session, event) }));
+          const notice = this.instructionNotice(projection, session, event);
+          if (notice.startsWith('Queued')) projection.queuedInstructions++;
+          actions.push(...this.addPart(projection, { kind: 'systemNotification', content: notice }));
           if (!['running', 'waiting_input', 'exporting'].includes(session.status)) actions.push(...this.closeTurn(projection, 'complete', event.at));
           break;
         }
@@ -797,6 +831,7 @@ export class AgentHost {
         break;
       }
       case 'run.finished': {
+        if (event.runId) { if (data.status === 'completed') projection.finishedRuns.add(event.runId); if (projection.workingRun === event.runId) projection.workingRun = undefined; }
         const turn = ensureTurn();
         const role = session.runs.find(run => run.id === event.runId)?.roleName ?? 'Role';
         const verdict = typeof data.verdict === 'string' ? verdictWords[data.verdict] ?? data.verdict : '';
@@ -806,10 +841,14 @@ export class AgentHost {
         break;
       }
       case 'candidate.ready': { const turn = projection.activeTurn; if (turn) actions.push(...this.addPart(projection, { kind: 'systemNotification', content: 'A reviewable candidate has been captured.' })); break; }
+      case choiceEvents.offered: actions.push(...this.offerChoice(projection, session, event)); break;
+      case choiceEvents.answered: actions.push(...this.choiceAnswered(projection, session, event)); break;
+      case choiceEvents.reported: actions.push(...this.choiceReply(projection, session, event)); break;
       case 'session.completed': actions.push(...this.finalOutcome(projection, session, event), ...this.closeTurn(projection, 'complete', event.at)); break;
       case 'session.cancelled': actions.push(...this.finalOutcome(projection, session, event), ...this.closeTurn(projection, 'cancelled', event.at)); break;
-      case 'session.failed': actions.push(...this.finalOutcome(projection, session, event), ...this.closeTurn(projection, 'error', event.at, { errorType: String(data.code ?? 'failed'), message: String(data.message ?? 'The session failed') })); break;
+      case 'session.failed': projection.workingRun = undefined; actions.push(...this.finalOutcome(projection, session, event), ...this.closeTurn(projection, 'error', event.at, { errorType: String(data.code ?? 'failed'), message: String(data.message ?? 'The session failed') })); break;
       case 'session.paused': case 'session.interrupted': {
+        projection.workingRun = undefined;
         const cancelled = event.type === 'session.paused' && projection.origins.has('cancel');
         if (projection.activeTurn) {
           const outcome = this.finalOutcome(projection, session, event);
@@ -831,13 +870,68 @@ export class AgentHost {
     return this.outcome(projection, session);
   }
 
+  /** Opens the turn of a choice: the person's message, or a host notice for a choice offered when the session stopped, then the explanation and the question. A choice without options only explains. */
+  private offerChoice(projection: Projection, session: Session, event: Event): Json[] {
+    const offered = event.data as Json;
+    const actions = this.closeTurn(projection, 'complete', event.at);
+    const fromMessage = typeof offered.text === 'string';
+    actions.push(...(fromMessage ? this.openTurn(projection, session, offered.text, event.at, offered.turnId) : this.openTurn(projection, session, String(offered.title), event.at, undefined, 'systemNotification')));
+    const turn = projection.activeTurn!;
+    actions.push(...this.addPart(projection, { kind: 'markdown', id: `${turn.id}-choice`, content: String(offered.explanation ?? '') }));
+    if (!Array.isArray(offered.options) || !offered.options.length) return [...actions, ...this.closeTurn(projection, 'complete', event.at)];
+    const request = choiceRequest(offered);
+    turn.responseParts.push({ kind: 'inputRequest', request });
+    projection.choices.set(request.id, offered);
+    projection.holding = request.id;
+    return [...actions, { type: 'chat/inputRequested', request }];
+  }
+
+  /** Completes a choice's input request with the person's answer, then replies in the same turn. */
+  private choiceAnswered(projection: Projection, session: Session, event: Event): Json[] {
+    const data = event.data as Json;
+    const choiceId = String(data.choiceId ?? '');
+    const actions: Json[] = [];
+    const input = projection.activeTurn?.responseParts.find((part: Json) => part.kind === 'inputRequest' && part.request.id === choiceId && part.response === undefined);
+    projection.choices.delete(choiceId);
+    if (input) {
+      const response = data.response === 'accept' ? 'accept' : 'cancel';
+      const answers = response === 'accept' && data.answers && typeof data.answers === 'object' ? data.answers as Json : undefined;
+      input.response = response;
+      if (answers) input.request = { ...input.request, answers };
+      actions.push(this.tag(projection, { type: 'chat/inputCompleted', requestId: choiceId, response, ...(answers ? { answers } : {}) }, `request:${choiceId}`));
+    }
+    return [...actions, ...this.choiceReply(projection, session, event)];
+  }
+
+  /** What came of a choice, as Markdown in the choice's turn, which it ends unless the answer is still being carried out. With the choice's turn already ended, the reply gets a turn of its own. */
+  private choiceReply(projection: Projection, session: Session, event: Event): Json[] {
+    const data = event.data as Json;
+    const reply = typeof data.reply === 'string' ? data.reply : '';
+    const choiceId = String(data.choiceId ?? '');
+    const own = projection.activeTurn?.responseParts.some((part: Json) => part.kind === 'inputRequest' && part.request.id === choiceId);
+    const actions: Json[] = [];
+    if (!own) {
+      if (!reply || event.type !== choiceEvents.reported) return actions;
+      actions.push(...this.closeTurn(projection, 'complete', event.at), ...this.openTurn(projection, session, String(data.title ?? 'Update'), event.at, undefined, 'systemNotification'));
+    }
+    const turn = projection.activeTurn!;
+    if (reply) actions.push(...this.addPart(projection, { kind: 'markdown', id: `${turn.id}-reply-${turn.responseParts.length + 1}`, content: reply }));
+    if (own && data.closes === false) { projection.holding = choiceId; return actions; }
+    if (data.cancelled === true) return [...actions, ...this.closeTurn(projection, 'cancelled', event.at).map(action => this.tag(projection, action, 'cancel'))];
+    return [...actions, ...this.closeTurn(projection, 'complete', event.at)];
+  }
+
+  /** The choice still waiting for an answer in the session's chat. */
+  private openChoice(projection: Projection): Json | undefined { return [...projection.choices.values()].at(-1); }
+
   private async poll(): Promise<void> {
     if (this.polling) return;
     this.polling = true;
     try {
       for (const client of [...this.clients]) if (Date.now() - client.checkedAt >= 60_000) this.current(client, false);
       const watched = new Map<string, Session>();
-      for (const client of this.clients) for (const channel of client.subscriptions) { const publicId = sessionIdFrom(channel); const id = publicId ? this.engineId(publicId) : undefined; if (id && !watched.has(id)) { const session = this.store.getSession(id); if (session) watched.set(id, session); } }
+      const watchers = new Map<string, User>();
+      for (const client of this.clients) for (const channel of client.subscriptions) { const publicId = sessionIdFrom(channel); const id = publicId ? this.engineId(publicId) : undefined; if (id && !watched.has(id)) { const session = this.store.getSession(id); if (session) watched.set(id, session); } if (id && client.initialized && client.user.role !== 'viewer' && !watchers.has(id)) watchers.set(id, client.user); }
       for (const [id, session] of watched) {
         const projection = this.projection(session);
         const publicId = this.publicId(id);
@@ -848,6 +942,8 @@ export class AgentHost {
         if (stop) projection.finalStop = stop.id;
         const fresh = [...arriving.flatMap(event => this.reduce(projection, session, event)), ...this.settle(projection, session)];
         for (const action of fresh) this.broadcast(chat, action, actionOrigins.get(action));
+        const watcher = watchers.get(id);
+        if (watcher) this.offerNextSteps(session, watcher);
         const unread = fresh.some(action => action.type === 'chat/turnStarted' || action.type === 'chat/inputRequested' || (action.type === 'chat/toolCallReady' && action.confirmationTitle !== undefined));
         const cleared = unread ? this.store.clearAgentHostFlags(publicId, statusBits.isRead, new Date().toISOString()) : [];
         const fingerprint = this.fingerprint(session);
@@ -861,7 +957,6 @@ export class AgentHost {
           this.broadcast(channel, { type: 'session/activityChanged', activity: current });
           this.broadcast(chat, { type: 'chat/activityChanged', ...(current ? { activity: current } : {}) });
         }
-        if (closedToMessages(session) !== JSON.parse(previous)[7]) this.broadcast(channel, viewer => ({ type: 'session/metaChanged', _meta: this.sessionMeta(session, viewer) }));
         this.broadcast(channel, viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: status | this.viewOf(viewer, publicId).chat, activity: activity(session) ?? null, modifiedAt: session.updatedAt } }));
         const changesets = this.changesets(session);
         this.broadcast(channel, { type: 'session/changesetsChanged', changesets });
@@ -967,6 +1062,8 @@ export class AgentHost {
     const publicId = sessionIdFrom(channel);
     const id = publicId ? this.engineId(publicId) : undefined;
     if (id && !this.summaries.has(id)) { const session = this.store.getSession(id); if (session) this.summaries.set(id, this.fingerprint(session)); }
+    const watched = id && client.user.role !== 'viewer' ? this.store.getSession(id) : undefined;
+    if (watched) this.offerNextSteps(watched, client.user);
     return snapshot;
   }
 
@@ -1188,6 +1285,138 @@ export class AgentHost {
     return undefined;
   }
 
+  /** Tells the person's clients that a session exists, so a session created from a choice shows in the Agents window at once. */
+  private announceSession(session: Session): void {
+    this.summaries.set(session.id, this.fingerprint(session));
+    this.notify(rootChannel, 'root/sessionAdded', viewer => ({ channel: rootChannel, summary: this.summary(session, viewer) }), session.ownerId);
+  }
+
+  private optionLines(session: Session, recovery: Recovery, options: ChoiceOption[], withMessage: boolean): string {
+    const budget = money(session.budgetUsd);
+    const reviewer = recovery.review?.roleName ?? 'The reviewer';
+    const meaning: Record<ChoiceOptionId, string> = {
+      run_again_start: `a new session with this session's brief, repository, crew, placement and budget (${budget})${withMessage ? ', and your message as an instruction its crew reads' : ''}. It starts at once, as a new Ploeg authorization.`,
+      run_again: `the same new session, left ready for you to start. Nothing runs until you do.`,
+      deliver: `${reviewer} approved this work before the session stopped. Unfold captures the approved branch as the candidate and Ploeg completes this session with it, without another model call. The pull request follows the normal delivery path${withMessage ? ', and your message goes to no crew' : ''}.`,
+      resume: 'this session continues in a new generation, and every Run that did not finish runs again.',
+      dismiss: withMessage ? 'nothing changes, and your message is not used.' : 'nothing changes. You can still act on the session page.',
+    };
+    return options.map(option => `- **${option.label}**: ${meaning[option.id]}`).join('\n');
+  }
+
+  /** The choice offered for a message no crew will read: run again with the message as the brief, deliver approved work first, or cancel. */
+  private messageOffer(session: Session, recovery: Recovery): Json {
+    const available = new Map(recovery.actions.filter(action => action.available).map(action => [action.id, action]));
+    const options: ChoiceOption[] = [];
+    if (available.has('run_again')) options.push({ id: 'run_again_start', label: 'Run again and start' }, { id: 'run_again', label: 'Run again with this message' });
+    if (available.has('deliver')) options.push({ id: 'deliver', label: 'Deliver the approved work first' });
+    const reason = sessionProgress(session, { events: this.store.events(session.id) }).reason?.sentence ?? `the session is ${session.status}.`;
+    const blocked = recovery.actions.find(action => action.id === 'run_again' && !action.available)?.unavailableReason;
+    if (!options.length) return { title: 'No crew will read this message', explanation: `No crew will read this message. ${reason}${blocked ? ` It cannot run again from here: ${blocked}` : ''}`, options: [] };
+    options.push({ id: 'dismiss', label: 'Cancel' });
+    return { title: 'No crew will read this message', question: 'What should happen with your message?', explanation: `No crew will read this message. ${reason} Choose what happens with it below; nothing runs until you choose.`, detail: this.optionLines(session, recovery, options, true), options };
+  }
+
+  /** The choice that ends a session which stopped by itself or failed: its next steps, with links to the pull request and the session page. */
+  private closingOffer(session: Session, recovery: Recovery): Json | undefined {
+    const available = new Map(recovery.actions.filter(action => action.available).map(action => [action.id, action]));
+    const options: ChoiceOption[] = [];
+    if (available.has('deliver')) options.push({ id: 'deliver', label: 'Deliver the approved work' });
+    if (available.has('resume')) options.push({ id: 'resume', label: 'Resume' });
+    if (available.has('run_again')) options.push({ id: 'run_again_start', label: 'Run again and start' }, { id: 'run_again', label: 'Run again, start later' });
+    if (!options.length) return undefined;
+    options.push({ id: 'dismiss', label: 'Leave it for now' });
+    const progress = sessionProgress(session, { events: this.store.events(session.id), recovery });
+    const page = this.sessionPage(session);
+    const links = [progress.change.pullRequest?.url ? `[Open pull request #${progress.change.pullRequest.number}](${progress.change.pullRequest.url})` : '', page && progress.change.viewable ? `[View the change](${page})` : page ? `[Open the session page](${page})` : ''].filter(Boolean).join(' · ');
+    return { title: 'What next?', question: 'What should happen next?', explanation: [recovery.summary, 'Nothing runs until you choose.', links].filter(Boolean).join('\n\n'), detail: this.optionLines(session, recovery, options, false), options };
+  }
+
+  /** Offers the next steps once, after the last stop of a session that stopped by itself or failed. It reads the recovery answer and never acts. */
+  private offerNextSteps(session: Session, user: User): void {
+    if (!['interrupted', 'failed'].includes(session.status) || this.offering.has(session.id)) return;
+    const projection = this.projection(session);
+    const stop = projection.finalStop;
+    if (stop === undefined || this.offeredAfter.get(session.id) === stop || this.openChoice(projection)) return;
+    this.offeredAfter.set(session.id, stop);
+    if (this.store.events(session.id, stop).some(event => event.type === choiceEvents.offered)) return;
+    this.offering.add(session.id);
+    void this.engine.recovery(session.id, user).then(recovery => {
+      const current = this.store.getSession(session.id);
+      if (!current || current.status !== session.status || this.store.events(session.id, stop).some(event => event.type === choiceEvents.offered || finalStopTypes.has(event.type))) return;
+      const offer = this.closingOffer(current, recovery);
+      if (offer) this.store.appendEvent(session.id, choiceEvents.offered, 'system', { choiceId: randomUUID(), ...offer });
+    }).catch(() => this.offeredAfter.delete(session.id)).finally(() => this.offering.delete(session.id));
+  }
+
+  /** Turns a message no crew will read into a choice in the person's own turn. A choice still open is answered as replaced first. */
+  private async offerForMessage(client: Client, session: Session, text: string, origin: Origin, requestedTurnId?: unknown, known?: Recovery): Promise<undefined> {
+    const recovery = known ?? await this.engine.recovery(session.id, client.user);
+    const projection = this.projection(session);
+    const open = this.openChoice(projection);
+    if (open) this.store.appendEvent(session.id, choiceEvents.answered, client.user.id, { choiceId: open.choiceId, option: 'dismiss', response: 'cancel', reply: 'Replaced by your next message.' });
+    const turnId = requestedTurnId === undefined ? undefined : this.acceptableTurnId(projection, requestedTurnId) ?? randomUUID();
+    if (turnId) projection.origins.set(`turn:${turnId}`, origin);
+    this.store.appendEvent(session.id, choiceEvents.offered, client.user.id, { choiceId: randomUUID(), ...(turnId ? { turnId } : {}), text, ...this.messageOffer(session, recovery) });
+    return undefined;
+  }
+
+  private runAgainReply(next: Session, started: boolean, withMessage: boolean, startError?: string): string {
+    const page = this.sessionPage(next);
+    const created = `Created a new session, **${next.title}**, with this session's brief, repository, crew, placement and budget (${money(next.budgetUsd)})${withMessage ? ', and your message as an instruction its crew reads' : ''}. It is in the Agents window's session list${page ? ` and on [its session page](${page})` : ''}. This session stays as it is.`;
+    if (startError) return `${created}\n\nStarting it did not work: ${startError} It waits for you to start it.`;
+    return started ? `${created}\n\nIt started as a new Ploeg authorization.` : `${created}\n\nIt waits for you: send it a message to start it, or start it on its session page.`;
+  }
+
+  /** Carries out the option the person picked through the recovery API's own calls and owner checks, and records the answer and its result. */
+  private async answerChoice(client: Client, session: Session, offered: Json, action: Json, origin: Origin): Promise<string | undefined> {
+    const choiceId = String(offered.choiceId);
+    if (this.answering.has(choiceId)) return 'This choice is already being answered';
+    const accepted = action.response === 'accept' && action.cancelled !== true;
+    const submitted = accepted && action.answers && typeof action.answers === 'object' ? action.answers as Json : undefined;
+    const picked = submitted?.['0']?.value;
+    const optionId = accepted ? (picked?.kind === 'selected' ? String(picked.value) : '') : 'dismiss';
+    const option = (offered.options as ChoiceOption[]).find(item => item.id === optionId);
+    if (!option) return 'Choose one of the offered options';
+    if (option.id !== 'dismiss' && client.user.role === 'viewer') return 'Viewers cannot change work';
+    const projection = this.projection(session);
+    const originKey = action.cancelled === true ? 'cancel' : `request:${choiceId}`;
+    const answered = (data: Json) => this.store.appendEvent(session.id, choiceEvents.answered, client.user.id, { choiceId, option: option.id, response: accepted ? 'accept' : 'cancel', ...(submitted ? { answers: submitted } : {}), ...data });
+    const report = (title: string, error: unknown) => this.store.appendEvent(session.id, choiceEvents.reported, client.user.id, { choiceId, title, reply: `${title} did not happen: ${error instanceof Error ? error.message : 'the call failed.'}` });
+    const withMessage = typeof offered.text === 'string';
+    this.answering.add(choiceId);
+    projection.origins.set(originKey, origin);
+    try {
+      switch (option.id) {
+        case 'dismiss': answered({ reply: dismissReply, ...(accepted ? {} : { cancelled: true }) }); return undefined;
+        case 'run_again': case 'run_again_start': {
+          const next = this.engine.runAgain(session.id, client.user);
+          if (withMessage) await this.engine.message(next.id, String(offered.text), client.user);
+          this.announceSession(next);
+          let startError: string | undefined;
+          if (option.id === 'run_again_start') { try { await this.engine.start(next.id, client.user); this.announceSession(this.store.getSession(next.id) ?? next); } catch (error) { startError = error instanceof Error ? error.message : 'the call failed.'; } }
+          answered({ sessionId: next.id, reply: this.runAgainReply(next, option.id === 'run_again_start' && !startError, withMessage, startError) });
+          return undefined;
+        }
+        case 'deliver': {
+          answered({ reply: 'Delivering the approved work through Ploeg, without another model call. This turn ends with the outcome.', closes: false });
+          void this.engine.deliver(session.id, client.user).catch(error => report('Delivery', error));
+          return undefined;
+        }
+        case 'resume': {
+          answered({ reply: 'Resuming this session in a new generation.' });
+          void this.engine.resume(session.id, client.user).catch(error => report('Resuming', error));
+          return undefined;
+        }
+      }
+    } catch (error) {
+      projection.origins.delete(originKey);
+      this.answering.delete(choiceId);
+      this.store.appendEvent(session.id, choiceEvents.reported, client.user.id, { choiceId, reply: `${option.label} did not work: ${error instanceof Error ? error.message : 'the call failed.'} The choice is still open.`, closes: false });
+      throw error;
+    }
+  }
+
   private async dispatchToPending(client: Client, channel: string, kind: ChannelKind, pending: PendingSession, action: Json, origin: Origin): Promise<string | undefined> {
     switch (action.type) {
       case 'chat/turnStarted': return kind === 'chat' ? this.startFromPending(pending, action.message ?? {}, origin, action.turnId) : 'chat/turnStarted is dispatched on the chat channel';
@@ -1205,12 +1434,17 @@ export class AgentHost {
         if (notOnChat) return notOnChat;
         const text = String(action.message?.text ?? '').trim();
         if (!text) return 'Empty message';
-        if (ended) return 'The session has ended; start a new session';
+        if (session.status === 'completed') return 'The session has completed; start a new session';
+        if (ended || this.openChoice(this.projection(session))) return this.offerForMessage(client, session, text, origin, action.turnId ?? null);
         const projection = this.projection(session);
         const turnId = this.acceptableTurnId(projection, action.turnId) ?? randomUUID();
         projection.origins.set(`turn:${turnId}`, origin);
         try { await this.engine.message(session.id, text, client.user, turnId); }
-        catch (error) { projection.origins.delete(`turn:${turnId}`); throw error; }
+        catch (error) {
+          projection.origins.delete(`turn:${turnId}`);
+          if ((error as { code?: unknown })?.code === 'session_stranded') return this.offerForMessage(client, session, text, origin, action.turnId ?? null);
+          throw error;
+        }
         if (session.status === 'queued') await this.engine.start(session.id, client.user);
         else if (['paused', 'interrupted'].includes(session.status)) await this.engine.resume(session.id, client.user);
         return undefined;
@@ -1218,6 +1452,9 @@ export class AgentHost {
       case 'chat/turnCancelled': {
         if (notOnChat) return notOnChat;
         const projection = this.projection(session);
+        const choice = this.openChoice(projection);
+        if (choice && this.answering.has(String(choice.choiceId))) { projection.origins.set('cancel', origin); return undefined; }
+        if (choice) return this.answerChoice(client, session, choice, { response: 'cancel', cancelled: true }, origin);
         projection.origins.set('cancel', origin);
         try { await this.engine.pause(session.id, client.user); }
         catch (error) { projection.origins.delete('cancel'); throw error; }
@@ -1230,6 +1467,8 @@ export class AgentHost {
         return this.answer(session, request.id, { decision }, client.user, origin);
       }
       case 'chat/inputCompleted': {
+        const choice = this.projection(session).choices.get(String(action.requestId ?? ''));
+        if (choice) return this.answerChoice(client, session, choice, action, origin);
         const request = this.store.getPermission(String(action.requestId ?? ''));
         if (!request || request.sessionId !== session.id || request.kind !== 'question') return 'Unknown question';
         if (action.response !== 'accept') return declineReason;
@@ -1243,10 +1482,13 @@ export class AgentHost {
         if (action.message?.origin?.kind !== 'user') return 'Only a person\'s own message becomes an instruction';
         const text = String(action.message?.text ?? '').trim();
         if (!text) return 'Empty message';
-        if (ended) return 'The session has ended; start a new session';
-        await this.engine.message(session.id, text, client.user);
-        this.echo(client, channel, action, origin);
-        this.broadcast(channel, { type: 'chat/pendingMessageRemoved', kind: action.kind, id: action.id });
+        if (session.status === 'completed') return 'The session has completed; start a new session';
+        const settled = () => { this.echo(client, channel, action, origin); this.broadcast(channel, { type: 'chat/pendingMessageRemoved', kind: action.kind, id: action.id }); };
+        const choose = async () => { const recovery = await this.engine.recovery(session.id, client.user); settled(); return this.offerForMessage(client, session, text, origin, undefined, recovery); };
+        if (ended || this.openChoice(this.projection(session))) return choose();
+        try { await this.engine.message(session.id, text, client.user); }
+        catch (error) { if ((error as { code?: unknown })?.code === 'session_stranded') return choose(); throw error; }
+        settled();
         return undefined;
       }
       case 'chat/pendingMessageRemoved': return 'A pending message becomes an instruction for the next execution as soon as it arrives, so none is left to remove';

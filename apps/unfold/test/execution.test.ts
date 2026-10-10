@@ -771,7 +771,7 @@ test('run again creates a queued session with the same brief and never starts it
   assert.equal(f.server.app.store.getSession(session.id)!.status, 'interrupted');
 });
 
-test('the agent host refuses a turn or pending message on a stranded session with the reason and the way out', async t => {
+test('the agent host turns a message into a stranded session into a choice, and delivers the approved work only when the person picks it', async t => {
   const { f, session } = await strandedAfterApproval(t);
   const auth = await login(f.server.url);
   const issued = await request(f.server.url, '/api/agent-host/tokens', { ...auth, method: 'POST', body: { label: 'stranded' } });
@@ -781,13 +781,53 @@ test('the agent host refuses a turn or pending message on a stranded session wit
   await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'vscode', initialSubscriptions: ['ahp-root://'] });
   const chat = chatChannel(session.id);
   await client.rpc('subscribe', { channel: chat });
+  const isAction = (type: string) => (message: any) => message.method === 'action' && message.params.channel === chat && message.params.action.type === type && !message.params.rejectionReason;
+  const options = (request: any) => request.questions[0].options.map((option: any) => [option.id, option.label]);
+  const closing = (await client.until(isAction('chat/inputRequested'))).params.action.request;
+  assert.deepEqual(options(closing), [['deliver', 'Deliver the approved work'], ['run_again_start', 'Run again and start'], ['run_again', 'Run again, start later'], ['dismiss', 'Leave it for now']], 'Ploeg blocked the key, so Resume is not offered');
+  const commands = f.state.commandAttempts.length;
   const echo = (seq: number) => (message: any) => message.method === 'action' && message.params.origin?.clientSeq === seq;
   client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'late-turn', startedAt: new Date().toISOString(), message: { text: 'Make it funnier.', origin: { kind: 'user' } } } });
-  assert.match((await client.until(echo(1))).params.rejectionReason, /will not run again.*deliver it/s);
-  client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/pendingMessageSet', kind: 'queued', id: 'late', message: { text: 'Make it funnier.', origin: { kind: 'user' } } } });
-  assert.match((await client.until(echo(2))).params.rejectionReason, /will not run again/);
-  assert(!f.server.app.store.events(session.id).some(event => event.type === 'message' && event.data.role === 'operator'));
-  assert.equal(f.server.app.store.getSession(session.id)!.status, 'interrupted', 'a refused turn resumes nothing');
+  const turn = await client.until(echo(1));
+  assert.equal(turn.params.rejectionReason, undefined, 'the turn is accepted');
+  const asked = (await client.until(message => isAction('chat/inputRequested')(message) && message.params.serverSeq > turn.params.serverSeq)).params.action.request;
+  assert.deepEqual(options(asked), [['run_again_start', 'Run again and start'], ['run_again', 'Run again with this message'], ['deliver', 'Deliver the approved work first'], ['dismiss', 'Cancel']]);
+  assert.match(asked.questions[0].message, /\*\*Deliver the approved work first\*\*: Reviewer approved this work before the session stopped\. Unfold captures the approved branch as the candidate and Ploeg completes this session with it, without another model call\. The pull request follows the normal delivery path, and your message goes to no crew\./);
+  client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/pendingMessageSet', kind: 'queued', id: 'late', message: { text: 'Make it funnier, please.', origin: { kind: 'user' } } } });
+  assert.equal((await client.until(echo(2))).params.rejectionReason, undefined, 'a steering message is accepted too');
+  await client.until(isAction('chat/pendingMessageRemoved'));
+  const replacing = (await client.until(message => isAction('chat/inputRequested')(message) && message.params.action.request.id !== asked.id && message.params.action.request.id !== closing.id)).params.action.request;
+  assert.ok(client.inbox.some(message => isAction('chat/inputCompleted')(message) && message.params.action.requestId === asked.id && message.params.action.response === 'cancel'), 'the open choice is replaced, not left dangling');
+  assert.equal(f.state.commandAttempts.length, commands, 'a choice sends Ploeg nothing');
+  assert(!f.server.app.store.events(session.id).some(event => event.type === 'message' && event.data.role === 'operator'), 'no instruction is queued for an execution that will not come');
+  assert.equal(f.server.app.store.getSession(session.id)!.status, 'interrupted', 'a message resumes nothing');
+
+  f.runtime.captureCandidate = async () => readyCandidate;
+  client.notify('dispatchAction', { channel: chat, clientSeq: 3, action: { type: 'chat/inputCompleted', requestId: replacing.id, response: 'accept', answers: { '0': { state: 'submitted', value: { kind: 'selected', value: 'deliver' } } } } });
+  assert.equal((await client.until(echo(3))).params.rejectionReason, undefined);
+  await until(() => f.server.app.store.getSession(session.id)!.status === 'completed', 'the chosen delivery did not complete the session');
+  assert.deepEqual(f.state.commandAttempts.slice(commands).map(command => command.action), ['resume', 'report'], 'delivery goes through Ploeg');
+  assert.equal(f.runtime.calls, 2, 'delivery makes no model call');
+  const outcome = await client.until(message => isAction('chat/responsePart')(message) && /^\*\*Ready for your review\*\*/.test(message.params.action.part.content ?? ''));
+  await client.until(message => isAction('chat/turnComplete')(message) && message.params.action.turnId === outcome.params.action.turnId);
+  assert.equal(f.server.app.store.listSessions().length, 1, 'delivery creates no session');
+});
+
+test('a choice to deliver that Ploeg cannot carry out says why in the turn', async t => {
+  const { f, session } = await strandedAfterApproval(t);
+  const auth = await login(f.server.url);
+  const issued = await request(f.server.url, '/api/agent-host/tokens', { ...auth, method: 'POST', body: { label: 'stranded' } });
+  const client = connect(`${f.server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
+  t.after(() => client.close());
+  await client.open;
+  await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'vscode', initialSubscriptions: ['ahp-root://'] });
+  const chat = chatChannel(session.id);
+  await client.rpc('subscribe', { channel: chat });
+  const closing = (await client.until(message => message.method === 'action' && message.params.action.type === 'chat/inputRequested')).params.action.request;
+  client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/inputCompleted', requestId: closing.id, response: 'accept', answers: { '0': { state: 'submitted', value: { kind: 'selected', value: 'deliver' } } } } });
+  const failed = await client.until(message => message.method === 'action' && /^Delivery did not happen: The approved work could not be captured/.test(message.params.action.part?.content ?? ''));
+  await client.until(message => message.method === 'action' && message.params.action.type === 'chat/turnComplete' && message.params.action.turnId === failed.params.action.turnId);
+  assert.equal(f.server.app.store.getSession(session.id)!.status, 'interrupted', 'nothing changed and nothing retries');
 });
 
 test('a stored session left with a running Run is halted on restart, recovering a concluded verdict', async t => {

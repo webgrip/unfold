@@ -147,8 +147,10 @@ AHP has no buttons in a turn, so the projection speaks in parts:
 | A Run finishes | Markdown: "**Implementer** finished · 3 files +57 −45", "**Reviewer** approved", with its summary |
 | The session stops, fails, pauses, completes or is cancelled | One Markdown outcome part that ends the turn: the headline, the steps, spend against budget, why, and the next steps with a link to the session page and the Work Item |
 | After it stops | `activity` keeps the short headline, such as "Stopped · reviewer approved" |
-| A message arrives after the last stop, and no crew will read it | A `systemNotification`: "No crew will read this message: <why>. Instead: <actions>, from VS Code's Work Item view or the session page." |
-| The session ended or Ploeg holds its stopped execution | `_meta["vscode.chatInputState"][<chat>] = { kind: 'blocked', error: { errorType: 'UnfoldSessionClosed', message } }` in the session state, and `session/metaChanged` when it changes while a client watches. The shape was read from the 1.141 bundle (`sessions.desktop.main.js`); it is not yet seen live |
+| A message arrives while a Run works | `systemNotification`: "Queued for the Reviewer's next step", and "Picked up by Reviewer at 14:02 UTC" when that Run starts |
+| A message arrives and no crew will read it | The turn is accepted; Markdown says why, and an input request offers **Run again and start**, **Run again with this message**, **Deliver the approved work first** (when available) and **Cancel** |
+| The session stopped by itself or failed | A host turn, "What next?", with the available next steps as an input request and links to the pull request and the session page |
+| The session ended or Ploeg holds its stopped execution | No input block. A completed chat is `read-only`; any other chat takes a message, which becomes a choice when no crew will read it |
 
 ### Browser Work Item page
 
@@ -196,7 +198,7 @@ Three fresh reviewers saw only the rendered screenshots, the state labels and th
 | The browser page outside the session callout | The Run card and the Needs-you box still read Ploeg's own record (for 184, "Stopped; open for details" until Ploeg's next release records `operator_interrupted`); the Rounds and Runs now read Stopped |
 | The session's Round | Unfold sessions do not record a Round; the extension takes it from Ploeg's latest Shift, which read 0 for 184 |
 | Now rows have no transcript verdict | The session list carries no events, so a cut-off reviewer reads "Stopped · Ploeg holds it for reconciliation" there; the Work Item panel and the Agents window outcome read the transcript |
-| The Agents window input block | Built to the shape in the 1.141 bundle and tested against the host; no desktop VS Code has rendered it yet ([VIK-1922](https://vikunja.webgrip.dev/tasks/1922) covers the live pass) |
+| The Agents window choices | The input block of rc.55 is gone: VS Code 1.141 renders a rejected turn as an empty one, and a block left the person no way forward. Choices use the single-select input request VS Code 1.141 renders as a question carousel, read from the bundle; no desktop VS Code has rendered one yet ([VIK-1922](https://vikunja.webgrip.dev/tasks/1922) covers the live pass) |
 | Two browser flows fail on `development` itself | `feeds` (Insights tile count 10, expected 9) and `work` (two checklist notes) fail on a clean checkout of `origin/development`; every other flow, including the new `progress` flow, passes |
 | Real users | Nothing here was tested with people; the three reviews below are simulated |
 

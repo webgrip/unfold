@@ -672,6 +672,7 @@ export class Engine {
     text = this.text(text, 'message', 20000);
     const record = () => { const current = this.owned(id, user); this.save(current, 'message', user.id, { text, role: 'operator', applies: 'next_execution', live: false, ...(turnId ? { turnId } : {}) }); return current; };
     const binding = this.authority?.current(id);
+    if (!binding && ['paused', 'interrupted'].includes(session.status) && !this.active.has(id) && this.managed(session)) throw new EngineError(409, 'session_stranded', this.strandedMessage(session));
     if (!binding) return record();
     if (!['paused', 'interrupted'].includes(session.status) || this.active.has(id)) return this.authority!.command(session, 'message', { text: this.cleanText(text) }, user.id).then(record);
     return this.canRunAgain(session).then(runsAgain => {
