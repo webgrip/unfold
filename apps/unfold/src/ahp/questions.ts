@@ -8,21 +8,15 @@ const noWords = new Set(['no', 'n']);
 const word = (label: string) => label.trim().replace(/[.!]+$/, '').toLowerCase();
 
 /**
- * The labels of a question that offers exactly a yes and a no, as the crew wrote them, in that order. Such a question is
- * shown as AHP's `boolean` kind; a question with a third option, option descriptions or several answers is not.
+ * The options of a question that offers exactly a yes and a no, labelled "Yes" and "No" in the crew's order, each keeping
+ * the id of the crew's own option so the answer maps back to the crew's spelling unchanged. VS Code 1.141 shows AHP's
+ * `boolean` kind as True and False, so a yes/no question is a single-select instead. A question with a third option,
+ * option descriptions or several answers is not a yes/no question.
  */
-export function yesNoLabels(question: Json, choices: readonly Choice[]): { yes: string; no: string } | undefined {
+export function yesNoOptions(question: Json, choices: readonly Choice[]): Array<{ id: string; label: 'Yes' | 'No' }> | undefined {
   if (question?.multiple === true || choices.length !== 2 || choices.some(choice => choice.description)) return undefined;
-  const yes = choices.find(choice => yesWords.has(word(choice.label)));
-  const no = choices.find(choice => noWords.has(word(choice.label)));
-  return yes && no ? { yes: yes.label, no: no.label } : undefined;
-}
-
-/** The option label a `boolean` answer stands for, unchanged from the crew's own spelling. */
-export function booleanAnswer(question: Json, choices: readonly Choice[], value: unknown): string {
-  const labels = yesNoLabels(question, choices);
-  if (!labels || typeof value !== 'boolean') throw new Error(`The answer is not a yes or no for this question: ${JSON.stringify(value)}`);
-  return value ? labels.yes : labels.no;
+  const options = choices.map((choice, index) => ({ id: String(index), label: yesWords.has(word(choice.label)) ? 'Yes' as const : noWords.has(word(choice.label)) ? 'No' as const : undefined }));
+  return options.some(option => option.label === 'Yes') && options.some(option => option.label === 'No') ? options as Array<{ id: string; label: 'Yes' | 'No' }> : undefined;
 }
 
 /** The events by which the host records that a person declined a crew's question, and that the decline did not reach the crew. */

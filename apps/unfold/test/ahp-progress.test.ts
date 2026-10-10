@@ -65,7 +65,8 @@ test('the 059675b9 session reads as stopped in the Agents window: activity, an o
   assert.match(outcome.content, /^\*\*Stopped\*\* · Reviewer approved in its transcript · stopped before delivery/);
   assert.match(outcome.content, /cut off, approved in its transcript/);
   assert.match(outcome.content, /Spend: US\$\s0,03 \(observed, not settled · of US\$\s0,25\)/);
-  assert.match(outcome.content, /Next: Investigate · View change/);
+  assert.match(outcome.content, /Ploeg stopped the execution and holds it for reconciliation\. It will not retry by itself\.$/, 'the outcome says why it stopped');
+  assert.doesNotMatch(outcome.content, /Next:|does not offer delivery/, 'its next steps are the "What next?" choice, not a second list beside it');
   assert.equal(turns.at(-1).state, 'complete');
   assert.equal(parts.filter((part: Json) => part.kind === 'markdown' && /^\*\*Stopped\*\*/.test(part.content)).length, 1, 'the outcome is said once');
 });

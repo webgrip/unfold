@@ -8,8 +8,8 @@ import { application, request } from './api-support.ts';
 import { action, connect, defaultChatOf, reduceChat, vscodeAgentsWindow, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
 import { choiceEvents } from '../src/ahp/host.ts';
-import { booleanAnswer, declineEvents, declinedAnswerText, declinedAnswers, yesNoLabels } from '../src/ahp/questions.ts';
-import { initialSpend, observeSpend, spendLine } from '../src/ahp/spend.ts';
+import { declineEvents, declinedAnswerText, declinedAnswers, yesNoOptions } from '../src/ahp/questions.ts';
+import { initialSpend, observeSpend, runEndSpend, spendLine } from '../src/ahp/spend.ts';
 import { resumable, resumeRefusal, turnResumedEvent } from '../src/ahp/try-again.ts';
 import { executionFailure } from '../src/failures.ts';
 import { DemoRuntime } from '../src/runtime/demo.ts';
@@ -19,16 +19,15 @@ const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' 
 const objective = 'Round half up in the order totals.';
 const usd = (text: string) => text.replace(/\s/g, ' ');
 
-test('a yes/no question is a boolean question, and its answer is the crew\'s own label', () => {
+test('a yes/no question offers Yes and No in the crew\'s order, each keeping the id of the crew\'s own option', () => {
   const choices = [{ label: 'No' }, { label: 'Yes.' }];
-  assert.deepEqual(yesNoLabels({}, choices), { yes: 'Yes.', no: 'No' });
-  assert.equal(booleanAnswer({}, choices, true), 'Yes.');
-  assert.equal(booleanAnswer({}, choices, false), 'No');
-  assert.throws(() => booleanAnswer({}, choices, 'true'), /not a yes or no/);
-  assert.equal(yesNoLabels({ multiple: true }, choices), undefined, 'several answers are not a yes or no');
-  assert.equal(yesNoLabels({}, [{ label: 'Yes', description: 'Ship it now.' }, { label: 'No' }]), undefined, 'a description would be lost');
-  assert.equal(yesNoLabels({}, [{ label: 'Yes' }, { label: 'No' }, { label: 'Later' }]), undefined);
-  assert.equal(yesNoLabels({}, [{ label: 'Half up' }, { label: 'Half even' }]), undefined);
+  assert.deepEqual(yesNoOptions({}, choices), [{ id: '0', label: 'No' }, { id: '1', label: 'Yes' }]);
+  assert.deepEqual(yesNoOptions({}, [{ label: 'y' }, { label: 'N!' }]), [{ id: '0', label: 'Yes' }, { id: '1', label: 'No' }]);
+  assert.equal(yesNoOptions({ multiple: true }, choices), undefined, 'several answers are not a yes or no');
+  assert.equal(yesNoOptions({}, [{ label: 'Yes', description: 'Ship it now.' }, { label: 'No' }]), undefined, 'a description would be lost');
+  assert.equal(yesNoOptions({}, [{ label: 'Yes' }, { label: 'No' }, { label: 'Later' }]), undefined);
+  assert.equal(yesNoOptions({}, [{ label: 'Yes' }, { label: 'Yes' }]), undefined);
+  assert.equal(yesNoOptions({}, [{ label: 'Half up' }, { label: 'Half even' }]), undefined);
 });
 
 test('a declined request answers every question explicitly and records each as skipped with that text', () => {
@@ -50,9 +49,14 @@ test('spend: one line against the budget, and a notice once per threshold crosse
   assert.equal(usd(observeSpend(state, { type: 'budget.settled', data: { spentUsd: 8.1, costStatus: 'settled' } })!), 'Spent US$ 8,10 of US$ 8,00 · 100 % of the budget.', 'jumping past 80 % names the highest threshold');
   assert.equal(observeSpend(state, { type: 'budget.increased', data: { amountUsd: 4, totalBudgetUsd: 12 } }), undefined);
   assert.equal(usd(observeSpend(state, { type: 'budget.observed', data: { observedUsd: 8.2 } })!), 'Spent US$ 8,20 of US$ 12,00 · observed, not settled · 50 % of the budget.', 'a raised budget starts the thresholds again');
+  assert.equal(runEndSpend(state), undefined, 'a Run that ends on the figure a threshold notice just gave says nothing');
+  observeSpend(state, { type: 'budget.observed', data: { observedUsd: 8.3 } });
+  assert.equal(usd(runEndSpend(state)!), 'Spent US$ 8,30 of US$ 12,00 · observed, not settled.');
   const demo = initialSpend({ budgetUsd: 1, costStatus: 'demo' }, []);
   assert.equal(observeSpend(demo, { type: 'budget.observed', data: { observedUsd: 1 } }), undefined);
   assert.equal(spendLine(demo), 'Demo · no model calls or spend.');
+  assert.equal(runEndSpend(demo), 'Demo · no model calls or spend.');
+  assert.equal(runEndSpend(demo), undefined, 'a demo says it once, not after every Run');
 });
 
 test('Try Again applies only to the last failed turn of a session the Run-again path accepts', () => {
@@ -95,6 +99,7 @@ test('a failed session ends its turn with a resumable error, and Try Again creat
   assert.equal(last.state, 'error');
   assert.deepEqual(last.responseParts.at(-1), { kind: 'error', error: { errorType: failure.category, message: failure.message }, resumable: true }, 'the error is the last part and resumable, which is what shows Try Again');
   assert.equal(store.listSessions().length, 1, 'nothing runs again by itself');
+  await new Promise(resolve => setTimeout(resolve, 900));
   assert.equal(store.events(created.id).some(event => event.type === choiceEvents.offered), false, 'no "What next?" turn buries the Try Again button');
 
   client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnResume', turnId: 'not-the-turn' } });
@@ -117,7 +122,7 @@ test('a failed session ends its turn with a resumable error, and Try Again creat
   assert.equal(reduced.activeTurn, undefined);
   assert.equal(reduced.turns.at(-1).id, last.id);
   assert.equal(reduced.turns.at(-1).state, 'complete');
-  assert.match(reduced.turns.at(-1).responseParts.at(-1).content, /^Created a new session, \*\*Fails\*\*.*\n\nNothing runs until you start it/s);
+  assert.match(reduced.turns.at(-1).responseParts.at(-1).content, /^Created a new session, \*\*Fails\*\*.*\n\nIt waits for you: send it a message to start it/s);
   const replayed = (await client.rpc('subscribe', { channel: chat })).snapshot.state.turns.at(-1);
   assert.deepEqual([replayed.id, replayed.state, replayed.responseParts.at(-1).content], [last.id, 'complete', reduced.turns.at(-1).responseParts.at(-1).content], 'a fresh snapshot tells the same story');
 
@@ -125,6 +130,29 @@ test('a failed session ends its turn with a resumable error, and Try Again creat
   const again = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 3);
   assert.match(again.params.rejectionReason, /only when it failed/, 'pressing it twice creates nothing twice');
   assert.equal(store.listSessions().length, 2);
+});
+
+test('a message typed into a failed session becomes the message choice in its own turn, and Try Again then no longer applies to the failed turn', { timeout: testTimeout(60_000) }, async t => {
+  const { server, client } = await attached(t);
+  const { store } = server.app;
+  const created = server.app.engine.create({ title: 'Fails', objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const failure = executionFailure('connectivity', 'workspace', 'not_submitted');
+  store.saveSession({ ...created, status: 'failed', failure });
+  store.appendEvent(created.id, 'session.failed', 'system', { code: failure.category, message: failure.message });
+  const chat = defaultChatOf(`ahp-session:/${created.id}`);
+  const failed = (await client.rpc('subscribe', { channel: chat })).snapshot.state.turns.at(-1);
+  client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'typed', startedAt: new Date().toISOString(), message: { text: 'Try a smaller change first.', origin: { kind: 'user' } } } });
+  const echo = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 1);
+  assert.equal(echo.params.rejectionReason, undefined);
+  const asked = await client.until(message => action(message, chat, 'chat/inputRequested'));
+  assert.deepEqual(asked.params.action.request.questions[0].options.map((option: Json) => option.id), ['run_again_start', 'run_again', 'dismiss']);
+  assert.equal(asked.params.action.request.message, 'No crew will read this message');
+  const offered = store.events(created.id).filter(event => event.type === choiceEvents.offered);
+  assert.deepEqual(offered.map(event => event.data.turnId), ['typed'], 'the only choice is the one for the message; no "What next?" turn was offered');
+  client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/turnResume', turnId: failed.id } });
+  const refused = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 2);
+  assert.match(refused.params.rejectionReason, /still running|only to the last turn/, 'the message turn is now the last one');
+  assert.equal(store.listSessions().length, 1);
 });
 
 test('a failure of a tracker task offers no Try Again', { timeout: testTimeout(60_000) }, async t => {
@@ -144,7 +172,7 @@ class AskingRuntime extends DemoRuntime {
   private release?: () => void;
   override async execute(context: ExecutionContext): Promise<ExecutionResult> {
     if (context.role.mode === 'read') return { summary: 'Reviewed.', verdict: 'approve', artifacts: [], costUsd: 0 };
-    context.emit({ type: 'permission', data: { nativeId: `native-${randomUUID()}`, kind: 'question', title: 'Agent needs your answer', questions: [{ question: 'Keep the helper signature?', options: [{ label: 'Yes' }, { label: 'No' }] }, { question: 'Anything else?' }] } });
+    context.emit({ type: 'permission', data: { nativeId: `native-${randomUUID()}`, kind: 'question', title: 'Agent needs your answer', questions: [{ question: 'Keep the helper signature?', options: [{ label: 'yes.' }, { label: 'No' }] }, { question: 'Anything else?' }] } });
     await new Promise<void>((resolve, reject) => { this.release = resolve; context.signal.addEventListener('abort', () => reject(context.signal.reason), { once: true }); });
     return { summary: 'Applied the answers.', artifacts: [], costUsd: 0 };
   }
@@ -165,15 +193,20 @@ async function asked(t: { after: (fn: () => unknown) => void }) {
   return { server, client, runtime, chat, request: requested.params.action.request as Json };
 }
 
-test('a yes/no question renders as VS Code\'s boolean kind and the answer reaches the crew as the label it offered', { timeout: testTimeout(60_000) }, async t => {
+test('a yes/no question renders as a single-select of Yes and No, never VS Code\'s True/False boolean, and the answer reaches the crew as the label it offered', { timeout: testTimeout(60_000) }, async t => {
   const { client, runtime, chat, request: question } = await asked(t);
-  assert.deepEqual(question.questions.map((item: Json) => [item.kind, item.options]), [['boolean', undefined], ['text', undefined]]);
-  const answers = { '0': { state: 'submitted', value: { kind: 'boolean', value: false } }, '1': { state: 'submitted', value: { kind: 'text', value: 'No.' } } };
-  client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/inputCompleted', requestId: question.id, response: 'accept', answers } });
-  const echo = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 2);
+  assert.deepEqual(question.questions.map((item: Json) => [item.kind, item.options]), [['single-select', [{ id: '0', label: 'Yes' }, { id: '1', label: 'No' }]], ['text', undefined]]);
+  const refusedAnswers = { '0': { state: 'submitted', value: { kind: 'boolean', value: false } }, '1': { state: 'submitted', value: { kind: 'text', value: 'No.' } } };
+  client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/inputCompleted', requestId: question.id, response: 'accept', answers: refusedAnswers } });
+  const refused = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 2);
+  assert.match(refused.params.rejectionReason, /choosing Yes or No/, 'a boolean answer is not guessed into a label');
+  assert.deepEqual(runtime.answers, []);
+  const answers = { '0': { state: 'submitted', value: { kind: 'selected', value: '0' } }, '1': { state: 'submitted', value: { kind: 'text', value: 'No.' } } };
+  client.notify('dispatchAction', { channel: chat, clientSeq: 3, action: { type: 'chat/inputCompleted', requestId: question.id, response: 'accept', answers } });
+  const echo = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 3);
   assert.equal(echo.params.rejectionReason, undefined);
-  assert.deepEqual(echo.params.action.answers, answers, 'the chat keeps the boolean answer the client sent');
-  assert.deepEqual(runtime.answers, [{ answers: [['No'], ['No.']] }]);
+  assert.deepEqual(echo.params.action.answers, answers, 'the chat keeps the answer the client sent');
+  assert.deepEqual(runtime.answers, [{ answers: [['yes.'], ['No.']] }], 'the crew reads its own spelling of the option');
 });
 
 test('declining a question in VS Code becomes a recorded "declined" answer the crew receives explicitly', { timeout: testTimeout(60_000) }, async t => {
@@ -206,13 +239,14 @@ test('spend arrives as system notifications at each threshold and at the end of 
   store.appendEvent(created.id, 'budget.observed', 'system', { observedUsd: 4.1, budgetUsd: 8 });
   store.appendEvent(created.id, 'budget.observed', 'system', { observedUsd: 4.2, budgetUsd: 8 });
   store.appendEvent(created.id, 'budget.observed', 'system', { observedUsd: 6.5, budgetUsd: 8 });
+  store.appendEvent(created.id, 'budget.observed', 'system', { observedUsd: 6.9, budgetUsd: 8 });
   store.appendEvent(created.id, 'run.finished', writer.roleId, { status: 'completed', summary: 'Done.' }, writer.id);
   await client.until(message => action(message, chat, 'chat/responsePart') && /^Spent .* observed, not settled\.$/.test(message.params.action.part.content ?? ''));
   const notices = chatActions(client, chat).filter(item => item.type === 'chat/responsePart' && item.part.kind === 'systemNotification' && /^Spen/.test(item.part.content)).map(item => usd(item.part.content));
   assert.deepEqual(notices, [
     'Spent US$ 4,10 of US$ 8,00 · observed, not settled · 50 % of the budget.',
     'Spent US$ 6,50 of US$ 8,00 · observed, not settled · 80 % of the budget.',
-    'Spent US$ 6,50 of US$ 8,00 · observed, not settled.',
+    'Spent US$ 6,90 of US$ 8,00 · observed, not settled.',
   ]);
   const usage = chatActions(client, chat).find(item => item.type === 'chat/usage')!;
   assert.equal(usage.usage._meta.costUsd, undefined, 'spend is not hidden in usage metadata');

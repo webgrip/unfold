@@ -91,6 +91,8 @@ Decision: after sign-in, the extension writes the entry straight into the defaul
 
 2026-10-10: each Run is a VS Code subagent with a read-only chat of its own, and the crew's tool calls render with their input, output and recorded file diffs ([API contract](../contracts/api.md#agent-host)).
 
+2026-10-10: the parallel Agents-window work was reconciled against VS Code 1.141.0's `sessions.desktop.main.js`. That bundle turns a `boolean` input request into a single-select whose options are `chat.inputRequest.boolean.true` and `.false`, which read **True** and **False**, so a crew's yes/no question is now a single-select with the options **Yes** and **No**, each keeping the id of the crew's option, and the answer still reaches the crew in its own spelling; this replaces the `boolean` kind recorded above. A failed session that offers Try Again gets no "What next?" turn; an interrupted session, a stranded one and a failed one without Try Again get it; a message typed into any of them, a failed one included, becomes the message choice. An interrupted session's outcome no longer lists next steps beside that choice, a Run's spend line is left out when it repeats the figure the chat last gave, and Try Again and a Run-again choice reply with the same words ([contract](../contracts/api.md#agent-host)).
+
 ## Update, 2026-10-10: automations
 
 Evidence: VS Code 1.141.0's `sessions.desktop.main.js` (`AgentHostAutomationStore` and the connection gate in front of it) and the AHP automation types at [`types/channels-automation`](https://github.com/microsoft/agent-host-protocol/tree/main/types/channels-automation), read at `cb6ba61`. The owner asked for automations support on 2026-10-10.

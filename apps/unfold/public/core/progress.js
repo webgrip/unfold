@@ -430,16 +430,20 @@ export function progressGroup(progress) {
 
 /**
  * The outcome of a session as Markdown, for the end of a turn in the Agents window: the headline, the steps, the
- * change, spend against budget, why it ended and what to do next, with a link to the session page.
+ * change, spend against budget, why it ended and what to do next, with a link to the session page. With `nextSteps`
+ * false the chat offers the next steps as a choice of its own, so the outcome says only why it ended.
  */
-export function outcomeMarkdown(progress, { sessionUrl = '' } = {}) {
-  const lines = [`**${progress.meta.label}** · ${progress.headline}`];
+export function outcomeMarkdown(progress, { sessionUrl = '', nextSteps = true } = {}) {
+  const label = progress.meta.label;
+  const headline = progress.headline === label ? '' : progress.headline.startsWith(`${label} · `) ? progress.headline.slice(label.length + 3) : progress.headline;
+  const lines = [`**${label}**${headline ? ` · ${headline}` : ''}`];
   if (progress.steps.length) lines.push('', ...progress.steps.map(step => `- **${step.role}** (${step.mode === 'read' ? 'reader' : 'writer'}): ${step.label.toLowerCase()}${step.verdict ? `, ${step.verdict.label.toLowerCase()}${step.verdict.recorded ? '' : ' in its transcript'}` : ''}`));
   const change = changeText(progress.change);
   const details = [change ? `Change: ${change}${progress.change.branch ? ` on \`${progress.change.branch}\`` : ''}` : '', progress.change.pullRequest?.url ? `Pull request: [#${progress.change.pullRequest.number}](${progress.change.pullRequest.url})` : '', `Spend: ${progress.spend.text}${progress.spend.note ? ` (${progress.spend.note})` : ''}`];
   lines.push('', ...details.filter(Boolean));
-  if (progress.next) lines.push('', progress.next);
-  const actions = progress.actions.filter(action => !['open-session', 'cancel'].includes(action.id)).map(action => action.label);
+  const why = nextSteps ? progress.next : progress.reason?.sentence;
+  if (why) lines.push('', why);
+  const actions = nextSteps ? progress.actions.filter(action => !['open-session', 'cancel'].includes(action.id)).map(action => action.label) : [];
   if (actions.length) lines.push('', `Next: ${actions.join(' · ')}${sessionUrl ? ` — in VS Code's Work Item view or on [the session page](${sessionUrl})` : ''}.`);
   else if (sessionUrl) lines.push('', `[Open the session page](${sessionUrl})`);
   return lines.join('\n');

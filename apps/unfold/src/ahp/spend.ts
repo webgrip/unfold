@@ -7,7 +7,7 @@ type Json = Record<string, any>;
 export const spendThresholds = [0.5, 0.8, 1] as const;
 
 /** What a chat knows about a session's spend at one point in its events. */
-export type SpendState = { budgetUsd: number; observedUsd?: number; settledUsd?: number; settled: boolean; demo: boolean; crossed: number };
+export type SpendState = { budgetUsd: number; observedUsd?: number; settledUsd?: number; settled: boolean; demo: boolean; crossed: number; said?: string };
 
 const amount = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
 
@@ -31,6 +31,14 @@ export function spendLine(state: SpendState): string {
   return `Spent ${money(value)} of ${money(state.budgetUsd)}${qualifier}.`;
 }
 
+/** The spend line at the end of a Run, or undefined when the chat already said exactly that, so an unchanged figure is not repeated. */
+export function runEndSpend(state: SpendState): string | undefined {
+  const line = spendLine(state);
+  if (line === state.said) return undefined;
+  state.said = line;
+  return line;
+}
+
 const percent = (share: number) => `${Math.round(share * 100)} %`;
 
 /**
@@ -52,7 +60,8 @@ export function observeSpend(state: SpendState, event: Pick<Event, 'type' | 'dat
   const reached = spendThresholds.filter(share => value >= share * state.budgetUsd).length;
   if (reached <= state.crossed) return undefined;
   state.crossed = reached;
-  return `${spendLine(state).replace(/\.$/, '')} · ${percent(spendThresholds[reached - 1])} of the budget.`;
+  state.said = spendLine(state);
+  return `${state.said.replace(/\.$/, '')} · ${percent(spendThresholds[reached - 1])} of the budget.`;
 }
 
 /** Keeps one spend state per chat projection for as long as the projection lives. */

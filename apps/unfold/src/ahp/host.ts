@@ -15,9 +15,9 @@ import { AnnouncedCustomizations, customizationRefusal, gatewayToolCall, rootCon
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
 import { money } from '../../public/core/format.js';
 import { CandidateReview, parseAnnotationsChannel, reviewOperationIds, reviewOperations } from './review.ts';
-import { Declines, booleanAnswer, declineEvents, declinedAnswers, stoppingRefusal, yesNoLabels } from './questions.ts';
-import { SpendNotices, observeSpend, spendLine } from './spend.ts';
-import { resumable, resumeRefusal, tryAgainReply, turnResumedEvent } from './try-again.ts';
+import { Declines, declineEvents, declinedAnswers, stoppingRefusal, yesNoOptions } from './questions.ts';
+import { SpendNotices, observeSpend, runEndSpend } from './spend.ts';
+import { resumable, resumeRefusal, runAgainReply, turnResumedEvent } from './try-again.ts';
 import { knownSecrets, plainRedactedText, withoutKnownSecrets } from '../redaction.ts';
 import { CommandLog, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel } from './terminals.ts';
 import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBaseline, sessionChatCatalog, speaksCatalog, supportedVersions } from './versions.ts';
@@ -147,7 +147,8 @@ function inputQuestion(question: Json, index: number, fallback: string): Json {
   const choices = choicesOf(question);
   const base = { id: String(index), ...(header ? { title: header } : {}), message };
   if (!choices.length) return { ...base, kind: 'text' };
-  if (yesNoLabels(question, choices)) return { ...base, kind: 'boolean' };
+  const yesNo = yesNoOptions(question, choices);
+  if (yesNo) return { ...base, kind: 'single-select', options: yesNo, allowFreeformInput: question.custom !== false };
   return { ...base, kind: question.multiple === true ? 'multi-select' : 'single-select', options: choices.map((choice, option) => ({ id: String(option), ...choice })), allowFreeformInput: question.custom !== false };
 }
 function answerValues(question: Json | undefined, answer: Json | undefined): string[] {
@@ -156,7 +157,7 @@ function answerValues(question: Json | undefined, answer: Json | undefined): str
   const choices = choicesOf(question ?? {});
   const label = (id: unknown) => { const choice = typeof id === 'string' && /^\d{1,4}$/.test(id) ? choices[Number(id)] : undefined; if (!choice) throw new Error(`The answer names an option the question does not offer: ${JSON.stringify(id)}`); return choice.label; };
   const freeform = Array.isArray(value.freeformValues) ? value.freeformValues.map(String) : [];
-  if (value.kind === 'boolean') return [booleanAnswer(question ?? {}, choices, value.value)];
+  if (value.kind === 'boolean') throw new Error('A yes/no question is answered by choosing Yes or No');
   if (value.kind === 'selected') return [label(value.value), ...freeform];
   if (value.kind === 'selected-many') return [...(Array.isArray(value.value) ? value.value : []).map(label), ...freeform];
   return value.value === undefined ? [] : [String(value.value)];
@@ -722,14 +723,14 @@ export class AgentHost {
     return this.config.baseUrl ? `${this.config.baseUrl.replace(/\/+$/, '')}/#session/${encodeURIComponent(session.id)}` : '';
   }
 
-  /** One Markdown part that ends a turn with the outcome: what happened, the change, spend, why it stopped and what to do next. Added once per turn. */
+  /** One Markdown part that ends a turn with the outcome: what happened, the change, spend, why it stopped and what to do next. Added once per turn. A session that stopped by itself gets its next steps as the "What next?" choice instead, so its outcome says only why it stopped. */
   private outcome(projection: Projection, session: Session): Json[] {
     const turn = projection.activeTurn;
     if (!turn || turn.outcome) return [];
     turn.outcome = true;
     const progress = sessionProgress(session, { events: this.store.events(session.id) });
     const again = session.status === 'cancelled' && !session.sourceTask ? '\n\nSend a message here to run it again with your message as an instruction for its crew; nothing runs until you choose.' : '';
-    return this.addPart(projection, { kind: 'markdown', id: `${turn.id}-outcome`, content: `${outcomeMarkdown(progress, { sessionUrl: this.sessionPage(session) })}${again}` });
+    return this.addPart(projection, { kind: 'markdown', id: `${turn.id}-outcome`, content: `${outcomeMarkdown(progress, { sessionUrl: this.sessionPage(session), nextSteps: session.status !== 'interrupted' })}${again}` });
   }
 
   /** What a person reads after sending an instruction: when a Run will read it, or that no crew will and what to do instead. */
@@ -893,7 +894,8 @@ export class AgentHost {
         const text = [`**${role}** ${data.status === 'completed' ? verdict || 'finished' : `stopped (${String(data.status ?? 'ended').replaceAll('_', ' ')})`}.`, data.summary ? String(data.summary) : ''].filter(Boolean).join('\n\n');
         const partId = `${turn.id}-part-${turn.responseParts.length + 1}`;
         actions.push(...this.addPart(projection, { kind: 'markdown', id: partId, content: text }));
-        actions.push(...this.addPart(projection, { kind: 'systemNotification', content: spendLine(this.spend.of(projection, session, event.id, () => this.store.events(session.id))) }));
+        const spent = runEndSpend(this.spend.of(projection, session, event.id, () => this.store.events(session.id)));
+        if (spent) actions.push(...this.addPart(projection, { kind: 'systemNotification', content: spent }));
         break;
       }
       case 'budget.observed': case 'budget.settled': case 'budget.increased': {
@@ -1493,13 +1495,6 @@ export class AgentHost {
     return undefined;
   }
 
-  private runAgainReply(next: Session, started: boolean, withMessage: boolean, startError?: string): string {
-    const page = this.sessionPage(next);
-    const created = `Created a new session, **${next.title}**, with this session's brief, repository, crew, placement and budget (${money(next.budgetUsd)})${withMessage ? ', and your message as an instruction its crew reads' : ''}. It is in the Agents window's session list${page ? ` and on [its session page](${page})` : ''}. This session stays as it is.`;
-    if (startError) return `${created}\n\nStarting it did not work: ${startError} It waits for you to start it.`;
-    return started ? `${created}\n\nIt started as a new Ploeg authorization.` : `${created}\n\nIt waits for you: send it a message to start it, or start it on its session page.`;
-  }
-
   /** Carries out the option the person picked through the recovery API's own calls and owner checks, and records the answer and its result. */
   private async answerChoice(client: Client, session: Session, offered: Json, action: Json, origin: Origin): Promise<string | undefined> {
     if (offered.review) return this.review.answer(client, session, offered, action, origin);
@@ -1528,7 +1523,7 @@ export class AgentHost {
           this.announceSession(next);
           let startError: string | undefined;
           if (option.id === 'run_again_start') { try { await this.engine.start(next.id, client.user); this.announceSession(this.store.getSession(next.id) ?? next); } catch (error) { startError = error instanceof Error ? error.message : 'the call failed.'; } }
-          answered({ sessionId: next.id, reply: this.runAgainReply(next, option.id === 'run_again_start' && !startError, withMessage, startError) });
+          answered({ sessionId: next.id, reply: runAgainReply(next, this.sessionPage(next), { started: option.id === 'run_again_start' && !startError, withMessage, startError }) });
           return undefined;
         }
         case 'deliver': {
@@ -1559,7 +1554,7 @@ export class AgentHost {
     const next = this.engine.runAgain(session.id, client.user);
     this.announceSession(next);
     projection.origins.set(`resume:${turnId}`, origin);
-    this.store.appendEvent(session.id, turnResumedEvent, client.user.id, { turnId, sessionId: next.id, reply: tryAgainReply(next, this.sessionPage(next)) });
+    this.store.appendEvent(session.id, turnResumedEvent, client.user.id, { turnId, sessionId: next.id, reply: runAgainReply(next, this.sessionPage(next)) });
     return undefined;
   }
 

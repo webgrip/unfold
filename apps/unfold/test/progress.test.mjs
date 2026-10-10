@@ -129,6 +129,16 @@ test('the outcome Markdown for the Agents window says what happened, what it cos
   assert.match(markdown, /Change: 1 file \+57 −45 on `unfold\/059675b9-clown-readme`/);
   assert.match(markdown, /Spend: US\$\s0,03 \(observed, not settled · of US\$\s0,25\)/);
   assert.match(markdown, /Next: Investigate · View change — in VS Code's Work Item view or on \[the session page\]\(https:\/\/unfold\.example\/#session\/059675b9\)\./);
+  const reasonOnly = outcomeMarkdown(worst(), { sessionUrl: 'https://unfold.example/#session/059675b9', nextSteps: false });
+  assert.doesNotMatch(reasonOnly, /Next:|This workbench/);
+  assert.match(reasonOnly, /holds it for reconciliation\. It will not retry by itself\.\n\n\[Open the session page\]\(https:\/\/unfold\.example\/#session\/059675b9\)$/);
+});
+
+test('the outcome Markdown names its phase once, even when the headline starts with it', () => {
+  const base = { steps: [], change: {}, spend: { text: 'Demo' }, actions: [], next: '' };
+  assert.match(outcomeMarkdown({ ...base, meta: { label: 'Ready for your review' }, headline: 'Ready for your review · reviewer approved' }), /^\*\*Ready for your review\*\* · reviewer approved\n/);
+  assert.match(outcomeMarkdown({ ...base, meta: { label: 'Cancelled' }, headline: 'Cancelled' }), /^\*\*Cancelled\*\*\n/);
+  assert.match(outcomeMarkdown({ ...base, meta: { label: 'Stopped' }, headline: 'Reviewer approved' }), /^\*\*Stopped\*\* · Reviewer approved\n/);
 });
 
 test('Ploeg\'s detail reads as the session does: a listed-running Run on a stopped Work Item is stopped, and Rounds never read 0 beside Round 1', async () => {
