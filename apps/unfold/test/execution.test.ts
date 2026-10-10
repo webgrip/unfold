@@ -6,6 +6,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { application, createInput, login, request } from './api-support.ts';
 import { deadlineAfter, settle } from './timeframes.ts';
 import { ExecutionAuthority } from '../src/execution-authority.ts';
+import { chatChannel } from '../src/ahp/host.ts';
+import { connect } from './ahp-support.ts';
 import type { AgentRuntime, Credential, ExecutionContext, ExecutionResult, Repository, RepositoryMcp, Session, User } from '../src/types.ts';
 
 const owner: User = { id: 'owner', name: 'Owner', role: 'operator' };
@@ -24,6 +26,7 @@ class ControlledExecution implements AgentRuntime {
   finishImmediately = false;
   beforeResult?: (context: ExecutionContext) => Promise<void> | void;
   onStart?: (context: ExecutionContext) => void;
+  captureCandidate?: AgentRuntime['captureCandidate'];
   async prepare(session: Session, repository: Repository, credential: Credential | undefined) {
     const workspace = session.workspace?.id || `workspace-${session.id}`;
     this.prepared.push({ session: session.id, key: credential?.key, workspace, mcp: repository.mcp });
@@ -50,7 +53,7 @@ async function governed(t: TestContext) {
   const inferenceKey = randomBytes(32).toString('hex');
   const forbiddenMaster = randomBytes(32).toString('hex');
   process.env[env] = consumerToken;
-  const state = { unavailable: false, admissionGate: undefined as ReturnType<typeof deferred> | undefined, commandGate: undefined as ReturnType<typeof deferred> | undefined, commandGates: new Map<string, ReturnType<typeof deferred>>(), credentialGate: undefined as ReturnType<typeof deferred> | undefined, credentialStates: [] as string[], failCommands: new Set<string>(), afterApplyFailure: new Set<string>(), admissions: 0, credentialRequests: 0, blocks: 0, gatewayRequests: 0, commandAttempts: [] as { id: string; action: string }[], remote: undefined as RemoteExecution | undefined, capability: 'reserved', dropAdmissionResponse: false, leaseMs: 60000, revisions: [] as { revision: number; at: string; actor: string; kind: string; detail: object }[] };
+  const state = { unavailable: false, admissionGate: undefined as ReturnType<typeof deferred> | undefined, commandGate: undefined as ReturnType<typeof deferred> | undefined, commandGates: new Map<string, ReturnType<typeof deferred>>(), credentialGate: undefined as ReturnType<typeof deferred> | undefined, credentialStates: [] as string[], failCommands: new Set<string>(), afterApplyFailure: new Set<string>(), admissions: 0, credentialRequests: 0, blocks: 0, gatewayRequests: 0, commandAttempts: [] as { id: string; action: string }[], remote: undefined as RemoteExecution | undefined, capability: 'reserved', observedUsd: null as number | null, dropAdmissionResponse: false, leaseMs: 60000, revisions: [] as { revision: number; at: string; actor: string; kind: string; detail: object }[] };
   const receipts = new Map<string, RemoteExecution>();
   const api = createServer(async (req, res) => {
     try {
@@ -97,7 +100,7 @@ async function governed(t: TestContext) {
         send({ execution: state.remote }); return;
       }
       if (req.url.includes(`${state.remote.id}/events`)) { send({ events: state.revisions, nextCursor: state.revisions.at(-1)?.revision ?? 0, hasMore: false }); return; }
-      if (req.url.endsWith('/spend')) { send({ capabilityState: state.capability, costStatus: 'unknown', observedUsd: null }); return; }
+      if (req.url.endsWith('/spend')) { send({ capabilityState: state.capability, costStatus: state.observedUsd === null ? 'unknown' : 'observed', observedUsd: state.observedUsd }); return; }
       if (req.url.endsWith('/credential')) {
         state.credentialRequests++;
         if (state.capability !== 'reserved') { res.writeHead(409).end(); return; }
@@ -662,4 +665,179 @@ test('an execution admitted under an earlier team still binds after the configur
   assert.equal(closed.status, 200, 'a binding keeps the team it was admitted under');
   assert.ok(closed.body.workItemClosedAt);
   assert.equal(f.state.remote!.team, 'delivery');
+});
+
+const approval = 'The README now reads as written by a clown.\n\nVERDICT: approve\n\n```json\n{"verdict":"approve","summary":"Every factual section is intact."}\n```';
+const readyCandidate = { status: 'ready' as const, createdAt: new Date(0).toISOString(), baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), treeSha: 'c'.repeat(40), fileCount: 1, bytes: 10, formats: ['bundle' as const, 'patch' as const, 'manifest' as const] };
+
+async function strandedAfterApproval(t: TestContext) {
+  const f = await governed(t); const session = f.create();
+  const concluded = deferred();
+  f.runtime.execute = async (context: ExecutionContext): Promise<ExecutionResult> => {
+    f.runtime.calls++;
+    if (context.role.mode === 'write') return { summary: 'Rewrote README.md.', artifacts: [] };
+    context.emit({ type: 'message', data: { text: 'Inspecting the diff.', role: 'assistant', nativeSessionId: 'native', partId: 'thinking' } });
+    for (const piece of approval.match(/[\s\S]{1,7}/g)!) context.emit({ type: 'message', data: { text: piece, role: 'assistant', nativeSessionId: 'native', partId: 'answer' } });
+    concluded.resolve();
+    await new Promise((_resolve, reject) => context.signal.addEventListener('abort', () => { f.runtime.aborted++; reject(context.signal.reason); }, { once: true }));
+    throw new Error('unreachable');
+  };
+  await f.server.app.engine.start(session.id, owner);
+  await concluded.promise;
+  (f.server.app.engine as any).missedHeartbeat(session.id, Object.assign(new Error('Ploeg rejected a stale operation'), { failure: { cause: 'stale' } }));
+  await until(() => f.server.app.store.events(session.id).some(event => event.type === 'execution.reconciliation_required'), 'the interrupted execution was not reconciled');
+  return { f, session };
+}
+
+test('a reviewer stopped by lost authority after concluding is halted with its verdict, not left running', async t => {
+  const { f, session } = await strandedAfterApproval(t);
+  const stopped = f.server.app.store.getSession(session.id)!;
+  assert.equal(stopped.status, 'interrupted');
+  assert.deepEqual(stopped.runs.map(run => run.status), ['completed', 'paused'], 'no Run stays running after its execution stopped');
+  assert.equal(stopped.runs[1].verdict, 'approve');
+  assert.equal(stopped.runs[1].verdictSource, 'transcript');
+  assert.equal(stopped.runs[1].summary, 'The README now reads as written by a clown.\n\nVERDICT: approve');
+  const halted = f.server.app.store.events(session.id).find(event => event.type === 'run.halted')!;
+  assert.equal(halted.runId, stopped.runs[1].id);
+  assert.equal(halted.data.verdict, 'approve');
+  assert.equal(f.state.remote!.state, 'interrupted');
+  assert.equal(f.runtime.calls, 2);
+});
+
+test('a stranded approved session offers delivery and rejects instructions for an execution that will not come', async t => {
+  const { f, session } = await strandedAfterApproval(t);
+  const auth = await login(f.server.url);
+  const recovery = await request(f.server.url, `/api/sessions/${session.id}/recovery`, auth);
+  assert.equal(recovery.status, 200, recovery.text);
+  assert.equal(recovery.body.stranded, true);
+  assert.deepEqual(recovery.body.review, { runId: f.server.app.store.getSession(session.id)!.runs[1].id, roleName: 'Reviewer', verdict: 'approve', source: 'transcript' });
+  assert.deepEqual(recovery.body.execution, { state: 'interrupted', stopConfirmed: true, leaseExpired: false, canPayAgain: false });
+  const actions = Object.fromEntries(recovery.body.actions.map((action: any) => [action.id, action]));
+  assert.deepEqual(Object.keys(actions), ['deliver', 'resume', 'run_again', 'cancel']);
+  assert.equal(actions.deliver.available, true);
+  assert.equal(actions.deliver.path, `/api/sessions/${session.id}/deliver`);
+  assert.equal(actions.resume.available, false);
+  assert.match(actions.resume.unavailableReason, /blocked/);
+  assert.equal(actions.run_again.available, true);
+  const commands = f.state.commandAttempts.length;
+  const refused = await request(f.server.url, `/api/sessions/${session.id}/messages`, { ...auth, method: 'POST', body: { text: 'Make it funnier.' } });
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.error.code, 'session_stranded');
+  assert.match(refused.body.error.message, /will not run again/);
+  assert.match(refused.body.error.message, /deliver it/);
+  assert.equal(f.state.commandAttempts.length, commands, 'the refused instruction reaches no Ploeg command');
+  assert(!f.server.app.store.events(session.id).some(event => event.type === 'message' && event.data.role === 'operator'), 'a refused instruction is not queued');
+});
+
+test('delivering approved work captures the candidate first and completes the execution through Ploeg without a model call', async t => {
+  const { f, session } = await strandedAfterApproval(t);
+  const auth = await login(f.server.url);
+  const revision = f.state.remote!.revision;
+  const uncaptured = await request(f.server.url, `/api/sessions/${session.id}/deliver`, { ...auth, method: 'POST', body: {} });
+  assert.equal(uncaptured.status, 409);
+  assert.equal(uncaptured.body.error.code, 'candidate_unavailable');
+  assert.equal(f.state.remote!.revision, revision, 'a failed capture changes nothing in Ploeg');
+  assert.equal(f.server.app.store.getSession(session.id)!.status, 'interrupted');
+  f.runtime.captureCandidate = async () => readyCandidate;
+  const delivered = await request(f.server.url, `/api/sessions/${session.id}/deliver`, { ...auth, method: 'POST', body: {} });
+  assert.equal(delivered.status, 200, delivered.text);
+  assert.equal(delivered.body.status, 'completed');
+  assert.deepEqual(delivered.body.runs.map((run: any) => run.status), ['completed', 'completed']);
+  assert.equal(delivered.body.candidate.status, 'ready');
+  assert.equal(delivered.body.outcome.review, 'approved');
+  assert.equal(f.state.remote!.state, 'completed');
+  assert.equal(f.state.remote!.generation, 3, 'delivery is a new, authorized generation');
+  assert.deepEqual(f.state.commandAttempts.slice(-2).map(command => command.action), ['resume', 'report']);
+  assert.equal(f.runtime.calls, 2, 'delivery makes no model call');
+  assert.equal(f.state.credentialRequests, 1, 'delivery mints no key');
+  const again = await request(f.server.url, `/api/sessions/${session.id}/deliver`, { ...auth, method: 'POST', body: {} });
+  assert.equal(again.status, 409);
+  assert.equal(again.body.error.code, 'not_deliverable');
+});
+
+test('run again creates a queued session with the same brief and never starts it', async t => {
+  const { f, session } = await strandedAfterApproval(t);
+  const auth = await login(f.server.url);
+  const admissions = f.state.admissions;
+  const created = await request(f.server.url, `/api/sessions/${session.id}/run-again`, { ...auth, method: 'POST', body: {} });
+  assert.equal(created.status, 201, created.text);
+  assert.notEqual(created.body.id, session.id);
+  assert.equal(created.body.status, 'queued');
+  assert.equal(created.body.previousSessionId, session.id);
+  assert.equal(created.body.objective, session.objective);
+  assert.equal(created.body.budgetUsd, session.budgetUsd);
+  assert.equal(f.state.admissions, admissions, 'a new session waits for an explicit start');
+  assert.equal(f.server.app.store.events(session.id).find(event => event.type === 'session.run_again')?.data.sessionId, created.body.id);
+  assert.equal(f.server.app.store.getSession(session.id)!.status, 'interrupted');
+});
+
+test('the agent host refuses a turn or pending message on a stranded session with the reason and the way out', async t => {
+  const { f, session } = await strandedAfterApproval(t);
+  const auth = await login(f.server.url);
+  const issued = await request(f.server.url, '/api/agent-host/tokens', { ...auth, method: 'POST', body: { label: 'stranded' } });
+  const client = connect(`${f.server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
+  t.after(() => client.close());
+  await client.open;
+  await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'vscode', initialSubscriptions: ['ahp-root://'] });
+  const chat = chatChannel(session.id);
+  await client.rpc('subscribe', { channel: chat });
+  const echo = (seq: number) => (message: any) => message.method === 'action' && message.params.origin?.clientSeq === seq;
+  client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'late-turn', startedAt: new Date().toISOString(), message: { text: 'Make it funnier.', origin: { kind: 'user' } } } });
+  assert.match((await client.until(echo(1))).params.rejectionReason, /will not run again.*deliver it/s);
+  client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/pendingMessageSet', kind: 'queued', id: 'late', message: { text: 'Make it funnier.', origin: { kind: 'user' } } } });
+  assert.match((await client.until(echo(2))).params.rejectionReason, /will not run again/);
+  assert(!f.server.app.store.events(session.id).some(event => event.type === 'message' && event.data.role === 'operator'));
+  assert.equal(f.server.app.store.getSession(session.id)!.status, 'interrupted', 'a refused turn resumes nothing');
+});
+
+test('a stored session left with a running Run is halted on restart, recovering a concluded verdict', async t => {
+  const f = await governed(t); const session = f.create();
+  const stored = f.server.app.store.getSession(session.id)!;
+  stored.status = 'interrupted';
+  stored.runs[0].status = 'completed';
+  stored.runs[1].status = 'running'; stored.runs[1].startedAt = new Date().toISOString();
+  f.server.app.store.saveSession(stored);
+  for (const piece of approval.match(/[\s\S]{1,11}/g)!) f.server.app.store.appendEvent(session.id, 'message', 'reviewer', { text: piece, role: 'assistant', partId: 'answer' }, stored.runs[1].id);
+  f.server.app.engine.recover();
+  const healed = f.server.app.store.getSession(session.id)!;
+  assert.deepEqual(healed.runs.map(run => run.status), ['completed', 'paused']);
+  assert.equal(healed.runs[1].verdict, 'approve');
+  assert.equal(healed.runs[1].verdictSource, 'transcript');
+  f.server.app.engine.recover();
+  assert.equal(f.server.app.store.events(session.id).filter(event => event.type === 'run.halted').length, 1, 'healing happens once');
+});
+
+test('a reviewer stopped mid-answer keeps no verdict, so nothing can be delivered', async t => {
+  const f = await governed(t); const session = f.create();
+  const stored = f.server.app.store.getSession(session.id)!;
+  stored.status = 'interrupted'; stored.runs[0].status = 'completed'; stored.runs[1].status = 'running';
+  f.server.app.store.saveSession(stored);
+  f.server.app.store.appendEvent(session.id, 'message', 'reviewer', { text: 'VERDICT: approve\n\n```json\n{"verdict":"appr', role: 'assistant', partId: 'answer' }, stored.runs[1].id);
+  f.server.app.engine.recover();
+  const healed = f.server.app.store.getSession(session.id)!;
+  assert.equal(healed.runs[1].status, 'paused');
+  assert.equal(healed.runs[1].verdict, undefined);
+});
+
+test('a managed session settles its cost from the gateway\'s observed spend once Ploeg reconciles its account', async t => {
+  const f = await governed(t); const session = f.create();
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'runtime did not start');
+  await f.server.app.engine.cancel(session.id, owner);
+  f.state.observedUsd = 0.026;
+  f.state.capability = 'blocked';
+  await f.server.app.engine.reconcilePending();
+  let current = f.server.app.store.getSession(session.id)!;
+  assert.equal(current.costStatus, 'pending', 'a blocked key\'s meter is not a settlement');
+  assert.equal(current.observedUsd, 0.026);
+  assert.equal(current.spentUsd, 0);
+  f.state.capability = 'reconciled';
+  await f.server.app.engine.reconcilePending();
+  assert.equal(f.server.app.store.getSession(session.id)!.costStatus, 'pending', 'settlement is read at most once per interval');
+  (f.server.app.engine as any).settlementReads.clear();
+  await f.server.app.engine.reconcilePending();
+  current = f.server.app.store.getSession(session.id)!;
+  assert.equal(current.costStatus, 'settled');
+  assert.equal(current.spentUsd, 0.026);
+  assert.equal(f.server.app.store.events(session.id).filter(event => event.type === 'budget.settled').length, 1);
 });

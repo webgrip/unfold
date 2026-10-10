@@ -538,6 +538,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             return json(res, 200, sanitize(store.events(id, after)));
           }
           if (method === 'GET' && action === 'investigation') return json(res, 200, sanitize(await engine.investigation(id)));
+          if (method === 'GET' && action === 'recovery') return json(res, 200, sanitize(await engine.recovery(id, user)));
           if (method === 'GET' && action === 'permissions') return json(res, 200, sanitize(store.permissions(id).map(({ nativeId, ...request }) => request)));
           if (method === 'GET' && action === 'events') {
             if (streams.size >= 100) fault(429, 'streams', 'Too many live connections.');
@@ -571,8 +572,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             const data = await body(req);
             if (action === 'delivery/verify') return json(res, 200, sanitize(await delivery.verify(id, user)));
             if (action === 'delivery/approve') return json(res, 200, sanitize(await delivery.approve(id, user, data)));
+            if (action === 'run-again') return json(res, 201, sanitize(publicSession(engine.runAgain(id, user))));
             let result: Session;
-            if (action === 'start') result = await engine.start(id, user);
+            if (action === 'deliver') result = await engine.deliver(id, user);
+            else if (action === 'start') result = await engine.start(id, user);
             else if (action === 'pause') result = await engine.pause(id, user);
             else if (action === 'resume') result = await engine.resume(id, user);
             else if (action === 'cancel') result = await engine.cancel(id, user);

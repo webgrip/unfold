@@ -7,10 +7,11 @@ import { getTask, taskBindingConfiguration, type TaskSnapshot, type TaskSourceCo
 import { lookupTaskBinding, sameTaskBinding } from './task-binding.ts';
 import { investigate, type Investigation, type PloegRevision } from './investigation.ts';
 import { PloegError } from './ploeg.ts';
-import { unavailableCandidate } from './candidates.ts';
+import { unavailableCandidate, type Candidate } from './candidates.ts';
+import { reportedVerdict, withoutVerdictBlock } from './runtime/opencode.ts';
 import { SigningKey, attestCandidate, candidatePredicateType, tracePredicateType } from './attestations.ts';
 import { readFileSync } from 'node:fs';
-import type { AgentRuntime, AppConfig, Credential, RepositoryMcp, RuntimeKind, Session, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest, Crew, SessionOutcome, WorkspaceWait } from './types.ts';
+import type { AgentRuntime, AppConfig, Credential, RepositoryMcp, Run, RuntimeKind, Session, SessionStatus, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest, Crew, SessionOutcome, WorkspaceWait } from './types.ts';
 
 type Broker = {
   mint(session: Session, mcp?: RepositoryMcp): Promise<Credential>;
@@ -24,9 +25,23 @@ type Broker = {
 };
 type Reservation = { reference: string; authorizedUsd: number; revoked: boolean };
 type Active = { controller: AbortController; task: Promise<void> };
-export type CreateSessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; approval?: 'manual' | 'auto'; model?: string; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot };
+export type CreateSessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; approval?: 'manual' | 'auto'; model?: string; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot; previousSessionId?: string };
 
 export type Provisioning = Omit<WorkspaceWait, 'phase'> & { phase: WorkspaceWait['phase'] | 'preparing' };
+
+/** A next step a person can take on a stopped session, and the API call that takes it. */
+export type RecoveryAction = { id: 'deliver' | 'resume' | 'run_again' | 'cancel' | 'close_work_item'; label: string; description: string; method: 'POST'; path: string; available: boolean; unavailableReason?: string };
+
+/** What a stopped session can still become: whether it will run again, what its last reviewer concluded, and every next step with whether it is available now. */
+export type Recovery = {
+  sessionId: string;
+  status: SessionStatus;
+  stranded: boolean;
+  summary: string;
+  review: { runId: string; roleName: string; verdict: NonNullable<Run['verdict']>; source: NonNullable<Run['verdictSource']> } | null;
+  execution: { state: string; stopConfirmed: boolean; leaseExpired: boolean; canPayAgain: boolean | null } | null;
+  actions: RecoveryAction[];
+};
 
 const waitMessages: Record<Provisioning['phase'], string> = {
   preparing: 'Creating the workspace.',
@@ -43,6 +58,7 @@ const waitMessages: Record<Provisioning['phase'], string> = {
 const reviewOutcomes = { approve: 'approved', request_changes: 'changes_requested', inconclusive: 'inconclusive' } as const;
 const messageFlushMs = 500;
 const messageChunkLimit = 16000;
+const settlementReadMs = 300_000;
 
 function completionOutcome(session: Session, crew: Crew | undefined): SessionOutcome {
   const last = session.runs.at(-1);
@@ -88,6 +104,7 @@ export class Engine {
   private briefs = new Map<string, { resolve: (answers: string[]) => void }>();
   private toolCalls = new Map<string, Set<string>>();
   private preparing = new Map<string, string>();
+  private settlementReads = new Map<string, number>();
 
   constructor(store: Store, config: AppConfig, runtimes: Map<RuntimeKind, AgentRuntime> | Record<string, AgentRuntime>, broker?: Broker, links?: Links) {
     this.store = store; this.config = config; this.runtimes = runtimes instanceof Map ? runtimes : new Map(Object.entries(runtimes) as [RuntimeKind, AgentRuntime][]); this.broker = broker; this.links = links;
@@ -124,7 +141,8 @@ export class Engine {
     const id = randomUUID();
     const session: Session = { id, title, objective, repositoryId: repository.id, crewId: crew.id, runtime: input.runtime, ...(placement ? { placement } : {}), approval, ...(model ? { model } : {}), ownerId: user.id, ownerName: user.name, status: 'queued', budgetUsd, spentUsd: 0, costStatus: input.runtime === 'demo' ? 'demo' : 'pending', createdAt: now, updatedAt: now, branch: `operator/${id}`, runs: crew.roles.map(role => ({ id: randomUUID(), sessionId: id, roleId: role.id, roleName: role.name, mode: role.mode, status: 'queued', costUsd: 0 })), artifacts: [], ...(repository.trackerUrl ? { trackerUrl: repository.trackerUrl } : {}) };
     if (input.sourceTask) { session.sourceTask = structuredClone(input.sourceTask); session.trackerUrl = input.sourceTask.url; }
-    this.save(session, 'session.created', user.id, { title, runtime: session.runtime, ...(placement ? { placement } : {}), approval, ...(model ? { model } : {}), budgetUsd, demo: session.runtime === 'demo', ...(session.sourceTask ? { sourceTask: session.sourceTask, imported: true, automaticStart: false } : {}) });
+    if (input.previousSessionId) session.previousSessionId = input.previousSessionId;
+    this.save(session, 'session.created', user.id, { title, runtime: session.runtime, ...(placement ? { placement } : {}), approval, ...(model ? { model } : {}), budgetUsd, demo: session.runtime === 'demo', ...(input.previousSessionId ? { previousSessionId: input.previousSessionId } : {}), ...(session.sourceTask ? { sourceTask: session.sourceTask, imported: true, automaticStart: false } : {}) });
     return session;
   }
 
@@ -314,6 +332,180 @@ export class Engine {
     return this.store.getSession(id)!;
   }
 
+  /** Whether a stopped session can execute again: a standalone pause or interruption always can; a managed one only while Ploeg holds it stopped and its inference capability can still pay. */
+  private async canRunAgain(session: Session): Promise<boolean> {
+    if (!['paused', 'interrupted'].includes(session.status) || this.active.has(session.id) || this.admissions.has(session.id)) return false;
+    const binding = this.authority?.current(session.id);
+    if (!binding) return !this.managed(session);
+    if (!binding.stopConfirmed || !['paused', 'interrupted'].includes(binding.state)) return false;
+    if (session.runtime === 'demo') return true;
+    return this.authority!.canPayAgain(session).catch(() => false);
+  }
+
+  private lastReview(session: Session): Recovery['review'] {
+    const last = session.runs.at(-1);
+    if (!last || last.mode !== 'read' || !last.verdict) return null;
+    return { runId: last.id, roleName: last.roleName, verdict: last.verdict, source: last.verdictSource ?? 'result' };
+  }
+
+  private deliveryBlocker(session: Session): string | undefined {
+    const binding = this.authority?.current(session.id);
+    if (!binding) return 'Only a session Ploeg executes can be delivered this way.';
+    if (!['paused', 'interrupted'].includes(session.status)) return 'Only a stopped session that has not finished can be delivered.';
+    if (this.active.has(session.id) || this.admissions.has(session.id)) return 'The session is still stopping or starting.';
+    if (!binding.stopConfirmed || !['paused', 'interrupted'].includes(binding.state)) return 'Ploeg has not confirmed that this execution stopped.';
+    const crew = this.config.crews.find(item => item.id === session.crewId);
+    if (!crew?.roles.some(role => role.mode === 'write')) return 'This crew changes nothing, so there is no work to deliver.';
+    const review = this.lastReview(session);
+    if (review?.verdict !== 'approve') return 'The last reviewer did not approve this work.';
+    if (session.runs.slice(0, -1).some(run => run.status !== 'completed')) return 'An earlier Run did not finish.';
+    if (!session.workspace) return 'The workspace that holds the work is gone.';
+    if (session.candidate?.status === 'ready') return 'This session already has a captured candidate.';
+    return undefined;
+  }
+
+  private strandedMessage(session: Session): string {
+    const why = 'This session stopped and will not run again, so an instruction for its next execution would never be used: Ploeg blocked its inference key when it stopped, and a paid continuation needs a new authorization.';
+    return this.deliveryBlocker(session) ? `${why} Run it again as a new session and give the instruction there, or cancel it.` : `${why} Its reviewer approved the work: deliver it, or run it again as a new session and give the instruction there.`;
+  }
+
+  /** The next steps for a stopped session. It reads Ploeg's execution and capability and sends Ploeg no command. */
+  async recovery(id: string, user: User): Promise<Recovery> {
+    let session = this.owned(id, user);
+    const binding = this.authority?.current(id);
+    if (binding && ['paused', 'interrupted'].includes(session.status) && !this.active.has(id)) { await this.authority!.refresh(session).catch(() => undefined); session = this.owned(id, user); }
+    const current = this.authority?.current(id);
+    const stopped = ['paused', 'interrupted'].includes(session.status) && !this.active.has(id);
+    const canPayAgain = current && stopped && session.runtime !== 'demo' ? await this.authority!.canPayAgain(session).catch(() => null) : null;
+    const runsAgain = stopped && await this.canRunAgain(session);
+    const stranded = stopped && !runsAgain && Boolean(current || this.managed(session));
+    const review = this.lastReview(session);
+    const deliveryBlocker = this.deliveryBlocker(session);
+    const base = `/api/sessions/${id}`;
+    const ended = ['completed', 'failed', 'cancelled'].includes(session.status);
+    const actions: RecoveryAction[] = [];
+    const add = (action: Omit<RecoveryAction, 'method' | 'available'>, blocker?: string) => actions.push({ ...action, method: 'POST', available: !blocker, ...(blocker ? { unavailableReason: blocker } : {}) });
+    if (current && stopped) add({ id: 'deliver', label: 'Deliver the approved work', description: 'Capture the reviewed branch as a candidate and complete the session through Ploeg, without another model call. Independent checks and the pull request follow the normal delivery path.', path: `${base}/deliver` }, deliveryBlocker);
+    if (stopped) add({ id: 'resume', label: 'Resume', description: 'Continue this session in its next generation. Every Run that did not finish runs again.', path: `${base}/resume` }, runsAgain ? undefined : current ? 'Ploeg blocked this execution\'s inference key when it stopped, so it cannot pay for another generation.' : 'The session cannot resume now.');
+    if (stopped || ['failed', 'cancelled'].includes(session.status)) add({ id: 'run_again', label: 'Run again', description: 'Create a new session with the same brief, crew, repository and budget. It is a new Ploeg authorization and waits for an explicit start.', path: `${base}/run-again` }, session.sourceTask ? 'A tracker task is imported again from its tracker.' : undefined);
+    if (!ended) add({ id: 'cancel', label: 'Cancel', description: 'End this session. Ploeg closes its Work Item\'s execution and releases its held budget; nothing runs again.', path: `${base}/cancel` }, this.active.has(id) && session.status === 'exporting' ? 'The session is capturing its candidate.' : undefined);
+    if (current && ['failed', 'cancelled'].includes(session.status) && !session.workItemClosedAt) add({ id: 'close_work_item', label: 'Close its Work Item', description: 'Withdraw this ended session\'s Work Item in Ploeg.', path: `${base}/close-work-item` });
+    const summary = stranded
+      ? review?.verdict === 'approve' && !deliveryBlocker
+        ? `${review.roleName} approved the work before Ploeg stopped the session. It will not run again on its own: deliver the approved work, or run it again as a new session.`
+        : 'Ploeg stopped this session and it will not run again on its own. Run it again as a new session, or cancel it.'
+      : runsAgain ? 'This session is stopped. Resume it explicitly to continue.' : ended ? `This session has ${session.status === 'completed' ? 'completed' : session.status === 'failed' ? 'failed' : 'been cancelled'}.` : 'This session is not stopped.';
+    return { sessionId: id, status: session.status, stranded, summary, review, execution: current ? { state: current.state, stopConfirmed: current.stopConfirmed, leaseExpired: Date.parse(current.expiresAt) <= Date.now(), canPayAgain } : null, actions };
+  }
+
+  /**
+   * Completes a stopped managed session whose last reviewer approved: captures its candidate from the retained workspace,
+   * then asks Ploeg to resume the execution in a new generation and reports it completed. No model call is made.
+   */
+  async deliver(id: string, user: User): Promise<Session> {
+    const session = this.owned(id, user);
+    if (!this.authority?.current(id)) throw new EngineError(409, 'not_deliverable', 'Only a session Ploeg executes can be delivered this way.');
+    this.authority.authorize(user);
+    await this.authority.refresh(session).catch(() => undefined);
+    const blocker = this.deliveryBlocker(this.store.getSession(id)!);
+    if (blocker) throw new EngineError(409, 'not_deliverable', blocker);
+    if (this.shuttingDown) throw new EngineError(503, 'shutting_down', 'The server is shutting down.');
+    this.admissions.add(id);
+    try {
+      const runtime = this.runtimes.get(session.runtime)!;
+      if (this.store.getSecret<boolean>(`interruption:${id}`)) {
+        try { await runtime.interrupt(session.workspace!); this.store.deleteSecret(`interruption:${id}`); }
+        catch { throw new EngineError(409, 'interrupt_unconfirmed', 'The previous remote turn has not confirmed interruption. Delivery remains blocked.'); }
+      }
+      const candidate = await this.captured(this.store.getSession(id)!, runtime);
+      if (candidate.status !== 'ready') throw new EngineError(409, 'candidate_unavailable', 'The approved work could not be captured from the workspace. Nothing changed in Ploeg; the workspace stays available for recovery.');
+      const granted = await this.authority.command(this.store.getSession(id)!, 'resume', {}, user.id);
+      if (granted.state !== 'running') throw new EngineError(409, 'execution_not_running', 'Ploeg did not accept this delivery. Reconcile the current execution state.');
+      const current = this.store.getSession(id)!;
+      const reviewer = current.runs.at(-1)!;
+      reviewer.status = 'completed'; reviewer.finishedAt ??= new Date().toISOString();
+      current.status = 'exporting'; delete current.blocker; delete current.failure;
+      this.save(current, 'session.delivering', user.id, { message: `${reviewer.roleName} approved this work before the session stopped. Delivering it without another model call.`, verdictSource: reviewer.verdictSource ?? 'result', generation: granted.generation });
+      await this.keepCandidate(id, runtime, await this.attested(id, candidate), true);
+      this.completeExport(id);
+      await this.finishAuthority(id);
+      return this.store.getSession(id)!;
+    } finally { this.admissions.delete(id); }
+  }
+
+  /** Creates a new queued session with this session's brief, crew, repository, placement and budget. It never starts it. */
+  runAgain(id: string, user: User): Session {
+    const session = this.owned(id, user);
+    if (!['paused', 'interrupted', 'failed', 'cancelled'].includes(session.status) || this.active.has(id)) throw new EngineError(409, 'invalid_state', 'Only a stopped, failed or cancelled session can be run again.');
+    if (session.sourceTask) throw new EngineError(409, 'tracked_task', 'Import the task again from its tracker to run it again.');
+    const next = this.create({ title: session.title, objective: session.objective, repositoryId: session.repositoryId, crewId: session.crewId, runtime: session.runtime, ...(session.placement ? { placement: session.placement } : {}), ...(session.approval ? { approval: session.approval } : {}), ...(session.model ? { model: session.model } : {}), budgetUsd: session.budgetUsd, previousSessionId: id }, user);
+    this.store.appendEvent(id, 'session.run_again', user.id, { sessionId: next.id, message: 'A new session was created to run this brief again. This session stays as it is.' });
+    return next;
+  }
+
+  /** Marks every Run still running or waiting in a session that is no longer executing, and recovers a reviewer's concluded verdict from its stored transcript. */
+  private haltRuns(session: Session): void {
+    const status: Run['status'] = session.status === 'cancelled' ? 'cancelled' : session.status === 'failed' ? 'failed' : 'paused';
+    for (const run of session.runs) {
+      if (run.status !== 'running' && run.status !== 'waiting_input') continue;
+      const previous = run.status;
+      run.status = status;
+      if (status !== 'paused') run.finishedAt = new Date().toISOString();
+      const concluded = run.mode === 'read' && run.id === session.runs.at(-1)?.id && !run.verdict ? this.transcriptVerdict(session.id, run.id) : undefined;
+      if (concluded) { run.verdict = concluded.verdict; run.verdictSource = 'transcript'; run.summary ??= concluded.summary; }
+      this.save(session, 'run.halted', 'system', { status, previous, sessionStatus: session.status, ...(concluded ? { verdict: concluded.verdict, verdictSource: 'transcript' } : {}), message: concluded ? `${run.roleName} stopped after concluding "${concluded.verdict}" in its transcript.` : `${run.roleName} stopped before it finished.` }, run.id);
+    }
+  }
+
+  private transcriptVerdict(id: string, runId: string): { verdict: NonNullable<Run['verdict']>; summary: string } | undefined {
+    const parts = new Map<string, string>();
+    for (const event of this.store.events(id)) {
+      if (event.type !== 'message' || event.runId !== runId || event.data.role !== 'assistant' || typeof event.data.text !== 'string') continue;
+      const key = typeof event.data.partId === 'string' ? event.data.partId : `whole:${event.id}`;
+      parts.set(key, (parts.get(key) ?? '') + event.data.text);
+      const text = parts.get(key)!; parts.delete(key); parts.set(key, text);
+    }
+    const last = [...parts.values()].at(-1);
+    const verdict = last ? reportedVerdict(last) : undefined;
+    return last && verdict ? { verdict, summary: this.cleanText(withoutVerdictBlock(last)).slice(0, 16000) } : undefined;
+  }
+
+  private async captured(session: Session, runtime: AgentRuntime): Promise<Candidate> {
+    try { return runtime.captureCandidate ? await runtime.captureCandidate(session, this.config.repositories.find(item => item.id === session.repositoryId)!) : unavailableCandidate('unsupported_workspace'); }
+    catch { return unavailableCandidate('capture_failed'); }
+  }
+
+  private async attested(id: string, candidate: Candidate): Promise<Candidate> {
+    if (candidate.status !== 'ready') return candidate;
+    const finished = this.store.getSession(id)!;
+    try {
+      const key = this.signing();
+      await attestCandidate(this.config.dataDir, key, { config: this.config, session: finished, repository: this.config.repositories.find(item => item.id === finished.repositoryId)!, version: applicationVersion });
+      return { ...candidate, formats: [...(candidate.formats ?? []), 'attestation', 'trace'], attestation: { keyId: key.id, predicateTypes: [candidatePredicateType, tracePredicateType] } };
+    } catch {
+      this.store.appendEvent(id, 'candidate.attestation_failed', 'system', { message: 'The candidate was captured but could not be signed. Verify it manually before trusting its provenance.' });
+      return candidate;
+    }
+  }
+
+  private async keepCandidate(id: string, runtime: AgentRuntime, candidate: Candidate, stopped: boolean): Promise<void> {
+    const finished = this.store.getSession(id)!;
+    finished.candidate = candidate;
+    this.save(finished, candidate.status === 'ready' ? 'candidate.ready' : 'candidate.unavailable', 'system', { candidate });
+    if (stopped && candidate.status === 'ready') {
+      try { await runtime.dispose(finished.workspace!); this.store.appendEvent(id, 'workspace.released', 'system', { artifactsRetained: true }); }
+      catch { this.store.appendEvent(id, 'workspace.cleanup_failed', 'system', { message: 'Execution ended but workspace cleanup requires operator attention.' }); }
+    } else this.store.appendEvent(id, 'workspace.retained', 'system', { message: 'The complete export is unavailable. The workspace remains available for operator recovery.' });
+  }
+
+  private completeExport(id: string): void {
+    const finished = this.store.getSession(id)!;
+    if (finished.status !== 'exporting') return;
+    finished.status = 'completed';
+    finished.outcome = completionOutcome(finished, this.config.crews.find(item => item.id === finished.crewId));
+    this.save(finished, 'session.completed', 'system', { message: completionMessage(finished.outcome), merged: false, candidateStatus: finished.candidate?.status ?? 'unavailable', outcome: finished.outcome });
+  }
+
   async setSupervision(id: string, supervision: unknown, user: User): Promise<Session> {
     const session = this.owned(id, user);
     if (!['human', 'background'].includes(String(supervision))) throw new EngineError(400, 'invalid_supervision', 'Choose human or background supervision.');
@@ -479,7 +671,13 @@ export class Engine {
     if (['exporting', 'completed', 'cancelled', 'failed'].includes(session.status)) throw new EngineError(409, 'invalid_state', 'Start a new session to change finished work.');
     text = this.text(text, 'message', 20000);
     const record = () => { const current = this.owned(id, user); this.save(current, 'message', user.id, { text, role: 'operator', applies: 'next_execution', live: false, ...(turnId ? { turnId } : {}) }); return current; };
-    return this.authority?.current(id) ? this.authority.command(session, 'message', { text: this.cleanText(text) }, user.id).then(record) : record();
+    const binding = this.authority?.current(id);
+    if (!binding) return record();
+    if (!['paused', 'interrupted'].includes(session.status) || this.active.has(id)) return this.authority!.command(session, 'message', { text: this.cleanText(text) }, user.id).then(record);
+    return this.canRunAgain(session).then(runsAgain => {
+      if (!runsAgain) throw new EngineError(409, 'session_stranded', this.strandedMessage(this.store.getSession(id)!));
+      return this.authority!.command(session, 'message', { text: this.cleanText(text) }, user.id).then(record);
+    });
   }
 
   /** Renames a session its owner or an administrator may change. The title is display text; the work does not change. */
@@ -542,10 +740,10 @@ export class Engine {
       if (interrupted) {
         session.status = 'interrupted'; session.blocker = 'The server restarted. Execution has not been resumed; review the workspace and explicitly resume.';
         if (session.runtime !== 'demo') session.costStatus = 'unknown';
-        for (const run of session.runs) if (['running', 'waiting_input'].includes(run.status)) run.status = 'paused';
         this.resolvePermissions(session.id);
         this.save(session, 'session.interrupted', 'system', { message: session.blocker, autoResumed: false });
       }
+      if (!this.active.has(session.id) && session.runs.some(run => ['running', 'waiting_input'].includes(run.status))) this.haltRuns(session);
       if ((!interrupted && !this.reservations(session.id).length && !this.store.getSecret<boolean>(`discovery:${session.id}`)) || this.active.has(session.id)) continue;
       const controller = new AbortController(); controller.abort();
       const task = this.stopRecoveredSession(session).finally(() => this.active.delete(session.id));
@@ -768,6 +966,7 @@ export class Engine {
       if (this.shuttingDown) return;
       if (session.execution) {
         if (!this.active.has(session.id) && this.store.getSecret<boolean>(`authority-unresolved:${session.id}`)) await this.finishAuthority(session.id);
+        else if (this.settlementDue(session)) { this.settlementReads.set(session.id, Date.now()); await this.authority!.observe(session).catch(() => undefined); }
         continue;
       }
       const discoveryPending = this.store.getSecret<boolean>(`discovery:${session.id}`);
@@ -876,41 +1075,18 @@ export class Engine {
         if (first.runtime !== 'demo' && !credential) await this.discoverReservations(first);
         if (first.runtime !== 'demo') await this.reconcile(id);
       }
-      let finished = this.store.getSession(id)!;
+      const halted = this.store.getSession(id)!;
+      if (['interrupted', 'paused', 'cancelled', 'failed'].includes(halted.status)) this.haltRuns(halted);
+      const finished = this.store.getSession(id)!;
       if (finished.workspace && ['exporting', 'failed', 'cancelled'].includes(finished.status)) {
         let stopped = false;
         try { await runtime.interrupt(finished.workspace); stopped = true; this.store.deleteSecret(`interruption:${id}`); }
         catch { this.store.setSecret(`interruption:${id}`, true); }
-        let candidate = unavailableCandidate('stop_unconfirmed');
-        if (stopped) {
-          try {
-            candidate = runtime.captureCandidate
-              ? await runtime.captureCandidate(finished, this.config.repositories.find(item => item.id === finished.repositoryId)!)
-              : unavailableCandidate('unsupported_workspace');
-          } catch { candidate = unavailableCandidate('capture_failed'); }
-        }
-        finished = this.store.getSession(id)!;
-        if (candidate.status === 'ready') {
-          try {
-            const key = this.signing();
-            await attestCandidate(this.config.dataDir, key, { config: this.config, session: finished, repository: this.config.repositories.find(item => item.id === finished.repositoryId)!, version: applicationVersion });
-            candidate = { ...candidate, formats: [...(candidate.formats ?? []), 'attestation', 'trace'], attestation: { keyId: key.id, predicateTypes: [candidatePredicateType, tracePredicateType] } };
-          } catch { this.store.appendEvent(id, 'candidate.attestation_failed', 'system', { message: 'The candidate was captured but could not be signed. Verify it manually before trusting its provenance.' }); }
-        }
-        finished.candidate = candidate;
-        this.save(finished, candidate.status === 'ready' ? 'candidate.ready' : 'candidate.unavailable', 'system', { candidate });
-        if (stopped && candidate.status === 'ready') {
-          try { await runtime.dispose(finished.workspace!); this.store.appendEvent(id, 'workspace.released', 'system', { artifactsRetained: true }); }
-          catch { this.store.appendEvent(id, 'workspace.cleanup_failed', 'system', { message: 'Execution ended but workspace cleanup requires operator attention.' }); }
-        } else this.store.appendEvent(id, 'workspace.retained', 'system', { message: 'The complete export is unavailable. The workspace remains available for operator recovery.' });
+        const candidate = stopped ? await this.captured(finished, runtime) : unavailableCandidate('stop_unconfirmed');
+        await this.keepCandidate(id, runtime, await this.attested(id, candidate), stopped);
       }
-      finished = this.store.getSession(id)!;
-      if (finished.status === 'exporting') {
-        finished.status = 'completed';
-        finished.outcome = completionOutcome(finished, this.config.crews.find(item => item.id === finished.crewId));
-        this.save(finished, 'session.completed', 'system', { message: completionMessage(finished.outcome), merged: false, candidateStatus: finished.candidate?.status ?? 'unavailable', outcome: finished.outcome });
-      }
-      if (this.authority?.current(id) && !['paused', 'cancelled'].includes(finished.status)) await this.finishAuthority(id);
+      this.completeExport(id);
+      if (this.authority?.current(id) && !['paused', 'cancelled'].includes(this.store.getSession(id)!.status)) await this.finishAuthority(id);
       if (credential) this.keys.delete(credential.key);
     }
   }
@@ -930,7 +1106,7 @@ export class Engine {
     const session = this.store.getSession(id)!;
     const run = session.runs.find(item => item.id === runId)!;
     if (this.store.permissions(id).some(request => request.runId === runId && !request.resolved)) throw new EngineError(409, 'input_unresolved', 'The runtime returned before its pending operator request was resolved.');
-    run.finishedAt = new Date().toISOString(); run.summary = this.cleanText(result.summary); run.verdict = reviewer ? result.verdict ?? 'inconclusive' : undefined;
+    run.finishedAt = new Date().toISOString(); run.summary = this.cleanText(result.summary); run.verdict = reviewer ? result.verdict ?? 'inconclusive' : undefined; if (reviewer) run.verdictSource = 'result';
     run.status = reviewer && governed && run.verdict !== 'approve' ? 'failed' : 'completed';
     if (result.nativeId) run.nativeId = result.nativeId;
     run.costUsd = session.runtime === 'demo' ? 0 : (typeof result.costUsd === 'number' && Number.isFinite(result.costUsd) && result.costUsd >= 0 ? result.costUsd : 0);
@@ -987,6 +1163,13 @@ export class Engine {
     }
     if (event.type === 'status' && data.status === 'waiting_input') { session.status = 'waiting_input'; run.status = 'waiting_input'; }
     this.save(session, event.type, actor, event.type === 'native.session' ? { established: true } : data, runId);
+  }
+
+  /** A stopped managed session whose spend Ploeg may have settled since Unfold last asked, at most once per `settlementReadMs`. */
+  private settlementDue(session: Session): boolean {
+    if (!this.authority?.current(session.id) || session.runtime === 'demo' || session.costStatus === 'settled' || this.active.has(session.id)) return false;
+    if (!['completed', 'failed', 'cancelled', 'paused', 'interrupted'].includes(session.status)) return false;
+    return Date.now() - (this.settlementReads.get(session.id) ?? 0) >= settlementReadMs;
   }
 
   private reservations(id: string): Reservation[] { return this.store.getSecret<Reservation[]>(`budget:${id}`) ?? []; }

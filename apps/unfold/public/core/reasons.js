@@ -99,6 +99,31 @@ const copy = {
     sentence: 'The agents failed on every attempt, so Ploeg stopped retrying.',
     fix: 'Read the failed Runs’ failure reasons. Fix the brief, the model or the harness.',
   },
+  operator_interrupted: {
+    chip: 'Session interrupted',
+    sentence: 'The Unfold session that drives this Work Item was interrupted. Ploeg keeps it stopped and will not retry it on its own.',
+    fix: 'Open the linked session: deliver work its reviewer approved, run it again, or cancel it.',
+  },
+  operator_expired: {
+    chip: 'Session lost contact',
+    sentence: 'The Unfold session that drives this Work Item stopped renewing its lease, so Ploeg interrupted it.',
+    fix: 'Open the linked session: deliver work its reviewer approved, run it again, or cancel it.',
+  },
+  operator_paused: {
+    chip: 'Session paused',
+    sentence: 'A person paused the Unfold session that drives this Work Item.',
+    fix: 'Resume or cancel the linked session.',
+  },
+  operator_waiting_input: {
+    chip: 'Session needs an answer',
+    sentence: 'The Unfold session that drives this Work Item is waiting for a person to answer.',
+    fix: 'Answer the question in the linked session.',
+  },
+  unrecognised: {
+    chip: 'Unrecognised reason',
+    sentence: 'Ploeg recorded a reason code this version of Unfold does not recognise.',
+    fix: 'Open the Work Item and read its history. A newer Unfold may explain this reason.',
+  },
   unknown: {
     chip: 'Stopped; open for details',
     sentence: 'Ploeg stopped this Work Item without a reason Unfold recognises.',
@@ -125,7 +150,9 @@ const number = value => typeof value === 'number' && Number.isFinite(value);
 
 const held = (spent, reserved) => number(spent) && number(reserved) && reserved > 0 && reserved >= spent;
 
-const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'budget_exhausted_before_fix_round', 'writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'operator_failed']);
+const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'budget_exhausted_before_fix_round', 'writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
+
+const reasonCode = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/;
 
 function classify(closeReason) {
   const text = String(closeReason ?? '').trim();
@@ -139,6 +166,7 @@ function classify(closeReason) {
   if (lower.startsWith('run stuck:')) return { code: 'run_stuck', text };
   if (lower === 'plan removed from configuration') return { code: 'plan_removed', text };
   if (text === 'review_approved') return { code: 'pull_request_closed', text };
+  if (reasonCode.test(text)) return { code: 'unrecognised', text };
   return { code: 'unknown', text };
 }
 
@@ -157,6 +185,7 @@ function sentenceFor(code, text, item, demo) {
     if (role) return `The ${role} reported that it cannot finish${round ? ` in Round ${round}` : ''} without a person.`;
   }
   if (code === 'writing_run_killed_repeatedly' && number(item.infraFailures) && item.infraFailures > 0) return `Not the Work Item’s fault: the cluster stopped the writer ${item.infraFailures} ${item.infraFailures === 1 ? 'time' : 'times'} before it could finish, so the work was never really tried.`;
+  if (code === 'unrecognised') return `Ploeg recorded the reason code “${text}”, which this version of Unfold does not recognise.`;
   if (code === 'unknown' && text) return /[.!?]$/.test(text) ? `Ploeg recorded: “${text}”` : `Ploeg recorded: “${text}”.`;
   return copy[code].sentence;
 }
@@ -173,6 +202,11 @@ const reasonGlyphs = Object.freeze({
   plan_removed: 'settings',
   pull_request_closed: 'circle-slash',
   operator_failed: 'sessions',
+  operator_interrupted: 'sessions',
+  operator_expired: 'sessions',
+  operator_paused: 'pause-circle',
+  operator_waiting_input: 'sessions',
+  unrecognised: 'help-circle',
   stale_infrastructure: 'zap',
   stale_attempts: 'clock',
   unknown: 'help-circle',
@@ -188,7 +222,7 @@ function build(code, item, text = '', demo = false) {
   const requeue = `Then assign the task to the Team again in ${trackerOf(item.provider)}.`;
   return {
     code,
-    chip: entry.chip,
+    chip: code === 'unrecognised' ? `Unrecognised: ${text}` : entry.chip,
     sentence: sentenceFor(code, text, item, demo),
     fix: entry.fix,
     requeue,
@@ -203,7 +237,8 @@ function build(code, item, text = '', demo = false) {
  * The list-level reason a Work Item waits on a person, from `latestShift.closeReason` (or a top-level
  * `closeReason`), `attempts` and `infraFailures`. It covers `needs_human` and `stale`; every other state
  * returns null. An unresolved repository is never the reason; see `routingWarning`. A free-text close reason
- * keeps the code `unknown` and reads "Needs a decision", with Ploeg's text in the sentence. With `demo`, a budget
+ * keeps the code `unknown` and reads "Needs a decision", with Ploeg's text in the sentence. A snake_case code this
+ * version does not know gets the code `unrecognised` and the chip "Unrecognised: <code>". With `demo`, a budget
  * sentence names the budget but no spend, because the demo spends nothing.
  * @param {object | null | undefined} item
  * @param {{ demo?: boolean }} [options]
@@ -301,6 +336,10 @@ export function detailReason(detail) {
   if (reason.code === 'writing_run_killed_repeatedly' && !(number(item.infraFailures) && item.infraFailures > 0)) {
     const killed = (detail.runs || []).filter(entry => entry.writes && (!shift?.id || entry.shiftId === shift.id) && failureReason(entry.failureReason)?.infra).length;
     if (killed > 1) reason = { ...reason, sentence: sentenceFor(reason.code, '', { ...item, infraFailures: killed }) };
+  }
+  if (reason.code === 'unknown' && headline) {
+    const recorded = classify(headline);
+    if (recorded.code !== 'unknown') { reason = build(recorded.code, item, recorded.text, Boolean(detail.demo)); headline = null; }
   }
   if (budgetCodes.has(reason.code)) headline = null;
   if (reason.code === 'budget_held') reason = { ...reason, ...heldDetail(detail, shift, reason) };

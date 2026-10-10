@@ -57,10 +57,36 @@ The `workspaces` check reads the workspaces Unfold is preparing and the last `wo
 | `POST /api/sessions/:id/pause` | `{}`; deliberately stop active execution while retaining the session |
 | `POST /api/sessions/:id/resume` | `{}`; explicitly continue paused/interrupted work subject to spend reconciliation |
 | `POST /api/sessions/:id/cancel` | `{}`; intentional cancellation, with no automatic replacement run |
-| `POST /api/sessions/:id/messages` | `{text}`; persist an operator instruction |
+| `POST /api/sessions/:id/messages` | `{text}`; persist an operator instruction for the next execution. A Ploeg-executed session that is stopped and cannot run again answers 409 `session_stranded`, whose message says why and names the way out (deliver, run again or cancel); nothing is recorded and no Ploeg command is sent |
+| `GET /api/sessions/:id/recovery` | The next steps for a stopped session; see [Recovering a stopped session](#recovering-a-stopped-session). Reads Ploeg and sends it no command |
+| `POST /api/sessions/:id/deliver` | `{}`; deliver a stopped Ploeg-executed session whose last reviewer approved. Returns the completed session |
+| `POST /api/sessions/:id/run-again` | `{}`; create a new queued session with the same brief, repository, crew, placement, approval, model and budget, and `previousSessionId` set. Status 201; it never starts. A session imported from a tracker answers 409 `tracked_task` |
 | `POST /api/sessions/:id/budget` | Standalone only: `{amountUsd}`; administrator authorizes an additional positive amount within the total limit. A gateway key keeps the budget it was minted with and is never extended in place, so the increase is refused with 409 `pause_required` while the session executes or holds unreconciled keys; it applies to the key minted on the next resume. A finished session answers 409 `invalid_state`, and an increase beyond `maxBudgetUsd` answers 400. Shared budget extension is not implemented: a Ploeg-authorized session answers 409 `authority_budget` |
 
 Selection values must come from the registered profiles. `placement` is one of the workspace backends listed in `placements` (`docker`, `kubernetes` or `local`); omitted, it takes the deployment default, and a demonstration deployment lists none. The created session records `placement`, and the `workspace.ready` event reports the resulting `backend` and `isolation` (`container`, `pod` or `working-directory`). Budgets are positive amounts in USD; they are not token allocations. One optional writer may precede reviewers, and roles execute sequentially. Completion requires explicit approval from required reviewers. A review requesting changes is a human decision point rather than an automatic rewriting loop.
+
+### Recovering a stopped session
+
+`GET /api/sessions/:id/recovery` answers:
+
+```json
+{
+  "sessionId": "…", "status": "interrupted", "stranded": true,
+  "summary": "Reviewer approved the work before Ploeg stopped the session. It will not run again on its own: deliver the approved work, or run it again as a new session.",
+  "review": { "runId": "…", "roleName": "Reviewer", "verdict": "approve", "source": "transcript" },
+  "execution": { "state": "interrupted", "stopConfirmed": true, "leaseExpired": true, "canPayAgain": false },
+  "actions": [
+    { "id": "deliver", "label": "Deliver the approved work", "description": "…", "method": "POST", "path": "/api/sessions/…/deliver", "available": true },
+    { "id": "resume", "label": "Resume", "description": "…", "method": "POST", "path": "/api/sessions/…/resume", "available": false, "unavailableReason": "Ploeg blocked this execution's inference key when it stopped, so it cannot pay for another generation." },
+    { "id": "run_again", "label": "Run again", "description": "…", "method": "POST", "path": "/api/sessions/…/run-again", "available": true },
+    { "id": "cancel", "label": "Cancel", "description": "…", "method": "POST", "path": "/api/sessions/…/cancel", "available": true }
+  ]
+}
+```
+
+`stranded` is true for a paused or interrupted session that Ploeg executes and that cannot run again: Ploeg no longer holds it stopped, or its inference capability can no longer pay because Ploeg blocked the key when it stopped. `review` is the last role's verdict, `null` without one; `source` is `result` when the Run finished and `transcript` when the Run stopped after its stored answer already ended in a complete verdict block. `execution` is `null` for a standalone session; `canPayAgain` is `null` when it was not read. `actions` lists every step that applies to the session's state, in this order: `deliver` and `resume` for a stopped session, `run_again` for a stopped, failed or cancelled one, `cancel` for one that has not ended, and `close_work_item` for a failed or cancelled Ploeg session whose Work Item is still open. Each action names its call; a step that applies but cannot be taken now has `available: false` and an `unavailableReason`. Viewers get 403.
+
+`POST /api/sessions/:id/deliver` requires a Ploeg-executed session that is paused or interrupted, not starting or stopping, with Ploeg's confirmed stop, a writing crew, every earlier Run completed, a last reviewer verdict of `approve`, a retained workspace and no captured candidate; otherwise 409 `not_deliverable` with the reason. It first confirms the remote turn stopped (409 `interrupt_unconfirmed`), then captures the candidate from the workspace; if that fails it answers 409 `candidate_unavailable` and has changed nothing in Ploeg. With a candidate it sends Ploeg `resume`, which starts a new generation, marks the reviewer Run completed, signs and keeps the candidate, completes the session and reports it `completed` to Ploeg, which closes the Shift. It makes no model call and mints no key. Ploeg refusals answer as on resume. The completed session then follows the normal path: review, independent checks and approval.
 
 A message does not promise immediate insertion into an executing model request. Pause, record the changed instruction and resume when the current run must restart with it. Resume preserves the existing authorization and settled spend. Unresolved prior spend remains reserved and can block resume. A process restart marks active work interrupted and does not silently repeat paid execution.
 
