@@ -8,6 +8,7 @@ import { placements } from '../config.ts';
 import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile } from '../candidates.ts';
 import type { AppConfig, Event, PermissionRequest, Repository, Session, User, WorkspaceBackend } from '../types.ts';
 import type { Recovery } from '../engine.ts';
+import { TrackerAutomations, automationsChannel, autonomousAutomationsMeta } from './automations.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
 import { money } from '../../public/core/format.js';
@@ -248,8 +249,16 @@ export class AgentHost {
   private polling = false;
   private closed = false;
 
+  /** Ploeg's tracker routes as a read-only automation catalogue. */
+  readonly automations: TrackerAutomations;
+
   constructor(config: AppConfig, store: Store, engine: Engine) {
     this.config = config; this.store = store; this.engine = engine;
+    this.automations = new TrackerAutomations(config, {
+      watchers: () => [...new Map([...this.clients].filter(client => client.initialized && client.subscriptions.has(automationsChannel)).map(client => [client.user.id, client.user])).values()],
+      publish: (userId, action) => this.broadcast(automationsChannel, action, undefined, client => client.user.id === userId),
+      workspaceFolder: repositoryId => { const name = repositoryWorkspaceNames(this.config.repositories).get(repositoryId); return name ? `${repositoriesDirectory}/${encodeURIComponent(name)}` : undefined; },
+    });
   }
 
   /** Connection tokens expire after `auth.sessionHours` without use, and end with the sign-in that issued them. */
@@ -334,7 +343,7 @@ export class AgentHost {
       .sort((a, b) => a.connectedAt.localeCompare(b.connectedAt));
   }
 
-  close(): void { this.closed = true; this.stopPolling(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
+  close(): void { this.closed = true; this.stopPolling(); this.automations.close(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
 
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
@@ -1055,6 +1064,7 @@ export class AgentHost {
   }
 
   private async subscribe(client: Client, channel: string): Promise<Json> {
+    if (channel === automationsChannel && this.automations.available) { const state = await this.automations.snapshot(client.user); client.subscriptions.add(channel); return { resource: channel, state, fromSeq: this.serverSeq }; }
     const parsed = parseChannel(channel);
     if (parsed?.kind === 'changeset') { const session = this.sessionFor(client.user, channel); if (session) await this.loadCandidate(session); }
     const snapshot = this.snapshot(client, channel);
@@ -1087,7 +1097,7 @@ export class AgentHost {
       this.resumeActiveClient(params.clientId, Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
-      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, defaultDirectory: repositoriesDirectory, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };
+      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, defaultDirectory: repositoriesDirectory, ...(this.automations.available ? { automations: this.automations.capabilities() } : {}), ...(declaresSessionUris || this.automations.available ? { _meta: { ...(declaresSessionUris ? { [sessionUrisMeta]: true } : {}), ...(this.automations.available ? { [autonomousAutomationsMeta]: true } : {}) } } : {}), snapshots, terminalCommandPrefix: undefined };
     }
     if (method === 'reconnect' && !client.initialized) {
       const known = typeof params.clientId === 'string' ? this.knownClients.get(params.clientId) : undefined;
@@ -1118,6 +1128,12 @@ export class AgentHost {
         return { data: resource.data.toString('base64'), encoding: 'base64', contentType: params.encoding === 'base64' && text(resource.data) !== undefined ? resource.contentType : 'application/octet-stream' };
       }
       case 'invokeChangesetOperation': return this.invokeOperation(client, params);
+      case 'runAutomation': case 'fetchAutomationRuns': case 'listAutomationTriggerDefinitions': {
+        if (!this.automations.available) throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
+        const answer = await this.automations.command(client.user, method, params);
+        if ('refused' in answer) throw new RpcError(codes[answer.code], answer.refused);
+        return answer.result;
+      }
       case 'authenticate': return {};
       case 'getNetworkDiagnosticsInfo': return { version: applicationVersion, os: process.platform, arch: process.arch, proxySettings: {}, proxyEnv: {}, endpoints: [] };
       default: throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
@@ -1514,6 +1530,7 @@ export class AgentHost {
         else reject(`Unsupported action ${String(action.type)}`);
         return;
       }
+      if (channel === automationsChannel && this.automations.available) { reject(this.automations.refuse(action)); return; }
       const parsed = parseChannel(channel);
       if (!parsed) { reject('Unknown channel'); return; }
       const pending = parsed.kind !== 'changeset' ? this.pending.get(parsed.id) : undefined;
