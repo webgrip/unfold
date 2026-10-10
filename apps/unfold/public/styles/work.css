@@ -1320,6 +1320,18 @@
   gap: var(--space-1);
 }
 
+.work-session-steps,
+.work-session-facts {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0;
+  padding-left: 1.4em;
+}
+
+.work-session-step-mode {
+  color: var(--text-muted);
+}
+
 .work-cancel-lines {
   gap: var(--space-1);
 }

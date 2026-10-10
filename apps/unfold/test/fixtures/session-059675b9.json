@@ -1,0 +1,372 @@
+{
+ "_note": "Modelled on production session 059675b9 / Ploeg Work Item 184 on 2026-10-10 from the owner's screenshots and an API read. Identifiers, the README text and the event sequence are reconstructed; the states, times, amounts and contradictions are the observed ones.",
+ "session": {
+  "id": "059675b9-modelled",
+  "title": "Change the readme.md to be like a clown wrote it",
+  "objective": "Change the readme.md to be like a clown wrote it",
+  "repositoryId": "unfold",
+  "crewId": "implement-review",
+  "runtime": "opencode",
+  "placement": "kubernetes",
+  "approval": "auto",
+  "ownerId": "ryan",
+  "ownerName": "Ryan Grippeling",
+  "status": "interrupted",
+  "budgetUsd": 0.25,
+  "spentUsd": 0,
+  "observedUsd": 0.026,
+  "costStatus": "pending",
+  "createdAt": "2026-10-10T14:38:20.000Z",
+  "updatedAt": "2026-10-10T14:40:14.000Z",
+  "branch": "unfold/059675b9-clown-readme",
+  "blocker": "Ploeg retains this stopped or interrupted execution for reconciliation. It will not retry automatically.",
+  "execution": {
+   "id": "exec-184",
+   "workItemId": "184",
+   "team": "unfold",
+   "state": "interrupted",
+   "revision": 9,
+   "generation": 1,
+   "supervision": "human",
+   "expiresAt": "2026-10-10T14:40:24.000Z",
+   "stopConfirmed": true
+  },
+  "runs": [
+   {
+    "id": "run-impl",
+    "sessionId": "059675b9-modelled",
+    "roleId": "implementer",
+    "roleName": "Implementer",
+    "mode": "write",
+    "status": "completed",
+    "startedAt": "2026-10-10T14:39:01.000Z",
+    "finishedAt": "2026-10-10T14:39:42.000Z",
+    "summary": "Rewrote README.md in a clown's voice (+57 −45). `git diff --check` passed.",
+    "costUsd": 0
+   },
+   {
+    "id": "run-review",
+    "sessionId": "059675b9-modelled",
+    "roleId": "reviewer",
+    "roleName": "Reviewer",
+    "mode": "read",
+    "status": "running",
+    "startedAt": "2026-10-10T14:39:42.500Z",
+    "costUsd": 0
+   }
+  ],
+  "artifacts": [
+   {
+    "id": "art-diff",
+    "name": "README.md.diff",
+    "kind": "diff",
+    "content": "[{\"file\": \"README.md\", \"before\": \"# Unfold\\n\\nUnfold turns units of work into pull requests that are ready for human review.\\n\", \"after\": \"# Unfold \\ud83e\\udd21\\n\\nHonk honk! Unfold juggles your units of work until they tumble out as pull requests, ready for a human to laugh at and review.\\n\", \"additions\": 57, \"deletions\": 45}]"
+   },
+   {
+    "id": "art-check",
+    "name": "git diff --check",
+    "kind": "test",
+    "content": "exit 0"
+   }
+  ]
+ },
+ "events": [
+  {
+   "id": 1001,
+   "sessionId": "059675b9-modelled",
+   "type": "session.created",
+   "at": "2026-10-10T14:38:20.000Z",
+   "actor": "ryan",
+   "data": {
+    "title": "Change the readme.md to be like a clown wrote it"
+   }
+  },
+  {
+   "id": 1002,
+   "sessionId": "059675b9-modelled",
+   "type": "execution.authority",
+   "at": "2026-10-10T14:38:24.000Z",
+   "actor": "system",
+   "data": {
+    "state": "running",
+    "supervision": "human",
+    "expiresAt": "2026-10-10T14:40:24.000Z"
+   }
+  },
+  {
+   "id": 1003,
+   "sessionId": "059675b9-modelled",
+   "type": "session.started",
+   "at": "2026-10-10T14:38:25.000Z",
+   "actor": "ryan",
+   "data": {}
+  },
+  {
+   "id": 1004,
+   "sessionId": "059675b9-modelled",
+   "type": "workspace.ready",
+   "at": "2026-10-10T14:38:58.000Z",
+   "actor": "system",
+   "data": {
+    "backend": "kubernetes",
+    "isolation": "pod"
+   }
+  },
+  {
+   "id": 1005,
+   "sessionId": "059675b9-modelled",
+   "type": "run.started",
+   "at": "2026-10-10T14:39:01.000Z",
+   "actor": "system",
+   "data": {
+    "role": "Implementer",
+    "mode": "write"
+   },
+   "runId": "run-impl"
+  },
+  {
+   "id": 1006,
+   "sessionId": "059675b9-modelled",
+   "type": "tool",
+   "at": "2026-10-10T14:39:20.000Z",
+   "actor": "system",
+   "data": {
+    "name": "edit",
+    "title": "Edit README.md",
+    "status": "completed"
+   },
+   "runId": "run-impl"
+  },
+  {
+   "id": 1007,
+   "sessionId": "059675b9-modelled",
+   "type": "tool",
+   "at": "2026-10-10T14:39:38.000Z",
+   "actor": "system",
+   "data": {
+    "name": "bash",
+    "title": "git diff --check",
+    "status": "completed"
+   },
+   "runId": "run-impl"
+  },
+  {
+   "id": 1008,
+   "sessionId": "059675b9-modelled",
+   "type": "run.finished",
+   "at": "2026-10-10T14:39:42.000Z",
+   "actor": "system",
+   "data": {
+    "status": "completed",
+    "summary": "Rewrote README.md in a clown's voice (+57 −45). `git diff --check` passed."
+   },
+   "runId": "run-impl"
+  },
+  {
+   "id": 1009,
+   "sessionId": "059675b9-modelled",
+   "type": "run.started",
+   "at": "2026-10-10T14:39:42.500Z",
+   "actor": "system",
+   "data": {
+    "role": "Reviewer",
+    "mode": "read"
+   },
+   "runId": "run-review"
+  },
+  {
+   "id": 1010,
+   "sessionId": "059675b9-modelled",
+   "type": "message",
+   "at": "2026-10-10T14:39:50.000Z",
+   "actor": "system",
+   "data": {
+    "role": "assistant",
+    "text": "The README keeps every fact and only changes the voice. The diff check passed. "
+   },
+   "runId": "run-review"
+  },
+  {
+   "id": 1011,
+   "sessionId": "059675b9-modelled",
+   "type": "message",
+   "at": "2026-10-10T14:39:58.000Z",
+   "actor": "system",
+   "data": {
+    "role": "assistant",
+    "text": "VERDICT: approve\n```json\n{\"verdict\": \"approve\", \"findings\": []}\n```"
+   },
+   "runId": "run-review"
+  },
+  {
+   "id": 1012,
+   "sessionId": "059675b9-modelled",
+   "type": "execution.heartbeat_missed",
+   "at": "2026-10-10T14:40:05.000Z",
+   "actor": "system",
+   "data": {
+    "cause": "timeout",
+    "leaseLeftMs": 19000
+   }
+  },
+  {
+   "id": 1013,
+   "sessionId": "059675b9-modelled",
+   "type": "execution.authority_lost",
+   "at": "2026-10-10T14:40:09.000Z",
+   "actor": "system",
+   "data": {
+    "cause": "timeout",
+    "leaseLeftMs": 4000,
+    "autoResumed": false
+   }
+  },
+  {
+   "id": 1014,
+   "sessionId": "059675b9-modelled",
+   "type": "budget.observed",
+   "at": "2026-10-10T14:40:10.000Z",
+   "actor": "system",
+   "data": {
+    "observedUsd": 0.026,
+    "budgetUsd": 0.25
+   }
+  },
+  {
+   "id": 1015,
+   "sessionId": "059675b9-modelled",
+   "type": "execution.reconciliation_required",
+   "at": "2026-10-10T14:40:14.000Z",
+   "actor": "system",
+   "data": {
+    "state": "interrupted",
+    "stopConfirmed": true,
+    "autoResumed": false
+   }
+  }
+ ],
+ "ploeg": {
+  "item": {
+   "id": "184",
+   "title": "Change the readme.md to be like a clown wrote it",
+   "provider": "ploeg",
+   "externalId": "",
+   "team": "unfold",
+   "state": "needs_human",
+   "description": "Change the readme.md to be like a clown wrote it",
+   "descriptionMarkdown": "Change the readme.md to be like a clown wrote it",
+   "attempts": 1,
+   "target": {
+    "owner": "webgrip",
+    "repo": "unfold"
+   },
+   "url": "",
+   "priority": 0,
+   "infraFailures": 0,
+   "createdAt": "2026-10-10T14:38:22.000Z",
+   "updatedAt": "2026-10-10T14:40:15.000Z",
+   "latestShift": {
+    "id": "91",
+    "branch": "unfold/059675b9-clown-readme",
+    "round": 0,
+    "budgetUsd": 0.25,
+    "spentUsd": 0,
+    "reservedUsd": 0.25,
+    "openedAt": "2026-10-10T14:38:24.000Z",
+    "closedAt": null,
+    "closeReason": ""
+   }
+  },
+  "shifts": [
+   {
+    "id": "91",
+    "branch": "unfold/059675b9-clown-readme",
+    "round": 0,
+    "budgetUsd": 0.25,
+    "spentUsd": 0,
+    "reservedUsd": 0.25,
+    "openedAt": "2026-10-10T14:38:24.000Z",
+    "closedAt": null,
+    "closeReason": ""
+   }
+  ],
+  "runs": [
+   {
+    "id": "5501",
+    "shiftId": "91",
+    "role": "operator",
+    "round": 1,
+    "writes": true,
+    "state": "running",
+    "startedAt": "2026-10-10T14:38:24.000Z",
+    "finishedAt": null,
+    "outcome": null,
+    "summary": "",
+    "stuckReason": "",
+    "links": [],
+    "findings": "",
+    "verdict": "",
+    "problem": "",
+    "solution": "",
+    "failureReason": null,
+    "authorizedUsd": 0.25,
+    "usage": {
+     "costUsd": 0.026
+    },
+    "costStatus": "observed"
+   }
+  ],
+  "checkpoints": [],
+  "events": [
+   {
+    "id": "e1",
+    "at": "2026-10-10T14:38:22.000Z",
+    "actor": "unfold",
+    "action": "work_item.admitted",
+    "detail": {}
+   },
+   {
+    "id": "e2",
+    "at": "2026-10-10T14:40:15.000Z",
+    "actor": "unfold",
+    "action": "work_item.needs_human",
+    "detail": {
+     "reason": "operator execution interrupted"
+    }
+   }
+  ],
+  "fetchedAt": "2026-10-10T16:14:00.000Z"
+ },
+ "card": {
+  "workItemId": "184",
+  "state": "drafting",
+  "crew": [
+   {
+    "role": "operator",
+    "writes": true,
+    "runs": 1,
+    "costUsd": 0.026
+   }
+  ],
+  "plays": [],
+  "totals": {
+   "costStatus": "observed",
+   "usageComplete": false,
+   "costUsd": 0.026,
+   "authorizedUsd": 0.25,
+   "runs": 1,
+   "failedRuns": 0,
+   "rounds": 1,
+   "shifts": 1
+  },
+  "live": {
+   "runningRuns": 1,
+   "observedAt": "2026-10-10T14:40:10.000Z",
+   "runSeconds": 5600,
+   "usageComplete": false,
+   "costUsd": 0.026
+  },
+  "demo": false
+ },
+ "now": "2026-10-10T16:14:00.000Z"
+}

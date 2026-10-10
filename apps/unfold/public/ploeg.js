@@ -10,6 +10,7 @@ import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.j
 import { traceMarkup } from './core/attribution.js';
 import { workStages } from './core/stages.js';
 import { deliveryStages, stageTime } from './core/delivery-track.js';
+import { sessionProgress } from './core/progress.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -1179,10 +1180,20 @@ export function contextErrors(file, note) {
   return errors;
 }
 
-function sessionsMarkup(detail, sessions) {
-  const linked = (sessions || []).filter(session => session.execution?.workItemId === detail.item.id);
+/**
+ * The Unfold sessions that drive this Work Item, each read through the same progress statechart as the VS Code
+ * extension and the Agents window: the phase and headline, what happens next, the Roles in order and a link.
+ */
+export function sessionsMarkup(detail, sessions) {
+  const linked = (sessions || []).filter(session => String(session.execution?.workItemId ?? '') === String(detail.item.id));
   if (!linked.length) return '';
-  return ui.callout({ tone: 'neutral', icon: 'sessions', title: linked.length === 1 ? 'A Unfold session works on this Work Item' : 'Unfold sessions work on this Work Item', body: `<ul class="work-session-links">${linked.map(session => `<li><a class="work-inline-link" href="#session/${escape(encodeURIComponent(session.id))}">${escape(session.title)}${icon('arrow')}</a></li>`).join('')}</ul>` });
+  return linked.map(session => {
+    const progress = sessionProgress(session, { ploeg: detail });
+    const steps = progress.steps.map(step => `<li data-tone="${escape(step.tone)}"><strong>${escape(step.role)}</strong> <span class="work-session-step-mode">${step.mode === 'read' ? 'reader' : 'writer'}</span> · ${escape(step.label)}${step.verdict ? ` · ${escape(step.verdict.label)}${step.verdict.recorded ? '' : ' (not recorded)'}` : ''}${step.seconds !== null ? ` · ${escape(duration(step.seconds))}` : ''}</li>`).join('');
+    const facts = progress.facts.filter(entry => !/^Spend is/.test(entry)).map(entry => `<li>${escape(entry)}</li>`).join('');
+    const body = `${progress.next ? `<p>${escape(progress.next)}</p>` : ''}${steps ? `<ol class="work-session-steps">${steps}</ol>` : ''}${facts ? `<ul class="work-session-facts">${facts}</ul>` : ''}<ul class="work-session-links"><li><a class="work-inline-link" href="#session/${escape(encodeURIComponent(session.id))}">Open the session${icon('arrow')}</a> <span class="meta">${escape(progress.spend.text)}${progress.spend.note ? ` · ${escape(progress.spend.note)}` : ''}</span></li></ul>`;
+    return ui.callout({ tone: progress.meta.tone, icon: progress.meta.glyph, title: progress.headline, body });
+  }).join('');
 }
 
 function cancelResultMarkup(model) {
