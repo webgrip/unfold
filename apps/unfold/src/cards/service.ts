@@ -309,7 +309,10 @@ export class CardService {
               const record: CardCommentRecord = { workItemId: item.workItemId, pullRequest: pr ? { id: String(pr.id), forge: String(pr.forge), owner: String(pr.owner), repo: String(pr.repo), number: Number(pr.number) } : null, moment: String(c.moment ?? ''), commentId: c.commentId === null || c.commentId === undefined ? null : Number(c.commentId), image: Boolean(c.image), publishedAt: text(c.publishedAt), checkedAt: String(c.checkedAt), origin: 'ploeg', adopted: false };
               if (this.store.importComment(record)) n.comments++;
             }
-            for (const shape of item.shapes ?? []) if (this.store.importShape(String(shape.pullRequest.id), item.workItemId, shape.shape)) n.shapes++;
+            for (const shape of item.shapes ?? []) {
+              if (!storedShape(shape.shape)) { this.log('warn', 'cards.import_shape_skipped', { workItem: item.workItemId, pullRequest: String(shape.pullRequest?.id ?? '') }); continue; }
+              if (this.store.importShape(String(shape.pullRequest.id), item.workItemId, shape.shape)) n.shapes++;
+            }
           }
           return n;
         });
@@ -419,6 +422,15 @@ export class CardService {
   }
 }
 
+/** Whether an exported play shape has the shape Ploeg's `playkpi.Shape` encodes, so a card can show it. */
+export function storedShape(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const s = value as Record<string, unknown>;
+  const complexity = s.complexity as Record<string, unknown> | null | undefined;
+  return typeof s.files === 'number' && typeof s.docsTouched === 'number' && Array.isArray(s.languages) && typeof s.capturedAt === 'string'
+    && (complexity === null || complexity === undefined || (typeof complexity === 'object' && Array.isArray(complexity.hotspots)));
+}
+
 /** The line the Status page shows about the import of Ploeg's card state. */
 export function importStatusLine(state: CardImportRecord): string {
   switch (state.state) {
@@ -426,6 +438,6 @@ export function importStatusLine(state: CardImportRecord): string {
     case 'running': return `Importing Ploeg's card state: ${state.cracks} cracks and ${state.rarities} frozen rarities so far.`;
     case 'failed': return `The import of Ploeg's card state failed after ${state.attempts} attempt${state.attempts === 1 ? '' : 's'} and will be retried: ${state.message}`;
     case 'unsupported': return 'Nothing imported from Ploeg: the connected Ploeg offers no card export. Unfold tries again when Ploeg is upgraded.';
-    default: return 'Ploeg’s card state has not been imported yet.';
+    default: return "Ploeg's card state has not been imported yet.";
   }
 }

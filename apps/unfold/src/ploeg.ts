@@ -716,7 +716,7 @@ export class PloegClient {
     const owned = await this.cardService.available().catch(() => false);
     if (!owned && Date.now() - this.fallbackLoggedAt > 600_000) {
       this.fallbackLoggedAt = Date.now();
-      console.error(JSON.stringify({ level: 'warn', event: 'cards.facts_unavailable', message: "Ploeg supplies no delivery facts yet, so Unfold serves Ploeg's own Run card endpoints until Ploeg is upgraded." }));
+      console.error(JSON.stringify({ level: 'warn', event: 'cards.facts_unavailable', message: "Ploeg did not confirm that it supplies delivery facts (it is older or did not answer the probe), so Unfold serves Ploeg's own Run card endpoints." }));
     }
     return owned;
   }

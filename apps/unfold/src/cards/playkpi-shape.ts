@@ -133,7 +133,7 @@ export function measure(input: MeasureInput): Shape {
 export function shownShape(s: Shape): Shape {
   return {
     ...s,
-    complexity: s.complexity === null ? null : { ...s.complexity, hotspots: s.complexity.hotspots?.slice(0, shownHotspots) ?? s.complexity.hotspots },
+    complexity: s.complexity === null || s.complexity === undefined ? null : { ...s.complexity, hotspots: s.complexity.hotspots?.slice(0, shownHotspots) ?? s.complexity.hotspots },
     languages: s.languages?.slice(0, shownLanguages) ?? s.languages,
   };
 }

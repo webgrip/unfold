@@ -85,7 +85,15 @@ function text(value: unknown, path: string, max = 65_536): string { if (typeof v
 function maybeText(value: unknown, path: string, max = 65_536): string | null { return value === null || value === undefined ? null : text(value, path, max); }
 function id(value: unknown, path: string): string { const v = text(value, path, 19); if (!idPattern.test(v)) fail(path, 'must be an identifier'); return v; }
 function maybeId(value: unknown, path: string): string | null { return value === null || value === undefined ? null : id(value, path); }
-function time(value: unknown, path: string): string { const v = text(value, path, 64); if (!timePattern.test(v) || !Number.isFinite(Date.parse(v))) fail(path, 'must be an RFC 3339 time'); return v; }
+function time(value: unknown, path: string): string {
+  const v = text(value, path, 64);
+  const at = Date.parse(v);
+  if (!timePattern.test(v) || !Number.isFinite(at)) fail(path, 'must be an RFC 3339 time');
+  const zone = /(Z|([+-])(\d{2}):(\d{2}))$/.exec(v)!;
+  const offset = zone[1] === 'Z' ? 0 : (zone[2] === '-' ? -1 : 1) * (Number(zone[3]) * 60 + Number(zone[4]));
+  if (new Date(at + offset * 60_000).toISOString().slice(0, 19) !== v.slice(0, 19)) fail(path, 'must be an RFC 3339 time');
+  return v;
+}
 function maybeTime(value: unknown, path: string): string | null { return value === null || value === undefined ? null : time(value, path); }
 function count(value: unknown, path: string): number { if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) fail(path, 'must be a whole number'); return value; }
 function maybeCount(value: unknown, path: string): number | null { return value === null || value === undefined ? null : count(value, path); }
