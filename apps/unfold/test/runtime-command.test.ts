@@ -115,7 +115,9 @@ runtime.execute({session:{id:'s'},run:{id:'r'},workspace,repository:{verify:[]},
 async function pidFrom(directory: string, name: string): Promise<number> {
   const deadline = deadlineAfter(5_000);
   while (Date.now() < deadline) {
-    try { return Number(await readFile(join(directory, name), 'utf8')); } catch { await delay(25); }
+    const pid = Number(await readFile(join(directory, name), 'utf8').catch(() => ''));
+    if (Number.isInteger(pid) && pid > 0) return pid;
+    await delay(25);
   }
   assert.fail(`${name} was never written`);
 }
