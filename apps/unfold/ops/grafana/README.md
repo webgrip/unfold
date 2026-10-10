@@ -22,4 +22,4 @@ The queries were checked against Alloy 1.20 `faro.receiver`, an OTLP receiver an
 
 ## Suppression
 
-A cell or table row is empty unless at least `min_people` distinct people contributed to it. Each query does this with a `filter people:>=${min_people}` stage after counting distinct actors, the way the other DevEx dashboards do, so a small team's events never identify a person. On an instance with a single user every cell stays empty at the default. Lower `min_people` only where the instance's users have agreed to it.
+A cell or table row is empty unless at least `min_people` distinct people contributed to it. An empty panel reads "No data yet, or too few people", because Grafana cannot put the variable into that text and a query cannot tell the two cases apart once the filter has run. Each query does this with a `filter people:>=${min_people}` stage after counting distinct actors, the way the other DevEx dashboards do, so a small team's events never identify a person. On an instance with a single user every cell stays empty at the default. Lower `min_people` only where the instance's users have agreed to it.
