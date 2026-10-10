@@ -127,3 +127,11 @@ This changes the record above, which declined terminals entirely. Only a read-on
 * **Other people's sessions.** Ownership is checked on subscribe exactly as for the chat: the session's owner and administrators only. A person who may not see the session gets "Terminal not found" whether or not the terminal exists.
 
 Reconsider input only if the estate decides that an operator may open a shell in a sandbox. Such a shell would need its own authorization, budget and evidence through Ploeg. Live output while a command runs needs the runtimes to record partial output as durable events, which none does today. Not yet exercised against a desktop VS Code.
+
+## Update, 2026-10-10: both baselines
+
+Evidence: [the VS Code 1.141 sweep](../research/2026-10-08-vscode-1-141-fit.md), recommendation 3 and [VIK-1925](https://vikunja.webgrip.dev/tasks/1925).
+
+The host now speaks both AHP baselines and answers each client in the highest version both share: `>=1.0.0 <2.0.0` before `>=0.9.0 <0.10.0`, as the exact offered string. VS Code main offers `1.0.0, 0.10.0, 0.9.0` and gets `1.0.0`; VS Code 1.141 offers `0.10.0, 0.9.0, …` and keeps `0.9.0`. `-32005` names `^1.0.0` and `^0.9.0`. The selection lives in `src/ahp/versions.ts` and passes all 22 vectors of `types/test-cases/version-negotiation.json` at `spec/v1.0.0` (`5f16d81b`), vendored as test data under MIT.
+
+The negotiated version is kept per connection and per known client, so a `reconnect` resumes in it. What a 0.9 client may receive follows the SDK's `isActionKnownToVersion` over the 1.0.0 registry: only the canvas actions, introduced in 0.10.0, are withheld. The registry dates `chat/isReadChanged`, `chat/isArchivedChanged` and `chat/changesetsChanged` at 0.9.0, so 0.9 clients keep them. `SessionSummary.chats` and `defaultChat` are 1.0 fields and reach only 1.x clients. Their one entry carries the chat's status bits, and a chat's read or archive mark republishes the catalog through `root/sessionSummaryChanged`, as the 1.0 `session/chatUpdated` rule requires. With 1.0, the SDK's multi-host client, which offers only `1.0.0`, connects for the first time. No desktop VS Code main has attached yet.

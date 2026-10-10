@@ -15,7 +15,7 @@ Trunk is `development`. Each accepted decision records its consequences and a tr
 | [0009](0009-workspace-placement-is-a-session-choice.md) | Workspace placement is a per-session choice | Accepted for 0.3.0; Docker qualified locally, Kubernetes unqualified on a cluster | accepted | 2026-09-09 |
 | [0010](0010-one-release-train-with-zero-cve-images.md) | One release train, hardened images with a zero-finding budget | Accepted; first pipeline release pending estate prerequisites | accepted | 2026-09-10 |
 | [0011](0011-sandboxes-dial-out-through-a-relay.md) | Sandboxes dial out through a relay | Accepted; Docker qualified, Kubernetes by fixture | accepted | 2026-09-10 |
-| [0012](0012-agent-host-protocol-host.md) | Every session is an Agent Host Protocol host | Accepted for 0.3.0; 1.138 handshake verified, single-minor negotiation recorded as a defect | accepted | 2026-09-17 |
+| [0012](0012-agent-host-protocol-host.md) | Every session is an Agent Host Protocol host | Accepted for 0.3.0; 1.138 handshake verified; speaks the 1.0 and 0.9 baselines since 2026-10-10 | accepted | 2026-09-17 |
 | [0013](0013-sandbox-crd-placement-with-warm-kata-pools.md) | Sandbox CRD placement with warm Kata pools | Accepted as an option; unqualified on the cluster | accepted | 2026-09-10 |
 | [0014](0014-signed-candidates.md) | Candidates are signed | Accepted for 0.3.0 | accepted | 2026-09-10 |
 | [0015](0015-ploeg-operator-read-api.md) | Ploeg exposes a read-only operator API and Unfold projects it | Read projection implemented; fleet lossless events and AHP projection remain proposed | proposed | 2026-09-10 |

@@ -38,7 +38,7 @@ export class ServerSequence {
 }
 
 /** What the host remembers about a client so it can `reconnect`: whose it is, its session spelling and what it said about itself. */
-export type RememberedClient<Scheme extends string = string> = { userId: string; scheme: Scheme; clientInfo?: { name?: string; version?: string } };
+export type RememberedClient<Scheme extends string = string> = { userId: string; scheme: Scheme; protocolVersion?: string; clientInfo?: { name?: string; version?: string } };
 
 /** The clients the host remembers for `reconnect`, newest last, at most `limit`, kept in the store across restarts. */
 export class RememberedClients<Scheme extends string = string> {

@@ -8,7 +8,7 @@ import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
 import type { WorkerRelay } from './runtime/relay.ts';
 import type { AgentHost } from './ahp/host.ts';
-import { agentHostTokenId, protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
+import { agentHostTokenId, protocolBaselines as agentHostProtocolVersions, protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
 import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
@@ -288,7 +288,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const address = (config.baseUrl ?? `http://${config.host}:${config.port}`).replace(/^http/, 'ws');
           if (method === 'GET' && path === '/api/agent-host') {
             const attached = agentHost!.attachedClients(user);
-            return json(res, 200, { protocolVersion: agentHostProtocolVersion, address, provider: 'unfold', clients: attached.length, attached, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
+            return json(res, 200, { protocolVersion: agentHostProtocolVersion, protocolVersions: agentHostProtocolVersions, address, provider: 'unfold', clients: attached.length, attached, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
           }
           if (method === 'POST' && path === '/api/agent-host/tokens') {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host.');

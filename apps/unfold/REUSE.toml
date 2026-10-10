@@ -14,3 +14,9 @@ path = "public/vendor/three/**"
 precedence = "override"
 SPDX-FileCopyrightText = "2010-2024 three.js authors"
 SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "test/fixtures/agent-host-protocol/**"
+precedence = "override"
+SPDX-FileCopyrightText = "Microsoft Corporation"
+SPDX-License-Identifier = "MIT"

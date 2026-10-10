@@ -19,11 +19,9 @@ import { SpendNotices, observeSpend, spendLine } from './spend.ts';
 import { resumable, resumeRefusal, tryAgainReply, turnResumedEvent } from './try-again.ts';
 import { knownSecrets, plainRedactedText, withoutKnownSecrets } from '../redaction.ts';
 import { CommandLog, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel } from './terminals.ts';
+import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBaseline, sessionChatCatalog, speaksCatalog, supportedVersions } from './versions.ts';
 
-/** The AHP compatibility baseline this host implements. It accepts any offered version in `>=0.9.0 <0.10.0`. */
-export const protocolVersion = '0.9.0';
-/** What the host names in `data.supportedVersions` when no offered version is in its range. */
-export const supportedVersions = ['^0.9.0'];
+export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
 const rootChannel = 'ahp-root://';
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -76,10 +74,10 @@ export function sessionSchemeFor(clientInfo: unknown, meta: unknown): SessionSch
 }
 
 type Json = Record<string, any>;
-type Client = { id: string; clientId?: string; scheme: SessionScheme; connection: WebSocketConnection; user: User; token: string; checkedAt: number; connectedAt: string; clientInfo?: { name?: string; version?: string }; subscriptions: Set<string>; initialized: boolean; activeSessions?: number };
+type Client = { id: string; clientId?: string; scheme: SessionScheme; protocolVersion: string; connection: WebSocketConnection; user: User; token: string; checkedAt: number; connectedAt: string; clientInfo?: { name?: string; version?: string }; subscriptions: Set<string>; initialized: boolean; activeSessions?: number };
 /** One initialized connection as its owner sees it in `GET /api/agent-host`. */
-export type AttachedClient = { name?: string; version?: string; connectedAt: string; tokenId: string };
-type View = Pick<Client, 'user' | 'scheme'>;
+export type AttachedClient = { name?: string; version?: string; protocolVersion: string; connectedAt: string; tokenId: string };
+type View = Pick<Client, 'user' | 'scheme' | 'protocolVersion'>;
 type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
 type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
@@ -158,27 +156,6 @@ function answerValues(question: Json | undefined, answer: Json | undefined): str
   if (value.kind === 'selected') return [label(value.value), ...freeform];
   if (value.kind === 'selected-many') return [...(Array.isArray(value.value) ? value.value : []).map(label), ...freeform];
   return value.value === undefined ? [] : [String(value.value)];
-}
-
-/** A protocol version that is not three non-negative integers without leading zeros, prerelease or build metadata. */
-export class MalformedVersion extends Error {}
-
-const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
-const numericOrder = (a: string, b: string) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
-
-/**
- * Selects the highest offered version in `>=0.9.0 <0.10.0` and returns that exact offered string, regardless of offer
- * order, or undefined when none is in range. Throws {@link MalformedVersion} when any entry is malformed.
- */
-export function negotiateProtocolVersion(offered: readonly unknown[]): string | undefined {
-  let selected: { version: string; patch: string } | undefined;
-  for (const version of offered) {
-    const parts = typeof version === 'string' ? semver.exec(version) : null;
-    if (!parts) throw new MalformedVersion(`Invalid protocol version: ${JSON.stringify(version)}`);
-    const [, major, minor, patch] = parts;
-    if (major === '0' && minor === '9' && (!selected || numericOrder(patch, selected.patch) > 0)) selected = { version: parts[0], patch };
-  }
-  return selected?.version;
 }
 
 const statusBits = { idle: 1, error: 2, inProgress: 8, inputNeeded: 24, isRead: 32, isArchived: 64 };
@@ -395,7 +372,7 @@ export class AgentHost {
     const authenticated = this.authenticate(url.searchParams.get('tkn'));
     if (!authenticated) { rejectUpgrade(socket, 403, 'Forbidden'); return true; }
     const connection = upgradeToWebSocket(req, socket, head);
-    const client: Client = { id: randomUUID(), scheme: provider, connection, user: authenticated.user, token: authenticated.key, checkedAt: Date.now(), connectedAt: new Date().toISOString(), subscriptions: new Set(), initialized: false };
+    const client: Client = { id: randomUUID(), scheme: provider, protocolVersion: oldestBaseline, connection, user: authenticated.user, token: authenticated.key, checkedAt: Date.now(), connectedAt: new Date().toISOString(), subscriptions: new Set(), initialized: false };
     this.clients.add(client);
     connection.on('message', text => void this.receive(client, text));
     connection.on('close', () => { this.clients.delete(client); this.dropActiveClient(client); if (!this.clients.size) this.stopPolling(); });
@@ -407,7 +384,7 @@ export class AgentHost {
   /** The person's own initialized connections, oldest first, with what each client said about itself in `initialize`. */
   attachedClients(user: User): AttachedClient[] {
     return [...this.clients].filter(client => client.initialized && client.user.id === user.id)
-      .map(client => ({ ...client.clientInfo, connectedAt: client.connectedAt, tokenId: client.token }))
+      .map(client => ({ ...client.clientInfo, protocolVersion: client.protocolVersion, connectedAt: client.connectedAt, tokenId: client.token }))
       .sort((a, b) => a.connectedAt.localeCompare(b.connectedAt));
   }
 
@@ -416,7 +393,7 @@ export class AgentHost {
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
 
-  private send(client: Client, message: Json): void { client.connection.send(JSON.stringify(message)); }
+  private send(client: Client, message: Json): void { if (message.method !== 'action' || isActionKnownToVersion(message.params?.action?.type, client.protocolVersion)) client.connection.send(JSON.stringify(message)); }
 
   private notify(channelFilter: string, method: string, params: Json | ((client: Client) => Json), ownerId?: string, audience?: (client: Client) => boolean): void {
     for (const client of this.clients) if (client.initialized && client.subscriptions.has(channelFilter) && (ownerId === undefined || this.mayView(client.user, ownerId)) && (!audience || audience(client))) this.send(client, { jsonrpc: '2.0', method, params: typeof params === 'function' ? params(client) : params });
@@ -505,6 +482,7 @@ export class AgentHost {
       createdAt: session.createdAt, modifiedAt: session.updatedAt,
       ...this.project(repository),
       ...(session.candidate?.status === 'ready' ? { changes: { files: session.candidate.fileCount } } : {}),
+      ...sessionChatCatalog(view.protocolVersion, this.chatSummary(session, view), session.candidate?.status === 'ready' ? { files: session.candidate.fileCount } : undefined),
       _meta: { ...this.review.gitMeta(session), 'dev.webgrip.unfold': { status: session.status, placement: session.placement, budgetUsd: session.budgetUsd, spentUsd: session.spentUsd, costStatus: session.costStatus, candidate: session.candidate?.status } },
     };
   }
@@ -1044,7 +1022,7 @@ export class AgentHost {
         this.broadcast(chat, { type: 'chat/changesetsChanged', changesets });
         for (const request of this.openRequests(session)) this.broadcast(channel, viewer => ({ type: 'session/inputNeededSet', request: this.inputRequest(session, request, viewer) }));
         for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(channel, { type: 'session/inputNeededRemoved', id: request.id });
-        this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, changes: summary.changes } }; }, session.ownerId);
+        this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, changes: summary.changes, ...catalogOf(summary) } }; }, session.ownerId);
         if (changesets) { await this.loadCandidate(session); if (this.closed) return; const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations ?? [] }); }
       }
       this.announceActiveSessions();
@@ -1102,7 +1080,7 @@ export class AgentHost {
   }
 
   private pendingSummary(pending: PendingSession, view: View): Json {
-    return { resource: sessionChannel(pending.id, view.scheme), provider, title: pending.config.title ?? 'New session', status: statusBits.idle | this.viewOf(view, pending.id).session, createdAt: pending.createdAt, modifiedAt: pending.createdAt, ...this.project(this.config.repositories.find(repo => repo.id === pending.config.repository)) };
+    return { resource: sessionChannel(pending.id, view.scheme), provider, title: pending.config.title ?? 'New session', status: statusBits.idle | this.viewOf(view, pending.id).session, createdAt: pending.createdAt, modifiedAt: pending.createdAt, ...this.project(this.config.repositories.find(repo => repo.id === pending.config.repository)), ...sessionChatCatalog(view.protocolVersion, this.pendingChat(pending, view)) };
   }
 
   private project(repository: Repository | undefined): Json {
@@ -1164,8 +1142,8 @@ export class AgentHost {
     return snapshot;
   }
 
-  private remember(clientId: string, user: User, scheme: SessionScheme, clientInfo: Client['clientInfo']): void {
-    this.knownClients.remember(clientId, { userId: user.id, scheme, ...(clientInfo ? { clientInfo } : {}) });
+  private remember(clientId: string, user: User, scheme: SessionScheme, clientInfo: Client['clientInfo'], protocolVersion: string): void {
+    this.knownClients.remember(clientId, { userId: user.id, scheme, protocolVersion, ...(clientInfo ? { clientInfo } : {}) });
   }
 
   private async request(client: Client, method: string, params: Json): Promise<Json> {
@@ -1177,8 +1155,8 @@ export class AgentHost {
       if (!negotiated) throw new RpcError(codes.unsupportedVersion, `None of the offered protocol versions is in ${supportedVersions.join(', ')}`, { supportedVersions });
       if (typeof params.clientId !== 'string') throw new RpcError(codes.invalidParams, 'clientId is required');
       const declaresSessionUris = params._meta?.[sessionUrisMeta] === true;
-      client.clientId = params.clientId; client.scheme = sessionSchemeFor(params.clientInfo, params._meta); client.initialized = true; client.clientInfo = describedClient(params.clientInfo);
-      this.remember(params.clientId, client.user, client.scheme, client.clientInfo);
+      client.clientId = params.clientId; client.scheme = sessionSchemeFor(params.clientInfo, params._meta); client.initialized = true; client.clientInfo = describedClient(params.clientInfo); client.protocolVersion = negotiated;
+      this.remember(params.clientId, client.user, client.scheme, client.clientInfo, negotiated);
       this.resumeActiveClient(params.clientId, Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
@@ -1187,8 +1165,8 @@ export class AgentHost {
     if (method === 'reconnect' && !client.initialized) {
       const known = typeof params.clientId === 'string' ? this.knownClients.get(params.clientId) : undefined;
       if (!known || known.userId !== client.user.id) throw new RpcError(codes.notFound, 'This host does not know that client; initialize');
-      client.clientId = params.clientId; client.scheme = params._meta?.[sessionUrisMeta] === true ? 'ahp-session' : known.scheme; client.initialized = true; client.clientInfo = known.clientInfo;
-      this.remember(params.clientId, client.user, client.scheme, client.clientInfo);
+      client.clientId = params.clientId; client.scheme = params._meta?.[sessionUrisMeta] === true ? 'ahp-session' : known.scheme; client.initialized = true; client.clientInfo = known.clientInfo; client.protocolVersion = known.protocolVersion ?? oldestBaseline;
+      this.remember(params.clientId, client.user, client.scheme, client.clientInfo, client.protocolVersion);
       this.resumeActiveClient(params.clientId, Array.isArray(params.subscriptions) ? params.subscriptions : []);
     }
     if (!client.initialized) throw new RpcError(codes.invalidRequest, 'initialize first');
@@ -1302,7 +1280,7 @@ export class AgentHost {
     this.pending.delete(pending.id);
     this.summaries.set(session.id, this.fingerprint(session));
     this.store.clearAgentHostFlags(pending.id, statusBits.isRead, session.createdAt);
-    this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, ...(summary.project ? { project: summary.project } : {}) } }; }, session.ownerId);
+    this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, ...(summary.project ? { project: summary.project } : {}), ...catalogOf(summary) } }; }, session.ownerId);
     this.broadcast(sessionChannel(pending.id), viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: sessionStatus(session) | this.viewOf(viewer, pending.id).chat, modifiedAt: session.updatedAt } }));
     const projection = this.projection(session);
     const turn = projection.activeTurn ?? projection.turns.at(-1);
@@ -1325,7 +1303,10 @@ export class AgentHost {
     const activityBits = session ? sessionStatus(session) : statusBits.idle;
     this.echo(client, channel, action, origin, sameUser);
     if (flag.channel === 'session') this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme), changes: { status: activityBits | next.session } }), undefined, sameUser);
-    else this.broadcast(sessionChannel(publicId), viewer => ({ type: 'session/chatUpdated', chat: chatChannel(publicId, viewer.scheme), changes: { status: activityBits | next.chat } }), undefined, sameUser);
+    else {
+      this.broadcast(sessionChannel(publicId), viewer => ({ type: 'session/chatUpdated', chat: chatChannel(publicId, viewer.scheme), changes: { status: activityBits | next.chat } }), undefined, sameUser);
+      this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme), changes: catalogOf(session ? this.summary(session, viewer) : this.pendingSummary(pending!, viewer)) }), undefined, viewer => sameUser(viewer) && speaksCatalog(viewer.protocolVersion));
+    }
     return undefined;
   }
 
@@ -1404,7 +1385,7 @@ export class AgentHost {
     this.echo(client, channel, { ...action, title: renamed.title }, origin);
     if (parseChannel(channel)?.kind === 'chat') this.broadcast(sessionChannel(publicId), { type: 'session/titleChanged', title: renamed.title });
     this.broadcast(sessionChannel(publicId), viewer => ({ type: 'session/chatUpdated', chat: chatChannel(publicId, viewer.scheme), changes: { title: renamed.title } }));
-    this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme), changes: { title: renamed.title } }), session.ownerId);
+    this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme), changes: { title: renamed.title, ...catalogOf(this.summary(renamed, viewer)) } }), session.ownerId);
     return undefined;
   }
 
