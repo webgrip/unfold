@@ -1,3 +1,13 @@
+## [unfold-site-v1.0.0-rc.5](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.4...unfold-site-v1.0.0-rc.5) (2026-10-10)
+
+### Added
+
+* **deps:** update all non-major dependencies ([74ca075](https://forgejo.webgrip.dev/webgrip/unfold/commit/74ca0754dc8462e9f5230941c5da266ab4c44f7f))
+
+### Build
+
+* **site:** record pnpm 12.10.1 in the site lockfile ([966dcdd](https://forgejo.webgrip.dev/webgrip/unfold/commit/966dcddc058e81832109c2d4437c9ccf7561a02d))
+
 ## [unfold-site-v1.0.0-rc.4](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.3...unfold-site-v1.0.0-rc.4) (2026-10-10)
 
 ### Added
