@@ -27,9 +27,16 @@ export type CreateSessionInput = { title: string; objective: string; repositoryI
 
 export type Provisioning = Omit<WorkspaceWait, 'phase'> & { phase: WorkspaceWait['phase'] | 'preparing' };
 
-const waitMessages: Partial<Record<WorkspaceWait['phase'], string>> = {
+const waitMessages: Record<Provisioning['phase'], string> = {
+  preparing: 'Creating the workspace.',
+  scheduling: 'Finding a machine for the workspace.',
   capacity: 'Waiting for a free machine. Every machine is busy; nothing is being charged while the workspace waits.',
+  creating: 'A machine took the workspace. Attaching its storage and downloading the workspace image.',
   image_unavailable: 'The workspace image cannot be downloaded. Unfold keeps trying until the time limit.',
+  container_error: 'The workspace container cannot start. Unfold keeps trying until the time limit.',
+  cloning: 'Cloning the repository into the workspace.',
+  starting: 'Starting OpenCode in the workspace.',
+  connecting: 'OpenCode is up. Waiting for the workspace to connect to Unfold.',
 };
 
 const reviewOutcomes = { approve: 'approved', request_changes: 'changes_requested', inconclusive: 'inconclusive' } as const;
@@ -782,14 +789,14 @@ export class Engine {
       const access = this.links ? await this.links.access(first.ownerId, configured.url) : undefined;
       const repository = access ? { ...configured, access } : configured;
       this.preparing.set(id, new Date().toISOString());
-      let announced: string | undefined;
+      let announced: Provisioning['phase'] = 'preparing';
+      this.store.appendEvent(id, 'workspace.waiting', 'system', { phase: announced, message: waitMessages[announced] });
       const watch = setInterval(() => {
         const wait = runtime.provisioning?.().find(item => item.sessionId === id);
         if (!wait || wait.phase === announced || signal.aborted) return;
         announced = wait.phase;
-        const message = waitMessages[wait.phase];
-        if (message) this.store.appendEvent(id, 'workspace.waiting', 'system', { phase: wait.phase, message });
-      }, 2000).unref();
+        this.store.appendEvent(id, 'workspace.waiting', 'system', { phase: wait.phase, message: waitMessages[wait.phase] });
+      }, 1000).unref();
       const workspace = await runtime.prepare(first, repository, credential, signal).finally(() => { clearInterval(watch); this.preparing.delete(id); });
       signal.throwIfAborted();
       let session = this.store.getSession(id)!;

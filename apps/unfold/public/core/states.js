@@ -156,6 +156,44 @@ export const checkpointPhases = table({
   review: ['Reviewed the change', 'review', 'eye'],
 });
 
+const workspacePhases = Object.freeze({
+  preparing: 'Preparing the workspace',
+  scheduling: 'Finding a machine',
+  capacity: 'Waiting for a free machine',
+  creating: 'Downloading the workspace image',
+  image_unavailable: 'Workspace image unavailable',
+  container_error: 'Workspace container cannot start',
+  cloning: 'Cloning the repository',
+  starting: 'Starting OpenCode',
+  connecting: 'Connecting to the workspace',
+});
+const workspaceProblems = new Set(['capacity', 'image_unavailable', 'container_error']);
+
+/** Short label for a workspace start-up phase (`workspace.waiting` events, Status page waits). */
+export function workspacePhaseLabel(phase) { return workspacePhases[phase] ?? workspacePhases.preparing; }
+
+/** Whether a workspace start-up phase is a wait that does not resolve by itself. */
+export function workspacePhaseProblem(phase) { return workspaceProblems.has(phase); }
+
+const executionStates = Object.freeze({
+  admitted: 'Ploeg admitted this execution',
+  running: 'Ploeg marked this execution running',
+  waiting_input: 'Ploeg is holding this execution for your answer',
+  pause_requested: 'Ploeg is pausing this execution',
+  paused: 'Ploeg paused this execution',
+  cancel_requested: 'Ploeg is cancelling this execution',
+  cancelled: 'Ploeg cancelled this execution',
+  completed: 'Ploeg recorded this execution as completed',
+  failed: 'Ploeg recorded this execution as failed',
+  interrupted: 'Ploeg recorded this execution as interrupted',
+});
+
+/** One line for an `execution.authority` event: the Ploeg execution state, and who supervises it. */
+export function executionStateText(binding) {
+  const text = executionStates[binding?.state] ?? 'Ploeg updated this execution';
+  return binding?.supervision === 'background' ? `${text} · runs in the background` : text;
+}
+
 /** Unfold session statuses, plus `accepted` and `rejected` for a completed session whose review was recorded. */
 export const sessionStatuses = table({
   queued: ['Ready to start', 'neutral', 'circle'],
