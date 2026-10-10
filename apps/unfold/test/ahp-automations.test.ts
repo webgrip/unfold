@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { hashPassword } from '../src/auth.ts';
 import { application, login, request } from './api-support.ts';
-import { action, connect, type Json } from './ahp-support.ts';
+import { action, connect, vscodeAgentsWindow, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
 
 const password = 'automation-password-271828';
@@ -143,16 +143,26 @@ test('a refresh publishes a paused team as a disabled route and a team that lost
   assert.equal(client.inbox.length, before, 'an unchanged catalogue publishes nothing');
 });
 
-test('a demo workbench advertises no automations and has no catalogue', { timeout: testTimeout(20_000) }, async t => {
+test('a demo workbench advertises no automations and serves VS Code an empty catalogue, so initialize and reconnect succeed', { timeout: testTimeout(20_000) }, async t => {
   const server = await application('demo');
   t.after(() => server.close());
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'demo' } });
-  const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
-  t.after(() => client.close());
-  await client.open;
-  const initialized = await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'demo', initialSubscriptions: ['ahp-root://'] });
+  const attach = async () => { const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`); t.after(() => client.close()); await client.open; return client; };
+  const subscriptions = ['ahp-root://', catalogue];
+  const client = await attach();
+  const initialized = await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'demo', clientInfo: vscodeAgentsWindow, initialSubscriptions: subscriptions });
   assert.equal(initialized.automations, undefined);
   assert.equal(initialized._meta, undefined);
-  await assert.rejects(client.rpc('subscribe', { channel: catalogue }), (error: Json) => error.code === -32008);
+  const empty = initialized.snapshots.find((snapshot: Json) => snapshot.resource === catalogue).state;
+  assert.deepEqual(empty.entries, []);
+  assert.match(empty._meta['dev.webgrip.unfold'].reason, /no live Ploeg connection/);
+
+  client.notify('dispatchAction', { channel: catalogue, clientSeq: 1, action: { type: 'automation/createRequested', resource: 'ahp-automation:/nightly', definition: {} } });
+  assert.match((await client.until(message => action(message, catalogue, 'automation/createRequested'))).params.rejectionReason, /budgeted work that Ploeg has not authorized/);
   await assert.rejects(client.rpc('runAutomation', { channel: catalogue, automation: 'ahp-automation:/x', requestId: 'r' }), (error: Json) => error.code === -32601);
+
+  client.close();
+  const resumed = await attach();
+  const reconnected = await resumed.rpc('reconnect', { channel: 'ahp-root://', clientId: 'demo', lastSeenServerSeq: initialized.serverSeq, subscriptions });
+  assert.deepEqual(reconnected.snapshots.map((snapshot: Json) => snapshot.resource), subscriptions);
 });
