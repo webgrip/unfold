@@ -82,8 +82,22 @@ export function runChatState(transcripts: RunTranscripts, toolCallId: string, sp
   return { ...runChatSummary(chat, spelling), ...(chat.closed ? { turns: [chat.turn] } : { turns: [], activeTurn: chat.turn }) };
 }
 
+/** The content by which a tool call names the subagent chat it spawned, which VS Code opens when the call is expanded. */
+export function subagentContent(session: string, toolCallId: string, role: string, description: string): Json {
+  return { type: 'subagent', resource: runChatChannel(session, toolCallId), title: role, agentName: role, description };
+}
+
+/** The `_meta` that makes VS Code render a tool call as a subagent. */
+export const subagentMeta = (role: string, description: string): Json => ({ toolKind: 'subagent', subagentDescription: `${role} ${description}`, subagentAgentName: role });
+
+/** What a Role's Run does, as the subagent's description. */
+export const runDescription = (mode: 'read' | 'write') => mode === 'read' ? 'reads the change and gives a verdict' : 'writes the change';
+
+/** A reader Run's verdict as words. */
+export const verdictText = (verdict: string) => verdictWords[verdict] ?? verdict;
+
 function spawnContent(transcripts: RunTranscripts, chat: RunChat): Json {
-  return { type: 'subagent', resource: runChatChannel(transcripts.session, chat.toolCallId), title: chat.role, agentName: chat.role, description: chat.description };
+  return subagentContent(transcripts.session, chat.toolCallId, chat.role, chat.description);
 }
 
 function spawnPart(transcripts: RunTranscripts, chat: RunChat): Json {
@@ -115,12 +129,12 @@ export function runStarted(transcripts: RunTranscripts, session: Session, event:
   const attempt = (transcripts.attempts.get(event.runId) ?? 0) + 1;
   transcripts.attempts.set(event.runId, attempt);
   const toolCallId = attempt === 1 ? `run-${event.runId}` : `run-${event.runId}-${attempt}`;
-  const description = mode === 'read' ? 'reads the change and gives a verdict' : 'writes the change';
+  const description = runDescription(mode);
   const brief = text((data.prompt as Json | undefined)?.instruction) ?? session.objective;
   const chat: RunChat = {
     toolCallId, runId: event.runId, role, mode, description, parentTurnId: turn.id, startedAt: event.at, modifiedAt: event.at, status: 'running',
     turn: { id: `${toolCallId}-turn`, startedAt: event.at, message: { text: brief, origin: { kind: 'systemNotification' } }, responseParts: [] },
-    closed: false, tools: new Map(), parts: new Map(), spawn: { toolKind: 'subagent', subagentDescription: `${role} ${description}`, subagentAgentName: role },
+    closed: false, tools: new Map(), parts: new Map(), spawn: subagentMeta(role, description),
   };
   transcripts.chats.set(toolCallId, chat);
   transcripts.current.set(event.runId, toolCallId);
