@@ -178,10 +178,10 @@ importers:
         version: 0.9.10(@emnapi/runtime@1.11.3)(prettier-plugin-astro@1.1.0(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(prettier@3.9.9))(prettier@3.9.9)(typescript@6.0.3)
       '@axe-core/playwright':
         specifier: 4.13.0
-        version: 4.13.0(playwright-core@1.63.0)
+        version: 4.13.0(playwright-core@1.64.0)
       '@webgrip/astro-site-toolkit':
         specifier: 0.6.0
-        version: 0.6.0(@axe-core/playwright@4.13.0(playwright-core@1.63.0))(playwright-core@1.63.0)
+        version: 0.6.0(@axe-core/playwright@4.13.0(playwright-core@1.64.0))(playwright-core@1.64.0)
       '@webgrip/eslint-config-astro':
         specifier: 0.2.0
         version: 0.2.0(@typescript-eslint/parser@8.71.0(eslint@10.12.0(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.12.0(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)
@@ -195,8 +195,8 @@ importers:
         specifier: 10.12.0
         version: 10.12.0(supports-color@10.2.2)
       playwright-core:
-        specifier: 1.63.0
-        version: 1.63.0
+        specifier: 1.64.0
+        version: 1.64.0
       prettier:
         specifier: 3.9.9
         version: 3.9.9
@@ -2187,8 +2187,8 @@ packages:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
 
-  playwright-core@1.63.0:
-    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+  playwright-core@1.64.0:
+    resolution: {integrity: sha512-T9r+MZkTECl2+oUcZ26YgZzTrYidTsIhYYkJix+6iDOymOb1FB2RLLSOxRGnZGv5DStt+aduIVbt+E8WygXYpg==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -2995,10 +2995,10 @@ snapshots:
     dependencies:
       yaml: 2.9.1
 
-  '@axe-core/playwright@4.13.0(playwright-core@1.63.0)':
+  '@axe-core/playwright@4.13.0(playwright-core@1.64.0)':
     dependencies:
       axe-core: 4.13.0
-      playwright-core: 1.63.0
+      playwright-core: 1.64.0
 
   '@babel/helper-string-parser@7.29.7': {}
 
@@ -3815,12 +3815,12 @@ snapshots:
 
   '@vscode/l10n@0.0.18': {}
 
-  '@webgrip/astro-site-toolkit@0.6.0(@axe-core/playwright@4.13.0(playwright-core@1.63.0))(playwright-core@1.63.0)':
+  '@webgrip/astro-site-toolkit@0.6.0(@axe-core/playwright@4.13.0(playwright-core@1.64.0))(playwright-core@1.64.0)':
     dependencies:
       yaml: 2.9.0
     optionalDependencies:
-      '@axe-core/playwright': 4.13.0(playwright-core@1.63.0)
-      playwright-core: 1.63.0
+      '@axe-core/playwright': 4.13.0(playwright-core@1.64.0)
+      playwright-core: 1.64.0
 
   '@webgrip/eslint-config-astro@0.2.0(@typescript-eslint/parser@8.71.0(eslint@10.12.0(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3))(eslint@10.12.0(supports-color@10.2.2))(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
@@ -4629,7 +4629,7 @@ snapshots:
 
   picomatch@4.0.7: {}
 
-  playwright-core@1.63.0: {}
+  playwright-core@1.64.0: {}
 
   postcss-selector-parser@7.1.6:
     dependencies:

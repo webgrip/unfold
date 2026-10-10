@@ -859,7 +859,7 @@
     "test:webview": "node scripts/sync-core.mjs && node test/webview.mjs && node test/task-webview.mjs"
   },
   "devDependencies": {
-    "@types/node": "24.19.1",
+    "@types/node": "24.19.2",
     "@types/vscode": "1.99.1",
     "@vscode/vsce": "4.0.0",
     "jsonc-parser": "3.3.1",
