@@ -491,6 +491,22 @@ function recentCard(view, visible, held, context) {
   return `<section class="card flush now-card now-recent" aria-labelledby="now-recent-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-recent-title">Recently finished</h2></div><div class="card-actions">${button({ id: 'now-recent-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=finished', ariaLabel: 'View all finished Runs' })}</div></header><div class="card-body">${pill}${body}</div></section>`;
 }
 
+function askRow(ask) {
+  const reply = ask.status === 'answered' ? ask.answer.split('\n')[0] : ask.failure || 'No answer.';
+  return `<li class="now-ask"><a class="now-ask-link" href="#work/${encodeURIComponent(ask.workItemId)}" data-now-row><span class="now-ask-question">${escape(ask.question)}</span><span class="now-ask-answer">${escape(reply.length > 160 ? `${reply.slice(0, 159)}…` : reply)}</span><span class="now-ask-meta">${escape(ask.workItemTitle || `Work Item #${ask.workItemId}`)} · <time datetime="${escape(ask.createdAt)}">${escape(format.dateTime(ask.createdAt))}</time></span></a></li>`;
+}
+
+/** Your own recent Asks on Now (system ADR-0031), each linking to its Work Item with the first line of its answer. `view.asks` is `{ asks, more }`, `{ error }`, or absent while loading. */
+export function asksCard(view) {
+  const data = view.asks;
+  let body;
+  if (!data) body = skeleton({ rows: 2, variant: 'list' });
+  else if (data.error) body = `<p class="now-ask-error" role="alert">${escape(data.error)}</p>`;
+  else if (!data.asks.length) body = emptyState({ icon: 'help-circle', compact: true, title: 'You have not asked anything yet', body: 'Open a Work Item and use Ask a question. Your questions and their answers appear here.' });
+  else body = `<ul class="list now-list now-asks">${data.asks.map(askRow).join('')}</ul>${data.more ? `<p class="now-ask-more">${escape('Older Asks are on their Work Items.')}</p>` : ''}`;
+  return `<section class="card flush now-card now-asks-card" aria-labelledby="now-asks-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-asks-title">Your questions</h2></div></header><div class="card-body">${body}</div></section>`;
+}
+
 function digestItem(value, singular, pluralForm, tone, target, more = false) {
   if (!value) return '';
   return `<li class="now-digest-item"><button type="button" class="now-digest-jump" id="now-digest-${target}" data-action="now-digest-jump" data-target="${target}" title="Show on this page"><span class="status-dot" data-tone="${tone}" aria-hidden="true"></span><strong class="num">${escape(format.count(value))}${more ? '+' : ''}</strong> ${escape(value === 1 ? singular : pluralForm)}</button></li>`;
@@ -632,5 +648,5 @@ export function nowMarkup(input, options = {}, now = Date.now()) {
   const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), runs: view.data.errors.recent ? [] : view.data.recent, dots: true };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
   const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
-  return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${waitingCard(view, visible, held, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}</div></div></div>`;
+  return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${waitingCard(view, visible, held, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}${view.asksEnabled === false ? '' : asksCard(view)}</div></div></div>`;
 }

@@ -34,7 +34,7 @@ export const recordedRoutes = Object.freeze([
   '/api/task-sources', `/api/task-sources/${id}/tasks`, `/api/task-sources/${id}/tasks/${id}`,
   '/api/ploeg', '/api/ploeg/teams', '/api/ploeg/summary', '/api/ploeg/runs', '/api/ploeg/events', '/api/ploeg/proposed', '/api/ploeg/now',
   '/api/ploeg/work-items', `/api/ploeg/work-items/${id}`, `/api/ploeg/work-items/${id}/card`, `/api/ploeg/work-items/${id}/cracks`, `/api/ploeg/work-items/${id}/crack-candidates`,
-  `/api/ploeg/work-items/${id}/context`,
+  `/api/ploeg/work-items/${id}/context`, `/api/ploeg/work-items/${id}/asks`, '/api/asks',
 ].map(path => ({ method: 'GET', path })));
 
 /** Requests answered from the recorded session timeline or acknowledged without being kept. */
