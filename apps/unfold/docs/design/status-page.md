@@ -96,7 +96,17 @@ Three fresh reviewers, given only the rendered screenshots and the job stories, 
 | Demo badge beside live-looking checks | Not a defect: fixtures were injected into the demo server; the real demo reads "Not used here" |
 | Red links compete with the stopped step | Kept: red links are the application-wide link style |
 | Possible contrast failures | Measured: 35 to 61 text elements per state, light and dark; lowest 4.71:1, every one meets WCAG AA |
-| No retry button for the person's failed session | Open: the session page offers Try again; a link back is a later step |
+| No retry button for the person's failed session | Fixed 2026-10-10 as a link back, not a retry: **Open Status** carries the session, and Status says when it can be tried again and links to it. Retrying spends budget, so it stays on the session page |
+
+## Follow-ups, 2026-10-10
+
+| Change | Why |
+| --- | --- |
+| A dot on Status in the navigation, red while new work cannot start, amber while it starts unreliably, with a description for screen readers | People should not have to open Status to learn that work will not start; it reads `overall`, so an administrator's outage note shows too |
+| The page refreshes through the shared Live scheduler | It ignored the Live switch: pausing live updates did not pause it |
+| Other people's failures count only for workbench causes | Causes such as a runaway agent describe one person's work. Sessions carry no Team yet, so a per-Team view waits for tenancy; until then the split is by cause |
+| A workspace can reserve less than its limits (`kubernetes.cpuRequest`, `kubernetes.memoryRequest`; chart `workspaceCpuRequest`, `workspaceMemoryRequest`) | The incident's pods asked for a guaranteed 1 CPU and 2 GiB. Ploeg's agent workers, the closest measured workload, peaked at 0.64 GiB and about 1 core over 30 days |
+| The top bar's right-hand group may shrink and the account name truncates | It was `flex: none` and could push past the edge |
 
 ## Validation status
 

@@ -231,6 +231,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   if (raw.kubernetes) { raw.kubernetes.transport = transportSetting(raw.kubernetes.transport, 'kubernetes.transport'); if (raw.kubernetes.relayUrl !== undefined) raw.kubernetes.relayUrl = configuredUrl(String(raw.kubernetes.relayUrl), 'kubernetes.relayUrl'); if (raw.kubernetes.transport === 'pull' && !raw.kubernetes.relayUrl) throw new Error('kubernetes.transport pull requires kubernetes.relayUrl, the workbench URL reachable from agent pods'); }
   if (raw.kubernetes) {
     raw.kubernetes.provisioner = raw.kubernetes.provisioner ?? 'pod';
+    for (const key of ['cpu', 'memory', 'cpuRequest', 'memoryRequest']) if (raw.kubernetes[key] !== undefined && (typeof raw.kubernetes[key] !== 'string' || !/^[0-9]+(\.[0-9]+)?(m|[KMGT]i?)?$/.test(raw.kubernetes[key]))) throw new Error(`kubernetes.${key} must be a Kubernetes quantity such as 500m or 1Gi`);
     if (raw.kubernetes.userNamespaces !== undefined && typeof raw.kubernetes.userNamespaces !== 'boolean') throw new Error('kubernetes.userNamespaces must be true or false');
     if (raw.kubernetes.userNamespaces && raw.kubernetes.provisioner === 'sandbox') throw new Error('kubernetes.userNamespaces cannot be combined with the sandbox provisioner; a Kata guest kernel already remaps the workload');
     if (!['pod', 'sandbox'].includes(raw.kubernetes.provisioner)) throw new Error('kubernetes.provisioner must be pod or sandbox');

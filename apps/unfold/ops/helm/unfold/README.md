@@ -41,3 +41,7 @@ Live mode reaches services the chart cannot guess, and none of them has a defaul
 | Workspace network | `workspaceEgress`, which must allow the gateway and the forge |
 
 Start from [values.live.example.yaml](values.live.example.yaml). [Running Unfold live](../../../docs/operations/live.md#kubernetes) explains each setting and the credentials Secret.
+
+## Workspace size
+
+Each agent workspace is one pod. `workspaceCpu` and `workspaceMemory` are its limits. `workspaceCpuRequest` and `workspaceMemoryRequest` are what it reserves on a node; left empty, it reserves its limits, so a workspace starts only on a node with the full limits free. Reserving less lets workspaces fit on a busier cluster and burst up to their limits while the node has room. A workspace that no node has room for waits, then fails with "No machine had room to start the workspace", and the Status page shows it.

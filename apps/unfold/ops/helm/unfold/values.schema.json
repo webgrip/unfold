@@ -27,6 +27,8 @@
     "workspaceStorageClass": { "type": "string" },
     "workspaceCpu": { "type": "string", "minLength": 1 },
     "workspaceMemory": { "type": "string", "minLength": 1 },
+    "workspaceCpuRequest": { "type": "string" },
+    "workspaceMemoryRequest": { "type": "string" },
     "workspaceEgress": { "type": "array", "items": { "type": "object" } },
     "workspaceImagePullSecrets": { "type": "array", "items": { "type": "string" } },
     "workspaceGitSecretName": { "type": "string" },

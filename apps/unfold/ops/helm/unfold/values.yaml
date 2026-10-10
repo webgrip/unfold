@@ -33,6 +33,8 @@ workspaceStorageSize: 8Gi
 workspaceStorageClass: ""
 workspaceCpu: "1"
 workspaceMemory: 2Gi
+workspaceCpuRequest: ""
+workspaceMemoryRequest: ""
 workspaceImagePullSecrets: []
 workspaceGitSecretName: ""
 workspaceAgentSecrets: []
