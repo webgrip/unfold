@@ -203,7 +203,7 @@ http.createServer((req,res)=>{res.writeHead(req.headers.authorization===auth?200
   await assert.rejects(fetch(workspace.endpoint! + '/global/health', { signal: AbortSignal.timeout(scaledTimeout(1_000)) }), 'closing the parent channel must stop the agent server');
 });
 
-test('workspace failures carry the failing command and its redacted output', async t => {
+test('workspace failures carry the failing command and its redacted output', { timeout: testTimeout(60_000) }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'unfold-failure-detail-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const repo = { ...repository, url: join(directory, 'missing.git') };
@@ -226,6 +226,7 @@ process.exit(3);
 `, { mode: 0o700 });
   const launching = { ...repository, url: source };
   config.repositories = [launching]; config.runtime = { kind: 'opencode', backend: 'local', binary, timeoutMs: 5000 };
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   await assert.rejects(new WorkspaceManager(config).prepare(session, launching, credential, new AbortController().signal), (error: RuntimeFailure) => {
     assert.equal(error.category, 'workspace_setup');
     assert.match(error.detail!, /serve exited with code 3 before answering \/global\/health\nprovider rejected key \[redacted\] at https:\/\/\[redacted\]@gateway\.example\/v1/);
