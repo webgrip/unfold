@@ -572,6 +572,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (action === 'run-again') return json(res, 201, sanitize(publicSession(engine.runAgain(id, user))));
             let result: Session;
             if (action === 'deliver') result = await engine.deliver(id, user);
+            else if (action === 'capture') result = await engine.capture(id, user);
             else if (action === 'start') result = await engine.start(id, user);
             else if (action === 'pause') result = await engine.pause(id, user);
             else if (action === 'resume') result = await engine.resume(id, user);

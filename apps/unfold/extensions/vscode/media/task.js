@@ -13,6 +13,7 @@ let busy = '';
 let problem = '';
 let connected = true;
 let spoken = '';
+const opened = new Set();
 
 const providerNames = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp', gitea: 'Gitea', ploeg: 'Ploeg', manual: 'Unfold', demo: 'Demo' };
 const settled = ['done', 'withdrawn', 'stale'];
@@ -24,6 +25,8 @@ const text = value => typeof value === 'string' ? value.trim() : '';
 const newestFirst = (a, b) => { try { const x = BigInt(a.id), y = BigInt(b.id); return x < y ? 1 : x > y ? -1 : 0; } catch { return 0; } };
 const oldestFirst = (a, b) => newestFirst(b, a);
 const plain = (label, tone = 'neutral', extra = {}) => ({ key: label, label, tone, glyph: 'circle', ...extra });
+const folded = (key, attributes, ...children) => element('details', { ...attributes, 'data-keep': key, ...(opened.has(key) ? { open: true } : {}) }, ...children);
+const shortReportLength = 160;
 
 function remember() { bridge.setState({ taskKey: panelKey, team }); }
 function providerName(provider) { return providerNames[provider] || provider || 'the tracker'; }
@@ -266,19 +269,31 @@ function stat(label, { value, note, live }) {
     element('dd', {}, element('span', { className: 'stat-value num' }, live ? element('span', { className: 'live-mark', 'aria-hidden': 'true' }) : null, value), note ? element('span', { className: 'stat-note' }, note) : null));
 }
 
+/** The session's spend against its budget as one figure with a meter; the meter is left out without a budget. */
+export function spendStat(progress) {
+  const spend = progress.spend;
+  const budget = amount(spend.budgetUsd) && spend.budgetUsd > 0 ? spend.budgetUsd : null;
+  const status = spend.status === 'observed' ? 'observed, not settled' : spend.status === 'settled' ? 'settled' : progress.demo ? 'no model calls' : '';
+  const share = budget !== null && amount(spend.valueUsd) ? Math.min(1, Math.max(0, spend.valueUsd / budget)) : null;
+  const meter = share === null ? null : element('span', { className: `meter${share >= 0.9 ? ' meter-high' : ''}`, role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': String(budget), 'aria-valuenow': String(spend.valueUsd), 'aria-label': `${spend.text} of ${money(budget)} budget` }, element('span', { className: 'meter-fill', 'data-share': String(Math.round(share * 100)) }));
+  return element('div', { className: `stat stat-spend${spend.status === 'unknown' ? ' unknown' : ''}` },
+    element('dt', {}, 'Spend'),
+    element('dd', {},
+      element('span', { className: 'stat-value num' }, spend.text, budget !== null ? element('span', { className: 'stat-of' }, ` of ${money(budget)}`) : null),
+      meter,
+      status ? element('span', { className: 'stat-note' }, status) : null));
+}
+
 /** The facts row of the head card: cost, budget, Runs, Rounds and Team. Null before Ploeg has a Work Item. */
 export function headFacts(current) {
   const { item } = subject(current);
   if (!item) return null;
   const progress = progressOf(current);
   if (progress) {
-    const roles = progress.steps.map(step => `${step.role.toLowerCase()} ${step.state === 'done' ? 'finished' : step.label.toLowerCase()}`).join(' · ');
+    const rounds = roundsSummary(current);
     return element('dl', { className: 'stats', 'aria-label': 'Work Item facts' },
-      stat('Cost', { value: progress.spend.text, note: progress.spend.status === 'observed' ? 'observed, not settled' : progress.spend.status === 'settled' ? 'settled' : progress.demo ? 'no model calls' : '' }),
-      stat('Budget', { value: amount(progress.spend.budgetUsd) ? money(progress.spend.budgetUsd) : notReported, note: 'this session' }),
-      stat('Runs', { value: count(progress.steps.length), note: roles }),
-      stat('Rounds', roundsSummary(current)),
-      stat('Team', { value: item.team || notReported, note: '' }));
+      spendStat(progress),
+      stat('Runs', { value: count(progress.steps.length), note: rounds.value === notReported ? rounds.note : [plural(Number(rounds.value) || 0, 'Round'), rounds.note].filter(Boolean).join(' · ') }));
   }
   return element('dl', { className: 'stats', 'aria-label': 'Work Item facts' },
     stat('Cost', costSummary(current)),
@@ -362,13 +377,15 @@ export function liveLine(progress) {
 function progressCard(current, progress) {
   const facts = headFacts(current);
   const { item } = subject(current);
-  const reason = progress.reason && ['stopped', 'failed'].includes(progress.phase) ? progress.reason : null;
+  const explained = Boolean(current.linked?.recovery?.summary);
+  const reason = progress.reason && ['stopped', 'failed'].includes(progress.phase) && !explained ? progress.reason : null;
   const actions = progress.actions.filter(entry => entry.id !== 'open-pr' || progress.change.pullRequest?.url);
-  const buttons = actions.map(entry => entry.id === 'open-pr' ? element('button', { type: 'button', className: entry.primary ? 'primary' : 'quiet', 'data-open-url': progress.change.pullRequest.url, title: progress.change.pullRequest.url }, `${entry.label} ↗`) : sessionButton(progress, entry));
-  const cancel = buttons.findIndex(button => button.dataset?.sessionAction === 'cancel');
-  const destructive = cancel >= 0 ? buttons.splice(cancel, 1)[0] : null;
-  if (item?.id) buttons.push(action('Open in browser ↗', 'open-ploeg', { className: 'quiet', 'data-id': item.id, title: 'Open this Work Item in the Unfold workbench in your browser' }));
-  if (destructive) { destructive.className = 'quiet destructive'; buttons.push(element('span', { className: 'action-gap', 'aria-hidden': 'true' }), destructive); }
+  const button = entry => entry.id === 'open-pr' ? element('button', { type: 'button', className: entry.primary ? 'primary' : 'quiet', 'data-open-url': progress.change.pullRequest.url, title: progress.change.pullRequest.url }, `${entry.label} ↗`) : sessionButton(progress, entry);
+  const decisions = actions.filter(entry => entry.primary || !navigation.has(entry.id)).filter(entry => entry.id !== 'cancel').map(button);
+  const elsewhere = actions.filter(entry => !entry.primary && navigation.has(entry.id)).map(button);
+  if (item?.id) elsewhere.push(action('Open in browser ↗', 'open-ploeg', { className: 'quiet', 'data-id': item.id, title: 'Open this Work Item in the Unfold workbench in your browser' }));
+  const cancel = actions.find(entry => entry.id === 'cancel');
+  if (cancel) { const destructive = button(cancel); destructive.className = 'quiet destructive'; elsewhere.push(element('span', { className: 'action-gap', 'aria-hidden': 'true' }), destructive); }
   return element('section', { className: `card head-card progress-card tone-${progress.meta.tone}${facts ? ' with-facts' : ''}`, 'aria-labelledby': 'head-heading' },
     element('div', { className: 'head-main' },
       element('div', { className: 'head-state' },
@@ -379,11 +396,35 @@ function progressCard(current, progress) {
       element('h2', { id: 'head-heading', className: 'headline' }, progress.headline),
       liveLine(progress),
       progress.next ? element('p', { className: 'next' }, progress.next) : null,
-      buttons.length ? element('div', { className: 'actions', role: 'group', 'aria-label': 'What you can do' }, ...buttons) : null),
+      decisions.length ? element('div', { className: 'actions', role: 'group', 'aria-label': 'What you can do' }, ...decisions) : null,
+      elsewhere.length ? element('div', { className: 'actions actions-elsewhere', role: 'group', 'aria-label': 'Look closer' }, ...elsewhere) : null),
     facts ? element('div', { className: 'head-facts' }, facts) : null);
 }
 
 const capital = value => value ? value[0].toUpperCase() + value.slice(1) : value;
+const navigation = new Set(['investigate', 'open-session']);
+
+function findingsList(progress, step) {
+  const findings = progress.findings;
+  if (!findings || findings.role !== step.role || step.mode !== 'read') return null;
+  return element('dl', { className: 'findings small', 'aria-label': `${step.role}'s findings, in its own words` }, ...findings.items.map(entry => element('div', { className: 'finding' }, element('dt', {}, entry.label), element('dd', {}, inlineMarkdown(entry.detail)))));
+}
+
+function inlineMarkdown(value) {
+  const node = markdown(value);
+  const only = node.children.length === 1 && node.firstElementChild?.tagName === 'P' ? node.firstElementChild : null;
+  return only ? element('span', {}, ...only.childNodes) : node;
+}
+
+function stepReport(step, foldAlways = false) {
+  const summary = text(step.summary);
+  if (!summary) return null;
+  if (!foldAlways && summary.length <= shortReportLength && !summary.includes('\n')) return element('div', { className: 'step-summary small' }, markdown(summary));
+  const preview = summary.replace(/[*_`#>]/g, '').replace(/\s+/g, ' ');
+  return folded(`step:${step.id}`, { className: 'step-report' },
+    element('summary', {}, element('span', { className: 'step-preview small' }, preview), element('span', { className: 'step-more small' }, 'Full report')),
+    element('div', { className: 'step-summary small' }, markdown(summary)));
+}
 
 /** The Roles of the session in order, each with its outcome, verdict, duration and summary. */
 export function stepsSection(current) {
@@ -395,10 +436,31 @@ export function stepsSection(current) {
     element('ol', { className: 'step-list' }, ...progress.steps.map(step => element('li', { className: `step step-${step.state}` },
       element('div', { className: 'step-head' },
         element('strong', {}, step.role), element('span', { className: 'access' }, step.mode === 'read' ? 'reader' : 'writer'),
-        pill({ label: step.label, tone: step.tone, glyph: 'circle', live: step.state === 'working' }),
+        pill({ label: step.label, tone: step.tone, glyph: 'circle', live: step.state === 'working', ...(step.state === 'cut_off' ? { title: `Still recorded as running when the session stopped${step.finishedAt ? ` at ${time(step.finishedAt)}` : ''}` } : {}) }),
         step.verdict ? pill({ label: step.verdict.recorded ? step.verdict.label : `${step.verdict.label} · from its transcript`, tone: step.verdict.recorded ? step.verdict.tone : 'neutral', title: step.verdict.recorded ? 'An agent verdict is evidence, not a human review.' : 'Given in the Run\'s own transcript before it was cut off; no finished Run recorded it.' }) : null,
         element('span', { className: 'step-time num muted' }, [step.startedAt ? time(step.startedAt) : '', step.seconds !== null ? duration(step.seconds) : ''].filter(Boolean).join(' · '))),
-      step.summary ? element('p', { className: 'step-summary small' }, step.summary) : null))));
+      findingsList(progress, step),
+      stepReport(step, Boolean(progress.findings && progress.findings.role === step.role && step.mode === 'read'))))),
+    roleCostTable(progress));
+}
+
+/** Cost and tokens per Role, from the gateway's requests or the Runs' own reports. Null when nothing was reported. */
+export function roleCostTable(progress) {
+  const roles = (progress.roles || []).filter(entry => entry.costUsd !== null || entry.inputTokens !== null);
+  if (!roles.length || progress.demo) return null;
+  const tokens = value => value === null ? notReported : compactCount(value);
+  const gateway = roles.some(entry => entry.source === 'gateway');
+  return element('div', { className: 'crew step-costs' },
+    element('h3', { id: 'role-costs-heading' }, 'Cost per role', element('span', { className: 'access' }, gateway ? 'observed by the gateway, not settled' : 'as each Run reported it')),
+    element('div', { className: 'table-scroll', role: 'region', 'aria-labelledby': 'role-costs-heading', tabindex: '0' },
+      element('table', { className: 'data-table' },
+        element('thead', {}, element('tr', {}, element('th', { scope: 'col' }, 'Role'), element('th', { scope: 'col', className: 'num' }, 'Runs'), element('th', { scope: 'col', className: 'num' }, 'Cost'), element('th', { scope: 'col', className: 'num' }, 'Tokens in'), element('th', { scope: 'col', className: 'num' }, 'Tokens out'))),
+        element('tbody', {}, ...roles.map(entry => element('tr', {},
+          element('th', { scope: 'row' }, entry.role, element('span', { className: 'access' }, entry.mode === 'read' ? 'reader' : 'writer')),
+          element('td', { className: 'num' }, count(entry.runs)),
+          element('td', { className: `num${entry.costUsd === null ? ' unknown' : ''}` }, entry.costUsd === null ? notReported : money(entry.costUsd)),
+          element('td', { className: 'num' }, tokens(entry.inputTokens)),
+          element('td', { className: 'num' }, tokens(entry.outputTokens))))))));
 }
 
 /** The change the session made: files and lines, the branch, the candidate and the pull request. Null before anything changed. */
@@ -406,15 +468,31 @@ export function changeSection(current) {
   const progress = progressOf(current);
   if (!progress) return null;
   const change = progress.change;
-  if (!change.files && !change.pullRequest && !change.candidate) return null;
+  if (!change.files && !change.pullRequest && !change.candidate && !progress.checks.length) return null;
   const counts = changeText(change);
   return element('section', { className: 'card change', 'aria-labelledby': 'change-heading' },
     element('div', { className: 'section-heading' }, element('h2', { id: 'change-heading' }, 'Change'), element('span', {}, change.pullRequest ? `Pull request #${change.pullRequest.number}` : change.candidate === 'ready' ? 'Captured for review' : progress.meta.live ? 'So far, from the Runs' : 'Not captured as a candidate')),
     element('dl', { className: 'change-facts' },
       counts ? fact('Files', element('span', { className: 'diff num' }, element('span', { className: 'files' }, plural(change.files, 'file')), change.added || change.removed ? element('span', { className: 'added' }, `+${change.added}`) : null, change.added || change.removed ? element('span', { className: 'removed' }, `−${change.removed}`) : null)) : null,
       change.branch ? fact('Branch', element('code', {}, change.branch)) : null,
-      change.candidateText ? fact('Candidate', change.candidateText) : null),
+      change.candidateText ? fact('Candidate', change.candidateText) : null,
+      progress.checks.length ? fact('Checks', element('ul', { className: 'checks' }, ...progress.checks.map(check => element('li', { className: `check check-${check.passed === true ? 'passed' : check.passed === false ? 'failed' : 'unknown'}`, title: check.output || check.name },
+        element('span', { className: 'check-mark', 'aria-hidden': 'true' }, check.passed === true ? '✓' : check.passed === false ? '✗' : '?'),
+        element('code', {}, check.name),
+        element('span', { className: 'sr-only' }, check.passed === true ? ' passed' : check.passed === false ? ' failed' : ' result not reported'))))) : null),
     change.viewable && !progress.actions.some(entry => entry.id === 'view-change') ? element('div', { className: 'actions' }, sessionButton(progress, { id: 'view-change', label: 'View change' })) : null);
+}
+
+/** What happened, in order, with the time of each step and every stop. Null without history. */
+export function timelineSection(current) {
+  const progress = progressOf(current);
+  if (!progress?.timeline?.length) return null;
+  const first = Date.parse(progress.timeline[0].at);
+  return element('section', { className: 'card timeline', 'aria-labelledby': 'timeline-heading' },
+    element('div', { className: 'section-heading' }, element('h2', { id: 'timeline-heading' }, 'What happened'), element('span', {}, Number.isFinite(first) ? `from ${time(progress.timeline[0].at)}` : '')),
+    element('ol', { className: 'timeline-list small' }, ...progress.timeline.map(entry => element('li', { className: `timeline-entry tone-${entry.tone}` },
+      element('time', { className: 'num muted', datetime: entry.at }, time(entry.at, { seconds: true })),
+      element('span', {}, entry.text)))));
 }
 
 /** What the sources disagree about, resolved in words. */
@@ -593,9 +671,9 @@ export function runsSection(current) {
     element('h3', { className: 'run-group-label' }, continued.has(group.key) ? `${group.label} (continued)` : group.label),
     element('ul', { className: 'run-list' }, ...group.runs.map(run => runRow(run, demo, item)))));
   const hidden = rest.reduce((total, group) => total + group.runs.length, 0);
-  const body = [...list(visible), hidden ? element('details', { className: 'more-runs' }, element('summary', {}, `Show ${hidden} more ${hidden === 1 ? 'Run' : 'Runs'}`), ...list(rest, new Set(visible.map(group => group.key)))) : null];
+  const body = [...list(visible), hidden ? folded('more-runs', { className: 'more-runs' }, element('summary', {}, `Show ${hidden} more ${hidden === 1 ? 'Run' : 'Runs'}`), ...list(rest, new Set(visible.map(group => group.key)))) : null];
   if (progressOf(current)) return element('section', { className: 'card runs', 'aria-labelledby': 'runs-heading' },
-    element('details', { className: 'ploeg-record' },
+    folded('ploeg-record', { className: 'ploeg-record' },
       element('summary', {}, element('h2', { id: 'runs-heading', className: 'inline-heading' }, 'As Ploeg records it'), element('span', { className: 'muted small' }, ` · ${plural(runs.length, 'Run')}; the session's Roles run inside it`)),
       ...body));
   return element('section', { className: 'card runs', 'aria-labelledby': 'runs-heading' }, heading, ...body);
@@ -607,6 +685,17 @@ function labelsAndPeople(labels, assignees) {
   return element('div', { className: 'task-people' },
     labels.length ? element('ul', { className: 'labels', 'aria-label': 'Labels' }, ...labels.map(label => element('li', { className: 'label' }, swatch(label.color), label.name))) : null,
     element('span', { className: 'assignees muted' }, assignees.length ? `Assigned to ${assignees.map(person => person.name && person.name !== person.username ? `${person.name} (${person.username})` : person.username).join(', ')}` : 'Unassigned'));
+}
+
+function servedHere(url, current) {
+  try { return new URL(url).host === current.host; } catch { return false; }
+}
+
+function externalLabel(id) {
+  const value = text(id);
+  if (!value) return '';
+  const label = value.includes('#') ? value : `#${value}`;
+  return label.length > 24 ? element('span', { className: 'external-id', title: label }, `${label.slice(0, 16)}…`) : label;
 }
 
 function metaLine(parts) {
@@ -635,10 +724,10 @@ export function header(current) {
       element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark' }, brandMark()), [`${providerName(item?.provider)} · Work Item ${item?.id ?? current.workItemId}`, item?.team ? `team ${item.team}` : '', target ? `→ ${target}` : ''].filter(Boolean).join(' · ').replace(' · →', ' →').toUpperCase()),
       element('div', { className: 'title-row' },
         element('h1', {}, item?.title || `Work Item ${current.workItemId}`),
-        element('div', { className: 'toolbar' }, refresh, url ? element('button', { type: 'button', 'data-open-url': url, title: url }, `Open in ${providerName(item.provider)} ↗`) : null)),
+        element('div', { className: 'toolbar' }, refresh, url && !servedHere(url, current) ? element('button', { type: 'button', 'data-open-url': url, title: url }, `Open in ${providerName(item.provider)} ↗`) : null)),
       metaLine([
         item ? headerPill(current, workItemState(displayState(item, current.detail.events))) : null,
-        text(item?.externalId) ? (item.externalId.includes('#') ? item.externalId : `#${item.externalId}`) : '',
+        externalLabel(item?.externalId),
         amount(item?.priority) && item.priority > 0 ? `priority ${item.priority}` : '',
         item?.updatedAt ? `updated ${relative(item.updatedAt)}` : '',
       ]));
@@ -691,6 +780,7 @@ export function sections(current) {
     headCard(current),
     stepsSection(current),
     changeSection(current),
+    timelineSection(current),
     factsSection(current),
     pullRequestsSection(current),
     accountSection(current),
@@ -705,6 +795,7 @@ function render() {
   if (!app) return;
   if (!view) { app.replaceChildren(element('div', { className: 'loading', role: 'status' }, problem || 'Loading…')); return; }
   app.replaceChildren(...sections(view));
+  for (const fill of app.querySelectorAll('.meter-fill[data-share]')) fill.style.width = `${fill.dataset.share}%`;
   const situation = ploegSituation(view);
   const headline = situation.progress ? `${situation.progress.meta.label}. ${situation.progress.headline}` : situation.headline;
   if (headline !== spoken) { spoken = headline; announce(headline); }
@@ -726,6 +817,12 @@ document.addEventListener('click', event => {
   if (type === 'take-back' || type === 'start-session' || type === 'checkout') { busy = type; render(); }
   bridge.postMessage({ type, id: button.dataset.id, team: button.dataset.team });
 });
+
+document.addEventListener('toggle', event => {
+  const key = event.target?.dataset?.keep;
+  if (!key) return;
+  if (event.target.open) opened.add(key); else opened.delete(key);
+}, true);
 
 document.addEventListener('change', event => {
   if (event.target.name !== 'team') return;

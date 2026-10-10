@@ -537,7 +537,7 @@ function render() {
   const host = (() => { try { return new URL(origin).host; } catch { return ''; } })();
 
   const header = element('header', { className: 'session-header' },
-    element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark', 'aria-hidden': 'true' }, brandMark()), 'DE UNFOLD', element('span', { className: 'remote-label' }, 'WORKBENCH SESSION'), host ? element('span', { className: 'remote-label' }, host) : null, element('span', { className: 'remote-label' }, placementText(session.placement, host).toUpperCase())),
+    element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark', 'aria-hidden': 'true' }, brandMark()), 'UNFOLD', element('span', { className: 'remote-label' }, 'WORKBENCH SESSION'), host ? element('span', { className: 'remote-label' }, host) : null, element('span', { className: 'remote-label' }, placementText(session.placement, host).toUpperCase())),
     element('div', { className: 'title-row' }, element('h1', {}, session.title), element('span', { className: `pill status-${session.status}` }, session.status === 'completed' && session.review ? (session.review.decision === 'accepted' ? 'Accepted' : 'Rejected') : statusNames[session.status] || readable(session.status))),
     element('p', { className: 'subtitle' }, element('span', {}, session.repositoryId), ' / ', element('span', {}, session.crewId), ' · ', session.runtime, session.placement ? ` · ${session.placement}` : '', session.approval === 'auto' ? ' · approves automatically' : '', ' · ', element('code', {}, session.branch)),
     element('div', { className: `situation situation-${session.status}` }, element('p', { className: 'headline' }, headline), next ? element('p', { className: 'next' }, next) : null),
