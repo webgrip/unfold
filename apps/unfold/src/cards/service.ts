@@ -1,8 +1,8 @@
 import { micros, rfc3339Micros } from './go.ts';
 import type { FactsPage, WorkItemFacts } from './facts.ts';
 import { assembleCard, itemRef, rarityRecord, type CardContext, type CardJson, type CrackRecord, type PullRequestRef } from './assemble.ts';
-import { CardStore, type CardCommentRecord, type CardImportRecord } from './card-store.ts';
-import { CrackError, CrackWorkflow, crackView, type CrackActor, type CrackView } from './cracks.ts';
+import { CardStore, type CardImportRecord } from './card-store.ts';
+import { CrackWorkflow, crackView, type CrackActor, type CrackView } from './cracks.ts';
 import { cardActivity, cardListLogins, namesAny, orderCards } from './list.ts';
 import { resolveCardRules, type CardRuleSettings, type ResolvedCardRules } from './settings.ts';
 import { cardCommentMarkdown, cardImageAlt, momentHeadline, momentOf } from './cardimage.ts';
@@ -12,31 +12,25 @@ import type { Shape } from './playkpi.ts';
 
 /** A query of Ploeg's facts list. */
 export type FactsQuery = { members?: string[]; team?: string; since?: string; before?: string; limit?: number };
-/** One item of Ploeg's one-time card export (Ploeg ADR-0079, `legacyExportItem`). */
-export type LegacyExportItem = { workItemId: string; team: string; provider: string; externalId: string; cracks: unknown[]; rarity: unknown; comment: unknown; shapes: { pullRequest: PullRequestRef; shape: unknown }[] };
-/** One page of Ploeg's card export. */
-export type LegacyExportPage = { items: LegacyExportItem[]; nextAfter: string | null };
 /** The body of Ploeg's keyed pull request comment. */
 export type CommentRequest = { markdown: string; image?: { svg: string; alt?: string }; number?: number; adoptCommentId?: number };
 /** What Ploeg recorded after writing a keyed comment. */
 export type CommentResult = { pullRequest: PullRequestRef; commentId: number | null; imageUrl: string | null; created: boolean };
 
-/** How Unfold reads Ploeg: the delivery facts, the facts list, the one-time card export and the keyed pull request comment (Ploeg ADR-0079). */
+/** How Unfold reads Ploeg: the delivery facts, the facts list and the keyed pull request comment (Ploeg ADR-0079). */
 export type FactsSource = {
   factsSupported(fresh?: boolean): Promise<boolean>;
   workItemFacts(id: string, fresh?: boolean): Promise<WorkItemFacts>;
   factsPage(query: FactsQuery, fresh?: boolean): Promise<FactsPage>;
-  legacyExport(after: string | null, limit: number): Promise<LegacyExportPage | null>;
   putPullRequestComment(id: string, key: string, body: CommentRequest): Promise<CommentResult>;
 };
 
 /** A log line: Unfold writes structured JSON to the process log. */
 export type CardLog = (level: 'info' | 'warn' | 'error', event: string, detail: Record<string, unknown>) => void;
-/** The card service's options. `publish` is `cards.publishPullRequestComment`: off until the operator has turned Ploeg's `cards.enabled` off. */
+/** The card service's options. `publish` is `cards.publishPullRequestComment`, off by default. */
 export type CardServiceOptions = { settings: CardRuleSettings; publish: boolean; now?: () => number; log?: CardLog; taskUrl?: (provider: string, externalId: string) => string };
 
 const defaultLog: CardLog = (level, event, detail) => (level === 'info' ? console.log : console.error)(JSON.stringify({ level, event, ...detail }));
-const exportPage = 200;
 const factsPageLimit = 25;
 const memberPages = 6;
 const backfillPages = 400;
@@ -45,27 +39,7 @@ const commentKey = 'run-card';
 const commentRecheckMicros = 3_600_000_000;
 const commentRecentMicros = 7 * 86_400_000_000;
 
-function text(value: unknown): string | null { return value === null || value === undefined ? null : String(value); }
-
-/** Maps one exported `card_cracks` row to Unfold's crack record. */
-export function importedCrack(raw: unknown): CrackRecord {
-  const c = raw as Record<string, unknown>;
-  const ref = (value: unknown): PullRequestRef | null => { if (!value || typeof value !== 'object') return null; const r = value as Record<string, unknown>; return { id: String(r.id), forge: String(r.forge), owner: String(r.owner), repo: String(r.repo), number: Number(r.number) }; };
-  const time = (value: unknown) => (value === null || value === undefined ? null : rfc3339Micros(micros(String(value))));
-  const bug = (c.bug ?? {}) as Record<string, unknown>;
-  if (!/^[1-9][0-9]{0,18}$/.test(String(c.id)) || !['proposed', 'confirmed', 'disputed', 'unlinked', 'evolved'].includes(String(c.state))) throw new Error('an exported crack has no id or an unknown state');
-  return {
-    id: String(c.id), team: String(c.team), state: c.state as CrackRecord['state'], cardWorkItemId: String(c.cardWorkItemId), bugWorkItemId: String(c.bugWorkItemId),
-    bug: { provider: String(bug.provider ?? ''), externalId: String(bug.externalId ?? '') }, pullRequest: ref(c.pullRequest), severity: text(c.severity), share: text(c.share), discovery: text(c.discovery),
-    steward: String(c.steward ?? ''), note: text(c.note), proposedBy: String(c.proposedBy), proposedAt: time(c.proposedAt)!, confirmedBy: text(c.confirmedBy), confirmedAt: time(c.confirmedAt),
-    disputeUntil: time(c.disputeUntil), disputedBy: text(c.disputedBy), disputedAt: time(c.disputedAt), disputeReason: text(c.disputeReason), resolvedBy: text(c.resolvedBy), resolvedAt: time(c.resolvedAt),
-    resolution: text(c.resolution) as CrackRecord['resolution'], evolvedBy: text(c.evolvedBy), evolvedAt: time(c.evolvedAt), mendPullRequest: ref(c.mendPullRequest),
-    mendNumber: c.mendNumber === null || c.mendNumber === undefined ? null : Number(c.mendNumber), mendedAt: time(c.mendedAt), mendedBy: text(c.mendedBy),
-    mendBySteward: c.mendBySteward === null || c.mendBySteward === undefined ? null : Boolean(c.mendBySteward), mendConfirmedAt: time(c.mendConfirmedAt), mendReopenedAt: time(c.mendReopenedAt),
-  };
-}
-
-/** Unfold's Run card domain on top of Ploeg's delivery facts (root ADR-0030): it assembles cards, keeps the crack workflow, frozen rarities and the card comment in its own store, imports Ploeg's card state once and publishes the pull request comment. It decides nothing about scope: callers check the Team first. */
+/** Unfold's Run card domain on top of Ploeg's delivery facts (root ADR-0030): it assembles cards, keeps the crack workflow, frozen rarities and the card comment in its own store, and publishes the pull request comment. It decides nothing about scope: callers check the Team first. */
 export class CardService {
   readonly store: CardStore;
   readonly rules: ResolvedCardRules;
@@ -75,7 +49,6 @@ export class CardService {
   private readonly now: () => number;
   private readonly log: CardLog;
   private readonly taskUrl?: (provider: string, externalId: string) => string;
-  private importing: Promise<CardImportRecord> | null = null;
   private refreshedUntil: string | null = null;
 
   constructor(source: FactsSource, store: CardStore, options: CardServiceOptions) {
@@ -89,7 +62,7 @@ export class CardService {
     this.taskUrl = options.taskUrl;
   }
 
-  /** Whether the connected Ploeg supplies delivery facts; without them Unfold still reads Ploeg's own card endpoints. */
+  /** Whether the connected Ploeg supplies delivery facts. Without them Unfold has no cards to serve. */
   available(fresh = false): Promise<boolean> { return this.source.factsSupported(fresh); }
 
   /** Reads one Work Item's facts and records what they say about other cards. */
@@ -238,15 +211,8 @@ export class CardService {
     return out;
   }
 
-  /** Refuses a crack step until Ploeg's card state is imported, so no attribution is split between Ploeg and Unfold. */
-  private importedOrRefuse(): void {
-    const state = this.store.importState().state;
-    if (state !== 'done' && state !== 'unsupported') throw new CrackError('importing', 'Unfold is still importing the cracks Ploeg recorded. Try again in a minute.');
-  }
-
   /** Proposes a crack: `bugId` was caused by `cardId`'s play. */
   async propose(bugId: string, cardId: string, input: { play: number; severity: string; share: string; discovery: string; note: string }, by: CrackActor): Promise<CrackRecord> {
-    this.importedOrRefuse();
     const [bug, card] = [await this.facts(bugId, true), await this.facts(cardId, true)];
     const cardJson = await this.assemble(card, true);
     return this.cracks.propose({ bug, card, cardJson, ...input, by, now: this.now() });
@@ -254,7 +220,6 @@ export class CardService {
 
   /** Marks the bug a changed requirement of the card. */
   async evolved(bugId: string, cardId: string, note: string, by: CrackActor): Promise<CrackRecord> {
-    this.importedOrRefuse();
     const [bug, card] = [await this.facts(bugId, true), await this.facts(cardId, true)];
     const cardJson = await this.assemble(card, true);
     return this.cracks.evolved({ bug, card, cardJson, note, by, now: this.now() });
@@ -262,7 +227,6 @@ export class CardService {
 
   /** Confirms, disputes or resolves one crack. `teams` says which Teams the caller may act in. */
   async decide(crackId: string, step: 'confirm' | 'dispute' | 'resolve', input: { severity: string; share: string; reason: string; resolution: string; note: string }, by: CrackActor, teams: (team: string) => boolean): Promise<CrackRecord> {
-    this.importedOrRefuse();
     const now = this.now();
     if (step === 'confirm') {
       const crack = this.store.crack(crackId);
@@ -273,76 +237,18 @@ export class CardService {
     return this.cracks.resolve({ crackId, teams, by, resolution: input.resolution, note: input.note, referees: team => this.rules.referees(team), now });
   }
 
-  /** Imports Ploeg's cracks, frozen rarities, card comment records and frozen play shapes once (Ploeg ADR-0079), behind an idempotent marker, resuming after the last page it stored. A Ploeg without the export is retried at the next start-up or sweep. */
-  importLegacy(): Promise<CardImportRecord> {
-    this.importing ??= this.runImport().finally(() => { this.importing = null; });
-    return this.importing;
-  }
-
-  private async runImport(): Promise<CardImportRecord> {
-    let state = this.store.importState();
-    if (state.state === 'done') return state;
-    const at = () => rfc3339Micros(this.now());
-    state = { ...state, state: 'running', attempts: state.attempts + 1, startedAt: state.startedAt ?? at(), message: '' };
-    this.store.saveImportState(state);
-    try {
-      for (;;) {
-        const page = await this.source.legacyExport(state.after, exportPage);
-        if (page === null) {
-          state = { ...state, state: 'unsupported', message: 'This Ploeg offers no card export, so there is nothing to import yet.', finishedAt: at() };
-          this.store.saveImportState(state);
-          this.log('info', 'cards.import_unsupported', { attempts: state.attempts });
-          return state;
-        }
-        const counts = this.store.transaction(() => {
-          const n = { cracks: 0, rarities: 0, comments: 0, shapes: 0 };
-          for (const item of page.items) {
-            for (const raw of item.cracks ?? []) if (this.store.importCrack(importedCrack(raw))) n.cracks++;
-            if (item.rarity) {
-              const r = item.rarity as Record<string, unknown>;
-              const { inserted } = this.store.freezeRarity({ workItemId: item.workItemId, formula: String(r.formula), revealedTier: String(r.revealedTier), predictedTier: String(r.predictedTier), score: Number(r.score), predictedScore: Number(r.predictedScore), percentile: r.percentile === null || r.percentile === undefined ? null : Number(r.percentile), cohortTarget: String(r.cohortTarget), cohortQuarter: String(r.cohortQuarter), cohortSize: Number(r.cohortSize), inputs: r.inputs as never, revealedAt: rfc3339Micros(micros(String(r.revealedAt))), recordedAt: rfc3339Micros(micros(String(r.recordedAt))), checkedAt: rfc3339Micros(micros(String(r.checkedAt))) }, 'ploeg');
-              if (inserted) n.rarities++;
-            }
-            if (item.comment) {
-              const c = item.comment as Record<string, unknown>;
-              const pr = c.pullRequest as PullRequestRef | null;
-              const record: CardCommentRecord = { workItemId: item.workItemId, pullRequest: pr ? { id: String(pr.id), forge: String(pr.forge), owner: String(pr.owner), repo: String(pr.repo), number: Number(pr.number) } : null, moment: String(c.moment ?? ''), commentId: c.commentId === null || c.commentId === undefined ? null : Number(c.commentId), image: Boolean(c.image), publishedAt: text(c.publishedAt), checkedAt: String(c.checkedAt), origin: 'ploeg', adopted: false };
-              if (this.store.importComment(record)) n.comments++;
-            }
-            for (const shape of item.shapes ?? []) {
-              if (!storedShape(shape.shape)) { this.log('warn', 'cards.import_shape_skipped', { workItem: item.workItemId, pullRequest: String(shape.pullRequest?.id ?? '') }); continue; }
-              if (this.store.importShape(String(shape.pullRequest.id), item.workItemId, shape.shape)) n.shapes++;
-            }
-          }
-          return n;
-        });
-        state = { ...state, after: page.nextAfter ?? state.after, cracks: state.cracks + counts.cracks, rarities: state.rarities + counts.rarities, comments: state.comments + counts.comments, shapes: state.shapes + counts.shapes };
-        this.store.saveImportState(state);
-        if (!page.nextAfter) break;
-      }
-      const indexed = await this.backfill();
-      state = { ...state, state: 'done', finishedAt: at(), message: `Read the facts of ${indexed} Work Items to index earlier changes.` };
-      this.store.saveImportState(state);
-      this.log('info', 'cards.imported', { cracks: state.cracks, rarities: state.rarities, comments: state.comments, shapes: state.shapes, indexed });
-      return state;
-    } catch (error) {
-      state = { ...state, state: 'failed', message: String((error as Error).message).slice(0, 300), finishedAt: at() };
-      this.store.saveImportState(state);
-      this.log('warn', 'cards.import_failed', { attempts: state.attempts, message: state.message, after: state.after });
-      return state;
-    }
-  }
-
   private async backfill(): Promise<number> {
     const { facts } = await this.pages({}, backfillPages, true);
     return facts.length;
   }
 
-  /** One background pass: retries a pending import, refreshes the indexes from recently active facts, reveals released rarities, records and settles mends, and publishes the card comment where it is turned on. Each part logs its own failure and the pass carries on. */
+  /** One background pass: indexes every Work Item's facts once while the index is empty, refreshes the indexes from recently active facts, reveals released rarities, records and settles mends, and publishes the card comment where it is turned on. Each part logs its own failure and the pass carries on. */
   async sweep(): Promise<void> {
     if (!(await this.available().catch(() => false))) return;
-    const state = this.store.importState().state;
-    if (state !== 'done') await this.importLegacy();
+    if (this.store.indexSize().workItems === 0) {
+      const indexed = await this.step('backfill', () => this.backfill());
+      if (indexed !== undefined) this.log('info', 'cards.indexed', { workItems: indexed });
+    }
     const recent = await this.step('refresh', () => this.refresh());
     await this.step('rarity', () => this.revealRarities(recent ?? []));
     await this.step('mends', () => this.settleMends());
@@ -416,28 +322,15 @@ export class CardService {
     return moment.key;
   }
 
-  /** The card domain's state for the Status page: who serves cards and how the import went. */
+  /** The card domain's state for the Status page: the recorded result of the one-time import from Ploeg, whether the comment is published and the index size. */
   status(): { import: CardImportRecord; publish: boolean; index: { workItems: number; files: number } } {
     return { import: this.store.importState(), publish: this.publish, index: this.store.indexSize() };
   }
 }
 
-/** Whether an exported play shape has the shape Ploeg's `playkpi.Shape` encodes, so a card can show it. */
-export function storedShape(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const s = value as Record<string, unknown>;
-  const complexity = s.complexity as Record<string, unknown> | null | undefined;
-  return typeof s.files === 'number' && typeof s.docsTouched === 'number' && Array.isArray(s.languages) && typeof s.capturedAt === 'string'
-    && (complexity === null || complexity === undefined || (typeof complexity === 'object' && Array.isArray(complexity.hotspots)));
-}
-
-/** The line the Status page shows about the import of Ploeg's card state. */
-export function importStatusLine(state: CardImportRecord): string {
-  switch (state.state) {
-    case 'done': return `Imported ${state.cracks} cracks, ${state.rarities} frozen rarities, ${state.comments} card comments and ${state.shapes} play shapes from Ploeg.`;
-    case 'running': return `Importing Ploeg's card state: ${state.cracks} cracks and ${state.rarities} frozen rarities so far.`;
-    case 'failed': return `The import of Ploeg's card state failed after ${state.attempts} attempt${state.attempts === 1 ? '' : 's'} and will be retried: ${state.message}`;
-    case 'unsupported': return 'Nothing imported from Ploeg: the connected Ploeg offers no card export. Unfold tries again when Ploeg is upgraded.';
-    default: return "Ploeg's card state has not been imported yet.";
-  }
+/** The line the Status page shows about the one-time import of Ploeg's card state, which Ploeg v0.2.0-rc.12 no longer offers: the recorded result when there is one, otherwise null. */
+export function importStatusLine(state: CardImportRecord): string | null {
+  if (state.state === 'pending') return null;
+  if (state.state === 'done') return `Imported ${state.cracks} cracks, ${state.rarities} frozen rarities, ${state.comments} card comments and ${state.shapes} play shapes from Ploeg.`;
+  return `The import of Ploeg's card state stopped (${state.state}) after ${state.cracks} cracks, ${state.rarities} frozen rarities, ${state.comments} card comments and ${state.shapes} play shapes, and Ploeg no longer offers it.`;
 }

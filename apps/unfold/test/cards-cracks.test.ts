@@ -504,7 +504,12 @@ test('AddWorkdays skips weekends (TestAddWorkdaysSkipsWeekends)', () => {
   assert.equal(addWorkdays(micros('2026-10-07T12:00:00Z'), 0), micros('2026-10-07T12:00:00Z'));
 });
 
-test('an imported Ploeg crack keeps its id, a recorded crack gets a local id, and a re-import changes nothing', () => {
+function importedRow(db: DatabaseSync, c: CrackRecord): void {
+  db.prepare(`INSERT INTO card_cracks(id,team,state,card_work_item_id,bug_work_item_id,bug_provider,bug_external_id,pull_request,severity,share,discovery,steward,note,proposed_by,proposed_at,origin)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'ploeg')`).run(Number(c.id), c.team, c.state, c.cardWorkItemId, c.bugWorkItemId, c.bug.provider, c.bug.externalId, c.pullRequest ? JSON.stringify(c.pullRequest) : null, c.severity, c.share, c.discovery, c.steward, c.note, c.proposedBy, c.proposedAt);
+}
+
+test('a crack imported from Ploeg earlier keeps its id and its workflow, and a recorded crack gets a local id', () => {
   const w = new World();
   const card = silverCard(w);
   const bug = silverBug(w);
@@ -514,20 +519,13 @@ test('an imported Ploeg crack keeps its id, a recorded crack gets a local id, an
     proposedBy: 'fixer', proposedAt: t(w.now - day), confirmedBy: null, confirmedAt: null, disputeUntil: null, disputedBy: null, disputedAt: null, disputeReason: null,
     resolvedBy: null, resolvedAt: null, resolution: null, evolvedBy: null, evolvedAt: null, mendPullRequest: null, mendNumber: null, mendedAt: null, mendedBy: null, mendBySteward: null, mendConfirmedAt: null, mendReopenedAt: null,
   };
-  assert.equal(w.store.importCrack(imported), true);
+  importedRow(w.db, imported);
   assert.deepEqual(w.store.crack('42'), imported);
   refused(() => w.propose(bug, card, 'fixer', 'S2'), 'already_attributed', 409);
 
   const local = w.propose(bug, silverCard(w, 'card-2'), 'fixer', 'S2');
   assert.ok(Number(local.id) >= firstLocalCrackId, `local id ${local.id}`);
-  assert.equal(w.store.importCrack(imported), false);
-  assert.equal(w.store.importCrack({ ...imported, state: 'confirmed', confirmedBy: 'second', confirmedAt: t(w.now) }), false);
-  assert.equal(w.store.importCrack({ ...imported, id: '43' }), false, 'a crack for an already attributed pair was imported');
-  assert.deepEqual(w.store.crack('42'), imported);
   assert.equal(w.store.cracksOfBug(bug.workItem.id).length, 2);
-
-  const lateImport = { ...imported, id: '44', cardWorkItemId: silverCard(w, 'card-3').workItem.id };
-  assert.equal(w.store.importCrack(lateImport), true);
   const again = new CardStore(w.db);
   const next = new CrackWorkflow(again).propose({ bug: silverBug(w, 'bug-2'), card, cardJson: w.card(card), play: 0, severity: 'S2', share: 'primary', discovery: '', note: '', by: actor('fixer'), now: w.now });
   assert.ok(Number(next.id) > Number(local.id), `a reopened store reused id ${next.id}`);

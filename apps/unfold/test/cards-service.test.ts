@@ -12,12 +12,11 @@ import { parseWorkItemFacts, type WorkItemFacts } from '../src/cards/facts.ts';
 import { micros } from '../src/cards/go.ts';
 import { CardService, importStatusLine, type CardLog } from '../src/cards/service.ts';
 import { validateCardRules } from '../src/cards/settings.ts';
-import type { AppConfig } from '../src/types.ts';
+import type { AppConfig, User } from '../src/types.ts';
 import { application, configuration, login, request } from './api-support.ts';
 
 type Json = Record<string, any>;
 type Seen = { method: string; path: string; query: URLSearchParams; actor?: string; body?: string };
-type ExportPage = { items: Json[]; nextAfter: string | null };
 
 const operator = '/api/v1/operator/';
 
@@ -45,9 +44,6 @@ async function ploegStub(t: TestContext, world: Json[]) {
   const state = {
     facts: true,
     world: new Map(world.map(f => [String(f.workItem.id), f])),
-    cards: {} as Record<string, Json>,
-    exportPages: null as null | Record<string, ExportPage>,
-    exportFailures: new Set<string>(),
     commentId: 555,
   };
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
@@ -67,13 +63,6 @@ async function ploegStub(t: TestContext, world: Json[]) {
         const team = url.searchParams.get('team');
         return send(200, { schemaVersion: '1.0', facts: [...state.world.values()].filter(f => !team || f.workItem.team === team).slice(0, 25), nextBefore: null });
       }
-      if (req.method === 'GET' && path === 'card-legacy-export') {
-        if (!state.exportPages) return missing();
-        const after = url.searchParams.get('after') ?? '';
-        if (state.exportFailures.delete(after)) return send(500, { error: { code: 'internal', message: 'boom' } });
-        const page = state.exportPages[after];
-        return page ? send(200, { schemaVersion: '1.0', deprecated: true, ...page }) : send(400, { error: { code: 'invalid_request', message: 'unknown cursor' } });
-      }
       const comment = /^work-items\/(\d+)\/pull-request-comments\/([a-z0-9-]+)$/.exec(path);
       if (req.method === 'PUT' && comment) {
         const sent = JSON.parse(body) as { number?: number };
@@ -88,8 +77,6 @@ async function ploegStub(t: TestContext, world: Json[]) {
         const entry = state.world.get(facts[1]);
         return state.facts && entry ? send(200, { schemaVersion: '1.0', facts: entry }) : missing();
       }
-      const card = /^work-items\/(\d+)\/card$/.exec(path);
-      if (card) return state.cards[card[1]] ? send(200, { schemaVersion: '1.0', card: state.cards[card[1]] }) : missing();
       const item = /^work-items\/(\d+)$/.exec(path);
       if (item && state.world.has(item[1])) return send(200, detail(state.world.get(item[1])!));
       return missing();
@@ -129,7 +116,10 @@ function readNow(value: unknown): unknown {
   return value;
 }
 
-const done = { state: 'done' as const, after: null, cracks: 0, rarities: 0, comments: 0, shapes: 0, attempts: 1, message: '', startedAt: '2026-10-10T12:00:00Z', finishedAt: '2026-10-10T12:00:01Z' };
+function recordImport(store: CardStore, state: string, counts: { cracks: number; rarities: number; comments: number; shapes: number }) {
+  store.db.prepare("INSERT INTO card_import(id,state,after,cracks,rarities,comments,shapes,attempts,message,started_at,finished_at) VALUES('ploeg-legacy',?,NULL,?,?,?,?,1,'',?,?)")
+    .run(state, counts.cracks, counts.rarities, counts.comments, counts.shapes, '2026-10-10T12:00:00Z', '2026-10-10T12:00:01Z');
+}
 
 test('with facts, the card route assembles the card from Ploeg’s facts, never asks Ploeg for a card and keeps the browser contract', async t => {
   const stub = await ploegStub(t, cardWorld.world);
@@ -162,27 +152,42 @@ test('with facts, the card route assembles the card from Ploeg’s facts, never 
   assert.equal((await request(server.url, '/api/ploeg/work-items/999/card', sessions.member)).status, 404, 'a Work Item Ploeg has no facts for is not found');
 });
 
-test('without facts, the card route reads Ploeg’s own card endpoint and logs once that it does', async t => {
-  const stub = await ploegStub(t, cardWorld.world);
+test('without facts, every card and crack route says so plainly and never asks Ploeg for a card', async t => {
+  const stub = await ploegStub(t, crackWorld.world);
   stub.state.facts = false;
-  stub.state.cards['177'] = cardWorld.card;
   const logged = t.mock.method(console, 'error', () => undefined);
-  const server = await application('live', config => { config.ploeg = { ...stub.config, userTeams: { member: ['silver'] } }; });
+  const server = await application('live', config => { config.ploeg = { ...stub.config, userTeams: { fixer: ['silver'] }, forgeLogins: { fixer: 'fixer' } }; });
   t.after(() => server.close());
-  const sessions = await users(server, [['member', 'viewer']]);
+  const s = await users(server, [['fixer', 'operator']]);
+  const unavailable = (answer: { status: number; body: Json }, route: string) => {
+    assert.deepEqual([answer.status, answer.body.error?.code], [503, 'cards_facts_unavailable'], route);
+    assert.match(answer.body.error.message, /delivery facts/, `${route} says why there are no cards`);
+  };
 
-  const answer = await request(server.url, '/api/ploeg/work-items/177/card', sessions.member);
-  assert.equal(answer.status, 200, answer.text);
-  assert.deepEqual(answer.body.card, JSON.parse(JSON.stringify(parseCard(cardWorld.card))), 'the old proxy passes Ploeg’s card through the browser parser');
-  assert.ok(stub.seen.some(s => s.path === `${operator}work-items/177/card`));
-  assert.equal(stub.seen.some(s => s.path.endsWith('/177/facts')), false, 'no facts are read from a Ploeg without them');
-  await request(server.url, '/api/ploeg/work-items/177/card?refresh=1', sessions.member);
-  const warnings = logged.mock.calls.map(call => String(call.arguments[0])).filter(line => line.includes('"cards.facts_unavailable"'));
-  assert.equal(warnings.length, 1, 'the fallback is logged once, not on every request');
-  assert.equal(JSON.parse(warnings[0]!).level, 'warn');
+  unavailable(await request(server.url, '/api/ploeg/work-items/181/card', s.fixer), 'card');
+  unavailable(await request(server.url, '/api/ploeg/work-items/184/cracks', s.fixer), 'cracks');
+  unavailable(await request(server.url, '/api/ploeg/work-items/184/crack-candidates', s.fixer), 'crack candidates');
+  unavailable(await request(server.url, '/api/ploeg/work-items/184/cracks', { method: 'POST', body: { card: '181', severity: 'S3', share: 'primary' }, ...s.fixer }), 'propose');
+  unavailable(await request(server.url, '/api/ploeg/work-items/184/evolved', { method: 'POST', body: { card: '181' }, ...s.fixer }), 'evolved');
+
+  const client = new PloegClient({ ...configuration('/unused', 'live'), ploeg: { ...stub.config, userTeams: { fixer: ['silver'] } } });
+  client.useCards(service(stub).cards);
+  const fixer: User = { id: 'fixer', name: 'fixer', role: 'operator' };
+  for (const list of [client.memberCards(fixer, ['fixer']), client.teamCards(fixer, 'silver', undefined)]) {
+    const code = await list.then(() => null, (error: Error & { code?: string }) => error.code);
+    assert.equal(code, 'cards_facts_unavailable', 'a card list is refused, not filled from Ploeg');
+  }
+
+  assert.equal(stub.seen.some(entry => /\/(card|cards|cracks|crack-candidates|evolved|card-legacy-export)$/.test(entry.path) || /\/cracks\/\d+\//.test(entry.path)), false, 'Ploeg’s removed card routes are never asked');
+  assert.deepEqual(stub.seen.filter(entry => entry.method !== 'GET').map(entry => entry.path), [], 'Ploeg hears no crack step');
+  assert.equal(logged.mock.calls.some(call => String(call.arguments[0]).includes('cards.facts_unavailable')), false, 'no fallback is logged, because there is none');
+
+  stub.state.facts = true;
+  const card = await request(server.url, '/api/ploeg/work-items/181/card?refresh=1', s.fixer);
+  assert.equal(card.status, 200, 'cards come back once Ploeg supplies facts again');
 });
 
-test('crack steps with facts are stored in Unfold, follow the two-person rule and wait for the import', async t => {
+test('crack steps with facts are stored in Unfold and follow the two-person rule', async t => {
   const stub = await ploegStub(t, crackWorld.world);
   const server = await application('live', config => {
     config.ploeg = {
@@ -197,14 +202,11 @@ test('crack steps with facts are stored in Unfold, follow the two-person rule an
   const post = (path: string, session: { cookie: string }, body: unknown = {}) => request(server.url, `/api/ploeg/work-items/${path}`, { method: 'POST', body, ...session });
   const proposal = { card: '181', severity: 'S3', share: 'primary', note: 'The pattern rejects a space.' };
 
-  const early = await post('184/cracks', s.fixer, proposal);
-  assert.deepEqual([early.status, early.body.error?.code], [503, 'cards_importing'], 'no crack is recorded before Ploeg’s cracks are imported');
   assert.equal((await post('184/cracks', s.watcher, proposal)).status, 403, 'a viewer cannot propose');
   const unmapped = await post('184/cracks', s.nologin, proposal);
   assert.deepEqual([unmapped.status, unmapped.body.error?.code], [403, 'ploeg_forge_login']);
   assert.equal((await post('184/cracks', s.goldie, proposal)).status, 404, 'another Team does not find the bug');
 
-  store.saveImportState(done);
   const proposed = await post('184/cracks', s.fixer, proposal);
   assert.equal(proposed.status, 201, proposed.text);
   const crack = proposed.body.crack;
@@ -215,15 +217,13 @@ test('crack steps with facts are stored in Unfold, follow the two-person rule an
   const listed = await request(server.url, '/api/ploeg/work-items/184/cracks', s.fixer);
   assert.equal(listed.status, 200, listed.text);
   assert.deepEqual(listed.body.cracks.map((c: Json) => [c.id, c.state]), [[crack.id, 'proposed']]);
+  assert.deepEqual(listed.body.viewer, { login: 'fixer', canAct: true, reason: '' });
+  assert.equal((await request(server.url, '/api/ploeg/work-items/184/cracks', s.watcher)).body.viewer.canAct, false, 'a viewer reads but cannot act');
+  assert.match((await request(server.url, '/api/ploeg/work-items/184/cracks', s.nologin)).body.viewer.reason, /no forge login yet/);
   assert.equal((await request(server.url, '/api/ploeg/work-items/184/cracks', s.goldie)).status, 404, 'another Team does not see the bug’s cracks');
   const candidates = await request(server.url, '/api/ploeg/work-items/184/crack-candidates', s.fixer);
   assert.equal(candidates.status, 200, candidates.text);
   assert.equal(candidates.body.crackCandidates.bug.workItemId, '184');
-
-  store.saveImportState({ ...done, state: 'running' });
-  const waiting = await post(`184/cracks/${crack.id}/confirm`, s.second);
-  assert.deepEqual([waiting.status, waiting.body.error?.code], [503, 'cards_importing'], 'a step waits while an import runs again');
-  store.saveImportState(done);
 
   for (const who of ['fixer', 'stewart'] as const) {
     const refused = await post(`184/cracks/${crack.id}/confirm`, s[who]);
@@ -254,138 +254,56 @@ test('crack steps with facts are stored in Unfold, follow the two-person rule an
   assert.equal(stub.seen.some(entry => /\/(cracks|crack-candidates)$/.test(entry.path)), false, 'Ploeg’s crack reads are not used either');
 });
 
-const recordedShape = { capturedAt: '2026-09-20T12:27:48Z', complexity: { added: 3, hotspots: [{ added: 3, path: 'pkg/a.go' }], maxDepth: 2, method: 'indentation/2026.1', net: 3, removed: 0 }, countedLines: 150, docsTouched: 1, files: 3, languages: [{ lines: 140, name: 'Go' }, { lines: 10, name: 'Markdown' }], testLines: 40, testRatio: 0.364, truncated: false };
-
-function exportCrack(id: string, card: string, bug: string, extra: Json = {}): Json {
-  return {
-    id, team: 'silver', state: 'confirmed', cardWorkItemId: card, bugWorkItemId: bug, bug: { provider: 'vikunja', externalId: `bug-${bug}` }, pullRequest: { id: '94', forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 10 },
-    severity: 'S3', share: 'primary', discovery: 'discovered', steward: 'stewart', note: null, proposedBy: 'fixer', proposedAt: '2026-10-01T10:00:00.123456+02:00', confirmedBy: 'second', confirmedAt: '2026-10-02T10:00:00Z',
-    disputeUntil: '2026-10-09T10:00:00Z', disputedBy: null, disputedAt: null, disputeReason: null, resolvedBy: null, resolvedAt: null, resolution: null, evolvedBy: null, evolvedAt: null,
-    mendPullRequest: null, mendNumber: null, mendedAt: null, mendedBy: null, mendBySteward: null, mendConfirmedAt: null, mendReopenedAt: null, ...extra,
-  };
+function ploegComment(store: CardStore) {
+  store.db.prepare("INSERT INTO card_comments(work_item_id,pull_request,moment,comment_id,image,published_at,checked_at,origin,adopted) VALUES('177',?,'',555,1,'2026-09-20T12:31:00Z','2026-09-20T12:31:00Z','ploeg',0)")
+    .run(JSON.stringify({ id: '94', forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 10 }));
 }
 
-const exportPages: Record<string, ExportPage> = {
-  '': {
-    items: [{
-      workItemId: '177', team: 'silver', provider: 'vikunja', externalId: 'card', cracks: [exportCrack('4', '177', '178')],
-      rarity: { formula: '2026.1', revealedTier: 'rare', predictedTier: 'common', score: 61.24, predictedScore: 40, percentile: null, cohortTarget: 'webgrip/ploeg', cohortQuarter: '2026Q3', cohortSize: 1, inputs: { size: 3 }, revealedAt: '2026-09-20T14:27:48+02:00', recordedAt: '2026-09-20T12:30:00Z', checkedAt: '2026-09-20T12:30:00Z' },
-      comment: { pullRequest: { id: '94', forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 10 }, moment: '', commentId: 555, image: true, publishedAt: '2026-09-20T12:31:00Z', checkedAt: '2026-09-20T12:31:00Z' },
-      shapes: [{ pullRequest: { id: '94', forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 10 }, shape: recordedShape }],
-      future: 'ignored',
-    }],
-    nextAfter: '177',
-  },
-  177: {
-    items: [{ workItemId: '200', team: 'silver', provider: 'vikunja', externalId: 'near', cracks: [exportCrack('9', '200', '205', { state: 'proposed', confirmedBy: null, confirmedAt: null, disputeUntil: null })], rarity: null, comment: null, shapes: [{ pullRequest: { id: '109', forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 10 }, shape: { ...recordedShape, files: 1 } }] }],
-    nextAfter: null,
-  },
-};
-
-const tableCount = (store: CardStore, table: string) => Number((store.db.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n);
-
-test('the one-time import reads every export page, counts what it stored and is a no-op once done', async t => {
-  const stub = await ploegStub(t, cardWorld.world);
-  stub.state.exportPages = structuredClone(exportPages);
-  const { cards, store } = service(stub);
-
-  assert.equal(importStatusLine(cards.status().import), "Ploeg's card state has not been imported yet.");
-  const result = await cards.importLegacy();
-  assert.equal(result.state, 'done', result.message);
-  assert.deepEqual({ cracks: result.cracks, rarities: result.rarities, comments: result.comments, shapes: result.shapes, after: result.after, attempts: result.attempts }, { cracks: 2, rarities: 1, comments: 1, shapes: 2, after: '177', attempts: 1 });
-  assert.deepEqual(cards.status().import, result);
-  assert.equal(importStatusLine(cards.status().import), 'Imported 2 cracks, 1 frozen rarities, 1 card comments and 2 play shapes from Ploeg.');
-  assert.match(result.message, /^Read the facts of 2 Work Items/);
-  assert.deepEqual(stub.seen.filter(s => s.path.endsWith('card-legacy-export')).map(s => [s.query.get('after'), s.query.get('limit')]), [[null, '200'], ['177', '200']]);
-
-  const imported = store.crack('4')!;
-  assert.deepEqual([imported.state, imported.cardWorkItemId, imported.bugWorkItemId, imported.proposedAt, imported.confirmedBy], ['confirmed', '177', '178', '2026-10-01T08:00:00.123456Z', 'second'], 'times are kept in UTC at microsecond precision');
-  assert.equal(store.storedRarity('177')?.revealedTier, 'rare');
-  assert.equal(store.storedRarity('177')?.score, 61.2, 'a frozen score keeps one decimal');
-  assert.deepEqual(store.comment('177'), { workItemId: '177', pullRequest: { id: '94', forge: 'forgejo', owner: 'webgrip', repo: 'ploeg', number: 10 }, moment: '', commentId: 555, image: true, publishedAt: '2026-09-20T12:31:00Z', checkedAt: '2026-09-20T12:31:00Z', origin: 'ploeg', adopted: false });
-  assert.deepEqual(store.playShape('94'), recordedShape);
-
-  const before = stub.seen.length;
-  const again = await cards.importLegacy();
-  assert.deepEqual(again, result, 'a finished import is not repeated');
-  assert.equal(stub.seen.length, before, 'and asks Ploeg nothing');
-  assert.deepEqual(['card_cracks', 'card_rarity', 'card_comments', 'card_play_shapes'].map(table => tableCount(store, table)), [2, 1, 1, 2], 'no row is duplicated');
-
-  const concurrent = service(stub);
-  const [one, two] = await Promise.all([concurrent.cards.importLegacy(), concurrent.cards.importLegacy()]);
-  assert.equal(one, two, 'two callers share one running import');
-  assert.equal(tableCount(concurrent.store, 'card_cracks'), 2);
-});
-
-test('an import that fails on page 2 keeps the cursor after page 1 and resumes there without duplicating page 1', async t => {
-  const stub = await ploegStub(t, cardWorld.world);
-  stub.state.exportPages = structuredClone(exportPages);
-  stub.state.exportFailures.add('177');
-  const logs: [string, string, Json][] = [];
-  const { cards, store } = service(stub, { log: (level, event, detail) => logs.push([level, event, detail]) });
-
-  const failed = await cards.importLegacy();
-  assert.equal(failed.state, 'failed');
-  assert.deepEqual({ after: failed.after, cracks: failed.cracks, rarities: failed.rarities, comments: failed.comments, shapes: failed.shapes, attempts: failed.attempts }, { after: '177', cracks: 1, rarities: 1, comments: 1, shapes: 1, attempts: 1 });
-  assert.equal(importStatusLine(failed), `The import of Ploeg's card state failed after 1 attempt and will be retried: ${failed.message}`);
-  assert.ok(failed.message.length > 0);
-  assert.ok(logs.some(([level, event, detail]) => level === 'warn' && event === 'cards.import_failed' && detail.after === '177'));
-
-  const crackRefused = await cards.propose('178', '177', { play: 0, severity: 'S3', share: 'primary', discovery: '', note: '' }, { person: 'fixer', audit: 'unfold:fixer' }).then(() => null, (error: Error & { code?: string }) => error.code);
-  assert.equal(crackRefused, 'importing', 'a failed import still holds crack steps back');
-
-  const resumed = await cards.importLegacy();
-  assert.equal(resumed.state, 'done', resumed.message);
-  assert.deepEqual({ cracks: resumed.cracks, rarities: resumed.rarities, comments: resumed.comments, shapes: resumed.shapes, attempts: resumed.attempts }, { cracks: 2, rarities: 1, comments: 1, shapes: 2, attempts: 2 });
-  assert.deepEqual(stub.seen.filter(s => s.path.endsWith('card-legacy-export')).map(s => s.query.get('after')), [null, '177', '177'], 'the retry starts at page 2');
-  assert.deepEqual(['card_cracks', 'card_rarity', 'card_comments', 'card_play_shapes'].map(table => tableCount(store, table)), [2, 1, 1, 2]);
-});
-
-test('a Ploeg without the export leaves the import unsupported, lets crack steps through and is asked again later', async t => {
-  const stub = await ploegStub(t, cardWorld.world);
-  const { cards } = service(stub);
-  const result = await cards.importLegacy();
-  assert.equal(result.state, 'unsupported');
-  assert.equal(importStatusLine(result), 'Nothing imported from Ploeg: the connected Ploeg offers no card export. Unfold tries again when Ploeg is upgraded.');
-  const again = await cards.importLegacy();
-  assert.deepEqual([again.state, again.attempts], ['unsupported', 2], 'an unsupported import is tried again');
-  const crack = await cards.propose('178', '177', { play: 0, severity: 'S3', share: 'primary', discovery: '', note: '' }, { person: 'fixer', audit: 'unfold:fixer' });
-  assert.equal(crack.state, 'proposed', 'there is nothing to wait for');
-});
-
-test('the Status page’s Ploeg check carries the Run cards line', async t => {
+test('the Status page’s Ploeg check keeps the recorded import result, and says nothing without one', async t => {
   const stub = await ploegStub(t, cardWorld.world);
   const server = await application('live', config => { config.ploeg = { ...stub.config }; });
   t.after(() => server.close());
   const admin = await login(server.url);
-  const counted = { ...done, cracks: 3, rarities: 2, comments: 1, shapes: 4 };
-  new CardStore(server.app.store.db).saveImportState(counted);
-  const status = await request(server.url, '/api/status', admin);
-  assert.equal(status.status, 200, status.text);
-  const ploeg = status.body.checks.find((check: Json) => check.id === 'ploeg');
-  assert.equal(ploeg.detail, `Run cards: ${importStatusLine(counted)}`);
-  assert.equal(ploeg.detail, 'Run cards: Imported 3 cracks, 2 frozen rarities, 1 card comments and 4 play shapes from Ploeg.');
+  const ploegCheck = async () => {
+    const status = await request(server.url, '/api/status', admin);
+    assert.equal(status.status, 200, status.text);
+    return status.body.checks.find((check: Json) => check.id === 'ploeg');
+  };
+  const store = new CardStore(server.app.store.db);
+  assert.equal(importStatusLine(store.importState()), null);
+  assert.equal((await ploegCheck()).detail, undefined, 'no import was recorded, so the check says nothing about it');
+
+  recordImport(store, 'done', { cracks: 3, rarities: 2, comments: 1, shapes: 4 });
+  assert.equal(importStatusLine(store.importState()), 'Imported 3 cracks, 2 frozen rarities, 1 card comments and 4 play shapes from Ploeg.');
+  const cached = await ploegCheck();
+  assert.equal(cached.detail, 'Run cards: Imported 3 cracks, 2 frozen rarities, 1 card comments and 4 play shapes from Ploeg.');
+  assert.equal(stub.seen.some(entry => entry.path.endsWith('card-legacy-export')), false, 'Unfold no longer asks Ploeg for the export');
+});
+
+test('an import that never finished stays on record as history', () => {
+  const store = new CardStore(new DatabaseSync(':memory:'));
+  recordImport(store, 'failed', { cracks: 1, rarities: 1, comments: 0, shapes: 0 });
+  assert.equal(importStatusLine(store.importState()), "The import of Ploeg's card state stopped (failed) after 1 cracks, 1 frozen rarities, 0 card comments and 0 play shapes, and Ploeg no longer offers it.");
 });
 
 test('the card comment is published through Ploeg’s keyed comment only when turned on, takes over Ploeg’s comment once and is not repeated', async t => {
   const stub = await ploegStub(t, cardWorld.world);
-  stub.state.exportPages = { '': { items: [exportPages['']!.items[0]!], nextAfter: null } };
   const now = '2026-10-10T12:27:48Z';
   const puts = () => stub.seen.filter(s => s.method === 'PUT');
 
   const off = service(stub, { publish: false, now, settings: { teams: { silver: { pullRequestComment: true } } } });
-  await off.cards.importLegacy();
+  ploegComment(off.store);
   assert.equal(await off.cards.publishComment('177'), null);
   assert.equal(off.cards.status().publish, false);
   assert.deepEqual(puts(), [], 'with cards.publishPullRequestComment off nothing is written');
 
   const notTeam = service(stub, { publish: true, now, settings: { teams: { silver: { referees: ['referee'] } } } });
-  await notTeam.cards.importLegacy();
+  ploegComment(notTeam.store);
   assert.equal(await notTeam.cards.publishComment('177'), null);
   assert.deepEqual(puts(), [], 'a Team that did not turn the comment on gets none');
 
   const on = service(stub, { publish: true, now, settings: { teams: { silver: { pullRequestComment: true } } } });
-  assert.equal((await on.cards.importLegacy()).comments, 1);
+  ploegComment(on.store);
   const moment = await on.cards.publishComment('177');
   assert.ok(moment?.startsWith('merged:10'), `the moment names the merged play: ${moment}`);
   assert.equal(puts().length, 1);
@@ -407,13 +325,9 @@ test('the card comment is published through Ploeg’s keyed comment only when tu
   assert.equal(puts().length, 1, 'and nothing more is written');
 });
 
-test('an exported play shape a card cannot show is skipped at import, and a shown shape without complexity reads none', async () => {
-  const { storedShape } = await import('../src/cards/service.ts');
+test('a shown shape without complexity reads none', async () => {
   const { shownShape } = await import('../src/cards/playkpi.ts');
   const good = { complexity: null, files: 2, countedLines: 10, testLines: 0, testRatio: 0, docsTouched: 0, languages: [], truncated: false, capturedAt: '2026-10-01T00:00:00Z' };
-  assert.equal(storedShape(good), true);
-  assert.equal(storedShape({ ...good, complexity: { method: 'indentation/2026.1', added: 1, removed: 0, net: 1, maxDepth: 1, hotspots: [] } }), true);
-  for (const bad of [null, [], 'shape', { ...good, files: '2' }, { ...good, languages: null }, { ...good, complexity: { added: 1 } }, { files: 1 }]) assert.equal(storedShape(bad), false, JSON.stringify(bad));
   const { complexity: _omitted, ...withoutComplexity } = good;
   assert.equal(shownShape(withoutComplexity as never).complexity, null);
 });
