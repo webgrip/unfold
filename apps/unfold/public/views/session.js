@@ -437,7 +437,7 @@ function failureMarkup(session) {
   const { steps, notes } = remediationSteps(failure?.remediation);
   const reconciling = session.status === 'failed' && canOperate() && session.costStatus === 'unknown';
   const statusLink = statusCauses.has(failure?.category) ? button({ label: 'Open Status', icon: 'check-circle', href: '#status' }) : '';
-  const actions = session.status === 'failed' && canOperate() ? `${session.costStatus !== 'unknown' ? button({ label: 'Try again', icon: 'refresh', variant: 'primary', action: 'retry' }) : ''}${button({ label: 'Duplicate as a new session', icon: 'copy', action: 'duplicate' })}${statusLink}` : statusLink;
+  const actions = session.status === 'failed' && canOperate() ? `${session.costStatus !== 'unknown' ? button({ label: 'Try again', icon: 'refresh', variant: 'primary', action: 'retry' }) : ''}${button({ label: 'Duplicate as a new session', icon: 'copy', action: 'duplicate' })}${session.execution && !session.workItemClosedAt ? button({ label: 'Close its Work Item', icon: 'x-circle', action: 'close-work-item' }) : ''}${statusLink}` : statusLink;
   const facts = [submissions[failure?.promptAcceptance], failure?.automaticRetry === false ? 'No automatic retry will be started.' : '', reconciling ? 'Try again becomes available once spend is reconciled.' : ''].filter(Boolean);
   const body = [
     `<p class="session-failure-lead">${escape(message)}</p>`,
@@ -791,6 +791,8 @@ function inspectEvidence(control) {
   if (control.getAttribute('role') !== 'tab') $('.session-evidence')?.scrollIntoView({ block: 'start' });
 }
 
+async function closeWorkItem(control) { control.disabled = true; try { state.session = await api(`/api/sessions/${state.session.id}/close-work-item`, { method: 'POST', body: '{}' }); notify('Closed. The Work Item has left Needs you; this session and its history stay.'); renderSession(); } catch (error) { notify(error.message, true); control.disabled = false; } }
+
 async function retry(control) { control.disabled = true; try { await api(`/api/sessions/${state.session.id}/retry`, { method: 'POST', body: '{}' }); notify('Trying again. The crew starts from the beginning.'); await openSession(state.session.id); } catch (error) { notify(error.message, true); control.disabled = false; } }
 
 function duplicate() { const source = state.session; location.hash = 'sessions'; openNew(); const form = $('#new-session form'); if (form) { for (const [name, value] of Object.entries({ title: source.title, objective: source.objective, repositoryId: source.repositoryId, crewId: source.crewId, model: source.model || '', budgetUsd: source.budgetUsd })) { const field = form.elements[name]; if (field) field.value = value; } if (source.placement && form.elements.placement) form.elements.placement.value = source.placement; if (source.approval === 'auto' && form.elements.approval) form.elements.approval.checked = true; const advanced = $('#new-advanced'); if (advanced && (source.model || source.approval === 'auto' || source.placement)) advanced.open = true; } }
@@ -890,6 +892,7 @@ export default {
     'download-artifact': downloadArtifact,
     review: control => openReviewDialog(control.dataset.decision),
     retry,
+    'close-work-item': closeWorkItem,
     duplicate,
     approval: setApproval,
     supervision: setSupervision,
