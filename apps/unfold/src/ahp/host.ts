@@ -1146,7 +1146,7 @@ export class AgentHost {
       client.subscriptions.add(channel);
       return snapshot;
     }
-    if (channel === automationsChannel && this.automations.available) { const state = await this.automations.snapshot(client.user); client.subscriptions.add(channel); return { resource: channel, state, fromSeq: this.serverSeq }; }
+    if (channel === automationsChannel) { const state = await this.automations.snapshot(client.user); client.subscriptions.add(channel); return { resource: channel, state, fromSeq: this.serverSeq }; }
     const parsed = parseChannel(channel);
     const loading = parsed ? this.sessionFor(client.user, channel) : undefined;
     if (loading) await this.loadCandidate(loading);
@@ -1691,7 +1691,7 @@ export class AgentHost {
         return;
       }
       if (parseAnnotationsChannel(channel)) { const refused = this.review.dispatchAnnotation(client, channel, action, origin); if (refused) reject(refused); return; }
-      if (channel === automationsChannel && this.automations.available) { reject(this.automations.refuse(action)); return; }
+      if (channel === automationsChannel) { reject(this.automations.refuse(action)); return; }
       const terminal = parseTerminalChannel(channel);
       if (terminal) { reject(this.sessionFor(client.user, sessionChannel(terminal.sessionId)) ? readOnlyTerminal : 'Terminal not found'); return; }
       const parsed = parseChannel(channel);

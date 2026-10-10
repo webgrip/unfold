@@ -63,11 +63,11 @@ export class TrackerAutomations {
   /** `InitializeResult.automations`: the baseline catalogue only, without `create`, `schedules` or `runCancellation`. */
   capabilities(): Json { return {}; }
 
-  /** The catalogue snapshot for one person. It also becomes the baseline later refreshes publish changes against. */
+  /** The catalogue snapshot for one person, empty with a reason when the host advertises no automations. It also becomes the baseline later refreshes publish changes against. */
   async snapshot(user: User): Promise<Json> {
     const routes = await this.routes(user);
     this.publish(user, routes.entries);
-    this.start();
+    if (this.available) this.start();
     return { entries: routes.entries, _meta: { [metaKey]: { readOnly: true, reason: routes.reason ?? readOnlyReason } } };
   }
 
