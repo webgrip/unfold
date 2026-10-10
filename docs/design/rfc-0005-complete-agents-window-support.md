@@ -2,7 +2,7 @@
 
 > Status: **Proposed** 2026-10-10 · Date: 2026-10-10 · Owner decision: "I want complete support." · Research: [VS Code 1.141 fit](../../apps/unfold/docs/research/2026-10-08-vscode-1-141-fit.md), [AHP sign-in spike](../../apps/unfold/docs/research/2026-10-10-ahp-sign-in-spike.md) · Decision record: [Unfold ADR 0012](../../apps/unfold/docs/adrs/0012-agent-host-protocol-host.md)
 >
-> **TL;DR.** A person can follow, steer, recover and review every Unfold session from VS Code's Agents window without the Unfold extension and without the browser. Phase 0 shipped with this RFC: a message no crew reads becomes a choice, a running session acknowledges every message, and a stopped session ends with its next steps. The rest is eleven work items in four phases. Five need an owner decision first, marked **Decision**.
+> **TL;DR.** A person can follow, steer, recover and review every Unfold session from VS Code's Agents window without the Unfold extension and without the browser. Phase 0 shipped with this RFC: a message no crew reads becomes a choice, a running session acknowledges every message, and a stopped session ends with its next steps. Two items landed beside it from other sessions on the same day: `serverSeq` persistence and a read-only automation catalogue. The rest is ten work items in four phases. Three need an owner decision, marked **Decision**, and one Phase 0 choice needs confirming.
 
 Everything below Phase 0 is proposed. Wire shapes marked **(bundle)** were read in the VS Code 1.141.0 stable bundle (`/Applications/Visual Studio Code.app/Contents/Resources/app/out/vs/sessions/sessions.desktop.main.js`) on 2026-10-10, with the byte offset of the code. No desktop VS Code has rendered any of it yet; that is [VIK-1922](https://vikunja.webgrip.dev/tasks/1922).
 
@@ -28,11 +28,13 @@ The rules stay: managed execution never falls back to standalone, nothing auto-r
 | Messages no crew reads | A choice: run again, deliver approved work first, or cancel | Phase 0 |
 | Stopped or failed sessions | A "What next?" choice from the recovery answer | Phase 0 |
 | Candidate | A `session` changeset with whole before and after files; **Accept** as an operation | `host.ts` `changesets`, `operations` |
-| `serverSeq` | In memory; resets to 0 on restart, and projections are never evicted | `host.ts` `serverSeq`, `projections` ([VIK-1646](https://vikunja.webgrip.dev/tasks/1646) closed, unbuilt) |
+| `serverSeq` | Reserved in blocks in the store, kept with remembered and active clients across a restart; an ended session's projection is evicted after ten idle minutes | `51a55029`, `apps/unfold/src/ahp/continuity.ts` ([VIK-1646](https://vikunja.webgrip.dev/tasks/1646)) |
+| Automations | A read-only catalogue of Ploeg's tracker routes; create, schedules, runs and cancellation refused | `cd32a431`, `apps/unfold/src/ahp/automations.ts`, ADR 0012 |
+| Needs-you notifications | The extension notifies the owner per state change, inside the VS Code window only | `4cdd2686` |
 | Questions | Text, single- and multi-select; declining is refused | [VIK-1921](https://vikunja.webgrip.dev/tasks/1921) |
 | Errors | `chat/error` with no `resumable`, so no Try Again | `closeTurn` |
 | Roles | Flat `systemNotification` lines; no nesting | `run.started` |
-| Terminals, plugins, automations, sign-in | None; terminals declined by ADR 0012; sign-in by pasted token | ADR 0012, sign-in spike |
+| Terminals, plugins, sign-in | None; terminals declined by ADR 0012; sign-in by pasted token | ADR 0012, sign-in spike |
 
 ### The incident that started this
 
@@ -62,19 +64,9 @@ Acceptance:
 - Microsoft's `@microsoft/agent-host-protocol` multi-host layer, which offers only `1.0.0`, connects and passes the SDK end-to-end run ([VIK-1926](https://vikunja.webgrip.dev/tasks/1926));
 - 1.141 still negotiates 0.9.0.
 
-### 1.2 Persist `serverSeq` and evict projections ([VIK-1646](https://vikunja.webgrip.dev/tasks/1646)) · M
+### 1.2 Persist `serverSeq` and evict projections ([VIK-1646](https://vikunja.webgrip.dev/tasks/1646)) · done
 
-`serverSeq` restarts at 0 after a restart, so a client that reconnects with `reconnect` cannot tell a replay from a gap. Projections of every session ever watched stay in memory.
-
-- Store the sequence in SQLite and bump it in a write-ahead block of 1000.
-- Keep `activeClients` and the remembered clients across a restart.
-- Evict a projection that nobody has subscribed to for 15 minutes; it rebuilds from events.
-
-Acceptance:
-
-- after `server.restart()`, `initialize.serverSeq` is above every value sent before the restart;
-- a reconnect within 30 s keeps its active-client entry;
-- heap stays flat across 1,000 subscribe and unsubscribe cycles.
+Landed on 2026-10-10 in `51a55029`, alongside this RFC: the sequence is reserved in blocks and never moves backwards, remembered and active clients survive a restart, and ended sessions' projections are evicted and rebuilt from events. Phase 0's choices are session events, so an evicted projection rebuilds them. Remaining acceptance: the desktop pass (4.1) reconnects after a production restart.
 
 ### 1.3 Errors map to Run again ("Try Again") ([VIK-1665](https://vikunja.webgrip.dev/tasks/1665) remainder) · S
 
@@ -207,7 +199,7 @@ Acceptance for (a): the branch picker shows the session branch and **Show Change
 
 **Model label.** **(bundle 20974200)** The label under a response resolves `turn.usage.model` first and then the user turn's `message.model.id`, printing "{name} ({rawId})". The host stamps every user turn with `config.models[0]`, whatever the Role used. Stop sending `message.model`. Send `usage.model` only when the gateway reported which model answered, and use an id from `agents[].models`.
 
-**OS notifications.** **(bundle 18859900, 18284529)** VS Code notifies on a status change to needs-input (bits 8|16), error (2), or complete (after 1.5 s), unless the window has focus or the chat is open. Set bits 8|16 while a crew question or a Phase 0 choice is open, so "Needs you" reaches the desktop. The server-side notifications of [RFC-0004](rfc-0004-unfold-on-phones-and-desktops.md) are the path when VS Code is closed.
+**OS notifications.** **(bundle 18859900, 18284529)** VS Code's Agents window notifies on a status change to needs-input (bits 8|16), error (2), or complete (after 1.5 s), unless the window has focus or the chat is open. The extension's own notifications (`4cdd2686`) show inside the window only and need the extension. Set bits 8|16 while a crew question or a Phase 0 choice is open, so "Needs you" reaches the desktop without it. The server-side notifications of [RFC-0004](rfc-0004-unfold-on-phones-and-desktops.md) are the path when VS Code is closed.
 
 Acceptance:
 
@@ -215,16 +207,9 @@ Acceptance:
 - a turn's label names the model the gateway reported, or nothing;
 - an unfocused window raises one notification per open choice.
 
-### 3.4 Automations · S · **Decision**
+### 3.4 Automations · decided and done
 
-**(bundle 18605803)** VS Code enables automations for a host only with `initializeResult.automations` and `_meta["vscode.autonomousAutomations"] === true`. The sub-capabilities are `create`, `runCancellation` and `customizations`.
-
-An automation would let VS Code start Unfold sessions on a schedule, which is paid work started without a person present. Ploeg already owns dispatch from the tracker.
-
-- **Recommended:** declare nothing; the host stays "unsupported".
-- **Alternative:** declare automations that only create queued sessions, never started.
-
-Acceptance: whichever is chosen is stated in ADR 0012, and the host advertises exactly that.
+Decided and built on 2026-10-10 in `cd32a431`, recorded in ADR 0012. **(bundle 18605803)** VS Code enables automations only with `initializeResult.automations` and `_meta["vscode.autonomousAutomations"] === true`. The host advertises the baseline catalogue without `create`, schedules or run cancellation, and lists one read-only entry per tracker route Ploeg runs; every change and manual run is refused, because a scheduled run would be budgeted work Ploeg never authorized. Nothing remains here but the desktop check in 4.1.
 
 ### 3.5 MCP and plugins for sessions · M
 
@@ -271,8 +256,8 @@ It is the gate for calling an item done; every **(bundle)** claim above is unver
 | --- | --- | --- | --- |
 | 0.1–0.3 | Every message lands | done | — |
 | 4.1 | Desktop pass for Phase 0 | M | Production on the release with Phase 0 |
-| 1.2 | `serverSeq` and eviction | M | — |
-| 1.1 | AHP 1.x | M | 1.2 |
+| 1.2 | `serverSeq` and eviction | done (`51a55029`) | — |
+| 1.1 | AHP 1.x | M | — |
 | 1.3 | Try Again | S | — |
 | 1.4 | Yes/no and spend | S | — |
 | 1.5 | Declining | S | **Decision** |
@@ -283,7 +268,7 @@ It is the gate for calling an item done; every **(bundle)** claim above is unver
 | 3.1 | Reject, request changes, comments | L | Ploeg review-round contract |
 | 2.3 | Read-only terminal | L | **Decision**, ADR 0012 amendment |
 | 3.2 | Agent Merge | M | **Decision** |
-| 3.4 | Automations | S | **Decision** |
+| 3.4 | Automations | done (`cd32a431`) | — |
 | 3.5 | Plugins | M | — |
 | 3.6 | Sign-in | S, then M | Upstream VS Code |
 
@@ -294,5 +279,4 @@ S is up to a day, M up to three days, L about a week, each including tests, docs
 1. **Declining a question (1.5).** Recommended: decline continues the crew with the decline recorded.
 2. **Terminals (2.3).** Recommended: a read-only live stream; never interactive.
 3. **Agent Merge (3.2).** Recommended: show branch changes only; merging stays a person's act.
-4. **Automations (3.4).** Recommended: declare none.
-5. **Phase 0 semantics, to confirm.** "Run again with this message" keeps the brief and gives the message to the new crew as its first instruction, rather than making the message the brief. A brief under 20 characters or 4 words is refused by the engine, and "Test" or "Make it funnier" alone would lose the original brief.
+4. **Phase 0 semantics, to confirm.** "Run again with this message" keeps the brief and gives the message to the new crew as its first instruction, rather than making the message the brief. A brief under 20 characters or 4 words is refused by the engine, and "Test" or "Make it funnier" alone would lose the original brief.
