@@ -53,22 +53,6 @@ Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent Hos
 **Also known as:** Agent Host Protocol  
 **See also:** [Unfold](#unfold), [Harness](../reference/glossary.md#harness)  
 
-## Ask
-*Context: Participation*
-
-A question a person asks about a Work Item, and its answer. Ploeg admits each Ask as a read-only Run with the Role ask, outside the Work Item's Shift, paid from an Ask Allowance; Unfold answers from the Work Item Brief with one model call. An Ask never reaches the agent doing the work. Proposed in system ADR-0031; not implemented yet.
-
-**Do not use:** chat, steer (for a question)  
-**Not to be confused with** [Session](#session): A message in a Session steers the agent's next Run; an Ask only explains.  
-**See also:** [Ask Allowance](#ask-allowance), [Work Item Brief](#work-item-brief), [Run](../reference/glossary.md#run)  
-
-## Ask Allowance
-*Context: Billing*
-
-The monthly Budget for Asks held by one scope: a Team in phase 1, a Client in phase 2. Ploeg admits an Ask only when the allowance still covers the per-Ask Budget, and never tops it up silently. Its amounts are in system ADR-0006. Proposed in system ADR-0031; not implemented yet.
-
-**See also:** [Ask](#ask), [Budget](#budget), [Client](#client)  
-
 ## Attention Path
 *Context: Work*
 
@@ -477,7 +461,7 @@ The product, its application and the monorepo that holds them. In the Unfold app
 
 The Client-safe projection of a Work Item that an Ask answers from: its title, objective, Acceptance Conditions, state, Runs with their summaries and Verdicts, pull request and preview status, and spend totals. It never holds prompts, tool input or output, transcripts, diffs, gateway details, operator notes or another Work Item's facts. Proposed in system ADR-0031.
 
-**See also:** [Ask](#ask), [Client](#client)  
+**See also:** [Ask](../reference/glossary.md#ask), [Client](#client)  
 
 ## Workspace
 *Context: Execution*
