@@ -294,6 +294,7 @@ The bridge sends a versioned `start` JSON line on stdin, forwards human response
 - To steer a running role, pause, record the instruction and explicitly resume. Preserve the original objective history and authorization.
 - If a reviewer requests changes or gives no conclusive approval, inspect the findings and decide the next task. There is no automatic unlimited review loop.
 - If the server restarts, active sessions become interrupted. Inspect retained changes, resolve uncertain spend and explicitly resume. Do not create a replacement session to bypass accounting.
+- An attached Agents window resumes on its own after a restart: the workbench remembers it, gives it fresh snapshots and keeps which windows were active in each session. Nothing it saw before the restart is replayed out of order ([API contract](../contracts/api.md)).
 - To add budget, an administrator authorizes a positive increment within the total configured limit. Active spending may need to be paused and reconciled first.
 - Back up SQLite consistently using a SQLite-aware snapshot or by stopping the single server before copying the database and associated files. Preserve retained workspace/PVC evidence separately and test restore before relying on it.
 

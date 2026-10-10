@@ -79,6 +79,8 @@ VS Code 1.141 cannot sign a person in to this host, and VS Code main does not ch
 
 Decision: after sign-in, the extension writes the entry straight into the default profile's user `settings.json`. It keeps comments and indentation and replaces the file in one atomic rename, as a hand-edited proof did against a running 1.141.0, which connected without a reload. The extension uses the configuration API only where the setting is registered, reuses a stored token the host still accepts, and mints nothing when the file cannot be parsed or written. `unfold.agentHost.autoConnect` opts out ([operations guide](../operations/live.md#attaching-vs-code-as-an-agent-host-client)). The token sits in plain text in that setting, which is how VS Code stores it.
 
+2026-10-10: `serverSeq` is reserved in blocks in the store and never moves backwards across a restart, remembered clients and `activeClients` survive a restart, and an ended session's projection is evicted on dispose or after ten idle minutes without subscribers and rebuilt from its events on subscribe ([VIK-1646](https://vikunja.webgrip.dev/tasks/1646)).
+
 ## Update, 2026-10-10: automations
 
 Evidence: VS Code 1.141.0's `sessions.desktop.main.js` (`AgentHostAutomationStore` and the connection gate in front of it) and the AHP automation types at [`types/channels-automation`](https://github.com/microsoft/agent-host-protocol/tree/main/types/channels-automation), read at `cb6ba61`. The owner asked for automations support on 2026-10-10.
