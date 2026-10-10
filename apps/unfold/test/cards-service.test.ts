@@ -112,7 +112,10 @@ async function users(server: Awaited<ReturnType<typeof application>>, list: [str
 function readNow(value: unknown): unknown {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && Math.abs(Date.parse(value) - Date.now()) < 120_000) return 'now';
   if (Array.isArray(value)) return value.map(readNow);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, readNow(entry)]));
+  if (value && typeof value === 'object') {
+    const read = Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, readNow(entry)]));
+    return read.running === true && read.to === 'now' ? { ...read, seconds: 'until now', workingSeconds: 'until now' } : read;
+  }
   return value;
 }
 
