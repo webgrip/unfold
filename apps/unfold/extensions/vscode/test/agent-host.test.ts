@@ -6,7 +6,7 @@ import { chmod, lstat, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  SettingsFileError, agentHostStore, agentHostTokenId, attachAgentHost, connectionAddress, detachAgentHost, editSetting, fileStore, hasAgentHost,
+  SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowState, agentsWindowStatusText, attachAgentHost, connectionAddress, detachAgentHost, editSetting, fileStore, hasAgentHost,
   probeAgentHostToken, userSettingsFile, withAgentHost, withoutIssuedAgentHost,
   type AgentHostEntry, type AgentHostStore, type AttachRequest, type SettingsConfiguration, type TokenProbe,
 } from '../src/agent-host.ts';
@@ -234,4 +234,19 @@ test('a token the workbench rejected is retired after its replacement is remembe
 test('a token\'s identifier is the SHA-256 digest the workbench stores', () => {
   assert.equal(agentHostTokenId('token-value'), createHash('sha256').update('token-value').digest('hex'));
   assert.match(agentHostTokenId('x'), /^[0-9a-f]{64}$/);
+});
+
+test('the Agents window counts as attached only when it connected with this editor\'s token', () => {
+  const mine = agentHostTokenId('mine');
+  const window = { name: 'vscode-agents-window', version: '1.141.0', connectedAt: '2026-10-10T12:00:00.000Z', tokenId: mine };
+  const otherDevice = { ...window, tokenId: agentHostTokenId('laptop') };
+  const probe = { name: 'unfold-cli', connectedAt: '2026-10-10T12:00:00.000Z', tokenId: mine };
+  assert.deepEqual(agentsWindowState([probe, window], mine), { status: 'connected', client: window });
+  assert.deepEqual(agentsWindowState([otherDevice, probe], mine), { status: 'not-connected' }, 'another device\'s Agents window does not confirm this one');
+  assert.deepEqual(agentsWindowState([], mine), { status: 'not-connected' });
+  assert.deepEqual(agentsWindowState(undefined, mine), { status: 'unknown' }, 'a workbench without the attached list confirms nothing');
+  assert.equal(agentsWindowStatusText({ status: 'connected', client: window }, 'unfold.example')?.text, 'Unfold · Agents window $(check)');
+  assert.match(agentsWindowStatusText({ status: 'connected', client: window }, 'unfold.example')!.tooltip, /unfold\.example \(VS Code 1\.141\.0\)/);
+  assert.match(agentsWindowStatusText({ status: 'not-connected' }, 'unfold.example')!.text, /not connected/);
+  assert.equal(agentsWindowStatusText({ status: 'unknown' }, 'unfold.example'), undefined);
 });

@@ -28,6 +28,13 @@ export type SessionScheme = typeof provider | 'ahp-session';
 
 const vscodeWindows = new Set(['vscode-editor-window', 'vscode-agents-window']);
 
+function describedClient(clientInfo: unknown): { name?: string; version?: string } {
+  const info = (clientInfo && typeof clientInfo === 'object' ? clientInfo : {}) as Record<string, unknown>;
+  const field = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim().slice(0, 100) : undefined;
+  const name = field(info.name); const version = field(info.version);
+  return { ...(name ? { name } : {}), ...(version ? { version } : {}) };
+}
+
 /** VS Code's own host rule: only a client whose `clientInfo` names a VS Code window and that does not declare {@link sessionUrisMeta} gets the provider spelling. */
 export function sessionSchemeFor(clientInfo: unknown, meta: unknown): SessionScheme {
   const name = (clientInfo as { name?: unknown } | undefined)?.name;
@@ -35,7 +42,9 @@ export function sessionSchemeFor(clientInfo: unknown, meta: unknown): SessionSch
 }
 
 type Json = Record<string, any>;
-type Client = { id: string; clientId?: string; scheme: SessionScheme; connection: WebSocketConnection; user: User; token: string; checkedAt: number; subscriptions: Set<string>; initialized: boolean; activeSessions?: number };
+type Client = { id: string; clientId?: string; scheme: SessionScheme; connection: WebSocketConnection; user: User; token: string; checkedAt: number; connectedAt: string; clientInfo?: { name?: string; version?: string }; subscriptions: Set<string>; initialized: boolean; activeSessions?: number };
+/** One initialized connection as its owner sees it in `GET /api/agent-host`. */
+export type AttachedClient = { name?: string; version?: string; connectedAt: string; tokenId: string };
 type View = Pick<Client, 'user' | 'scheme'>;
 type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
@@ -172,7 +181,7 @@ export class AgentHost {
   private readonly pending = new Map<string, PendingSession>();
   private readonly summaries = new Map<string, string>();
   private readonly activeClients = new Map<string, Map<string, Json>>();
-  private readonly knownClients = new Map<string, { userId: string; scheme: SessionScheme }>();
+  private readonly knownClients = new Map<string, { userId: string; scheme: SessionScheme; clientInfo?: Client['clientInfo'] }>();
   private readonly departing = new Map<string, ReturnType<typeof setTimeout>>();
   /** How long an active client whose last connection closed keeps its place, waiting for its reconnect: 30 seconds, as in VS Code's own host. */
   activeClientGraceMs = 30_000;
@@ -252,13 +261,20 @@ export class AgentHost {
     const authenticated = this.authenticate(url.searchParams.get('tkn'));
     if (!authenticated) { rejectUpgrade(socket, 403, 'Forbidden'); return true; }
     const connection = upgradeToWebSocket(req, socket, head);
-    const client: Client = { id: randomUUID(), scheme: provider, connection, user: authenticated.user, token: authenticated.key, checkedAt: Date.now(), subscriptions: new Set(), initialized: false };
+    const client: Client = { id: randomUUID(), scheme: provider, connection, user: authenticated.user, token: authenticated.key, checkedAt: Date.now(), connectedAt: new Date().toISOString(), subscriptions: new Set(), initialized: false };
     this.clients.add(client);
     connection.on('message', text => void this.receive(client, text));
     connection.on('close', () => { this.clients.delete(client); this.dropActiveClient(client); if (!this.clients.size) this.stopPolling(); });
     connection.on('error', () => {});
     this.startPolling();
     return true;
+  }
+
+  /** The person's own initialized connections, oldest first, with what each client said about itself in `initialize`. */
+  attachedClients(user: User): AttachedClient[] {
+    return [...this.clients].filter(client => client.initialized && client.user.id === user.id)
+      .map(client => ({ ...client.clientInfo, connectedAt: client.connectedAt, tokenId: client.token }))
+      .sort((a, b) => a.connectedAt.localeCompare(b.connectedAt));
   }
 
   close(): void { this.closed = true; this.stopPolling(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
@@ -843,9 +859,9 @@ export class AgentHost {
     return snapshot;
   }
 
-  private remember(clientId: string, user: User, scheme: SessionScheme): void {
+  private remember(clientId: string, user: User, scheme: SessionScheme, clientInfo: Client['clientInfo']): void {
     this.knownClients.delete(clientId);
-    this.knownClients.set(clientId, { userId: user.id, scheme });
+    this.knownClients.set(clientId, { userId: user.id, scheme, clientInfo });
     if (this.knownClients.size > maxKnownClients) this.knownClients.delete(this.knownClients.keys().next().value!);
   }
 
@@ -858,8 +874,8 @@ export class AgentHost {
       if (!negotiated) throw new RpcError(codes.unsupportedVersion, `None of the offered protocol versions is in ${supportedVersions.join(', ')}`, { supportedVersions });
       if (typeof params.clientId !== 'string') throw new RpcError(codes.invalidParams, 'clientId is required');
       const declaresSessionUris = params._meta?.[sessionUrisMeta] === true;
-      client.clientId = params.clientId; client.scheme = sessionSchemeFor(params.clientInfo, params._meta); client.initialized = true;
-      this.remember(params.clientId, client.user, client.scheme);
+      client.clientId = params.clientId; client.scheme = sessionSchemeFor(params.clientInfo, params._meta); client.initialized = true; client.clientInfo = describedClient(params.clientInfo);
+      this.remember(params.clientId, client.user, client.scheme, client.clientInfo);
       this.resumeActiveClient(params.clientId, Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
@@ -868,8 +884,8 @@ export class AgentHost {
     if (method === 'reconnect' && !client.initialized) {
       const known = typeof params.clientId === 'string' ? this.knownClients.get(params.clientId) : undefined;
       if (!known || known.userId !== client.user.id) throw new RpcError(codes.notFound, 'This host does not know that client; initialize');
-      client.clientId = params.clientId; client.scheme = params._meta?.[sessionUrisMeta] === true ? 'ahp-session' : known.scheme; client.initialized = true;
-      this.remember(params.clientId, client.user, client.scheme);
+      client.clientId = params.clientId; client.scheme = params._meta?.[sessionUrisMeta] === true ? 'ahp-session' : known.scheme; client.initialized = true; client.clientInfo = known.clientInfo;
+      this.remember(params.clientId, client.user, client.scheme, client.clientInfo);
       this.resumeActiveClient(params.clientId, Array.isArray(params.subscriptions) ? params.subscriptions : []);
     }
     if (!client.initialized) throw new RpcError(codes.invalidRequest, 'initialize first');

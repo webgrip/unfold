@@ -218,7 +218,7 @@ Delivery applies only to a shared Ploeg execution on a repository with a configu
 
 | Method and path | Behavior |
 | --- | --- |
-| `GET /api/agent-host` | Protocol version, WebSocket address, connected client count and the shape of the VS Code setting |
+| `GET /api/agent-host` | Protocol version, WebSocket address, the shape of the VS Code setting, and the caller's own initialized connections: `clients` counts them and `attached` lists each as `{name?, version?, connectedAt, tokenId}`, oldest first. `name` and `version` are the `clientInfo` the client sent in `initialize`, and `tokenId` is the `id` of the token it connected with. Another person's connections never appear |
 | `POST /api/agent-host/tokens` | `{label?}` → `{token, id, address, vscodeSetting}`, status 201; viewers are refused. The token is shown once and bound to the caller and the sign-in that issued it. `id` is the token's SHA-256 digest in lowercase hex |
 | `DELETE /api/agent-host/tokens/:id` | `{revoked: true}`; revokes one of the caller's tokens and closes its open connections with WebSocket code 1008. It needs the mutation header, as `POST` does. A token that is unknown, already revoked or another person's answers 404 `not_found` |
 

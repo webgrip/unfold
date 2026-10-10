@@ -290,3 +290,31 @@ export async function detachAgentHost(store: AgentHostStore, address: string, is
   await store.update(current => withoutIssuedAgentHost(current, address, issuedToken));
   return true;
 }
+
+/** One connection the workbench lists under `attached` in `GET /api/agent-host`: only the signed-in person's own. */
+export type AttachedClient = { name?: string; version?: string; connectedAt: string; tokenId?: string };
+
+export type AgentsWindowState =
+  | { status: 'connected'; client: AttachedClient }
+  | { status: 'not-connected' }
+  | { status: 'unknown' };
+
+const agentsWindowClient = 'vscode-agents-window';
+
+/**
+ * Whether a VS Code Agents window is attached with this editor's token. `unknown` means the workbench predates the
+ * `attached` list, so nothing can be confirmed either way.
+ */
+export function agentsWindowState(attached: readonly AttachedClient[] | undefined, tokenId: string | undefined): AgentsWindowState {
+  if (!Array.isArray(attached)) return { status: 'unknown' };
+  const windows = attached.filter(client => client.name === agentsWindowClient);
+  const client = windows.find(item => tokenId && item.tokenId === tokenId) ?? (tokenId ? undefined : windows[0]);
+  return client ? { status: 'connected', client } : { status: 'not-connected' };
+}
+
+/** The status bar text and tooltip for an Agents window state; undefined hides the item. */
+export function agentsWindowStatusText(state: AgentsWindowState, host: string): { text: string; tooltip: string } | undefined {
+  if (state.status === 'unknown') return undefined;
+  if (state.status === 'connected') return { text: 'Unfold · Agents window $(check)', tooltip: `The Agents window is attached to Unfold at ${host}${state.client.version ? ` (VS Code ${state.client.version})` : ''}.` };
+  return { text: '$(debug-disconnect) Unfold · Agents window not connected', tooltip: `No Agents window is attached to Unfold at ${host} with this editor's token. Click to troubleshoot.` };
+}

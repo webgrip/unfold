@@ -87,6 +87,12 @@
         "icon": "$(remote)"
       },
       {
+        "command": "unfold.agentsWindowStatus",
+        "title": "Check Agents Window Connection",
+        "category": "Unfold",
+        "icon": "$(remote)"
+      },
+      {
         "command": "unfold.refresh",
         "title": "Refresh",
         "category": "Unfold",

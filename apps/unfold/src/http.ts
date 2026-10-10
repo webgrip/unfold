@@ -284,7 +284,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         if (path === '/api/agent-host' || path === '/api/agent-host/tokens' || agentHostToken) {
           if (!agentHost) fault(404, 'agent_host_disabled', 'The agent host is not enabled on this workbench.');
           const address = (config.baseUrl ?? `http://${config.host}:${config.port}`).replace(/^http/, 'ws');
-          if (method === 'GET' && path === '/api/agent-host') return json(res, 200, { protocolVersion: agentHostProtocolVersion, address, provider: 'unfold', clients: agentHost!.clients.size, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
+          if (method === 'GET' && path === '/api/agent-host') {
+            const attached = agentHost!.attachedClients(user);
+            return json(res, 200, { protocolVersion: agentHostProtocolVersion, address, provider: 'unfold', clients: attached.length, attached, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
+          }
           if (method === 'POST' && path === '/api/agent-host/tokens') {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host.');
             const data = await body(req);

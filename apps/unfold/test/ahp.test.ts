@@ -4,7 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { application, login, request } from './api-support.ts';
 import { chatChannel, diffEntries, parseChannel } from '../src/ahp/host.ts';
-import { settle, testTimeout } from './timeframes.ts';
+import { settle, testTimeout, waitFor } from './timeframes.ts';
 import { action, closed, connect, defaultChatOf, vscodeAgentsWindow, type Json } from './ahp-support.ts';
 
 test('the agent host speaks AHP 0.9: initialize, create a session from a chat, stream the crew, share state with a second client and expose the candidate as a changeset', { timeout: testTimeout(60_000) }, async t => {
@@ -200,6 +200,47 @@ test('an owner revokes one agent host token by its identifier, which closes its 
   t.after(() => still.close());
   await still.open;
   assert.deepEqual(await still.rpc('ping', { channel: 'ahp-root://' }), {}, 'the person\'s other tokens keep working');
+});
+
+test('GET /api/agent-host lists only the caller\'s own initialized clients, with what each said about itself', async t => {
+  const server = await application('live');
+  t.after(() => server.close());
+  const { hashPassword } = await import('../src/auth.ts');
+  server.app.store.addUser({ id: 'peer-ahp', name: 'peer-ahp', role: 'operator', passwordHash: await hashPassword('operator-password-314159') });
+  const owner = await login(server.url);
+  const peer = await login(server.url, 'peer-ahp', 'operator-password-314159');
+  const address = (token: string) => `${server.url.replace(/^http/, 'ws')}/?tkn=${token}`;
+  const mine = (await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: owner.cookie, body: {} })).body;
+  const theirs = (await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: peer.cookie, body: {} })).body;
+  assert.deepEqual((await request(server.url, '/api/agent-host', { cookie: owner.cookie })).body.attached, []);
+
+  const pending = connect(address(mine.token));
+  t.after(() => pending.close());
+  await pending.open;
+  const window = connect(address(mine.token));
+  t.after(() => window.close());
+  await window.open;
+  await window.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'owner-window', clientInfo: { ...vscodeAgentsWindow, version: '1.141.0' }, initialSubscriptions: [] });
+  const other = connect(address(theirs.token));
+  t.after(() => other.close());
+  await other.open;
+  await other.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'peer-window', clientInfo: { name: 'peer-secret-client', version: '9' }, initialSubscriptions: [] });
+
+  const view = (await request(server.url, '/api/agent-host', { cookie: owner.cookie })).body;
+  assert.equal(view.clients, 1, 'the count is the caller\'s own, not the workbench\'s');
+  assert.equal(view.attached.length, 1, 'a connection that has not initialized is not attached yet');
+  const [attached] = view.attached;
+  assert.equal(attached.name, 'vscode-agents-window');
+  assert.equal(attached.version, '1.141.0');
+  assert.equal(attached.tokenId, mine.id, 'the editor can tell its own token from another device\'s');
+  assert.ok(Math.abs(Date.parse(attached.connectedAt) - Date.now()) < 60_000);
+  assert.ok(!JSON.stringify(view).includes('peer-secret-client') && !JSON.stringify(view).includes(theirs.id), 'another person\'s clients never appear');
+  assert.equal((await request(server.url, '/api/agent-host', { cookie: peer.cookie })).body.attached[0].name, 'peer-secret-client');
+
+  const gone = closed(window.socket);
+  window.close();
+  await gone;
+  await waitFor(async () => (await request(server.url, '/api/agent-host', { cookie: owner.cookie })).body.attached, attached => attached.length === 0, { reason: 'a closed window is no longer attached', withinMs: 10_000 });
 });
 
 test('the agent host keeps each user to their own sessions, summaries and rejections', { timeout: testTimeout(60_000) }, async t => {
