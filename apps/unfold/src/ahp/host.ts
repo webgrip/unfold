@@ -9,6 +9,7 @@ import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile }
 import type { AppConfig, Event, PermissionRequest, Repository, Session, User, WorkspaceBackend } from '../types.ts';
 import type { Recovery } from '../engine.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
+import { IdleSessions, RememberedClients, ServerSequence, restoreActiveClients, saveActiveClients } from './continuity.ts';
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
 import { money } from '../../public/core/format.js';
 
@@ -230,12 +231,17 @@ export class AgentHost {
   readonly store: Store;
   readonly engine: Engine;
   readonly clients = new Set<Client>();
-  serverSeq = 0;
+  private readonly sequence: ServerSequence;
+  /** The last sequence number the host gave an action. It never moves backwards, also not across a restart. */
+  get serverSeq(): number { return this.sequence.current; }
+  set serverSeq(next: number) { this.sequence.advanceTo(next); }
   private readonly projections = new Map<string, Projection>();
   private readonly pending = new Map<string, PendingSession>();
   private readonly summaries = new Map<string, string>();
-  private readonly activeClients = new Map<string, Map<string, Json>>();
-  private readonly knownClients = new Map<string, { userId: string; scheme: SessionScheme; clientInfo?: Client['clientInfo'] }>();
+  private readonly activeClients: Map<string, Map<string, Json>>;
+  private readonly knownClients: RememberedClients<SessionScheme>;
+  private readonly idleSessions = new IdleSessions();
+  private readonly sweeper: ReturnType<typeof setInterval>;
   private readonly departing = new Map<string, ReturnType<typeof setTimeout>>();
   /** How long an active client whose last connection closed keeps its place, waiting for its reconnect: 30 seconds, as in VS Code's own host. */
   activeClientGraceMs = 30_000;
@@ -250,7 +256,39 @@ export class AgentHost {
 
   constructor(config: AppConfig, store: Store, engine: Engine) {
     this.config = config; this.store = store; this.engine = engine;
+    this.sequence = new ServerSequence(store);
+    this.knownClients = new RememberedClients(store, maxKnownClients);
+    this.activeClients = restoreActiveClients(store);
+    for (const clientId of new Set([...this.activeClients.values()].flatMap(clients => [...clients.keys()]))) this.awaitReturn(clientId);
+    this.sweeper = setInterval(() => this.evictIdleSessions(), Math.min(60_000, this.idleSessions.idleMs));
+    this.sweeper.unref();
   }
+
+  /** Evicts the projection and summary of every ended session nobody has subscribed to for the idle period; a later subscribe rebuilds them from the durable events. Returns the evicted session ids. */
+  evictIdleSessions(now = Date.now()): string[] {
+    const due = this.idleSessions.sweep(this.cachedSessions(), id => this.evictable(id), now);
+    for (const id of due) this.evict(id);
+    return due;
+  }
+
+  /** The sessions whose projection or summary the host holds in memory. */
+  cachedSessions(): string[] { return [...new Set([...this.projections.keys(), ...this.summaries.keys()])]; }
+
+  private evictable(id: string): boolean {
+    const session = this.store.getSession(id);
+    if ((session && !['completed', 'cancelled', 'failed'].includes(session.status)) || this.offering.has(id)) return false;
+    const publicId = this.publicId(id);
+    return ![...this.clients].some(client => [...client.subscriptions].some(channel => sessionIdFrom(channel) === publicId));
+  }
+
+  private evict(id: string): void {
+    this.projections.delete(id);
+    this.summaries.delete(id);
+    for (const key of [...this.candidates.keys()]) if (key.startsWith(`${id}:`)) this.candidates.delete(key);
+    this.idleSessions.forget(id);
+  }
+
+  private persistActiveClients(): void { saveActiveClients(this.store, this.activeClients); }
 
   /** Connection tokens expire after `auth.sessionHours` without use, and end with the sign-in that issued them. */
   issueToken(user: User, label = 'agent host', signIn?: string): string {
@@ -334,7 +372,7 @@ export class AgentHost {
       .sort((a, b) => a.connectedAt.localeCompare(b.connectedAt));
   }
 
-  close(): void { this.closed = true; this.stopPolling(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
+  close(): void { this.closed = true; this.stopPolling(); clearInterval(this.sweeper); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
 
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
@@ -1068,9 +1106,7 @@ export class AgentHost {
   }
 
   private remember(clientId: string, user: User, scheme: SessionScheme, clientInfo: Client['clientInfo']): void {
-    this.knownClients.delete(clientId);
-    this.knownClients.set(clientId, { userId: user.id, scheme, clientInfo });
-    if (this.knownClients.size > maxKnownClients) this.knownClients.delete(this.knownClients.keys().next().value!);
+    this.knownClients.remember(clientId, { userId: user.id, scheme, ...(clientInfo ? { clientInfo } : {}) });
   }
 
   private async request(client: Client, method: string, params: Json): Promise<Json> {
@@ -1137,7 +1173,7 @@ export class AgentHost {
     if (activeClient !== undefined && (!activeClient || typeof activeClient !== 'object' || activeClient.clientId !== client.clientId)) throw new RpcError(codes.invalidParams, 'activeClient.clientId must be the clientId this client initialized with');
     const pending: PendingSession = { id: parsed.id, uri: channel, config, user: client.user, createdAt: new Date().toISOString() };
     this.pending.set(parsed.id, pending);
-    if (activeClient) this.activeClients.set(parsed.id, new Map([[client.clientId!, activeClient]]));
+    if (activeClient) { this.activeClients.set(parsed.id, new Map([[client.clientId!, activeClient]])); this.persistActiveClients(); }
     client.subscriptions.add(channel);
     queueMicrotask(() => { this.broadcast(channel, { type: 'session/ready' }); if (activeClient) this.broadcast(channel, { type: 'session/activeClientSet', activeClient }); this.notify(rootChannel, 'root/sessionAdded', viewer => ({ channel: rootChannel, summary: this.pendingSummary(pending, viewer) }), client.user.id); });
     return {};
@@ -1166,6 +1202,7 @@ export class AgentHost {
       if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
       this.pending.delete(pending.id);
       this.store.deleteAgentHostViews(pending.id);
+      if (this.activeClients.delete(pending.id)) this.persistActiveClients();
       this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(pending.id, viewer.scheme) }), pending.user.id);
       return {};
     }
@@ -1174,6 +1211,8 @@ export class AgentHost {
     if (['running', 'waiting_input', 'queued', 'paused', 'interrupted'].includes(session.status)) void this.engine.cancel(session.id, client.user).catch(() => {});
     const publicId = this.publicId(session.id);
     for (const item of this.clients) for (const subscription of [...item.subscriptions]) if (sessionIdFrom(subscription) === publicId) item.subscriptions.delete(subscription);
+    this.evict(session.id);
+    if (this.activeClients.delete(publicId)) this.persistActiveClients();
     this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme) }), session.ownerId);
     return {};
   }
@@ -1234,6 +1273,7 @@ export class AgentHost {
     const clients = this.activeClients.get(publicId) ?? new Map<string, Json>();
     if (setting) clients.set(clientId, action.activeClient); else clients.delete(clientId);
     if (clients.size) this.activeClients.set(publicId, clients); else this.activeClients.delete(publicId);
+    this.persistActiveClients();
     this.echo(client, channel, action, origin);
     return undefined;
   }
@@ -1243,6 +1283,10 @@ export class AgentHost {
   private dropActiveClient(client: Client): void {
     const clientId = client.clientId;
     if (this.closed || !clientId || this.connected(clientId) || ![...this.activeClients.values()].some(clients => clients.has(clientId))) return;
+    this.awaitReturn(clientId);
+  }
+
+  private awaitReturn(clientId: string): void {
     clearTimeout(this.departing.get(clientId));
     const timer = setTimeout(() => { this.departing.delete(clientId); if (!this.connected(clientId)) this.removeActiveClient(clientId); }, this.activeClientGraceMs);
     timer.unref();
@@ -1262,6 +1306,7 @@ export class AgentHost {
     for (const [publicId, clients] of [...this.activeClients]) {
       if (keep(publicId) || !clients.delete(clientId)) continue;
       if (!clients.size) this.activeClients.delete(publicId);
+      this.persistActiveClients();
       this.broadcast(sessionChannel(publicId), { type: 'session/activeClientRemoved', clientId });
     }
   }
