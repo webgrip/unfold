@@ -14,6 +14,7 @@ import { IdleSessions, RememberedClients, ServerSequence, restoreActiveClients, 
 import { AnnouncedCustomizations, customizationRefusal, gatewayToolCall, rootConfigRefusal, sessionCustomizations, type GatewaySubject } from './customizations.ts';
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
 import { money } from '../../public/core/format.js';
+import { CandidateReview, parseAnnotationsChannel, reviewOperationIds, reviewOperations } from './review.ts';
 import { Declines, booleanAnswer, declineEvents, declinedAnswers, stoppingRefusal, yesNoLabels } from './questions.ts';
 import { SpendNotices, observeSpend, spendLine } from './spend.ts';
 import { resumable, resumeRefusal, tryAgainReply, turnResumedEvent } from './try-again.ts';
@@ -104,7 +105,7 @@ const sessionIdFrom = (uri: string) => parseChannel(uri)?.id;
 const subscribedSessionId = (uri: string) => sessionIdFrom(uri) ?? parseTerminalChannel(uri)?.sessionId;
 const clientTurnId = /^[A-Za-z0-9_.:-]{1,128}$/;
 const actionOrigins = new WeakMap<Json, Origin>();
-const channelKey = (uri: string) => { const parsed = parseChannel(uri); return parsed ? `${parsed.kind}:${parsed.id}` : uri; };
+const channelKey = (uri: string) => { const parsed = parseChannel(uri); const annotations = parsed ? undefined : parseAnnotationsChannel(uri); return parsed ? `${parsed.kind}:${parsed.id}` : annotations ? `annotations:${annotations.id}` : uri; };
 
 const codes = { parse: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internal: -32603, sessionNotFound: -32001, providerNotFound: -32002, sessionExists: -32003, turnInProgress: -32004, unsupportedVersion: -32005, authRequired: -32007, notFound: -32008, permissionDenied: -32009, conflict: -32011 };
 
@@ -116,7 +117,6 @@ function asRpcError(error: unknown): RpcError {
   const status = Number((error as { status?: unknown })?.status);
   return new RpcError(engineCodes[status] ?? codes.internal, error instanceof Error && Number.isFinite(status) ? error.message : 'Internal error');
 }
-const acceptOperation = 'accept';
 
 /** The events by which the host records a choice it offered in a chat, the person's answer and what came of it. */
 export const choiceEvents = { offered: 'choice.offered', answered: 'choice.answered', reported: 'choice.reported' } as const;
@@ -128,6 +128,7 @@ const clockUtc = (at: string) => { const moment = new Date(at); return Number.is
 
 /** A host choice as an AHP input request: one single-select question whose options VS Code 1.141 shows by label only, so each option's meaning is in the question's message. */
 export function choiceRequest(offered: Json): Json {
+  if (offered.input === 'text') return { id: String(offered.choiceId), message: String(offered.title), questions: [{ id: '0', title: String(offered.question ?? offered.title), message: String(offered.detail || offered.explanation || ''), kind: 'text', required: offered.optional !== true }] };
   const options = (Array.isArray(offered.options) ? offered.options : []) as ChoiceOption[];
   return { id: String(offered.choiceId), message: String(offered.title), questions: [{ id: '0', title: String(offered.question ?? offered.title), message: String(offered.detail ?? ''), kind: 'single-select', required: true, options: options.map(option => ({ id: option.id, label: option.label })), allowFreeformInput: false }] };
 }
@@ -243,6 +244,7 @@ export class AgentHost {
   private polling = false;
   private closed = false;
 
+  private readonly review: CandidateReview;
   /** Ploeg's tracker routes as a read-only automation catalogue. */
   readonly automations: TrackerAutomations;
 
@@ -258,6 +260,21 @@ export class AgentHost {
     for (const clientId of new Set([...this.activeClients.values()].flatMap(clients => [...clients.keys()]))) this.awaitReturn(clientId);
     this.sweeper = setInterval(() => this.evictIdleSessions(), Math.min(60_000, this.idleSessions.idleMs));
     this.sweeper.unref();
+    this.review = new CandidateReview({
+      config, store, engine, choiceEvents,
+      serverSeq: () => this.serverSeq,
+      sessionFor: (user, uri) => this.sessionFor(user, uri),
+      engineId: id => this.engineId(id),
+      publicId: id => this.publicId(id),
+      gated: session => this.gated(session),
+      mayView: (user, ownerId) => this.mayView(user, ownerId),
+      echo: (sender, channel, action, origin, audience) => this.echo(sender as Client, channel, action, origin, audience),
+      openChoice: session => this.openChoice(this.projection(session)),
+      claimTurn: (session, turnId, origin) => { const projection = this.projection(session); const claimed = turnId === undefined ? undefined : this.acceptableTurnId(projection, turnId) ?? randomUUID(); if (claimed) projection.origins.set(`turn:${claimed}`, origin); return claimed; },
+      claimAnswer: (session, key, origin) => { const projection = this.projection(session); projection.origins.set(key, origin); return () => projection.origins.delete(key); },
+      announceSession: session => this.announceSession(session),
+      sessionPage: session => this.sessionPage(session),
+    });
     this.automations = new TrackerAutomations(config, {
       watchers: () => [...new Map([...this.clients].filter(client => client.initialized && client.subscriptions.has(automationsChannel)).map(client => [client.user.id, client.user])).values()],
       publish: (userId, action) => this.broadcast(automationsChannel, action, undefined, client => client.user.id === userId),
@@ -468,7 +485,7 @@ export class AgentHost {
       ...this.project(repository),
       ...(session.candidate?.status === 'ready' ? { changes: { files: session.candidate.fileCount } } : {}),
       ...sessionChatCatalog(view.protocolVersion, this.chatSummary(session, view), session.candidate?.status === 'ready' ? { files: session.candidate.fileCount } : undefined),
-      _meta: { 'dev.webgrip.unfold': { status: session.status, placement: session.placement, budgetUsd: session.budgetUsd, spentUsd: session.spentUsd, costStatus: session.costStatus, candidate: session.candidate?.status } },
+      _meta: { ...this.review.gitMeta(session), 'dev.webgrip.unfold': { status: session.status, placement: session.placement, budgetUsd: session.budgetUsd, spentUsd: session.spentUsd, costStatus: session.costStatus, candidate: session.candidate?.status } },
     };
   }
 
@@ -513,9 +530,10 @@ export class AgentHost {
     return {
       ...this.summary(session, view), lifecycle: 'ready', activeClients: this.activeClientsOf(this.publicId(session.id)),
       chats: [this.chatSummary(session, view)], defaultChat: this.chatUri(session, view),
-      config: sessionConfigState(this.config, session),
+      config: this.review.withConfigValues(session, sessionConfigState(this.config, session)),
       customizations: this.customizationsOf(session, this.publicId(session.id)),
       ...(changesets ? { changesets } : {}),
+      ...this.review.annotationsSummary(session, this.sessionUri(session, view)),
       inputNeeded: this.inputNeeded(session, view),
     };
   }
@@ -537,7 +555,7 @@ export class AgentHost {
   }
 
   chatSummary(session: Session, view: View): Json {
-    return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).chat, activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: session.status === 'completed' ? 'read-only' : 'full' };
+    return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).chat, activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: session.status === 'completed' && !this.reviewOperations(session).length ? 'read-only' : 'full' };
   }
 
   chatState(session: Session, view: View): Json {
@@ -595,11 +613,12 @@ export class AgentHost {
     return { status: session.status === 'exporting' ? 'computing' : 'ready', files: view ? this.candidateFiles(session, view) : this.artifactFiles(session), ...(operations.length ? { operations } : {}) };
   }
 
-  private operations(session: Session): Json[] {
-    const gated = Boolean(session.execution && this.config.delivery?.policies.some(policy => policy.repositoryId === session.repositoryId));
-    if (session.status !== 'completed' || session.review || gated) return [];
-    return [{ id: acceptOperation, label: 'Accept', description: 'Records your acceptance in the session history, as Accept in the workbench does. Nothing is pushed or merged.', scopes: ['changeset'], icon: 'check', status: 'idle' }];
-  }
+  /** Whether a delivery policy hands this session's review to the forge, where Ploeg's pull request is reviewed and merged. */
+  private gated(session: Session): boolean { return Boolean(session.execution && this.config.delivery?.policies.some(policy => policy.repositoryId === session.repositoryId)); }
+
+  private reviewOperations(session: Session): Json[] { return reviewOperations(session, this.gated(session)); }
+
+  private operations(session: Session): Json[] { return this.reviewOperations(session); }
 
   private invokeOperation(client: Client, params: Json): Json {
     const channel = String(params.channel ?? '');
@@ -609,6 +628,7 @@ export class AgentHost {
     const operation = this.operations(session).find(item => item.id === params.operationId);
     if (!operation) throw new RpcError(codes.invalidParams, `This changeset offers no operation ${JSON.stringify(params.operationId)}`);
     if (params.target !== undefined) throw new RpcError(codes.invalidParams, `${operation.label} applies to the whole candidate, not to a file or range`);
+    if (operation.id !== reviewOperationIds.accept) { if (client.user.role === 'viewer' || !this.mayView(client.user, session.ownerId)) throw new RpcError(codes.permissionDenied, 'Viewers cannot review a candidate'); return this.review.ask(client.user, session, operation.id); }
     let reviewed: Session;
     try { reviewed = this.engine.review(session.id, { decision: 'accepted' }, client.user); } catch (error) { throw asRpcError(error); }
     this.broadcast(this.changesetUri(reviewed), { type: 'changeset/operationsChanged', operations: this.operations(reviewed) });
@@ -937,7 +957,7 @@ export class AgentHost {
     actions.push(...(fromMessage ? this.openTurn(projection, session, offered.text, event.at, offered.turnId) : this.openTurn(projection, session, String(offered.title), event.at, undefined, 'systemNotification')));
     const turn = projection.activeTurn!;
     actions.push(...this.addPart(projection, { kind: 'markdown', id: `${turn.id}-choice`, content: String(offered.explanation ?? '') }));
-    if (!Array.isArray(offered.options) || !offered.options.length) return [...actions, ...this.closeTurn(projection, 'complete', event.at)];
+    if ((!Array.isArray(offered.options) || !offered.options.length) && offered.input !== 'text') return [...actions, ...this.closeTurn(projection, 'complete', event.at)];
     const request = choiceRequest(offered);
     turn.responseParts.push({ kind: 'inputRequest', request });
     projection.choices.set(request.id, offered);
@@ -1124,6 +1144,12 @@ export class AgentHost {
   }
 
   private async subscribe(client: Client, channel: string): Promise<Json> {
+    if (parseAnnotationsChannel(channel)) {
+      let snapshot: Json;
+      try { snapshot = this.review.annotationsSnapshot(client.user, channel); } catch { throw new RpcError(codes.sessionNotFound, 'Session not found'); }
+      client.subscriptions.add(channel);
+      return snapshot;
+    }
     if (channel === automationsChannel && this.automations.available) { const state = await this.automations.snapshot(client.user); client.subscriptions.add(channel); return { resource: channel, state, fromSeq: this.serverSeq }; }
     const parsed = parseChannel(channel);
     if (parsed?.kind === 'changeset') { const session = this.sessionFor(client.user, channel); if (session) await this.loadCandidate(session); }
@@ -1373,7 +1399,7 @@ export class AgentHost {
     try { change = startedConfigChange(session, action.config); }
     catch (error) { if (error instanceof SessionConfigError) return error.message; throw error; }
     const current = change.approval ? await this.engine.setApproval(session.id, change.approval, client.user) : session;
-    this.echo(client, channel, { type: 'session/configChanged', config: sessionConfigState(this.config, current).values, replace: true }, origin);
+    this.echo(client, channel, { type: 'session/configChanged', config: this.review.withConfigValues(current, sessionConfigState(this.config, current)).values, replace: true }, origin);
     return undefined;
   }
 
@@ -1481,6 +1507,7 @@ export class AgentHost {
 
   /** Carries out the option the person picked through the recovery API's own calls and owner checks, and records the answer and its result. */
   private async answerChoice(client: Client, session: Session, offered: Json, action: Json, origin: Origin): Promise<string | undefined> {
+    if (offered.review) return this.review.answer(client, session, offered, action, origin);
     const choiceId = String(offered.choiceId);
     if (this.answering.has(choiceId)) return 'This choice is already being answered';
     const accepted = action.response === 'accept' && action.cancelled !== true;
@@ -1587,8 +1614,11 @@ export class AgentHost {
       case 'chat/turnStarted': {
         if (notOnChat) return notOnChat;
         const text = String(action.message?.text ?? '').trim();
+        const feedback = this.review.feedback(session, action.message);
+        if (feedback) { const submitted = this.review.submitFeedback(client, session, feedback, action, origin); if (submitted !== false) return submitted; }
         if (!text) return 'Empty message';
-        if (session.status === 'completed') return 'The session has completed; start a new session';
+        if (session.status === 'completed') return this.reviewOperations(session).length ? 'This candidate waits for your review. Accept it, request changes or reject it from the Changes view, or comment on its files and submit the comments.' : 'The session has completed; start a new session';
+        if (feedback) return this.dispatchToSession(client, channel, kind, session, { ...action, message: { ...action.message, text: this.review.feedbackInstruction(action.message, feedback), attachments: undefined } }, origin);
         if (ended || this.openChoice(this.projection(session))) return this.offerForMessage(client, session, text, origin, action.turnId ?? null);
         const projection = this.projection(session);
         const turnId = this.acceptableTurnId(projection, action.turnId) ?? randomUUID();
@@ -1670,6 +1700,7 @@ export class AgentHost {
         if (refusal) reject(refusal); else this.echo(client, channel, action, origin, () => false);
         return;
       }
+      if (parseAnnotationsChannel(channel)) { const refused = this.review.dispatchAnnotation(client, channel, action, origin); if (refused) reject(refused); return; }
       if (channel === automationsChannel && this.automations.available) { reject(this.automations.refuse(action)); return; }
       const terminal = parseTerminalChannel(channel);
       if (terminal) { reject(this.sessionFor(client.user, sessionChannel(terminal.sessionId)) ? readOnlyTerminal : 'Terminal not found'); return; }
@@ -1680,7 +1711,8 @@ export class AgentHost {
       const flag = viewFlags[String(action.type)];
       const session = pending ? undefined : this.sessionFor(client.user, channel);
       if (!pending && !session) { reject('Session not found'); return; }
-      const reason = flag ? this.setViewFlag(client, channel, parsed.kind, pending, action, origin, flag)
+      const reason = !pending && this.review.handlesConfig(action) ? (parsed.kind === 'session' ? this.review.agentMerge(client, channel, session!, action, origin) : 'session/configChanged is dispatched on the session channel')
+        : flag ? this.setViewFlag(client, channel, parsed.kind, pending, action, origin, flag)
         : pending ? await this.dispatchToPending(client, channel, parsed.kind, pending, action, origin)
         : await this.dispatchToSession(client, channel, parsed.kind, session!, action, origin);
       if (reason) reject(reason);

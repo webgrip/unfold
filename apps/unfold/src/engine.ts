@@ -438,8 +438,26 @@ export class Engine {
     const session = this.owned(id, user);
     if (!['paused', 'interrupted', 'failed', 'cancelled'].includes(session.status) || this.active.has(id)) throw new EngineError(409, 'invalid_state', 'Only a stopped, failed or cancelled session can be run again.');
     if (session.sourceTask) throw new EngineError(409, 'tracked_task', 'Import the task again from its tracker to run it again.');
-    const next = this.create({ title: session.title, objective: session.objective, repositoryId: session.repositoryId, crewId: session.crewId, runtime: session.runtime, ...(session.placement ? { placement: session.placement } : {}), ...(session.approval ? { approval: session.approval } : {}), ...(session.model ? { model: session.model } : {}), budgetUsd: session.budgetUsd, previousSessionId: id }, user);
-    this.store.appendEvent(id, 'session.run_again', user.id, { sessionId: next.id, message: 'A new session was created to run this brief again. This session stays as it is.' });
+    return this.followUp(session, user, 'A new session was created to run this brief again. This session stays as it is.');
+  }
+
+  /**
+   * Records a rejection of a completed session's candidate with `note`, then creates the next session with the same brief and
+   * records each of `instructions` on it as an operator instruction. The new session never starts by itself.
+   */
+  async requestChanges(id: string, input: { note: unknown; instructions: readonly string[] }, user: User): Promise<{ session: Session; next: Session }> {
+    const session = this.owned(id, user);
+    if (session.sourceTask) throw new EngineError(409, 'tracked_task', 'Import the task again from its tracker to run it again.');
+    const instructions = input.instructions.map(text => this.text(text, 'message', 20000));
+    const reviewed = this.review(id, { decision: 'rejected', note: input.note }, user);
+    const next = this.followUp(reviewed, user, 'Changes were requested on this candidate. A new session carries them as instructions. This session stays as it is.');
+    for (const text of instructions) await this.message(next.id, text, user);
+    return { session: this.store.getSession(id)!, next: this.store.getSession(next.id)! };
+  }
+
+  private followUp(session: Session, user: User, message: string): Session {
+    const next = this.create({ title: session.title, objective: session.objective, repositoryId: session.repositoryId, crewId: session.crewId, runtime: session.runtime, ...(session.placement ? { placement: session.placement } : {}), ...(session.approval ? { approval: session.approval } : {}), ...(session.model ? { model: session.model } : {}), budgetUsd: session.budgetUsd, previousSessionId: session.id }, user);
+    this.store.appendEvent(session.id, 'session.run_again', user.id, { sessionId: next.id, message });
     return next;
   }
 
