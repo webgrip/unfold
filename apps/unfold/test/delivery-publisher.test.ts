@@ -221,6 +221,23 @@ test('a lost status report is replayed by reconciliation on view without a secon
   } finally { await s.cleanup(); }
 });
 
+test('the Agents window path reads readiness locally and publishes the candidate and receipt Ploeg holds', async () => {
+  const s = await scenario({ approved: false });
+  try {
+    const session = s.store.getSession('publish')!;
+    assert.deepEqual(s.service().readiness(session), { enabled: true, verified: true });
+    assert.equal(new DeliveryService({ ...s.config, delivery: { ...s.config.delivery!, publisher: undefined } }, s.store).readiness(session).enabled, false);
+    const failed = s.store.getSecret<any>('delivery:publish');
+    s.store.setSecret('delivery:publish', { ...failed, result: { ...failed.result, passed: false } });
+    assert.equal(s.service().readiness(session).verified, false, 'a receipt that did not pass is not ready');
+    s.store.setSecret('delivery:publish', failed);
+    const view = await s.service().publishCurrent('publish', owner);
+    assert.equal(view.publication?.phase, 'published'); assert.deepEqual(s.forge.state.pullPosts, [201]);
+    const after = s.service().readiness(session);
+    assert.equal(after.publication?.phase, 'published'); assert.equal(after.publication?.pullRequest?.number, 1); assert.equal(after.publication?.branch, branch);
+  } finally { await s.cleanup(); }
+});
+
 test('publication stays disabled without a configured publisher', async () => {
   const s = await scenario();
   try {

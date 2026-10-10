@@ -10,10 +10,15 @@ import { ExecutionAuthority } from './execution-authority.ts';
 import { ForgejoPublisher, publicationBranch, publicationOperationId, pullRequestBody, pullRequestTitle, type PublicationRecord, type PullRequestEvidence } from './delivery-publisher.ts';
 
 type LocalDelivery = { candidate: CanonicalCandidate; generation: number; phase: 'captured' | 'verifying' | 'verified' | 'recorded'; result?: VerificationResult };
-export type DeliveryView = { configured: boolean; policySha256?: string; localPhase?: string; checks?: VerificationResult['checks']; candidate?: any; receipt?: any; approval?: any; operation?: any; publication?: { phase: PublicationRecord['phase']; operationId: string; branch: string; pullRequest?: PullRequestEvidence }; publicationEnabled: boolean };
+/** A publication as every surface shows it: its phase, the operation and branch it reserved, and the verified pull request once there is one. */
+export type PublicationView = { phase: PublicationRecord['phase']; operationId: string; branch: string; pullRequest?: PullRequestEvidence };
+export type DeliveryView = { configured: boolean; policySha256?: string; localPhase?: string; checks?: VerificationResult['checks']; candidate?: any; receipt?: any; approval?: any; operation?: any; publication?: PublicationView; publicationEnabled: boolean };
+/** What a surface without the delivery view, such as the Agents window, may offer for a gated session, read from the workbench's own records without asking Ploeg. */
+export type PublicationReadiness = { enabled: boolean; verified: boolean; publication?: PublicationView };
 type PloegReply = { status: number; data: any };
 const reconcilablePhases: ReadonlyArray<PublicationRecord['phase']> = ['authorized', 'pushed', 'proposed', 'unknown', 'recovery_required'];
 const publicationKey = (id: string): string => `publication:${id}`;
+const publicationView = (record: PublicationRecord): PublicationView => ({ phase: record.phase, operationId: record.operationId, branch: record.branch, ...(record.pullRequest ? { pullRequest: record.pullRequest } : {}) });
 
 export function validatedDelivery(value: any, session: Session): Pick<DeliveryView, 'candidate' | 'receipt' | 'approval' | 'operation'> {
   const identity = (id: unknown): boolean => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
@@ -82,7 +87,23 @@ export class DeliveryService {
     if (!policy) return { configured: false, publicationEnabled: false };
     const data = await this.request(session); const local = this.store.getSecret<LocalDelivery>(`delivery:${id}`);
     const record = this.store.getSecret<PublicationRecord>(publicationKey(id));
-    return { configured: true, policySha256: policyDigest(policy), localPhase: local?.phase === 'verifying' && !this.queues.has(id) ? 'interrupted' : local?.phase, checks: local?.result?.checks, ...validatedDelivery(data.delivery, session), ...(record ? { publication: { phase: record.phase, operationId: record.operationId, branch: record.branch, ...(record.pullRequest ? { pullRequest: record.pullRequest } : {}) } } : {}), publicationEnabled: Boolean(this.publisher) && record?.phase !== 'refused' };
+    return { configured: true, policySha256: policyDigest(policy), localPhase: local?.phase === 'verifying' && !this.queues.has(id) ? 'interrupted' : local?.phase, checks: local?.result?.checks, ...validatedDelivery(data.delivery, session), ...(record ? { publication: publicationView(record) } : {}), publicationEnabled: Boolean(this.publisher) && record?.phase !== 'refused' };
+  }
+
+  /** Whether the current candidate's passing receipt is recorded under the registered policy and publishing is possible, from local records only. */
+  readiness(session: Session): PublicationReadiness {
+    const policy = this.policy(session);
+    const local = this.store.getSecret<LocalDelivery>(`delivery:${session.id}`);
+    const record = this.store.getSecret<PublicationRecord>(publicationKey(session.id));
+    const verified = Boolean(policy && local?.phase === 'recorded' && local.result?.passed === true && local.candidate.policySha === policyDigest(policy) && local.generation === session.execution?.generation);
+    return { enabled: Boolean(this.publisher && policy) && record?.phase !== 'refused', verified, ...(record ? { publication: publicationView(record) } : {}) };
+  }
+
+  /** Accept and open pull request from a surface that displays no delivery view: publishes the candidate and receipt Ploeg holds now, under the registered policy. */
+  async publishCurrent(id: string, user: User): Promise<DeliveryView> {
+    const view = await this.view(id, user);
+    if (!view.candidate || !view.receipt || !view.policySha256) return deliveryFailure('candidate_bound_approval_required');
+    return this.publish(id, user, { candidateId: view.candidate.id, receiptId: view.receipt.id, policySha256: view.policySha256 });
   }
 
   verify(id: string, user: User): Promise<DeliveryView> {
