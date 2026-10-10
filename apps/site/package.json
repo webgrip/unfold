@@ -42,7 +42,7 @@
     "@webgrip/prettier-config": "0.3.0",
     "@webgrip/tsconfig": "0.2.0",
     "eslint": "10.12.0",
-    "playwright-core": "1.63.0",
+    "playwright-core": "1.64.0",
     "prettier": "3.9.9",
     "typescript": "6.0.3",
     "wrangler": "4.148.0"
