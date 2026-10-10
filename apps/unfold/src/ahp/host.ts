@@ -13,6 +13,9 @@ import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade
 import { IdleSessions, RememberedClients, ServerSequence, restoreActiveClients, saveActiveClients } from './continuity.ts';
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
 import { money } from '../../public/core/format.js';
+import { Declines, booleanAnswer, declineEvents, declinedAnswers, stoppingRefusal, yesNoLabels } from './questions.ts';
+import { SpendNotices, observeSpend, spendLine } from './spend.ts';
+import { resumable, resumeRefusal, tryAgainReply, turnResumedEvent } from './try-again.ts';
 import { knownSecrets, plainRedactedText, withoutKnownSecrets } from '../redaction.ts';
 import { CommandLog, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel } from './terminals.ts';
 import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBaseline, sessionChatCatalog, speaksCatalog, supportedVersions } from './versions.ts';
@@ -127,7 +130,6 @@ export function choiceRequest(offered: Json): Json {
   const options = (Array.isArray(offered.options) ? offered.options : []) as ChoiceOption[];
   return { id: String(offered.choiceId), message: String(offered.title), questions: [{ id: '0', title: String(offered.question ?? offered.title), message: String(offered.detail ?? ''), kind: 'single-select', required: true, options: options.map(option => ({ id: option.id, label: option.label })), allowFreeformInput: false }] };
 }
-const declineReason = 'Unfold cannot decline a question: the crew waits for its answer. Answer it, or stop the turn to pause the session.';
 
 type Choice = { label: string; description?: string };
 function choicesOf(question: Json): Choice[] {
@@ -140,6 +142,7 @@ function inputQuestion(question: Json, index: number, fallback: string): Json {
   const choices = choicesOf(question);
   const base = { id: String(index), ...(header ? { title: header } : {}), message };
   if (!choices.length) return { ...base, kind: 'text' };
+  if (yesNoLabels(question, choices)) return { ...base, kind: 'boolean' };
   return { ...base, kind: question.multiple === true ? 'multi-select' : 'single-select', options: choices.map((choice, option) => ({ id: String(option), ...choice })), allowFreeformInput: question.custom !== false };
 }
 function answerValues(question: Json | undefined, answer: Json | undefined): string[] {
@@ -148,6 +151,7 @@ function answerValues(question: Json | undefined, answer: Json | undefined): str
   const choices = choicesOf(question ?? {});
   const label = (id: unknown) => { const choice = typeof id === 'string' && /^\d{1,4}$/.test(id) ? choices[Number(id)] : undefined; if (!choice) throw new Error(`The answer names an option the question does not offer: ${JSON.stringify(id)}`); return choice.label; };
   const freeform = Array.isArray(value.freeformValues) ? value.freeformValues.map(String) : [];
+  if (value.kind === 'boolean') return [booleanAnswer(question ?? {}, choices, value.value)];
   if (value.kind === 'selected') return [label(value.value), ...freeform];
   if (value.kind === 'selected-many') return [...(Array.isArray(value.value) ? value.value : []).map(label), ...freeform];
   return value.value === undefined ? [] : [String(value.value)];
@@ -228,6 +232,8 @@ export class AgentHost {
   activeClientGraceMs = 30_000;
   private readonly candidates = new Map<string, CandidateView>();
   private readonly answering = new Set<string>();
+  private readonly spend = new SpendNotices();
+  private readonly declines = new Declines();
   private readonly offering = new Set<string>();
   private readonly offeredAfter = new Map<string, number>();
   private readonly loadingCandidates = new Map<string, Promise<void>>();
@@ -643,11 +649,11 @@ export class AgentHost {
     return action;
   }
 
-  private closeTurn(projection: Projection, state: 'complete' | 'cancelled' | 'error', at: string, error?: Json): Json[] {
+  private closeTurn(projection: Projection, state: 'complete' | 'cancelled' | 'error', at: string, error?: Json, retryable = false): Json[] {
     const active = projection.activeTurn;
     if (!active) return [];
     const duration = Math.max(0, Date.parse(at) - Date.parse(active.startedAt)) || 0;
-    if (state === 'error' && error) active.responseParts.push({ kind: 'error', error });
+    if (state === 'error' && error) active.responseParts.push({ kind: 'error', error, ...(retryable ? { resumable: true } : {}) });
     projection.turns.push({ id: active.id, startedAt: active.startedAt, duration, message: active.message, responseParts: active.responseParts, usage: active.usage, state });
     projection.activeTurn = undefined;
     projection.openTools.clear();
@@ -655,14 +661,14 @@ export class AgentHost {
     projection.holding = undefined;
     if (state === 'complete') return [{ type: 'chat/turnComplete', turnId: active.id, duration }];
     if (state === 'cancelled') return [{ type: 'chat/turnCancelled', turnId: active.id, duration }];
-    return [{ type: 'chat/error', turnId: active.id, duration, part: { kind: 'error', error: error ?? { errorType: 'failed', message: 'The session failed' } } }];
+    return [{ type: 'chat/error', turnId: active.id, duration, part: { kind: 'error', error: error ?? { errorType: 'failed', message: 'The session failed' }, ...(error && retryable ? { resumable: true } : {}) } }];
   }
 
   private settle(projection: Projection, session: Session): Json[] {
     if (!projection.activeTurn || projection.holding) return [];
     if (['completed'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'complete', session.updatedAt)];
     if (['cancelled'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'cancelled', session.updatedAt)];
-    if (['failed'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'error', session.updatedAt, { errorType: session.failure?.category ?? 'failed', message: session.failure?.message ?? session.blocker ?? 'The session failed' })];
+    if (['failed'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'error', session.updatedAt, { errorType: session.failure?.category ?? 'failed', message: session.failure?.message ?? session.blocker ?? 'The session failed' }, resumable(session))];
     if (['paused', 'interrupted'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'complete', session.updatedAt)];
     return [];
   }
@@ -836,19 +842,21 @@ export class AgentHost {
           if (approved) actions.push({ type: 'chat/toolCallComplete', turnId: turn.id, toolCallId: requestId, result: { success: true, pastTenseMessage: 'Allowed by the operator' } });
         }
         const input = turn.responseParts.find((item: Json) => item.kind === 'inputRequest' && item.request.id === requestId);
+        const declined = this.declines.take(projection, requestId);
         if (input) {
-          const answers = projection.answers.get(requestId);
+          const answers = declined ?? projection.answers.get(requestId);
+          const response = declined ? 'decline' : 'accept';
           projection.answers.delete(requestId);
-          input.response = 'accept';
+          input.response = response;
           if (answers) input.request = { ...input.request, answers };
-          actions.push(this.tag(projection, { type: 'chat/inputCompleted', requestId, response: 'accept', ...(answers ? { answers } : {}) }, `request:${requestId}`));
+          actions.push(this.tag(projection, { type: 'chat/inputCompleted', requestId, response, ...(answers ? { answers } : {}) }, `request:${requestId}`));
         }
         break;
       }
       case 'usage': {
         const turn = projection.activeTurn;
         if (!turn) break;
-        const usage = { inputTokens: Number(data.inputTokens) || 0, outputTokens: Number(data.outputTokens) || 0, _meta: { costUsd: data.costUsd, source: data.source } };
+        const usage = { inputTokens: Number(data.inputTokens) || 0, outputTokens: Number(data.outputTokens) || 0, _meta: { source: data.source } };
         turn.usage = usage;
         actions.push({ type: 'chat/usage', turnId: turn.id, usage });
         break;
@@ -861,15 +869,23 @@ export class AgentHost {
         const text = [`**${role}** ${data.status === 'completed' ? verdict || 'finished' : `stopped (${String(data.status ?? 'ended').replaceAll('_', ' ')})`}.`, data.summary ? String(data.summary) : ''].filter(Boolean).join('\n\n');
         const partId = `${turn.id}-part-${turn.responseParts.length + 1}`;
         actions.push(...this.addPart(projection, { kind: 'markdown', id: partId, content: text }));
+        actions.push(...this.addPart(projection, { kind: 'systemNotification', content: spendLine(this.spend.of(projection, session, event.id, () => this.store.events(session.id))) }));
         break;
       }
+      case 'budget.observed': case 'budget.settled': case 'budget.increased': {
+        const notice = observeSpend(this.spend.of(projection, session, event.id, () => this.store.events(session.id)), event);
+        if (notice) actions.push(...this.addPart(projection, { kind: 'systemNotification', content: notice }));
+        break;
+      }
+      case declineEvents.declined: case declineEvents.withdrawn: this.declines.observe(projection, event.type, data); break;
+      case turnResumedEvent: actions.push(...this.resumeTurn(projection, session, event)); break;
       case 'candidate.ready': { const turn = projection.activeTurn; if (turn) actions.push(...this.addPart(projection, { kind: 'systemNotification', content: 'A reviewable candidate has been captured.' })); break; }
       case choiceEvents.offered: actions.push(...this.offerChoice(projection, session, event)); break;
       case choiceEvents.answered: actions.push(...this.choiceAnswered(projection, session, event)); break;
       case choiceEvents.reported: actions.push(...this.choiceReply(projection, session, event)); break;
       case 'session.completed': actions.push(...this.finalOutcome(projection, session, event), ...this.closeTurn(projection, 'complete', event.at)); break;
       case 'session.cancelled': actions.push(...this.finalOutcome(projection, session, event), ...this.closeTurn(projection, 'cancelled', event.at)); break;
-      case 'session.failed': projection.workingRun = undefined; actions.push(...this.finalOutcome(projection, session, event), ...this.closeTurn(projection, 'error', event.at, { errorType: String(data.code ?? 'failed'), message: String(data.message ?? 'The session failed') })); break;
+      case 'session.failed': projection.workingRun = undefined; actions.push(...this.finalOutcome(projection, session, event), ...this.closeTurn(projection, 'error', event.at, { errorType: String(data.code ?? 'failed'), message: String(data.message ?? 'The session failed') }, resumable(session))); break;
       case 'session.paused': case 'session.interrupted': {
         projection.workingRun = undefined;
         const cancelled = event.type === 'session.paused' && projection.origins.has('cancel');
@@ -1403,9 +1419,9 @@ export class AgentHost {
     return { title: 'What next?', question: 'What should happen next?', explanation: [recovery.summary, 'Nothing runs until you choose.', links].filter(Boolean).join('\n\n'), detail: this.optionLines(session, recovery, options, false), options };
   }
 
-  /** Offers the next steps once, after the last stop of a session that stopped by itself or failed. It reads the recovery answer and never acts. */
+  /** Offers the next steps once, after the last stop of a session that stopped by itself or failed and offers no Try Again. It reads the recovery answer and never acts. */
   private offerNextSteps(session: Session, user: User): void {
-    if (!['interrupted', 'failed'].includes(session.status) || this.offering.has(session.id)) return;
+    if (!['interrupted', 'failed'].includes(session.status) || resumable(session) || this.offering.has(session.id)) return;
     const projection = this.projection(session);
     const stop = projection.finalStop;
     if (stop === undefined || this.offeredAfter.get(session.id) === stop || this.openChoice(projection)) return;
@@ -1488,6 +1504,48 @@ export class AgentHost {
     }
   }
 
+  /** VS Code's Try Again on a failed turn: the Run-again path, taken only because the person pressed it. The new session waits for its start. */
+  private tryAgain(client: Client, session: Session, action: Json, origin: Origin): string | undefined {
+    const projection = this.projection(session);
+    const refusal = resumeRefusal(session, projection.turns, projection.activeTurn, action.turnId, client.user.role === 'viewer');
+    if (refusal) return refusal;
+    const turnId = String(action.turnId);
+    const next = this.engine.runAgain(session.id, client.user);
+    this.announceSession(next);
+    projection.origins.set(`resume:${turnId}`, origin);
+    this.store.appendEvent(session.id, turnResumedEvent, client.user.id, { turnId, sessionId: next.id, reply: tryAgainReply(next, this.sessionPage(next)) });
+    return undefined;
+  }
+
+  /** Reopens the failed turn Try Again resumed, says what it created, and ends the turn. Without that turn to reopen, the reply gets a turn of its own. */
+  private resumeTurn(projection: Projection, session: Session, event: Event): Json[] {
+    const data = event.data as Json;
+    const turnId = String(data.turnId ?? '');
+    const last = projection.turns.at(-1);
+    const actions: Json[] = [];
+    if (!projection.activeTurn && last?.id === turnId && last.state === 'error') {
+      projection.turns.pop();
+      projection.activeTurn = { id: last.id, startedAt: last.startedAt, message: last.message, responseParts: last.responseParts, usage: last.usage, outcome: true };
+      actions.push(this.tag(projection, { type: 'chat/turnResume', turnId }, `resume:${turnId}`));
+    } else {
+      projection.origins.delete(`resume:${turnId}`);
+      actions.push(...this.closeTurn(projection, 'complete', event.at), ...this.openTurn(projection, session, 'Try again', event.at, undefined, 'systemNotification'));
+    }
+    const turn = projection.activeTurn!;
+    actions.push(...this.addPart(projection, { kind: 'markdown', id: `${turn.id}-try-again-${turn.responseParts.length + 1}`, content: String(data.reply ?? '') }));
+    return [...actions, ...this.closeTurn(projection, 'complete', event.at)];
+  }
+
+  /** A declined question: recorded, then passed to the crew as an explicit answer for each question. Not while the person is stopping the turn. */
+  private async decline(client: Client, session: Session, request: PermissionRequest, origin: Origin): Promise<undefined | string> {
+    const projection = this.projection(session);
+    if (projection.origins.has('cancel')) return stoppingRefusal;
+    const { answers, recorded } = declinedAnswers(request, client.user);
+    this.store.appendEvent(session.id, declineEvents.declined, client.user.id, { requestId: request.id, answers: recorded });
+    try { return await this.answer(session, request.id, { answers }, client.user, origin); }
+    catch (error) { this.store.appendEvent(session.id, declineEvents.withdrawn, client.user.id, { requestId: request.id }); throw error; }
+  }
+
   private async dispatchToPending(client: Client, channel: string, kind: ChannelKind, pending: PendingSession, action: Json, origin: Origin): Promise<string | undefined> {
     switch (action.type) {
       case 'chat/turnStarted': return kind === 'chat' ? this.startFromPending(pending, action.message ?? {}, origin, action.turnId) : 'chat/turnStarted is dispatched on the chat channel';
@@ -1521,6 +1579,7 @@ export class AgentHost {
         else if (['paused', 'interrupted'].includes(session.status)) await this.engine.resume(session.id, client.user);
         return undefined;
       }
+      case 'chat/turnResume': return notOnChat ?? this.tryAgain(client, session, action, origin);
       case 'chat/turnCancelled': {
         if (notOnChat) return notOnChat;
         const projection = this.projection(session);
@@ -1543,7 +1602,7 @@ export class AgentHost {
         if (choice) return this.answerChoice(client, session, choice, action, origin);
         const request = this.store.getPermission(String(action.requestId ?? ''));
         if (!request || request.sessionId !== session.id || request.kind !== 'question') return 'Unknown question';
-        if (action.response !== 'accept') return declineReason;
+        if (action.response !== 'accept') return this.decline(client, session, request, origin);
         const submitted = action.answers && typeof action.answers === 'object' ? action.answers as Json : undefined;
         const answers = this.answersFor(request, submitted);
         return this.answer(session, request.id, { answers: answers.length ? answers : [['']] }, client.user, origin, submitted);
