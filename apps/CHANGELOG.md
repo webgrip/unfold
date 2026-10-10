@@ -1,3 +1,15 @@
+## [unfold-v0.4.0-rc.54](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.53...unfold-v0.4.0-rc.54) (2026-10-10)
+
+### Added
+
+* **unfold:** investigate a stopped session in one click ([959965e](https://forgejo.webgrip.dev/webgrip/unfold/commit/959965e943dc811201043bc696055b0a9f2f62f8))
+
+### Fixed
+
+* **unfold:** keep a streaming Run alive through a slow save ([c67dcc8](https://forgejo.webgrip.dev/webgrip/unfold/commit/c67dcc8a4122eddd04578bc57db11b9b417b7f86))
+* **unfold:** name reason codes Unfold does not know instead of hiding them ([d958f03](https://forgejo.webgrip.dev/webgrip/unfold/commit/d958f03d276641343078bfb65497ba0c5d066ad1))
+* **unfold:** never strand approved work behind a stopped Ploeg execution ([d86a0cf](https://forgejo.webgrip.dev/webgrip/unfold/commit/d86a0cf432cf8ba94127d3d9b17d9ce0f5fbdc41))
+
 ## [unfold-v0.4.0-rc.53](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.52...unfold-v0.4.0-rc.53) (2026-10-10)
 
 ### Added
