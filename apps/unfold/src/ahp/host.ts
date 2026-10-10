@@ -6,7 +6,7 @@ import type { AgentHostView, Store } from '../store.ts';
 import type { Engine } from '../engine.ts';
 import { placements } from '../config.ts';
 import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile } from '../candidates.ts';
-import type { AppConfig, Event, PermissionRequest, Session, User, WorkspaceBackend } from '../types.ts';
+import type { AppConfig, Event, PermissionRequest, Repository, Session, User, WorkspaceBackend } from '../types.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
 
 /** The AHP compatibility baseline this host implements. It accepts any offered version in `>=0.9.0 <0.10.0`. */
@@ -19,6 +19,29 @@ const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(
 const pollMs = 300;
 const maxTurnsInSnapshot = 200;
 const maxKnownClients = 1000;
+
+/** The directory the host names as `defaultDirectory`: a virtual folder whose subfolders are the configured repositories, so the Agents window's workspace picker offers them. */
+export const repositoriesDirectory = 'file:///unfold-repositories';
+
+const repositorySlug = (repository: Repository): string => {
+  try {
+    const url = new URL(repository.url);
+    if (!['http:', 'https:', 'ssh:', 'git:'].includes(url.protocol)) return repository.id;
+    return url.pathname.replace(/\/+$/, '').split('/').at(-1)?.replace(/\.git$/i, '') || repository.id;
+  } catch { return repository.id; }
+};
+
+/**
+ * What VS Code shows for a repository, as the session's project and as a folder in the workspace picker: `Unfold · <repository>`,
+ * named after the forge path's last segment and followed by the id when two repositories share it. VS Code appends the host
+ * entry's name in brackets.
+ */
+export function repositoryWorkspaceNames(repositories: readonly Repository[]): Map<string, string> {
+  const slugs = repositories.map(repository => [repository.id, repositorySlug(repository).replace(/[\\/]/g, '-')] as const);
+  const counts = new Map<string, number>();
+  for (const [, slug] of slugs) counts.set(slug.toLowerCase(), (counts.get(slug.toLowerCase()) ?? 0) + 1);
+  return new Map(slugs.map(([id, slug]) => [id, `Unfold · ${slug}${(counts.get(slug.toLowerCase()) ?? 0) > 1 ? ` (${id})` : ''}`]));
+}
 
 /** The `initialize` and `InitializeResult` `_meta` key by which VS Code declares it addresses sessions as `ahp-session:/<id>`. */
 export const sessionUrisMeta = 'vscode.ahpSessionUris';
@@ -386,7 +409,7 @@ export class AgentHost {
     return {
       resource: this.sessionUri(session, view), provider, title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).session, activity: activity(session),
       createdAt: session.createdAt, modifiedAt: session.updatedAt,
-      ...(repository ? { project: { uri: repository.url, displayName: repository.name } } : {}),
+      ...this.project(repository),
       ...(session.candidate?.status === 'ready' ? { changes: { files: session.candidate.fileCount } } : {}),
       _meta: { 'dev.webgrip.unfold': { status: session.status, placement: session.placement, budgetUsd: session.budgetUsd, spentUsd: session.spentUsd, costStatus: session.costStatus, candidate: session.candidate?.status } },
     };
@@ -833,7 +856,35 @@ export class AgentHost {
   }
 
   private pendingSummary(pending: PendingSession, view: View): Json {
-    return { resource: sessionChannel(pending.id, view.scheme), provider, title: pending.config.title ?? 'New session', status: statusBits.idle | this.viewOf(view, pending.id).session, createdAt: pending.createdAt, modifiedAt: pending.createdAt };
+    return { resource: sessionChannel(pending.id, view.scheme), provider, title: pending.config.title ?? 'New session', status: statusBits.idle | this.viewOf(view, pending.id).session, createdAt: pending.createdAt, modifiedAt: pending.createdAt, ...this.project(this.config.repositories.find(repo => repo.id === pending.config.repository)) };
+  }
+
+  private project(repository: Repository | undefined): Json {
+    return repository ? { project: { uri: repository.url, displayName: repositoryWorkspaceNames(this.config.repositories).get(repository.id) } } : {};
+  }
+
+  private repositoryDirectories(): Json[] {
+    return [...repositoryWorkspaceNames(this.config.repositories).values()].map(name => ({ name, type: 'directory' }));
+  }
+
+  /** The repository a working directory from the workspace picker names, or undefined for any other folder. */
+  private repositoryAt(directory: unknown): string | undefined {
+    if (typeof directory !== 'string') return undefined;
+    let path: string;
+    try { const url = new URL(directory); if (url.protocol !== 'file:') return undefined; path = decodeURIComponent(url.pathname).replace(/\/+$/, ''); } catch { return undefined; }
+    const prefix = `${new URL(repositoriesDirectory).pathname}/`;
+    if (!path.startsWith(prefix)) return undefined;
+    const name = path.slice(prefix.length);
+    return [...repositoryWorkspaceNames(this.config.repositories)].find(([, workspace]) => workspace === name)?.[0];
+  }
+
+  private listDirectory(uri: unknown): Json {
+    let path: string | undefined;
+    try { const url = new URL(String(uri)); if (url.protocol === 'file:') path = decodeURIComponent(url.pathname).replace(/(.)\/+$/, '$1'); } catch {}
+    if (path === new URL(repositoriesDirectory).pathname) return { entries: this.repositoryDirectories() };
+    if (path === '/') return { entries: [{ name: new URL(repositoriesDirectory).pathname.slice(1), type: 'directory' }] };
+    if (path !== undefined && this.repositoryAt(`file://${path}`)) return { entries: [] };
+    throw new RpcError(codes.notFound, 'This host lists only its repositories');
   }
 
   private pendingChat(pending: PendingSession, view: View): Json {
@@ -879,7 +930,7 @@ export class AgentHost {
       this.resumeActiveClient(params.clientId, Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
-      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };
+      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, defaultDirectory: repositoriesDirectory, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };
     }
     if (method === 'reconnect' && !client.initialized) {
       const known = typeof params.clientId === 'string' ? this.knownClients.get(params.clientId) : undefined;
@@ -893,7 +944,8 @@ export class AgentHost {
       case 'reconnect': { const snapshots: Json[] = []; for (const channel of Array.isArray(params.subscriptions) ? params.subscriptions : []) snapshots.push(await this.subscribe(client, channel)); return { type: 'snapshot', snapshots }; }
       case 'subscribe': { if (typeof params.channel !== 'string') throw new RpcError(codes.invalidParams, 'channel is required'); return { snapshot: await this.subscribe(client, params.channel) }; }
       case 'listSessions': return { items: this.visible(client.user).map(session => this.summary(session, client)) };
-      case 'resolveSessionConfig': return { schema: this.configSchema(), values: { ...this.defaultConfig(), ...(params.config ?? {}) } };
+      case 'resolveSessionConfig': { const picked = this.repositoryAt(params.workingDirectory); return { schema: this.configSchema(), values: { ...this.defaultConfig(), ...(params.config ?? {}), ...(picked ? { repository: picked } : {}) } }; }
+      case 'resourceList': return this.listDirectory(params.uri);
       case 'sessionConfigCompletions': { const schema = this.configSchema().properties[String(params.property)]; const values: string[] = schema?.enum ?? []; return { items: values.map((value, index) => ({ value, label: schema.enumDescriptions?.[index] ?? value })) }; }
       case 'createSession': return this.createSession(client, params);
       case 'createChat': return this.createChat(client, params);
@@ -921,7 +973,8 @@ export class AgentHost {
     if (parsed?.kind !== 'session') throw new RpcError(codes.invalidParams, `session must be ${provider}:/<id> or ahp-session:/<id>`);
     if (params.provider && params.provider !== provider) throw new RpcError(codes.providerNotFound, 'Unknown provider');
     if (this.pending.has(parsed.id) || this.store.getSession(this.engineId(parsed.id)) || this.store.getSession(parsed.id)) throw new RpcError(codes.sessionExists, 'Session already exists');
-    const config = { ...this.defaultConfig(), ...(params.config && typeof params.config === 'object' ? params.config : {}) };
+    const picked = Array.isArray(params.workingDirectories) ? this.repositoryAt(params.workingDirectories[0]) : undefined;
+    const config = { ...this.defaultConfig(), ...(params.config && typeof params.config === 'object' ? params.config : {}), ...(picked ? { repository: picked } : {}) };
     if (!this.config.repositories.some(repo => repo.id === config.repository) || !this.config.crews.some(crew => crew.id === config.crew)) throw new RpcError(codes.invalidParams, 'Choose a configured repository and crew');
     const activeClient = params.activeClient as Json | undefined;
     if (activeClient !== undefined && (!activeClient || typeof activeClient !== 'object' || activeClient.clientId !== client.clientId)) throw new RpcError(codes.invalidParams, 'activeClient.clientId must be the clientId this client initialized with');

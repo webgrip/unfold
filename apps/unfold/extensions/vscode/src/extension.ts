@@ -505,7 +505,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const host = new URL(this.current.origin).host;
     const canOpen = (await vscode.commands.getCommands(true)).includes(openAgentsWindowCommand);
     if (this.agentsWindow.status === 'connected') {
-      const choice = await vscode.window.showInformationMessage(`The Agents window is attached to Unfold at ${host}.`, ...(canOpen ? ['Open Agents Window'] : []));
+      const choice = await vscode.window.showInformationMessage(`The Agents window is attached to Unfold at ${host}. Start a session there with New → Workspace ▾ → Unfold · <repository>.`, ...(canOpen ? ['Open Agents Window'] : []));
       if (choice === 'Open Agents Window') await vscode.commands.executeCommand(openAgentsWindowCommand);
       return;
     }
@@ -613,7 +613,8 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const openAgentsWindow = openAgentsWindowCommand;
     const canOpen = (await vscode.commands.getCommands(true)).includes(openAgentsWindow);
     const host = new URL(target.origin).host;
-    const message = outcome?.status === 'unchanged' ? `Unfold at ${host} is already in the VS Code Agents window.` : `Unfold at ${host} now appears in the VS Code Agents window. Its connection token is stored in your user settings, as VS Code keeps it.`;
+    const start = 'To start a session there, choose New → Workspace ▾ → Unfold · <repository>.';
+    const message = outcome?.status === 'unchanged' ? `Unfold at ${host} is already in the VS Code Agents window. ${start}` : `Unfold at ${host} now appears in the VS Code Agents window. ${start} Its connection token is stored in your user settings, as VS Code keeps it.`;
     const choice = await vscode.window.showInformationMessage(message, ...(canOpen ? ['Open Agents Window'] : []));
     if (choice === 'Open Agents Window') await vscode.commands.executeCommand(openAgentsWindow);
   }
