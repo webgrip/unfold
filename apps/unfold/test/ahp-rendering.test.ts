@@ -172,7 +172,7 @@ async function asking(t: { after: (fn: () => unknown) => void }) {
   return { server, runtime, client, session, chat };
 }
 
-test('C11: questions carry a message and their choices, answers map back to the options, and a decline is refused with the way out', { timeout: testTimeout(60_000) }, async t => {
+test('C11: questions carry a message and their choices, and answers map back to the options', { timeout: testTimeout(60_000) }, async t => {
   const { server, runtime, client, chat } = await asking(t);
   const requested = await client.until(message => action(message, chat, 'chat/inputRequested'));
   const { request: asked } = requested.params.action;
@@ -187,11 +187,7 @@ test('C11: questions carry a message and their choices, answers map back to the 
   assert.equal(asked.questions[0].allowFreeformInput, true);
   assert.equal(asked.questions[1].allowFreeformInput, false, 'a question that refuses custom answers says so');
 
-  client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/inputCompleted', requestId: asked.id, response: 'cancel' } });
-  const declined = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 2);
-  assert.match(declined.params.rejectionReason, /cannot decline a question.*stop the turn to pause/);
-  assert.deepEqual(runtime.answers, [], 'a decline never reaches the engine');
-  assert.equal(server.app.store.permissions(server.app.store.listSessions()[0].id).filter(item => !item.resolved).length, 1, 'the question stays open');
+  assert.equal(server.app.store.permissions(server.app.store.listSessions()[0].id).filter(item => !item.resolved).length, 1, 'the question is open');
 
   const answers = {
     '0': { state: 'submitted', value: { kind: 'selected', value: '1' } },

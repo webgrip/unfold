@@ -75,10 +75,10 @@ export class DemoRuntime implements AgentRuntime {
     const artifacts: Artifact[] = [];
     context.emit({ type: 'message', data: { role: 'assistant', text: 'DEMO: this deterministic runtime uses no model. It copies an intentionally broken order service, changes real code, and executes real checks.' } });
     await this.delay(context.signal);
-    context.emit({ type: 'tool', data: { name: 'node --test test/order.test.js', status: 'running', purpose: 'baseline' } });
+    context.emit({ type: 'tool', data: { name: 'node --test test/order.test.js', command: 'node --test test/order.test.js', status: 'running', purpose: 'baseline' } });
     const baseline = await this.command(process.execPath, ['--test', 'test/order.test.js'], context.workspace.directory, context.signal);
     artifacts.push(this.checkArtifact(baseline.exitCode ? 'Baseline checks (expected failure)' : 'Baseline checks (already passing on resumed workspace)', baseline));
-    context.emit({ type: 'tool', data: { name: 'node --test test/order.test.js', status: baseline.exitCode ? 'failed' : 'completed', phase: 'baseline', expectedFailure: true, exitCode: baseline.exitCode, durationMs: baseline.durationMs, output: baseline.output } });
+    context.emit({ type: 'tool', data: { name: 'node --test test/order.test.js', command: 'node --test test/order.test.js', status: baseline.exitCode ? 'failed' : 'completed', phase: 'baseline', expectedFailure: true, exitCode: baseline.exitCode, durationMs: baseline.durationMs, output: baseline.output } });
     await this.delay(context.signal);
     const path = join(context.workspace.directory, 'src/order.js');
     const before = await readFile(path, 'utf8');
@@ -90,7 +90,7 @@ export class DemoRuntime implements AgentRuntime {
     await this.delay(context.signal);
     const verify = await this.command(process.execPath, ['--test', 'test/order.test.js'], context.workspace.directory, context.signal);
     artifacts.push(this.checkArtifact('Verification checks', verify));
-    context.emit({ type: 'tool', data: { name: 'node --test test/order.test.js', status: verify.exitCode ? 'failed' : 'completed', phase: 'verification', exitCode: verify.exitCode, durationMs: verify.durationMs, output: verify.output } });
+    context.emit({ type: 'tool', data: { name: 'node --test test/order.test.js', command: 'node --test test/order.test.js', status: verify.exitCode ? 'failed' : 'completed', phase: 'verification', exitCode: verify.exitCode, durationMs: verify.durationMs, output: verify.output } });
     if (verify.exitCode !== 0) throw new Error('Fixture checks still fail after the demo patch');
     const diff = await this.command('git', ['diff', '--no-ext-diff', '--', 'src/order.js', 'test/order.test.js'], context.workspace.directory, context.signal);
     if (diff.exitCode !== 0 || !diff.output.includes('Number.EPSILON')) throw new Error('Demo patch did not produce a reviewable diff');
@@ -105,7 +105,7 @@ export class DemoRuntime implements AgentRuntime {
     const diff = await this.command('git', ['diff', '--no-ext-diff', '--', 'src/order.js', 'test/order.test.js'], context.workspace.directory, context.signal);
     const source = await readFile(join(context.workspace.directory, 'src/order.js'), 'utf8');
     const result = await this.command(process.execPath, ['--test', 'test/order.test.js'], context.workspace.directory, context.signal);
-    context.emit({ type: 'tool', data: { name: 'independent node --test', status: result.exitCode ? 'failed' : 'completed', phase: 'review', exitCode: result.exitCode, durationMs: result.durationMs, output: result.output } });
+    context.emit({ type: 'tool', data: { name: 'independent node --test', command: 'node --test test/order.test.js', status: result.exitCode ? 'failed' : 'completed', phase: 'review', exitCode: result.exitCode, durationMs: result.durationMs, output: result.output } });
     await this.delay(context.signal);
     const approve = result.exitCode === 0 && diff.exitCode === 0 && diff.output.includes('+  return Math.round((amount + Number.EPSILON) * 100);') && !diff.output.includes('diff --git a/test/') && source.includes("throw new TypeError('Amount must be a finite non-negative number')");
     return { summary: approve ? 'Explicit approval of this bounded demo fixture: actual patch inspected, regression and invalid-input checks passed, tests were not changed. Human review and merge remain separate.' : 'Review did not establish the expected patch and passing checks. Human attention required.', verdict: approve ? 'approve' : 'request_changes', artifacts: [this.checkArtifact('Independent review checks', result), { id: randomUUID(), name: 'Review findings', kind: 'summary', content: `Runtime: deterministic demo (no model)\nVerdict: ${approve ? 'approve' : 'request_changes'}\nActual checks exit code: ${result.exitCode}\nDiff inspected: ${diff.exitCode === 0}\nScope: the supplied rounding fixture only.\nNo merge was performed.` }], costUsd: 0 };
