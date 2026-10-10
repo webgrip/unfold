@@ -8,7 +8,9 @@ import { placements } from '../config.ts';
 import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile } from '../candidates.ts';
 import type { AppConfig, Event, PermissionRequest, Repository, Session, User, WorkspaceBackend } from '../types.ts';
 import type { Recovery } from '../engine.ts';
+import { TrackerAutomations, automationsChannel, autonomousAutomationsMeta } from './automations.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
+import { IdleSessions, RememberedClients, ServerSequence, restoreActiveClients, saveActiveClients } from './continuity.ts';
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
 import { money } from '../../public/core/format.js';
 import { knownSecrets, plainRedactedText, withoutKnownSecrets } from '../redaction.ts';
@@ -97,6 +99,7 @@ export function parseChannel(uri: string): { kind: ChannelKind; id: string } | u
   return owner?.kind === 'session' ? { kind: 'chat', id: owner.id } : undefined;
 }
 const sessionIdFrom = (uri: string) => parseChannel(uri)?.id;
+const subscribedSessionId = (uri: string) => sessionIdFrom(uri) ?? parseTerminalChannel(uri)?.sessionId;
 const clientTurnId = /^[A-Za-z0-9_.:-]{1,128}$/;
 const actionOrigins = new WeakMap<Json, Origin>();
 const channelKey = (uri: string) => { const parsed = parseChannel(uri); return parsed ? `${parsed.kind}:${parsed.id}` : uri; };
@@ -232,12 +235,17 @@ export class AgentHost {
   readonly store: Store;
   readonly engine: Engine;
   readonly clients = new Set<Client>();
-  serverSeq = 0;
+  private readonly sequence: ServerSequence;
+  /** The last sequence number the host gave an action. It never moves backwards, also not across a restart. */
+  get serverSeq(): number { return this.sequence.current; }
+  set serverSeq(next: number) { this.sequence.advanceTo(next); }
   private readonly projections = new Map<string, Projection>();
   private readonly pending = new Map<string, PendingSession>();
   private readonly summaries = new Map<string, string>();
-  private readonly activeClients = new Map<string, Map<string, Json>>();
-  private readonly knownClients = new Map<string, { userId: string; scheme: SessionScheme; clientInfo?: Client['clientInfo'] }>();
+  private readonly activeClients: Map<string, Map<string, Json>>;
+  private readonly knownClients: RememberedClients<SessionScheme>;
+  private readonly idleSessions = new IdleSessions();
+  private readonly sweeper: ReturnType<typeof setInterval>;
   private readonly departing = new Map<string, ReturnType<typeof setTimeout>>();
   /** How long an active client whose last connection closed keeps its place, waiting for its reconnect: 30 seconds, as in VS Code's own host. */
   activeClientGraceMs = 30_000;
@@ -250,13 +258,53 @@ export class AgentHost {
   private polling = false;
   private closed = false;
 
+  /** Ploeg's tracker routes as a read-only automation catalogue. */
+  readonly automations: TrackerAutomations;
+
   private readonly redact: (text: string) => string;
 
   constructor(config: AppConfig, store: Store, engine: Engine) {
     this.config = config; this.store = store; this.engine = engine;
     const secrets = knownSecrets(config);
     this.redact = text => plainRedactedText(withoutKnownSecrets(text, secrets));
+    this.sequence = new ServerSequence(store);
+    this.knownClients = new RememberedClients(store, maxKnownClients);
+    this.activeClients = restoreActiveClients(store);
+    for (const clientId of new Set([...this.activeClients.values()].flatMap(clients => [...clients.keys()]))) this.awaitReturn(clientId);
+    this.sweeper = setInterval(() => this.evictIdleSessions(), Math.min(60_000, this.idleSessions.idleMs));
+    this.sweeper.unref();
+    this.automations = new TrackerAutomations(config, {
+      watchers: () => [...new Map([...this.clients].filter(client => client.initialized && client.subscriptions.has(automationsChannel)).map(client => [client.user.id, client.user])).values()],
+      publish: (userId, action) => this.broadcast(automationsChannel, action, undefined, client => client.user.id === userId),
+      workspaceFolder: repositoryId => { const name = repositoryWorkspaceNames(this.config.repositories).get(repositoryId); return name ? `${repositoriesDirectory}/${encodeURIComponent(name)}` : undefined; },
+    });
   }
+
+  /** Evicts the projection and summary of every ended session nobody has subscribed to for the idle period; a later subscribe rebuilds them from the durable events. Returns the evicted session ids. */
+  evictIdleSessions(now = Date.now()): string[] {
+    const due = this.idleSessions.sweep(this.cachedSessions(), id => this.evictable(id), now);
+    for (const id of due) this.evict(id);
+    return due;
+  }
+
+  /** The sessions whose projection or summary the host holds in memory. */
+  cachedSessions(): string[] { return [...new Set([...this.projections.keys(), ...this.summaries.keys()])]; }
+
+  private evictable(id: string): boolean {
+    const session = this.store.getSession(id);
+    if ((session && !['completed', 'cancelled', 'failed'].includes(session.status)) || this.offering.has(id)) return false;
+    const publicId = this.publicId(id);
+    return ![...this.clients].some(client => [...client.subscriptions].some(channel => subscribedSessionId(channel) === publicId));
+  }
+
+  private evict(id: string): void {
+    this.projections.delete(id);
+    this.summaries.delete(id);
+    for (const key of [...this.candidates.keys()]) if (key.startsWith(`${id}:`)) this.candidates.delete(key);
+    this.idleSessions.forget(id);
+  }
+
+  private persistActiveClients(): void { saveActiveClients(this.store, this.activeClients); }
 
   /** Connection tokens expire after `auth.sessionHours` without use, and end with the sign-in that issued them. */
   issueToken(user: User, label = 'agent host', signIn?: string): string {
@@ -340,7 +388,7 @@ export class AgentHost {
       .sort((a, b) => a.connectedAt.localeCompare(b.connectedAt));
   }
 
-  close(): void { this.closed = true; this.stopPolling(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
+  close(): void { this.closed = true; this.stopPolling(); clearInterval(this.sweeper); this.automations.close(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
 
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
@@ -945,7 +993,7 @@ export class AgentHost {
       for (const client of [...this.clients]) if (Date.now() - client.checkedAt >= 60_000) this.current(client, false);
       const watched = new Map<string, Session>();
       const watchers = new Map<string, User>();
-      for (const client of this.clients) for (const channel of client.subscriptions) { const publicId = sessionIdFrom(channel) ?? parseTerminalChannel(channel)?.sessionId; const id = publicId ? this.engineId(publicId) : undefined; if (id && !watched.has(id)) { const session = this.store.getSession(id); if (session) watched.set(id, session); } if (id && client.initialized && client.user.role !== 'viewer' && !watchers.has(id)) watchers.set(id, client.user); }
+      for (const client of this.clients) for (const channel of client.subscriptions) { const publicId = subscribedSessionId(channel); const id = publicId ? this.engineId(publicId) : undefined; if (id && !watched.has(id)) { const session = this.store.getSession(id); if (session) watched.set(id, session); } if (id && client.initialized && client.user.role !== 'viewer' && !watchers.has(id)) watchers.set(id, client.user); }
       for (const [id, session] of watched) {
         const projection = this.projection(session);
         const publicId = this.publicId(id);
@@ -1078,6 +1126,7 @@ export class AgentHost {
   }
 
   private async subscribe(client: Client, channel: string): Promise<Json> {
+    if (channel === automationsChannel && this.automations.available) { const state = await this.automations.snapshot(client.user); client.subscriptions.add(channel); return { resource: channel, state, fromSeq: this.serverSeq }; }
     const parsed = parseChannel(channel);
     if (parsed?.kind === 'changeset') { const session = this.sessionFor(client.user, channel); if (session) await this.loadCandidate(session); }
     const snapshot = this.snapshot(client, channel);
@@ -1091,9 +1140,7 @@ export class AgentHost {
   }
 
   private remember(clientId: string, user: User, scheme: SessionScheme, clientInfo: Client['clientInfo']): void {
-    this.knownClients.delete(clientId);
-    this.knownClients.set(clientId, { userId: user.id, scheme, clientInfo });
-    if (this.knownClients.size > maxKnownClients) this.knownClients.delete(this.knownClients.keys().next().value!);
+    this.knownClients.remember(clientId, { userId: user.id, scheme, ...(clientInfo ? { clientInfo } : {}) });
   }
 
   private async request(client: Client, method: string, params: Json): Promise<Json> {
@@ -1110,7 +1157,7 @@ export class AgentHost {
       this.resumeActiveClient(params.clientId, Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
-      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, defaultDirectory: repositoriesDirectory, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };
+      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, defaultDirectory: repositoriesDirectory, ...(this.automations.available ? { automations: this.automations.capabilities() } : {}), ...(declaresSessionUris || this.automations.available ? { _meta: { ...(declaresSessionUris ? { [sessionUrisMeta]: true } : {}), ...(this.automations.available ? { [autonomousAutomationsMeta]: true } : {}) } } : {}), snapshots, terminalCommandPrefix: undefined };
     }
     if (method === 'reconnect' && !client.initialized) {
       const known = typeof params.clientId === 'string' ? this.knownClients.get(params.clientId) : undefined;
@@ -1142,6 +1189,12 @@ export class AgentHost {
         return { data: resource.data.toString('base64'), encoding: 'base64', contentType: params.encoding === 'base64' && text(resource.data) !== undefined ? resource.contentType : 'application/octet-stream' };
       }
       case 'invokeChangesetOperation': return this.invokeOperation(client, params);
+      case 'runAutomation': case 'fetchAutomationRuns': case 'listAutomationTriggerDefinitions': {
+        if (!this.automations.available) throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
+        const answer = await this.automations.command(client.user, method, params);
+        if ('refused' in answer) throw new RpcError(codes[answer.code], answer.refused);
+        return answer.result;
+      }
       case 'authenticate': return {};
       case 'getNetworkDiagnosticsInfo': return { version: applicationVersion, os: process.platform, arch: process.arch, proxySettings: {}, proxyEnv: {}, endpoints: [] };
       default: throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
@@ -1161,7 +1214,7 @@ export class AgentHost {
     if (activeClient !== undefined && (!activeClient || typeof activeClient !== 'object' || activeClient.clientId !== client.clientId)) throw new RpcError(codes.invalidParams, 'activeClient.clientId must be the clientId this client initialized with');
     const pending: PendingSession = { id: parsed.id, uri: channel, config, user: client.user, createdAt: new Date().toISOString() };
     this.pending.set(parsed.id, pending);
-    if (activeClient) this.activeClients.set(parsed.id, new Map([[client.clientId!, activeClient]]));
+    if (activeClient) { this.activeClients.set(parsed.id, new Map([[client.clientId!, activeClient]])); this.persistActiveClients(); }
     client.subscriptions.add(channel);
     queueMicrotask(() => { this.broadcast(channel, { type: 'session/ready' }); if (activeClient) this.broadcast(channel, { type: 'session/activeClientSet', activeClient }); this.notify(rootChannel, 'root/sessionAdded', viewer => ({ channel: rootChannel, summary: this.pendingSummary(pending, viewer) }), client.user.id); });
     return {};
@@ -1190,6 +1243,7 @@ export class AgentHost {
       if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
       this.pending.delete(pending.id);
       this.store.deleteAgentHostViews(pending.id);
+      if (this.activeClients.delete(pending.id)) this.persistActiveClients();
       this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(pending.id, viewer.scheme) }), pending.user.id);
       return {};
     }
@@ -1197,7 +1251,9 @@ export class AgentHost {
     if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
     if (['running', 'waiting_input', 'queued', 'paused', 'interrupted'].includes(session.status)) void this.engine.cancel(session.id, client.user).catch(() => {});
     const publicId = this.publicId(session.id);
-    for (const item of this.clients) for (const subscription of [...item.subscriptions]) if (sessionIdFrom(subscription) === publicId) item.subscriptions.delete(subscription);
+    for (const item of this.clients) for (const subscription of [...item.subscriptions]) if (subscribedSessionId(subscription) === publicId) item.subscriptions.delete(subscription);
+    this.evict(session.id);
+    if (this.activeClients.delete(publicId)) this.persistActiveClients();
     this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme) }), session.ownerId);
     return {};
   }
@@ -1258,6 +1314,7 @@ export class AgentHost {
     const clients = this.activeClients.get(publicId) ?? new Map<string, Json>();
     if (setting) clients.set(clientId, action.activeClient); else clients.delete(clientId);
     if (clients.size) this.activeClients.set(publicId, clients); else this.activeClients.delete(publicId);
+    this.persistActiveClients();
     this.echo(client, channel, action, origin);
     return undefined;
   }
@@ -1267,6 +1324,10 @@ export class AgentHost {
   private dropActiveClient(client: Client): void {
     const clientId = client.clientId;
     if (this.closed || !clientId || this.connected(clientId) || ![...this.activeClients.values()].some(clients => clients.has(clientId))) return;
+    this.awaitReturn(clientId);
+  }
+
+  private awaitReturn(clientId: string): void {
     clearTimeout(this.departing.get(clientId));
     const timer = setTimeout(() => { this.departing.delete(clientId); if (!this.connected(clientId)) this.removeActiveClient(clientId); }, this.activeClientGraceMs);
     timer.unref();
@@ -1286,6 +1347,7 @@ export class AgentHost {
     for (const [publicId, clients] of [...this.activeClients]) {
       if (keep(publicId) || !clients.delete(clientId)) continue;
       if (!clients.size) this.activeClients.delete(publicId);
+      this.persistActiveClients();
       this.broadcast(sessionChannel(publicId), { type: 'session/activeClientRemoved', clientId });
     }
   }
@@ -1538,6 +1600,7 @@ export class AgentHost {
         else reject(`Unsupported action ${String(action.type)}`);
         return;
       }
+      if (channel === automationsChannel && this.automations.available) { reject(this.automations.refuse(action)); return; }
       const terminal = parseTerminalChannel(channel);
       if (terminal) { reject(this.sessionFor(client.user, sessionChannel(terminal.sessionId)) ? readOnlyTerminal : 'Terminal not found'); return; }
       const parsed = parseChannel(channel);

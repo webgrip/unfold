@@ -8,11 +8,20 @@ export type TaskPloegStatus = { available: boolean; message?: string; demo: bool
 
 const notStarted = ['queued', 'withdrawn', 'done', 'stale'];
 const finished = ['withdrawn', 'done', 'stale'];
-type Routing = { teams: PloegTeam[]; all: PloegTeam[]; reported: boolean };
+export type Routing = { teams: PloegTeam[]; all: PloegTeam[]; reported: boolean };
 const olderTeams = 'This Ploeg version does not report which tracker users route work to its teams. Update Ploeg to hand tasks off from here.';
 const escapeHtml = (text: string) => text.replace(/[&<>"']/g, character => `&#${character.charCodeAt(0)};`);
 const pinnedTo = (routing: Routing, source: TaskSourceConfig) => routing.all.find(team => team.pinnedScopes.includes(source.project));
 const onTask = (team: PloegTeam, task: TaskSnapshot) => team.assignees.some(name => task.assignees?.some(person => person.username.toLowerCase() === name.toLowerCase()));
+
+/** The Ploeg teams a person may route a board's tasks to: the team the board is pinned to, or else every team of theirs with a tracker user to assign. */
+export function routedTeams(routing: Routing, source: TaskSourceConfig, allows: (team: string) => boolean): { teams: PloegTeam[]; pinned?: string; reason?: string } {
+  const pinned = pinnedTo(routing, source);
+  if (!pinned) return { teams: routing.teams.filter(team => team.assignees.length) };
+  if (!allows(pinned.id)) return { teams: [], pinned: pinned.id, reason: 'This board is pinned to a Ploeg team outside your access, so every hand-off from it runs there.' };
+  if (!pinned.assignees.length) return { teams: [], pinned: pinned.id, reason: `This board is pinned to Ploeg team ${pinned.id}, which has no tracker user to assign. Assign the task in the tracker instead.` };
+  return { teams: [pinned], pinned: pinned.id };
+}
 
 /** Hands Vikunja tasks to Ploeg by assigning a team's tracker user, and reports what Ploeg holds for a task. */
 export class TaskHandoff {
@@ -38,11 +47,7 @@ export class TaskHandoff {
   }
 
   private offered(user: User, source: TaskSourceConfig, routing: Routing): { teams: PloegTeam[]; reason?: string } {
-    const pinned = pinnedTo(routing, source);
-    if (!pinned) return { teams: routing.teams.filter(team => team.assignees.length) };
-    if (!this.ploeg.allows(user, pinned.id)) return { teams: [], reason: 'This board is pinned to a Ploeg team outside your access, so every hand-off from it runs there.' };
-    if (!pinned.assignees.length) return { teams: [], reason: `This board is pinned to Ploeg team ${pinned.id}, which has no tracker user to assign. Assign the task in the tracker instead.` };
-    return { teams: [pinned] };
+    return routedTeams(routing, source, team => this.ploeg.allows(user, team));
   }
 
   private async everyItem(user: User, task: TaskSnapshot, message: string): Promise<PloegItem[]> {
