@@ -12,6 +12,7 @@ export interface PanelHost {
   revision(): number;
   bootstrap(): Promise<Bootstrap>;
   liveUpdates(): boolean;
+  sessionEvent(type: string): void;
   lifecycle(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<void>;
   review(id: string, decision: 'accepted' | 'rejected'): Promise<void>;
   instruction(id: string, text: string, pauseFirst: boolean): Promise<InstructionOutcome>;
@@ -121,7 +122,7 @@ export class SessionPanel implements vscode.Disposable {
     const revision = this.host.revision();
     void client.stream(this.id, this.events.at(-1)?.id || 0, {
       onOpen: () => { this.streamDelay = 1500; this.freshness = { ...this.freshness, transport: 'live' }; },
-      onEvent: event => { this.merge([event]); this.scheduleSnapshot(); },
+      onEvent: event => { this.merge([event]); this.scheduleSnapshot(); this.host.sessionEvent(event.type); },
     }, controller.signal).catch(error => {
       if (controller.signal.aborted) return;
       if (error instanceof ApiError && error.status === 401) { this.stream = undefined; this.offline('Session expired. Use Unfold: Connect to sign in.'); return; }
