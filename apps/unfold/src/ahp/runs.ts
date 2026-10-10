@@ -165,15 +165,20 @@ export function runMessage(transcripts: RunTranscripts, event: Event): Json[] {
 
 const finishedStatuses = new Set(['completed', 'error', 'failed']);
 
+/** The terminal a crew command's tool call points at, as the session's command log derives it from the same event. */
+export type ToolTerminal = { command?: { commandLine: string }; content?: Json };
+
 /**
- * One tool event as an AHP tool call in `turn`: its input as the call's `toolInput`, its output or error as the result,
- * and nothing it did not report. Calls are matched by the event's part id, or by name when it has none.
+ * One tool event as an AHP tool call in `turn`: a command's command line, or else the reported input, as the call's
+ * `toolInput`, and its output or error as the result, each through `clean`. A command's output is its terminal, not text.
+ * Nothing the runtime did not report appears. Calls are matched by the event's part id, or by name when it has none.
  */
-export function toolActions(turn: Json, open: Map<string, string>, event: Event): Json[] {
+export function toolActions(turn: Json, open: Map<string, string>, event: Event, terminal: ToolTerminal = {}, clean: (value: string) => string = value => value): Json[] {
   const data = event.data as Json;
   const name = text(data.name) ?? 'tool';
-  const title = text(data.title);
-  const input = text(data.input);
+  const title = text(data.title) ? clean(data.title) : undefined;
+  const reported = terminal.command?.commandLine ?? text(data.input);
+  const input = reported ? clean(reported) : undefined;
   const status = String(data.status ?? 'unknown');
   const key = text(data.partId) ?? name;
   const actions: Json[] = [];
@@ -183,16 +188,24 @@ export function toolActions(turn: Json, open: Map<string, string>, event: Event)
   if (!part) {
     toolCallId = `${turn.id}-tool-${turn.responseParts.length + 1}`;
     open.set(key, toolCallId);
-    part = { kind: 'toolCall', toolCall: { toolCallId, toolName: name, displayName: name, status: 'running', invocationMessage, ...(input ? { toolInput: input } : {}), confirmed: 'not-needed' } };
+    part = { kind: 'toolCall', toolCall: { toolCallId, toolName: name, displayName: name, status: 'streaming' } };
     turn.responseParts.push(part);
     actions.push({ type: 'chat/toolCallStart', turnId: turn.id, toolCallId, toolName: name, displayName: name });
-    actions.push({ type: 'chat/toolCallReady', turnId: turn.id, toolCallId, invocationMessage, ...(input ? { toolInput: input } : {}), confirmed: 'not-needed' });
-  } else if ((input && part.toolCall.toolInput !== input) || part.toolCall.invocationMessage !== invocationMessage) {
-    part.toolCall = { ...part.toolCall, invocationMessage, ...(input ? { toolInput: input } : {}) };
-    actions.push({ type: 'chat/toolCallReady', turnId: turn.id, toolCallId, invocationMessage, ...(part.toolCall.toolInput ? { toolInput: part.toolCall.toolInput } : {}), confirmed: 'not-needed' });
   }
-  if (finishedStatuses.has(status)) {
-    const result = toolResult(data, name, title, status === 'completed');
+  const ready = (toolCall: Json) => ({ type: 'chat/toolCallReady', turnId: turn.id, toolCallId, invocationMessage, ...(toolCall.toolInput !== undefined ? { toolInput: toolCall.toolInput } : {}), confirmed: 'not-needed' });
+  if (part.toolCall.status === 'streaming' && status !== 'pending') {
+    part.toolCall = { ...part.toolCall, status: 'running', invocationMessage, ...(input ? { toolInput: input } : {}), confirmed: 'not-needed' };
+    actions.push(ready(part.toolCall));
+  } else if (part.toolCall.status === 'running' && ((input && part.toolCall.toolInput !== input) || part.toolCall.invocationMessage !== invocationMessage)) {
+    part.toolCall = { ...part.toolCall, invocationMessage, ...(input ? { toolInput: input } : {}) };
+    actions.push(ready(part.toolCall));
+  }
+  if (terminal.content && part.toolCall.status === 'running' && part.toolCall.toolInput !== undefined && !part.toolCall.content) {
+    part.toolCall = { ...part.toolCall, content: [terminal.content] };
+    actions.push({ type: 'chat/toolCallContentChanged', turnId: turn.id, toolCallId, content: [terminal.content] });
+  }
+  if (finishedStatuses.has(status) && part.toolCall.status === 'running') {
+    const result = toolResult(data, name, title, status === 'completed', part.toolCall.content && terminal.content ? terminal.content : undefined, clean);
     part.toolCall = { ...part.toolCall, status: 'completed', ...result };
     open.delete(key);
     actions.push({ type: 'chat/toolCallComplete', turnId: turn.id, toolCallId, result });
@@ -200,25 +213,25 @@ export function toolActions(turn: Json, open: Map<string, string>, event: Event)
   return actions;
 }
 
-function toolResult(data: Json, name: string, title: string | undefined, success: boolean): Json {
-  const output = [text(data.output), text(data.text)].filter((value): value is string => Boolean(value));
+function toolResult(data: Json, name: string, title: string | undefined, success: boolean, terminal: Json | undefined, clean: (value: string) => string): Json {
+  const output = terminal ? [] : [text(data.output), text(data.text)].filter((value): value is string => Boolean(value)).map(clean);
   const exitCode = typeof data.exitCode === 'number' && Number.isFinite(data.exitCode) ? data.exitCode : undefined;
   const durationMs = typeof data.durationMs === 'number' && Number.isFinite(data.durationMs) ? data.durationMs : undefined;
-  const failure = text(data.error) ?? (exitCode !== undefined && exitCode !== 0 ? `Exited with code ${exitCode}` : undefined);
+  const failure = text(data.error) ? clean(data.error) : exitCode !== undefined && exitCode !== 0 ? `Exited with code ${exitCode}` : undefined;
   return {
     success, pastTenseMessage: success ? title ?? `Ran ${name}` : `${title ?? name} failed`,
-    ...(output.length ? { content: output.map(value => ({ type: 'text', text: value })) } : {}),
+    ...(terminal ? { content: [terminal] } : output.length ? { content: output.map(value => ({ type: 'text', text: value })) } : {}),
     ...(exitCode !== undefined || durationMs !== undefined ? { structuredContent: { ...(exitCode !== undefined ? { exitCode } : {}), ...(durationMs !== undefined ? { durationMs } : {}) } } : {}),
     ...(!success ? { error: { message: failure ?? `${title ?? name} failed` } } : {}),
   };
 }
 
 /** A tool event of a working Run, as a tool call in the Run's chat. Undefined when the event belongs to no working Run, so the session's chat shows it. */
-export function runTool(transcripts: RunTranscripts, event: Event): Json[] | undefined {
+export function runTool(transcripts: RunTranscripts, event: Event, terminal?: ToolTerminal, clean?: (value: string) => string): Json[] | undefined {
   const chat = working(transcripts, event.runId);
   if (!chat) return undefined;
   chat.modifiedAt = event.at;
-  return toolActions(chat.turn, chat.tools, event).map(action => toRun(chat.toolCallId, action));
+  return toolActions(chat.turn, chat.tools, event, terminal, clean).map(action => toRun(chat.toolCallId, action));
 }
 
 function editsCall(turn: Json, toolName: string, displayName: string, invocationMessage: string, edits: Json[]): Json[] {

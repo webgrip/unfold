@@ -50,8 +50,7 @@ test('a tool event becomes a tool call with its input and its output or error, a
   const open = new Map<string, string>();
   const event = (data: Json): Event => ({ id: 1, sessionId: 's', type: 'tool', at: '2026-10-10T10:00:00.000Z', actor: 'system', data });
   const started = toolActions(turn, open, event({ name: 'bash', status: 'pending', partId: 'p1' }));
-  assert.deepEqual(started.map(item => item.type), ['chat/toolCallStart', 'chat/toolCallReady']);
-  assert.equal(started[1].toolInput, undefined, 'nothing is shown as input before the tool reports one');
+  assert.deepEqual(started.map(item => item.type), ['chat/toolCallStart'], 'a pending tool is still streaming its input');
   const running = toolActions(turn, open, event({ name: 'bash', status: 'running', partId: 'p1', title: 'Run the tests', input: '{"command":"npm test"}' }));
   assert.deepEqual(running.map(item => [item.type, item.toolInput, item.invocationMessage]), [['chat/toolCallReady', '{"command":"npm test"}', 'Run the tests']]);
   const done = toolActions(turn, open, event({ name: 'bash', status: 'completed', partId: 'p1', title: 'Run the tests', input: '{"command":"npm test"}', output: '12 passing' }));
@@ -128,13 +127,18 @@ test('a live Run spawns its chat in the client\'s spelling and streams its tool 
   const opened = (await client.rpc('subscribe', { channel: runChat })).snapshot.state;
   assert.equal(opened.activeTurn.message.text, created.objective);
 
-  server.app.store.appendEvent(created.id, 'tool', writer.roleId, { name: 'bash', status: 'running', partId: 'call-1', title: 'Run the tests', input: '{"command":"npm test"}' }, writer.id);
-  server.app.store.appendEvent(created.id, 'tool', writer.roleId, { name: 'bash', status: 'error', partId: 'call-1', title: 'Run the tests', input: '{"command":"npm test"}', output: '1 failing', error: 'npm test exited 1' }, writer.id);
+  server.app.store.appendEvent(created.id, 'tool', writer.roleId, { name: 'read', status: 'running', partId: 'call-1', title: 'Read src/order.js', input: '{"filePath":"src/order.js"}' }, writer.id);
+  server.app.store.appendEvent(created.id, 'tool', writer.roleId, { name: 'read', status: 'error', partId: 'call-1', title: 'Read src/order.js', input: '{"filePath":"src/order.js"}', output: 'partial', error: 'File not found: src/order.js' }, writer.id);
   const ready = await client.until(message => action(message, runChat, 'chat/toolCallReady'));
-  assert.equal(ready.params.action.toolInput, '{"command":"npm test"}');
+  assert.equal(ready.params.action.toolInput, '{"filePath":"src/order.js"}');
   const complete = await client.until(message => action(message, runChat, 'chat/toolCallComplete'));
-  assert.deepEqual(complete.params.action.result, { success: false, pastTenseMessage: 'Run the tests failed', content: [{ type: 'text', text: '1 failing' }], error: { message: 'npm test exited 1' } });
-  assert.ok(!client.inbox.some(message => action(message, chat, 'chat/toolCallStart') && message.params.action.toolName === 'bash'), 'the Run\'s tool call is not repeated in the session\'s chat');
+  assert.deepEqual(complete.params.action.result, { success: false, pastTenseMessage: 'Read src/order.js failed', content: [{ type: 'text', text: 'partial' }], error: { message: 'File not found: src/order.js' } });
+  server.app.store.appendEvent(created.id, 'tool', writer.roleId, { name: 'bash', status: 'completed', partId: 'call-2', title: 'Run the tests', input: '{"command":"npm test"}', output: '12 passing', exitCode: 0 }, writer.id);
+  const command = await client.until(message => action(message, runChat, 'chat/toolCallComplete') && message.params.action.result.pastTenseMessage === 'Run the tests');
+  assert.equal(command.params.action.result.content[0].type, 'terminal', 'a command\'s output is its read-only terminal, not text');
+  const commandCall = client.inbox.find(message => action(message, runChat, 'chat/toolCallReady') && message.params.action.toolCallId === command.params.action.toolCallId)!;
+  assert.equal(commandCall.params.action.toolInput, 'npm test');
+  assert.ok(!client.inbox.some(message => action(message, chat, 'chat/toolCallStart') && ['read', 'bash'].includes(message.params.action.toolName)), 'the Run\'s tool calls are not repeated in the session\'s chat');
 
   server.app.store.appendEvent(created.id, 'run.finished', writer.roleId, { status: 'completed', summary: 'Fixed the rounding.' }, writer.id);
   await client.until(message => action(message, runChat, 'chat/turnComplete'));
@@ -169,8 +173,7 @@ test('a demo session run from the Agents window nests the demo\'s real checks un
   assert.ok(runChats.length >= 2, 'the writer and the reviewer each have a chat');
   const writer = (await client.rpc('subscribe', { channel: runChats[0].resource })).snapshot.state;
   const checks = toolCalls(writer.turns).filter(call => call.toolName.startsWith('node --test'));
-  assert.deepEqual(checks.map(call => call.success), [false, true], 'the baseline check fails before the fix and passes after it, as the demo ran them');
-  assert.match(checks[0].content[0].text, /fail/i);
+  assert.deepEqual(checks.map(call => [call.success, call.content[0].type, call.content[0].result.exitCode]), [[false, 'terminal', 1], [true, 'terminal', 0]], 'the baseline check fails before the fix and passes after it, as the demo ran them');
   const turns = (await client.rpc('subscribe', { channel: chat })).snapshot.state.turns;
   const candidate = toolCalls(turns).find(call => call.toolName === 'unfold_candidate');
   assert.ok(candidate, 'the captured candidate appears as file edits in the session\'s chat');

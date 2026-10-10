@@ -4,13 +4,17 @@ import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
 import type { AgentHostView, Store } from '../store.ts';
 import type { Engine } from '../engine.ts';
-import { placements } from '../config.ts';
 import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile } from '../candidates.ts';
 import type { AppConfig, Event, PermissionRequest, Repository, Session, User, WorkspaceBackend } from '../types.ts';
 import type { Recovery } from '../engine.ts';
+import { SessionConfigError, acceptSessionConfig, approvalOf, changePendingConfig, composerModel, resolveSessionConfig, sessionConfigCompletions, sessionConfigSchema, sessionConfigState, startedConfigChange } from './session-config.ts';
+import { TrackerAutomations, automationsChannel, autonomousAutomationsMeta } from './automations.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
+import { IdleSessions, RememberedClients, ServerSequence, restoreActiveClients, saveActiveClients } from './continuity.ts';
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
 import { money } from '../../public/core/format.js';
+import { knownSecrets, plainRedactedText, withoutKnownSecrets } from '../redaction.ts';
+import { CommandLog, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel } from './terminals.ts';
 import { candidateEdits, carryRuns, parseRunChannel, runChatState, runChats, runFinished, runMessage, runRoute, runStarted, runTool, runTranscripts, stopRuns, toolActions, type RunTranscripts, type Spelling } from './runs.ts';
 
 /** The AHP compatibility baseline this host implements. It accepts any offered version in `>=0.9.0 <0.10.0`. */
@@ -76,7 +80,7 @@ type View = Pick<Client, 'user' | 'scheme'>;
 type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
 type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
-type Projection = { finalStop?: number; turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json>; choices: Map<string, Json>; holding?: string; startedRuns: Set<string>; finishedRuns: Set<string>; workingRun?: string; queuedInstructions: number; runs: RunTranscripts };
+type Projection = { finalStop?: number; turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json>; choices: Map<string, Json>; holding?: string; startedRuns: Set<string>; finishedRuns: Set<string>; workingRun?: string; queuedInstructions: number; terminals: CommandLog; runs: RunTranscripts };
 type PendingSession = { id: string; uri: string; config: Json; user: User; createdAt: string; starting?: boolean };
 type CandidateView = { files: CandidateFile[]; counts: Map<string, { added: number; removed: number }> };
 
@@ -98,6 +102,7 @@ export function parseChannel(uri: string): { kind: ChannelKind; id: string; run?
   return owner?.kind === 'session' ? { kind: 'chat', id: owner.id } : undefined;
 }
 const sessionIdFrom = (uri: string) => parseChannel(uri)?.id;
+const subscribedSessionId = (uri: string) => sessionIdFrom(uri) ?? parseTerminalChannel(uri)?.sessionId;
 const clientTurnId = /^[A-Za-z0-9_.:-]{1,128}$/;
 const actionOrigins = new WeakMap<Json, Origin>();
 const channelKey = (uri: string) => { const parsed = parseChannel(uri); return parsed ? `${parsed.kind}:${parsed.id}${parsed.run ? `:${parsed.run}` : ''}` : uri; };
@@ -233,12 +238,17 @@ export class AgentHost {
   readonly store: Store;
   readonly engine: Engine;
   readonly clients = new Set<Client>();
-  serverSeq = 0;
+  private readonly sequence: ServerSequence;
+  /** The last sequence number the host gave an action. It never moves backwards, also not across a restart. */
+  get serverSeq(): number { return this.sequence.current; }
+  set serverSeq(next: number) { this.sequence.advanceTo(next); }
   private readonly projections = new Map<string, Projection>();
   private readonly pending = new Map<string, PendingSession>();
   private readonly summaries = new Map<string, string>();
-  private readonly activeClients = new Map<string, Map<string, Json>>();
-  private readonly knownClients = new Map<string, { userId: string; scheme: SessionScheme; clientInfo?: Client['clientInfo'] }>();
+  private readonly activeClients: Map<string, Map<string, Json>>;
+  private readonly knownClients: RememberedClients<SessionScheme>;
+  private readonly idleSessions = new IdleSessions();
+  private readonly sweeper: ReturnType<typeof setInterval>;
   private readonly departing = new Map<string, ReturnType<typeof setTimeout>>();
   /** How long an active client whose last connection closed keeps its place, waiting for its reconnect: 30 seconds, as in VS Code's own host. */
   activeClientGraceMs = 30_000;
@@ -251,9 +261,53 @@ export class AgentHost {
   private polling = false;
   private closed = false;
 
+  /** Ploeg's tracker routes as a read-only automation catalogue. */
+  readonly automations: TrackerAutomations;
+
+  private readonly redact: (text: string) => string;
+
   constructor(config: AppConfig, store: Store, engine: Engine) {
     this.config = config; this.store = store; this.engine = engine;
+    const secrets = knownSecrets(config);
+    this.redact = text => plainRedactedText(withoutKnownSecrets(text, secrets));
+    this.sequence = new ServerSequence(store);
+    this.knownClients = new RememberedClients(store, maxKnownClients);
+    this.activeClients = restoreActiveClients(store);
+    for (const clientId of new Set([...this.activeClients.values()].flatMap(clients => [...clients.keys()]))) this.awaitReturn(clientId);
+    this.sweeper = setInterval(() => this.evictIdleSessions(), Math.min(60_000, this.idleSessions.idleMs));
+    this.sweeper.unref();
+    this.automations = new TrackerAutomations(config, {
+      watchers: () => [...new Map([...this.clients].filter(client => client.initialized && client.subscriptions.has(automationsChannel)).map(client => [client.user.id, client.user])).values()],
+      publish: (userId, action) => this.broadcast(automationsChannel, action, undefined, client => client.user.id === userId),
+      workspaceFolder: repositoryId => { const name = repositoryWorkspaceNames(this.config.repositories).get(repositoryId); return name ? `${repositoriesDirectory}/${encodeURIComponent(name)}` : undefined; },
+    });
   }
+
+  /** Evicts the projection and summary of every ended session nobody has subscribed to for the idle period; a later subscribe rebuilds them from the durable events. Returns the evicted session ids. */
+  evictIdleSessions(now = Date.now()): string[] {
+    const due = this.idleSessions.sweep(this.cachedSessions(), id => this.evictable(id), now);
+    for (const id of due) this.evict(id);
+    return due;
+  }
+
+  /** The sessions whose projection or summary the host holds in memory. */
+  cachedSessions(): string[] { return [...new Set([...this.projections.keys(), ...this.summaries.keys()])]; }
+
+  private evictable(id: string): boolean {
+    const session = this.store.getSession(id);
+    if ((session && !['completed', 'cancelled', 'failed'].includes(session.status)) || this.offering.has(id)) return false;
+    const publicId = this.publicId(id);
+    return ![...this.clients].some(client => [...client.subscriptions].some(channel => subscribedSessionId(channel) === publicId));
+  }
+
+  private evict(id: string): void {
+    this.projections.delete(id);
+    this.summaries.delete(id);
+    for (const key of [...this.candidates.keys()]) if (key.startsWith(`${id}:`)) this.candidates.delete(key);
+    this.idleSessions.forget(id);
+  }
+
+  private persistActiveClients(): void { saveActiveClients(this.store, this.activeClients); }
 
   /** Connection tokens expire after `auth.sessionHours` without use, and end with the sign-in that issued them. */
   issueToken(user: User, label = 'agent host', signIn?: string): string {
@@ -337,7 +391,7 @@ export class AgentHost {
       .sort((a, b) => a.connectedAt.localeCompare(b.connectedAt));
   }
 
-  close(): void { this.closed = true; this.stopPolling(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
+  close(): void { this.closed = true; this.stopPolling(); clearInterval(this.sweeper); this.automations.close(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
 
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
@@ -402,7 +456,7 @@ export class AgentHost {
     return {
       agents: [{
         provider, displayName: 'Unfold crews', description: 'Operator-led agent crews in isolated workspaces; every session ends in a reviewable candidate.',
-        models: this.config.models.map(model => ({ id: model.id, provider, name: model.name })),
+        models: [{ ...composerModel(this.config), provider }],
         protectedResources: [],
       }],
       activeSessions: this.activeSessionCount(user),
@@ -422,23 +476,6 @@ export class AgentHost {
     if (!changed.length) return;
     for (const client of changed) client.activeSessions = counts.get(client);
     this.broadcast(rootChannel, viewer => ({ type: 'root/activeSessionsChanged', activeSessions: counts.get(viewer) }), undefined, viewer => changed.includes(viewer));
-  }
-
-  private configSchema(): Json {
-    const properties: Json = {
-      repository: { type: 'string', title: 'Repository', enum: this.config.repositories.map(repo => repo.id), enumDescriptions: this.config.repositories.map(repo => repo.name) },
-      crew: { type: 'string', title: 'Crew', enum: this.config.crews.map(crew => crew.id), enumDescriptions: this.config.crews.map(crew => crew.name) },
-      budgetUsd: { type: 'number', title: 'Session budget (USD)', minimum: 0.01, maximum: this.config.maxBudgetUsd },
-      title: { type: 'string', title: 'Session title' },
-    };
-    const options = placements(this.config);
-    if (options.length > 1) properties.placement = { type: 'string', title: 'Workspace placement', enum: options.map(item => item.id), enumDescriptions: options.map(item => item.name) };
-    return { type: 'object', properties, required: ['repository', 'crew', 'budgetUsd'] };
-  }
-
-  private defaultConfig(): Json {
-    const placement = placements(this.config).find(item => item.default)?.id;
-    return { repository: this.config.repositories[0]?.id, crew: this.config.crews[0]?.id, budgetUsd: Math.min(5, this.config.maxBudgetUsd), ...(placement ? { placement } : {}) };
   }
 
   summary(session: Session, view: View): Json {
@@ -493,7 +530,7 @@ export class AgentHost {
     return {
       ...this.summary(session, view), lifecycle: 'ready', activeClients: this.activeClientsOf(this.publicId(session.id)),
       chats: [this.chatSummary(session, view), ...runChats(this.projection(session).runs, this.spelling(session, view))], defaultChat: this.chatUri(session, view),
-      config: { schema: this.configSchema(), values: { repository: session.repositoryId, crew: session.crewId, budgetUsd: session.budgetUsd, title: session.title, ...(session.placement ? { placement: session.placement } : {}) } },
+      config: sessionConfigState(this.config, session),
       ...(changesets ? { changesets } : {}),
       inputNeeded: this.inputNeeded(session, view),
     };
@@ -602,7 +639,7 @@ export class AgentHost {
   private projection(session: Session): Projection {
     let projection = this.projections.get(session.id);
     if (!projection) {
-      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map(), answers: new Map(), choices: new Map(), startedRuns: new Set(), finishedRuns: new Set(), queuedInstructions: 0, runs: runTranscripts(sessionChannel(this.publicId(session.id))) };
+      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map(), answers: new Map(), choices: new Map(), startedRuns: new Set(), finishedRuns: new Set(), queuedInstructions: 0, terminals: new CommandLog(this.publicId(session.id), this.redact), runs: runTranscripts(sessionChannel(this.publicId(session.id))) };
       this.projections.set(session.id, projection);
       this.openTurn(projection, session, session.objective, session.createdAt, this.store.getSecret<string>(`ahp-turn:${session.id}`));
       const events = this.store.events(session.id);
@@ -617,7 +654,7 @@ export class AgentHost {
     if (projection.activeTurn) this.closeTurn(projection, 'complete', startedAt);
     const hostTurnId = `${session.id}-turn-${++projection.turnCounter}`;
     const turnId = this.acceptableTurnId(projection, requestedTurnId) ?? hostTurnId;
-    const message = { text, origin: { kind: origin }, ...(origin === 'user' && session.runs[0] ? { model: { id: this.config.models[0]?.id ?? 'coding' } } : {}) };
+    const message = { text, origin: { kind: origin } };
     projection.activeTurn = { id: turnId, startedAt, message, responseParts: [], usage: undefined };
     return [this.tag(projection, { type: 'chat/turnStarted', turnId, startedAt, message }, `turn:${turnId}`), ...carryRuns(projection.runs, projection.activeTurn)];
   }
@@ -729,7 +766,8 @@ export class AgentHost {
   private reduce(projection: Projection, session: Session, event: Event): Json[] {
     projection.cursor = event.id;
     const data = event.data as Json;
-    const actions: Json[] = [];
+    const terminal = projection.terminals.apply(event);
+    const actions: Json[] = [...terminal.actions];
     const ensureTurn = () => { if (!projection.activeTurn) actions.push(...this.openTurn(projection, session, session.objective, event.at)); return projection.activeTurn!; };
     actions.push(...stopRuns(projection.runs, event, projection.activeTurn, projection.turns));
     switch (event.type) {
@@ -774,8 +812,8 @@ export class AgentHost {
         break;
       }
       case 'tool': {
-        const routed = runTool(projection.runs, event);
-        actions.push(...(routed ?? toolActions(ensureTurn(), projection.openTools, event)));
+        const routed = runTool(projection.runs, event, terminal, this.redact);
+        actions.push(...(routed ?? toolActions(ensureTurn(), projection.openTools, event, terminal, this.redact)));
         break;
       }
       case 'permission': {
@@ -928,7 +966,7 @@ export class AgentHost {
       for (const client of [...this.clients]) if (Date.now() - client.checkedAt >= 60_000) this.current(client, false);
       const watched = new Map<string, Session>();
       const watchers = new Map<string, User>();
-      for (const client of this.clients) for (const channel of client.subscriptions) { const publicId = sessionIdFrom(channel); const id = publicId ? this.engineId(publicId) : undefined; if (id && !watched.has(id)) { const session = this.store.getSession(id); if (session) watched.set(id, session); } if (id && client.initialized && client.user.role !== 'viewer' && !watchers.has(id)) watchers.set(id, client.user); }
+      for (const client of this.clients) for (const channel of client.subscriptions) { const publicId = subscribedSessionId(channel); const id = publicId ? this.engineId(publicId) : undefined; if (id && !watched.has(id)) { const session = this.store.getSession(id); if (session) watched.set(id, session); } if (id && client.initialized && client.user.role !== 'viewer' && !watchers.has(id)) watchers.set(id, client.user); }
       for (const [id, session] of watched) {
         if (!this.projections.has(id)) { await this.loadCandidate(session); if (this.closed) return; }
         const projection = this.projection(session);
@@ -941,7 +979,7 @@ export class AgentHost {
         if (stop) projection.finalStop = stop.id;
         const fresh = [...arriving.flatMap(event => this.reduce(projection, session, event)), ...this.settle(projection, session)];
         const spelling = (viewer: View) => this.spelling(session, viewer);
-        for (const action of fresh) { const route = runRoute(action, spelling, this.spelling(session, { scheme: provider })); this.broadcast(route?.channel ?? chat, route?.action ?? action, actionOrigins.get(action)); }
+        for (const action of fresh) { const route = runRoute(action, spelling, this.spelling(session, { scheme: provider })); this.broadcast(terminalActionChannel(action) ?? route?.channel ?? chat, route?.action ?? action, actionOrigins.get(action)); }
         const watcher = watchers.get(id);
         if (watcher) this.offerNextSteps(session, watcher);
         const unread = fresh.some(action => action.type === 'chat/turnStarted' || action.type === 'chat/inputRequested' || (action.type === 'chat/toolCallReady' && action.confirmationTitle !== undefined));
@@ -997,6 +1035,8 @@ export class AgentHost {
 
   private snapshot(client: Client, channel: string): Json {
     if (channel === rootChannel) { const state = this.rootState(client.user); client.activeSessions = state.activeSessions; return { resource: rootChannel, state, fromSeq: this.serverSeq }; }
+    const terminal = parseTerminalChannel(channel);
+    if (terminal) return { resource: channel, state: this.terminalState(client, terminal), fromSeq: this.serverSeq };
     const parsed = parseChannel(channel);
     if (!parsed) throw new RpcError(codes.notFound, 'Unknown channel');
     if (parsed.run) { const session = this.sessionFor(client.user, channel); const state = session && runChatState(this.projection(session).runs, parsed.run, this.spelling(session, client)); if (!state) throw new RpcError(codes.notFound, 'Unknown channel'); return { resource: channel, state, fromSeq: this.serverSeq }; }
@@ -1010,6 +1050,13 @@ export class AgentHost {
     if (parsed.kind === 'session') return { resource: channel, state: this.sessionState(session, client), fromSeq: this.serverSeq };
     if (parsed.kind === 'chat') return { resource: channel, state: this.chatState(session, client), fromSeq: this.serverSeq };
     return { resource: channel, state: this.changesetState(session), fromSeq: this.serverSeq };
+  }
+
+  private terminalState(client: Client, terminal: { sessionId: string; commandId: string }): Json {
+    const session = this.sessionFor(client.user, sessionChannel(terminal.sessionId));
+    const command = session ? this.projection(session).terminals.get(terminal.commandId) : undefined;
+    if (!session || !command) throw new RpcError(codes.notFound, 'Terminal not found');
+    return this.projection(session).terminals.state(command, { session: this.sessionUri(session, client), chat: this.chatUri(session, client) });
   }
 
   private pendingSummary(pending: PendingSession, view: View): Json {
@@ -1048,7 +1095,7 @@ export class AgentHost {
   }
 
   private pendingState(pending: PendingSession, view: View): Json {
-    return { ...this.pendingSummary(pending, view), lifecycle: 'ready', activeClients: this.activeClientsOf(pending.id), chats: [this.pendingChat(pending, view)], defaultChat: chatChannel(pending.id, view.scheme), config: { schema: this.configSchema(), values: pending.config }, inputNeeded: [] };
+    return { ...this.pendingSummary(pending, view), lifecycle: 'ready', activeClients: this.activeClientsOf(pending.id), chats: [this.pendingChat(pending, view)], defaultChat: chatChannel(pending.id, view.scheme), config: { schema: sessionConfigSchema(this.config, pending.config), values: pending.config }, inputNeeded: [] };
   }
 
   private fingerprint(session: Session): string {
@@ -1056,6 +1103,7 @@ export class AgentHost {
   }
 
   private async subscribe(client: Client, channel: string): Promise<Json> {
+    if (channel === automationsChannel && this.automations.available) { const state = await this.automations.snapshot(client.user); client.subscriptions.add(channel); return { resource: channel, state, fromSeq: this.serverSeq }; }
     const parsed = parseChannel(channel);
     const loading = parsed ? this.sessionFor(client.user, channel) : undefined;
     if (loading) await this.loadCandidate(loading);
@@ -1070,9 +1118,7 @@ export class AgentHost {
   }
 
   private remember(clientId: string, user: User, scheme: SessionScheme, clientInfo: Client['clientInfo']): void {
-    this.knownClients.delete(clientId);
-    this.knownClients.set(clientId, { userId: user.id, scheme, clientInfo });
-    if (this.knownClients.size > maxKnownClients) this.knownClients.delete(this.knownClients.keys().next().value!);
+    this.knownClients.remember(clientId, { userId: user.id, scheme, ...(clientInfo ? { clientInfo } : {}) });
   }
 
   private async request(client: Client, method: string, params: Json): Promise<Json> {
@@ -1089,7 +1135,7 @@ export class AgentHost {
       this.resumeActiveClient(params.clientId, Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
-      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, defaultDirectory: repositoriesDirectory, ...(declaresSessionUris ? { _meta: { [sessionUrisMeta]: true } } : {}), snapshots, terminalCommandPrefix: undefined };
+      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, defaultDirectory: repositoriesDirectory, ...(this.automations.available ? { automations: this.automations.capabilities() } : {}), ...(declaresSessionUris || this.automations.available ? { _meta: { ...(declaresSessionUris ? { [sessionUrisMeta]: true } : {}), ...(this.automations.available ? { [autonomousAutomationsMeta]: true } : {}) } } : {}), snapshots, terminalCommandPrefix: undefined };
     }
     if (method === 'reconnect' && !client.initialized) {
       const known = typeof params.clientId === 'string' ? this.knownClients.get(params.clientId) : undefined;
@@ -1103,11 +1149,12 @@ export class AgentHost {
       case 'reconnect': { const snapshots: Json[] = []; for (const channel of Array.isArray(params.subscriptions) ? params.subscriptions : []) snapshots.push(await this.subscribe(client, channel)); return { type: 'snapshot', snapshots }; }
       case 'subscribe': { if (typeof params.channel !== 'string') throw new RpcError(codes.invalidParams, 'channel is required'); return { snapshot: await this.subscribe(client, params.channel) }; }
       case 'listSessions': return { items: this.visible(client.user).map(session => this.summary(session, client)) };
-      case 'resolveSessionConfig': { const picked = this.repositoryFromPickedFolder(params.workingDirectory); return { schema: this.configSchema(), values: { ...this.defaultConfig(), ...(params.config ?? {}), ...(picked ? { repository: picked } : {}) } }; }
+      case 'resolveSessionConfig': return resolveSessionConfig(this.config, params.config, this.repositoryFromPickedFolder(params.workingDirectory));
       case 'resourceList': return this.listDirectory(params.uri);
-      case 'sessionConfigCompletions': { const schema = this.configSchema().properties[String(params.property)]; const values: string[] = schema?.enum ?? []; return { items: values.map((value, index) => ({ value, label: schema.enumDescriptions?.[index] ?? value })) }; }
+      case 'sessionConfigCompletions': return sessionConfigCompletions(resolveSessionConfig(this.config, params.config, this.repositoryFromPickedFolder(params.workingDirectory)).schema, String(params.property));
       case 'createSession': return this.createSession(client, params);
       case 'createChat': return this.createChat(client, params);
+      case 'createTerminal': case 'disposeTerminal': throw new RpcError(codes.permissionDenied, noClientTerminals);
       case 'disposeSession': return this.disposeSession(client, params);
       case 'disposeChat': return {};
       case 'fetchTurns': return {};
@@ -1120,6 +1167,12 @@ export class AgentHost {
         return { data: resource.data.toString('base64'), encoding: 'base64', contentType: params.encoding === 'base64' && text(resource.data) !== undefined ? resource.contentType : 'application/octet-stream' };
       }
       case 'invokeChangesetOperation': return this.invokeOperation(client, params);
+      case 'runAutomation': case 'fetchAutomationRuns': case 'listAutomationTriggerDefinitions': {
+        if (!this.automations.available) throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
+        const answer = await this.automations.command(client.user, method, params);
+        if ('refused' in answer) throw new RpcError(codes[answer.code], answer.refused);
+        return answer.result;
+      }
       case 'authenticate': return {};
       case 'getNetworkDiagnosticsInfo': return { version: applicationVersion, os: process.platform, arch: process.arch, proxySettings: {}, proxyEnv: {}, endpoints: [] };
       default: throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
@@ -1133,13 +1186,12 @@ export class AgentHost {
     if (params.provider && params.provider !== provider) throw new RpcError(codes.providerNotFound, 'Unknown provider');
     if (this.pending.has(parsed.id) || this.store.getSession(this.engineId(parsed.id)) || this.store.getSession(parsed.id)) throw new RpcError(codes.sessionExists, 'Session already exists');
     const picked = Array.isArray(params.workingDirectories) ? this.repositoryFromPickedFolder(params.workingDirectories[0]) : undefined;
-    const config = { ...this.defaultConfig(), ...(params.config && typeof params.config === 'object' ? params.config : {}), ...(picked ? { repository: picked } : {}) };
-    if (!this.config.repositories.some(repo => repo.id === config.repository) || !this.config.crews.some(crew => crew.id === config.crew)) throw new RpcError(codes.invalidParams, 'Choose a configured repository and crew');
+    const config = this.acceptedConfig(params.config, picked);
     const activeClient = params.activeClient as Json | undefined;
     if (activeClient !== undefined && (!activeClient || typeof activeClient !== 'object' || activeClient.clientId !== client.clientId)) throw new RpcError(codes.invalidParams, 'activeClient.clientId must be the clientId this client initialized with');
     const pending: PendingSession = { id: parsed.id, uri: channel, config, user: client.user, createdAt: new Date().toISOString() };
     this.pending.set(parsed.id, pending);
-    if (activeClient) this.activeClients.set(parsed.id, new Map([[client.clientId!, activeClient]]));
+    if (activeClient) { this.activeClients.set(parsed.id, new Map([[client.clientId!, activeClient]])); this.persistActiveClients(); }
     client.subscriptions.add(channel);
     queueMicrotask(() => { this.broadcast(channel, { type: 'session/ready' }); if (activeClient) this.broadcast(channel, { type: 'session/activeClientSet', activeClient }); this.notify(rootChannel, 'root/sessionAdded', viewer => ({ channel: rootChannel, summary: this.pendingSummary(pending, viewer) }), client.user.id); });
     return {};
@@ -1168,6 +1220,7 @@ export class AgentHost {
       if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
       this.pending.delete(pending.id);
       this.store.deleteAgentHostViews(pending.id);
+      if (this.activeClients.delete(pending.id)) this.persistActiveClients();
       this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(pending.id, viewer.scheme) }), pending.user.id);
       return {};
     }
@@ -1175,7 +1228,9 @@ export class AgentHost {
     if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
     if (['running', 'waiting_input', 'queued', 'paused', 'interrupted'].includes(session.status)) void this.engine.cancel(session.id, client.user).catch(() => {});
     const publicId = this.publicId(session.id);
-    for (const item of this.clients) for (const subscription of [...item.subscriptions]) if (sessionIdFrom(subscription) === publicId) item.subscriptions.delete(subscription);
+    for (const item of this.clients) for (const subscription of [...item.subscriptions]) if (subscribedSessionId(subscription) === publicId) item.subscriptions.delete(subscription);
+    this.evict(session.id);
+    if (this.activeClients.delete(publicId)) this.persistActiveClients();
     this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme) }), session.ownerId);
     return {};
   }
@@ -1186,7 +1241,7 @@ export class AgentHost {
     pending.starting = true;
     let session: Session;
     try {
-      session = this.engine.create({ title: String(pending.config.title ?? text.split('\n')[0]).slice(0, 160) || 'Agent host session', objective: text, repositoryId: String(pending.config.repository), crewId: String(pending.config.crew), runtime: this.config.mode === 'demo' ? 'demo' : this.config.runtime.kind, placement: pending.config.placement as WorkspaceBackend | undefined, budgetUsd: Number(pending.config.budgetUsd) }, pending.user);
+      session = this.engine.create({ title: String(pending.config.title ?? text.split('\n')[0]).slice(0, 160) || 'Agent host session', objective: text, repositoryId: String(pending.config.repository), crewId: String(pending.config.crew), runtime: this.config.mode === 'demo' ? 'demo' : this.config.runtime.kind, placement: pending.config.placement as WorkspaceBackend | undefined, approval: approvalOf(pending.config), budgetUsd: Number(pending.config.budgetUsd) }, pending.user);
     } catch (error) {
       pending.starting = false;
       this.broadcast(pending.uri, { type: 'session/creationFailed', error: { errorType: (error as Json)?.code ?? 'create_failed', message: (error as Error)?.message ?? 'Could not create the session' } });
@@ -1236,6 +1291,7 @@ export class AgentHost {
     const clients = this.activeClients.get(publicId) ?? new Map<string, Json>();
     if (setting) clients.set(clientId, action.activeClient); else clients.delete(clientId);
     if (clients.size) this.activeClients.set(publicId, clients); else this.activeClients.delete(publicId);
+    this.persistActiveClients();
     this.echo(client, channel, action, origin);
     return undefined;
   }
@@ -1245,6 +1301,10 @@ export class AgentHost {
   private dropActiveClient(client: Client): void {
     const clientId = client.clientId;
     if (this.closed || !clientId || this.connected(clientId) || ![...this.activeClients.values()].some(clients => clients.has(clientId))) return;
+    this.awaitReturn(clientId);
+  }
+
+  private awaitReturn(clientId: string): void {
     clearTimeout(this.departing.get(clientId));
     const timer = setTimeout(() => { this.departing.delete(clientId); if (!this.connected(clientId)) this.removeActiveClient(clientId); }, this.activeClientGraceMs);
     timer.unref();
@@ -1264,8 +1324,31 @@ export class AgentHost {
     for (const [publicId, clients] of [...this.activeClients]) {
       if (keep(publicId) || !clients.delete(clientId)) continue;
       if (!clients.size) this.activeClients.delete(publicId);
+      this.persistActiveClients();
       this.broadcast(sessionChannel(publicId), { type: 'session/activeClientRemoved', clientId });
     }
+  }
+
+  private acceptedConfig(requested: unknown, picked?: string): Json {
+    try { return acceptSessionConfig(this.config, requested, picked); }
+    catch (error) { if (error instanceof SessionConfigError) throw new RpcError(codes.invalidParams, error.message); throw error; }
+  }
+
+  private changePendingConfig(client: Client, channel: string, pending: PendingSession, action: Json, origin: Origin): string | undefined {
+    if (pending.starting) return 'The session is already starting';
+    try { pending.config = changePendingConfig(this.config, pending.config, action.config, action.replace === true); }
+    catch (error) { if (error instanceof SessionConfigError) return error.message; throw error; }
+    this.echo(client, channel, { type: 'session/configChanged', config: pending.config, replace: true }, origin);
+    return undefined;
+  }
+
+  private async changeStartedConfig(client: Client, channel: string, session: Session, action: Json, origin: Origin): Promise<string | undefined> {
+    let change: ReturnType<typeof startedConfigChange>;
+    try { change = startedConfigChange(session, action.config); }
+    catch (error) { if (error instanceof SessionConfigError) return error.message; throw error; }
+    const current = change.approval ? await this.engine.setApproval(session.id, change.approval, client.user) : session;
+    this.echo(client, channel, { type: 'session/configChanged', config: sessionConfigState(this.config, current).values, replace: true }, origin);
+    return undefined;
   }
 
   private renameSession(client: Client, channel: string, session: Session, action: Json, origin: Origin): undefined {
@@ -1424,6 +1507,7 @@ export class AgentHost {
       case 'chat/turnStarted': return kind === 'chat' ? this.startFromPending(pending, action.message ?? {}, origin, action.turnId) : 'chat/turnStarted is dispatched on the chat channel';
       case 'session/activeClientSet': case 'session/activeClientRemoved': return kind === 'session' ? this.setActiveClient(client, channel, pending.id, action, origin) : `${action.type} is dispatched on the session channel`;
       case 'chat/draftChanged': this.echo(client, channel, action, origin); return undefined;
+      case 'session/configChanged': return kind === 'session' ? this.changePendingConfig(client, channel, pending, action, origin) : 'session/configChanged is dispatched on the session channel';
       default: return `${String(action.type)} waits until the first message starts the session`;
     }
   }
@@ -1498,6 +1582,7 @@ export class AgentHost {
       case 'chat/truncated': return 'Unfold keeps a session\'s history as durable evidence, so it cannot be truncated; start a new session instead';
       case 'session/titleChanged': return kind === 'changeset' ? 'session/titleChanged is dispatched on the session or chat channel' : this.renameSession(client, channel, session, action, origin);
       case 'session/activeClientSet': case 'session/activeClientRemoved': return kind === 'session' ? this.setActiveClient(client, channel, this.publicId(session.id), action, origin) : `${action.type} is dispatched on the session channel`;
+      case 'session/configChanged': return kind === 'session' ? this.changeStartedConfig(client, channel, session, action, origin) : 'session/configChanged is dispatched on the session channel';
       case 'chat/draftChanged': case 'chat/inputAnswerChanged': case 'changeset/filesReviewChanged': this.echo(client, channel, action, origin); return undefined;
       default: return `Unsupported action ${String(action.type)}`;
     }
@@ -1516,6 +1601,9 @@ export class AgentHost {
         else reject(`Unsupported action ${String(action.type)}`);
         return;
       }
+      if (channel === automationsChannel && this.automations.available) { reject(this.automations.refuse(action)); return; }
+      const terminal = parseTerminalChannel(channel);
+      if (terminal) { reject(this.sessionFor(client.user, sessionChannel(terminal.sessionId)) ? readOnlyTerminal : 'Terminal not found'); return; }
       const parsed = parseChannel(channel);
       if (!parsed) { reject('Unknown channel'); return; }
       if (parsed.run) { reject('A Run\'s chat is read-only; send messages in the session\'s chat'); return; }

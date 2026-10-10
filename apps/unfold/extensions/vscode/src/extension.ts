@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { pathToFileURL } from 'node:url';
 import { loadCore, type Core } from './core.js';
 import { NowTree, waitingCount, nowGroup, type NowEntry, type WorkItemRef } from './now-tree.js';
-import { sessionRows, statusSummary, type SessionRow } from './now.js';
+import { linkedWorkItems, sessionRows, statusSummary, type SessionRow } from './now.js';
 import type { PloegNow, PloegNowItem } from './ploeg-types.js';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
@@ -12,7 +12,7 @@ import { writeFile } from 'node:fs/promises';
 import { ApiError, UnfoldClient, normalizeServerUrl, parseUnfoldLink } from './client.js';
 import { browserLogin, codePrompt } from './browser-login.js';
 import { EvidenceDocuments, patchFileLine } from './evidence.js';
-import { AttentionWatcher, show, type NotificationPolicy } from './notifications.js';
+import { NeedsYouNotifier, attentionEvent, type NeedsYouAlert, type NeedsYouDetail, type WorkItemPolicy } from './notifications.js';
 import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome } from './panel.js';
 import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor, plainText, providerNames } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
@@ -59,7 +59,9 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   private readonly panels: SessionPanels;
   private readonly taskPanels: TaskPanels;
   private ticks = 0;
-  private readonly watcher = new AttentionWatcher(() => settings().get<NotificationPolicy>('notifications', 'all'));
+  private quietTicks = 0;
+  private eventRefresh?: ReturnType<typeof setTimeout>;
+  private readonly needsYou = new NeedsYouNotifier(() => settings().get<boolean>('notifications.needsYou', true));
   private timer: ReturnType<typeof setInterval>;
   private refreshBusy = false;
   private disposed = false;
@@ -157,6 +159,10 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   client() { return this.current; }
   revision() { return this.generation; }
   liveUpdates() { return settings().get('liveUpdates', true); }
+  sessionEvent(type: string) {
+    if (!attentionEvent(type) || this.eventRefresh) return;
+    this.eventRefresh = setTimeout(() => { this.eventRefresh = undefined; void this.refresh(); }, 500);
+  }
   async bootstrap(): Promise<Bootstrap> {
     if (this.configurationError) throw this.configurationError;
     if (!this.cachedBootstrap) this.cachedBootstrap = await this.current.bootstrap();
@@ -170,7 +176,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.failures = 0;
     this.lastSuccess = undefined;
     this.cachedBootstrap = undefined;
-    this.watcher.reset();
+    this.needsYou.reset();
     this.seenWaiting = undefined;
     this.nowReadAt = 0;
     this.lastNow = undefined;
@@ -191,6 +197,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     return setInterval(() => {
       if (this.nowView.visible || this.view.visible || this.taskView.visible || this.ploegView.visible || this.panels.visible) void this.refresh();
       if (this.ploegView.visible && ++this.ticks * seconds >= 30) { this.ticks = 0; this.ploeg.soften(); }
+      if (!(this.nowView.visible || this.view.visible || this.taskView.visible || this.ploegView.visible || this.panels.visible) && this.lastSuccess && settings().get<boolean>('notifications.needsYou', true) && ++this.quietTicks * seconds >= 30) { this.quietTicks = 0; void this.refresh(); }
     }, seconds * 1000);
   }
 
@@ -272,8 +279,8 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       this.statusLine(client, bootstrap.mode, now.value, rows);
       await vscode.commands.executeCommand('setContext', 'unfold.sessions', demo || Boolean(bootstrap.sharedExecution) || sessions.length > 0);
       await vscode.commands.executeCommand('setContext', 'unfold.connected', true);
-      for (const alert of this.watcher.observe(sessions)) void show(alert);
-      if (now.value) this.announceWaiting(now.value);
+      await this.announceNeedsYou(client, bootstrap, rows);
+      if (now.value) this.announceWaiting(now.value, rows);
       await this.panels.refreshVisible();
     } catch (error) {
       if (client === this.current && generation === this.generation) {
@@ -322,12 +329,33 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.status.tooltip = `${summary.tooltip}\n${state.client.origin}${state.mode === 'demo' ? ' · demonstration, no AI calls' : ''}\n${summary.asking ? 'Click to answer the oldest decision' : summary.focus ? 'Click to follow this Work Item' : 'Click to open Now'}`;
   }
 
-  private announceWaiting(now: PloegNow) {
+  private async announceNeedsYou(client: UnfoldClient, bootstrap: Bootstrap, rows: SessionRow[]) {
+    const details = new Map<string, NeedsYouDetail>();
+    await Promise.all(this.needsYou.changed(bootstrap.user.id, rows).map(async row => {
+      try {
+        if (row.progress.phase === 'asking') { const request = (await client.permissions(row.session.id)).find(entry => !entry.resolved); if (request) details.set(row.session.id, { request }); }
+        else details.set(row.session.id, { progress: this.core.sessionProgress(row.session, { recovery: await client.recovery(row.session.id) }) });
+      } catch { return; }
+    }));
+    if (client !== this.current) return;
+    for (const alert of this.needsYou.observe(bootstrap.user.id, rows, details, bootstrap.mode === 'demo')) void this.showNeedsYou(alert);
+  }
+
+  private async showNeedsYou(alert: NeedsYouAlert) {
+    const labels = alert.actions.map(action => action.label);
+    const chosen = alert.severity === 'information' ? await vscode.window.showInformationMessage(alert.message, ...labels) : await vscode.window.showWarningMessage(alert.message, ...labels);
+    const action = alert.actions.find(entry => entry.label === chosen);
+    if (!action) return;
+    await this.perform(() => action.action === 'answer' ? this.reviewDecision(alert.sessionId, action.requestId) : this.sessionAction(alert.sessionId, action.action));
+  }
+
+  private announceWaiting(now: PloegNow, rows: SessionRow[]) {
     const keyOf = (item: PloegNowItem) => `${item.id}:${item.state}`;
-    const waiting = now.waiting.filter(item => nowGroup(item) === 'review' || nowGroup(item) === 'needs');
+    const linked = linkedWorkItems(rows);
+    const waiting = now.waiting.filter(item => !linked.has(item.id) && (nowGroup(item) === 'review' || nowGroup(item) === 'needs'));
     const previous = this.seenWaiting;
     this.seenWaiting = new Set(waiting.map(keyOf));
-    const policy = settings().get<NotificationPolicy>('notifications', 'all');
+    const policy = settings().get<WorkItemPolicy>('notifications.workItems', 'all');
     if (!previous || policy === 'none' || now.demo) return;
     const fresh = waiting.filter(item => !previous.has(keyOf(item)) && (policy === 'all' || nowGroup(item) === 'needs'));
     for (const item of fresh.slice(0, 3)) {
@@ -406,7 +434,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     try { await target.logout(); }
     finally {
       if (address) await this.forgetAgentHost(target, address).catch(() => undefined);
-      this.hideAgentsWindow(); this.panels.closeAll(); this.watcher.reset(); this.offline(new ApiError(401, 'signed_out', 'Signed out.'));
+      this.hideAgentsWindow(); this.panels.closeAll(); this.needsYou.reset(); this.offline(new ApiError(401, 'signed_out', 'Signed out.'));
     }
   }
 
@@ -1119,7 +1147,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     if (panel && tab) panel.focus(tab, requestId, runId);
   }
 
-  dispose() { this.disposed = true; clearInterval(this.timer); if (this.statusTicker) clearInterval(this.statusTicker); this.hideAgentsWindow(); this.panels.closeAll(); }
+  dispose() { this.disposed = true; clearInterval(this.timer); if (this.eventRefresh) clearTimeout(this.eventRefresh); if (this.statusTicker) clearInterval(this.statusTicker); this.hideAgentsWindow(); this.panels.closeAll(); }
 }
 
 /** Settings sections this extension read before the product was named Unfold. */
@@ -1139,9 +1167,30 @@ export async function adoptRenamedSettings(keys: readonly string[]): Promise<voi
   }
 }
 
+/**
+ * Moves a former `unfold.notifications` level, or the same key under a renamed section, to `unfold.notifications.workItems`.
+ * `none` also turns `unfold.notifications.needsYou` off, because it meant no notifications at all. The old key is
+ * removed first, since VS Code cannot hold a value at `unfold.notifications` beside the settings under it.
+ */
+export async function adoptNotificationSettings(): Promise<void> {
+  const current = vscode.workspace.getConfiguration('unfold');
+  const targets = [['globalValue', vscode.ConfigurationTarget.Global], ['workspaceValue', vscode.ConfigurationTarget.Workspace]] as const;
+  for (const section of ['unfold', ...renamedSettingSections]) {
+    const former = vscode.workspace.getConfiguration(section).inspect<unknown>('notifications');
+    for (const [scope, target] of targets) {
+      const level = former?.[scope];
+      if (level !== 'all' && level !== 'decisions-and-failures' && level !== 'none') continue;
+      if (section === 'unfold') await current.update('notifications', undefined, target);
+      if (current.inspect('notifications.workItems')?.[scope] === undefined) await current.update('notifications.workItems', level, target);
+      if (level === 'none' && current.inspect('notifications.needsYou')?.[scope] === undefined) await current.update('notifications.needsYou', false, target);
+    }
+  }
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   try {
-    await adoptRenamedSettings(['serverUrl', 'refreshIntervalSeconds', 'liveUpdates', 'notifications', 'remoteHostAliases']);
+    await adoptRenamedSettings(['serverUrl', 'refreshIntervalSeconds', 'liveUpdates', 'remoteHostAliases']);
+    await adoptNotificationSettings().then(undefined, () => undefined);
     const core = await loadCore(pathToFileURL(vscode.Uri.joinPath(context.extensionUri, 'media', 'core').fsPath + '/').href);
     context.subscriptions.push(new Workbench(context, core));
   }
