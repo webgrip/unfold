@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { Store } from './store.ts';
-import { ExecutionAuthority } from './execution-authority.ts';
+import { authorityFailure, authorityRequestTimeoutMs, ExecutionAuthority } from './execution-authority.ts';
 import type { Links } from './links.ts';
 import { classifyFailure, executionFailure, type FailureCategory, type FailureStage } from './failures.ts';
 import { getTask, taskBindingConfiguration, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
@@ -40,6 +40,8 @@ const waitMessages: Record<Provisioning['phase'], string> = {
 };
 
 const reviewOutcomes = { approve: 'approved', request_changes: 'changes_requested', inconclusive: 'inconclusive' } as const;
+const messageFlushMs = 500;
+const messageChunkLimit = 16000;
 
 function completionOutcome(session: Session, crew: Crew | undefined): SessionOutcome {
   const last = session.runs.at(-1);
@@ -328,6 +330,22 @@ export class Engine {
     const state = session.status === 'waiting_input' ? 'waiting_input' : 'running';
     await this.authority!.command(session, binding.state === state ? 'heartbeat' : 'report', binding.state === state ? {} : { state });
     await this.authority!.observe(session).catch(() => undefined);
+  }
+
+  private missedHeartbeat(id: string, error: unknown): void {
+    const current = this.store.getSession(id)!;
+    if (!['running', 'waiting_input'].includes(current.status)) return;
+    const failure = authorityFailure(error);
+    const expiresAt = this.authority?.current(id)?.expiresAt;
+    const leaseLeftMs = expiresAt ? Math.max(0, Date.parse(expiresAt) - Date.now()) : 0;
+    const nextAttemptMs = (this.config.execution?.heartbeatMs ?? 15000) + authorityRequestTimeoutMs;
+    const lost = failure.cause === 'stale' || failure.cause === 'refused' || leaseLeftMs <= nextAttemptMs;
+    const detail = { ...failure, leaseLeftMs };
+    console.error(JSON.stringify({ level: lost ? 'error' : 'warn', event: lost ? 'execution.authority_lost' : 'execution.heartbeat_missed', session: id, ...detail }));
+    if (!lost) { this.save(current, 'execution.heartbeat_missed', 'system', detail); return; }
+    current.status = 'interrupted'; current.blocker = 'Ploeg authority was lost. Execution stopped; reconnect and reconcile before explicitly resuming.';
+    this.save(current, 'execution.authority_lost', 'system', { autoResumed: false, ...detail });
+    this.active.get(id)?.controller.abort(new DOMException('Execution authority lost', 'AbortError'));
   }
 
   private async finishAuthority(id: string): Promise<void> {
@@ -758,13 +776,7 @@ export class Engine {
     let heartbeatTask: Promise<void> | undefined;
     const heartbeat = this.authority?.current(id) ? setInterval(() => {
       if (heartbeatTask || signal.aborted) return;
-      heartbeatTask = this.heartbeatAuthority(id, first.execution!.generation).catch(async () => {
-        const current = this.store.getSession(id)!;
-        if (!['running', 'waiting_input'].includes(current.status)) return;
-        current.status = 'interrupted'; current.blocker = 'Ploeg authority was lost. Execution stopped; reconnect and reconcile before explicitly resuming.';
-        this.save(current, 'execution.authority_lost', 'system', { autoResumed: false });
-        this.active.get(id)?.controller.abort(new DOMException('Execution authority lost', 'AbortError'));
-      }).finally(() => { heartbeatTask = undefined; });
+      heartbeatTask = this.heartbeatAuthority(id, first.execution!.generation).catch(error => this.missedHeartbeat(id, error)).finally(() => { heartbeatTask = undefined; });
     }, this.config.execution?.heartbeatMs ?? 15000).unref() : undefined;
     try {
       signal.throwIfAborted();
@@ -822,7 +834,10 @@ export class Engine {
         stage = 'execution';
         if (this.authority?.current(id)) await this.authority.verify(session, first.execution!.generation);
         signal.throwIfAborted();
-        const result = await runtime.execute({ session, run, repository, role, workspace, model, prompt, signal, emit: event => { if (!signal.aborted) this.runtimeEvent(id, run.id, role.id, workspace, event); } });
+        const stream = this.runtimeStream(id, run.id, role.id, workspace);
+        let result: ExecutionResult;
+        try { result = await runtime.execute({ session, run, repository, role, workspace, model, prompt, signal, emit: event => { if (!signal.aborted) stream.emit(event); } }); }
+        finally { stream.flush(); }
         signal.throwIfAborted();
         const governed = crew.roles.some(item => item.mode === 'write');
         this.finishRun(id, run.id, role.id, result, reviewer, governed);
@@ -912,6 +927,27 @@ export class Engine {
     run.costUsd = session.runtime === 'demo' ? 0 : (typeof result.costUsd === 'number' && Number.isFinite(result.costUsd) && result.costUsd >= 0 ? result.costUsd : 0);
     session.artifacts.push(...this.clean(result.artifacts).map(artifact => ({ ...artifact, id: artifact.id || randomUUID() })));
     this.save(session, 'run.finished', actor, { summary: run.summary, verdict: run.verdict, status: run.status }, runId);
+  }
+
+  private runtimeStream(id: string, runId: string, actor: string, workspace: Session['workspace']): { emit(event: RuntimeEvent): void; flush(): void } {
+    let buffered: RuntimeEvent | undefined;
+    let timer: NodeJS.Timeout | undefined;
+    const flush = () => {
+      if (timer) { clearTimeout(timer); timer = undefined; }
+      const event = buffered; buffered = undefined;
+      if (event) this.runtimeEvent(id, runId, actor, workspace, event);
+    };
+    const emit = (event: RuntimeEvent) => {
+      const text = event.data.text;
+      if (event.type !== 'message' || typeof text !== 'string' || typeof event.data.partId !== 'string') { flush(); this.runtimeEvent(id, runId, actor, workspace, event); return; }
+      const joins = buffered && buffered.data.partId === event.data.partId && buffered.data.nativeSessionId === event.data.nativeSessionId && (buffered.data.text as string).length + text.length <= messageChunkLimit;
+      if (joins) buffered!.data.text = (buffered!.data.text as string) + text;
+      else { flush(); buffered = { type: event.type, data: { ...event.data } }; }
+      timer ??= setTimeout(() => {
+        try { flush(); } catch (error) { console.error(JSON.stringify({ level: 'error', event: 'runtime.event_failed', session: id, message: String(error instanceof Error ? error.message : error).slice(0, 200) })); }
+      }, messageFlushMs).unref();
+    };
+    return { emit, flush };
   }
 
   private runtimeEvent(id: string, runId: string, actor: string, workspace: Session['workspace'], event: RuntimeEvent): void {

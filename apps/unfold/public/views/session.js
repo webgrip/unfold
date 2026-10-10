@@ -234,6 +234,13 @@ function eventMarkup(event) {
   }
   if (event.type === 'workspace.waiting') return streamItem({ kind: 'system', tone: workspacePhaseProblem(data.phase) ? 'attention' : '', marker: icon(workspacePhaseProblem(data.phase) ? 'alert' : 'clock'), head: `<span class="stream-text-inline">${escape(data.message || workspacePhaseLabel(data.phase))}</span>${at}` });
   if (event.type === 'execution.authority') return streamItem({ kind: 'system', tone: '', head: `<span class="stream-text-inline">${escape(executionStateText(data))}</span>${at}` });
+  if (event.type === 'execution.heartbeat_missed' || event.type === 'execution.authority_lost') {
+    const lost = event.type === 'execution.authority_lost';
+    const why = { timeout: 'Ploeg did not answer in time', network: 'Ploeg could not be reached', http: `Ploeg answered ${data.status ?? 'with an error'}`, stale: 'Ploeg rejected it as stale', refused: 'Ploeg no longer allows this execution', invalid_response: 'Ploeg sent an unusable answer', not_configured: 'the Ploeg connection is not configured' }[data.cause];
+    const lease = Number.isFinite(data.leaseLeftMs) ? `lease ${Math.round(data.leaseLeftMs / 1000)} s left` : '';
+    const text = lost ? `Execution authority lost${why ? `: ${why}` : ''}` : `Heartbeat to Ploeg missed${why ? `: ${why}` : ''}. The Run continues.`;
+    return streamItem({ kind: 'system', tone: lost ? 'danger' : 'attention', marker: icon(lost ? 'alert' : 'clock'), head: `<span class="stream-text-inline">${escape(text)}</span>${lease ? `<span class="stream-facts">${escape(lease)}</span>` : ''}${at}` });
+  }
   const display = data.message || data.summary || (event.type === 'workspace.ready' ? `Workspace ready · ${data.backend}` : event.type === 'run.started' ? `${data.role} started` : event.type === 'session.created' ? 'Session created. Budget authorized; no work started.' : event.type === 'session.started' ? data.resumed ? 'Resumed by the operator' : 'Session started' : event.type === 'run.completed' ? `${role} completed` : event.type === 'budget.increased' ? `Additional authorization: ${money(data.amountUsd)}` : event.type.startsWith('permission.') ? 'An operator decision was recorded' : event.type.startsWith('budget.') ? `Budget accounting: ${event.type.split('.').at(-1)}` : humanize(event.type));
   const tone = event.type.includes('failed') ? 'danger' : event.type.includes('completed') || event.type.endsWith('.ready') ? 'success' : '';
   return streamItem({ kind: 'system', tone, marker: tone === 'danger' ? icon('x-circle') : tone === 'success' ? icon('check') : '', head: `<span class="stream-text-inline">${escape(display)}</span>${at}` });

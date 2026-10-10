@@ -5,7 +5,21 @@ import { PloegError } from './ploeg.ts';
 
 type Command = { commandId: string; action: string; expectedRevision: number; generation: number; state?: string; text?: string; stopConfirmed?: boolean; authenticatedBy?: string };
 const states = ['admitted', 'running', 'waiting_input', 'pause_requested', 'paused', 'cancel_requested', 'cancelled', 'completed', 'failed', 'interrupted'];
-const unavailable = () => new PloegError(503, 'execution_unconfirmed', 'Ploeg could not confirm this operation. Execution remains fenced; reconnect and reconcile before continuing.');
+const unavailable = (failure: AuthorityFailure = { cause: 'invalid_response' }) => Object.assign(new PloegError(503, 'execution_unconfirmed', 'Ploeg could not confirm this operation. Execution remains fenced; reconnect and reconcile before continuing.'), { failure });
+
+/** How long one authority request may take, except a credential request. */
+export const authorityRequestTimeoutMs = 5000;
+
+/** Why an authority operation failed: no response in time, no connection, an HTTP error status, a stale or refused operation, an unusable response, or missing configuration. */
+export type AuthorityFailure = { cause: 'timeout' | 'network' | 'http' | 'stale' | 'refused' | 'invalid_response' | 'not_configured' | 'unknown'; status?: number; durationMs?: number };
+
+/** The recorded reason behind an authority error, or `unknown` for an error that did not come from an authority request. */
+export function authorityFailure(error: unknown): AuthorityFailure {
+  const failure = (error as { failure?: AuthorityFailure } | undefined)?.failure;
+  if (failure) return failure;
+  if ((error as { code?: string } | undefined)?.code === 'execution_generation') return { cause: 'stale' };
+  return { cause: 'unknown' };
+}
 
 export class ExecutionAuthority {
   private queues = new Map<string, Promise<unknown>>();
@@ -26,10 +40,11 @@ export class ExecutionAuthority {
 
   private async request(session: Session, path: string, body?: unknown, actingUser = session.ownerId): Promise<Record<string, any>> {
     const token = process.env[this.config.ploeg!.tokenEnv!];
-    if (!token || token.length < 32 || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw unavailable();
+    if (!token || token.length < 32 || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw unavailable({ cause: 'not_configured' });
+    const started = Date.now();
     try {
-      const response = await fetch(`${this.config.ploeg!.url}/api/v1/operator/executions${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'X-Ploeg-Actor': session.ownerId, 'X-Ploeg-Acting-User': actingUser, accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(path.endsWith('/credential') ? 30000 : 5000), redirect: 'manual' });
-      if (!response.ok) { await response.body?.cancel(); throw new PloegError(response.status === 409 ? 409 : 503, 'execution_unconfirmed', response.status === 409 ? 'Ploeg rejected a stale or incompatible operation. Reconcile this execution before continuing.' : 'Ploeg could not confirm this operation. No replacement execution was started.'); }
+      const response = await fetch(`${this.config.ploeg!.url}/api/v1/operator/executions${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'X-Ploeg-Actor': session.ownerId, 'X-Ploeg-Acting-User': actingUser, accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(path.endsWith('/credential') ? 30000 : authorityRequestTimeoutMs), redirect: 'manual' });
+      if (!response.ok) { await response.body?.cancel(); throw Object.assign(new PloegError(response.status === 409 ? 409 : 503, 'execution_unconfirmed', response.status === 409 ? 'Ploeg rejected a stale or incompatible operation. Reconcile this execution before continuing.' : 'Ploeg could not confirm this operation. No replacement execution was started.'), { failure: { cause: response.status === 409 ? 'stale' : 'http', status: response.status } satisfies AuthorityFailure }); }
       if (!response.body || !(response.headers.get('content-type') ?? '').includes('application/json')) throw unavailable();
       const chunks: Uint8Array[] = []; let size = 0;
       const reader = response.body.getReader();
@@ -37,7 +52,12 @@ export class ExecutionAuthority {
       const data = JSON.parse(Buffer.concat(chunks).toString('utf8'));
       if (!data || data.schemaVersion !== '1.0') throw unavailable();
       return data;
-    } catch (error) { if (error instanceof PloegError) throw error; throw unavailable(); }
+    } catch (error) {
+      const durationMs = Date.now() - started;
+      if (error instanceof PloegError) throw Object.assign(error, { failure: { ...authorityFailure(error), durationMs } });
+      const name = (error as Error | undefined)?.name;
+      throw unavailable({ cause: name === 'TimeoutError' ? 'timeout' : name === 'SyntaxError' ? 'invalid_response' : 'network', durationMs });
+    }
   }
 
   private bind(session: Session, value: any): ExecutionBinding {
@@ -112,7 +132,7 @@ export class ExecutionAuthority {
 
   async verify(session: Session, generation = session.execution?.generation): Promise<void> {
     const binding = await this.refresh(session);
-    if (generation !== binding.generation || !['running', 'waiting_input'].includes(binding.state) || Date.parse(binding.expiresAt) <= Date.now() + 5000) throw unavailable();
+    if (generation !== binding.generation || !['running', 'waiting_input'].includes(binding.state) || Date.parse(binding.expiresAt) <= Date.now() + 5000) throw unavailable({ cause: 'refused' });
   }
 
   async credential(session: Session): Promise<Credential | undefined> {
