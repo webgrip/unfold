@@ -3,6 +3,7 @@ import { mkdirSync, chmodSync, existsSync, readFileSync, writeFileSync, renameSy
 import { dirname, join } from 'node:path';
 import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import type { Session, Event, PermissionRequest, User } from './types.ts';
+import type { Ask } from './ask/types.ts';
 
 export type StoredUser = User & { passwordHash: string };
 export type Login = { tokenHash: string; userId: string; expiresAt: string };
@@ -57,6 +58,9 @@ export class Store {
       CREATE TABLE IF NOT EXISTS product_event (id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL, actor TEXT NOT NULL, session TEXT NOT NULL, name TEXT NOT NULL, screen TEXT NOT NULL DEFAULT '', work_item_id INTEGER, shift_id INTEGER, props TEXT NOT NULL DEFAULT '{}', at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS product_event_at ON product_event(at);
       CREATE TABLE IF NOT EXISTS product_event_daily (tenant_id TEXT NOT NULL, day TEXT NOT NULL, name TEXT NOT NULL, screen TEXT NOT NULL DEFAULT '', count INTEGER NOT NULL, actors INTEGER NOT NULL, PRIMARY KEY (tenant_id, day, name, screen));
+      CREATE TABLE IF NOT EXISTS asks (id TEXT PRIMARY KEY, work_item_id TEXT NOT NULL, asker_id TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS asks_work_item ON asks(work_item_id, created_at);
+      CREATE INDEX IF NOT EXISTS asks_asker ON asks(asker_id, created_at);
       CREATE TABLE IF NOT EXISTS agent_host_views (user_id TEXT NOT NULL, session_id TEXT NOT NULL, session_flags INTEGER NOT NULL, chat_flags INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, session_id));
     `);
   }
@@ -115,6 +119,27 @@ export class Store {
   eventPage(sessionId: string, after: number, limit: number): Event[] {
     const rows = this.db.prepare('SELECT * FROM events WHERE session_id=? AND id>? ORDER BY id LIMIT ?').all(sessionId, after, limit) as Record<string, unknown>[];
     return rows.map(eventFromRow);
+  }
+
+  /** Inserts or replaces one Ask. Asks live apart from Session events, so no Ask can become an instruction to an agent. */
+  saveAsk(ask: Ask): void {
+    this.db.prepare('INSERT INTO asks(id,work_item_id,asker_id,created_at,body) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body')
+      .run(ask.id, ask.workItemId, ask.askerId, ask.createdAt, JSON.stringify(ask));
+  }
+
+  getAsk(id: string): Ask | undefined {
+    const row = this.db.prepare('SELECT body FROM asks WHERE id=?').get(id) as { body: string } | undefined;
+    return row ? JSON.parse(row.body) : undefined;
+  }
+
+  /** At most `limit` Asks about one Work Item, newest first. */
+  asksAbout(workItemId: string, limit: number): Ask[] {
+    return (this.db.prepare('SELECT body FROM asks WHERE work_item_id=? ORDER BY created_at DESC, id DESC LIMIT ?').all(workItemId, limit) as { body: string }[]).map(row => JSON.parse(row.body));
+  }
+
+  /** At most `limit` Asks one person asked, newest first. */
+  asksBy(askerId: string, limit: number): Ask[] {
+    return (this.db.prepare('SELECT body FROM asks WHERE asker_id=? ORDER BY created_at DESC, id DESC LIMIT ?').all(askerId, limit) as { body: string }[]).map(row => JSON.parse(row.body));
   }
 
   /** Runs one trivial query, proving the database answers without reading or decrypting any stored record. */
