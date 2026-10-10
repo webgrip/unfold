@@ -82,6 +82,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0013](../../apps/unfold/docs/adrs/0013-sandbox-crd-placement-with-warm-kata-pools.md) | Kubernetes placement through the Sandbox CRDs with warm Kata pools | 2026-09-10 | — |
 | Unfold | [0014](../../apps/unfold/docs/adrs/0014-signed-candidates.md) | Candidates are signed with in-toto provenance and an Agent Trace record | 2026-09-10 | — |
 | Unfold | [0016](../../apps/unfold/docs/adrs/0016-sign-in-and-link-your-own-accounts.md) | People sign in with the estate and link their own accounts | 2026-09-10 | — |
+| Unfold | [0019](../../apps/unfold/docs/adrs/0019-verify-canonical-candidates-outside-agent-workspaces.md) | Verify canonical candidates outside agent workspaces | 2026-10-11 | — |
 | Unfold | [0020](../../apps/unfold/docs/adrs/0020-the-name-and-mark-are-trademarks.md) | The name and mark are trademarks under a usage policy, not CC-licensed artwork | 2026-09-11 | — |
 | Unfold | [0021](../../apps/unfold/docs/adrs/0021-the-extension-ships-through-open-vsx-first.md) | The extension ships through Open VSX first, and reaches the Marketplace only on stable versions | 2026-09-11 | — |
 | Unfold | [0022](../../apps/unfold/docs/adrs/0022-apache-2-0-is-the-estate-licence.md) | Apache-2.0 is a decision here, not an inheritance | 2026-09-11 | — |
@@ -89,6 +90,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0037](../../apps/unfold/docs/adrs/0037-an-editor-signs-in-only-after-its-person-approves-it-and-gets-its-own-credential.md) | An editor signs in only after its person approves it, and gets its own credential | 2026-10-03 | — |
 | Unfold | [0038](../../apps/unfold/docs/adrs/0038-the-application-shows-unfold-and-is-organised-around-work.md) | The application shows Unfold, and is organised around work | 2026-10-04 | — |
 | Unfold | [0039](../../apps/unfold/docs/adrs/0039-unfold-collects-context-files-and-hands-them-to-ploeg.md) | Unfold collects context files and hands them to Ploeg | 2026-10-04 | — |
+| Unfold | [0040](../../apps/unfold/docs/adrs/0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) | Accept opens a pull request through the trusted publisher in the Unfold control service | 2026-10-11 | — |
 
 ## Proposed
 
@@ -152,7 +154,6 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0015](../../apps/unfold/docs/adrs/0015-ploeg-operator-read-api.md) | Ploeg exposes a read-only operator API and Unfold projects it | 2026-09-10 | partial | Read projection exists; lossless fleet events and AHP projection do not ([source](../../apps/unfold/src/ploeg.ts)) |
 | Unfold | [0017](../../apps/unfold/docs/adrs/0017-delegate-interactive-execution-to-ploeg.md) | Delegate interactive execution to Ploeg | 2026-09-10 | yes | Opt-in shared execution; ratification outstanding ([source](../../apps/unfold/src/execution-authority.ts)) |
 | Unfold | [0018](../../apps/unfold/docs/adrs/0018-bind-tracker-imports-to-existing-ploeg-work.md) | Bind tracker imports to existing Ploeg work | 2026-09-11 | yes | Opt-in tracker binding; ratification outstanding ([source](../../apps/unfold/src/task-binding.ts)) |
-| Unfold | [0019](../../apps/unfold/docs/adrs/0019-verify-canonical-candidates-outside-agent-workspaces.md) | Verify canonical candidates outside agent workspaces | 2026-09-11 | yes | Bounded Docker verifier; live publication stays disabled ([source](../../apps/unfold/src/trusted-candidate.ts)) |
 | Unfold | [0023](../../apps/unfold/docs/adrs/0023-unfold-submits-work-to-ploeg-and-never-executes-it.md) | Unfold submits Work Items to Ploeg and never executes them | 2026-09-23 | no | Design proposal only; Unfold still runs the managed engine ([source](../../apps/unfold/docs/ploeg-front-end.md)) |
 | Unfold | [0024](../../apps/unfold/docs/adrs/0024-unfold-opens-on-now-with-one-vocabulary-and-one-token-system.md) | Unfold opens on Now, names every state one way and draws from one token system | 2026-09-30 | yes | Every screen rebuilt on the shared vocabulary, formatter and components, legacy stylesheet deleted, Cancel Work Item on the Work Item page (checked 2026-09-30 on the redesign branch) ([source](../../apps/unfold/test/ploeg-view.test.mjs)) |
 | Unfold | [0025](../../apps/unfold/docs/adrs/0025-hand-tracker-tasks-to-ploeg-by-assignment.md) | Unfold hands a tracker task to Ploeg by assigning the team's tracker user | 2026-09-30 | unknown | — |

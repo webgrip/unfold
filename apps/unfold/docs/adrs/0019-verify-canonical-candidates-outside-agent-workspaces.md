@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-09-11
+status: accepted
+date: 2026-10-11
 decision-makers: Ryan Grippeling
 ---
 
@@ -41,3 +41,4 @@ Run [candidate delivery tests](../../test/delivery.test.ts) with real temporary 
 - [Candidate delivery contract](../contracts/candidate-delivery.md)
 - [Shared execution contract](../contracts/ploeg-execution.md)
 - 2026-09-11 — Recorded before implementation; architecture ratification remains with the owner.
+- 2026-10-11 — Accepted. The owner decided on 2026-10-10 to accept this record and that Accept opens a pull request through a trusted publisher in the Unfold control service. [ADR 0040](0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) records that publisher, its `unfold-publisher` identity and what Accept means; live publication stays disabled until it ships ([VIK-1979](https://vikunja.webgrip.dev/tasks/1979)).

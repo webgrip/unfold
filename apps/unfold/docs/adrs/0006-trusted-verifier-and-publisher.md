@@ -25,3 +25,7 @@ For Unfold itself, the intentional failing demonstration fixture must remain int
 Reconsider placement when an existing CI platform can supply the same isolated execution, identity, evidence and fencing guarantees. Reusing trusted forge CI is preferable to maintaining a custom verifier solely for implementation symmetry.
 
 See [self-improvement](../design/self-improvement.md), [gap register](../design/gap-register.md) and PV-005 through PV-011 and PV-078 in [the backlog](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/8be5e332ee3bad3fb5e39b640c99de9826ab41a3/apps/unfold/backlog/README.md).
+
+## Update, 2026-10-11
+
+[ADR 0040](0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) places the trusted publisher this record asks for in the Unfold control service. It pushes as the dedicated Forgejo user `unfold-publisher` with `write:repository` only, never from a Run, and Accept on a verified candidate opens one pull request while merge stays human. The publisher serves Unfold candidates and retires with the application's engine. This record stays proposed: its fencing and recovery rules still bind that publisher, and its re-evaluation trigger for forge CI is unchanged.
