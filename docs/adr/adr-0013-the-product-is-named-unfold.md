@@ -50,5 +50,5 @@ Chosen option: "Unfold", by the owner on 2026-10-01. A Work Item arrives folded;
 
 * 2026-10-01: accepted. Supersedes the working name Glide used in ADR-0001 to ADR-0012, whose text now says Unfold.
 * 2026-10-03: the Forgejo variables are now `UNFOLD_RELEASES_ENABLED` and `UNFOLD_DOCS_PUBLISH_ENABLED`. The owner renamed them in the repository settings, and releases and docs publication stayed skipped from 2026-10-01 until the workflows read the new names.
-* 2026-10-03: the Forgejo repository and its GitHub mirror are `webgrip/unfold`. The release publisher, image source labels and chart metadata name it; rc.34's Vloer distribution hung on a mirror check against the deleted GitHub `webgrip/glide`.
+* 2026-10-03: the Forgejo repository and its GitHub mirror are `webgrip/unfold`. The release publisher, image source labels and chart metadata name it; rc.34's distribution hung on a mirror check against the deleted GitHub `webgrip/glide`.
 * 2026-10-04: [ADR-0020](adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) retired the name Vloer. The application is Unfold, and this ADR keeps the old name only because it records the earlier decision.

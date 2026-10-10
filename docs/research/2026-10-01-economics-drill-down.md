@@ -79,13 +79,13 @@ Made in this record, because they only order work: phase 1 measures and does not
 | [VIK-1617](https://vikunja.webgrip.dev/tasks/1617) spike: measure cost and merge rate per Work Item since rc.16 | 1 | Whether the ADR-0006 planning numbers survive measured data | VIK-1686 |
 | [VIK-1621](https://vikunja.webgrip.dev/tasks/1621) spike: bench open-weight vs frontier Teams | 1 | Default model tier and Shift Budget per Size | VIK-1617 |
 | [VIK-1622](https://vikunja.webgrip.dev/tasks/1622) ploeg: K2 and K5 by Size from a size label | 1 | Size-split measurement | — |
-| [VIK-1272](https://vikunja.webgrip.dev/tasks/1272) vloer: report active review seconds (existing) | 1 | Review minutes, the largest agency cost | — |
+| [VIK-1272](https://vikunja.webgrip.dev/tasks/1272) unfold: report active review seconds (existing) | 1 | Review minutes, the largest agency cost | — |
 | [VIK-1623](https://vikunja.webgrip.dev/tasks/1623) spike: re-derive floor and Shift Budgets | 2 | Floor formula and per-tier Budgets as a proposed ADR-0006 amendment | VIK-1617, VIK-1621, VIK-1486 |
 | [VIK-1624](https://vikunja.webgrip.dev/tasks/1624) spike: agency break-even under the two-part price | 2 | Client price band and an interactive calculator for pilots | VIK-1617, VIK-1621, VIK-1272 |
 | [VIK-1625](https://vikunja.webgrip.dev/tasks/1625) billing: convert US$ to euro at settlement | 2 | Currency rule on every charge | — |
 | [VIK-1651](https://vikunja.webgrip.dev/tasks/1651) spike: choose the EU-resident inference route for client code | 1 | Which Teams may take client code, on which provider | — |
 | [VIK-1686](https://vikunja.webgrip.dev/tasks/1686) ploeg: report cost and outcome per Work Item | 1 | The data VIK-1617 reads | — |
-| [VIK-1687](https://vikunja.webgrip.dev/tasks/1687) vloer: hide the Team on bench pull requests | 1 | Blind judging for VIK-1621 | — |
+| [VIK-1687](https://vikunja.webgrip.dev/tasks/1687) unfold: hide the Team on bench pull requests | 1 | Blind judging for VIK-1621 | — |
 | [VIK-1688](https://vikunja.webgrip.dev/tasks/1688) litellm: add Mistral-hosted GLM 5.3 | 1 | The client-code route | VIK-1651 |
 | [VIK-1652](https://vikunja.webgrip.dev/tasks/1652) litellm: raise the Gemini 3.8 Flash price on 2027-01-01 | — | Spend stays correct after the promotion | due 2026-12-31 |
 
