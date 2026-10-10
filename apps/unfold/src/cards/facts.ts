@@ -9,6 +9,7 @@ export type FactsWorkItem = {
   id: string; provider: string; externalId: string; externalRef: string; url: string; title: string; state: string; team: string;
   createdAt: string; updatedAt: string; trackerCreatedAt: string | null; estimateSeconds: number | null;
   target: { forge: string; owner: string; repo: string; baseBranch: string } | null; epics: FactsEpic[]; withdrawals: FactsWithdrawal[];
+  externalScope?: string; admittedAt?: string | null;
 };
 /** A Shift, in the operator API's shape. */
 export type FactsShift = { id: string; workItemId: string; team: string; branch: string; round: number; budgetUsd: number; spentUsd: number; reservedUsd: number; openedAt: string; closedAt: string | null; closeReason: string };
@@ -50,6 +51,10 @@ export type FactsPullRequest = {
   changedPaths: { headSha: string; truncated: boolean; capturedAt: string; paths: FactsChangedPath[] } | null;
   reverts: FactsRevert[]; deployments: FactsDeployment[];
 };
+/** A checkpoint a Run recorded with a pull request URL. */
+export type FactsCheckpoint = { id: string; phase: string; branch: string; prUrl: string; createdAt: string };
+/** The budget one Run still holds, while above zero. */
+export type FactsRunBudgetHold = { runId: string; shiftId: string | null; reservedUsd: number };
 /** One move into a tracker status. */
 export type FactsStatusTransition = { status: string; gate: FactsGate | null; at: string; observed: boolean; receivedAt: string };
 /** One move into another delivery gate. */
@@ -63,7 +68,8 @@ export type WorkItemFacts = {
   workItem: FactsWorkItem; activityAt: string; shifts: FactsShift[]; runs: FactsRun[]; liveUsage: FactsLiveUsage[]; pullRequests: FactsPullRequest[];
   statusTransitions: FactsStatusTransition[]; gateTransitions: FactsGateTransition[]; deployEnvironments: FactsDeployEnvironment[];
   roster: FactsRosterEntry[]; botLogins: string[];
-  truncated: { shifts: boolean; runs: boolean; pullRequests: boolean; statusTransitions: boolean; gateTransitions: boolean };
+  truncated: { shifts: boolean; runs: boolean; pullRequests: boolean; statusTransitions: boolean; gateTransitions: boolean; checkpoints?: boolean };
+  checkpoints?: FactsCheckpoint[]; runBudgetHolds?: FactsRunBudgetHold[];
 };
 /** A page of the facts list, newest activity first. */
 export type FactsPage = { facts: WorkItemFacts[]; nextBefore: string | null };
@@ -121,6 +127,8 @@ function workItem(value: unknown, path: string): FactsWorkItem {
     createdAt: time(d.createdAt, `${path}.createdAt`), updatedAt: time(d.updatedAt ?? d.createdAt, `${path}.updatedAt`), trackerCreatedAt: maybeTime(d.trackerCreatedAt, `${path}.trackerCreatedAt`), estimateSeconds: maybeCount(d.estimateSeconds, `${path}.estimateSeconds`),
     target: target ? { forge: text(target.forge, `${path}.target.forge`, 64), owner: text(target.owner, `${path}.target.owner`, 256), repo: text(target.repo, `${path}.target.repo`, 256), baseBranch: text(target.baseBranch ?? '', `${path}.target.baseBranch`, 512) } : null,
     epics: list(d.epics, `${path}.epics`, epic, 50), withdrawals: list(d.withdrawals, `${path}.withdrawals`, (e, p) => { const w = object(e, p); return { at: time(w.at, `${p}.at`), actor: text(w.actor ?? '', `${p}.actor`, 512) }; }, 20),
+    ...(d.externalScope === undefined || d.externalScope === null ? {} : { externalScope: text(d.externalScope, `${path}.externalScope`, 256) }),
+    ...(d.admittedAt === undefined ? {} : { admittedAt: maybeTime(d.admittedAt, `${path}.admittedAt`) }),
   };
 }
 function shift(value: unknown, path: string): FactsShift {
@@ -208,7 +216,9 @@ export function parseWorkItemFacts(value: unknown, path = 'facts'): WorkItemFact
     deployEnvironments: list(d.deployEnvironments, `${path}.deployEnvironments`, (e, p) => { const env = object(e, p); return { forge: text(env.forge, `${p}.forge`, 64), owner: text(env.owner, `${p}.owner`, 256), repo: text(env.repo, `${p}.repo`, 256), environment: text(env.environment, `${p}.environment`, 64), firstDeployedAt: time(env.firstDeployedAt, `${p}.firstDeployedAt`) }; }, 1000),
     roster: list(d.roster, `${path}.roster`, (r, p) => { const entry = object(r, p); return { login: text(entry.login, `${p}.login`, 256), roles: list(entry.roles, `${p}.roles`, (role, rp) => text(role, rp, 32), 10) }; }, 1000),
     botLogins: list(d.botLogins, `${path}.botLogins`, (b, p) => text(b, p, 256).toLowerCase(), 100),
-    truncated: { shifts: truncation('shifts'), runs: truncation('runs'), pullRequests: truncation('pullRequests'), statusTransitions: truncation('statusTransitions'), gateTransitions: truncation('gateTransitions') },
+    truncated: { shifts: truncation('shifts'), runs: truncation('runs'), pullRequests: truncation('pullRequests'), statusTransitions: truncation('statusTransitions'), gateTransitions: truncation('gateTransitions'), ...(truncated.checkpoints === undefined ? {} : { checkpoints: truncation('checkpoints') }) },
+    ...(d.checkpoints === undefined || d.checkpoints === null ? {} : { checkpoints: list(d.checkpoints, `${path}.checkpoints`, (c, p) => { const cp = object(c, p); return { id: id(cp.id, `${p}.id`), phase: text(cp.phase ?? '', `${p}.phase`, 64), branch: text(cp.branch ?? '', `${p}.branch`, 1024), prUrl: text(cp.prUrl ?? '', `${p}.prUrl`, 4096), createdAt: time(cp.createdAt, `${p}.createdAt`) }; }, 200) }),
+    ...(d.runBudgetHolds === undefined || d.runBudgetHolds === null ? {} : { runBudgetHolds: list(d.runBudgetHolds, `${path}.runBudgetHolds`, (h, p) => { const hold = object(h, p); return { runId: id(hold.runId, `${p}.runId`), shiftId: maybeId(hold.shiftId, `${p}.shiftId`), reservedUsd: amount(hold.reservedUsd, `${p}.reservedUsd`) }; }, 1000) }),
   };
   for (const entry of facts.shifts) if (entry.workItemId !== facts.workItem.id) fail(`${path}.shifts`, 'names another Work Item');
   return facts;

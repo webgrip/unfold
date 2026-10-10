@@ -196,8 +196,10 @@ class Assembly {
     this.ctx = ctx;
     this.facts = facts;
     const item = facts.workItem;
-    const held = new Set(facts.shifts.filter(s => s.reservedUsd > 0).map(s => s.id));
-    this.runs = facts.runs.slice(0, runLimit).map(r => ({ ...r, started: usOrNull(r.startedAt) ?? NaN, finished: usOrNull(r.finishedAt), cost: r.usage?.costUsd ?? null, held: (r.shiftId !== null && held.has(r.shiftId)) || (r.state === 'running' && r.authorizedUsd > 0) }));
+    const holds = facts.runBudgetHolds ? new Set(facts.runBudgetHolds.filter(h => h.reservedUsd > 0).map(h => h.runId)) : null;
+    const heldShifts = new Set(facts.shifts.filter(s => s.reservedUsd > 0).map(s => s.id));
+    const holds_ = (r: FactsRun) => (holds ? holds.has(r.id) : (r.shiftId !== null && heldShifts.has(r.shiftId)) || (r.state === 'running' && r.authorizedUsd > 0));
+    this.runs = facts.runs.slice(0, runLimit).map(r => ({ ...r, started: usOrNull(r.startedAt) ?? NaN, finished: usOrNull(r.finishedAt), cost: r.usage?.costUsd ?? null, held: holds_(r) }));
     this.card = {
       workItemId: item.id, title: item.title.slice(0, 4096), team: item.team,
       target: item.target && item.target.owner && item.target.repo ? { forge: item.target.forge, owner: item.target.owner, repo: item.target.repo } : null,
@@ -217,11 +219,11 @@ class Assembly {
 
   loadPlays(): void {
     const prs = [...this.facts.pullRequests].sort((a, b) => a.number - b.number || Number(BigInt(a.id) - BigInt(b.id))).slice(0, playLimit);
-    const checkpoints = ((this.facts as unknown as { checkpoints?: { at: string; pullRequestUrl: string }[] }).checkpoints ?? []);
+    const checkpoints = (this.facts.checkpoints ?? []).filter(cp => cp.prUrl !== '').map((cp, index) => ({ at: cp.createdAt, url: cp.prUrl, index })).sort((a, b) => us(a.at) - us(b.at) || a.index - b.index);
     for (const pr of prs) {
       const repo = `${pr.owner}/${pr.repo}`;
       let opened = us(pr.firstSeenAt);
-      for (const cp of checkpoints) if (linkNames(cp.pullRequestUrl, repo, pr.number) && us(cp.at) < opened) opened = us(cp.at);
+      for (const cp of checkpoints) if (linkNames(cp.url, repo, pr.number) && us(cp.at) < opened) opened = us(cp.at);
       for (const r of this.runs) for (const l of r.links.slice(0, 30)) if (linkNames(l, repo, pr.number) && r.outcome === 'pr_opened' && r.finished !== null && r.finished < opened) opened = r.finished;
       const shift = pr.shiftId ? this.facts.shifts.find(s => s.id === pr.shiftId) : undefined;
       const play: Play_ = {
@@ -525,8 +527,8 @@ class Assembly {
     const rules = this.ctx.rules.flow;
     if (!rules) return undefined;
     const item = this.facts.workItem;
-    const scope = (item as unknown as { externalScope?: string }).externalScope ?? '';
-    const admitted = (item as unknown as { admittedAt?: string | null }).admittedAt ?? null;
+    const scope = item.externalScope ?? '';
+    const admitted = item.admittedAt ?? null;
     const statuses = this.facts.statusTransitions.length > 500 ? this.facts.statusTransitions.slice(-500) : this.facts.statusTransitions;
     const facts: FlowFacts = {
       now: this.ctx.now, statuses: statuses.map(s => ({ status: s.status, gate: s.gate ?? rules.gates?.(item.provider, scope)?.resolve([s.status])?.gate ?? '', at: us(s.at), observed: s.observed })),

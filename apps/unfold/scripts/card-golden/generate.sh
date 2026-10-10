@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Regenerates test/fixtures/cards/assembly from the pinned Ploeg: every card its store tests assemble, with the delivery facts and card state it read.
 # Run from the repository root: mise exec -- bash apps/unfold/scripts/card-golden/generate.sh
+# It needs a Ploeg with the facts and export store functions (ploeg-hq/ploeg#92 or later); PLOEG_DIR picks a checkout other than the pinned submodule.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 unfold="$(cd "$here/../.." && pwd)"
-ploeg="$(cd "$unfold/../ploeg" && pwd)"
+ploeg="$(cd "${PLOEG_DIR:-$unfold/../ploeg}" && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 tar -C "$ploeg" --exclude=.git -cf - . | tar -C "$work" -xf -

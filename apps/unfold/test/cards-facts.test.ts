@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { FactsError, parseFactsPage, parseFactsResponse, parseWorkItemFacts } from '../src/cards/facts.ts';
 
 type Json = Record<string, any>;
 
-const fixture = JSON.parse(readFileSync(new URL('./fixtures/cards/assembly/TestCrackProposalRefusals-1d82f343c4.json', import.meta.url), 'utf8')) as { world: Json[] };
+const fixture = JSON.parse(readFileSync(new URL('./fixtures/cards/service/proposal-refusals.json', import.meta.url), 'utf8')) as { world: Json[] };
 
 function document(): Json {
   const facts = structuredClone(fixture.world[0]!);
@@ -51,7 +51,7 @@ test('a well-formed facts document parses and keeps what the contract defines', 
 });
 
 test('every assembly fixture world document parses', () => {
-  for (const name of ['TestCrackAttributionFlowNeedsTwoPeopleAndARefereeForDisputes-3008bc9409.json', 'TestCrackCandidatesRankEarlierPlaysByTheFilesTheyShareWithTheFix-43e4946451.json']) {
+  for (const name of readdirSync(new URL('./fixtures/cards/assembly/', import.meta.url)).filter(file => file.endsWith('.json'))) {
     const data = JSON.parse(readFileSync(new URL(`./fixtures/cards/assembly/${name}`, import.meta.url), 'utf8')) as { world: unknown[] };
     for (const raw of data.world) assert.doesNotThrow(() => parseWorkItemFacts(raw), name);
   }
@@ -131,7 +131,7 @@ test('the parser is additive: unknown fields anywhere are ignored', () => {
   extended.statusTransitions[0].board = 'b';
   extended.gateTransitions[0].comment = 'c';
   extended.roster[0].avatar = 'a';
-  extended.truncated.checkpoints = true;
+  extended.truncated.contextFiles = true;
   assert.deepEqual(parseWorkItemFacts(extended), plain);
 });
 
@@ -183,4 +183,33 @@ test('a time on a date the calendar does not have is refused, in UTC and with an
   const facts = document();
   facts.activityAt = '2026-10-10T23:30:00.123456-05:00';
   assert.equal(parseWorkItemFacts(facts).activityAt, '2026-10-10T23:30:00.123456-05:00');
+});
+
+test('the board, admission time, checkpoints and budget holds are read when Ploeg sends them and stay absent from an older Ploeg', () => {
+  const older = document();
+  for (const key of ['checkpoints', 'runBudgetHolds']) delete older[key];
+  delete older.workItem.externalScope;
+  delete older.workItem.admittedAt;
+  delete older.truncated.checkpoints;
+  const parsedOlder = parseWorkItemFacts(older);
+  assert.equal('checkpoints' in parsedOlder, false);
+  assert.equal('runBudgetHolds' in parsedOlder, false);
+  assert.equal('externalScope' in parsedOlder.workItem, false);
+  assert.equal('admittedAt' in parsedOlder.workItem, false);
+  const newer = document();
+  newer.workItem.externalScope = '10';
+  newer.workItem.admittedAt = '2026-09-21T10:00:00+02:00';
+  newer.checkpoints = [{ id: '4', phase: 'pushed', branch: 'ploeg/181', prUrl: 'https://forge.example/webgrip/ploeg/pulls/9', createdAt: '2026-09-20T10:00:00Z' }];
+  newer.runBudgetHolds = [{ runId: '12', shiftId: null, reservedUsd: 0.75 }];
+  newer.truncated.checkpoints = false;
+  const parsed = parseWorkItemFacts(newer);
+  assert.equal(parsed.workItem.externalScope, '10');
+  assert.equal(parsed.workItem.admittedAt, '2026-09-21T10:00:00+02:00');
+  assert.deepEqual(parsed.checkpoints, newer.checkpoints);
+  assert.deepEqual(parsed.runBudgetHolds, newer.runBudgetHolds);
+  assert.equal(parsed.truncated.checkpoints, false);
+  refused(f => { f.workItem.externalScope = 10; }, 'facts.workItem.externalScope');
+  refused(f => { f.workItem.admittedAt = 'yesterday'; }, 'facts.workItem.admittedAt');
+  refused(f => { f.checkpoints = [{ id: 'x', phase: '', branch: '', prUrl: '', createdAt: '2026-09-20T10:00:00Z' }]; }, 'facts.checkpoints[0].id');
+  refused(f => { f.runBudgetHolds = [{ runId: '1', shiftId: null, reservedUsd: 'lots' }]; }, 'facts.runBudgetHolds[0].reservedUsd');
 });

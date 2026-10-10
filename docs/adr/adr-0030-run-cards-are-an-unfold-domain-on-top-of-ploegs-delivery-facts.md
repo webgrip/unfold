@@ -47,7 +47,7 @@ Chosen option: "**Ploeg supplies plain delivery facts; the Unfold application ow
 
 | Part | Owner |
 | --- | --- |
-| Shifts, Runs, usage and live usage; pull requests with reviews, events, CI runs, changed files with per-file indentation measurements, reverts and deploys; tracker status and gate moves; tracker parents; the facts list by member or Team | Ploeg's delivery facts ([Ploeg ADR-0079](https://github.com/ploeg-hq/ploeg/blob/development/docs/adrs/0079-run-cards-belong-to-the-consumer-and-ploeg-supplies-delivery-facts.md)) |
+| Shifts, Runs, usage, live usage and budget holds; checkpoints; pull requests with reviews, events, CI runs, changed files with per-file indentation measurements, reverts and deploys; tracker board, admission time, status and gate moves; tracker parents; the facts list by member or Team | Ploeg's delivery facts ([Ploeg ADR-0079](https://github.com/ploeg-hq/ploeg/blob/development/docs/adrs/0079-run-cards-belong-to-the-consumer-and-ploeg-supplies-delivery-facts.md)) |
 | Card assembly and state, grade (every formula version), rarity and freezing, flow figures with the team calendar, play figures, change shape and complexity, steward and roster, gates and bounces, sets, crack candidates, card list order and activity | Unfold, computed on read (`apps/unfold/src/cards/`) |
 | Cracks and their workflow, the crack audit trail, frozen rarities, frozen play shapes, the card comment record | Unfold's SQLite store (`apps/unfold/src/cards/card-store.ts`) |
 | Card configuration: status kinds, working calendars, path rules, release environments, hotfix labels, referees, card styles | Unfold's `cards.rules` setting |
@@ -100,7 +100,7 @@ The publisher is off until an operator turns on `cards.publishPullRequestComment
 
 ### Confirmation
 
-* `apps/unfold/test/cards-assembly.test.ts` replays the 120 cards Ploeg's store tests assembled and asserts Unfold assembles the same JSON, frozen rarity and card list order.
+* `apps/unfold/test/cards-assembly.test.ts` replays the cards and card lists Ploeg's store tests assembled, from facts and an export written by Ploeg's own exporters, and asserts Unfold assembles the same JSON, frozen rarity and card list order.
 * The `cards-*` tests port every Go test of `pkg/gate`, `pkg/flow`, `pkg/rarity`, `pkg/playkpi`, `pkg/cardimage` and the grade formulas, plus generated golden cases. `mise run verify` runs them.
 * `apps/unfold/test/cards-service.test.ts` asserts:
   * with facts, no request reaches Ploeg's `/card` or crack routes;
@@ -124,3 +124,4 @@ The publisher is off until an operator turns on `cards.publishPullRequestComment
 * Upgrade steps for operators: [Move Run cards from Ploeg to Unfold](../../apps/unfold/docs/operations/run-cards-upgrade.md).
 * Concept: [Run Cards](../concepts/run-cards.md).
 * 2026-10-10: accepted, superseding ADR-0028 and ADR-0029.
+* 2026-10-10: Ploeg PR ploeg-hq/ploeg#92 adds the facts the first contract lacked: the tracker board (`workItem.externalScope`), the admission time, checkpoints and budget holds. With them the parity replay matches all 120 cards. Unfold still reads facts without them from an older Ploeg.

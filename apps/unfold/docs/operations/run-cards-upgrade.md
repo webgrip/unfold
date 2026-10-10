@@ -48,7 +48,7 @@ Every Unfold setting is optional and defaults to what Ploeg did without one.
 | `release: {environment}` | `cards.rules.repositories."owner/name".releaseEnvironment` (default `production`) |
 | `rarity: {sensitivePaths, attentionPaths, sizeExclude}` | `cards.rules.repositories."owner/name".rarity` with the same three lists |
 | `cardShape: {testPaths, docPaths}` | `cards.rules.repositories."owner/name".shape` with the same two lists |
-| A project's `statusKinds: {active, waiting, blocked, done}` | `cards.rules.boards."<provider>:<board id>".statusKinds`, or `"<provider>:*"` for every board of that tracker |
+| A project's `statusKinds: {active, waiting, blocked, done}` | `cards.rules.boards."<provider>:<board id>".statusKinds`. The board id is the Work Item's `externalScope` in Ploeg's facts. `"<provider>:*"` covers every board without its own entry, and the facts of a Ploeg release that sends no board |
 | A project's `gates` | Stays in Ploeg, which records the gate moves. Add a copy under `cards.rules.boards."<provider>:<board id>".gates` only to label statuses Ploeg recorded without a gate. |
 | A Team's `workingHours: {timezone, days, start, end, holidays}` | `cards.rules.teams.<team>.workingHours` (default Monday to Friday, 09:00 to 17:00, Europe/Amsterdam) |
 | A Team's `cards.referees` | `cards.rules.teams.<team>.referees`, as forge logins |
@@ -57,7 +57,7 @@ Every Unfold setting is optional and defaults to what Ploeg did without one.
 | Ploeg's forge bot logins | Read from the facts (`botLogins`); add others under `cards.rules.bots` |
 
 * **Repository keys** are `owner/name` and compare without case.
-* **Board ids** are the tracker's project id, the same id Ploeg resolved for the project.
+* **Board ids** are the tracker's project id, the same id Ploeg resolved for the project and sends as `workItem.externalScope`.
 * **Flow figures and rarity** can be turned off with `cards.rules.flow: false` and `cards.rules.rarity: false`.
 
 Example:

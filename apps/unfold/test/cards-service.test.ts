@@ -22,11 +22,11 @@ type ExportPage = { items: Json[]; nextAfter: string | null };
 const operator = '/api/v1/operator/';
 
 function fixture(name: string): { world: Json[]; card: Json; workItemId: string; options: { now: string } } {
-  return JSON.parse(readFileSync(new URL(`./fixtures/cards/assembly/${name}.json`, import.meta.url), 'utf8'));
+  return JSON.parse(readFileSync(new URL(`./fixtures/cards/service/${name}.json`, import.meta.url), 'utf8'));
 }
 
-const cardWorld = fixture('TestCrackAttributionFlowNeedsTwoPeopleAndARefereeForDisputes-8dcf872a90');
-const crackWorld = fixture('TestCrackProposalRefusals-1d82f343c4');
+const cardWorld = fixture('attribution-flow');
+const crackWorld = fixture('proposal-refusals');
 
 function detail(facts: Json): Json {
   const w = facts.workItem;

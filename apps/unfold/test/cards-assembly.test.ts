@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import { cardActivity, cardListLogins, namesAny, orderCards } from '../src/cards/list.ts';
 import { assembleCard, defaultCardRules, rarityRecord, type CardContext, type CrackRecord, type RarityRecord } from '../src/cards/assemble.ts';
 import { parseWorkItemFacts, type WorkItemFacts } from '../src/cards/facts.ts';
-import { micros } from '../src/cards/go.ts';
+import { importedCrack } from '../src/cards/service.ts';
+import { micros, rfc3339Micros } from '../src/cards/go.ts';
 import { newCalendar, newKindMap } from '../src/cards/flow.ts';
 import type { CI, Shape, Timeline } from '../src/cards/playkpi.ts';
 
@@ -26,13 +27,11 @@ export function fixtureContext(fixture: Fixture): { facts: WorkItemFacts; ctx: C
   const world = new Map<string, WorkItemFacts>();
   for (const raw of fixture.world) {
     const facts = parseWorkItemFacts(raw);
-    const extra = raw as { workItem: { externalScope?: string; admittedAt?: string | null }; checkpoints?: unknown };
-    Object.assign(facts.workItem, { externalScope: extra.workItem.externalScope, admittedAt: extra.workItem.admittedAt });
-    Object.assign(facts, { checkpoints: extra.checkpoints });
     facts.liveUsage = facts.runs.filter(r => live.has(r.id)).map(r => { const l = live.get(r.id)!; return { runId: r.id, observedAt: fixture.options.now, costUsd: l.costUsd!, inputTokens: l.inputTokens!, outputTokens: l.outputTokens! }; });
     world.set(facts.workItem.id, facts);
   }
   const frozen: RarityRecord[] = [];
+  const cracks = fixture.state.cracks.map(importedCrack);
   const stored = new Map(fixture.state.rarity.map(r => [r.workItemId, r]));
   const now = micros(fixture.options.now);
   const calendar = fixture.options.flow?.cardCalendar;
@@ -50,8 +49,8 @@ export function fixtureContext(fixture: Fixture): { facts: WorkItemFacts; ctx: C
     facts: id => world.get(id),
     epicMembers: (provider, epic) => [...world.values()].filter(f => f.workItem.epics.some(e => e.provider === provider && e.externalId === epic && e.removedAt === null)).map(f => f.workItem.id),
     workItemByExternal: (provider, externalId, team) => { const f = [...world.values()].find(w => w.workItem.provider === provider && w.workItem.externalId === externalId && w.workItem.team === team); return f ? { id: f.workItem.id, title: f.workItem.title } : null; },
-    cracksOnCard: id => fixture.state.cracks.filter(c => c.cardWorkItemId === id),
-    cracksOfBug: id => fixture.state.cracks.filter(c => c.bugWorkItemId === id),
+    cracksOnCard: id => cracks.filter(c => c.cardWorkItemId === id),
+    cracksOfBug: id => cracks.filter(c => c.bugWorkItemId === id),
     storedRarity: id => stored.get(id) ?? null,
     cohort: (formula, target, quarter, exclude) => [...stored.values()].filter(r => r.formula === formula && r.cohortTarget === target && r.cohortQuarter === quarter && r.workItemId !== exclude).map(r => r.score),
     freezeRarity: (id, reveal) => {
@@ -135,4 +134,23 @@ test('the card list holds the cards whose roster or steward names a member, newe
     compared++;
   }
   assert.ok(compared >= 15, `only ${compared} lists`);
+});
+
+test('a checkpoint that named a pull request before Ploeg first saw it opens the play at the checkpoint, and budget holds follow runBudgetHolds', () => {
+  const entry = fixtures.find(({ fixture }) => fixture.kind === 'card' && fixture.card && (fixture.card as { plays: unknown[] }).plays.length > 0 && (fixture.card as { plays: { url?: string }[] }).plays[0]!.url);
+  assert.ok(entry, 'a card fixture with a linked play');
+  const { facts, ctx } = fixtureContext(entry.fixture);
+  const pr = facts.pullRequests[0]!;
+  const before = assembleCard(facts, ctx).events.find(event => event.kind === 'pr_opened' && event.detail.number === pr.number)!;
+  const earlier = rfc3339Micros(micros(before.at) - 3_600_000_000);
+  const withCheckpoint = { ...facts, checkpoints: [{ id: '1', phase: 'pushed', branch: pr.branch ?? '', prUrl: pr.url, createdAt: earlier }] };
+  const opened = assembleCard(withCheckpoint, ctx).events.find(event => event.kind === 'pr_opened' && event.detail.number === pr.number);
+  assert.equal(opened?.at, earlier);
+  const other = { ...facts, checkpoints: [{ id: '1', phase: 'pushed', branch: '', prUrl: 'https://forge.example/other/repo/pulls/999', createdAt: earlier }] };
+  assert.notEqual(assembleCard(other, ctx).events.find(event => event.kind === 'pr_opened' && event.detail.number === pr.number)?.at, earlier);
+  const started = facts.runs.find(run => run.startedAt !== null);
+  if (started) {
+    assert.equal(assembleCard({ ...facts, runBudgetHolds: [{ runId: started.id, shiftId: started.shiftId, reservedUsd: 0.5 }] }, ctx).totals.costStatus, 'reserved');
+    assert.notEqual(assembleCard({ ...facts, runBudgetHolds: [] }, ctx).totals.costStatus, 'reserved');
+  }
 });
