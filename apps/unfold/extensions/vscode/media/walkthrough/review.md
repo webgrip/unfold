@@ -1,6 +1,6 @@
 # Decide where you read, review with native tools
 
-When the crew needs you, the decision card appears at the top of the session. **Allow once** and **Reject** are equally reachable; a broader grant is offered only when the adapter states its scope. Questions keep their options, and you confirm answers before they are sent. Nothing is approved by opening the panel or pressing Enter in the instruction box.
+When the crew needs you, a notification says so with **Answer**, and the decision card appears at the top of the session. Results ready for review, stops with a recovery and failures in sessions you own notify the same way, once per change; `unfold.notifications.needsYou` turns them off. **Allow once** and **Reject** are equally reachable; a broader grant is offered only when the adapter states its scope. Questions keep their options, and you confirm answers before they are sent. Nothing is approved by opening the panel or pressing Enter in the instruction box.
 
 Evidence opens as read-only editor documents:
 

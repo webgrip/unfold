@@ -1,3 +1,5 @@
+import { plainRedactedText } from './redaction.ts';
+
 export type FailureCategory = 'missing_executable' | 'workspace_setup' | 'capacity' | 'gateway_rejected' | 'budget_exhausted' | 'policy_violation' | 'runaway' | 'harness_rejected' | 'connectivity' | 'timeout' | 'cancelled' | 'prompt_acceptance_unknown' | 'runtime_failure' | 'review_incomplete' | 'input_unresolved';
 export type FailureStage = 'credentials' | 'workspace' | 'runtime' | 'prompt' | 'execution';
 export type PromptAcceptance = 'not_submitted' | 'rejected' | 'accepted' | 'unknown';
@@ -8,14 +10,7 @@ const details = new WeakMap<RuntimeFailure, string>();
 
 export function safeDetail(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
-  const cleaned = value
-    .replace(/\u001b\[[0-9;]*[A-Za-z]/g, '')
-    .replace(/[^\P{C}\n\t]/gu, '')
-    .replace(/:\/\/[^\s/@]+@/g, '://[redacted]@')
-    .replace(/\bsk-[\w-]+/g, '[redacted]')
-    .replace(/\b(Bearer|Basic|token)\s+\S+/gi, '$1 [redacted]')
-    .replace(/\b(token|password|secret|key|authorization)=[^\s&]+/gi, '$1=[redacted]')
-    .trim();
+  const cleaned = plainRedactedText(value).trim();
   if (!cleaned) return undefined;
   return cleaned.length > maxDetailChars ? '…' + cleaned.slice(-maxDetailChars) : cleaned;
 }
