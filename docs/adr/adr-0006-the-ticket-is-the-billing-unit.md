@@ -73,6 +73,8 @@ The [pricing units record](../research/2026-09-28-pricing-units.md) compares the
 | Currency | Provider cost is settled in US$ and converted to euro at the ECB reference rate of the settlement day; each charge stores the rate and its date, and the markup absorbs the exchange risk |
 | Model price changes | Flow into token charges only; the credit price changes only by announced decision, and credits already bought keep their price |
 | Public launch gate | 60% of S tickets delivered at €4 or less per delivered S |
+| Ask Allowance (proposed) | €2 a month per Client in phase 2 and per Team in phase 1, included in the platform fee, until measured Ask costs set it. When it is used up, Asks stop until the first of the next month unless the agency raises it; the part above the default is metered usage at list price plus the agency's markup ([ADR-0031](adr-0031-people-ask-about-a-work-item-through-a-metered-read-only-ask-paid-from-a-monthly-allowance.md)) |
+| Per-Ask Budget (proposed) | US$ 0,02. One Ask on GLM 5.3 Flash with a 6,000-token brief and a 400-token answer costs about US$ 0,001, so the default allowance covers roughly 2,000 Asks |
 
 ### Consequences
 
@@ -130,3 +132,4 @@ Confirmed when every delivered ticket shows its size, quote, Shift Budget and se
 * 2026-09-29 — Wording aligned with the domain model (ticket, Budget, Agency); no decision changed.
 * 2026-09-30 — Wording aligned with the domain model (Markup Tier; a size maps to a Team); no decision changed.
 * 2026-10-01 — The owner replaced the markup tiers with a flat 25% markup, so a quality score unlocks higher Budgets only; set Shift Budgets per model tier from the measured p90 Shift cost, keeping €4 / €10 / €20 until measured; and set the currency rule. The [economics drill-down](../research/2026-10-01-economics-drill-down.md) shows why: at open-weight cost the markup earns about €0,06 per attempt.
+* 2026-10-10 — Added the proposed Ask Allowance and per-Ask Budget from [ADR-0031](adr-0031-people-ask-about-a-work-item-through-a-metered-read-only-ask-paid-from-a-monthly-allowance.md); the accepted numbers above are unchanged.
