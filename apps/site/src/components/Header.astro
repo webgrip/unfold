@@ -222,10 +222,14 @@ const nav = [
 <script>
   import { popOnHover } from '../brand/motion.js';
 
-  popOnHover(document, 'a.brand, svg.lockup, .footer-signature, svg.mark', {
-    ink: 'mark-ink',
-    fold: 'mark-accent',
-  });
+  popOnHover(
+    document,
+    'a.brand, svg.lockup, .footer-signature, .brief-mark, .guard-brand, svg.mark',
+    {
+      ink: 'mark-ink',
+      fold: 'mark-accent',
+    },
+  );
 
   for (const menu of document.querySelectorAll<HTMLDetailsElement>('.mobile-menu')) {
     menu.querySelectorAll('a').forEach((link) =>
