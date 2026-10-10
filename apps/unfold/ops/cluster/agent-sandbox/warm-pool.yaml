@@ -22,7 +22,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: agent
-          image: harbor.webgrip.dev/webgrip/unfold-agent:0.4.0-rc.56
+          image: harbor.webgrip.dev/webgrip/unfold-agent:0.4.0-rc.57
           command: ["node", "/usr/local/lib/unfold/relay-worker.mjs"]
           workingDir: /workspace
           env:
