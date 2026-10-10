@@ -83,6 +83,8 @@ Decision: after sign-in, the extension writes the entry straight into the defaul
 
 2026-10-10: a new session's crew, budget, placement and approvals use the Agents window's own session-config pickers, with the repository read-only from the Workspace picker; a picker change made before the first message reaches the session through `session/configChanged`, and the composer's model reads `Ploeg crew · <team>` instead of a gateway model ([contract](../contracts/api.md#agent-host)).
 
+2026-10-10: a candidate waiting for review offers **Request changes…** and **Reject…** beside Accept; each asks for its message in the session's chat and records it through the engine's review path and owner check, and Request changes also creates the next session, unstarted, with the message and the candidate's comments as its instruction. Comments are AHP annotations kept per session; VS Code's submitted feedback opens Request changes, Agent Merge accepts the candidate (merging stays on the forge), and `_meta.git` names the candidate branch. `sessions.agentHost.showBranchChanges` belongs to the new-session branch picker of a local checkout and has no Unfold session to act on ([API](../contracts/api.md#reviewing-a-candidate-from-vs-code)). Not yet exercised against a desktop VS Code.
+
 ## Update, 2026-10-10: automations
 
 Evidence: VS Code 1.141.0's `sessions.desktop.main.js` (`AgentHostAutomationStore` and the connection gate in front of it) and the AHP automation types at [`types/channels-automation`](https://github.com/microsoft/agent-host-protocol/tree/main/types/channels-automation), read at `cb6ba61`. The owner asked for automations support on 2026-10-10.
