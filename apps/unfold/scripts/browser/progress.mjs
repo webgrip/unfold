@@ -22,12 +22,15 @@ export async function run({ page, app, assert, screenshot }) {
     for (const width of [1440, 390]) {
       await page.setViewportSize({ width, height: width === 390 ? 844 : 1040 });
       await page.goto(`${origin}/#work/${id}?lane=all`);
+      await page.reload();
       const callout = page.locator('.callout', { hasText: 'Implementer finished · stopped: Ploeg holds it' });
       await callout.waitFor();
       const text = (await callout.innerText()).replace(/\s+/g, ' ');
       assert.match(text, /Implementer finished · stopped: Ploeg holds it for reconciliation/, 'the browser reads the session through the same statechart as VS Code');
       assert.match(text, /Reviewer reader · Cut off/);
       assert.match(text, /Ploeg still lists its operator Run as running/);
+      const page2 = (await page.locator('.work-detail, main').first().innerText()).replace(/\s+/g, ' ');
+      assert.doesNotMatch(page2, /0 Rounds/, 'Rounds never read 0 beside Round 1');
       assert.doesNotMatch(text, /Reviewer reader · Running/);
       await callout.getByRole('link', { name: /Open the session/ }).focus();
       assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('href')), `#session/${fixture.session.id}`, 'the session link is reachable by keyboard');

@@ -60,6 +60,7 @@ export function displayState(item, events) {
 export const runStates = table({
   pending: ['Pending', 'neutral', 'clock', { description: 'The Round opened; waiting for a worker of this Role.' }],
   running: ['Running', 'live', 'activity', { live: true, description: 'A worker claimed the Run.' }],
+  stopped: ['Stopped', 'severe', 'zap', { description: 'Ploeg still lists this Run as running, but its Work Item or the session that drives it has stopped.' }],
   finished: ['Finished', 'neutral', 'check', { description: 'The Run reported an outcome.' }],
 });
 

@@ -10,7 +10,7 @@ import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.j
 import { traceMarkup } from './core/attribution.js';
 import { workStages } from './core/stages.js';
 import { deliveryStages, stageTime } from './core/delivery-track.js';
-import { sessionProgress } from './core/progress.js';
+import { reconcileDetail, sessionProgress } from './core/progress.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -275,6 +275,7 @@ export function neverStarted(run) {
 
 /** What a Run reported, as one state meta: the verdict of a reading Run, otherwise its outcome, otherwise its state. `label` is the short form and `title` the full one. */
 export function runResult(run) {
+  if (run.state === 'stopped') return runState('stopped');
   if (run.state !== 'finished') return run.state === 'running' ? runState('running') : { ...runState('pending'), label: 'Waiting for a worker' };
   if (!run.writes && run.verdict) { const meta = verdictMeta(run.verdict); return { ...meta, label: meta.short, title: meta.label }; }
   if (run.outcome) { const meta = runOutcome(run.outcome); return { ...meta, label: meta.short || meta.label, title: meta.label }; }
@@ -1234,7 +1235,8 @@ export function cardSectionMarkup(detail, model, { reason = null, plan = null } 
 }
 
 /** The Work Item detail: header, the writer's problem and solution, the Run card that states what happened, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
-export function detailMarkup(detail, model) {
+export function detailMarkup(recordedDetail, model) {
+  const detail = reconcileDetail(recordedDetail, model.sessions);
   const reason = detailReason(detail);
   const item = detail.item;
   let primary = '';

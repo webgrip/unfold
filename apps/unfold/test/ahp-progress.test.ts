@@ -46,7 +46,7 @@ test('the 059675b9 session reads as stopped in the Agents window: activity, an o
   const outcome = turns.at(-1).responseParts.at(-1);
   assert.equal(outcome.kind, 'markdown');
   assert.match(outcome.content, /^\*\*Stopped\*\* · Reviewer approved in its transcript · stopped before delivery/);
-  assert.match(outcome.content, /approved in its transcript \(not recorded\)/);
+  assert.match(outcome.content, /cut off, approved in its transcript/);
   assert.match(outcome.content, /Spend: US\$\s0,03 \(observed, not settled · of US\$\s0,25\)/);
   assert.match(outcome.content, /Next: Investigate · View change/);
   assert.equal(turns.at(-1).state, 'complete');

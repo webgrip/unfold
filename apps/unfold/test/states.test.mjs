@@ -40,7 +40,7 @@ test('Work Item states use the one vocabulary: Needs you, Ready for review, Done
 });
 
 test('Run states, outcomes and agent verdicts read in plain words, and agent review never reads as human review', () => {
-  assert.deepEqual(Object.values(runStates).map(meta => meta.label), ['Pending', 'Running', 'Finished']);
+  assert.deepEqual(Object.values(runStates).map(meta => meta.label), ['Pending', 'Running', 'Stopped', 'Finished']);
   assert.deepEqual(Object.fromEntries(Object.entries(runOutcomes).map(([key, meta]) => [key, meta.label])), {
     pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'No change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Stuck', failed: 'Failed',
   });

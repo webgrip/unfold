@@ -25,7 +25,9 @@ test('the 059675b9 worst case reads as one stopped state, never as running', () 
   assert.equal(progress.spend.status, 'observed');
   assert.match(progress.spend.note, /observed, not settled/);
   assert.ok(progress.facts.some(fact => /Ploeg still lists its operator Run as running/.test(fact)));
-  assert.ok(progress.facts.some(fact => /not recorded/.test(fact)));
+  assert.ok(progress.facts.some(fact => /no finished Run recorded that verdict/.test(fact)));
+  const halted = sessionProgress({ ...fixture.session, runs: [fixture.session.runs[0], { ...fixture.session.runs[1], status: 'paused', verdict: 'approve', verdictSource: 'transcript' }] }, { now: at });
+  assert.deepEqual([halted.steps[1].state, halted.steps[1].verdict.key, halted.steps[1].verdict.recorded], ['cut_off', 'approve', false], 'a Run the server halted with a transcript verdict reads the same without events');
   assert.ok(progress.facts.some(fact => /No candidate was captured/.test(fact)));
   assert.equal(progressGroup(progress), 'needs');
 });
@@ -38,17 +40,21 @@ test('without the recovery interface, Investigate leads and nothing that is not 
 });
 
 test('when the server lists recovery, an approved stop offers delivery first, each with a specific confirmation', () => {
-  const session = { ...fixture.session, recovery: { actions: [{ id: 'deliver', available: true }, { id: 'run_again', available: true }] } };
-  const progress = worst(session);
+  const recovery = { summary: 'Reviewer approved the work before Ploeg stopped the session. It will not run again on its own: deliver the approved work, or run it again as a new session.', actions: [{ id: 'deliver', label: 'Deliver the approved work', available: true }, { id: 'resume', label: 'Resume', available: false }, { id: 'run_again', label: 'Run again', available: true }, { id: 'cancel', label: 'Cancel', available: true }] };
+  const progress = worst(fixture.session, { recovery });
   assert.deepEqual(ids(progress).slice(0, 3), ['deliver', 'run-again', 'investigate']);
   const [deliver, again] = progress.actions;
   assert.equal(deliver.primary, true);
+  assert.equal(deliver.label, 'Deliver the approved work');
   assert.match(deliver.confirm.detail, /unfold\/059675b9-clown-readme/);
+  assert.match(progress.next, /deliver the approved work, or run it again as a new session\.$/, 'the server\'s own summary says what to do');
+  assert.ok(!ids(progress).includes('resume'), 'Resume follows the server: unavailable here');
   assert.match(deliver.confirm.detail, /Nothing merges without you/);
-  assert.match(deliver.confirm.detail, /^The reviewer approved only in its own transcript; the verdict was not recorded\./, 'the confirmation says the approval is unrecorded');
-  assert.match(again.confirm.detail, /up to US\$\s0,25/);
-  assert.match(again.confirm.detail, /earlier Runs and their evidence stay/);
-  const unavailable = worst({ ...fixture.session, recovery: { actions: [{ id: 'deliver', available: false }] } });
+  assert.match(deliver.confirm.detail, /^The reviewer gave its approval in its own transcript before it was cut off/, 'the confirmation says where the approval comes from');
+  assert.equal(again.confirm, undefined, 'Run again only queues a new session, so it asks nothing');
+  assert.match(again.hint, /does not start until you start it/);
+  assert.match(deliver.confirm.detail, /Ploeg opens a pull request with it for your review/);
+  const unavailable = worst(fixture.session, { recovery: { actions: [{ id: 'deliver', available: false }] } });
   assert.ok(!ids(unavailable).includes('deliver'));
 });
 
@@ -119,8 +125,21 @@ test('helpers: the clock, patch counts, transcript verdicts, the driving session
 test('the outcome Markdown for the Agents window says what happened, what it cost and what to do', () => {
   const markdown = outcomeMarkdown(worst(), { sessionUrl: 'https://unfold.example/#session/059675b9' });
   assert.match(markdown, /^\*\*Stopped\*\* · Reviewer approved in its transcript · stopped before delivery/);
-  assert.match(markdown, /- \*\*Reviewer\*\* \(reader\): cut off, approved in its transcript \(not recorded\)/);
+  assert.match(markdown, /- \*\*Reviewer\*\* \(reader\): cut off, approved in its transcript/);
   assert.match(markdown, /Change: 1 file \+57 −45 on `unfold\/059675b9-clown-readme`/);
   assert.match(markdown, /Spend: US\$\s0,03 \(observed, not settled · of US\$\s0,25\)/);
   assert.match(markdown, /Next: Investigate · View change — in VS Code's Work Item view or on \[the session page\]\(https:\/\/unfold\.example\/#session\/059675b9\)\./);
+});
+
+test('Ploeg\'s detail reads as the session does: a listed-running Run on a stopped Work Item is stopped, and Rounds never read 0 beside Round 1', async () => {
+  const { reconcileDetail } = await import('../public/core/progress.js');
+  const reconciled = reconcileDetail(fixture.ploeg, [fixture.session]);
+  assert.equal(reconciled.runs[0].state, 'stopped');
+  assert.equal(reconciled.runs[0].listedAs, 'running');
+  assert.equal(reconciled.item.latestShift.round, 1);
+  assert.equal(reconciled.shifts[0].round, 1);
+  assert.ok(worst(fixture.session, { ploeg: reconciled }).facts.some(fact => /Ploeg still lists its operator Run as running/.test(fact)), 'the fact survives reconciliation');
+  const leased = { ...fixture.ploeg, item: { ...fixture.ploeg.item, state: 'leased' } };
+  assert.equal(reconcileDetail(leased, []).runs[0].state, 'running', 'a leased Work Item without a stopped session keeps its running Run');
+  assert.equal(reconcileDetail(leased, [fixture.session]).runs[0].state, 'stopped', 'a stopped driving session wins');
 });
