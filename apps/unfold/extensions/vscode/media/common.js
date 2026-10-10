@@ -105,11 +105,12 @@ function markdown(text) {
     if (/^\s*\|.*\|\s*$/.test(line) && index + 1 < lines.length && /^\s*\|?\s*:?-{2,}/.test(lines[index + 1])) {
       flush();
       const cells = value => value.trim().replace(/^\||\|$/g, '').split('|').map(cell => cell.trim());
+      const align = cells(lines[index + 1]).map(cell => /^:-+:$/.test(cell) ? 'md-align-center' : /-:$/.test(cell) ? 'md-align-right' : undefined);
       const table = element('table');
-      table.append(element('thead', {}, element('tr', {}, ...cells(line).map(cell => element('th', {}, inline(cell))))));
+      table.append(element('thead', {}, element('tr', {}, ...cells(line).map((cell, column) => element('th', { scope: 'col', className: align[column] }, inline(cell))))));
       const body = element('tbody');
       index += 2;
-      while (index < lines.length && /^\s*\|.*\|\s*$/.test(lines[index])) body.append(element('tr', {}, ...cells(lines[index++]).map(cell => element('td', {}, inline(cell)))));
+      while (index < lines.length && /^\s*\|.*\|\s*$/.test(lines[index])) body.append(element('tr', {}, ...cells(lines[index++]).map((cell, column) => element('td', { className: align[column] }, inline(cell)))));
       table.append(body);
       root.append(element('div', { className: 'table-scroll' }, table));
       continue;

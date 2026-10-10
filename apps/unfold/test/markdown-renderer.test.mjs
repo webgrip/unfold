@@ -10,6 +10,9 @@ const allowed = {
   pre: /^ class="md-code"(?: data-lang="[a-z0-9_-]+")?$/,
   span: /^ class="(?:md-check(?: done)?" aria-hidden="true"|sr-only")$/,
   a: /^ href="https?:\/\/[^"\s<>]+" target="_blank" rel="noopener noreferrer"$/,
+  div: /^ class="md-table"$/, table: /^$/, thead: /^$/, tbody: /^$/, tr: /^$/,
+  th: /^(?: class="md-align-(?:left|center|right)")? scope="col"$/,
+  td: /^(?: class="md-align-(?:left|center|right)")?$/,
 };
 
 function assertInert(html, label) {
@@ -39,6 +42,7 @@ test('text is escaped before any markup is added, so hostile input stays inert t
     '<https://x.example/[a](https://y.example//data-action=logout//)>',
     '[a](https://x.example/```js```)',
     '[a](https://x.example/`code`) <https://x.example/`code`>',
+    '| <script>x</script> | [y](javascript:alert(1)) |\n| --- | :-: |\n| <img src=x onerror=alert(1)> | `<b>` \\| <i>i</i> |',
   ];
   for (const input of hostile) {
     const html = markdown(input);
@@ -87,6 +91,18 @@ test('headings, quotes, rules and code blocks', () => {
   assert.equal(markdown('```unterminated'), '<p>```unterminated</p>');
 });
 
+test('GFM pipe tables render a header, aligned columns and body rows, and stay text when malformed', () => {
+  assert.equal(markdown('| File | Change | Lines |\n|:---|:---:|---:|\n| `a.md` | **new** | 3 |'),
+    '<div class="md-table"><table><thead><tr><th class="md-align-left" scope="col">File</th><th class="md-align-center" scope="col">Change</th><th class="md-align-right" scope="col">Lines</th></tr></thead><tbody><tr><td class="md-align-left"><code>a.md</code></td><td class="md-align-center"><strong>new</strong></td><td class="md-align-right">3</td></tr></tbody></table></div>');
+  assert.equal(markdown('a | b\n--- | ---\n1 | 2'), '<div class="md-table"><table><thead><tr><th scope="col">a</th><th scope="col">b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table></div>', 'outer pipes are optional');
+  assert.equal(markdown('Findings:\n| a |\n| - |\n| 1 | extra |\n|\n\nAfter'), '<p>Findings:</p><div class="md-table"><table><thead><tr><th scope="col">a</th></tr></thead><tbody><tr><td>1</td></tr><tr><td></td></tr></tbody></table></div><p>After</p>', 'a row keeps the header\'s columns, and a blank line ends the table');
+  assert.equal(markdown('| a | b |\n|---|---|'), '<div class="md-table"><table><thead><tr><th scope="col">a</th><th scope="col">b</th></tr></thead></table></div>', 'a header alone is still a table');
+  assert.equal(markdown('| a \\| b | c |\n| - | - |\n| `x \\| y` | z |'), '<div class="md-table"><table><thead><tr><th scope="col">a | b</th><th scope="col">c</th></tr></thead><tbody><tr><td><code>x | y</code></td><td>z</td></tr></tbody></table></div>', 'an escaped pipe stays in its cell');
+  assert.equal(markdown('| a | b |\n| - |'), '<p>| a | b |<br>\n| - |</p>', 'a separator with a different column count is not a table');
+  assert.equal(markdown('just | a pipe'), '<p>just | a pipe</p>');
+  assert.equal(markdown('> | q |\n> | - |\n> | 1 |'), '<blockquote><div class="md-table"><table><thead><tr><th scope="col">q</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table></div></blockquote>');
+});
+
 test('inline code, bold, emphasis, strikethrough and escapes follow word boundaries', () => {
   assert.equal(markdown('**bold** and __also__'), '<p><strong>bold</strong> and <strong>also</strong></p>');
   assert.equal(markdown('*em* and _em_ and ~~gone~~'), '<p><em>em</em> and <em>em</em> and <del>gone</del></p>');
@@ -128,7 +144,7 @@ test('a link, code span or code block never lands inside another link\'s address
 
 test('pathological input renders in bounded time', () => {
   const started = threadCpuMilliseconds();
-  for (const input of ['['.repeat(60_000), `# a${' '.repeat(60_000)}b`, `x${' '.repeat(60_000)}y`, '*a'.repeat(30_000), '_a '.repeat(20_000), `${'`'.repeat(3)}${'a'.repeat(60_000)}`, 'https://'.repeat(8_000), `${'- '.repeat(20_000)}deep`]) assertInert(markdown(input), input.slice(0, 12));
+  for (const input of ['['.repeat(60_000), `# a${' '.repeat(60_000)}b`, `x${' '.repeat(60_000)}y`, '*a'.repeat(30_000), '_a '.repeat(20_000), `${'`'.repeat(3)}${'a'.repeat(60_000)}`, 'https://'.repeat(8_000), `${'- '.repeat(20_000)}deep`, `${'|'.repeat(60_000)}\n${'|-'.repeat(30_000)}`, `| a | b |\n|---|---|\n${'| x | y |\n'.repeat(20_000)}`, `|${' '.repeat(60_000)}-\n| - |`]) assertInert(markdown(input), input.slice(0, 12));
   const spent = threadCpuMilliseconds() - started;
   assert(spent < scaledTimeout(3000), `took ${Math.round(spent)} ms of CPU`);
 });

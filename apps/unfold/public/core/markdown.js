@@ -60,6 +60,35 @@ function headingLevel(outline, marks) {
   return level;
 }
 
+const tableDelimiter = /^\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?$/;
+const maxTableColumns = 32;
+
+function tableCells(line) {
+  let row = line.trim();
+  if (row.startsWith('|')) row = row.slice(1);
+  if (row.endsWith('|') && !row.endsWith('\\|')) row = row.slice(0, -1);
+  return row.split(/(?<!\\)\|/).map(cell => cell.trim().replace(/\\\|/g, '|'));
+}
+
+function tableAlignment(cell) {
+  const left = cell.startsWith(':');
+  const right = cell.endsWith(':');
+  return left && right ? 'center' : right ? 'right' : left ? 'left' : '';
+}
+
+function tableStart(line, next) {
+  if (!line.includes('|') || next === undefined || !next.includes('|') || !tableDelimiter.test(next.trim())) return null;
+  const header = tableCells(line);
+  const alignments = tableCells(next).map(tableAlignment);
+  return header.length === alignments.length && header.length <= maxTableColumns ? { header, alignments } : null;
+}
+
+function tableHtml({ header, alignments }, rows) {
+  const cell = (tag, text, index) => `<${tag}${alignments[index] ? ` class="md-align-${alignments[index]}"` : ''}${tag === 'th' ? ' scope="col"' : ''}>${inline(text)}</${tag}>`;
+  const body = rows.map(row => `<tr>${alignments.map((_, index) => cell('td', row[index] ?? '', index)).join('')}</tr>`).join('');
+  return `<div class="md-table"><table><thead><tr>${header.map((text, index) => cell('th', text, index)).join('')}</tr></thead>${body ? `<tbody>${body}</tbody>` : ''}</table></div>`;
+}
+
 function blocks(lines, depth, outline) {
   const out = [];
   const lists = [];
@@ -69,8 +98,9 @@ function blocks(lines, depth, outline) {
   const flushParagraph = () => { if (paragraph.length) out.push(`<p>${paragraph.map(inline).join('<br>\n')}</p>`); paragraph = []; };
   const flushQuote = () => { if (quote) out.push(`<blockquote>${depth < maxQuoteDepth ? blocks(quote, depth + 1, outline) : `<p>${quote.map(inline).join('<br>\n')}</p>`}</blockquote>`); quote = null; };
   const closeLists = () => { while (lists.length) out.push(`</li></${lists.pop().tag}>`); };
-  for (const raw of lines) {
-    const line = raw.replace(/\t/g, '    ').trimEnd();
+  const tidy = raw => raw.replace(/\t/g, '    ').trimEnd();
+  for (let index = 0; index < lines.length; index++) {
+    const line = tidy(lines[index]);
     if (!line) { flushParagraph(); flushQuote(); blank = true; continue; }
     const indent = line.length - line.trimStart().length;
     const text = line.trim();
@@ -81,6 +111,17 @@ function blocks(lines, depth, outline) {
     const heading = /^(#{1,6})\s+(.*)$/.exec(text);
     if (quoted && !(lists.length && indent >= 2)) { flushParagraph(); closeLists(); (quote ||= []).push(quoted[1]); blank = false; continue; }
     flushQuote();
+    const table = !item && !heading && !code ? tableStart(text, lines[index + 1] === undefined ? undefined : tidy(lines[index + 1]).trim()) : null;
+    if (table) {
+      flushParagraph();
+      closeLists();
+      const rows = [];
+      index++;
+      while (index + 1 < lines.length && tidy(lines[index + 1]).trim().includes('|')) rows.push(tableCells(tidy(lines[++index]).trim()));
+      out.push(tableHtml(table, rows));
+      blank = false;
+      continue;
+    }
     if (item) {
       flushParagraph();
       const entry = taskItem(item[2]);
@@ -117,7 +158,7 @@ function blocks(lines, depth, outline) {
 /**
  * Renders the Markdown that trackers and agents write as HTML, escape-first: the whole text is escaped before any
  * tag is added, so nothing in it can become markup. Supports paragraphs with line breaks, headings, bullet, numbered
- * and task lists with nesting, quotes, rules, fenced code blocks, inline code, bold, emphasis,
+ * and task lists with nesting, quotes, rules, GFM pipe tables with column alignment, fenced code blocks, inline code, bold, emphasis,
  * strikethrough, backslash escapes and http(s) links (Markdown links, `<url>` and bare URLs), which open in a new tab.
  * The first heading becomes `baseLevel` (h3 by default, below the card or section that holds the text); later
  * headings keep their distance from it but never skip a level, and none goes above `baseLevel` or below h6.
