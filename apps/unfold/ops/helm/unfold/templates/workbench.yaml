@@ -89,6 +89,16 @@ spec:
               value: /etc/unfold/config.json
             - name: UNFOLD_DATA_DIR
               value: /data/workbench
+            - name: UNFOLD_INSIGHT_EVENTS
+              value: {{ ternary "on" "off" .Values.insight.events | quote }}
+            {{- if ne .Values.insight.export "off" }}
+            - name: UNFOLD_INSIGHT_EXPORT
+              value: {{ .Values.insight.export | quote }}
+            - name: UNFOLD_INSIGHT_EXPORT_URL
+              value: {{ required "insight.url is required when insight.export is faro or otlp" .Values.insight.url | quote }}
+            - name: UNFOLD_INSIGHT_EXPORT_LEVEL
+              value: {{ .Values.insight.level | quote }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

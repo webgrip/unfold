@@ -23,6 +23,11 @@ nodeSelector: {}
 tolerations: []
 affinity: {}
 extraEnv: []
+insight:
+  events: true
+  export: "off"
+  url: ""
+  level: aggregate
 mode: demo
 baseUrl: ""
 credentialsSecret: unfold-credentials

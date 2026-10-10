@@ -28,6 +28,19 @@ All of these apply to the workbench pod only and are empty by default. Agent wor
 | `podLabels`, `podAnnotations` | Add metadata that other tools act on, such as a policy engine or Reloader. They are added to the chart's own labels and its config checksum, never replacing them. |
 | `extraEnv` | Add environment variables, for example a credential read from a Secret other than `credentialsSecret`. Entries take the Kubernetes `env` form and come after the chart's own. |
 
+## Product events and export
+
+Unfold records product events from the browser in its own database ([RFC-0001](../../../../../docs/design/rfc-0001-product-events-and-confusion-signals.md)). Recording is on by default and nothing leaves the install until you name a collector.
+
+| Value | Default | Sets |
+| --- | --- | --- |
+| `insight.events` | `true` | `UNFOLD_INSIGHT_EVENTS`: `false` stores no events and tells the browser not to post any. |
+| `insight.export` | `"off"` | `UNFOLD_INSIGHT_EXPORT`: `faro` or `otlp` forwards events to a collector. Quote `"off"`: unquoted, YAML reads it as `false` and the schema refuses it. |
+| `insight.url` | `""` | `UNFOLD_INSIGHT_EXPORT_URL`, required unless the export is off. A Faro URL ends in `/collect`, an OTLP/HTTP one in `/v1/logs`. |
+| `insight.level` | `aggregate` | `UNFOLD_INSIGHT_EXPORT_LEVEL`: `aggregate` sends each finished day's totals with no actor; `events` sends each event with its pseudonymous actor. |
+
+The server sends the export, never the browser, so the workbench pod needs egress to the collector. [Running Unfold live](../../../docs/operations/live.md) describes what each level sends, and [the dashboard](../../grafana/README.md) reads it back in Grafana.
+
 ## Live mode
 
 Live mode reaches services the chart cannot guess, and none of them has a default. The chart does not check them; Unfold does at startup. With `config.execution` set, it refuses to start without a Ploeg connection and a gateway URL. Set them in values or in the `credentialsSecret` environment:
