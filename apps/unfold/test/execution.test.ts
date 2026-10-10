@@ -861,7 +861,7 @@ test('the agent host turns a message into a stranded session into a choice, and 
   f.runtime.captureCandidate = async () => readyCandidate;
   client.notify('dispatchAction', { channel: chat, clientSeq: 3, action: { type: 'chat/inputCompleted', requestId: replacing.id, response: 'accept', answers: { '0': { state: 'submitted', value: { kind: 'selected', value: 'deliver' } } } } });
   assert.equal((await client.until(echo(3))).params.rejectionReason, undefined);
-  await until(() => f.server.app.store.getSession(session.id)!.status === 'completed', 'the chosen delivery did not complete the session');
+  await until(() => f.server.app.store.getSession(session.id)!.status === 'completed' && f.state.commandAttempts.length >= commands + 2, 'the chosen delivery did not complete the session and report it to Ploeg');
   assert.deepEqual(f.state.commandAttempts.slice(commands).map(command => command.action), ['resume', 'report'], 'delivery goes through Ploeg');
   assert.equal(f.runtime.calls, 2, 'delivery makes no model call');
   const outcome = await client.until(message => isAction('chat/responsePart')(message) && /^\*\*Ready for your review\*\*/.test(message.params.action.part.content ?? ''));
