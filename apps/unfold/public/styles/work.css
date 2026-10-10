@@ -1879,6 +1879,7 @@
   gap: var(--space-3);
 }
 
+.work-ask-allowance,
 .work-ask-empty,
 .work-ask-error,
 .work-ask-failure {
@@ -1891,6 +1892,7 @@
   line-height: var(--leading-sm);
 }
 
+.work-ask-allowance > svg.icon,
 .work-ask-error > svg.icon,
 .work-ask-failure > svg.icon {
   flex: none;

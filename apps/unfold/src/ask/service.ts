@@ -1,33 +1,27 @@
 import { randomUUID } from 'node:crypto';
 import type { User } from '../types.ts';
 import type { PloegCard, PloegCardView, PloegDetail } from '../ploeg.ts';
-import { PloegError } from '../ploeg.ts';
+import { AskAllowanceUsedUp, PloegError, type PloegAskAllowance } from '../ploeg.ts';
 import { withoutKnownSecrets } from '../redaction.ts';
 import type { Store } from '../store.ts';
 import { briefText, workItemBrief, type WorkItemBrief } from './brief.ts';
 import { demoAnswer } from './demo.ts';
 import type { Ask, AskAudience } from './types.ts';
 
-/** A scope's Ask Allowance for the current month, as Ploeg reports it. */
-export type AskAllowance = { limitUsd: number; usedUsd: number; heldUsd: number; resetAt: string };
+export { AskAllowanceUsedUp };
 
-/** What Ploeg hands back for an admitted Ask: a key capped at the per-Ask Budget and the models it may call. */
-export type AskGrant = { askId: string; key: string; baseUrl: string | null; models: string[]; expiresAt: string; allowance: AskAllowance | null };
+/** What Ploeg hands back for an admitted Ask: a key capped at the per-Ask Budget and the models it may call. Unfold calls its own gateway with it. */
+export type AskGrant = { askId: string; key: string; models: string[]; expiresAt: string; allowance: PloegAskAllowance | null };
 
-/** An Ask's spend once Ploeg has read it: `settled` is final, `provisional` may still change. */
-export type AskSpend = { state: 'held' | 'finished' | 'settled'; costUsd: number | null; costStatus: 'pending' | 'settled' | 'unknown' };
-
-/** Ploeg refused to admit an Ask because the scope's Ask Allowance cannot cover another one. */
-export class AskAllowanceUsedUp extends Error {
-  readonly resetAt: string;
-  constructor(resetAt: string) { super('Ask Allowance used up.'); this.name = 'AskAllowanceUsedUp'; this.resetAt = resetAt; }
-}
+/** An Ask's spend once Ploeg has read it: `settled` is final, `pending` may still change. */
+export type AskSpend = { costUsd: number | null; costStatus: 'pending' | 'settled' | 'unknown' };
 
 /** Ploeg's side of an Ask (system ADR-0031): admit it against the allowance, finish it so its key is blocked, and read its spend. */
 export interface AskAuthority {
   admit(user: User, workItemId: string, askId: string, question: string): Promise<AskGrant>;
   finish(user: User, workItemId: string, askId: string): Promise<void>;
   spend(user: User, workItemId: string, askId: string): Promise<AskSpend>;
+  allowance(user: User, team: string): Promise<PloegAskAllowance | null>;
 }
 
 /** The Work Item reads an Ask needs. Both refuse a Work Item outside the caller's Teams. */
@@ -95,7 +89,7 @@ export class AskService {
     catch (error) {
       Object.assign(ask, error instanceof AskAllowanceUsedUp
         ? { status: 'refused', costUsd: 0, costStatus: 'settled', failure: `Ask Allowance used up. It resets on ${resetDate(error.resetAt)}.` }
-        : { status: 'failed', costStatus: 'unknown', failure: 'Ploeg did not admit the question.' });
+        : { status: 'failed', costStatus: 'unknown', failure: error instanceof PloegError && error.status < 500 ? error.message : 'Ploeg did not admit the question.' });
       this.store.saveAsk(ask);
       return ask;
     }
@@ -117,7 +111,7 @@ export class AskService {
   private async complete(grant: AskGrant, brief: WorkItemBrief, question: string): Promise<string> {
     const model = grant.models[0];
     if (!model) throw new Error('no model');
-    const base = (grant.baseUrl ?? this.options.gatewayUrl!).replace(/\/$/, '');
+    const base = this.options.gatewayUrl!.replace(/\/$/, '');
     const response = await (this.options.fetch ?? fetch)(`${base}/chat/completions`, {
       method: 'POST', headers: { authorization: `Bearer ${grant.key}`, 'content-type': 'application/json' }, signal: AbortSignal.timeout(30_000),
       body: JSON.stringify({ model, temperature: 0, max_tokens: 400, messages: [
@@ -130,12 +124,13 @@ export class AskService {
     return String(data?.choices?.[0]?.message?.content ?? '');
   }
 
-  /** The Asks about a Work Item the caller can see, newest first. Pending costs are refreshed from Ploeg, a few at a time. */
-  async about(user: User, workItemId: string): Promise<Ask[]> {
-    await this.workItems.detail(user, workItemId);
+  /** The Asks about a Work Item the caller can see, newest first, and its Team's Ask Allowance when Ploeg reports one. Pending costs are refreshed from Ploeg, a few at a time. */
+  async about(user: User, workItemId: string): Promise<{ asks: Ask[]; allowance: PloegAskAllowance | null }> {
+    const detail = await this.workItems.detail(user, workItemId);
     const asks = this.store.asksAbout(workItemId, listLimit);
     await this.refresh(user, asks);
-    return asks;
+    const allowance = this.authority && !this.options.demo ? await this.authority.allowance(user, detail.item.team).catch(() => null) : null;
+    return { asks, allowance };
   }
 
   /** The caller's own most recent Asks, newest first, leaving out any whose Work Item the caller can no longer see. */
@@ -156,7 +151,7 @@ export class AskService {
     for (const ask of asks.filter(entry => entry.costStatus === 'pending' && entry.ploegAskId).slice(0, refreshLimit)) {
       try {
         const spend = await this.authority.spend(user, ask.workItemId, ask.ploegAskId!);
-        if (spend.costStatus === 'pending') continue;
+        if (spend.costStatus === 'pending' && spend.costUsd === ask.costUsd) continue;
         Object.assign(ask, { costUsd: spend.costUsd, costStatus: spend.costStatus });
         this.store.saveAsk(ask);
       } catch { continue; }

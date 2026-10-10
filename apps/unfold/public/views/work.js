@@ -348,7 +348,7 @@ async function loadAsks(id) {
   let data;
   try {
     const result = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/asks`);
-    data = { items: result.asks, demo: result.asks.some(ask => ask.demo) || state.bootstrap?.mode === 'demo', error: '' };
+    data = { items: result.asks, allowance: result.allowance ?? null, demo: result.asks.some(ask => ask.demo) || state.bootstrap?.mode === 'demo', error: '' };
   } catch (error) {
     if (work.asks?.id === id && work.asks.data && !work.asks.data.error) return;
     data = { items: [], demo: false, error: error.message || 'Unfold could not list the Asks.' };

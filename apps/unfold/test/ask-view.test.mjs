@@ -79,3 +79,13 @@ test('the Session steering box points to Ask on its Work Item', async () => {
   assert.equal(askPointer({}), '');
   assert.equal(askPointer({ execution: { workItemId: 'x"><script>' } }), '');
 });
+
+test('the Ask card shows what is left of the allowance, and disables asking once it is used up', () => {
+  const allowance = { limitUsd: 2, settledUsd: 0.01, heldUsd: 0.02, remainingUsd: 1.97, resetAt: '2026-11-01T00:00:00Z', askCount: 2, askBudgetUsd: 0.02, asksEnabled: true };
+  const html = askMarkup(detail(), { asks: { items: [], allowance, demo: false, error: '' } });
+  assert.match(html, /US\$ 1,97<\/span> of US\$ 2,00 left this month · resets on 1 November/);
+  assert.doesNotMatch(html, /data-action="work-ask-open"[^>]*disabled/);
+  const empty = askMarkup(detail(), { asks: { items: [], allowance: { ...allowance, remainingUsd: 0.01 }, demo: false, error: '' } });
+  assert.match(empty, /Your Team&#39;s Ask Allowance is used up\. It resets on 1 November\./);
+  assert.match(empty, /disabled/);
+});

@@ -1196,8 +1196,12 @@ export function askMarkup(detail, model) {
   else if (asks.error) list = `<p class="work-ask-error" role="alert">${icon('alert')}<span>${escape(asks.error)}</span></p>`;
   else if (!asks.items.length && !pending) list = `<p class="work-ask-empty">${escape('Nobody has asked about this Work Item yet.')}</p>`;
   else list = `<ol class="work-ask-list" id="work-ask-list" tabindex="-1" aria-label="Asks about this Work Item">${pending}${asks.items.map(askItem).join('')}</ol>`;
-  const action = ui.button({ label: 'Ask a question', icon: 'help-circle', size: 'sm', action: 'work-ask-open', busy: model.askBusy });
-  return `<section class="card work-ask" id="work-ask" aria-labelledby="work-ask-title"${model.askBusy ? ' aria-busy="true"' : ''}><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-ask-title">${icon('help-circle')}Ask about this work</h3><p class="card-subtitle">${escape(intro)}</p></div><div class="card-actions">${action}</div></header><div class="card-body work-ask-body">${list}</div></section>`;
+  const allowance = !demo ? asks?.allowance : null;
+  const usedUp = Boolean(allowance && (!allowance.asksEnabled || allowance.remainingUsd < allowance.askBudgetUsd));
+  const resets = allowance ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(allowance.resetAt)) : '';
+  const left = allowance ? `<p class="work-ask-allowance" role="${usedUp ? 'alert' : 'status'}">${icon(usedUp ? 'alert' : 'coins')}<span>${usedUp ? escape(`Your Team's Ask Allowance is used up. It resets on ${resets}.`) : `${moneyHtml(Math.max(0, allowance.remainingUsd))} ${escape(`of ${money(allowance.limitUsd)} left this month · resets on ${resets}`)}`}</span></p>` : '';
+  const action = ui.button({ label: 'Ask a question', icon: 'help-circle', size: 'sm', action: 'work-ask-open', busy: model.askBusy, disabled: usedUp });
+  return `<section class="card work-ask" id="work-ask" aria-labelledby="work-ask-title"${model.askBusy ? ' aria-busy="true"' : ''}><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-ask-title">${icon('help-circle')}Ask about this work</h3><p class="card-subtitle">${escape(intro)}</p></div><div class="card-actions">${action}</div></header><div class="card-body work-ask-body">${left}${list}</div></section>`;
 }
 
 /** The Ask a question dialog for `detail`: one question of at most 2000 characters, which never reaches the agents. */

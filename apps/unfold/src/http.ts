@@ -25,7 +25,7 @@ import { AssetError, assetLimits, maxImageSide, maxUploadBytes } from './card-as
 import { CardArtError, CardArtGenerator, maxArtAttempts } from './card-art.ts';
 import { InsightService, maxEventPayloadBytes, parseInsightEvents } from './insight.ts';
 import { knownSecrets, withoutKnownSecrets } from './redaction.ts';
-import { AskService } from './ask/service.ts';
+import { AskService, type AskAuthority } from './ask/service.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
@@ -135,7 +135,14 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const cardArt = new CardArtGenerator(config);
   const insight = new InsightService(store, config, applicationVersion);
   const secrets = knownSecrets(config);
-  const asks = new AskService(store, ploeg, undefined, { demo: config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true), gatewayUrl: config.litellm?.baseUrl, secrets });
+  const askDemo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true);
+  const askAuthority: AskAuthority | undefined = config.ploeg && !askDemo ? {
+    admit: (user, id, askId, question) => ploeg.admitAsk(user, id, askId, question),
+    finish: (user, id, askId) => ploeg.finishAsk(user, id, askId),
+    spend: async (user, id, askId) => { const spend = await ploeg.askSpend(user, id, askId); return { costUsd: spend.usd, costStatus: spend.costStatus === 'provisional' ? 'pending' : spend.costStatus }; },
+    allowance: (user, team) => ploeg.askAllowance(user, team),
+  } : undefined;
+  const asks = new AskService(store, ploeg, askAuthority, { demo: askDemo, gatewayUrl: config.litellm?.baseUrl, secrets });
   function sanitize<T>(value: T): T {
     if (typeof value === 'string') return withoutKnownSecrets(value, secrets) as T;
     if (Array.isArray(value)) return value.map(item => sanitize(item)) as T;
@@ -431,7 +438,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const asked = /^\/api\/ploeg\/work-items\/([^/]+)\/asks$/.exec(path);
           if (asked) {
             try {
-              if (method === 'GET') return json(res, 200, sanitize({ asks: await asks.about(user, asked[1]) }));
+              if (method === 'GET') return json(res, 200, sanitize(await asks.about(user, asked[1])));
               if (method !== 'POST') fault(405, 'method', 'Ask with POST; list Asks with GET.');
               const data = await body(req);
               return json(res, 201, sanitize(await asks.ask(user, asked[1], data.question)));

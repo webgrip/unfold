@@ -23,14 +23,16 @@ function workItems(demo = false, visible = true): AskWorkItems {
   };
 }
 
-const grant: AskGrant = { askId: 'p-1', key: 'sk-ask-key', baseUrl: null, models: ['glm-5.3-flash'], expiresAt: at, allowance: { limitUsd: 2, usedUsd: 0.01, heldUsd: 0.02, resetAt: '2026-11-01T00:00:00Z' } };
+const allowance = { limitUsd: 2, settledUsd: 0.01, heldUsd: 0.02, remainingUsd: 1.97, resetAt: '2026-11-01T00:00:00Z', askCount: 3, askBudgetUsd: 0.02, asksEnabled: true };
+const grant: AskGrant = { askId: 'p-1', key: 'sk-ask-key', models: ['glm-5.3-flash'], expiresAt: at, allowance };
 
 function authority(overrides: Partial<AskAuthority> = {}) {
   const calls: string[] = [];
   const value: AskAuthority = {
     async admit(_user, workItemId, askId, question) { calls.push(`admit ${workItemId} ${askId.length} ${question}`); return grant; },
     async finish(_user, workItemId, askId) { calls.push(`finish ${workItemId} ${askId}`); },
-    async spend() { calls.push('spend'); return { state: 'settled', costUsd: 0.0011, costStatus: 'settled' }; },
+    async spend() { calls.push('spend'); return { costUsd: 0.0011, costStatus: 'settled' }; },
+    async allowance(_user, team) { calls.push(`allowance ${team}`); return allowance; },
     ...overrides,
   };
   return { value, calls };
@@ -140,8 +142,10 @@ test('listing Asks refreshes pending costs from Ploeg', async () => {
   const auth = authority();
   const asks = service(store, workItems(), auth.value, gateway('Fine.').fetcher);
   await asks.ask(owner, '42', 'How far is it?');
-  const [listed] = await asks.about(owner, '42');
+  const { asks: [listed], allowance: shown } = await asks.about(owner, '42');
   assert.deepEqual([listed.costUsd, listed.costStatus], [0.0011, 'settled']);
+  assert.deepEqual(shown, allowance);
+  assert.equal(auth.calls.at(-1), 'allowance bronze');
   assert.equal(store.asksAbout('42', 1)[0].costStatus, 'settled');
 });
 
@@ -160,4 +164,11 @@ test('your recent Asks leave out Work Items you can no longer see', async () => 
   assert.deepEqual(mine.asks.map(ask => ask.workItemId), ['42', '42']);
   assert.equal(mine.more, true);
   assert.deepEqual((await asks.mine({ ...owner, id: 'someone-else' })).asks, []);
+});
+
+test('a configuration refusal from Ploeg is shown as it is, with the cost unknown', async () => {
+  const store = new Store(':memory:');
+  const auth = authority({ async admit() { throw new PloegError(409, 'ask_unconfigured', 'Asking is not set up for this Team yet: Ploeg has no ask model policy for it.'); } });
+  const ask = await service(store, workItems(), auth.value, gateway('x').fetcher).ask(owner, '42', 'How far is it?');
+  assert.deepEqual([ask.status, ask.failure], ['failed', 'Asking is not set up for this Team yet: Ploeg has no ask model policy for it.']);
 });

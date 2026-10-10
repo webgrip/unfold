@@ -131,6 +131,19 @@ export class PloegError extends Error {
   constructor(status: number, code: string, message: string) { super(message); this.name = 'PloegError'; this.status = status; this.code = code; }
 }
 
+/** Ploeg refused an Ask because the scope's Ask Allowance cannot cover another one (system ADR-0031, Ploeg ADR-0081). `resetAt` is when the next period opens. */
+export class AskAllowanceUsedUp extends PloegError {
+  readonly resetAt: string;
+  constructor(resetAt: string) { super(402, 'allowance_exhausted', 'Ask Allowance used up.'); this.name = 'AskAllowanceUsedUp'; this.resetAt = resetAt; }
+}
+/** A Team's Ask Allowance for the current month, as Ploeg reports it. */
+export type PloegAskAllowance = { limitUsd: number; settledUsd: number; heldUsd: number; remainingUsd: number; resetAt: string; askCount: number; askBudgetUsd: number; asksEnabled: boolean };
+/** An admitted Ask's key and allowance. `key` is shown once; Unfold calls its own gateway with it. */
+export type PloegAskGrant = { askId: string; key: string; models: string[]; expiresAt: string; allowance: PloegAskAllowance | null };
+/** An Ask's spend as Ploeg last read it. */
+export type PloegAskSpend = { state: 'open' | 'finished' | 'expired'; costStatus: 'provisional' | 'settled' | 'unknown'; usd: number | null };
+
+const askRole = 'ask';
 const states: PloegState[] = ['ingested', 'queued', 'leased', 'done', 'needs_human', 'awaiting_review', 'stale', 'withdrawn', 'proposed'];
 const invalid = () => new PloegError(502, 'ploeg_response', 'Ploeg returned an unsupported operator response.');
 const forgeLogin = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
@@ -261,6 +274,37 @@ function cancellation(data: Record<string, unknown>): Omit<PloegCancellation, ke
 const demoCancellation = 'Illustrative demo record. Nothing was cancelled: no Run was stopped, no model key or push token was blocked and the tracker was not told.';
 const unsupported = () => new PloegError(501, 'ploeg_unsupported', 'This Ploeg version does not provide activity data yet.');
 const olderTracker = 'This Ploeg version cannot look up work by tracker task. Update Ploeg to see its work here.';
+const askFailures: Record<number, [string, string]> = {
+  400: ['ask_question', 'Ploeg refused the question.'],
+  403: ['ploeg_decision_forbidden', 'Unfold’s Ploeg credential cannot admit Asks. An administrator must grant it execute permission.'],
+  409: ['ask_unconfigured', 'Asking is not set up for this Team yet: Ploeg has no ask model policy for it.'],
+  503: ['ask_unavailable', 'Ploeg cannot admit Asks right now: its model gateway is not available.'],
+};
+
+async function askRefusal(response: Response): Promise<PloegError | null> {
+  if (response.status !== 402 && !askFailures[response.status]) return null;
+  let data: any;
+  try { data = Number(response.headers.get('content-length') ?? 0) <= 65_536 ? await response.json() : null; } catch { data = null; }
+  if (response.status === 402) { const resetAt = data?.allowance?.resetAt; return new AskAllowanceUsedUp(typeof resetAt === 'string' && !Number.isNaN(Date.parse(resetAt)) ? resetAt : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1)).toISOString()); }
+  const [code, message] = data?.error?.code === 'credential_unresolved' ? ['ask_unavailable', 'Ploeg could not issue a key for this Ask. Try again in a minute.'] : askFailures[response.status];
+  return new PloegError(response.status, code, message);
+}
+
+function askAllowance(value: unknown): PloegAskAllowance {
+  const data = record(value);
+  const time = field(data.resetAt, 64);
+  if (Number.isNaN(Date.parse(time))) throw invalid();
+  return { limitUsd: numeric(data.limitUsd), settledUsd: numeric(data.settledUsd), heldUsd: numeric(data.heldUsd), remainingUsd: typeof data.remainingUsd === 'number' && Number.isFinite(data.remainingUsd) ? data.remainingUsd : 0, resetAt: time, askCount: numeric(data.askCount, true), askBudgetUsd: numeric(data.askBudgetUsd), asksEnabled: data.asksEnabled === true };
+}
+
+function askSpend(value: unknown): PloegAskSpend {
+  const ask = record(value);
+  const spend = record(ask.spend);
+  const state = ['open', 'finished', 'expired'].includes(String(ask.state)) ? ask.state as PloegAskSpend['state'] : 'finished';
+  const costStatus = ['provisional', 'settled', 'unknown'].includes(String(spend.costStatus)) ? spend.costStatus as PloegAskSpend['costStatus'] : 'unknown';
+  return { state, costStatus, usd: spend.usd === null || spend.usd === undefined ? null : numeric(spend.usd) };
+}
+
 const decisionFailures: Record<number, [string, string]> = {
   400: ['ploeg_decision', 'Ploeg refused the request. A rejection needs a reason of at most 4096 characters.'],
   403: ['ploeg_decision_forbidden', 'Unfold’s Ploeg credential cannot record decisions. An administrator must grant it execute permission.'],
@@ -273,7 +317,7 @@ function page(value: unknown): PloegPage { const data = envelope(value); return 
 export function detail(value: unknown): PloegDetail {
   const data = envelope(value);
   const truncated = record(data.truncated);
-  const result = { item: item(data.item), shifts: array(data.shifts, shift), runs: array(data.runs, run), checkpoints: array(data.checkpoints, checkpoint), events: array(data.events, event), truncated: { shifts: boolean(truncated.shifts), runs: boolean(truncated.runs), checkpoints: boolean(truncated.checkpoints), events: boolean(truncated.events) } };
+  const result = { item: item(data.item), shifts: array(data.shifts, shift), runs: array(data.runs, run).filter(entry => entry.role !== askRole), checkpoints: array(data.checkpoints, checkpoint), events: array(data.events, event), truncated: { shifts: boolean(truncated.shifts), runs: boolean(truncated.runs), checkpoints: boolean(truncated.checkpoints), events: boolean(truncated.events) } };
   const latestShift = result.item.latestShift?.id ?? result.shifts[0]?.id;
   const earlierShifts = new Set(result.shifts.filter(entry => entry.id !== latestShift && entry.closedAt).map(entry => entry.id));
   const fromEarlierTeam = (entry: { team?: string; id?: string; shiftId?: string | null; state?: string }) => 'shiftId' in entry ? entry.state === 'finished' && !!entry.shiftId && earlierShifts.has(entry.shiftId) : 'closedAt' in entry && earlierShifts.has(entry.id!);
@@ -738,7 +782,7 @@ export class PloegClient {
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
-  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {
+  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {
     const token = this.config?.tokenEnv ? process.env[this.config.tokenEnv] : undefined;
     if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new PloegError(503, 'ploeg_credential', 'The Ploeg operator credential is unavailable. An administrator must check the connection.');
     if (token !== this.cachedToken) { this.cache.clear(); this.cachedToken = token; }
@@ -750,7 +794,7 @@ export class PloegClient {
       const response = await fetch(`${this.config!.url}/api/v1/operator/${path}`, { method: options.method ?? (post ? 'POST' : 'GET'), headers, ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}), ...(options.raw !== undefined ? { body: new Uint8Array(options.raw) } : {}), signal: AbortSignal.timeout(options.raw !== undefined ? 60_000 : options.comment ? 45_000 : 5000), redirect: 'manual' });
       if (post) this.cache.clear();
       if (!response.ok) {
-        const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : null;
+        const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : options.ask ? await askRefusal(response) : null;
         await response.body?.cancel().catch(() => undefined);
         if (refusal) throw refusal;
         if (options.added && (response.status === 404 || (response.status === 400 && /^(?:events|work-items)\?/.test(path)))) throw unsupported();
@@ -900,7 +944,7 @@ export class PloegClient {
       const query = new URLSearchParams({ limit: String(pageSize) });
       for (const key of ['team', 'state', 'outcome', 'before'] as const) if (filter[key]) query.set(key, filter[key]!);
       const data = envelope(await this.request(`runs?${query}`, fresh, { added: true }));
-      runs = array(data.runs, runRow, 200); nextBefore = nullable(data.nextBefore ?? null, identifier);
+      runs = array(data.runs, runRow, 200).filter(entry => entry.role !== askRole); nextBefore = nullable(data.nextBefore ?? null, identifier);
       if (runs.some(run => (filter.team && run.team !== filter.team) || (filter.state && run.state !== filter.state) || (filter.outcome && run.outcome !== filter.outcome))) throw invalid();
     }
     for (const run of runs) if (run.workItemTitle) this.remember(run.workItemId, run.workItemTitle);
@@ -1204,6 +1248,37 @@ export class PloegClient {
     if (crack.state !== 'disputed') throw state('Only a disputed crack is resolved.');
     if ([crack.steward, crack.proposedBy, crack.confirmedBy[1], crack.disputedBy].some(involved => samePerson(login, involved))) throw forbidden('A referee took no part in the crack.');
     return { ...crack, state: body.resolution === 'unlinked' ? 'unlinked' : 'confirmed', disputed: false, resolvedBy: login, resolvedAt: now.toISOString(), resolution: body.resolution as 'upheld' | 'unlinked' };
+  }
+  /** Admits an Ask on a Work Item the caller can see, as the caller (system ADR-0031, Ploeg ADR-0081). Throws {@link AskAllowanceUsedUp} when the Team's allowance is used up. The demo admits nothing. */
+  async admitAsk(user: User, id: string, askId: string, question: string): Promise<PloegAskGrant> {
+    this.connected(user);
+    if (this.demo) throw new PloegError(409, 'ploeg_demo', 'The demo answers Asks without Ploeg.');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(user.id)) throw new PloegError(403, 'ploeg_actor', 'Your account identity cannot be recorded by Ploeg. Ask an administrator.');
+    await this.detail(user, id, true);
+    const data = envelope(await this.request(`work-items/${id}/asks`, true, { actor: user.id, body: { askId, question }, ask: true }));
+    const ask = record(data.ask);
+    if (ask.workItemId !== id || ask.askId !== askId) throw invalid();
+    if (data.credential === null) throw new PloegError(409, 'ask_replayed', 'Ploeg already issued a key for this Ask. Ask again.');
+    const credential = record(data.credential);
+    const models = Array.isArray(credential.models) ? credential.models.map(model => field(model, 200)) : [];
+    return { askId, key: field(credential.key, 4096), models, expiresAt: field(credential.expiresAt, 64), allowance: data.allowance ? askAllowance(data.allowance) : null };
+  }
+  /** Finishes an Ask so Ploeg blocks its key. Safe to call again. */
+  async finishAsk(user: User, id: string, askId: string): Promise<void> {
+    if (this.demo) return;
+    envelope(await this.request(`work-items/${id}/asks/${encodeURIComponent(askId)}/finish`, true, { actor: user.id, ask: true }));
+  }
+  /** Reads an Ask's spend from Ploeg. */
+  async askSpend(user: User, id: string, askId: string): Promise<PloegAskSpend> {
+    this.authorize(user);
+    return askSpend(envelope(await this.request(`work-items/${id}/asks/${encodeURIComponent(askId)}`, true)).ask);
+  }
+  /** A Team's Ask Allowance for this month, or null in the demo. */
+  async askAllowance(user: User, team: string): Promise<PloegAskAllowance | null> {
+    this.connected(user);
+    if (this.demo) return null;
+    if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    return askAllowance(envelope(await this.request(`allowances?team=${encodeURIComponent(team)}`)).allowance);
   }
   private remember(id: string, title: string): void {
     if (!title) return;
