@@ -13,6 +13,8 @@ import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
 import { StatusBoard, gatewayProbe } from './status.ts';
+import { CardService, importStatusLine } from './cards/service.ts';
+import { CardStore } from './cards/card-store.ts';
 import { PloegClient, PloegError, contextInput, contextUploadLimit, type PloegDecision, type PloegState } from './ploeg.ts';
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
@@ -111,6 +113,8 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
 export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc) {
   const auth = new Auth(store, config);
   const ploeg = new PloegClient(config);
+  const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
+  if (cards) ploeg.useCards(cards);
   const delivery = new DeliveryService(config, store);
   const handoff = new TaskHandoff(config, ploeg);
   const status = new StatusBoard(config, store, () => engine.provisioning(), {
@@ -120,6 +124,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       try { await ploeg.teams(user, true); return 'ok'; }
       catch (error) { return error instanceof PloegError && error.code === 'ploeg_unconfigured' ? 'unconfigured' : error instanceof PloegError && error.status === 403 ? 'ok' : 'down'; }
     },
+    ...(cards ? { cards: () => importStatusLine(cards.status().import) } : {}),
   });
   const streams = new Set<ServerResponse>();
   const staticFiles = new StaticFiles(config.publicDir);
@@ -605,5 +610,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   });
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
-  return { server, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => insight.stop() };
+  return { server, cards, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => insight.stop() };
 }

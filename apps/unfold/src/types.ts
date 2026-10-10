@@ -1,3 +1,4 @@
+import type { CardRuleSettings } from './cards/settings.ts';
 import type { ExecutionFailure } from './failures.ts';
 import type { Candidate } from './candidates.ts';
 import type { TaskSourceConfig, TaskSnapshot } from './tasks.ts';
@@ -46,7 +47,7 @@ export type AppConfig = {
   ploeg?: { url: string; tokenEnv?: string; teams?: string[]; userTeams?: Record<string, string[]>; forgeLogins?: Record<string, string>; trackerUrl?: string; demo?: boolean };
   links?: { gitlab?: { baseUrl: string; clientId?: string; scopes: string[] }; clickup?: { clientId?: string; clientSecret?: string; apiUrl: string; appUrl: string } };
   gatewayPolicy?: { providers?: string[]; regions?: string[] };
-  cards?: { backfillPeriods: number; teams: Record<string, { lengthDays: number; anchor: string }> };
+  cards?: { backfillPeriods: number; teams: Record<string, { lengthDays: number; anchor: string }>; publishPullRequestComment?: boolean; rules?: CardRuleSettings };
   cardThemes?: { directory?: string; assetQuotaMb: number; ai?: { baseUrl: string; model: string; keyEnv: string; maxTokens: number; timeoutMs: number; requestsPerHour: number } };
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; traceQuery?: string; logsQuery?: string };
   insight?: InsightConfig;

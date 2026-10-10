@@ -146,6 +146,17 @@ export function cardCommentBody(card: CardImageCard, now: string | Date, headlin
   return b;
 }
 
+/** The markdown Unfold sends to Ploeg's keyed pull request comment (`run-card`): the headline and summary table without a marker or image line, because Ploeg adds its own marker and shows the uploaded card image above it. */
+export function cardCommentMarkdown(card: CardImageCard, now: string | Date, headline: string): string {
+  return `### Run card · ${md(headline)}\n\n${cardSummary(card, now)}\n<sub>Posted by Unfold when this card reached a moment: a merge, a release to production, a new finish or a mend. `
+    + "It shows the change's own facts and its steward; nothing on it ranks or scores a person.</sub>\n";
+}
+
+/** The alt text of the card image in the keyed comment. */
+export function cardImageAlt(card: CardImageCard, now: string | Date): string {
+  return `Run card: ${fit(newView(card, now).title, 120)}`.slice(0, 256);
+}
+
 function imageDestination(raw: string): string | null {
   const u = goTrim(raw);
   if (u === '' || /[ \t\r\n<>"'()\\`]/.test(u)) return null;
