@@ -234,7 +234,7 @@ test('a message into a running session is acknowledged for the next Role and mar
   assert.equal(pickup.params.action.part.content, `Picked up by ${reader.roleName} at ${started.at.slice(11, 16)} UTC.`);
   assert.equal(pickup.params.action.turnId, 'steer');
   const reduced = chatActions(client, chat).reduce(reduceChat, { turns: [] });
-  assert.deepEqual(reduced.activeTurn.responseParts.filter((part: Json) => part.kind === 'systemNotification').map((part: Json) => part.content.split(' ')[0]), ['Queued', 'Picked']);
+  assert.deepEqual(reduced.activeTurn.responseParts.filter((part: Json) => part.kind === 'systemNotification').map((part: Json) => part.content.split(' ')[0]), ['Queued', 'Demo', 'Picked'], 'a finished Run says what was spent, and a demo says it spends nothing');
   const spawned = chatActions(client, chat).filter(item => item.type === 'chat/toolCallStart' && item.toolName === 'unfold_run' && item.turnId === 'steer').map(item => item.displayName);
   assert.deepEqual(spawned, [writer.roleName, reader.roleName], 'the working Role carries into the new turn as a subagent, and the next Role joins it');
 });

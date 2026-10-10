@@ -16,7 +16,7 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   const address = server.url.replace(/^http/, 'ws');
   assert.equal(issued.body.vscodeSetting.key, 'chat.remoteAgentHosts');
   const info = await request(server.url, '/api/agent-host');
-  assert.equal(info.body.protocolVersion, '0.9.0');
+  assert.equal(info.body.protocolVersion, '1.0.0');
 
   const refused = connect(`${address}/?tkn=not-a-real-token-value`);
   await assert.rejects(refused.open);
@@ -26,7 +26,7 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   await stale.open;
   await assert.rejects(stale.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9', '0.9.0'], clientId: 'malformed' }), (error: any) => error.code === -32602 && /0\.9/.test(error.message), 'a malformed offer is an explicit error');
   const staleClosed = closed(stale.socket);
-  await assert.rejects(stale.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['1.0.0', '0.10.0', '0.5.0'], clientId: 'old' }), (error: any) => error.code === -32005 && Array.isArray(error.data.supportedVersions) && error.data.supportedVersions.includes('^0.9.0'));
+  await assert.rejects(stale.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['2.0.0', '0.10.0', '0.5.0'], clientId: 'old' }), (error: any) => error.code === -32005 && Array.isArray(error.data.supportedVersions) && error.data.supportedVersions.includes('^0.9.0') && error.data.supportedVersions.includes('^1.0.0'));
   assert.equal(await staleClosed, 1000, 'the host closes the connection after an unsupported offer');
 
   const alice = connect(`${address}/?tkn=${issued.body.token}`);
@@ -234,6 +234,7 @@ test('GET /api/agent-host lists only the caller\'s own initialized clients, with
   const [attached] = view.attached;
   assert.equal(attached.name, 'vscode-agents-window');
   assert.equal(attached.version, '1.141.0');
+  assert.equal(attached.protocolVersion, '0.9.0', 'the version this connection negotiated');
   assert.equal(attached.tokenId, mine.id, 'the editor can tell its own token from another device\'s');
   assert.ok(Math.abs(Date.parse(attached.connectedAt) - Date.now()) < 60_000);
   assert.ok(!JSON.stringify(view).includes('peer-secret-client') && !JSON.stringify(view).includes(theirs.id), 'another person\'s clients never appear');
