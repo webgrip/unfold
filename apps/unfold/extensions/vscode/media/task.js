@@ -75,7 +75,25 @@ export function progressOf(current) {
   const linked = current?.linked;
   if (!linked?.session) return null;
   const { detail, card } = subject(current);
-  return sessionProgress(linked.session, { events: linked.events || [], viewer: Boolean(linked.viewer), ploeg: detail, card, recovery: linked.recovery || null });
+  return withPublication(sessionProgress(linked.session, { events: linked.events || [], viewer: Boolean(linked.viewer), ploeg: detail, card, recovery: linked.recovery || null }), linked.publication);
+}
+
+const acceptRecords = 'Records your decision in the session. Nothing is pushed or merged.';
+const acceptPublishes = 'Approves this verified commit if you have not yet, then pushes it to its own branch and opens one pull request. Merging it stays with you.';
+
+/**
+ * The progress with a gated session's publication folded in: a verified candidate's Accept becomes the primary Accept and open
+ * pull request, a published one leads with its pull request, and every other Accept says it only records your decision.
+ */
+export function withPublication(progress, publication) {
+  const pullRequest = publication?.pullRequest;
+  const change = pullRequest && !progress.change.pullRequest?.url ? { ...progress.change, pullRequest: { number: pullRequest.number, url: pullRequest.url, state: 'open' } } : progress.change;
+  const publish = publication?.offered ? { id: 'publish', label: publication.state === 'publishing' ? 'Continue opening the pull request' : 'Accept and open pull request', hint: acceptPublishes, primary: true } : null;
+  const rest = progress.actions.filter(entry => !(entry.id === 'accept' && (publish || pullRequest))).map(entry => entry.id === 'accept' ? { ...entry, hint: entry.hint || acceptRecords } : entry);
+  const opened = pullRequest && progress.phase === 'review' && !rest.some(entry => entry.id === 'open-pr') ? [{ id: 'open-pr', label: `Open pull request #${pullRequest.number}` }] : [];
+  const lead = publish ? [publish] : opened;
+  const actions = lead.length ? [...lead.map(entry => ({ ...entry, primary: true })), ...rest.map(entry => ({ ...entry, primary: false }))] : rest;
+  return { ...progress, change, actions, publication: publication || null };
 }
 
 function latestShift(detail) {
@@ -366,7 +384,7 @@ export function decisionActions(progress) {
   return [{ ...view, primary: true }, ...list.filter(entry => entry !== view).map(entry => ({ ...entry, primary: false }))];
 }
 
-const gateMarks = { success: ['✓', 'done'], attention: ['!', 'needs attention'], danger: ['✗', 'failed'], neutral: ['–', 'not available'], review: ['✓', 'done'] };
+const gateMarks = { live: ['…', 'in progress'], success: ['✓', 'done'], attention: ['!', 'needs attention'], danger: ['✗', 'failed'], neutral: ['–', 'not available'], review: ['✓', 'done'] };
 
 function gate(tone, title, detail = null, extra = null) {
   const [mark, word] = gateMarks[tone] || gateMarks.neutral;
@@ -403,6 +421,8 @@ export function gateList(current, progress) {
   }
   if (!progress.checks.length && change.files) gates.push({ rank: 1, node: gate('neutral', 'No checks were recorded') });
   if (change.pullRequest?.url) gates.push({ rank: 1, node: gate('success', `Pull request #${change.pullRequest.number}`, change.pullRequest.state || null) });
+  const publication = progress.publication;
+  if (publication && ['publishing', 'recovery', 'refused'].includes(publication.state)) gates.push({ rank: publication.state === 'publishing' ? 1 : 0, node: gate(publication.state === 'publishing' ? 'live' : 'danger', publication.title, publication.detail) });
   if (!gates.length) return null;
   return element('ul', { className: 'gates', 'aria-label': 'Before you decide' }, ...gates.sort((a, b) => a.rank - b.rank).map(entry => entry.node));
 }
@@ -872,7 +892,7 @@ document.addEventListener('click', event => {
     if (step.disabled) return;
     if (['view-change', 'capture'].includes(step.dataset.sessionAction)) { viewed.add(step.dataset.session); remember(); }
     busy = `session:${step.dataset.sessionAction}`; render();
-    bridge.postMessage({ type: 'session-action', action: step.dataset.sessionAction, session: step.dataset.session });
+    bridge.postMessage(step.dataset.sessionAction === 'publish' ? { type: 'publish', session: step.dataset.session } : { type: 'session-action', action: step.dataset.sessionAction, session: step.dataset.session });
     return;
   }
   const button = event.target.closest('[data-action]');

@@ -257,13 +257,37 @@ try {
   await page.locator('.live-tag', { hasText: 'Live' }).waitFor();
   await both('working', () => page.getByRole('heading', { name: 'Reviewer is working · Round 1', level: 2 }).waitFor());
 
+  const completedSession = { ...fixture.session, status: 'completed', candidate: { status: 'ready', fileCount: 1 } };
+  const gatedReview = publication => ({ ...stopped, linked: { session: completedSession, events: fixture.events, viewer: false, live: false, ...(publication ? { publication } : {}) } });
+  await post({ type: 'state', view: gatedReview(undefined) });
+  const noteOnly = page.locator('.progress-card').getByRole('button', { name: 'Accept', exact: true });
+  await noteOnly.waitFor();
+  assert.equal(await noteOnly.getAttribute('title'), 'Records your decision in the session. Nothing is pushed or merged.', 'the note-only Accept says what it does');
+  await post({ type: 'state', view: gatedReview({ offered: true, binding: { candidateId: 'c'.repeat(32), receiptId: 'd'.repeat(32), policySha256: 'b'.repeat(64) }, state: 'ready', title: 'Opens after your decision', detail: 'Accepting pushes this exact commit to its own branch and opens one pull request. Merging it stays with you.' }) });
+  const publish = page.locator('.progress-card').getByRole('button', { name: 'Accept and open pull request' });
+  await publish.waitFor();
+  assert.match(await publish.getAttribute('class'), /primary/, 'Accept and open pull request is the primary action');
+  assert.equal(await page.locator('.progress-card').getByRole('button', { name: 'Accept', exact: true }).count(), 0);
+  await publish.click();
+  assert.deepEqual(await lastMessage(), { type: 'publish', session: fixture.session.id });
+  await post({ type: 'idle' });
+  await post({ type: 'state', view: gatedReview({ offered: false, state: 'published', title: 'Pull request #7', detail: 'Opened from unfold/wi-7/cccccccccccc.', pullRequest: { number: 7, url: 'https://forge.example/acme/orders/pulls/7' } }) });
+  const openPullRequest = page.locator('.progress-card').getByRole('button', { name: 'Open pull request #7 ↗' });
+  await openPullRequest.waitFor();
+  await page.locator('.gate', { hasText: 'Pull request #7' }).waitFor();
+  await openPullRequest.click();
+  assert.deepEqual(await lastMessage(), { type: 'open-url', url: 'https://forge.example/acme/orders/pulls/7' });
+  await post({ type: 'state', view: gatedReview({ offered: false, state: 'recovery', title: 'Needs recovery', detail: 'Publishing stopped before Unfold could confirm it was allowed to push. Nothing was pushed.' }) });
+  await page.locator('.gate', { hasText: 'Needs recovery' }).getByText(/Nothing was pushed\./).waitFor();
+  await both('gated-review', () => page.locator('.gate', { hasText: 'Needs recovery' }).waitFor());
+
   await post({ type: 'state', view: { ...stopped, linked: { ...stopped.linked, viewer: true } } });
   await page.getByRole('heading', { name: 'Reviewer approved the change · the session stopped before finishing', level: 2 }).waitFor();
   assert.equal(await page.getByRole('button', { name: /Investigate|Cancel|Resume/ }).count(), 0, 'a viewer gets no mutating action');
 
   assert.deepEqual(await page.evaluate(() => window.violations), [], 'no Content Security Policy violation');
   assert.deepEqual(errors, []);
-  console.log(`PASS: task view rendered as an ES module under a nonce-only CSP with no violations; tracker facts, labels with colours, inert hostile description, team choice without empty roles, hand-off in flight, waiting, running with live cost, review with pull requests, CI, human reviews, agent verdicts, cost per role, problem and solution, Runs by Round, needs-you reason, problem and offline notices, the 059675b9 worst case as one stopped state with its steps, transcript verdict, change, facts and keyboard action, offered recovery, a working session with a ticking clock, a viewer without actions, older server and a Work Item without a tracker task, all without horizontal overflow at 1000px and 420px. Screenshots: ${taken.join(', ')}. This is browser webview validation, not a VS Code Extension Host test.`);
+  console.log(`PASS: task view rendered as an ES module under a nonce-only CSP with no violations; tracker facts, labels with colours, inert hostile description, team choice without empty roles, hand-off in flight, waiting, running with live cost, review with pull requests, CI, human reviews, agent verdicts, cost per role, problem and solution, Runs by Round, needs-you reason, problem and offline notices, the 059675b9 worst case as one stopped state with its steps, transcript verdict, change, facts and keyboard action, offered recovery, a working session with a ticking clock, Accept and open pull request on a gated review with its published and recovery states beside the note-only Accept, a viewer without actions, older server and a Work Item without a tracker task, all without horizontal overflow at 1000px and 420px. Screenshots: ${taken.join(', ')}. This is browser webview validation, not a VS Code Extension Host test.`);
 } finally {
   await browser?.close();
   surface.close();

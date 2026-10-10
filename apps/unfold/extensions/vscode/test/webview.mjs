@@ -244,8 +244,33 @@ try {
   await page.getByLabel('Additional amount · USD').fill('2.5');
   await page.getByRole('button', { name: 'Authorize', exact: true }).click();
   assert.deepEqual(await lastMessage(), { type: 'budget', amountUsd: 2.5 });
+
+  await post({ type: 'idle' });
+  detail.session.status = 'completed';
+  delete detail.session.review;
+  await send();
+  const noteOnly = page.getByRole('button', { name: 'Accept', exact: true });
+  assert.equal(await noteOnly.getAttribute('title'), 'Records your decision in the session. Nothing is pushed or merged.', 'an ungated Accept says it only records the decision');
+  assert.equal(await page.getByRole('button', { name: 'Accept and open pull request' }).count(), 0);
+  detail.publication = { offered: true, binding: { candidateId: 'c'.repeat(32), receiptId: 'd'.repeat(32), policySha256: 'b'.repeat(64) }, state: 'ready', title: 'Opens after your decision', detail: 'Accepting pushes this exact commit to its own branch and opens one pull request. Merging it stays with you.' };
+  await send();
+  assert.equal(await page.getByRole('button', { name: 'Accept', exact: true }).count(), 0, 'a publishable candidate replaces the note-only Accept');
+  await page.getByText('Pull request · Opens after your decision').waitFor();
+  await page.getByRole('button', { name: 'Accept and open pull request' }).click();
+  assert.deepEqual(await lastMessage(), { type: 'publish' });
+  await post({ type: 'idle' });
+  detail.publication = { offered: false, state: 'published', title: 'Pull request #7', detail: 'Opened from unfold/wi-7/cccccccccccc. Merging it stays with you on the forge.', pullRequest: { number: 7, url: 'https://forge.example/acme/orders/pulls/7' } };
+  await send();
+  assert.equal(await page.getByRole('button', { name: /^Accept/ }).count(), 0, 'a published candidate offers no Accept');
+  await page.getByRole('button', { name: 'Open pull request #7 ↗' }).click();
+  assert.deepEqual(await lastMessage(), { type: 'open-url', url: 'https://forge.example/acme/orders/pulls/7' });
+  detail.publication = { offered: false, state: 'recovery', title: 'Needs recovery', detail: 'Publishing stopped before Unfold could confirm it was allowed to push. Nothing was pushed.' };
+  await send();
+  await page.getByText('Pull request · Needs recovery').waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Accept and open pull request' }).count(), 0);
+  delete detail.publication;
   assert.deepEqual(errors, []);
-  process.stdout.write('PASS: real demo session rendered with situation sentence, Markdown findings, per-file changes, check outcomes, filtered activity, inline permission and question decisions with confirmation, composer delivery states with pause-first, disconnect and reconnect, hostile text kept inert, failure guidance with recorded cause, admin budget form, desktop and narrow layouts. This is browser webview validation, not a VS Code Extension Host test.\n');
+  process.stdout.write('PASS: real demo session rendered with situation sentence, Markdown findings, per-file changes, check outcomes, filtered activity, inline permission and question decisions with confirmation, composer delivery states with pause-first, disconnect and reconnect, hostile text kept inert, failure guidance with recorded cause, admin budget form, Accept and open pull request with its published and recovery states beside the note-only Accept, desktop and narrow layouts. This is browser webview validation, not a VS Code Extension Host test.\n');
 } finally {
   await browser?.close();
   await new Promise(resolve => surface.close(resolve));

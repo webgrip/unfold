@@ -298,3 +298,33 @@ test('a review offers the change to download, says Accept only records the decis
   assert.match(preview, /^Updated the README so that it explains the flow/);
   assert.doesNotMatch(preview, /\||\*\*/);
 });
+
+const reviewProgress = () => ({ phase: 'review', sessionId: 's1', change: { files: 1, pullRequest: null }, steps: [], checks: [], actions: [{ id: 'view-change', label: 'View change', primary: true }, { id: 'accept', label: 'Accept' }, { id: 'reject', label: 'Reject' }] });
+const offer = (extra: Record<string, unknown> = {}) => ({ offered: true, binding: { candidateId: 'c'.repeat(32), receiptId: 'd'.repeat(32), policySha256: 'b'.repeat(64) }, state: 'ready', title: 'Opens after your decision', detail: 'Accepting pushes this exact commit to its own branch and opens one pull request. Merging it stays with you.', ...extra });
+
+test('a verified gated candidate makes Accept and open pull request the primary review action, in place of the note-only Accept', () => {
+  const progress = view.withPublication(reviewProgress(), offer());
+  assert.deepEqual(progress.actions.map((entry: { id: string; label: string; primary: boolean }) => [entry.id, entry.label, entry.primary]), [['publish', 'Accept and open pull request', true], ['view-change', 'View change', false], ['reject', 'Reject', false]]);
+  assert.match(progress.actions[0].hint, /opens one pull request\. Merging it stays with you\./);
+  assert.equal(view.withPublication(reviewProgress(), offer({ state: 'publishing', title: 'Publishing…' })).actions[0].label, 'Continue opening the pull request');
+});
+
+test('a published pull request leads the review actions and the checklist; a stuck publication explains itself', () => {
+  const published = view.withPublication(reviewProgress(), offer({ offered: false, binding: undefined, state: 'published', title: 'Pull request #7', pullRequest: { number: 7, url: 'https://forge.example/acme/orders/pulls/7' } }));
+  assert.deepEqual(published.actions.map((entry: { id: string; primary: boolean }) => [entry.id, entry.primary]), [['open-pr', true], ['view-change', false], ['reject', false]]);
+  assert.equal(published.change.pullRequest.url, 'https://forge.example/acme/orders/pulls/7');
+  const steps = [{ mode: 'read', verdict: null }];
+  assert.match(view.gateList({ linked: { session: {} } }, { ...published, steps }).textContent, /Pull request #7/);
+  const stuck = view.withPublication(reviewProgress(), offer({ offered: false, binding: undefined, state: 'recovery', title: 'Needs recovery', detail: 'Publishing stopped before Unfold could confirm it was allowed to push. Nothing was pushed.' }));
+  assert.match(view.gateList({ linked: { session: {} } }, { ...stuck, steps }).textContent, /Needs recovery.*Nothing was pushed\./);
+  assert.ok(stuck.actions.some((entry: { id: string }) => entry.id === 'accept'), 'a candidate that cannot be published keeps the note-only Accept');
+});
+
+test('without a publication offer the note-only Accept stays and says it only records your decision', () => {
+  const progress = view.withPublication(reviewProgress(), undefined);
+  const accept = progress.actions.find((entry: { id: string }) => entry.id === 'accept');
+  assert.equal(accept.label, 'Accept');
+  assert.equal(accept.hint, 'Records your decision in the session. Nothing is pushed or merged.');
+  assert.equal(progress.actions.some((entry: { id: string }) => entry.id === 'publish'), false);
+  assert.equal(view.withPublication(reviewProgress(), offer({ offered: false, binding: undefined })).actions.some((entry: { id: string }) => entry.id === 'publish'), false, 'an offer the server does not bind never shows the publish button');
+});

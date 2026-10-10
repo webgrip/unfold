@@ -4,7 +4,8 @@ import { ApiError, type UnfoldClient } from './client.js';
 import { providerNames, safeHttpsUrl } from './status.js';
 import { awaitingPloeg, currentWorkItemId, linkedSessionFor, ploegFacts, progressEventsOf, sessionEligibility, unsupportedStatus, workItemMoving } from './task-view.js';
 import type { PloegCard, PloegDetail } from './ploeg-types.js';
-import type { Bootstrap, Recovery, Session, SessionEvent, TaskPloegStatus, TaskPreview, TaskSnapshot, TaskSource } from './types.js';
+import { readPublication } from './publication.js';
+import type { Bootstrap, PublicationBinding, PublicationOffer, Recovery, Session, SessionEvent, TaskPloegStatus, TaskPreview, TaskSnapshot, TaskSource } from './types.js';
 
 export interface TaskPanelHost {
   readonly extensionUri: vscode.Uri;
@@ -20,12 +21,14 @@ export interface TaskPanelHost {
   taskHandoffChanged(): Promise<void>;
   /** Performs one action of a session's progress state, such as Investigate, View change, Resume or Deliver approved work. */
   sessionAction(sessionId: string, action: string): Promise<void>;
+  /** Accept and open pull request for a gated session, sending exactly the identities the panel displayed. */
+  publish(sessionId: string, binding: PublicationBinding): Promise<void>;
   liveUpdates(): boolean;
   report(error: unknown): Promise<void>;
 }
 
 /** The Unfold session that drives a Work Item, with the durable events its progress reads. */
-export type LinkedSession = { session: Session; events: SessionEvent[]; viewer: boolean; live: boolean; recovery?: Recovery };
+export type LinkedSession = { session: Session; events: SessionEvent[]; viewer: boolean; live: boolean; recovery?: Recovery; publication?: PublicationOffer };
 
 /** The state a task panel posts to its webview: the tracker task, its Ploeg status and, once Ploeg has a Work Item, its detail and Run card. */
 export type TaskView = {
@@ -153,7 +156,8 @@ export class TaskPanel implements vscode.Disposable {
     if (['paused', 'interrupted', 'failed'].includes(session.status) && bootstrap.user.role !== 'viewer') {
       try { recovery = await client.recovery(session.id); } catch (error) { if (error instanceof ApiError && error.status === 401) throw error; }
     }
-    return { linked: { session, events: progressEventsOf(this.events), viewer: bootstrap.user.role === 'viewer', live: Boolean(this.stream), ...(recovery ? { recovery } : {}) } };
+    const publication = await readPublication(client, session, bootstrap);
+    return { linked: { session, events: progressEventsOf(this.events), viewer: bootstrap.user.role === 'viewer', live: Boolean(this.stream), ...(recovery ? { recovery } : {}), ...(publication ? { publication } : {}) } };
   }
 
   private merge(events: SessionEvent[]) {
@@ -252,6 +256,12 @@ export class TaskPanel implements vscode.Disposable {
           const action = typeof message.action === 'string' && sessionActions.has(message.action) ? message.action : undefined;
           const session = typeof message.session === 'string' && sessionPattern.test(message.session) ? message.session : undefined;
           if (action && session && session === this.view?.linked?.session.id) { await this.host.sessionAction(session, action); this.fastUntil = Date.now() + 60_000; await this.load(false); }
+          await this.panel.webview.postMessage({ type: 'idle' });
+          return;
+        }
+        case 'publish': {
+          const linked = this.view?.linked;
+          if (linked?.publication?.binding && message.session === linked.session.id) { await this.host.publish(linked.session.id, linked.publication.binding); this.fastUntil = Date.now() + 60_000; await this.load(false); }
           await this.panel.webview.postMessage({ type: 'idle' });
           return;
         }
