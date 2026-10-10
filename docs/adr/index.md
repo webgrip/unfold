@@ -45,3 +45,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0029](adr-0029-unfold-collects-run-card-data-in-a-separate-go-service.md) | Unfold collects Run card data in a separate Go service | superseded by ADR-0030 | 2026-10-10 |
 | [ADR-0030](adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md) | Run cards are an Unfold domain on top of Ploeg's delivery facts | accepted | 2026-10-10 |
 | [ADR-0031](adr-0031-people-ask-about-a-work-item-through-a-metered-read-only-ask-paid-from-a-monthly-allowance.md) | People ask about a Work Item through a metered, read-only Ask paid from a monthly allowance | proposed | 2026-10-10 |
+| [ADR-0032](adr-0032-unfold-also-serves-its-own-read-only-mcp-tools-next-to-ploeg-mcp.md) | Unfold also serves its own read-only MCP tools, next to ploeg-mcp | accepted | 2026-10-10 |

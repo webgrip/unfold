@@ -34,6 +34,7 @@ The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/pl
 | Check an agent's pull request before merging | [Review an agent pull request](how-to/review-an-agent-pr.md) |
 | Let agents work in a repository | [Prepare a repository](how-to/prepare-a-repository.md) |
 | Try a Team on ten real Work Items, or compare prompts, models and harnesses | [Run a pilot batch](how-to/run-a-pilot-batch.md) |
+| Ask an AI client what waits for you, why, and what to do | [Ask Unfold and Ploeg from an AI client](how-to/ask-from-an-ai-client.md) |
 | Operate Ploeg or the Unfold application | [Ploeg](../apps/ploeg/docs/index.md) · [Unfold application](../apps/unfold/docs/index.md) |
 | Use the Unfold name, mark or colours | [Brand](brand/README.md) · [Trademark policy](brand/TRADEMARK.md) (proposed) |
 | Check what the website claims about credentials and execution, and which settings each claim needs | [Capability matrix](reference/capability-matrix.md) |
