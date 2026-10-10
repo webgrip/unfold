@@ -1,3 +1,9 @@
+## [unfold-v0.4.0-rc.53](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.52...unfold-v0.4.0-rc.53) (2026-10-10)
+
+### Added
+
+* **unfold:** narrate every workspace start-up step on the session page ([adfb1d9](https://forgejo.webgrip.dev/webgrip/unfold/commit/adfb1d9fe28ebb52c2752c75578dea6cb637d677))
+
 ## [unfold-v0.4.0-rc.52](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.51...unfold-v0.4.0-rc.52) (2026-10-10)
 
 ### Added
