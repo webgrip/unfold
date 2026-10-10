@@ -219,9 +219,10 @@ Delivery applies only to a shared Ploeg execution on a repository with a configu
 | Method and path | Behavior |
 | --- | --- |
 | `GET /api/agent-host` | Protocol version, WebSocket address, connected client count and the shape of the VS Code setting |
-| `POST /api/agent-host/tokens` | `{label?}` → `{token, address, vscodeSetting}`, status 201; viewers are refused. The token is shown once and bound to the caller and the sign-in that issued it |
+| `POST /api/agent-host/tokens` | `{label?}` → `{token, id, address, vscodeSetting}`, status 201; viewers are refused. The token is shown once and bound to the caller and the sign-in that issued it. `id` is the token's SHA-256 digest in lowercase hex |
+| `DELETE /api/agent-host/tokens/:id` | `{revoked: true}`; revokes one of the caller's tokens and closes its open connections with WebSocket code 1008. It needs the mutation header, as `POST` does. A token that is unknown, already revoked or another person's answers 404 `not_found` |
 
-A connection token lives as long as a login. It expires after `auth.sessionHours` (twelve by default) without use, and every connection or message renews that window. The workbench stores only its SHA-256 digest. Signing out through `POST /api/logout` revokes every token the sign-in issued and closes their connections with WebSocket code 1008; a sign-in that expires has the same effect at the token's next use. There is no route that revokes one token on its own: sign out to revoke them.
+A connection token lives as long as a login. It expires after `auth.sessionHours` (twelve by default) without use, and every connection or message renews that window. The workbench stores only its SHA-256 digest. Signing out through `POST /api/logout` revokes every token the sign-in issued and closes their connections with WebSocket code 1008; a sign-in that expires has the same effect at the token's next use. An editor that holds a token derives its `id` by hashing it, so it can revoke the token without keeping anything else.
 
 The WebSocket endpoint is the workbench address, on path `/` or `/ahp`, with `?tkn=<token>`; it speaks Agent Host Protocol 0.9.0 ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)). Without an agent host, both routes answer 404 `agent_host_disabled`.
 

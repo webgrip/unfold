@@ -8,7 +8,7 @@ import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
 import type { WorkerRelay } from './runtime/relay.ts';
 import type { AgentHost } from './ahp/host.ts';
-import { protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
+import { agentHostTokenId, protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
 import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
@@ -280,7 +280,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const statusNote = path.match(/^\/api\/status\/notes\/([0-9a-f-]{36})\/resolve$/);
         if (method === 'POST' && statusNote) return json(res, 200, sanitize(status.resolveNote(user, statusNote[1])));
         if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: applicationVersion, runtimes: runtimeKinds, litellm: Boolean(config.litellm), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined, workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend, workspaceBackends: placements(config).map(item => item.id) });
-        if (path === '/api/agent-host' || path === '/api/agent-host/tokens') {
+        const agentHostToken = path.match(/^\/api\/agent-host\/tokens\/([0-9a-f]{64})$/);
+        if (path === '/api/agent-host' || path === '/api/agent-host/tokens' || agentHostToken) {
           if (!agentHost) fault(404, 'agent_host_disabled', 'The agent host is not enabled on this workbench.');
           const address = (config.baseUrl ?? `http://${config.host}:${config.port}`).replace(/^http/, 'ws');
           if (method === 'GET' && path === '/api/agent-host') return json(res, 200, { protocolVersion: agentHostProtocolVersion, address, provider: 'unfold', clients: agentHost!.clients.size, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
@@ -288,7 +289,11 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host.');
             const data = await body(req);
             const token = agentHost!.issueToken(user, text(data.label, 'Label', 80, true) || 'agent host', auth.signIn(req));
-            return json(res, 201, { token, address, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: token } } });
+            return json(res, 201, { token, id: agentHostTokenId(token), address, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: token } } });
+          }
+          if (method === 'DELETE' && agentHostToken) {
+            if (!agentHost!.revokeToken(user, agentHostToken[1])) fault(404, 'not_found', 'No connection token of yours has this identifier.');
+            return json(res, 200, { revoked: true });
           }
           fault(405, 'method', 'Unsupported method.');
         }

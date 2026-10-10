@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
 import { access, mkdir, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { request as httpRequest } from 'node:http';
@@ -241,6 +241,11 @@ export function probeAgentHostToken(address: string, token: string, timeoutMs = 
   });
 }
 
+/** The workbench's identifier of a connection token, the SHA-256 digest it stores, which names the token in `DELETE /api/agent-host/tokens/:id`. */
+export function agentHostTokenId(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
 export type IssuedAgentHost = { token: string; entry: AgentHostEntry };
 
 export type AttachRequest = {
@@ -252,6 +257,7 @@ export type AttachRequest = {
   probe(token: string): Promise<TokenProbe>;
   mint(): Promise<IssuedAgentHost>;
   remember(token: string): PromiseLike<void>;
+  retire?(token: string): Promise<void>;
 };
 
 export type AttachOutcome = { status: 'attached' | 'unchanged' | 'skipped'; minted: boolean };
@@ -259,6 +265,7 @@ export type AttachOutcome = { status: 'attached' | 'unchanged' | 'skipped'; mint
 /**
  * Adds or refreshes the Unfold entry. The store is read first, so an unparseable or unwritable file stops before a token is minted.
  * A stored token is reused unless the workbench rejects it, and a minted token is remembered before the write so a failed write leaves nothing to orphan.
+ * A rejected token is then retired on the workbench, in case only the handshake failed.
  */
 export async function attachAgentHost(request: AttachRequest): Promise<AttachOutcome> {
   const existingEntry = agentHostEntry(await request.store.read(), request.address);
@@ -266,7 +273,10 @@ export async function attachAgentHost(request: AttachRequest): Promise<AttachOut
   const reusable = request.storedToken && (await request.probe(request.storedToken)) !== 'invalid' ? request.storedToken : undefined;
   if (reusable && existingEntry?.connectionToken === reusable) return { status: 'unchanged', minted: false };
   const issued = reusable ? { token: reusable, entry: { address: request.address, name: request.name ?? 'Unfold', connectionToken: reusable } } : await request.mint();
-  if (!reusable) await request.remember(issued.token);
+  if (!reusable) {
+    await request.remember(issued.token);
+    if (request.storedToken) await request.retire?.(request.storedToken).catch(() => undefined);
+  }
   const entry = { ...issued.entry, name: existingEntry?.name ?? issued.entry.name };
   await request.store.update(current => withAgentHost(current, entry));
   return { status: 'attached', minted: !reusable };

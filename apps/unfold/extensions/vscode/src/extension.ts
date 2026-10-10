@@ -16,7 +16,7 @@ import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome }
 import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor, plainText, providerNames } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
 import { linkedAccounts, type AccountChoice } from './accounts.js';
-import { SettingsFileError, agentHostStore, attachAgentHost, connectionAddress, detachAgentHost, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
+import { SettingsFileError, agentHostStore, agentHostTokenId, attachAgentHost, connectionAddress, detachAgentHost, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
 import { TaskPanels, type TaskPanelHost } from './task-panel.js';
 import { checkOutWorkItemBranch } from './checkout.js';
@@ -373,6 +373,8 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.generation++;
     const target = this.current;
     const address = await this.agentHostAddress(target);
+    const issued = await this.context.secrets.get(this.agentHostKey(target));
+    if (issued) await this.retireAgentHostToken(target, issued);
     try { await target.logout(); }
     finally {
       if (address) await this.forgetAgentHost(target, address).catch(() => undefined);
@@ -395,12 +397,17 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     return { token: issued.token, entry: issued.vscodeSetting.entry };
   }
 
+  private async retireAgentHostToken(target: UnfoldClient, token: string): Promise<void> {
+    await target.request(`/api/agent-host/tokens/${agentHostTokenId(token)}`, 'DELETE').catch(() => undefined);
+  }
+
   private async reusableAgentHostToken(target: UnfoldClient, address: string): Promise<string> {
     const key = this.agentHostKey(target);
     const stored = await this.context.secrets.get(key);
     if (stored && (await probeAgentHostToken(address, stored)) !== 'invalid') return stored;
     const issued = await this.mintAgentHostToken(target);
     await this.context.secrets.store(key, issued.token);
+    if (stored) await this.retireAgentHostToken(target, stored);
     return issued.token;
   }
 
@@ -424,6 +431,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       probe: token => probeAgentHostToken(address, token),
       mint: () => this.mintAgentHostToken(target),
       remember: token => this.context.secrets.store(key, token),
+      retire: token => this.retireAgentHostToken(target, token),
     });
   }
 

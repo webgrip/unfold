@@ -168,6 +168,40 @@ test('signing out or the end of the issuing sign-in revokes agent host tokens an
   await assert.rejects(connect(address(keptToken)).open);
 });
 
+test('an owner revokes one agent host token by its identifier, which closes its connections and leaves the others', async t => {
+  const server = await application('live');
+  t.after(() => server.close());
+  const { hashPassword } = await import('../src/auth.ts');
+  server.app.store.addUser({ id: 'mallory-ahp', name: 'mallory-ahp', role: 'operator', passwordHash: await hashPassword('operator-password-314159') });
+  const owner = await login(server.url);
+  const other = await login(server.url, 'mallory-ahp', 'operator-password-314159');
+  const address = (token: string) => `${server.url.replace(/^http/, 'ws')}/?tkn=${token}`;
+  const revoked = (await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: owner.cookie, body: { label: 'replaced' } })).body;
+  const kept = (await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: owner.cookie, body: { label: 'kept' } })).body;
+  assert.equal(revoked.id, sha256(revoked.token), 'the identifier is the digest the workbench stores, so an editor can derive it from its token');
+  const attached = connect(address(revoked.token));
+  t.after(() => attached.close());
+  await attached.open;
+
+  const path = `/api/agent-host/tokens/${revoked.id}`;
+  assert.equal((await request(server.url, path, { method: 'DELETE', cookie: owner.cookie, csrf: false })).status, 403, 'the mutation header is required, as for minting');
+  assert.equal((await request(server.url, path, { method: 'DELETE', cookie: other.cookie })).status, 404, 'another person cannot revoke or probe the token');
+  assert.equal((await request(server.url, '/api/agent-host/tokens/not-an-identifier', { method: 'DELETE', cookie: owner.cookie })).status, 404);
+  const ending = closed(attached.socket);
+  const deleted = await request(server.url, path, { method: 'DELETE', cookie: owner.cookie });
+  assert.equal(deleted.status, 200, deleted.text);
+  assert.deepEqual(deleted.body, { revoked: true });
+  assert.equal(await ending, 1008, 'the open connection closes at once');
+  assert.equal(server.app.store.getSecret(`ahp-token:${revoked.id}`), undefined);
+  await assert.rejects(connect(address(revoked.token)).open);
+  assert.equal((await request(server.url, path, { method: 'DELETE', cookie: owner.cookie })).status, 404, 'a revoked token is gone');
+
+  const still = connect(address(kept.token));
+  t.after(() => still.close());
+  await still.open;
+  assert.deepEqual(await still.rpc('ping', { channel: 'ahp-root://' }), {}, 'the person\'s other tokens keep working');
+});
+
 test('the agent host keeps each user to their own sessions, summaries and rejections', { timeout: testTimeout(60_000) }, async t => {
   const server = await application('live');
   t.after(() => server.close());

@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { chmod, lstat, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  SettingsFileError, agentHostStore, attachAgentHost, connectionAddress, detachAgentHost, editSetting, fileStore, hasAgentHost,
+  SettingsFileError, agentHostStore, agentHostTokenId, attachAgentHost, connectionAddress, detachAgentHost, editSetting, fileStore, hasAgentHost,
   probeAgentHostToken, userSettingsFile, withAgentHost, withoutIssuedAgentHost,
   type AgentHostEntry, type AgentHostStore, type AttachRequest, type SettingsConfiguration, type TokenProbe,
 } from '../src/agent-host.ts';
@@ -19,7 +20,7 @@ async function folder(t: test.TestContext): Promise<string> {
 }
 
 function attachRequest(store: AgentHostStore, overrides: Partial<AttachRequest> & { probed?: TokenProbe } = {}) {
-  const calls = { minted: 0, remembered: [] as string[], probed: [] as string[] };
+  const calls = { minted: 0, remembered: [] as string[], probed: [] as string[], retired: [] as string[] };
   const request: AttachRequest = {
     store,
     address,
@@ -28,6 +29,7 @@ function attachRequest(store: AgentHostStore, overrides: Partial<AttachRequest> 
     probe: async token => { calls.probed.push(token); return overrides.probed ?? 'valid'; },
     mint: async () => { calls.minted++; return { token: `minted-${calls.minted}`, entry: { address, name: 'Unfold', connectionToken: `minted-${calls.minted}` } }; },
     remember: async token => { calls.remembered.push(token); },
+    retire: async token => { calls.retired.push(token); },
     ...overrides,
   };
   return { request, calls };
@@ -214,4 +216,22 @@ test('a token probe tells an accepted handshake from a rejected one', async t =>
   assert.equal(await probeAgentHostToken(`ws://127.0.0.1:${port}`, 'good'), 'valid');
   assert.equal(await probeAgentHostToken(`ws://127.0.0.1:${port}`, 'bad'), 'invalid');
   assert.equal(await probeAgentHostToken('ws://127.0.0.1:1', 'good', 500), 'unknown');
+});
+
+test('a token the workbench rejected is retired after its replacement is remembered; a reused token is not', async t => {
+  const path = join(await folder(t), 'settings.json');
+  const order: string[] = [];
+  const replaced = attachRequest(fileStore(path), { storedToken: 'rejected', probed: 'invalid', remember: async token => { order.push(`remember ${token}`); }, retire: async token => { order.push(`retire ${token}`); } });
+  assert.deepEqual(await attachAgentHost(replaced.request), { status: 'attached', minted: true });
+  assert.deepEqual(order, ['remember minted-1', 'retire rejected']);
+  const reused = attachRequest(fileStore(path), { storedToken: 'minted-1', probed: 'valid' });
+  await attachAgentHost(reused.request);
+  assert.deepEqual(reused.calls.retired, []);
+  const unreachable = attachRequest(fileStore(join(path, '..', 'other.json')), { storedToken: 'rejected', probed: 'invalid', retire: async () => { throw new Error('offline'); } });
+  assert.deepEqual(await attachAgentHost(unreachable.request), { status: 'attached', minted: true }, 'a failed revocation does not undo the attach');
+});
+
+test('a token\'s identifier is the SHA-256 digest the workbench stores', () => {
+  assert.equal(agentHostTokenId('token-value'), createHash('sha256').update('token-value').digest('hex'));
+  assert.match(agentHostTokenId('x'), /^[0-9a-f]{64}$/);
 });

@@ -143,6 +143,8 @@ function activity(session: Session): string | undefined {
   return undefined;
 }
 const digest = (token: string) => createHash('sha256').update(token).digest('hex');
+/** The identifier of a connection token: the SHA-256 digest the workbench stores instead of the token. */
+export const agentHostTokenId = digest;
 const fingerprintActivity = (fingerprint: string): string | undefined => JSON.parse(fingerprint)[1] ?? undefined;
 
 /**
@@ -200,6 +202,15 @@ export class AgentHost {
   revokeSignIn(signIn: string): void {
     for (const key of this.store.getSecret<string[]>(`ahp-sign-in:${signIn}`) ?? []) this.revoke(key);
     this.store.deleteSecret(`ahp-sign-in:${signIn}`);
+  }
+
+  /** Revokes one connection token its owner names by identifier and closes its connections. Returns false when the token is unknown or another person's. */
+  revokeToken(user: User, id: string): boolean {
+    if (!/^[0-9a-f]{64}$/.test(id)) return false;
+    const record = this.store.getSecret<TokenRecord>(`ahp-token:${id}`);
+    if (!record || record.userId !== user.id) return false;
+    this.revoke(id);
+    return true;
   }
 
   private revoke(key: string): void {
