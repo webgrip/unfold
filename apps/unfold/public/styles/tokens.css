@@ -222,6 +222,7 @@
   --z-drawer: 30;
   --z-popover: 40;
   --z-toast: 50;
+  --z-curtain: 55;
   --z-skip-link: 60;
 
   --duration-instant: 50ms;

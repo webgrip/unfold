@@ -16,7 +16,8 @@ import { refreshStatusSignal, onStatusSignal } from './core/status-signal.js';
 import { linkFailure } from './views/account.js';
 import { insight, startInsight, linkOutTarget, screenFields } from './core/insight.js';
 import { createConfusionRules, startConfusionDetector } from './core/confusion.js';
-import { loopMark, popOnHover } from './core/motion.js';
+import { popOnHover } from './core/motion.js';
+import { flyWhileLoading } from './core/boot-flight.js';
 
 const registry = createRegistry(views);
 const landing = 'now';
@@ -141,6 +142,5 @@ window.addEventListener('storage', preferencesChanged);
 window.addEventListener('hashchange', () => { closeTransientChrome(); state.focusHeading = true; void route(); });
 window.addEventListener('beforeunload', disconnect);
 popOnHover(document, '.app-brand, .signin-brand', { ink: 'brand-ink', fold: 'brand-fold' });
-const bootMark = document.querySelector('.boot .brand-mark');
-if (bootMark) loopMark(bootMark.querySelector('.brand-ink'), bootMark.querySelector('.brand-fold'));
+flyWhileLoading(document.querySelector('#app > .boot'));
 void boot();
