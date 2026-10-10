@@ -82,3 +82,26 @@ Decision: after sign-in, the extension writes the entry straight into the defaul
 2026-10-10: `serverSeq` is reserved in blocks in the store and never moves backwards across a restart, remembered clients and `activeClients` survive a restart, and an ended session's projection is evicted on dispose or after ten idle minutes without subscribers and rebuilt from its events on subscribe ([VIK-1646](https://vikunja.webgrip.dev/tasks/1646)).
 
 2026-10-10: a new session's crew, budget, placement and approvals use the Agents window's own session-config pickers, with the repository read-only from the Workspace picker; a picker change made before the first message reaches the session through `session/configChanged`, and the composer's model reads `Ploeg crew · <team>` instead of a gateway model ([contract](../contracts/api.md#agent-host)).
+
+## Update, 2026-10-10: automations
+
+Evidence: VS Code 1.141.0's `sessions.desktop.main.js` (`AgentHostAutomationStore` and the connection gate in front of it) and the AHP automation types at [`types/channels-automation`](https://github.com/microsoft/agent-host-protocol/tree/main/types/channels-automation), read at `cb6ba61`. The owner asked for automations support on 2026-10-10.
+
+**What VS Code calls an automation.** It is a saved prompt with a session template (provider, model, agent, working folder, configuration) and triggers. The AHP host persists it in the `ahp-automations://` catalogue, evaluates its triggers and starts a fresh session for each run with the prompt as an `automation`-origin message. VS Code's Automations view in the Customizations sidebar edits that catalogue. Its dialog has only schedules (hourly, daily, weekly, or manual); event triggers are projected as manual. **Run now** starts a session immediately, and VS Code says a disconnected host never falls back to local execution. VS Code 1.141 connects the view to a host only when `chat.automations.enabled` is on (the default), `InitializeResult.automations` is present, and `InitializeResult._meta["vscode.autonomousAutomations"]` is `true`. Without the last one it reports that the host needs an update. **New Automation** needs `automations.create`, and **Run**, **Edit** and **Delete** need the matching entry in each automation's `operations`. The "Whether this Agent Host may run automations" setting is `automationsEnabled` in the root configuration of VS Code's own host, which mirrors `chat.automations.enabled`. A third-party host does not have to offer it.
+
+**What Unfold has instead.** Tracker-driven work in Unfold is Ploeg's: assigning a team's tracker user on a Vikunja board that Ploeg runs makes Ploeg queue a Work Item, and Ploeg authorizes, budgets and runs it ([ADR 0025](0025-hand-tracker-tasks-to-ploeg-by-assignment.md)). Unfold's task sources read Vikunja, Forgejo, GitHub, GitLab and ClickUp, and only the Vikunja hand-over writes, by adding that assignee to an existing task. Neither Unfold nor Ploeg has scheduled work, a route for Unfold to create a proposed Work Item, or a way to create tracker tasks.
+
+**Mapping.**
+
+| VS Code automation | Unfold |
+| --- | --- |
+| Catalogue entry | A route: one board Ploeg runs and one Ploeg team the person may route its tasks to (the pinned team on a pinned board) |
+| Event trigger | The tracker assignment of the team's tracker user (`unfold.tracker-assignment`, event `task.assignee.created`) |
+| Schedule trigger | None. Nothing in Unfold or Ploeg runs on a clock |
+| `enabled` | The team is not paused |
+| Run | A Work Item Ploeg queued from an assignment. It is not a session on this host, so runs stay empty |
+| Create, update, remove, **Run now** | No equivalent that waits for a person or Ploeg's authorization |
+
+**Decision.** The host serves a read-only catalogue of tracker routes. It cannot honour VS Code's model safely: every run of an automation created in VS Code is budgeted work that Ploeg did not authorize. Running it through the application's engine is the standalone execution this repository forbids extending. Turning it into Ploeg work would need an intake Ploeg does not have, and a hand-over needs an existing tracker task that a person chose. The 2026-10-01 rule about delegated sessions applies here too. The host advertises `automations: {}` without `create`, `schedules` or `runCancellation`, and sets `_meta["vscode.autonomousAutomations"]`. That flag is true: Ploeg evaluates the routes with no client attached, and VS Code never runs them. Every entry advertises no operations. `automation/createRequested`, `automation/updateRequested` and `automation/removed` are rejected with a reason, and `runAutomation` answers `-32009`. A demo workbench, or one without a live Ploeg connection and a board Ploeg runs, advertises no automations. The catalogue is refreshed each minute while someone watches it, and only that person's clients receive the changes ([api.md](../contracts/api.md#agent-host)).
+
+Reconsider when Ploeg gains an intake for proposed Work Items that waits for a person, or scheduled work of its own. A VS Code automation could then become a proposal instead of a run. Not yet exercised against a desktop VS Code.

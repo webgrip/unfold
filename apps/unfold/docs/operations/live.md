@@ -321,6 +321,10 @@ Sessions appear in VS Code's agent sessions list, grouped under **Unfold · <rep
 
 The Unfold extension in [extensions/vscode](../../extensions/vscode/README.md) is the other way in, and it now mirrors what the browser shows for a 0.3.0 server: the same run labels (implementation, analysis, independent review), the brief each role received, tool input and error text in the Activity tab, a Gateway tab with the gateway's per-request attribution, the spend observed at the gateway with the cost curve, transcripts, the approval switch for `docker` and `kubernetes` sessions, and GitLab linking through **Unfold: Linked Accounts**. Both clients read the same API and event stream, so a session opened in one is the same session in the other.
 
+### Automations in the Agents window
+
+VS Code's **Automations** view, in the Customizations sidebar, lists Unfold's tracker routes when the workbench has a live Ploeg connection and a Vikunja board whose task source sets `executionOwner: "ploeg"`. Each card reads `<board> → <team>`: assigning that team's tracker user to a task on the board makes Ploeg queue a Work Item, which Ploeg authorizes, budgets and runs. A paused team's card shows as disabled. The cards show as manual and have no **Run now**, **Edit** or **Delete**, and **New Automation** is unavailable for the Unfold host. An automation created in VS Code would start budgeted work on a schedule without Ploeg's authorization, so the host refuses it ([ADR 0012](../adrs/0012-agent-host-protocol-host.md#update-2026-10-10-automations)). To start tracker work, hand the task over from the Tasks page or assign it in Vikunja. The view needs `chat.automations.enabled`, which is on by default.
+
 ### Troubleshooting the Agents window
 
 When the status bar says **not connected**, open the Agents window: it connects when it opens, and the status catches up within 20 seconds. If it still does not connect, check these in order:
