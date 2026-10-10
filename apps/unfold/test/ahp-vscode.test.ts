@@ -44,7 +44,7 @@ test('VS Code main (1.142) attaches: ahp-session URIs, read and archive marks th
   const vscode = client(address, t);
   await vscode.open;
   const initialized = await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['1.0.0', '0.10.0', '0.9.0'], clientId, clientInfo: vscodeAgentsWindow, _meta: clientMeta, initialSubscriptions: ['ahp-root://'] });
-  assert.equal(initialized.protocolVersion, '0.9.0');
+  assert.equal(initialized.protocolVersion, '1.0.0', 'VS Code main offers 1.0.0 first and gets it');
   assert.deepEqual(initialized._meta, { 'vscode.ahpSessionUris': true }, 'the host confirms the URI capability and claims nothing native');
   await accepted(vscode.dispatch('ahp-root://', { type: 'root/configChanged', config: vscodeConfig }), 'ahp-root://', 'root/configChanged');
   assert.equal((await vscode.rpc('getNetworkDiagnosticsInfo', {})).os, process.platform);
@@ -97,6 +97,7 @@ test('VS Code main (1.142) attaches: ahp-session URIs, read and archive marks th
   await accepted(reconnecting.dispatch('ahp-root://', { type: 'root/configChanged', config: vscodeConfig }), 'ahp-root://', 'root/configChanged');
   const listed = (await reconnecting.rpc('listSessions', { channel: 'ahp-root://' })).items;
   assert.deepEqual(listed.map((item: Json) => [item.resource, item.status & (read | archived)]), [[session, read | archived]]);
+  assert.deepEqual(listed.map((item: Json) => [item.defaultChat, item.chats.map((entry: Json) => [entry.resource, entry.status & read])]), [[chat, [[chat, read]]]], 'a 1.0 client reads the chat\'s read mark from the session catalog');
   assert.ok(!(conversation + JSON.stringify(reconnecting.inbox) + JSON.stringify(again)).includes(`unfold:/${session.slice('ahp-session:/'.length)}`), 'the provider spelling never reaches a client that declared ahp-session URIs');
 });
 

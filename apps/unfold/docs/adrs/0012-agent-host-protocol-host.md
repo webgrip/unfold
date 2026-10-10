@@ -83,6 +83,10 @@ Decision: after sign-in, the extension writes the entry straight into the defaul
 
 2026-10-10: a new session's crew, budget, placement and approvals use the Agents window's own session-config pickers, with the repository read-only from the Workspace picker; a picker change made before the first message reaches the session through `session/configChanged`, and the composer's model reads `Ploeg crew · <team>` instead of a gateway model ([contract](../contracts/api.md#agent-host)).
 
+2026-10-10: a failed session's last error part is resumable when the Run-again path accepts it, and VS Code's **Try Again** (`chat/turnResume`) creates the new queued session only when pressed; yes/no questions use the `boolean` kind; spend arrives as system notifications at Run end and at 50, 80 and 100 % of the budget, no longer in `usage._meta` ([VIK-1665](https://vikunja.webgrip.dev/tasks/1665), [contract](../contracts/api.md#agent-host)).
+
+2026-10-10: declining a question is no longer refused ([VIK-1921](https://vikunja.webgrip.dev/tasks/1921)). Decision: a decline becomes an explicit answer. The host records `question.declined` and answers every question of the request with "Declined by <name>: no answer will be given. Continue with your best judgement and say what you assumed." through the same answer path, so OpenCode, the command bridge and a brief clarification all receive it without an engine change. OpenCode's own question reject was not used: it reaches the crew as a tool error rather than an answer, and the command bridge and brief clarification have no equivalent. VS Code 1.141 has no decline button and sends `cancel` when the question carousel is skipped or closed, so `cancel` counts as a decline too, except while the person is stopping the turn: then the question stays open and the session pauses. The chat shows the request as `decline` with each answer `skipped` and carrying that text.
+
 ## Update, 2026-10-10: automations
 
 Evidence: VS Code 1.141.0's `sessions.desktop.main.js` (`AgentHostAutomationStore` and the connection gate in front of it) and the AHP automation types at [`types/channels-automation`](https://github.com/microsoft/agent-host-protocol/tree/main/types/channels-automation), read at `cb6ba61`. The owner asked for automations support on 2026-10-10.
@@ -121,6 +125,14 @@ This changes the record above, which declined terminals entirely. Only a read-on
 * **Other people's sessions.** Ownership is checked on subscribe exactly as for the chat: the session's owner and administrators only. A person who may not see the session gets "Terminal not found" whether or not the terminal exists.
 
 Reconsider input only if the estate decides that an operator may open a shell in a sandbox. Such a shell would need its own authorization, budget and evidence through Ploeg. Live output while a command runs needs the runtimes to record partial output as durable events, which none does today. Not yet exercised against a desktop VS Code.
+
+## Update, 2026-10-10: both baselines
+
+Evidence: [the VS Code 1.141 sweep](../research/2026-10-08-vscode-1-141-fit.md), recommendation 3 and [VIK-1925](https://vikunja.webgrip.dev/tasks/1925).
+
+The host now speaks both AHP baselines and answers each client in the highest version both share: `>=1.0.0 <2.0.0` before `>=0.9.0 <0.10.0`, as the exact offered string. VS Code main offers `1.0.0, 0.10.0, 0.9.0` and gets `1.0.0`; VS Code 1.141 offers `0.10.0, 0.9.0, …` and keeps `0.9.0`. `-32005` names `^1.0.0` and `^0.9.0`. The selection lives in `src/ahp/versions.ts` and passes all 22 vectors of `types/test-cases/version-negotiation.json` at `spec/v1.0.0` (`5f16d81b`), vendored as test data under MIT.
+
+The negotiated version is kept per connection and per known client, so a `reconnect` resumes in it. What a 0.9 client may receive follows the SDK's `isActionKnownToVersion` over the 1.0.0 registry: only the canvas actions, introduced in 0.10.0, are withheld. The registry dates `chat/isReadChanged`, `chat/isArchivedChanged` and `chat/changesetsChanged` at 0.9.0, so 0.9 clients keep them. `SessionSummary.chats` and `defaultChat` are 1.0 fields and reach only 1.x clients. Their one entry carries the chat's status bits, and a chat's read or archive mark republishes the catalog through `root/sessionSummaryChanged`, as the 1.0 `session/chatUpdated` rule requires. With 1.0, the SDK's multi-host client, which offers only `1.0.0`, connects for the first time. No desktop VS Code main has attached yet.
 
 ## Update, 2026-10-10: MCP servers and plugins
 
