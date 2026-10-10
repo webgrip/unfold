@@ -869,8 +869,7 @@ export class AgentHost {
     return [...repositoryWorkspaceNames(this.config.repositories).values()].map(name => ({ name, type: 'directory' }));
   }
 
-  /** The repository a working directory from the workspace picker names, or undefined for any other folder. */
-  private repositoryAt(directory: unknown): string | undefined {
+  private repositoryFromPickedFolder(directory: unknown): string | undefined {
     if (typeof directory !== 'string') return undefined;
     let path: string;
     try { const url = new URL(directory); if (url.protocol !== 'file:') return undefined; path = decodeURIComponent(url.pathname).replace(/\/+$/, ''); } catch { return undefined; }
@@ -885,7 +884,7 @@ export class AgentHost {
     try { const url = new URL(String(uri)); if (url.protocol === 'file:') path = decodeURIComponent(url.pathname).replace(/(.)\/+$/, '$1'); } catch {}
     if (path === new URL(repositoriesDirectory).pathname) return { entries: this.repositoryDirectories() };
     if (path === '/') return { entries: [{ name: new URL(repositoriesDirectory).pathname.slice(1), type: 'directory' }] };
-    if (path !== undefined && this.repositoryAt(`file://${path}`)) return { entries: [] };
+    if (path !== undefined && this.repositoryFromPickedFolder(`file://${path}`)) return { entries: [] };
     throw new RpcError(codes.notFound, 'This host lists only its repositories');
   }
 
@@ -946,7 +945,7 @@ export class AgentHost {
       case 'reconnect': { const snapshots: Json[] = []; for (const channel of Array.isArray(params.subscriptions) ? params.subscriptions : []) snapshots.push(await this.subscribe(client, channel)); return { type: 'snapshot', snapshots }; }
       case 'subscribe': { if (typeof params.channel !== 'string') throw new RpcError(codes.invalidParams, 'channel is required'); return { snapshot: await this.subscribe(client, params.channel) }; }
       case 'listSessions': return { items: this.visible(client.user).map(session => this.summary(session, client)) };
-      case 'resolveSessionConfig': { const picked = this.repositoryAt(params.workingDirectory); return { schema: this.configSchema(), values: { ...this.defaultConfig(), ...(params.config ?? {}), ...(picked ? { repository: picked } : {}) } }; }
+      case 'resolveSessionConfig': { const picked = this.repositoryFromPickedFolder(params.workingDirectory); return { schema: this.configSchema(), values: { ...this.defaultConfig(), ...(params.config ?? {}), ...(picked ? { repository: picked } : {}) } }; }
       case 'resourceList': return this.listDirectory(params.uri);
       case 'sessionConfigCompletions': { const schema = this.configSchema().properties[String(params.property)]; const values: string[] = schema?.enum ?? []; return { items: values.map((value, index) => ({ value, label: schema.enumDescriptions?.[index] ?? value })) }; }
       case 'createSession': return this.createSession(client, params);
@@ -975,7 +974,7 @@ export class AgentHost {
     if (parsed?.kind !== 'session') throw new RpcError(codes.invalidParams, `session must be ${provider}:/<id> or ahp-session:/<id>`);
     if (params.provider && params.provider !== provider) throw new RpcError(codes.providerNotFound, 'Unknown provider');
     if (this.pending.has(parsed.id) || this.store.getSession(this.engineId(parsed.id)) || this.store.getSession(parsed.id)) throw new RpcError(codes.sessionExists, 'Session already exists');
-    const picked = Array.isArray(params.workingDirectories) ? this.repositoryAt(params.workingDirectories[0]) : undefined;
+    const picked = Array.isArray(params.workingDirectories) ? this.repositoryFromPickedFolder(params.workingDirectories[0]) : undefined;
     const config = { ...this.defaultConfig(), ...(params.config && typeof params.config === 'object' ? params.config : {}), ...(picked ? { repository: picked } : {}) };
     if (!this.config.repositories.some(repo => repo.id === config.repository) || !this.config.crews.some(crew => crew.id === config.crew)) throw new RpcError(codes.invalidParams, 'Choose a configured repository and crew');
     const activeClient = params.activeClient as Json | undefined;
