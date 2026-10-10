@@ -131,7 +131,7 @@ export class PloegError extends Error {
   constructor(status: number, code: string, message: string) { super(message); this.name = 'PloegError'; this.status = status; this.code = code; }
 }
 
-/** Ploeg refused an Ask because the scope's Ask Allowance cannot cover another one (system ADR-0031, Ploeg ADR-0081). `resetAt` is when the next period opens. */
+/** Ploeg refused an Ask because the scope's Ask Allowance cannot cover another one (system ADR-0031, Ploeg ADR-0082). `resetAt` is when the next period opens. */
 export class AskAllowanceUsedUp extends PloegError {
   readonly resetAt: string;
   constructor(resetAt: string) { super(402, 'allowance_exhausted', 'Ask Allowance used up.'); this.name = 'AskAllowanceUsedUp'; this.resetAt = resetAt; }
@@ -1249,7 +1249,7 @@ export class PloegClient {
     if ([crack.steward, crack.proposedBy, crack.confirmedBy[1], crack.disputedBy].some(involved => samePerson(login, involved))) throw forbidden('A referee took no part in the crack.');
     return { ...crack, state: body.resolution === 'unlinked' ? 'unlinked' : 'confirmed', disputed: false, resolvedBy: login, resolvedAt: now.toISOString(), resolution: body.resolution as 'upheld' | 'unlinked' };
   }
-  /** Admits an Ask on a Work Item the caller can see, as the caller (system ADR-0031, Ploeg ADR-0081). Throws {@link AskAllowanceUsedUp} when the Team's allowance is used up. The demo admits nothing. */
+  /** Admits an Ask on a Work Item the caller can see, as the caller (system ADR-0031, Ploeg ADR-0082). Throws {@link AskAllowanceUsedUp} when the Team's allowance is used up. The demo admits nothing. */
   async admitAsk(user: User, id: string, askId: string, question: string): Promise<PloegAskGrant> {
     this.connected(user);
     if (this.demo) throw new PloegError(409, 'ploeg_demo', 'The demo answers Asks without Ploeg.');
