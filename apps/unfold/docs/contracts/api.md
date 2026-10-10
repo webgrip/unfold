@@ -263,6 +263,12 @@ These routes are Unfold's scoped proxy for Ploeg's operator API ([`ploeg.ts`](..
 
 The attribution steps act under the caller's forge login from `ploeg.forgeLogins`, never a login the caller sets, and send it as `X-Ploeg-Actor` and `X-Ploeg-Acting-User` ([ADR 0030](../adrs/0030-unfold-traces-bugs-under-an-administrator-mapped-forge-login.md)). Viewers get 403 `forbidden`, an account without a mapped login 403 `ploeg_forge_login`, and invalid input 400 `crack_invalid_request` before anything reaches Ploeg. Ploeg's refusals come back as `crack_<code>` (`crack_forbidden_actor` 403; `crack_invalid_state`, `crack_crack_limit`, `crack_already_attributed`, `crack_not_merged`, `crack_merged_after_bug`, `crack_dispute_closed` and `crack_concealment_unproven` 409) with Ploeg's sentence when it is plain bounded text. The demo applies the same rules to its sample attributions, keeps nothing and answers `demo: true` with a message that Ploeg recorded nothing. An older Ploeg without the crack routes answers 404, and the page shows no panel.
 
+When the connected Ploeg supplies delivery facts (Ploeg ADR-0079, probed with `GET facts?limit=1` at most once a minute), Unfold serves the card, card list and crack routes itself ([root ADR-0030](../../../../docs/adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md)).
+
+* **Cards.** It assembles them from `GET work-items/:id/facts` and the facts list, and passes them through the same validator, so every card route answers the same shape.
+* **Cracks.** It checks the crack steps' rules in its own store, under the same forge login, with the same `crack_<code>` refusals, and writes nothing to Ploeg's crack routes. Until Unfold has imported Ploeg's card state, crack steps answer 503 `cards_importing`.
+* **Older Ploeg.** Without facts the routes above proxy Ploeg as described, and Unfold logs `cards.facts_unavailable`.
+
 A Ploeg that lacks the activity routes answers 501 `ploeg_unsupported` for runs, events and summary. A Team outside the person's scope is 404 `ploeg_not_found`, and a non-administrator with no Ploeg Team is 403 `ploeg_scope`.
 
 A workbench without a `ploeg` block, outside the demo, answers by route. Some routes check the connection first ([`PloegOperator`](../../src/ploeg.ts) `connected`), the others only the person's scope (`authorize`):
@@ -335,7 +341,12 @@ The binder, packs and season pages ([ADR 0029](../adrs/0029-binders-packs-and-pu
 | `GET /api/packs/odds` | `{version, scale: 10000, patterns, extras, altArtChoices}`: every probability in basis points |
 | `GET /api/season?team=&quarter=` | `{demo, team, teams, quarters, quarter, justStarted, aggregates, source}` for a Team in the caller's scope (404 `team_not_found` otherwise). `aggregates` holds Team totals only: `cards`, `shipped`, `daysLiveAdded`, `finishes`, `cracks`, `mends`, `rightFirstTime` (`{share, cards}` or null), `bounceReasons` (or null), `sets` (or null) and `medians`: `leadTimeSeconds`, `firstFeedbackSeconds`, `ciMinutes` and `flowEfficiency`, each `{value, cards}` over the quarter's shipped cards that know the figure, or null. No person is named. A quarter that has not started is 400 `quarter`; without `quarter`, the first week of a quarter shows the one before and names it in `justStarted` |
 
-Pack settings live in the configuration file under `cards`: `backfillPeriods` (0 to 12; 1, or 4 in the demo) and `teams`, a sprint per Team as `{lengthDays: 7–42, anchor: "YYYY-MM-DD"}` in place of the ISO week.
+Pack settings live in the configuration file under `cards`: `backfillPeriods` (0 to 12; 1, or 4 in the demo) and `teams`, a sprint per Team as `{lengthDays: 7–42, anchor: "YYYY-MM-DD"}` in place of the ISO week. The Run card rules Unfold applies live beside them:
+
+* `cards.rules`: repositories, boards, Teams, bots, and whether to compute flow figures and rarity.
+* `cards.publishPullRequestComment`: whether Unfold publishes the card comment; off by default.
+
+[Move Run cards from Ploeg to Unfold](../operations/run-cards-upgrade.md) lists every key and the Ploeg setting it replaces.
 
 ## Card themes
 
