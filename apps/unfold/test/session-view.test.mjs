@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseDiff, checkSummary, summaryFacts, remediationSteps } from '../public/views/session.js';
+import { parseDiff, changesSource, checkSummary, summaryFacts, remediationSteps } from '../public/views/session.js';
 import { sessionGroup, sessionProgress, listStatus } from '../public/views/sessions.js';
 import { deliveryGated, deliveryMarkup, deliveryStatus } from '../public/delivery.js';
 
@@ -57,6 +57,22 @@ test('a diff names new files, keeps hunk text that looks like a header, and spli
   assert.equal(files[0].lines[2].text, '+++ not a header');
   assert.deepEqual(files[1].lines.slice(1).map(line => [line.kind, line.old, line.new]), [['del', 10, null], ['context', 11, 10], ['note', null, null]]);
   assert.deepEqual(parseDiff(''), []);
+});
+
+test('a binary file in a patch reads as one note instead of its encoded payload', () => {
+  const [image, text] = parseDiff('diff --git a/logo.png b/logo.png\nindex 1111111..2222222 100644\nGIT binary patch\nliteral 12\nTcmZ?l%Ft|ri}v<\n\nliteral 0\nHcmV?d00001\n\ndiff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1 +1 @@\n-old\n+new\n');
+  assert.equal(image.path, 'logo.png');
+  assert.deepEqual(image.lines, [{ kind: 'note', text: 'Binary file changed; its contents are not shown.', old: null, new: null }]);
+  assert.deepEqual([text.path, text.added, text.removed], ['a.txt', 1, 1]);
+});
+
+test('Changes reads recorded diffs first and falls back to the repository snapshot only when it holds a patch', () => {
+  const ready = { status: 'ready', formats: ['bundle', 'patch', 'manifest'] };
+  assert.equal(changesSource({ artifacts: [{ kind: 'diff' }], candidate: ready }), 'artifacts');
+  assert.equal(changesSource({ artifacts: [{ kind: 'summary' }, { kind: 'test' }], candidate: ready }), 'snapshot');
+  assert.equal(changesSource({ artifacts: [], candidate: { status: 'ready', formats: ['bundle'] } }), 'none');
+  assert.equal(changesSource({ artifacts: [], candidate: { status: 'unavailable', formats: ['patch'] } }), 'none');
+  assert.equal(changesSource({ artifacts: [] }), 'none');
 });
 
 test('a recorded node --test run reads as its header, totals and each test once', () => {

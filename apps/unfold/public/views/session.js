@@ -49,7 +49,7 @@ const notStarted = session => session.status === 'queued' && session.runs.every(
 /**
  * Splits a unified diff into files with their added and removed line counts and numbered lines. Each line is
  * `{ kind: 'hunk' | 'add' | 'del' | 'context' | 'note', text, old, new }`; header lines (`diff --git`, `index`,
- * `---`, `+++`) name the file and are not repeated as lines.
+ * `---`, `+++`) name the file and are not repeated as lines. A `GIT binary patch` payload becomes one note line.
  * @param {string} text
  * @returns {{ path: string, added: number, removed: number, lines: { kind: string, text: string, old: number|null, new: number|null }[] }[]}
  */
@@ -59,12 +59,15 @@ export function parseDiff(text) {
   let inHunk = false;
   let oldLine = 0;
   let newLine = 0;
+  let binary = false;
   const lines = String(text ?? '').split('\n');
   if (lines.at(-1) === '') lines.pop();
-  const begin = path => { file = { path, added: 0, removed: 0, lines: [] }; files.push(file); inHunk = false; };
+  const begin = path => { file = { path, added: 0, removed: 0, lines: [] }; files.push(file); inHunk = false; binary = false; };
   for (const line of lines) {
     if (line.startsWith('diff --git ')) { begin(/ b\/(.+)$/.exec(line)?.[1] ?? line.slice(11)); continue; }
+    if (binary) continue;
     if (!file) begin('');
+    if (line === 'GIT binary patch') { binary = true; file.lines.push({ kind: 'note', text: 'Binary file changed; its contents are not shown.', old: null, new: null }); continue; }
     if (line.startsWith('@@')) {
       const range = /^@@ -(\d+)(?:,\d+)? \+(\d+)/.exec(line);
       if (range) { oldLine = Number(range[1]); newLine = Number(range[2]); }
@@ -328,17 +331,69 @@ function diffFile(file, artifact, index) {
   return `<details class="diff-file" id="${id}" open><summary class="diff-file-header">${icon('chevron-down', 'diff-chevron')}<span class="diff-path">${escape(file.path || artifact.name)}</span><span class="diff-stat"><span class="diff-stat-add">+${file.added}</span> <span class="diff-stat-del">−${file.removed}</span></span></summary><div class="diff-scroll"><table class="diff-table"><tbody>${rows}</tbody></table></div></details>`;
 }
 
-function diffMarkup(session) {
-  const artifacts = session.artifacts.filter(artifact => artifact.kind === 'diff');
-  if (!artifacts.length) return emptyState({ icon: 'code', compact: true, title: isFinished(session) ? 'No changes were recorded' : 'Changes will appear here', body: '<p>The crew attaches the actual diff of its workspace as the session progresses.</p>' });
-  const parsed = artifacts.map(artifact => ({ artifact, files: parseDiff(artifact.content) }));
+const snapshotPatchLimit = 1024 * 1024;
+let snapshotPatch = { sessionId: null, status: 'idle', content: '' };
+
+/**
+ * Where the Changes tab reads a session's changes: `'artifacts'` when the crew recorded diffs, `'snapshot'` when it
+ * recorded none but the repository snapshot holds a patch, and `'none'` otherwise.
+ * @param {{ artifacts: { kind: string }[], candidate?: { status: string, formats?: string[] } }} session
+ * @returns {'artifacts' | 'snapshot' | 'none'}
+ */
+export function changesSource(session) {
+  if (session.artifacts.some(artifact => artifact.kind === 'diff')) return 'artifacts';
+  return session.candidate?.status === 'ready' && (session.candidate.formats ?? []).includes('patch') ? 'snapshot' : 'none';
+}
+
+function diffView(parsed, download, note = '') {
   const all = parsed.flatMap(entry => entry.files);
   const added = all.reduce((sum, file) => sum + file.added, 0);
   const removed = all.reduce((sum, file) => sum + file.removed, 0);
-  const single = artifacts.length === 1;
-  const summary = `<div class="diff-summary"><p class="diff-summary-text"><strong>${escape(plural(all.length, 'file'))} changed</strong><span class="diff-stat"><span class="diff-stat-add">+${added}</span> <span class="diff-stat-del">−${removed}</span></span></p><div class="diff-summary-actions"><label class="diff-wrap-toggle"><input type="checkbox" id="diff-wrap"${state.diffWrap ? ' checked' : ''}> Wrap long lines</label>${single ? button({ label: 'Download', icon: 'download', variant: 'ghost', size: 'sm', action: 'download-artifact', data: { id: artifacts[0].id } }) : ''}</div></div>`;
+  const single = parsed.length === 1;
+  const summary = `<div class="diff-summary"><p class="diff-summary-text"><strong>${escape(plural(all.length, 'file'))} changed</strong><span class="diff-stat"><span class="diff-stat-add">+${added}</span> <span class="diff-stat-del">−${removed}</span></span></p><div class="diff-summary-actions"><label class="diff-wrap-toggle"><input type="checkbox" id="diff-wrap"${state.diffWrap ? ' checked' : ''}> Wrap long lines</label>${download}</div></div>`;
   const files = all.length > 1 ? `<ul class="diff-files">${all.map(file => `<li><span class="diff-path">${escape(file.path || 'Unnamed file')}</span><span class="diff-stat"><span class="diff-stat-add">+${file.added}</span> <span class="diff-stat-del">−${file.removed}</span></span></li>`).join('')}</ul>` : '';
-  return `<div class="diff-view">${summary}${files}${parsed.map(({ artifact, files }) => `<section class="session-artifact" aria-label="${escape(artifact.name)}">${single ? '' : artifactHeader(artifact)}${files.map((file, index) => diffFile(file, artifact, index)).join('')}</section>`).join('')}</div>`;
+  return `<div class="diff-view">${summary}${note}${files}${parsed.map(({ artifact, files }) => `<section class="session-artifact" aria-label="${escape(artifact.name)}">${single ? '' : artifactHeader(artifact)}${files.map((file, index) => diffFile(file, artifact, index)).join('')}</section>`).join('')}</div>`;
+}
+
+function snapshotDiffMarkup(session) {
+  const download = button({ label: 'Download', icon: 'download', variant: 'ghost', size: 'sm', action: 'candidate-download', data: { format: 'patch' } });
+  if (snapshotPatch.sessionId !== session.id || snapshotPatch.status === 'loading') return `<div aria-busy="true">${skeleton({ variant: 'list', rows: 4 })}</div>`;
+  if (snapshotPatch.status === 'error') return emptyState({ icon: 'x-circle', tone: 'danger', compact: true, title: 'The changes did not load', body: `<p>${escape(snapshotPatch.content)}</p>`, actions: button({ label: 'Try again', icon: 'refresh', size: 'sm', action: 'snapshot-reload' }) });
+  if (snapshotPatch.status === 'large') return emptyState({ icon: 'code', compact: true, title: 'Too large to show here', body: '<p>Download the patch to read these changes.</p>', actions: download });
+  const files = parseDiff(snapshotPatch.content);
+  if (!files.length) return emptyState({ icon: 'code', compact: true, title: 'No changes', body: '<p>The repository snapshot matches the commit the session started from.</p>' });
+  return diffView([{ artifact: { id: 'snapshot', name: 'Repository snapshot' }, files }], download, '<p class="session-card-note">Read from the repository snapshot.</p>');
+}
+
+async function loadSnapshotPatch(session) {
+  if (state.tab !== 'diff' || changesSource(session) !== 'snapshot' || snapshotPatch.sessionId === session.id) return;
+  const id = session.id;
+  snapshotPatch = { sessionId: id, status: 'loading', content: '' };
+  let next;
+  try {
+    const response = await fetch(`/api/sessions/${encodeURIComponent(id)}/candidate/download?format=patch`, { credentials: 'same-origin' });
+    if (response.status === 401) { snapshotPatch = { sessionId: null, status: 'idle', content: '' }; unauthorized(); return; }
+    if (!response.ok) throw new Error((await response.json().catch(() => null))?.error?.message || 'The repository snapshot could not be read.');
+    if (Number(response.headers.get('content-length')) > snapshotPatchLimit) { await response.body?.cancel(); next = { status: 'large', content: '' }; }
+    else { const content = await response.text(); next = content.length > snapshotPatchLimit ? { status: 'large', content: '' } : { status: 'ready', content }; }
+  } catch (error) { next = { status: 'error', content: error.message }; }
+  if (snapshotPatch.sessionId !== id) return;
+  snapshotPatch = { sessionId: id, ...next };
+  if (state.view === 'session' && state.session?.id === id) renderSession();
+}
+
+function reloadSnapshotPatch() {
+  snapshotPatch = { sessionId: null, status: 'idle', content: '' };
+  renderSession();
+}
+
+function diffMarkup(session) {
+  const source = changesSource(session);
+  if (source === 'snapshot') return snapshotDiffMarkup(session);
+  const artifacts = session.artifacts.filter(artifact => artifact.kind === 'diff');
+  if (!artifacts.length) return emptyState({ icon: 'code', compact: true, title: isFinished(session) ? 'No changes were recorded' : 'Changes will appear here', body: '<p>The crew attaches the actual diff of its workspace as the session progresses.</p>' });
+  const download = artifacts.length === 1 ? button({ label: 'Download', icon: 'download', variant: 'ghost', size: 'sm', action: 'download-artifact', data: { id: artifacts[0].id } }) : '';
+  return diffView(artifacts.map(artifact => ({ artifact, files: parseDiff(artifact.content) })), download);
 }
 
 function checkResult(artifact, summary) {
@@ -414,7 +469,7 @@ export function askPointer(session) {
 
 function evidenceMarkup(session) {
   if (notStarted(session)) return `<section class="card flush session-evidence" aria-labelledby="session-evidence-title"><header class="card-header"><h2 class="card-title" id="session-evidence-title">Evidence</h2></header><div class="session-evidence-empty">${emptyState({ icon: 'activity', compact: true, title: 'Evidence appears once the crew starts', body: '<p>Activity, gateway calls, changes, checks and the handoff show up here as each role works.</p>' })}</div>${composerMarkup(session)}</section>`;
-  const counts = { diff: session.artifacts.filter(artifact => artifact.kind === 'diff').length, test: session.artifacts.filter(artifact => artifact.kind === 'test').length };
+  const counts = { diff: changesSource(session) === 'snapshot' ? session.candidate.fileCount : session.artifacts.filter(artifact => artifact.kind === 'diff').length, test: session.artifacts.filter(artifact => artifact.kind === 'test').length };
   const list = tabs({ id: 'evidence', label: 'Session evidence', action: 'tab', items: evidenceTabs.map(tab => ({ ...tab, selected: state.tab === tab.id, count: counts[tab.id] || null })) });
   const panels = evidenceTabs.map(({ id }) => `<div class="session-panel" role="tabpanel" id="evidence-panel-${id}" aria-labelledby="evidence-tab-${id}" tabindex="0" data-tab="${id}" data-session-id="${escape(session.id)}"${state.tab === id ? '' : ' hidden'}>${state.tab === id ? panelMarkup(session, id) : ''}</div>`).join('');
   return `<section class="card flush session-evidence" aria-label="Evidence">${list}${panels}${composerMarkup(session)}</section>`;
@@ -724,6 +779,7 @@ function renderSession() {
   for (const [id, expanded] of open) { const element = document.getElementById(id); if (element) element.open = expanded; }
   renderedId = session.id;
   restoreFocus(target);
+  void loadSnapshotPatch(session);
 }
 
 async function loadDelivery(id) {
@@ -952,6 +1008,7 @@ export default {
     'investigation-copy': () => copyInvestigation(),
     'candidate-download': downloadCandidateFormat,
     'download-artifact': downloadArtifact,
+    'snapshot-reload': reloadSnapshotPatch,
     review: control => openReviewDialog(control.dataset.decision),
     retry,
     'close-work-item': closeWorkItem,
