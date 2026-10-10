@@ -1,3 +1,13 @@
+## [unfold-v0.4.0-rc.51](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.50...unfold-v0.4.0-rc.51) (2026-10-10)
+
+### Added
+
+* **unfold:** connect the VS Code Agents window after sign-in ([d79d35a](https://forgejo.webgrip.dev/webgrip/unfold/commit/d79d35aef5f847f943a74305bc2daa44317c9679))
+
+### Docs
+
+* **unfold:** describe the one-step Agents window connection ([3ca81b9](https://forgejo.webgrip.dev/webgrip/unfold/commit/3ca81b994291144b20bd619705d7097e33224919))
+
 ## [unfold-v0.4.0-rc.50](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.49...unfold-v0.4.0-rc.50) (2026-10-10)
 
 ### Added
