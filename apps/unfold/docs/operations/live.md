@@ -59,10 +59,17 @@ Supply credentials through the deployment's secret mechanism or a short-lived sh
 | `LITELLM_MASTER_KEY` | Gateway management credential held by the control plane |
 | `UNFOLD_INSIGHT_EVENTS` | `on` (default) records product events from the browser; `off` stores none, and the browser posts none |
 | `UNFOLD_INSIGHT_EXPORT` | Product-event sink: `off` (default), `faro` or `otlp` |
-| `UNFOLD_INSIGHT_EXPORT_URL` | Collector URL the server posts to; required for `faro` and `otlp` |
-| `UNFOLD_INSIGHT_EXPORT_LEVEL` | `aggregate` (default, the hourly daily rollup) or `events` (each event with its pseudonymous actor hash) |
+| `UNFOLD_INSIGHT_EXPORT_URL` | Full collector URL the server posts to; required for `faro` and `otlp`. For Faro it ends in `/collect`, for OTLP/HTTP in `/v1/logs` |
+| `UNFOLD_INSIGHT_EXPORT_LEVEL` | `aggregate` (default, each finished day's rollup) or `events` (each event with its pseudonymous actor hash) |
 
-The insight export forwards product events the browser and VS Code extension post to `POST /api/insight/events` ([RFC-0001](../../../../docs/design/rfc-0001-product-events-and-confusion-signals.md)). The call is server to server, so the browser never contacts the collector and the CSP stays `'self'`. `aggregate` sends the `product_event_daily` rollup once an hour, without any actor hash; `events` sends each stored event with its 16-character base32 actor hash, which cannot be reversed to a user id without the tenant actor key. An unreachable collector is logged once an hour and never blocks or slows the event route. On the owner's homelab instance the sink is `faro` at `http://alloy-gateway.observability.svc.cluster.local:12347/collect`; the [dashboard](../../ops/grafana/unfold-insight.json) reads the events back in Grafana.
+The insight export forwards product events the browser and VS Code extension post to `POST /api/insight/events` ([RFC-0001](../../../../docs/design/rfc-0001-product-events-and-confusion-signals.md)). The call is server to server, so the browser never contacts the collector and the CSP stays `'self'`.
+
+- `aggregate` sends each finished UTC day of the `product_event_daily` rollup once, without any actor hash, as events in the domain `unfold.insight.daily`. The hourly job sends a day an hour after it ends, because an event may say it happened up to an hour before it arrived. A day the collector refuses is offered again on the next hour.
+- `events` sends each stored batch as it arrives, in the domain `unfold.insight`, with its 16-character base32 actor hash and an `at_ms` attribute (epoch milliseconds, so durations can be computed in LogsQL). The hash cannot be reversed to a user id without the tenant actor key, and the key is replaced every 13 months. A batch the collector refuses is dropped from the export; the stored rows stay.
+- Faro event attributes are strings only, so numbers and booleans travel as text. OTLP keeps their types.
+- An unreachable collector is logged once an hour and never blocks or slows the event route. One person may post 600 events a minute; past that the route answers `429`.
+
+On the owner's homelab instance the sink is `faro` at `http://alloy-gateway.observability.svc.cluster.local:12347/collect`. The [dashboard](../../ops/grafana/README.md) reads the events back in Grafana.
 
 Then start and sign in:
 
