@@ -46,3 +46,7 @@ Ploeg ships `ploegctl` or a native event stream, in which case the projection co
 ## Implementation evidence — 2026-09-10
 
 The read API, scoped browser projection and editor tree are implemented and qualified in [the unified baseline](../../../../docs/workflows/managed-execution.md). Fleet audit reads explicitly provide snapshot consistency; the proposed lossless fleet stream and AHP projection remain open. Separate operator executions now have serialized revision events and scoped commands under [ADR 0017](0017-delegate-interactive-execution-to-ploeg.md). The proposal above is retained as its original decision context; this dated note records implementation without silently accepting its unimplemented parts.
+
+## Update, 2026-10-11
+
+[ADR 0023](0023-unfold-submits-work-to-ploeg-and-never-executes-it.md) is accepted. The Agent Host Protocol projection of Ploeg runs in step 3 becomes the projection of Ploeg Work Items as Agents-window sessions ([epic VIK-1978](https://vikunja.webgrip.dev/tasks/1978)). Its commands use the operator API's existing withdraw and requeue routes and one new `message` command, not a general write half. This record stays proposed for the parts it names as open.
