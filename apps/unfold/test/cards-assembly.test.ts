@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { cardActivity, cardListLogins, namesAny, orderCards } from '../src/cards/list.ts';
 import { assembleCard, defaultCardRules, rarityRecord, type CardContext, type CrackRecord, type RarityRecord } from '../src/cards/assemble.ts';
 import { parseWorkItemFacts, type WorkItemFacts } from '../src/cards/facts.ts';
 import { micros } from '../src/cards/go.ts';
@@ -21,7 +22,7 @@ const kindsByTest: Record<string, Record<string, Record<string, ReturnType<typeo
 
 /** Builds the context Unfold would have after seeing every Work Item of the fixture's world and importing Ploeg's card state. */
 export function fixtureContext(fixture: Fixture): { facts: WorkItemFacts; ctx: CardContext; frozen: RarityRecord[] } {
-  const live = new Map(fixture.liveReadings.filter(r => !r.error).map(r => [r.runId, r]));
+  const live = new Map((fixture.liveReadings ?? []).filter(r => !r.error).map(r => [r.runId, r]));
   const world = new Map<string, WorkItemFacts>();
   for (const raw of fixture.world) {
     const facts = parseWorkItemFacts(raw);
@@ -63,7 +64,7 @@ export function fixtureContext(fixture: Fixture): { facts: WorkItemFacts; ctx: C
     legacyShape: id => fixture.state.shapes.find(s => s.pullRequest.id === id)?.shape ?? null,
     touchedBefore: (repo, path, from, until, exclude) => [...world.values()].some(f => f.workItem.id !== exclude && f.pullRequests.some(p => p.state === 'merged' && p.mergedAt !== null && `${p.owner}/${p.repo}`.toLowerCase() === repo && micros(p.mergedAt) < until && micros(p.mergedAt) >= from && p.files.some(file => file.path === path))),
     liveUsage: fixture.options.live,
-    taskUrl: (provider, externalId) => fixture.taskUrls[`${provider}\u0000${externalId}`] ?? '',
+    taskUrl: (provider, externalId) => (fixture.taskUrls ?? {})[`${provider}\u0000${externalId}`] ?? '',
   };
   return { facts: world.get(fixture.workItemId)!, ctx, frozen };
 }
@@ -115,4 +116,23 @@ test('the review and CI figures Ploeg stored per play are what Unfold derives fr
     });
   }
   assert.ok(compared > 0, 'no play with stored figures');
+});
+
+test('the card list holds the cards whose roster or steward names a member, newest activity first, as Ploeg listed them', () => {
+  let compared = 0;
+  for (const { name, fixture: raw } of fixtures) {
+    const fixture = raw as unknown as Fixture & { filter: { teams: string[] | null; team: string; members: string[]; since: string | null; limit: number; before?: string }; cards?: string[] };
+    if (fixture.kind !== 'list' || !fixture.cards || fixture.filter.before) continue;
+    const { ctx } = fixtureContext({ ...fixture, workItemId: '' });
+    const logins = new Set(cardListLogins(fixture.filter.members, fixture.options.bots ?? []));
+    const limit = Math.min(fixture.filter.limit > 0 ? fixture.filter.limit : 20, 50);
+    const since = fixture.filter.since ? micros(fixture.filter.since) : null;
+    const listed = orderCards(fixture.world.map(entry => ctx.facts((entry as { workItem: { id: string } }).workItem.id)!)
+      .filter(f => (!fixture.filter.teams || fixture.filter.teams.includes(f.workItem.team)) && (!fixture.filter.team || f.workItem.team === fixture.filter.team))
+      .map(f => ({ id: f.workItem.id, activity: cardActivity(f, ctx.cracksOnCard(f.workItem.id), ctx.rules), card: assembleCard(f, ctx) }))
+      .filter(entry => logins.size > 0 && namesAny(entry.card, logins) && (since === null || entry.activity >= since)));
+    assert.deepEqual(listed.slice(0, limit).map(entry => entry.id), fixture.cards, name);
+    compared++;
+  }
+  assert.ok(compared >= 15, `only ${compared} lists`);
 });
