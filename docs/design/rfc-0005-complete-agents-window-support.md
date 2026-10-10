@@ -2,7 +2,7 @@
 
 > Status: **Partly implemented** 2026-10-10, in `unfold-v0.4.0-rc.58` · Date: 2026-10-10 · Owner decision: "I want complete support." · Research: [VS Code 1.141 fit](../../apps/unfold/docs/research/2026-10-08-vscode-1-141-fit.md), [AHP sign-in spike](../../apps/unfold/docs/research/2026-10-10-ahp-sign-in-spike.md) · Decision record: [Unfold ADR 0012](../../apps/unfold/docs/adrs/0012-agent-host-protocol-host.md)
 >
-> **TL;DR.** A person can follow, steer, recover and review every Unfold session from VS Code's Agents window without the Unfold extension and without the browser. Phase 0 shipped with this RFC: a message no crew reads becomes a choice, a running session acknowledges every message, and a stopped session ends with its next steps. Twelve parallel sessions built most of Phases 1 to 3 on the same day; each item below says what landed, with its commit. The owner decided declining, terminals and automations. Agent Merge and the "Run again with this message" semantics are still open.
+> **TL;DR.** A person can follow, steer, recover and review every Unfold session from VS Code's Agents window without the Unfold extension and without the browser. Phase 0 shipped with this RFC: a message no crew reads becomes a choice, a running session acknowledges every message, and a stopped session ends with its next steps. Twelve parallel sessions built most of Phases 1 to 3 on the same day; each item below says what landed, with its commit. The owner decided declining, terminals, automations and Asks in the chat. Agent Merge and the "Run again with this message" semantics are still open.
 
 Each item opens with its **State**; what follows the state is the proposal as it was written, kept for its bundle evidence. Where the build differs from the proposal, the state says so. After the parallel work, one reconciliation pass checked the overlapping pieces against the bundle and left one rule each ([ADR 0012](../../apps/unfold/docs/adrs/0012-agent-host-protocol-host.md)). Wire shapes marked **(bundle)** were read in the VS Code 1.141.0 stable bundle (`/Applications/Visual Studio Code.app/Contents/Resources/app/out/vs/sessions/sessions.desktop.main.js`) on 2026-10-10, with the byte offset of the code. No desktop VS Code has rendered any of it yet; that is [VIK-1922](https://vikunja.webgrip.dev/tasks/1922).
 
@@ -36,6 +36,7 @@ The rules stay: managed execution never falls back to standalone, nothing auto-r
 | Terminals | Each crew command is a read-only terminal; every input is refused | [`1cf1d92d`](https://forgejo.webgrip.dev/webgrip/unfold/commit/1cf1d92da5b4a7340b4c39c7b88519b6ea475c00), [`terminals.ts`](../../apps/unfold/src/ahp/terminals.ts) |
 | Session config | Crew, budget, placement and approvals in VS Code's own pickers; the model reads `Ploeg crew · <team>` | [`49f59ebe`](https://forgejo.webgrip.dev/webgrip/unfold/commit/49f59ebe2f17b98e49adccd2341fc93cd2620802), [`5542eff8`](https://forgejo.webgrip.dev/webgrip/unfold/commit/5542eff8d240ae4a89cf02f28a720a97cf7ce47a), [`session-config.ts`](../../apps/unfold/src/ahp/session-config.ts) |
 | MCP and plugins | The repository's gateway MCP server is listed read-only; client plugins are refused | [`c3c6c07e`](https://forgejo.webgrip.dev/webgrip/unfold/commit/c3c6c07ea79c5387eaaea8d0a3b0858a32739703), [`customizations.ts`](../../apps/unfold/src/ahp/customizations.ts) |
+| Asks | A message into a stopped or completed session asks about its Work Item; `/ask` asks from a running one; never read by a crew | [`25d8a127`](https://forgejo.webgrip.dev/webgrip/unfold/commit/25d8a127b5e9b10c5d914d5ed6d66c875f618c12), [`asks.ts`](../../apps/unfold/src/ahp/asks.ts) |
 | Sign-in | A pasted token | sign-in spike |
 
 ### The incident that started this
@@ -263,6 +264,21 @@ Acceptance: **Add Plugin** against Unfold shows "not applied to Unfold crews" an
 
 Acceptance: the issue draft sits in `apps/unfold/docs/research/`; a re-evaluation trigger is on the dossier.
 
+### 3.7 Asks in the chat · M · **Decided**
+
+**State: built**, [`25d8a127`](https://forgejo.webgrip.dev/webgrip/unfold/commit/25d8a127b5e9b10c5d914d5ed6d66c875f618c12). The owner approved bringing Unfold Asks ([ADR-0031](../adr/adr-0031-people-ask-about-a-work-item-through-a-metered-read-only-ask-paid-from-a-monthly-allowance.md)) into the Agents window on 2026-10-10.
+
+A person can steer the crew or ask about the work. An Ask is answered at once by the Ask service, from the record or by one model call Ploeg admits and meters, and no crew reads it.
+
+- **Stopped, stranded, failed, cancelled or completed:** a typed message is an Ask. `/steer` gives the old message choice, which now also offers **Ask instead**. An Ask replaces an open "What next?" choice and the host offers it again after the answer. A completed session keeps its composer while it has a Work Item.
+- **Running, queued or paused:** a typed message steers, as before. `/ask` asks; sent while the crew works, the answer sits in the crew's open turn.
+- **The mechanism (bundle 18537997, 20890891, 14057749, 20984397).** `initialize` names `/` in `completionTriggerCharacters`, and `completions` returns `/ask` and `/steer` as command items with `_meta.command` and `_meta.argumentHint`. VS Code 1.141 shows them as command chips. A mode or agent picker entry is not possible, because 1.141 lists only local custom agents there. A choice on every message would add a click to every instruction.
+- **The answer:** a Markdown part with the badge `**Ask** · not sent to the crew` and its spend: the cost and the allowance left until its reset day, "Answered from the record · no model call", or a used-up allowance with its reset date and "Nothing was charged".
+- **Asking fails:** with no Ploeg, no gateway or no Work Item, the message choice says why and sends nothing until the person picks. In a running session that choice is **Send it to the crew** or **Cancel**.
+- **Persistence:** Asks stay out of the session's events. The chat keeps which Ask follows which event, so a reconnect, an eviction or a restart renders it in the same place.
+
+Acceptance: `test/ahp-asks.test.ts` covers the 059675b9 session with a fake Ploeg and gateway: an Ask in its own turn, a restart, a used-up allowance, asking unavailable, `/steer` with **Ask instead**, `/ask` in a running session, a completed session, and a record answer. A desktop check is part of 4.1.
+
 ## Phase 4: acceptance
 
 ### 4.1 The desktop acceptance pass ([VIK-1922](https://vikunja.webgrip.dev/tasks/1922)) · M
@@ -300,6 +316,7 @@ It is the gate for calling an item done; every **(bundle)** claim above is unver
 | 3.4 | Automations | done | [`cd32a431`](https://forgejo.webgrip.dev/webgrip/unfold/commit/cd32a431f46c4dc1a7c6dfae77d29e23d13e4ada) |
 | 3.5 | Plugins | M | built, [`c3c6c07e`](https://forgejo.webgrip.dev/webgrip/unfold/commit/c3c6c07ea79c5387eaaea8d0a3b0858a32739703) |
 | 3.6 | Sign-in | S, then M | open; upstream VS Code |
+| 3.7 | Asks in the chat | M | decided and built, [`25d8a127`](https://forgejo.webgrip.dev/webgrip/unfold/commit/25d8a127b5e9b10c5d914d5ed6d66c875f618c12) |
 | 4.1 | Desktop pass | M | open ([VIK-1922](https://vikunja.webgrip.dev/tasks/1922)) |
 
 S is up to a day, M up to three days, L about a week, each including tests, docs and one desktop check.
@@ -311,6 +328,7 @@ Taken on 2026-10-10:
 1. **Declining a question (1.5).** A decline continues the crew with the decline recorded. Built.
 2. **Terminals (2.3).** Read-only, never interactive. Built.
 3. **Automations (3.4).** Yes; built as a read-only catalogue, because a scheduled run would be work Ploeg never authorized.
+4. **Asks in the chat (3.7).** Approved; a stopped session asks by default, a running one steers by default and asks with `/ask`. Built.
 
 Still open:
 
