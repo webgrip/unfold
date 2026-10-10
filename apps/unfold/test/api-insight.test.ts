@@ -4,7 +4,7 @@ import { createServer, type Server } from 'node:http';
 import { once } from 'node:events';
 import { application, login, request } from './api-support.ts';
 import { hashPassword } from '../src/auth.ts';
-import { defaultTenant } from '../src/insight.ts';
+import { defaultTenant, maxEventsPerMinute } from '../src/insight.ts';
 
 async function collector(): Promise<{ url: string; received: () => Record<string, any>[]; close: () => Promise<void> }> {
   const bodies: Record<string, any>[] = [];
@@ -61,6 +61,7 @@ test('POST /api/insight/events stores the catalogue\u2019s events and forwards a
   assert.equal(body.events[0].name, 'needs_you.command_sent');
   assert.equal(body.events[0].attributes['tenant.id'], defaultTenant);
   assert.equal(body.events[0].attributes.command, 'approve');
+  assert.equal(body.events[0].attributes['work_item.id'], '42', 'Faro attributes are strings');
   assert.equal(body.events[0].attributes.secret, undefined, 'the browser cannot smuggle an unlisted property to the collector');
 });
 
@@ -98,4 +99,18 @@ test('bootstrap switches posting on for an operator and off for a viewer', async
   app.app.store.addUser({ id: 'viewer-vera', name: 'vera@example.test', role: 'viewer', passwordHash: await hashPassword('viewer-password-2718') });
   const viewer = await login(app.url, 'vera@example.test', 'viewer-password-2718');
   assert.deepEqual((await request(app.url, '/api/bootstrap', { cookie: viewer.cookie })).body.insight, { events: false });
+});
+
+test('a person posting faster than the per-minute rate gets 429', async t => {
+  const app = await application('live');
+  t.after(() => app.close());
+  const { cookie } = await login(app.url);
+  const events = Array.from({ length: 50 }, () => ({ name: 'screen.viewed', screen: 'now' }));
+  for (let call = 0; call < maxEventsPerMinute / events.length; call++) {
+    const accepted = await request(app.url, '/api/insight/events', { method: 'POST', cookie, body: { events } });
+    assert.equal(accepted.status, 202, accepted.text);
+  }
+  const limited = await request(app.url, '/api/insight/events', { method: 'POST', cookie, body: { events } });
+  assert.equal(limited.status, 429, limited.text);
+  assert.equal(limited.body.error.code, 'rate_limited');
 });

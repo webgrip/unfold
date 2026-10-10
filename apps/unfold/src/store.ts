@@ -56,7 +56,6 @@ export class Store {
       CREATE TABLE IF NOT EXISTS status_notes (id TEXT PRIMARY KEY, severity TEXT NOT NULL, text TEXT NOT NULL, author TEXT NOT NULL, created_at TEXT NOT NULL, resolved_at TEXT, resolved_by TEXT);
       CREATE TABLE IF NOT EXISTS product_event (id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id TEXT NOT NULL, actor TEXT NOT NULL, session TEXT NOT NULL, name TEXT NOT NULL, screen TEXT NOT NULL DEFAULT '', work_item_id INTEGER, shift_id INTEGER, props TEXT NOT NULL DEFAULT '{}', at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS product_event_at ON product_event(at);
-      CREATE INDEX IF NOT EXISTS product_event_day ON product_event(name, screen, at);
       CREATE TABLE IF NOT EXISTS product_event_daily (tenant_id TEXT NOT NULL, day TEXT NOT NULL, name TEXT NOT NULL, screen TEXT NOT NULL DEFAULT '', count INTEGER NOT NULL, actors INTEGER NOT NULL, PRIMARY KEY (tenant_id, day, name, screen));
       CREATE TABLE IF NOT EXISTS agent_host_views (user_id TEXT NOT NULL, session_id TEXT NOT NULL, session_flags INTEGER NOT NULL, chat_flags INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, session_id));
     `);
@@ -368,11 +367,12 @@ export class Store {
     return new Map(rows.map(row => [String(row.work_item_id), { workItemId: String(row.work_item_id), packId: String(row.pack_id), pattern: String(row.pattern), altArt: row.alt_art === null ? null : Number(row.alt_art), fullArt: row.full_art === 1, goldSignature: row.gold_signature === 1, oddsVersion: String(row.odds_version), message: String(row.message), digest: String(row.digest), pulledAt: String(row.pulled_at) }]));
   }
 
-  /** Stores one product event after the catalogue checked it and returns its row id. */
-  recordProductEvent(event: StoredProductEvent): number {
-    const result = this.db.prepare('INSERT INTO product_event(tenant_id,actor,session,name,screen,work_item_id,shift_id,props,at) VALUES(?,?,?,?,?,?,?,?,?)')
-      .run(event.tenantId, event.actor, event.session, event.name, event.screen, event.workItemId ?? null, event.shiftId ?? null, JSON.stringify(event.props), event.at);
-    return Number(result.lastInsertRowid);
+  /** Stores one checked batch of product events in one transaction. */
+  recordProductEvents(events: StoredProductEvent[]): void {
+    const insert = this.db.prepare('INSERT INTO product_event(tenant_id,actor,session,name,screen,work_item_id,shift_id,props,at) VALUES(?,?,?,?,?,?,?,?,?)');
+    this.transaction(() => {
+      for (const event of events) insert.run(event.tenantId, event.actor, event.session, event.name, event.screen, event.workItemId ?? null, event.shiftId ?? null, JSON.stringify(event.props), event.at);
+    });
   }
 
   /**
@@ -380,16 +380,19 @@ export class Store {
    * count and the number of distinct actors per tenant, event and screen. It returns the number of rows written.
    */
   foldProductEventDay(day: string): number {
-    const rows = this.db.prepare(`INSERT INTO product_event_daily(tenant_id,day,name,screen,count,actors)
-      SELECT tenant_id, substr(at,1,10) AS day, name, screen, COUNT(*), COUNT(DISTINCT actor)
-      FROM product_event WHERE substr(at,1,10)=? GROUP BY tenant_id,name,screen
-      ON CONFLICT(tenant_id,day,name,screen) DO UPDATE SET count=excluded.count, actors=excluded.actors`).run(day);
-    return Number(rows.changes);
+    const next = new Date(Date.parse(`${day}T00:00:00.000Z`) + 86_400_000).toISOString();
+    return this.transaction(() => {
+      this.db.prepare('DELETE FROM product_event_daily WHERE day=?').run(day);
+      return Number(this.db.prepare(`INSERT INTO product_event_daily(tenant_id,day,name,screen,count,actors)
+        SELECT tenant_id, ?, name, screen, COUNT(*), COUNT(DISTINCT actor)
+        FROM product_event WHERE at >= ? AND at < ? GROUP BY tenant_id,name,screen`).run(day, `${day}T00:00:00.000Z`, next).changes);
+    });
   }
 
-  /** The UTC days that hold at least one stored product event, oldest first. */
-  productEventDays(): string[] {
-    return (this.db.prepare('SELECT DISTINCT substr(at,1,10) AS day FROM product_event ORDER BY day').all() as { day: string }[]).map(row => row.day);
+  /** The UTC days after `after` (or all) that hold at least one stored product event, oldest first. */
+  productEventDays(after?: string): string[] {
+    const from = after ? new Date(Date.parse(`${after}T00:00:00.000Z`) + 86_400_000).toISOString() : '';
+    return (this.db.prepare('SELECT DISTINCT substr(at,1,10) AS day FROM product_event WHERE at >= ? ORDER BY day').all(from) as { day: string }[]).map(row => row.day);
   }
 
   /** Deletes stored product events older than `cutoff` and returns how many rows went. */
@@ -397,9 +400,9 @@ export class Store {
     return Number(this.db.prepare('DELETE FROM product_event WHERE at < ?').run(cutoff).changes);
   }
 
-  /** Every daily rollup row, oldest first, for the aggregate export. */
-  productEventDaily(): ProductEventDaily[] {
-    return (this.db.prepare('SELECT tenant_id, day, name, screen, count, actors FROM product_event_daily ORDER BY day, name, screen').all() as Record<string, string | number>[])
+  /** The daily rollup rows after day `after` (or all) up to and including day `through`, oldest first. */
+  productEventDaily(after = '', through = '9999-12-31'): ProductEventDaily[] {
+    return (this.db.prepare('SELECT tenant_id, day, name, screen, count, actors FROM product_event_daily WHERE day > ? AND day <= ? ORDER BY day, name, screen').all(after, through) as Record<string, string | number>[])
       .map(row => ({ tenantId: String(row.tenant_id), day: String(row.day), name: String(row.name), screen: String(row.screen), count: Number(row.count), actors: Number(row.actors) }));
   }
 }
