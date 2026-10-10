@@ -450,7 +450,7 @@ const statusCauses = new Set(['capacity', 'timeout', 'connectivity', 'missing_ex
 function failureMarkup(session) {
   const failure = session.failure;
   if (!failure && !session.blocker && session.status !== 'interrupted') return '';
-  const title = failure ? `${failureStage(failure)} needs attention` : session.status === 'interrupted' ? 'Execution was interrupted' : 'This session needs attention';
+  const title = failure ? `${failureStage(failure)} needs attention` : session.status === 'interrupted' ? 'This session stopped' : 'This session needs attention';
   const message = failure?.message || session.blocker || 'The runtime stopped before the role finished. Resume to continue; nothing restarts on its own.';
   const { steps, notes } = remediationSteps(failure?.remediation);
   const reconciling = session.status === 'failed' && canOperate() && session.costStatus === 'unknown';
@@ -479,7 +479,9 @@ function investigationMarkup() {
   const facts = dl(result.facts.map(fact => [fact.label, escape(fact.value)]));
   const timeline = result.timeline.length ? `<ol class="session-investigation-timeline">${result.timeline.map(item => `<li><span class="stream-facts">${escape(time(item.at))} · ${item.source === 'ploeg' ? 'Ploeg' : 'Unfold'}</span> ${escape(item.text)}</li>`).join('')}</ol>` : '';
   const next = result.next.length ? `<ul class="session-steps-list">${result.next.map(step => `<li>${escape(step)}</li>`).join('')}</ul>` : '';
-  return `<section class="session-investigation" aria-labelledby="session-investigation-title"><h3 class="overline session-failure-steps-title" id="session-investigation-title">Investigation · ${escape(investigationClasses[result.class] || result.class)}</h3><p class="session-failure-lead">${escape(result.verdict)}</p><p class="subtle">Matched because ${escape(result.rule)}.${result.ploeg === 'unavailable' ? ' Ploeg could not be read, so only Unfold\'s records were used.' : ''}</p>${facts}${next}${timeline ? disclosure({ id: 'session-investigation-timeline', plain: true, summary: 'Timeline around the stop', body: timeline }) : ''}${button({ label: 'Copy findings', icon: 'copy', variant: 'ghost', action: 'investigation-copy' })}</section>`;
+  const links = observabilityLinks(state.session);
+  const details = `<p>${escape(investigationClasses[result.class] || result.class)}: ${escape(result.verdict)}</p><p class="subtle">Matched because ${escape(result.rule)}.${result.ploeg === 'unavailable' ? ' Ploeg could not be read, so only Unfold\'s records were used.' : ''}</p>${facts}${timeline}${links ? `<p class="subtle">In Grafana: ${links}</p>` : ''}${button({ label: 'Copy technical details', icon: 'copy', variant: 'ghost', action: 'investigation-copy' })}`;
+  return `<section class="session-investigation" aria-labelledby="session-investigation-title"><h3 class="overline session-failure-steps-title" id="session-investigation-title">What happened</h3><p class="session-failure-lead">${escape(result.summary || result.verdict)}</p>${next}${disclosure({ id: 'session-investigation-details', plain: true, summary: 'Technical details', body: details })}</section>`;
 }
 
 function investigationText(result) {

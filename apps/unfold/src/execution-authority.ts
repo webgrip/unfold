@@ -143,7 +143,7 @@ export class ExecutionAuthority {
       const saved = this.store.getSecret<Credential>(`inference:${session.id}`);
       const account = await this.request(session, `/${binding.id}/spend`);
       if (saved) {
-        if (account.capabilityState !== 'issued') throw new PloegError(409, 'inference_blocked', 'This execution capability was blocked or became uncertain. Reconcile it before authorizing further paid work.');
+        if (account.capabilityState !== 'issued') throw new PloegError(409, 'inference_blocked', 'This session\'s agent key was locked when it stopped, so it cannot continue. Press Duplicate as a new session to try again, or Cancel.');
         return saved;
       }
       if (account.capabilityState !== 'reserved') throw new PloegError(409, 'inference_unresolved', 'No recoverable execution credential is available. Reconcile the existing authorization before another paid attempt.');
@@ -158,7 +158,7 @@ export class ExecutionAuthority {
 
   async checkResume(session: Session): Promise<void> {
     if (await this.canPayAgain(session)) return;
-    throw new PloegError(409, 'inference_blocked', 'This execution capability is blocked or uncertain. Reconcile it before authorizing further paid work.');
+    throw new PloegError(409, 'inference_blocked', 'This session\'s agent key was locked when it stopped, so it cannot continue. Press Duplicate as a new session to try again, or Cancel.');
   }
 
   /** Whether the execution's inference capability can pay for another generation: never minted, or minted and still held by this workbench. */

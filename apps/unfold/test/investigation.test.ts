@@ -49,7 +49,10 @@ test('the 2026-10-10 interruption is diagnosed as an Unfold stall with lease lef
   assert(Number(fact('Lease left when it stopped').split(' ')[0]) > 30, 'about a minute of lease was left');
   assert.match(fact('Unfold events in the minute before'), /peak 120 a second/);
   assert.match(fact('Reviewer'), /verdict approve/);
-  assert(result.next.some(step => step.includes('Resume repeats: Reviewer')));
+  assert.match(result.summary, /lost touch with Ploeg/, 'the person reads one plain sentence, not the technical verdict');
+  assert(result.next.some(step => step.includes('reviewer had already approved')), 'the reviewer\'s answer is said in plain words');
+  assert(result.next.some(step => step.includes('Duplicate as a new session')), 'the next step is one that works: Resume cannot continue on a locked key');
+  assert(!result.next.some(step => /resuming is safe|Resume repeats/.test(step)), 'no advice to resume');
   assert(result.timeline.some(item => item.text.startsWith('no heartbeat for')), 'the timeline marks the silent gap');
   assert.equal(result.ploeg, 'read');
 });
@@ -83,5 +86,6 @@ test('evidence that fits no rule says so instead of guessing', () => {
   const result = investigate(session({ execution: undefined }), [event('14:40:00', 'execution.reconciliation_pending', { autoResumed: false })], undefined, 15000);
   assert.equal(result.class, 'unclear');
   assert.equal(result.ploeg, 'not_bound');
-  assert(result.next.some(step => step.includes('investigate-session')));
+  assert(result.facts.some(fact => fact.value.includes('investigate-session')), 'the operator hint lives in the technical details');
+  assert.match(result.summary, /could not tell why/);
 });
