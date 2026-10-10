@@ -111,7 +111,9 @@ async function governed(t: TestContext) {
   const address = api.address(); assert(address && typeof address !== 'string');
   const url = `http://127.0.0.1:${address.port}`;
   const runtime = new ControlledExecution();
+  let configured: any;
   const server = await application('live', config => {
+    configured = config;
     config.ploeg = { url, tokenEnv: env, teams: ['delivery'], userTeams: { owner: ['delivery'] } };
     config.execution = { team: 'delivery', heartbeatMs: 1000 };
     config.runtime.briefCheck = false;
@@ -119,7 +121,7 @@ async function governed(t: TestContext) {
   }, new Map([['opencode', runtime]]));
   t.after(async () => { state.admissionGate?.resolve(); state.commandGate?.resolve(); for (const gate of state.commandGates.values()) gate.resolve(); state.credentialGate?.resolve(); state.unavailable = false; state.failCommands.clear(); await server.close(); await new Promise<void>(resolve => api.close(() => resolve())); delete process.env[env]; });
   const create = () => server.app.engine.create(createInput({ runtime: 'opencode', budgetUsd: 2 }) as any, owner);
-  return { state, runtime, server, create, inferenceKey, consumerToken, forbiddenMaster, env };
+  return { state, runtime, server, create, inferenceKey, consumerToken, forbiddenMaster, env, config: configured };
 }
 
 test('governed execution refuses unavailable authority and unmapped users before workspace or inference access', async t => {
@@ -537,4 +539,21 @@ test('a failed session closes its Work Item in Ploeg once, and a live session ca
   assert.equal(f.state.remote!.revision, revision, 'a second close sends no second command');
   assert.equal(f.server.app.store.events(session.id).filter(event => event.type === 'session.work_item_closed').length, 1);
   await assert.rejects(f.server.app.engine.closeWorkItem(session.id, outsider), { code: 'not_found' });
+});
+
+test('an execution admitted under an earlier team still binds after the configured team changes', async t => {
+  const f = await governed(t); const session = f.create();
+  const auth = await login(f.server.url);
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.state.remote?.state === 'running', 'execution did not start');
+  f.state.remote!.expiresAt = new Date(Date.now() - 1000).toISOString();
+  await until(() => f.server.app.store.getSession(session.id)?.status === 'failed', 'expired authority did not end the session');
+  f.state.remote!.state = 'failed';
+  f.config.execution.team = 'renamed';
+  f.config.ploeg.teams = ['delivery', 'renamed'];
+  f.config.ploeg.userTeams = { owner: ['renamed'] };
+  const closed = await request(f.server.url, `/api/sessions/${session.id}/close-work-item`, { ...auth, method: 'POST', body: {} });
+  assert.equal(closed.status, 200, 'a binding keeps the team it was admitted under');
+  assert.ok(closed.body.workItemClosedAt);
+  assert.equal(f.state.remote!.team, 'delivery');
 });

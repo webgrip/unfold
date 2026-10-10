@@ -249,12 +249,15 @@ export class InsightService {
   /** The tenant actor key, replaced by a fresh one once it is 13 months old so old and new actor ids cannot be linked. */
   private currentActorKey(): string {
     const now = this.now();
-    if (!this.actorKey) this.actorKey = this.store.getSecret<ActorKey>(actorKeyId);
-    if (!this.actorKey || addMonths(new Date(this.actorKey.createdAt), actorKeyMonths) <= now) {
-      this.actorKey = { key: randomBytes(32).toString('base64url'), createdAt: now.toISOString() };
-      this.store.setSecret(actorKeyId, this.actorKey);
+    const stored: unknown = this.actorKey ?? this.store.getSecret<unknown>(actorKeyId);
+    const valid = typeof stored === 'object' && stored !== null && typeof (stored as ActorKey).key === 'string' && (stored as ActorKey).key !== '' && Number.isFinite(Date.parse((stored as ActorKey).createdAt));
+    let key = valid ? stored as ActorKey : undefined;
+    if (!key || addMonths(new Date(key.createdAt), actorKeyMonths) <= now) {
+      key = { key: randomBytes(32).toString('base64url'), createdAt: now.toISOString() };
+      this.store.setSecret(actorKeyId, key);
     }
-    return this.actorKey.key;
+    this.actorKey = key;
+    return key.key;
   }
 
   private admit(user: User, count: number): void {
