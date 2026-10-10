@@ -1,0 +1,891 @@
+{
+  "cracked": {
+    "workItemId": "42",
+    "title": "Add a retry budget to the forge client",
+    "externalRef": "VIK-1701",
+    "team": "silver",
+    "target": {
+      "forge": "forgejo",
+      "owner": "webgrip",
+      "repo": "ploeg"
+    },
+    "style": {
+      "skin": "default",
+      "theme": null
+    },
+    "state": "merged",
+    "rarity": null,
+    "finish": "matte",
+    "grade": {
+      "formula": "2026.3",
+      "overall": 8.5,
+      "provisional": true,
+      "evidenceComplete": false,
+      "subgrades": {
+        "reliability": 0,
+        "durability": 0,
+        "delivery": 0,
+        "review": 0
+      },
+      "label": null,
+      "qualifiers": [
+        "RT"
+      ],
+      "inputs": {
+        "reliability": {
+          "crackWeight": null,
+          "reverted": null
+        },
+        "durability": {
+          "daysLive": 0,
+          "liveSince": null,
+          "reverts": null,
+          "hotfixes": null,
+          "survival": null
+        },
+        "delivery": {
+          "budgetShare": null,
+          "defectBounces": null,
+          "extraPlays": 0,
+          "failedRuns": 0
+        },
+        "review": {
+          "ciFirstGreen": null,
+          "findings": null,
+          "changeRequests": 0,
+          "reviewRounds": 0,
+          "reworkRounds": 0
+        },
+        "notCollected": null,
+        "missing": [
+          "delivery.defectBounces"
+        ]
+      }
+    },
+    "condition": {
+      "state": "cracked",
+      "cracks": [
+        {
+          "id": "1",
+          "bug": {
+            "workItemId": "77",
+            "title": "Retry loops forever"
+          },
+          "severity": "S2",
+          "share": "",
+          "discovery": "",
+          "proposedAt": "0001-01-01T00:00:00Z",
+          "confirmedAt": "0001-01-01T00:00:00Z",
+          "confirmedBy": [
+            "carla"
+          ],
+          "disputed": false,
+          "weight": 2,
+          "warranty": "",
+          "mended": null
+        }
+      ]
+    },
+    "steward": {
+      "name": "anna",
+      "source": "merged_by"
+    },
+    "roster": [
+      {
+        "name": "anna",
+        "roles": [
+          "merger"
+        ]
+      },
+      {
+        "name": "bram",
+        "roles": [
+          "reviewer",
+          "qa"
+        ]
+      }
+    ],
+    "crew": [
+      {
+        "role": "builder",
+        "writes": true,
+        "runs": 2,
+        "costUsd": 1.1
+      },
+      {
+        "role": "reviewer",
+        "writes": false,
+        "runs": 1,
+        "costUsd": 0.14
+      }
+    ],
+    "plays": [
+      {
+        "number": 57,
+        "state": "merged",
+        "mergedAt": "2026-09-22T12:00:00Z",
+        "mergedBy": "anna",
+        "additions": 1240,
+        "deletions": 31,
+        "changedFiles": 7,
+        "ci": {
+          "state": "success",
+          "checks": null,
+          "capturedAt": "0001-01-01T00:00:00Z"
+        },
+        "reviews": null,
+        "deployments": null
+      }
+    ],
+    "totals": {
+      "costUsd": 1.24,
+      "authorizedUsd": 5,
+      "costStatus": "observed",
+      "usageComplete": false,
+      "runs": 3,
+      "failedRuns": 0,
+      "rounds": 0,
+      "shifts": 0
+    },
+    "events": null,
+    "deployments": null,
+    "release": {
+      "at": "2026-09-22T14:00:00Z",
+      "source": "deploy",
+      "environment": "production"
+    },
+    "live": null,
+    "gates": null,
+    "demo": false
+  },
+  "demo": {
+    "workItemId": "42",
+    "title": "Add a retry budget to the forge client",
+    "externalRef": "VIK-1701",
+    "team": "silver",
+    "target": {
+      "forge": "forgejo",
+      "owner": "webgrip",
+      "repo": "ploeg"
+    },
+    "style": {
+      "skin": "default",
+      "theme": null
+    },
+    "state": "merged",
+    "rarity": null,
+    "finish": "matte",
+    "grade": null,
+    "condition": null,
+    "steward": {
+      "name": "anna",
+      "source": "merged_by"
+    },
+    "roster": [
+      {
+        "name": "anna",
+        "roles": [
+          "merger"
+        ]
+      },
+      {
+        "name": "bram",
+        "roles": [
+          "reviewer",
+          "qa"
+        ]
+      }
+    ],
+    "crew": [
+      {
+        "role": "builder",
+        "writes": true,
+        "runs": 2,
+        "costUsd": 1.1
+      },
+      {
+        "role": "reviewer",
+        "writes": false,
+        "runs": 1,
+        "costUsd": 0.14
+      }
+    ],
+    "plays": [
+      {
+        "number": 57,
+        "state": "merged",
+        "mergedAt": "2026-09-22T12:00:00Z",
+        "mergedBy": "anna",
+        "additions": 1240,
+        "deletions": 31,
+        "changedFiles": 7,
+        "ci": {
+          "state": "success",
+          "checks": null,
+          "capturedAt": "0001-01-01T00:00:00Z"
+        },
+        "reviews": null,
+        "deployments": null
+      }
+    ],
+    "totals": {
+      "authorizedUsd": 5,
+      "costStatus": "not_reported",
+      "usageComplete": false,
+      "runs": 0,
+      "failedRuns": 0,
+      "rounds": 0,
+      "shifts": 0
+    },
+    "events": null,
+    "deployments": null,
+    "release": null,
+    "live": null,
+    "gates": null,
+    "demo": true
+  },
+  "drafting": {
+    "workItemId": "9",
+    "title": "A very long title that keeps going well past what three lines of the card can hold without help",
+    "team": "",
+    "target": null,
+    "style": {
+      "skin": "",
+      "theme": null
+    },
+    "state": "drafting",
+    "rarity": null,
+    "finish": "",
+    "grade": null,
+    "condition": null,
+    "steward": null,
+    "roster": null,
+    "crew": null,
+    "plays": null,
+    "totals": {
+      "authorizedUsd": 0,
+      "costStatus": "not_reported",
+      "usageComplete": false,
+      "runs": 0,
+      "failedRuns": 0,
+      "rounds": 0,
+      "shifts": 0
+    },
+    "events": null,
+    "deployments": null,
+    "release": null,
+    "live": null,
+    "gates": null,
+    "demo": false
+  },
+  "escaping": {
+    "workItemId": "42",
+    "title": "\u003cscript\u003ealert(\"x\")\u003c/script\u003e \u0026 'quotes' @carla #12 ‮evil\u0000",
+    "externalRef": "VIK-1\"/\u003e\u003cx",
+    "team": "silver",
+    "target": {
+      "forge": "forgejo",
+      "owner": "webgrip",
+      "repo": "ploeg"
+    },
+    "style": {
+      "skin": "default",
+      "theme": null
+    },
+    "state": "merged",
+    "rarity": null,
+    "finish": "matte",
+    "grade": null,
+    "condition": null,
+    "steward": {
+      "name": "\u003cb\u003eann\u0026a\u003c/b\u003e",
+      "source": "approver"
+    },
+    "roster": [
+      {
+        "name": "anna",
+        "roles": [
+          "merger"
+        ]
+      },
+      {
+        "name": "bram",
+        "roles": [
+          "reviewer",
+          "qa"
+        ]
+      }
+    ],
+    "crew": [
+      {
+        "role": "\u003cimg src=x\u003e",
+        "writes": false,
+        "runs": 1
+      }
+    ],
+    "plays": [
+      {
+        "number": 57,
+        "state": "merged",
+        "mergedAt": "2026-09-22T12:00:00Z",
+        "mergedBy": "anna",
+        "additions": 1240,
+        "deletions": 31,
+        "changedFiles": 7,
+        "ci": {
+          "state": "success",
+          "checks": null,
+          "capturedAt": "0001-01-01T00:00:00Z"
+        },
+        "reviews": null,
+        "deployments": null
+      }
+    ],
+    "totals": {
+      "costUsd": 1.24,
+      "authorizedUsd": 5,
+      "costStatus": "observed",
+      "usageComplete": false,
+      "runs": 3,
+      "failedRuns": 0,
+      "rounds": 0,
+      "shifts": 0
+    },
+    "events": null,
+    "deployments": null,
+    "release": {
+      "at": "2026-09-22T14:00:00Z",
+      "source": "deploy",
+      "environment": "production"
+    },
+    "live": null,
+    "gates": null,
+    "demo": false
+  },
+  "forge": {
+    "workItemId": "42",
+    "title": "Add a retry budget to the forge client",
+    "externalRef": "VIK-1701",
+    "team": "silver",
+    "target": {
+      "forge": "forgejo",
+      "owner": "webgrip",
+      "repo": "ploeg"
+    },
+    "style": {
+      "skin": "forge",
+      "theme": null
+    },
+    "state": "merged",
+    "rarity": null,
+    "finish": "matte",
+    "grade": {
+      "formula": "2026.3",
+      "overall": 10,
+      "provisional": false,
+      "evidenceComplete": true,
+      "subgrades": {
+        "reliability": 0,
+        "durability": 0,
+        "delivery": 0,
+        "review": 0
+      },
+      "label": "gold",
+      "qualifiers": [
+        "OB"
+      ],
+      "inputs": {
+        "reliability": {
+          "crackWeight": null,
+          "reverted": null
+        },
+        "durability": {
+          "daysLive": 0,
+          "liveSince": null,
+          "reverts": null,
+          "hotfixes": null,
+          "survival": null
+        },
+        "delivery": {
+          "budgetShare": null,
+          "defectBounces": null,
+          "extraPlays": 0,
+          "failedRuns": 0
+        },
+        "review": {
+          "ciFirstGreen": null,
+          "findings": null,
+          "changeRequests": 0,
+          "reviewRounds": 0,
+          "reworkRounds": 0
+        },
+        "notCollected": null,
+        "missing": []
+      }
+    },
+    "condition": null,
+    "steward": {
+      "name": "anna",
+      "source": "merged_by"
+    },
+    "roster": [
+      {
+        "name": "anna",
+        "roles": [
+          "merger"
+        ]
+      },
+      {
+        "name": "bram",
+        "roles": [
+          "reviewer",
+          "qa"
+        ]
+      }
+    ],
+    "crew": [
+      {
+        "role": "builder",
+        "writes": true,
+        "runs": 2,
+        "costUsd": 1.1
+      },
+      {
+        "role": "reviewer",
+        "writes": false,
+        "runs": 1,
+        "costUsd": 0.14
+      }
+    ],
+    "plays": [
+      {
+        "number": 57,
+        "state": "merged",
+        "mergedAt": "2026-09-22T12:00:00Z",
+        "mergedBy": "anna",
+        "additions": 1240,
+        "deletions": 31,
+        "changedFiles": 7,
+        "ci": {
+          "state": "success",
+          "checks": null,
+          "capturedAt": "0001-01-01T00:00:00Z"
+        },
+        "reviews": null,
+        "deployments": null
+      }
+    ],
+    "totals": {
+      "costUsd": 6.5,
+      "authorizedUsd": 5,
+      "costStatus": "observed",
+      "usageComplete": false,
+      "runs": 3,
+      "failedRuns": 0,
+      "rounds": 0,
+      "shifts": 0
+    },
+    "events": null,
+    "deployments": null,
+    "release": {
+      "at": "2025-08-27T12:00:00Z",
+      "source": "merge",
+      "environment": "production"
+    },
+    "live": null,
+    "gates": null,
+    "demo": false
+  },
+  "graded": {
+    "workItemId": "42",
+    "title": "Add a retry budget to the forge client",
+    "externalRef": "VIK-1701",
+    "team": "silver",
+    "target": {
+      "forge": "forgejo",
+      "owner": "webgrip",
+      "repo": "ploeg"
+    },
+    "style": {
+      "skin": "default",
+      "theme": null
+    },
+    "state": "merged",
+    "rarity": null,
+    "finish": "matte",
+    "grade": {
+      "formula": "2026.3",
+      "overall": 8.5,
+      "provisional": true,
+      "evidenceComplete": false,
+      "subgrades": {
+        "reliability": 0,
+        "durability": 0,
+        "delivery": 0,
+        "review": 0
+      },
+      "label": null,
+      "qualifiers": [
+        "RT"
+      ],
+      "inputs": {
+        "reliability": {
+          "crackWeight": null,
+          "reverted": null
+        },
+        "durability": {
+          "daysLive": 0,
+          "liveSince": null,
+          "reverts": null,
+          "hotfixes": null,
+          "survival": null
+        },
+        "delivery": {
+          "budgetShare": null,
+          "defectBounces": null,
+          "extraPlays": 0,
+          "failedRuns": 0
+        },
+        "review": {
+          "ciFirstGreen": null,
+          "findings": null,
+          "changeRequests": 0,
+          "reviewRounds": 0,
+          "reworkRounds": 0
+        },
+        "notCollected": null,
+        "missing": [
+          "delivery.defectBounces"
+        ]
+      }
+    },
+    "condition": null,
+    "steward": {
+      "name": "anna",
+      "source": "merged_by"
+    },
+    "roster": [
+      {
+        "name": "anna",
+        "roles": [
+          "merger"
+        ]
+      },
+      {
+        "name": "bram",
+        "roles": [
+          "reviewer",
+          "qa"
+        ]
+      }
+    ],
+    "crew": [
+      {
+        "role": "builder",
+        "writes": true,
+        "runs": 2,
+        "costUsd": 1.1
+      },
+      {
+        "role": "reviewer",
+        "writes": false,
+        "runs": 1,
+        "costUsd": 0.14
+      }
+    ],
+    "plays": [
+      {
+        "number": 57,
+        "state": "merged",
+        "mergedAt": "2026-09-22T12:00:00Z",
+        "mergedBy": "anna",
+        "additions": 1240,
+        "deletions": 31,
+        "changedFiles": 7,
+        "ci": {
+          "state": "success",
+          "checks": null,
+          "capturedAt": "0001-01-01T00:00:00Z"
+        },
+        "reviews": null,
+        "deployments": null
+      }
+    ],
+    "totals": {
+      "costUsd": 1.24,
+      "authorizedUsd": 5,
+      "costStatus": "observed",
+      "usageComplete": false,
+      "runs": 3,
+      "failedRuns": 0,
+      "rounds": 0,
+      "shifts": 0
+    },
+    "events": null,
+    "deployments": null,
+    "release": {
+      "at": "2026-09-22T14:00:00Z",
+      "source": "deploy",
+      "environment": "production"
+    },
+    "live": null,
+    "gates": null,
+    "demo": false
+  },
+  "mended": {
+    "workItemId": "42",
+    "title": "Add a retry budget to the forge client",
+    "externalRef": "VIK-1701",
+    "team": "silver",
+    "target": {
+      "forge": "forgejo",
+      "owner": "webgrip",
+      "repo": "ploeg"
+    },
+    "style": {
+      "skin": "default",
+      "theme": null
+    },
+    "state": "merged",
+    "rarity": null,
+    "finish": "matte",
+    "grade": {
+      "formula": "2026.3",
+      "overall": 8.5,
+      "provisional": true,
+      "evidenceComplete": false,
+      "subgrades": {
+        "reliability": 0,
+        "durability": 0,
+        "delivery": 0,
+        "review": 0
+      },
+      "label": null,
+      "qualifiers": [
+        "RT"
+      ],
+      "inputs": {
+        "reliability": {
+          "crackWeight": null,
+          "reverted": null
+        },
+        "durability": {
+          "daysLive": 0,
+          "liveSince": null,
+          "reverts": null,
+          "hotfixes": null,
+          "survival": null
+        },
+        "delivery": {
+          "budgetShare": null,
+          "defectBounces": null,
+          "extraPlays": 0,
+          "failedRuns": 0
+        },
+        "review": {
+          "ciFirstGreen": null,
+          "findings": null,
+          "changeRequests": 0,
+          "reviewRounds": 0,
+          "reworkRounds": 0
+        },
+        "notCollected": null,
+        "missing": [
+          "delivery.defectBounces"
+        ]
+      }
+    },
+    "condition": {
+      "state": "mended",
+      "cracks": [
+        {
+          "id": "1",
+          "bug": {
+            "workItemId": "77",
+            "title": "Retry loops forever"
+          },
+          "severity": "S2",
+          "share": "",
+          "discovery": "",
+          "proposedAt": "0001-01-01T00:00:00Z",
+          "confirmedAt": "0001-01-01T00:00:00Z",
+          "confirmedBy": [
+            "carla"
+          ],
+          "disputed": false,
+          "weight": 2,
+          "warranty": "",
+          "mended": {
+            "at": "2026-10-01T11:00:00Z",
+            "by": "dirk",
+            "pr": 61,
+            "bySteward": false,
+            "confirmedAt": "2026-10-01T11:00:00Z"
+          }
+        }
+      ]
+    },
+    "steward": {
+      "name": "anna",
+      "source": "merged_by"
+    },
+    "roster": [
+      {
+        "name": "anna",
+        "roles": [
+          "merger"
+        ]
+      },
+      {
+        "name": "bram",
+        "roles": [
+          "reviewer",
+          "qa"
+        ]
+      }
+    ],
+    "crew": [
+      {
+        "role": "builder",
+        "writes": true,
+        "runs": 2,
+        "costUsd": 1.1
+      },
+      {
+        "role": "reviewer",
+        "writes": false,
+        "runs": 1,
+        "costUsd": 0.14
+      }
+    ],
+    "plays": [
+      {
+        "number": 57,
+        "state": "merged",
+        "mergedAt": "2026-09-22T12:00:00Z",
+        "mergedBy": "anna",
+        "additions": 1240,
+        "deletions": 31,
+        "changedFiles": 7,
+        "ci": {
+          "state": "success",
+          "checks": null,
+          "capturedAt": "0001-01-01T00:00:00Z"
+        },
+        "reviews": null,
+        "deployments": null
+      }
+    ],
+    "totals": {
+      "costUsd": 1.24,
+      "authorizedUsd": 5,
+      "costStatus": "observed",
+      "usageComplete": false,
+      "runs": 3,
+      "failedRuns": 0,
+      "rounds": 0,
+      "shifts": 0
+    },
+    "events": null,
+    "deployments": null,
+    "release": {
+      "at": "2026-09-22T14:00:00Z",
+      "source": "deploy",
+      "environment": "production"
+    },
+    "live": null,
+    "gates": null,
+    "demo": false
+  },
+  "merged": {
+    "workItemId": "42",
+    "title": "Add a retry budget to the forge client",
+    "externalRef": "VIK-1701",
+    "team": "silver",
+    "target": {
+      "forge": "forgejo",
+      "owner": "webgrip",
+      "repo": "ploeg"
+    },
+    "style": {
+      "skin": "default",
+      "theme": null
+    },
+    "state": "merged",
+    "rarity": null,
+    "finish": "matte",
+    "grade": null,
+    "condition": null,
+    "steward": {
+      "name": "anna",
+      "source": "merged_by"
+    },
+    "roster": [
+      {
+        "name": "anna",
+        "roles": [
+          "merger"
+        ]
+      },
+      {
+        "name": "bram",
+        "roles": [
+          "reviewer",
+          "qa"
+        ]
+      }
+    ],
+    "crew": [
+      {
+        "role": "builder",
+        "writes": true,
+        "runs": 2,
+        "costUsd": 1.1
+      },
+      {
+        "role": "reviewer",
+        "writes": false,
+        "runs": 1,
+        "costUsd": 0.14
+      }
+    ],
+    "plays": [
+      {
+        "number": 57,
+        "state": "merged",
+        "mergedAt": "2026-09-22T12:00:00Z",
+        "mergedBy": "anna",
+        "additions": 1240,
+        "deletions": 31,
+        "changedFiles": 7,
+        "ci": {
+          "state": "success",
+          "checks": null,
+          "capturedAt": "0001-01-01T00:00:00Z"
+        },
+        "reviews": null,
+        "deployments": null
+      }
+    ],
+    "totals": {
+      "costUsd": 1.24,
+      "authorizedUsd": 5,
+      "costStatus": "observed",
+      "usageComplete": false,
+      "runs": 3,
+      "failedRuns": 0,
+      "rounds": 0,
+      "shifts": 0
+    },
+    "events": null,
+    "deployments": null,
+    "release": {
+      "at": "2026-09-22T14:00:00Z",
+      "source": "deploy",
+      "environment": "production"
+    },
+    "live": null,
+    "gates": null,
+    "demo": false
+  }
+}
