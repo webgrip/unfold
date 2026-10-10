@@ -1,4 +1,4 @@
 [submodule "apps/ploeg"]
 	path = apps/ploeg
 	url = https://github.com/ploeg-hq/ploeg.git
-	branch = v0.2.0-rc.8
+	branch = v0.2.0-rc.9
