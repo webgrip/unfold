@@ -1,3 +1,4 @@
+import { activity } from './confusion.js';
 let unauthorizedHandler = () => {};
 
 /** Registers what happens when the server answers 401: the entry signs the browser out and shows the login page. */
@@ -11,6 +12,7 @@ export function unauthorized() { unauthorizedHandler(); }
  * Rejects with an Error that carries the server's `status` and `code`.
  */
 export async function api(path, options = {}) {
+  activity();
   const response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', 'X-Unfold-Request': '1', ...options.headers }, credentials: 'same-origin' });
   const data = await response.json();
   if (!response.ok) {

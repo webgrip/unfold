@@ -1,3 +1,32 @@
+## [unfold-v0.4.0-rc.57](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.56...unfold-v0.4.0-rc.57) (2026-10-10)
+
+### Added
+
+* **site:** pop the Vouwvlieger on hover ([2ba1e23](https://forgejo.webgrip.dev/webgrip/unfold/commit/2ba1e232091a7066f3f339ce07a7644952e1de65))
+* **unfold:** loop the Vouwvlieger while loading and pop it on hover ([9e519ef](https://forgejo.webgrip.dev/webgrip/unfold/commit/9e519ef9378956950152682e28c6ceff427da4c8))
+
+## [unfold-v0.4.0-rc.56](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.55...unfold-v0.4.0-rc.56) (2026-10-10)
+
+### Added
+
+* **unfold:** detect rage clicks, dead clicks, U-turns and link-out bursts ([39a4ac1](https://forgejo.webgrip.dev/webgrip/unfold/commit/39a4ac1131afa7b7b40c9f2cf733902ce3ced563))
+
+### Changed
+
+* **unfold:** drop the Run card fallback and the one-time import ([0077d3b](https://forgejo.webgrip.dev/webgrip/unfold/commit/0077d3b2591844897e14c461920d8ad1581a773d))
+
+### Docs
+
+* **unfold:** record that the card fallback and import went with Ploeg rc.12 ([80da61c](https://forgejo.webgrip.dev/webgrip/unfold/commit/80da61cf6f535c42afe3731b77c0b8e072680082))
+
+### Tests
+
+* **unfold:** mask a running clock's elapsed seconds in the card route comparison ([71e9a76](https://forgejo.webgrip.dev/webgrip/unfold/commit/71e9a7629524924a52a389b9875e66f1325ab929))
+
+### Build
+
+* **ploeg:** pin Ploeg v0.2.0-rc.12 ([05a6265](https://forgejo.webgrip.dev/webgrip/unfold/commit/05a62651ca008c0c19f3dceb1c34de8dca2c4271)), references [ploeg#93](https://forgejo.webgrip.dev/ploeg/issues/93)
+
 ## [unfold-v0.4.0-rc.55](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.54...unfold-v0.4.0-rc.55) (2026-10-10)
 
 ### Added

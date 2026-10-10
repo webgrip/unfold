@@ -17,6 +17,12 @@ export const insightCatalogue: Readonly<Record<string, readonly string[]>> = Obj
   'ui.link_out_burst': ['count'],
 });
 
+/** Events only the server records. A browser that posts one has it dropped like an unknown name. */
+export const serverOnlyEvents: ReadonlySet<string> = new Set(['ui.link_out_burst', 'work_item.back_in_needs_you']);
+/** How many `link_out.opened` on one Work Item before one `needs_you.command_sent` make a `ui.link_out_burst`. */
+export const linkOutBurst = 3;
+const burstLookbackMs = 86_400_000;
+
 /** The Tenant every self-hosted install starts with, until ADR-0017's per-tenant checks ship. */
 export const defaultTenant = 'default';
 export const maxEventsPerCall = 50;
@@ -85,7 +91,7 @@ export function parseInsightEvents(raw: unknown, now: string): InsightEvent[] {
     if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
     const value = item as RawEvent;
     const name = typeof value.name === 'string' ? value.name : '';
-    const allowed = Object.hasOwn(insightCatalogue, name) ? insightCatalogue[name] : undefined;
+    const allowed = Object.hasOwn(insightCatalogue, name) && !serverOnlyEvents.has(name) ? insightCatalogue[name] : undefined;
     if (!allowed) continue;
     const session = typeof value.session === 'string' && value.session.length <= maxSessionLength ? value.session : '';
     const screen = typeof value.screen === 'string' && value.screen.length <= maxPropLength ? value.screen : '';
@@ -276,14 +282,30 @@ export class InsightService {
     this.admit(user, events.length);
     const sink = this.sink();
     const actor = actorHash(this.currentActorKey(), defaultTenant, user.id);
-    const rows: StoredProductEvent[] = events.map(event => ({ tenantId: defaultTenant, actor, ...event }));
-    this.store.recordProductEvents(rows);
+    const posted: StoredProductEvent[] = events.map(event => ({ tenantId: defaultTenant, actor, ...event }));
+    this.store.recordProductEvents(posted);
+    const bursts = posted.flatMap(row => this.linkOutBurst(row));
+    if (bursts.length) this.store.recordProductEvents(bursts);
+    const rows = [...posted, ...bursts];
     if (sink?.level === 'events') {
       this.pending.push(...rows.map(row => ({ ...row, kind: 'event' as const })));
       if (this.pending.length > maxPendingRows) this.pending.splice(0, this.pending.length - maxPendingRows);
       void this.deliver();
     }
     return events.length;
+  }
+
+  /**
+   * A `ui.link_out_burst` for a `needs_you.command_sent` that followed three or more links out on its Work Item since
+   * the same person's previous command on it, or in the day before when there was none.
+   */
+  private linkOutBurst(row: StoredProductEvent): StoredProductEvent[] {
+    if (row.name !== 'needs_you.command_sent' || row.workItemId === undefined) return [];
+    const previous = this.store.lastProductEventBefore(row.tenantId, row.actor, row.name, row.workItemId, row.at);
+    const after = previous ?? new Date(Date.parse(row.at) - burstLookbackMs).toISOString();
+    const count = this.store.countProductEvents(row.tenantId, row.actor, 'link_out.opened', row.workItemId, after, row.at);
+    if (count < linkOutBurst) return [];
+    return [{ tenantId: row.tenantId, actor: row.actor, session: row.session, name: 'ui.link_out_burst', screen: row.screen, workItemId: row.workItemId, props: { count }, at: row.at }];
   }
 
   /**

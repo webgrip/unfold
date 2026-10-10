@@ -54,9 +54,9 @@
 }
 
 .boot .brand-mark {
-  width: 2.5rem;
-  height: 2.5rem;
-  margin-bottom: var(--space-2);
+  width: 4rem;
+  height: 4rem;
+  margin-bottom: var(--space-4);
 }
 
 .boot h1 {

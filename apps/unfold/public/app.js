@@ -15,6 +15,8 @@ import { refreshCounts, onCountsChange } from './core/counts.js';
 import { refreshStatusSignal, onStatusSignal } from './core/status-signal.js';
 import { linkFailure } from './views/account.js';
 import { insight, startInsight, linkOutTarget, screenFields } from './core/insight.js';
+import { createConfusionRules, startConfusionDetector } from './core/confusion.js';
+import { loopMark, popOnHover } from './core/motion.js';
 
 const registry = createRegistry(views);
 const landing = 'now';
@@ -59,7 +61,9 @@ async function route() {
       await openPage(found ? found.view.id : landing);
       for (const page of registry.pages) if (page.load && state.view === page.id) await page.load();
     }
-    insight.track('screen.viewed', screenFields(state.view, path));
+    const viewed = screenFields(state.view, path);
+    insight.track('screen.viewed', viewed);
+    confusion.viewed({ ...viewed, at: performance.now() });
   } catch (error) { if (error.status !== 401) notify(error.message, true); if (state.bootstrap) { state.view = landing; registry.views.get(landing).render(); } }
 }
 
@@ -92,10 +96,17 @@ applyPreferences();
 live.start();
 startInsight();
 
+function currentPlace() {
+  return screenFields(state.view, parseHash(location.hash).path);
+}
+
+const confusion = createConfusionRules({ track: insight.track, where: currentPlace });
+startConfusionDetector({ document, rules: confusion });
+
 function trackLinkOut(event) {
   const link = event.target.closest?.('a[href]');
   const target = link ? linkOutTarget(link.href, location.origin) : null;
-  if (target) insight.track('link_out.opened', { screen: state.view, props: { target } });
+  if (target) insight.track('link_out.opened', { ...currentPlace(), props: { target } });
 }
 
 document.addEventListener('click', trackLinkOut, true);
@@ -129,4 +140,7 @@ document.addEventListener('close', () => live.wake(), true);
 window.addEventListener('storage', preferencesChanged);
 window.addEventListener('hashchange', () => { closeTransientChrome(); state.focusHeading = true; void route(); });
 window.addEventListener('beforeunload', disconnect);
+popOnHover(document, '.app-brand, .signin-brand', { ink: 'brand-ink', fold: 'brand-fold' });
+const bootMark = document.querySelector('.boot .brand-mark');
+if (bootMark) loopMark(bootMark.querySelector('.brand-ink'), bootMark.querySelector('.brand-fold'));
 void boot();

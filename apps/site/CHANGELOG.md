@@ -1,3 +1,9 @@
+## [unfold-site-v1.0.0-rc.4](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.3...unfold-site-v1.0.0-rc.4) (2026-10-10)
+
+### Added
+
+* **site:** pop the Vouwvlieger on hover ([2ba1e23](https://forgejo.webgrip.dev/webgrip/unfold/commit/2ba1e232091a7066f3f339ce07a7644952e1de65))
+
 ## [unfold-site-v1.0.0-rc.3](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.2...unfold-site-v1.0.0-rc.3) (2026-10-09)
 
 ### Added

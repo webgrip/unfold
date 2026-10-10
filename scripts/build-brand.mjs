@@ -332,6 +332,8 @@ export function markSvg({ className }) {
 }
 `;
 
+const motion = `/* Copied by scripts/build-brand.mjs from scripts/brand-motion.js; edit that file and run \`mise run brand\` instead. */\n${readFileSync(resolve(root, 'scripts/brand-motion.js'), 'utf8')}`;
+
 const files = {
   'docs/brand/mark.svg': square(markBody(master, palette.vouw, palette.baken)),
   'docs/brand/mark-night.svg': square(markBody(master, palette.vel, palette.bakenNacht)),
@@ -347,6 +349,8 @@ const files = {
   'docs/brand/tokens.css': tokens,
   'apps/site/src/brand/geometry.json': `${JSON.stringify(siteGeometry, null, 2)}\n`,
   'apps/unfold/public/core/brand.js': appBrand,
+  'apps/unfold/public/core/motion.js': motion,
+  'apps/site/src/brand/motion.js': motion,
   'apps/unfold/public/favicon.svg': square(markBody(marks.favicon, palette.vouw, palette.baken)),
 };
 

@@ -86,12 +86,12 @@ CREATE TABLE product_event_daily (
 
 ## Confusion detector
 
-`public/core/insight.js` listens on `document` in the capture phase.
+`public/core/confusion.js` listens on `document` in the capture phase. Built on 2026-10-10 (VIK-1898), with these refinements found while testing against the real page:
 
-* **Rage click.** 3 `click` events within 1,000 ms whose points lie within 100 px of the first.
-* **Dead click.** A `click` on `button`, `a`, `[role=button]` or `[data-insight]` after which no DOM mutation inside `main`, no route change and no focus change happens within 100 ms. A `MutationObserver` on `main` is armed only for that window.
-* **U-turn.** A detail route left within 3 s, twice for the same `work_item_id` within 2 minutes.
-* **Link-out burst** is computed on the server from `link_out.opened` events, so a reload does not reset it.
+* **Rage click.** 3 `click` events within 1,000 ms whose points lie within 100 px of the first, reported once per burst. A click that leaves text selected is never part of a burst, so double- and triple-click selection stays quiet.
+* **Dead click.** A `click` on `button`, `a`, `[role=button]` or `[data-insight]` after which, within 100 ms, nothing in the page changed, the address and focus stayed the same, and the application started no request. The `MutationObserver` watches the whole document, not only `main`, because menus and dialogs open outside it. It ignores an attribute set again to the value it already had: Unfold's chrome re-closes its menus on every click. Links that open a new tab or leave the site are never dead clicks.
+* **U-turn.** A Work Item detail left within 3 s, twice for the same `work_item_id` within 2 minutes, reported once per pair.
+* **Link-out burst** is computed on the server: a `needs_you.command_sent` that followed 3 or more `link_out.opened` on its Work Item, since the same person's previous command on it or in the day before, records a `ui.link_out_burst` with the `count`. A reload does not reset it. `link_out.opened` carries the Work Item id for this. A browser cannot post `ui.link_out_burst` or `work_item.back_in_needs_you` itself.
 
 The thresholds match PostHog's `$rageclick` and Grafana Faro's merged [#2314](https://github.com/grafana/faro-web-sdk/pull/2314). When Faro releases #2314, the research record's trigger says to compare the two and keep one.
 
