@@ -375,6 +375,17 @@ export class Store {
     });
   }
 
+  /** How many events of one name one actor recorded on one Work Item after `after`, up to and including `through`. */
+  countProductEvents(tenantId: string, actor: string, name: string, workItemId: number, after: string, through: string): number {
+    return Number((this.db.prepare('SELECT COUNT(*) AS n FROM product_event WHERE tenant_id=? AND actor=? AND name=? AND work_item_id=? AND at > ? AND at <= ?').get(tenantId, actor, name, workItemId, after, through) as { n: number }).n);
+  }
+
+  /** The time of one actor's latest event of one name on one Work Item strictly before `before`, if any. */
+  lastProductEventBefore(tenantId: string, actor: string, name: string, workItemId: number, before: string): string | undefined {
+    const row = this.db.prepare('SELECT MAX(at) AS at FROM product_event WHERE tenant_id=? AND actor=? AND name=? AND work_item_id=? AND at < ?').get(tenantId, actor, name, workItemId, before) as { at: string | null };
+    return row.at ?? undefined;
+  }
+
   /**
    * Replaces one UTC day's rows in `product_event_daily` with the rollup of that day's events, keeping the
    * count and the number of distinct actors per tenant, event and screen. It returns the number of rows written.

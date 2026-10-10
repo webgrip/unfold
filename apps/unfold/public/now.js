@@ -265,7 +265,7 @@ function waitingActions(entry, context, reason) {
   if (tracker) links.push(linkIcon(`now-tracker-${entry.id}`, tracker, 'external', `Open “${title}” in the tracker`));
   const grafana = reason && infrastructure.has(reason.code) ? grafanaTeam(entry.team, context.grafanaUrl) : null;
   if (grafana) links.push(linkIcon(`now-grafana-${entry.id}`, grafana, 'activity', `Open Grafana for the ${entry.team} Team`));
-  return `<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary">${primary}</span><span class="now-action-links">${links.join('')}</span></div>`;
+  return `<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary" data-insight="now.row.primary">${primary}</span><span class="now-action-links" data-insight="now.row.link">${links.join('')}</span></div>`;
 }
 
 function waitingRow(entry, context, grouped = false) {
@@ -286,7 +286,7 @@ function waitingRow(entry, context, grouped = false) {
     trail: when ? `<span class="now-when"><span class="now-when-label">${created ? 'Created' : 'Updated'} </span>${format.timeHtml(when, { now: context.now })}</span>` : '',
     data: { nowRow: true, openUrl: target?.href, openLabel: target?.label, unread: unread || null },
   });
-  return `<li class="now-item">${row}${waitingActions(entry, context, reason)}</li>`;
+  return `<li class="now-item" data-insight="now.row.${entry.state === 'needs_human' ? 'needs-you' : entry.state === 'awaiting_review' ? 'review' : 'proposed'}">${row}${waitingActions(entry, context, reason)}</li>`;
 }
 
 function moreRow(hidden, group, capped = false) {

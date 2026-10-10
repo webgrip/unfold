@@ -276,3 +276,47 @@ test('an actor key stored in the rc.49 string form is replaced by a fresh key in
   assert.notEqual(stored?.key, 'legacy-install-wide-key');
   assert.equal(stored?.createdAt, now().toISOString());
 });
+
+test('three links out before a command on the same Work Item record one server-side link-out burst', async t => {
+  const sink = await collector();
+  t.after(() => sink.close());
+  const store = await withStore(t);
+  const insight = service(t, store, { export: 'faro', url: sink.url, level: 'events' });
+  const at = (minute: number) => `2026-10-05T11:${String(minute).padStart(2, '0')}:00.000Z`;
+  insight.ingest(parseInsightEvents([
+    { name: 'link_out.opened', at: at(10), screen: 'work', workItemId: 42, props: { target: 'pr' } },
+    { name: 'link_out.opened', at: at(11), screen: 'work', workItemId: 42, props: { target: 'tracker' } },
+    { name: 'link_out.opened', at: at(12), screen: 'work', workItemId: 99, props: { target: 'pr' } },
+    { name: 'link_out.opened', at: at(13), screen: 'work', workItemId: 42, props: { target: 'forge' } },
+    { name: 'needs_you.command_sent', at: at(14), screen: 'work', workItemId: 42, props: { command: 'retry' } },
+  ], now().toISOString()), admin);
+  const bursts = () => store.db.prepare("SELECT work_item_id, props, at FROM product_event WHERE name='ui.link_out_burst' ORDER BY id").all() as Record<string, unknown>[];
+  assert.deepEqual(bursts().map(row => ({ ...row })), [{ work_item_id: 42, props: '{"count":3}', at: at(14) }], 'the link-out on another item is not counted');
+
+  insight.ingest(parseInsightEvents([
+    { name: 'link_out.opened', at: at(20), screen: 'work', workItemId: 42, props: { target: 'pr' } },
+    { name: 'link_out.opened', at: at(21), screen: 'work', workItemId: 42, props: { target: 'pr' } },
+    { name: 'needs_you.command_sent', at: at(22), screen: 'work', workItemId: 42, props: { command: 'retry' } },
+  ], now().toISOString()), admin);
+  assert.equal(bursts().length, 1, 'only link-outs since the previous command count, and two are not a burst');
+
+  insight.ingest(parseInsightEvents([
+    { name: 'link_out.opened', at: at(30), screen: 'work', workItemId: 42, props: { target: 'pr' } },
+    { name: 'link_out.opened', at: at(31), screen: 'work', workItemId: 42, props: { target: 'pr' } },
+    { name: 'link_out.opened', at: at(32), screen: 'work', workItemId: 42, props: { target: 'pr' } },
+    { name: 'needs_you.command_sent', at: at(33), screen: 'work', workItemId: 42, props: { command: 'retry' } },
+  ], now().toISOString()), { ...admin, id: 'user-2' });
+  assert.equal(bursts().length, 2, 'another person has their own count');
+  await until(() => sink.received().some(body => body.events.some((event: { name: string }) => event.name === 'ui.link_out_burst')));
+  const exported = sink.received().flatMap(body => body.events).find((event: { name: string }) => event.name === 'ui.link_out_burst');
+  assert.equal(exported.attributes.count, '3', 'the burst is exported like any other event');
+});
+
+test('a browser cannot post an event only the server records', async t => {
+  const events = parseInsightEvents([
+    { name: 'ui.link_out_burst', props: { count: 99 } },
+    { name: 'work_item.back_in_needs_you', workItemId: 1, props: { days_after: 1 } },
+    { name: 'ui.rage_click', screen: 'now', props: { element: 'unnamed' } },
+  ], now().toISOString());
+  assert.deepEqual(events.map(event => event.name), ['ui.rage_click']);
+});

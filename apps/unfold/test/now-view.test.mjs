@@ -85,14 +85,14 @@ test('each reason has its own glyph so rows do not repeat one icon', () => {
 test('row actions put the primary action first, name it fully and go where the decision is made', () => {
   const html = nowMarkup(view(), options, nowAt);
   assert.match(html, /href="https:\/\/forge\.test\/acme\/shop\/pulls\/9"[^>]*aria-label="Open the pull request for “Round half-cent totals” \(opens in a new tab\)"/);
-  assert.match(html, /<span class="now-action-primary"><a class="button secondary sm" href="https:\/\/forge\.test[\s\S]*?<\/a><\/span><span class="now-action-links"><a class="button ghost sm icon-only" href="https:\/\/tracker\.test\/tasks\/105" target="_blank" rel="noopener noreferrer" id="now-tracker-105"/, 'the pull request comes before the tracker link');
+  assert.match(html, /<span class="now-action-primary" data-insight="now.row.primary"><a class="button secondary sm" href="https:\/\/forge\.test[\s\S]*?<\/a><\/span><span class="now-action-links" data-insight="now.row.link"><a class="button ghost sm icon-only" href="https:\/\/tracker\.test\/tasks\/105" target="_blank" rel="noopener noreferrer" id="now-tracker-105"/, 'the pull request comes before the tracker link');
   assert.match(html, /href="https:\/\/tracker\.test\/tasks\/108" target="_blank" rel="noopener noreferrer"[^>]*aria-label="Open “Show VAT per line” in the tracker \(opens in a new tab\)"/);
   assert.match(html, /href="https:\/\/grafana\.example\.test\/d\/glide-loop\?var-team=delivery"/, 'infrastructure trouble links the Team dashboard');
   assert.equal(html.match(/grafana\.example\.test/g).length, 1, 'Grafana only for infrastructure reasons');
   assert.match(html, /href="#proposed\?id=107"[^>]*aria-label="Approve or reject “Clarify the research markets” on Proposed"[^>]*>[\s\S]*?Approve or reject/);
   assert.doesNotMatch(html, />Decide</);
   assert.match(html, /data-open-url="https:\/\/forge\.test\/acme\/shop\/pulls\/9"/, 'o opens the pull request of a review row');
-  assert.match(html, /<div class="now-item-actions"><span class="now-action-primary"><\/span><span class="now-action-links"><\/span><\/div>/, 'rows without actions keep the empty slots so the columns line up');
+  assert.match(html, /<div class="now-item-actions"><span class="now-action-primary" data-insight="now.row.primary"><\/span><span class="now-action-links" data-insight="now.row.link"><\/span><\/div>/, 'rows without actions keep the empty slots so the columns line up');
 });
 
 test('a review row shows the agent review of its latest Run, never as a human review', () => {
@@ -323,7 +323,7 @@ test('Needs you on Now follows the one rule of Work: flat rows with their chip u
   assert.match(html, /<h3 class="reason-band-title" id="now-reason-fix_round_cap_reached">Reviewer still wants changes<span class="reason-band-count num"><span class="sr-only">, <\/span>4<span class="sr-only"> Work Items<\/span><\/span><\/h3><p class="reason-band-fix"/);
   assert(html.indexOf('id="now-row-w-300"') < html.indexOf('class="reason-band"'), 'the flat rows come before the groups');
   const band = html.slice(html.indexOf('class="reason-band"'));
-  assert.equal((band.match(/<li class="now-item">/g) || []).length, subgroupLimit + 0, 'a band lists its first rows');
+  assert.equal((band.match(/<li class="now-item" data-insight="now\.row\.[a-z-]+">/g) || []).length, subgroupLimit + 0, 'a band lists its first rows');
   assert.match(band, /Show 1 more in Work/);
   assert.doesNotMatch(band, /class="now-why/, 'grouped rows leave the fix to their band');
 });
@@ -504,4 +504,13 @@ test('a refused task’s text and link are escaped', () => {
   const data = { ...nowData(), refused: [refusal('unclassified', { title: '<img src=x onerror=alert(1)>', reason: '<script>x</script>', url: 'javascript:alert(1)' })] };
   const html = nowMarkup(view({ data }), options, nowAt);
   assert.doesNotMatch(html, /<img src=x|<script>x|javascript:/);
+});
+
+test('waiting rows and their actions carry data-insight names, so confusion signals say where they happened', () => {
+  const html = nowMarkup(view(), options, nowAt);
+  const rows = new Set([...html.matchAll(/<li class="now-item" data-insight="(now\.row\.[a-z-]+)">/g)].map(match => match[1]));
+  assert.deepEqual([...rows].sort(), ['now.row.needs-you', 'now.row.proposed', 'now.row.review'].filter(name => rows.has(name)).sort());
+  assert(rows.has('now.row.needs-you') && rows.has('now.row.review'), 'Needs you and review rows are named');
+  assert.match(html, /data-insight="now\.row\.primary"/);
+  assert.match(html, /data-insight="now\.row\.link"/);
 });
