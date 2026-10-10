@@ -49,7 +49,7 @@ function world() {
     { id: '1002', at: daysAgo(3), actor: 'operator:unfold:op-1', action: 'work_item.withdrawn', workItemId: '208', team: 'delivery', detail: {} },
     { id: '1003', at: daysAgo(2), actor: 'ploegd:merge', action: 'work_item.done', workItemId: '207', team: 'delivery', detail: {} },
   ];
-  return { details, events, down: false, seen: [] as string[], writes: [] as Write[], pendingCommand: (_key: string): unknown => undefined };
+  return { details, events, down: false, seen: [] as string[], writes: [] as Write[], requeues: new Map<string, Json>(), consumerMaxBudgetUsd: 5, pendingCommand: (_key: string): unknown => undefined };
 }
 
 type Write = { path: string; actor?: string; acting?: string; body: string; pending: unknown };
@@ -74,6 +74,18 @@ function ploegWrite(state: World, path: string, body: string): [Json, number] {
     const withdrawn = item.state !== 'withdrawn';
     if (withdrawn) moved('withdrawn');
     return [{ cancellation: { workItemId: id, state: 'withdrawn', withdrawn, shiftId: item.latestShift?.id ?? null, cancelledRuns: 0, stoppedRuns: withdrawn ? 1 : 0, keysBlocked: withdrawn } }, 200];
+  }
+  if (command === 'requeue') {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(String(input.commandId ?? ''))) return [{ error: { code: 'command_required', message: 'A requeue body needs a commandId of 1 to 128 identifier characters.' } }, 400];
+    const replay = state.requeues.get(input.commandId);
+    if (replay) return [{ requeue: { ...replay, replayed: true } }, 200];
+    if (input.poolUsd !== undefined && input.poolUsd > state.consumerMaxBudgetUsd) return [{ error: { code: 'pool_above_limit', message: 'The pool exceeds the consumer\'s maxBudgetUsd.' } }, 400];
+    if (!['needs_human', 'stale', 'awaiting_review'].includes(item.state)) return [{ error: { code: 'not_requeueable', message: 'Only a needs_human, stale or awaiting_review work item with no open Shift can be requeued.' } }, 409];
+    if (input.expectedState && input.expectedState !== item.state) return [{ error: { code: 'state_changed', message: 'The work item is no longer in the expected state.' } }, 409];
+    moved('queued');
+    const requeued = { workItemId: id, team: item.team, state: 'queued', fromRound: 1, poolUsd: input.poolUsd ?? 3, shiftId: null, previousShiftId: item.latestShift?.id ?? null, commandId: input.commandId, replayed: false };
+    state.requeues.set(input.commandId, requeued);
+    return [{ requeue: requeued }, 200];
   }
   return [{ error: { code: 'not_found', message: 'Unknown command.' } }, 404];
 }
@@ -473,4 +485,84 @@ test('a viewer of the team is refused every command and asked nothing', { timeou
   await settled(f.client);
   assert.ok(!f.client.inbox.some(message => message.method === 'action' && message.params.action.type === 'chat/inputRequested'), 'no question is raised');
   assert.equal(f.state.writes.length, 0);
+});
+
+test('a message on a Work Item that needs a person restarts it from Round 1 with that note only after a confirmation, and a retry reuses the command', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const chat = defaultChatOf('unfold:/wi-204');
+  await f.client.rpc('subscribe', { channel: 'unfold:/wi-204' });
+  await f.client.rpc('subscribe', { channel: chat });
+  const note = 'Use the decimal rounding helper in totals.ts.';
+  const sent = f.dispatch(chat, { type: 'chat/turnStarted', turnId: 'note-1', message: { text: note, origin: { kind: 'user' } } });
+  const echoed = await f.answered(sent);
+  assert.equal(echoed.params.rejectionReason, undefined, 'the message keeps its own turn');
+  const question = (await f.requested(chat)).params.action.request;
+  assert.equal(question.message, 'Restart from Round 1 with this note? This spends from delivery\'s pool.');
+  assert.deepEqual(question.questions[0].options.map((option: Json) => option.id), ['restart', 'keep']);
+  await settled(f.client);
+  assert.equal(f.state.writes.length, 0, 'the message alone restarts nothing');
+
+  f.state.down = true;
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: question.id, response: 'accept', answers: picked('restart') });
+  await f.client.until(message => action(message, chat, 'chat/responsePart') && message.params.action.part.id === `${question.id}-reply`);
+  const first = JSON.parse(f.state.writes[0].body);
+  assert.ok(f.server.app.store.getSecret('work-item-command:op-1:204'), 'an unanswered command stays recorded');
+
+  f.state.down = false;
+  const mark = f.client.inbox.length;
+  f.dispatch(chat, { type: 'chat/turnStarted', turnId: 'note-2', message: { text: note, origin: { kind: 'user' } } });
+  const retry = (await f.requested(chat, mark)).params.action.request;
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: retry.id, response: 'accept', answers: picked('restart') });
+  await f.replied(chat, /^Restarted #204 from Round 1 with a .+ pool\.$/);
+  assert.deepEqual(f.state.writes.map(write => [write.path, write.actor, write.acting]), [['work-items/204/requeue', 'op-1', 'op-1'], ['work-items/204/requeue', 'op-1', 'op-1']]);
+  const second = JSON.parse(f.state.writes[1].body);
+  assert.deepEqual(second, { commandId: first.commandId, expectedState: 'needs_human', note }, 'the retry reuses the command id, with the note and the state the person saw');
+  assert.equal((f.state.writes[1].pending as Json).commandId, second.commandId, 'recorded before the call');
+  assert.equal(f.server.app.store.getSecret('work-item-command:op-1:204'), undefined);
+});
+
+test('Try Again on a stale Work Item asks the same question without a note and restarts it on confirmation', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const chat = defaultChatOf('unfold:/wi-206');
+  await f.client.rpc('subscribe', { channel: chat });
+  const resume = f.dispatch(chat, { type: 'chat/turnResume', turnId: 'wi-206-round-0-1' });
+  assert.equal((await f.answered(resume)).params.rejectionReason, workItemCommandText.confirmTryAgain('206'));
+  const question = (await f.requested(chat)).params.action.request;
+  assert.equal(question.message, 'Restart from Round 1? This spends from delivery\'s pool.');
+  await settled(f.client);
+  assert.equal(f.state.writes.length, 0, 'Try Again alone restarts nothing');
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: question.id, response: 'accept', answers: picked('restart') });
+  await f.replied(chat, /^Restarted #206 from Round 1/);
+  assert.equal(f.state.writes.length, 1);
+  const body = JSON.parse(f.state.writes[0].body);
+  assert.deepEqual(Object.keys(body).sort(), ['commandId', 'expectedState']);
+  assert.equal(body.expectedState, 'stale');
+});
+
+test('a withdrawn Work Item is restarted only by assigning its task again', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const chat = defaultChatOf('unfold:/wi-208');
+  await f.client.rpc('subscribe', { channel: chat });
+  const sent = f.dispatch(chat, { type: 'chat/turnStarted', turnId: 'note-1', message: { text: 'Try once more.', origin: { kind: 'user' } } });
+  const resume = f.dispatch(chat, { type: 'chat/turnResume', turnId: 'x' });
+  assert.equal((await f.answered(sent)).params.rejectionReason, 'Ploeg restarts a withdrawn Work Item only when its task is assigned to the team again.');
+  assert.equal((await f.answered(resume)).params.rejectionReason, workItemCommandText.withdrawn);
+  await settled(f.client);
+  assert.ok(!f.client.inbox.some(message => message.method === 'action' && message.params.action.type === 'chat/inputRequested'));
+  assert.equal(f.state.writes.length, 0);
+});
+
+test('when the budget ran out a restart offers a raised pool, and a pool above Ploeg\'s limit asks to raise the Team\'s budget', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  f.state.details.set('204', workItem('204', { state: 'needs_human', closeReason: 'budget exhausted', updated: minutesAgo(30), runs: [{ id: '302', role: 'implementer', round: 1, outcome: 'pr_opened' }] }));
+  const chat = defaultChatOf('unfold:/wi-204');
+  await f.client.rpc('subscribe', { channel: chat });
+  f.dispatch(chat, { type: 'chat/turnResume', turnId: 'x' });
+  const question = (await f.requested(chat)).params.action.request;
+  const max = f.server.config.maxBudgetUsd;
+  assert.deepEqual(question.questions[0].options, [{ id: 'restart', label: 'Restart from Round 1' }, { id: 'restart_raised', label: `Restart with a ${money(max)} pool` }, { id: 'keep', label: 'Leave it stopped' }]);
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: question.id, response: 'accept', answers: picked('restart_raised') });
+  await f.replied(chat, /^Raise the Team's budget to try again with more\.$/);
+  assert.equal(JSON.parse(f.state.writes[0].body).poolUsd, max);
+  assert.equal(f.state.details.get('204')!.item.state, 'needs_human', 'nothing restarted');
 });

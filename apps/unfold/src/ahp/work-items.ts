@@ -24,7 +24,7 @@ export function workItemIdOf(publicId: string): string | undefined { return /^wi
 /** What the host answers each change a client asks of a Work Item session that it does not turn into a confirmed command. Ploeg owns the Work Item. */
 export const workItemRefusals = {
   message: 'Ploeg can\'t take instructions for running work yet. Stop it, or wait until it needs you.',
-  tryAgain: 'Trying a Work Item again from the Agents window is coming; requeue it on the Work Item page.',
+  tryAgain: 'Ploeg restarts a Work Item once it stopped and needs you or went stale.',
   dispose: 'A Work Item stays in Ploeg. Archive it to hide it from your Agents window.',
   readOnly: 'A Work Item is Ploeg\'s record and is read-only in the Agents window. Act on it from its Work Item page.',
 } as const;

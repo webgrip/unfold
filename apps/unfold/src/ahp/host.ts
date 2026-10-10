@@ -24,7 +24,7 @@ import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBase
 import { ChatAsks, askMarkdown, commandCompletions, messageIntent, type ChatAskEntry, type ChatAskService } from './asks.ts';
 import { candidateEdits, carryRuns, parseRunChannel, runChatChannel, runChatState, runChats, runFinished, runMessage, runRoute, runStarted, runTool, runTranscripts, stopRuns, toolActions, type RunTranscripts, type Spelling } from './runs.ts';
 import { WorkItemSessions, isWorkItemSession, workItemChatState, workItemIdOf, workItemRefusal, workItemRefusals, workItemRunChatState, workItemSessionState, workItemStatus, workItemSummary, type RoutedAction, type WorkItemRecord } from './work-items.ts';
-import { WorkItemCommands, promptClosedActions, promptInputNeeded, promptOpenActions, withPrompts, workItemCommandText, type WorkItemPrompt } from './work-item-commands.ts';
+import { WorkItemCommands, promptClosedActions, promptInputNeeded, promptOpenActions, restartable, withPrompts, workItemCommandText, type WorkItemPrompt } from './work-item-commands.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
@@ -299,7 +299,7 @@ export class AgentHost {
       listed: (user, change) => this.announceWorkItems(user, change),
       transcript: (entry, actions) => this.publishWorkItemTranscript(entry, actions),
     });
-    this.workItemCommands = new WorkItemCommands(store, this.workItems.client);
+    this.workItemCommands = new WorkItemCommands(store, this.workItems.client, config.maxBudgetUsd);
   }
 
   /** Connects the Ask service, so a person can ask about a session's Work Item from its chat without reaching the crew (system ADR-0031). */
@@ -1442,6 +1442,8 @@ export class AgentHost {
     switch (action.type) {
       case 'chat/turnCancelled': return kind === 'chat' ? this.stopWorkItem(client, channel, publicId, action, origin) : 'chat/turnCancelled is dispatched on the chat channel';
       case 'chat/inputCompleted': return kind === 'chat' ? this.answerWorkItem(client, channel, entry, action, origin) : 'chat/inputCompleted is dispatched on the chat channel';
+      case 'chat/turnStarted': case 'chat/pendingMessageSet': return kind === 'chat' ? this.messageWorkItem(client, channel, publicId, action, origin) : `${action.type} is dispatched on the chat channel`;
+      case 'chat/turnResume': return kind === 'chat' ? this.tryWorkItemAgain(client, channel, publicId, action, origin) : 'chat/turnResume is dispatched on the chat channel';
       case 'chat/draftChanged': case 'chat/inputAnswerChanged': this.echo(client, channel, action, origin); return undefined;
       case 'session/activeClientSet': case 'session/activeClientRemoved': return kind === 'session' ? this.setActiveClient(client, channel, publicId, action, origin) : `${action.type} is dispatched on the session channel`;
       default: return workItemRefusal(action.type);
@@ -1475,10 +1477,59 @@ export class AgentHost {
     }
     if (entry.item.state === 'done' || entry.item.state === 'withdrawn') return workItemCommandText.ended(entry.item.id);
     const round = workItemChatState(entry, detail, this.workItemSpelling(publicId, client), this.viewOf(client, publicId)).activeTurn?.id as string | undefined;
-    const { prompt, created, replaced } = this.workItemCommands.ask(user, entry, 'withdraw', round ? { turnId: round } : {});
+    const { prompt, created, replaced } = this.workItemCommands.ask(user, entry, 'withdraw', round ? { attachTo: round } : {});
     this.reject(client, channel, action, origin, workItemCommandText.confirmStop(entry.item.id));
     if (replaced) this.publishPromptDismissed(user, replaced);
     if (created) this.publishPromptOpened(user, prompt);
+    return undefined;
+  }
+
+  /** Reads a Work Item a person commands and refuses the command when Ploeg would not restart it, or the person may not act. */
+  private async restartableWorkItem(client: Client, publicId: string, refusal: string): Promise<{ entry: WorkItemRecord } | { refused: string }> {
+    let found: Awaited<ReturnType<WorkItemSessions['session']>>;
+    try { found = await this.workItems.session(client.user, workItemIdOf(publicId)!); } catch { return { refused: 'Ploeg could not be read, so nothing changed. Try again shortly.' }; }
+    if (!found) return { refused: 'Session not found' };
+    const { entry } = found;
+    if (entry.item.state === 'withdrawn') return { refused: workItemCommandText.withdrawn };
+    if (!restartable(entry.item.state)) return { refused: refusal };
+    if (!this.workItemCommands.mayAct(client.user, entry.item.team)) return { refused: workItemCommandText.viewer(entry.item.team) };
+    return { entry };
+  }
+
+  /**
+   * A message on a Work Item that needs a person or went stale becomes the note of a restart the person confirms first, in
+   * the message's own turn. A message on a withdrawn Work Item says how Ploeg restarts it; on other work it is refused,
+   * because steering reaches the next Round, not the running Run.
+   */
+  private async messageWorkItem(client: Client, channel: string, publicId: string, action: Json, origin: Origin): Promise<string | undefined> {
+    const found = await this.restartableWorkItem(client, publicId, workItemRefusals.message);
+    if ('refused' in found) return found.refused;
+    if (action.message?.origin?.kind !== 'user') return 'Only a person\'s own message becomes a note';
+    const text = typeof action.message?.text === 'string' ? action.message.text.trim() : '';
+    if (!text) return 'Empty message';
+    if (text.length > 4096) return 'A note is at most 4096 characters';
+    const queued = action.type === 'chat/pendingMessageSet';
+    if (queued && (typeof action.id !== 'string' || !action.id)) return 'A pending message needs an id';
+    if (!queued && (typeof action.turnId !== 'string' || !/^[A-Za-z0-9_.:-]{1,128}$/.test(action.turnId))) return 'A turn needs an id';
+    const user = client.user;
+    const own = (viewer: Client) => viewer.user.id === user.id;
+    const opening = { text, origin: 'user' as const };
+    const { prompt, replaced } = this.workItemCommands.ask(user, found.entry, 'requeue', queued ? { opening } : { ownTurnId: action.turnId, opening }, text);
+    if (queued) { this.echo(client, channel, action, origin, own); this.broadcast(channel, { type: 'chat/pendingMessageRemoved', kind: action.kind, id: action.id }, undefined, own); }
+    if (replaced) this.publishPromptDismissed(user, replaced);
+    if (!queued) this.echo(client, channel, action, origin, own);
+    this.publishPromptOpened(user, prompt, !queued);
+    return undefined;
+  }
+
+  /** Try Again on a Work Item that needs a person or went stale asks, in a turn of its own, whether to restart it from Round 1; the click alone restarts nothing. */
+  private async tryWorkItemAgain(client: Client, channel: string, publicId: string, action: Json, origin: Origin): Promise<string | undefined> {
+    const found = await this.restartableWorkItem(client, publicId, workItemRefusals.tryAgain);
+    if ('refused' in found) return found.refused;
+    const { prompt, created, replaced } = this.workItemCommands.ask(client.user, found.entry, 'requeue');
+    this.reject(client, channel, action, origin, workItemCommandText.confirmTryAgain(found.entry.item.id));
+    if (replaced) this.publishPromptDismissed(client.user, replaced);
+    if (created) this.publishPromptOpened(client.user, prompt);
     return undefined;
   }
 

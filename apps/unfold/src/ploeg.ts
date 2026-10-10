@@ -65,6 +65,10 @@ export type PloegContextAdded = { context: PloegContextItem; created: boolean; d
 export const contextUploadLimit = 20 * 1024 * 1024;
 /** What the deterministic demo answers an upload: it keeps nothing and says so. */
 export const demoContextRefusal = 'The demo does not store context files.';
+/** What a requeue asks of Ploeg (Ploeg ADR-0044): the command id a retry reuses, the state the person saw, and an optional note and pool. Ploeg restarts from Round 1. */
+export type PloegRequeueCommand = { commandId: string; expectedState: PloegState; note?: string; poolUsd?: number };
+/** Ploeg's answer to a requeue: the new state and pool, and whether it replayed an earlier command with the same id. */
+export type PloegRequeued = { workItemId: string; team: string; state: string; fromRound: number; poolUsd: number | null; commandId: string | null; replayed: boolean; demo: boolean };
 export type PloegCancellation = PloegDecisionResult & { withdrawn: boolean | null; shiftId: string | null; cancelledRuns: number | null; stoppedRuns: number | null; keysBlocked: boolean | null; message: string };
 export type PloegRunFilter = { team?: string; state?: string; outcome?: string; before?: string };
 export type PloegCardStyle = { skin: string; theme: string | null };
@@ -270,6 +274,20 @@ function cancellation(data: Record<string, unknown>): Omit<PloegCancellation, ke
   const flag = (value: unknown) => typeof value === 'boolean' ? value : null;
   const shift = typeof data.shiftId === 'number' ? String(data.shiftId) : data.shiftId;
   return { withdrawn: flag(data.withdrawn), shiftId: typeof shift === 'string' && /^[1-9][0-9]{0,19}$/.test(shift) ? shift : null, cancelledRuns: count(data.cancelledRuns), stoppedRuns: count(data.stoppedRuns), keysBlocked: flag(data.keysBlocked), message: typeof data.message === 'string' && data.message.length <= 4096 && !data.message.includes('\0') ? data.message : '' };
+}
+const requeueFailures: Record<string, string> = {
+  pool_above_limit: 'Raise the Team\'s budget to try again with more.',
+  not_requeueable: 'Ploeg restarts only a Work Item that needs you or went stale and has no open Shift. Refresh to see where it stands.',
+  state_changed: 'The Work Item changed since you looked. Refresh to see where it stands.',
+  operator_owned: 'A workbench session drives this Work Item. Restart that session instead.',
+  command_conflict: 'Ploeg already took a different restart under this command. Refresh to see where it stands.',
+};
+async function requeueRefusal(response: Response): Promise<PloegError | null> {
+  if (!response.body || Number(response.headers.get('content-length')) > 65_536) return null;
+  let code = '';
+  try { const data = JSON.parse(await response.text()); code = typeof data?.error?.code === 'string' ? data.error.code : ''; } catch { return null; }
+  const message = requeueFailures[code];
+  return message ? new PloegError(response.status, code, message) : null;
 }
 const demoCancellation = 'Illustrative demo record. Nothing was cancelled: no Run was stopped, no model key or push token was blocked and the tracker was not told.';
 const unsupported = () => new PloegError(501, 'ploeg_unsupported', 'This Ploeg version does not provide activity data yet.');
@@ -782,7 +800,7 @@ export class PloegClient {
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
-  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {
+  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; requeue?: boolean; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {
     const token = this.config?.tokenEnv ? process.env[this.config.tokenEnv] : undefined;
     if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new PloegError(503, 'ploeg_credential', 'The Ploeg operator credential is unavailable. An administrator must check the connection.');
     if (token !== this.cachedToken) { this.cache.clear(); this.cachedToken = token; }
@@ -794,7 +812,7 @@ export class PloegClient {
       const response = await fetch(`${this.config!.url}/api/v1/operator/${path}`, { method: options.method ?? (post ? 'POST' : 'GET'), headers, ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}), ...(options.raw !== undefined ? { body: new Uint8Array(options.raw) } : {}), signal: AbortSignal.timeout(options.raw !== undefined ? 60_000 : options.comment ? 45_000 : 5000), redirect: 'manual' });
       if (post) this.cache.clear();
       if (!response.ok) {
-        const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : options.ask ? await askRefusal(response) : null;
+        const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : options.ask ? await askRefusal(response) : options.requeue ? await requeueRefusal(response) : null;
         await response.body?.cancel().catch(() => undefined);
         if (refusal) throw refusal;
         if (options.added && (response.status === 404 || (response.status === 400 && /^(?:events|work-items)\?/.test(path)))) throw unsupported();
@@ -1112,6 +1130,23 @@ export class PloegClient {
     if (workItemId !== id) throw invalid();
     const decided = { workItemId, team: typeof result.team === 'string' ? result.team : current.item.team, state: token(result.state), demo: false };
     return decision === 'cancel' ? { ...decided, ...cancellation(result) } : decided;
+  }
+  /** Restarts a stopped Work Item from Round 1 for an operator or administrator, as that user (Ploeg ADR-0044). The same `commandId` replays Ploeg's first answer, so a retry never restarts twice. */
+  async requeue(user: User, id: string, command: PloegRequeueCommand): Promise<PloegRequeued> {
+    if (user.role === 'viewer') throw new PloegError(403, 'forbidden', 'Viewers cannot change Ploeg work.');
+    this.connected(user);
+    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(user.id)) throw new PloegError(403, 'ploeg_actor', 'Your account identity cannot be recorded by Ploeg. Ask an administrator.');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(command.commandId)) throw new PloegError(400, 'ploeg_command', 'A requeue needs a command id of 1 to 128 identifier characters.');
+    const note = command.note?.trim() ?? '';
+    if (note.length > 4096) throw new PloegError(400, 'ploeg_requeue', 'A note is at most 4096 characters.');
+    if (command.poolUsd !== undefined && (!Number.isFinite(command.poolUsd) || command.poolUsd < 0)) throw new PloegError(400, 'ploeg_requeue', 'A pool must be a non-negative amount.');
+    if (this.demo) return { workItemId: id, team: '', state: command.expectedState, fromRound: 1, poolUsd: null, commandId: command.commandId, replayed: false, demo: true };
+    const body = { commandId: command.commandId, expectedState: command.expectedState, ...(note ? { note } : {}), ...(command.poolUsd !== undefined ? { poolUsd: command.poolUsd } : {}) };
+    const result = record(envelope(await this.request(`work-items/${id}/requeue`, true, { actor: user.id, body, requeue: true })).requeue);
+    const workItemId = identifier(typeof result.workItemId === 'number' ? String(result.workItemId) : result.workItemId);
+    if (workItemId !== id) throw invalid();
+    return { workItemId, team: typeof result.team === 'string' ? result.team : '', state: token(result.state), fromRound: typeof result.fromRound === 'number' && Number.isSafeInteger(result.fromRound) ? result.fromRound : 1, poolUsd: typeof result.poolUsd === 'number' && Number.isFinite(result.poolUsd) ? result.poolUsd : null, commandId: typeof result.commandId === 'string' ? result.commandId : null, replayed: result.replayed === true, demo: false };
   }
   /** The forge login Ploeg knows the caller by in the attribution flow: the administrator's `ploeg.forgeLogins` entry, in the demo the account id, otherwise null. Never a value the caller sets, because Ploeg compares it with the card's steward and the proposer. */
   forgeLogin(user: User): string | null {
