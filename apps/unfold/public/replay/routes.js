@@ -58,6 +58,7 @@ export const timelineRoutes = Object.freeze([
  */
 export const refusedRoutes = Object.freeze([
   { method: 'POST', path: '/api/login' }, { method: 'POST', path: '/api/logout' }, { method: 'GET', path: '/api/auth/oidc' },
+  { method: '*', path: '/api/agent-host' }, { method: '*', path: '/api/agent-host/tokens' },
   { method: '*', path: '/api/editor-credentials' }, { method: '*', path: `/api/editor-credentials/${id}` }, { method: '*', path: `/api/editor-requests/${id}` }, { method: '*', path: `/api/editor-requests/${id}/${id}` },
   { method: '*', path: '/api/links' }, { method: '*', path: `/api/links/${id}` },
   { method: 'PUT', path: '/api/me/card-identity' }, { method: '*', path: `/api/cards/${id}/world` }, { method: 'POST', path: '/api/binder/seen' }, { method: 'POST', path: `/api/packs/${id}/open` },
