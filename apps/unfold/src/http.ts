@@ -24,6 +24,7 @@ import { CardThemes, ThemeError } from './card-themes.ts';
 import { AssetError, assetLimits, maxImageSide, maxUploadBytes } from './card-assets.ts';
 import { CardArtError, CardArtGenerator, maxArtAttempts } from './card-art.ts';
 import { InsightService, maxEventPayloadBytes, parseInsightEvents } from './insight.ts';
+import { knownSecrets, withoutKnownSecrets } from './redaction.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
@@ -132,13 +133,9 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const themes = new CardThemes(store, config);
   const cardArt = new CardArtGenerator(config);
   const insight = new InsightService(store, config, applicationVersion);
-  const knownSecrets = [config.cardThemes?.ai ? process.env[config.cardThemes.ai.keyEnv] : undefined, config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined, config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, ...(config.taskSources ?? []).map(source => source.token)].filter((value): value is string => Boolean(value));
+  const secrets = knownSecrets(config);
   function sanitize<T>(value: T): T {
-    if (typeof value === 'string') {
-      let cleaned: string = value;
-      for (const secret of knownSecrets) cleaned = cleaned.split(secret).join('[redacted]');
-      return cleaned as T;
-    }
+    if (typeof value === 'string') return withoutKnownSecrets(value, secrets) as T;
     if (Array.isArray(value)) return value.map(item => sanitize(item)) as T;
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitize(item)])) as T;
     return value;

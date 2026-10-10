@@ -13,6 +13,8 @@ import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade
 import { IdleSessions, RememberedClients, ServerSequence, restoreActiveClients, saveActiveClients } from './continuity.ts';
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
 import { money } from '../../public/core/format.js';
+import { knownSecrets, plainRedactedText, withoutKnownSecrets } from '../redaction.ts';
+import { CommandLog, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel } from './terminals.ts';
 import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBaseline, sessionChatCatalog, speaksCatalog, supportedVersions } from './versions.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
@@ -75,7 +77,7 @@ type View = Pick<Client, 'user' | 'scheme' | 'protocolVersion'>;
 type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
 type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
-type Projection = { finalStop?: number; turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json>; choices: Map<string, Json>; holding?: string; startedRuns: Set<string>; finishedRuns: Set<string>; workingRun?: string; queuedInstructions: number };
+type Projection = { finalStop?: number; turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json>; choices: Map<string, Json>; holding?: string; startedRuns: Set<string>; finishedRuns: Set<string>; workingRun?: string; queuedInstructions: number; terminals: CommandLog };
 type PendingSession = { id: string; uri: string; config: Json; user: User; createdAt: string; starting?: boolean };
 type CandidateView = { files: CandidateFile[]; counts: Map<string, { added: number; removed: number }> };
 
@@ -95,6 +97,7 @@ export function parseChannel(uri: string): { kind: ChannelKind; id: string } | u
   return owner?.kind === 'session' ? { kind: 'chat', id: owner.id } : undefined;
 }
 const sessionIdFrom = (uri: string) => parseChannel(uri)?.id;
+const subscribedSessionId = (uri: string) => sessionIdFrom(uri) ?? parseTerminalChannel(uri)?.sessionId;
 const clientTurnId = /^[A-Za-z0-9_.:-]{1,128}$/;
 const actionOrigins = new WeakMap<Json, Origin>();
 const channelKey = (uri: string) => { const parsed = parseChannel(uri); return parsed ? `${parsed.kind}:${parsed.id}` : uri; };
@@ -235,8 +238,12 @@ export class AgentHost {
   /** Ploeg's tracker routes as a read-only automation catalogue. */
   readonly automations: TrackerAutomations;
 
+  private readonly redact: (text: string) => string;
+
   constructor(config: AppConfig, store: Store, engine: Engine) {
     this.config = config; this.store = store; this.engine = engine;
+    const secrets = knownSecrets(config);
+    this.redact = text => plainRedactedText(withoutKnownSecrets(text, secrets));
     this.sequence = new ServerSequence(store);
     this.knownClients = new RememberedClients(store, maxKnownClients);
     this.activeClients = restoreActiveClients(store);
@@ -264,7 +271,7 @@ export class AgentHost {
     const session = this.store.getSession(id);
     if ((session && !['completed', 'cancelled', 'failed'].includes(session.status)) || this.offering.has(id)) return false;
     const publicId = this.publicId(id);
-    return ![...this.clients].some(client => [...client.subscriptions].some(channel => sessionIdFrom(channel) === publicId));
+    return ![...this.clients].some(client => [...client.subscriptions].some(channel => subscribedSessionId(channel) === publicId));
   }
 
   private evict(id: string): void {
@@ -605,7 +612,7 @@ export class AgentHost {
   private projection(session: Session): Projection {
     let projection = this.projections.get(session.id);
     if (!projection) {
-      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map(), answers: new Map(), choices: new Map(), startedRuns: new Set(), finishedRuns: new Set(), queuedInstructions: 0 };
+      projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map(), answers: new Map(), choices: new Map(), startedRuns: new Set(), finishedRuns: new Set(), queuedInstructions: 0, terminals: new CommandLog(this.publicId(session.id), this.redact) };
       this.projections.set(session.id, projection);
       this.openTurn(projection, session, session.objective, session.createdAt, this.store.getSecret<string>(`ahp-turn:${session.id}`));
       const events = this.store.events(session.id);
@@ -620,7 +627,7 @@ export class AgentHost {
     if (projection.activeTurn) this.closeTurn(projection, 'complete', startedAt);
     const hostTurnId = `${session.id}-turn-${++projection.turnCounter}`;
     const turnId = this.acceptableTurnId(projection, requestedTurnId) ?? hostTurnId;
-    const message = { text, origin: { kind: origin }, ...(origin === 'user' && session.runs[0] ? { model: { id: composerModel(this.config).id } } : {}) };
+    const message = { text, origin: { kind: origin } };
     projection.activeTurn = { id: turnId, startedAt, message, responseParts: [], usage: undefined };
     return [this.tag(projection, { type: 'chat/turnStarted', turnId, startedAt, message }, `turn:${turnId}`)];
   }
@@ -732,7 +739,8 @@ export class AgentHost {
   private reduce(projection: Projection, session: Session, event: Event): Json[] {
     projection.cursor = event.id;
     const data = event.data as Json;
-    const actions: Json[] = [];
+    const terminal = projection.terminals.apply(event);
+    const actions: Json[] = [...terminal.actions];
     const ensureTurn = () => { if (!projection.activeTurn) actions.push(...this.openTurn(projection, session, session.objective, event.at)); return projection.activeTurn!; };
     switch (event.type) {
       case 'session.started': { ensureTurn(); actions.push(...this.addPart(projection, { kind: 'systemNotification', content: data.resumed ? 'Session resumed by the operator.' : 'Session started.' })); break; }
@@ -782,14 +790,21 @@ export class AgentHost {
         if (!toolCallId) {
           toolCallId = `${turn.id}-tool-${turn.responseParts.length + 1}`;
           projection.openTools.set(name, toolCallId);
-          const toolCall = { toolCallId, toolName: name, displayName: name, status: 'running', invocationMessage: `Running ${name}`, confirmed: 'not-needed' };
-          turn.responseParts.push({ kind: 'toolCall', toolCall });
+          turn.responseParts.push({ kind: 'toolCall', toolCall: { toolCallId, toolName: name, displayName: name, status: 'streaming' } });
           actions.push({ type: 'chat/toolCallStart', turnId: turn.id, toolCallId, toolName: name, displayName: name });
-          actions.push({ type: 'chat/toolCallReady', turnId: turn.id, toolCallId, invocationMessage: `Running ${name}`, confirmed: 'not-needed' });
         }
-        if (['completed', 'error'].includes(status)) {
-          const part = turn.responseParts.find((item: Json) => item.kind === 'toolCall' && item.toolCall.toolCallId === toolCallId)!;
-          const result = { success: status === 'completed', pastTenseMessage: status === 'completed' ? `Ran ${name}` : `${name} failed` };
+        const part = turn.responseParts.find((item: Json) => item.kind === 'toolCall' && item.toolCall.toolCallId === toolCallId)!;
+        const toolInput = terminal.command ? { toolInput: terminal.command.commandLine } : {};
+        if (part.toolCall.status === 'streaming' && status !== 'pending') {
+          part.toolCall = { ...part.toolCall, status: 'running', invocationMessage: `Running ${name}`, confirmed: 'not-needed', ...toolInput };
+          actions.push({ type: 'chat/toolCallReady', turnId: turn.id, toolCallId, invocationMessage: `Running ${name}`, confirmed: 'not-needed', ...toolInput });
+        }
+        if (terminal.content && part.toolCall.status === 'running' && part.toolCall.toolInput !== undefined && !part.toolCall.content) {
+          part.toolCall = { ...part.toolCall, content: [terminal.content] };
+          actions.push({ type: 'chat/toolCallContentChanged', turnId: turn.id, toolCallId, content: [terminal.content] });
+        }
+        if (['completed', 'error', 'failed'].includes(status)) {
+          const result = { success: status === 'completed', pastTenseMessage: status === 'completed' ? `Ran ${name}` : `${name} failed`, ...(part.toolCall.content && terminal.content ? { content: [terminal.content] } : {}) };
           part.toolCall = { ...part.toolCall, status: 'completed', ...result };
           projection.openTools.delete(name);
           actions.push({ type: 'chat/toolCallComplete', turnId: turn.id, toolCallId, result });
@@ -939,7 +954,7 @@ export class AgentHost {
       for (const client of [...this.clients]) if (Date.now() - client.checkedAt >= 60_000) this.current(client, false);
       const watched = new Map<string, Session>();
       const watchers = new Map<string, User>();
-      for (const client of this.clients) for (const channel of client.subscriptions) { const publicId = sessionIdFrom(channel); const id = publicId ? this.engineId(publicId) : undefined; if (id && !watched.has(id)) { const session = this.store.getSession(id); if (session) watched.set(id, session); } if (id && client.initialized && client.user.role !== 'viewer' && !watchers.has(id)) watchers.set(id, client.user); }
+      for (const client of this.clients) for (const channel of client.subscriptions) { const publicId = subscribedSessionId(channel); const id = publicId ? this.engineId(publicId) : undefined; if (id && !watched.has(id)) { const session = this.store.getSession(id); if (session) watched.set(id, session); } if (id && client.initialized && client.user.role !== 'viewer' && !watchers.has(id)) watchers.set(id, client.user); }
       for (const [id, session] of watched) {
         const projection = this.projection(session);
         const publicId = this.publicId(id);
@@ -949,7 +964,7 @@ export class AgentHost {
         const stop = arriving.findLast(event => finalStopTypes.has(event.type));
         if (stop) projection.finalStop = stop.id;
         const fresh = [...arriving.flatMap(event => this.reduce(projection, session, event)), ...this.settle(projection, session)];
-        for (const action of fresh) this.broadcast(chat, action, actionOrigins.get(action));
+        for (const action of fresh) this.broadcast(terminalActionChannel(action) ?? chat, action, actionOrigins.get(action));
         const watcher = watchers.get(id);
         if (watcher) this.offerNextSteps(session, watcher);
         const unread = fresh.some(action => action.type === 'chat/turnStarted' || action.type === 'chat/inputRequested' || (action.type === 'chat/toolCallReady' && action.confirmationTitle !== undefined));
@@ -1005,6 +1020,8 @@ export class AgentHost {
 
   private snapshot(client: Client, channel: string): Json {
     if (channel === rootChannel) { const state = this.rootState(client.user); client.activeSessions = state.activeSessions; return { resource: rootChannel, state, fromSeq: this.serverSeq }; }
+    const terminal = parseTerminalChannel(channel);
+    if (terminal) return { resource: channel, state: this.terminalState(client, terminal), fromSeq: this.serverSeq };
     const parsed = parseChannel(channel);
     if (!parsed) throw new RpcError(codes.notFound, 'Unknown channel');
     const pending = this.pending.get(parsed.id);
@@ -1017,6 +1034,13 @@ export class AgentHost {
     if (parsed.kind === 'session') return { resource: channel, state: this.sessionState(session, client), fromSeq: this.serverSeq };
     if (parsed.kind === 'chat') return { resource: channel, state: this.chatState(session, client), fromSeq: this.serverSeq };
     return { resource: channel, state: this.changesetState(session), fromSeq: this.serverSeq };
+  }
+
+  private terminalState(client: Client, terminal: { sessionId: string; commandId: string }): Json {
+    const session = this.sessionFor(client.user, sessionChannel(terminal.sessionId));
+    const command = session ? this.projection(session).terminals.get(terminal.commandId) : undefined;
+    if (!session || !command) throw new RpcError(codes.notFound, 'Terminal not found');
+    return this.projection(session).terminals.state(command, { session: this.sessionUri(session, client), chat: this.chatUri(session, client) });
   }
 
   private pendingSummary(pending: PendingSession, view: View): Json {
@@ -1113,6 +1137,7 @@ export class AgentHost {
       case 'sessionConfigCompletions': return sessionConfigCompletions(resolveSessionConfig(this.config, params.config, this.repositoryFromPickedFolder(params.workingDirectory)).schema, String(params.property));
       case 'createSession': return this.createSession(client, params);
       case 'createChat': return this.createChat(client, params);
+      case 'createTerminal': case 'disposeTerminal': throw new RpcError(codes.permissionDenied, noClientTerminals);
       case 'disposeSession': return this.disposeSession(client, params);
       case 'disposeChat': return {};
       case 'fetchTurns': return {};
@@ -1186,7 +1211,7 @@ export class AgentHost {
     if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
     if (['running', 'waiting_input', 'queued', 'paused', 'interrupted'].includes(session.status)) void this.engine.cancel(session.id, client.user).catch(() => {});
     const publicId = this.publicId(session.id);
-    for (const item of this.clients) for (const subscription of [...item.subscriptions]) if (sessionIdFrom(subscription) === publicId) item.subscriptions.delete(subscription);
+    for (const item of this.clients) for (const subscription of [...item.subscriptions]) if (subscribedSessionId(subscription) === publicId) item.subscriptions.delete(subscription);
     this.evict(session.id);
     if (this.activeClients.delete(publicId)) this.persistActiveClients();
     this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme) }), session.ownerId);
@@ -1563,6 +1588,8 @@ export class AgentHost {
         return;
       }
       if (channel === automationsChannel && this.automations.available) { reject(this.automations.refuse(action)); return; }
+      const terminal = parseTerminalChannel(channel);
+      if (terminal) { reject(this.sessionFor(client.user, sessionChannel(terminal.sessionId)) ? readOnlyTerminal : 'Terminal not found'); return; }
       const parsed = parseChannel(channel);
       if (!parsed) { reject('Unknown channel'); return; }
       const pending = parsed.kind !== 'changeset' ? this.pending.get(parsed.id) : undefined;
