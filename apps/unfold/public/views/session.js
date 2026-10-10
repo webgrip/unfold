@@ -402,7 +402,14 @@ function panelMarkup(session, id) {
 function composerMarkup(session) {
   if (isFinished(session) || session.status === 'exporting' || !canOperate()) return '';
   const hint = session.status === 'queued' ? 'Saved instructions reach the first role when the crew starts.' : session.status === 'paused' || session.status === 'interrupted' ? 'Saved instructions reach the role when you resume.' : 'Saved instructions reach the next role that starts. To give them to the role working now, pause and resume.';
-  return `<form class="session-composer" data-form="message"><label class="field-label" for="operator-message">Steer the next execution</label><div class="session-composer-row"><textarea id="operator-message" name="text" rows="2" maxlength="16000" placeholder="Add a constraint, clarify the objective or leave a note for the next role…" aria-describedby="operator-message-hint" required>${escape(state.draft)}</textarea>${button({ label: 'Save instruction', icon: 'send', type: 'submit' })}</div><p class="field-hint" id="operator-message-hint">${escape(hint)}</p></form>`;
+  return `<form class="session-composer" data-form="message"><label class="field-label" for="operator-message">Steer the next execution</label><div class="session-composer-row"><textarea id="operator-message" name="text" rows="2" maxlength="16000" placeholder="Add a constraint, clarify the objective or leave a note for the next role…" aria-describedby="operator-message-hint" required>${escape(state.draft)}</textarea>${button({ label: 'Save instruction', icon: 'send', type: 'submit' })}</div><p class="field-hint" id="operator-message-hint">${escape(hint)}</p>${askPointer(session)}</form>`;
+}
+
+/** The line under the steering box that sends someone who only has a question to Ask on the session's Work Item (system ADR-0031). Empty when the session has no Ploeg Work Item. */
+export function askPointer(session) {
+  const id = session.execution?.workItemId;
+  if (!id || !/^[1-9][0-9]{0,19}$/.test(String(id))) return '';
+  return `<p class="field-hint session-ask-pointer">${escape('Only want to know where it stands? ')}<a href="#work/${encodeURIComponent(id)}">${escape('Ask about this work')}</a>${escape(' on its Work Item. The agents never see a question asked there.')}</p>`;
 }
 
 function evidenceMarkup(session) {

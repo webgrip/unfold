@@ -72,3 +72,10 @@ test('Now lists your questions with the first line of each answer, linking to th
   assert.match(asksCard({ asks: { asks: [], more: false } }), /You have not asked anything yet/);
   assert.match(asksCard({ asks: { error: 'Down.' } }), /role="alert">Down\./);
 });
+
+test('the Session steering box points to Ask on its Work Item', async () => {
+  const { askPointer } = await import('../public/views/session.js');
+  assert.match(askPointer({ execution: { workItemId: '184' } }), /href="#work\/184">Ask about this work<\/a> on its Work Item\. The agents never see a question asked there\./);
+  assert.equal(askPointer({}), '');
+  assert.equal(askPointer({ execution: { workItemId: 'x"><script>' } }), '');
+});
