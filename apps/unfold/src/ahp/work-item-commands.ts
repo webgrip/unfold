@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { User } from '../types.ts';
 import type { Store } from '../store.ts';
-import { PloegError, type PloegCancellation, type PloegClient, type PloegDecisionResult, type PloegState } from '../ploeg.ts';
+import { PloegError, cancelShiftChanged, type PloegCancellation, type PloegClient, type PloegDecisionResult, type PloegState } from '../ploeg.ts';
 import { listReason } from '../../public/core/reasons.js';
 import { money } from '../../public/core/format.js';
 import type { WorkItemRecord } from './work-items.ts';
@@ -18,7 +18,7 @@ export type WorkItemCommandKind = 'decide' | 'withdraw' | 'requeue';
 export type WorkItemPrompt = {
   requestId: string; kind: WorkItemCommandKind; userId: string; workItemId: string; team: string; publicId: string;
   turnId: string; ownTurn: boolean; startedAt: string; opening: { text: string; origin: 'user' | 'systemNotification' };
-  explanation: string; request: Json; expectedState: PloegState; note?: string; raisedPoolUsd?: number;
+  explanation: string; request: Json; expectedState: PloegState; expectedShiftId?: string; note?: string; raisedPoolUsd?: number;
   response?: 'accept' | 'cancel'; answers?: Json; reply?: string; finishedAt?: string; turnState?: 'complete' | 'cancelled';
 };
 
@@ -36,7 +36,18 @@ export const workItemCommandText = {
   withdrawn: 'Ploeg restarts a withdrawn Work Item only when its task is assigned to the team again.',
   poolAboveLimit: 'Raise the Team\'s budget to try again with more.',
   unchanged: 'Nothing changed.',
+  noteSaved: 'Saved for the next Round. The running agent won\'t see it until then.',
+  cancelShiftChanged,
 } as const;
+
+/** A person's message that Ploeg stored as a note for the Work Item's next Round, shown as a finished turn of its chat. */
+export type WorkItemNote = { turnId: string; userId: string; workItemId: string; publicId: string; text: string; startedAt: string; reply: string };
+
+/** The Shift a Work Item projection shows open, which a note or a Stop names so Ploeg can refuse it once a newer attempt began. */
+export const openShiftOf = (entry: WorkItemRecord): string | undefined => entry.item.latestShift && !entry.item.latestShift.closedAt ? entry.item.latestShift.id : undefined;
+
+/** Whether a message on a Work Item in this state becomes a note for its next Round: work that is running or waits its turn. */
+export const takesNotes = (state: PloegState) => state === 'leased' || state === 'queued';
 
 const keepOpen = 20;
 
@@ -99,9 +110,14 @@ function promptTurn(prompt: WorkItemPrompt): Json {
   return prompt.finishedAt ? { ...turn, duration: duration(prompt), state: prompt.turnState ?? 'complete' } : turn;
 }
 
-/** A Work Item chat with the person's prompts in it: each in its own turn, or inside the Round turn it was asked in. */
-export function withPrompts(chat: Json, prompts: readonly WorkItemPrompt[]): Json {
-  const turns: Json[] = chat.turns.map((turn: Json) => ({ ...turn, responseParts: [...turn.responseParts] }));
+/** The finished turn a saved note shows as. */
+export function noteTurn(note: WorkItemNote): Json {
+  return { id: note.turnId, startedAt: note.startedAt, message: { text: note.text, origin: { kind: 'user' } }, responseParts: [{ kind: 'markdown', id: `${note.turnId}-reply`, content: note.reply }], duration: 0, state: 'complete' };
+}
+
+/** A Work Item chat with the person's prompts in it: each in its own turn, or inside the Round turn it was asked in; and each note they left, in its own finished turn. */
+export function withPrompts(chat: Json, prompts: readonly WorkItemPrompt[], notes: readonly WorkItemNote[] = []): Json {
+  const turns: Json[] = [...chat.turns.map((turn: Json) => ({ ...turn, responseParts: [...turn.responseParts] })), ...notes.map(noteTurn)];
   let activeTurn: Json | undefined = chat.activeTurn ? { ...chat.activeTurn, responseParts: [...chat.activeTurn.responseParts] } : undefined;
   for (const prompt of prompts) {
     const host = [...turns, ...(activeTurn ? [activeTurn] : [])].find(turn => turn.id === prompt.turnId);
@@ -145,6 +161,7 @@ export class WorkItemCommands {
   private readonly ploeg: PloegClient;
   private readonly maxPoolUsd: number;
   private readonly asked = new Map<string, WorkItemPrompt[]>();
+  private readonly noted = new Map<string, WorkItemNote[]>();
 
   /** `maxPoolUsd` is the most a restart offers when a Shift's budget ran out; Ploeg refuses a pool above its consumer's own limit. */
   constructor(store: Store, ploeg: PloegClient, maxPoolUsd: number) { this.store = store; this.ploeg = ploeg; this.maxPoolUsd = maxPoolUsd; }
@@ -154,6 +171,22 @@ export class WorkItemCommands {
 
   /** The person's prompts on one Work Item, oldest first. */
   prompts(userId: string, workItemId: string): WorkItemPrompt[] { return this.asked.get(`${userId}:${workItemId}`) ?? []; }
+
+  /** The notes the person left on one Work Item, oldest first. */
+  notes(userId: string, workItemId: string): WorkItemNote[] { return this.noted.get(`${userId}:${workItemId}`) ?? []; }
+
+  /**
+   * Stores a person's message as a Ploeg note for the Work Item's next Round, naming the Shift their projection showed
+   * open, and returns the finished turn it shows as. The running Run never sees it. Ploeg's refusal propagates as a
+   * `PloegError` with a plain sentence.
+   */
+  async note(user: User, entry: WorkItemRecord, text: string, turnId: string, expectedShiftId: string | undefined): Promise<WorkItemNote> {
+    const body = { text, ...(expectedShiftId !== undefined ? { expectedShiftId } : {}) };
+    await this.command(user, entry.workItemId, 'note', body, commandId => this.ploeg.note(user, entry.workItemId, { commandId, ...body }));
+    const note: WorkItemNote = { turnId, userId: user.id, workItemId: entry.workItemId, publicId: entry.publicId, text, startedAt: new Date().toISOString(), reply: workItemCommandText.noteSaved };
+    this.noted.set(`${user.id}:${entry.workItemId}`, [...this.notes(user.id, entry.workItemId), note].slice(-keepOpen));
+    return note;
+  }
 
   /** The question still waiting for the person's answer on one Work Item. */
   open(userId: string, workItemId: string): WorkItemPrompt | undefined { return this.prompts(userId, workItemId).find(prompt => !prompt.response); }
@@ -166,7 +199,7 @@ export class WorkItemCommands {
    * open question is closed as replaced, and returned so the host can say so. A restart carries the person's note and, when
    * the last Shift's budget ran out, offers a raised pool.
    */
-  ask(user: User, entry: WorkItemRecord, kind: WorkItemCommandKind, placement: { attachTo?: string; ownTurnId?: string; opening?: WorkItemPrompt['opening'] } = {}, note?: string): { prompt: WorkItemPrompt; created: boolean; replaced?: WorkItemPrompt } {
+  ask(user: User, entry: WorkItemRecord, kind: WorkItemCommandKind, placement: { attachTo?: string; ownTurnId?: string; opening?: WorkItemPrompt['opening']; expectedShiftId?: string } = {}, note?: string): { prompt: WorkItemPrompt; created: boolean; replaced?: WorkItemPrompt } {
     const current = this.open(user.id, entry.workItemId);
     if (current?.kind === kind && note === undefined) return { prompt: current, created: false };
     const replaced = current ? this.close(current, 'cancel', undefined, 'Replaced by your next action.') : undefined;
@@ -185,7 +218,7 @@ export class WorkItemCommands {
     const prompt: WorkItemPrompt = {
       requestId, kind, userId: user.id, workItemId: entry.workItemId, team: entry.item.team, publicId: entry.publicId,
       turnId: placement.attachTo ?? placement.ownTurnId ?? `${entry.publicId}-command-${randomUUID()}`, ownTurn, startedAt: new Date().toISOString(), opening, explanation: explanations[kind](),
-      request: requests[kind](), expectedState: entry.item.state, ...(note ? { note } : {}), ...(raisedPoolUsd !== undefined ? { raisedPoolUsd } : {}),
+      request: requests[kind](), expectedState: entry.item.state, ...(placement.expectedShiftId !== undefined ? { expectedShiftId: placement.expectedShiftId } : {}), ...(note ? { note } : {}), ...(raisedPoolUsd !== undefined ? { raisedPoolUsd } : {}),
     };
     const key = `${user.id}:${entry.workItemId}`;
     this.asked.set(key, [...this.prompts(user.id, entry.workItemId), prompt].slice(-keepOpen));
@@ -212,7 +245,8 @@ export class WorkItemCommands {
     try {
       if (prompt.kind === 'withdraw') {
         if (selected(prompt.answers, '0') !== 'withdraw') return finish(workItemCommandText.unchanged);
-        const result = await this.command(user, prompt.workItemId, 'cancel', {}, () => this.ploeg.decide(user, prompt.workItemId, 'cancel')) as PloegCancellation;
+        const guard = prompt.expectedShiftId !== undefined ? { expectedShiftId: prompt.expectedShiftId } : {};
+        const result = await this.command(user, prompt.workItemId, 'cancel', guard, commandId => this.ploeg.decide(user, prompt.workItemId, 'cancel', '', { commandId, ...guard })) as PloegCancellation;
         return finish(cancellationReply(prompt.workItemId, result), true);
       }
       if (prompt.kind === 'requeue') {
@@ -235,7 +269,7 @@ export class WorkItemCommands {
     }
   }
 
-  /** Records the command before Ploeg is called and forgets it once Ploeg answered for good; after an outage the same command, retried, keeps its id. */
+  /** Records the command before Ploeg is called and forgets it once Ploeg answered for good, a refusal or a route it lacks included; after an outage the same command, retried, keeps its id. */
   private async command<T>(user: User, workItemId: string, action: string, body: Json, call: (commandId: string) => Promise<T>): Promise<T> {
     const key = `work-item-command:${user.id}:${workItemId}`;
     const pending = this.store.getSecret<PendingCommand>(key);
@@ -246,7 +280,7 @@ export class WorkItemCommands {
       this.store.deleteSecret(key);
       return result;
     } catch (error) {
-      if (error instanceof PloegError && error.status >= 400 && error.status < 500) this.store.deleteSecret(key);
+      if (error instanceof PloegError && ((error.status >= 400 && error.status < 500) || error.status === 501)) this.store.deleteSecret(key);
       throw error;
     }
   }
