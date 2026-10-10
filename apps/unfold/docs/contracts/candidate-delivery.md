@@ -18,7 +18,7 @@ The original capture, trace and signed provenance remain available. Their `verif
 
 ## Verification policy
 
-`delivery` configuration contains a `verifierTokenEnv`, optional Docker `socketPath`, an optional `publisher` (see [Publication](#publication)), and one policy per registered repository. Policies specify:
+`delivery` configuration contains a `verifierTokenEnv`, optional Docker `socketPath`, an optional `verifier` (see [Kubernetes verifier](#kubernetes-verifier)), an optional `publisher` (see [Publication](#publication)), and one policy per registered repository. Policies specify:
 
 - `repositoryId`, `approvedBaseSha` and an absolute `approvedBaseBundle` path.
 - An immutable Docker `image` content ID (`sha256:…`) or registry digest (`name@sha256:…`). The verifier never pulls implicitly.
@@ -32,6 +32,48 @@ The policy hash includes repository identity, base, image, trusted file digests,
 Every check runs in a new nonroot container with a read-only candidate and policy mount, no network, no Linux capabilities, a read-only root filesystem, bounded resources and disposable `/tmp`. It receives no inherited workbench environment, model key, Git credential or Docker socket. The control service compares the actual Docker exit code and stdout to the fixed policy. Test count comes from these completed control-defined checks; candidate text cannot invent discovery counts. A fake success message plus a failing exit remains failure. Timeouts, missing tools, missing images, OOM and unconfirmed cleanup never pass.
 
 The local result is persisted before receipt submission. A lost HTTP response can replay that same immutable receipt after restart. A restart while a verifier was running leaves an explicit interrupted phase; it does not silently run checks again. Failed receipts are immutable and ineligible for approval. A new candidate or policy currently requires a new explicitly admitted session; a general re-verification lifecycle is future work.
+
+## Kubernetes verifier
+
+`delivery.verifier` selects where checks run. Absent or `{ "kind": "docker" }` keeps the Docker verifier above (verifier ID `unfold-docker-v1`). `kind: "kubernetes"` runs each check in its own fresh pod in a dedicated namespace (verifier ID `unfold-kubernetes-v1`):
+
+```json
+{ "kind": "kubernetes", "namespace": "unfold-verifier", "runtimeClassName": "kata", "image": "registry.example/library/busybox@sha256:…",
+  "resources": { "requests": { "cpu": "100m", "memory": "128Mi" }, "limits": { "cpu": "1", "memory": "512Mi" } },
+  "timeoutSeconds": 300, "networkProbe": { "host": "10.96.0.1", "port": 443 }, "nodeSelector": { "pool": "worker" }, "affinity": {}, "tolerations": [], "imagePullSecrets": [] }
+```
+
+| Field | Meaning |
+| --- | --- |
+| `namespace` | Where check pods run. The workbench service account needs the chart's verifier Role there. |
+| `runtimeClassName` | Default `kata`, so each check gets its own guest kernel. |
+| `image` | A digest-pinned helper image with a statically linked `/bin/busybox` (the `busybox:*-musl` variants are static; the default glibc variant is not and cannot run inside another image). It unpacks the inputs and provides the idle process and the network probe. Every policy `image` must also be `name@sha256:…`, because a bare image ID cannot be pulled. |
+| `resources` | Requests and limits for both containers. The kata RuntimeClass adds its own overhead on top. |
+| `timeoutSeconds` | The pod's `activeDeadlineSeconds` and the budget for scheduling, pulling and loading. It must exceed every policy `timeoutMs` by 30 seconds. |
+| `networkProbe` | An IP address and port that ordinary pods can reach and check pods must not. Defaults to the API server's in-cluster service address (`KUBERNETES_SERVICE_HOST`, `KUBERNETES_SERVICE_PORT`). |
+| `nodeSelector`, `affinity`, `tolerations`, `imagePullSecrets` | Passed to every check pod unchanged. |
+
+The policy hash does not include these fields. Ploeg's delivery policy binds the verifier ID, so switching between Docker and Kubernetes means registering `unfold-kubernetes-v1` there.
+
+### One check, one pod
+
+1. Before the first pod, the verifier lists NetworkPolicies in its namespace. It refuses (`verifier_network_policy_missing`, no receipt, no interrupted phase) unless a policy selecting the check pod's labels denies both ingress and egress and no policy selecting them allows any traffic back. It also refuses when it knows no probe address (`verifier_network_probe_unset`).
+2. It creates a pod labelled `app.kubernetes.io/name: unfold-verifier` and `dev.webgrip.unfold/network: none`, with `runtimeClassName`, `automountServiceAccountToken: false`, `enableServiceLinks: false`, `restartPolicy: Never`, `activeDeadlineSeconds`, a non-root user (65532), `readOnlyRootFilesystem`, no privilege escalation, every capability dropped and the `RuntimeDefault` seccomp profile. Its only volumes are `emptyDir`s: candidate, policy, helper and a memory-backed `/tmp`.
+3. An init container (`load`, the helper image) waits on standard input. The verifier attaches to it through the API server and streams one tar archive of the canonical tree (to `/candidate`) and the trusted policy files (to `/policy`) with their read-only modes, ending with a completion marker. The init container exits non-zero unless the marker arrived, so a truncated upload never starts the check. It then copies the helper binary into the helper volume.
+4. The check container runs the policy image with `/candidate`, `/policy` and the helper mounted read-only and the helper's `sleep` as its idle process. The verifier confirms the container's reported image ID carries the policy digest (`image_digest_mismatch` otherwise).
+5. It execs `busybox nc -z` against the probe address inside the pod. A connection fails the check as `network_reachable` without running it; anything other than a refused or timed-out connection is `verification_unconfirmed`.
+6. It execs the check's exact `argv` (working directory `/candidate`, environment `HOME`, `TMPDIR` and `LANG`). The exit code is the one the container runtime reports through the exec status channel; stdout and stderr arrive on separate channels, each capped at 1 MiB. The check must finish within the policy's `timeoutMs`. The container must still be running unrestarted afterwards.
+7. The pod is deleted whatever happened. A deletion the API server does not confirm fails the check as `cleanup_unconfirmed`.
+
+The comparison, test count and evidence digest are the Docker verifier's (`verificationResult`), so for the same candidate, policy and outcomes the receipt carries the same `passed`, `testCount` and `evidenceSha256`; only `verifierId` differs.
+
+Why this shape:
+
+- **Inputs travel through the API server, not the pod network.** A NetworkPolicy applies to the whole pod, so an init container that downloads the tree over the network would leave the same route open to the candidate's code. A ConfigMap or Secret is capped at 1 MiB, and the tree alone may be 64 MiB. Attaching to the init container's standard input needs no listener, no credential inside the pod and no network rule.
+- **Exec instead of container logs.** The pod log API merges stdout and stderr, and the Docker verifier compares stdout alone and hashes both separately. Exec keeps the streams apart and returns the runtime's exit status. The price is a helper binary in the check container's filesystem, mounted read-only at `/unfold-verifier`.
+- **Two network gates.** The NetworkPolicy check catches a missing or widened policy before any pod exists. The probe proves at runtime that the network plugin actually enforces it, which rendering a manifest cannot.
+
+The check pod receives the `KUBERNETES_SERVICE_*` variables Kubernetes injects into every container; the address is unreachable from it. A workbench crash mid-check leaves the pod to its `activeDeadlineSeconds`; a later verification never reuses it. [`test/delivery-kubernetes-verifier.test.ts`](../../test/delivery-kubernetes-verifier.test.ts) drives this against a fake API server that unpacks the archive, enforces its own NetworkPolicy view in the probe and serves both channel protocols (`v5.channel.k8s.io`, `v4.channel.k8s.io`).
 
 ## Workbench API
 
