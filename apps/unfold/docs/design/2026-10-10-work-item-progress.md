@@ -156,12 +156,16 @@ The callout that linked a session now reads the same statechart: the headline, t
 
 ## The recovery interface
 
-The backend work in progress adds recovery actions. This design calls them through one named interface and offers nothing until the server lists it:
+The backend landed it on 2026-10-10 (`d86a0cf4`, [contract](../contracts/api.md#recovering-a-stopped-session)). The extension reads `GET /api/sessions/{id}/recovery` for a paused, interrupted or failed session (not for a viewer, who gets 403) and passes it to the statechart:
 
-- `GET /api/sessions/{id}` may carry `recovery: { actions: [{ id: 'deliver' | 'run_again', label?, detail?, available, reason? }] }`.
-- `POST /api/sessions/{id}/recover` with `{ "action": "deliver" | "run_again" }` performs one.
+- `deliver` and `run_again` appear only when the answer lists them as available; `resume` follows the answer when it is listed, so an execution whose key Ploeg blocked is never offered Resume;
+- the answer's `summary` becomes the sentence under the headline, after the cause;
+- **Deliver approved work** calls `POST /api/sessions/{id}/deliver` after a confirmation that says Ploeg opens a pull request with the approved change and, when the verdict came from a transcript, says so first;
+- **Run again** calls `POST /api/sessions/{id}/run-again` without a confirmation, because it only queues a new session that does not start; the extension then offers **Open new session**.
 
-When the field is absent the actions are not shown, and Investigate leads.
+A Run the server halted keeps its transcript verdict with `verdictSource: 'transcript'`; the statechart shows it as "approved in its transcript", not as a finished Run's verdict.
+
+Ploeg's own detail goes through `reconcileDetail` on both the extension and the browser page: a Run Ploeg still lists as running reads **Stopped** once its Work Item is not leased or the driving session stopped, and a Shift's Round is never lower than its Runs' Rounds, so "0 Rounds" no longer sits beside a Round 1 column.
 
 ## Copy and locale
 
@@ -189,11 +193,11 @@ Three fresh reviewers saw only the rendered screenshots, the state labels and th
 
 | Gap | Why it is open |
 | --- | --- |
-| **Deliver approved work** and **Run again** | The extension calls `recovery` and `POST /api/sessions/{id}/recover`, which the concurrent backend work has not landed. Until it does, Investigate leads and neither action is shown |
-| The browser page outside the session callout | Ploeg's Run card, Rounds and the Needs-you box still read Ploeg's own record ("Stopped; open for details", the `operator` Run as Running). The stuck Run itself is being fixed in the backend |
+| The browser page outside the session callout | The Run card and the Needs-you box still read Ploeg's own record (for 184, "Stopped; open for details" until Ploeg's next release records `operator_interrupted`); the Rounds and Runs now read Stopped |
 | The session's Round | Unfold sessions do not record a Round; the extension takes it from Ploeg's latest Shift, which read 0 for 184 |
 | Now rows have no transcript verdict | The session list carries no events, so a cut-off reviewer reads "Stopped · Ploeg holds it for reconciliation" there; the Work Item panel and the Agents window outcome read the transcript |
 | The Agents window input block | Built to the shape in the 1.141 bundle and tested against the host; no desktop VS Code has rendered it yet ([VIK-1922](https://vikunja.webgrip.dev/tasks/1922) covers the live pass) |
+| Two browser flows fail on `development` itself | `feeds` (Insights tile count 10, expected 9) and `work` (two checklist notes) fail on a clean checkout of `origin/development`; every other flow, including the new `progress` flow, passes |
 | Real users | Nothing here was tested with people; the three reviews below are simulated |
 
 ## Validation status
