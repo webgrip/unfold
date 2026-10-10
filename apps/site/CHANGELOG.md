@@ -1,3 +1,10 @@
+## [unfold-site-v1.0.0-rc.6](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.5...unfold-site-v1.0.0-rc.6) (2026-10-10)
+
+### Added
+
+* **deps:** update all non-major dependencies ([4eac4fe](https://forgejo.webgrip.dev/webgrip/unfold/commit/4eac4fed2a52250797ead5679729faaf8c1a4432))
+* **site:** pop the Vouwvlieger on tap and around the hero and guard marks ([3f74c3b](https://forgejo.webgrip.dev/webgrip/unfold/commit/3f74c3b6448b733c7fd10869228cab42a84aeca7))
+
 ## [unfold-site-v1.0.0-rc.5](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.4...unfold-site-v1.0.0-rc.5) (2026-10-10)
 
 ### Added
