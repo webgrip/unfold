@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { application, createInput, login, request } from './api-support.ts';
-import { deadlineAfter, settle } from './timeframes.ts';
+import { deadlineAfter, settle, waitFor } from './timeframes.ts';
 import { ExecutionAuthority } from '../src/execution-authority.ts';
 import { chatChannel } from '../src/ahp/host.ts';
 import { connect } from './ahp-support.ts';
@@ -15,6 +15,9 @@ const outsider: User = { id: 'outsider', name: 'Outsider', role: 'operator' };
 
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
 async function until(predicate: () => boolean, reason: string) { const deadline = deadlineAfter(15_000); while (!predicate()) { if (Date.now() >= deadline) assert.fail(reason); await delay(5); } }
+
+const closeAction = async (url: string, id: string, auth: object) => (await request(url, `/api/sessions/${id}/recovery`, auth)).body.actions.find((item: { id: string }) => item.id === 'close_work_item');
+const closable = (url: string, id: string, auth: object) => waitFor(() => closeAction(url, id, auth), action => action?.available === true, { reason: 'the ended execution never finished reporting to Ploeg', withinMs: 15_000 });
 
 class ControlledExecution implements AgentRuntime {
   readonly kind = 'opencode';
@@ -636,7 +639,8 @@ test('a failed session closes its Work Item in Ploeg once, and a live session ca
   assert.equal(live.status, 409);
   f.state.remote!.expiresAt = new Date(Date.now() - 1000).toISOString();
   await until(() => f.server.app.store.getSession(session.id)?.status === 'failed', 'expired authority did not end the session');
-  f.state.remote!.state = 'failed';
+  await closable(f.server.url, session.id, auth);
+  assert.equal(f.state.remote!.state, 'failed', 'the ended execution reported its failure to Ploeg');
   const closed = await request(f.server.url, `/api/sessions/${session.id}/close-work-item`, { ...auth, method: 'POST', body: {} });
   assert.equal(closed.status, 200);
   assert.ok(closed.body.workItemClosedAt);
@@ -650,6 +654,29 @@ test('a failed session closes its Work Item in Ploeg once, and a live session ca
   await assert.rejects(f.server.app.engine.closeWorkItem(session.id, outsider), { code: 'not_found' });
 });
 
+test('the Work Item of a failed session cannot be closed while its execution is still reporting to Ploeg how it ended', async t => {
+  const f = await governed(t); const session = f.create();
+  const auth = await login(f.server.url);
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.state.remote?.state === 'running', 'execution did not start');
+  const reporting = deferred(); f.state.commandGates.set('report', reporting);
+  f.state.remote!.expiresAt = new Date(Date.now() - 1000).toISOString();
+  await until(() => f.state.commandAttempts.some(command => command.action === 'report'), 'the ended execution did not report to Ploeg');
+  assert.equal(f.server.app.store.getSession(session.id)!.status, 'failed');
+  const offered = await closeAction(f.server.url, session.id, auth);
+  assert.equal(offered.available, false);
+  assert.match(offered.unavailableReason, /still telling Ploeg/);
+  const early = await request(f.server.url, `/api/sessions/${session.id}/close-work-item`, { ...auth, method: 'POST', body: {} });
+  assert.equal(early.status, 409);
+  assert.equal(early.body.error.code, 'stopping');
+  assert.equal(f.state.commandAttempts.some(command => command.action === 'close'), false, 'Ploeg receives no close before the report');
+  reporting.resolve();
+  await closable(f.server.url, session.id, auth);
+  const closed = await request(f.server.url, `/api/sessions/${session.id}/close-work-item`, { ...auth, method: 'POST', body: {} });
+  assert.equal(closed.status, 200, closed.text);
+  assert.deepEqual(f.state.revisions.map(revision => revision.kind).slice(-2), ['execution.report', 'execution.close'], 'the close is the last word on the Work Item');
+});
+
 test('an execution admitted under an earlier team still binds after the configured team changes', async t => {
   const f = await governed(t); const session = f.create();
   const auth = await login(f.server.url);
@@ -657,7 +684,7 @@ test('an execution admitted under an earlier team still binds after the configur
   await until(() => f.state.remote?.state === 'running', 'execution did not start');
   f.state.remote!.expiresAt = new Date(Date.now() - 1000).toISOString();
   await until(() => f.server.app.store.getSession(session.id)?.status === 'failed', 'expired authority did not end the session');
-  f.state.remote!.state = 'failed';
+  await closable(f.server.url, session.id, auth);
   f.config.execution.team = 'renamed';
   f.config.ploeg.teams = ['delivery', 'renamed'];
   f.config.ploeg.userTeams = { owner: ['renamed'] };

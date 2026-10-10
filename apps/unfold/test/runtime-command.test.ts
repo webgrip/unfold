@@ -115,7 +115,9 @@ runtime.execute({session:{id:'s'},run:{id:'r'},workspace,repository:{verify:[]},
 async function pidFrom(directory: string, name: string): Promise<number> {
   const deadline = deadlineAfter(5_000);
   while (Date.now() < deadline) {
-    try { return Number(await readFile(join(directory, name), 'utf8')); } catch { await delay(25); }
+    const pid = Number(await readFile(join(directory, name), 'utf8').catch(() => ''));
+    if (Number.isInteger(pid) && pid > 0) return pid;
+    await delay(25);
   }
   assert.fail(`${name} was never written`);
 }
@@ -146,6 +148,24 @@ test('a supervisor killed before it can stop its bridge still settles the turn a
     runnerPid = await pidFrom(f.context.workspace.directory, 'runner.pid');
     const supervisor = (f.runtime as unknown as { active: Map<string, { child: { pid: number } }> }).active.get(f.context.workspace.id)!.child.pid;
     process.kill(supervisor, 'SIGKILL');
+    assert.equal(await Promise.race([settled, delay(10_000).then(() => 'hung')]), 'rejected');
+    assert.equal(await gone(runnerPid), true, 'the orphaned bridge was not reaped');
+  } finally {
+    if (runnerPid) try { process.kill(runnerPid, 'SIGKILL'); } catch {}
+    await f.cleanup();
+  }
+});
+
+test('a supervisor killed before any of its messages reach the runtime still leaves no bridge behind', { skip: process.platform === 'win32', timeout: 20_000 }, async () => {
+  const f = await fixture("import {writeFileSync} from 'node:fs';writeFileSync('runner.pid',String(process.pid));setInterval(()=>{},1000)");
+  const pending = f.runtime.execute(f.context);
+  const supervisor = (f.runtime as unknown as { active: Map<string, { child: { pid: number; removeAllListeners: (event: string) => void } }> }).active.get(f.context.workspace.id)!.child;
+  supervisor.removeAllListeners('message');
+  const settled = pending.then(() => 'resolved', () => 'rejected');
+  let runnerPid: number | undefined;
+  try {
+    runnerPid = await pidFrom(f.context.workspace.directory, 'runner.pid');
+    process.kill(supervisor.pid, 'SIGKILL');
     assert.equal(await Promise.race([settled, delay(10_000).then(() => 'hung')]), 'rejected');
     assert.equal(await gone(runnerPid), true, 'the orphaned bridge was not reaped');
   } finally {
