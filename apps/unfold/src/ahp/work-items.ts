@@ -21,11 +21,10 @@ export const isWorkItemSession = (publicId: string) => publicId.startsWith('wi-'
 /** The Ploeg Work Item id a `wi-` session id names. */
 export function workItemIdOf(publicId: string): string | undefined { return /^wi-([1-9][0-9]{0,19})$/.exec(publicId)?.[1]; }
 
-/** What the host answers each change a client asks of a Work Item session. Ploeg owns the Work Item; this projection only reads it. */
+/** What the host answers each change a client asks of a Work Item session that it does not turn into a confirmed command. Ploeg owns the Work Item. */
 export const workItemRefusals = {
   message: 'Ploeg can\'t take instructions for running work yet. Stop it, or wait until it needs you.',
-  stop: 'Stopping Work Items from the Agents window is coming; cancel it on the Work Item page.',
-  tryAgain: 'Trying a Work Item again from the Agents window is coming; requeue it on the Work Item page.',
+  tryAgain: 'Ploeg restarts a Work Item once it stopped and needs you or went stale.',
   dispose: 'A Work Item stays in Ploeg. Archive it to hide it from your Agents window.',
   readOnly: 'A Work Item is Ploeg\'s record and is read-only in the Agents window. Act on it from its Work Item page.',
 } as const;
@@ -34,7 +33,6 @@ export const workItemRefusals = {
 export function workItemRefusal(actionType: unknown): string {
   switch (actionType) {
     case 'chat/turnStarted': case 'chat/pendingMessageSet': return workItemRefusals.message;
-    case 'chat/turnCancelled': return workItemRefusals.stop;
     case 'chat/turnResume': return workItemRefusals.tryAgain;
     default: return customizationRefusal(actionType) ?? workItemRefusals.readOnly;
   }
@@ -314,6 +312,15 @@ export class WorkItemSessions {
 
   /** The fleet poller's ascending event cursor, undefined until it first read Ploeg. */
   get eventCursor(): string | undefined { return this.cursor; }
+
+  /** The Ploeg client the projection reads with, which commands on its Work Items share. */
+  get client(): PloegClient { return this.ploeg; }
+
+  /** Reads one Work Item again right after a command changed it, so its viewers see the change before the next poll. */
+  async changed(workItemId: string, team: string): Promise<void> {
+    if (!this.available) return;
+    try { await this.refresh(workItemId, team, this.host.viewers()); } catch (error) { if (!(error instanceof PloegError)) throw error; }
+  }
 
   /** Whether Ploeg's team authorization lets this viewer see a team's Work Items. */
   allows(user: User, team: string): boolean { return this.ploeg.allows(user, team); }
