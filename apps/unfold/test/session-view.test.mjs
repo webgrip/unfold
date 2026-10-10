@@ -183,6 +183,53 @@ test('the delivery gate explains a changed policy, an interrupted verification a
   assert.match(failed, /data-action="delivery-refresh"/);
 });
 
+test('with publishing enabled, a verified commit is accepted into a pull request in one action and stage 4 follows the publication', () => {
+  const receipt = { id: 'd'.repeat(32), passed: true };
+  const publishing = (delivery = {}, overrides = {}) => gated({ delivery: { configured: true, policySha256: policy, candidate, receipt, publicationEnabled: true, ...delivery }, ...overrides });
+  const offer = deliveryMarkup(publishing());
+  assert.match(offer, /data-action="delivery-publish"/);
+  assert.match(offer, /Accept and open pull request/);
+  assert.doesNotMatch(offer, /data-action="delivery-approve"/);
+  assert.doesNotMatch(offer, /Publication is disabled/);
+  assert.match(offer, /<p class="overline gate-name">Pull request<\/p><h3 class="gate-title">Opens after your decision<\/h3>/);
+  assert.doesNotMatch(deliveryMarkup(publishing({ receipt: { ...receipt, passed: false } })), /data-action="delivery-publish"/, 'a receipt that did not pass never offers publishing');
+  assert.doesNotMatch(deliveryMarkup({ ...publishing(), bootstrap: { deliveryRepositories: ['order-service'], user: { role: 'viewer' } } }), /data-action="delivery-publish"/);
+  assert.match(deliveryMarkup(publishing({ approval: { actor: 'Ryan' } })), /data-action="delivery-publish"/, 'an approved commit that is not published yet still opens its pull request');
+  assert.match(deliveryMarkup(publishing({}, { deliveryBusy: true })), /<h3 class="gate-title">Publishing…<\/h3>/);
+
+  const resuming = deliveryMarkup(publishing({ approval: { actor: 'Ryan' }, publication: { phase: 'pushed', operationId: 'pub-c', branch: 'unfold/wi-105/cccc' } }));
+  assert.match(resuming, /<h3 class="gate-title">Publishing…<\/h3><p class="gate-text">Pushing this commit to unfold\/wi-105\/cccc and opening one pull request\.<\/p>/);
+  assert.match(resuming, /Continue opening the pull request/);
+
+  const opened = publishing({ approval: { actor: 'Ryan' }, publication: { phase: 'published', operationId: 'pub-c', branch: 'unfold/wi-105/cccc', pullRequest: { number: 7, url: 'https://forge.example/acme/orders/pulls/7' } } });
+  const published = deliveryMarkup(opened);
+  assert.match(published, /<h3 class="gate-title">Pull request #7<\/h3>/);
+  assert.match(published, /href="https:\/\/forge\.example\/acme\/orders\/pulls\/7" target="_blank" rel="noopener noreferrer">.*Open pull request #7/);
+  assert.match(published, /Pull request #7 opened/);
+  assert.doesNotMatch(published, /data-action="delivery-(publish|approve)"/);
+  assert.equal(deliveryStatus(opened).label, 'Pull request #7 opened');
+  assert.doesNotMatch(deliveryMarkup(publishing({ publication: { phase: 'published', operationId: 'pub-c', branch: 'b', pullRequest: { number: 7, url: 'javascript:alert(1)' } } })), /javascript:/);
+
+  for (const phase of ['recovery_required', 'unknown']) {
+    const stuck = deliveryMarkup(publishing({ approval: { actor: 'Ryan' }, publication: { phase, operationId: 'pub-c', branch: 'b' } }));
+    assert.match(stuck, /<li class="gate-stage" data-tone="danger"><span class="gate-marker" aria-hidden="true">.*<\/span><div class="gate-body"><p class="overline gate-name">Pull request<\/p><h3 class="gate-title">Needs recovery<\/h3>/, phase);
+    assert.match(stuck, phase === 'unknown' ? /A person decides what happens next/ : /Nothing was pushed/);
+    assert.doesNotMatch(stuck, /data-action="delivery-publish"/, phase);
+  }
+  const refused = deliveryMarkup(publishing({ publicationEnabled: false, publication: { phase: 'refused', operationId: 'pub-c', branch: 'b' } }));
+  assert.match(refused, /<h3 class="gate-title">Refused<\/h3><p class="gate-text">Ploeg refused to reserve publication/);
+  assert.doesNotMatch(refused, /data-action="delivery-publish"/);
+  assert.match(deliveryMarkup(publishing({}, { deliveryPublishError: 'Candidate delivery blocked: publication refused.' })), /The pull request was not opened.*Candidate delivery blocked: publication refused\./);
+});
+
+test('with publishing disabled, the gate keeps Approve this commit and says plainly that nothing is published', () => {
+  const disabled = deliveryMarkup(gated({ delivery: { configured: true, policySha256: policy, candidate, receipt: { id: 'd'.repeat(32), passed: true }, publicationEnabled: false } }));
+  assert.match(disabled, /data-action="delivery-approve"/);
+  assert.match(disabled, /Approve this commit/);
+  assert.match(disabled, /Publication is disabled in this workbench baseline\. Approval does not push, merge or deploy\./);
+  assert.doesNotMatch(disabled, /delivery-publish|gate-name">Pull request/);
+});
+
 test('a finished session behind the delivery gate reads as awaiting your approval in the list and on its page, until the approval is recorded', () => {
   const session = gated().session;
   const bootstrap = gated().bootstrap;
