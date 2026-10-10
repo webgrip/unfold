@@ -128,8 +128,13 @@ for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
   process.exitCode = 130;
 });
 
+const slots = Math.max(1, Math.min(groups.length, Number.parseInt(process.env.UNFOLD_VERIFY_GROUPS ?? '', 10) || groups.length));
+let free = slots;
+const queued = [];
+const acquire = () => free > 0 ? (free--, Promise.resolve()) : new Promise(resolve => queued.push(resolve));
+const release = () => { const next = queued.shift(); if (next) next(); else free++; };
 const started = performance.now();
-const finished = groups.map(runGroup);
+const finished = groups.map(async group => { await acquire(); try { await runGroup(group); } finally { release(); } });
 for (const [index, group] of groups.entries()) {
   await finished[index];
   process.stdout.write(report(group));

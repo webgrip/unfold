@@ -91,6 +91,7 @@ runs:
         UNFOLD_VERIFY_RESULTS: ~/.cache/unfold-verify
         UNFOLD_VERIFY_REUSE: ${{ github.event_name == 'pull_request' }}
         UNFOLD_VERIFY_CPUS: '4'
+        UNFOLD_VERIFY_GROUPS: '2'
     - name: Container build contexts
       shell: bash
       run: |
