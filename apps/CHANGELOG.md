@@ -1,3 +1,44 @@
+## [unfold-v0.4.0-rc.58](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.57...unfold-v0.4.0-rc.58) (2026-10-10)
+
+### Added
+
+* **unfold:** keep the AHP host's serverSeq, clients and active clients across a restart ([51a5502](https://forgejo.webgrip.dev/webgrip/unfold/commit/51a5502970fcd03965ec828b3439171b4bab6d85))
+* **unfold:** list Ploeg's tracker routes as a read-only AHP automation catalogue ([cd32a43](https://forgejo.webgrip.dev/webgrip/unfold/commit/cd32a431f46c4dc1a7c6dfae77d29e23d13e4ada))
+* **unfold:** negotiate AHP 1.0 and 0.9 per client ([c93e41b](https://forgejo.webgrip.dev/webgrip/unfold/commit/c93e41b426c02750a93d1a05cbf4311a5fff8b00))
+* **unfold:** notify the owner when a session needs them ([4cdd268](https://forgejo.webgrip.dev/webgrip/unfold/commit/4cdd268647c7c08f8ad08fe6b93417b8b6f03925))
+* **unfold:** offer Try Again, yes/no questions, declines and spend notices in the AHP host ([7612b48](https://forgejo.webgrip.dev/webgrip/unfold/commit/7612b486ed2c159afa993f89c495d937b7731eb9))
+* **unfold:** read a stopped session's change before delivering it ([2c8dd84](https://forgejo.webgrip.dev/webgrip/unfold/commit/2c8dd8448fa77e0bdcddd0a631b8c2f5f4cb70d6))
+* **unfold:** reject, request changes and comment on a candidate from VS Code's Changes view ([b3d6c19](https://forgejo.webgrip.dev/webgrip/unfold/commit/b3d6c196f15ceab1c1f99f1159ed726b411fca0d))
+* **unfold:** show a session's gateway MCP server in VS Code and refuse client plugins ([c3c6c07](https://forgejo.webgrip.dev/webgrip/unfold/commit/c3c6c07ea79c5387eaaea8d0a3b0858a32739703)), references [#255](https://forgejo.webgrip.dev/webgrip/unfold/issues/255)
+* **unfold:** show each Run as a VS Code subagent with its tool calls and file diffs ([f4d2186](https://forgejo.webgrip.dev/webgrip/unfold/commit/f4d218695923f8bcad2c19bc665cfc9e023c1b46))
+* **unfold:** show the crew's commands as read-only terminals in the Agents window ([1cf1d92](https://forgejo.webgrip.dev/webgrip/unfold/commit/1cf1d92da5b4a7340b4c39c7b88519b6ea475c00))
+* **unfold:** start Agents window sessions with VS Code's own config pickers ([49f59eb](https://forgejo.webgrip.dev/webgrip/unfold/commit/49f59ebe2f17b98e49adccd2341fc93cd2620802))
+* **unfold:** turn Agents window messages no crew reads into choices ([cab2b26](https://forgejo.webgrip.dev/webgrip/unfold/commit/cab2b260651ca6069f864f2ce9c4dea35e250b1a))
+* **vscode:** calm the Work Item panel and carry the Vouwvlieger mark ([9d6221d](https://forgejo.webgrip.dev/webgrip/unfold/commit/9d6221df507103a7d35cc7c885f514c94424b8c2))
+
+### Fixed
+
+* **unfold:** label AHP budgets in the shared money format and stop stamping turns with a model ([5542eff](https://forgejo.webgrip.dev/webgrip/unfold/commit/5542eff8d240ae4a89cf02f28a720a97cf7ce47a))
+* **unfold:** say what went wrong in plain words when a session stops ([12031ce](https://forgejo.webgrip.dev/webgrip/unfold/commit/12031ceebd86815d1803a3b2c14324cb1251a228))
+
+### Docs
+
+* **unfold:** record candidate review from VS Code in ADR 0012 ([8b8aded](https://forgejo.webgrip.dev/webgrip/unfold/commit/8b8aded689ebbb975659b4d94de0cf305fb87570))
+* **unfold:** record read-only crew terminals in ADR 0012 and the agent host contract ([a918c12](https://forgejo.webgrip.dev/webgrip/unfold/commit/a918c121937c1ad464ac29ced36756cdd0fb0c98))
+* **unfold:** record Try Again, boolean questions, the decline decision and spend notices ([29aeabc](https://forgejo.webgrip.dev/webgrip/unfold/commit/29aeabc60ab0957ac8061c284f174d53ca1b8acb))
+
+### Tests
+
+* **unfold:** remove the AHP answers fixture's data directory only after its server closes ([c9d3674](https://forgejo.webgrip.dev/webgrip/unfold/commit/c9d3674679f2361e683890552db9ac59e6135458))
+
+### Build
+
+* **ploeg:** pin Ploeg v0.2.0-rc.13 ([3400bc2](https://forgejo.webgrip.dev/webgrip/unfold/commit/3400bc29ce88c673b2a6e786b5b957162d3c3951)), references [ploeg#94](https://forgejo.webgrip.dev/ploeg/issues/94)
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.4 [skip ci] ([026edbf](https://forgejo.webgrip.dev/webgrip/unfold/commit/026edbfceab5794c915903dd42e1bfd3f5ccc6f8))
+
 ## [unfold-v0.4.0-rc.57](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.56...unfold-v0.4.0-rc.57) (2026-10-10)
 
 ### Added
