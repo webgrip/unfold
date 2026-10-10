@@ -3,6 +3,7 @@ import { compactCount, count, date, duration, money, notReported, plural, relati
 import { detailReason } from './core/reasons.js';
 import { checkoutTarget } from './core/checkout.js';
 import { changedFiles, changeText, elapsedClock, ploegRunActive, reconcileDetail, sessionProgress } from './core/progress.js';
+import { effortText, termTitle, trackerReference } from './core/terms.js';
 
 const bridge = acquireVsCodeApi();
 const saved = bridge.getState() || {};
@@ -237,7 +238,7 @@ function budgetSummary(current) {
   const shift = latestShift(detail);
   const value = amount(shift?.budgetUsd) && shift.budgetUsd > 0 ? shift.budgetUsd : amount(item?.budgetUsd) && item.budgetUsd > 0 ? item.budgetUsd : amount(card?.totals?.authorizedUsd) && card.totals.authorizedUsd > 0 ? card.totals.authorizedUsd : null;
   if (value === null) return { value: notReported, note: '' };
-  return { value: money(value), note: demo ? 'demo fixture' : shift ? 'latest Shift' : 'authorized' };
+  return { value: money(value), note: demo ? 'demo fixture' : shift ? 'latest attempt' : 'authorized' };
 }
 
 function runsSummary(current) {
@@ -255,30 +256,34 @@ function runsSummary(current) {
   return { value: count(total), note };
 }
 
-function roundsSummary(current) {
-  const { detail, card } = subject(current);
-  const totals = card?.totals || {};
-  const shift = latestShift(detail);
-  const rounds = amount(totals.rounds) ? totals.rounds : amount(shift?.round) ? shift.round : null;
-  const shifts = amount(totals.shifts) ? totals.shifts : detail?.shifts ? detail.shifts.length : null;
-  return { value: rounds === null ? notReported : count(rounds), note: shifts ? plural(shifts, 'Shift') : '' };
+function attemptsOf(detail, card) {
+  const shifts = amount(card?.totals?.shifts) ? card.totals.shifts : detail?.shifts?.length ? detail.shifts.length : latestShift(detail) ? 1 : null;
+  return shifts && shifts > 0 ? shifts : null;
 }
 
-function stat(label, { value, note, live }) {
+function attemptsSummary(current) {
+  const { detail, card } = subject(current);
+  const shift = latestShift(detail);
+  const rounds = amount(card?.totals?.rounds) ? card.totals.rounds : amount(shift?.round) ? shift.round : null;
+  const attempts = attemptsOf(detail, card);
+  return { value: attempts === null ? notReported : count(attempts), note: rounds ? `${plural(rounds, 'round')} in the latest` : '', title: termTitle('shift', 'round') };
+}
+
+function stat(label, { value, note, live, title }) {
   return element('div', { className: `stat${value === notReported || value === 'Not reported yet' ? ' unknown' : ''}` },
-    element('dt', {}, label),
+    element('dt', title ? { title } : {}, label),
     element('dd', {}, element('span', { className: 'stat-value num' }, live ? element('span', { className: 'live-mark', 'aria-hidden': 'true' }) : null, value), note ? element('span', { className: 'stat-note' }, note) : null));
 }
 
-/** The facts row of the head card: cost, budget, Runs, Rounds and Team. Null before Ploeg has a Work Item. */
+/** The facts row of the head card: cost, budget, agent runs, attempts and Team. Null before Ploeg has a Work Item. */
 export function headFacts(current) {
   const { item } = subject(current);
   if (!item) return null;
   return element('dl', { className: 'stats', 'aria-label': 'Work Item facts' },
     stat('Cost', costSummary(current)),
     stat('Budget', budgetSummary(current)),
-    stat('Runs', runsSummary(current)),
-    stat('Rounds', roundsSummary(current)),
+    stat('Agent runs', runsSummary(current)),
+    stat('Attempts', attemptsSummary(current)),
     stat('Team', { value: item.team || notReported, note: '' }));
 }
 
@@ -417,7 +422,7 @@ export function spendLine(progress) {
   const title = spend.status === 'observed' ? 'As measured by the model gateway. Ploeg confirms the final amount later.' : spend.status === 'settled' ? 'Settled by Ploeg.' : '';
   return element('p', { className: 'spend-line small muted num' },
     element('span', title ? { title } : {}, figure),
-    progress.steps.length ? element('span', {}, plural(progress.steps.length, 'Run')) : null,
+    progress.steps.length ? element('span', {}, plural(progress.steps.length, 'agent run')) : null,
     seconds !== null && !progress.meta.live ? element('span', {}, duration(seconds)) : null);
 }
 
@@ -467,9 +472,9 @@ function stepReport(step, foldAlways = false) {
   const summary = text(step.summary);
   if (!summary) return null;
   if (!foldAlways && summary.length <= shortReportLength && !summary.includes('\n')) return element('div', { className: 'step-summary small' }, markdown(summary));
-  const preview = summary.replace(/[*_`#>]/g, '').replace(/\s+/g, ' ');
+  const preview = step.preview || '';
   return folded(`step:${step.id}`, { className: 'step-report' },
-    element('summary', {}, foldAlways ? null : element('span', { className: 'step-preview small' }, preview), element('span', { className: 'step-more small' }, 'Full report')),
+    element('summary', {}, foldAlways || !preview ? null : element('span', { className: 'step-preview small' }, preview), element('span', { className: 'step-more small' }, 'Full report')),
     element('div', { className: 'step-summary small' }, markdown(summary)));
 }
 
@@ -695,7 +700,7 @@ export function runGroups(detail) {
   }
   const current = id => !shift || !id || String(id) === String(shift.id);
   return [...groups.values()]
-    .map(group => ({ ...group, current: current(group.shiftId), label: group.round ? `${current(group.shiftId) ? '' : 'Earlier Shift · '}Round ${group.round}` : 'Runs', runs: group.runs.sort(oldestFirst) }))
+    .map(group => ({ ...group, current: current(group.shiftId), label: group.round ? `${current(group.shiftId) ? '' : 'Earlier attempt · '}Round ${group.round}` : 'Runs', runs: group.runs.sort(oldestFirst) }))
     .sort((a, b) => Number(b.current) - Number(a.current) || (Number(b.shiftId) || 0) - (Number(a.shiftId) || 0) || b.round - a.round);
 }
 
@@ -706,7 +711,8 @@ export function runsSection(current, { nested = false } = {}) {
   if (progressOf(current) && !nested) return null;
   const runs = detail.runs || [];
   const shift = latestShift(detail);
-  const heading = element('div', { className: 'section-heading' }, element('h2', { id: 'runs-heading' }, 'Runs'), element('span', {}, shift ? `${plural(shift.round, 'Round')} · ${shift.closedAt ? `closed ${relative(shift.closedAt)}` : `opened ${relative(shift.openedAt)}`} · ${closeReasonLabel(shift.closeReason)}` : ''));
+  const effort = shift ? effortText({ runs: runs.length, attempts: attemptsOf(detail, subject(current).card) }) : '';
+  const heading = element('div', { className: 'section-heading' }, element('h2', { id: 'runs-heading' }, 'Runs'), shift ? element('span', { title: termTitle('shift', 'round') }, [effort, shift.closedAt ? `closed ${relative(shift.closedAt)}` : `opened ${relative(shift.openedAt)}`, closeReasonLabel(shift.closeReason)].filter(Boolean).join(' · ')) : element('span', {}, ''));
   if (!runs.length) {
     const state = item?.state;
     const note = state === 'proposed' ? 'No Shift yet. One opens after a person approves the proposal.' : ['done', 'withdrawn', 'stale', 'needs_human'].includes(state) ? 'No Run ran for this Work Item.' : 'No Run has started yet. One starts when a worker of the Team takes the Work Item.';
@@ -722,7 +728,7 @@ export function runsSection(current, { nested = false } = {}) {
     if (group.runs.length > head.length) rest.push({ ...group, runs: group.runs.slice(head.length) });
   }
   const list = (groups, continued = new Set()) => groups.map(group => element('div', { className: 'run-group' },
-    element('h3', { className: 'run-group-label' }, continued.has(group.key) ? `${group.label} (continued)` : group.label),
+    element('h3', { className: 'run-group-label', ...(group.round ? { title: termTitle('round') } : {}) }, continued.has(group.key) ? `${group.label} (continued)` : group.label),
     element('ul', { className: 'run-list' }, ...group.runs.map(run => runRow(run, demo, item)))));
   const hidden = rest.reduce((total, group) => total + group.runs.length, 0);
   const body = [...list(visible), hidden ? folded('more-runs', { className: 'more-runs' }, element('summary', {}, `Show ${hidden} more ${hidden === 1 ? 'Run' : 'Runs'}`), ...list(rest, new Set(visible.map(group => group.key)))) : null];
@@ -744,11 +750,16 @@ function servedHere(url, current) {
   try { return new URL(url).host === current.host; } catch { return false; }
 }
 
-function externalLabel(id) {
-  const value = text(id);
-  if (!value) return '';
-  const label = value.includes('#') ? value : `#${value}`;
-  return label.length > 24 ? element('span', { className: 'external-id', title: label }, `${label.slice(0, 16)}…`) : label;
+function ticketLabel(item) {
+  const reference = trackerReference(item);
+  if (!reference) return '';
+  const url = safeHttps(item.url);
+  return url ? element('button', { type: 'button', className: 'link-button ticket-ref', 'data-open-url': url, title: `Open ${reference} in ${providerName(item.provider)}` }, reference) : element('span', { className: 'ticket-ref' }, reference);
+}
+
+function workItemIdentity(item, id) {
+  const external = text(item?.externalId);
+  return [`Ploeg Work Item ${id}`, external ? `${providerName(item?.provider)} id ${external}` : ''].filter(Boolean).join(' · ');
 }
 
 function metaLine(parts) {
@@ -774,13 +785,13 @@ export function header(current) {
     const url = safeHttps(item?.url);
     const target = item?.target ? `${item.target.owner}/${item.target.repo}` : '';
     return element('header', { className: 'task-header' },
-      element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark' }, brandMark()), [`${providerName(item?.provider)} · Work Item ${item?.id ?? current.workItemId}`, item?.team ? `team ${item.team}` : '', target ? `→ ${target}` : ''].filter(Boolean).join(' · ').replace(' · →', ' →').toUpperCase()),
+      element('div', { className: 'eyebrow', title: workItemIdentity(item, item?.id ?? current.workItemId) }, element('span', { className: 'brand-mark' }, brandMark()), [`${providerName(item?.provider)} · Work Item ${item?.id ?? current.workItemId}`, item?.team ? `team ${item.team}` : '', target ? `→ ${target}` : ''].filter(Boolean).join(' · ').replace(' · →', ' →').toUpperCase()),
       element('div', { className: 'title-row' },
         element('h1', {}, item?.title || `Work Item ${current.workItemId}`),
         element('div', { className: 'toolbar' }, refresh, url && !servedHere(url, current) ? element('button', { type: 'button', 'data-open-url': url, title: url }, `Open in ${providerName(item.provider)} ↗`) : null)),
       metaLine([
         item ? headerPill(current, workItemState(displayState(item, current.detail.events))) : null,
-        externalLabel(item?.externalId),
+        item ? ticketLabel(item) : '',
         amount(item?.priority) && item.priority > 0 ? `priority ${item.priority}` : '',
         item?.updatedAt ? `updated ${relative(item.updatedAt)}` : '',
       ]));

@@ -88,7 +88,7 @@ test('the Needs you lane shows flat rows with their reason chip when no reason r
   assert.doesNotMatch(html, /class="reason-band"/, 'a reason no other Work Item shares gets no header');
   for (const chip of ['Every Round ran, no result', 'Reviewer still wants changes', 'Cluster kept stopping the writer', 'Needs a decision']) assert.match(html, new RegExp(`<span class="chip" data-tone="attention" title="[^"]*"><span>${chip}</span></span>`), chip);
   assert.match(html, /<span>Not routed<\/span>/, 'the routing warning stays on its row');
-  assert.match(html, /Vikunja DEMO-9<\/span><span class="work-row-repo">[^]*?<\/span><span>Round 4<\/span>/);
+  assert.match(html, /Vikunja DEMO-9<\/span><span class="work-row-repo">[^]*?<\/span><span title="Round: [^"]+">Round 4<\/span>/);
   assert.doesNotMatch(html, /work-row-attempts/, 'rows count Rounds, not a second word for Runs');
   assert.match(html, /class="work-row-facts dots"/, 'row facts join with dots that never start a line');
   assert.doesNotMatch(html, /work-row-spend/, 'demo rows show no budget meter: nothing was spent');
@@ -189,6 +189,7 @@ test('a Work Item is referred to by its tracker key', () => {
   assert.equal(workItemRef({ id: '101', provider: 'demo', externalId: 'DEMO-1' }), 'DEMO-1');
   assert.equal(workItemRef({ id: '106', provider: 'ploeg', externalId: 'run-53-1' }), 'From Run 53');
   assert.equal(workItemRef({ id: '7', provider: 'manual', externalId: '' }), '#7');
+  assert.equal(workItemRef({ id: '184', provider: 'manual', externalId: 'de-vloer:ce265d0f9a1b4c2e8d7f6a5b4c3d2e1f' }), '#184', 'a machine identifier never stands in for a tracker key');
 });
 
 test('the review projection reads the latest Shift: pull request, branch, runs by Round, findings, verdict, spend, time and close reason', () => {
@@ -361,7 +362,7 @@ test('Runs are grouped by Shift and Round, failures first, newest Round first', 
     { id: '3', shiftId: '7', round: 2, state: 'finished', outcome: 'no_change_needed' },
     { id: '4', shiftId: '7', round: 1, state: 'finished', outcome: 'failed', failureReason: 'infra_node' },
   ];
-  assert.deepEqual(runGroups(runs, '7').map(group => [group.label, group.runs.map(run => run.id)]), [['Round 1', ['4', '2']], ['Round 2', ['3']], ['Earlier Shift · Round 1', ['1']]]);
+  assert.deepEqual(runGroups(runs, '7').map(group => [group.label, group.runs.map(run => run.id)]), [['Round 1', ['4', '2']], ['Round 2', ['3']], ['Earlier attempt · Round 1', ['1']]]);
   assert.deepEqual(runGroups([{ id: '9', round: 0, state: 'finished', outcome: 'failed' }]).map(group => group.label), ['']);
 });
 
@@ -610,7 +611,8 @@ test('a Round cell explains itself by its failures, not by the Run that never st
   live.runs = runs;
   const html = detailMarkup(live, model({ detailId: '50' }));
   assert.match(html, /<span class="round-cell-meta">5 Runs: 4 failed, 1 not started<\/span>/);
-  assert.match(html, /<span class="work-fact">5 Runs<\/span>/, 'the header counts Runs, the same word the Runs list uses');
+  assert.match(html, /<span class="work-fact" title="Round 2 of the latest attempt\. Shift: [^"]+ Round: [^"]+">5 agent runs in 2 attempts<\/span>/, 'the header says how much agent work it took in plain words, with the glossary terms on hover');
+  assert.doesNotMatch(html, /<span class="work-fact">Round \d/, 'the header does not lead with the Round jargon');
   const row = html.slice(html.indexOf('id="work-run-5"'));
   assert.doesNotMatch(row.slice(0, row.indexOf('</summary>')), /Not reported/, 'a Run that never started has no cost to report');
   assert.match(row, /Nothing ran/);

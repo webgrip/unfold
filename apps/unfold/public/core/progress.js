@@ -8,7 +8,7 @@ import { money, plural, time } from './format.js';
  * @typedef {'ready' | 'preparing' | 'working' | 'asking' | 'capturing' | 'paused' | 'stopped' | 'failed' | 'review' | 'changes_requested' | 'accepted' | 'rejected' | 'cancelled'} Phase
  * @typedef {'neutral' | 'live' | 'attention' | 'review' | 'success' | 'danger' | 'severe'} Tone
  * @typedef {{ id: string, label: string, primary?: boolean, confirm?: { title: string, detail: string, button: string }, hint?: string, outcome?: string }} ProgressAction
- * @typedef {{ id: string, role: string, mode: 'write' | 'read', state: 'done' | 'working' | 'asking' | 'paused' | 'cut_off' | 'failed' | 'cancelled' | 'waiting', label: string, tone: Tone, verdict: { key: string, label: string, tone: Tone, recorded: boolean } | null, startedAt: string, finishedAt: string, seconds: number | null, summary: string }} ProgressStep
+ * @typedef {{ id: string, role: string, mode: 'write' | 'read', state: 'done' | 'working' | 'asking' | 'paused' | 'cut_off' | 'failed' | 'cancelled' | 'waiting', label: string, tone: Tone, verdict: { key: string, label: string, tone: Tone, recorded: boolean } | null, startedAt: string, finishedAt: string, seconds: number | null, summary: string, preview: string }} ProgressStep
  */
 
 const active = ['running', 'waiting_input', 'exporting'];
@@ -120,6 +120,52 @@ export function stopReason(session, events) {
   return { code: 'interrupted', short: 'interrupted', sentence: blocker || 'This session stopped. Nothing runs until you choose what to do.', plain: blocker || 'The session stopped. Nothing runs until you choose what to do.', at, retained: Boolean(session.execution) };
 }
 
+const previewLength = 160;
+const tableLine = /^\|.*\||^:?-+:?\s*\|[\s|:-]*$/;
+const blockMarker = /^(?:>\s?)*(?:[-*+]\s+(?:\[[ xX]\]\s+)?|\d{1,9}[.)]\s+)?/;
+
+function plainInline(line) {
+  return line
+    .replace(/!?\[([^\]\n]*)\]\([^)\s]*\)/g, '$1')
+    .replace(/<(https?:\/\/[^>\s]+)>/g, '$1')
+    .replace(/`([^`\n]+)`/g, '$1')
+    .replace(/(\*\*|__|~~)(?=\S)([^\n]*?\S)\1/g, '$2')
+    .replace(/(^|[^\p{L}\p{N}])[*_](?=\S)([^*_\n]*?\S)[*_](?![\p{L}\p{N}])/gu, '$1$2')
+    .replace(/\\([\\`*_{}[\]()#+\-.!|>~])/g, '$1');
+}
+
+function shorten(text) {
+  if (text.length <= previewLength) return text;
+  const sentence = /^.{40,}?[.!?](?=\s|$)/.exec(text.slice(0, previewLength))?.[0];
+  if (sentence) return sentence;
+  const cut = text.slice(0, previewLength - 1);
+  const space = cut.lastIndexOf(' ');
+  return `${(space >= previewLength / 2 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+/**
+ * A report's one-line preview in plain text: its first paragraph of prose with the Markdown removed, cut at a sentence
+ * when it is long. Tables, code blocks, rules and headings are skipped; a report of only headings previews its first one.
+ */
+export function reportPreview(report) {
+  const lines = String(report ?? '').replace(/\r\n?/g, '\n').replace(/^\s*(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^\s*\1[^\n]*$|(?![\s\S]))/gm, '\n').split('\n');
+  const paragraph = [];
+  let heading = '';
+  for (const raw of lines) {
+    const line = raw.trim();
+    const skipped = tableLine.test(line) || /^(?:[-*_]\s*){3,}$/.test(line) || /^(`{3,}|~{3,})/.test(line);
+    const title = /^#{1,6}\s+(.*)$/.exec(line);
+    if (!line || skipped || title) {
+      if (title && !heading) heading = plainInline(title[1]);
+      if (paragraph.length) break;
+      continue;
+    }
+    const marker = blockMarker.exec(line)[0];
+    paragraph.push(`${paragraph.length && /[-*+\d]/.test(marker) ? '· ' : ''}${plainInline(line.slice(marker.length))}`);
+  }
+  return shorten((paragraph.length ? paragraph.join(' ') : heading).replace(/\s+/g, ' ').trim());
+}
+
 function stepFor(session, run, events, sessionActive, stoppedAt, now) {
   const start = ms(run.startedAt);
   const finishedRecorded = ms(run.finishedAt);
@@ -140,7 +186,7 @@ function stepFor(session, run, events, sessionActive, stoppedAt, now) {
   else if (run.status === 'failed') { state = 'failed'; label = 'Failed'; tone = 'danger'; }
   else if (run.status === 'cancelled') { state = 'cancelled'; label = 'Cancelled'; tone = 'neutral'; }
   else { state = 'done'; label = 'Finished'; tone = 'success'; }
-  return { id: run.id, roleId: run.roleId || '', role: run.roleName || run.roleId || 'Role', mode: run.mode === 'read' ? 'read' : 'write', state, label, tone, verdict, startedAt: run.startedAt || '', finishedAt: run.finishedAt || (cutOff ? stoppedAt || '' : ''), seconds, summary: text(run.summary), costUsd: amount(run.costUsd) && run.costUsd > 0 ? run.costUsd : null };
+  return { id: run.id, roleId: run.roleId || '', role: run.roleName || run.roleId || 'Role', mode: run.mode === 'read' ? 'read' : 'write', state, label, tone, verdict, startedAt: run.startedAt || '', finishedAt: run.finishedAt || (cutOff ? stoppedAt || '' : ''), seconds, summary: text(run.summary), preview: reportPreview(run.summary), costUsd: amount(run.costUsd) && run.costUsd > 0 ? run.costUsd : null };
 }
 
 /**
@@ -278,6 +324,14 @@ function resumeListed(recovery) {
   return entry ? entry.available !== false : null;
 }
 
+const acceptMeans = 'Accept records your decision in the session. It pushes, merges and publishes nothing.';
+
+/** How a person gets a finished change into their own clone, from what the session offers: '' when nothing is offered. */
+function useTheChange(change) {
+  if (change.pullRequest?.url) return `The change is in pull request #${change.pullRequest.number}.`;
+  return change.candidate === 'ready' ? 'To use the change, download it as a Git bundle or patch and apply it to your clone.' : '';
+}
+
 function actionsFor(phase, session, { reason, change, approved, unrecorded, viewer, demo, budget, recovery: listed }) {
   if (viewer) return change.viewable ? [{ id: 'view-change', label: 'View change', primary: true }] : [];
   const recovery = recoveryActions(listed);
@@ -291,6 +345,7 @@ function actionsFor(phase, session, { reason, change, approved, unrecorded, view
   const deliverAction = () => deliver && add('deliver', 'Finish and review', { outcome: 'Finishing starts no model and spends nothing. You then accept or reject the change; nothing is pushed or merged.', confirm: { title: 'Finish the session with this change?', detail: `${unrecorded ? 'The reviewer approved in its last message, then it was interrupted before Unfold recorded the review. ' : ''}Unfold captures the change${change.branch ? ` on branch ${change.branch}` : ''} and Ploeg completes the session with it. No model runs and nothing is spent. You then accept or reject the change; nothing is pushed or merged.`, button: 'Finish' } });
   const againAction = () => again && add('run-again', again.label || 'Run again', { hint: again.description || 'Creates a new session with the same brief, crew and budget. It does not start until you start it, and this session stays as it is.' });
   const viewChange = () => change.viewable && add('view-change', 'View change');
+  const download = () => change.candidate === 'ready' && add('download', 'Download change', { hint: 'Saves the captured change as a Git bundle or a patch, to apply or check out yourself.' });
   switch (phase) {
     case 'ready': add('start', 'Start'); add('open-session', 'Open session'); break;
     case 'preparing': case 'working': case 'capturing': add('open-session', 'Open session'); if (phase !== 'capturing') add('pause', 'Pause'); break;
@@ -303,9 +358,10 @@ function actionsFor(phase, session, { reason, change, approved, unrecorded, view
       viewChange(); add('open-session', 'Open session'); add('cancel', 'Cancel session…');
       break;
     case 'failed': add('investigate', 'Investigate'); againAction(); viewChange(); add('open-session', 'Open session'); break;
-    case 'review': viewChange(); add('accept', 'Accept'); add('reject', 'Reject'); if (change.pullRequest?.url) add('open-pr', `Open pull request #${change.pullRequest.number}`); break;
+    case 'review': viewChange(); download(); add('accept', 'Accept', { hint: acceptMeans, outcome: acceptMeans }); add('reject', 'Reject'); if (change.pullRequest?.url) add('open-pr', `Open pull request #${change.pullRequest.number}`); break;
     case 'changes_requested': viewChange(); againAction(); add('open-session', 'Open session'); break;
-    case 'accepted': case 'rejected': if (change.pullRequest?.url) add('open-pr', `Open pull request #${change.pullRequest.number}`); viewChange(); break;
+    case 'accepted': if (change.pullRequest?.url) add('open-pr', `Open pull request #${change.pullRequest.number}`); download(); viewChange(); break;
+    case 'rejected': if (change.pullRequest?.url) add('open-pr', `Open pull request #${change.pullRequest.number}`); viewChange(); break;
     case 'cancelled': add('open-session', 'Open session'); break;
   }
   if (list.length) list[0] = { ...list[0], primary: true };
@@ -358,12 +414,12 @@ export function sessionProgress(session, { events = [], now = Date.now(), viewer
   const changed = changeText(change);
   let headline, short, next;
   switch (phase) {
-    case 'ready': headline = 'Ready to start · nothing has run'; short = 'Ready to start'; next = 'Start the crew when the brief is right.'; break;
-    case 'preparing': headline = 'Preparing the workspace'; short = 'Preparing the workspace'; next = 'The first Role starts as soon as the workspace is ready.'; break;
+    case 'ready': headline = 'Nothing has run yet'; short = 'Ready to start'; next = 'Start the crew when the brief is right.'; break;
+    case 'preparing': headline = 'Setting up the workspace'; short = 'Preparing the workspace'; next = 'The first Role starts as soon as the workspace is ready.'; break;
     case 'working': headline = [`${capital(current?.role || 'The crew')} is working`, round ? `Round ${round}` : ''].filter(Boolean).join(' · '); short = `${capital(current?.role || 'The crew')} is working`; next = 'Nothing is needed from you now. Pause to steer.'; break;
     case 'asking': headline = `${capital(current?.role || 'The crew')} asks you a question`; short = 'Waiting for your answer'; next = 'Nothing continues until you answer.'; break;
-    case 'capturing': headline = 'Capturing the change for review'; short = 'Capturing the change'; next = 'The change is ready to view in a moment.'; break;
-    case 'paused': { const held = steps.find(step => step.state === 'paused'); headline = held ? `Paused while ${held.role} worked` : 'Paused'; } short = 'Paused'; next = 'Resume to continue; an instruction you add applies when it resumes.'; break;
+    case 'capturing': headline = 'The crew finished; packing the change for you to read'; short = 'Capturing the change'; next = 'The change is ready to view in a moment.'; break;
+    case 'paused': { const held = steps.find(step => step.state === 'paused'); headline = held ? `Held while ${held.role} worked` : 'Nothing runs until someone resumes it'; } short = 'Paused'; next = 'Resume to continue; an instruction you add applies when it resumes.'; break;
     case 'stopped': {
       const delivered = change.pullRequest ? '' : approved && change.candidate === 'ready' ? 'captured, not finished yet' : approved ? 'the session stopped before finishing' : `stopped: ${reason?.short || 'interrupted'}`;
       headline = [approved ? `${capital(lastReader.role)} approved the change` : achieved, delivered || `stopped: ${reason?.short || 'interrupted'}`].filter(Boolean).join(' · ');
@@ -373,12 +429,12 @@ export function sessionProgress(session, { events = [], now = Date.now(), viewer
       next = recovery?.summary ? `${why ? `${why} ` : ''}${recovery.summary}` : `${reason?.sentence || 'Execution stopped.'} ${offered.size ? 'You can act on it from here.' : approved ? 'This workbench does not offer delivery of approved work yet; Investigate shows the evidence, and the earlier Runs stay.' : 'Investigate shows the evidence; the earlier Runs stay.'}`;
       break;
     }
-    case 'failed': headline = `${session.failure?.stage ? `${capital(String(session.failure.stage).replaceAll('_', ' '))} failed` : 'Failed'}${session.failure?.message ? `: ${session.failure.message}` : session.blocker ? `: ${session.blocker}` : ''}`; short = 'Failed'; next = session.failure?.remediation || 'Investigate to see why; nothing retries by itself.'; break;
-    case 'review': headline = ['Ready for your review', achieved && lastReader ? lower(achieved) : '', changed].filter(Boolean).join(' · '); short = 'Ready for your review'; next = 'View the change, then accept or reject it. Nothing was pushed or merged.'; break;
+    case 'failed': { const where = session.failure?.stage ? `${capital(String(session.failure.stage).replaceAll('_', ' '))} failed` : ''; const why = text(session.failure?.message) || text(session.blocker); headline = where && why ? `${where}: ${why}` : where || why || 'No reason was reported'; } short = 'Failed'; next = session.failure?.remediation || 'Investigate to see why; nothing retries by itself.'; break;
+    case 'review': headline = [achieved, changed].filter(Boolean).join(' · ') || 'The crew finished'; short = 'Ready for your review'; next = ['View the change, then accept or reject it. Nothing was pushed or merged.', useTheChange(change)].filter(Boolean).join(' '); break;
     case 'changes_requested': headline = `${capital(lastReader?.role || 'The reviewer')} requested changes${changed ? ` · ${changed}` : ''}`; short = 'Changes requested'; next = 'Read the findings, then run it again with an instruction, or reject it.'; break;
-    case 'accepted': headline = `Accepted by ${session.review?.byName || 'a person'}`; short = 'Accepted'; next = session.review?.note || ''; break;
+    case 'accepted': headline = `Accepted by ${session.review?.byName || 'a person'}`; short = 'Accepted'; next = [session.review?.note ? `“${session.review.note}”` : '', 'The decision is recorded; nothing was pushed or merged.', useTheChange(change)].filter(Boolean).join(' '); break;
     case 'rejected': headline = `Rejected by ${session.review?.byName || 'a person'}`; short = 'Rejected'; next = session.review?.note || ''; break;
-    case 'cancelled': headline = 'Cancelled'; short = 'Cancelled'; next = 'Its history and evidence stay. Start a new session to try again.'; break;
+    case 'cancelled': headline = 'A person stopped this session'; short = 'Cancelled'; next = 'Its history and evidence stay. Start a new session to try again.'; break;
   }
   const notes = [];
   const facts = { push: (text, kind = 'other') => notes.push({ kind, text }) };
@@ -420,6 +476,12 @@ export function reconcileDetail(detail, sessions = []) {
 /** Whether a Run on Ploeg's detail is really running: only while its Work Item is leased. */
 export function ploegRunActive(item, run) {
   return run?.state === 'running' && item?.state === 'leased';
+}
+
+/** The phase and the headline as one line for a surface that shows no separate status: "Ready for your review · Reviewer approved". */
+export function progressTitle(progress) {
+  const label = progress.meta.label;
+  return progress.headline === label || progress.headline.startsWith(`${label} · `) ? progress.headline : `${label} · ${progress.headline}`;
 }
 
 /** Which Now group a session belongs to by its progress: waiting on you, ready for review, running, or none. */

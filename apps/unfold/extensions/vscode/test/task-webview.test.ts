@@ -258,3 +258,43 @@ test('a Work Item with a branch and a target repository offers to check it out; 
   assert.ok(!button(view.headCard(unrouted), 'Check out branch'));
   assert.ok(button(view.headCard(current({ workItems: [item('awaiting_review')], assignedTeams: ['silver'] }, {}, { workItemId: '42', detail: detail('awaiting_review') })), 'Check out branch'), 'a linked task panel offers it too');
 });
+
+test('the Work Item header names the tracker ticket and keeps an internal id out of sight but on hover', () => {
+  const work = (item: Record<string, unknown>) => ({ kind: 'work', workItemId: '42', detail: detail('queued', { item: { ...detail('queued').item, ...item } }), host: 'unfold.example', loadedAt: now });
+  const ticket: StubElement = view.header(work({}));
+  const reference = ticket.withClass('ticket-ref')[0];
+  assert.equal(reference?.textContent, 'VIK-1505');
+  assert.equal(reference?.dataset.openUrl, 'https://vikunja.example/tasks/1505');
+  const internal: StubElement = view.header(work({ provider: 'manual', externalId: 'de-vloer:ce265d0f9a1b4c2e8d7f', url: '' }));
+  assert.equal(internal.withClass('ticket-ref').length, 0);
+  assert.doesNotMatch(internal.textContent, /de-vloer|#de-/);
+  assert.match(internal.withClass('eyebrow')[0]?.getAttribute('title') ?? '', /^Ploeg Work Item 42 · Unfold id de-vloer:ce265d0f9a1b4c2e8d7f$/);
+});
+
+test('effort reads as agent runs and attempts, with Round and Shift explained on hover', () => {
+  const value = { kind: 'work', workItemId: '42', detail: detail('leased', { runs: [run('100'), run('101', { role: 'reviewer', writes: false })] }), card: card(), host: 'unfold.example', loadedAt: now };
+  const facts: StubElement = view.headFacts(value);
+  const attempts = facts.find('div').find(node => node.find('dt')[0]?.textContent === 'Attempts');
+  assert.ok(attempts, 'an Attempts fact replaces Rounds');
+  assert.match(attempts.find('dt')[0].getAttribute('title') ?? '', /^Shift: one Team’s whole attempt[^]*Round: a set of agent runs/);
+  assert.match(attempts.textContent, /^Attempts12 rounds in the latest$/);
+  assert.doesNotMatch(facts.textContent, /Shift|Rounds/);
+  const runs: StubElement = view.runsSection(value);
+  assert.match(runs.find('span')[0].textContent, /^2 agent runs in 1 attempt · opened /);
+  assert.equal(runs.withClass('run-group-label')[0]?.getAttribute('title')?.startsWith('Round: '), true);
+});
+
+test('a review offers the change to download, says Accept only records the decision and previews reports as plain text', () => {
+  const summary = `| File | Lines |\n|---|---|\n| README.md | 3 |\n\nUpdated **the README** so that ${'it explains the flow in more words than the panel shows on one line, '.repeat(2)}and nothing else.`;
+  const session = { id: 'session-1', title: 'Explain the flow', status: 'completed', runs: [{ id: 'r1', roleName: 'Writer', mode: 'write', status: 'completed', startedAt: ago(10), finishedAt: ago(5), summary }], artifacts: [], candidate: { status: 'ready', fileCount: 1 } };
+  const value = { kind: 'work', workItemId: '42', detail: detail('awaiting_review'), host: 'unfold.example', loadedAt: now, linked: { session, events: [], viewer: false } };
+  const head: StubElement = view.headCard(value);
+  assert.equal(head.find('h2')[0]?.textContent, 'Writer finished · 1 file', 'the headline leads with the outcome; the header pill says the state');
+  assert.ok(head.find('button').some(node => node.textContent === 'Download change' && node.dataset.sessionAction === 'download'));
+  assert.match(head.textContent, /Accept records your decision in the session\. It pushes, merges and publishes nothing\./);
+  assert.match(head.textContent, /To use the change, download it as a Git bundle or patch/);
+  const steps: StubElement = view.stepsSection(value);
+  const preview = steps.withClass('step-preview')[0]?.textContent ?? '';
+  assert.match(preview, /^Updated the README so that it explains the flow/);
+  assert.doesNotMatch(preview, /\||\*\*/);
+});

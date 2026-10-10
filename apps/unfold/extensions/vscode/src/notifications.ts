@@ -52,7 +52,7 @@ export function alertFor(session: Session, progress: Progress, detail: NeedsYouD
       return { key: at(request?.id ?? session.updatedAt), sessionId: session.id, kind, severity: 'warning', message: `${session.title}: ${what}`, actions: [{ label: 'Answer', action: 'answer', ...(request?.id ? { requestId: request.id } : {}) }, open] };
     }
     case 'review':
-      return { key: at(session.candidate?.headSha ?? session.updatedAt), sessionId: session.id, kind: 'review', severity: 'information', message: `${session.title}: ${progress.headline}`, actions: [{ label: 'Review', action: 'view-change' }, open] };
+      return { key: at(session.candidate?.headSha ?? session.updatedAt), sessionId: session.id, kind: 'review', severity: 'information', message: `${session.title}: ${progress.meta.label} · ${progress.headline}`, actions: [{ label: 'Review', action: 'view-change' }, open] };
     case 'stopped': {
       const stopped = detail.progress ?? progress;
       const offered = stopped.actions.filter(action => recoveryActions.has(action.id)).map(action => action.id);
