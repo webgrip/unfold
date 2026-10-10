@@ -529,7 +529,8 @@ test('the Work Item page offers its branch for checkout, in VS Code or as a git 
   const dialog = checkoutDialogMarkup(live, null, { origin: 'https://unfold.example' });
   assert.match(dialog, /<h2 id="confirm-title">Check out this branch<\/h2>/);
   assert.match(dialog, /href="vscode:\/\/webgrip\.unfold\/checkout\?workItem=50&amp;origin=https%3A%2F%2Funfold\.example"/);
-  assert.match(dialog, /<pre class="work-checkout-command mono">git fetch origin agent\/vik-50 &amp;&amp; git switch agent\/vik-50 &amp;&amp; git merge --ff-only origin\/agent\/vik-50<\/pre>/);
+  assert.match(dialog, /<pre class="work-checkout-command mono">git fetch origin agent\/vik-50 &amp;&amp; git worktree add \.\.\/shop-agent-vik-50 agent\/vik-50 &amp;&amp; cd \.\.\/shop-agent-vik-50 &amp;&amp; git merge --ff-only origin\/agent\/vik-50<\/pre>/);
+  assert.match(dialog, /adds a worktree for the branch beside that clone and opens it in a new window/);
   assert.match(dialog, /data-action="work-copy-command"/);
   assert.match(dialog, /a clone of acme\/shop open in VS Code/);
   assert.equal(checkoutDialogMarkup(demoDetail('114'), null), '');
