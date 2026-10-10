@@ -1,3 +1,32 @@
+## [unfold-v0.4.0-rc.50](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.49...unfold-v0.4.0-rc.50) (2026-10-10)
+
+### Added
+
+* **unfold:** Status follow-ups and separate workspace reservations ([a66cc73](https://forgejo.webgrip.dev/webgrip/unfold/commit/a66cc731ef317a8939186f73e0dae3ef6b78d8f7))
+
+### Fixed
+
+* **unfold:** close the Work Item of a failed session from its page ([3e9e8bb](https://forgejo.webgrip.dev/webgrip/unfold/commit/3e9e8bb7fa0c46c0aaf54ac348acf03c3303686e)), references [ploeg-hq/ploeg#89](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/89)
+* **unfold:** make the insight export reach a real collector ([520fa43](https://forgejo.webgrip.dev/webgrip/unfold/commit/520fa439bb2eb28f845e63fa2e630bb706538cbf)), references [#249](https://forgejo.webgrip.dev/webgrip/unfold/issues/249)
+* **unfold:** make the insight export reach a real collector ([a0a06e3](https://forgejo.webgrip.dev/webgrip/unfold/commit/a0a06e3f904fd88dceb9957040e68db1396bece8)), references [#249](https://forgejo.webgrip.dev/webgrip/unfold/issues/249)
+
+### Docs
+
+* **unfold:** record the AHP sign-in spike ([f7f9a27](https://forgejo.webgrip.dev/webgrip/unfold/commit/f7f9a27fe989cfa8784cc80c56c745cd59dea998))
+
+### Tests
+
+* **unfold:** declare the fake execution's closed flag ([4fe36bf](https://forgejo.webgrip.dev/webgrip/unfold/commit/4fe36bffb0153af19a6310158c331fced5128abb)), references [#261](https://forgejo.webgrip.dev/webgrip/unfold/issues/261) [#261](https://forgejo.webgrip.dev/webgrip/unfold/issues/261)
+
+### Build
+
+* **ploeg:** pin Ploeg v0.2.0-rc.8 ([554266d](https://forgejo.webgrip.dev/webgrip/unfold/commit/554266d997569ae9439238263046de19dcaffdaa)), references [ploeg#79](https://forgejo.webgrip.dev/ploeg/issues/79) [ploeg#80](https://forgejo.webgrip.dev/ploeg/issues/80)
+* **ploeg:** pin Ploeg v0.2.0-rc.9 ([8244a04](https://forgejo.webgrip.dev/webgrip/unfold/commit/8244a04e62545ffdfde6a7c6575b72009f36a7df)), references [#261](https://forgejo.webgrip.dev/webgrip/unfold/issues/261)
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.3 [skip ci] ([22f87bb](https://forgejo.webgrip.dev/webgrip/unfold/commit/22f87bb50f1bcb1455cda53a265f38d7cb3fa715))
+
 ## [unfold-v0.4.0-rc.49](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.48...unfold-v0.4.0-rc.49) (2026-10-09)
 
 ### Added

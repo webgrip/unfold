@@ -5,5 +5,5 @@ type: application
 home: https://forgejo.webgrip.dev/webgrip/unfold
 sources:
   - https://github.com/webgrip/unfold
-version: 0.4.0-rc.49
-appVersion: 0.4.0-rc.49
+version: 0.4.0-rc.50
+appVersion: 0.4.0-rc.50
