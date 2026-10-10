@@ -39,6 +39,12 @@ The editor credential, or the session cookie of a local-account login, stays in 
 
 The server enforces identity and session ownership. Viewers inspect visible sessions, operators change their own sessions, and administrators can access all sessions. Changing the connection invalidates pending actions so they cannot be submitted to the wrong workbench.
 
+## Use Unfold from the Agents window
+
+After you sign in, Unfold appears in VS Code's Agents window on its own, within seconds and without a reload. Its sessions show up there next to your other agents. The extension adds the workbench to `chat.remoteAgentHosts` in your default profile's user `settings.json`. It keeps your comments and other settings, and removes the entry again when you sign out. **Unfold: Connect VS Code Agents Window** does the same on demand and offers **Open Agents Window**.
+
+The entry carries a personal connection token in plain text, because that is where VS Code reads it. The extension keeps a copy in SecretStorage and reuses it while the workbench accepts it. Set `unfold.agentHost.autoConnect` to `false` to connect only through the command. If `settings.json` cannot be parsed or written, nothing changes and **Copy address** offers the manual route: in the Agents window, run **Sessions: Add Remote Agent Host…** and paste the copied `wss://…?tkn=…` address. The [operations guide](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/operations/live.md#attaching-vs-code-as-an-agent-host-client) has the details.
+
 ## See what waits on you
 
 The Unfold sidebar opens on **Now**, the same list as the browser's Now page:

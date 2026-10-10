@@ -82,7 +82,7 @@
       },
       {
         "command": "unfold.connectAgentHost",
-        "title": "Attach as Agent Host (chat.remoteAgentHosts)",
+        "title": "Connect VS Code Agents Window",
         "category": "Unfold",
         "icon": "$(remote)"
       },
@@ -353,6 +353,12 @@
           "default": {},
           "scope": "application",
           "markdownDescription": "Git remote host to forge web host, for **Check Out Branch** when a forge's SSH host differs from the host in its pull request links, for example `{\"ssh.git.example.com\": \"git.example.com\"}`. Hosts that differ only in their first label under a shared parent domain, such as `forgejo-ssh.example.dev` and `forgejo.example.dev`, already match without an entry."
+        },
+        "unfold.agentHost.autoConnect": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "After you sign in, add this workbench to VS Code's Agents window (`chat.remoteAgentHosts` in your user settings) so its sessions appear there. The connection token is stored in that setting in plain text, as VS Code keeps it. Signing out removes the entry. Turn this off to connect only through **Unfold: Connect VS Code Agents Window**."
         }
       }
     },
@@ -815,7 +821,7 @@
     ]
   },
   "scripts": {
-    "compile": "node scripts/sync-core.mjs && tsc -p .",
+    "compile": "node scripts/sync-core.mjs && tsc -p . && node scripts/vendor-runtime.mjs",
     "watch": "node scripts/sync-core.mjs && tsc -p . --watch",
     "test": "node scripts/sync-core.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test ${UNFOLD_TEST_CONCURRENCY:+--test-concurrency=$UNFOLD_TEST_CONCURRENCY} --test-timeout=120000 --test-force-exit test/*.test.ts",
     "vscode:prepublish": "npm run compile",
@@ -826,6 +832,7 @@
     "@types/node": "24.19.1",
     "@types/vscode": "1.99.1",
     "@vscode/vsce": "4.0.0",
+    "jsonc-parser": "3.3.1",
     "ovsx": "1.2.0",
     "typescript": "7.0.2"
   },

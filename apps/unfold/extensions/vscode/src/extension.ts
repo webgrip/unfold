@@ -16,7 +16,7 @@ import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome }
 import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor, plainText, providerNames } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
 import { linkedAccounts, type AccountChoice } from './accounts.js';
-import { hasAgentHost, withAgentHost, withoutIssuedAgentHost, type AgentHostEntry } from './agent-host.js';
+import { SettingsFileError, agentHostStore, attachAgentHost, connectionAddress, detachAgentHost, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
 import { TaskPanels, type TaskPanelHost } from './task-panel.js';
 import { checkOutWorkItemBranch } from './checkout.js';
@@ -137,6 +137,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     register('review', async value => { const id = await this.choose(value, 'Review which session?'); if (!id) return; const decision = await vscode.window.showQuickPick([{ label: '$(check) Accept', description: 'The outcome is fit to take further', value: 'accepted' as const }, { label: '$(circle-slash) Reject', description: 'Say why so the next attempt can use it', value: 'rejected' as const }], { title: 'Record your review', ignoreFocusOut: true }); if (decision) await this.review(id, decision.value); });
     this.timer = this.poll();
     void this.refresh();
+    void this.attachAgentHostOnStart();
   }
 
   client() { return this.current; }
@@ -351,7 +352,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
           browserLogin(client, { open: async url => { await vscode.env.openExternal(vscode.Uri.parse(url)); }, showCode: userCode => progress.report({ message: codePrompt(userCode) }), cancelled: () => token.isCancellationRequested, sleep: ms => new Promise(resolve => setTimeout(resolve, ms)) }, origin));
         if (!signedIn) return;
         this.cachedBootstrap = await this.current.bootstrap();
-        await this.renewAgentHost();
+        await this.autoAttachAgentHost();
         await this.refresh(true);
         await vscode.commands.executeCommand('unfold.now.focus');
         return;
@@ -362,7 +363,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       if (!password) return;
       await this.current.login(name.trim(), password);
       this.cachedBootstrap = await this.current.bootstrap();
-      await this.renewAgentHost();
+      await this.autoAttachAgentHost();
     }
     await this.refresh(true);
     await vscode.commands.executeCommand('unfold.now.focus');
@@ -385,18 +386,71 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     try { return (await target.request<{ address?: string }>('/api/agent-host')).address; } catch { return undefined; }
   }
 
-  private async renewAgentHost(): Promise<void> {
-    const address = await this.agentHostAddress(this.current);
-    if (!address || !hasAgentHost(vscode.workspace.getConfiguration().get<AgentHostEntry[]>('chat.remoteAgentHosts'), address)) return;
-    await this.connectAgentHost(true).catch(() => undefined);
+  private agentHostStore(): AgentHostStore {
+    return agentHostStore(vscode.workspace.getConfiguration(), userSettingsFile(this.context.globalStorageUri.fsPath, { appName: vscode.env.appName, platform: process.platform, env: process.env, home: homedir() }));
+  }
+
+  private async mintAgentHostToken(target: UnfoldClient): Promise<IssuedAgentHost> {
+    const issued = await target.request<{ token: string; vscodeSetting: { entry: { address: string; name: string; connectionToken: string } } }>('/api/agent-host/tokens', 'POST', { label: `VS Code on ${vscode.env.machineId.slice(0, 8)}` });
+    return { token: issued.token, entry: issued.vscodeSetting.entry };
+  }
+
+  private async reusableAgentHostToken(target: UnfoldClient, address: string): Promise<string> {
+    const key = this.agentHostKey(target);
+    const stored = await this.context.secrets.get(key);
+    if (stored && (await probeAgentHostToken(address, stored)) !== 'invalid') return stored;
+    const issued = await this.mintAgentHostToken(target);
+    await this.context.secrets.store(key, issued.token);
+    return issued.token;
+  }
+
+  private async attachAgentHostTo(target: UnfoldClient, when: 'always' | 'missing' | 'present'): Promise<AttachOutcome | undefined> {
+    const bootstrap = await this.bootstrap();
+    if (bootstrap.user.role === 'viewer') {
+      if (when === 'always') throw new Error('Your viewer account can inspect sessions. An operator account is required to connect the Agents window.');
+      return undefined;
+    }
+    const address = await this.agentHostAddress(target);
+    if (!address) {
+      if (when === 'always') throw new Error(`The workbench at ${new URL(target.origin).host} does not serve the Agent Host Protocol.`);
+      return undefined;
+    }
+    const key = this.agentHostKey(target);
+    return attachAgentHost({
+      store: this.agentHostStore(),
+      address,
+      storedToken: await this.context.secrets.get(key),
+      when,
+      probe: token => probeAgentHostToken(address, token),
+      mint: () => this.mintAgentHostToken(target),
+      remember: token => this.context.secrets.store(key, token),
+    });
+  }
+
+  private async autoAttachAgentHost(): Promise<void> {
+    const target = this.current;
+    try { await this.attachAgentHostTo(target, settings().get('agentHost.autoConnect', true) ? 'always' : 'present'); }
+    catch (error) { if (error instanceof SettingsFileError) void this.perform(() => this.settingsFileProblem(target, error)); }
+  }
+
+  private async attachAgentHostOnStart(): Promise<void> {
+    if (!settings().get('agentHost.autoConnect', true) || this.configurationError) return;
+    await this.attachAgentHostTo(this.current, 'missing').catch(() => undefined);
+  }
+
+  private async settingsFileProblem(target: UnfoldClient, error: SettingsFileError): Promise<void> {
+    const choice = await vscode.window.showWarningMessage(`${error.message} Fix the file, or add Unfold by hand: in the Agents window run Sessions: Add Remote Agent Host… and paste the address.`, 'Copy address', 'Open settings.json');
+    if (choice === 'Open settings.json') await vscode.window.showTextDocument(vscode.Uri.file(error.path));
+    if (choice !== 'Copy address') return;
+    const address = await this.agentHostAddress(target);
+    if (!address) throw new Error(`The workbench at ${new URL(target.origin).host} does not serve the Agent Host Protocol.`);
+    await vscode.env.clipboard.writeText(connectionAddress(address, await this.reusableAgentHostToken(target, address)));
+    void vscode.window.showInformationMessage('Copied the Agents window address. It contains your connection token; paste it only into Sessions: Add Remote Agent Host….');
   }
 
   private async forgetAgentHost(target: UnfoldClient, address: string): Promise<void> {
-    const configuration = vscode.workspace.getConfiguration();
-    const entries = configuration.get<AgentHostEntry[]>('chat.remoteAgentHosts');
-    const remaining = withoutIssuedAgentHost(entries, address, await this.context.secrets.get(this.agentHostKey(target)));
-    if (remaining.length !== (entries ?? []).length) await configuration.update('chat.remoteAgentHosts', remaining, vscode.ConfigurationTarget.Global);
-    await this.context.secrets.delete(this.agentHostKey(target));
+    try { await detachAgentHost(this.agentHostStore(), address, await this.context.secrets.get(this.agentHostKey(target))); }
+    finally { await this.context.secrets.delete(this.agentHostKey(target)); }
   }
 
   private sessionId(value: SessionRef): string | undefined {
@@ -483,15 +537,17 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     return result;
   }
 
-  async connectAgentHost(silent = false): Promise<void> {
+  async connectAgentHost(): Promise<void> {
     const target = this.current;
-    const bootstrap = await this.bootstrap();
-    if (bootstrap.user.role === 'viewer') throw new Error('Your viewer account can inspect sessions. An operator account is required to attach an agent host.');
-    const issued = await target.request<{ token: string; address: string; vscodeSetting: { key: string; entry: { address: string; name: string; connectionToken: string } } }>('/api/agent-host/tokens', 'POST', { label: `VS Code on ${vscode.env.machineId.slice(0, 8)}` });
-    const configuration = vscode.workspace.getConfiguration();
-    await configuration.update(issued.vscodeSetting.key, withAgentHost(configuration.get<AgentHostEntry[]>(issued.vscodeSetting.key), issued.vscodeSetting.entry), vscode.ConfigurationTarget.Global);
-    await this.context.secrets.store(this.agentHostKey(target), issued.token);
-    if (!silent) void vscode.window.showInformationMessage(`Unfold at ${new URL(target.origin).host} is registered as an agent host in ${issued.vscodeSetting.key}. Its sessions appear in the agent sessions view of VS Code 1.136 and later; the connection token was stored in your user settings.`);
+    let outcome: AttachOutcome | undefined;
+    try { outcome = await this.attachAgentHostTo(target, 'always'); }
+    catch (error) { if (error instanceof SettingsFileError) { await this.settingsFileProblem(target, error); return; } throw error; }
+    const openAgentsWindow = 'workbench.action.openAgentsWindow';
+    const canOpen = (await vscode.commands.getCommands(true)).includes(openAgentsWindow);
+    const host = new URL(target.origin).host;
+    const message = outcome?.status === 'unchanged' ? `Unfold at ${host} is already in the VS Code Agents window.` : `Unfold at ${host} now appears in the VS Code Agents window. Its connection token is stored in your user settings, as VS Code keeps it.`;
+    const choice = await vscode.window.showInformationMessage(message, ...(canOpen ? ['Open Agents Window'] : []));
+    if (choice === 'Open Agents Window') await vscode.commands.executeCommand(openAgentsWindow);
   }
 
   async create(): Promise<void> {
