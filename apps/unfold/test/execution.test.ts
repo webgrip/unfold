@@ -713,7 +713,9 @@ test('a stranded approved session offers delivery and rejects instructions for a
   assert.deepEqual(recovery.body.review, { runId: f.server.app.store.getSession(session.id)!.runs[1].id, roleName: 'Reviewer', verdict: 'approve', source: 'transcript' });
   assert.deepEqual(recovery.body.execution, { state: 'interrupted', stopConfirmed: true, leaseExpired: false, canPayAgain: false });
   const actions = Object.fromEntries(recovery.body.actions.map((action: any) => [action.id, action]));
-  assert.deepEqual(Object.keys(actions), ['deliver', 'resume', 'run_again', 'cancel']);
+  assert.deepEqual(Object.keys(actions), ['capture', 'deliver', 'resume', 'run_again', 'cancel']);
+  assert.equal(actions.capture.available, true);
+  assert.equal(actions.capture.path, `/api/sessions/${session.id}/capture`);
   assert.equal(actions.deliver.available, true);
   assert.equal(actions.deliver.path, `/api/sessions/${session.id}/deliver`);
   assert.equal(actions.resume.available, false);
@@ -753,6 +755,33 @@ test('delivering approved work captures the candidate first and completes the ex
   const again = await request(f.server.url, `/api/sessions/${session.id}/deliver`, { ...auth, method: 'POST', body: {} });
   assert.equal(again.status, 409);
   assert.equal(again.body.error.code, 'not_deliverable');
+});
+
+test('capturing the change before delivery keeps the session stopped, and delivery reuses that candidate', async t => {
+  const { f, session } = await strandedAfterApproval(t);
+  const auth = await login(f.server.url);
+  const revision = f.state.remote!.revision;
+  const commands = f.state.commandAttempts.length;
+  let captures = 0;
+  f.runtime.captureCandidate = async () => { captures++; return readyCandidate; };
+  const captured = await request(f.server.url, `/api/sessions/${session.id}/capture`, { ...auth, method: 'POST', body: {} });
+  assert.equal(captured.status, 200, captured.text);
+  assert.equal(captured.body.status, 'interrupted', 'capturing does not deliver');
+  assert.equal(captured.body.candidate.status, 'ready');
+  assert.equal(f.state.remote!.revision, revision, 'capturing sends Ploeg nothing');
+  assert.equal(f.state.commandAttempts.length, commands);
+  assert.equal(f.runtime.calls, 2, 'capturing makes no model call');
+  assert.ok(f.server.app.store.getSession(session.id)!.workspace, 'the workspace stays for delivery');
+  const recovery = await request(f.server.url, `/api/sessions/${session.id}/recovery`, auth);
+  const actions = Object.fromEntries(recovery.body.actions.map((action: any) => [action.id, action]));
+  assert.equal(actions.capture.available, false);
+  assert.match(actions.capture.unavailableReason, /already captured/);
+  assert.equal(actions.deliver.available, true, 'a captured change can still be delivered');
+  const delivered = await request(f.server.url, `/api/sessions/${session.id}/deliver`, { ...auth, method: 'POST', body: {} });
+  assert.equal(delivered.status, 200, delivered.text);
+  assert.equal(delivered.body.status, 'completed');
+  assert.equal(captures, 1, 'delivery reuses the reviewed candidate instead of capturing again');
+  assert.deepEqual(f.state.commandAttempts.slice(-2).map(command => command.action), ['resume', 'report']);
 });
 
 test('run again creates a queued session with the same brief and never starts it', async t => {

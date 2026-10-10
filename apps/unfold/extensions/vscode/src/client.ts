@@ -155,6 +155,7 @@ export class UnfoldClient {
   history(id: string, after = 0): Promise<SessionEvent[]> { return this.request(`/api/sessions/${identifier(id)}/history?after=${Math.max(0, Math.floor(after))}`); }
   investigation(id: string): Promise<Investigation> { return this.request(`/api/sessions/${identifier(id)}/investigation`); }
   recovery(id: string): Promise<Recovery> { return this.request(`/api/sessions/${identifier(id)}/recovery`); }
+  capture(id: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/capture`, 'POST', {}); }
   recover(id: string, action: RecoveryAction): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/${action === 'deliver' ? 'deliver' : 'run-again'}`, 'POST', {}); }
   permissions(id: string): Promise<Permission[]> { return this.request(`/api/sessions/${identifier(id)}/permissions`); }
   create(input: SessionInput): Promise<Session> { return this.request('/api/sessions', 'POST', input); }

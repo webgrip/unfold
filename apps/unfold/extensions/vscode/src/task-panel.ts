@@ -44,7 +44,7 @@ type Inbound = { type?: unknown; id?: unknown; team?: unknown; url?: unknown; ac
 const teamName = (value: unknown): string | undefined => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(value) ? value : undefined;
 const workItemPattern = /^[1-9][0-9]{0,19}$/;
 const reason = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
-const sessionActions = new Set(['open-session', 'answer', 'start', 'pause', 'resume', 'cancel', 'accept', 'reject', 'investigate', 'view-change', 'deliver', 'run-again']);
+const sessionActions = new Set(['open-session', 'answer', 'start', 'pause', 'resume', 'cancel', 'accept', 'reject', 'investigate', 'view-change', 'capture', 'deliver', 'run-again']);
 const sessionPattern = /^[a-zA-Z0-9_-]{1,80}$/;
 
 export class TaskPanel implements vscode.Disposable {

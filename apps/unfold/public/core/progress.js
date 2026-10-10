@@ -139,7 +139,89 @@ function stepFor(session, run, events, sessionActive, stoppedAt, now) {
   else if (run.status === 'failed') { state = 'failed'; label = 'Failed'; tone = 'danger'; }
   else if (run.status === 'cancelled') { state = 'cancelled'; label = 'Cancelled'; tone = 'neutral'; }
   else { state = 'done'; label = 'Finished'; tone = 'success'; }
-  return { id: run.id, role: run.roleName || run.roleId || 'Role', mode: run.mode === 'read' ? 'read' : 'write', state, label, tone, verdict, startedAt: run.startedAt || '', finishedAt: run.finishedAt || (cutOff ? stoppedAt || '' : ''), seconds, summary: text(run.summary), costUsd: amount(run.costUsd) && run.costUsd > 0 ? run.costUsd : null };
+  return { id: run.id, roleId: run.roleId || '', role: run.roleName || run.roleId || 'Role', mode: run.mode === 'read' ? 'read' : 'write', state, label, tone, verdict, startedAt: run.startedAt || '', finishedAt: run.finishedAt || (cutOff ? stoppedAt || '' : ''), seconds, summary: text(run.summary), costUsd: amount(run.costUsd) && run.costUsd > 0 ? run.costUsd : null };
+}
+
+/**
+ * The labelled findings in a reviewer's report: bullets that open with a bold label, such as "**Links:** all resolve".
+ * The labels are the reviewer's own words; an empty list when the report has none.
+ */
+export function reportFindings(report) {
+  const source = String(report || '');
+  const found = [];
+  for (const match of source.matchAll(/(?:^|\n|\s)[-*]\s+\*\*([^*\n]{1,60}?):?\*\*:?\s*([\s\S]*?)(?=\s[-*]\s+\*\*[^*\n]{1,60}\*\*|\n\n|\n[-*]\s|$)/g)) {
+    const label = text(match[1]).replace(/:$/, '');
+    const detail = text(match[2]).replace(/\s*VERDICT:[\s\S]*$/i, '').replace(/\s+/g, ' ').trim();
+    if (label && detail && !/^verdict$/i.test(label)) found.push({ label, detail: detail.length > 280 ? `${detail.slice(0, 279)}…` : detail });
+    if (found.length === 12) break;
+  }
+  return found;
+}
+
+/** The checks the session's Runs recorded as evidence, each with its command and whether it passed. */
+export function checksOf(session) {
+  return (session?.artifacts || []).filter(artifact => artifact?.kind === 'test' && text(artifact.name)).map(artifact => {
+    const output = text(artifact.content);
+    const exit = /\bexit(?: code)?:?\s*(-?\d+)/i.exec(output);
+    const passed = exit ? Number(exit[1]) === 0 : /\b(?:pass(?:ed)?|ok)\b/i.test(output) && !/\bfail/i.test(output) ? true : /\bfail/i.test(output) ? false : null;
+    return { id: artifact.id, name: text(artifact.name), passed, output: output.length > 400 ? `${output.slice(0, 399)}…` : output };
+  });
+}
+
+/**
+ * Cost and tokens per Role: the gateway's requests attributed to each Role when the session has them, otherwise the
+ * cost each Run reported. Roles with nothing reported read null, never a made-up zero.
+ */
+export function roleCosts(session, steps) {
+  const requests = Array.isArray(session?.requests) ? session.requests.filter(entry => entry && text(entry.roleId)) : [];
+  const roles = new Map();
+  for (const step of steps) {
+    const key = step.roleId || step.role;
+    if (!roles.has(key)) roles.set(key, { roleId: key, role: step.role, mode: step.mode, runs: 0, costUsd: null, inputTokens: null, outputTokens: null, source: '' });
+    const entry = roles.get(key);
+    entry.runs++;
+    if (!requests.length && step.costUsd !== null) { entry.costUsd = (entry.costUsd || 0) + step.costUsd; entry.source = 'run'; }
+  }
+  for (const request of requests) {
+    const entry = roles.get(request.roleId);
+    if (!entry) continue;
+    entry.costUsd = (entry.costUsd || 0) + (amount(request.usd) ? request.usd : 0);
+    entry.inputTokens = (entry.inputTokens || 0) + (amount(request.inputTokens) ? request.inputTokens : 0);
+    entry.outputTokens = (entry.outputTokens || 0) + (amount(request.outputTokens) ? request.outputTokens : 0);
+    entry.source = 'gateway';
+  }
+  return [...roles.values()];
+}
+
+const timelineWords = {
+  'session.started': () => 'Session started',
+  'workspace.ready': () => 'Workspace ready',
+  'execution.heartbeat_missed': event => `Ploeg ${causeWords[event.data?.cause] || 'did not answer'}; a heartbeat was missed`,
+  'execution.authority_lost': event => `Unfold lost Ploeg's authority to run it${event.data?.cause ? `: Ploeg ${causeWords[event.data.cause] || 'did not answer'}` : ''}`,
+  'execution.reconciliation_required': () => 'Ploeg stopped the execution and holds it',
+  'execution.reconciliation_pending': () => 'Stopped here; Ploeg has not confirmed the stop',
+  'session.interrupted': () => 'Session interrupted',
+  'session.paused': () => 'Paused by a person',
+  'session.cancelled': () => 'Cancelled by a person',
+  'session.failed': () => 'Session failed',
+  'candidate.ready': () => 'Change captured',
+  'candidate.unavailable': () => 'Change could not be captured',
+  'session.delivering': () => 'Delivering the approved work',
+  'session.completed': () => 'Session completed',
+};
+
+/** What happened, in order: when the session and each Role started and ended, and every stop. At most 16 entries. */
+export function timelineOf(session, events) {
+  const roles = new Map((session?.runs || []).map(run => [run.id, run.roleName || run.roleId || 'Role']));
+  const entries = [];
+  for (const event of events || []) {
+    if (!event?.at) continue;
+    if (event.type === 'run.started') entries.push({ at: event.at, text: `${capital(text(event.data?.role) || roles.get(event.runId) || 'A Role')} started`, tone: 'live' });
+    else if (event.type === 'run.finished') entries.push({ at: event.at, text: `${capital(roles.get(event.runId) || text(event.data?.role) || 'A Role')} finished`, tone: event.data?.status === 'failed' ? 'danger' : 'success' });
+    else if (event.type === 'run.halted') entries.push({ at: event.at, text: `${capital(roles.get(event.runId) || 'A Role')} was cut off`, tone: 'attention' });
+    else if (timelineWords[event.type]) entries.push({ at: event.at, text: timelineWords[event.type](event), tone: stopTypes.includes(event.type) || event.type === 'execution.heartbeat_missed' ? 'attention' : event.type === 'candidate.ready' ? 'success' : 'neutral' });
+  }
+  return entries.slice(-16);
 }
 
 /** Spend as one figure with its status: settled, observed and not settled, a demo, or not reported. */
@@ -187,7 +269,7 @@ export function changeText(change) {
 
 function recoveryActions(recovery) {
   const listed = Array.isArray(recovery?.actions) ? recovery.actions : [];
-  return new Map(listed.filter(entry => entry && entry.available !== false && ['deliver', 'run_again'].includes(entry.id)).map(entry => [entry.id, entry]));
+  return new Map(listed.filter(entry => entry && entry.available !== false && ['capture', 'deliver', 'run_again'].includes(entry.id)).map(entry => [entry.id, entry]));
 }
 
 function resumeListed(recovery) {
@@ -203,6 +285,8 @@ function actionsFor(phase, session, { reason, change, approved, unrecorded, view
   const team = session?.execution?.team ? `team ${session.execution.team}` : 'the crew';
   const deliver = recovery.get('deliver');
   const again = recovery.get('run_again');
+  const capture = recovery.get('capture');
+  const captureAction = () => capture && !change.viewable && add('capture', 'Capture and view change', { hint: capture.description || 'Captures the change from the workspace so you can read it. No model call; nothing is sent to Ploeg.' });
   const deliverAction = () => deliver && add('deliver', deliver.label || 'Deliver approved work', { confirm: { title: 'Deliver the approved work?', detail: `${unrecorded ? 'The reviewer gave its approval in its own transcript before it was cut off; no finished Run recorded it. ' : ''}Unfold captures the change the reviewer approved${change.branch ? ` on branch ${change.branch}` : ''} and Ploeg opens a pull request with it for your review.${deliver.description ? ` ${deliver.description}` : ''} Nothing merges without you, and no new Run starts.`, button: 'Deliver' } });
   const againAction = () => again && add('run-again', again.label || 'Run again', { hint: again.description || 'Creates a new session with the same brief, crew and budget. It does not start until you start it, and this session stays as it is.' });
   const viewChange = () => change.viewable && add('view-change', 'View change');
@@ -212,8 +296,8 @@ function actionsFor(phase, session, { reason, change, approved, unrecorded, view
     case 'asking': add('answer', 'Answer'); add('open-session', 'Open session'); break;
     case 'paused': add('resume', 'Resume'); add('cancel', 'Cancel session…'); break;
     case 'stopped':
-      if (approved && deliver) { deliverAction(); againAction(); add('investigate', 'Investigate'); }
-      else { add('investigate', 'Investigate'); againAction(); deliverAction(); }
+      if (approved && deliver) { captureAction(); deliverAction(); againAction(); add('investigate', 'Investigate'); }
+      else { add('investigate', 'Investigate'); captureAction(); againAction(); deliverAction(); }
       { const resumable = resumeListed(listed); if (resumable ?? (!reason?.retained && !demo)) add('resume', 'Resume'); }
       viewChange(); add('open-session', 'Open session'); add('cancel', 'Cancel session…');
       break;
@@ -280,7 +364,7 @@ export function sessionProgress(session, { events = [], now = Date.now(), viewer
     case 'capturing': headline = 'Capturing the change for review'; short = 'Capturing the change'; next = 'The change is ready to view in a moment.'; break;
     case 'paused': { const held = steps.find(step => step.state === 'paused'); headline = held ? `Paused while ${held.role} worked` : 'Paused'; } short = 'Paused'; next = 'Resume to continue; an instruction you add applies when it resumes.'; break;
     case 'stopped': {
-      const delivered = change.pullRequest ? '' : approved && change.candidate !== 'ready' ? 'stopped before delivery' : `stopped: ${reason?.short || 'interrupted'}`;
+      const delivered = change.pullRequest ? '' : approved && change.candidate === 'ready' ? 'captured, not delivered yet' : approved ? 'stopped before delivery' : `stopped: ${reason?.short || 'interrupted'}`;
       headline = [achieved, delivered || `stopped: ${reason?.short || 'interrupted'}`].filter(Boolean).join(' · ');
       short = lastReader ? `Stopped · ${lower(achieved)}` : reason ? `Stopped · ${reason.short}` : 'Stopped';
       const offered = recoveryActions(recovery);
@@ -301,10 +385,13 @@ export function sessionProgress(session, { events = [], now = Date.now(), viewer
   }
   const ploegRunning = (ploeg?.runs || []).filter(entry => entry?.state === 'running' || entry?.listedAs === 'running');
   if (ploegRunning.length && !sessionActive) facts.push(`Ploeg still lists ${ploegRunning.length === 1 ? `its ${ploegRunning[0].role || 'operator'} Run` : `${ploegRunning.length} Runs`} as running; this session stopped${reason?.at ? ` at ${time(reason.at)}` : ''}.`);
-  if (!demo && change.candidate !== 'ready' && ['stopped', 'failed'].includes(phase) && (writer || change.files)) facts.push(recoveryActions(recovery).has('deliver') ? 'No candidate was captured yet, so the change is only in the Run\'s evidence. Delivering captures it from the workspace first.' : 'No candidate was captured, so the change is only in the Run\'s evidence.');
+  if (!demo && change.candidate !== 'ready' && ['stopped', 'failed'].includes(phase) && (writer || change.files)) facts.push(recoveryActions(recovery).has('capture') ? 'The change is not captured yet. Capture it to read it before you deliver; that makes no model call.' : recoveryActions(recovery).has('deliver') ? 'No candidate was captured yet, so the change is only in the Run\'s evidence. Delivering captures it from the workspace first.' : 'No candidate was captured, so the change is only in the Run\'s evidence.');
   const actions = actionsFor(phase, session, { reason, change, approved, unrecorded: Boolean(lastReader && !lastReader.verdict.recorded), viewer, demo, budget: spend.budgetUsd, recovery });
   const activity = phase === 'working' ? `${capital(current?.role || 'The crew')} is working` : phase === 'preparing' ? 'Preparing the workspace' : short;
-  return { phase, meta, headline, short, next, reason, current, steps, change, spend, facts, actions, activity, demo, workItemId: session?.execution?.workItemId ? String(session.execution.workItemId) : '', sessionId: session?.id || '' };
+  const reviewer = [...steps].reverse().find(step => step.mode === 'read' && step.summary);
+  const findings = reviewer ? { role: reviewer.role, verdict: reviewer.verdict, items: reportFindings(reviewer.summary) } : null;
+  return { phase, meta, headline, short, next, reason, current, steps, change, spend, facts, actions, activity, demo,
+    timeline: timelineOf(session, events), findings: findings?.items.length ? findings : null, checks: checksOf(session), roles: roleCosts(session, steps), workItemId: session?.execution?.workItemId ? String(session.execution.workItemId) : '', sessionId: session?.id || '' };
 }
 
 /** The session that drives Ploeg Work Item `workItemId`, newest first, or null. */

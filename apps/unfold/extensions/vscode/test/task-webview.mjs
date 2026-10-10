@@ -187,7 +187,8 @@ try {
   await both('stopped-059675b9', () => page.getByRole('heading', { name: 'Reviewer approved in its transcript · stopped before delivery', level: 2 }).waitFor());
 
   const longReport = `I inspected the working-tree \`README.md\` directly and cross-checked its factual claims against the repo. Findings:\n\n- **Tone/objective:** fully rewritten in clown voice with every section still present.\n- **Facts preserved:** commands match \`mise.toml\`.\n- **Links:** referenced files exist.\n\n${'Recorded evidence is git diff --check plus the implementer report. '.repeat(6)}VERDICT: approve`;
-  const reviewedSession = { ...fixture.session, runs: fixture.session.runs.map((entry, index) => index === 1 ? { ...entry, summary: longReport } : entry) };
+  const requests = [{ roleId: fixture.session.runs[0].roleId, usd: 0.0198, inputTokens: 21400, outputTokens: 3100 }, { roleId: fixture.session.runs[1].roleId, usd: 0.0062, inputTokens: 9800, outputTokens: 640 }];
+  const reviewedSession = { ...fixture.session, requests, runs: fixture.session.runs.map((entry, index) => index === 1 ? { ...entry, summary: longReport } : entry) };
   const recoverable = { ...stopped, linked: { ...stopped.linked, session: reviewedSession, recovery: { summary: 'Reviewer approved the work before Ploeg stopped the session. It will not run again on its own: deliver the approved work, or run it again as a new session.', actions: [{ id: 'deliver', label: 'Deliver the approved work', available: true }, { id: 'resume', label: 'Resume', available: false }, { id: 'run_again', label: 'Run again', available: true }] } } };
   await post({ type: 'state', view: recoverable });
   const deliver = page.getByRole('button', { name: 'Deliver the approved work' });
@@ -201,18 +202,39 @@ try {
   await report.locator('strong', { hasText: 'Facts preserved:' }).waitFor();
   await post({ type: 'state', view: recoverable });
   assert.equal(await page.locator('.step', { hasText: 'Reviewer' }).locator('.step-report').evaluate(node => node.open), true, 'an opened report stays open when the panel refreshes');
+  assert.deepEqual(await page.locator('.findings dt').allInnerTexts(), ['Tone/objective', 'Facts preserved', 'Links'], 'the reviewer\'s labelled findings read as a list');
+  assert.match((await page.locator('.step-costs').innerText()).replace(/\s+/g, ' '), /Implementer ?writer 1 US\$ 0,02 21,4K 3,1K Reviewer ?reader 1 < US\$ 0,01/);
+  await page.locator('.change .check-passed', { hasText: 'git diff --check' }).waitFor();
+  assert.match((await page.locator('.timeline').innerText()).replace(/\s+/g, ' '), /Implementer finished .*Reviewer started .*Unfold lost Ploeg's authority to run it/);
+  const headerLinks = () => page.locator('.task-header .toolbar').getByRole('button', { name: /^Open in / }).count();
+  const located = url => ({ ...recoverable, detail: { ...recoverable.detail, item: { ...recoverable.detail.item, url } } });
+  await post({ type: 'state', view: located('https://unfold.example/#sessions/059675b9') });
+  assert.equal(await headerLinks(), 0, 'a Work Item that lives in Unfold itself has one way to the browser, not two');
+  await post({ type: 'state', view: located('https://vikunja.example/tasks/184') });
+  assert.equal(await headerLinks(), 1, 'a tracker elsewhere keeps its own link');
+  await post({ type: 'state', view: recoverable });
   await page.getByRole('button', { name: 'Run again' }).click();
   assert.deepEqual(await lastMessage(), { type: 'session-action', action: 'run-again', session: fixture.session.id });
   await post({ type: 'idle' });
   await both('stopped-recoverable', () => deliver.waitFor());
+
+  const uncaptured = { ...recoverable, linked: { ...recoverable.linked, session: { ...reviewedSession, artifacts: reviewedSession.artifacts.filter(artifact => artifact.kind !== 'diff') }, recovery: { ...recoverable.linked.recovery, actions: [{ id: 'capture', label: 'Capture the change', available: true }, ...recoverable.linked.recovery.actions] } } };
+  await post({ type: 'state', view: uncaptured });
+  const capture = page.getByRole('button', { name: 'Capture and view change' });
+  await capture.waitFor();
+  assert.match(await capture.getAttribute('class'), /primary/, 'reading the change leads when it is not captured yet');
+  await capture.click();
+  assert.deepEqual(await lastMessage(), { type: 'session-action', action: 'capture', session: fixture.session.id });
+  await post({ type: 'idle' });
+  await both('stopped-uncaptured', () => capture.waitFor());
 
   const workingSession = { ...fixture.session, status: 'running', blocker: undefined, execution: { ...fixture.session.execution, state: 'running', stopConfirmed: false }, runs: [{ ...fixture.session.runs[0], status: 'completed' }, { ...fixture.session.runs[1], startedAt: ago(2) }] };
   const working = { ...stopped, detail: { ...fixture.ploeg, item: { ...fixture.ploeg.item, state: 'leased', latestShift: { ...fixture.ploeg.item.latestShift, round: 1 } } }, linked: { session: workingSession, events: fixture.events.filter(event => event.id <= 1010), viewer: false, live: true } };
   await post({ type: 'state', view: working });
   await page.getByRole('heading', { name: 'Reviewer is working · Round 1', level: 2 }).waitFor();
   const clockText = await page.locator('[data-since]').innerText();
-  await page.waitForTimeout(1300);
-  assert.notEqual(await page.locator('[data-since]').innerText(), clockText, 'the elapsed clock ticks without a reload');
+  const ticked = await page.waitForFunction(before => document.querySelector('[data-since]')?.textContent !== before, clockText, { timeout: 4000 }).then(() => true, () => false);
+  assert.ok(ticked, `the elapsed clock ticks without a reload (stayed at ${clockText})`);
   await page.locator('.live-tag', { hasText: 'Live' }).waitFor();
   await both('working', () => page.getByRole('heading', { name: 'Reviewer is working · Round 1', level: 2 }).waitFor());
 

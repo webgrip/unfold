@@ -30,7 +30,7 @@ export type CreateSessionInput = { title: string; objective: string; repositoryI
 export type Provisioning = Omit<WorkspaceWait, 'phase'> & { phase: WorkspaceWait['phase'] | 'preparing' };
 
 /** A next step a person can take on a stopped session, and the API call that takes it. */
-export type RecoveryAction = { id: 'deliver' | 'resume' | 'run_again' | 'cancel' | 'close_work_item'; label: string; description: string; method: 'POST'; path: string; available: boolean; unavailableReason?: string };
+export type RecoveryAction = { id: 'capture' | 'deliver' | 'resume' | 'run_again' | 'cancel' | 'close_work_item'; label: string; description: string; method: 'POST'; path: string; available: boolean; unavailableReason?: string };
 
 /** What a stopped session can still become: whether it will run again, what its last reviewer concluded, and every next step with whether it is available now. */
 export type Recovery = {
@@ -348,19 +348,32 @@ export class Engine {
     return { runId: last.id, roleName: last.roleName, verdict: last.verdict, source: last.verdictSource ?? 'result' };
   }
 
-  private deliveryBlocker(session: Session): string | undefined {
+  private stoppedWorkBlocker(session: Session, verb: string): string | undefined {
     const binding = this.authority?.current(session.id);
-    if (!binding) return 'Only a session Ploeg executes can be delivered this way.';
-    if (!['paused', 'interrupted'].includes(session.status)) return 'Only a stopped session that has not finished can be delivered.';
+    if (!binding) return `Only a session Ploeg executes can be ${verb} this way.`;
+    if (!['paused', 'interrupted'].includes(session.status)) return `Only a stopped session that has not finished can be ${verb}.`;
     if (this.active.has(session.id) || this.admissions.has(session.id)) return 'The session is still stopping or starting.';
     if (!binding.stopConfirmed || !['paused', 'interrupted'].includes(binding.state)) return 'Ploeg has not confirmed that this execution stopped.';
     const crew = this.config.crews.find(item => item.id === session.crewId);
-    if (!crew?.roles.some(role => role.mode === 'write')) return 'This crew changes nothing, so there is no work to deliver.';
+    if (!crew?.roles.some(role => role.mode === 'write')) return 'This crew changes nothing, so there is no work to capture.';
+    if (!session.workspace) return 'The workspace that holds the work is gone.';
+    return undefined;
+  }
+
+  private captureBlocker(session: Session): string | undefined {
+    const blocker = this.stoppedWorkBlocker(session, 'captured');
+    if (blocker) return blocker;
+    if (!session.runs.some(run => run.mode === 'write' && run.status === 'completed')) return 'No writing Run finished, so there is no change to capture.';
+    if (session.candidate?.status === 'ready') return 'The change is already captured.';
+    return undefined;
+  }
+
+  private deliveryBlocker(session: Session): string | undefined {
+    const blocker = this.stoppedWorkBlocker(session, 'delivered');
+    if (blocker) return blocker;
     const review = this.lastReview(session);
     if (review?.verdict !== 'approve') return 'The last reviewer did not approve this work.';
     if (session.runs.slice(0, -1).some(run => run.status !== 'completed')) return 'An earlier Run did not finish.';
-    if (!session.workspace) return 'The workspace that holds the work is gone.';
-    if (session.candidate?.status === 'ready') return 'This session already has a captured candidate.';
     return undefined;
   }
 
@@ -385,6 +398,7 @@ export class Engine {
     const ended = ['completed', 'failed', 'cancelled'].includes(session.status);
     const actions: RecoveryAction[] = [];
     const add = (action: Omit<RecoveryAction, 'method' | 'available'>, blocker?: string) => actions.push({ ...action, method: 'POST', available: !blocker, ...(blocker ? { unavailableReason: blocker } : {}) });
+    if (current && stopped) add({ id: 'capture', label: 'Capture the change', description: 'Capture the work in the workspace as a candidate so you can read the change before you deliver it. It makes no model call, sends Ploeg no command and keeps the workspace.', path: `${base}/capture` }, this.captureBlocker(session));
     if (current && stopped) add({ id: 'deliver', label: 'Deliver the approved work', description: 'Capture the reviewed branch as a candidate and complete the session through Ploeg, without another model call. Independent checks and the pull request follow the normal delivery path.', path: `${base}/deliver` }, deliveryBlocker);
     if (stopped) add({ id: 'resume', label: 'Resume', description: 'Continue this session in its next generation. Every Run that did not finish runs again.', path: `${base}/resume` }, runsAgain ? undefined : current ? 'Ploeg blocked this execution\'s inference key when it stopped, so it cannot pay for another generation.' : 'The session cannot resume now.');
     if (stopped || ['failed', 'cancelled'].includes(session.status)) add({ id: 'run_again', label: 'Run again', description: 'Create a new session with the same brief, crew, repository and budget. It is a new Ploeg authorization and waits for an explicit start.', path: `${base}/run-again` }, session.sourceTask ? 'A tracker task is imported again from its tracker.' : undefined);
@@ -417,7 +431,9 @@ export class Engine {
         try { await runtime.interrupt(session.workspace!); this.store.deleteSecret(`interruption:${id}`); }
         catch { throw new EngineError(409, 'interrupt_unconfirmed', 'The previous remote turn has not confirmed interruption. Delivery remains blocked.'); }
       }
-      const candidate = await this.captured(this.store.getSession(id)!, runtime);
+      const previous = this.store.getSession(id)!.candidate;
+      const reused = previous?.status === 'ready';
+      const candidate = reused ? previous : await this.captured(this.store.getSession(id)!, runtime);
       if (candidate.status !== 'ready') throw new EngineError(409, 'candidate_unavailable', 'The approved work could not be captured from the workspace. Nothing changed in Ploeg; the workspace stays available for recovery.');
       const granted = await this.authority.command(this.store.getSession(id)!, 'resume', {}, user.id);
       if (granted.state !== 'running') throw new EngineError(409, 'execution_not_running', 'Ploeg did not accept this delivery. Reconcile the current execution state.');
@@ -426,9 +442,41 @@ export class Engine {
       reviewer.status = 'completed'; reviewer.finishedAt ??= new Date().toISOString();
       current.status = 'exporting'; delete current.blocker; delete current.failure;
       this.save(current, 'session.delivering', user.id, { message: `${reviewer.roleName} approved this work before the session stopped. Delivering it without another model call.`, verdictSource: reviewer.verdictSource ?? 'result', generation: granted.generation });
-      await this.keepCandidate(id, runtime, await this.attested(id, candidate), true);
+      await this.keepCandidate(id, runtime, reused ? candidate : await this.attested(id, candidate), true);
       this.completeExport(id);
       await this.finishAuthority(id);
+      return this.store.getSession(id)!;
+    } finally { this.admissions.delete(id); }
+  }
+
+  /**
+   * Captures the candidate of a stopped Ploeg-executed session from its retained workspace, so a person can read the
+   * change before delivering it. It makes no model call, sends Ploeg no command and keeps the workspace; delivery then
+   * reuses this candidate.
+   */
+  async capture(id: string, user: User): Promise<Session> {
+    const session = this.owned(id, user);
+    if (!this.authority?.current(id)) throw new EngineError(409, 'not_capturable', 'Only a session Ploeg executes can be captured this way.');
+    this.authority.authorize(user);
+    await this.authority.refresh(session).catch(() => undefined);
+    const blocker = this.captureBlocker(this.store.getSession(id)!);
+    if (blocker) throw new EngineError(409, 'not_capturable', blocker);
+    if (this.shuttingDown) throw new EngineError(503, 'shutting_down', 'The server is shutting down.');
+    this.admissions.add(id);
+    try {
+      const runtime = this.runtimes.get(session.runtime)!;
+      if (this.store.getSecret<boolean>(`interruption:${id}`)) {
+        try { await runtime.interrupt(session.workspace!); this.store.deleteSecret(`interruption:${id}`); }
+        catch { throw new EngineError(409, 'interrupt_unconfirmed', 'The previous remote turn has not confirmed interruption. Capture remains blocked.'); }
+      }
+      const candidate = await this.captured(this.store.getSession(id)!, runtime);
+      if (candidate.status !== 'ready') {
+        this.store.appendEvent(id, 'candidate.unavailable', user.id, { candidate, purpose: 'review' });
+        throw new EngineError(409, 'candidate_unavailable', `${candidate.message ?? 'The change could not be captured from the workspace.'} Nothing changed in Ploeg; the workspace stays available.`);
+      }
+      const current = this.store.getSession(id)!;
+      current.candidate = await this.attested(id, candidate);
+      this.save(current, 'candidate.ready', user.id, { candidate: current.candidate, purpose: 'review', message: 'The change was captured for review before delivery. No model call was made and Ploeg was not asked to do anything.' });
       return this.store.getSession(id)!;
     } finally { this.admissions.delete(id); }
   }

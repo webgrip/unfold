@@ -1044,6 +1044,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       case 'reject': await this.review(id, 'rejected'); return;
       case 'investigate': await this.investigate(id); return;
       case 'view-change': await this.viewChange(id); return;
+      case 'capture': await this.captureChange(id); return;
       case 'deliver': await this.recover(id, 'deliver'); return;
       case 'run-again': await this.recover(id, 'run_again'); return;
     }
@@ -1084,6 +1085,15 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       return;
     }
     throw new Error('This session has no change to show yet.');
+  }
+
+  /** Captures a stopped session's change from its workspace so it can be read before delivery, then opens it. No model call. */
+  async captureChange(id: string): Promise<void> {
+    const target = this.current; const generation = this.generation;
+    await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Capturing the change from the workspace…' }, () => target.capture(id));
+    this.assertTarget(target, generation);
+    await this.refresh();
+    await this.viewChange(id);
   }
 
   /** Asks the server to deliver the approved work or run it again as a new session, after a confirmation that names what it does. */

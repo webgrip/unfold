@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { changedFiles, elapsedClock, outcomeMarkdown, patchCounts, ploegRunActive, progressGroup, sessionForWorkItem, sessionProgress, spendOf, transcriptVerdict } from '../public/core/progress.js';
+import { changedFiles, checksOf, elapsedClock, reportFindings, roleCosts, timelineOf, outcomeMarkdown, patchCounts, ploegRunActive, progressGroup, sessionForWorkItem, sessionProgress, spendOf, transcriptVerdict } from '../public/core/progress.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/session-059675b9.json', import.meta.url), 'utf8'));
 const at = Date.parse(fixture.now);
@@ -142,4 +142,32 @@ test('Ploeg\'s detail reads as the session does: a listed-running Run on a stopp
   const leased = { ...fixture.ploeg, item: { ...fixture.ploeg.item, state: 'leased' } };
   assert.equal(reconcileDetail(leased, []).runs[0].state, 'running', 'a leased Work Item without a stopped session keeps its running Run');
   assert.equal(reconcileDetail(leased, [fixture.session]).runs[0].state, 'stopped', 'a stopped driving session wins');
+});
+
+test('an uncaptured approved change can be captured and read before it is delivered', () => {
+  const withoutDiff = { ...fixture.session, artifacts: fixture.session.artifacts.filter(artifact => artifact.kind !== 'diff') };
+  const recovery = { summary: 'Deliver it, or run it again.', actions: [{ id: 'capture', label: 'Capture the change', available: true }, { id: 'deliver', label: 'Deliver the approved work', available: true }, { id: 'run_again', label: 'Run again', available: true }] };
+  const progress = worst(withoutDiff, { recovery });
+  assert.deepEqual(ids(progress).slice(0, 3), ['capture', 'deliver', 'run-again'], 'reading the change comes before delivering it');
+  assert.equal(progress.actions[0].primary, true);
+  assert.ok(progress.facts.some(fact => /Capture it to read it before you deliver/.test(fact)));
+  const captured = worst({ ...withoutDiff, candidate: { status: 'ready', fileCount: 1 } }, { recovery: { ...recovery, actions: recovery.actions.filter(action => action.id !== 'capture') } });
+  assert.deepEqual(ids(captured).slice(0, 2), ['deliver', 'run-again']);
+  assert.ok(ids(captured).includes('view-change'), 'a captured change is viewable');
+  assert.match(captured.headline, /captured, not delivered yet$/);
+});
+
+test('the timeline, findings, checks and cost per role come from the session\'s own record', () => {
+  const timeline = timelineOf(fixture.session, fixture.events).map(entry => entry.text);
+  assert.deepEqual(timeline.slice(2, 5), ['Implementer started', 'Implementer finished', 'Reviewer started']);
+  assert.match(timeline.at(-2), /^Unfold lost Ploeg's authority to run it: Ploeg did not answer in time$/);
+  assert.deepEqual(reportFindings('Findings: - **Tone/objective:** Fully rewritten. - **Links:** All resolve. VERDICT: approve'), [{ label: 'Tone/objective', detail: 'Fully rewritten.' }, { label: 'Links', detail: 'All resolve.' }]);
+  assert.deepEqual(reportFindings('No labelled findings here.'), []);
+  assert.deepEqual(checksOf(fixture.session).map(check => [check.name, check.passed]), [['git diff --check', true]]);
+  assert.equal(checksOf({ artifacts: [{ id: 'a', kind: 'test', name: 'npm test', content: '3 failed' }] })[0].passed, false);
+  const steps = worst().steps;
+  assert.deepEqual(roleCosts(fixture.session, steps).map(entry => entry.costUsd), [null, null], 'nothing reported reads null, never zero');
+  const requests = [{ roleId: 'implementer', usd: 0.02, inputTokens: 1000, outputTokens: 200 }, { roleId: 'reviewer', usd: 0.006, inputTokens: 800, outputTokens: 40 }, { roleId: 'reviewer', usd: 0.001, inputTokens: 100, outputTokens: 5 }];
+  const costs = roleCosts({ ...fixture.session, requests }, steps);
+  assert.deepEqual(costs.map(entry => [entry.role, entry.costUsd, entry.inputTokens, entry.source]), [['Implementer', 0.02, 1000, 'gateway'], ['Reviewer', 0.007, 900, 'gateway']]);
 });
