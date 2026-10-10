@@ -34,11 +34,11 @@ Run cards are an Unfold domain on top of Ploeg ([root ADR-0030](../adr/adr-0030-
 * **Unfold keeps what people decide** in its own store: cracks and their audit trail. It also keeps what is frozen once: revealed rarities, play shapes measured from diffs nobody kept, and the card comment record.
 * **Configuration moved too.** Status kinds, the team calendar, path rules, release environments, hotfix labels, referees and card styles are Unfold's `cards.rules` setting.
 
-The formulas moved from Ploeg's Go code with identical behaviour; Ploeg's own tests and a replay of the cards it assembled are Unfold's parity tests. A Ploeg that does not supply facts yet still serves its own card, and Unfold shows that one. To move an installation, follow [Move Run cards from Ploeg to Unfold](../../apps/unfold/docs/operations/run-cards-upgrade.md).
+The formulas moved from Ploeg's Go code with identical behaviour; Ploeg's own tests and a replay of the cards it assembled are Unfold's parity tests. Unfold no longer falls back to Ploeg's own card: Ploeg v0.2.0-rc.12 removed it. Without facts there is no card, and the card and crack routes say so. Cracks, frozen rarities and card comments that Ploeg recorded before were imported once and stay in Unfold's store. To move an installation, follow [Move Run cards from Ploeg to Unfold](../../apps/unfold/docs/operations/run-cards-upgrade.md).
 
 ## What is built and what is proposed
 
-The first three build phases are merged on `development`: P0 keeps the facts a card needs, P1 puts the card on the Work Item page, and P2 adds life in production. Their ADRs still have the status `proposed`. Later phases (cracks and mends, epics and full ceremony) are not started; the skins are built and draw grades, cracks and sets when a card carries them. The Unfold side of Binders, Packs and seasons is built against fixtures, waiting for Ploeg's card list.
+The first three build phases are merged on `development`: P0 keeps the facts a card needs, P1 puts the card on the Work Item page, and P2 adds life in production. Their ADRs still have the status `proposed`. Later phases (cracks and mends, epics and full ceremony) are not started; the skins are built and draw grades, cracks and sets when a card carries them. The Unfold side of Binders, Packs and seasons is built and reads the cards Unfold assembles from Ploeg's facts list.
 
 | Part | State | Where it is recorded |
 | --- | --- | --- |
