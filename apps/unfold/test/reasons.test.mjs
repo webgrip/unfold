@@ -249,3 +249,24 @@ test('Ploeg’s own held-budget close reason reads as held, never as a budget th
   assert.equal(reason.sentence, `Ploeg stopped because the Shift’s US$${space}8,00 budget is held, not spent: US$${space}8,00 is still held for finished Runs whose spend Ploeg could not settle within a day.`);
   assert.equal(closeReasonLabel(text), `The US$${space}8,00 budget is still held, not spent`);
 });
+
+test('a reason code this Unfold does not know is named as unrecognised, never hidden', () => {
+  const reason = listReason(item('operator_teleported'));
+  assert.deepEqual([reason.code, reason.chip], ['unrecognised', 'Unrecognised: operator_teleported']);
+  assert.equal(reason.sentence, 'Ploeg recorded the reason code “operator_teleported”, which this version of Unfold does not recognise.');
+  assert.equal(reason.glyph, 'help-circle');
+  assert.equal(listReason(item('operator abort')).code, 'unknown', 'free text stays a recorded sentence');
+});
+
+test('an open Shift whose needs-human event carries an operator code reads as that code in the detail', () => {
+  const open = { ...shift(''), closedAt: null };
+  const detail = code => detailReason({ item: item('', { latestShift: open }), shifts: [open], runs: [], events: [{ id: '5', action: 'work_item.needs_human', detail: { reason: code } }] });
+  const interrupted = detail('operator_interrupted');
+  assert.deepEqual([interrupted.code, interrupted.chip, interrupted.headline], ['operator_interrupted', 'Session interrupted', null]);
+  assert.match(interrupted.fix, /deliver work its reviewer approved, run it again, or cancel it/);
+  assert.equal(detail('operator_expired').chip, 'Session lost contact');
+  assert.equal(detail('operator_paused').chip, 'Session paused');
+  assert.equal(detail('operator_waiting_input').chip, 'Session needs an answer');
+  assert.deepEqual([detail('operator_vanished').code, detail('operator_vanished').chip], ['unrecognised', 'Unrecognised: operator_vanished']);
+  assert.equal(detail('A person should look at this.').headline, 'A person should look at this.', 'free text stays a quoted headline');
+});
