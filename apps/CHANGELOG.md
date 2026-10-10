@@ -1,3 +1,17 @@
+## [unfold-v0.4.0-rc.59](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.58...unfold-v0.4.0-rc.59) (2026-10-10)
+
+### Fixed
+
+* **unfold:** close a failed session's Work Item only after its execution has reported how it ended ([a087248](https://forgejo.webgrip.dev/webgrip/unfold/commit/a087248d3921c3cb6a963caab673f77582b2e9db))
+* **unfold:** kill a command bridge whose supervisor died before it reported the bridge ([930fe75](https://forgejo.webgrip.dev/webgrip/unfold/commit/930fe75f1b0b09728609dc6b560b17a0876482e3))
+* **unfold:** reconcile the Agents-window projections the parallel work left overlapping ([fee9b43](https://forgejo.webgrip.dev/webgrip/unfold/commit/fee9b431b1887f8b92c46b2bf87ce8c85d876c92))
+
+### Tests
+
+* **unfold:** read a command bridge's pid file only once the pid is in it ([f4bc06e](https://forgejo.webgrip.dev/webgrip/unfold/commit/f4bc06e31fda8d49ded93877165da52dd2781d83))
+* **unfold:** stop the local OpenCode launch test from racing the launch time limit ([0de89ae](https://forgejo.webgrip.dev/webgrip/unfold/commit/0de89aea7f174c2eb2340ccbe7ecbee5606e53af))
+* **unfold:** stop the workspace failure-detail test from racing the launch time limit ([95e010d](https://forgejo.webgrip.dev/webgrip/unfold/commit/95e010d6cf5f58a921eb1df6a06eab8bba608a1a))
+
 ## [unfold-v0.4.0-rc.58](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.57...unfold-v0.4.0-rc.58) (2026-10-10)
 
 ### Added
