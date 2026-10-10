@@ -153,9 +153,9 @@ class AskingRuntime extends DemoRuntime {
 
 async function asked(t: { after: (fn: () => unknown) => void }) {
   const dataDir = await mkdtemp(join(tmpdir(), 'unfold-ahp-answers-'));
-  t.after(() => rm(dataDir, { recursive: true, force: true }));
   const runtime = new AskingRuntime({ dataDir, delayMs: 5 });
   const { server, client } = await attached(t, new Map<RuntimeKind, AgentRuntime>([['demo', runtime]]));
+  t.after(() => rm(dataDir, { recursive: true, force: true, maxRetries: 10 }));
   const session = `ahp-session:/${randomUUID()}`;
   const chat = defaultChatOf(session);
   await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Answers' } });
