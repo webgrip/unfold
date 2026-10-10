@@ -69,7 +69,7 @@ The insight export forwards product events the browser and VS Code extension pos
 - Faro event attributes are strings only, so numbers and booleans travel as text. OTLP keeps their types.
 - An unreachable collector is logged once an hour and never blocks or slows the event route. One person may post 600 events a minute; past that the route answers `429`.
 
-On the owner's homelab instance the sink is `faro` at `http://alloy-gateway.observability.svc.cluster.local:12347/collect`. The [dashboard](../../ops/grafana/README.md) reads the events back in Grafana.
+In Kubernetes, set these through the chart's `insight` values ([chart README](../../ops/helm/unfold/README.md#product-events-and-export)); recording is on and the export is off by default. On the owner's homelab instance the sink is `faro` at `http://alloy-gateway.observability.svc.cluster.local:12347/collect`. The [dashboard](../../ops/grafana/README.md) reads the events back in Grafana.
 
 Then start and sign in:
 

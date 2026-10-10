@@ -20,6 +20,7 @@
     "tolerations": { "type": "array", "items": { "type": "object" } },
     "affinity": { "type": "object" },
     "extraEnv": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string", "minLength": 1 } }, "required": ["name"] } },
+    "insight": { "type": "object", "additionalProperties": false, "properties": { "events": { "type": "boolean" }, "export": { "type": "string", "enum": ["off", "faro", "otlp"] }, "url": { "type": "string", "pattern": "^(https?://.+)?$" }, "level": { "type": "string", "enum": ["aggregate", "events"] } } },
     "workspaceNamespace": { "type": "string", "maxLength": 63, "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" },
     "createWorkspaceNamespace": { "type": "boolean" },
     "workspaceImage": { "type": "string" },
