@@ -5,7 +5,7 @@ import { ploegDemo } from '../src/ploeg-demo.ts';
 
 const at = '2026-10-10T10:00:00Z';
 const detail = (demo = false) => ({ item: { id: '42', state: 'leased', title: 'Fix Safari login' }, demo });
-const ask = (extra = {}) => ({ id: 'a1', workItemId: '42', askerId: 'owner', askerName: 'Ryan', audience: 'internal', question: 'How far is it?', answer: 'It is being worked on now.', status: 'answered', demo: false, ploegAskId: 'p1', model: 'glm', costUsd: 0.0011, costStatus: 'settled', failure: null, createdAt: at, answeredAt: at, ...extra });
+const ask = (extra = {}) => ({ id: 'a1', workItemId: '42', workItemTitle: 'Fix Safari login', askerId: 'owner', askerName: 'Ryan', audience: 'internal', question: 'How far is it?', answer: 'It is being worked on now.', status: 'answered', demo: false, ploegAskId: 'p1', model: 'glm', costUsd: 0.0011, costStatus: 'settled', failure: null, createdAt: at, answeredAt: at, ...extra });
 
 test('the Ask card says the agents never see the question and shows each Ask with its cost', () => {
   const html = askMarkup(detail(), { asks: { items: [ask()], demo: false, error: '' }, askBusy: false });
@@ -57,4 +57,18 @@ test('the Work Item page shows the Ask card under the status', () => {
   const demoDetail = { ...structuredClone(ploegDemo.details['119']), demo: true, fetchedAt: at };
   const html = workMarkup({ lane: 'all', team: '', loading: false, refreshing: false, loadingMore: false, detailId: '119', detail: demoDetail, detailError: null, listHref: '#work', canCancel: true, sessions: [], reviewFacts: {}, now: Date.parse(at), asks: { items: [], demo: true, error: '' } });
   assert.match(html, /id="work-ask"/);
+});
+
+test('Now lists your questions with the first line of each answer, linking to the Work Item', async () => {
+  const { asksCard } = await import('../public/now.js');
+  const html = asksCard({ asks: { asks: [ask({ answer: 'Waiting for review.\nMore detail.' }), ask({ id: 'a2', status: 'refused', answer: '', failure: 'Ask Allowance used up. It resets on 1 November.' })], more: true } });
+  assert.match(html, /Your questions/);
+  assert.match(html, /href="#work\/42"/);
+  assert.match(html, /Fix Safari login · <time/);
+  assert.match(html, /Waiting for review\.<\/span>/);
+  assert.doesNotMatch(html, /More detail/);
+  assert.match(html, /Ask Allowance used up/);
+  assert.match(html, /Older Asks are on their Work Items/);
+  assert.match(asksCard({ asks: { asks: [], more: false } }), /You have not asked anything yet/);
+  assert.match(asksCard({ asks: { error: 'Down.' } }), /role="alert">Down\./);
 });

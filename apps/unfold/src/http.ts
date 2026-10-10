@@ -419,6 +419,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             throw error;
           }
         }
+        if (path === '/api/asks') {
+          if (method !== 'GET') fault(405, 'method', 'List your Asks with GET.');
+          return json(res, 200, sanitize(await asks.mine(user)));
+        }
         if (path === '/api/ploeg' || path.startsWith('/api/ploeg/')) {
           const decision = /^\/api\/ploeg\/work-items\/([^/]+)\/(approve|reject|cancel)$/.exec(path);
           const attribution = /^\/api\/ploeg\/work-items\/([^/]+)\/(cracks|evolved)$/.exec(path);

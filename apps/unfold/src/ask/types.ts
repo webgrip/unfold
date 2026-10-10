@@ -8,6 +8,7 @@ export type AskStatus = 'answering' | 'answered' | 'failed' | 'refused';
 export type Ask = {
   id: string;
   workItemId: string;
+  workItemTitle: string;
   askerId: string;
   askerName: string;
   audience: AskAudience;

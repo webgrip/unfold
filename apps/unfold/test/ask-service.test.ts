@@ -150,3 +150,14 @@ test('the demo says work that is still going or done has not stopped', async () 
   const ask = await service(store, workItems(true), undefined, undefined, true).ask(owner, '42', 'Why did it stop?');
   assert.equal(ask.answer, 'It has not stopped. It is being worked on now.');
 });
+
+test('your recent Asks leave out Work Items you can no longer see', async () => {
+  const store = new Store(':memory:');
+  const asks = service(store, workItems(true), undefined, undefined, true);
+  for (let index = 0; index < 3; index++) await asks.ask(owner, '42', `Question ${index}?`);
+  store.saveAsk({ ...store.asksAbout('42', 1)[0], id: 'hidden', workItemId: '77', createdAt: '2026-10-10T11:00:00Z' });
+  const mine = await asks.mine(owner, 2);
+  assert.deepEqual(mine.asks.map(ask => ask.workItemId), ['42', '42']);
+  assert.equal(mine.more, true);
+  assert.deepEqual((await asks.mine({ ...owner, id: 'someone-else' })).asks, []);
+});

@@ -84,6 +84,12 @@ function announceArrivals(before, after) {
   if (grown > 0) announce(`${plural(grown, 'new Work Item')} ${grown === 1 ? 'waits' : 'wait'} on you. Select Show to list ${grown === 1 ? 'it' : 'them'}.`);
 }
 
+async function loadAsks() {
+  try { view.asks = await api('/api/asks'); }
+  catch (error) { if (!view.asks || view.asks.error) view.asks = { error: error.message || 'Unfold could not list your questions.' }; }
+  if (onNow()) renderNow();
+}
+
 async function loadNow(mode = 'open') {
   const request = ++view.request;
   const fresh = mode === 'manual';
@@ -92,6 +98,7 @@ async function loadNow(mode = 'open') {
   if (mode !== 'live' && onNow()) renderNow();
   const heldBefore = visibleNow(view.data, view.shown).held;
   loadSummary(fresh);
+  loadAsks();
   try {
     const data = await api(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`);
     if (request !== view.request) return;

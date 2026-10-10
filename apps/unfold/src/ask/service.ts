@@ -82,7 +82,7 @@ export class AskService {
     if (rawQuestion.length > questionLimit) throw new PloegError(400, 'ask_question', `Keep the question under ${questionLimit} characters.`);
     const question = this.clean(rawQuestion, questionLimit);
     const brief = await this.brief(user, workItemId);
-    const ask: Ask = { id: randomUUID(), workItemId, askerId: user.id, askerName: user.name, audience, question, answer: '', status: 'answering', demo: brief.demo || this.options.demo, ploegAskId: null, model: null, costUsd: null, costStatus: 'pending', failure: null, createdAt: this.now(), answeredAt: null };
+    const ask: Ask = { id: randomUUID(), workItemId, workItemTitle: brief.title, askerId: user.id, askerName: user.name, audience, question, answer: '', status: 'answering', demo: brief.demo || this.options.demo, ploegAskId: null, model: null, costUsd: null, costStatus: 'pending', failure: null, createdAt: this.now(), answeredAt: null };
     if (ask.demo) {
       Object.assign(ask, { answer: demoAnswer(brief, question), status: 'answered', costStatus: 'demo', answeredAt: this.now() });
       this.store.saveAsk(ask);
@@ -136,6 +136,19 @@ export class AskService {
     const asks = this.store.asksAbout(workItemId, listLimit);
     await this.refresh(user, asks);
     return asks;
+  }
+
+  /** The caller's own most recent Asks, newest first, leaving out any whose Work Item the caller can no longer see. */
+  async mine(user: User, limit = 8): Promise<{ asks: Ask[]; more: boolean }> {
+    const candidates = this.store.asksBy(user.id, limit * 2 + 1);
+    const visible = new Map<string, boolean>();
+    const asks: Ask[] = [];
+    for (const ask of candidates) {
+      if (!visible.has(ask.workItemId)) visible.set(ask.workItemId, await this.workItems.detail(user, ask.workItemId).then(() => true, () => false));
+      if (visible.get(ask.workItemId)) asks.push(ask);
+      if (asks.length > limit) break;
+    }
+    return { asks: asks.slice(0, limit), more: asks.length > limit || candidates.length > limit * 2 };
   }
 
   private async refresh(user: User, asks: Ask[]): Promise<void> {
