@@ -1,3 +1,23 @@
+## [unfold-v0.4.0-rc.61](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.60...unfold-v0.4.0-rc.61) (2026-10-10)
+
+### Added
+
+* **deps:** update all non-major dependencies ([74ca075](https://forgejo.webgrip.dev/webgrip/unfold/commit/74ca0754dc8462e9f5230941c5da266ab4c44f7f))
+
+### Fixed
+
+* **unfold:** serve the AHP automation catalogue to VS Code on every workbench ([731658c](https://forgejo.webgrip.dev/webgrip/unfold/commit/731658cb7a9cb76261381eb1578a42b197576888))
+* **unfold:** show a session's changes from its repository snapshot ([e10228d](https://forgejo.webgrip.dev/webgrip/unfold/commit/e10228ddfa07a10eb6048f9e29ed7b51a03d7341))
+
+### Tests
+
+* **unfold:** wait for the delivery report before checking Ploeg's commands ([816a573](https://forgejo.webgrip.dev/webgrip/unfold/commit/816a573a2c173228eb666b73cd7319c72df3cc45))
+
+### Build
+
+* **ploeg:** pin Ploeg v0.2.0-rc.14 ([fd6d0b2](https://forgejo.webgrip.dev/webgrip/unfold/commit/fd6d0b221c4c7e91dd6c41e099bb5a696d2e02c0)), references [ploeg#98](https://forgejo.webgrip.dev/ploeg/issues/98) [ploeg#95](https://forgejo.webgrip.dev/ploeg/issues/95)
+* **site:** record pnpm 12.10.1 in the site lockfile ([966dcdd](https://forgejo.webgrip.dev/webgrip/unfold/commit/966dcddc058e81832109c2d4437c9ccf7561a02d))
+
 ## [unfold-v0.4.0-rc.60](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.59...unfold-v0.4.0-rc.60) (2026-10-10)
 
 ### Added
