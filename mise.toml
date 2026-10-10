@@ -32,7 +32,7 @@ description = "Run both application gates, the site gates and cross-application 
 
 [tasks.brand]
 run = "node scripts/build-brand.mjs"
-description = "Regenerate Unfold's mark, lockups and tokens in docs/brand and the site's brand geometry"
+description = "Regenerate Unfold's mark, lockups and tokens in docs/brand, the site's brand geometry and both applications' copy of the brand motion"
 
 [tasks.brand-check]
 run = "node scripts/build-brand.mjs --check"
