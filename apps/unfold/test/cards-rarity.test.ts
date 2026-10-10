@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { micros } from '../src/cards/go.ts';
 import {
   compilePattern, compileRarityRules, maxPatternLength, maxPatterns, minCohort, moduleOf, quarter, score, sortedUnique, tier, validTier,
   weightNovelty, weightReach, weightSensitive, weightSize, type Facts, type FileLines, type RarityRules,
@@ -136,7 +137,7 @@ test('the quarter is the UTC calendar quarter', () => {
     ['2027-01-01T00:30:00+01:00', '2026Q4'],
     ['2026-12-31T23:30:00-02:00', '2027Q1'],
   ];
-  for (const [at, want] of cases) assert.equal(quarter(Date.parse(at)), want, at);
+  for (const [at, want] of cases) assert.equal(quarter(micros(at)), want, at);
 });
 
 test('validTier and sortedUnique', () => {
@@ -184,7 +185,7 @@ function rarityOutput(kind: string, input: Record<string, unknown>): unknown {
       return { percentile, size, tier: t };
     }
     case 'quarter':
-      return (input.times as string[]).map(at => quarter(Date.parse(at)));
+      return (input.times as string[]).map(at => quarter(micros(at)));
     case 'sortedUnique':
       return sortedUnique(input.values as string[]);
     default:

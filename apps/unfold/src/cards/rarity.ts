@@ -316,9 +316,9 @@ export function tier(s: number, cohort: readonly number[]): [Tier, number | null
   return [percentileTier(exact), round1(exact), size];
 }
 
-/** The calendar quarter of an instant in UTC, as "2026Q4". */
-export function quarter(at: number | Date): string {
-  const date = new Date(at);
+/** The calendar quarter in UTC of whole epoch microseconds, as "2026Q4". */
+export function quarter(at: number): string {
+  const date = new Date(Math.floor(at / 1000));
   return `${date.getUTCFullYear()}Q${Math.trunc(date.getUTCMonth() / 3) + 1}`;
 }
 

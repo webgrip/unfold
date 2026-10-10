@@ -4,7 +4,7 @@ import type { CI } from './playkpi-ci.ts';
 import { complexityMethod, sortHotspots, type Complexity, type Hotspot } from './playkpi-complexity.ts';
 import { shownHotspots, shownLanguages, topLanguages, type Language, type Shape } from './playkpi-shape.ts';
 
-/** One play's derived figures as a card summarizes them (Ploeg `playkpi.PlayFigures`), oldest play first: the stored Timeline, CI and full Shape as their JSON reads, an absent field counting as Go's zero value; mergedAt is epoch milliseconds. */
+/** One play's derived figures as a card summarizes them (Ploeg `playkpi.PlayFigures`), oldest play first: the stored Timeline, CI and full Shape as their JSON reads, an absent field counting as Go's zero value; mergedAt is whole epoch microseconds. */
 export type PlayFigures = {
   state: string;
   mergedAt?: number | null;
@@ -45,7 +45,7 @@ export type CardShape = {
   truncated: boolean;
 };
 
-const zeroTime = -62135596800000;
+const zeroTime = -62135596800000000;
 
 function pipeline(plays: readonly PlayFigures[]): Pipeline | null {
   let count = 0;

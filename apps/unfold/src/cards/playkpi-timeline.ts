@@ -1,10 +1,10 @@
-import { rfc3339, seconds } from './go.ts';
+import { rfc3339Micros } from './go.ts';
 import { equalFold, toLower } from './rarity-go.ts';
 
-/** One review recorded for a play from a forge webhook; `at` is epoch milliseconds (Ploeg `playkpi.Review`). */
+/** One review recorded for a play from a forge webhook; `at` is whole epoch microseconds (Ploeg `playkpi.Review`). */
 export type Review = { reviewer: string; state: string; headSha?: string; at: number };
 
-/** One stored conversation event of a play; kind is comment, review_comment, review, push, force_push, ready or draft, and `at` is epoch milliseconds (Ploeg `playkpi.Event`). */
+/** One stored conversation event of a play; kind is comment, review_comment, review, push, force_push, ready or draft, and `at` is whole epoch microseconds (Ploeg `playkpi.Event`). */
 export type PlayEvent = { kind: string; actor?: string; at: number; state?: string; headSha?: string };
 
 /** A comment on the pull request. */
@@ -22,10 +22,10 @@ export const kindReady = 'ready';
 /** The pull request became a draft. */
 export const kindDraft = 'draft';
 
-/** One stored attempt of a CI job or check; times are epoch milliseconds (Ploeg `playkpi.Job`). */
+/** One stored attempt of a CI job or check; times are whole epoch microseconds (Ploeg `playkpi.Job`). */
 export type Job = { name: string; status: string; startedAt?: number | null; completedAt?: number | null; queuedSeconds?: number | null; attempt: number };
 
-/** One stored CI run on one head commit; status is success, failure, error, cancelled, skipped, pending or running, and times are epoch milliseconds (Ploeg `playkpi.Run`). */
+/** One stored CI run on one head commit; status is success, failure, error, cancelled, skipped, pending or running, and times are whole epoch microseconds (Ploeg `playkpi.Run`). */
 export type Run = {
   id: string;
   sha: string;
@@ -37,7 +37,7 @@ export type Run = {
   jobs?: readonly Job[] | null;
 };
 
-/** What Ploeg stored about one pull request (Ploeg `playkpi.Play`); an absent field is Go's zero value and times are epoch milliseconds. activityCapturedAt is null until a forge activity read succeeded, ciCapturedAt until a CI read did; headSha is the merged head of a merged play and the current head otherwise. */
+/** What Ploeg stored about one pull request (Ploeg `playkpi.Play`); an absent field is Go's zero value and times are whole epoch microseconds. activityCapturedAt is null until a forge activity read succeeded, ciCapturedAt until a CI read did; headSha is the merged head of a merged play and the current head otherwise. */
 export type Play = {
   openedAt?: number | null;
   author?: string;
@@ -81,26 +81,31 @@ export type Timeline = {
   capturedAt: string | null;
 };
 
-/** How far apart, in milliseconds, a webhook's record of a review and the forge's own timestamp of it may be and still be one review. */
-export const sameReviewMs = 2 * 60 * 1000;
+/** How far apart, in microseconds, a webhook's record of a review and the forge's own timestamp of it may be and still be one review. */
+export const sameReviewMicros = 2 * 60 * 1_000_000;
+
+/** Whole seconds in a duration of microseconds, truncated toward zero like Go's `int64(d / time.Second)`. */
+export function wholeSeconds(micros: number): number {
+  return Math.trunc(micros / 1_000_000);
+}
 
 type Verdict = { reviewer: string; state: string; at: number };
 
-/** The time an optional instant serializes to, or null. */
+/** The time optional epoch microseconds serialize to, or null. */
 export function timeJson(at: number | null | undefined): string | null {
-  return at == null ? null : rfc3339(at);
+  return at == null ? null : rfc3339Micros(at);
 }
 
 /** Whole seconds from `from` to `to`, or null when either is unknown or `to` is earlier. */
 export function between(from: number | null | undefined, to: number | null | undefined): number | null {
   if (from == null || to == null || to < from) return null;
-  return seconds(to - from);
+  return wholeSeconds(to - from);
 }
 
 /** Whole seconds from `from` to `to`, never below zero, or null when either is unknown. */
 export function sinceReady(from: number | null | undefined, to: number | null | undefined): number | null {
   if (from == null || to == null) return null;
-  return Math.max(0, seconds(to - from));
+  return Math.max(0, wholeSeconds(to - from));
 }
 
 /** The median of whole numbers with Go's integer halving, or null for none. */
@@ -116,7 +121,7 @@ export function median(values: readonly number[]): number | null {
 function recorded(verdicts: readonly Verdict[], e: PlayEvent): boolean {
   for (const v of verdicts) {
     const gap = Math.abs(v.at - e.at);
-    if (equalFold(v.reviewer, e.actor ?? '') && v.state === (e.state ?? '') && gap <= sameReviewMs) return true;
+    if (equalFold(v.reviewer, e.actor ?? '') && v.state === (e.state ?? '') && gap <= sameReviewMicros) return true;
   }
   return false;
 }
@@ -139,7 +144,7 @@ function responseSeconds(p: Play, verdicts: readonly Verdict[]): number | null {
     if (v.state !== 'changes_requested') continue;
     for (const push of pushes) {
       if (push.at > v.at) {
-        waits.push(seconds(push.at - v.at));
+        waits.push(wholeSeconds(push.at - v.at));
         break;
       }
     }
@@ -147,7 +152,7 @@ function responseSeconds(p: Play, verdicts: readonly Verdict[]): number | null {
   return median(waits);
 }
 
-/** A play's Timeline with its readiness in epoch milliseconds, or null when nothing about its conversation is known. */
+/** A play's Timeline with its readiness in epoch microseconds, or null when nothing about its conversation is known. */
 export function deriveTimeline(p: Play, human: (login: string) => boolean): { timeline: Timeline; readyAt: number | null } | null {
   const reviews = p.reviews ?? [];
   if (p.openedAt == null && reviews.length === 0 && p.activityCapturedAt == null) return null;

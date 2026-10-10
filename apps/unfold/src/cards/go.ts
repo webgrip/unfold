@@ -11,6 +11,26 @@ export function instant(value: string): number {
   return at;
 }
 
+/** Parses an RFC 3339 time to whole epoch microseconds, keeping the fraction Postgres stores; finer digits are truncated. Throws when it is not a time. */
+export function micros(value: string): number {
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  const seconds = match ? Date.parse(`${match[1]}${match[3]}`) : NaN;
+  if (!match || !Number.isFinite(seconds)) throw new Error(`not an RFC 3339 time: ${value}`);
+  return seconds * 1000 + Number((match[2] ?? '').padEnd(6, '0').slice(0, 6));
+}
+
+/** Formats whole epoch microseconds as Go's `encoding/json` writes a UTC `time.Time`. */
+export function rfc3339Micros(at: number): string {
+  const whole = Math.floor(at / 1_000_000);
+  const fraction = String(at - whole * 1_000_000).padStart(6, '0').replace(/0+$/, '');
+  return `${new Date(whole * 1000).toISOString().slice(0, 19)}${fraction ? `.${fraction}` : ''}Z`;
+}
+
+/** Normalises an RFC 3339 time to Go's UTC form at microsecond precision. */
+export function utcTime(value: string): string {
+  return rfc3339Micros(micros(value));
+}
+
 /** Rounds half away from zero, as Go's `math.Round` does. */
 export function goRound(value: number): number {
   return value < 0 ? -Math.round(-value) : Math.round(value);

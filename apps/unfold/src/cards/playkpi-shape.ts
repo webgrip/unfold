@@ -1,7 +1,7 @@
-import { goRound, rfc3339 } from './go.ts';
+import { goRound, rfc3339Micros } from './go.ts';
 import { compareStrings, pathBase, pathExt, toLower } from './rarity-go.ts';
 import { compilePatterns, matchAny, type FileLines, type Pattern, type RarityMatcher } from './rarity.ts';
-import { measureComplexity, type Complexity } from './playkpi-complexity.ts';
+import { complexityFromFiles, measureComplexity, type Complexity, type FileIndentation } from './playkpi-complexity.ts';
 
 /** The paths a Work Target that sets no testPaths counts as tests (Ploeg `playkpi.DefaultTestPaths`). */
 export const defaultTestPaths: readonly string[] = Object.freeze([
@@ -53,7 +53,7 @@ export type Shape = {
   capturedAt: string;
 };
 
-/** What measuring a merged play takes (Ploeg `playkpi.MeasureInput`): its changed files with their lines, its whole diff size or null, its unified diff (null when it was not read; an empty diff is a read diff) and the Work Target's size and shape matchers; capturedAt is epoch milliseconds, absent for Go's zero time. */
+/** What measuring a merged play takes (Ploeg `playkpi.MeasureInput`): its changed files with their lines, its whole diff size or null, its unified diff (null when it was not read; an empty diff is a read diff) and the Work Target's size and shape matchers; capturedAt is whole epoch microseconds, absent for Go's zero time. */
 export type MeasureInput = {
   files?: readonly FileLines[] | null;
   filesTruncated?: boolean;
@@ -65,13 +65,25 @@ export type MeasureInput = {
   capturedAt?: number | null;
 };
 
-const zeroTime = -62135596800000;
+const zeroTime = -62135596800000000;
 
 /** The languages with the most lines first, then by name, at most n. */
 export function topLanguages(lines: ReadonlyMap<string, number>, n: number): Language[] {
   const out = [...lines].map(([name, l]) => ({ name, lines: l }));
   out.sort((a, b) => (a.lines !== b.lines ? b.lines - a.lines : compareStrings(a.name, b.name)));
   return out.length > n ? out.slice(0, n) : out;
+}
+
+/** One changed file of a merged play with its lines and, when measured, its indentation. */
+export type MeasuredFile = FileLines & { indentation?: FileIndentation | null };
+
+/** What measuring a merged play from per-file facts takes: `measureFromFiles` reads each file's indentation instead of a diff; indentationTruncated says the measurements stop short, as a truncated diff does. */
+export type MeasureFromFilesInput = Omit<MeasureInput, 'files' | 'diff' | 'diffTruncated'> & { files?: readonly MeasuredFile[] | null; indentationTruncated?: boolean };
+
+/** A play's Shape from per-file indentation measurements instead of a diff: the same as `measure` with the diff those measurements came from, except that complexity is null when a file the size rules keep lacks a measurement. */
+export function measureFromFiles(input: MeasureFromFilesInput): Shape {
+  const shape = measure({ ...input, diff: null, diffTruncated: input.indentationTruncated });
+  return { ...shape, complexity: complexityFromFiles(input.files ?? [], input.size.excluded) };
 }
 
 /** A play's Shape as Ploeg's `playkpi.Measure` computes it, keeping up to `storedHotspots` hotspots and `storedLanguages` languages. */
@@ -113,7 +125,7 @@ export function measure(input: MeasureInput): Shape {
     docsTouched,
     languages: topLanguages(languages, storedLanguages),
     truncated: filesTruncated || input.diffTruncated === true,
-    capturedAt: rfc3339(input.capturedAt ?? zeroTime),
+    capturedAt: rfc3339Micros(input.capturedAt ?? zeroTime),
   };
 }
 

@@ -1,4 +1,4 @@
-import { goRound, rfc3339 } from './go.ts';
+import { goRound, rfc3339Micros } from './go.ts';
 import { compareStrings } from './rarity-go.ts';
 import { between, kindForcePush, kindPush, sinceReady, type Play, type Run } from './playkpi-timeline.ts';
 
@@ -24,7 +24,7 @@ export type CI = {
   capturedAt: string;
 };
 
-const zeroTime = -62135596800000;
+const zeroTime = -62135596800000000;
 
 function before(a: Run, b: Run): number {
   const ta = a.createdAt ?? zeroTime;
@@ -85,7 +85,7 @@ function firstPassGreen(p: Play, runs: readonly Run[], readyAt: number | null): 
   return null;
 }
 
-/** A play's CI as Ploeg's `playkpi` derives it, or null until CI was read; readyAt is the play's readiness in epoch milliseconds. */
+/** A play's CI as Ploeg's `playkpi` derives it, or null until CI was read; readyAt is the play's readiness in epoch microseconds. */
 export function deriveCI(p: Play, readyAt: number | null): CI | null {
   if (p.ciCapturedAt == null) return null;
   const runs = [...(p.runs ?? [])].sort(before);
@@ -144,6 +144,6 @@ export function deriveCI(p: Play, readyAt: number | null): CI | null {
     firstPassGreen: firstPassGreen(p, runs, readyAt),
     source: p.ciSource ?? '',
     truncated: p.ciTruncated === true,
-    capturedAt: rfc3339(p.ciCapturedAt),
+    capturedAt: rfc3339Micros(p.ciCapturedAt),
   };
 }

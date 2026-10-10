@@ -168,3 +168,48 @@ export function measureComplexity(diff: string | Uint8Array, excluded?: ((path: 
   if (c.hotspots.length > storedHotspots) c.hotspots = c.hotspots.slice(0, storedHotspots);
   return c;
 }
+
+/** One changed file's indentation measurement as Ploeg's delivery facts carry it: the indent unit detected for the file, the summed levels of its non-blank added and removed lines and its deepest added line. */
+export type FileIndentation = { method: string; unit: number; added: number; removed: number; maxDepth: number };
+
+/** The indentation measurement of every file in a unified diff, in diff order, as `measureComplexity` counts each one; a file without hunks measures zero and a file without a path is left out. */
+export function fileIndentations(diff: string | Uint8Array): { path: string; indentation: FileIndentation }[] {
+  const out: { path: string; indentation: FileIndentation }[] = [];
+  for (const f of parseDiff(typeof diff === 'string' ? utf8(diff) : diff)) {
+    if (f.path === '') continue;
+    const unit = indentUnit(f.sequence);
+    let added = 0;
+    let removed = 0;
+    let maxDepth = 0;
+    for (const line of f.added) {
+      const [level, blank] = indentLevel(line, unit);
+      if (blank) continue;
+      added += level;
+      maxDepth = Math.max(maxDepth, level);
+    }
+    for (const line of f.removed) {
+      const [level, blank] = indentLevel(line, unit);
+      if (!blank) removed += level;
+    }
+    out.push({ path: f.path, indentation: { method: complexityMethod, unit, added, removed, maxDepth } });
+  }
+  return out;
+}
+
+/** The complexity of a change from per-file indentation measurements, or null when a file `excluded` keeps lacks a measurement of `complexityMethod`. */
+export function complexityFromFiles(files: readonly { path: string; indentation?: FileIndentation | null }[], excluded?: ((path: string) => boolean) | null): Complexity | null {
+  const c: Complexity = { method: complexityMethod, added: 0, removed: 0, net: 0, maxDepth: 0, hotspots: [] };
+  for (const f of files) {
+    if (f.path === '' || (excluded && excluded(f.path))) continue;
+    const m = f.indentation;
+    if (!m || m.method !== complexityMethod) return null;
+    c.added += m.added;
+    c.removed += m.removed;
+    c.maxDepth = Math.max(c.maxDepth, m.maxDepth);
+    if (m.added > 0) c.hotspots.push({ path: f.path, added: m.added });
+  }
+  c.net = c.added - c.removed;
+  sortHotspots(c.hotspots);
+  if (c.hotspots.length > storedHotspots) c.hotspots = c.hotspots.slice(0, storedHotspots);
+  return c;
+}

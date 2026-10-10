@@ -1,17 +1,17 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { rfc3339 } from '../src/cards/go.ts';
+import { micros, rfc3339Micros } from '../src/cards/go.ts';
 import { compileRarityRules, type FileLines, type RarityRules } from '../src/cards/rarity.ts';
 import {
-  compileShapeRules, complexityMethod, defaultIndentUnit, defaultShapeMatcher, derive, indentUnit, kindComment, kindForcePush, kindPush, kindReady,
+  compileShapeRules, complexityFromFiles, complexityMethod, fileIndentations, measureFromFiles, defaultIndentUnit, defaultShapeMatcher, derive, indentUnit, kindComment, kindForcePush, kindPush, kindReady,
   kindReview, kindReviewComment, languageOf, measure, measureComplexity, shownShape, summarize,
-  type Job, type Play, type PlayFigures, type Shape, type ShapeRules,
+  type Job, type MeasuredFile, type Play, type PlayFigures, type Shape, type ShapeRules,
 } from '../src/cards/playkpi.ts';
 
-const t0 = Date.UTC(2026, 9, 1, 9, 0, 0);
-const at = (minutes: number) => t0 + minutes * 60_000;
-const iso = (minutes: number) => rfc3339(at(minutes));
+const t0 = Date.UTC(2026, 9, 1, 9, 0, 0) * 1000;
+const at = (minutes: number) => t0 + minutes * 60_000_000;
+const iso = (minutes: number) => rfc3339Micros(at(minutes));
 const notBot = (login: string) => login !== '' && login.toLowerCase() !== 'ploeg-bot';
 
 test('timeline: a draft then ready measures from readiness', () => {
@@ -216,7 +216,7 @@ test('the indent unit', () => {
 const lines = (path: string, additions: number, deletions: number): FileLines => ({ path, additions, deletions });
 
 test('measure: test ratio, docs, languages and excluded files', () => {
-  const capturedAt = Date.UTC(2026, 9, 2, 8, 0, 0);
+  const capturedAt = Date.UTC(2026, 9, 2, 8, 0, 0) * 1000;
   const s = measure({
     files: [lines('pkg/store/card.go', 80, 20), lines('pkg/store/card_test.go', 40, 10), lines('web/src/card.spec.ts', 10, 0), lines('docs/concepts/run-cards.md', 30, 5), lines('README.md', 1, 1), lines('go.sum', 500, 400)],
     diff: fileDiff('pkg/store/card.go', '+\tif x {', '+\t\ty()', '+\t}') + fileDiff('go.sum', '+\t\t\t\tdeep'),
@@ -300,12 +300,37 @@ test('summarize: the card shape adds merged plays', () => {
   assert.ok(unknown && unknown.countedLines === null && unknown.testLines === null && unknown.complexity === null, 'a play without lines or a diff leaves the sums unknown');
 });
 
+test('measureFromFiles: per-file indentation stands in for the diff, and a kept file without a measurement leaves complexity unknown', () => {
+  const diff = fileDiff('a.go', '+\tif x {', '+\t\ty()', '-\tz') + fileDiff('go.sum', '+\t\t\tdeep') + fileDiff('b.py', '+    a', '+        b');
+  const indentation = new Map(fileIndentations(diff).map(f => [f.path, f.indentation]));
+  assert.deepEqual(indentation.get('a.go'), { method: complexityMethod, unit: 4, added: 3, removed: 1, maxDepth: 2 });
+  assert.deepEqual(indentation.get('b.py'), { method: complexityMethod, unit: 4, added: 3, removed: 0, maxDepth: 2 });
+  const size = compileRarityRules();
+  const files: MeasuredFile[] = [{ ...lines('a.go', 3, 1), indentation: indentation.get('a.go')! }, { ...lines('go.sum', 1, 0), indentation: null }, { ...lines('b.py', 2, 0), indentation: indentation.get('b.py')! }];
+  const capturedAt = Date.UTC(2026, 9, 2, 8, 0, 0) * 1000 + 123_456;
+  const fromDiff = measure({ files, diff, size, paths: defaultShapeMatcher, capturedAt });
+  assert.deepEqual(measureFromFiles({ files, size, paths: defaultShapeMatcher, capturedAt }), fromDiff, 'an excluded file needs no measurement');
+  assert.equal(fromDiff.capturedAt, '2026-10-02T08:00:00.123456Z');
+  assert.equal(measureFromFiles({ files: [files[0]!, { ...files[2]!, indentation: null }], size, paths: defaultShapeMatcher }).complexity, null, 'a kept file without a measurement');
+  assert.equal(complexityFromFiles([{ path: 'a.go', indentation: { method: 'indentation/2027.1', unit: 4, added: 1, removed: 0, maxDepth: 1 } }]), null, 'another method is no measurement');
+  assert.deepEqual(complexityFromFiles([]), { method: complexityMethod, added: 0, removed: 0, net: 0, maxDepth: 0, hotspots: [] }, 'no files is a measured zero');
+});
+
+test('microsecond instants keep their order and truncate durations like Go', () => {
+  const base = micros('2026-10-10T14:27:48.672588+02:00');
+  const [tl] = derive({ openedAt: base, activityCapturedAt: base + 10, events: [{ kind: kindComment, actor: 'bob', at: base + 999_999 }, { kind: kindComment, actor: 'eve', at: base + 400 }] }, notBot);
+  assert.equal(tl?.openedAt, '2026-10-10T12:27:48.672588Z');
+  assert.equal(tl?.firstFeedbackAt, '2026-10-10T12:27:48.672988Z', 'the earlier of two comments in the same millisecond');
+  assert.equal(tl?.toFirstFeedbackSeconds, 0);
+  assert.equal(tl?.capturedAt, '2026-10-10T12:27:48.672598Z');
+});
+
 type Golden = { name: string; kind: string; input: Record<string, unknown>; output: unknown };
 
 const fixtureDirectory = new URL('./fixtures/cards/playkpi/', import.meta.url);
 
 function ms(value: unknown): number | null {
-  return typeof value === 'string' ? Date.parse(value) : null;
+  return typeof value === 'string' ? micros(value) : null;
 }
 
 function playOf(raw: Record<string, unknown>): Play {
@@ -368,6 +393,15 @@ function playkpiOutput(kind: string, input: Record<string, unknown>): unknown {
       } catch (error) {
         return { value: null, error: (error as Error).message };
       }
+    }
+    case 'measureFromFiles': {
+      const files = (input.files as (FileLines & { indentation: { added: number; removed: number; maxDepth: number }; segment: string })[]).map(f => {
+        const own = fileIndentations(Buffer.from(f.segment, 'base64'));
+        assert.equal(own.length, 1, `one diff file for ${f.path}`);
+        assert.deepEqual([own[0]!.path, own[0]!.indentation.added, own[0]!.indentation.removed, own[0]!.indentation.maxDepth], [f.path, f.indentation.added, f.indentation.removed, f.indentation.maxDepth], `Go and Unfold measure ${f.path} alike`);
+        return { path: f.path, additions: f.additions, deletions: f.deletions, indentation: { ...f.indentation, method: complexityMethod, unit: own[0]!.indentation.unit } } as MeasuredFile;
+      });
+      return measureFromFiles({ files, filesTruncated: input.filesTruncated as boolean, total: input.total as number | null, size: compileRarityRules(input.sizeRules as RarityRules), paths: defaultShapeMatcher, capturedAt: ms(input.capturedAt) });
     }
     case 'summarize': {
       const plays = (input.plays as Record<string, unknown>[]).map(p => ({ ...p, mergedAt: ms(p.mergedAt) }) as PlayFigures);
