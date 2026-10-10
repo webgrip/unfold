@@ -105,13 +105,25 @@ Keep 0.25 `H` clear on every side of the mark or a lockup. Nothing enters it: no
 | Horizontal lockup | 96 px wide |
 | Stacked lockup | 64 px wide |
 
+## Motion
+
+The mark moves in two ways, both drawn from the same outlines: only position, rotation, scale and the fold's hinge change. [`scripts/brand-motion.js`](../../scripts/brand-motion.js) holds the motion; `mise run brand` copies it to `apps/unfold/public/core/motion.js` and `apps/site/src/brand/motion.js`, and `mise run brand-check` fails when a copy differs.
+
+| | The sting | The pop |
+| --- | --- | --- |
+| What happens | The plane winds up, the fold snaps open, it flies a figure eight tilted onto the 52° flight axis with a trail of approach lights, lands on the mark with a squash and a burst of eight lights | A squash, the fold snaps open with an overshoot, the plane jiggles and twelve lights burst out; it does not move from the mark |
+| Length | 1.46 s, then 1.1 s at rest before the next flight | 0.94 s |
+| Where | The application's loading screen, on repeat while it loads | Hovering over or focusing the mark or lockup in the application and on the site |
+
+Both are spring-driven squash and stretch, so they overshoot and settle rather than ease to a stop. The trail and the burst take the fold's colour. With reduced motion requested, the mark stays still. Touch input does not pop it.
+
 ## Misuse
 
 Scale the file; never redraw it.
 
 - Do not swap the colours. The weight moves to the fold and the plane reads as falling.
 - Do not close the crease. Without it the mark is a dart, not a folded sheet.
-- Do not rotate it to point down or left. The mark always climbs.
+- Do not show it at rest pointing down or left. The mark always climbs. In motion it may turn, but every animation starts and ends on the drawn mark.
 - Do not stretch it. Scale both axes together, or the fold changes angle.
 - Do not use a family accent. Klei is Ploeg's. Unfold, the mark and the application, uses Baken only.
 - Do not outline it. An outline loses the weight of the sheet and the fold.
