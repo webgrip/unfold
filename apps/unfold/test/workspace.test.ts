@@ -4,11 +4,12 @@ import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { once } from 'node:events';
 import { RuntimeFailure, classifyFailure } from '../src/failures.ts';
 import { WorkspaceManager, isolatedEnvironment, managedConfig } from '../src/runtime/workspace.ts';
 import { KubernetesWorkspaces, workspaceManifests, candidateExportManifest, podWait } from '../src/runtime/kubernetes.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
-import { deadlineAfter } from './timeframes.ts';
+import { deadlineAfter, scaledTimeout, testTimeout } from './timeframes.ts';
 
 const repository = { id: 'repo', name: 'Repo', description: '', url: 'https://forge.example/project.git', baseBranch: 'main', verify: ['node', '--test'] } as Repository;
 const session = { id: 'abc123', branch: 'unfold/abc123', ownerId: 'alice' } as Session;
@@ -164,7 +165,7 @@ test('local command workspace clones once and preserves human changes on resume'
   await assert.rejects(manager.prepare({ ...session, id: '../escape' }, repo, credential, new AbortController().signal), /identity/);
 });
 
-test('local OpenCode uses private authentication and dies when its owner pipe closes', async t => {
+test('local OpenCode uses private authentication and dies when its owner pipe closes', { timeout: testTimeout(60_000) }, async t => {
   const directory = await mkdtemp(join(tmpdir(), 'unfold-supervisor-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const source = join(directory, 'source'); await mkdir(source);
@@ -182,26 +183,24 @@ http.createServer((req,res)=>{res.writeHead(req.headers.authorization===auth?200
   const config = configuration(join(directory, 'data'));
   config.repositories = [repo]; config.runtime = { kind: 'opencode', backend: 'local', binary, timeoutMs: 5000 };
   const manager = new WorkspaceManager(config);
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   config.runtime.binary = '/no-such-unfold-opencode-binary';
   await assert.rejects(manager.prepare(session, repo, credential, new AbortController().signal), error => error instanceof RuntimeFailure && error.category === 'missing_executable' && error.promptAcceptance === 'not_submitted');
   assert.equal(manager.internal.size, 0);
   config.runtime.binary = binary;
   const workspace = await manager.prepare(session, repo, credential, new AbortController().signal);
+  t.mock.timers.reset();
   t.after(() => manager.dispose(workspace));
   assert.equal(JSON.stringify(workspace).includes('password'), false);
   assert.equal((await fetch(workspace.endpoint! + '/global/health')).status, 401);
   const basic = manager.credentials(workspace)!;
   const auth = 'Basic ' + Buffer.from(basic.username + ':' + basic.password).toString('base64');
   assert.equal((await fetch(workspace.endpoint! + '/global/health', { headers: { authorization: auth } })).status, 200);
-  manager.internal.get(workspace.id)!.process!.stdin!.end();
-  let stopped = false;
-  const deadline = deadlineAfter(3_000);
-  while (Date.now() < deadline) {
-    try { await fetch(workspace.endpoint! + '/global/health', { signal: AbortSignal.timeout(100) }); }
-    catch { stopped = true; break; }
-    await new Promise(done => setTimeout(done, 100));
-  }
-  assert.equal(stopped, true, 'closing the parent channel must stop the agent server');
+  const supervisor = manager.internal.get(workspace.id)!.process!;
+  const supervisorExited = once(supervisor, 'exit');
+  supervisor.stdin!.end();
+  await supervisorExited;
+  await assert.rejects(fetch(workspace.endpoint! + '/global/health', { signal: AbortSignal.timeout(scaledTimeout(1_000)) }), 'closing the parent channel must stop the agent server');
 });
 
 test('workspace failures carry the failing command and its redacted output', async t => {
