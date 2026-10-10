@@ -94,3 +94,19 @@ test('a long record is shortened and says so', () => {
   assert.equal(brief.truncated, true);
   assert.match(briefText(brief), /Some of this record was shortened\./);
 });
+
+test('a pull request on done or withdrawn work is never called open', () => {
+  const done = briefText(workItemBrief(detail({ state: 'done' })));
+  assert.match(done, /Pull request #77: part of the finished work; the record does not say whether it was merged or closed/);
+  assert.doesNotMatch(done, /Pull request #77: open/);
+  const withdrawn = briefText(workItemBrief(detail({ state: 'withdrawn' })));
+  assert.match(withdrawn, /Pull request #77: left as it was when the work was withdrawn/);
+});
+
+test('every Shift close reason Ploeg sends reads as words, never as a code', () => {
+  for (const reason of ['plan_exhausted', 'review_failed', 'fix_round_cap_reached', 'budget_exhausted_before_fix_round', 'writing_run_failed_repeatedly', 'writing_run_killed_repeatedly']) {
+    const text = briefText(workItemBrief(detail({ state: 'needs_human', latestShift: { ...detail().item.latestShift!, closeReason: reason } })));
+    assert.doesNotMatch(text, new RegExp(reason.replace(/_/g, '[ _]')), reason);
+  }
+  assert.match(briefText(workItemBrief(detail({ state: 'withdrawn', latestShift: { ...detail().item.latestShift!, closeReason: 'plan_exhausted' } }))), /It stopped because every planned round of work ran without a change being approved\./);
+});

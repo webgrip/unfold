@@ -338,7 +338,7 @@ export function detail(value: unknown): PloegDetail {
   const result = { item: item(data.item), shifts: array(data.shifts, shift), runs: array(data.runs, run).filter(entry => entry.role !== askRole), checkpoints: array(data.checkpoints, checkpoint), events: array(data.events, event), truncated: { shifts: boolean(truncated.shifts), runs: boolean(truncated.runs), checkpoints: boolean(truncated.checkpoints), events: boolean(truncated.events) } };
   const latestShift = result.item.latestShift?.id ?? result.shifts[0]?.id;
   const earlierShifts = new Set(result.shifts.filter(entry => entry.id !== latestShift && entry.closedAt).map(entry => entry.id));
-  const fromEarlierTeam = (entry: { team?: string; id?: string; shiftId?: string | null; state?: string }) => 'shiftId' in entry ? entry.state === 'finished' && !!entry.shiftId && earlierShifts.has(entry.shiftId) : 'closedAt' in entry && earlierShifts.has(entry.id!);
+  const fromEarlierTeam = (entry: { team?: string; id?: string; shiftId?: string | null; state?: string }) => 'shiftId' in entry ? entry.state === 'finished' && (entry.shiftId === null || earlierShifts.has(entry.shiftId!)) : 'closedAt' in entry && earlierShifts.has(entry.id!);
   for (const entry of [...result.shifts, ...result.runs, ...result.checkpoints, ...result.events]) if (entry.workItemId !== result.item.id || ('team' in entry && entry.team !== result.item.team && !fromEarlierTeam(entry as any))) throw invalid();
   return result;
 }
