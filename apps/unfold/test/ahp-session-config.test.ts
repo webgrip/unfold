@@ -6,6 +6,7 @@ import { action, connect, defaultChatOf, vscodeAgentsWindow, type Json } from '.
 import { repositoriesDirectory } from '../src/ahp/host.ts';
 import { acceptSessionConfig, composerModel, resolveSessionConfig, sessionConfigState, startedConfigChange } from '../src/ahp/session-config.ts';
 import { testTimeout } from './timeframes.ts';
+import { money } from '../public/core/format.js';
 import type { AppConfig, Session } from '../src/types.ts';
 
 const objective = 'Reproduce the rounding regression and fix it with the tests intact.';
@@ -54,7 +55,7 @@ test('the Agents window renders crew, budget and placement as pickers, the repos
   assert.deepEqual(chipsOfVscode1141(resolved).map(chip => [chip.key, chip.label, chip.readOnly]), [
     ['repository', 'Order service', true],
     ['crew', 'Delivery crew', false],
-    ['budgetUsd', '$5 budget', false],
+    ['budgetUsd', money(5), false],
     ['placement', 'Container', false],
   ]);
   assert.deepEqual(approvalLevelsOfVscode1141(resolved.schema), ['default', 'autoApprove'], 'a container placement may approve inside its sandbox');
@@ -67,7 +68,7 @@ test('the Agents window renders crew, budget and placement as pickers, the repos
   assert.equal(local.values.approvalMode, 'manual', 'a working directory on the host never approves automatically');
   assert.deepEqual(approvalLevelsOfVscode1141(local.schema), ['default']);
   assert.throws(() => acceptSessionConfig(config, { ...resolved.values, placement: 'local', approvalMode: 'allow-all' }), /container or pod/);
-  assert.throws(() => acceptSessionConfig(config, { ...resolved.values, budgetUsd: '26' }), /up to \$25/);
+  assert.throws(() => acceptSessionConfig(config, { ...resolved.values, budgetUsd: '26' }), new RegExp(`up to ${money(25).replace('$', '\\$')}`));
   assert.equal(acceptSessionConfig(config, { ...resolved.values, budgetUsd: 3 }).budgetUsd, '3', 'another client may still send a number');
   assert.ok(resolveSessionConfig(config, { budgetUsd: 3 }).schema.properties.budgetUsd.enum.includes('3'), 'a value outside the presets stays selectable');
 });
@@ -105,7 +106,7 @@ test('VS Code\'s new-session flow: the advertised model names the crew, a picker
 
   const picked = `${repositoriesDirectory}/${encodeURIComponent('Unfold · order-service')}`;
   const resolved = await vscode.rpc('resolveSessionConfig', { channel: 'ahp-root://', provider: 'unfold', workingDirectory: picked });
-  assert.deepEqual(chipsOfVscode1141(resolved).map(chip => [chip.key, chip.label]), [['repository', 'Order service'], ['crew', 'Delivery crew'], ['budgetUsd', '$5 budget']]);
+  assert.deepEqual(chipsOfVscode1141(resolved).map(chip => [chip.key, chip.label]), [['repository', 'Order service'], ['crew', 'Delivery crew'], ['budgetUsd', money(5)]]);
   assert.deepEqual(approvalLevelsOfVscode1141(resolved.schema), ['default'], 'the demonstration has no sandbox to approve inside');
   const completions = await vscode.rpc('sessionConfigCompletions', { channel: 'ahp-root://', provider: 'unfold', property: 'crew' });
   assert.deepEqual(completions.items.map((item: Json) => item.label), ['Delivery crew', 'Investigation crew']);
@@ -128,6 +129,7 @@ test('VS Code\'s new-session flow: the advertised model names the crew, a picker
   vscode.notify('dispatchAction', { channel: chat, clientSeq: 3, action: { type: 'chat/turnStarted', turnId: randomUUID(), startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } } });
   const started = await vscode.until(message => action(message, chat, 'chat/turnStarted') && message.params.origin?.clientSeq === 3);
   assert.equal(started.params.rejectionReason, undefined);
+  assert.equal(started.params.action.message.model, undefined, 'a response is never labelled with a model nobody observed');
   const [created] = server.app.store.listSessions();
   assert.deepEqual([created.crewId, created.budgetUsd, created.approval], ['investigation', 10, 'manual'], 'the session starts with what the pickers showed');
   const live = (await vscode.rpc('subscribe', { channel: session })).snapshot.state.config;

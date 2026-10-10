@@ -1,5 +1,6 @@
 import { placements } from '../config.ts';
 import type { AppConfig, Crew, Session, WorkspaceBackend } from '../types.ts';
+import { money } from '../../public/core/format.js';
 
 type Json = Record<string, any>;
 type Approval = 'manual' | 'auto';
@@ -25,7 +26,7 @@ export function composerModel(config: AppConfig): { id: string; name: string } {
   return { id: composerModelId, name: 'Unfold crew' };
 }
 
-const dollars = (amount: number) => `$${Number.isInteger(amount) ? amount : amount.toFixed(2)}`;
+const dollars = (amount: number): string => money(amount);
 const budgetValue = (amount: number) => String(amount);
 
 function defaultPlacement(config: AppConfig): WorkspaceBackend | undefined {
@@ -83,7 +84,7 @@ export function sessionConfigSchema(config: AppConfig, values: Json = {}, live?:
     crew: { type: 'string', title: 'Crew', description: 'The roles that work on this session, in order', enum: config.crews.map(crew => crew.id), enumLabels: config.crews.map(crew => crew.name), enumDescriptions: config.crews.map(crew => crewDescription(config, crew)), default: config.crews[0]?.id },
   };
   const amounts = budgetOptions(config, budget);
-  properties.budgetUsd = { type: 'string', title: 'Budget', description: `The most this session may spend on models, up to ${dollars(config.maxBudgetUsd)}`, enum: amounts.map(budgetValue), enumLabels: amounts.map(amount => `${dollars(amount)} budget`), default: budgetValue(defaultBudget(config)) };
+  properties.budgetUsd = { type: 'string', title: 'Budget', description: `The most this session may spend on models, up to ${dollars(config.maxBudgetUsd)}`, enum: amounts.map(budgetValue), enumLabels: amounts.map(dollars), default: budgetValue(defaultBudget(config)) };
   const options = placements(config);
   if (options.length > 1) properties.placement = { type: 'string', title: 'Placement', description: 'Where the crew\'s workspace runs', enum: options.map(item => item.id), enumLabels: options.map(item => placementLabels[item.id]), enumDescriptions: options.map(item => item.name), default: defaultPlacement(config) };
   const placement = live ? live.placement : effectivePlacement(config, values);
@@ -98,7 +99,7 @@ export function sessionConfigSchema(config: AppConfig, values: Json = {}, live?:
   return { type: 'object', properties, required: ['repository', 'crew', 'budgetUsd'] };
 }
 
-/** Defaults for a new session: the picked repository or the first one, the first crew, a $5 budget within the limit, the runtime's default placement and manual approval. */
+/** Defaults for a new session: the picked repository or the first one, the first crew, a 5 US$ budget within the limit, the runtime's default placement and manual approval. */
 export function defaultSessionConfig(config: AppConfig, repository?: string): Json {
   const placement = placements(config).length > 1 ? defaultPlacement(config) : undefined;
   return { repository: repository ?? config.repositories[0]?.id, crew: config.crews[0]?.id, budgetUsd: budgetValue(defaultBudget(config)), ...(placement ? { placement } : {}), approvalMode: 'manual' };
