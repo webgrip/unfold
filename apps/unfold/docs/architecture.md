@@ -74,6 +74,7 @@ Every module in `src/`:
 | [`src/delivery-verifier.ts`](../src/delivery-verifier.ts) | Runs a policy's pinned checks in throwaway Docker containers |
 | [`src/trusted-candidate.ts`](../src/trusted-candidate.ts) | Rebuilds a captured candidate as one canonical commit on the approved base, with hardened Git |
 | [`src/ahp/host.ts`](../src/ahp/host.ts) | Agent Host Protocol server: connection tokens, JSON-RPC methods and session events projected as turns |
+| [`src/ahp/work-items.ts`](../src/ahp/work-items.ts) | Ploeg Work Items as read-only Agents-window sessions: the state map, the Round and Run transcript, and the fleet poller on Ploeg's audit events |
 | [`src/ahp/websocket.ts`](../src/ahp/websocket.ts) | WebSocket upgrade through `ws`, the message and unread-bytes limits, and connection-token generation |
 | [`src/runtime/opencode.ts`](../src/runtime/opencode.ts) | OpenCode HTTP and event-stream adapter: native session, prompts, permission replies, transcript and verdict |
 | [`src/runtime/command.ts`](../src/runtime/command.ts) | JSON-lines subprocess harness bridge, local backend only |
