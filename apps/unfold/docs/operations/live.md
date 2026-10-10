@@ -69,7 +69,7 @@ The insight export forwards product events the browser and VS Code extension pos
 - Faro event attributes are strings only, so numbers and booleans travel as text. OTLP keeps their types.
 - An unreachable collector is logged once an hour and never blocks or slows the event route. One person may post 600 events a minute; past that the route answers `429`.
 
-On the owner's homelab instance the sink is `faro` at `http://alloy-gateway.observability.svc.cluster.local:12347/collect`. The [dashboard](../../ops/grafana/README.md) reads the events back in Grafana.
+In Kubernetes, set these through the chart's `insight` values ([chart README](../../ops/helm/unfold/README.md#product-events-and-export)); recording is on and the export is off by default. On the owner's homelab instance the sink is `faro` at `http://alloy-gateway.observability.svc.cluster.local:12347/collect`. The [dashboard](../../ops/grafana/README.md) reads the events back in Grafana.
 
 Then start and sign in:
 
@@ -197,7 +197,7 @@ Optional keys: `roleClaim` (default `unfold_role`), `groupsClaim` (default `grou
 A person's account is identified by the provider's subject together with `subjectNamespace`, which defaults to the issuer. Authentik puts the application slug in the issuer, so renaming the application changes the issuer, and without a namespace every person who signs in afterwards gets a new, empty account. Set `subjectNamespace` to the issuer the accounts were created under, and keep it when the issuer changes again:
 
 ```json
-"auth": { "oidc": { "issuer": "https://auth.example/application/o/unfold/", "subjectNamespace": "https://auth.example/application/o/vloer/", "clientId": "unfold" } }
+"auth": { "oidc": { "issuer": "https://auth.example/application/o/unfold/", "subjectNamespace": "https://auth.example/application/o/former-slug/", "clientId": "unfold" } }
 ```
 
 This carries accounts across only while the provider keeps issuing the same subject for a person. Authentik's default subject mode, a hashed user id, is the same in every application of one Authentik. A provider set to a per-application subject breaks the link, and so does pointing the namespace at a different provider, which would hand one provider's accounts to another provider's people.
