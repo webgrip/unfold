@@ -70,3 +70,11 @@ Implemented the same day; the commits are listed in the dossier's follow-up:
 * **Reconnect.** A client known to the process resumes with a snapshot. It keeps its session spelling, and its active-client entry for 30 seconds.
 
 An end-to-end run with Microsoft's AHP 1.0.0 client found six further defects, fixed the same day. Terminals and resource writes stay declined. No desktop VS Code has attached yet.
+
+## Update, 2026-10-10
+
+Evidence: [the AHP sign-in spike](../research/2026-10-10-ahp-sign-in-spike.md).
+
+VS Code 1.141 cannot sign a person in to this host, and VS Code main does not change that. It resolves a third-party protected resource only through an authentication provider that is already registered, so a personal connection token stays the credential. The extension's command could not deliver that token either: VS Code 1.141 registers the application-scoped `chat.remoteAgentHosts` setting only in the Agents window, and the configuration API refuses it in editor windows.
+
+Decision: after sign-in, the extension writes the entry straight into the default profile's user `settings.json`. It keeps comments and indentation and replaces the file in one atomic rename, as a hand-edited proof did against a running 1.141.0, which connected without a reload. The extension uses the configuration API only where the setting is registered, reuses a stored token the host still accepts, and mints nothing when the file cannot be parsed or written. `unfold.agentHost.autoConnect` opts out ([operations guide](../operations/live.md#attaching-vs-code-as-an-agent-host-client)). The token sits in plain text in that setting, which is how VS Code stores it.
