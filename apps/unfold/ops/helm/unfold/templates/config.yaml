@@ -10,6 +10,7 @@
 {{- if .Values.workspaceMemoryRequest -}}{{- $_ := set $kube "memoryRequest" .Values.workspaceMemoryRequest -}}{{- end -}}
 {{- if .Values.workspaceStorageClass -}}{{- $_ := set $kube "storageClass" .Values.workspaceStorageClass -}}{{- end -}}
 {{- if .Values.workspaceGitSecretName -}}{{- $_ := set $kube "gitSecretName" .Values.workspaceGitSecretName -}}{{- end -}}
+{{- if has .Values.credentialsSecret (default (list) .Values.workspaceAgentSecrets) -}}{{- fail "workspaceAgentSecrets must not list credentialsSecret: it holds the workbench, verifier and publisher credentials" -}}{{- end -}}
 {{- if .Values.workspaceAgentSecrets -}}{{- $_ := set $kube "agentSecrets" .Values.workspaceAgentSecrets -}}{{- end -}}
 {{- if .Values.workspaceUserNamespaces -}}{{- $_ := set $kube "userNamespaces" true -}}{{- end -}}
 {{- $_ := set $kube "transport" .Values.workspaceTransport -}}

@@ -70,7 +70,7 @@ export class DeliveryService {
   async view(id: string, user: User): Promise<DeliveryView> {
     const session = this.session(id, user);
     const record = this.store.getSecret<PublicationRecord>(publicationKey(id));
-    if (record && reconcilablePhases.includes(record.phase) && !this.queues.has(id)) await this.serial(id, () => this.reconcile(session)).catch(() => undefined);
+    if (user.role !== 'viewer' && record && reconcilablePhases.includes(record.phase) && !this.queues.has(id)) await this.serial(id, () => this.reconcile(session)).catch(() => undefined);
     return this.render(session);
   }
 
@@ -122,9 +122,9 @@ export class DeliveryService {
   publish(id: string, user: User, input: Record<string, unknown>): Promise<DeliveryView> {
     return this.serial(id, async () => {
       const session = this.session(id, user, true); const policy = this.policy(session);
+      if (Object.keys(input).some(key => !['candidateId', 'receiptId', 'policySha256'].includes(key)) || ![input.candidateId, input.receiptId].every(value => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value)) || typeof input.policySha256 !== 'string') throw Object.assign(new Error('Publishing requires exactly the displayed candidateId, receiptId and policySha256.'), { status: 400, code: 'publication_binding_required' });
       if (!this.publisher) deliveryFailure('publication_disabled');
       if (!policy || input.policySha256 !== policyDigest(policy)) deliveryFailure('delivery_policy_changed');
-      if (Object.keys(input).some(key => !['candidateId', 'receiptId', 'policySha256'].includes(key)) || [input.candidateId, input.receiptId].some(value => value !== undefined && (typeof value !== 'string' || !/^[a-f0-9]{32}$/.test(value)))) deliveryFailure('candidate_bound_approval_required');
       let record = this.store.getSecret<PublicationRecord>(publicationKey(id));
       if (!record || record.phase === 'refused') record = await this.prepare(session, user, input, policyDigest(policy!));
       if (record.phase === 'reserving') record = await this.reserve(session, user, record);
@@ -147,9 +147,8 @@ export class DeliveryService {
 
   private async prepare(session: Session, user: User, input: Record<string, unknown>, policySha256: string): Promise<PublicationRecord> {
     let delivery = validatedDelivery((await this.request(session)).delivery, session);
-    if (!delivery.receipt) { await this.verifyLocked(session, user); delivery = validatedDelivery((await this.request(session)).delivery, session); }
     const { candidate, receipt } = delivery;
-    if (!candidate || !receipt || (input.candidateId !== undefined && input.candidateId !== candidate.id) || (input.receiptId !== undefined && input.receiptId !== receipt.id) || candidate.policySha256 !== policySha256) deliveryFailure('candidate_bound_approval_required');
+    if (!candidate || !receipt || input.candidateId !== candidate.id || input.receiptId !== receipt.id || candidate.policySha256 !== policySha256) deliveryFailure('candidate_bound_approval_required');
     if (!receipt.passed) deliveryFailure('passing_receipt_required');
     if (!delivery.approval) { await this.approveLocked(session, user, { candidateId: candidate.id, receiptId: receipt.id, policySha256 }); delivery = validatedDelivery((await this.request(session)).delivery, session); }
     const approval = delivery.approval;
@@ -202,11 +201,16 @@ export class DeliveryService {
   }
 
   private async propose(session: Session, record: PublicationRecord): Promise<PublicationRecord> {
+    if (await this.publisher!.remoteHead(this.gitDirectory(session), record.repositoryUrl, record.branch) !== record.facts.canonicalSha) return this.unknown(session, record);
     const created = await this.publisher!.createPullRequest(record.repositoryUrl, { head: record.branch, base: record.baseBranch, title: pullRequestTitle(record.facts), body: pullRequestBody(record.operationId, record.facts) });
-    const pr = created === 'exists' ? await this.publisher!.findPullRequest(record.repositoryUrl, record.branch, record.baseBranch) : created;
+    const pr = created === 'exists' ? await this.publisher!.findPullRequest(record) : created;
     if (!pr) deliveryFailure('publication_unconfirmed');
     const evidence = await this.publisher!.verifiedPullRequest(record, pr!.number);
-    if (!evidence) return this.unknown(session, record);
+    if (!evidence) {
+      const closed = await this.publisher!.closePullRequest(record, pr!.number).then(() => true, () => false);
+      this.store.appendEvent(session.id, 'delivery.publication_unverified_proposal', 'publisher', { operationId: record.operationId, pullRequest: pr!.number, closed });
+      return this.unknown(session, record);
+    }
     return this.save(session, { ...record, phase: 'proposed', pullRequest: evidence }, 'delivery.publication_proposed');
   }
 
@@ -224,7 +228,7 @@ export class DeliveryService {
 
   private async evidence(session: Session, record: PublicationRecord): Promise<PullRequestEvidence | undefined> {
     if (await this.publisher!.remoteHead(this.gitDirectory(session), record.repositoryUrl, record.branch) !== record.facts.canonicalSha) return undefined;
-    const pr = await this.publisher!.findPullRequest(record.repositoryUrl, record.branch, record.baseBranch);
+    const pr = await this.publisher!.findPullRequest(record);
     return pr ? this.publisher!.verifiedPullRequest(record, pr.number) : undefined;
   }
 
@@ -243,7 +247,7 @@ export class DeliveryService {
       record = this.save(session, { ...record, phase: 'pushed' }, 'delivery.publication_pushed');
     }
     if (record.phase === 'pushed') {
-      const pr = await this.publisher.findPullRequest(record.repositoryUrl, record.branch, record.baseBranch);
+      const pr = await this.publisher.findPullRequest(record);
       const evidence = pr ? await this.publisher.verifiedPullRequest(record, pr.number) : undefined;
       if (!evidence) return;
       record = this.save(session, { ...record, phase: 'proposed', pullRequest: evidence }, 'delivery.publication_proposed');

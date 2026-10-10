@@ -1,3 +1,4 @@
+import { knownSecrets } from './redaction.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { Store } from './store.ts';
 import { authorityFailure, authorityRequestTimeoutMs, ExecutionAuthority } from './execution-authority.ts';
@@ -110,7 +111,7 @@ export class Engine {
   constructor(store: Store, config: AppConfig, runtimes: Map<RuntimeKind, AgentRuntime> | Record<string, AgentRuntime>, broker?: Broker, links?: Links) {
     this.store = store; this.config = config; this.runtimes = runtimes instanceof Map ? runtimes : new Map(Object.entries(runtimes) as [RuntimeKind, AgentRuntime][]); this.broker = broker; this.links = links;
     if (config.execution) this.authority = new ExecutionAuthority(store, config);
-    for (const value of [config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined, config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword, ...(config.taskSources ?? []).map(source => source.token)]) if (value) this.keys.add(value);
+    for (const value of knownSecrets(config)) this.keys.add(value);
     if (broker || this.authority) this.maintenance = setInterval(() => {
       if (this.shuttingDown || this.maintenanceTask) return;
       this.maintenanceTask = this.observeSpend().catch(() => undefined).then(() => this.reconcilePending()).catch(() => undefined).finally(() => { this.maintenanceTask = undefined; });

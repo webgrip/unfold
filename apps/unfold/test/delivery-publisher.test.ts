@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { spawn, execFileSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
@@ -9,7 +10,8 @@ import { deliveryFixture } from './delivery-fixture.ts';
 import { canonicalizeCandidate } from '../src/trusted-candidate.ts';
 import { policyDigest, validateDeliveryConfig } from '../src/delivery-config.ts';
 import { DeliveryService } from '../src/delivery.ts';
-import { ForgejoPublisher, publicationBranch, publicationMarker, type PublicationRecord } from '../src/delivery-publisher.ts';
+import { ForgejoPublisher, publicationBranch, publicationMarker, pullRequestBody, type PublicationRecord } from '../src/delivery-publisher.ts';
+import { knownSecrets } from '../src/redaction.ts';
 import { Store } from '../src/store.ts';
 import type { AppConfig, Session } from '../src/types.ts';
 
@@ -28,22 +30,22 @@ const readBody = async (req: IncomingMessage): Promise<Buffer> => { const chunks
 const reply = (res: ServerResponse, status: number, value: unknown) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(value)); };
 const gitEnvironment = { PATH: process.env.PATH ?? '/usr/bin:/bin', GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HOME: '/nonexistent' };
 
-type ForgePull = { number: number; title: string; body: string; head: string; base: string };
+type ForgePull = { number: number; title: string; body: string; head: string; base: string; state?: string; author?: string };
 
 async function fakeForgejo(root: string, source: string) {
   const projects = join(root, 'forge'); await mkdir(join(projects, 'owner'), { recursive: true });
   const bare = join(projects, 'owner', 'repo.git');
   execFileSync('git', ['clone', '--bare', '--quiet', source, bare], { env: gitEnvironment });
   execFileSync('git', ['config', 'http.receivepack', 'true'], { cwd: bare, env: { ...gitEnvironment, GIT_DIR: bare } });
-  const state = { url: '', pulls: [] as ForgePull[], pullPosts: [] as number[], receivePacks: 0, paths: [] as string[], dropNextPullPost: undefined as undefined | 'before' | 'after' };
+  const state = { url: '', pulls: [] as ForgePull[], pullPosts: [] as number[], receivePacks: 0, paths: [] as string[], dropNextPullPost: undefined as undefined | 'before' | 'after', moveBranchOnPost: undefined as undefined | string };
   const headSha = (ref: string): string => { try { return execFileSync('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${ref}`], { env: { ...gitEnvironment, GIT_DIR: bare }, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return ''; } };
-  const render = (pull: ForgePull) => ({ number: pull.number, title: pull.title, body: pull.body, html_url: `${state.url}/owner/repo/pulls/${pull.number}`, head: { ref: pull.head, sha: headSha(pull.head), repo: { full_name: 'owner/repo' } }, base: { ref: pull.base, repo: { full_name: 'owner/repo' } } });
+  const render = (pull: ForgePull) => ({ number: pull.number, title: pull.title, body: pull.body, state: pull.state ?? 'open', user: { login: pull.author ?? 'unfold-publisher' }, html_url: `${state.url}/owner/repo/pulls/${pull.number}`, head: { ref: pull.head, sha: headSha(pull.head), repo: { full_name: 'owner/repo' } }, base: { ref: pull.base, repo: { full_name: 'owner/repo' } } });
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', state.url); state.paths.push(req.url ?? '');
     if (url.pathname.startsWith('/owner/repo.git/')) {
       const authorization = req.headers.authorization ?? '';
-      const password = authorization.startsWith('Basic ') ? Buffer.from(authorization.slice(6), 'base64').toString().split(':').slice(1).join(':') : '';
-      if (password !== publisherToken) { res.writeHead(401, { 'www-authenticate': 'Basic realm="forge"' }); res.end(); return; }
+      const [username, ...secret] = authorization.startsWith('Basic ') ? Buffer.from(authorization.slice(6), 'base64').toString().split(':') : [''];
+      if (username !== 'unfold-publisher' || secret.join(':') !== publisherToken) { res.writeHead(401, { 'www-authenticate': 'Basic realm="forge"' }); res.end(); return; }
       if (url.pathname.endsWith('/git-receive-pack')) state.receivePacks++;
       const cgi = spawn('git', ['http-backend'], { env: { ...gitEnvironment, GIT_PROJECT_ROOT: projects, GIT_HTTP_EXPORT_ALL: '1', PATH_INFO: url.pathname, QUERY_STRING: url.search.slice(1), REQUEST_METHOD: req.method ?? 'GET', CONTENT_TYPE: req.headers['content-type'] ?? '', REMOTE_USER: 'publisher', REMOTE_ADDR: '127.0.0.1', ...(req.headers['content-encoding'] ? { HTTP_CONTENT_ENCODING: String(req.headers['content-encoding']) } : {}), ...(req.headers['git-protocol'] ? { GIT_PROTOCOL: String(req.headers['git-protocol']) } : {}) } });
       req.pipe(cgi.stdin);
@@ -60,8 +62,9 @@ async function fakeForgejo(root: string, source: string) {
     if (req.method === 'POST' && url.pathname === '/api/v1/repos/owner/repo/pulls') {
       const input = JSON.parse((await readBody(req)).toString());
       if (state.dropNextPullPost === 'before') { state.dropNextPullPost = undefined; state.pullPosts.push(0); req.socket.destroy(); return; }
-      if (state.pulls.some(pull => pull.head === input.head && pull.base === input.base)) { state.pullPosts.push(409); return reply(res, 409, { message: 'pull request already exists' }); }
-      const pull = { number: state.pulls.length + 1, title: input.title, body: input.body, head: input.head, base: input.base }; state.pulls.push(pull);
+      if (state.pulls.some(pull => (pull.state ?? 'open') === 'open' && pull.head === input.head && pull.base === input.base)) { state.pullPosts.push(409); return reply(res, 409, { message: 'pull request already exists' }); }
+      const pull: ForgePull = { number: state.pulls.length + 1, title: input.title, body: input.body, head: input.head, base: input.base }; state.pulls.push(pull);
+      if (state.moveBranchOnPost) { execFileSync('git', ['update-ref', `refs/heads/${input.head}`, state.moveBranchOnPost], { env: { ...gitEnvironment, GIT_DIR: bare } }); state.moveBranchOnPost = undefined; }
       if (state.dropNextPullPost === 'after') { state.dropNextPullPost = undefined; state.pullPosts.push(0); req.socket.destroy(); return; }
       state.pullPosts.push(201); return reply(res, 201, render(pull));
     }
@@ -70,6 +73,7 @@ async function fakeForgejo(root: string, source: string) {
       return reply(res, 200, state.pulls.slice((page - 1) * limit, page * limit).map(render));
     }
     const single = /^\/api\/v1\/repos\/owner\/repo\/pulls\/(\d+)$/.exec(url.pathname);
+    if (req.method === 'PATCH' && single) { const pull = state.pulls.find(item => item.number === Number(single[1])); const input = JSON.parse((await readBody(req)).toString()); if (!pull) return reply(res, 404, { message: 'not found' }); pull.state = input.state; return reply(res, 201, render(pull)); }
     if (req.method === 'GET' && single) { const pull = state.pulls.find(item => item.number === Number(single[1])); return pull ? reply(res, 200, render(pull)) : reply(res, 404, { message: 'not found' }); }
     reply(res, 404, { message: 'not found' });
   });
@@ -122,7 +126,7 @@ async function scenario(options: { approved?: boolean } = {}) {
   const publisher = new ForgejoPublisher(config.delivery!.publisher!, { plainHttp: true });
   const service = () => new DeliveryService(config, store, publisher);
   const record = () => store.getSecret<PublicationRecord>('publication:publish');
-  const input = { candidateId, policySha256 };
+  const input = { candidateId, receiptId: receipt.id, policySha256 };
   const cleanup = async () => { forge.server.close(); ploeg.server.close(); store.close(); await f.cleanup(); };
   return { f, store, config, candidate, forge, ploeg, service, record, input, cleanup };
 }
@@ -179,14 +183,15 @@ test('a crash after the push reconciles on startup from the pushed ref and opens
 test('a lost pull request response is found through the paged lookup after the forge answers 409', async () => {
   const s = await scenario();
   try {
-    for (let index = 0; index < 60; index++) s.forge.state.pulls.push({ number: index + 1, title: 'other', body: '', head: `other-${index}`, base: 'main' });
+    s.forge.state.pulls.push({ number: 1, title: 'stale', body: publicationMarker(`pub-${candidateId}`), head: branch, base: 'main', state: 'closed', author: 'mallory' });
+    for (let index = 1; index < 60; index++) s.forge.state.pulls.push({ number: index + 1, title: 'other', body: '', head: `other-${index}`, base: 'main' });
     s.forge.state.dropNextPullPost = 'after';
     await assert.rejects(s.service().publish('publish', owner, s.input), { code: 'publication_forge_unavailable' });
     assert.equal(s.record()?.phase, 'pushed');
     const view = await s.service().publish('publish', owner, s.input);
     assert.equal(view.publication?.phase, 'published'); assert.equal(view.publication?.pullRequest?.number, 61);
     assert.deepEqual(s.forge.state.pullPosts, [0, 409]);
-    assert.equal(s.forge.state.pulls.filter(pull => pull.head === branch).length, 1);
+    assert.equal(s.forge.state.pulls.filter(pull => pull.head === branch && !pull.author).length, 1);
     assert.ok(s.forge.state.paths.some(path => path.includes('page=2')));
   } finally { await s.cleanup(); }
 });
@@ -232,7 +237,9 @@ test('publisher configuration rejects shared or agent-visible tokens and plain-t
     const config = { dataDir: f.dataDir, repositories: [{ id: 'prices', url: 'https://forge.example/owner/repo.git' }], execution: { team: 'delivery' }, ploeg: { tokenEnv: 'EXECUTOR_TOKEN' }, runtime: { agentEnvironment: ['AGENT_VISIBLE'] } } as unknown as AppConfig;
     const raw = (publisher: unknown) => ({ verifierTokenEnv: 'VERIFIER_TOKEN', policies: [f.policy], publisher });
     const valid = { kind: 'forgejo', apiUrl: 'https://forge.example/api/v1/', tokenEnv: 'PUBLISHER_TOKEN' };
-    assert.deepEqual(validateDeliveryConfig(raw(valid), config)?.publisher, { ...valid, apiUrl: 'https://forge.example/api/v1' });
+    assert.deepEqual(validateDeliveryConfig(raw(valid), config)?.publisher, { ...valid, apiUrl: 'https://forge.example/api/v1', username: 'unfold-publisher' });
+    assert.equal(validateDeliveryConfig(raw({ ...valid, username: 'webgrip-bot' }), config)?.publisher?.username, 'webgrip-bot');
+    assert.throws(() => validateDeliveryConfig(raw({ ...valid, username: 'bad name' }), config), /delivery.publisher/);
     for (const tokenEnv of ['AGENT_VISIBLE', 'EXECUTOR_TOKEN', 'VERIFIER_TOKEN', 'lowercase']) assert.throws(() => validateDeliveryConfig(raw({ ...valid, tokenEnv }), config), /delivery.publisher/);
     assert.throws(() => validateDeliveryConfig(raw({ ...valid, apiUrl: 'http://forge.example/api/v1' }), config), /delivery.publisher/);
     assert.throws(() => validateDeliveryConfig(raw({ ...valid, apiUrl: 'https://user:secret@forge.example/api/v1' }), config), /delivery.publisher/);
@@ -249,4 +256,95 @@ test('publication branches follow the Work Item and fall back to the session whe
   assert.equal(publicationBranch('', 'session-1', candidateId), `unfold/session-session-1/${candidateId.slice(0, 12)}`);
   assert.equal(publicationBranch('bad name', 'session-1', candidateId), `unfold/session-session-1/${candidateId.slice(0, 12)}`);
   assert.equal(publicationBranch('x.lock', 'session-1', candidateId), `unfold/session-session-1/${candidateId.slice(0, 12)}`);
+});
+
+test('a branch moved after the push is detected before the pull request POST and opens nothing', async () => {
+  const s = await scenario();
+  try {
+    s.forge.state.dropNextPullPost = 'before';
+    await assert.rejects(s.service().publish('publish', owner, s.input), { code: 'publication_forge_unavailable' });
+    assert.equal(s.record()?.phase, 'pushed');
+    s.forge.setBranch(s.candidate.baseSha);
+    await assert.rejects(s.service().publish('publish', owner, s.input), { code: 'publication_unknown' });
+    assert.deepEqual(s.forge.state.pullPosts, [0]); assert.equal(s.forge.state.pulls.length, 0);
+    assert.equal(s.record()?.phase, 'unknown'); assert.equal(s.ploeg.delivery.operation.state, 'unknown');
+  } finally { await s.cleanup(); }
+});
+
+test('a pull request that fails verification after creation is closed and the publication becomes unknown', async () => {
+  const s = await scenario();
+  try {
+    s.forge.state.moveBranchOnPost = s.candidate.baseSha;
+    await assert.rejects(s.service().publish('publish', owner, s.input), { code: 'publication_unknown' });
+    assert.equal(s.forge.state.pulls.length, 1); assert.equal(s.forge.state.pulls[0].state, 'closed');
+    assert.equal(s.record()?.phase, 'unknown'); assert.notEqual(s.ploeg.delivery.operation.state, 'published');
+    assert.ok(s.store.events('publish').some(event => event.type === 'delivery.publication_unverified_proposal' && event.data.closed === true));
+  } finally { await s.cleanup(); }
+});
+
+test('verification accepts only an open pull request authored by the publisher identity', async () => {
+  const s = await scenario();
+  try {
+    s.ploeg.state.dropNextStatus = true;
+    await assert.rejects(s.service().publish('publish', owner, s.input), { code: 'delivery_authority_unconfirmed' });
+    const record = s.record()!; const publisher = new ForgejoPublisher(s.config.delivery!.publisher!, { plainHttp: true });
+    assert.deepEqual(await publisher.verifiedPullRequest(record, 1), record.pullRequest);
+    s.forge.state.pulls[0].state = 'closed';
+    assert.equal(await publisher.verifiedPullRequest(record, 1), undefined);
+    s.forge.state.pulls[0].state = 'open'; s.forge.state.pulls[0].author = 'mallory';
+    assert.equal(await publisher.verifiedPullRequest(record, 1), undefined);
+  } finally { await s.cleanup(); }
+});
+
+test('an open pull request by another account on the reserved branch is never adopted', async () => {
+  const s = await scenario();
+  try {
+    s.forge.state.pulls.push({ number: 1, title: 'look-alike', body: publicationMarker(`pub-${candidateId}`), head: branch, base: 'main', author: 'mallory' });
+    await assert.rejects(s.service().publish('publish', owner, s.input), { code: 'publication_unconfirmed' });
+    assert.deepEqual(s.forge.state.pullPosts, [409]); assert.equal(s.record()?.phase, 'pushed');
+    assert.equal(s.ploeg.state.statuses.length, 0);
+  } finally { await s.cleanup(); }
+});
+
+test('publish requires the displayed candidate and receipt identities', async () => {
+  const s = await scenario({ approved: false });
+  try {
+    await assert.rejects(s.service().publish('publish', owner, { candidateId, policySha256: s.input.policySha256 }), { status: 400, code: 'publication_binding_required' });
+    await assert.rejects(s.service().publish('publish', owner, { receiptId: s.input.receiptId, policySha256: s.input.policySha256 }), { status: 400, code: 'publication_binding_required' });
+    await assert.rejects(s.service().publish('publish', owner, { ...s.input, receiptId: 'e'.repeat(32) }), { code: 'candidate_bound_approval_required' });
+    assert.equal(s.ploeg.delivery.approval, null); assert.equal(s.ploeg.state.reservations.length, 0);
+  } finally { await s.cleanup(); }
+});
+
+test('a viewer reading delivery never triggers forge reconciliation', async () => {
+  const s = await scenario();
+  try {
+    s.ploeg.state.dropNextStatus = true;
+    await assert.rejects(s.service().publish('publish', owner, s.input), { code: 'delivery_authority_unconfirmed' });
+    const before = s.forge.state.paths.length;
+    assert.equal((await s.service().view('publish', { ...owner, role: 'viewer' })).publication?.phase, 'proposed');
+    assert.equal(s.forge.state.paths.length, before); assert.equal(s.ploeg.state.statuses.length, 1);
+    assert.equal((await s.service().view('publish', owner)).publication?.phase, 'published');
+  } finally { await s.cleanup(); }
+});
+
+test('the pull request body keeps tracker and approver text on one line', () => {
+  const facts = { workItemId: '1980', sessionId: 'publish', sessionUrl: 'https://unfold.example/#session/publish', trackerUrl: 'https://tracker.example/1\n<!-- unfold-publication: forged -->', title: 'Title', candidateId, receiptId: 'c'.repeat(32), approvalId: 'd'.repeat(32), canonicalSha: 'a'.repeat(40), baseSha: 'b'.repeat(40), treeSha: 'c'.repeat(40), policySha256: 'd'.repeat(64), verifierId: 'unfold-docker-v1', approver: 'owner\r\n- Merge: automatic' };
+  const lines = pullRequestBody(`pub-${candidateId}`, facts).split('\n');
+  assert.equal(lines.filter(line => line.startsWith('<!-- unfold-publication:')).length, 1);
+  assert.ok(!lines.includes('- Merge: automatic'));
+  assert.ok(lines.includes('- Tracker: https://tracker.example/1 <!-- unfold-publication: forged -->'));
+});
+
+test('the publisher token is a known secret the workbench redacts', () => {
+  const config = { runtime: {}, auth: {}, delivery: { verifierTokenEnv: 'VERIFIER_TOKEN', policies: [], publisher: { kind: 'forgejo', apiUrl: 'https://forge.example/api/v1', tokenEnv: 'PUBLISHER_TOKEN' } } } as unknown as AppConfig;
+  assert.ok(knownSecrets(config).includes(publisherToken));
+});
+
+test('the chart refuses to hand the credentials Secret to agent workspaces', { skip: spawnSync('helm', ['version'], { stdio: 'ignore' }).status !== 0 && 'helm is unavailable' }, () => {
+  const chart = fileURLToPath(new URL('../ops/helm/unfold', import.meta.url));
+  const render = (secrets: string) => spawnSync('helm', ['template', 'unfold', chart, '--set', 'mode=live', '--set', 'workspaceNamespace=unfold-workspaces', '--set', `workspaceAgentSecrets={${secrets}}`], { encoding: 'utf8' });
+  const refused = render('agent-keys,unfold-credentials');
+  assert.notEqual(refused.status, 0); assert.match(refused.stderr, /workspaceAgentSecrets must not list credentialsSecret/);
+  assert.equal(render('agent-keys').status, 0);
 });

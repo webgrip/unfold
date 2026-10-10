@@ -6,7 +6,7 @@ export type PullRequestEvidence = { number: number; url: string };
 export type PublicationFacts = { workItemId: string; sessionId: string; sessionUrl: string; trackerUrl?: string; title: string; candidateId: string; receiptId: string; approvalId: string; canonicalSha: string; baseSha: string; treeSha: string; policySha256: string; verifierId: string; approver: string };
 export type PublicationRecord = { operationId: string; branch: string; baseBranch: string; repositoryUrl: string; phase: PublicationPhase; facts: PublicationFacts; pullRequest?: PullRequestEvidence };
 export type PushOutcome = 'pushed' | 'present' | 'foreign';
-type ForgePullRequest = { number: number; html_url: string; body: string; head: { ref: string; sha: string; repo?: { full_name?: string } }; base: { ref: string; repo?: { full_name?: string } } };
+type ForgePullRequest = { number: number; html_url: string; body: string; state: string; user?: { login?: string }; head: { ref: string; sha: string; repo?: { full_name?: string } }; base: { ref: string; repo?: { full_name?: string } } };
 
 const branchPattern = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/;
 
@@ -27,9 +27,11 @@ export const publicationOperationId = (candidateId: string): string => `pub-${ca
 export const publicationMarker = (operationId: string): string => `<!-- unfold-publication: ${operationId} -->`;
 
 export function pullRequestTitle(facts: PublicationFacts): string {
-  const title = facts.title.replace(/[\x00-\x1f\x7f]+/g, ' ').trim().slice(0, 180);
+  const title = singleLine(facts.title).slice(0, 180);
   return `Unfold: ${title || `Work Item ${facts.workItemId}`}`;
 }
+
+const singleLine = (value: string): string => value.replace(/[\x00-\x1f\x7f]+/g, ' ').trim();
 
 export function pullRequestBody(operationId: string, facts: PublicationFacts): string {
   return [
@@ -37,10 +39,10 @@ export function pullRequestBody(operationId: string, facts: PublicationFacts): s
     `Verified delivery candidate for Work Item ${facts.workItemId}, published by the Unfold control service.`,
     '',
     `- Session: ${facts.sessionUrl}`,
-    ...(facts.trackerUrl ? [`- Tracker: ${facts.trackerUrl}`] : []),
+    ...(facts.trackerUrl && singleLine(facts.trackerUrl) ? [`- Tracker: ${singleLine(facts.trackerUrl)}`] : []),
     `- Candidate: \`${facts.candidateId}\``,
     `- Verification receipt: \`${facts.receiptId}\``,
-    `- Approval: \`${facts.approvalId}\` by ${facts.approver}`,
+    `- Approval: \`${facts.approvalId}\` by ${singleLine(facts.approver)}`,
     `- Canonical commit: \`${facts.canonicalSha}\``,
     `- Approved base: \`${facts.baseSha}\``,
     `- Tree: \`${facts.treeSha}\``,
@@ -66,6 +68,8 @@ export class ForgejoPublisher {
   private plainHttp: boolean;
   constructor(config: ForgejoPublisherConfig, options: { plainHttp?: boolean } = {}) { this.config = config; this.plainHttp = options.plainHttp === true; }
 
+  private get username(): string { return this.config.username ?? 'unfold-publisher'; }
+
   private token(): string {
     const token = process.env[this.config.tokenEnv];
     return token && token.length >= 16 && token.length <= 4096 && !/[^\x21-\x7e]/.test(token) ? token : deliveryFailure('publisher_credential_unavailable');
@@ -74,7 +78,7 @@ export class ForgejoPublisher {
   private remote(repositoryUrl: string): DeliveryRemote {
     const { protocol } = repositoryCoordinates(repositoryUrl);
     if (protocol === 'http' && !this.plainHttp) deliveryFailure('publication_repository_unsupported');
-    const basic = Buffer.from(`unfold-publisher:${this.token()}`).toString('base64');
+    const basic = Buffer.from(`${this.username}:${this.token()}`).toString('base64');
     return { protocol, configuration: { 'http.extraHeader': `Authorization: Basic ${basic}` } };
   }
 
@@ -103,16 +107,25 @@ export class ForgejoPublisher {
     return response.data as ForgePullRequest;
   }
 
-  async findPullRequest(repositoryUrl: string, head: string, base: string): Promise<ForgePullRequest | undefined> {
-    const { fullName } = repositoryCoordinates(repositoryUrl);
+  async findPullRequest(record: PublicationRecord): Promise<ForgePullRequest | undefined> {
+    const { fullName } = repositoryCoordinates(record.repositoryUrl);
     for (let page = 1; page <= 20; page++) {
-      const response = await this.api(repositoryUrl, `/pulls?state=all&sort=oldest&limit=50&page=${page}`);
+      const response = await this.api(record.repositoryUrl, `/pulls?state=all&sort=oldest&limit=50&page=${page}`);
       if (response.status !== 200 || !Array.isArray(response.data)) deliveryFailure('publication_unconfirmed');
-      const found = (response.data as ForgePullRequest[]).find(pr => pr?.head?.ref === head && pr?.base?.ref === base && pr.base.repo?.full_name === fullName && pr.head.repo?.full_name === fullName);
+      const found = (response.data as ForgePullRequest[]).find(pr => this.publisherProposal(pr, record, fullName));
       if (found) return found;
       if ((response.data as unknown[]).length < 50) return undefined;
     }
     return deliveryFailure('publication_unconfirmed');
+  }
+
+  async closePullRequest(record: PublicationRecord, number: number): Promise<void> {
+    const response = await this.api(record.repositoryUrl, `/pulls/${number}`, { method: 'PATCH', body: { state: 'closed' } });
+    if (response.status !== 201 && response.status !== 200) deliveryFailure('publication_close_failed');
+  }
+
+  private publisherProposal(pr: ForgePullRequest, record: PublicationRecord, fullName: string): boolean {
+    return pr?.state === 'open' && pr.user?.login === this.username && pr.head?.ref === record.branch && pr.base?.ref === record.baseBranch && pr.base.repo?.full_name === fullName && pr.head.repo?.full_name === fullName && typeof pr.body === 'string' && pr.body.includes(publicationMarker(record.operationId));
   }
 
   async verifiedPullRequest(record: PublicationRecord, number: number): Promise<PullRequestEvidence | undefined> {
@@ -123,7 +136,7 @@ export class ForgejoPublisher {
     const { origin, fullName } = repositoryCoordinates(record.repositoryUrl);
     let url: URL | undefined;
     try { url = new URL(pr.html_url); } catch { url = undefined; }
-    const exact = Number.isSafeInteger(pr.number) && pr.number === number && pr.head?.sha === record.facts.canonicalSha && pr.head.ref === record.branch && pr.base?.ref === record.baseBranch && pr.base.repo?.full_name === fullName && pr.head.repo?.full_name === fullName && typeof pr.body === 'string' && pr.body.includes(publicationMarker(record.operationId)) && url?.origin === origin && url.pathname.startsWith(`/${fullName}/`) && !url.search && !url.hash;
+    const exact = Number.isSafeInteger(pr.number) && pr.number === number && pr.head?.sha === record.facts.canonicalSha && this.publisherProposal(pr, record, fullName) && url?.origin === origin && url.pathname.startsWith(`/${fullName}/`) && !url.search && !url.hash;
     return exact ? { number: pr.number, url: url!.toString() } : undefined;
   }
 
@@ -131,7 +144,7 @@ export class ForgejoPublisher {
     return deliveryGit(gitDirectory, args, undefined, this.remote(repositoryUrl));
   }
 
-  private async api(repositoryUrl: string, suffix: string, init: { method?: 'GET' | 'POST'; body?: unknown } = {}): Promise<{ status: number; data: unknown }> {
+  private async api(repositoryUrl: string, suffix: string, init: { method?: 'GET' | 'POST' | 'PATCH'; body?: unknown } = {}): Promise<{ status: number; data: unknown }> {
     const { owner, name } = repositoryCoordinates(repositoryUrl);
     const base = new URL(this.config.apiUrl);
     if (base.protocol !== 'https:' && !(this.plainHttp && base.protocol === 'http:')) deliveryFailure('publisher_unconfigured');

@@ -4,19 +4,19 @@ import type { AppConfig } from './types.ts';
 
 export type DeliveryCheck = { id: string; argv: string[]; stdout: string; exitCode: number };
 export type DeliveryPolicy = { repositoryId: string; approvedBaseSha: string; approvedBaseBundle: string; image: string; directory: string; files: Record<string, string>; protectedPaths: string[]; checks: DeliveryCheck[]; timeoutMs: number };
-export type ForgejoPublisherConfig = { kind: 'forgejo'; apiUrl: string; tokenEnv: string };
+export type ForgejoPublisherConfig = { kind: 'forgejo'; apiUrl: string; tokenEnv: string; username?: string };
 export type DeliveryConfig = { verifierTokenEnv: string; socketPath?: string; policies: DeliveryPolicy[]; publisher?: ForgejoPublisherConfig };
 export const digest = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
 export const policyDigest = (policy: DeliveryPolicy): string => digest(JSON.stringify({ version: 1, repositoryId: policy.repositoryId, approvedBaseSha: policy.approvedBaseSha, image: policy.image, files: Object.fromEntries(Object.entries(policy.files).sort(([a], [b]) => a.localeCompare(b))), protectedPaths: [...policy.protectedPaths].sort(), checks: policy.checks, timeoutMs: policy.timeoutMs }));
 const object = (value: any): boolean => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 export const deliveryPath = (value: string): boolean => typeof value === 'string' && value.length > 0 && value.length < 1024 && !isAbsolute(value) && !/[\\\x00-\x1f\x7f]/.test(value) && value.split('/').every(part => part && part !== '.' && part !== '..' && part.toLowerCase() !== '.git');
 const invalid = (): never => { throw new Error('delivery requires a scoped verifier credential and pinned, nonempty verification policies.'); };
-const invalidPublisher = (): never => { throw new Error('delivery.publisher requires kind forgejo, an https apiUrl without credentials, a tokenEnv no agent workspace, Ploeg consumer or verifier shares, and https delivery repositories.'); };
+const invalidPublisher = (): never => { throw new Error('delivery.publisher requires kind forgejo, an https apiUrl without credentials, a tokenEnv no agent workspace, Ploeg consumer or verifier shares, an optional Forgejo username, and https delivery repositories.'); };
 const environmentName = (value: unknown): boolean => typeof value === 'string' && /^[A-Z][A-Z0-9_]{2,100}$/.test(value);
 
 function validatePublisher(raw: any, config: AppConfig, verifierTokenEnv: string, policies: DeliveryPolicy[]): ForgejoPublisherConfig | undefined {
   if (raw === undefined) return undefined;
-  if (!object(raw) || Object.keys(raw).some(key => !['kind', 'apiUrl', 'tokenEnv'].includes(key)) || raw.kind !== 'forgejo' || !environmentName(raw.tokenEnv) || raw.tokenEnv === verifierTokenEnv || raw.tokenEnv === config.ploeg?.tokenEnv || config.runtime.agentEnvironment?.includes(raw.tokenEnv) || typeof raw.apiUrl !== 'string') invalidPublisher();
+  if (!object(raw) || Object.keys(raw).some(key => !['kind', 'apiUrl', 'tokenEnv', 'username'].includes(key)) || raw.kind !== 'forgejo' || (raw.username !== undefined && (typeof raw.username !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(raw.username))) || !environmentName(raw.tokenEnv) || raw.tokenEnv === verifierTokenEnv || raw.tokenEnv === config.ploeg?.tokenEnv || config.runtime.agentEnvironment?.includes(raw.tokenEnv) || typeof raw.apiUrl !== 'string') invalidPublisher();
   let api: URL;
   try { api = new URL(raw.apiUrl); } catch { return invalidPublisher(); }
   if (api.protocol !== 'https:' || api.username || api.password || api.search || api.hash) invalidPublisher();
@@ -24,7 +24,7 @@ function validatePublisher(raw: any, config: AppConfig, verifierTokenEnv: string
     const repository = config.repositories.find(repo => repo.id === policy.repositoryId);
     if (!repository || !/^https:\/\/[^/@\s]+\/[^/\s]+\/[^/\s]+$/.test(repository.url)) invalidPublisher();
   }
-  return { kind: 'forgejo', apiUrl: api.toString().replace(/\/+$/, ''), tokenEnv: raw.tokenEnv };
+  return { kind: 'forgejo', apiUrl: api.toString().replace(/\/+$/, ''), tokenEnv: raw.tokenEnv, username: raw.username ?? 'unfold-publisher' };
 }
 
 export function validateDeliveryConfig(raw: any, config: AppConfig): DeliveryConfig | undefined {
