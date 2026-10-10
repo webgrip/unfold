@@ -235,14 +235,15 @@ A `tool` event carries the OpenCode part id, the tool's input as a bounded JSON 
 
 ## Candidate delivery
 
-Delivery applies only to a shared Ploeg execution on a repository with a configured delivery policy; [governed candidate delivery](candidate-delivery.md) owns the full contract. Each route uses the session's owner or administrator check, and the two `POST` routes also require an operator or administrator, the mutation header and a JSON body. Refusals are 409 with a delivery code, for example `shared_execution_required` for a standalone session or `completed_candidate_required` before the execution has completed and confirmed its stop.
+Delivery applies only to a shared Ploeg execution on a repository with a configured delivery policy; [governed candidate delivery](candidate-delivery.md) owns the full contract. Each route uses the session's owner or administrator check, and the `POST` routes also require an operator or administrator, the mutation header and a JSON body. Refusals are 409 with a delivery code, for example `shared_execution_required` for a standalone session or `completed_candidate_required` before the execution has completed and confirmed its stop.
 
 | Method and path | Behavior |
 | --- | --- |
-| `GET /api/sessions/:id/delivery` | `{configured, policySha256?, localPhase?, checks?, candidate, receipt, approval, operation, publicationEnabled:false}`: Ploeg's delivery record for the execution, validated against the session, plus the local verification phase and check results |
+| `GET /api/sessions/:id/delivery` | `{configured, policySha256?, localPhase?, checks?, candidate, receipt, approval, operation, publication?, publicationEnabled}`: Ploeg's delivery record for the execution, validated against the session, plus the local verification phase and check results. `publication` is `{phase, operationId, branch, pullRequest?}` once a publish started; reading it reconciles an unfinished publication with idempotent steps. `publicationEnabled` is true only with a configured publisher and no refused reservation |
 | `GET /api/sessions/:id/delivery/download` | The canonical Git bundle `canonical-candidate.git.bundle`; 409 `canonical_candidate_unavailable` before verification has canonicalized it |
 | `POST /api/sessions/:id/delivery/verify` | `{}`; canonicalizes the captured candidate on the approved base, registers it with Ploeg, runs the pinned policy checks and records the receipt. A retry replays the retained result instead of running checks again |
-| `POST /api/sessions/:id/delivery/approve` | `{candidateId, receiptId, policySha256}` exactly; records the candidate-bound approval in Ploeg. Publication stays disabled |
+| `POST /api/sessions/:id/delivery/approve` | `{candidateId, receiptId, policySha256}` exactly; records the candidate-bound approval in Ploeg. Approval alone never publishes |
+| `POST /api/sessions/:id/delivery/publish` | `{policySha256, candidateId?, receiptId?}`; verifies and approves when missing, reserves the publication in Ploeg, pushes the canonical commit and opens one pull request, then reports it published. Serialized per session and resumable. Refusals include `publication_disabled`, `publication_refused`, `publication_recovery_required` (a replayed reservation without local authorization, never pushed) and `publication_unknown` (a different commit on the branch or an unverifiable pull request; a human decides) |
 
 ## Agent host
 
