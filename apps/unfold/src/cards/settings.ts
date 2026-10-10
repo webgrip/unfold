@@ -141,7 +141,7 @@ export function resolveCardRules(settings: CardRuleSettings): ResolvedCardRules 
     shapeMatcher: name => shape.get(name.toLowerCase()) ?? defaultShape,
     style: (name): CardStyle => { const style = name ? repo(name)?.style : undefined; return { skin: style?.skin ?? defaultCardSkin, theme: style?.theme ?? null }; },
     rarity: settings.rarity !== false,
-    flow: settings.flow === false ? null : { kinds: (provider, scope) => kinds.get(`${provider}:${scope}`) ?? null, calendar: team => calendars.get(team) ?? fallback },
+    flow: settings.flow === false ? null : { kinds: (provider, scope) => kinds.get(`${provider}:${scope}`) ?? kinds.get(`${provider}:*`) ?? null, calendar: team => calendars.get(team) ?? fallback, gates: (provider, scope) => gateMaps.get(`${provider}:${scope}`) ?? gateMaps.get(`${provider}:*`) ?? null },
     referees: team => settings.teams?.[team]?.referees ?? [],
     pullRequestComment: team => settings.teams?.[team]?.pullRequestComment === true,
     gates: (provider, scope) => gateMaps.get(`${provider}:${scope}`) ?? null,

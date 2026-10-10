@@ -41,5 +41,6 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0025](adr-0025-unfold-asks-one-ease-question-on-anomalies-and-a-random-baseline.md) | Unfold asks one ease question on anomalies and a random baseline | accepted | 2026-10-05 |
 | [ADR-0026](adr-0026-unfold-is-an-installable-web-app-that-notifies-from-the-server.md) | Unfold is an installable web app that notifies from the server | proposed | 2026-10-05 |
 | [ADR-0027](adr-0027-unfold-checks-its-ploeg-client-against-ploegs-published-schemas.md) | Unfold checks its Ploeg client against Ploeg's published schemas | proposed | 2026-10-05 |
-| [ADR-0028](adr-0028-unfold-owns-the-run-card-and-collects-its-inputs-itself.md) | Unfold owns the Run card and collects its inputs itself | proposed | 2026-10-06 |
-| [ADR-0029](adr-0029-unfold-collects-run-card-data-in-a-separate-go-service.md) | Unfold collects Run card data in a separate Go service | proposed | 2026-10-06 |
+| [ADR-0028](adr-0028-unfold-owns-the-run-card-and-collects-its-inputs-itself.md) | Unfold owns the Run card and collects its inputs itself | superseded by ADR-0030 | 2026-10-10 |
+| [ADR-0029](adr-0029-unfold-collects-run-card-data-in-a-separate-go-service.md) | Unfold collects Run card data in a separate Go service | superseded by ADR-0030 | 2026-10-10 |
+| [ADR-0030](adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md) | Run cards are an Unfold domain on top of Ploeg's delivery facts | accepted | 2026-10-10 |

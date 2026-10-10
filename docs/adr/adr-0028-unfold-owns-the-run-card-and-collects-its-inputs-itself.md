@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-06
+status: superseded by ADR-0030
+date: 2026-10-10
 decision-makers: Ryan Grippeling
 ---
 
@@ -91,3 +91,4 @@ The Unfold application reads cards from the collector. Its `src/rarity.ts` and c
 
 * 2026-10-05: proposed with Unfold reading the forge and tracker itself.
 * 2026-10-06: briefly revised to "Ploeg collects", then returned to Unfold-side collection in a separate service, after the owner chose minimal Ploeg exposure.
+* 2026-10-10: superseded by [ADR-0030](adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md). Unfold still owns the card, but Ploeg supplies the delivery facts and Unfold collects nothing from the forge or tracker itself.

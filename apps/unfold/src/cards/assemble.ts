@@ -1,6 +1,6 @@
 import { micros, rfc3339Micros } from './go.ts';
 import type { FactsPullRequest, FactsRun, WorkItemFacts } from './facts.ts';
-import { walk, bounceCounts, type Journey, type Transition, type Reason } from './gate.ts';
+import { walk, bounceCounts, type GateMap, type Journey, type Transition, type Reason } from './gate.ts';
 import { computeFlow, type Calendar, type Flow, type FlowFacts, type KindMap } from './flow.ts';
 import { derive, shownShape, summarize, measureFromFiles, type CardShape, type Pipeline, type Play, type Shape, type ShapeMatcher, type Timeline, type CI } from './playkpi.ts';
 import { compileRarityRules, formula as rarityFormula, moduleOf, notCollected as rarityNotCollected, noveltyWindowMs, quarter as rarityQuarter, score as rarityScore, sortedUnique, tier as rarityTier, type FileLines, type RarityMatcher, type Facts as RarityFacts } from './rarity.ts';
@@ -54,7 +54,7 @@ export type CardRules = {
   shapeMatcher(repo: string): ShapeMatcher;
   style(repo: string | null): CardStyle;
   rarity: boolean;
-  flow: null | { kinds(provider: string, scope: string): KindMap | null; calendar(team: string): Calendar };
+  flow: null | { kinds(provider: string, scope: string): KindMap | null; calendar(team: string): Calendar; gates?(provider: string, scope: string): GateMap | null };
 };
 
 /** What assembling a card reads besides the card's own facts. Every lookup is synchronous: Unfold's store is, and other Work Items' facts are fetched before assembly. Times are epoch microseconds. */
@@ -529,7 +529,7 @@ class Assembly {
     const admitted = (item as unknown as { admittedAt?: string | null }).admittedAt ?? null;
     const statuses = this.facts.statusTransitions.length > 500 ? this.facts.statusTransitions.slice(-500) : this.facts.statusTransitions;
     const facts: FlowFacts = {
-      now: this.ctx.now, statuses: statuses.map(s => ({ status: s.status, gate: s.gate ?? '', at: us(s.at), observed: s.observed })),
+      now: this.ctx.now, statuses: statuses.map(s => ({ status: s.status, gate: s.gate ?? rules.gates?.(item.provider, scope)?.resolve([s.status])?.gate ?? '', at: us(s.at), observed: s.observed })),
       truncated: this.facts.statusTransitions.length > 500 || this.facts.truncated.statusTransitions,
       trackerCreated: usOrNull(item.trackerCreatedAt), firstSeen: us(item.createdAt), admitted: usOrNull(admitted),
       open: this.card.state !== 'withdrawn' && this.card.state !== 'closed', estimateSeconds: item.estimateSeconds,
