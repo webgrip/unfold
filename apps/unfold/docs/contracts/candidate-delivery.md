@@ -44,13 +44,13 @@ All routes require the existing session's owner or administrator; mutations also
 | `POST /api/sessions/{id}/delivery/approve` | Require the displayed `candidateId`, `receiptId` and `policySha256`; Ploeg rejects stale or mismatched approval. |
 | `GET /api/sessions/{id}/delivery/download` | Download the canonical Git bundle for review. |
 
-The session's ordinary “Accept” review is a separate historical review note. Only “Approve this commit” creates the candidate-bound delivery approval.
+[ADR 0040](../adrs/0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) decides that “Accept” on a verified candidate approves that commit and opens a pull request through the trusted publisher. That is proposed behavior until the publisher ships: today the session's ordinary “Accept” review is a separate historical review note, and only “Approve this commit” creates the candidate-bound delivery approval.
 
 ## Publication boundary
 
 Ploeg implements an explicitly enabled reservation and a durable publication barrier. Its first accepted operation response grants the external effect once. Replaying the request after a lost response does not re-grant it. Positive evidence naming the exact operation, repository, canonical SHA, branch and remote proposal can reconcile an unknown result. A negative lookup never authorizes a second creation request. Demo executions cannot reserve live publication.
 
-This workbench increment deliberately exposes verification, canonical download and approval. **It has no live publisher executor.** The UI states that publication is disabled; approval never pushes, opens a proposal, merges or deploys. A Forgejo publisher adapter, external reconciliation and deployment qualification are the next bounded implementation. The backend reservation API is an authority contract, not evidence that a publication happened.
+Publication is in scope. [ADR 0040](../adrs/0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) places a trusted publisher in this control service. It pushes the canonical commit to a new branch and opens one pull request as the Forgejo user `unfold-publisher`, whose token has `write:repository` only and never reaches a workspace. Merge stays human. The publisher is proposed, not built ([VIK-1980](https://vikunja.webgrip.dev/tasks/1980)): today the UI states that publication is disabled, and approval never pushes, opens a proposal, merges or deploys. The backend reservation API is an authority contract, not evidence that a publication happened.
 
 ## Reproduce
 

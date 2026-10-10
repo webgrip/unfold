@@ -14,7 +14,7 @@ Unfold turns units of work (Work Items) into pull requests that are ready for hu
 - `apps/ploeg` is a submodule pinned to [ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg). Land Ploeg changes there first, then pin its release in a `ploeg`-scoped commit ([ADR-0019](docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md)).
 - Stage only the paths you wrote. Never use `git add -A`, `git add .` or `git commit -a`: other sessions share this checkout, and a whole-tree commit absorbs their uncommitted work.
 - Source comments are limited to machine directives and exported API documentation. Put reasoning in names, tests, docs or an ADR.
-- Until the application's engine is retired, a managed execution never falls back to standalone, whatever the failure. Do not add execution features to it.
+- Unfold never executes new work types; until the engine is deleted, a managed execution never falls back to standalone.
 - A deterministic demo says it is one and never invents model calls or spend.
 - Keep each application's package, module, image and chart identities. [ADR-0020](docs/adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) records the one exception.
 - Never change production desired state as part of a repository refactor. It lives in `webgrip/homelab-cluster`.
