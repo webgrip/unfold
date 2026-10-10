@@ -310,6 +310,23 @@
   color: var(--text-on-solid);
 }
 
+.app-signal {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-inline-start: auto;
+  border-radius: 9999px;
+  background: var(--attention-emphasis);
+}
+
+.app-signal[hidden] {
+  display: none;
+}
+
+.app-signal[data-tone="danger"] {
+  background: var(--baken);
+}
+
 .app-count[data-tone="neutral"] {
   background: var(--neutral-bg);
   color: var(--shell-muted);
@@ -433,7 +450,8 @@
 
 .app-topbar-end {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   align-items: center;
   gap: 12px;
   margin-left: auto;
@@ -611,9 +629,19 @@
 
 .app-user {
   position: relative;
+  min-width: 0;
+}
+
+.app-user-name {
+  min-width: 0;
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .app-user-trigger {
+  max-width: 100%;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1170,6 +1198,13 @@
 
   .app-sidebar .app-nav-item[aria-current="page"]::before {
     left: -8px;
+  }
+
+  .app-sidebar .app-signal {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    margin: 0;
   }
 
   .app-sidebar .app-count {

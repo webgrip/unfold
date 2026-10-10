@@ -28,6 +28,8 @@ export const resolvedNoteWindowMs = 7 * 24 * hour;
 const probeCacheMs = 15_000;
 const noteSeverities = new Set<StatusNote['severity']>(['info', 'degraded', 'outage']);
 const notPlatformFailures = new Set<FailureCategory>(['cancelled', 'review_incomplete']);
+/** Causes that describe the workbench rather than one session's work, counted for everyone on the Status page. */
+export const workbenchCauses: ReadonlySet<FailureCategory> = new Set<FailureCategory>(['capacity', 'timeout', 'connectivity', 'missing_executable', 'gateway_rejected', 'workspace_setup']);
 const rank: Record<CheckState, number> = { not_used: 0, idle: 0, ok: 0, degraded: 1, down: 2 };
 
 function ago(from: string, now: Date): string {
@@ -68,7 +70,7 @@ export class StatusBoard {
     const visible = (id: string) => admin || titles.get(id)?.owner === user.id;
     const waits = this.provisioning();
     const since = new Date(now.getTime() - failureWindowMs).toISOString();
-    const failed = sessions.filter(session => session.status === 'failed' && session.failure && !notPlatformFailures.has(session.failure.category) && session.updatedAt >= since);
+    const failed = sessions.filter(session => session.status === 'failed' && session.failure && !notPlatformFailures.has(session.failure.category) && session.updatedAt >= since && (visible(session.id) || workbenchCauses.has(session.failure.category)));
     const [gateway, ploeg] = await Promise.all([this.gatewayCheck(admin), this.ploegCheck(user)]);
     const checks = [ploeg, gateway, this.workspaceCheck(waits, failed, admin, now)];
     const backend = this.config.runtime.backend;

@@ -12,6 +12,7 @@ import { views } from './views/index.js';
 import { renderLogin, takeReturnHash } from './views/login.js';
 import { updateChrome, updateLiveState, closeTransientChrome, handleChromeClick, handleChromeFocusOut, dismissRailTip } from './shell.js';
 import { refreshCounts, onCountsChange } from './core/counts.js';
+import { refreshStatusSignal, onStatusSignal } from './core/status-signal.js';
 import { linkFailure } from './views/account.js';
 import { insight, startInsight, linkOutTarget, screenFields } from './core/insight.js';
 
@@ -73,7 +74,7 @@ async function boot() {
   const params = new URLSearchParams(location.search);
   const linkNotice = params.get('linked') ? `${({ gitlab: 'GitLab', clickup: 'ClickUp' })[params.get('linked')] || params.get('linked')} is linked to your account.` : params.get('link_error') ? linkFailure(params.get('link_error')) : '';
   if (linkNotice) history.replaceState(null, '', `${location.pathname}#settings/accounts`);
-  try { state.bootstrap = await api('/api/bootstrap'); insight.configure(state.bootstrap.insight?.events); state.sessions = await api('/api/sessions'); const returnTo = takeReturnHash(); if (returnTo && (!location.hash || location.hash === '#now')) history.replaceState(null, '', `${location.pathname}${returnTo}`); await route(); if (state.view !== 'now') refreshCounts().catch(() => {}); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); }
+  try { state.bootstrap = await api('/api/bootstrap'); insight.configure(state.bootstrap.insight?.events); state.sessions = await api('/api/sessions'); const returnTo = takeReturnHash(); if (returnTo && (!location.hash || location.hash === '#now')) history.replaceState(null, '', `${location.pathname}${returnTo}`); await route(); if (state.view !== 'now') refreshCounts().catch(() => {}); refreshStatusSignal().catch(() => {}); if (linkNotice) notify(linkNotice, Boolean(params.get('link_error'))); }
   catch (error) { if (!state.bootstrap) renderLogin(error.message.includes('Sign in') ? '' : error.message); else notify(error.message, true); }
 }
 
@@ -84,6 +85,7 @@ onUnauthorized(() => {
   renderLogin();
 });
 onCountsChange(updateChrome);
+onStatusSignal(updateChrome);
 live.subscribe(updateLiveState);
 useNavigation({ render, boot });
 applyPreferences();

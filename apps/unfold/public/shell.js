@@ -23,7 +23,7 @@ const groups = [
     { id: 'runs', href: '#runs', glyph: 'runs', label: 'Runs' },
     { id: 'activity', href: '#activity', glyph: 'activity', label: 'Activity' },
     { id: 'insights', href: '#insights', glyph: 'insights', label: 'Insights' },
-    { id: 'status', href: '#status', glyph: 'check-circle', label: 'Status' },
+    { id: 'status', href: '#status', glyph: 'monitor', label: 'Status', signal: true },
     { id: 'sessions', href: '#sessions', glyph: 'sessions', label: 'Sessions', count: 'sessions', describe: n => `${n} ${n === 1 ? 'needs' : 'need'} you`, tone: 'attention', when: () => showsSessions() },
   ] },
   { id: 'settings', items: [{ id: 'settings', href: '#settings/preferences', glyph: 'settings', label: 'Settings' }] },
@@ -71,13 +71,21 @@ function countMarkup(item, where) {
   return `<span class="app-count" data-tone="${item.tone}" data-count-for="${item.count}" aria-hidden="true" ${value ? '' : 'hidden'}>${value ?? ''}</span><span class="app-hidden-description" id="${where}-count-${item.id}" data-count-describe="${item.count}" hidden>${value ? escape(item.describe(value)) : ''}</span>`;
 }
 
+const signals = { down: 'New work cannot start right now', degraded: 'Work starts, but not reliably' };
+
+function signalMarkup(item, where) {
+  if (!item.signal) return '';
+  const value = state.statusSignal;
+  return `<span class="app-signal" data-signal data-tone="${value === 'down' ? 'danger' : 'attention'}" aria-hidden="true" ${value ? '' : 'hidden'}></span><span class="app-hidden-description" id="${where}-signal-${item.id}" data-signal-describe hidden>${value ? escape(signals[value]) : ''}</span>`;
+}
+
 function hrefOf(item) {
   return item.id === 'settings' && state.bootstrap?.user?.role === 'admin' ? '#settings/environment' : item.href;
 }
 
 function itemMarkup(item, where) {
   const current = area() === item.id;
-  return `<li><a class="app-nav-item" href="${hrefOf(item)}" aria-label="${escape(item.label)}" data-tip="${escape(item.label)}" ${item.count ? `aria-describedby="${where}-count-${item.id}"` : ''} ${current ? 'aria-current="page"' : ''}>${icon(item.glyph)}<span class="app-nav-label" aria-hidden="true">${escape(item.label)}</span>${countMarkup(item, where)}</a></li>`;
+  return `<li><a class="app-nav-item" href="${hrefOf(item)}" aria-label="${escape(item.label)}" data-tip="${escape(item.label)}" ${item.count ? `aria-describedby="${where}-count-${item.id}"` : item.signal ? `aria-describedby="${where}-signal-${item.id}"` : ''} ${current ? 'aria-current="page"' : ''}>${icon(item.glyph)}<span class="app-nav-label" aria-hidden="true">${escape(item.label)}</span>${countMarkup(item, where)}${signalMarkup(item, where)}</a></li>`;
 }
 
 function navMarkup(where) {
@@ -234,6 +242,8 @@ export function updateChrome() {
     const item = groups.flatMap(group => group.items).find(entry => entry.count === description.dataset.countDescribe);
     description.textContent = value && item ? item.describe(value) : '';
   }
+  for (const dot of document.querySelectorAll('[data-signal]')) { dot.hidden = !state.statusSignal; dot.dataset.tone = state.statusSignal === 'down' ? 'danger' : 'attention'; }
+  for (const description of document.querySelectorAll('[data-signal-describe]')) description.textContent = state.statusSignal ? signals[state.statusSignal] : '';
   for (const section of document.querySelectorAll('.app-nav-section[data-group="ploeg"]')) section.toggleAttribute('data-unconfigured', state.ploegStatus === 'unconfigured');
   updateLiveState();
   const theme = prefs.get('theme');

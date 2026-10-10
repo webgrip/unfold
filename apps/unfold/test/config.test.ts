@@ -135,3 +135,10 @@ test('a repository opts into gateway MCP tools with one LiteLLM team and its acc
   }
   if (!process.env.LITELLM_BASE_URL) await assert.rejects(load(t, { runtime, repositories: [{ ...base.repositories[0], mcp }] }), /LiteLLM gateway base URL/);
 });
+
+test('a kubernetes workspace reservation is a Kubernetes quantity and is kept apart from its limits', async t => {
+  const kubernetes = { namespace: 'workspaces', image: 'unfold-agent:1', storageSize: '8Gi', cpu: '1', memory: '2Gi', cpuRequest: '500m', memoryRequest: '1Gi', transport: 'publish' };
+  const config = await load(t, { runtime: { kind: 'opencode', backend: 'kubernetes', timeoutMs: 60000 }, kubernetes });
+  assert.deepEqual([config.kubernetes?.cpu, config.kubernetes?.cpuRequest, config.kubernetes?.memory, config.kubernetes?.memoryRequest], ['1', '500m', '2Gi', '1Gi']);
+  await assert.rejects(load(t, { runtime: { kind: 'opencode', backend: 'kubernetes', timeoutMs: 60000 }, kubernetes: { ...kubernetes, memoryRequest: 'a lot' } }), /kubernetes\.memoryRequest must be a Kubernetes quantity/);
+});

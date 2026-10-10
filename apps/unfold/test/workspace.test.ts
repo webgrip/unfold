@@ -96,6 +96,14 @@ function pendingPodClient(status: Record<string, unknown>) {
 
 const unschedulable = { phase: 'Pending', conditions: [{ type: 'PodScheduled', status: 'False', reason: 'Unschedulable', message: '0/6 nodes are available: 1 Insufficient cpu, 2 Insufficient memory.' }] };
 
+test('a workspace reserves its configured requests and keeps its limits, and reserves the limits when no request is set', () => {
+  const config = configuration();
+  const agent = (value: AppConfig) => workspaceManifests(value, session, repository, credential, { username: 'opencode', password: 'p' }, managedConfig(value)).find((object: any) => object.kind === 'Pod')!.spec.containers.find((container: any) => container.name === 'agent').resources;
+  assert.deepEqual(agent(config), { requests: { cpu: '1', memory: '1Gi' }, limits: { cpu: '1', memory: '1Gi' } });
+  config.kubernetes!.cpuRequest = '500m'; config.kubernetes!.memoryRequest = '512Mi';
+  assert.deepEqual(agent(config), { requests: { cpu: '500m', memory: '512Mi' }, limits: { cpu: '1', memory: '1Gi' } });
+});
+
 test('a workspace Pod no node has room for reports capacity while it waits and fails as capacity', async () => {
   const config = configuration();
   config.kubernetes!.provisionTimeoutMs = 1500;

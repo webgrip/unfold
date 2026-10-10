@@ -75,6 +75,16 @@ test('recent failures group by cause, leave out cancellations and older failures
   assert.equal(report.failures.causes[0].message, 'No machine had room to start the workspace.');
 });
 
+test('another person\'s failures count only when they describe the workbench, except for an administrator', async () => {
+  const sessions = [failed('mine', alice.id, 'runaway', minutesAgo(10)), failed('theirs', 'u-bob', 'runaway', minutesAgo(5)), failed('full', 'u-bob', 'capacity', minutesAgo(4))];
+  const { board: status } = board(sessions);
+  const forAlice = await status.report(alice, now);
+  assert.deepEqual(forAlice.failures.causes.map(cause => [cause.category, cause.count, cause.sessions.map(session => session.id)]), [['capacity', 1, []], ['runaway', 1, ['mine']]]);
+  assert.equal(forAlice.failures.total, 2);
+  const forAdmin = await status.report(admin, now);
+  assert.deepEqual(forAdmin.failures.causes.map(cause => [cause.category, cause.count]), [['runaway', 2], ['capacity', 1]]);
+});
+
 test('an unreachable gateway is down, an unconnected Ploeg is not in use, and nothing recent reads as idle', async () => {
   const { board: status } = board([], [], { gateway: false, ploeg: 'unconfigured' });
   const first = await status.report(alice, now);

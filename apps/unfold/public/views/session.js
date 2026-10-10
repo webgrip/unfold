@@ -436,7 +436,7 @@ function failureMarkup(session) {
   const message = failure?.message || session.blocker || 'The runtime stopped before the role finished. Resume to continue; nothing restarts on its own.';
   const { steps, notes } = remediationSteps(failure?.remediation);
   const reconciling = session.status === 'failed' && canOperate() && session.costStatus === 'unknown';
-  const statusLink = statusCauses.has(failure?.category) ? button({ label: 'Open Status', icon: 'check-circle', href: '#status' }) : '';
+  const statusLink = statusCauses.has(failure?.category) ? button({ label: 'Open Status', icon: 'monitor', href: `#status?from=${encodeURIComponent(session.id)}` }) : '';
   const actions = session.status === 'failed' && canOperate() ? `${session.costStatus !== 'unknown' ? button({ label: 'Try again', icon: 'refresh', variant: 'primary', action: 'retry' }) : ''}${button({ label: 'Duplicate as a new session', icon: 'copy', action: 'duplicate' })}${session.execution && !session.workItemClosedAt ? button({ label: 'Close its Work Item', icon: 'x-circle', action: 'close-work-item' }) : ''}${statusLink}` : statusLink;
   const facts = [submissions[failure?.promptAcceptance], failure?.automaticRetry === false ? 'No automatic retry will be started.' : '', reconciling ? 'Try again becomes available once spend is reconciled.' : ''].filter(Boolean);
   const body = [

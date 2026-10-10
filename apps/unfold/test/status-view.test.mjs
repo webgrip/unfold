@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { answer, phaseLabel, startLine } from '../public/views/status.js';
+import { answer, phaseLabel, returnTo, startLine } from '../public/views/status.js';
+import { signalFrom } from '../public/core/status-signal.js';
 
 const check = (id, state, summary = `${id} ${state}`) => ({ id, title: id, state, summary, checkedAt: '2026-10-05T06:29:14Z' });
 const report = (states, extra = {}) => ({ overall: 'operational', notes: [], checks: [check('ploeg', states[0]), check('gateway', states[1]), check('workspaces', states[2], states[2] === 'down' ? 'Every machine is busy.' : states[2] === 'ok' ? 'The last workspace started 12 min ago.' : 'Workspace check.')], ...extra });
@@ -39,4 +40,20 @@ test('wait phases read as plain words, and an unknown phase falls back to prepar
   assert.equal(phaseLabel('capacity'), 'Waiting for a free machine');
   assert.equal(phaseLabel('image_unavailable'), 'Workspace image unavailable');
   assert.equal(phaseLabel('something-new'), 'Preparing the workspace');
+});
+
+test('a failed session that sent the person here gets a way back once nothing stops a new session', () => {
+  const failed = { id: 's1', title: 'Say hi', status: 'failed' };
+  assert.deepEqual(returnTo(failed, answer(report(['ok', 'ok', 'down']))), { ready: false, text: 'When step 3 turns green, you can try “Say hi” again.' });
+  assert.deepEqual(returnTo(failed, answer(report(['ok', 'ok', 'ok'], { notes: [{ severity: 'outage' }] }))), { ready: false, text: 'When the outage is resolved, you can try “Say hi” again.' });
+  assert.deepEqual(returnTo(failed, answer(report(['ok', 'ok', 'ok']))), { ready: true, text: 'You can try “Say hi” again now.' });
+  assert.equal(returnTo({ ...failed, status: 'running' }, answer(report(['ok', 'ok', 'ok']))), null, 'already retried');
+  assert.equal(returnTo(null, answer(report(['ok', 'ok', 'ok']))), null);
+});
+
+test('the navigation signal shows only while new work is affected', () => {
+  assert.equal(signalFrom({ overall: 'down' }), 'down');
+  assert.equal(signalFrom({ overall: 'degraded' }), 'degraded');
+  assert.equal(signalFrom({ overall: 'operational' }), null);
+  assert.equal(signalFrom(null), null);
 });

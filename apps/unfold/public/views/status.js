@@ -5,8 +5,10 @@ import { plural, time } from '../core/format.js';
 import { icon } from '../core/icons.js';
 import { button, callout, disclosure, emptyState, timeAgo } from '../core/ui.js';
 import { shell } from '../shell.js';
+import { live } from '../core/live.js';
+import { parseHash } from '../core/route.js';
+import { applyStatusReport } from '../core/status-signal.js';
 
-const refreshMs = 30_000;
 const waitingShown = 5;
 const linksShown = 3;
 const steps = [
@@ -31,7 +33,7 @@ let failure = '';
 let failedAt = '';
 let previous = new Map();
 let changed = new Set();
-let timer;
+let returnSession = null;
 
 const isAdmin = () => state.bootstrap?.user?.role === 'admin';
 const panel = ({ id, title, total, subtitle, list }) => `<section class="card settings-card" aria-labelledby="${id}-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="${id}-title">${escape(title)}${total ? ` <span class="count">${total}</span>` : ''}</h2><p class="card-subtitle">${escape(subtitle)}</p></div></header>${list}</section>`;
@@ -108,7 +110,7 @@ function answerMarkup() {
   const reason = failure ? `Unfold could not check again at ${time(failedAt, { seconds: true })}: ${failure} The last check, at ${time(report.generatedAt, { seconds: true })}, said: ${result.verdict}` : result.reason;
   const open = report.notes.filter(note => !note.resolvedAt);
   const notes = open.length ? `<div class="status-notes" aria-label="Notes from administrators">${open.map(noteMarkup).join('')}</div>` : '';
-  return `<section class="status-answer" data-tone="${failure ? 'neutral' : result.tone}"${failure ? ' data-stale' : ''} aria-labelledby="status-verdict"><p class="status-question">Can a new session start?</p><h2 class="status-verdict" id="status-verdict">${escape(verdict)}</h2><p class="status-reason">${escape(reason)}</p>${notes}<ol class="status-line" aria-label="${failure ? 'The steps a new session takes, as last checked' : 'The steps a new session takes'}">${startLine(report).map(stepMarkup).join('')}</ol>${result.next && !failure ? `<p class="status-next">${escape(result.next)}</p>` : ''}<div class="status-checked"><span>Checked ${escape(time(report.generatedAt, { seconds: true }))}</span>${refresh}</div></section>`;
+  return `<section class="status-answer" data-tone="${failure ? 'neutral' : result.tone}"${failure ? ' data-stale' : ''} aria-labelledby="status-verdict"><p class="status-question">Can a new session start?</p><h2 class="status-verdict" id="status-verdict">${escape(verdict)}</h2><p class="status-reason">${escape(reason)}</p>${returnMarkup(result)}${notes}<ol class="status-line" aria-label="${failure ? 'The steps a new session takes, as last checked' : 'The steps a new session takes'}">${startLine(report).map(stepMarkup).join('')}</ol>${result.next && !failure ? `<p class="status-next">${escape(result.next)}</p>` : ''}<div class="status-checked"><span>Checked ${escape(time(report.generatedAt, { seconds: true }))}</span>${refresh}</div></section>`;
 }
 
 function noteMarkup(note) {
@@ -147,7 +149,7 @@ function failuresMarkup() {
     return `<li class="settings-item"><span class="status-count num" aria-hidden="true">${cause.count}</span><div class="settings-item-main"><p class="settings-item-title">${escape(cause.message)}</p><p class="settings-item-text">${escape(plural(cause.count, 'session'))} · last ${timeAgo(cause.lastAt)}</p>${sessions}</div></li>`;
   }).join('');
   const list = rows ? `<ul class="settings-items">${rows}</ul>` : `<div class="card-body">${emptyState({ icon: 'check-circle', title: 'No failures', body: 'No session failed in the last 24 hours.', compact: true })}</div>`;
-  return panel({ id: 'status-failures', title: 'Failed in the last 24 hours', total, subtitle: isAdmin() ? 'Grouped by cause, most frequent first. Cancelled sessions and review decisions are left out.' : 'Grouped by cause, most frequent first, for everyone on this workbench. Links go to your own sessions.', list });
+  return panel({ id: 'status-failures', title: 'Failed in the last 24 hours', total, subtitle: isAdmin() ? 'Grouped by cause, most frequent first. Cancelled sessions and review decisions are left out.' : 'Grouped by cause, most frequent first. Workbench problems count everyone’s sessions; other causes count only yours.', list });
 }
 
 function renderStatus() {
@@ -158,14 +160,32 @@ function renderStatus() {
   renderHtml(shell(content, { title: 'Status', subtitle: 'Whether new work can start right now, and what got in the way recently.' }));
 }
 
-function schedule() {
-  clearTimeout(timer);
-  timer = setTimeout(() => { if (state.view === 'status' && document.visibilityState !== 'hidden') loadStatus(); else if (state.view === 'status') schedule(); }, refreshMs);
+/**
+ * The way back to a failed session that sent the person here, or '' when there is none: a link once nothing stops a
+ * new session, otherwise what to wait for.
+ * @param {{ id: string, title: string, status: string } | null} session
+ * @param {{ verdict: string, stop: number|null }} result
+ * @returns {{ ready: boolean, text: string } | null}
+ */
+export function returnTo(session, result) {
+  if (!session || session.status !== 'failed') return null;
+  if (result.verdict === 'Not right now.') return { ready: false, text: result.stop ? `When step ${result.stop} turns green, you can try “${session.title}” again.` : `When the outage is resolved, you can try “${session.title}” again.` };
+  return { ready: true, text: `You can try “${session.title}” again now.` };
+}
+
+function returnMarkup(result) {
+  const back = returnTo(returnSession, result);
+  if (!back || failure) return '';
+  return `<div class="status-return" data-ready="${back.ready}">${icon(back.ready ? 'check-circle' : 'clock')}<p>${escape(back.text)}</p>${back.ready ? button({ label: 'Back to the session', icon: 'arrow', variant: 'primary', size: 'sm', href: `#session/${encodeURIComponent(returnSession.id)}` }) : button({ label: 'Back to the session', size: 'sm', href: `#session/${encodeURIComponent(returnSession.id)}` })}</div>`;
 }
 
 async function loadStatus() {
+  const from = parseHash(location.hash).query.from;
+  if (!from) returnSession = null;
+  else if (returnSession?.id !== from || returnSession.status === 'failed') returnSession = await api(`/api/sessions/${encodeURIComponent(from)}`).then(session => ({ id: session.id, title: session.title, status: session.status })).catch(() => null);
   try {
     const next = await api('/api/status');
+    applyStatusReport(next);
     const before = report ? answer(report).verdict : '';
     changed = new Set(report ? startLine(next).filter(step => previous.has(step.id) && previous.get(step.id) !== step.state).map(step => step.id) : []);
     previous = new Map(startLine(next).map(step => [step.id, step.state]));
@@ -183,7 +203,6 @@ async function loadStatus() {
     renderStatus();
     for (const id of open) { const item = document.getElementById(id); if (item) item.open = true; }
     if (focused) document.querySelector(`.status-page ${focused}`)?.focus();
-    schedule();
   }
 }
 
@@ -209,3 +228,5 @@ export default {
   actions: { 'status-refresh': () => loadStatus(), 'status-note-resolve': resolveNote },
   forms: { 'status-note': postNote },
 };
+
+live.register('status', { interval: 30000, refresh: loadStatus });

@@ -153,7 +153,7 @@ export function workspaceManifests(config: AppConfig, session: Session, reposito
       ...(relay ? {} : { ports: [{ name: 'http', containerPort: 4096 }] }),
       startupProbe: { exec: { command: ['node', '-e', healthProgram] }, periodSeconds: 2, failureThreshold: 90, timeoutSeconds: 3 },
       readinessProbe: { exec: { command: ['node', '-e', healthProgram] }, periodSeconds: 10, timeoutSeconds: 3 },
-      resources: { requests: { cpu: k.cpu, memory: k.memory }, limits: { cpu: k.cpu, memory: k.memory } },
+      resources: { requests: { cpu: k.cpuRequest ?? k.cpu, memory: k.memoryRequest ?? k.memory }, limits: { cpu: k.cpu, memory: k.memory } },
       volumeMounts: [{ name: 'workspace', mountPath: '/workspace' }, { name: 'config', mountPath: '/etc/opencode', readOnly: true }, { name: 'tmp', mountPath: '/tmp' }],
     }],
     volumes: [ { name: 'workspace', persistentVolumeClaim: { claimName: name } },
