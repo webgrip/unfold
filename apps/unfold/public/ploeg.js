@@ -10,7 +10,8 @@ import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.j
 import { traceMarkup } from './core/attribution.js';
 import { workStages } from './core/stages.js';
 import { deliveryStages, stageTime } from './core/delivery-track.js';
-import { reconcileDetail, sessionProgress } from './core/progress.js';
+import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
+import { effortText, termTitle, trackerReference } from './core/terms.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -58,12 +59,12 @@ export function activePloegLane(state) {
 
 /**
  * How a Work Item is referred to: the tracker key (`Vikunja #624`, `DEMO-8`), `From Run 53` for work an agent
- * created, or `#<id>` when nothing else is known.
+ * created, or `#<id>` when nothing else is known, including a machine identifier no tracker shows a person.
  */
 export function workItemRef(item) {
   const external = String(item?.externalId ?? '').trim();
   if (item?.provider === 'ploeg') { const run = /^run-(\d+)-\d+$/.exec(external); return run ? `From Run ${run[1]}` : `#${item.id}`; }
-  if (!external) return `#${item?.id ?? ''}`;
+  if (!trackerReference(item)) return `#${item?.id ?? ''}`;
   const name = trackerName(item?.provider);
   return name ? `${name} ${/^\d+$/.test(external) ? `#${external}` : external}` : external;
 }
@@ -214,7 +215,7 @@ export function runOrder(runs) {
 
 /**
  * Groups Runs by Shift and Round for the Runs list: the current Shift's Rounds are labelled `Round N`, earlier
- * Shifts' `Earlier Shift · Round N`, and Runs without a Round form one unlabelled group. Groups holding a failed or stuck
+ * Shifts' `Earlier attempt · Round N`, and Runs without a Round form one unlabelled group. Groups holding a failed or stuck
  * Run come first, then the rest from the newest Round down; inside a group the order is `runOrder`.
  * @returns {{ key: string, label: string, failed: boolean, runs: object[] }[]}
  */
@@ -229,7 +230,7 @@ export function runGroups(runs, currentShiftId = null) {
   const current = shiftId => !shiftId || String(shiftId) === String(currentShiftId ?? shiftId);
   const shiftRank = group => current(group.shiftId) ? Number.MAX_SAFE_INTEGER : Number(group.shiftId) || 0;
   return [...groups.values()]
-    .map(group => ({ key: group.key, label: group.round ? `${current(group.shiftId) ? '' : 'Earlier Shift · '}Round ${group.round}` : '', failed: group.runs.some(failed), shiftRank: shiftRank(group), round: group.round, runs: runOrder(group.runs) }))
+    .map(group => ({ key: group.key, label: group.round ? `${current(group.shiftId) ? '' : 'Earlier attempt · '}Round ${group.round}` : '', failed: group.runs.some(failed), shiftRank: shiftRank(group), round: group.round, runs: runOrder(group.runs) }))
     .sort((a, b) => Number(b.failed) - Number(a.failed) || b.shiftRank - a.shiftRank || b.round - a.round)
     .map(({ key, label, failed: hasFailure, runs: members }) => ({ key, label, failed: hasFailure, runs: members }));
 }
@@ -401,7 +402,7 @@ function rowMeta(item, context) {
   if (amount(item.infraFailures) && item.infraFailures > 0 && item.state !== 'needs_human') chips.push(ui.chip({ label: plural(item.infraFailures, 'infrastructure failure'), tone: 'severe', icon: 'zap' }));
   const facts = [`<span class="work-row-ref">${allTeams ? `${escape(item.team)} · ` : ''}${escape(workItemRef(item))}</span>`];
   if (item.target) facts.push(`<span class="work-row-repo">${icon('branch')}${escape(repoName(item.target))}</span>`);
-  if (item.latestShift) facts.push(`<span>Round ${escape(item.latestShift.round)}</span>`);
+  if (item.latestShift) facts.push(`<span title="${escape(termTitle('round'))}">Round ${escape(item.latestShift.round)}</span>`);
   return `${chips.length ? `<span class="work-row-chips">${chips.join('')}</span>` : ''}<span class="work-row-facts dots">${facts.join('')}</span>`;
 }
 
@@ -557,9 +558,8 @@ function headerMarkup(detail, model, reason) {
   const facts = [];
   if (item.target) facts.push(`<span class="work-fact">${icon('branch')}<span>${escape(repoName(item.target))}${item.target.baseBranch ? ` <span class="subtle">→ ${escape(item.target.baseBranch)}</span>` : ''}</span></span>`);
   if (pr) facts.push(`<span class="work-fact"><a class="work-inline-link" href="${escape(pr)}" target="_blank" rel="noopener noreferrer" data-link-out="pr">${icon('pull-request')}${escape(linkLabel(pr))}${icon('external')}${newTab}</a></span>`);
-  if (shift) facts.push(`<span class="work-fact">Round ${escape(shift.round)}</span>`);
-  const shiftRuns = shift ? detail.runs.filter(run => run.shiftId === shift.id).length : 0;
-  if (shiftRuns) facts.push(`<span class="work-fact">${escape(plural(shiftRuns, 'Run'))}</span>`);
+  const effort = shift ? effortText({ runs: detail.runs.length, attempts: detail.shifts?.length || 1 }) : '';
+  if (effort) facts.push(`<span class="work-fact" title="${escape(`Round ${shift.round} of the latest attempt. ${termTitle('shift', 'round')}`)}">${escape(effort)}</span>`);
   if (item.updatedAt) facts.push(`<span class="work-fact">Updated ${ui.timeAgo(item.updatedAt)}</span>`);
   const close = `<button type="button" class="button ghost icon-only sm work-close" data-action="ploeg-close" aria-label="Close work item details" title="Close">${icon('x')}</button>`;
   const tools = [`<button type="button" class="button ghost sm work-copy" data-action="work-copy-link" data-id="${escape(item.id)}">${icon('copy')}<span class="button-label">Copy link</span></button>`];
@@ -664,7 +664,7 @@ export function decisionPlan(detail, model, reason) {
   if (trackerHtml) requeue.actions.push(trackerHtml);
   entries.push(requeue);
   if (!primary) {
-    const key = String(item.externalId ?? '').trim();
+    const key = trackerReference(item) ? String(item.externalId ?? '').trim() : '';
     const where = trackerName(item.provider) || (item.provider === 'demo' ? 'the demo tracker' : 'its tracker');
     trackerEntry.actions.unshift(`<span class="work-find">Find <strong class="mono">${escape(key || `#${item.id}`)}</strong> in ${escape(where)}</span>`);
     if (key) trackerEntry.actions.splice(1, 0, ui.button({ label: `Copy ${key}`, icon: 'copy', variant: 'secondary', action: 'work-copy-ref', data: { value: key } }));
@@ -883,7 +883,7 @@ function shiftMeter(shift, demo, label = 'Shift budget') {
 
 function shiftLine(shift) {
   const when = shift.closedAt ? `closed ${ui.timeAgo(shift.closedAt)}` : `opened ${ui.timeAgo(shift.openedAt)}`;
-  return `${escape(plural(shift.round, 'Round'))} · ${when} · ${escape(closeReasonLabel(shift.closeReason))}`;
+  return `<span title="${escape(termTitle('round'))}">${escape(plural(shift.round, 'Round'))}</span> · ${when} · ${escape(closeReasonLabel(shift.closeReason))}`;
 }
 
 function runLinks(run) {
@@ -990,7 +990,7 @@ function storyMarkup(detail, model) {
   const overview = `<div class="work-story-overview">${ladder}<div class="work-shift-budget">${shiftMeter(current, demo)}</div></div>`;
   const list = `<div class="work-story-runs"><p class="work-story-heading"><span class="overline">Runs</span><span class="meta">${escape(runsNote)}</span></p>${runsMarkup(detail, model)}</div>`;
   const tail = older || truncated ? `<div class="work-story-tail">${older}${truncated}</div>` : '';
-  return `<section class="card flush" id="work-rounds"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-rounds-title">Rounds</h3><p class="card-subtitle">${shiftLine(current)}</p></div></header><div class="card-body">${overview}${list}${tail}</div></section>`;
+  return `<section class="card flush" id="work-rounds"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-rounds-title" title="${escape(termTitle('round'))}">Rounds</h3><p class="card-subtitle">${shiftLine(current)}</p></div></header><div class="card-body">${overview}${list}${tail}</div></section>`;
 }
 
 function checkpointFor(entry, checkpoints) {
@@ -1055,7 +1055,7 @@ function stageFact(id, status, detail, card) {
   const item = detail.item;
   const totals = card?.totals || {};
   const play = Array.isArray(card?.plays) ? card.plays.at(-1) : null;
-  if (id === 'define') return `${trackerName(item.provider) || 'Task'} ${item.externalId || item.id}`.trim();
+  if (id === 'define') return workItemRef(item);
   if (id === 'execute') {
     const attempts = amount(totals.shifts) ? totals.shifts : detail.shifts?.length || (latestShift(detail) ? 1 : 0);
     const runs = amount(totals.runs) ? totals.runs : detail.runs.length;
@@ -1247,7 +1247,7 @@ export function sessionsMarkup(detail, sessions) {
     const steps = progress.steps.map(step => `<li data-tone="${escape(step.tone)}"><strong>${escape(step.role)}</strong> <span class="work-session-step-mode">${step.mode === 'read' ? 'reader' : 'writer'}</span> · ${escape(step.label)}${step.verdict ? ` · ${escape(step.verdict.label)}${step.verdict.recorded ? '' : ' (not recorded)'}` : ''}${step.seconds !== null ? ` · ${escape(duration(step.seconds))}` : ''}</li>`).join('');
     const facts = progress.facts.filter(entry => !/^Spend is/.test(entry)).map(entry => `<li>${escape(entry)}</li>`).join('');
     const body = `${progress.next ? `<p>${escape(progress.next)}</p>` : ''}${steps ? `<ol class="work-session-steps">${steps}</ol>` : ''}${facts ? `<ul class="work-session-facts">${facts}</ul>` : ''}<ul class="work-session-links"><li><a class="work-inline-link" href="#session/${escape(encodeURIComponent(session.id))}">Open the session${icon('arrow')}</a> <span class="meta">${escape(progress.spend.text)}${progress.spend.note ? ` · ${escape(progress.spend.note)}` : ''}</span></li></ul>`;
-    return ui.callout({ tone: progress.meta.tone, icon: progress.meta.glyph, title: progress.headline, body });
+    return ui.callout({ tone: progress.meta.tone, icon: progress.meta.glyph, title: progressTitle(progress), body });
   }).join('');
 }
 

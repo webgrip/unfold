@@ -208,6 +208,46 @@
   color: var(--text-muted);
 }
 
+.prose .md-table {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.prose .md-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: normal;
+}
+
+.prose .md-table :is(th, td) {
+  padding: var(--space-1-5) var(--space-3);
+  border-block-end: 1px solid var(--border-subtle);
+  text-align: start;
+  vertical-align: top;
+}
+
+.prose .md-table th {
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+  font-weight: var(--weight-semibold);
+}
+
+.prose .md-table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.prose .md-table .md-align-center {
+  text-align: center;
+}
+
+.prose .md-table .md-align-right {
+  text-align: end;
+}
+
 .button {
   --button-h: var(--control-md);
   --button-px: var(--space-3);

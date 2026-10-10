@@ -1075,6 +1075,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       case 'capture': await this.captureChange(id); return;
       case 'deliver': await this.recover(id, 'deliver'); return;
       case 'run-again': await this.recover(id, 'run_again'); return;
+      case 'download': await this.downloadCandidate(id); return;
     }
   }
 

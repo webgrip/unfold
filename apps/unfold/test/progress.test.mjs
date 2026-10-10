@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { changedFiles, checksOf, elapsedClock, reportFindings, roleCosts, timelineOf, outcomeMarkdown, patchCounts, ploegRunActive, progressGroup, sessionForWorkItem, sessionProgress, spendOf, transcriptVerdict } from '../public/core/progress.js';
+import { changedFiles, checksOf, elapsedClock, reportFindings, reportPreview, roleCosts, timelineOf, outcomeMarkdown, patchCounts, ploegRunActive, progressGroup, progressTitle, sessionForWorkItem, sessionProgress, spendOf, transcriptVerdict } from '../public/core/progress.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/session-059675b9.json', import.meta.url), 'utf8'));
 const at = Date.parse(fixture.now);
@@ -77,14 +77,59 @@ test('a working session names the Role, the Round and a running clock, and the l
   assert.deepEqual(ids(progress), ['open-session', 'pause']);
 });
 
-test('a completed session with a captured candidate is ready for review with the change in the headline', () => {
+test('a completed session with a captured candidate is ready for review, and its headline leads with the outcome, not the state again', () => {
   const session = { ...fixture.session, status: 'completed', blocker: undefined, costStatus: 'settled', spentUsd: 0.031, runs: [fixture.session.runs[0], { ...fixture.session.runs[1], status: 'completed', finishedAt: '2026-10-10T14:40:00.000Z', verdict: 'approve' }], candidate: { status: 'ready', fileCount: 1 } };
   const progress = sessionProgress(session, { now: at });
   assert.equal(progress.phase, 'review');
-  assert.equal(progress.headline, 'Ready for your review · reviewer approved · 1 file +57 −45');
-  assert.deepEqual(ids(progress), ['view-change', 'accept', 'reject']);
+  assert.equal(progress.meta.label, 'Ready for your review');
+  assert.equal(progress.headline, 'Reviewer approved · 1 file +57 −45');
+  assert.equal(progressTitle(progress), 'Ready for your review · Reviewer approved · 1 file +57 −45', 'a surface without a status pill still names the state once');
+  assert.deepEqual(ids(progress), ['view-change', 'download', 'accept', 'reject']);
   assert.equal(progress.spend.status, 'settled');
   assert.equal(progressGroup(progress), 'review');
+});
+
+test('Accept says it only records the decision, and the review says how to use the change', () => {
+  const session = { ...fixture.session, status: 'completed', blocker: undefined, runs: [fixture.session.runs[0], { ...fixture.session.runs[1], status: 'completed', finishedAt: '2026-10-10T14:40:00.000Z', verdict: 'approve' }], candidate: { status: 'ready', fileCount: 1 } };
+  const progress = sessionProgress(session, { now: at });
+  const accept = progress.actions.find(action => action.id === 'accept');
+  assert.equal(accept.label, 'Accept');
+  assert.match(accept.outcome, /^Accept records your decision in the session\. It pushes, merges and publishes nothing\.$/);
+  assert.equal(accept.hint, accept.outcome, 'the button says the same on hover');
+  assert.match(progress.next, /Nothing was pushed or merged\. To use the change, download it as a Git bundle or patch and apply it to your clone\.$/);
+  assert.match(progress.actions.find(action => action.id === 'download').hint, /Git bundle or a patch/);
+  const uncaptured = sessionProgress({ ...session, candidate: undefined }, { now: at });
+  assert.ok(!ids(uncaptured).includes('download'), 'nothing to download before a candidate is captured');
+  assert.doesNotMatch(uncaptured.next, /download/, 'no download is promised without a candidate');
+  const accepted = sessionProgress({ ...session, review: { decision: 'accepted', byName: 'Ryan', note: 'Looks right' } }, { now: at });
+  assert.deepEqual([accepted.headline, ids(accepted)], ['Accepted by Ryan', ['download', 'view-change']]);
+  assert.match(accepted.next, /^“Looks right” The decision is recorded; nothing was pushed or merged\. To use the change, download it/);
+});
+
+test('no phase repeats its status label as the headline', () => {
+  const base = { ...fixture.session, blocker: undefined, execution: undefined, runs: [], artifacts: [] };
+  for (const status of ['queued', 'running', 'waiting_input', 'exporting', 'paused', 'interrupted', 'failed', 'completed', 'cancelled']) {
+    const progress = sessionProgress({ ...base, status }, { now: at });
+    assert.notEqual(progress.headline, progress.meta.label, status);
+    assert.ok(!progress.headline.startsWith(`${progress.meta.label} · `), `${status}: ${progress.headline}`);
+  }
+  assert.equal(sessionProgress({ ...base, status: 'completed', candidate: { status: 'ready', fileCount: 2 } }, { now: at }).headline, '2 files', 'a review without a verdict leads with the change');
+  assert.equal(sessionProgress({ ...base, status: 'completed' }, { now: at }).headline, 'The crew finished');
+});
+
+test('a step report previews its first paragraph as plain text, never a table or raw Markdown', () => {
+  assert.equal(reportPreview('## Review\n\n| Check | Result |\n|---|---|\n| Links | ok |\n\n**Verdict:** the change is *fine* and `ready`.'), 'Verdict: the change is fine and ready.');
+  assert.equal(reportPreview('| a | b |\n|---|---|\n| 1 | 2 |'), '', 'a report that is only a table has no prose to preview');
+  assert.equal(reportPreview('- **Links:** all resolve\n- **Tests:** pass'), 'Links: all resolve · Tests: pass');
+  assert.equal(reportPreview('```js\nconst x = 1 | 2;\n```\nAfter the code, [the link](https://a.example) explains.'), 'After the code, the link explains.');
+  assert.equal(reportPreview('# Only a heading'), 'Only a heading');
+  assert.equal(reportPreview('> quoted **text** with a \\* star'), 'quoted text with a * star');
+  const long = reportPreview(`${'The writer changed the rounding rule in the cart. '.repeat(2)}${'More words follow here without end '.repeat(8)}`);
+  assert.equal(long, 'The writer changed the rounding rule in the cart.', 'a long paragraph is cut at its first sentence');
+  const unbroken = reportPreview('word '.repeat(80));
+  assert.ok(unbroken.endsWith('…') && unbroken.length <= 160, unbroken);
+  const step = sessionProgress({ ...fixture.session, status: 'completed', blocker: undefined, runs: [{ ...fixture.session.runs[0], summary: '| File | Lines |\n|---|---|\n| a.md | 3 |\n\nUpdated **the README**.' }] }, { now: at }).steps[0];
+  assert.equal(step.preview, 'Updated the README.');
 });
 
 test('a reviewer that asked for changes is not presented as ready', () => {

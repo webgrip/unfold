@@ -35,7 +35,7 @@ const crew = [{ role: 'engineer', writes: true, runs: 3, costUsd: 0.4282, inputT
 const card = (extra = {}) => ({ workItemId: '42', state: 'in_review', crew, plays: [], totals: { costStatus: 'observed', usageComplete: true, costUsd: 0.5232, authorizedUsd: 5, runs: 5, failedRuns: 1, rounds: 2, shifts: 1 }, live: null, demo: false, ...extra });
 const play = { number: 77, url: 'https://forgejo.example/webgrip/glide/pulls/77', state: 'open', branch: 'unfold/42-one-total', mergedAt: null, additions: 214, deletions: 37, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [] };
 
-const files = { '/task.js': 'task.js', '/task.css': 'task.css', '/session.css': 'session.css', '/tokens.css': 'tokens.css', '/common.js': 'common.js', '/core/states.js': 'core/states.js', '/core/format.js': 'core/format.js', '/core/reasons.js': 'core/reasons.js', '/core/checkout.js': 'core/checkout.js', '/core/progress.js': 'core/progress.js' };
+const files = { '/task.js': 'task.js', '/task.css': 'task.css', '/session.css': 'session.css', '/tokens.css': 'tokens.css', '/common.js': 'common.js', '/core/states.js': 'core/states.js', '/core/format.js': 'core/format.js', '/core/reasons.js': 'core/reasons.js', '/core/checkout.js': 'core/checkout.js', '/core/progress.js': 'core/progress.js', '/core/terms.js': 'core/terms.js' };
 const fixture = JSON.parse(await readFile(new URL('../../../test/fixtures/session-059675b9.json', import.meta.url), 'utf8'));
 const surface = createServer(async (request, response) => {
   const file = files[request.url ?? ''];
@@ -168,7 +168,7 @@ try {
   assert.match(await page.locator('.progress-card .next').innerText(), /^At \d\d:\d\d Ploeg did not answer in time, so Unfold stopped the session\. Nothing runs again by itself\.$/, 'the stop reads in plain words');
   const stoppedText = (await page.locator('#app').innerText()).replace(/\s+/g, ' ');
   assert.doesNotMatch(stoppedText, /1 Run running|1 running|Ploeg stopped this Work Item without a reason/, 'a stopped Work Item never reads as running or as an unknown stop');
-  assert.match((await page.locator('.spend-line').innerText()).replace(/\s+/g, ' '), /^≈ US\$ 0,03 of US\$ [\d,]+ spent 2 Runs /, 'spend is one approximate line against its budget, not a tile');
+  assert.match((await page.locator('.spend-line').innerText()).replace(/\s+/g, ' '), /^≈ US\$ 0,03 of US\$ [\d,]+ spent 2 agent runs /, 'spend is one approximate line against its budget, not a tile');
   assert.equal(await page.locator('.stat').count(), 0, 'a session has no facts tiles');
   assert.deepEqual((await page.locator('.gate-title').allInnerTexts()).map(entry => entry.replace(/\s+/g, ' ').replace(/ \(.*\)$/, '')), ['1 file changed +57 −45', 'Reviewer approved', 'git diff --check passed'], 'the checklist names the change, the verdict and the checks');
   await page.locator('.gate', { hasText: 'Reviewer approved' }).getByText('Said in its last message, then it was interrupted before Unfold recorded the review.').waitFor();
