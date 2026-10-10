@@ -11,9 +11,10 @@ const ids = progress => progress.actions.map(action => action.id);
 test('the 059675b9 worst case reads as one stopped state, never as running', () => {
   const progress = worst();
   assert.equal(progress.phase, 'stopped');
-  assert.equal(progress.headline, 'Reviewer approved in its transcript · stopped before delivery');
+  assert.equal(progress.headline, 'Reviewer approved the change · the session stopped before finishing');
   assert.equal(progress.short, 'Stopped · reviewer approved in its transcript');
   assert.equal(progress.reason.code, 'reconciliation');
+  assert.match(progress.reason.plain, /^At \d\d:\d\d Ploeg did not answer in time, so Unfold stopped the session\. Nothing runs again by itself\.$/, 'the stop also reads in plain words');
   assert.match(progress.next, /^Unfold lost Ploeg's authority to run it at \d\d:\d\d, after Ploeg did not answer in time\. Ploeg stopped the execution and holds it for reconciliation/, 'the cause comes before the hold');
   assert.match(progress.next, /does not offer delivery of approved work yet/);
   assert.equal(progress.current, null, 'no Role is working in a stopped session');
@@ -45,15 +46,16 @@ test('when the server lists recovery, an approved stop offers delivery first, ea
   assert.deepEqual(ids(progress).slice(0, 3), ['deliver', 'run-again', 'investigate']);
   const [deliver, again] = progress.actions;
   assert.equal(deliver.primary, true);
-  assert.equal(deliver.label, 'Deliver the approved work');
+  assert.equal(deliver.label, 'Finish and review', 'the action is named after what it does, not the server\'s label');
   assert.match(deliver.confirm.detail, /unfold\/059675b9-clown-readme/);
   assert.match(progress.next, /deliver the approved work, or run it again as a new session\.$/, 'the server\'s own summary says what to do');
   assert.ok(!ids(progress).includes('resume'), 'Resume follows the server: unavailable here');
-  assert.match(deliver.confirm.detail, /Nothing merges without you/);
-  assert.match(deliver.confirm.detail, /^The reviewer gave its approval in its own transcript before it was cut off/, 'the confirmation says where the approval comes from');
+  assert.match(deliver.confirm.detail, /No model runs and nothing is spent\. You then accept or reject the change; nothing is pushed or merged\.$/);
+  assert.match(deliver.outcome, /starts no model and spends nothing/);
+  assert.match(deliver.confirm.detail, /^The reviewer approved in its last message, then it was interrupted before Unfold recorded the review\./, 'the confirmation says where the approval comes from');
   assert.equal(again.confirm, undefined, 'Run again only queues a new session, so it asks nothing');
   assert.match(again.hint, /does not start until you start it/);
-  assert.match(deliver.confirm.detail, /Ploeg opens a pull request with it for your review/);
+  assert.doesNotMatch(deliver.confirm.detail, /pull request/, 'publication is disabled, so finishing promises no pull request');
   const unavailable = worst(fixture.session, { recovery: { actions: [{ id: 'deliver', available: false }] } });
   assert.ok(!ids(unavailable).includes('deliver'));
 });
@@ -124,8 +126,8 @@ test('helpers: the clock, patch counts, transcript verdicts, the driving session
 
 test('the outcome Markdown for the Agents window says what happened, what it cost and what to do', () => {
   const markdown = outcomeMarkdown(worst(), { sessionUrl: 'https://unfold.example/#session/059675b9' });
-  assert.match(markdown, /^\*\*Stopped\*\* · Reviewer approved in its transcript · stopped before delivery/);
-  assert.match(markdown, /- \*\*Reviewer\*\* \(reader\): cut off, approved in its transcript/);
+  assert.match(markdown, /^\*\*Stopped\*\* · Reviewer approved the change · the session stopped before finishing/);
+  assert.match(markdown, /- \*\*Reviewer\*\* \(reader\): interrupted, approved in its transcript/);
   assert.match(markdown, /Change: 1 file \+57 −45 on `unfold\/059675b9-clown-readme`/);
   assert.match(markdown, /Spend: US\$\s0,03 \(observed, not settled · of US\$\s0,25\)/);
   assert.match(markdown, /Next: Investigate · View change — in VS Code's Work Item view or on \[the session page\]\(https:\/\/unfold\.example\/#session\/059675b9\)\./);
@@ -164,7 +166,7 @@ test('an uncaptured approved change can be captured and read before it is delive
   const captured = worst({ ...withoutDiff, candidate: { status: 'ready', fileCount: 1 } }, { recovery: { ...recovery, actions: recovery.actions.filter(action => action.id !== 'capture') } });
   assert.deepEqual(ids(captured).slice(0, 2), ['deliver', 'run-again']);
   assert.ok(ids(captured).includes('view-change'), 'a captured change is viewable');
-  assert.match(captured.headline, /captured, not delivered yet$/);
+  assert.match(captured.headline, /captured, not finished yet$/);
 });
 
 test('the timeline, findings, checks and cost per role come from the session\'s own record', () => {
