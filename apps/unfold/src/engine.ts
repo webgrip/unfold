@@ -651,7 +651,7 @@ export class Engine {
       this.store.deleteSecret(`authority-unresolved:${id}`);
       session = this.store.getSession(id)!;
       if (['pause_requested', 'cancel_requested', 'interrupted'].includes(binding.state)) {
-        session.blocker = 'Ploeg retains this stopped or interrupted execution for reconciliation. It will not retry automatically.';
+        session.blocker = 'Nothing runs or costs money until you choose what to do.';
         this.save(session, 'execution.reconciliation_required', 'system', { state: binding.state, stopConfirmed, autoResumed: false });
       }
     } catch {

@@ -11,6 +11,8 @@ export type Investigation = {
   sessionId: string;
   generatedAt: string;
   class: InvestigationClass;
+  /** What went wrong in one plain sentence, for the person who started the session. */
+  summary: string;
   verdict: string;
   rule: string;
   stop?: { at: string; type: string };
@@ -90,6 +92,15 @@ export function investigate(session: Session, events: Event[], revisions: PloegR
   if (ploeg === 'unavailable') facts.push({ label: 'Ploeg side', value: 'Could not be read now; findings use Unfold\'s records only.' });
 
   let found: Pick<Investigation, 'class' | 'verdict' | 'rule'>;
+  const summaries: Record<InvestigationClass, string> = {
+    operator_stop: 'Someone stopped this session on purpose. Nothing went wrong.',
+    guard: 'A safety limit stopped the agent, for example its budget.',
+    unfold_restart: 'Unfold restarted while this session was running, so the session was stopped to be safe.',
+    ploeg_refused: 'This session was taken over or started again elsewhere, so this copy was stopped.',
+    unfold_stall: 'Unfold briefly lost touch with Ploeg while saving the agent\'s output, so the session was stopped to be safe. Nothing was lost.',
+    ploeg_unreachable: 'Unfold could not reach Ploeg for too long, so the session was stopped to be safe.',
+    unclear: 'The session stopped, and Unfold could not tell why.',
+  };
   if (operatorStop) found = { class: 'operator_stop', rule: 'a pause or cancel was recorded before the stop', verdict: `${operatorStop.type === 'session.paused' ? 'Paused' : 'Cancelled'} by a person. Nothing failed.` };
   else if (guard) found = { class: 'guard', rule: `${guard.type} was recorded`, verdict: 'A safety guard stopped the Run. Read the recorded message before trying again.' };
   else if (restarted) found = { class: 'unfold_restart', rule: 'Unfold recorded a server restart or shutdown at the stop', verdict: 'Unfold restarted while this session was running. Ploeg holds the execution until it is reconciled.' };
@@ -99,15 +110,16 @@ export function investigate(session: Session, events: Event[], revisions: PloegR
   else found = { class: 'unclear', rule: 'no rule matched', verdict: 'No known pattern matches. The facts below are what is known; investigate further before resuming.' };
 
   const answer = lastAnswer(events, session);
-  if (answer) {
-    facts.push({ label: `${answer.run.roleName}`, value: `${answer.run.status}${answer.verdict ? `; its streamed answer already contains verdict ${answer.verdict}` : ''}` });
-    const repeats = session.runs.filter(run => run.status !== 'completed').map(run => run.roleName);
-    if (repeats.length && ['interrupted', 'paused'].includes(session.status)) next.push(`Resume repeats: ${repeats.join(', ')}.`);
-    if (answer.verdict) next.push(`The ${answer.run.roleName} had already answered "${answer.verdict}" before the stop; resuming asks it again.`);
-  }
+  const verdictWords: Record<string, string> = { approve: 'approved the change', request_changes: 'asked for changes', inconclusive: 'could not decide' };
+  if (answer) facts.push({ label: `${answer.run.roleName}`, value: `${answer.run.status}${answer.verdict ? `; its streamed answer already contains verdict ${answer.verdict}` : ''}` });
   facts.push({ label: 'Spend', value: `${(session.observedUsd ?? session.spentUsd).toFixed(2)} of ${session.budgetUsd.toFixed(2)} USD` });
-  if (found.class === 'unfold_stall' || found.class === 'ploeg_unreachable') next.push('The workspace and branch are kept; resuming is safe once Ploeg answers again.');
-  if (found.class === 'unclear') next.push('Ask an agent to run the investigate-session skill for cluster-level facts (restarts, probes, rollouts).');
+  if (answer?.verdict) next.push(`Before it stopped, the ${answer.run.roleName.toLowerCase()} had already ${verdictWords[answer.verdict] ?? answer.verdict}.`);
+  if (found.class !== 'operator_stop' && ['interrupted', 'paused', 'failed'].includes(session.status)) {
+    next.push('To try again, press Duplicate as a new session. It starts fresh with its own budget.');
+    next.push('Not needed any more? Press Cancel.');
+  }
+  if (found.class === 'unclear' || found.class === 'unfold_stall' || found.class === 'ploeg_unreachable') next.push('If this keeps happening, copy the technical details and share them with whoever runs Unfold.');
+  if (found.class === 'unclear') facts.push({ label: 'Deeper look', value: 'Ask an agent to run the investigate-session skill for cluster-level facts (restarts, probes, rollouts).' });
 
   for (const event of events) {
     const at = ms(event.at);
@@ -124,5 +136,5 @@ export function investigate(session: Session, events: Event[], revisions: PloegR
     const index = timeline.findIndex(item => ms(item.at) > gap.last!);
     timeline.splice(index === -1 ? timeline.length : index, 0, { at: new Date(gap.last! + 1).toISOString(), source: 'ploeg', text: `no heartbeat for ${seconds(gap.silentMs)}` });
   }
-  return { sessionId: session.id, generatedAt: now.toISOString(), ...found, ...(stop ? { stop: { at: stop.at, type: stop.type } } : {}), facts, timeline: timeline.slice(-40), next, ploeg };
+  return { sessionId: session.id, generatedAt: now.toISOString(), summary: summaries[found.class], ...found, ...(stop ? { stop: { at: stop.at, type: stop.type } } : {}), facts, timeline: timeline.slice(-40), next, ploeg };
 }

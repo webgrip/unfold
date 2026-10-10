@@ -116,7 +116,7 @@ export function stopReason(session, events) {
   if (pending) return { code: 'reconciliation_pending', short: 'waiting for Ploeg to confirm the stop', sentence: 'Execution stopped here, and Ploeg has not confirmed the stop yet. Its budget stays reserved and nothing retries by itself.', at, retained: true };
   if (lost) return { code: 'authority_lost', short: 'Ploeg authority lost', sentence: 'Unfold lost Ploeg\'s authority to run it and stopped. Nothing retries by itself.', at, retained: Boolean(session.execution) };
   if (restarted) return { code: 'restart', short: 'Unfold restarted', sentence: 'The workbench restarted while it ran. Nothing resumed by itself.', at, retained: false };
-  return { code: 'interrupted', short: 'interrupted', sentence: blocker || 'Execution was interrupted; nothing retries by itself.', at, retained: Boolean(session.execution) };
+  return { code: 'interrupted', short: 'interrupted', sentence: blocker || 'This session stopped. Nothing runs until you choose what to do.', at, retained: Boolean(session.execution) };
 }
 
 function stepFor(session, run, events, sessionActive, stoppedAt, now) {
