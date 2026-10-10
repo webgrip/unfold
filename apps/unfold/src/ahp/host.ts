@@ -22,7 +22,8 @@ import { knownSecrets, plainRedactedText, withoutKnownSecrets } from '../redacti
 import { CommandLog, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel } from './terminals.ts';
 import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBaseline, sessionChatCatalog, speaksCatalog, supportedVersions } from './versions.ts';
 import { ChatAsks, askMarkdown, commandCompletions, messageIntent, type ChatAskEntry, type ChatAskService } from './asks.ts';
-import { candidateEdits, carryRuns, parseRunChannel, runChatState, runChats, runFinished, runMessage, runRoute, runStarted, runTool, runTranscripts, stopRuns, toolActions, type RunTranscripts, type Spelling } from './runs.ts';
+import { candidateEdits, carryRuns, parseRunChannel, runChatChannel, runChatState, runChats, runFinished, runMessage, runRoute, runStarted, runTool, runTranscripts, stopRuns, toolActions, type RunTranscripts, type Spelling } from './runs.ts';
+import { WorkItemSessions, isWorkItemSession, workItemChatState, workItemIdOf, workItemRefusal, workItemRefusals, workItemRunChatState, workItemSessionState, workItemStatus, workItemSummary, type RoutedAction, type WorkItemRecord } from './work-items.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
@@ -254,6 +255,8 @@ export class AgentHost {
   private readonly chatAsks: ChatAsks;
   /** Ploeg's tracker routes as a read-only automation catalogue. */
   readonly automations: TrackerAutomations;
+  /** Ploeg's Work Items as read-only sessions. */
+  readonly workItems: WorkItemSessions;
 
   private readonly redact: (text: string) => string;
 
@@ -287,6 +290,11 @@ export class AgentHost {
       watchers: () => [...new Map([...this.clients].filter(client => client.initialized && client.subscriptions.has(automationsChannel)).map(client => [client.user.id, client.user])).values()],
       publish: (userId, action) => this.broadcast(automationsChannel, action, undefined, client => client.user.id === userId),
       workspaceFolder: repositoryId => { const name = repositoryWorkspaceNames(this.config.repositories).get(repositoryId); return name ? `${repositoriesDirectory}/${encodeURIComponent(name)}` : undefined; },
+    });
+    this.workItems = new WorkItemSessions(config, {
+      viewers: () => [...new Map([...this.clients].filter(client => client.initialized).map(client => [client.user.id, client.user])).values()],
+      listed: (user, change) => this.announceWorkItems(user, change),
+      transcript: (entry, actions) => this.publishWorkItemTranscript(entry, actions),
     });
   }
 
@@ -401,7 +409,7 @@ export class AgentHost {
       .sort((a, b) => a.connectedAt.localeCompare(b.connectedAt));
   }
 
-  close(): void { this.closed = true; this.stopPolling(); clearInterval(this.sweeper); this.automations.close(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
+  close(): void { this.closed = true; this.stopPolling(); clearInterval(this.sweeper); this.automations.close(); this.workItems.close(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
 
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
@@ -1174,6 +1182,7 @@ export class AgentHost {
     }
     if (channel === automationsChannel) { const state = await this.automations.snapshot(client.user); client.subscriptions.add(channel); return { resource: channel, state, fromSeq: this.serverSeq }; }
     const parsed = parseChannel(channel);
+    if (parsed && isWorkItemSession(parsed.id)) { const snapshot = await this.workItemSnapshot(client, channel, parsed); client.subscriptions.add(channel); return snapshot; }
     const loading = parsed ? this.sessionFor(client.user, channel) : undefined;
     if (loading) await this.loadCandidate(loading);
     const snapshot = this.snapshot(client, channel);
@@ -1201,6 +1210,7 @@ export class AgentHost {
       const declaresSessionUris = params._meta?.[sessionUrisMeta] === true;
       client.clientId = params.clientId; client.scheme = sessionSchemeFor(params.clientInfo, params._meta); client.initialized = true; client.clientInfo = describedClient(params.clientInfo); client.protocolVersion = negotiated;
       this.remember(params.clientId, client.user, client.scheme, client.clientInfo, negotiated);
+      this.workItems.watch();
       this.resumeActiveClient(params.clientId, Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
@@ -1211,13 +1221,14 @@ export class AgentHost {
       if (!known || known.userId !== client.user.id) throw new RpcError(codes.notFound, 'This host does not know that client; initialize');
       client.clientId = params.clientId; client.scheme = params._meta?.[sessionUrisMeta] === true ? 'ahp-session' : known.scheme; client.initialized = true; client.clientInfo = known.clientInfo; client.protocolVersion = known.protocolVersion ?? oldestBaseline;
       this.remember(params.clientId, client.user, client.scheme, client.clientInfo, client.protocolVersion);
+      this.workItems.watch();
       this.resumeActiveClient(params.clientId, Array.isArray(params.subscriptions) ? params.subscriptions : []);
     }
     if (!client.initialized) throw new RpcError(codes.invalidRequest, 'initialize first');
     switch (method) {
       case 'reconnect': { const snapshots: Json[] = []; for (const channel of Array.isArray(params.subscriptions) ? params.subscriptions : []) snapshots.push(await this.subscribe(client, channel)); return { type: 'snapshot', snapshots }; }
       case 'subscribe': { if (typeof params.channel !== 'string') throw new RpcError(codes.invalidParams, 'channel is required'); return { snapshot: await this.subscribe(client, params.channel) }; }
-      case 'listSessions': return { items: this.visible(client.user).map(session => this.summary(session, client)) };
+      case 'listSessions': return { items: [...this.visible(client.user).map(session => this.summary(session, client)), ...await this.workItemSummaries(client)] };
       case 'resolveSessionConfig': return resolveSessionConfig(this.config, params.config, this.repositoryFromPickedFolder(params.workingDirectory));
       case 'resourceList': return this.listDirectory(params.uri);
       case 'sessionConfigCompletions': return sessionConfigCompletions(resolveSessionConfig(this.config, params.config, this.repositoryFromPickedFolder(params.workingDirectory)).schema, String(params.property));
@@ -1253,7 +1264,7 @@ export class AgentHost {
     const parsed = parseChannel(channel);
     if (parsed?.kind !== 'session') throw new RpcError(codes.invalidParams, `session must be ${provider}:/<id> or ahp-session:/<id>`);
     if (params.provider && params.provider !== provider) throw new RpcError(codes.providerNotFound, 'Unknown provider');
-    if (this.pending.has(parsed.id) || this.store.getSession(this.engineId(parsed.id)) || this.store.getSession(parsed.id)) throw new RpcError(codes.sessionExists, 'Session already exists');
+    if (isWorkItemSession(parsed.id) || this.pending.has(parsed.id) || this.store.getSession(this.engineId(parsed.id)) || this.store.getSession(parsed.id)) throw new RpcError(codes.sessionExists, 'Session already exists');
     const picked = Array.isArray(params.workingDirectories) ? this.repositoryFromPickedFolder(params.workingDirectories[0]) : undefined;
     const config = this.acceptedConfig(params.config, picked);
     const activeClient = params.activeClient as Json | undefined;
@@ -1284,6 +1295,8 @@ export class AgentHost {
 
   private disposeSession(client: Client, params: Json): Json {
     const channel = String(params.channel ?? '');
+    const workItem = sessionIdFrom(channel);
+    if (workItem && isWorkItemSession(workItem)) throw new RpcError(this.workItems.remembered(client.user, workItem) ? codes.permissionDenied : codes.sessionNotFound, this.workItems.remembered(client.user, workItem) ? workItemRefusals.dispose : 'Session not found');
     const pending = this.pendingFor(channel);
     if (pending) {
       if (!this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
@@ -1335,26 +1348,93 @@ export class AgentHost {
   }
 
   private setViewFlag(client: Client, channel: string, kind: ChannelKind, pending: PendingSession | undefined, action: Json, origin: Origin, flag: ViewFlag): string | undefined {
-    if (kind !== flag.channel) return `${action.type} is dispatched on the ${flag.channel} channel`;
-    if (typeof action[flag.field] !== 'boolean') return `${flag.field} must be true or false`;
     const session = pending ? undefined : this.sessionFor(client.user, channel);
     if (!pending && !session) return 'Session not found';
-    const publicId = session ? this.publicId(session.id) : pending!.id;
+    return this.setFlag(client, channel, kind, { publicId: session ? this.publicId(session.id) : pending!.id, activityBits: session ? sessionStatus(session) : statusBits.idle, summary: viewer => session ? this.summary(session, viewer) : this.pendingSummary(pending!, viewer) }, action, origin, flag);
+  }
+
+  /** Sets a person's own read or archive flag on a session, which no other person sees. */
+  private setFlag(client: Client, channel: string, kind: ChannelKind, subject: { publicId: string; activityBits: number; summary: (viewer: Client) => Json }, action: Json, origin: Origin, flag: ViewFlag): string | undefined {
+    if (kind !== flag.channel) return `${action.type} is dispatched on the ${flag.channel} channel`;
+    if (typeof action[flag.field] !== 'boolean') return `${flag.field} must be true or false`;
+    const { publicId, activityBits } = subject;
     const current = this.viewOf(client, publicId);
     const next = { ...current, [flag.channel]: action[flag.field] ? current[flag.channel] | flag.bit : current[flag.channel] & ~flag.bit };
     this.store.setAgentHostView(client.user.id, publicId, next, new Date().toISOString());
     const sameUser = (other: Client) => other.user.id === client.user.id;
-    const activityBits = session ? sessionStatus(session) : statusBits.idle;
     this.echo(client, channel, action, origin, sameUser);
     if (flag.channel === 'session') this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme), changes: { status: activityBits | next.session } }), undefined, sameUser);
     else {
       this.broadcast(sessionChannel(publicId), viewer => ({ type: 'session/chatUpdated', chat: chatChannel(publicId, viewer.scheme), changes: { status: activityBits | next.chat } }), undefined, sameUser);
-      this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme), changes: catalogOf(session ? this.summary(session, viewer) : this.pendingSummary(pending!, viewer)) }), undefined, viewer => sameUser(viewer) && speaksCatalog(viewer.protocolVersion));
+      this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme), changes: catalogOf(subject.summary(viewer)) }), undefined, viewer => sameUser(viewer) && speaksCatalog(viewer.protocolVersion));
     }
     return undefined;
   }
 
   private activeClientsOf(publicId: string): Json[] { return [...(this.activeClients.get(publicId)?.values() ?? [])]; }
+
+  private workItemSpelling(publicId: string, view: Pick<View, 'scheme'>): Spelling { return { session: sessionChannel(publicId, view.scheme), chat: chatChannel(publicId, view.scheme) }; }
+
+  private workItemSummary(entry: WorkItemRecord, view: View): Json { return workItemSummary(entry, this.workItemSpelling(entry.publicId, view), this.viewOf(view, entry.publicId), view.protocolVersion); }
+
+  /** The person's Work Item sessions for `listSessions`. Whatever Ploeg does, Unfold's own sessions still list. */
+  private async workItemSummaries(client: Client): Promise<Json[]> {
+    try { return (await this.workItems.list(client.user)).map(entry => this.workItemSummary(entry, client)); } catch { return []; }
+  }
+
+  private async workItemSnapshot(client: Client, channel: string, parsed: { kind: ChannelKind; id: string; run?: string }): Promise<Json> {
+    const workItemId = workItemIdOf(parsed.id);
+    let found: Awaited<ReturnType<WorkItemSessions['session']>>;
+    try { found = workItemId ? await this.workItems.session(client.user, workItemId) : undefined; }
+    catch (error) { throw new RpcError(codes.internal, error instanceof Error && 'status' in error ? error.message : 'Ploeg could not be read'); }
+    if (!found) throw new RpcError(codes.sessionNotFound, 'Session not found');
+    const spelling = this.workItemSpelling(parsed.id, client);
+    const flags = this.viewOf(client, parsed.id);
+    const state = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling)
+      : parsed.kind === 'session' ? workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id))
+      : parsed.kind === 'chat' ? workItemChatState(found.entry, found.detail, spelling, flags)
+      : undefined;
+    if (!state) throw new RpcError(codes.notFound, 'Unknown channel');
+    return { resource: channel, state, fromSeq: this.serverSeq };
+  }
+
+  /** Tells one person's clients which Work Item sessions joined, changed or left their list. A Work Item that newly needs them becomes unread again. */
+  private announceWorkItems(user: User, change: { added: WorkItemRecord[]; changed: WorkItemRecord[]; removed: string[] }): void {
+    const own = (client: Client) => client.user.id === user.id;
+    const at = new Date().toISOString();
+    for (const entry of change.added) this.notify(rootChannel, 'root/sessionAdded', viewer => ({ channel: rootChannel, summary: this.workItemSummary(entry, viewer) }), undefined, own);
+    for (const entry of change.changed) {
+      if (workItemStatus(entry) === statusBits.inputNeeded && !entry.stale) this.store.clearAgentHostFlags(entry.publicId, statusBits.isRead, at);
+      this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.workItemSummary(entry, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, ...catalogOf(summary) } }; }, undefined, own);
+      this.broadcast(sessionChannel(entry.publicId), viewer => { const summary = this.workItemSummary(entry, viewer); return { type: 'session/chatUpdated', chat: chatChannel(entry.publicId, viewer.scheme), changes: { title: summary.title, status: summary.chats?.[0]?.status ?? summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt } }; }, undefined, own);
+    }
+    for (const publicId of change.removed) this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme) }), undefined, own);
+  }
+
+  /** Sends a Work Item's transcript changes to the clients of every person Ploeg's team authorization lets see it, each in its own spelling. */
+  private publishWorkItemTranscript(entry: WorkItemRecord, actions: (spelling: Spelling) => RoutedAction[]): void {
+    const allowed = (client: Client) => this.workItems.allows(client.user, entry.item.team);
+    const built = new Map<SessionScheme, RoutedAction[]>();
+    const routed = (client: Client) => { let list = built.get(client.scheme); if (!list) { list = actions(this.workItemSpelling(entry.publicId, client)); built.set(client.scheme, list); } return list; };
+    const reference = actions(this.workItemSpelling(entry.publicId, { scheme: provider }));
+    reference.forEach((item, index) => {
+      const channel = item.to === 'chat' ? chatChannel(entry.publicId) : item.to === 'session' ? sessionChannel(entry.publicId) : runChatChannel(sessionChannel(entry.publicId), item.to.run);
+      this.broadcast(channel, client => routed(client)[index].action, undefined, allowed);
+    });
+  }
+
+  /** A Work Item session takes the person's own read and archive flags, drafts and active-client presence; every other change is refused, because Ploeg owns the Work Item. */
+  private dispatchToWorkItem(client: Client, channel: string, kind: ChannelKind, publicId: string, action: Json, origin: Origin): string | undefined {
+    const entry = this.workItems.remembered(client.user, publicId);
+    if (!entry || !this.workItems.allows(client.user, entry.item.team)) return 'Session not found';
+    const flag = viewFlags[String(action.type)];
+    if (flag) return this.setFlag(client, channel, kind, { publicId, activityBits: workItemStatus(entry), summary: viewer => this.workItemSummary(entry, viewer) }, action, origin, flag);
+    switch (action.type) {
+      case 'chat/draftChanged': case 'chat/inputAnswerChanged': this.echo(client, channel, action, origin); return undefined;
+      case 'session/activeClientSet': case 'session/activeClientRemoved': return kind === 'session' ? this.setActiveClient(client, channel, publicId, action, origin) : `${action.type} is dispatched on the session channel`;
+      default: return workItemRefusal(action.type);
+    }
+  }
 
   private setActiveClient(client: Client, channel: string, publicId: string, action: Json, origin: Origin): string | undefined {
     const setting = action.type === 'session/activeClientSet';
@@ -1834,6 +1914,7 @@ export class AgentHost {
       const parsed = parseChannel(channel);
       if (!parsed) { reject('Unknown channel'); return; }
       if (parsed.run) { reject('A Run\'s chat is read-only; send messages in the session\'s chat'); return; }
+      if (isWorkItemSession(parsed.id)) { const refused = this.dispatchToWorkItem(client, channel, parsed.kind, parsed.id, action, origin); if (refused) reject(refused); return; }
       const pending = parsed.kind !== 'changeset' ? this.pending.get(parsed.id) : undefined;
       if (pending && !this.mayView(client.user, pending.user.id)) { reject('Session not found'); return; }
       const flag = viewFlags[String(action.type)];

@@ -950,28 +950,60 @@ export class PloegClient {
     for (const run of runs) if (run.workItemTitle) this.remember(run.workItemId, run.workItemTitle);
     return { demo: this.demo, runs: runs.filter(run => this.allowed(user, run.team)), nextBefore, fetchedAt: new Date().toISOString() };
   }
-  /** Lists audit events newest first across the caller's teams; `before` pages to older events. */
-  async events(user: User, filter: { team?: string; before?: string }, fresh = false): Promise<PloegEventsPage> {
+  /**
+   * Lists audit events across the caller's teams: newest first, where `before` pages to older events, or with `after`
+   * oldest first from that event on, where `nextCursor` is the next `after` while Ploeg holds more.
+   */
+  async events(user: User, filter: { team?: string; before?: string; after?: string }, fresh = false): Promise<PloegEventsPage> {
     this.connected(user);
     if (filter.team && !this.allowed(user, filter.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
-    if (filter.before && !/^[1-9][0-9]{0,19}$/.test(filter.before)) throw new PloegError(400, 'ploeg_filter', 'Choose a valid page cursor.');
+    if ((filter.before && !/^[1-9][0-9]{0,19}$/.test(filter.before)) || (filter.after && !/^(0|[1-9][0-9]{0,19})$/.test(filter.after)) || (filter.before && filter.after)) throw new PloegError(400, 'ploeg_filter', 'Choose a valid page cursor.');
     let events: PloegActivityEvent[]; let nextCursor: string | null;
     if (this.demo) {
-      const matching = ploegDemo.events.filter(entry => (!filter.team || entry.team === filter.team) && (!filter.before || BigInt(entry.id) < BigInt(filter.before)));
+      const ascending = filter.after !== undefined;
+      const matching = ploegDemo.events.filter(entry => (!filter.team || entry.team === filter.team) && (!filter.before || BigInt(entry.id) < BigInt(filter.before)) && (!ascending || BigInt(entry.id) > BigInt(filter.after!)));
+      if (ascending) matching.sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
       events = matching.slice(0, ploegDemo.pageSize); nextCursor = matching.length > ploegDemo.pageSize ? events.at(-1)!.id : null;
     } else {
-      const query = new URLSearchParams({ order: 'desc', limit: String(pageSize) });
-      if (filter.team) query.set('team', filter.team);
-      if (filter.before) query.set('before', filter.before);
-      const data = envelope(await this.request(`events?${query}`, fresh, { added: true }));
-      events = array(data.events, activityEvent, 200); nextCursor = nullable(data.nextCursor ?? null, identifier);
-      if (events.some(entry => filter.team && entry.team !== filter.team)) throw invalid();
+      const page = await this.eventPage({ team: filter.team, before: filter.before, after: filter.after, limit: pageSize }, fresh);
+      events = page.events; nextCursor = page.nextCursor;
     }
     const visible = structuredClone(events.filter(entry => this.allowed(user, entry.team)));
     const missing = [...new Set(visible.filter(entry => !entry.workItemTitle && !this.titles.has(entry.workItemId)).map(entry => entry.workItemId))].slice(0, 10);
     await Promise.all(missing.map(id => this.detail(user, id).catch(() => undefined)));
     for (const entry of visible) entry.workItemTitle ||= this.titles.get(entry.workItemId) ?? '';
     return { demo: this.demo, events: visible, nextCursor, fetchedAt: new Date().toISOString() };
+  }
+  private async eventPage(filter: { team?: string; before?: string; after?: string; limit: number }, fresh: boolean): Promise<{ events: PloegActivityEvent[]; nextCursor: string | null; lastCursor: string }> {
+    const ascending = filter.after !== undefined;
+    const query = new URLSearchParams({ order: ascending ? 'asc' : 'desc', limit: String(filter.limit) });
+    if (filter.team) query.set('team', filter.team);
+    if (filter.before) query.set('before', filter.before);
+    if (ascending) query.set('after', filter.after!);
+    const data = envelope(await this.request(`events?${query}`, fresh, { added: true }));
+    const events = array(data.events, activityEvent, 200);
+    if (events.some(entry => (filter.team && entry.team !== filter.team) || (ascending && BigInt(entry.id) <= BigInt(filter.after!)))) throw invalid();
+    const last = data.lastCursor === undefined || data.lastCursor === null ? (ascending ? events.at(-1)?.id ?? filter.after! : events[0]?.id ?? '0') : String(data.lastCursor);
+    if (!/^(0|[1-9][0-9]{0,19})$/.test(last)) throw invalid();
+    return { events, nextCursor: nullable(data.nextCursor ?? null, identifier), lastCursor: last };
+  }
+  /**
+   * Follows Ploeg's audit events oldest first after `after`, across every team of the consumer's scope that Unfold reads,
+   * for the agent host's fleet poller. It answers to no viewer: whoever is shown an event's effect is authorized
+   * separately. `lastCursor` is the `after` of the next call.
+   */
+  async followEvents(after: string): Promise<{ events: PloegEvent[]; lastCursor: string; more: boolean }> {
+    if (this.demo || !this.config) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.');
+    if (!/^(0|[1-9][0-9]{0,19})$/.test(after)) throw new PloegError(400, 'ploeg_filter', 'Choose a valid page cursor.');
+    const page = await this.eventPage({ after, limit: 200 }, true);
+    return { events: page.events.filter(entry => !this.config?.teams || this.config.teams.includes(entry.team)), lastCursor: page.lastCursor, more: page.nextCursor !== null };
+  }
+  /** Ploeg's audit events newest first, before `before` when given, in the same scope as {@link PloegClient.followEvents}; `lastCursor` is the newest event id Ploeg holds in that page, `0` when it holds none. */
+  async latestEvents(before?: string): Promise<{ events: PloegEvent[]; lastCursor: string; nextCursor: string | null }> {
+    if (this.demo || !this.config) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.');
+    if (before !== undefined && !/^[1-9][0-9]{0,19}$/.test(before)) throw new PloegError(400, 'ploeg_filter', 'Choose a valid page cursor.');
+    const page = await this.eventPage({ before, limit: 200 }, true);
+    return { events: page.events.filter(entry => !this.config?.teams || this.config.teams.includes(entry.team)), lastCursor: page.lastCursor, nextCursor: page.nextCursor };
   }
   /** Lists Work Items waiting in state `proposed` across the caller's teams, with where each came from. */
   async proposed(user: User, fresh = false): Promise<PloegProposedPage> {
