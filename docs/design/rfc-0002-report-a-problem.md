@@ -92,7 +92,7 @@ For GitHub, where the API has no attachment upload, Unfold keeps the files and l
 
 ## Unfold's own reports
 
-Reports about Unfold itself, from the owner's instance, go to `webgrip/unfold` on Forgejo. The stale link in `apps/unfold/CONTRIBUTING.md`, which still points at the renamed `de-vloer` repository, is fixed in the same change. Repository issue templates (`.forgejo/ISSUE_TEMPLATE/bug.md`) mirror the report's sections, so hand-filed issues look the same.
+Reports about Unfold itself, from the owner's instance, go to `webgrip/unfold` on Forgejo. Repository issue templates (`.forgejo/ISSUE_TEMPLATE/bug.md`) mirror the report's sections, so hand-filed issues look the same.
 
 ## Privacy
 
