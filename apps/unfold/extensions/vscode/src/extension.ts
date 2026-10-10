@@ -1086,19 +1086,23 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     throw new Error('This session has no change to show yet.');
   }
 
-  /** Asks the server to deliver the approved work or run it again, after a confirmation that names what it does. */
+  /** Asks the server to deliver the approved work or run it again as a new session, after a confirmation that names what it does. */
   async recover(id: string, action: 'deliver' | 'run_again'): Promise<void> {
     const target = this.current; const generation = this.generation;
-    const session = await target.session(id);
+    const [session, recovery, events] = await Promise.all([target.session(id), target.recovery(id), target.history(id)]);
     this.assertTarget(target, generation);
-    const offered = this.core.sessionProgress(session).actions.find(entry => entry.id === (action === 'deliver' ? 'deliver' : 'run-again'));
-    if (!offered?.confirm) throw new Error(action === 'deliver' ? 'This session does not offer delivery now. Refresh the Work Item.' : 'This session cannot run again now. Refresh the Work Item.');
-    const choice = await vscode.window.showWarningMessage(offered.confirm.title, { modal: true, detail: offered.confirm.detail }, offered.confirm.button);
-    if (choice !== offered.confirm.button) return;
+    const offered = this.core.sessionProgress(session, { recovery, events }).actions.find(entry => entry.id === (action === 'deliver' ? 'deliver' : 'run-again'));
+    if (!offered) throw new Error(action === 'deliver' ? 'This session does not offer delivery now. Refresh the Work Item.' : 'This session cannot run again now. Refresh the Work Item.');
+    if (offered.confirm) {
+      const choice = await vscode.window.showWarningMessage(offered.confirm.title, { modal: true, detail: offered.confirm.detail }, offered.confirm.button);
+      if (choice !== offered.confirm.button) return;
+    }
     this.assertTarget(target, generation);
-    await target.recover(id, action);
-    void vscode.window.showInformationMessage(action === 'deliver' ? 'Delivery requested. The Work Item view shows the pull request when it opens.' : 'A new attempt was requested. The Work Item view follows it live.');
+    const result = await target.recover(id, action);
     await this.refresh();
+    if (action === 'deliver') { void vscode.window.showInformationMessage('Delivered. The change is captured and Ploeg opens the pull request for your review; nothing was merged.'); return; }
+    const next = await vscode.window.showInformationMessage(`A new session “${result.title}” is ready with the same brief. It has not started.`, 'Open new session');
+    if (next === 'Open new session') await this.open(result.id);
   }
 
   async open(value: SessionRef): Promise<import('./panel.js').SessionPanel | undefined> {

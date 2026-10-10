@@ -4,7 +4,7 @@ import { ApiError, type UnfoldClient } from './client.js';
 import { providerNames, safeHttpsUrl } from './status.js';
 import { awaitingPloeg, currentWorkItemId, linkedSessionFor, ploegFacts, progressEventsOf, sessionEligibility, unsupportedStatus, workItemMoving } from './task-view.js';
 import type { PloegCard, PloegDetail } from './ploeg-types.js';
-import type { Bootstrap, Session, SessionEvent, TaskPloegStatus, TaskPreview, TaskSnapshot, TaskSource } from './types.js';
+import type { Bootstrap, Recovery, Session, SessionEvent, TaskPloegStatus, TaskPreview, TaskSnapshot, TaskSource } from './types.js';
 
 export interface TaskPanelHost {
   readonly extensionUri: vscode.Uri;
@@ -25,7 +25,7 @@ export interface TaskPanelHost {
 }
 
 /** The Unfold session that drives a Work Item, with the durable events its progress reads. */
-export type LinkedSession = { session: Session; events: SessionEvent[]; viewer: boolean; live: boolean };
+export type LinkedSession = { session: Session; events: SessionEvent[]; viewer: boolean; live: boolean; recovery?: Recovery };
 
 /** The state a task panel posts to its webview: the tracker task, its Ploeg status and, once Ploeg has a Work Item, its detail and Run card. */
 export type TaskView = {
@@ -149,7 +149,11 @@ export class TaskPanel implements vscode.Disposable {
     if (!session) { this.events = []; this.eventsFor = ''; return {}; }
     if (this.eventsFor !== session.id) { this.events = []; this.eventsFor = session.id; }
     try { this.merge(await client.history(session.id, this.events.at(-1)?.id ?? 0)); } catch (error) { if (error instanceof ApiError && error.status === 401) throw error; }
-    return { linked: { session, events: progressEventsOf(this.events), viewer: bootstrap.user.role === 'viewer', live: Boolean(this.stream) } };
+    let recovery: Recovery | undefined;
+    if (['paused', 'interrupted', 'failed'].includes(session.status) && bootstrap.user.role !== 'viewer') {
+      try { recovery = await client.recovery(session.id); } catch (error) { if (error instanceof ApiError && error.status === 401) throw error; }
+    }
+    return { linked: { session, events: progressEventsOf(this.events), viewer: bootstrap.user.role === 'viewer', live: Boolean(this.stream), ...(recovery ? { recovery } : {}) } };
   }
 
   private merge(events: SessionEvent[]) {

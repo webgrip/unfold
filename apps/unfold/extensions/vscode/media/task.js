@@ -2,7 +2,7 @@ import { closeReasonLabel, displayState, failureReason, humanReview, ciState, pl
 import { compactCount, count, date, duration, money, notReported, plural, relative, time } from './core/format.js';
 import { detailReason } from './core/reasons.js';
 import { checkoutTarget } from './core/checkout.js';
-import { changeText, elapsedClock, ploegRunActive, sessionProgress } from './core/progress.js';
+import { changeText, elapsedClock, ploegRunActive, reconcileDetail, sessionProgress } from './core/progress.js';
 
 const bridge = acquireVsCodeApi();
 const saved = bridge.getState() || {};
@@ -52,13 +52,15 @@ function cardFor(current, id) {
 
 /** The Work Item, detail and card the panel shows, for a task panel and a Work Item panel alike. */
 export function subject(current) {
+  const linked = current?.linked?.session ? [current.linked.session] : [];
   if (isWork(current)) {
-    const detail = current.detail || null;
+    const detail = current.detail ? reconcileDetail(current.detail, linked) : null;
     const item = detail?.item || null;
     return { item, detail, card: cardFor(current, item?.id), demo: Boolean(detail?.demo || current.card?.demo) };
   }
   const entry = currentItem(current.status);
-  const detail = entry ? detailFor(current, entry.id) : null;
+  const recorded = entry ? detailFor(current, entry.id) : null;
+  const detail = recorded ? reconcileDetail(recorded, linked) : null;
   const item = entry ? { ...entry, ...(detail ? { state: detail.item.state, team: detail.item.team, attempts: detail.item.attempts } : {}) } : null;
   return { item, detail, card: entry ? cardFor(current, entry.id) : null, demo: Boolean(current.status?.demo || detail?.demo) };
 }
@@ -68,7 +70,7 @@ export function progressOf(current) {
   const linked = current?.linked;
   if (!linked?.session) return null;
   const { detail, card } = subject(current);
-  return sessionProgress(linked.session, { events: linked.events || [], viewer: Boolean(linked.viewer), ploeg: detail, card });
+  return sessionProgress(linked.session, { events: linked.events || [], viewer: Boolean(linked.viewer), ploeg: detail, card, recovery: linked.recovery || null });
 }
 
 function latestShift(detail) {
@@ -244,8 +246,8 @@ function runsSummary(current) {
   const item = detail?.item || subject(current).item;
   const leased = item?.state === 'leased';
   const running = !leased ? 0 : card?.live?.runningRuns > 0 ? card.live.runningRuns : runs ? runs.filter(run => ploegRunActive(item, run)).length : 0;
-  const unclosed = !leased && runs ? runs.filter(run => run.state === 'running').length : 0;
-  const note = [running ? `${count(running)} running` : '', unclosed ? `${count(unclosed)} not closed by Ploeg` : '', failed === null ? '' : failed ? `${count(failed)} failed` : 'none failed'].filter(Boolean).join(' · ');
+  const unclosed = runs ? runs.filter(run => run.state === 'stopped').length : 0;
+  const note = [running ? `${count(running)} running` : '', unclosed ? `${count(unclosed)} stopped, still listed by Ploeg` : '', failed === null ? '' : failed ? `${count(failed)} failed` : 'none failed'].filter(Boolean).join(' · ');
   return { value: count(total), note };
 }
 
@@ -340,7 +342,7 @@ function teamPicker(current) {
 
 function sessionButton(progress, entry) {
   const label = busy === `session:${entry.id}` ? `${entry.label}…` : entry.label;
-  return element('button', { type: 'button', className: entry.primary ? 'primary' : 'quiet', 'data-session-action': entry.id, 'data-session': progress.sessionId, disabled: Boolean(busy) || !connected, ...(entry.confirm ? { 'aria-haspopup': 'dialog', title: `${entry.confirm.title} You confirm before anything happens.` } : {}) }, label);
+  return element('button', { type: 'button', className: entry.primary ? 'primary' : 'quiet', 'data-session-action': entry.id, 'data-session': progress.sessionId, disabled: Boolean(busy) || !connected, ...(entry.confirm ? { 'aria-haspopup': 'dialog', title: `${entry.confirm.title} You confirm before anything happens.` } : entry.hint ? { title: entry.hint } : {}) }, label);
 }
 
 /** The line under the headline while a Role works: who, which Round, a ticking clock, what it last did, and spend against budget. */
@@ -394,7 +396,7 @@ export function stepsSection(current) {
       element('div', { className: 'step-head' },
         element('strong', {}, step.role), element('span', { className: 'access' }, step.mode === 'read' ? 'reader' : 'writer'),
         pill({ label: step.label, tone: step.tone, glyph: 'circle', live: step.state === 'working' }),
-        step.verdict ? pill({ label: step.verdict.recorded ? step.verdict.label : `${step.verdict.label} · not recorded`, tone: step.verdict.recorded ? step.verdict.tone : 'neutral', title: step.verdict.recorded ? 'An agent verdict is evidence, not a human review.' : 'Read from the Run\'s own transcript; the session did not record it.' }) : null,
+        step.verdict ? pill({ label: step.verdict.recorded ? step.verdict.label : `${step.verdict.label} · from its transcript`, tone: step.verdict.recorded ? step.verdict.tone : 'neutral', title: step.verdict.recorded ? 'An agent verdict is evidence, not a human review.' : 'Given in the Run\'s own transcript before it was cut off; no finished Run recorded it.' }) : null,
         element('span', { className: 'step-time num muted' }, [step.startedAt ? time(step.startedAt) : '', step.seconds !== null ? duration(step.seconds) : ''].filter(Boolean).join(' · '))),
       step.summary ? element('p', { className: 'step-summary small' }, step.summary) : null))));
 }
@@ -510,13 +512,13 @@ function accountSection(current) {
 
 function runSeconds(run, item = null) {
   const start = Date.parse(run.startedAt || '');
-  const end = run.state === 'running' ? item && item.state !== 'leased' ? Date.parse(item.updatedAt || '') : Date.now() : Date.parse(run.finishedAt || '');
+  const end = run.state === 'running' ? Date.now() : run.state === 'stopped' ? Date.parse(item?.updatedAt || '') : Date.parse(run.finishedAt || '');
   return Number.isFinite(start) && Number.isFinite(end) && end >= start ? (end - start) / 1000 : null;
 }
 
 /** What a Run reported, as a state meta: running or waiting, its outcome, its failure, or that it reported none. */
 export function runResult(run, item = null) {
-  if (run.state === 'running' && item && item.state !== 'leased') return { key: 'unclosed', label: 'Not closed by Ploeg', tone: 'severe', glyph: 'zap', title: `Ploeg still lists this Run as running, but the Work Item is ${workItemState(item.state).label.toLowerCase()}.` };
+  if (run.state === 'stopped') return { ...runState('stopped'), title: runState('stopped').description };
   if (run.state !== 'finished') return run.state === 'running' ? runState('running') : { ...runState('pending'), label: 'Waiting for a worker' };
   const outcome = runOutcome(run.outcome);
   if (outcome) return { ...outcome, label: outcome.short || outcome.label, title: outcome.label };

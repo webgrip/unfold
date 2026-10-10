@@ -169,12 +169,13 @@ try {
   assert.doesNotMatch(stoppedText, /1 Run running|1 running|Ploeg stopped this Work Item without a reason/, 'a stopped Work Item never reads as running or as an unknown stop');
   assert.match((await page.locator('.stat', { hasText: 'Runs' }).innerText()).replace(/\s+/g, ' '), /2 implementer finished · reviewer cut off/);
   assert.match((await page.locator('.stat', { hasText: 'Cost' }).innerText()).replace(/\s+/g, ' '), /US\$ 0,03 observed, not settled/);
-  await page.locator('.step', { hasText: 'Reviewer' }).getByText('Approved · not recorded').waitFor();
+  await page.locator('.step', { hasText: 'Reviewer' }).getByText('Approved · from its transcript').waitFor();
   await page.locator('.change').getByText('unfold/059675b9-clown-readme').waitFor();
   await page.locator('.fact-list').getByText(/Ploeg still lists its operator Run as running/).waitFor();
   assert.equal(await page.getByText('Cost per role').count(), 0, 'Ploeg\'s operator Run is not presented as the crew');
   await page.getByText('As Ploeg records it').click();
-  await page.locator('.run-row').getByText('Not closed by Ploeg').waitFor();
+  await page.locator('.run-row').getByText('Stopped', { exact: true }).waitFor();
+  assert.match((await page.locator('#runs-heading').locator('..').innerText()), /As Ploeg records it/);
   assert.equal(await page.getByRole('button', { name: 'Deliver approved work' }).count(), 0, 'nothing the server does not offer is shown');
   await page.getByRole('button', { name: 'Investigate' }).focus();
   await page.keyboard.press('Enter');
@@ -183,9 +184,9 @@ try {
   assert.match(await page.locator('#announcement').textContent(), /^Stopped\. Reviewer approved in its transcript · stopped before delivery$/);
   await both('stopped-059675b9', () => page.getByRole('heading', { name: 'Reviewer approved in its transcript · stopped before delivery', level: 2 }).waitFor());
 
-  const recoverable = { ...stopped, linked: { ...stopped.linked, session: { ...fixture.session, recovery: { actions: [{ id: 'deliver', available: true }, { id: 'run_again', available: true }] } } } };
+  const recoverable = { ...stopped, linked: { ...stopped.linked, recovery: { summary: 'Reviewer approved the work before Ploeg stopped the session. It will not run again on its own: deliver the approved work, or run it again as a new session.', actions: [{ id: 'deliver', label: 'Deliver the approved work', available: true }, { id: 'resume', label: 'Resume', available: false }, { id: 'run_again', label: 'Run again', available: true }] } } };
   await post({ type: 'state', view: recoverable });
-  const deliver = page.getByRole('button', { name: 'Deliver approved work' });
+  const deliver = page.getByRole('button', { name: 'Deliver the approved work' });
   await deliver.waitFor();
   assert.match(await deliver.getAttribute('class'), /primary/, 'delivering the approved work leads when the server offers it');
   await page.getByRole('button', { name: 'Run again' }).click();

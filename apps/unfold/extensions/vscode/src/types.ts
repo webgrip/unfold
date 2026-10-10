@@ -7,9 +7,10 @@ export type ExecutionFailure = { category: string; stage: string; message: strin
 export type Run = { id: string; roleName: string; mode: string; status: RunStatus | string; startedAt?: string; finishedAt?: string; summary?: string; verdict?: 'approve' | 'request_changes' | 'inconclusive' | string; costUsd?: number; roleId?: string; promptSha?: string };
 export type Approval = 'manual' | 'auto';
 export type ExecutionBinding = { id: string; workItemId: string; team: string; state: string; revision?: number; generation?: number; supervision?: 'human' | 'background'; expiresAt?: string; stopConfirmed?: boolean };
-/** A recovery action the server offers on a stopped session: deliver the approved work, or run it again. */
+/** A recovery action the server offers on a stopped session: deliver the approved work, or run it again as a new session. */
 export type RecoveryAction = 'deliver' | 'run_again';
-export type RecoveryOffer = { id: RecoveryAction; label?: string; detail?: string; available?: boolean; reason?: string };
+/** What `GET /api/sessions/{id}/recovery` answers for a stopped session: whether it is stranded and every next step with its call. */
+export type Recovery = { sessionId: string; status: string; stranded: boolean; summary: string; review: { runId: string; roleName: string; verdict: string; source: 'result' | 'transcript' } | null; execution: { state: string; stopConfirmed: boolean; leaseExpired?: boolean; canPayAgain: boolean | null } | null; actions: { id: string; label: string; description?: string; method: string; path: string; available: boolean; unavailableReason?: string }[] };
 /** The read-only diagnosis `GET /api/sessions/{id}/investigation` returns for a stopped session. */
 export type Investigation = { sessionId: string; generatedAt: string; class: string; verdict: string; rule: string; stop?: { at: string; type: string }; facts: { label: string; value: string }[]; timeline: { at: string; source: 'unfold' | 'ploeg'; text: string }[]; next: string[]; ploeg: string };
 export type GatewayRequest = { id: string; at: string; durationMs?: number; firstTokenMs?: number; provider?: string; host?: string; geo?: string; model: string; group?: string; tier?: string; cause?: string; savingsUsd?: number; retries: number; fallbacks: number; guardrails: string[]; cacheHit: boolean; cachedTokens: number; inputTokens: number; outputTokens: number; usd: number; status: 'success' | 'failure'; error?: string; callId?: string; harness?: string; roleId?: string; violation?: string };
@@ -21,7 +22,6 @@ export type Session = {
   trackerUrl?: string;
   failure?: ExecutionFailure;
   execution?: ExecutionBinding;
-  recovery?: { actions: RecoveryOffer[] };
   workItemClosedAt?: string;
   sourceTask?: TaskSnapshot;
   candidate?: Candidate;

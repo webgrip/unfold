@@ -51,7 +51,7 @@ export type Core = {
   checkoutTarget(detail: unknown, card?: unknown): CheckoutTarget | null;
   checkoutCommand(branch: string, remote?: string): string;
   checkoutableBranch(name: unknown): boolean;
-  sessionProgress(session: unknown, options?: { events?: unknown[]; now?: number; viewer?: boolean; ploeg?: unknown; card?: unknown }): Progress;
+  sessionProgress(session: unknown, options?: { events?: unknown[]; now?: number; viewer?: boolean; ploeg?: unknown; card?: unknown; recovery?: unknown }): Progress;
   progressGroup(progress: Progress): 'needs' | 'review' | 'running' | null;
   sessionForWorkItem<T extends { execution?: { workItemId: string } }>(sessions: T[], workItemId: string): T | null;
   elapsedClock(seconds: number | null | undefined): string;
