@@ -11,6 +11,7 @@ import { SessionConfigError, acceptSessionConfig, approvalOf, changePendingConfi
 import { TrackerAutomations, automationsChannel, autonomousAutomationsMeta } from './automations.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
 import { IdleSessions, RememberedClients, ServerSequence, restoreActiveClients, saveActiveClients } from './continuity.ts';
+import { AnnouncedCustomizations, customizationRefusal, gatewayToolCall, rootConfigRefusal, sessionCustomizations, type GatewaySubject } from './customizations.ts';
 import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
 import { money } from '../../public/core/format.js';
 import { CandidateReview, parseAnnotationsChannel, reviewOperationIds, reviewOperations } from './review.ts';
@@ -227,6 +228,7 @@ export class AgentHost {
   private readonly projections = new Map<string, Projection>();
   private readonly pending = new Map<string, PendingSession>();
   private readonly summaries = new Map<string, string>();
+  private readonly announcedCustomizations = new AnnouncedCustomizations();
   private readonly activeClients: Map<string, Map<string, Json>>;
   private readonly knownClients: RememberedClients<SessionScheme>;
   private readonly idleSessions = new IdleSessions();
@@ -532,6 +534,7 @@ export class AgentHost {
       ...this.summary(session, view), lifecycle: 'ready', activeClients: this.activeClientsOf(this.publicId(session.id)),
       chats: [this.chatSummary(session, view), ...runChats(this.projection(session).runs, this.spelling(session, view))], defaultChat: this.chatUri(session, view),
       config: this.review.withConfigValues(session, sessionConfigState(this.config, session)),
+      customizations: this.customizationsOf(session, this.publicId(session.id)),
       ...(changesets ? { changesets } : {}),
       ...this.review.annotationsSummary(session, this.sessionUri(session, view)),
       inputNeeded: this.inputNeeded(session, view),
@@ -539,6 +542,22 @@ export class AgentHost {
   }
 
   private spelling(session: Session, view: Pick<View, 'scheme'>): Spelling { return { session: sessionChannel(this.publicId(session.id), view.scheme), chat: chatChannel(this.publicId(session.id), view.scheme) }; }
+
+  private customizationsOf(subject: GatewaySubject, publicId: string): Json[] {
+    return sessionCustomizations(this.config, subject, publicId, this.activeClientsOf(publicId));
+  }
+
+  private pendingSubject(pending: PendingSession): GatewaySubject {
+    return { repositoryId: String(pending.config.repository), runtime: this.config.mode === 'demo' ? 'demo' : this.config.runtime.kind, placement: pending.config.placement as WorkspaceBackend | undefined };
+  }
+
+  private announceCustomizations(publicId: string): void {
+    const pending = this.pending.get(publicId);
+    const session = pending ? undefined : this.store.getSession(this.engineId(publicId));
+    if (!pending && !session) return;
+    const customizations = this.customizationsOf(pending ? this.pendingSubject(pending) : session!, publicId);
+    if (this.announcedCustomizations.changed(publicId, customizations)) this.broadcast(sessionChannel(publicId), { type: 'session/customizationsChanged', customizations });
+  }
 
   chatSummary(session: Session, view: View): Json {
     return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).chat, activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: session.status === 'completed' && !this.reviewOperations(session).length ? 'read-only' : 'full' };
@@ -816,8 +835,9 @@ export class AgentHost {
         break;
       }
       case 'tool': {
-        const routed = runTool(projection.runs, event, terminal, this.redact);
-        actions.push(...(routed ?? toolActions(ensureTurn(), projection.openTools, event, terminal, this.redact)));
+        const rendering = { terminal, clean: this.redact, contributed: (name: string) => gatewayToolCall(this.config, session, this.publicId(session.id), name) };
+        const routed = runTool(projection.runs, event, rendering);
+        actions.push(...(routed ?? toolActions(ensureTurn(), projection.openTools, event, rendering)));
         break;
       }
       case 'permission': {
@@ -994,6 +1014,7 @@ export class AgentHost {
         const fresh = [...arriving.flatMap(event => this.reduce(projection, session, event)), ...this.settle(projection, session)];
         const spelling = (viewer: View) => this.spelling(session, viewer);
         for (const action of fresh) { const route = runRoute(action, spelling, this.spelling(session, { scheme: provider })); this.broadcast(terminalActionChannel(action) ?? route?.channel ?? chat, route?.action ?? action, actionOrigins.get(action)); }
+        this.announceCustomizations(publicId);
         const watcher = watchers.get(id);
         if (watcher) this.offerNextSteps(session, watcher);
         const unread = fresh.some(action => action.type === 'chat/turnStarted' || action.type === 'chat/inputRequested' || (action.type === 'chat/toolCallReady' && action.confirmationTitle !== undefined));
@@ -1109,7 +1130,7 @@ export class AgentHost {
   }
 
   private pendingState(pending: PendingSession, view: View): Json {
-    return { ...this.pendingSummary(pending, view), lifecycle: 'ready', activeClients: this.activeClientsOf(pending.id), chats: [this.pendingChat(pending, view)], defaultChat: chatChannel(pending.id, view.scheme), config: { schema: sessionConfigSchema(this.config, pending.config), values: pending.config }, inputNeeded: [] };
+    return { ...this.pendingSummary(pending, view), lifecycle: 'ready', activeClients: this.activeClientsOf(pending.id), chats: [this.pendingChat(pending, view)], defaultChat: chatChannel(pending.id, view.scheme), config: { schema: sessionConfigSchema(this.config, pending.config), values: pending.config }, customizations: this.customizationsOf(this.pendingSubject(pending), pending.id), inputNeeded: [] };
   }
 
   private fingerprint(session: Session): string {
@@ -1316,6 +1337,7 @@ export class AgentHost {
     if (clients.size) this.activeClients.set(publicId, clients); else this.activeClients.delete(publicId);
     this.persistActiveClients();
     this.echo(client, channel, action, origin);
+    this.announceCustomizations(publicId);
     return undefined;
   }
 
@@ -1349,6 +1371,7 @@ export class AgentHost {
       if (!clients.size) this.activeClients.delete(publicId);
       this.persistActiveClients();
       this.broadcast(sessionChannel(publicId), { type: 'session/activeClientRemoved', clientId });
+      this.announceCustomizations(publicId);
     }
   }
 
@@ -1362,6 +1385,7 @@ export class AgentHost {
     try { pending.config = changePendingConfig(this.config, pending.config, action.config, action.replace === true); }
     catch (error) { if (error instanceof SessionConfigError) return error.message; throw error; }
     this.echo(client, channel, { type: 'session/configChanged', config: pending.config, replace: true }, origin);
+    this.announceCustomizations(pending.id);
     return undefined;
   }
 
@@ -1574,7 +1598,7 @@ export class AgentHost {
       case 'session/activeClientSet': case 'session/activeClientRemoved': return kind === 'session' ? this.setActiveClient(client, channel, pending.id, action, origin) : `${action.type} is dispatched on the session channel`;
       case 'chat/draftChanged': this.echo(client, channel, action, origin); return undefined;
       case 'session/configChanged': return kind === 'session' ? this.changePendingConfig(client, channel, pending, action, origin) : 'session/configChanged is dispatched on the session channel';
-      default: return `${String(action.type)} waits until the first message starts the session`;
+      default: return customizationRefusal(action.type) ?? `${String(action.type)} waits until the first message starts the session`;
     }
   }
 
@@ -1654,7 +1678,7 @@ export class AgentHost {
       case 'session/activeClientSet': case 'session/activeClientRemoved': return kind === 'session' ? this.setActiveClient(client, channel, this.publicId(session.id), action, origin) : `${action.type} is dispatched on the session channel`;
       case 'session/configChanged': return kind === 'session' ? this.changeStartedConfig(client, channel, session, action, origin) : 'session/configChanged is dispatched on the session channel';
       case 'chat/draftChanged': case 'chat/inputAnswerChanged': case 'changeset/filesReviewChanged': this.echo(client, channel, action, origin); return undefined;
-      default: return `Unsupported action ${String(action.type)}`;
+      default: return customizationRefusal(action.type) ?? `Unsupported action ${String(action.type)}`;
     }
   }
 
@@ -1667,8 +1691,8 @@ export class AgentHost {
     const reject = (reason: string) => this.reject(client, channel, action, origin, reason);
     try {
       if (channel === rootChannel) {
-        if (action.type === 'root/configChanged') this.echo(client, channel, action, origin, () => false);
-        else reject(`Unsupported action ${String(action.type)}`);
+        const refusal = action.type === 'root/configChanged' ? rootConfigRefusal(action.config) : `Unsupported action ${String(action.type)}`;
+        if (refusal) reject(refusal); else this.echo(client, channel, action, origin, () => false);
         return;
       }
       if (parseAnnotationsChannel(channel)) { const refused = this.review.dispatchAnnotation(client, channel, action, origin); if (refused) reject(refused); return; }

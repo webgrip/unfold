@@ -167,13 +167,16 @@ const finishedStatuses = new Set(['completed', 'error', 'failed']);
 
 /** The terminal a crew command's tool call points at, as the session's command log derives it from the same event. */
 export type ToolTerminal = { command?: { commandLine: string }; content?: Json };
+/** How the host renders tool events: the event's terminal, the redaction its text passes through, and the contributor of a tool a session's MCP server provides. */
+export type ToolRendering = { terminal?: ToolTerminal; clean?: (value: string) => string; contributed?: (toolName: string) => { contributor: Json; _meta: Json } | undefined };
 
 /**
  * One tool event as an AHP tool call in `turn`: a command's command line, or else the reported input, as the call's
  * `toolInput`, and its output or error as the result, each through `clean`. A command's output is its terminal, not text.
  * Nothing the runtime did not report appears. Calls are matched by the event's part id, or by name when it has none.
  */
-export function toolActions(turn: Json, open: Map<string, string>, event: Event, terminal: ToolTerminal = {}, clean: (value: string) => string = value => value): Json[] {
+export function toolActions(turn: Json, open: Map<string, string>, event: Event, rendering: ToolRendering = {}): Json[] {
+  const { terminal = {}, clean = (value: string) => value } = rendering;
   const data = event.data as Json;
   const name = text(data.name) ?? 'tool';
   const title = text(data.title) ? clean(data.title) : undefined;
@@ -188,9 +191,10 @@ export function toolActions(turn: Json, open: Map<string, string>, event: Event,
   if (!part) {
     toolCallId = `${turn.id}-tool-${turn.responseParts.length + 1}`;
     open.set(key, toolCallId);
-    part = { kind: 'toolCall', toolCall: { toolCallId, toolName: name, displayName: name, status: 'streaming' } };
+    const contributed = rendering.contributed?.(name);
+    part = { kind: 'toolCall', toolCall: { toolCallId, toolName: name, displayName: name, status: 'streaming', ...contributed } };
     turn.responseParts.push(part);
-    actions.push({ type: 'chat/toolCallStart', turnId: turn.id, toolCallId, toolName: name, displayName: name });
+    actions.push({ type: 'chat/toolCallStart', turnId: turn.id, toolCallId, toolName: name, displayName: name, ...(contributed ? { contributor: contributed.contributor } : {}) });
   }
   const ready = (toolCall: Json) => ({ type: 'chat/toolCallReady', turnId: turn.id, toolCallId, invocationMessage, ...(toolCall.toolInput !== undefined ? { toolInput: toolCall.toolInput } : {}), confirmed: 'not-needed' });
   if (part.toolCall.status === 'streaming' && status !== 'pending') {
@@ -227,11 +231,11 @@ function toolResult(data: Json, name: string, title: string | undefined, success
 }
 
 /** A tool event of a working Run, as a tool call in the Run's chat. Undefined when the event belongs to no working Run, so the session's chat shows it. */
-export function runTool(transcripts: RunTranscripts, event: Event, terminal?: ToolTerminal, clean?: (value: string) => string): Json[] | undefined {
+export function runTool(transcripts: RunTranscripts, event: Event, rendering?: ToolRendering): Json[] | undefined {
   const chat = working(transcripts, event.runId);
   if (!chat) return undefined;
   chat.modifiedAt = event.at;
-  return toolActions(chat.turn, chat.tools, event, terminal, clean).map(action => toRun(chat.toolCallId, action));
+  return toolActions(chat.turn, chat.tools, event, rendering).map(action => toRun(chat.toolCallId, action));
 }
 
 function editsCall(turn: Json, toolName: string, displayName: string, invocationMessage: string, edits: Json[]): Json[] {
