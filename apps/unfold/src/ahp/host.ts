@@ -168,10 +168,12 @@ function sessionStatus(session: Session): number {
   if (session.status === 'failed') return statusBits.error;
   return statusBits.idle;
 }
-function activity(session: Session): string | undefined {
+/** What a session is doing, or for a failed session why it failed, as VS Code shows it under the session's title. */
+export function activity(session: Session): string | undefined {
   const run = session.runs.find(item => ['running', 'waiting_input'].includes(item.status));
   if (run) return `${run.roleName}${session.status === 'waiting_input' ? ' is waiting for your decision' : ' is working'}`;
   if (session.status === 'exporting') return 'Capturing the candidate';
+  if (session.status === 'failed') { const reason = (session.failure?.message ?? session.blocker)?.trim(); return reason ? `Failed: ${reason}` : undefined; }
   return undefined;
 }
 const digest = (token: string) => createHash('sha256').update(token).digest('hex');

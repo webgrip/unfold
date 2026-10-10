@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { application, login, request } from './api-support.ts';
-import { chatChannel, diffEntries, parseChannel } from '../src/ahp/host.ts';
+import { application, createSession, login, request } from './api-support.ts';
+import { executionFailure } from '../src/failures.ts';
+import { activity, chatChannel, diffEntries, parseChannel } from '../src/ahp/host.ts';
 import { settle, testTimeout, waitFor } from './timeframes.ts';
 import { action, closed, connect, defaultChatOf, vscodeAgentsWindow, type Json } from './ahp-support.ts';
 
@@ -491,4 +492,28 @@ test('the host answers VS Code\'s getNetworkDiagnosticsInfo with its version, pl
   await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.10.0', '0.9.0'], clientId: 'diagnostics' });
   const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
   assert.deepEqual(await client.rpc('getNetworkDiagnosticsInfo', {}), { version, os: process.platform, arch: process.arch, proxySettings: {}, proxyEnv: {}, endpoints: [] });
+});
+
+test('a failed session tells VS Code why it failed, in the session and chat summaries', async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const created = await createSession(server.url);
+  const store = server.app.store;
+  store.saveSession({ ...store.getSession(created.id)!, status: 'failed', failure: executionFailure('connectivity', 'workspace', 'not_submitted') });
+  const failed = store.getSession(created.id)!;
+  assert.equal(activity(failed), `Failed: ${failed.failure!.message}`);
+  assert.equal(activity({ ...failed, failure: undefined, blocker: 'Restore the Ploeg execution connection.' }), 'Failed: Restore the Ploeg execution connection.', 'a blocker explains a failure without a classified cause');
+  assert.equal(activity({ ...failed, failure: undefined, blocker: undefined }), undefined);
+  assert.equal(activity({ ...failed, status: 'completed' }), undefined, 'a finished session keeps no stale reason');
+
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'failure reason' } });
+  const vscode = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
+  t.after(() => vscode.close());
+  await vscode.open;
+  await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'failure-reader', clientInfo: vscodeAgentsWindow, initialSubscriptions: [] });
+  const [summary] = (await vscode.rpc('listSessions', { channel: 'ahp-root://' })).items;
+  assert.equal(summary.status & 2, 2, 'the error bit is set');
+  assert.equal(summary.activity, `Failed: ${failed.failure!.message}`);
+  const state = (await vscode.rpc('subscribe', { channel: summary.resource })).snapshot.state;
+  assert.equal(state.chats[0].activity, summary.activity, 'VS Code 1.141 shows a chat\'s activity whatever its status');
 });
