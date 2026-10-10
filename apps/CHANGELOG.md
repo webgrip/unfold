@@ -1,3 +1,31 @@
+## [unfold-v0.4.0-rc.63](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.62...unfold-v0.4.0-rc.63) (2026-10-10)
+
+### Added
+
+* **deps:** update all non-major dependencies ([4eac4fe](https://forgejo.webgrip.dev/webgrip/unfold/commit/4eac4fed2a52250797ead5679729faaf8c1a4432))
+* **site:** pop the Vouwvlieger on tap and around the hero and guard marks ([3f74c3b](https://forgejo.webgrip.dev/webgrip/unfold/commit/3f74c3b6448b733c7fd10869228cab42a84aeca7))
+* **unfold:** answer what waits and why over MCP with unfold-mcp ([e9c48d8](https://forgejo.webgrip.dev/webgrip/unfold/commit/e9c48d894b06482dbd8329ed239f9809f67b3252))
+* **unfold:** approve, reject and confirmed Stop on Work Item sessions ([002aa77](https://forgejo.webgrip.dev/webgrip/unfold/commit/002aa770e304ac552bee1679949e07b9ee811a8d))
+* **unfold:** check out a Work Item's branch in a new worktree ([d7593e5](https://forgejo.webgrip.dev/webgrip/unfold/commit/d7593e5b28e32407de5d38e02917aa42d523e797))
+* **unfold:** project Ploeg Work Items as read-only Agents-window sessions ([b058de2](https://forgejo.webgrip.dev/webgrip/unfold/commit/b058de2e5d8c2d6f16091df3fd7b05b6bf7f69b8))
+* **unfold:** publish approved candidates through a trusted Forgejo publisher ([69c53cb](https://forgejo.webgrip.dev/webgrip/unfold/commit/69c53cb8ad8598589295d0d185b0abb1f0c8109f))
+* **unfold:** render GFM pipe tables in agent and tracker Markdown ([f250f37](https://forgejo.webgrip.dev/webgrip/unfold/commit/f250f37ddd766747da50ef7cb1b03cc1fe56599d))
+* **unfold:** show a whole Vouwvlieger flight on every load and pop it on tap ([24e70ad](https://forgejo.webgrip.dev/webgrip/unfold/commit/24e70adeda9af4ad6a531abb93fe679350779f67))
+* **unfold:** Try Again and restart-with-note for stopped Work Items ([2120913](https://forgejo.webgrip.dev/webgrip/unfold/commit/212091313645a23d9f2dc3930e4190179dfd8ee2))
+
+### Fixed
+
+* **unfold:** harden the Forgejo publisher against foreign branches and pull requests ([3666a7d](https://forgejo.webgrip.dev/webgrip/unfold/commit/3666a7d245f84039c942af9d15beb91712b83e59))
+* **unfold:** say each Work Item fact once and in plain words ([5013d94](https://forgejo.webgrip.dev/webgrip/unfold/commit/5013d947e296a93f10dc253f1e2a59d5c787308a))
+
+### Docs
+
+* **unfold:** accept ADR 0019 and record the trusted publisher as ADR 0040 ([494ad6b](https://forgejo.webgrip.dev/webgrip/unfold/commit/494ad6b9143c1e9c9a588048635d3df7287a6fcf))
+* **unfold:** accept ADR 0023 with command and steering amendments ([91415c9](https://forgejo.webgrip.dev/webgrip/unfold/commit/91415c941d9e08498f58fc80c5b5ba7e6787e45e))
+* **unfold:** describe the Work Item projection in the agent host contract ([fe21a66](https://forgejo.webgrip.dev/webgrip/unfold/commit/fe21a668e55eb7de2c1b52e059b45422316feb5d))
+* **unfold:** document publisher identity, binding and secret placement ([ed079ac](https://forgejo.webgrip.dev/webgrip/unfold/commit/ed079ac23a0b1fdf4d99b09cc9a5774cb0f7e25d))
+* **unfold:** document the publish route and publisher phases ([44be9a7](https://forgejo.webgrip.dev/webgrip/unfold/commit/44be9a7517d44b864300b9f460296e8d7c47823f))
+
 ## [unfold-v0.4.0-rc.62](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.61...unfold-v0.4.0-rc.62) (2026-10-10)
 
 ### Added
