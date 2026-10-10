@@ -50,7 +50,7 @@ async function governed(t: TestContext) {
   const inferenceKey = randomBytes(32).toString('hex');
   const forbiddenMaster = randomBytes(32).toString('hex');
   process.env[env] = consumerToken;
-  const state = { unavailable: false, admissionGate: undefined as ReturnType<typeof deferred> | undefined, commandGate: undefined as ReturnType<typeof deferred> | undefined, commandGates: new Map<string, ReturnType<typeof deferred>>(), credentialGate: undefined as ReturnType<typeof deferred> | undefined, credentialStates: [] as string[], failCommands: new Set<string>(), afterApplyFailure: new Set<string>(), admissions: 0, credentialRequests: 0, blocks: 0, gatewayRequests: 0, commandAttempts: [] as { id: string; action: string }[], remote: undefined as RemoteExecution | undefined, capability: 'reserved', dropAdmissionResponse: false, leaseMs: 60000 };
+  const state = { unavailable: false, admissionGate: undefined as ReturnType<typeof deferred> | undefined, commandGate: undefined as ReturnType<typeof deferred> | undefined, commandGates: new Map<string, ReturnType<typeof deferred>>(), credentialGate: undefined as ReturnType<typeof deferred> | undefined, credentialStates: [] as string[], failCommands: new Set<string>(), afterApplyFailure: new Set<string>(), admissions: 0, credentialRequests: 0, blocks: 0, gatewayRequests: 0, commandAttempts: [] as { id: string; action: string }[], remote: undefined as RemoteExecution | undefined, capability: 'reserved', dropAdmissionResponse: false, leaseMs: 60000, revisions: [] as { revision: number; at: string; actor: string; kind: string; detail: object }[] };
   const receipts = new Map<string, RemoteExecution>();
   const api = createServer(async (req, res) => {
     try {
@@ -92,9 +92,11 @@ async function governed(t: TestContext) {
         state.remote.revision++;
         state.remote.expiresAt = new Date(Date.now() + state.leaseMs).toISOString();
         receipts.set(input.commandId, structuredClone(state.remote));
+        state.revisions.push({ revision: state.remote.revision, at: new Date().toISOString(), actor: state.remote.actor, kind: `execution.${input.action}`, detail: { state: state.remote.state } });
         if (state.afterApplyFailure.delete(input.action)) { res.writeHead(503).end(); return; }
         send({ execution: state.remote }); return;
       }
+      if (req.url.includes(`${state.remote.id}/events`)) { send({ events: state.revisions, nextCursor: state.revisions.at(-1)?.revision ?? 0, hasMore: false }); return; }
       if (req.url.endsWith('/spend')) { send({ capabilityState: state.capability, costStatus: 'unknown', observedUsd: null }); return; }
       if (req.url.endsWith('/credential')) {
         state.credentialRequests++;
@@ -562,6 +564,31 @@ test('buffered message text is stored when the Run is stopped mid-stream', async
   const text = f.server.app.store.events(session.id).filter(event => event.type === 'message' && event.data.partId === 'only').map(event => event.data.text).join('');
   assert.equal(text, 'partial answer');
   await f.server.app.engine.cancel(session.id, owner);
+});
+
+test('Investigate reads both sides of an interrupted session without changing it', async t => {
+  const f = await governed(t); const session = f.create();
+  f.server.config.execution!.heartbeatMs = 50;
+  f.state.leaseMs = 5500;
+  await f.server.app.engine.start(session.id, owner);
+  await until(() => f.runtime.calls === 1, 'runtime did not start');
+  f.state.failCommands.add('heartbeat');
+  await until(() => f.server.app.store.events(session.id).some(event => event.type === 'execution.reconciliation_required' || event.type === 'execution.reconciliation_pending'), 'the session did not stop');
+  f.state.failCommands.clear();
+  const commandsBefore = f.state.commandAttempts.length;
+  const eventsBefore = f.server.app.store.events(session.id).length;
+  const result = await request(f.server.url, `/api/sessions/${session.id}/investigation`, await login(f.server.url));
+  assert.equal(result.status, 200, result.text);
+  const body = JSON.parse(result.text);
+  assert.equal(body.class, 'ploeg_unreachable');
+  assert.equal(body.ploeg, 'read');
+  assert(body.timeline.some((item: { source: string }) => item.source === 'ploeg'), 'Ploeg revisions are part of the timeline');
+  assert.equal(f.state.commandAttempts.length, commandsBefore, 'investigating must not send Ploeg commands');
+  assert.equal(f.server.app.store.events(session.id).length, eventsBefore, 'investigating must not record events');
+  assert(![f.inferenceKey, f.consumerToken].some(value => result.text.includes(value)));
+  f.state.unavailable = true;
+  const offline = JSON.parse((await request(f.server.url, `/api/sessions/${session.id}/investigation`, await login(f.server.url))).text);
+  assert.equal(offline.ploeg, 'unavailable');
 });
 
 const gatewayTools: RepositoryMcp = { litellmTeamId: 'agents-orders', accessGroups: ['observability-read-orders'] };

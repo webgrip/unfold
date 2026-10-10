@@ -35,6 +35,7 @@ const startsWithVerb = text => { const lower = text.toLowerCase(); return stepVe
 
 let load = { id: null, error: null };
 let busyAction = null;
+let investigation = { id: null, busy: false, result: null, error: '' };
 let renderedId = null;
 let opening = 0;
 const answers = new Map();
@@ -454,7 +455,8 @@ function failureMarkup(session) {
   const { steps, notes } = remediationSteps(failure?.remediation);
   const reconciling = session.status === 'failed' && canOperate() && session.costStatus === 'unknown';
   const statusLink = statusCauses.has(failure?.category) ? button({ label: 'Open Status', icon: 'monitor', href: `#status?from=${encodeURIComponent(session.id)}` }) : '';
-  const actions = session.status === 'failed' && canOperate() ? `${session.costStatus !== 'unknown' ? button({ label: 'Try again', icon: 'refresh', variant: 'primary', action: 'retry' }) : ''}${button({ label: 'Duplicate as a new session', icon: 'copy', action: 'duplicate' })}${session.execution && !session.workItemClosedAt ? button({ label: 'Close its Work Item', icon: 'x-circle', action: 'close-work-item' }) : ''}${statusLink}` : statusLink;
+  const investigateButton = investigation.id === session.id && investigation.result ? '' : button({ id: 'session-investigate', label: 'Investigate', icon: 'search', action: 'investigate', disabled: investigation.busy, busy: investigation.busy });
+  const actions = (session.status === 'failed' && canOperate() ? `${session.costStatus !== 'unknown' ? button({ label: 'Try again', icon: 'refresh', variant: 'primary', action: 'retry' }) : ''}${button({ label: 'Duplicate as a new session', icon: 'copy', action: 'duplicate' })}${session.execution && !session.workItemClosedAt ? button({ label: 'Close its Work Item', icon: 'x-circle', action: 'close-work-item' }) : ''}${statusLink}` : statusLink) + investigateButton;
   const facts = [submissions[failure?.promptAcceptance], failure?.automaticRetry === false ? 'No automatic retry will be started.' : '', reconciling ? 'Try again becomes available once spend is reconciled.' : ''].filter(Boolean);
   const body = [
     `<p class="session-failure-lead">${escape(message)}</p>`,
@@ -462,9 +464,41 @@ function failureMarkup(session) {
     steps.length ? `<div class="session-failure-steps"><h3 class="overline session-failure-steps-title">What to do</h3>${steps.length > 1 ? `<ol class="session-steps-list">${steps.map(step => `<li>${escape(step)}</li>`).join('')}</ol>` : `<p>${escape(steps[0])}</p>`}</div>` : '',
     facts.length ? `<p class="session-failure-facts">${facts.map(fact => `<span>${escape(fact)}</span>`).join(' ')}</p>` : '',
     failure?.detail ? disclosure({ id: 'session-failure-detail', plain: true, summary: 'Recorded error output', body: `<pre class="session-pre" aria-label="Recorded error output">${escape(failure.detail)}</pre>` }) : '',
+    investigation.id === session.id ? investigationMarkup() : '',
   ].join('');
   const tone = session.status === 'interrupted' ? 'severe' : 'danger';
   return `<section class="callout session-callout session-failure" data-tone="${tone}" aria-labelledby="session-failure-title"><span class="callout-icon" aria-hidden="true">${icon(tone === 'danger' ? 'x-circle' : 'zap')}</span><div class="callout-content"><h2 class="callout-title" id="session-failure-title">${escape(title)}</h2><div class="callout-body">${body}</div></div>${actions ? `<div class="callout-actions">${actions}</div>` : ''}</section>`;
+}
+
+const investigationClasses = { unfold_stall: 'Unfold stalled', ploeg_unreachable: 'Ploeg unreachable', ploeg_refused: 'Ploeg refused', unfold_restart: 'Unfold restarted', operator_stop: 'Stopped by a person', guard: 'Guard fired', unclear: 'No known pattern' };
+
+function investigationMarkup() {
+  if (investigation.error) return `<p class="session-failure-facts" role="alert">${escape(investigation.error)}</p>`;
+  const result = investigation.result;
+  if (!result) return '';
+  const facts = dl(result.facts.map(fact => [fact.label, escape(fact.value)]));
+  const timeline = result.timeline.length ? `<ol class="session-investigation-timeline">${result.timeline.map(item => `<li><span class="stream-facts">${escape(time(item.at))} · ${item.source === 'ploeg' ? 'Ploeg' : 'Unfold'}</span> ${escape(item.text)}</li>`).join('')}</ol>` : '';
+  const next = result.next.length ? `<ul class="session-steps-list">${result.next.map(step => `<li>${escape(step)}</li>`).join('')}</ul>` : '';
+  return `<section class="session-investigation" aria-labelledby="session-investigation-title"><h3 class="overline session-failure-steps-title" id="session-investigation-title">Investigation · ${escape(investigationClasses[result.class] || result.class)}</h3><p class="session-failure-lead">${escape(result.verdict)}</p><p class="subtle">Matched because ${escape(result.rule)}.${result.ploeg === 'unavailable' ? ' Ploeg could not be read, so only Unfold\'s records were used.' : ''}</p>${facts}${next}${timeline ? disclosure({ id: 'session-investigation-timeline', plain: true, summary: 'Timeline around the stop', body: timeline }) : ''}${button({ label: 'Copy findings', icon: 'copy', variant: 'ghost', action: 'investigation-copy' })}</section>`;
+}
+
+function investigationText(result) {
+  return [`Investigation of session ${result.sessionId.slice(0, 8)} (${result.generatedAt})`, `${investigationClasses[result.class] || result.class}: ${result.verdict}`, `Rule: ${result.rule}`, '', ...result.facts.map(fact => `- ${fact.label}: ${fact.value}`), '', ...result.next.map(step => `- ${step}`), '', 'Timeline:', ...result.timeline.map(item => `${item.at} ${item.source} ${item.text}`)].join('\n');
+}
+
+async function runInvestigation() {
+  const id = state.session?.id;
+  if (!id || investigation.busy) return;
+  investigation = { id, busy: true, result: null, error: '' };
+  renderSession();
+  try { const result = await api(`/api/sessions/${id}/investigation`); if (investigation.id === id) investigation = { id, busy: false, result, error: '' }; announce('Investigation ready'); }
+  catch (error) { if (investigation.id === id) investigation = { id, busy: false, result: null, error: error.message }; }
+  finally { if (state.session?.id === id) renderSession(); }
+}
+
+async function copyInvestigation() {
+  if (!investigation.result) return;
+  try { await navigator.clipboard.writeText(investigationText(investigation.result)); notify('Findings copied.'); } catch { notify('The browser did not allow copying. Select the findings instead.', true); }
 }
 
 function permissionMarkup(session, request) {
@@ -905,6 +939,8 @@ export default {
     resume: control => lifecycle(control.dataset.action),
     cancel: confirmCancel,
     export: () => exportHandoff(),
+    investigate: () => runInvestigation(),
+    'investigation-copy': () => copyInvestigation(),
     'candidate-download': downloadCandidateFormat,
     'download-artifact': downloadArtifact,
     review: control => openReviewDialog(control.dataset.decision),

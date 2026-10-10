@@ -5,6 +5,7 @@ import type { Links } from './links.ts';
 import { classifyFailure, executionFailure, type FailureCategory, type FailureStage } from './failures.ts';
 import { getTask, taskBindingConfiguration, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
 import { lookupTaskBinding, sameTaskBinding } from './task-binding.ts';
+import { investigate, type Investigation, type PloegRevision } from './investigation.ts';
 import { PloegError } from './ploeg.ts';
 import { unavailableCandidate } from './candidates.ts';
 import { SigningKey, attestCandidate, candidatePredicateType, tracePredicateType } from './attestations.ts';
@@ -330,6 +331,14 @@ export class Engine {
     const state = session.status === 'waiting_input' ? 'waiting_input' : 'running';
     await this.authority!.command(session, binding.state === state ? 'heartbeat' : 'report', binding.state === state ? {} : { state });
     await this.authority!.observe(session).catch(() => undefined);
+  }
+
+  /** A read-only first diagnosis of why a session stopped, from Unfold's events and, when reachable, Ploeg's revisions. */
+  async investigation(id: string): Promise<Investigation> {
+    const session = this.store.getSession(id)!;
+    let revisions: PloegRevision[] | undefined;
+    if (session.execution && this.authority?.current(id)) revisions = await this.authority.revisions(session).catch(() => undefined);
+    return investigate(session, this.store.events(id), revisions, this.config.execution?.heartbeatMs ?? 15000);
   }
 
   private missedHeartbeat(id: string, error: unknown): void {

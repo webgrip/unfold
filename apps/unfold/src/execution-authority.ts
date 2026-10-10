@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { AppConfig, Credential, ExecutionBinding, Session, User } from './types.ts';
 import type { Store } from './store.ts';
 import { PloegError } from './ploeg.ts';
+import type { PloegRevision } from './investigation.ts';
 
 type Command = { commandId: string; action: string; expectedRevision: number; generation: number; state?: string; text?: string; stopConfirmed?: boolean; authenticatedBy?: string };
 const states = ['admitted', 'running', 'waiting_input', 'pause_requested', 'paused', 'cancel_requested', 'cancelled', 'completed', 'failed', 'interrupted'];
@@ -169,6 +170,22 @@ export class ExecutionAuthority {
     const data = await this.request(session, `/${binding.id}/block`, {});
     if (data.blocked !== true) throw unavailable();
     this.store.deleteSecret(`inference:${session.id}`);
+  }
+
+  /** Every revision Ploeg recorded for this session's execution, oldest first, at most 2,000. */
+  async revisions(session: Session): Promise<PloegRevision[]> {
+    const binding = this.current(session.id);
+    if (!binding) throw unavailable({ cause: 'not_configured' });
+    const revisions: PloegRevision[] = [];
+    let after = 0;
+    for (let page = 0; page < 10; page++) {
+      const data = await this.request(session, `/${binding.id}/events?after=${after}`);
+      if (!Array.isArray(data.events)) throw unavailable();
+      for (const event of data.events) if (Number.isSafeInteger(event?.revision) && typeof event.at === 'string' && typeof event.kind === 'string') revisions.push({ revision: event.revision, at: event.at, actor: String(event.actor ?? ''), kind: event.kind, detail: event.detail && typeof event.detail === 'object' ? event.detail : {} });
+      if (!data.hasMore || !Number.isSafeInteger(data.nextCursor) || data.nextCursor <= after) break;
+      after = data.nextCursor;
+    }
+    return revisions;
   }
 
   async observe(session: Session): Promise<void> {

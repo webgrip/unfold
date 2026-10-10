@@ -102,8 +102,9 @@ Stages are `credentials`, `workspace`, `runtime`, `prompt` and `execution`. Prom
 | `GET /api/sessions/:id/events?after=N` | Server-sent events; numeric `id`, JSON Event in `data`. Catch-up from an old cursor is read from storage in batches of 200 events until the client is current |
 | `GET /api/sessions/:id/permissions` | Human permission/question requests without native credential state |
 | `POST /api/sessions/:id/permissions/:requestId` | Permission `{decision:"once"|"always"|"reject"}` or question `{answers:string[][]}` |
+| `GET /api/sessions/:id/investigation` | Read-only first diagnosis of why the session stopped: `class` (`unfold_stall`, `ploeg_unreachable`, `ploeg_refused`, `unfold_restart`, `operator_stop`, `guard` or `unclear`), the `verdict` and the `rule` that matched, `facts`, a `timeline` of Unfold events and Ploeg revisions around the stop, `next` steps and whether the Ploeg side was `read`, `unavailable` or `not_bound`. It sends no Ploeg command and records nothing |
 
-An event contains `id`, `sessionId`, `type`, `at`, `actor`, optional `runId` and structured `data`. Reconnection can use `after` or the standard `Last-Event-ID` header. Treat events as replayable and deduplicate by ID. A terminal session remains inspectable through history.
+An event contains `id`, `sessionId`, `type`, `at`, `actor`, optional `runId` and structured `data`. Streamed agent text arrives as `message` events that each carry part of one `partId`; a client joins consecutive parts with the same run and `partId`. Unfold stores at most one such event per part every 500 ms. Reconnection can use `after` or the standard `Last-Event-ID` header. Treat events as replayable and deduplicate by ID. A terminal session remains inspectable through history.
 
 Permission and question details depend on the adapter. Answer only the actual unresolved request; a generic message is not a permission grant. A successful HTTP action reflects the stored lifecycle transition, not completion of all subsequent background work.
 
