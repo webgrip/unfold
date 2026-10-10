@@ -41,7 +41,7 @@ export type WorkItemBrief = {
   state: PloegState;
   stateText: string;
   stoppedBecause: string | null;
-  pullRequest: { number: number | null; status: 'open' | 'conflicted' } | null;
+  pullRequest: { number: number | null; status: 'open' | 'conflicted' | 'finished' | 'left' } | null;
   previews: { environment: string; since: string | null }[];
   runs: BriefRun[];
   spend: { status: BriefSpendStatus; deliveryUsd: number | null };
@@ -65,6 +65,15 @@ const stateText: Record<PloegState, string> = {
 
 const reasonText: Record<string, string> = {
   pool_exhausted: 'it used up its budget',
+  plan_exhausted: 'every planned round of work ran without a change being approved',
+  review_failed: 'no agent could review it: the reviewer kept failing',
+  fix_round_cap_reached: 'its fix rounds ran out',
+  budget_exhausted_before_fix_round: 'its budget ran out before another fix round',
+  writing_run_failed_repeatedly: 'the agent writing the change kept failing',
+  writing_run_killed_repeatedly: 'the cluster kept stopping the agent writing the change',
+  operator_cancelled: 'the session working on it was cancelled',
+  operator_failed: 'the session working on it failed',
+  operator_admission_expired: 'the session meant to work on it never started',
   operator_adopted: 'a person took it over',
   withdrawn_by_operator: 'a person withdrew it',
   withdrawn_closed: 'its tracker item was closed',
@@ -153,7 +162,7 @@ export function workItemBrief(detail: PloegDetail, card?: PloegCard, session?: B
     state: item.state,
     stateText: stateText[item.state],
     stoppedBecause,
-    pullRequest: pr ? { number: pr.number, status: pr.mergeState === 'conflicted' ? 'conflicted' : 'open' } : null,
+    pullRequest: pr ? { number: pr.number, status: item.state === 'done' ? 'finished' : item.state === 'withdrawn' ? 'left' : pr.mergeState === 'conflicted' ? 'conflicted' : 'open' } : null,
     previews: deployments.slice(0, limits.previews).map(deployment => ({ environment: clip(deployment.environment, 60)[0], since: deployment.firstDeployedAt })),
     runs,
     spend: spendOf(detail, card, delivery),
@@ -163,6 +172,13 @@ export function workItemBrief(detail: PloegDetail, card?: PloegCard, session?: B
     demo: Boolean(detail.demo || card?.demo),
   };
 }
+
+const pullRequestText: Record<NonNullable<WorkItemBrief['pullRequest']>['status'], string> = {
+  open: 'open',
+  conflicted: 'open, with merge conflicts',
+  finished: 'part of the finished work; the record does not say whether it was merged or closed',
+  left: 'left as it was when the work was withdrawn; the record does not say whether it is still open',
+};
 
 const usd = (value: number) => `US$ ${value.toFixed(value < 1 ? 4 : 2)}`;
 
@@ -181,7 +197,7 @@ export function briefText(brief: WorkItemBrief): string {
     `Work Item ${brief.workItemId}: ${brief.title}`,
     `State: ${brief.stateText}.${brief.stoppedBecause ? ` It stopped because ${brief.stoppedBecause}.` : ''}`,
     `Last updated: ${brief.updatedAt}`,
-    brief.pullRequest ? `Pull request${brief.pullRequest.number === null ? '' : ` #${brief.pullRequest.number}`}: ${brief.pullRequest.status === 'conflicted' ? 'open, with merge conflicts' : 'open'}` : 'Pull request: none yet',
+    brief.pullRequest ? `Pull request${brief.pullRequest.number === null ? '' : ` #${brief.pullRequest.number}`}: ${pullRequestText[brief.pullRequest.status]}` : 'Pull request: none yet',
     brief.previews.length ? `Previews: ${brief.previews.map(preview => `${preview.environment}${preview.since ? ` since ${preview.since}` : ''}`).join('; ')}` : 'Previews: none',
     `Spend on the work so far: ${brief.spend.status === 'demo' ? 'none, this is a demo' : brief.spend.deliveryUsd === null ? 'not reported yet' : `${usd(brief.spend.deliveryUsd)} (${brief.spend.status})`}`,
     ...progressLines(brief.progress),

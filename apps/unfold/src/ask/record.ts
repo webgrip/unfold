@@ -180,6 +180,7 @@ const answers: Record<RecordIntent, (brief: WorkItemBrief, audience: AskAudience
     if (brief.pullRequest) {
       const number = brief.pullRequest.number === null ? 'The pull request' : `Pull request #${brief.pullRequest.number}`;
       if (brief.state === 'done') return `${number} belongs to it, and the Work Item is done.`;
+      if (brief.state === 'withdrawn') return `${number} was left as it was when the work was withdrawn; the record does not say whether it is still open.`;
       return `${number} is open${brief.pullRequest.status === 'conflicted' ? ' and has merge conflicts' : ''}. It is linked on the Work Item page.`;
     }
     if (brief.progress?.pullRequest) return `Pull request #${brief.progress.pullRequest} belongs to it. It is linked on the Work Item page.`;

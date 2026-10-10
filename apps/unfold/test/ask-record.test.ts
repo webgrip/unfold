@@ -75,6 +75,8 @@ test('without a session, each intent answers from the brief alone', () => {
   const review = workItemBrief(detail({ state: 'awaiting_review', pullRequest: { url: 'LEAK-url', number: 77, mergeState: 'conflicted', baseBranch: 'main', headSha: 'x', checkedAt: at } } as Partial<PloegItem>, [run({ state: 'finished' })]));
   assert.equal(recordAnswer('done', review, 'internal'), 'The agents finished. It is waiting for a person to review pull request #77.');
   assert.equal(recordAnswer('pull_request', review, 'internal'), 'Pull request #77 is open and has merge conflicts. It is linked on the Work Item page.');
+  const withdrawn = workItemBrief(detail({ state: 'withdrawn', pullRequest: { url: 'LEAK-url', number: 77, mergeState: 'clean', baseBranch: 'main', headSha: 'x', checkedAt: at } } as Partial<PloegItem>, [run({ state: 'finished' })]));
+  assert.equal(recordAnswer('pull_request', withdrawn, 'internal'), 'Pull request #77 was left as it was when the work was withdrawn; the record does not say whether it is still open.');
   assert.equal(recordAnswer('who', review, 'internal'), 'No Role is working on it now. It is finished by the agents and waiting for a person to review the pull request. The last Run was the builder, in round 1.');
   assert.equal(recordAnswer('next', review, 'internal'), null, 'the record has no fixed next step for a review, so the model answers');
   assert.equal(recordAnswer('spend', review, 'internal'), 'Spend on the work is not reported yet.');
