@@ -1,7 +1,7 @@
 import type { WorkItemBrief } from './brief.ts';
 
 const topics: { pattern: RegExp; answer: (brief: WorkItemBrief) => string | null }[] = [
-  { pattern: /\b(why|stopp?ed|stuck|blocked|wait(ing)?)\b/i, answer: brief => brief.stoppedBecause ? `It stopped because ${brief.stoppedBecause}.` : `It is ${brief.stateText}.` },
+  { pattern: /\b(why|stopp?ed|stuck|blocked|wait(ing)?)\b/i, answer: brief => brief.stoppedBecause ? `It stopped because ${brief.stoppedBecause}.` : brief.state === 'needs_human' ? `It is ${brief.stateText}; the record does not say why.` : `It has not stopped. It is ${brief.stateText}.` },
   { pattern: /\b(cost|spen[dt]|price|budget|money|pay)\b/i, answer: () => 'This is a demo, so no model ran and nothing was spent.' },
   { pattern: /\b(pull request|pr|review|merge)\b/i, answer: brief => brief.pullRequest ? `Pull request${brief.pullRequest.number === null ? '' : ` #${brief.pullRequest.number}`} is open${brief.pullRequest.status === 'conflicted' ? ' and has merge conflicts' : ''}.` : 'There is no pull request yet.' },
   { pattern: /\b(preview|environment|try it|look at)\b/i, answer: brief => brief.previews.length ? `It can be looked at in ${brief.previews.map(preview => preview.environment).join(', ')}.` : 'There is no preview yet.' },

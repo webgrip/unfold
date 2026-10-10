@@ -144,3 +144,9 @@ test('listing Asks refreshes pending costs from Ploeg', async () => {
   assert.deepEqual([listed.costUsd, listed.costStatus], [0.0011, 'settled']);
   assert.equal(store.asksAbout('42', 1)[0].costStatus, 'settled');
 });
+
+test('the demo says work that is still going or done has not stopped', async () => {
+  const store = new Store(':memory:');
+  const ask = await service(store, workItems(true), undefined, undefined, true).ask(owner, '42', 'Why did it stop?');
+  assert.equal(ask.answer, 'It has not stopped. It is being worked on now.');
+});
