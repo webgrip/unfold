@@ -24,6 +24,7 @@ import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBase
 import { ChatAsks, askMarkdown, commandCompletions, messageIntent, type ChatAskEntry, type ChatAskService } from './asks.ts';
 import { candidateEdits, carryRuns, parseRunChannel, runChatChannel, runChatState, runChats, runFinished, runMessage, runRoute, runStarted, runTool, runTranscripts, stopRuns, toolActions, type RunTranscripts, type Spelling } from './runs.ts';
 import { WorkItemSessions, isWorkItemSession, workItemChatState, workItemIdOf, workItemRefusal, workItemRefusals, workItemRunChatState, workItemSessionState, workItemStatus, workItemSummary, type RoutedAction, type WorkItemRecord } from './work-items.ts';
+import { WorkItemCommands, promptClosedActions, promptInputNeeded, promptOpenActions, withPrompts, workItemCommandText, type WorkItemPrompt } from './work-item-commands.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
@@ -257,6 +258,8 @@ export class AgentHost {
   readonly automations: TrackerAutomations;
   /** Ploeg's Work Items as read-only sessions. */
   readonly workItems: WorkItemSessions;
+  /** The confirmed commands a person gives those Work Items. */
+  readonly workItemCommands: WorkItemCommands;
 
   private readonly redact: (text: string) => string;
 
@@ -296,6 +299,7 @@ export class AgentHost {
       listed: (user, change) => this.announceWorkItems(user, change),
       transcript: (entry, actions) => this.publishWorkItemTranscript(entry, actions),
     });
+    this.workItemCommands = new WorkItemCommands(store, this.workItems.client);
   }
 
   /** Connects the Ask service, so a person can ask about a session's Work Item from its chat without reaching the crew (system ADR-0031). */
@@ -1388,11 +1392,13 @@ export class AgentHost {
     try { found = workItemId ? await this.workItems.session(client.user, workItemId) : undefined; }
     catch (error) { throw new RpcError(codes.internal, error instanceof Error && 'status' in error ? error.message : 'Ploeg could not be read'); }
     if (!found) throw new RpcError(codes.sessionNotFound, 'Session not found');
+    if (!parsed.run) this.settleWorkItemPrompts(client.user, found.entry);
     const spelling = this.workItemSpelling(parsed.id, client);
     const flags = this.viewOf(client, parsed.id);
+    const open = this.workItemCommands.open(client.user.id, found.entry.workItemId);
     const state = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling)
-      : parsed.kind === 'session' ? workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id))
-      : parsed.kind === 'chat' ? workItemChatState(found.entry, found.detail, spelling, flags)
+      : parsed.kind === 'session' ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id)), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] }
+      : parsed.kind === 'chat' ? withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId))
       : undefined;
     if (!state) throw new RpcError(codes.notFound, 'Unknown channel');
     return { resource: channel, state, fromSeq: this.serverSeq };
@@ -1423,17 +1429,90 @@ export class AgentHost {
     });
   }
 
-  /** A Work Item session takes the person's own read and archive flags, drafts and active-client presence; every other change is refused, because Ploeg owns the Work Item. */
-  private dispatchToWorkItem(client: Client, channel: string, kind: ChannelKind, publicId: string, action: Json, origin: Origin): string | undefined {
+  /**
+   * A Work Item session takes the person's own read and archive flags, drafts and active-client presence, the answers to the
+   * host's questions, and Stop, which only asks whether to withdraw. Every other change is refused, because Ploeg owns the
+   * Work Item. Archiving is not cancelling.
+   */
+  private async dispatchToWorkItem(client: Client, channel: string, kind: ChannelKind, publicId: string, action: Json, origin: Origin): Promise<string | undefined> {
     const entry = this.workItems.remembered(client.user, publicId);
     if (!entry || !this.workItems.allows(client.user, entry.item.team)) return 'Session not found';
     const flag = viewFlags[String(action.type)];
     if (flag) return this.setFlag(client, channel, kind, { publicId, activityBits: workItemStatus(entry), summary: viewer => this.workItemSummary(entry, viewer) }, action, origin, flag);
     switch (action.type) {
+      case 'chat/turnCancelled': return kind === 'chat' ? this.stopWorkItem(client, channel, publicId, action, origin) : 'chat/turnCancelled is dispatched on the chat channel';
+      case 'chat/inputCompleted': return kind === 'chat' ? this.answerWorkItem(client, channel, entry, action, origin) : 'chat/inputCompleted is dispatched on the chat channel';
       case 'chat/draftChanged': case 'chat/inputAnswerChanged': this.echo(client, channel, action, origin); return undefined;
       case 'session/activeClientSet': case 'session/activeClientRemoved': return kind === 'session' ? this.setActiveClient(client, channel, publicId, action, origin) : `${action.type} is dispatched on the session channel`;
       default: return workItemRefusal(action.type);
     }
+  }
+
+  /** Asks a person who may act on a proposed Work Item to approve or reject it, and closes an approval question the Work Item has moved past. */
+  private settleWorkItemPrompts(user: User, entry: WorkItemRecord): void {
+    const open = this.workItemCommands.open(user.id, entry.workItemId);
+    if (open?.kind === 'decide' && entry.item.state !== 'proposed') this.publishPromptDismissed(user, this.workItemCommands.close(open, 'cancel', undefined, workItemCommandText.noLongerProposed(entry.item.id)));
+    if (entry.item.state !== 'proposed' || this.workItemCommands.open(user.id, entry.workItemId) || !this.workItemCommands.mayAct(user, entry.item.team)) return;
+    this.publishPromptOpened(user, this.workItemCommands.ask(user, entry, 'decide').prompt);
+  }
+
+  /**
+   * Stop on a Work Item never acts on the click: it refuses the cancel and asks, in the open Round's turn or a turn of its
+   * own, whether to withdraw the Work Item. Stop on the turn of a question still open dismisses that question.
+   */
+  private async stopWorkItem(client: Client, channel: string, publicId: string, action: Json, origin: Origin): Promise<string | undefined> {
+    const user = client.user;
+    let found: Awaited<ReturnType<WorkItemSessions['session']>>;
+    try { found = await this.workItems.session(user, workItemIdOf(publicId)!); } catch { return 'Ploeg could not be read, so nothing stopped. Try again shortly.'; }
+    if (!found) return 'Session not found';
+    const { entry, detail } = found;
+    if (!this.workItemCommands.mayAct(user, entry.item.team)) return workItemCommandText.viewer(entry.item.team);
+    const open = this.workItemCommands.open(user.id, entry.workItemId);
+    if (open?.ownTurn && open.turnId === action.turnId) {
+      this.publishPromptDismissed(user, this.workItemCommands.close(open, 'cancel', undefined, workItemCommandText.unchanged, 'cancelled'));
+      this.echo(client, channel, action, origin, viewer => viewer.user.id === user.id);
+      return undefined;
+    }
+    if (entry.item.state === 'done' || entry.item.state === 'withdrawn') return workItemCommandText.ended(entry.item.id);
+    const round = workItemChatState(entry, detail, this.workItemSpelling(publicId, client), this.viewOf(client, publicId)).activeTurn?.id as string | undefined;
+    const { prompt, created, replaced } = this.workItemCommands.ask(user, entry, 'withdraw', round ? { turnId: round } : {});
+    this.reject(client, channel, action, origin, workItemCommandText.confirmStop(entry.item.id));
+    if (replaced) this.publishPromptDismissed(user, replaced);
+    if (created) this.publishPromptOpened(user, prompt);
+    return undefined;
+  }
+
+  /** The answer to one of the host's questions about a Work Item: recorded and shown first, then carried out as the person, then what came of it. */
+  private async answerWorkItem(client: Client, channel: string, entry: WorkItemRecord, action: Json, origin: Origin): Promise<string | undefined> {
+    const user = client.user;
+    const prompt = this.workItemCommands.find(user.id, entry.workItemId, String(action.requestId ?? ''));
+    if (!prompt || prompt.response) return 'Unknown question';
+    if (!this.workItemCommands.mayAct(user, prompt.team)) return workItemCommandText.viewer(prompt.team);
+    const own = (viewer: Client) => viewer.user.id === user.id;
+    const response = action.response === 'accept' ? 'accept' : 'cancel';
+    const answers = response === 'accept' && action.answers && typeof action.answers === 'object' ? action.answers as Json : undefined;
+    this.workItemCommands.claim(prompt, response, answers);
+    this.echo(client, channel, { type: 'chat/inputCompleted', requestId: prompt.requestId, response, ...(answers ? { answers } : {}) }, origin, own);
+    this.broadcast(sessionChannel(prompt.publicId), { type: 'session/inputNeededRemoved', id: prompt.requestId }, undefined, own);
+    const outcome = await this.workItemCommands.carry(user, prompt);
+    for (const closed of promptClosedActions(prompt)) this.broadcast(chatChannel(prompt.publicId), closed, undefined, own);
+    if (outcome.askAgain) { const again = this.workItemCommands.ask(user, entry, prompt.kind); if (again.created) this.publishPromptOpened(user, again.prompt); }
+    if (outcome.changed) await this.workItems.changed(entry.workItemId, entry.item.team);
+    return undefined;
+  }
+
+  private publishPromptOpened(user: User, prompt: WorkItemPrompt, turnOpened = false): void {
+    const own = (viewer: Client) => viewer.user.id === user.id;
+    for (const opened of promptOpenActions(prompt, turnOpened)) this.broadcast(chatChannel(prompt.publicId), opened, undefined, own);
+    this.broadcast(sessionChannel(prompt.publicId), viewer => ({ type: 'session/inputNeededSet', request: promptInputNeeded(prompt, chatChannel(prompt.publicId, viewer.scheme)) }), undefined, own);
+  }
+
+  /** Tells the person's clients that a question closed without their answer, and why. */
+  private publishPromptDismissed(user: User, prompt: WorkItemPrompt): void {
+    const own = (viewer: Client) => viewer.user.id === user.id;
+    this.broadcast(chatChannel(prompt.publicId), { type: 'chat/inputCompleted', requestId: prompt.requestId, response: 'cancel' }, undefined, own);
+    this.broadcast(sessionChannel(prompt.publicId), { type: 'session/inputNeededRemoved', id: prompt.requestId }, undefined, own);
+    for (const closed of promptClosedActions(prompt)) this.broadcast(chatChannel(prompt.publicId), closed, undefined, own);
   }
 
   private setActiveClient(client: Client, channel: string, publicId: string, action: Json, origin: Origin): string | undefined {
@@ -1914,7 +1993,7 @@ export class AgentHost {
       const parsed = parseChannel(channel);
       if (!parsed) { reject('Unknown channel'); return; }
       if (parsed.run) { reject('A Run\'s chat is read-only; send messages in the session\'s chat'); return; }
-      if (isWorkItemSession(parsed.id)) { const refused = this.dispatchToWorkItem(client, channel, parsed.kind, parsed.id, action, origin); if (refused) reject(refused); return; }
+      if (isWorkItemSession(parsed.id)) { const refused = await this.dispatchToWorkItem(client, channel, parsed.kind, parsed.id, action, origin); if (refused) reject(refused); return; }
       const pending = parsed.kind !== 'changeset' ? this.pending.get(parsed.id) : undefined;
       if (pending && !this.mayView(client.user, pending.user.id)) { reject('Session not found'); return; }
       const flag = viewFlags[String(action.type)];

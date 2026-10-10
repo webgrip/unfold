@@ -7,6 +7,7 @@ import { ploegDemo } from '../src/ploeg-demo.ts';
 import { PloegClient, type PloegItem } from '../src/ploeg.ts';
 import { money } from '../public/core/format.js';
 import { noAgentMessages, noRunMessages, ploegRunToolName, workItemActivity, workItemRefusals } from '../src/ahp/work-items.ts';
+import { workItemCommandText } from '../src/ahp/work-item-commands.ts';
 import { application, login, request } from './api-support.ts';
 import { action, connect, defaultChatOf, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
@@ -48,17 +49,53 @@ function world() {
     { id: '1002', at: daysAgo(3), actor: 'operator:unfold:op-1', action: 'work_item.withdrawn', workItemId: '208', team: 'delivery', detail: {} },
     { id: '1003', at: daysAgo(2), actor: 'ploegd:merge', action: 'work_item.done', workItemId: '207', team: 'delivery', detail: {} },
   ];
-  return { details, events, down: false, seen: [] as string[] };
+  return { details, events, down: false, seen: [] as string[], writes: [] as Write[], pendingCommand: (_key: string): unknown => undefined };
 }
+
+type Write = { path: string; actor?: string; acting?: string; body: string; pending: unknown };
 
 type World = ReturnType<typeof world>;
 
+function ploegWrite(state: World, path: string, body: string): [Json, number] {
+  const [, id, command] = /^work-items\/([0-9]+)\/([a-z]+)$/.exec(path) ?? [];
+  const detail = state.details.get(id);
+  if (!detail) return [{ error: { code: 'not_found', message: 'The resource was not found in the consumer\'s scope.' } }, 404];
+  const item = detail.item;
+  const input = body ? JSON.parse(body) : {};
+  const moved = (next: string) => { item.state = next; item.updatedAt = new Date().toISOString(); state.events.push({ id: String(2000 + state.events.length), at: item.updatedAt, actor: 'operator:unfold:op-1', action: `work_item.${next}`, workItemId: id, team: item.team, detail: {} }); };
+  if (command === 'approve' || command === 'reject') {
+    if (item.state !== 'proposed') return [{ error: { code: 'not_proposed', message: 'Only a proposed Work Item can be approved or rejected.' } }, 409];
+    if (command === 'reject' && !String(input.reason ?? '').trim()) return [{ error: { code: 'invalid_decision', message: 'A rejection needs a reason of at most 4096 characters.' } }, 400];
+    moved(command === 'approve' ? 'queued' : 'withdrawn');
+    return [{ decision: { workItemId: id, team: item.team, state: item.state, approved: command === 'approve' } }, 200];
+  }
+  if (command === 'cancel') {
+    if (body) return [{ error: { code: 'invalid_request', message: 'Cancel takes no request body.' } }, 400];
+    const withdrawn = item.state !== 'withdrawn';
+    if (withdrawn) moved('withdrawn');
+    return [{ cancellation: { workItemId: id, state: 'withdrawn', withdrawn, shiftId: item.latestShift?.id ?? null, cancelledRuns: 0, stoppedRuns: withdrawn ? 1 : 0, keysBlocked: withdrawn } }, 200];
+  }
+  return [{ error: { code: 'not_found', message: 'Unknown command.' } }, 404];
+}
+
 async function ploegServer(t: TestContext, bearer: string, state: World): Promise<string> {
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     const url = new URL(req.url!, 'http://fixture.invalid');
     state.seen.push(`${url.pathname.replace('/api/v1/operator/', '')}${url.search}`);
     const send = (value: unknown, status = 200) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...value as object }));
-    if (req.headers.authorization !== `Bearer ${bearer}` || req.method !== 'GET') return send({}, 401);
+    if (req.headers.authorization !== `Bearer ${bearer}`) return send({}, 401);
+    if (req.method === 'POST') {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk as Buffer);
+      const body = Buffer.concat(chunks).toString('utf8');
+      const path = url.pathname.replace('/api/v1/operator/', '');
+      const acting = req.headers['x-ploeg-acting-user'] as string | undefined;
+      state.writes.push({ path, actor: req.headers['x-ploeg-actor'] as string | undefined, acting, body, pending: state.pendingCommand(`work-item-command:${acting}:${path.split('/')[1]}`) });
+      if (state.down) return send({ error: { code: 'unavailable', message: 'down' } }, 503);
+      const [answer, status] = ploegWrite(state, path, body);
+      return send(answer, status);
+    }
+    if (req.method !== 'GET') return send({}, 401);
     if (state.down) return send({ error: 'unavailable' }, 503);
     const path = url.pathname.replace('/api/v1/operator/', '');
     if (path === 'teams') return send({ teams: ploegDemo.teams });
@@ -99,18 +136,20 @@ async function fixture(t: TestContext) {
   t.after(() => { delete process.env[env]; });
   const state = world();
   const ploeg = await ploegServer(t, bearer, state);
-  const server = await application('live', config => { config.ploeg = { url: ploeg, tokenEnv: env, userTeams: { 'op-1': ['delivery'] } }; });
+  const server = await application('live', config => { config.ploeg = { url: ploeg, tokenEnv: env, userTeams: { 'op-1': ['delivery'], 'viewer-2': ['delivery'] } }; });
   t.after(() => server.close());
   const host = server.app.agentHost;
   host.workItems.pollMs = 3_600_000;
   host.workItems.reconcileMs = 3_600_000;
   server.app.store.addUser({ id: 'op-1', name: 'op-1', role: 'operator', passwordHash: await hashPassword(password) });
   server.app.store.addUser({ id: 'viewer-1', name: 'viewer-1', role: 'viewer', passwordHash: await hashPassword(password) });
+  server.app.store.addUser({ id: 'viewer-2', name: 'viewer-2', role: 'viewer', passwordHash: await hashPassword(password) });
+  state.pendingCommand = key => server.app.store.getSecret(key);
   const unfoldSession = server.app.engine.create({ title: 'An Unfold session', objective: 'Fix the order rounding regression.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode', budgetUsd: 1 }, { id: 'op-1', name: 'op-1', role: 'operator' });
-  const attach = async (name: 'op-1' | 'viewer-1' | 'admin') => {
+  const attach = async (name: 'op-1' | 'viewer-1' | 'viewer-2' | 'admin') => {
     const token = name === 'admin'
       ? (await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: (await login(server.url)).cookie, body: { label: 'work items' } })).body.token
-      : name === 'viewer-1' ? host.issueToken({ id: 'viewer-1', name: 'viewer-1', role: 'viewer' }) : (await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: (await login(server.url, name, password)).cookie, body: { label: 'work items' } })).body.token;
+      : name.startsWith('viewer-') ? host.issueToken({ id: name, name, role: 'viewer' }) : (await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: (await login(server.url, name, password)).cookie, body: { label: 'work items' } })).body.token;
     const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${token}`);
     t.after(() => client.close());
     await client.open;
@@ -313,7 +352,7 @@ test('every change to a Work Item session is refused with what to do instead, an
   dispatch(chat, 6, { type: 'chat/truncated', turnId: 'wi-202-round-1-1' });
   assert.equal((await answer(1)).params.rejectionReason, workItemRefusals.message);
   assert.equal((await answer(2)).params.rejectionReason, workItemRefusals.message);
-  assert.equal((await answer(3)).params.rejectionReason, workItemRefusals.stop);
+  assert.equal((await answer(3)).params.rejectionReason, workItemCommandText.confirmStop('202'), 'Stop only asks');
   assert.equal((await answer(4)).params.rejectionReason, workItemRefusals.tryAgain);
   assert.equal((await answer(5)).params.rejectionReason, workItemRefusals.readOnly);
   assert.equal((await answer(6)).params.rejectionReason, workItemRefusals.readOnly);
@@ -327,4 +366,111 @@ test('every change to a Work Item session is refused with what to do instead, an
   assert.equal(mine.status & 64, 64);
   const theirs = workItemsOf(await f.listed(admin)).find(item => item.resource === session)!;
   assert.equal(theirs.status & 64, 0, 'another person\'s view is unchanged');
+});
+
+const picked = (option: string, reason?: string): Json => ({ '0': { state: 'submitted', value: { kind: 'selected', value: option } }, ...(reason !== undefined ? { '1': { state: 'submitted', value: { kind: 'text', value: reason } } } : {}) });
+
+async function commanding(t: TestContext, who: 'op-1' | 'viewer-2' = 'op-1') {
+  const f = await fixture(t);
+  const client = await f.attach(who);
+  await f.listed(client);
+  let seq = 100;
+  const dispatch = (channel: string, body: Json) => { const clientSeq = ++seq; client.notify('dispatchAction', { channel, clientSeq, action: body }); return clientSeq; };
+  const answered = (clientSeq: number) => client.until(message => message.method === 'action' && message.params.origin?.clientSeq === clientSeq);
+  const requested = (chat: string, after = 0) => client.until(message => action(message, chat, 'chat/inputRequested') && client.inbox.indexOf(message) >= after);
+  const replied = (chat: string, pattern: RegExp) => client.until(message => action(message, chat, 'chat/responsePart') && pattern.test(String(message.params.action.part?.content ?? '')));
+  return { ...f, client, dispatch, answered, requested, replied };
+}
+
+test('a proposed Work Item asks its operator to approve or reject it, a rejection needs a reason, and an approval queues it as that person', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const session = (await f.client.rpc('subscribe', { channel: 'unfold:/wi-203' })).snapshot.state;
+  assert.equal(session.inputNeeded.length, 1);
+  const asked = session.inputNeeded[0];
+  assert.equal(asked.kind, 'chatInput');
+  assert.equal(asked.request.message, workItemCommandText.decideQuestion('203'));
+  assert.deepEqual(asked.request.questions[0].options.map((option: Json) => option.id), ['approve', 'reject']);
+  const chat = defaultChatOf('unfold:/wi-203');
+  const state = (await f.client.rpc('subscribe', { channel: chat })).snapshot.state;
+  assert.ok(state.activeTurn.responseParts.some((part: Json) => part.kind === 'inputRequest' && part.request.id === asked.id), 'the question is the open turn of the chat');
+
+  const mark = f.client.inbox.length;
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: asked.id, response: 'accept', answers: picked('reject', ' ') });
+  await f.replied(chat, /needs a reason/);
+  assert.equal(f.state.writes.length, 0, 'a rejection without a reason calls nothing');
+  const again = (await f.requested(chat, mark)).params.action.request;
+  assert.notEqual(again.id, asked.id, 'the question is asked again');
+
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: again.id, response: 'accept', answers: picked('approve') });
+  await f.replied(chat, /^Approved\. #203 is queued for delivery\.$/);
+  assert.deepEqual(f.state.writes.map(write => [write.path, write.actor, write.acting]), [['work-items/203/approve', 'op-1', 'op-1']]);
+  assert.equal((f.state.writes[0].pending as Json).actingUser, 'op-1', 'the command was recorded before Ploeg was called');
+  assert.match((f.state.writes[0].pending as Json).commandId, /^[0-9a-f-]{36}$/);
+  await f.client.until(message => message.method === 'root/sessionSummaryChanged' && message.params.session === 'unfold:/wi-203' && message.params.changes.activity === 'Queued for delivery');
+  const after = (await f.client.rpc('subscribe', { channel: 'unfold:/wi-203' })).snapshot.state;
+  assert.deepEqual(after.inputNeeded, [], 'nothing waits on the person once it is decided');
+});
+
+test('rejecting a proposed Work Item sends the reason to Ploeg', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const asked = (await f.client.rpc('subscribe', { channel: 'unfold:/wi-203' })).snapshot.state.inputNeeded[0];
+  const chat = defaultChatOf('unfold:/wi-203');
+  await f.client.rpc('subscribe', { channel: chat });
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: asked.id, response: 'accept', answers: picked('reject', 'Out of scope for this quarter.') });
+  await f.replied(chat, /^Rejected #203: Out of scope for this quarter\.$/);
+  assert.deepEqual(f.state.writes.map(write => [write.path, JSON.parse(write.body)]), [['work-items/203/reject', { reason: 'Out of scope for this quarter.' }]]);
+});
+
+test('Stop on a running Work Item only asks whether to withdraw it, and nothing happens without a confirmation', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const chat = defaultChatOf('unfold:/wi-202');
+  await f.client.rpc('subscribe', { channel: 'unfold:/wi-202' });
+  await f.client.rpc('subscribe', { channel: chat });
+  const stop = f.dispatch(chat, { type: 'chat/turnCancelled', turnId: 'wi-202-round-1-1' });
+  assert.equal((await f.answered(stop)).params.rejectionReason, workItemCommandText.confirmStop('202'), 'the click is refused, not carried out');
+  const question = (await f.requested(chat)).params.action.request;
+  assert.equal(question.message, 'Withdraw #202? This stops the running Run, blocks its keys and comments on the tracker. It can\'t be resumed.');
+  const part = f.client.inbox.find(message => action(message, chat, 'chat/responsePart'))!.params.action;
+  assert.equal(part.turnId, 'wi-202-round-1-1', 'asked in the running Round\'s turn');
+  await settled(f.client);
+  assert.equal(f.state.writes.length, 0, 'Stop alone calls nothing');
+
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: question.id, response: 'cancel' });
+  await f.replied(chat, /^Nothing changed\.$/);
+  const second = f.dispatch(chat, { type: 'chat/turnCancelled', turnId: 'wi-202-round-1-1' });
+  await f.answered(second);
+  const keep = (await f.requested(chat, f.client.inbox.findIndex(message => message.params?.origin?.clientSeq === second))).params.action.request;
+  assert.notEqual(keep.id, question.id);
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: keep.id, response: 'accept', answers: picked('keep') });
+  await settled(f.client);
+  await f.client.until(message => action(message, chat, 'chat/responsePart') && message.params.action.part.id === `${keep.id}-reply`);
+  assert.equal(f.state.writes.length, 0, 'keeping it running calls nothing');
+});
+
+test('confirming Stop withdraws the Work Item once, as the person, with a command recorded first', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const chat = defaultChatOf('unfold:/wi-202');
+  await f.client.rpc('subscribe', { channel: chat });
+  f.dispatch(chat, { type: 'chat/turnCancelled', turnId: 'wi-202-round-1-1' });
+  const question = (await f.requested(chat)).params.action.request;
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: question.id, response: 'accept', answers: picked('withdraw') });
+  await f.replied(chat, /^Withdrew #202\. Ploeg stopped 1 Run and blocked their keys/);
+  assert.equal(f.state.writes.length, 1, 'exactly one cancel');
+  const [write] = f.state.writes;
+  assert.deepEqual([write.path, write.actor, write.acting, write.body], ['work-items/202/cancel', 'op-1', 'op-1', '']);
+  assert.match((write.pending as Json).commandId, /^[0-9a-f-]{36}$/, 'the command id was persisted before the call');
+  assert.equal(f.server.app.store.getSecret('work-item-command:op-1:202'), undefined, 'and forgotten once Ploeg answered');
+  await f.client.until(message => message.method === 'root/sessionSummaryChanged' && message.params.session === 'unfold:/wi-202' && message.params.changes.status === 1);
+});
+
+test('a viewer of the team is refused every command and asked nothing', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t, 'viewer-2');
+  assert.deepEqual((await f.client.rpc('subscribe', { channel: 'unfold:/wi-203' })).snapshot.state.inputNeeded, [], 'no approval question for a viewer');
+  const chat = defaultChatOf('unfold:/wi-202');
+  await f.client.rpc('subscribe', { channel: chat });
+  const stop = f.dispatch(chat, { type: 'chat/turnCancelled', turnId: 'wi-202-round-1-1' });
+  assert.equal((await f.answered(stop)).params.rejectionReason, workItemCommandText.viewer('delivery'));
+  await settled(f.client);
+  assert.ok(!f.client.inbox.some(message => message.method === 'action' && message.params.action.type === 'chat/inputRequested'), 'no question is raised');
+  assert.equal(f.state.writes.length, 0);
 });
