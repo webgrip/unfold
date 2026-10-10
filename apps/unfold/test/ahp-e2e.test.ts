@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { application, request } from './api-support.ts';
 import { action, connect, defaultChatOf, reduceChat, type Json } from './ahp-support.ts';
-import { scaledTimeout, settle, testTimeout } from './timeframes.ts';
+import { scaledTimeout, settle, testTimeout, waitFor } from './timeframes.ts';
 
 const objective = 'Reproduce the rounding regression and fix it with the tests intact.';
 const vscodeMain = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };
@@ -196,8 +196,8 @@ test('a reconnect keeps the session spelling decided at initialize, even when it
 
 test('an active client that drops keeps its place for the grace period, keeps it through a reconnect, and loses it when the period ends or it does not resubscribe', { timeout: testTimeout(60_000) }, async t => {
   const { server, address, open } = await attached(t);
-  const grace = scaledTimeout(800);
-  server.app.agentHost.activeClientGraceMs = grace;
+  const shortGrace = scaledTimeout(800);
+  server.app.agentHost.activeClientGraceMs = scaledTimeout(10_000);
   const clientId = randomUUID();
   const activeClient = { clientId, tools: [] };
   const session = `ahp-session:/${randomUUID()}`;
@@ -214,18 +214,23 @@ test('an active client that drops keeps its place for the grace period, keeps it
     return Object.assign(connection, { result: await connection.rpc('reconnect', { channel: 'ahp-root://', clientId, lastSeenServerSeq: 0, subscriptions }) });
   };
 
+  const departing = () => waitFor(() => server.app.agentHost.isDeparting(clientId), undefined, { reason: 'the host never began the dropped client\'s grace period', withinMs: 5_000 });
+
   first.close();
-  await settle(100);
+  await departing();
   assert.deepEqual((await watcher.rpc('subscribe', { channel: session })).snapshot.state.activeClients, [activeClient], 'a dropped client keeps its place while it may still come back');
   const resumed = await resume(['ahp-root://', session]);
   assert.deepEqual(resumed.result.snapshots[1].state.activeClients, [activeClient], 'the reconnect snapshot still lists it');
+  assert.equal(server.app.agentHost.isDeparting(clientId), false, 'a reconnect inside the period ends the wait');
   await settle(1200);
   assert.deepEqual(removals(), [], 'a client that came back in time is never removed');
 
+  server.app.agentHost.activeClientGraceMs = shortGrace;
+  const beforeRemoval = removals().length;
   resumed.close();
-  const closedAt = Date.now();
+  await departing();
+  assert.equal(removals().length, beforeRemoval, 'the removal waits for the grace period');
   const removed = await watcher.until(message => action(message, session, 'session/activeClientRemoved'));
-  assert.ok(Date.now() - closedAt >= grace - 50, 'the removal waits for the grace period');
   assert.deepEqual(removed.params.action, { type: 'session/activeClientRemoved', clientId });
   assert.equal(removed.params.origin, undefined, 'the host removes it, not a client');
   assert.deepEqual((await watcher.rpc('subscribe', { channel: session })).snapshot.state.activeClients, []);
@@ -235,10 +240,10 @@ test('an active client that drops keeps its place for the grace period, keeps it
   again.notify('dispatchAction', { channel: session, clientSeq: 1, action: { type: 'session/activeClientSet', activeClient } });
   await again.until(message => message.method === 'action' && message.params.origin?.clientSeq === 1);
   again.close();
-  await settle(100);
+  await departing();
   const elsewhere = await resume(['ahp-root://']);
-  const leftAt = Date.now();
-  await watcher.until(message => action(message, session, 'session/activeClientRemoved') && message.params.serverSeq > removed.params.serverSeq);
-  assert.ok(Date.now() - leftAt < grace, 'a reconnect that does not resubscribe to the session gives its place up at once');
+  assert.equal(server.app.agentHost.isDeparting(clientId), false, 'a reconnect that does not resubscribe gives its place up at once, not after the grace period');
+  const removedAgain = await watcher.until(message => action(message, session, 'session/activeClientRemoved') && message.params.serverSeq > removed.params.serverSeq);
+  assert.deepEqual(removedAgain.params.action, { type: 'session/activeClientRemoved', clientId });
   assert.equal(elsewhere.result.type, 'snapshot');
 });
