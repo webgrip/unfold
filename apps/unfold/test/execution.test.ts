@@ -41,7 +41,7 @@ class ControlledExecution implements AgentRuntime {
   async dispose() {}
 }
 
-type RemoteExecution = { id: string; workItemId: string; sessionId: string; actor: string; team: string; demo: boolean; state: string; revision: number; generation: number; supervision: string; expiresAt: string; stopConfirmed: boolean };
+type RemoteExecution = { id: string; workItemId: string; sessionId: string; actor: string; team: string; demo: boolean; state: string; revision: number; generation: number; supervision: string; expiresAt: string; stopConfirmed: boolean; closed?: boolean };
 async function governed(t: TestContext) {
   const env = `UNFOLD_EXECUTION_TEST_${randomBytes(6).toString('hex').toUpperCase()}`;
   const consumerToken = randomBytes(24).toString('hex');
@@ -530,7 +530,7 @@ test('a failed session closes its Work Item in Ploeg once, and a live session ca
   assert.equal(closed.status, 200);
   assert.ok(closed.body.workItemClosedAt);
   assert.equal(closed.body.status, 'failed', 'closing the Work Item does not rewrite the session');
-  assert.equal((f.state.remote as any).closed, true);
+  assert.equal(f.state.remote!.closed, true);
   const revision = f.state.remote!.revision;
   const again = await request(f.server.url, `/api/sessions/${session.id}/close-work-item`, { ...auth, method: 'POST', body: {} });
   assert.equal(again.status, 200);
