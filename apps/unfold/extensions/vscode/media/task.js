@@ -2,13 +2,14 @@ import { closeReasonLabel, displayState, failureReason, humanReview, ciState, pl
 import { compactCount, count, date, duration, money, notReported, plural, relative, time } from './core/format.js';
 import { detailReason } from './core/reasons.js';
 import { checkoutTarget } from './core/checkout.js';
-import { changeText, elapsedClock, ploegRunActive, reconcileDetail, sessionProgress } from './core/progress.js';
+import { changedFiles, changeText, elapsedClock, ploegRunActive, reconcileDetail, sessionProgress } from './core/progress.js';
 
 const bridge = acquireVsCodeApi();
 const saved = bridge.getState() || {};
 const panelKey = document.body.dataset.taskKey || saved.taskKey || '';
 let view;
 let team = saved.team || '';
+const viewed = new Set(Array.isArray(saved.viewed) ? saved.viewed : []);
 let busy = '';
 let problem = '';
 let connected = true;
@@ -28,7 +29,7 @@ const plain = (label, tone = 'neutral', extra = {}) => ({ key: label, label, ton
 const folded = (key, attributes, ...children) => element('details', { ...attributes, 'data-keep': key, ...(opened.has(key) ? { open: true } : {}) }, ...children);
 const shortReportLength = 160;
 
-function remember() { bridge.setState({ taskKey: panelKey, team }); }
+function remember() { bridge.setState({ taskKey: panelKey, team, viewed: [...viewed].slice(-50) }); }
 function providerName(provider) { return providerNames[provider] || provider || 'the tracker'; }
 function isWork(current) { return current?.kind === 'work'; }
 
@@ -269,32 +270,10 @@ function stat(label, { value, note, live }) {
     element('dd', {}, element('span', { className: 'stat-value num' }, live ? element('span', { className: 'live-mark', 'aria-hidden': 'true' }) : null, value), note ? element('span', { className: 'stat-note' }, note) : null));
 }
 
-/** The session's spend against its budget as one figure with a meter; the meter is left out without a budget. */
-export function spendStat(progress) {
-  const spend = progress.spend;
-  const budget = amount(spend.budgetUsd) && spend.budgetUsd > 0 ? spend.budgetUsd : null;
-  const status = spend.status === 'observed' ? 'observed, not settled' : spend.status === 'settled' ? 'settled' : progress.demo ? 'no model calls' : '';
-  const share = budget !== null && amount(spend.valueUsd) ? Math.min(1, Math.max(0, spend.valueUsd / budget)) : null;
-  const meter = share === null ? null : element('span', { className: `meter${share >= 0.9 ? ' meter-high' : ''}`, role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': String(budget), 'aria-valuenow': String(spend.valueUsd), 'aria-label': `${spend.text} of ${money(budget)} budget` }, element('span', { className: 'meter-fill', 'data-share': String(Math.round(share * 100)) }));
-  return element('div', { className: `stat stat-spend${spend.status === 'unknown' ? ' unknown' : ''}` },
-    element('dt', {}, 'Spend'),
-    element('dd', {},
-      element('span', { className: 'stat-value num' }, spend.text, budget !== null ? element('span', { className: 'stat-of' }, ` of ${money(budget)}`) : null),
-      meter,
-      status ? element('span', { className: 'stat-note' }, status) : null));
-}
-
 /** The facts row of the head card: cost, budget, Runs, Rounds and Team. Null before Ploeg has a Work Item. */
 export function headFacts(current) {
   const { item } = subject(current);
   if (!item) return null;
-  const progress = progressOf(current);
-  if (progress) {
-    const rounds = roundsSummary(current);
-    return element('dl', { className: 'stats', 'aria-label': 'Work Item facts' },
-      spendStat(progress),
-      stat('Runs', { value: count(progress.steps.length), note: rounds.value === notReported ? rounds.note : [plural(Number(rounds.value) || 0, 'Round'), rounds.note].filter(Boolean).join(' · ') }));
-  }
   return element('dl', { className: 'stats', 'aria-label': 'Work Item facts' },
     stat('Cost', costSummary(current)),
     stat('Budget', budgetSummary(current)),
@@ -374,31 +353,99 @@ export function liveLine(progress) {
     element('span', { className: 'muted num' }, `${progress.spend.text}${amount(progress.spend.budgetUsd) ? ` of ${money(progress.spend.budgetUsd)}` : ''}`));
 }
 
+/** The session's actions in the order to offer them: reading the change leads until this panel has opened it once, then finishing does. */
+export function decisionActions(progress) {
+  const list = progress.actions.filter(entry => entry.id !== 'open-pr' || progress.change.pullRequest?.url);
+  const view = list.find(entry => entry.id === 'view-change');
+  if (!view || !list.some(entry => entry.id === 'deliver') || viewed.has(progress.sessionId)) return list;
+  return [{ ...view, primary: true }, ...list.filter(entry => entry !== view).map(entry => ({ ...entry, primary: false }))];
+}
+
+const gateMarks = { success: ['✓', 'done'], attention: ['!', 'needs attention'], danger: ['✗', 'failed'], neutral: ['–', 'not available'], review: ['✓', 'done'] };
+
+function gate(tone, title, detail = null, extra = null) {
+  const [mark, word] = gateMarks[tone] || gateMarks.neutral;
+  return element('li', { className: `gate tone-${tone}` },
+    element('span', { className: 'gate-mark', 'aria-hidden': 'true' }, mark),
+    element('span', { className: 'gate-body' }, element('span', { className: 'gate-title' }, title, extra, element('span', { className: 'sr-only' }, ` (${word})`)), detail ? element('span', { className: 'gate-detail' }, detail) : null));
+}
+
+function fileNames(session, limit = 3) {
+  const names = changedFiles(session).map(file => file.file);
+  return names.length ? `${names.slice(0, limit).join(', ')}${names.length > limit ? ` and ${names.length - limit} more` : ''}` : '';
+}
+
+/** What a person checks before deciding: the change, the reviewer's verdict and the recorded checks, problems first. Null while the crew still works. */
+export function gateList(current, progress) {
+  if (['ready', 'preparing', 'working', 'asking', 'capturing'].includes(progress.phase) || !progress.steps.length) return null;
+  const change = progress.change;
+  const gates = [];
+  if (change.files) {
+    const where = [fileNames(current.linked?.session), change.branch ? `on ${change.branch}` : ''].filter(Boolean).join(' ');
+    gates.push({ rank: 1, node: gate('success', `${plural(change.files, 'file')} changed`, where || null, change.added || change.removed ? element('span', { className: 'diff num' }, element('span', { className: 'added' }, `+${change.added}`), element('span', { className: 'removed' }, `−${change.removed}`)) : null) });
+  } else if (progress.actions.some(entry => entry.id === 'capture')) gates.push({ rank: 0, node: gate('attention', 'The change is not captured yet', 'Capture it to read it. That starts no model and sends Ploeg nothing.') });
+  else if (change.candidate === 'unavailable') gates.push({ rank: 0, node: gate('danger', 'The change could not be captured', change.candidateText) });
+  const reviewer = [...progress.steps].reverse().find(step => step.mode === 'read' && step.verdict);
+  if (reviewer) {
+    const tone = reviewer.verdict.key === 'approve' ? 'success' : reviewer.verdict.key === 'request_changes' ? 'attention' : 'neutral';
+    const findings = progress.findings?.role === reviewer.role ? plural(progress.findings.items.length, 'finding') : '';
+    const detail = reviewer.verdict.recorded ? [findings, 'an agent\'s review, not yours'].filter(Boolean).join(' · ') : 'Said in its last message, then it was interrupted before Unfold recorded the review.';
+    gates.push({ rank: tone === 'success' ? 1 : 0, node: gate(tone, `${reviewer.role} ${reviewer.verdict.label.toLowerCase()}`, detail) });
+  } else if (progress.steps.some(step => step.mode === 'read')) gates.push({ rank: 0, node: gate('neutral', 'No review verdict', 'The reviewer gave none.') });
+  for (const check of progress.checks) {
+    const tone = check.passed === true ? 'success' : check.passed === false ? 'danger' : 'neutral';
+    gates.push({ rank: tone === 'success' ? 1 : 0, node: gate(tone, element('code', {}, check.name), null, element('span', {}, check.passed === true ? ' passed' : check.passed === false ? ' failed' : ' gave no clear result')) });
+  }
+  if (!progress.checks.length && change.files) gates.push({ rank: 1, node: gate('neutral', 'No checks were recorded') });
+  if (change.pullRequest?.url) gates.push({ rank: 1, node: gate('success', `Pull request #${change.pullRequest.number}`, change.pullRequest.state || null) });
+  if (!gates.length) return null;
+  return element('ul', { className: 'gates', 'aria-label': 'Before you decide' }, ...gates.sort((a, b) => a.rank - b.rank).map(entry => entry.node));
+}
+
+function totalSeconds(progress) {
+  const starts = progress.steps.map(step => Date.parse(step.startedAt)).filter(Number.isFinite);
+  const ends = progress.steps.map(step => step.seconds !== null ? Date.parse(step.startedAt) + step.seconds * 1000 : NaN).filter(Number.isFinite);
+  return starts.length && ends.length ? (Math.max(...ends) - Math.min(...starts)) / 1000 : null;
+}
+
+/** Spend, Runs and duration as one quiet line; an unsettled figure reads as approximate, with what that means on hover. */
+export function spendLine(progress) {
+  const spend = progress.spend;
+  const budget = amount(spend.budgetUsd) && spend.budgetUsd > 0 ? spend.budgetUsd : null;
+  const seconds = totalSeconds(progress);
+  const figure = progress.demo ? 'Demo · no model calls or spend' : spend.status === 'unknown' ? 'Spend not reported yet' : `${spend.status === 'observed' ? '≈ ' : ''}${spend.text}${budget !== null ? ` of ${money(budget)}` : ''} spent`;
+  const title = spend.status === 'observed' ? 'As measured by the model gateway. Ploeg confirms the final amount later.' : spend.status === 'settled' ? 'Settled by Ploeg.' : '';
+  return element('p', { className: 'spend-line small muted num' },
+    element('span', title ? { title } : {}, figure),
+    progress.steps.length ? element('span', {}, plural(progress.steps.length, 'Run')) : null,
+    seconds !== null && !progress.meta.live ? element('span', {}, duration(seconds)) : null);
+}
+
 function progressCard(current, progress) {
-  const facts = headFacts(current);
   const { item } = subject(current);
-  const explained = Boolean(current.linked?.recovery?.summary);
-  const reason = progress.reason && ['stopped', 'failed'].includes(progress.phase) && !explained ? progress.reason : null;
-  const actions = progress.actions.filter(entry => entry.id !== 'open-pr' || progress.change.pullRequest?.url);
+  const actions = decisionActions(progress);
   const button = entry => entry.id === 'open-pr' ? element('button', { type: 'button', className: entry.primary ? 'primary' : 'quiet', 'data-open-url': progress.change.pullRequest.url, title: progress.change.pullRequest.url }, `${entry.label} ↗`) : sessionButton(progress, entry);
-  const decisions = actions.filter(entry => entry.primary || !navigation.has(entry.id)).filter(entry => entry.id !== 'cancel').map(button);
-  const elsewhere = actions.filter(entry => !entry.primary && navigation.has(entry.id)).map(button);
-  if (item?.id) elsewhere.push(action('Open in browser ↗', 'open-ploeg', { className: 'quiet', 'data-id': item.id, title: 'Open this Work Item in the Unfold workbench in your browser' }));
+  const decisions = actions.filter(entry => entry.primary || !navigation.has(entry.id)).filter(entry => entry.id !== 'cancel');
+  const more = actions.filter(entry => !decisions.includes(entry) && entry.id !== 'cancel').map(button);
+  if (item?.id) more.push(action('Open in browser ↗', 'open-ploeg', { className: 'quiet', 'data-id': item.id, title: 'Open this Work Item in the Unfold workbench in your browser' }));
   const cancel = actions.find(entry => entry.id === 'cancel');
-  if (cancel) { const destructive = button(cancel); destructive.className = 'quiet destructive'; elsewhere.push(element('span', { className: 'action-gap', 'aria-hidden': 'true' }), destructive); }
-  return element('section', { className: `card head-card progress-card tone-${progress.meta.tone}${facts ? ' with-facts' : ''}`, 'aria-labelledby': 'head-heading' },
+  if (cancel) { const destructive = button(cancel); destructive.className = 'quiet destructive'; more.push(destructive); }
+  const outcome = decisions.find(entry => entry.outcome)?.outcome;
+  const why = ['stopped', 'failed'].includes(progress.phase) && progress.reason?.plain ? progress.reason.plain : progress.next;
+  return element('section', { className: `card head-card progress-card tone-${progress.meta.tone}`, 'aria-labelledby': 'head-heading' },
     element('div', { className: 'head-main' },
-      element('div', { className: 'head-state' },
-        pill({ ...progress.meta, title: progress.meta.label }),
-        reason ? pill({ label: capital(reason.short), tone: progress.meta.tone, title: reason.sentence }, { className: `pill-state tone-${progress.meta.tone} reason-chip` }) : null,
+      progress.demo || current.linked?.live ? element('div', { className: 'head-state' },
         progress.demo ? element('span', { className: 'tag demo-tag' }, 'Demo · no model calls or spend') : null,
-        current.linked?.live ? element('span', { className: 'tag live-tag', title: 'Following the session\'s event stream' }, 'Live') : null),
+        current.linked?.live ? element('span', { className: 'tag live-tag', title: 'Following the session\'s event stream' }, 'Live') : null) : null,
       element('h2', { id: 'head-heading', className: 'headline' }, progress.headline),
       liveLine(progress),
-      progress.next ? element('p', { className: 'next' }, progress.next) : null,
-      decisions.length ? element('div', { className: 'actions', role: 'group', 'aria-label': 'What you can do' }, ...decisions) : null,
-      elsewhere.length ? element('div', { className: 'actions actions-elsewhere', role: 'group', 'aria-label': 'Look closer' }, ...elsewhere) : null),
-    facts ? element('div', { className: 'head-facts' }, facts) : null);
+      why ? element('p', { className: 'next' }, why) : null,
+      gateList(current, progress),
+      decisions.length || more.length ? element('div', { className: 'actions', role: 'group', 'aria-label': 'What you can do' },
+        ...decisions.map(button),
+        more.length ? folded('more-actions', { className: 'more-actions' }, element('summary', { className: 'quiet' }, 'More'), element('div', { className: 'more-menu', role: 'group', 'aria-label': 'More actions' }, ...more)) : null) : null,
+      outcome ? element('p', { className: 'outcome small muted' }, outcome) : null,
+      spendLine(progress)));
 }
 
 const capital = value => value ? value[0].toUpperCase() + value.slice(1) : value;
@@ -422,7 +469,7 @@ function stepReport(step, foldAlways = false) {
   if (!foldAlways && summary.length <= shortReportLength && !summary.includes('\n')) return element('div', { className: 'step-summary small' }, markdown(summary));
   const preview = summary.replace(/[*_`#>]/g, '').replace(/\s+/g, ' ');
   return folded(`step:${step.id}`, { className: 'step-report' },
-    element('summary', {}, element('span', { className: 'step-preview small' }, preview), element('span', { className: 'step-more small' }, 'Full report')),
+    element('summary', {}, foldAlways ? null : element('span', { className: 'step-preview small' }, preview), element('span', { className: 'step-more small' }, 'Full report')),
     element('div', { className: 'step-summary small' }, markdown(summary)));
 }
 
@@ -430,18 +477,17 @@ function stepReport(step, foldAlways = false) {
 export function stepsSection(current) {
   const progress = progressOf(current);
   if (!progress) return null;
-  if (!progress.steps.length) return element('section', { className: 'card steps', 'aria-labelledby': 'steps-heading' }, element('div', { className: 'section-heading' }, element('h2', { id: 'steps-heading' }, 'Steps')), element('p', { className: 'muted' }, progress.phase === 'ready' ? 'Nothing has run yet.' : 'No Role has started yet.'));
+  if (!progress.steps.length) return element('section', { className: 'card steps', 'aria-labelledby': 'steps-heading' }, element('div', { className: 'section-heading' }, element('h2', { id: 'steps-heading' }, 'What the agents did')), element('p', { className: 'muted' }, progress.phase === 'ready' ? 'Nothing has run yet.' : 'No Role has started yet.'));
   return element('section', { className: 'card steps', 'aria-labelledby': 'steps-heading' },
-    element('div', { className: 'section-heading' }, element('h2', { id: 'steps-heading' }, 'Steps'), element('span', {}, `${plural(progress.steps.length, 'Run')} in this session, in order`)),
+    element('div', { className: 'section-heading' }, element('h2', { id: 'steps-heading' }, 'What the agents did'), element('span', {}, 'in order')),
     element('ol', { className: 'step-list' }, ...progress.steps.map(step => element('li', { className: `step step-${step.state}` },
       element('div', { className: 'step-head' },
         element('strong', {}, step.role), element('span', { className: 'access' }, step.mode === 'read' ? 'reader' : 'writer'),
-        pill({ label: step.label, tone: step.tone, glyph: 'circle', live: step.state === 'working', ...(step.state === 'cut_off' ? { title: `Still recorded as running when the session stopped${step.finishedAt ? ` at ${time(step.finishedAt)}` : ''}` } : {}) }),
-        step.verdict ? pill({ label: step.verdict.recorded ? step.verdict.label : `${step.verdict.label} · from its transcript`, tone: step.verdict.recorded ? step.verdict.tone : 'neutral', title: step.verdict.recorded ? 'An agent verdict is evidence, not a human review.' : 'Given in the Run\'s own transcript before it was cut off; no finished Run recorded it.' }) : null,
+        pill({ label: step.label, tone: step.tone, glyph: 'circle', live: step.state === 'working', ...(step.state === 'cut_off' ? { title: `Still working when the session stopped${step.finishedAt ? ` at ${time(step.finishedAt)}` : ''}` } : {}) }),
+        step.verdict ? pill({ label: step.verdict.recorded ? step.verdict.label : `${step.verdict.label}, not recorded`, tone: step.verdict.recorded ? step.verdict.tone : 'neutral', title: step.verdict.recorded ? 'An agent verdict is evidence, not a human review.' : 'Said in its last message before it was interrupted; Unfold did not record it as a finished review.' }) : null,
         element('span', { className: 'step-time num muted' }, [step.startedAt ? time(step.startedAt) : '', step.seconds !== null ? duration(step.seconds) : ''].filter(Boolean).join(' · '))),
       findingsList(progress, step),
-      stepReport(step, Boolean(progress.findings && progress.findings.role === step.role && step.mode === 'read'))))),
-    roleCostTable(progress));
+      stepReport(step, Boolean(progress.findings && progress.findings.role === step.role && step.mode === 'read'))))));
 }
 
 /** Cost and tokens per Role, from the gateway's requests or the Runs' own reports. Null when nothing was reported. */
@@ -466,7 +512,7 @@ export function roleCostTable(progress) {
 /** The change the session made: files and lines, the branch, the candidate and the pull request. Null before anything changed. */
 export function changeSection(current) {
   const progress = progressOf(current);
-  if (!progress) return null;
+  if (!progress || gateList(current, progress)) return null;
   const change = progress.change;
   if (!change.files && !change.pullRequest && !change.candidate && !progress.checks.length) return null;
   const counts = changeText(change);
@@ -483,25 +529,32 @@ export function changeSection(current) {
     change.viewable && !progress.actions.some(entry => entry.id === 'view-change') ? element('div', { className: 'actions' }, sessionButton(progress, { id: 'view-change', label: 'View change' })) : null);
 }
 
-/** What happened, in order, with the time of each step and every stop. Null without history. */
-export function timelineSection(current) {
-  const progress = progressOf(current);
-  if (!progress?.timeline?.length) return null;
-  const first = Date.parse(progress.timeline[0].at);
-  return element('section', { className: 'card timeline', 'aria-labelledby': 'timeline-heading' },
-    element('div', { className: 'section-heading' }, element('h2', { id: 'timeline-heading' }, 'What happened'), element('span', {}, Number.isFinite(first) ? `from ${time(progress.timeline[0].at)}` : '')),
-    element('ol', { className: 'timeline-list small' }, ...progress.timeline.map(entry => element('li', { className: `timeline-entry tone-${entry.tone}` },
-      element('time', { className: 'num muted', datetime: entry.at }, time(entry.at, { seconds: true })),
-      element('span', {}, entry.text)))));
+function timelineList(progress) {
+  return element('ol', { className: 'timeline-list small' }, ...progress.timeline.map(entry => element('li', { className: `timeline-entry tone-${entry.tone}` },
+    element('time', { className: 'num muted', datetime: entry.at }, time(entry.at, { seconds: true })),
+    element('span', {}, entry.text))));
 }
 
-/** What the sources disagree about, resolved in words. */
-export function factsSection(current) {
+/** Everything a person looks at only when investigating: the timeline, notes the checklist does not already say, cost per Role and Ploeg's own record. Folded. */
+export function detailsSection(current) {
   const progress = progressOf(current);
-  if (!progress?.facts.length) return null;
-  return element('section', { className: 'card facts', 'aria-labelledby': 'facts-heading' },
-    element('div', { className: 'section-heading' }, element('h2', { id: 'facts-heading' }, 'Worth knowing')),
-    element('ul', { className: 'fact-list small' }, ...progress.facts.map(entry => element('li', {}, entry))));
+  if (!progress) return null;
+  const covered = new Set(gateList(current, progress) ? ['verdict', 'capture'] : []);
+  const notes = (progress.notes || []).filter(note => !covered.has(note.kind));
+  const costs = roleCostTable(progress);
+  const record = runsSection(current, { nested: true });
+  const parts = [
+    progress.timeline?.length ? element('div', { className: 'detail-part' }, element('h3', {}, 'What happened'), timelineList(progress)) : null,
+    notes.length ? element('div', { className: 'detail-part' }, element('h3', {}, 'Worth knowing'), element('ul', { className: 'fact-list small' }, ...notes.map(note => element('li', {}, note.text)))) : null,
+    costs,
+    record,
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  const labels = [progress.timeline?.length ? 'timeline' : '', notes.length ? plural(notes.length, 'note') : '', costs ? 'cost per role' : '', record ? 'Ploeg\'s record' : ''].filter(Boolean).join(', ');
+  return element('section', { className: 'card details', 'aria-labelledby': 'details-heading' },
+    folded('details', { className: 'details-fold' },
+      element('summary', {}, element('h2', { id: 'details-heading', className: 'inline-heading' }, 'Details'), element('span', { className: 'muted small' }, ` · ${labels}`)),
+      ...parts));
 }
 
 /** The head card: the state, why, what to press, the facts and the cost per role. */
@@ -647,9 +700,10 @@ export function runGroups(detail) {
 }
 
 /** The Runs of the Work Item by Round, with the rest folded away after the first few. Null before a detail is loaded. */
-export function runsSection(current) {
+export function runsSection(current, { nested = false } = {}) {
   const { detail, item, demo } = subject(current);
   if (!detail) return null;
+  if (progressOf(current) && !nested) return null;
   const runs = detail.runs || [];
   const shift = latestShift(detail);
   const heading = element('div', { className: 'section-heading' }, element('h2', { id: 'runs-heading' }, 'Runs'), element('span', {}, shift ? `${plural(shift.round, 'Round')} · ${shift.closedAt ? `closed ${relative(shift.closedAt)}` : `opened ${relative(shift.openedAt)}`} · ${closeReasonLabel(shift.closeReason)}` : ''));
@@ -672,10 +726,9 @@ export function runsSection(current) {
     element('ul', { className: 'run-list' }, ...group.runs.map(run => runRow(run, demo, item)))));
   const hidden = rest.reduce((total, group) => total + group.runs.length, 0);
   const body = [...list(visible), hidden ? folded('more-runs', { className: 'more-runs' }, element('summary', {}, `Show ${hidden} more ${hidden === 1 ? 'Run' : 'Runs'}`), ...list(rest, new Set(visible.map(group => group.key)))) : null];
-  if (progressOf(current)) return element('section', { className: 'card runs', 'aria-labelledby': 'runs-heading' },
-    folded('ploeg-record', { className: 'ploeg-record' },
-      element('summary', {}, element('h2', { id: 'runs-heading', className: 'inline-heading' }, 'As Ploeg records it'), element('span', { className: 'muted small' }, ` · ${plural(runs.length, 'Run')}; the session's Roles run inside it`)),
-      ...body));
+  if (nested) return element('div', { className: 'detail-part runs', 'aria-labelledby': 'runs-heading' },
+    element('h3', { id: 'runs-heading' }, 'As Ploeg records it', element('span', { className: 'access' }, `${plural(runs.length, 'Run')}; the session's Roles run inside it`)),
+    ...body);
   return element('section', { className: 'card runs', 'aria-labelledby': 'runs-heading' }, heading, ...body);
 }
 
@@ -753,6 +806,7 @@ export function header(current) {
 function briefSection(current) {
   const work = isWork(current);
   const body = work ? current.detail?.item?.descriptionMarkdown ?? current.detail?.item?.description ?? '' : current.task.descriptionMarkdown ?? current.task.description ?? '';
+  if (work && progressOf(current) && text(body) === text(current.detail?.item?.title)) return null;
   const truncated = !work && current.task.descriptionTruncated;
   return element('section', { className: 'card brief', 'aria-labelledby': 'brief-heading' },
     element('div', { className: 'section-heading' }, element('h2', { id: 'brief-heading' }, 'Brief'), element('span', {}, truncated ? 'shortened · open the tracker for the full text' : work ? 'as Ploeg recorded it' : '')),
@@ -780,11 +834,10 @@ export function sections(current) {
     headCard(current),
     stepsSection(current),
     changeSection(current),
-    timelineSection(current),
-    factsSection(current),
     pullRequestsSection(current),
     accountSection(current),
     runsSection(current),
+    detailsSection(current),
     briefSection(current),
     footer(current),
   ].filter(Boolean);
@@ -795,7 +848,6 @@ function render() {
   if (!app) return;
   if (!view) { app.replaceChildren(element('div', { className: 'loading', role: 'status' }, problem || 'Loading…')); return; }
   app.replaceChildren(...sections(view));
-  for (const fill of app.querySelectorAll('.meter-fill[data-share]')) fill.style.width = `${fill.dataset.share}%`;
   const situation = ploegSituation(view);
   const headline = situation.progress ? `${situation.progress.meta.label}. ${situation.progress.headline}` : situation.headline;
   if (headline !== spoken) { spoken = headline; announce(headline); }
@@ -807,6 +859,7 @@ document.addEventListener('click', event => {
   const step = event.target.closest('[data-session-action]');
   if (step) {
     if (step.disabled) return;
+    if (['view-change', 'capture'].includes(step.dataset.sessionAction)) { viewed.add(step.dataset.session); remember(); }
     busy = `session:${step.dataset.sessionAction}`; render();
     bridge.postMessage({ type: 'session-action', action: step.dataset.sessionAction, session: step.dataset.session });
     return;

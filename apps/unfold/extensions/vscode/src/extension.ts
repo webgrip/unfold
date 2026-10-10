@@ -1138,7 +1138,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.assertTarget(target, generation);
     const result = await target.recover(id, action);
     await this.refresh();
-    if (action === 'deliver') { void vscode.window.showInformationMessage('Delivered. The change is captured and Ploeg opens the pull request for your review; nothing was merged.'); return; }
+    if (action === 'deliver') { void vscode.window.showInformationMessage('Finished. The change is ready for your review: accept or reject it. Nothing was pushed or merged.'); return; }
     const next = await vscode.window.showInformationMessage(`A new session “${result.title}” is ready with the same brief. It has not started.`, 'Open new session');
     if (next === 'Open new session') await this.open(result.id);
   }
