@@ -1,3 +1,18 @@
+## [unfold-v0.4.0-rc.55](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.54...unfold-v0.4.0-rc.55) (2026-10-10)
+
+### Added
+
+* **unfold:** end Agents window turns with the outcome and answer messages no crew reads ([ed25f96](https://forgejo.webgrip.dev/webgrip/unfold/commit/ed25f9611f5ccec7d8d4f35c63708a554090ae1f))
+* **unfold:** read a session and its Work Item through one progress statechart ([a77a905](https://forgejo.webgrip.dev/webgrip/unfold/commit/a77a905b5a27108a24eb7e608d683486973ce1aa))
+* **unfold:** read recovery, halted Runs and Ploeg's stale Runs through the progress statechart ([76c5d6a](https://forgejo.webgrip.dev/webgrip/unfold/commit/76c5d6af68b549b6518da51b7959771a0225f586))
+* **vscode:** deliver or run again from the Work Item panel through the recovery API ([7e52e50](https://forgejo.webgrip.dev/webgrip/unfold/commit/7e52e50e0ece46d591c0ff742bbe24c103a132ab))
+* **vscode:** show what a session is doing in the Work Item panel, Now and the status bar ([922896e](https://forgejo.webgrip.dev/webgrip/unfold/commit/922896eb63c272f9560887fa9dbce362bc8aea6c))
+
+### Docs
+
+* **unfold:** record the landed recovery interface and the review outcomes in the progress design ([568059b](https://forgejo.webgrip.dev/webgrip/unfold/commit/568059b09a17a365f1a6765b766ab439acfa0e1e))
+* **unfold:** record the progress view design, its states, evidence and review ([7baa209](https://forgejo.webgrip.dev/webgrip/unfold/commit/7baa20986aee99d1184a89c1d693633c803e05c9))
+
 ## [unfold-v0.4.0-rc.54](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.53...unfold-v0.4.0-rc.54) (2026-10-10)
 
 ### Added
