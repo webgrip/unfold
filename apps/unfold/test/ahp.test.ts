@@ -61,7 +61,8 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   assert.equal(typeof complete.params.serverSeq, 'number');
   const parts = alice.inbox.filter(message => action(message, realChat, 'chat/responsePart')).map(message => message.params.action.part);
   assert.ok(parts.some(part => part.kind === 'systemNotification' && /started/.test(part.content)));
-  assert.ok(parts.some(part => part.kind === 'markdown' && /completed/.test(part.content)));
+  assert.ok(parts.some(part => part.kind === 'markdown' && /\*\* (finished|approved)\./.test(part.content)), 'each finished Run says what it did');
+  assert.ok(parts.some(part => part.kind === 'markdown' && /^\*\*Ready for your review\*\* · /.test(part.content)), 'the turn ends with the outcome and the next step');
   assert.ok(alice.inbox.some(message => action(message, realSession, 'session/chatUpdated')));
 
   const bob = connect(`${address}/?tkn=${issued.body.token}`);

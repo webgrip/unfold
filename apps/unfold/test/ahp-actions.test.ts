@@ -59,7 +59,7 @@ test('every accepted client action is echoed with its origin in server order, an
   assert.equal(steered.params.rejectionReason, undefined);
   assert.equal(steered.params.action.turnId, 'steer-turn', 'a turn started during a Run keeps the client\'s id');
   assert.equal(steered.params.action.message.text, steer);
-  await vscode.until(message => action(message, chat, 'chat/responsePart') && message.params.action.turnId === 'steer-turn' && /next execution/.test(message.params.action.part.content));
+  await vscode.until(message => action(message, chat, 'chat/responsePart') && message.params.action.turnId === 'steer-turn' && /next Run/.test(message.params.action.part.content));
   assert.equal(vscode.inbox.filter(message => action(message, chat, 'chat/turnStarted') && message.params.action.message.text === steer).length, 1, 'the instruction opens one turn, not a second one under a host id');
 
   vscode.notify('dispatchAction', { channel: chat, clientSeq: 5, action: { type: 'chat/pendingMessageSet', kind: 'steering', id: 'pending-1', message: { text: 'Also cover a negative amount.', origin: { kind: 'user' } } } });

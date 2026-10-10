@@ -8,6 +8,7 @@ import { placements } from '../config.ts';
 import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile } from '../candidates.ts';
 import type { AppConfig, Event, PermissionRequest, Repository, Session, User, WorkspaceBackend } from '../types.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
+import { outcomeMarkdown, sessionProgress, stopReason } from '../../public/core/progress.js';
 
 /** The AHP compatibility baseline this host implements. It accepts any offered version in `>=0.9.0 <0.10.0`. */
 export const protocolVersion = '0.9.0';
@@ -72,7 +73,7 @@ type View = Pick<Client, 'user' | 'scheme'>;
 type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
 type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
-type Projection = { turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json> };
+type Projection = { finalStop?: number; turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json> };
 type PendingSession = { id: string; uri: string; config: Json; user: User; createdAt: string; starting?: boolean };
 type CandidateView = { files: CandidateFile[]; counts: Map<string, { added: number; removed: number }> };
 
@@ -168,14 +169,26 @@ function sessionStatus(session: Session): number {
   if (session.status === 'failed') return statusBits.error;
   return statusBits.idle;
 }
-/** What a session is doing, or for a failed session why it failed, as VS Code shows it under the session's title. */
+/** What a session is doing, or why it stopped or failed, as VS Code shows it under the session's title. A finished session shows none, as VS Code's own host does. */
 export function activity(session: Session): string | undefined {
-  const run = session.runs.find(item => ['running', 'waiting_input'].includes(item.status));
+  const active = ['running', 'waiting_input', 'exporting'].includes(session.status);
+  const run = active ? session.runs.find(item => ['running', 'waiting_input'].includes(item.status)) : undefined;
   if (run) return `${run.roleName}${session.status === 'waiting_input' ? ' is waiting for your decision' : ' is working'}`;
   if (session.status === 'exporting') return 'Capturing the candidate';
   if (session.status === 'failed') { const reason = (session.failure?.message ?? session.blocker)?.trim(); return reason ? `Failed: ${reason}` : undefined; }
+  if (session.status === 'interrupted' || session.status === 'paused') return sessionProgress(session).short;
   return undefined;
 }
+
+/** Whether no crew will read a message sent into this session: it ended, or Ploeg holds its stopped execution. */
+export function closedToMessages(session: Session): boolean {
+  if (['completed', 'cancelled', 'failed'].includes(session.status)) return true;
+  return session.status === 'interrupted' && Boolean(stopReason(session, [])?.retained);
+}
+
+const verdictWords: Record<string, string> = { approve: 'approved', request_changes: 'requested changes', inconclusive: 'gave no clear verdict' };
+const finalStopTypes = new Set(['session.completed', 'session.failed', 'session.cancelled', 'session.paused', 'session.interrupted', 'execution.authority_lost', 'execution.reconciliation_required', 'execution.reconciliation_pending']);
+const lowerFirst = (value: string) => value ? value[0].toLowerCase() + value.slice(1) : value;
 const digest = (token: string) => createHash('sha256').update(token).digest('hex');
 /** The identifier of a connection token: the SHA-256 digest the workbench stores instead of the token. */
 export const agentHostTokenId = digest;
@@ -453,10 +466,19 @@ export class AgentHost {
     return [{ label: 'Candidate', uriTemplate: this.changesetUri(session), description: repository ? `Changes against ${repository.baseBranch} of ${repository.name}` : 'Reviewable change', changeKind: 'session', capabilities: { review: {} } }];
   }
 
+  /** The session `_meta` VS Code reads: Unfold's own facts, and an input block with the reason when no crew will read a message. */
+  private sessionMeta(session: Session, view: View): Json {
+    const own = this.summary(session, view)._meta;
+    if (!closedToMessages(session)) return own;
+    const progress = sessionProgress(session, { events: this.store.events(session.id) });
+    const message = `${progress.meta.label}: ${progress.headline}. No crew will read a message here. ${progress.next}`.trim();
+    return { ...own, 'vscode.chatInputState': { [this.chatUri(session, view)]: { kind: 'blocked', error: { errorType: 'UnfoldSessionClosed', message } } } };
+  }
+
   sessionState(session: Session, view: View): Json {
     const changesets = this.changesets(session);
     return {
-      ...this.summary(session, view), lifecycle: 'ready', activeClients: this.activeClientsOf(this.publicId(session.id)),
+      ...this.summary(session, view), _meta: this.sessionMeta(session, view), lifecycle: 'ready', activeClients: this.activeClientsOf(this.publicId(session.id)),
       chats: [this.chatSummary(session, view)], defaultChat: this.chatUri(session, view),
       config: { schema: this.configSchema(), values: { repository: session.repositoryId, crew: session.crewId, budgetUsd: session.budgetUsd, title: session.title, ...(session.placement ? { placement: session.placement } : {}) } },
       ...(changesets ? { changesets } : {}),
@@ -568,7 +590,9 @@ export class AgentHost {
       projection = { turns: [], parts: new Map(), toolCalls: new Map(), openTools: new Map(), cursor: 0, turnCounter: 0, origins: new Map(), answers: new Map() };
       this.projections.set(session.id, projection);
       this.openTurn(projection, session, session.objective, session.createdAt, this.store.getSecret<string>(`ahp-turn:${session.id}`));
-      for (const event of this.store.events(session.id)) this.reduce(projection, session, event);
+      const events = this.store.events(session.id);
+      projection.finalStop = events.findLast(event => finalStopTypes.has(event.type))?.id;
+      for (const event of events) this.reduce(projection, session, event);
       this.settle(projection, session);
     }
     return projection;
@@ -609,14 +633,36 @@ export class AgentHost {
 
   private settle(projection: Projection, session: Session): Json[] {
     if (!projection.activeTurn) return [];
-    if (['completed'].includes(session.status)) return this.closeTurn(projection, 'complete', session.updatedAt);
-    if (['cancelled'].includes(session.status)) return this.closeTurn(projection, 'cancelled', session.updatedAt);
-    if (['failed'].includes(session.status)) return this.closeTurn(projection, 'error', session.updatedAt, { errorType: session.failure?.category ?? 'failed', message: session.failure?.message ?? session.blocker ?? 'The session failed' });
-    if (['paused', 'interrupted'].includes(session.status)) {
-      const actions = this.addPart(projection, { kind: 'systemNotification', content: session.blocker ?? (session.status === 'paused' ? 'Paused by the operator. Resume to continue.' : 'Interrupted; resume explicitly.') });
-      return [...actions, ...this.closeTurn(projection, 'complete', session.updatedAt)];
-    }
+    if (['completed'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'complete', session.updatedAt)];
+    if (['cancelled'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'cancelled', session.updatedAt)];
+    if (['failed'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'error', session.updatedAt, { errorType: session.failure?.category ?? 'failed', message: session.failure?.message ?? session.blocker ?? 'The session failed' })];
+    if (['paused', 'interrupted'].includes(session.status)) return [...this.outcome(projection, session), ...this.closeTurn(projection, 'complete', session.updatedAt)];
     return [];
+  }
+
+  /** The address of the session's page in the browser, when the workbench knows its public address. */
+  private sessionPage(session: Session): string {
+    return this.config.baseUrl ? `${this.config.baseUrl.replace(/\/+$/, '')}/#session/${encodeURIComponent(session.id)}` : '';
+  }
+
+  /** One Markdown part that ends a turn with the outcome: what happened, the change, spend, why it stopped and what to do next. Added once per turn. */
+  private outcome(projection: Projection, session: Session): Json[] {
+    const turn = projection.activeTurn;
+    if (!turn || turn.outcome) return [];
+    turn.outcome = true;
+    const progress = sessionProgress(session, { events: this.store.events(session.id) });
+    return this.addPart(projection, { kind: 'markdown', id: `${turn.id}-outcome`, content: outcomeMarkdown(progress, { sessionUrl: this.sessionPage(session) }) });
+  }
+
+  /** What a person reads after sending an instruction: when a Run will read it, or that no crew will and what to do instead. */
+  private instructionNotice(projection: Projection, session: Session, event: Event): string {
+    const afterFinalStop = projection.finalStop !== undefined && event.id > projection.finalStop;
+    if (afterFinalStop && closedToMessages(session)) {
+      const progress = sessionProgress(session);
+      return `No crew will read this message: ${lowerFirst(progress.reason?.sentence ?? `the session is ${progress.meta.label.toLowerCase()}.`)} ${progress.actions.length ? `Instead: ${progress.actions.filter(action => !['open-session', 'cancel'].includes(action.id)).map(action => action.label).join(', ') || 'start a new session'}, from VS Code's Work Item view or the session page.` : 'Start a new session to try again.'}`;
+    }
+    if (['queued', 'paused', 'interrupted'].includes(session.status)) return 'Instruction saved. The crew reads it when the session starts or resumes.';
+    return 'Instruction saved for the next Run. Pause and resume to apply it to the Run that is working now.';
   }
 
   private openInputs(projection: Projection): Json[] {
@@ -661,14 +707,14 @@ export class AgentHost {
     switch (event.type) {
       case 'session.started': { ensureTurn(); actions.push(...this.addPart(projection, { kind: 'systemNotification', content: data.resumed ? 'Session resumed by the operator.' : 'Session started.' })); break; }
       case 'workspace.ready': { ensureTurn(); actions.push(...this.addPart(projection, { kind: 'systemNotification', content: `Workspace ready (${data.backend}, ${data.isolation}).` })); break; }
-      case 'run.started': { ensureTurn(); actions.push(...this.addPart(projection, { kind: 'systemNotification', content: `${data.role} started (${data.mode === 'read' ? 'read-only' : 'writer'}).` })); break; }
+      case 'run.started': { ensureTurn(); actions.push(...this.addPart(projection, { kind: 'systemNotification', content: `${data.role} started · ${data.mode === 'read' ? 'reads the change and gives a verdict' : 'writes the change'}` })); break; }
       case 'message': {
         if (data.role === 'operator' && typeof data.text === 'string') {
           const waiting = this.openInputs(projection);
           actions.push(...this.closeTurn(projection, 'complete', event.at));
           actions.push(...this.openTurn(projection, session, data.text, event.at, data.turnId));
           for (const part of waiting) actions.push(...this.raiseInput(projection, session, part, event.at));
-          actions.push(...this.addPart(projection, { kind: 'systemNotification', content: 'Instruction saved. It applies to the next execution; pause and resume to apply it now.' }));
+          actions.push(...this.addPart(projection, { kind: 'systemNotification', content: this.instructionNotice(projection, session, event) }));
           if (!['running', 'waiting_input', 'exporting'].includes(session.status)) actions.push(...this.closeTurn(projection, 'complete', event.at));
           break;
         }
@@ -752,19 +798,22 @@ export class AgentHost {
       }
       case 'run.finished': {
         const turn = ensureTurn();
-        const text = [`**${session.runs.find(run => run.id === event.runId)?.roleName ?? 'Role'}** ${data.status === 'completed' ? 'completed' : 'ended'}${data.verdict ? ` with verdict \`${data.verdict}\`` : ''}.`, data.summary ? String(data.summary) : ''].filter(Boolean).join('\n\n');
+        const role = session.runs.find(run => run.id === event.runId)?.roleName ?? 'Role';
+        const verdict = typeof data.verdict === 'string' ? verdictWords[data.verdict] ?? data.verdict : '';
+        const text = [`**${role}** ${data.status === 'completed' ? verdict || 'finished' : `stopped (${String(data.status ?? 'ended').replaceAll('_', ' ')})`}.`, data.summary ? String(data.summary) : ''].filter(Boolean).join('\n\n');
         const partId = `${turn.id}-part-${turn.responseParts.length + 1}`;
         actions.push(...this.addPart(projection, { kind: 'markdown', id: partId, content: text }));
         break;
       }
       case 'candidate.ready': { const turn = projection.activeTurn; if (turn) actions.push(...this.addPart(projection, { kind: 'systemNotification', content: 'A reviewable candidate has been captured.' })); break; }
-      case 'session.completed': actions.push(...this.closeTurn(projection, 'complete', event.at)); break;
-      case 'session.cancelled': actions.push(...this.closeTurn(projection, 'cancelled', event.at)); break;
-      case 'session.failed': actions.push(...this.closeTurn(projection, 'error', event.at, { errorType: String(data.code ?? 'failed'), message: String(data.message ?? 'The session failed') })); break;
+      case 'session.completed': actions.push(...this.finalOutcome(projection, session, event), ...this.closeTurn(projection, 'complete', event.at)); break;
+      case 'session.cancelled': actions.push(...this.finalOutcome(projection, session, event), ...this.closeTurn(projection, 'cancelled', event.at)); break;
+      case 'session.failed': actions.push(...this.finalOutcome(projection, session, event), ...this.closeTurn(projection, 'error', event.at, { errorType: String(data.code ?? 'failed'), message: String(data.message ?? 'The session failed') })); break;
       case 'session.paused': case 'session.interrupted': {
         const cancelled = event.type === 'session.paused' && projection.origins.has('cancel');
         if (projection.activeTurn) {
-          actions.push(...this.addPart(projection, { kind: 'systemNotification', content: String(data.message ?? 'Execution paused.') }));
+          const outcome = this.finalOutcome(projection, session, event);
+          actions.push(...(outcome.length ? outcome : this.addPart(projection, { kind: 'systemNotification', content: String(data.message ?? 'Execution paused.') })));
           const closed = this.closeTurn(projection, cancelled ? 'cancelled' : 'complete', event.at);
           actions.push(...(cancelled ? closed.map(action => this.tag(projection, action, 'cancel')) : closed));
         }
@@ -774,6 +823,12 @@ export class AgentHost {
       default: break;
     }
     return actions;
+  }
+
+  /** The outcome part, when `event` is the session's last stop and the session has not run since. */
+  private finalOutcome(projection: Projection, session: Session, event: Event): Json[] {
+    if (event.id !== projection.finalStop || ['running', 'waiting_input', 'exporting', 'queued'].includes(session.status)) return [];
+    return this.outcome(projection, session);
   }
 
   private async poll(): Promise<void> {
@@ -788,7 +843,10 @@ export class AgentHost {
         const publicId = this.publicId(id);
         const chat = chatChannel(publicId);
         const channel = sessionChannel(publicId);
-        const fresh = [...this.store.events(id, projection.cursor).flatMap(event => this.reduce(projection, session, event)), ...this.settle(projection, session)];
+        const arriving = this.store.events(id, projection.cursor);
+        const stop = arriving.findLast(event => finalStopTypes.has(event.type));
+        if (stop) projection.finalStop = stop.id;
+        const fresh = [...arriving.flatMap(event => this.reduce(projection, session, event)), ...this.settle(projection, session)];
         for (const action of fresh) this.broadcast(chat, action, actionOrigins.get(action));
         const unread = fresh.some(action => action.type === 'chat/turnStarted' || action.type === 'chat/inputRequested' || (action.type === 'chat/toolCallReady' && action.confirmationTitle !== undefined));
         const cleared = unread ? this.store.clearAgentHostFlags(publicId, statusBits.isRead, new Date().toISOString()) : [];
@@ -803,6 +861,7 @@ export class AgentHost {
           this.broadcast(channel, { type: 'session/activityChanged', activity: current });
           this.broadcast(chat, { type: 'chat/activityChanged', ...(current ? { activity: current } : {}) });
         }
+        if (closedToMessages(session) !== JSON.parse(previous)[7]) this.broadcast(channel, viewer => ({ type: 'session/metaChanged', _meta: this.sessionMeta(session, viewer) }));
         this.broadcast(channel, viewer => ({ type: 'session/chatUpdated', chat: this.chatUri(session, viewer), changes: { title: session.title, status: status | this.viewOf(viewer, publicId).chat, activity: activity(session) ?? null, modifiedAt: session.updatedAt } }));
         const changesets = this.changesets(session);
         this.broadcast(channel, { type: 'session/changesetsChanged', changesets });
@@ -897,7 +956,7 @@ export class AgentHost {
   }
 
   private fingerprint(session: Session): string {
-    return JSON.stringify([sessionStatus(session), activity(session), session.title, session.candidate?.status, this.openRequests(session).map(item => item.id), session.artifacts.length, session.review?.decision]);
+    return JSON.stringify([sessionStatus(session), activity(session), session.title, session.candidate?.status, this.openRequests(session).map(item => item.id), session.artifacts.length, session.review?.decision, closedToMessages(session)]);
   }
 
   private async subscribe(client: Client, channel: string): Promise<Json> {
