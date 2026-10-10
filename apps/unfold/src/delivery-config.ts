@@ -1,17 +1,26 @@
 import { isAbsolute, resolve } from 'node:path';
+import { isIP } from 'node:net';
 import { createHash } from 'node:crypto';
 import type { AppConfig } from './types.ts';
 
 export type DeliveryCheck = { id: string; argv: string[]; stdout: string; exitCode: number };
 export type DeliveryPolicy = { repositoryId: string; approvedBaseSha: string; approvedBaseBundle: string; image: string; directory: string; files: Record<string, string>; protectedPaths: string[]; checks: DeliveryCheck[]; timeoutMs: number };
 export type ForgejoPublisherConfig = { kind: 'forgejo'; apiUrl: string; tokenEnv: string; username?: string };
-export type DeliveryConfig = { verifierTokenEnv: string; socketPath?: string; policies: DeliveryPolicy[]; publisher?: ForgejoPublisherConfig };
+export type VerifierResources = { requests: { cpu: string; memory: string }; limits: { cpu: string; memory: string } };
+export type KubernetesVerifierConfig = { kind: 'kubernetes'; namespace: string; runtimeClassName: string; image: string; resources: VerifierResources; timeoutSeconds: number; networkProbe?: { host: string; port: number }; nodeSelector?: Record<string, string>; affinity?: Record<string, unknown>; tolerations?: Record<string, unknown>[]; imagePullSecrets?: string[] };
+export type VerifierConfig = { kind: 'docker' } | KubernetesVerifierConfig;
+export type DeliveryConfig = { verifierTokenEnv: string; socketPath?: string; policies: DeliveryPolicy[]; publisher?: ForgejoPublisherConfig; verifier?: VerifierConfig };
+export const defaultVerifierResources: VerifierResources = { requests: { cpu: '100m', memory: '128Mi' }, limits: { cpu: '1', memory: '512Mi' } };
 export const digest = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
 export const policyDigest = (policy: DeliveryPolicy): string => digest(JSON.stringify({ version: 1, repositoryId: policy.repositoryId, approvedBaseSha: policy.approvedBaseSha, image: policy.image, files: Object.fromEntries(Object.entries(policy.files).sort(([a], [b]) => a.localeCompare(b))), protectedPaths: [...policy.protectedPaths].sort(), checks: policy.checks, timeoutMs: policy.timeoutMs }));
 const object = (value: any): boolean => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 export const deliveryPath = (value: string): boolean => typeof value === 'string' && value.length > 0 && value.length < 1024 && !isAbsolute(value) && !/[\\\x00-\x1f\x7f]/.test(value) && value.split('/').every(part => part && part !== '.' && part !== '..' && part.toLowerCase() !== '.git');
 const invalid = (): never => { throw new Error('delivery requires a scoped verifier credential and pinned, nonempty verification policies.'); };
 const invalidPublisher = (): never => { throw new Error('delivery.publisher requires kind forgejo, an https apiUrl without credentials, a tokenEnv no agent workspace, Ploeg consumer or verifier shares, an optional Forgejo username, and https delivery repositories.'); };
+const invalidVerifier = (): never => { throw new Error('delivery.verifier requires kind docker, or kind kubernetes with a namespace, a runtimeClassName, a digest-pinned helper image, digest-pinned policy images, bounded resources, a timeoutSeconds that outlasts every check by 30 seconds and an IP networkProbe.'); };
+const pinnedImage = (value: unknown): boolean => typeof value === 'string' && /^[a-zA-Z0-9._:/-]+@sha256:[a-f0-9]{64}$/.test(value);
+const dnsLabel = (value: unknown): boolean => typeof value === 'string' && /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
+const quantity = (value: unknown): boolean => typeof value === 'string' && /^[0-9]+(\.[0-9]+)?(m|k|M|G|Ki|Mi|Gi)?$/.test(value);
 const environmentName = (value: unknown): boolean => typeof value === 'string' && /^[A-Z][A-Z0-9_]{2,100}$/.test(value);
 
 function validatePublisher(raw: any, config: AppConfig, verifierTokenEnv: string, policies: DeliveryPolicy[]): ForgejoPublisherConfig | undefined {
@@ -27,9 +36,26 @@ function validatePublisher(raw: any, config: AppConfig, verifierTokenEnv: string
   return { kind: 'forgejo', apiUrl: api.toString().replace(/\/+$/, ''), tokenEnv: raw.tokenEnv, username: raw.username ?? 'unfold-publisher' };
 }
 
+function validateVerifier(raw: any, policies: DeliveryPolicy[]): VerifierConfig | undefined {
+  if (raw === undefined) return undefined;
+  if (!object(raw) || !['docker', 'kubernetes'].includes(raw.kind)) invalidVerifier();
+  if (raw.kind === 'docker') return Object.keys(raw).length === 1 ? { kind: 'docker' } : invalidVerifier();
+  const keys = ['kind', 'namespace', 'runtimeClassName', 'image', 'resources', 'timeoutSeconds', 'networkProbe', 'nodeSelector', 'affinity', 'tolerations', 'imagePullSecrets'];
+  const resources = raw.resources ?? defaultVerifierResources;
+  const timeoutSeconds = raw.timeoutSeconds ?? 300;
+  const probe = raw.networkProbe;
+  if (Object.keys(raw).some(key => !keys.includes(key)) || !dnsLabel(raw.namespace) || !dnsLabel(raw.runtimeClassName ?? 'kata') || !pinnedImage(raw.image) || policies.some(policy => !pinnedImage(policy.image))) invalidVerifier();
+  if (!object(resources) || Object.keys(resources).some(key => !['requests', 'limits'].includes(key)) || ['requests', 'limits'].some(group => !object(resources[group]) || Object.keys(resources[group]).some(key => !['cpu', 'memory'].includes(key)) || !quantity(resources[group].cpu) || !quantity(resources[group].memory))) invalidVerifier();
+  if (!Number.isSafeInteger(timeoutSeconds) || timeoutSeconds > 3600 || policies.some(policy => timeoutSeconds * 1000 < policy.timeoutMs + 30000)) invalidVerifier();
+  if (probe !== undefined && (!object(probe) || Object.keys(probe).some(key => !['host', 'port'].includes(key)) || !isIP(String(probe.host)) || !Number.isInteger(probe.port) || probe.port < 1 || probe.port > 65535)) invalidVerifier();
+  if (raw.nodeSelector !== undefined && (!object(raw.nodeSelector) || Object.values(raw.nodeSelector).some(value => typeof value !== 'string'))) invalidVerifier();
+  if ((raw.affinity !== undefined && !object(raw.affinity)) || (raw.tolerations !== undefined && (!Array.isArray(raw.tolerations) || !raw.tolerations.every(object))) || (raw.imagePullSecrets !== undefined && (!Array.isArray(raw.imagePullSecrets) || !raw.imagePullSecrets.every((name: unknown) => typeof name === 'string' && /^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/.test(name))))) invalidVerifier();
+  return { kind: 'kubernetes', namespace: raw.namespace, runtimeClassName: raw.runtimeClassName ?? 'kata', image: raw.image, resources: { requests: { ...resources.requests }, limits: { ...resources.limits } }, timeoutSeconds, ...(probe ? { networkProbe: { host: probe.host, port: probe.port } } : {}), ...(raw.nodeSelector && Object.keys(raw.nodeSelector).length ? { nodeSelector: raw.nodeSelector } : {}), ...(raw.affinity && Object.keys(raw.affinity).length ? { affinity: raw.affinity } : {}), ...(raw.tolerations?.length ? { tolerations: raw.tolerations } : {}), ...(raw.imagePullSecrets?.length ? { imagePullSecrets: raw.imagePullSecrets } : {}) };
+}
+
 export function validateDeliveryConfig(raw: any, config: AppConfig): DeliveryConfig | undefined {
   if (raw === undefined) return undefined;
-  if (!config.execution || !object(raw) || Object.keys(raw).some(key => !['verifierTokenEnv', 'socketPath', 'policies', 'publisher'].includes(key)) || !/^[A-Z][A-Z0-9_]{2,100}$/.test(raw.verifierTokenEnv ?? '') || raw.verifierTokenEnv === config.ploeg?.tokenEnv || config.runtime.agentEnvironment?.includes(raw.verifierTokenEnv) || !Array.isArray(raw.policies) || !raw.policies.length || raw.policies.length > 100) invalid();
+  if (!config.execution || !object(raw) || Object.keys(raw).some(key => !['verifierTokenEnv', 'socketPath', 'policies', 'publisher', 'verifier'].includes(key)) || !/^[A-Z][A-Z0-9_]{2,100}$/.test(raw.verifierTokenEnv ?? '') || raw.verifierTokenEnv === config.ploeg?.tokenEnv || config.runtime.agentEnvironment?.includes(raw.verifierTokenEnv) || !Array.isArray(raw.policies) || !raw.policies.length || raw.policies.length > 100) invalid();
   if (raw.socketPath !== undefined && (typeof raw.socketPath !== 'string' || !isAbsolute(raw.socketPath))) invalid();
   const seen = new Set<string>();
   const policies: DeliveryPolicy[] = raw.policies.map((policy: any) => {
@@ -46,5 +72,6 @@ export function validateDeliveryConfig(raw: any, config: AppConfig): DeliveryCon
     return { ...policy, timeoutMs };
   });
   const publisher = validatePublisher(raw.publisher, config, raw.verifierTokenEnv, policies);
-  return { verifierTokenEnv: raw.verifierTokenEnv, ...(raw.socketPath ? { socketPath: raw.socketPath } : {}), policies, ...(publisher ? { publisher } : {}) };
+  const verifier = validateVerifier(raw.verifier, policies);
+  return { verifierTokenEnv: raw.verifierTokenEnv, ...(raw.socketPath ? { socketPath: raw.socketPath } : {}), policies, ...(publisher ? { publisher } : {}), ...(verifier ? { verifier } : {}) };
 }

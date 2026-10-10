@@ -1,0 +1,54 @@
+{{- if .Values.delivery.enabled }}
+{{- $v := .Values.delivery.verifier }}
+{{- if $v.createNamespace }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $v.namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "unfold.name" . }}-verifier-deny-all
+  namespace: {{ $v.namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      dev.webgrip.unfold/network: none
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "unfold.name" . }}-verifier
+  namespace: {{ $v.namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, create, delete]
+  - apiGroups: [""]
+    resources: [pods/attach, pods/exec]
+    verbs: [get, create]
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "unfold.name" . }}-verifier
+  namespace: {{ $v.namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "unfold.name" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "unfold.name" . }}-verifier
+{{- end }}

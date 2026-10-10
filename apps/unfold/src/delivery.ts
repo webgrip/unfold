@@ -4,6 +4,8 @@ import { policyDigest } from './delivery-config.ts';
 import { canonicalizeCandidate, deliveryFailure, deliveryRead, type CanonicalCandidate } from './trusted-candidate.ts';
 import { verifyCandidate, type VerificationResult } from './delivery-verifier.ts';
 import { DockerClient } from './runtime/docker.ts';
+import { KubernetesClient } from './runtime/kubernetes.ts';
+import { kubernetesVerifierPreflight, verifyCandidateInKubernetes } from './delivery-kubernetes-verifier.ts';
 import { ExecutionAuthority } from './execution-authority.ts';
 import { ForgejoPublisher, publicationBranch, publicationOperationId, pullRequestBody, pullRequestTitle, type PublicationRecord, type PullRequestEvidence } from './delivery-publisher.ts';
 
@@ -29,9 +31,10 @@ export class DeliveryService {
   private config: AppConfig;
   private store: Store;
   private publisher?: ForgejoPublisher;
+  private kubernetes: KubernetesClient;
   private queues = new Map<string, Promise<unknown>>();
-  constructor(config: AppConfig, store: Store, publisher?: ForgejoPublisher) {
-    this.config = config; this.store = store;
+  constructor(config: AppConfig, store: Store, publisher?: ForgejoPublisher, kubernetes: KubernetesClient = new KubernetesClient({})) {
+    this.config = config; this.store = store; this.kubernetes = kubernetes;
     this.publisher = publisher ?? (config.delivery?.publisher ? new ForgejoPublisher(config.delivery.publisher) : undefined);
   }
 
@@ -97,9 +100,11 @@ export class DeliveryService {
     const candidate = local.candidate;
     const admitted = await this.request(session, '/candidates', { generation: local.generation, repositoryId: candidate.repositoryId, repositoryUrl: repository.url, baseSha: candidate.baseSha, canonicalSha: candidate.canonicalSha, treeSha: candidate.treeSha, artifactSha256: candidate.artifactSha, policySha256: candidate.policySha }, true, user.id);
     if (!admitted.candidate?.id || admitted.candidate.canonicalSha !== candidate.canonicalSha || admitted.candidate.policySha256 !== candidate.policySha || admitted.candidate.generation !== local.generation) deliveryFailure('delivery_contract');
+    const verifier = this.config.delivery!.verifier;
+    if (!local.result && verifier?.kind === 'kubernetes') await kubernetesVerifierPreflight(verifier, this.kubernetes);
     if (!local.result) {
       local.phase = 'verifying'; this.store.setSecret(`delivery:${id}`, local); this.store.appendEvent(id, 'delivery.verification_started', user.id, { canonicalSha: candidate.canonicalSha, policySha256: candidate.policySha });
-      local.result = await verifyCandidate(candidate, policy!, new DockerClient(this.config.delivery!.socketPath ?? this.config.docker?.socketPath));
+      local.result = verifier?.kind === 'kubernetes' ? await verifyCandidateInKubernetes(candidate, policy!, verifier, this.kubernetes) : await verifyCandidate(candidate, policy!, new DockerClient(this.config.delivery!.socketPath ?? this.config.docker?.socketPath));
       local.phase = 'verified'; this.store.setSecret(`delivery:${id}`, local); this.store.appendEvent(id, 'delivery.verification_finished', 'verifier', { passed: local.result.passed, testCount: local.result.testCount, evidenceSha256: local.result.evidenceSha256 });
     }
     const result = local.result;

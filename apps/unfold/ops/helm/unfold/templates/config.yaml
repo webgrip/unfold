@@ -18,6 +18,28 @@
 {{- $_ := set $kube "provisioner" .Values.workspaceProvisioner -}}
 {{- if eq .Values.workspaceProvisioner "sandbox" -}}{{- $_ := set $kube "sandbox" (dict "runtimeClassName" .Values.workspaceRuntimeClassName "warmPool" .Values.workspaceWarmPool "poolTokenEnv" "UNFOLD_POOL_TOKEN") -}}{{- end -}}
 {{- $_ := set $cfg "kubernetes" $kube -}}
+{{- $d := .Values.delivery -}}
+{{- if $d.enabled -}}
+{{- if hasKey .Values.config "delivery" -}}{{- fail "Set delivery through the delivery values, not config.delivery" -}}{{- end -}}
+{{- if ne .Values.mode "live" -}}{{- fail "delivery.enabled requires mode live: the verifier drives check pods through the workbench service account" -}}{{- end -}}
+{{- if or (eq $d.inputs.mountPath "/data") (hasPrefix "/data/" $d.inputs.mountPath) -}}{{- fail "delivery.inputs.mountPath must be outside /data, the workbench storage agents write candidates into" -}}{{- end -}}
+{{- if eq $d.verifier.namespace .Release.Namespace -}}{{- fail "delivery.verifier.namespace must differ from the workbench namespace, which holds its credentials" -}}{{- end -}}
+{{- $verifier := dict "kind" "kubernetes" "namespace" $d.verifier.namespace "runtimeClassName" $d.verifier.runtimeClassName "image" (required "delivery.verifier.image must be a digest-pinned image providing a static /bin/busybox" $d.verifier.image) "resources" $d.verifier.resources "timeoutSeconds" (int $d.verifier.timeoutSeconds) -}}
+{{- with $d.verifier.networkProbe -}}{{- $_ := set $verifier "networkProbe" (dict "host" .host "port" (int .port)) -}}{{- end -}}
+{{- with $d.verifier.nodeSelector -}}{{- $_ := set $verifier "nodeSelector" . -}}{{- end -}}
+{{- with $d.verifier.affinity -}}{{- $_ := set $verifier "affinity" . -}}{{- end -}}
+{{- with $d.verifier.tolerations -}}{{- $_ := set $verifier "tolerations" . -}}{{- end -}}
+{{- with $d.verifier.imagePullSecrets -}}{{- $_ := set $verifier "imagePullSecrets" . -}}{{- end -}}
+{{- $delivery := dict "verifierTokenEnv" $d.verifierTokenEnv "policies" $d.policies "verifier" $verifier -}}
+{{- if $d.publisher.enabled -}}
+{{- $secret := required "delivery.publisher.existingSecret must name the Secret holding the publisher token" $d.publisher.existingSecret -}}
+{{- if has $secret (default (list) .Values.workspaceAgentSecrets) -}}{{- fail "workspaceAgentSecrets must not list delivery.publisher.existingSecret: it holds the publisher token" -}}{{- end -}}
+{{- $publisher := dict "kind" "forgejo" "apiUrl" (required "delivery.publisher.apiUrl is required" $d.publisher.apiUrl) "tokenEnv" $d.publisher.tokenEnv -}}
+{{- with $d.publisher.username -}}{{- $_ := set $publisher "username" . -}}{{- end -}}
+{{- $_ := set $delivery "publisher" $publisher -}}
+{{- end -}}
+{{- $_ := set $cfg "delivery" $delivery -}}
+{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
