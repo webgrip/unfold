@@ -54,7 +54,7 @@ The Unfold sidebar opens on **Now**, the same list as the browser's Now page:
 3. **Proposed**: follow-up work an agent proposed, which runs only after a person approves it.
 4. **Running**: each running session with the Role that works, its elapsed time and spend so far, and each other running Run with its Role, Round, elapsed time and the gateway's cost so far, which is not settled spend.
 
-Select a row to open its Work Item panel; the second inline icon opens it in the browser. The activity-bar badge counts what is ready for your review or needs you, each Work Item once. The status bar shows the same counts and turns amber only when something needs you. While exactly one session runs, it names the working Role with a running clock, for example **Reviewer 0:41**, and a click opens that Work Item. A Work Item that newly needs you raises a notification; with `unfold.notifications` set to `all`, so does one that newly becomes ready for review.
+Select a row to open its Work Item panel; the second inline icon opens it in the browser. The activity-bar badge counts what is ready for your review or needs you, each Work Item once. The status bar shows the same counts and turns amber only when something needs you. While exactly one session runs, it names the working Role with a running clock, for example **Reviewer 0:41**, and a click opens that Work Item. A Ploeg Work Item that newly needs you raises a notification; with `unfold.notifications.workItems` set to `all`, so does one that newly becomes ready for review. Sessions you own notify on their own, as [Notifications](#notifications) describes.
 
 **Tasks** lists your team's tracker boards. A task Ploeg holds shows its state, for example "Ready for review" or "Needs you · Budget ran out". **Work** browses each Team's lanes. **Sessions** holds supervised sessions. It appears in the demo, with shared execution, or when you have sessions, and starts collapsed.
 
@@ -116,7 +116,25 @@ Each attachment is limited to 12,000 characters and becomes a durable instructio
 
 A failed refresh keeps the last loaded sessions and tasks on screen and says the extension is reconnecting; the views switch to offline after three consecutive failures or an expired sign-in. Open panels consume the server event stream, with polling as a fallback. The footer distinguishes live, polling and disconnected states. Disconnection disables panel mutations; closing the editor does not stop remote work. **Open complete history** fetches retained events beyond the bounded panel buffer. Now refreshes at most every 15 seconds and the Work tree every 30 seconds while visible; both use snapshots rather than a lossless subscription.
 
-Notifications cover decisions, failures and results ready for review. Configure `unfold.notifications`, `unfold.liveUpdates` and the polling interval in settings. No global keyboard shortcuts are registered; the composer supports Ctrl+Enter or Cmd+Enter.
+Configure `unfold.liveUpdates` and the polling interval in settings. No global keyboard shortcuts are registered; the composer supports Ctrl+Enter or Cmd+Enter.
+
+## Notifications
+
+When a session you own needs you, the extension shows one VS Code notification with the action that fits. The wording and the action come from the same progress states the browser and the Agents window read ([`public/core/progress.js`](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/public/core/progress.js)).
+
+| The session | Notification | Primary action |
+| --- | --- | --- |
+| asks a question or asks permission | warning naming the request | **Answer** opens the request in the session panel |
+| has a result ready for your review | information with the change size | **Review** opens the change |
+| stopped, and the server offers delivery | warning with what was achieved and why it stopped | **Deliver**, after the same confirmation as in the panel |
+| stopped, and the server offers to resume or run again | warning | **Open** |
+| failed | warning with the failing stage | **Open** |
+
+Each state change notifies once. A poll that finds the same state again is silent; a session that leaves a state and returns to it, or asks a new question, notifies again. What already waits when you connect does not notify; the badge and the status bar show it. Sessions other people own, and every session in the demo, never notify. A Work Item that one of your sessions drives notifies once, as the session.
+
+The extension reads the session list on every refresh. An open session panel also forwards its live event stream, so a question, stop or result there refreshes within a second instead of at the next poll. With every Unfold view closed, the extension still checks every 30 seconds while `unfold.notifications.needsYou` is on. Turn that setting off to stop these notifications; `unfold.notifications.workItems` covers Ploeg Work Items on Now. An older `unfold.notifications` value moves to `unfold.notifications.workItems` on activation, and `none` also turns `unfold.notifications.needsYou` off.
+
+**While the window is in the background.** VS Code 1.141 shows an extension's notifications inside the window only. It sends no operating-system notification and does not flash the taskbar or bounce the Dock for them, and the extension API has no call that does. A notification that arrives while the window is unfocused stays until you return, because its hide timer starts only once the window has focus again ([`notificationsToasts.ts:381-415`](https://github.com/microsoft/vscode/blob/1.141.0/src/vs/workbench/browser/parts/notifications/notificationsToasts.ts#L381-L415)). VS Code 1.141 raises operating-system notifications only for its own chat and Agents window sessions, under `chat.notifyWindowOnConfirmation` and `chat.notifyWindowOnResponseReceived`, both `windowNotFocused` by default ([`chatWindowNotifier.ts:120-175`](https://github.com/microsoft/vscode/blob/1.141.0/src/vs/workbench/contrib/chat/browser/chatWindowNotifier.ts#L120-L175), [`sessionsWindowNotifier.ts:97-150`](https://github.com/microsoft/vscode/blob/1.141.0/src/vs/sessions/contrib/sessions/browser/sessionsWindowNotifier.ts#L97-L150)). Those notifications cover sessions that VS Code itself shows, so they can also cover an Unfold session opened in the Agents window; they do not cover this extension's notifications. For an operating-system notification outside VS Code, keep an Unfold browser tab open with desktop notifications turned on in Preferences.
 
 Cookies remain in the extension host. The webview receives public session data through a narrow message protocol, never login secrets, inference keys or Kubernetes credentials. Its scripts and styles are packaged locally; the content security policy blocks network connections and remote code. The server origin is application-scoped, so workspace settings cannot redirect it. There is no cross-origin credential forwarding or disabled certificate verification.
 

@@ -340,9 +340,9 @@ export class CandidateReview {
     return undefined;
   }
 
-  /** The Agent Merge state VS Code reads from the session's configuration: enabled once the candidate is accepted. */
-  configValues(session: Session): Json {
-    return session.review?.decision === 'accepted' ? { agentMerge: { enabled: true } } : {};
+  /** A started session's configuration with the Agent Merge state VS Code reads from its values: enabled once the candidate is accepted. */
+  withConfigValues(session: Session, config: Json): Json {
+    return session.review?.decision === 'accepted' ? { ...config, values: { ...config.values, agentMerge: { enabled: true } } } : config;
   }
 
   /** The branch facts VS Code reads from `_meta.git`: the candidate's branch and the base it is compared with. Nothing about a local checkout. */
