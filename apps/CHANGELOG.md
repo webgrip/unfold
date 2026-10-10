@@ -1,3 +1,24 @@
+## [unfold-v0.4.0-rc.60](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.59...unfold-v0.4.0-rc.60) (2026-10-10)
+
+### Added
+
+* **unfold:** admit Asks through Ploeg and show the Team's allowance ([135027e](https://forgejo.webgrip.dev/webgrip/unfold/commit/135027e221219252e3b90372617581f400ec8443))
+* **unfold:** answer Asks from the brief, stored apart from Session events ([ca6a626](https://forgejo.webgrip.dev/webgrip/unfold/commit/ca6a626b7af266cb89d8be424d7fadc9e55a3863))
+* **unfold:** ask about a Work Item from its page ([fb818e5](https://forgejo.webgrip.dev/webgrip/unfold/commit/fb818e5ba3c3b7be48f5020baac2e3e6f6cb19d1))
+* **unfold:** build the Client-safe Work Item Brief ([fe8fd3e](https://forgejo.webgrip.dev/webgrip/unfold/commit/fe8fd3efbb4818168e604741e7c27b6a318d615b))
+* **unfold:** list your recent questions on Now ([772e1b5](https://forgejo.webgrip.dev/webgrip/unfold/commit/772e1b52bbe89dab398ec3c93f1e4c40c32ac60d))
+* **unfold:** point from steering to Ask on a session's Work Item ([817a179](https://forgejo.webgrip.dev/webgrip/unfold/commit/817a1790ce0051bc566c5d67da3ac41a5b6c8c0e))
+* **vscode:** read a session's Work Item as one decision ([5cb624f](https://forgejo.webgrip.dev/webgrip/unfold/commit/5cb624f5335f51c9d7cb9293f6f753f2921ea399))
+
+### Fixed
+
+* **unfold:** close the Work Item stage rules so later styles apply again ([4b691a7](https://forgejo.webgrip.dev/webgrip/unfold/commit/4b691a7298d92f382c357dffed3a6d5cd6b708fa))
+* **unfold:** let the hosted replay answer the Ask lists ([8a7773f](https://forgejo.webgrip.dev/webgrip/unfold/commit/8a7773f2cd42cb37084e004ccd55a0b3ca6b9794))
+
+### Docs
+
+* **unfold:** name Ploeg's Ask decision ADR-0082 ([90feb58](https://forgejo.webgrip.dev/webgrip/unfold/commit/90feb5831fc0f3d05e3d12803ba3fdca6a3eb699))
+
 ## [unfold-v0.4.0-rc.59](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.58...unfold-v0.4.0-rc.59) (2026-10-10)
 
 ### Fixed
