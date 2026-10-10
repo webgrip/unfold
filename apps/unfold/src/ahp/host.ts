@@ -21,6 +21,7 @@ import { resumable, resumeRefusal, runAgainReply, turnResumedEvent } from './try
 import { knownSecrets, plainRedactedText, withoutKnownSecrets } from '../redaction.ts';
 import { CommandLog, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel } from './terminals.ts';
 import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBaseline, sessionChatCatalog, speaksCatalog, supportedVersions } from './versions.ts';
+import { ChatAsks, askMarkdown, commandCompletions, messageIntent, type ChatAskEntry, type ChatAskService } from './asks.ts';
 import { candidateEdits, carryRuns, parseRunChannel, runChatState, runChats, runFinished, runMessage, runRoute, runStarted, runTool, runTranscripts, stopRuns, toolActions, type RunTranscripts, type Spelling } from './runs.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
@@ -124,9 +125,10 @@ function asRpcError(error: unknown): RpcError {
 /** The events by which the host records a choice it offered in a chat, the person's answer and what came of it. */
 export const choiceEvents = { offered: 'choice.offered', answered: 'choice.answered', reported: 'choice.reported' } as const;
 /** The options a host choice can offer. Each maps to one call of the recovery API, under the same owner checks. */
-export type ChoiceOptionId = 'run_again_start' | 'run_again' | 'deliver' | 'resume' | 'dismiss';
+export type ChoiceOptionId = 'run_again_start' | 'run_again' | 'deliver' | 'resume' | 'ask' | 'steer' | 'dismiss';
 type ChoiceOption = { id: ChoiceOptionId; label: string };
 const dismissReply = 'Nothing changed. This session stays as it is.';
+const reasonOf = (error: unknown) => error instanceof Error && error.message ? error.message : 'the Ask service did not answer.';
 const clockUtc = (at: string) => { const moment = new Date(at); return Number.isFinite(moment.getTime()) ? `${moment.toISOString().slice(11, 16)} UTC` : 'an unknown time'; };
 
 /** A host choice as an AHP input request: one single-select question whose options VS Code 1.141 shows by label only, so each option's meaning is in the question's message. */
@@ -249,6 +251,7 @@ export class AgentHost {
   private closed = false;
 
   private readonly review: CandidateReview;
+  private readonly chatAsks: ChatAsks;
   /** Ploeg's tracker routes as a read-only automation catalogue. */
   readonly automations: TrackerAutomations;
 
@@ -264,6 +267,7 @@ export class AgentHost {
     for (const clientId of new Set([...this.activeClients.values()].flatMap(clients => [...clients.keys()]))) this.awaitReturn(clientId);
     this.sweeper = setInterval(() => this.evictIdleSessions(), Math.min(60_000, this.idleSessions.idleMs));
     this.sweeper.unref();
+    this.chatAsks = new ChatAsks(store);
     this.review = new CandidateReview({
       config, store, engine, choiceEvents,
       serverSeq: () => this.serverSeq,
@@ -285,6 +289,9 @@ export class AgentHost {
       workspaceFolder: repositoryId => { const name = repositoryWorkspaceNames(this.config.repositories).get(repositoryId); return name ? `${repositoriesDirectory}/${encodeURIComponent(name)}` : undefined; },
     });
   }
+
+  /** Connects the Ask service, so a person can ask about a session's Work Item from its chat without reaching the crew (system ADR-0031). */
+  useAsks(service: ChatAskService): void { this.chatAsks.service = service; }
 
   /** Evicts the projection and summary of every ended session nobody has subscribed to for the idle period; a later subscribe rebuilds them from the durable events. Returns the evicted session ids. */
   evictIdleSessions(now = Date.now()): string[] {
@@ -561,7 +568,7 @@ export class AgentHost {
   }
 
   chatSummary(session: Session, view: View): Json {
-    return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).chat, activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: session.status === 'completed' && !this.reviewOperations(session).length ? 'read-only' : 'full' };
+    return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).chat, activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: session.status === 'completed' && !this.reviewOperations(session).length && !this.chatAsks.covers(session) ? 'read-only' : 'full' };
   }
 
   chatState(session: Session, view: View): Json {
@@ -668,7 +675,11 @@ export class AgentHost {
       this.openTurn(projection, session, session.objective, session.createdAt, this.store.getSecret<string>(`ahp-turn:${session.id}`));
       const events = this.store.events(session.id);
       projection.finalStop = events.findLast(event => finalStopTypes.has(event.type))?.id;
-      for (const event of events) this.reduce(projection, session, event);
+      const built = projection;
+      const asked = this.chatAsks.entries(session.id);
+      const placeAsked = (after: number) => { for (const entry of asked) if (entry.afterEvent === after) this.placeAsk(built, session, entry); };
+      placeAsked(0);
+      for (const event of events) { this.reduce(built, session, event); placeAsked(event.id); }
       this.settle(projection, session);
     }
     return projection;
@@ -1014,8 +1025,7 @@ export class AgentHost {
         const stop = arriving.findLast(event => finalStopTypes.has(event.type));
         if (stop) projection.finalStop = stop.id;
         const fresh = [...arriving.flatMap(event => this.reduce(projection, session, event)), ...this.settle(projection, session)];
-        const spelling = (viewer: View) => this.spelling(session, viewer);
-        for (const action of fresh) { const route = runRoute(action, spelling, this.spelling(session, { scheme: provider })); this.broadcast(terminalActionChannel(action) ?? route?.channel ?? chat, route?.action ?? action, actionOrigins.get(action)); }
+        this.publish(session, fresh);
         this.announceCustomizations(publicId);
         const watcher = watchers.get(id);
         if (watcher) this.offerNextSteps(session, watcher);
@@ -1043,6 +1053,22 @@ export class AgentHost {
       }
       this.announceActiveSessions();
     } finally { this.polling = false; }
+  }
+
+  private publish(session: Session, actions: Json[]): void {
+    const chat = chatChannel(this.publicId(session.id));
+    const spelling = (viewer: View) => this.spelling(session, viewer);
+    for (const action of actions) { const route = runRoute(action, spelling, this.spelling(session, { scheme: provider })); this.broadcast(terminalActionChannel(action) ?? route?.channel ?? chat, route?.action ?? action, actionOrigins.get(action)); }
+  }
+
+  /** Renders the session's events that arrived since the last poll, so what the host adds next lands after them. Left to the poll while it runs. */
+  private drain(session: Session): void {
+    if (this.polling) return;
+    const projection = this.projection(session);
+    const arriving = this.store.events(session.id, projection.cursor);
+    const stop = arriving.findLast(event => finalStopTypes.has(event.type));
+    if (stop) projection.finalStop = stop.id;
+    this.publish(session, arriving.flatMap(event => this.reduce(projection, session, event)));
   }
 
   private current(client: Client, renew: boolean): boolean {
@@ -1178,7 +1204,7 @@ export class AgentHost {
       this.resumeActiveClient(params.clientId, Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]);
       const snapshots: Json[] = [];
       for (const channel of Array.isArray(params.initialSubscriptions) ? params.initialSubscriptions : [rootChannel]) snapshots.push(await this.subscribe(client, channel));
-      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, defaultDirectory: repositoriesDirectory, ...(this.automations.available ? { automations: this.automations.capabilities() } : {}), ...(declaresSessionUris || this.automations.available ? { _meta: { ...(declaresSessionUris ? { [sessionUrisMeta]: true } : {}), ...(this.automations.available ? { [autonomousAutomationsMeta]: true } : {}) } } : {}), snapshots, terminalCommandPrefix: undefined };
+      return { protocolVersion: negotiated, serverSeq: this.serverSeq, serverInfo: { name: 'unfold', version: this.config.mode === 'demo' ? 'demo' : 'live' }, defaultDirectory: repositoriesDirectory, ...(this.automations.available ? { automations: this.automations.capabilities() } : {}), ...(declaresSessionUris || this.automations.available ? { _meta: { ...(declaresSessionUris ? { [sessionUrisMeta]: true } : {}), ...(this.automations.available ? { [autonomousAutomationsMeta]: true } : {}) } } : {}), snapshots, ...(this.chatAsks.offered ? { completionTriggerCharacters: ['/'] } : {}), terminalCommandPrefix: undefined };
     }
     if (method === 'reconnect' && !client.initialized) {
       const known = typeof params.clientId === 'string' ? this.knownClients.get(params.clientId) : undefined;
@@ -1201,7 +1227,7 @@ export class AgentHost {
       case 'disposeSession': return this.disposeSession(client, params);
       case 'disposeChat': return {};
       case 'fetchTurns': return {};
-      case 'completions': return { items: [] };
+      case 'completions': return { items: this.completionItems(client, params) };
       case 'resourceRead': {
         if (typeof params.uri !== 'string') throw new RpcError(codes.invalidParams, 'uri is required');
         const resource = await this.readResource(client.user, params.uri);
@@ -1425,30 +1451,40 @@ export class AgentHost {
     this.notify(rootChannel, 'root/sessionAdded', viewer => ({ channel: rootChannel, summary: this.summary(session, viewer) }), session.ownerId);
   }
 
-  private optionLines(session: Session, recovery: Recovery, options: ChoiceOption[], withMessage: boolean): string {
+  private optionLines(session: Session, recovery: Recovery | undefined, options: ChoiceOption[], withMessage: boolean): string {
     const budget = money(session.budgetUsd);
-    const reviewer = recovery.review?.roleName ?? 'The reviewer';
+    const reviewer = recovery?.review?.roleName ?? 'The reviewer';
     const meaning: Record<ChoiceOptionId, string> = {
       run_again_start: `a new session with this session's brief, repository, crew, placement and budget (${budget})${withMessage ? ', and your message as an instruction its crew reads' : ''}. It starts at once, as a new Ploeg authorization.`,
       run_again: `the same new session, left ready for you to start. Nothing runs until you do.`,
       deliver: `${reviewer} approved this work before the session stopped. Unfold captures the approved branch as the candidate and Ploeg completes this session with it, without another model call. The pull request follows the normal delivery path${withMessage ? ', and your message goes to no crew' : ''}.`,
       resume: 'this session continues in a new generation, and every Run that did not finish runs again.',
+      ask: 'your message is answered at once as an Ask about this work. No crew reads it; Ploeg meters it against your Team\'s Ask Allowance.',
+      steer: 'the crew gets your message as an instruction, as if you had sent it without `/ask`.',
       dismiss: withMessage ? 'nothing changes, and your message is not used.' : 'nothing changes. You can still act on the session page.',
     };
     return options.map(option => `- **${option.label}**: ${meaning[option.id]}`).join('\n');
   }
 
-  /** The choice offered for a message no crew will read: run again with the message as the brief, deliver approved work first, or cancel. */
-  private messageOffer(session: Session, recovery: Recovery): Json {
+  /** The choice offered for a message no crew will read: run again with the message as the brief, deliver approved work first, ask it instead, or cancel. `unasked` says why it was not answered as an Ask. */
+  private messageOffer(session: Session, recovery: Recovery, unasked?: string): Json {
     const available = new Map(recovery.actions.filter(action => action.available).map(action => [action.id, action]));
     const options: ChoiceOption[] = [];
     if (available.has('run_again')) options.push({ id: 'run_again_start', label: 'Run again and start' }, { id: 'run_again', label: 'Run again with this message' });
     if (available.has('deliver')) options.push({ id: 'deliver', label: 'Deliver the approved work first' });
     const reason = sessionProgress(session, { events: this.store.events(session.id) }).reason?.sentence ?? `the session is ${session.status}.`;
     const blocked = recovery.actions.find(action => action.id === 'run_again' && !action.available)?.unavailableReason;
-    if (!options.length) return { title: 'No crew will read this message', explanation: `No crew will read this message. ${reason}${blocked ? ` It cannot run again from here: ${blocked}` : ''}`, options: [] };
+    const notAsked = unasked ? `\n\nIt was not answered as an Ask either: ${unasked}` : '';
+    if (!options.length) return { title: 'No crew will read this message', explanation: `No crew will read this message. ${reason}${blocked ? ` It cannot run again from here: ${blocked}` : ''}${notAsked}`, options: [] };
+    if (!unasked && this.chatAsks.covers(session)) options.push({ id: 'ask', label: 'Ask instead' });
     options.push({ id: 'dismiss', label: 'Cancel' });
-    return { title: 'No crew will read this message', question: 'What should happen with your message?', explanation: `No crew will read this message. ${reason} Choose what happens with it below; nothing runs until you choose.`, detail: this.optionLines(session, recovery, options, true), options };
+    return { title: 'No crew will read this message', question: 'What should happen with your message?', explanation: `No crew will read this message. ${reason} Choose what happens with it below; nothing runs until you choose.${notAsked}`, detail: this.optionLines(session, recovery, options, true), options };
+  }
+
+  /** The choice offered when a question meant for an Ask could not be asked in a session whose crew still reads messages: send it to the crew, or leave it. */
+  private steeringOffer(session: Session, unasked: string): Json {
+    const options: ChoiceOption[] = [{ id: 'steer', label: 'Send it to the crew' }, { id: 'dismiss', label: 'Cancel' }];
+    return { title: 'Not answered as an Ask', question: 'What should happen with your message?', explanation: `Your message was not answered as an Ask: ${unasked} No crew has read it. Choose what happens with it below; nothing is sent until you choose.`, detail: this.optionLines(session, undefined, options, true), options };
   }
 
   /** The choice that ends a session which stopped by itself or failed: its next steps, with links to the pull request and the session page. */
@@ -1463,7 +1499,8 @@ export class AgentHost {
     const progress = sessionProgress(session, { events: this.store.events(session.id), recovery });
     const page = this.sessionPage(session);
     const links = [progress.change.pullRequest?.url ? `[Open pull request #${progress.change.pullRequest.number}](${progress.change.pullRequest.url})` : '', page && progress.change.viewable ? `[View the change](${page})` : page ? `[Open the session page](${page})` : ''].filter(Boolean).join(' · ');
-    return { title: 'What next?', question: 'What should happen next?', explanation: [recovery.summary, 'Nothing runs until you choose.', links].filter(Boolean).join('\n\n'), detail: this.optionLines(session, recovery, options, false), options };
+    const asking = this.chatAsks.covers(session) ? 'Or type a question: it is answered as an Ask, and no crew reads it.' : '';
+    return { title: 'What next?', question: 'What should happen next?', explanation: [recovery.summary, 'Nothing runs until you choose.', asking, links].filter(Boolean).join('\n\n'), detail: this.optionLines(session, recovery, options, false), options };
   }
 
   /** Offers the next steps once, after the last stop of a session that stopped by itself or failed and offers no Try Again. It reads the recovery answer and never acts. */
@@ -1483,16 +1520,97 @@ export class AgentHost {
     }).catch(() => this.offeredAfter.delete(session.id)).finally(() => this.offering.delete(session.id));
   }
 
-  /** Turns a message no crew will read into a choice in the person's own turn. A choice still open is answered as replaced first. */
-  private async offerForMessage(client: Client, session: Session, text: string, origin: Origin, requestedTurnId?: unknown, known?: Recovery): Promise<undefined> {
-    const recovery = known ?? await this.engine.recovery(session.id, client.user);
+  /**
+   * Turns a message no crew will read into a choice in the person's own turn. A choice still open is answered as replaced first.
+   * With `unasked`, the message was meant as an Ask that could not be made: the choice says why, and in a session whose crew
+   * still reads messages it offers to send the message to the crew.
+   */
+  private async offerForMessage(client: Client, session: Session, text: string, origin: Origin, requestedTurnId?: unknown, known?: Recovery, unasked?: { reason: string; steerable: boolean }): Promise<undefined> {
+    const recovery = unasked?.steerable ? undefined : known ?? await this.engine.recovery(session.id, client.user);
     const projection = this.projection(session);
     const open = this.openChoice(projection);
     if (open) this.store.appendEvent(session.id, choiceEvents.answered, client.user.id, { choiceId: open.choiceId, option: 'dismiss', response: 'cancel', reply: 'Replaced by your next message.' });
     const turnId = requestedTurnId === undefined ? undefined : this.acceptableTurnId(projection, requestedTurnId) ?? randomUUID();
     if (turnId) projection.origins.set(`turn:${turnId}`, origin);
-    this.store.appendEvent(session.id, choiceEvents.offered, client.user.id, { choiceId: randomUUID(), ...(turnId ? { turnId } : {}), text, ...this.messageOffer(session, recovery) });
+    const offer = recovery ? this.messageOffer(session, recovery, unasked?.reason) : this.steeringOffer(session, unasked!.reason);
+    this.store.appendEvent(session.id, choiceEvents.offered, client.user.id, { choiceId: randomUUID(), ...(turnId ? { turnId } : {}), text, ...offer });
     return undefined;
+  }
+
+  /** Whether a typed message in this session is an Ask unless the person says `/steer`: no crew reads its messages, and no review waits for the text. */
+  private asksByDefault(session: Session): boolean {
+    return closedToMessages(session) && !this.openChoice(this.projection(session))?.review;
+  }
+
+  private completionItems(client: Client, params: Json): Json[] {
+    if (params.kind !== 'userMessage' || typeof params.text !== 'string' || typeof params.channel !== 'string') return [];
+    const session = this.sessionFor(client.user, params.channel);
+    if (!session || !this.chatAsks.covers(session)) return [];
+    return commandCompletions(params.text, Number.isInteger(params.offset) ? params.offset : params.text.length, this.asksByDefault(session));
+  }
+
+  /** Puts an Ask's answer where it was asked: its own turn, the open turn, or the turn of the choice that asked it. Used live and when a projection is rebuilt, so both read the same. */
+  private placeAsk(projection: Projection, session: Session, entry: ChatAskEntry): Json[] {
+    const own = entry.placement === 'turn' || !projection.activeTurn;
+    const actions = own ? [...this.closeTurn(projection, 'complete', entry.at), ...this.openTurn(projection, session, entry.text, entry.at, entry.turnId)] : [];
+    const turn = projection.activeTurn!;
+    actions.push(...this.addPart(projection, { kind: 'markdown', id: `${turn.id}-ask-${entry.askId}`, content: askMarkdown(this.store.getAsk(entry.askId), entry) }));
+    if (own || entry.placement === 'choice') actions.push(...this.closeTurn(projection, 'complete', entry.at));
+    return actions;
+  }
+
+  private placeAskLive(session: Session, entry: Omit<ChatAskEntry, 'afterEvent' | 'at'>): void {
+    this.drain(session);
+    const projection = this.projection(session);
+    const placed: ChatAskEntry = { ...entry, afterEvent: projection.cursor, at: new Date().toISOString() };
+    this.chatAsks.remember(session.id, placed);
+    this.publish(session, this.placeAsk(projection, session, placed));
+  }
+
+  /** Answers a message as an Ask in the person's own turn, opened once the answer is known. An open "What next?" choice is replaced and offered again after the answer. */
+  private async askInTurn(client: Client, session: Session, text: string, origin: Origin, requestedTurnId: unknown, stranded = false): Promise<undefined> {
+    let answered: Awaited<ReturnType<ChatAsks['ask']>>;
+    try { answered = await this.chatAsks.ask(client.user, session, text); }
+    catch (error) { return this.offerForMessage(client, this.store.getSession(session.id) ?? session, text, origin, requestedTurnId, undefined, { reason: reasonOf(error), steerable: !stranded && !closedToMessages(session) }); }
+    const current = this.store.getSession(session.id) ?? session;
+    const projection = this.projection(current);
+    const open = this.openChoice(projection);
+    const replaced = open && !open.review ? open : undefined;
+    if (replaced) this.store.appendEvent(session.id, choiceEvents.answered, client.user.id, { choiceId: replaced.choiceId, option: 'dismiss', response: 'cancel', reply: 'Replaced by your question.' });
+    const turnId = this.acceptableTurnId(projection, requestedTurnId) ?? randomUUID();
+    projection.origins.set(`turn:${turnId}`, origin);
+    this.placeAskLive(current, { askId: answered.ask.id, placement: 'turn', turnId, text, allowance: answered.allowance });
+    if (replaced && typeof replaced.text !== 'string') void this.offerNextStepsAgain(current, client.user);
+    return undefined;
+  }
+
+  /** Answers a question sent while a turn is open, such as a crew's, as an Ask inside that turn. The pending message stays until the answer is there. */
+  private async askInline(client: Client, channel: string, session: Session, action: Json, text: string, origin: Origin, stranded = false): Promise<undefined> {
+    this.echo(client, channel, action, origin);
+    const settled = () => this.broadcast(channel, { type: 'chat/pendingMessageRemoved', kind: action.kind, id: action.id });
+    let answered: Awaited<ReturnType<ChatAsks['ask']>>;
+    try { answered = await this.chatAsks.ask(client.user, session, text); }
+    catch (error) { settled(); return this.offerForMessage(client, this.store.getSession(session.id) ?? session, text, origin, undefined, undefined, { reason: reasonOf(error), steerable: !stranded && !closedToMessages(session) }); }
+    settled();
+    this.placeAskLive(this.store.getSession(session.id) ?? session, { askId: answered.ask.id, placement: 'inline', text, allowance: answered.allowance });
+    return undefined;
+  }
+
+  /** Answers the message of a choice as an Ask after the person picked **Ask instead**, in that choice's turn. */
+  private async askForChoice(client: Client, session: Session, choiceId: string, text: string): Promise<void> {
+    let answered: Awaited<ReturnType<ChatAsks['ask']>>;
+    try { answered = await this.chatAsks.ask(client.user, session, text); }
+    catch (error) { this.store.appendEvent(session.id, choiceEvents.reported, client.user.id, { choiceId, reply: `Asking did not work: ${reasonOf(error)}` }); return; }
+    this.placeAskLive(this.store.getSession(session.id) ?? session, { askId: answered.ask.id, placement: 'choice', text, allowance: answered.allowance });
+  }
+
+  /** Offers a stopped session's next steps again after an Ask replaced them. */
+  private async offerNextStepsAgain(session: Session, user: User): Promise<void> {
+    const recovery = await this.engine.recovery(session.id, user).catch(() => undefined);
+    const current = this.store.getSession(session.id);
+    if (!recovery || !current || current.status !== session.status || this.openChoice(this.projection(current))) return;
+    const offer = this.closingOffer(current, recovery);
+    if (offer) this.store.appendEvent(session.id, choiceEvents.offered, 'system', { choiceId: randomUUID(), ...offer });
   }
 
   /** Carries out the option the person picked through the recovery API's own calls and owner checks, and records the answer and its result. */
@@ -1506,7 +1624,7 @@ export class AgentHost {
     const optionId = accepted ? (picked?.kind === 'selected' ? String(picked.value) : '') : 'dismiss';
     const option = (offered.options as ChoiceOption[]).find(item => item.id === optionId);
     if (!option) return 'Choose one of the offered options';
-    if (option.id !== 'dismiss' && client.user.role === 'viewer') return 'Viewers cannot change work';
+    if (option.id !== 'dismiss' && option.id !== 'ask' && client.user.role === 'viewer') return 'Viewers cannot change work';
     const projection = this.projection(session);
     const originKey = action.cancelled === true ? 'cancel' : `request:${choiceId}`;
     const answered = (data: Json) => this.store.appendEvent(session.id, choiceEvents.answered, client.user.id, { choiceId, option: option.id, response: accepted ? 'accept' : 'cancel', ...(submitted ? { answers: submitted } : {}), ...data });
@@ -1517,6 +1635,19 @@ export class AgentHost {
     try {
       switch (option.id) {
         case 'dismiss': answered({ reply: dismissReply, ...(accepted ? {} : { cancelled: true }) }); return undefined;
+        case 'ask': {
+          answered({ reply: 'Asking it instead. No crew reads this message.', closes: false });
+          void this.askForChoice(client, session, choiceId, String(offered.text ?? '')).finally(() => this.answering.delete(choiceId));
+          return undefined;
+        }
+        case 'steer': {
+          answered({ reply: 'Sending it to the crew.' });
+          await this.engine.message(session.id, String(offered.text ?? ''), client.user);
+          const current = this.store.getSession(session.id) ?? session;
+          if (current.status === 'queued') await this.engine.start(session.id, client.user);
+          else if (['paused', 'interrupted'].includes(current.status)) await this.engine.resume(session.id, client.user);
+          return undefined;
+        }
         case 'run_again': case 'run_again_start': {
           const next = this.engine.runAgain(session.id, client.user);
           if (withMessage) await this.engine.message(next.id, String(offered.text), client.user);
@@ -1603,10 +1734,11 @@ export class AgentHost {
     switch (action.type) {
       case 'chat/turnStarted': {
         if (notOnChat) return notOnChat;
-        const text = String(action.message?.text ?? '').trim();
         const feedback = this.review.feedback(session, action.message);
         if (feedback) { const submitted = this.review.submitFeedback(client, session, feedback, action, origin); if (submitted !== false) return submitted; }
-        if (!text) return 'Empty message';
+        const { intent, text } = messageIntent(action.message);
+        if (!text) return intent === 'ask' ? 'Type a question after /ask' : 'Empty message';
+        if (!feedback && (intent === 'ask' || (intent !== 'steer' && this.chatAsks.covers(session) && this.asksByDefault(session)))) return this.askInTurn(client, session, text, origin, action.turnId ?? null);
         if (session.status === 'completed') return this.reviewOperations(session).length ? 'This candidate waits for your review. Accept it, request changes or reject it from the Changes view, or comment on its files and submit the comments.' : 'The session has completed; start a new session';
         if (feedback) return this.dispatchToSession(client, channel, kind, session, { ...action, message: { ...action.message, text: this.review.feedbackInstruction(action.message, feedback), attachments: undefined } }, origin);
         if (ended || this.openChoice(this.projection(session))) return this.offerForMessage(client, session, text, origin, action.turnId ?? null);
@@ -1616,8 +1748,9 @@ export class AgentHost {
         try { await this.engine.message(session.id, text, client.user, turnId); }
         catch (error) {
           projection.origins.delete(`turn:${turnId}`);
-          if ((error as { code?: unknown })?.code === 'session_stranded') return this.offerForMessage(client, session, text, origin, action.turnId ?? null);
-          throw error;
+          if ((error as { code?: unknown })?.code !== 'session_stranded') throw error;
+          if (intent !== 'steer' && this.chatAsks.covers(session)) return this.askInTurn(client, session, text, origin, action.turnId ?? null, true);
+          return this.offerForMessage(client, session, text, origin, action.turnId ?? null);
         }
         if (session.status === 'queued') await this.engine.start(session.id, client.user);
         else if (['paused', 'interrupted'].includes(session.status)) await this.engine.resume(session.id, client.user);
@@ -1655,14 +1788,18 @@ export class AgentHost {
         if (notOnChat) return notOnChat;
         if (!['steering', 'queued'].includes(action.kind) || typeof action.id !== 'string' || !action.id) return 'A pending message needs a kind, steering or queued, and an id';
         if (action.message?.origin?.kind !== 'user') return 'Only a person\'s own message becomes an instruction';
-        const text = String(action.message?.text ?? '').trim();
-        if (!text) return 'Empty message';
+        const { intent, text } = messageIntent(action.message);
+        if (!text) return intent === 'ask' ? 'Type a question after /ask' : 'Empty message';
+        if (intent === 'ask' || (intent !== 'steer' && this.chatAsks.covers(session) && this.asksByDefault(session))) return this.askInline(client, channel, session, action, text, origin);
         if (session.status === 'completed') return 'The session has completed; start a new session';
         const settled = () => { this.echo(client, channel, action, origin); this.broadcast(channel, { type: 'chat/pendingMessageRemoved', kind: action.kind, id: action.id }); };
         const choose = async () => { const recovery = await this.engine.recovery(session.id, client.user); settled(); return this.offerForMessage(client, session, text, origin, undefined, recovery); };
         if (ended || this.openChoice(this.projection(session))) return choose();
         try { await this.engine.message(session.id, text, client.user); }
-        catch (error) { if ((error as { code?: unknown })?.code === 'session_stranded') return choose(); throw error; }
+        catch (error) {
+          if ((error as { code?: unknown })?.code !== 'session_stranded') throw error;
+          return intent !== 'steer' && this.chatAsks.covers(session) ? this.askInline(client, channel, session, action, text, origin, true) : choose();
+        }
         settled();
         return undefined;
       }
