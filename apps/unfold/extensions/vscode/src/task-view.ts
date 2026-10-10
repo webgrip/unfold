@@ -1,6 +1,6 @@
 import type { UnfoldClient } from './client.js';
 import type { PloegCard, PloegDetail } from './ploeg-types.js';
-import type { Bootstrap, TaskPloegStatus, TaskSnapshot, TaskSource } from './types.js';
+import type { Bootstrap, Session, SessionEvent, TaskPloegStatus, TaskSnapshot, TaskSource } from './types.js';
 
 const settled = ['done', 'withdrawn', 'stale'];
 
@@ -44,4 +44,16 @@ export async function ploegFacts(client: Pick<UnfoldClient, 'workItem' | 'workIt
   else if ((detail.reason as { status?: unknown } | undefined)?.status !== 404) facts.problem = `Ploeg’s Runs for this Work Item could not be loaded: ${(detail.reason instanceof Error ? detail.reason.message : 'unknown error').replace(/\.$/, '')}. The panel shows the task’s Ploeg status only.`;
   if (card.status === 'fulfilled' && card.value && String(card.value.workItemId) === id) facts.card = card.value;
   return facts;
+}
+
+const progressEvents = new Set(['message', 'tool', 'permission', 'run.started', 'run.finished', 'session.started', 'session.interrupted', 'session.failed', 'session.paused', 'session.cancelled', 'session.completed', 'execution.authority_lost', 'execution.reconciliation_required', 'execution.reconciliation_pending', 'execution.stop_pending', 'run.runaway', 'candidate.ready', 'workspace.ready', 'workspace.waiting']);
+
+/** The session among `sessions` that drives Work Item `workItemId`, newest first. */
+export function linkedSessionFor(sessions: Session[], workItemId: string): Session | undefined {
+  return sessions.filter(session => session.execution && String(session.execution.workItemId) === workItemId).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))[0];
+}
+
+/** The events a progress state reads, newest last and at most `limit`: messages, tools, questions, Run and stop events. */
+export function progressEventsOf(events: SessionEvent[], limit = 1500): SessionEvent[] {
+  return events.filter(event => progressEvents.has(event.type) && !(event.type === 'message' && event.data?.role === 'operator')).slice(-limit);
 }

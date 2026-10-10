@@ -35,7 +35,8 @@ const crew = [{ role: 'engineer', writes: true, runs: 3, costUsd: 0.4282, inputT
 const card = (extra = {}) => ({ workItemId: '42', state: 'in_review', crew, plays: [], totals: { costStatus: 'observed', usageComplete: true, costUsd: 0.5232, authorizedUsd: 5, runs: 5, failedRuns: 1, rounds: 2, shifts: 1 }, live: null, demo: false, ...extra });
 const play = { number: 77, url: 'https://forgejo.example/webgrip/glide/pulls/77', state: 'open', branch: 'unfold/42-one-total', mergedAt: null, additions: 214, deletions: 37, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [] };
 
-const files = { '/task.js': 'task.js', '/task.css': 'task.css', '/session.css': 'session.css', '/tokens.css': 'tokens.css', '/common.js': 'common.js', '/core/states.js': 'core/states.js', '/core/format.js': 'core/format.js', '/core/reasons.js': 'core/reasons.js' };
+const files = { '/task.js': 'task.js', '/task.css': 'task.css', '/session.css': 'session.css', '/tokens.css': 'tokens.css', '/common.js': 'common.js', '/core/states.js': 'core/states.js', '/core/format.js': 'core/format.js', '/core/reasons.js': 'core/reasons.js', '/core/checkout.js': 'core/checkout.js', '/core/progress.js': 'core/progress.js' };
+const fixture = JSON.parse(await readFile(new URL('../../../test/fixtures/session-059675b9.json', import.meta.url), 'utf8'));
 const surface = createServer(async (request, response) => {
   const file = files[request.url ?? ''];
   if (file) {
@@ -160,9 +161,55 @@ try {
   assert.deepEqual(await lastMessage(), { type: 'open-ploeg', id: '58', team: undefined });
   await both('work-item', () => page.getByRole('heading', { name: 'Ploeg proposed this as follow-up work.' }).waitFor());
 
+  const stopped = { kind: 'work', workItemId: '184', host: 'unfold.example', loadedAt: now, detail: fixture.ploeg, card: fixture.card, linked: { session: fixture.session, events: fixture.events, viewer: false, live: false } };
+  await post({ type: 'state', view: stopped });
+  await page.getByRole('heading', { name: 'Reviewer approved in its transcript · stopped before delivery', level: 2 }).waitFor();
+  await page.locator('.reason-chip', { hasText: 'Ploeg holds it for reconciliation' }).waitFor();
+  const stoppedText = (await page.locator('#app').innerText()).replace(/\s+/g, ' ');
+  assert.doesNotMatch(stoppedText, /1 Run running|1 running|Ploeg stopped this Work Item without a reason/, 'a stopped Work Item never reads as running or as an unknown stop');
+  assert.match((await page.locator('.stat', { hasText: 'Runs' }).innerText()).replace(/\s+/g, ' '), /2 implementer finished · reviewer cut off/);
+  assert.match((await page.locator('.stat', { hasText: 'Cost' }).innerText()).replace(/\s+/g, ' '), /US\$ 0,03 observed, not settled/);
+  await page.locator('.step', { hasText: 'Reviewer' }).getByText('Approved · not recorded').waitFor();
+  await page.locator('.change').getByText('unfold/059675b9-clown-readme').waitFor();
+  await page.locator('.fact-list').getByText(/Ploeg still lists its operator Run as running/).waitFor();
+  assert.equal(await page.getByText('Cost per role').count(), 0, 'Ploeg\'s operator Run is not presented as the crew');
+  await page.getByText('As Ploeg records it').click();
+  await page.locator('.run-row').getByText('Not closed by Ploeg').waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Deliver approved work' }).count(), 0, 'nothing the server does not offer is shown');
+  await page.getByRole('button', { name: 'Investigate' }).focus();
+  await page.keyboard.press('Enter');
+  assert.deepEqual(await lastMessage(), { type: 'session-action', action: 'investigate', session: fixture.session.id }, 'the primary action works by keyboard');
+  await post({ type: 'idle' });
+  assert.match(await page.locator('#announcement').textContent(), /^Stopped\. Reviewer approved in its transcript · stopped before delivery$/);
+  await both('stopped-059675b9', () => page.getByRole('heading', { name: 'Reviewer approved in its transcript · stopped before delivery', level: 2 }).waitFor());
+
+  const recoverable = { ...stopped, linked: { ...stopped.linked, session: { ...fixture.session, recovery: { actions: [{ id: 'deliver', available: true }, { id: 'run_again', available: true }] } } } };
+  await post({ type: 'state', view: recoverable });
+  const deliver = page.getByRole('button', { name: 'Deliver approved work' });
+  await deliver.waitFor();
+  assert.match(await deliver.getAttribute('class'), /primary/, 'delivering the approved work leads when the server offers it');
+  await page.getByRole('button', { name: 'Run again' }).click();
+  assert.deepEqual(await lastMessage(), { type: 'session-action', action: 'run-again', session: fixture.session.id });
+  await post({ type: 'idle' });
+  await both('stopped-recoverable', () => deliver.waitFor());
+
+  const workingSession = { ...fixture.session, status: 'running', blocker: undefined, execution: { ...fixture.session.execution, state: 'running', stopConfirmed: false }, runs: [{ ...fixture.session.runs[0], status: 'completed' }, { ...fixture.session.runs[1], startedAt: ago(2) }] };
+  const working = { ...stopped, detail: { ...fixture.ploeg, item: { ...fixture.ploeg.item, state: 'leased', latestShift: { ...fixture.ploeg.item.latestShift, round: 1 } } }, linked: { session: workingSession, events: fixture.events.filter(event => event.id <= 1010), viewer: false, live: true } };
+  await post({ type: 'state', view: working });
+  await page.getByRole('heading', { name: 'Reviewer is working · Round 1', level: 2 }).waitFor();
+  const clockText = await page.locator('[data-since]').innerText();
+  await page.waitForTimeout(1300);
+  assert.notEqual(await page.locator('[data-since]').innerText(), clockText, 'the elapsed clock ticks without a reload');
+  await page.locator('.live-tag', { hasText: 'Live' }).waitFor();
+  await both('working', () => page.getByRole('heading', { name: 'Reviewer is working · Round 1', level: 2 }).waitFor());
+
+  await post({ type: 'state', view: { ...stopped, linked: { ...stopped.linked, viewer: true } } });
+  await page.getByRole('heading', { name: 'Reviewer approved in its transcript · stopped before delivery', level: 2 }).waitFor();
+  assert.equal(await page.getByRole('button', { name: /Investigate|Cancel|Resume/ }).count(), 0, 'a viewer gets no mutating action');
+
   assert.deepEqual(await page.evaluate(() => window.violations), [], 'no Content Security Policy violation');
   assert.deepEqual(errors, []);
-  console.log(`PASS: task view rendered as an ES module under a nonce-only CSP with no violations; tracker facts, labels with colours, inert hostile description, team choice without empty roles, hand-off in flight, waiting, running with live cost, review with pull requests, CI, human reviews, agent verdicts, cost per role, problem and solution, Runs by Round, needs-you reason, problem and offline notices, older server and a Work Item without a tracker task, all without horizontal overflow at 1000px and 420px. Screenshots: ${taken.join(', ')}. This is browser webview validation, not a VS Code Extension Host test.`);
+  console.log(`PASS: task view rendered as an ES module under a nonce-only CSP with no violations; tracker facts, labels with colours, inert hostile description, team choice without empty roles, hand-off in flight, waiting, running with live cost, review with pull requests, CI, human reviews, agent verdicts, cost per role, problem and solution, Runs by Round, needs-you reason, problem and offline notices, the 059675b9 worst case as one stopped state with its steps, transcript verdict, change, facts and keyboard action, offered recovery, a working session with a ticking clock, a viewer without actions, older server and a Work Item without a tracker task, all without horizontal overflow at 1000px and 420px. Screenshots: ${taken.join(', ')}. This is browser webview validation, not a VS Code Extension Host test.`);
 } finally {
   await browser?.close();
   surface.close();

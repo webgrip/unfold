@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 import { ApiError, type UnfoldClient } from './client.js';
 import { providerNames, safeHttpsUrl } from './status.js';
-import { awaitingPloeg, currentWorkItemId, ploegFacts, sessionEligibility, unsupportedStatus, workItemMoving } from './task-view.js';
+import { awaitingPloeg, currentWorkItemId, linkedSessionFor, ploegFacts, progressEventsOf, sessionEligibility, unsupportedStatus, workItemMoving } from './task-view.js';
 import type { PloegCard, PloegDetail } from './ploeg-types.js';
-import type { Bootstrap, TaskPloegStatus, TaskPreview, TaskSnapshot, TaskSource } from './types.js';
+import type { Bootstrap, Session, SessionEvent, TaskPloegStatus, TaskPreview, TaskSnapshot, TaskSource } from './types.js';
 
 export interface TaskPanelHost {
   readonly extensionUri: vscode.Uri;
@@ -18,26 +18,34 @@ export interface TaskPanelHost {
   rememberTeam(team: string): Promise<void>;
   /** Re-reads linked tasks and Ploeg's Now so the task tree shows a hand-off or take-back without waiting for the next poll. */
   taskHandoffChanged(): Promise<void>;
+  /** Performs one action of a session's progress state, such as Investigate, View change, Resume or Deliver approved work. */
+  sessionAction(sessionId: string, action: string): Promise<void>;
+  liveUpdates(): boolean;
   report(error: unknown): Promise<void>;
 }
+
+/** The Unfold session that drives a Work Item, with the durable events its progress reads. */
+export type LinkedSession = { session: Session; events: SessionEvent[]; viewer: boolean; live: boolean };
 
 /** The state a task panel posts to its webview: the tracker task, its Ploeg status and, once Ploeg has a Work Item, its detail and Run card. */
 export type TaskView = {
   kind: 'task'; task: TaskPreview; source: { id: string; name: string; provider: string; handoff: boolean; executionOwner: string };
   repositoryName: string; status: TaskPloegStatus; session: { allowed: boolean; reason?: string }; host: string; loadedAt: string; preferredTeam?: string;
-  workItemId?: string; detail?: PloegDetail; card?: PloegCard; ploegProblem?: string;
+  workItemId?: string; detail?: PloegDetail; card?: PloegCard; ploegProblem?: string; linked?: LinkedSession;
 };
 
 /** The state a Work Item panel posts to its webview: a Ploeg Work Item without a tracker task the workbench knows. */
-export type WorkItemView = { kind: 'work'; workItemId: string; detail: PloegDetail; card?: PloegCard; host: string; loadedAt: string };
+export type WorkItemView = { kind: 'work'; workItemId: string; detail: PloegDetail; card?: PloegCard; host: string; loadedAt: string; linked?: LinkedSession };
 
 type PanelTarget = { kind: 'task'; source: TaskSource; taskId: string } | { kind: 'work'; workItemId: string };
 
-type Inbound = { type?: unknown; id?: unknown; team?: unknown; url?: unknown };
+type Inbound = { type?: unknown; id?: unknown; team?: unknown; url?: unknown; action?: unknown; session?: unknown };
 
 const teamName = (value: unknown): string | undefined => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(value) ? value : undefined;
 const workItemPattern = /^[1-9][0-9]{0,19}$/;
 const reason = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
+const sessionActions = new Set(['open-session', 'answer', 'start', 'pause', 'resume', 'cancel', 'accept', 'reject', 'investigate', 'view-change', 'deliver', 'run-again']);
+const sessionPattern = /^[a-zA-Z0-9_-]{1,80}$/;
 
 export class TaskPanel implements vscode.Disposable {
   readonly key: string;
@@ -53,6 +61,12 @@ export class TaskPanel implements vscode.Disposable {
   private mutations = 0;
   private disposed = false;
   private readonly subscriptions: vscode.Disposable[] = [];
+  private events: SessionEvent[] = [];
+  private eventsFor = '';
+  private stream?: { sessionId: string; controller: AbortController };
+  private streamDelay = 1500;
+  private streamTimer?: ReturnType<typeof setTimeout>;
+  private liveTimer?: ReturnType<typeof setTimeout>;
 
   private constructor(host: TaskPanelHost, target: PanelTarget, panel: vscode.WebviewPanel, onDispose: () => void) {
     this.host = host; this.target = target; this.panel = panel; this.onDispose = onDispose;
@@ -60,7 +74,7 @@ export class TaskPanel implements vscode.Disposable {
     panel.webview.html = this.html();
     this.subscriptions.push(panel.onDidDispose(() => this.dispose()));
     this.subscriptions.push(panel.webview.onDidReceiveMessage(message => void this.receive(message)));
-    this.subscriptions.push(panel.onDidChangeViewState(event => { if (event.webviewPanel.visible) void this.load(false); else this.stop(); }));
+    this.subscriptions.push(panel.onDidChangeViewState(event => { if (event.webviewPanel.visible) void this.load(false); else { this.stop(); this.disconnectStream(); } }));
   }
 
   /** Opens a panel for a tracker task. */
@@ -83,7 +97,7 @@ export class TaskPanel implements vscode.Disposable {
 
   reveal() { this.panel.reveal(undefined, false); void this.load(false); }
 
-  offline() { this.stop(); void this.panel.webview.postMessage({ type: 'connection', connected: false }); }
+  offline() { this.stop(); this.disconnectStream(); void this.panel.webview.postMessage({ type: 'connection', connected: false }); }
 
   async load(reloadTask: boolean, problem = ''): Promise<void> {
     if (this.disposed) return;
@@ -97,6 +111,7 @@ export class TaskPanel implements vscode.Disposable {
       if (this.disposed || client !== this.host.client() || revision !== this.host.revision() || mutations !== this.mutations) return;
       this.view = view;
       this.panel.title = view.kind === 'task' ? view.task.title : view.detail.item.title || `Work Item ${view.workItemId}`;
+      this.follow(view.linked?.session);
       await this.panel.webview.postMessage({ type: 'state', view: this.view, problem });
     } catch (error) {
       await this.panel.webview.postMessage({ type: 'problem', message: reason(error, this.target.kind === 'task' ? 'The task could not be loaded.' : 'The Work Item could not be loaded.') });
@@ -123,13 +138,76 @@ export class TaskPanel implements vscode.Disposable {
       source: { id: source.id, name: source.name, provider: source.provider, handoff: Boolean(source.handoff), executionOwner: source.executionOwner },
       repositoryName: repository?.name ?? task.repositoryId, session: sessionEligibility(bootstrap, source, task), preferredTeam: this.host.lastTeam(),
       ...(workItemId ? { workItemId } : {}), ...(facts.detail ? { detail: facts.detail } : {}), ...(facts.card ? { card: facts.card } : {}), ...(facts.problem ? { ploegProblem: facts.problem } : {}),
+      ...(workItemId ? await this.linked(client, workItemId, bootstrap) : {}),
     };
   }
 
+  private async linked(client: UnfoldClient, workItemId: string, bootstrap: Bootstrap): Promise<{ linked?: LinkedSession }> {
+    let session: Session | undefined;
+    try { session = linkedSessionFor(await client.sessions(), workItemId); }
+    catch (error) { if (error instanceof ApiError && error.status === 401) throw error; return {}; }
+    if (!session) { this.events = []; this.eventsFor = ''; return {}; }
+    if (this.eventsFor !== session.id) { this.events = []; this.eventsFor = session.id; }
+    try { this.merge(await client.history(session.id, this.events.at(-1)?.id ?? 0)); } catch (error) { if (error instanceof ApiError && error.status === 401) throw error; }
+    return { linked: { session, events: progressEventsOf(this.events), viewer: bootstrap.user.role === 'viewer', live: Boolean(this.stream) } };
+  }
+
+  private merge(events: SessionEvent[]) {
+    if (!events.length) return;
+    const merged = new Map(this.events.map(event => [event.id, event]));
+    for (const event of events) merged.set(event.id, event);
+    this.events = [...merged.values()].sort((a, b) => a.id - b.id).slice(-4000);
+  }
+
+  private follow(session: Session | undefined) {
+    const live = session && ['queued', 'running', 'waiting_input', 'exporting', 'paused'].includes(session.status);
+    if (!session || !live || !this.panel.visible || !this.host.liveUpdates()) { this.disconnectStream(); return; }
+    if (this.stream?.sessionId === session.id) return;
+    this.disconnectStream();
+    const controller = new AbortController();
+    this.stream = { sessionId: session.id, controller };
+    const client = this.host.client();
+    const revision = this.host.revision();
+    void client.stream(session.id, this.events.at(-1)?.id ?? 0, {
+      onOpen: () => { this.streamDelay = 1500; },
+      onEvent: event => { this.merge([event]); this.scheduleLive(); },
+    }, controller.signal).catch(() => undefined).finally(() => {
+      if (this.stream?.controller !== controller) return;
+      this.stream = undefined;
+      if (this.disposed || controller.signal.aborted || client !== this.host.client() || revision !== this.host.revision()) return;
+      const delay = this.streamDelay;
+      this.streamDelay = Math.min(30_000, this.streamDelay * 2);
+      this.streamTimer = setTimeout(() => { this.streamTimer = undefined; if (this.view?.linked) this.follow(this.view.linked.session); }, delay);
+    });
+  }
+
+  private scheduleLive() {
+    if (this.liveTimer) return;
+    this.liveTimer = setTimeout(() => { this.liveTimer = undefined; void this.load(false); }, 400);
+  }
+
+  private disconnectStream() {
+    this.stream?.controller.abort();
+    this.stream = undefined;
+    if (this.streamTimer) clearTimeout(this.streamTimer);
+    if (this.liveTimer) clearTimeout(this.liveTimer);
+    this.streamTimer = undefined; this.liveTimer = undefined;
+  }
+
   private async loadWorkItem(client: UnfoldClient, workItemId: string, fresh: boolean): Promise<WorkItemView> {
-    const [detail, card] = await Promise.allSettled([client.workItem(workItemId, fresh), client.workItemCard(workItemId)]);
+    const previous = this.view?.kind === 'work' ? this.view : undefined;
+    const ploegDue = fresh || !previous || !this.ploegReadRecently();
+    const [detail, card] = ploegDue ? await Promise.allSettled([client.workItem(workItemId, fresh), client.workItemCard(workItemId)]) : [{ status: 'fulfilled', value: previous.detail } as const, { status: 'fulfilled', value: previous.card } as const];
     if (detail.status === 'rejected') throw detail.reason;
-    return { kind: 'work', workItemId, detail: detail.value, ...(card.status === 'fulfilled' && card.value && String(card.value.workItemId) === workItemId ? { card: card.value } : {}), host: new URL(client.origin).host, loadedAt: new Date().toISOString() };
+    const linked = await this.linked(client, workItemId, await this.host.bootstrap());
+    return { kind: 'work', workItemId, detail: detail.value, ...(card.status === 'fulfilled' && card.value && String(card.value.workItemId) === workItemId ? { card: card.value } : {}), host: new URL(client.origin).host, loadedAt: new Date().toISOString(), ...linked };
+  }
+
+  private ploegReadAt = 0;
+  private ploegReadRecently(): boolean {
+    const recent = Date.now() - this.ploegReadAt < 5000;
+    if (!recent) this.ploegReadAt = Date.now();
+    return recent;
   }
 
   private async status(client: UnfoldClient, source: TaskSource, task: TaskSnapshot, fresh: boolean): Promise<TaskPloegStatus> {
@@ -147,7 +225,8 @@ export class TaskPanel implements vscode.Disposable {
     if (this.disposed || !this.panel.visible) return;
     const view = this.view;
     const moving = workItemMoving(view?.detail?.item.state);
-    const delay = Date.now() >= this.fastUntil ? moving ? 6000 : 15000 : view?.kind === 'task' && awaitingPloeg(view.status) ? 3000 : 6000;
+    const following = Boolean(view?.linked && ['running', 'waiting_input', 'exporting', 'queued'].includes(view.linked.session.status));
+    const delay = following && !this.stream ? 3000 : Date.now() >= this.fastUntil ? moving || following ? 6000 : 15000 : view?.kind === 'task' && awaitingPloeg(view.status) ? 3000 : 6000;
     this.timer = setTimeout(() => void this.load(false), delay);
   }
 
@@ -165,6 +244,13 @@ export class TaskPanel implements vscode.Disposable {
         case 'open-ploeg': if (typeof message.id === 'string' && workItemPattern.test(message.id)) await this.host.openPloeg(message.id); return;
         case 'handoff': { const team = teamName(message.team); if (team) await this.handoff(team); return; }
         case 'take-back': { const team = teamName(message.team); if (team) await this.takeBack(team); return; }
+        case 'session-action': {
+          const action = typeof message.action === 'string' && sessionActions.has(message.action) ? message.action : undefined;
+          const session = typeof message.session === 'string' && sessionPattern.test(message.session) ? message.session : undefined;
+          if (action && session && session === this.view?.linked?.session.id) { await this.host.sessionAction(session, action); this.fastUntil = Date.now() + 60_000; await this.load(false); }
+          await this.panel.webview.postMessage({ type: 'idle' });
+          return;
+        }
         case 'start-session': if (this.target.kind === 'task' && this.view?.kind === 'task') await this.host.startSession(this.target.source, this.view.task); await this.panel.webview.postMessage({ type: 'idle' }); return;
       }
     } catch (error) {
@@ -227,6 +313,7 @@ export class TaskPanel implements vscode.Disposable {
     if (this.disposed) return;
     this.disposed = true;
     this.stop();
+    this.disconnectStream();
     for (const subscription of this.subscriptions) subscription.dispose();
     this.onDispose();
     this.panel.dispose();

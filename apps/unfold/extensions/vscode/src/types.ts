@@ -6,6 +6,12 @@ export type Artifact = { id: string; name: string; kind: ArtifactKind; content: 
 export type ExecutionFailure = { category: string; stage: string; message: string; remediation: string; promptAcceptance: 'not_submitted' | 'rejected' | 'accepted' | 'unknown'; automaticRetry: false; detail?: string };
 export type Run = { id: string; roleName: string; mode: string; status: RunStatus | string; startedAt?: string; finishedAt?: string; summary?: string; verdict?: 'approve' | 'request_changes' | 'inconclusive' | string; costUsd?: number; roleId?: string; promptSha?: string };
 export type Approval = 'manual' | 'auto';
+export type ExecutionBinding = { id: string; workItemId: string; team: string; state: string; revision?: number; generation?: number; supervision?: 'human' | 'background'; expiresAt?: string; stopConfirmed?: boolean };
+/** A recovery action the server offers on a stopped session: deliver the approved work, or run it again. */
+export type RecoveryAction = 'deliver' | 'run_again';
+export type RecoveryOffer = { id: RecoveryAction; label?: string; detail?: string; available?: boolean; reason?: string };
+/** The read-only diagnosis `GET /api/sessions/{id}/investigation` returns for a stopped session. */
+export type Investigation = { sessionId: string; generatedAt: string; class: string; verdict: string; rule: string; stop?: { at: string; type: string }; facts: { label: string; value: string }[]; timeline: { at: string; source: 'unfold' | 'ploeg'; text: string }[]; next: string[]; ploeg: string };
 export type GatewayRequest = { id: string; at: string; durationMs?: number; firstTokenMs?: number; provider?: string; host?: string; geo?: string; model: string; group?: string; tier?: string; cause?: string; savingsUsd?: number; retries: number; fallbacks: number; guardrails: string[]; cacheHit: boolean; cachedTokens: number; inputTokens: number; outputTokens: number; usd: number; status: 'success' | 'failure'; error?: string; callId?: string; harness?: string; roleId?: string; violation?: string };
 export type ModelUsage = { model: string; group?: string; requests: number; failures: number; usd: number; inputTokens: number; outputTokens: number };
 export type Session = {
@@ -14,6 +20,9 @@ export type Session = {
   costStatus: 'demo' | 'pending' | 'settled' | 'unknown'; createdAt: string; updatedAt: string; branch: string; blocker?: string;
   trackerUrl?: string;
   failure?: ExecutionFailure;
+  execution?: ExecutionBinding;
+  recovery?: { actions: RecoveryOffer[] };
+  workItemClosedAt?: string;
   sourceTask?: TaskSnapshot;
   candidate?: Candidate;
   runs: Run[];

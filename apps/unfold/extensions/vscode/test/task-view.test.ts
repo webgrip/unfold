@@ -4,8 +4,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import type { AddressInfo } from 'node:net';
 import { ApiError, UnfoldClient, transient, type Secrets } from '../src/client.ts';
 import { plainText, plural, taskDescription, teamDescription } from '../src/status.ts';
-import { awaitingPloeg, currentWorkItemId, ploegFacts, sessionEligibility, unsupportedStatus, workItemMoving } from '../src/task-view.ts';
-import type { Bootstrap, TaskPloegStatus, TaskSnapshot, TaskSource } from '../src/types.ts';
+import { awaitingPloeg, currentWorkItemId, linkedSessionFor, ploegFacts, progressEventsOf, sessionEligibility, unsupportedStatus, workItemMoving } from '../src/task-view.ts';
+import type { Bootstrap, Session, SessionEvent, TaskPloegStatus, TaskSnapshot, TaskSource } from '../src/types.ts';
 
 const secrets: Secrets = { get: async () => undefined, store: async () => undefined, delete: async () => undefined };
 
@@ -151,4 +151,13 @@ test('Ploeg facts degrade instead of failing: a missing detail or card stays abs
   const failed = await ploegFacts({ workItem: async () => { throw new ApiError(502, 'ploeg_unavailable', 'Ploeg is unavailable.'); }, workItemCard: async () => undefined }, '9', true);
   assert.equal(failed.detail, undefined);
   assert.equal(failed.problem, 'Ploeg’s Runs for this Work Item could not be loaded: Ploeg is unavailable. The panel shows the task’s Ploeg status only.');
+});
+
+test('a Work Item finds the newest session that drives it, and keeps only the events its progress reads', () => {
+  const session = (id: string, createdAt: string, workItemId?: string) => ({ id, createdAt, ...(workItemId ? { execution: { id: `x-${id}`, workItemId, team: 'unfold', state: 'running' } } : {}) }) as unknown as Session;
+  assert.equal(linkedSessionFor([session('a', '2026-10-09T00:00:00Z', '184'), session('b', '2026-10-10T00:00:00Z', '184'), session('c', '2026-10-11T00:00:00Z')], '184')?.id, 'b');
+  assert.equal(linkedSessionFor([session('a', '2026-10-09T00:00:00Z', '18')], '184'), undefined);
+  const event = (id: number, type: string, data: Record<string, unknown> = {}) => ({ id, sessionId: 'b', type, at: '2026-10-10T00:00:00Z', actor: 'system', data }) as SessionEvent;
+  const kept = progressEventsOf([event(1, 'budget.observed'), event(2, 'message', { role: 'operator', text: 'secret instruction' }), event(3, 'message', { role: 'assistant', text: 'VERDICT: approve' }), event(4, 'tool'), event(5, 'execution.reconciliation_required')], 2);
+  assert.deepEqual(kept.map(entry => entry.id), [4, 5], 'operator messages and unread event types stay out, and the newest are kept');
 });

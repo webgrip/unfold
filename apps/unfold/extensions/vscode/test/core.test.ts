@@ -8,7 +8,7 @@ import * as states from '../../../public/core/states.js';
 const core = await loadCore(new URL('../media/core/', import.meta.url));
 
 test('the extension ships the browser vocabulary byte for byte', async () => {
-  for (const name of ['states.js', 'format.js', 'reasons.js', 'checkout.js']) {
+  for (const name of ['states.js', 'format.js', 'reasons.js', 'checkout.js', 'progress.js']) {
     assert.equal(await readFile(new URL(`../media/core/${name}`, import.meta.url), 'utf8'), await readFile(new URL(`../../../public/core/${name}`, import.meta.url), 'utf8'), name);
   }
 });

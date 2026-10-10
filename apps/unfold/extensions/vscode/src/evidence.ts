@@ -64,5 +64,15 @@ export class EvidenceDocuments implements vscode.TextDocumentContentProvider, vs
     await vscode.window.showTextDocument(document, { preview: false });
   }
 
+  /** Keeps `content` as one side of a changed file and returns its URI, ending in the file's own name so VS Code picks its language. */
+  register(sessionId: string, side: 'before' | 'after', file: string, content: string): vscode.Uri {
+    const segments = file.split('/').filter(Boolean).map(safeSegment);
+    const uri = vscode.Uri.from({ scheme: evidenceScheme, path: `/session/${safeSegment(sessionId)}/change/${side}/${segments.join('/') || 'file'}` });
+    this.content.set(uri.toString(), content);
+    if (this.content.size > 400) this.content.delete(this.content.keys().next().value!);
+    this.changed.fire(uri);
+    return uri;
+  }
+
   dispose() { this.changed.dispose(); this.content.clear(); }
 }

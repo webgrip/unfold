@@ -1,5 +1,5 @@
 import type { PloegCard, PloegDetail, PloegNow, PloegOverview } from './ploeg-types.js';
-import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat } from './types.js';
+import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat, Investigation, RecoveryAction } from './types.js';
 import type { BrowserLoginStart } from './browser-login.js';
 
 export type StreamHandlers = { onOpen?: () => void; onEvent: (event: SessionEvent) => void };
@@ -153,6 +153,8 @@ export class UnfoldClient {
   sessions(): Promise<Session[]> { return this.request('/api/sessions'); }
   session(id: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}`); }
   history(id: string, after = 0): Promise<SessionEvent[]> { return this.request(`/api/sessions/${identifier(id)}/history?after=${Math.max(0, Math.floor(after))}`); }
+  investigation(id: string): Promise<Investigation> { return this.request(`/api/sessions/${identifier(id)}/investigation`); }
+  recover(id: string, action: RecoveryAction): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/recover`, 'POST', { action }); }
   permissions(id: string): Promise<Permission[]> { return this.request(`/api/sessions/${identifier(id)}/permissions`); }
   create(input: SessionInput): Promise<Session> { return this.request('/api/sessions', 'POST', input); }
   action(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/${action}`, 'POST', {}); }

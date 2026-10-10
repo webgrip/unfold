@@ -107,6 +107,31 @@
 .openable { cursor: pointer; }
 footer { flex-wrap: wrap; font-size: 11px; }
 
+.live-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); margin: var(--space-2) 0 0; font-size: 12px; }
+.live-line .live-mark { align-self: center; }
+.action-gap { flex: 1 1 var(--space-4); }
+.actions .destructive { color: var(--tone-danger); }
+.live-tag { font-size: 11px; padding: 1px 8px; }
+.step-list { list-style: none; margin: 0; padding: 0; counter-reset: step; }
+.step { position: relative; padding: var(--space-2) 0 var(--space-2) var(--space-6); border-top: 1px solid var(--border); counter-increment: step; }
+.step:first-child { border-top: 0; padding-top: 0; }
+.step::before { content: counter(step); position: absolute; left: 0; top: var(--space-2); width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); font-size: 11px; line-height: 16px; text-align: center; color: var(--muted); }
+.step:first-child::before { top: 0; }
+.step-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-2); font-size: 12px; }
+.step-head .access { margin-left: 0; }
+.step-time { margin-left: auto; white-space: nowrap; }
+.step-summary { margin: var(--space-1) 0 0; color: var(--muted); }
+.change-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-1) var(--space-4); margin: 0; font-size: 12px; }
+.change-facts .fact { display: contents; }
+.change-facts dt { color: var(--muted); }
+.change-facts dd { margin: 0; min-width: 0; }
+.change .actions { margin-top: var(--space-3); }
+.fact-list { margin: 0; padding-left: 1.2em; }
+.fact-list li + li { margin-top: var(--space-1); }
+.ploeg-record > summary { cursor: pointer; list-style-position: outside; }
+.ploeg-record > summary .inline-heading { display: inline; font-size: 13px; }
+.ploeg-record[open] > summary { margin-bottom: var(--space-3); }
+
 @media (min-width: 720px) {
   .head-card.with-facts { grid-template-columns: minmax(0, 1fr) minmax(0, 300px); column-gap: var(--space-6); }
   .head-card.with-facts .head-facts .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }

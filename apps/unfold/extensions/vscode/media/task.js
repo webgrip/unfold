@@ -2,6 +2,7 @@ import { closeReasonLabel, displayState, failureReason, humanReview, ciState, pl
 import { compactCount, count, date, duration, money, notReported, plural, relative, time } from './core/format.js';
 import { detailReason } from './core/reasons.js';
 import { checkoutTarget } from './core/checkout.js';
+import { changeText, elapsedClock, ploegRunActive, sessionProgress } from './core/progress.js';
 
 const bridge = acquireVsCodeApi();
 const saved = bridge.getState() || {};
@@ -60,6 +61,14 @@ export function subject(current) {
   const detail = entry ? detailFor(current, entry.id) : null;
   const item = entry ? { ...entry, ...(detail ? { state: detail.item.state, team: detail.item.team, attempts: detail.item.attempts } : {}) } : null;
   return { item, detail, card: entry ? cardFor(current, entry.id) : null, demo: Boolean(current.status?.demo || detail?.demo) };
+}
+
+/** The progress state of the session that drives this Work Item, from `core/progress.js`, or null when no session does. */
+export function progressOf(current) {
+  const linked = current?.linked;
+  if (!linked?.session) return null;
+  const { detail, card } = subject(current);
+  return sessionProgress(linked.session, { events: linked.events || [], viewer: Boolean(linked.viewer), ploeg: detail, card });
 }
 
 function latestShift(detail) {
@@ -132,6 +141,8 @@ function stateSituation(item, detail, { taskOpen = null } = {}) {
 
 /** The one-line answer to "is Unfold working on this, and what happens next?" for the current view. */
 export function ploegSituation(current) {
+  const progress = progressOf(current);
+  if (progress) return { meta: { ...progress.meta, key: progress.phase }, headline: progress.headline, next: progress.next, progress };
   if (isWork(current)) {
     const { item, detail } = subject(current);
     if (!item) return { meta: plain('Not loaded'), headline: 'The Work Item could not be loaded.', next: '' };
@@ -204,7 +215,7 @@ export function costSummary(current) {
   const { item, card, demo } = subject(current);
   if (demo) return { value: 'Demo', note: 'no model calls' };
   if (card) {
-    const live = card.live && typeof card.live === 'object' && amount(card.live.runSeconds) && card.live.runningRuns > 0 ? card.live : null;
+    const live = card.live && typeof card.live === 'object' && amount(card.live.runSeconds) && card.live.runningRuns > 0 && item?.state === 'leased' ? card.live : null;
     if (live) return amount(live.costUsd) ? { value: money(live.costUsd), note: `so far · ${plural(live.runningRuns, 'Run')} running`, live: true } : { value: 'Not reported yet', note: 'a Run is running', live: true };
     const totals = card.totals || {};
     if (totals.costStatus === 'observed' && amount(totals.costUsd)) return { value: money(totals.costUsd), note: totals.usageComplete === false ? 'observed, not settled · partial' : 'observed, not settled' };
@@ -230,8 +241,11 @@ function runsSummary(current) {
   const total = amount(totals.runs) ? totals.runs : runs ? runs.length : null;
   if (total === null) return { value: notReported, note: '' };
   const failed = amount(totals.failedRuns) ? totals.failedRuns : runs ? runs.filter(run => run.outcome === 'failed' || run.failureReason).length : null;
-  const running = card?.live?.runningRuns > 0 ? card.live.runningRuns : runs ? runs.filter(run => run.state === 'running').length : 0;
-  const note = [running ? `${count(running)} running` : '', failed === null ? '' : failed ? `${count(failed)} failed` : 'none failed'].filter(Boolean).join(' · ');
+  const item = detail?.item || subject(current).item;
+  const leased = item?.state === 'leased';
+  const running = !leased ? 0 : card?.live?.runningRuns > 0 ? card.live.runningRuns : runs ? runs.filter(run => ploegRunActive(item, run)).length : 0;
+  const unclosed = !leased && runs ? runs.filter(run => run.state === 'running').length : 0;
+  const note = [running ? `${count(running)} running` : '', unclosed ? `${count(unclosed)} not closed by Ploeg` : '', failed === null ? '' : failed ? `${count(failed)} failed` : 'none failed'].filter(Boolean).join(' · ');
   return { value: count(total), note };
 }
 
@@ -254,6 +268,16 @@ function stat(label, { value, note, live }) {
 export function headFacts(current) {
   const { item } = subject(current);
   if (!item) return null;
+  const progress = progressOf(current);
+  if (progress) {
+    const roles = progress.steps.map(step => `${step.role.toLowerCase()} ${step.state === 'done' ? 'finished' : step.label.toLowerCase()}`).join(' · ');
+    return element('dl', { className: 'stats', 'aria-label': 'Work Item facts' },
+      stat('Cost', { value: progress.spend.text, note: progress.spend.status === 'observed' ? 'observed, not settled' : progress.spend.status === 'settled' ? 'settled' : progress.demo ? 'no model calls' : '' }),
+      stat('Budget', { value: amount(progress.spend.budgetUsd) ? money(progress.spend.budgetUsd) : notReported, note: 'this session' }),
+      stat('Runs', { value: count(progress.steps.length), note: roles }),
+      stat('Rounds', roundsSummary(current)),
+      stat('Team', { value: item.team || notReported, note: '' }));
+  }
   return element('dl', { className: 'stats', 'aria-label': 'Work Item facts' },
     stat('Cost', costSummary(current)),
     stat('Budget', budgetSummary(current)),
@@ -264,6 +288,7 @@ export function headFacts(current) {
 
 /** The cost per role table from the Run card's crew. Null without a card or a named role. */
 export function crewTable(current) {
+  if (progressOf(current)) return null;
   const { card, demo } = subject(current);
   const crew = (card?.crew || []).filter(member => text(member?.role));
   if (!crew.length) return null;
@@ -313,8 +338,96 @@ function teamPicker(current) {
       chosen ? element('span', { className: 'muted small' }, `Assigns “${chosen.assignee}” in ${providerName(current.task.provider)} and comments that you handed it over.`) : null));
 }
 
+function sessionButton(progress, entry) {
+  const label = busy === `session:${entry.id}` ? `${entry.label}…` : entry.label;
+  return element('button', { type: 'button', className: entry.primary ? 'primary' : 'quiet', 'data-session-action': entry.id, 'data-session': progress.sessionId, disabled: Boolean(busy) || !connected, ...(entry.confirm ? { 'aria-haspopup': 'dialog', title: `${entry.confirm.title} You confirm before anything happens.` } : {}) }, label);
+}
+
+/** The line under the headline while a Role works: who, which Round, a ticking clock, what it last did, and spend against budget. */
+export function liveLine(progress) {
+  const current = progress.current;
+  if (!current) return null;
+  const since = Date.parse(current.startedAt || '');
+  return element('p', { className: 'live-line', 'aria-label': `${current.role} has worked for ${elapsedClock(current.seconds)}` },
+    element('span', { className: 'live-mark', 'aria-hidden': 'true' }),
+    element('strong', {}, current.role),
+    current.round ? element('span', {}, `Round ${current.round}`) : null,
+    Number.isFinite(since) ? element('span', { className: 'num', 'data-since': String(since), 'aria-hidden': 'true' }, elapsedClock(current.seconds)) : null,
+    current.activity ? element('span', { className: 'muted' }, `${current.activity.text} · ${relative(current.activity.at)}`) : null,
+    element('span', { className: 'muted num' }, `${progress.spend.text}${amount(progress.spend.budgetUsd) ? ` of ${money(progress.spend.budgetUsd)}` : ''}`));
+}
+
+function progressCard(current, progress) {
+  const facts = headFacts(current);
+  const { item } = subject(current);
+  const reason = progress.reason && ['stopped', 'failed'].includes(progress.phase) ? progress.reason : null;
+  const actions = progress.actions.filter(entry => entry.id !== 'open-pr' || progress.change.pullRequest?.url);
+  const buttons = actions.map(entry => entry.id === 'open-pr' ? element('button', { type: 'button', className: entry.primary ? 'primary' : 'quiet', 'data-open-url': progress.change.pullRequest.url, title: progress.change.pullRequest.url }, `${entry.label} ↗`) : sessionButton(progress, entry));
+  const cancel = buttons.findIndex(button => button.dataset?.sessionAction === 'cancel');
+  const destructive = cancel >= 0 ? buttons.splice(cancel, 1)[0] : null;
+  if (item?.id) buttons.push(action('Open in browser ↗', 'open-ploeg', { className: 'quiet', 'data-id': item.id, title: 'Open this Work Item in the Unfold workbench in your browser' }));
+  if (destructive) { destructive.className = 'quiet destructive'; buttons.push(element('span', { className: 'action-gap', 'aria-hidden': 'true' }), destructive); }
+  return element('section', { className: `card head-card progress-card tone-${progress.meta.tone}${facts ? ' with-facts' : ''}`, 'aria-labelledby': 'head-heading' },
+    element('div', { className: 'head-main' },
+      element('div', { className: 'head-state' },
+        pill({ ...progress.meta, title: progress.meta.label }),
+        reason ? pill({ label: capital(reason.short), tone: progress.meta.tone, title: reason.sentence }, { className: `pill-state tone-${progress.meta.tone} reason-chip` }) : null,
+        progress.demo ? element('span', { className: 'tag demo-tag' }, 'Demo · no model calls or spend') : null,
+        current.linked?.live ? element('span', { className: 'tag live-tag', title: 'Following the session\'s event stream' }, 'Live') : null),
+      element('h2', { id: 'head-heading', className: 'headline' }, progress.headline),
+      liveLine(progress),
+      progress.next ? element('p', { className: 'next' }, progress.next) : null,
+      buttons.length ? element('div', { className: 'actions', role: 'group', 'aria-label': 'What you can do' }, ...buttons) : null),
+    facts ? element('div', { className: 'head-facts' }, facts) : null);
+}
+
+const capital = value => value ? value[0].toUpperCase() + value.slice(1) : value;
+
+/** The Roles of the session in order, each with its outcome, verdict, duration and summary. */
+export function stepsSection(current) {
+  const progress = progressOf(current);
+  if (!progress) return null;
+  if (!progress.steps.length) return element('section', { className: 'card steps', 'aria-labelledby': 'steps-heading' }, element('div', { className: 'section-heading' }, element('h2', { id: 'steps-heading' }, 'Steps')), element('p', { className: 'muted' }, progress.phase === 'ready' ? 'Nothing has run yet.' : 'No Role has started yet.'));
+  return element('section', { className: 'card steps', 'aria-labelledby': 'steps-heading' },
+    element('div', { className: 'section-heading' }, element('h2', { id: 'steps-heading' }, 'Steps'), element('span', {}, `${plural(progress.steps.length, 'Run')} in this session, in order`)),
+    element('ol', { className: 'step-list' }, ...progress.steps.map(step => element('li', { className: `step step-${step.state}` },
+      element('div', { className: 'step-head' },
+        element('strong', {}, step.role), element('span', { className: 'access' }, step.mode === 'read' ? 'reader' : 'writer'),
+        pill({ label: step.label, tone: step.tone, glyph: 'circle', live: step.state === 'working' }),
+        step.verdict ? pill({ label: step.verdict.recorded ? step.verdict.label : `${step.verdict.label} · not recorded`, tone: step.verdict.recorded ? step.verdict.tone : 'neutral', title: step.verdict.recorded ? 'An agent verdict is evidence, not a human review.' : 'Read from the Run\'s own transcript; the session did not record it.' }) : null,
+        element('span', { className: 'step-time num muted' }, [step.startedAt ? time(step.startedAt) : '', step.seconds !== null ? duration(step.seconds) : ''].filter(Boolean).join(' · '))),
+      step.summary ? element('p', { className: 'step-summary small' }, step.summary) : null))));
+}
+
+/** The change the session made: files and lines, the branch, the candidate and the pull request. Null before anything changed. */
+export function changeSection(current) {
+  const progress = progressOf(current);
+  if (!progress) return null;
+  const change = progress.change;
+  if (!change.files && !change.pullRequest && !change.candidate) return null;
+  const counts = changeText(change);
+  return element('section', { className: 'card change', 'aria-labelledby': 'change-heading' },
+    element('div', { className: 'section-heading' }, element('h2', { id: 'change-heading' }, 'Change'), element('span', {}, change.pullRequest ? `Pull request #${change.pullRequest.number}` : change.candidate === 'ready' ? 'Captured for review' : progress.meta.live ? 'So far, from the Runs' : 'Not captured as a candidate')),
+    element('dl', { className: 'change-facts' },
+      counts ? fact('Files', element('span', { className: 'diff num' }, element('span', { className: 'files' }, plural(change.files, 'file')), change.added || change.removed ? element('span', { className: 'added' }, `+${change.added}`) : null, change.added || change.removed ? element('span', { className: 'removed' }, `−${change.removed}`) : null)) : null,
+      change.branch ? fact('Branch', element('code', {}, change.branch)) : null,
+      change.candidateText ? fact('Candidate', change.candidateText) : null),
+    change.viewable && !progress.actions.some(entry => entry.id === 'view-change') ? element('div', { className: 'actions' }, sessionButton(progress, { id: 'view-change', label: 'View change' })) : null);
+}
+
+/** What the sources disagree about, resolved in words. */
+export function factsSection(current) {
+  const progress = progressOf(current);
+  if (!progress?.facts.length) return null;
+  return element('section', { className: 'card facts', 'aria-labelledby': 'facts-heading' },
+    element('div', { className: 'section-heading' }, element('h2', { id: 'facts-heading' }, 'Worth knowing')),
+    element('ul', { className: 'fact-list small' }, ...progress.facts.map(entry => element('li', {}, entry))));
+}
+
 /** The head card: the state, why, what to press, the facts and the cost per role. */
 export function headCard(current) {
+  const progress = progressOf(current);
+  if (progress) return progressCard(current, progress);
   const situation = ploegSituation(current);
   const reason = situation.reason;
   const primary = primaryAction(current);
@@ -395,14 +508,15 @@ function accountSection(current) {
     element('p', { className: 'muted small caveat' }, `The agent’s own account: verify it against ${number ? `pull request #${number}` : 'the pull request'}.`));
 }
 
-function runSeconds(run) {
+function runSeconds(run, item = null) {
   const start = Date.parse(run.startedAt || '');
-  const end = run.state === 'running' ? Date.now() : Date.parse(run.finishedAt || '');
+  const end = run.state === 'running' ? item && item.state !== 'leased' ? Date.parse(item.updatedAt || '') : Date.now() : Date.parse(run.finishedAt || '');
   return Number.isFinite(start) && Number.isFinite(end) && end >= start ? (end - start) / 1000 : null;
 }
 
 /** What a Run reported, as a state meta: running or waiting, its outcome, its failure, or that it reported none. */
-export function runResult(run) {
+export function runResult(run, item = null) {
+  if (run.state === 'running' && item && item.state !== 'leased') return { key: 'unclosed', label: 'Not closed by Ploeg', tone: 'severe', glyph: 'zap', title: `Ploeg still lists this Run as running, but the Work Item is ${workItemState(item.state).label.toLowerCase()}.` };
   if (run.state !== 'finished') return run.state === 'running' ? runState('running') : { ...runState('pending'), label: 'Waiting for a worker' };
   const outcome = runOutcome(run.outcome);
   if (outcome) return { ...outcome, label: outcome.short || outcome.label, title: outcome.label };
@@ -417,11 +531,11 @@ export function runCost(run, demo) {
   return run.costStatus === 'observed' && amount(run.usage?.costUsd) ? money(run.usage.costUsd) : notReported;
 }
 
-function runRow(run, demo) {
-  const result = runResult(run);
+function runRow(run, demo, item = null) {
+  const result = runResult(run, item);
   const failure = failureReason(run.failureReason);
   const reader = !run.writes && run.state === 'finished';
-  const seconds = runSeconds(run);
+  const seconds = runSeconds(run, item);
   const cost = runCost(run, demo);
   const note = run.outcome === 'stuck' ? text(run.stuckReason) : '';
   return element('li', { className: 'run-row' },
@@ -475,12 +589,14 @@ export function runsSection(current) {
   }
   const list = (groups, continued = new Set()) => groups.map(group => element('div', { className: 'run-group' },
     element('h3', { className: 'run-group-label' }, continued.has(group.key) ? `${group.label} (continued)` : group.label),
-    element('ul', { className: 'run-list' }, ...group.runs.map(run => runRow(run, demo)))));
+    element('ul', { className: 'run-list' }, ...group.runs.map(run => runRow(run, demo, item)))));
   const hidden = rest.reduce((total, group) => total + group.runs.length, 0);
-  return element('section', { className: 'card runs', 'aria-labelledby': 'runs-heading' },
-    heading,
-    ...list(visible),
-    hidden ? element('details', { className: 'more-runs' }, element('summary', {}, `Show ${hidden} more ${hidden === 1 ? 'Run' : 'Runs'}`), ...list(rest, new Set(visible.map(group => group.key)))) : null);
+  const body = [...list(visible), hidden ? element('details', { className: 'more-runs' }, element('summary', {}, `Show ${hidden} more ${hidden === 1 ? 'Run' : 'Runs'}`), ...list(rest, new Set(visible.map(group => group.key)))) : null];
+  if (progressOf(current)) return element('section', { className: 'card runs', 'aria-labelledby': 'runs-heading' },
+    element('details', { className: 'ploeg-record' },
+      element('summary', {}, element('h2', { id: 'runs-heading', className: 'inline-heading' }, 'As Ploeg records it'), element('span', { className: 'muted small' }, ` · ${plural(runs.length, 'Run')}; the session's Roles run inside it`)),
+      ...body));
+  return element('section', { className: 'card runs', 'aria-labelledby': 'runs-heading' }, heading, ...body);
 }
 
 
@@ -494,6 +610,12 @@ function labelsAndPeople(labels, assignees) {
 function metaLine(parts) {
   const entries = parts.filter(Boolean);
   return element('div', { className: 'task-meta' }, ...entries.flatMap((part, index) => index ? [element('span', { className: 'dot', 'aria-hidden': 'true' }, '·'), part] : [part]));
+}
+
+function headerPill(current, ploegMeta) {
+  const progress = progressOf(current);
+  if (!progress) return pill(ploegMeta, { title: 'State in Ploeg' });
+  return pill({ ...progress.meta, title: `${progress.meta.label} in Unfold; ${ploegMeta.label} in Ploeg` });
 }
 
 function trackerPill(status) {
@@ -513,7 +635,7 @@ export function header(current) {
         element('h1', {}, item?.title || `Work Item ${current.workItemId}`),
         element('div', { className: 'toolbar' }, refresh, url ? element('button', { type: 'button', 'data-open-url': url, title: url }, `Open in ${providerName(item.provider)} ↗`) : null)),
       metaLine([
-        item ? pill(workItemState(displayState(item, current.detail.events))) : null,
+        item ? headerPill(current, workItemState(displayState(item, current.detail.events))) : null,
         text(item?.externalId) ? (item.externalId.includes('#') ? item.externalId : `#${item.externalId}`) : '',
         amount(item?.priority) && item.priority > 0 ? `priority ${item.priority}` : '',
         item?.updatedAt ? `updated ${relative(item.updatedAt)}` : '',
@@ -527,7 +649,7 @@ export function header(current) {
       element('h1', {}, task.title),
       element('div', { className: 'toolbar' }, refresh, task.url ? action(`Open in ${providerName(task.provider)} ↗`, 'open-tracker', { title: task.url }) : null)),
     metaLine([
-      item ? pill(workItemState(detail ? displayState(detail.item, detail.events) : item.state), { title: 'State in Ploeg' }) : trackerPill(task.status),
+      item ? headerPill(current, workItemState(detail ? displayState(detail.item, detail.events) : item.state)) : trackerPill(task.status),
       item && task.status !== 'open' ? `${task.status} in ${providerName(task.provider)}` : '',
       task.identifier || `#${task.id}`,
       task.priority ? `priority ${priorities[task.priority] || task.priority}` : '',
@@ -565,6 +687,9 @@ export function sections(current) {
     ...notices(current),
     header(current),
     headCard(current),
+    stepsSection(current),
+    changeSection(current),
+    factsSection(current),
     pullRequestsSection(current),
     accountSection(current),
     runsSection(current),
@@ -578,13 +703,21 @@ function render() {
   if (!app) return;
   if (!view) { app.replaceChildren(element('div', { className: 'loading', role: 'status' }, problem || 'Loading…')); return; }
   app.replaceChildren(...sections(view));
-  const headline = ploegSituation(view).headline;
+  const situation = ploegSituation(view);
+  const headline = situation.progress ? `${situation.progress.meta.label}. ${situation.progress.headline}` : situation.headline;
   if (headline !== spoken) { spoken = headline; announce(headline); }
 }
 
 document.addEventListener('click', event => {
   const link = event.target.closest('[data-open-url]');
   if (link) { bridge.postMessage({ type: 'open-url', url: link.dataset.openUrl }); return; }
+  const step = event.target.closest('[data-session-action]');
+  if (step) {
+    if (step.disabled) return;
+    busy = `session:${step.dataset.sessionAction}`; render();
+    bridge.postMessage({ type: 'session-action', action: step.dataset.sessionAction, session: step.dataset.session });
+    return;
+  }
   const button = event.target.closest('[data-action]');
   if (!button || button.disabled) return;
   const type = button.dataset.action;
@@ -612,6 +745,15 @@ window.addEventListener('message', event => {
   else if (message.type === 'idle') { busy = ''; render(); }
   else if (message.type === 'connection') { connected = Boolean(message.connected); render(); }
 });
+
+function tick() {
+  const now = Date.now();
+  for (const node of document.querySelectorAll('[data-since]')) {
+    const since = Number(node.dataset.since);
+    if (Number.isFinite(since)) node.textContent = elapsedClock((now - since) / 1000);
+  }
+}
+setInterval(tick, 1000);
 
 remember();
 render();

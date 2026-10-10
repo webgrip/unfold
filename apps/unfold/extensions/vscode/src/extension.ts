@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { pathToFileURL } from 'node:url';
 import { loadCore, type Core } from './core.js';
 import { NowTree, waitingCount, nowGroup, type NowEntry, type WorkItemRef } from './now-tree.js';
+import { sessionRows, statusSummary, type SessionRow } from './now.js';
 import type { PloegNow, PloegNowItem } from './ploeg-types.js';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
@@ -218,6 +219,8 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.ploegView.message = undefined;
     this.view.message = needsLogin ? 'Your session has expired.' : 'Work continues on the workbench. Reconnect to inspect it.';
     this.view.badge = undefined;
+    this.statusState = undefined;
+    if (this.statusTicker) { clearInterval(this.statusTicker); this.statusTicker = undefined; }
     this.status.text = needsLogin ? '$(account) Unfold: sign in' : '$(debug-disconnect) Unfold: offline';
     this.status.backgroundColor = undefined;
     this.status.command = 'unfold.connect';
@@ -231,6 +234,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const since = this.lastSuccess!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     this.view.message = `Reconnecting to ${new URL(this.current.origin).host}… showing the state from ${since}`;
     this.nowView.message = this.view.message;
+    if (this.statusTicker) { clearInterval(this.statusTicker); this.statusTicker = undefined; }
     this.status.text = '$(sync~spin) Unfold: reconnecting';
     this.status.backgroundColor = undefined;
     this.status.command = 'unfold.refresh';
@@ -256,15 +260,16 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       this.tree.update(sessions);
       this.tasks.update(bootstrap.taskSources ?? [], bootstrap.taskSources?.length ? '' : 'Connect a task source on the workbench server', bootstrap.repositories);
       if (now.value) this.tasks.ploegItems([...now.value.waiting, ...(now.value.active ?? [])]);
-      this.now.update(now.value, sessions, now.message);
+      const rows = sessionRows(this.core, sessions);
+      this.now.update(now.value, rows, now.message);
       const demo = bootstrap.mode === 'demo';
       this.taskView.message = demo ? 'Demo fixture · No tracker account required' : undefined;
       this.view.message = demo ? 'Demo · no AI calls' : undefined;
       this.nowView.message = `${demo || now.value?.demo ? 'Demo · illustrative records, no model calls or spend · ' : ''}${bootstrap.user.name} · ${new URL(client.origin).host}`;
-      const count = waitingCount(now.value, sessions);
+      const count = waitingCount(now.value, rows);
       this.nowView.badge = count ? { value: count, tooltip: `${count} ${count === 1 ? 'thing waits' : 'things wait'} on you` } : undefined;
       this.view.badge = undefined;
-      this.statusLine(client, bootstrap.mode, now.value, sessions);
+      this.statusLine(client, bootstrap.mode, now.value, rows);
       await vscode.commands.executeCommand('setContext', 'unfold.sessions', demo || Boolean(bootstrap.sharedExecution) || sessions.length > 0);
       await vscode.commands.executeCommand('setContext', 'unfold.connected', true);
       for (const alert of this.watcher.observe(sessions)) void show(alert);
@@ -295,17 +300,26 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     return this.lastNow;
   }
 
-  private statusLine(client: UnfoldClient, mode: Bootstrap['mode'], now: PloegNow | undefined, sessions: Session[]) {
-    const decisions = sessions.filter(session => session.status === 'waiting_input').length;
-    const review = (now?.waiting ?? []).filter(item => nowGroup(item) === 'review').length;
-    const needs = (now?.waiting ?? []).filter(item => nowGroup(item) === 'needs').length + decisions;
-    const running = now?.running.length ?? 0;
-    const parts = [review ? `$(git-pull-request) ${review}` : '', needs ? `$(bell-dot) ${needs}` : '', running ? `$(sync~spin) ${running}` : ''].filter(Boolean);
-    this.status.text = parts.length ? `$(layers) ${parts.join('  ')}` : '$(layers) Unfold';
-    this.status.backgroundColor = needs ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
-    this.status.command = decisions ? 'unfold.reviewNextDecision' : 'unfold.now.focus';
-    const lines = [review ? `${review} ready for your review` : '', needs ? `${needs} need${needs === 1 ? 's' : ''} you` : '', running ? `${running} running` : ''].filter(Boolean);
-    this.status.tooltip = `${lines.length ? lines.join(' · ') : 'Nothing waits on you'}\n${client.origin}${mode === 'demo' ? ' · demonstration, no AI calls' : ''}\n${decisions ? 'Click to answer the oldest decision' : 'Click to open Now'}`;
+  private statusTicker?: ReturnType<typeof setInterval>;
+  private statusState?: { client: UnfoldClient; mode: Bootstrap['mode']; now: PloegNow | undefined; rows: SessionRow[] };
+
+  private statusLine(client: UnfoldClient, mode: Bootstrap['mode'], now: PloegNow | undefined, rows: SessionRow[]) {
+    this.statusState = { client, mode, now, rows };
+    this.paintStatus();
+    const ticking = Boolean(statusSummary(this.core, now, rows).focus?.progress.current);
+    if (ticking && !this.statusTicker) this.statusTicker = setInterval(() => this.paintStatus(), 1000);
+    if (!ticking && this.statusTicker) { clearInterval(this.statusTicker); this.statusTicker = undefined; }
+  }
+
+  private paintStatus() {
+    const state = this.statusState;
+    if (!state || this.disposed) return;
+    const summary = statusSummary(this.core, state.now, state.rows);
+    this.status.text = summary.text;
+    this.status.backgroundColor = summary.warning ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
+    const workItem = summary.focus?.progress.workItemId;
+    this.status.command = summary.asking ? 'unfold.reviewNextDecision' : summary.focus ? workItem ? { command: 'unfold.openWorkItem', title: 'Open Work Item', arguments: [{ id: workItem, title: summary.focus.session.title }] } : { command: 'unfold.open', title: 'Open session', arguments: [summary.focus.session.id] } : 'unfold.now.focus';
+    this.status.tooltip = `${summary.tooltip}\n${state.client.origin}${state.mode === 'demo' ? ' · demonstration, no AI calls' : ''}\n${summary.asking ? 'Click to answer the oldest decision' : summary.focus ? 'Click to follow this Work Item' : 'Click to open Now'}`;
   }
 
   private announceWaiting(now: PloegNow) {
@@ -1021,6 +1035,72 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     await this.documents.openArtifact(id, artifact, { line: file && artifact.kind === 'diff' ? patchFileLine(artifact.content, file) : 0 });
   }
 
+  async sessionAction(id: string, action: string): Promise<void> {
+    switch (action) {
+      case 'open-session': await this.open(id); return;
+      case 'answer': await this.reviewDecision(id); return;
+      case 'start': case 'pause': case 'resume': case 'cancel': await this.lifecycle(id, action); return;
+      case 'accept': await this.review(id, 'accepted'); return;
+      case 'reject': await this.review(id, 'rejected'); return;
+      case 'investigate': await this.investigate(id); return;
+      case 'view-change': await this.viewChange(id); return;
+      case 'deliver': await this.recover(id, 'deliver'); return;
+      case 'run-again': await this.recover(id, 'run_again'); return;
+    }
+  }
+
+  /** Opens the read-only diagnosis of a stopped session as a Markdown document beside the editor. */
+  async investigate(id: string): Promise<void> {
+    const target = this.current;
+    const report = await vscode.window.withProgress({ location: vscode.ProgressLocation.Window, title: 'Investigating the stop' }, () => target.investigation(id));
+    const lines = [`# ${report.verdict}`, '', `Rule: ${report.rule}${report.stop ? ` · stopped ${this.core.dateTime(report.stop.at)} (${report.stop.type})` : ''} · Ploeg ${report.ploeg.replaceAll('_', ' ')}`, ''];
+    if (report.facts.length) lines.push('## Facts', '', ...report.facts.map(fact => `- **${fact.label}:** ${fact.value}`), '');
+    if (report.next.length) lines.push('## What to do', '', ...report.next.map(step => `- ${step}`), '');
+    if (report.timeline.length) lines.push('## Around the stop', '', '| Time | Source | What happened |', '| --- | --- | --- |', ...report.timeline.map(entry => `| ${this.core.time(entry.at, { seconds: true })} | ${entry.source} | ${entry.text.replace(/\|/g, '\\|').replace(/\n/g, ' ')} |`), '');
+    lines.push(`_Read-only diagnosis generated ${this.core.dateTime(report.generatedAt)}. It sent no command to Ploeg._`);
+    await this.documents.openText(id, 'investigation.md', lines.join('\n'), 'markdown');
+  }
+
+  /** Shows a session's change in VS Code's multi-file diff editor when the runtime kept each file's before and after, else the patch. */
+  async viewChange(id: string): Promise<void> {
+    const target = this.current; const generation = this.generation;
+    const session = await target.session(id);
+    this.assertTarget(target, generation);
+    const files = this.core.changedFiles(session);
+    const sided = files.filter(file => typeof file.before === 'string' || typeof file.after === 'string');
+    if (sided.length) {
+      const resources = sided.map(file => [vscode.Uri.from({ scheme: 'unfold-evidence', path: `/session/${id}/file/${file.file}` }), this.documents.register(id, 'before', file.file, file.before ?? ''), this.documents.register(id, 'after', file.file, file.after ?? '')]);
+      const title = `${session.title} · ${sided.length === 1 ? sided[0].file : `${sided.length} files`}`;
+      if ((await vscode.commands.getCommands(true)).includes('vscode.changes')) { await vscode.commands.executeCommand('vscode.changes', title, resources); return; }
+      await vscode.commands.executeCommand('vscode.diff', resources[0][1], resources[0][2], title);
+      return;
+    }
+    const diff = session.artifacts.find(artifact => artifact.kind === 'diff');
+    if (diff) { await this.documents.openArtifact(id, diff); return; }
+    if (session.candidate?.status === 'ready') {
+      const bytes = await target.downloadCandidate(id, 'patch');
+      this.assertTarget(target, generation);
+      await this.documents.openText(id, 'candidate.patch', Buffer.from(bytes).toString('utf8'), 'diff');
+      return;
+    }
+    throw new Error('This session has no change to show yet.');
+  }
+
+  /** Asks the server to deliver the approved work or run it again, after a confirmation that names what it does. */
+  async recover(id: string, action: 'deliver' | 'run_again'): Promise<void> {
+    const target = this.current; const generation = this.generation;
+    const session = await target.session(id);
+    this.assertTarget(target, generation);
+    const offered = this.core.sessionProgress(session).actions.find(entry => entry.id === (action === 'deliver' ? 'deliver' : 'run-again'));
+    if (!offered?.confirm) throw new Error(action === 'deliver' ? 'This session does not offer delivery now. Refresh the Work Item.' : 'This session cannot run again now. Refresh the Work Item.');
+    const choice = await vscode.window.showWarningMessage(offered.confirm.title, { modal: true, detail: offered.confirm.detail }, offered.confirm.button);
+    if (choice !== offered.confirm.button) return;
+    this.assertTarget(target, generation);
+    await target.recover(id, action);
+    void vscode.window.showInformationMessage(action === 'deliver' ? 'Delivery requested. The Work Item view shows the pull request when it opens.' : 'A new attempt was requested. The Work Item view follows it live.');
+    await this.refresh();
+  }
+
   async open(value: SessionRef): Promise<import('./panel.js').SessionPanel | undefined> {
     const id = await this.choose(value);
     if (!id) return undefined;
@@ -1035,7 +1115,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     if (panel && tab) panel.focus(tab, requestId, runId);
   }
 
-  dispose() { this.disposed = true; clearInterval(this.timer); this.hideAgentsWindow(); this.panels.closeAll(); }
+  dispose() { this.disposed = true; clearInterval(this.timer); if (this.statusTicker) clearInterval(this.statusTicker); this.hideAgentsWindow(); this.panels.closeAll(); }
 }
 
 /** Settings sections this extension read before the product was named Unfold. */
