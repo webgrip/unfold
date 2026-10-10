@@ -648,7 +648,7 @@ export class AgentHost {
     if (projection.activeTurn) this.closeTurn(projection, 'complete', startedAt);
     const hostTurnId = `${session.id}-turn-${++projection.turnCounter}`;
     const turnId = this.acceptableTurnId(projection, requestedTurnId) ?? hostTurnId;
-    const message = { text, origin: { kind: origin }, ...(origin === 'user' && session.runs[0] ? { model: { id: composerModel(this.config).id } } : {}) };
+    const message = { text, origin: { kind: origin } };
     projection.activeTurn = { id: turnId, startedAt, message, responseParts: [], usage: undefined };
     return [this.tag(projection, { type: 'chat/turnStarted', turnId, startedAt, message }, `turn:${turnId}`)];
   }
