@@ -1,10 +1,11 @@
 import type { AppConfig } from './types.ts';
 
-/** The configured secret values the workbench never serves: card theme, delivery verifier, gateway, runtime, bootstrap, Ploeg and task source credentials. */
+/** The configured secret values the workbench never serves: card theme, delivery verifier and publisher, gateway, runtime, bootstrap, Ploeg and task source credentials. */
 export function knownSecrets(config: AppConfig): string[] {
   return [
     config.cardThemes?.ai ? process.env[config.cardThemes.ai.keyEnv] : undefined,
     config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined,
+    config.delivery?.publisher ? process.env[config.delivery.publisher.tokenEnv] : undefined,
     config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword,
     config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined,
     ...(config.taskSources ?? []).map(source => source.token),

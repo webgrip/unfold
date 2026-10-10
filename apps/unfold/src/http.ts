@@ -118,6 +118,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
   if (cards) ploeg.useCards(cards);
   const delivery = new DeliveryService(config, store);
+  void delivery.reconcileAll().catch(() => undefined);
   const handoff = new TaskHandoff(config, ploeg);
   const status = new StatusBoard(config, store, () => engine.provisioning(), {
     gateway: gatewayProbe(config),
@@ -595,6 +596,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             const data = await body(req);
             if (action === 'delivery/verify') return json(res, 200, sanitize(await delivery.verify(id, user)));
             if (action === 'delivery/approve') return json(res, 200, sanitize(await delivery.approve(id, user, data)));
+            if (action === 'delivery/publish') return json(res, 200, sanitize(await delivery.publish(id, user, data)));
             if (action === 'run-again') return json(res, 201, sanitize(publicSession(engine.runAgain(id, user))));
             let result: Session;
             if (action === 'deliver') result = await engine.deliver(id, user);

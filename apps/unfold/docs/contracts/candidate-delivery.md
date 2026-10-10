@@ -18,7 +18,7 @@ The original capture, trace and signed provenance remain available. Their `verif
 
 ## Verification policy
 
-`delivery` configuration contains a `verifierTokenEnv`, optional Docker `socketPath`, and one policy per registered repository. Policies specify:
+`delivery` configuration contains a `verifierTokenEnv`, optional Docker `socketPath`, an optional `publisher` (see [Publication](#publication)), and one policy per registered repository. Policies specify:
 
 - `repositoryId`, `approvedBaseSha` and an absolute `approvedBaseBundle` path.
 - An immutable Docker `image` content ID (`sha256:…`) or registry digest (`name@sha256:…`). The verifier never pulls implicitly.
@@ -42,15 +42,46 @@ All routes require the existing session's owner or administrator; mutations also
 | `GET /api/sessions/{id}/delivery` | Current candidate, receipt, approval and publication state from Ploeg, plus bounded local check results. |
 | `POST /api/sessions/{id}/delivery/verify` | Canonicalize, register and independently verify the completed candidate. Replay retained evidence after an uncertain receipt response. |
 | `POST /api/sessions/{id}/delivery/approve` | Require the displayed `candidateId`, `receiptId` and `policySha256`; Ploeg rejects stale or mismatched approval. |
+| `POST /api/sessions/{id}/delivery/publish` | Require exactly the displayed `candidateId`, `receiptId` and `policySha256` (400 `publication_binding_required` otherwise). Approve when missing, then reserve, push and open one pull request. Replays resume the persisted phase. |
 | `GET /api/sessions/{id}/delivery/download` | Download the canonical Git bundle for review. |
 
-[ADR 0040](../adrs/0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) decides that “Accept” on a verified candidate approves that commit and opens a pull request through the trusted publisher. That is proposed behavior until the publisher ships: today the session's ordinary “Accept” review is a separate historical review note, and only “Approve this commit” creates the candidate-bound delivery approval.
+[ADR 0040](../adrs/0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) decides that “Accept” on a verified candidate approves that commit and opens a pull request through the trusted publisher. The publisher and its publish route are built; wiring “Accept” to them is proposed: today the session's ordinary “Accept” review is a separate historical review note, and only “Approve this commit” creates the candidate-bound delivery approval.
 
 ## Publication boundary
 
 Ploeg implements an explicitly enabled reservation and a durable publication barrier. Its first accepted operation response grants the external effect once. Replaying the request after a lost response does not re-grant it. Positive evidence naming the exact operation, repository, canonical SHA, branch and remote proposal can reconcile an unknown result. A negative lookup never authorizes a second creation request. Demo executions cannot reserve live publication.
 
-Publication is in scope. [ADR 0040](../adrs/0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) places a trusted publisher in this control service. It pushes the canonical commit to a new branch and opens one pull request as the Forgejo user `unfold-publisher`, whose token has `write:repository` only and never reaches a workspace. Merge stays human. The publisher is proposed, not built ([VIK-1980](https://vikunja.webgrip.dev/tasks/1980)): today the UI states that publication is disabled, and approval never pushes, opens a proposal, merges or deploys. The backend reservation API is an authority contract, not evidence that a publication happened.
+[ADR 0040](../adrs/0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) places a trusted publisher in this control service. It pushes the canonical commit to a new branch and opens one pull request as the Forgejo user `unfold-publisher`, whose token has `write:repository` only and never reaches a workspace. Approval alone never pushes, opens a proposal, merges or deploys. Only the publish route below performs an external effect, and merge stays human.
+
+## Publication
+
+`delivery.publisher` enables the trusted Forgejo publisher in the control service:
+
+```json
+{ "kind": "forgejo", "apiUrl": "https://forgejo.example/api/v1", "tokenEnv": "UNFOLD_PUBLISHER_TOKEN", "username": "unfold-publisher" }
+```
+
+`apiUrl` is the Forgejo API root over HTTPS without embedded credentials. `tokenEnv` names a server environment variable holding the publisher identity's token, and `username` (default `unfold-publisher`) is that identity's Forgejo login: the push authenticates as it, and only pull requests it authored count as evidence. Configuration is rejected when that name is listed in `runtime.agentEnvironment`, equals `ploeg.tokenEnv` or equals `verifierTokenEnv`, and when a delivery repository URL is not `https://host/owner/repository`. The token is read per call, sent only as a request header (`Authorization: token …` for the API, an `http.extraHeader` passed through the Git child's environment for the push), and never placed in a URL, argument list, event or log. The Git wrapper keeps `protocol.allow=never`; only the push and remote-ref lookups allow `https`, with redirects and credential helpers disabled. The token is a known secret the workbench redacts from agent-facing text. Keep it in the workbench's own credentials Secret or a dedicated one, never in a Secret agent workspaces receive; the chart fails to render when `workspaceAgentSecrets` lists `credentialsSecret`.
+
+`publicationEnabled` in the delivery view is true only when a publisher is configured and Ploeg has not refused this session's reservation. Ploeg's read API does not expose its policy's `publicationEnabled`, so a disabled Ploeg policy surfaces as a refused reservation (`publication_refused`) on the first attempt.
+
+Identities are deterministic: operation `pub-<candidateId>` and branch `unfold/wi-<workItemId>/<candidateId[0:12]>`, falling back to `unfold/session-<sessionId>/<candidateId[0:12]>` when the Work Item identity would not form a branch Ploeg accepts.
+
+`POST /api/sessions/{id}/delivery/publish` runs serialized per session. Each phase is persisted encrypted in the control service before its external effect:
+
+| Phase | Next step |
+| --- | --- |
+| `reserving` | `POST /publication` to Ploeg with the approved candidate, receipt, approval, policy and branch. Only `201` with `effectAuthorized: true` moves to `authorized`. A `200` replay finds no local authorization: the publisher looks for positive forge evidence, and without it records `recovery_required`, reports `unknown` to Ploeg and never pushes (`publication_recovery_required`). A `409` without an operation records `refused`. |
+| `authorized` | Push the exact canonical SHA to the branch with `--force-with-lease` expecting the ref to be absent. The same SHA already present counts as pushed; a different SHA records `unknown` and reports it to Ploeg (`publication_unknown`, a human decides). |
+| `pushed` | Re-read the branch head immediately before `POST /repos/{owner}/{repo}/pulls`; a moved branch records `unknown` without a POST. A `409` triggers a paged lookup that skips every pull request not open, not authored by the publisher identity or without the marker. A created pull request that then fails verification is closed (`PATCH state=closed`, event `delivery.publication_unverified_proposal`) and the publication becomes `unknown`. |
+| `proposed` | A positive `GET` of the pull request matched its number, open state, publisher author, head SHA, head and base branch, repository and hidden marker. Report `published` with the pull request number and URL to Ploeg using the verifier credential. |
+| `published` | Terminal. |
+
+The pull request body starts with the hidden marker `<!-- unfold-publication: pub-<candidateId> -->` and lists, each on one line with control characters removed, the Work Item, session URL, tracker link, candidate, receipt and approval identities, canonical, base and tree SHAs, policy SHA-256, verifier, approver and that merge stays human.
+
+Reconciliation runs at startup and on each delivery view by an operator or administrator (never a viewer) for `authorized`, `pushed`, `proposed`, `unknown` and `recovery_required` records. It uses only idempotent steps: remote-ref lookup, pull request lookup and verification, and a replayable status report. It never pushes or creates a pull request. A foreign SHA on the branch stays `unknown` until a human resolves it.
+
+[`test/delivery-publisher.test.ts`](../../test/delivery-publisher.test.ts) exercises this against a fake Forgejo serving real pushes through `git http-backend` and a fake Ploeg: the happy path, a lost `201`, a crash after the push, a lost pull request response (`409` and paged lookup), a foreign SHA on the branch, a branch moved before the pull request, an unverifiable created pull request, a look-alike pull request by another account and a lost status report. Ploeg-side forge verification and cluster wiring are separate work.
 
 ## Reproduce
 
