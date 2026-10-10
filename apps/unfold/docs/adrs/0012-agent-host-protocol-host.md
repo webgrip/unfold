@@ -81,6 +81,8 @@ Decision: after sign-in, the extension writes the entry straight into the defaul
 
 2026-10-10: `serverSeq` is reserved in blocks in the store and never moves backwards across a restart, remembered clients and `activeClients` survive a restart, and an ended session's projection is evicted on dispose or after ten idle minutes without subscribers and rebuilt from its events on subscribe ([VIK-1646](https://vikunja.webgrip.dev/tasks/1646)).
 
+2026-10-10: a new session's crew, budget, placement and approvals use the Agents window's own session-config pickers, with the repository read-only from the Workspace picker; a picker change made before the first message reaches the session through `session/configChanged`, and the composer's model reads `Ploeg crew · <team>` instead of a gateway model ([contract](../contracts/api.md#agent-host)).
+
 ## Update, 2026-10-10: automations
 
 Evidence: VS Code 1.141.0's `sessions.desktop.main.js` (`AgentHostAutomationStore` and the connection gate in front of it) and the AHP automation types at [`types/channels-automation`](https://github.com/microsoft/agent-host-protocol/tree/main/types/channels-automation), read at `cb6ba61`. The owner asked for automations support on 2026-10-10.
