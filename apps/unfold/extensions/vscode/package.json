@@ -93,6 +93,12 @@
         "icon": "$(remote)"
       },
       {
+        "command": "unfold.openAgentsWindow",
+        "title": "Open Agents Window",
+        "category": "Unfold",
+        "icon": "$(remote)"
+      },
+      {
         "command": "unfold.refresh",
         "title": "Refresh",
         "category": "Unfold",
@@ -722,6 +728,18 @@
             },
             "completionEvents": [
               "onContext:unfold.connected"
+            ]
+          },
+          {
+            "id": "agentsWindow",
+            "title": "Use Unfold from the Agents window",
+            "description": "Signing in adds Unfold to VS Code's Agents window. There, choose New, then Workspace ▾ → Unfold · <repository> to start a session; your sessions are grouped the same way.\n[Open the Agents window](command:unfold.openAgentsWindow)",
+            "media": {
+              "markdown": "media/walkthrough/agents-window.md"
+            },
+            "completionEvents": [
+              "onCommand:unfold.openAgentsWindow",
+              "onCommand:unfold.connectAgentHost"
             ]
           },
           {

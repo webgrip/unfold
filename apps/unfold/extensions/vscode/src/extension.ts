@@ -113,6 +113,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     register('signOut', () => this.signOut());
     register('connectAgentHost', () => this.connectAgentHost());
     register('agentsWindowStatus', () => this.agentsWindowStatus());
+    register('openAgentsWindow', () => this.openAgentsWindow());
     register('refresh', () => { this.nowReadAt = 0; return this.refresh(true, true); });
     register('openWorkItem', (value?: WorkItemRef) => this.openWorkItem(value));
     register('openPullRequest', (value?: NowEntry) => this.openPullRequest(value));
@@ -498,6 +499,15 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.agentsWindowItem.text = shown.text;
     this.agentsWindowItem.tooltip = shown.tooltip;
     this.agentsWindowItem.show();
+  }
+
+  async openAgentsWindow(): Promise<void> {
+    const target = this.current;
+    try { await this.attachAgentHostTo(target, 'always'); }
+    catch (error) { if (error instanceof SettingsFileError) { await this.settingsFileProblem(target, error); return; } throw error; }
+    this.watchAgentsWindow(5_000);
+    if (!(await vscode.commands.getCommands(true)).includes(openAgentsWindowCommand)) throw new Error('This VS Code has no Agents window. It needs VS Code 1.141 or later.');
+    await vscode.commands.executeCommand(openAgentsWindowCommand);
   }
 
   async agentsWindowStatus(): Promise<void> {
