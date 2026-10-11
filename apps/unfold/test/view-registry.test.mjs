@@ -77,4 +77,5 @@ test('every hash routes to at most one view with the params that view expects', 
 test('the editor approval page asks its question in plain language, naming the workbench', async () => {
   const { editorQuestion } = await import('../public/views/editor-sign-in.js');
   assert.equal(editorQuestion({ workbench: 'unfold.example' }), 'A VS Code editor is asking to sign in to unfold.example as you.');
+  assert.equal(editorQuestion({ workbench: 'unfold.example', label: 'unfold-mcp on laptop' }), 'unfold-mcp on laptop is asking to sign in to unfold.example as you.');
 });

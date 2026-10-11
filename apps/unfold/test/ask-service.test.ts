@@ -173,3 +173,17 @@ test('a configuration refusal from Ploeg is shown as it is, with the cost unknow
   const ask = await service(store, workItems(), auth.value, gateway('x').fetcher).ask(owner, '42', 'Which browsers did it test?');
   assert.deepEqual([ask.status, ask.failure], ['failed', 'Asking is not set up for this Team yet: Ploeg has no ask model policy for it.']);
 });
+
+test('a record-only Ask answers a standing question for free and refuses any other without admitting or storing it', async () => {
+  const store = new Store(':memory:');
+  const auth = authority();
+  const net = gateway('never asked');
+  const asks = service(store, workItems(), auth.value, net.fetcher);
+  const free = await asks.ask(owner, '42', 'What did it cost so far?', 'internal', { recordOnly: true });
+  assert.equal(free.source, 'record');
+  assert.equal(free.costUsd, 0);
+  await assert.rejects(asks.ask(owner, '42', 'Is the Safari fix risky for Firefox?', 'internal', { recordOnly: true }), (error: unknown) => error instanceof PloegError && error.code === 'ask_needs_model' && error.status === 409);
+  assert.deepEqual(auth.calls, [], 'Ploeg admitted nothing');
+  assert.equal(net.requests.length, 0, 'no model was called');
+  assert.equal(store.asksAbout('42', 5).length, 1, 'only the free answer is stored');
+});
