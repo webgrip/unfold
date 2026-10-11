@@ -92,7 +92,7 @@ function minutes(seconds) {
 function stepMarkup(step) {
   const when = step.checkedAt && !['not_used', 'ready', 'unreached'].includes(step.state) ? ` · checked ${escape(time(step.checkedAt, { seconds: true }))}` : '';
   const moved = changed.has(step.id) ? ' · <strong>changed just now</strong>' : '';
-  const detail = step.detail ? disclosure({ id: `status-detail-${step.id}`, plain: true, summary: step.id === 'workspaces' ? 'Scheduler message' : 'Details', body: `<pre class="session-pre">${escape(step.detail)}</pre>` }) : '';
+  const detail = step.detail ? disclosure({ id: `status-detail-${step.id}`, plain: true, summary: step.id === 'workspaces' ? 'Scheduler message' : 'Details', body: `<pre data-private class="session-pre">${escape(step.detail)}</pre>` }) : '';
   return `<li class="status-step" data-state="${escape(step.state)}"${changed.has(step.id) ? ' data-changed' : ''}><span class="status-knot" aria-hidden="true">${step.number}</span><div class="status-step-text"><h3 class="status-step-name">${escape(step.name)}</h3><p class="status-step-state"><span class="status-step-word">${escape(stateWords[step.state] ?? step.state)}</span>${when}${moved}</p><p class="status-step-summary">${escape(step.summary)}</p>${detail}</div></li>`;
 }
 
@@ -126,7 +126,7 @@ function waitingMarkup() {
   const shown = named.slice(0, waitingShown);
   const row = (glyph, title, text, extra = '') => `<li class="settings-item"><span class="settings-item-icon" aria-hidden="true">${icon(glyph)}</span><div class="settings-item-main"><p class="settings-item-title">${title}</p><p class="settings-item-text">${text}</p>${extra}</div></li>`;
   const rows = [
-    ...shown.map(wait => row(workspacePhaseProblem(wait.phase) ? 'alert' : 'clock', `<a href="#session/${encodeURIComponent(wait.sessionId)}">${escape(wait.title || 'Untitled session')}</a>`, `${escape(phaseLabel(wait.phase))} · since ${timeAgo(wait.since)}`, wait.reason && wait.reason !== report.checks.find(check => check.id === 'workspaces')?.detail ? disclosure({ id: `status-wait-${wait.sessionId}`, plain: true, summary: 'Scheduler message', body: `<pre class="session-pre">${escape(wait.reason)}</pre>` }) : '')),
+    ...shown.map(wait => row(workspacePhaseProblem(wait.phase) ? 'alert' : 'clock', `<a href="#session/${encodeURIComponent(wait.sessionId)}">${escape(wait.title || 'Untitled session')}</a>`, `${escape(phaseLabel(wait.phase))} · since ${timeAgo(wait.since)}`, wait.reason && wait.reason !== report.checks.find(check => check.id === 'workspaces')?.detail ? disclosure({ id: `status-wait-${wait.sessionId}`, plain: true, summary: 'Scheduler message', body: `<pre data-private class="session-pre">${escape(wait.reason)}</pre>` }) : '')),
     named.length > shown.length ? row('more', escape(plural(named.length - shown.length, 'more session')), 'Open Sessions to see them all.') : '',
     others.length ? row('user', escape(plural(others.length, 'other person’s session', 'other people’s sessions')), `Waiting since ${timeAgo(others.map(wait => wait.since).sort()[0])}`) : '',
   ].join('');

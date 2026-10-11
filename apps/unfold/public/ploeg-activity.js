@@ -443,8 +443,8 @@ function briefMarkup(text) {
   const brief = String(text || '').trim();
   if (!brief) return '<p class="subtle proposal-brief-empty">No brief reported.</p>';
   const paragraphs = brief.split(/\n\s*\n/);
-  if (brief.length <= 480 || paragraphs.length < 2) return `<div class="prose proposal-brief">${markdown(brief)}</div>`;
-  return `<div class="prose proposal-brief">${markdown(paragraphs[0])}</div>${ui.disclosure({ summary: 'Read the full brief', body: `<div class="prose">${markdown(paragraphs.slice(1).join('\n\n'))}</div>`, plain: true })}`;
+  if (brief.length <= 480 || paragraphs.length < 2) return `<div data-private class="prose proposal-brief">${markdown(brief)}</div>`;
+  return `<div data-private class="prose proposal-brief">${markdown(paragraphs[0])}</div>${ui.disclosure({ summary: 'Read the full brief', body: `<div data-private class="prose">${markdown(paragraphs.slice(1).join('\n\n'))}</div>`, plain: true })}`;
 }
 
 function repositoryMarkup(item, escape, { explain = false } = {}) {

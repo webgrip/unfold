@@ -170,7 +170,7 @@ function backMarkup(page) {
 }
 
 function topbarMarkup(page) {
-  return `<header class="app-topbar"><button class="app-icon-button app-menu-button" type="button" data-action="nav-open" aria-label="Open navigation" aria-haspopup="dialog" aria-controls="nav-drawer">${icon('menu')}</button><a class="app-home" href="#now" aria-label="Unfold home">${mark}</a>${backMarkup(page)}${breadcrumbs(page)}<div class="app-topbar-end"><button class="app-search" type="button" data-action="palette-open" aria-label="Search and commands" aria-keyshortcuts="Control+K Meta+K">${icon('search')}<span class="app-search-text" aria-hidden="true">Search or jump to…</span><kbd class="app-kbd" aria-hidden="true">${escape(keyLabel('Mod'))} K</kbd></button>${statusMarkup()}${userMenuMarkup()}</div></header>`;
+  return `<header class="app-topbar"><button class="app-icon-button app-menu-button" type="button" data-action="nav-open" aria-label="Open navigation" aria-haspopup="dialog" aria-controls="nav-drawer">${icon('menu')}</button><a class="app-home" href="#now" aria-label="Unfold home">${mark}</a>${backMarkup(page)}${breadcrumbs(page)}<div class="app-topbar-end"><button class="app-search" type="button" data-action="palette-open" aria-label="Search and commands" aria-keyshortcuts="Control+K Meta+K">${icon('search')}<span class="app-search-text" aria-hidden="true">Search or jump to…</span><kbd class="app-kbd" aria-hidden="true">${escape(keyLabel('Mod'))} K</kbd></button>${statusMarkup()}<button class="app-icon-button app-report" type="button" data-action="report-open" aria-label="Report a problem" title="Report a problem">${icon('flag')}</button>${userMenuMarkup()}</div></header>`;
 }
 
 function headerMarkup(page) {

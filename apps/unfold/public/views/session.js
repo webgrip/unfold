@@ -199,7 +199,7 @@ function toolState(data) {
 }
 
 function io(label, value, tone) {
-  return value ? `<p class="overline stream-io-label">${label}</p><pre class="stream-pre"${tone ? ` data-tone="${tone}"` : ''}>${escape(String(value))}</pre>` : '';
+  return value ? `<p class="overline stream-io-label">${label}</p><pre data-private class="stream-pre"${tone ? ` data-tone="${tone}"` : ''}>${escape(String(value))}</pre>` : '';
 }
 
 function eventMarkup(event) {
@@ -208,7 +208,7 @@ function eventMarkup(event) {
   const at = streamTime(event.at);
   if (event.type === 'message' || event.type === 'text' || event.type === 'assistant.message') {
     const operator = data.role === 'operator';
-    return streamItem({ kind: 'message', marker: avatar({ name: role, kind: operator ? 'person' : 'agent', size: 'sm' }), head: `<strong class="stream-actor">${escape(role)}</strong>${data.applies === 'next_execution' ? chip({ label: 'Next execution', tone: 'accent' }) : ''}${at}`, body: `<div class="prose stream-text">${markdown(data.text || data.message || '')}</div>` });
+    return streamItem({ kind: 'message', marker: avatar({ name: role, kind: operator ? 'person' : 'agent', size: 'sm' }), head: `<strong class="stream-actor">${escape(role)}</strong>${data.applies === 'next_execution' ? chip({ label: 'Next execution', tone: 'accent' }) : ''}${at}`, body: `<div data-private class="prose stream-text">${markdown(data.text || data.message || '')}</div>` });
   }
   if (event.type === 'tool' || event.type === 'tool.updated') {
     const shown = toolState(data);
@@ -219,7 +219,7 @@ function eventMarkup(event) {
   }
   if (event.type === 'run.started' && data.prompt) {
     const prompt = data.prompt;
-    const part = (label, text) => text ? `<p class="overline stream-io-label">${label}</p><div class="prose stream-text">${markdown(text)}</div>` : '';
+    const part = (label, text) => text ? `<p class="overline stream-io-label">${label}</p><div data-private class="prose stream-text">${markdown(text)}</div>` : '';
     const kind = data.reviewer ? 'Independent review' : data.mode === 'write' ? 'Implementation' : 'Analysis';
     return streamItem({ kind: 'run', tone: 'accent', marker: icon('play'), head: `<strong class="stream-actor">${escape(data.role)}</strong><span class="stream-text-inline">started</span><span class="stream-facts">${escape(kind)}${data.model?.modelId ? ` · ${escape(data.model.modelId)}` : ''}</span>${at}`, body: disclosure({ id: `stream-${event.id}-brief`, plain: true, summary: `The brief this role received${data.promptSha ? ` · ${shortSha(data.promptSha)}` : ''}`, body: `${part('Objective', prompt.objective)}${part('Role instruction', prompt.instruction)}${part('Operator notes', prompt.notes)}${part('Prior work', prompt.earlier)}${part('Evidence supplied', prompt.evidence)}${part('Guidance', prompt.guidance)}` }) });
   }
@@ -328,7 +328,7 @@ function diffFile(file, artifact, index) {
     return `<tr class="diff-line" data-kind="${line.kind}"><td class="diff-num" aria-hidden="true" data-n="${line.old ?? ''}"></td><td class="diff-num" aria-hidden="true" data-n="${line.new ?? ''}"></td><td class="diff-code">${escape(line.text) || ' '}</td></tr>`;
   }).join('');
   const id = `diff-${escape(artifact.id)}-${index}`;
-  return `<details class="diff-file" id="${id}" open><summary class="diff-file-header">${icon('chevron-down', 'diff-chevron')}<span class="diff-path">${escape(file.path || artifact.name)}</span><span class="diff-stat"><span class="diff-stat-add">+${file.added}</span> <span class="diff-stat-del">−${file.removed}</span></span></summary><div class="diff-scroll"><table class="diff-table"><tbody>${rows}</tbody></table></div></details>`;
+  return `<details class="diff-file" data-private id="${id}" open><summary class="diff-file-header">${icon('chevron-down', 'diff-chevron')}<span class="diff-path">${escape(file.path || artifact.name)}</span><span class="diff-stat"><span class="diff-stat-add">+${file.added}</span> <span class="diff-stat-del">−${file.removed}</span></span></summary><div class="diff-scroll"><table class="diff-table"><tbody>${rows}</tbody></table></div></details>`;
 }
 
 const snapshotPatchLimit = 1024 * 1024;
@@ -352,7 +352,7 @@ function diffView(parsed, download, note = '') {
   const single = parsed.length === 1;
   const summary = `<div class="diff-summary"><p class="diff-summary-text"><strong>${escape(plural(all.length, 'file'))} changed</strong><span class="diff-stat"><span class="diff-stat-add">+${added}</span> <span class="diff-stat-del">−${removed}</span></span></p><div class="diff-summary-actions"><label class="diff-wrap-toggle"><input type="checkbox" id="diff-wrap"${state.diffWrap ? ' checked' : ''}> Wrap long lines</label>${download}</div></div>`;
   const files = all.length > 1 ? `<ul class="diff-files">${all.map(file => `<li><span class="diff-path">${escape(file.path || 'Unnamed file')}</span><span class="diff-stat"><span class="diff-stat-add">+${file.added}</span> <span class="diff-stat-del">−${file.removed}</span></span></li>`).join('')}</ul>` : '';
-  return `<div class="diff-view">${summary}${note}${files}${parsed.map(({ artifact, files }) => `<section class="session-artifact" aria-label="${escape(artifact.name)}">${single ? '' : artifactHeader(artifact)}${files.map((file, index) => diffFile(file, artifact, index)).join('')}</section>`).join('')}</div>`;
+  return `<div class="diff-view" data-private>${summary}${note}${files}${parsed.map(({ artifact, files }) => `<section class="session-artifact" aria-label="${escape(artifact.name)}">${single ? '' : artifactHeader(artifact)}${files.map((file, index) => diffFile(file, artifact, index)).join('')}</section>`).join('')}</div>`;
 }
 
 function snapshotDiffMarkup(session) {
@@ -422,7 +422,7 @@ function checksMarkup(session) {
     const result = checkResult(artifact, summary);
     const facts = dl([['Command', summary.command ? `<code>${escape(summary.command)}</code>` : null], ['Result', escape(passedText(summary))], ['Exit code', summary.exitCode === null ? null : `<span class="num">${summary.exitCode}</span>`], ['Duration', summary.duration ? escape(summary.duration) : null]]);
     const cases = summary.cases.length ? `<ul class="session-cases">${summary.cases.map(item => `<li data-tone="${item.passed ? 'success' : result.tone === 'attention' ? 'attention' : 'danger'}">${icon(item.passed ? 'check-circle' : 'x-circle')}<span>${escape(item.name)}</span><span class="sr-only">${item.passed ? 'passed' : 'failed'}</span></li>`).join('')}</ul>` : '';
-    const output = disclosure({ id: `check-${escape(artifact.id)}-output`, summary: 'Full output', open: !summary.cases.length && summary.exitCode === null, body: `<pre class="session-pre">${escape(artifact.content)}</pre>` });
+    const output = disclosure({ id: `check-${escape(artifact.id)}-output`, summary: 'Full output', open: !summary.cases.length && summary.exitCode === null, body: `<pre data-private class="session-pre">${escape(artifact.content)}</pre>` });
     return `<section class="session-artifact session-check" aria-labelledby="check-${index}-title"><header class="session-artifact-header"><h3 class="session-artifact-title" id="check-${index}-title">${escape(artifact.name)}</h3>${badge({ tone: result.tone, glyph: result.glyph, label: result.label })}${button({ label: 'Download', icon: 'download', variant: 'ghost', size: 'sm', action: 'download-artifact', data: { id: artifact.id } })}</header>${facts}${cases}${output}</section>`;
   }).join('');
   return `${overview}${sections}`;
@@ -437,11 +437,11 @@ function handoffMarkup(session) {
     if (artifact.kind === 'summary') {
       const { facts, rest } = summaryFacts(artifact.content);
       const value = ([key, text]) => /^verdict$/i.test(key) ? (meta => badge({ tone: meta.tone, glyph: meta.glyph, label: meta.short, title: `${meta.label}. Agent review is evidence, not a human review.` }))(verdictMeta(text.trim())) : /^(true|false)$/i.test(text.trim()) ? (text.trim().toLowerCase() === 'true' ? 'Yes' : 'No') : escape(text);
-      return `<section class="session-artifact" aria-label="${escape(artifact.name)}">${artifactHeader(artifact)}${facts.length ? dl(facts.map(fact => [fact[0], value(fact)]), { rows: true }) : ''}${rest ? `<div class="prose session-prose">${markdown(rest)}</div>` : ''}</section>`;
+      return `<section class="session-artifact" aria-label="${escape(artifact.name)}">${artifactHeader(artifact)}${facts.length ? dl(facts.map(fact => [fact[0], value(fact)]), { rows: true }) : ''}${rest ? `<div data-private class="prose session-prose">${markdown(rest)}</div>` : ''}</section>`;
     }
-    if (artifact.kind === 'transcript') return `<section class="session-artifact" aria-label="${escape(artifact.name)}">${artifactHeader(artifact)}${disclosure({ id: `transcript-${escape(artifact.id)}`, summary: 'Show the full transcript', body: `<div class="prose session-prose">${markdown(artifact.content)}</div>` })}</section>`;
+    if (artifact.kind === 'transcript') return `<section class="session-artifact" aria-label="${escape(artifact.name)}">${artifactHeader(artifact)}${disclosure({ id: `transcript-${escape(artifact.id)}`, summary: 'Show the full transcript', body: `<div data-private class="prose session-prose">${markdown(artifact.content)}</div>` })}</section>`;
     const link = safeUrl(artifact.url);
-    return `<section class="session-artifact" aria-label="${escape(artifact.name)}">${artifactHeader(artifact)}${artifact.content ? `<pre class="session-pre">${escape(artifact.content)}</pre>` : ''}${link ? externalLink('Open artifact', link) : ''}</section>`;
+    return `<section class="session-artifact" aria-label="${escape(artifact.name)}">${artifactHeader(artifact)}${artifact.content ? `<pre data-private class="session-pre">${escape(artifact.content)}</pre>` : ''}${link ? externalLink('Open artifact', link) : ''}</section>`;
   }).join('');
   return `${crew}${parts}`;
 }
@@ -499,11 +499,11 @@ function crewMarkup(session) {
 
 function briefMarkup(session) {
   const task = session.sourceTask;
-  if (!task) return card({ id: 'session-brief', title: 'Objective', body: `<div class="prose session-prose">${markdown(session.objective)}</div>` });
+  if (!task) return card({ id: 'session-brief', title: 'Objective', body: `<div data-private class="prose session-prose">${markdown(session.objective)}</div>` });
   const description = plainTaskText(task);
   const actions = externalLink('Open original task', task.url);
   const source = `<p class="session-source">${icon('tag')}<span>Imported from <strong>${escape(providerName(task.provider))} #${escape(task.id)}</strong></span><span class="session-source-revision">revision <code>${escape(shortSha(task.revision))}</code></span></p>`;
-  const body = `${source}${description.trim() ? `<div class="prose session-prose">${markdown(description)}</div>` : '<p class="subtle">The task has no description.</p>'}${disclosure({ id: 'session-agent-prompt', plain: true, summary: 'What the crew was told', body: `<p class="session-prompt-note">The workbench wraps the task in this prompt. The task text inside it is treated as untrusted reference material.</p><pre class="session-pre session-prompt">${escape(session.objective)}</pre>` })}`;
+  const body = `${source}${description.trim() ? `<div data-private class="prose session-prose">${markdown(description)}</div>` : '<p class="subtle">The task has no description.</p>'}${disclosure({ id: 'session-agent-prompt', plain: true, summary: 'What the crew was told', body: `<p class="session-prompt-note">The workbench wraps the task in this prompt. The task text inside it is treated as untrusted reference material.</p><pre data-private class="session-pre session-prompt">${escape(session.objective)}</pre>` })}`;
   return card({ id: 'session-brief', title: 'Brief', subtitle: task.title && task.title !== session.title ? task.title : undefined, actions, body });
 }
 
@@ -525,7 +525,7 @@ function failureMarkup(session) {
     notes.length ? `<p class="session-failure-context">${notes.map(note => `<span>${escape(note)}</span>`).join(' ')}</p>` : '',
     steps.length ? `<div class="session-failure-steps"><h3 class="overline session-failure-steps-title">What to do</h3>${steps.length > 1 ? `<ol class="session-steps-list">${steps.map(step => `<li>${escape(step)}</li>`).join('')}</ol>` : `<p>${escape(steps[0])}</p>`}</div>` : '',
     facts.length ? `<p class="session-failure-facts">${facts.map(fact => `<span>${escape(fact)}</span>`).join(' ')}</p>` : '',
-    failure?.detail ? disclosure({ id: 'session-failure-detail', plain: true, summary: 'Recorded error output', body: `<pre class="session-pre" aria-label="Recorded error output">${escape(failure.detail)}</pre>` }) : '',
+    failure?.detail ? disclosure({ id: 'session-failure-detail', plain: true, summary: 'Recorded error output', body: `<pre data-private class="session-pre" aria-label="Recorded error output">${escape(failure.detail)}</pre>` }) : '',
     investigation.id === session.id ? investigationMarkup() : '',
   ].join('');
   const tone = session.status === 'interrupted' ? 'severe' : 'danger';

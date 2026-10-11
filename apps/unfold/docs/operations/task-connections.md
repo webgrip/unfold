@@ -185,6 +185,21 @@ The comment reads *Handed to Ploeg team `silver` by NAME from Unfold.*, posted b
 
 The status beside the task shows which team holds it, Ploeg's Work Items for it with their state, branch, spend and pull request, and why hand-off is unavailable when it is. The demo fixture source is not linked to Ploeg and shows no Ploeg work.
 
+## File Report a problem into a tracker
+
+Report a problem ([RFC-0002](../../../../docs/design/rfc-0002-report-a-problem.md)) files what people report as a Forgejo issue or a Vikunja task, with the screenshot, `console.json` and `requests.json` attached. It uses one of the task sources above:
+
+```json
+"reports": { "source": "forgejo-unfold", "project": "webgrip/unfold" }
+```
+
+* `source` names a Forgejo or Vikunja task source with a token. Leave `reports` out to use the first such source and its own project. Set it to `false` to keep every report in Unfold and file nothing.
+* `project` is optional: `owner/repository` on Forgejo, or a numeric project ID on Vikunja, when reports belong somewhere other than the source's work.
+* The token needs to create issues and upload issue attachments on Forgejo (`write:issue`), or create tasks and attachments in the project on Vikunja.
+* Unfold keeps each report before it files it. If the tracker refuses or cannot be reached, the person sees "Saved. Unfold will file it when the tracker answers", and Unfold retries with growing gaps for 24 hours, continuing an issue it already created. The server log line `report.file_failed` gives the tracker's answer.
+* Files are deleted 90 days after a report is filed. The report row and its address stay.
+* With no tracker configured, and always in the demo, Unfold keeps the report and says so.
+
 ## Diagnose a connection
 
 | Symptom | Check |

@@ -825,7 +825,7 @@ export function writerAccount(detail) {
 function accountMarkup(detail) {
   const account = writerAccount(detail);
   if (!account) return '';
-  const side = (key, index, heading, text) => `<div class="work-account-side" data-side="${key}"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">${index}</span>${heading}</h4>${text ? `<div class="prose work-account-text">${markdown(text, { baseLevel: 5 })}</div>` : `<p class="work-account-missing">${escape('Not reported.')}</p>`}</div>`;
+  const side = (key, index, heading, text) => `<div class="work-account-side" data-side="${key}"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">${index}</span>${heading}</h4>${text ? `<div data-private class="prose work-account-text">${markdown(text, { baseLevel: 5 })}</div>` : `<p class="work-account-missing">${escape('Not reported.')}</p>`}</div>`;
   const source = [account.role || 'writer', account.round ? `Round ${account.round}` : '', account.earlierShift ? 'earlier Shift' : ''].filter(Boolean).map(part => `<span>${escape(part)}</span>`);
   if (account.at) source.push(ui.timeAgo(account.at));
   const number = ploegReview(detail).pullRequestNumber;
@@ -842,7 +842,7 @@ function briefMarkup(detail, model) {
   const toggle = long ? `<button type="button" class="button ghost sm work-brief-toggle" data-action="work-brief" aria-expanded="${open ? 'true' : 'false'}" aria-controls="work-brief-text">${icon(open ? 'chevron-up' : 'chevron-down')}<span class="button-label">${open ? 'Show less' : 'Show the full brief'}</span></button>` : '';
   const task = safeUrl(item.url);
   const source = task ? `<a class="button ghost sm" href="${escape(task)}" target="_blank" rel="noopener noreferrer"><span class="button-label">Source</span>${icon('external', 'button-external')}${newTab}</a>` : '';
-  return ui.card({ id: 'work-brief', title: 'Brief', level: 3, actions: source, body: `<div class="prose work-brief-text" id="work-brief-text"${long && !open ? ' data-clamped' : ''}>${markdown(text, { baseLevel: 4 })}</div>${toggle}` });
+  return ui.card({ id: 'work-brief', title: 'Brief', level: 3, actions: source, body: `<div data-private class="prose work-brief-text" id="work-brief-text"${long && !open ? ' data-clamped' : ''}>${markdown(text, { baseLevel: 4 })}</div>${toggle}` });
 }
 
 /**
@@ -908,7 +908,7 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl }) {
     const body = `${reasonText}${outputText}${note ? `<p>${escape(note)}</p>` : ''}`;
     parts.push(ui.callout({ tone, title, body }));
   }
-  if (run.findings?.trim()) parts.push(`<div class="work-findings"><h4 class="overline">Findings</h4><div class="prose">${markdown(run.findings, { baseLevel: 5 })}</div></div>`);
+  if (run.findings?.trim()) parts.push(`<div class="work-findings"><h4 class="overline">Findings</h4><div data-private class="prose">${markdown(run.findings, { baseLevel: 5 })}</div></div>`);
   const links = runLinks(run);
   if (links) parts.push(links);
   const time = runSeconds(run, now);
@@ -1020,7 +1020,7 @@ function eventsMarkup(detail, model) {
   if (!events.length) return `<p class="work-note" id="work-activity">${icon('activity')}<span>${escape('Ploeg returned no audit events for this Work Item.')}</span></p>`;
   const first = events.slice(0, visibleEvents).map(entry => eventItem(entry, detail, model.userId)).join('');
   const rest = events.length > visibleEvents ? ui.disclosure({ summary: `Show ${events.length - visibleEvents} earlier events`, plain: true, id: `work-events-more-${detail.item.id}`, body: `<ol class="timeline">${events.slice(visibleEvents).map(entry => eventItem(entry, detail, model.userId)).join('')}</ol>` }) : '';
-  const raw = ui.disclosure({ summary: 'Show the raw events (JSON)', plain: true, id: `work-events-raw-${detail.item.id}`, body: `<pre class="work-raw mono">${escape(JSON.stringify(events, null, 2))}</pre>` });
+  const raw = ui.disclosure({ summary: 'Show the raw events (JSON)', plain: true, id: `work-events-raw-${detail.item.id}`, body: `<pre data-private class="work-raw mono">${escape(JSON.stringify(events, null, 2))}</pre>` });
   const truncated = detail.truncated?.events ? `<p class="meta">${escape('Ploeg capped the audit history. Earlier events may be missing.')}</p>` : '';
   return `<section class="card" id="work-activity"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-activity-title">Activity${ui.count(events.length)}</h3><p class="card-subtitle">${escape('Ploeg’s audit log for this Work Item, newest first')}</p></div></header><div class="card-body work-activity-body"><ol class="timeline">${first}</ol>${rest}${raw}${truncated}</div></section>`;
 }
@@ -1384,7 +1384,7 @@ export function checkoutDialogMarkup(detail, card, { origin = '' } = {}) {
   const link = checkoutLink(detail.item.id, origin);
   const facts = ui.dl([['Branch', `<span class="mono">${escape(target.branch)}</span>`], ['Repository', `${escape(repo)}${target.baseBranch ? ` <span class="subtle">→ ${escape(target.baseBranch)}</span>` : ''}`]], { rows: true });
   const editor = `<div class="work-checkout-part"><a class="button primary" href="${escape(link)}">${icon('external')}<span class="button-label">Open in VS Code</span></a><p class="meta">${escape(`Needs the Unfold extension, connected to this workbench, and a clone of ${repo} open in VS Code. It asks first, then adds a worktree for the branch beside that clone and opens it in a new window. Your clone stays on its branch.`)}</p></div>`;
-  const terminal = `<div class="work-checkout-part"><p>${escape(`Or, in a terminal in your clone of ${repo}, to add a worktree beside it:`)}</p><pre class="work-checkout-command mono">${escape(command)}</pre>${ui.button({ label: 'Copy command', icon: 'copy', variant: 'secondary', action: 'work-copy-command', data: { value: command } })}</div>`;
+  const terminal = `<div class="work-checkout-part"><p>${escape(`Or, in a terminal in your clone of ${repo}, to add a worktree beside it:`)}</p><pre data-private class="work-checkout-command mono">${escape(command)}</pre>${ui.button({ label: 'Copy command', icon: 'copy', variant: 'secondary', action: 'work-copy-command', data: { value: command } })}</div>`;
   return `<form method="dialog" class="work-checkout-form"><header class="dialog-header"><h2 id="confirm-title">Check out this branch</h2><button type="submit" class="button ghost icon-only sm" value="close" aria-label="Close" title="Close">${icon('x')}</button></header><div class="dialog-body"><p><strong>${escape(detail.item.title || `Work Item ${detail.item.id}`)}</strong> <span class="subtle">${escape(workItemRef(detail.item))}</span></p>${facts}${editor}${terminal}</div><footer class="dialog-footer"><button type="submit" class="button secondary" value="close" autofocus>Close</button></footer></form>`;
 }
 

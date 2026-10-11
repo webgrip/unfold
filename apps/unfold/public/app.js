@@ -16,6 +16,7 @@ import { refreshStatusSignal, onStatusSignal } from './core/status-signal.js';
 import { linkFailure } from './views/account.js';
 import { insight, startInsight, linkOutTarget, screenFields } from './core/insight.js';
 import { createConfusionRules, startConfusionDetector } from './core/confusion.js';
+import { startCapture } from './core/report-capture.js';
 import { popOnHover } from './core/motion.js';
 import { flyWhileLoading } from './core/boot-flight.js';
 
@@ -96,6 +97,7 @@ useNavigation({ render, boot });
 applyPreferences();
 live.start();
 startInsight();
+startCapture();
 
 function currentPlace() {
   return screenFields(state.view, parseHash(location.hash).path);

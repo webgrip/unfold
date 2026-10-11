@@ -57,7 +57,7 @@ export const timelineRoutes = Object.freeze([
  * tracker or model, or download a file the recording does not hold.
  */
 export const refusedRoutes = Object.freeze([
-  { method: 'POST', path: '/api/login' }, { method: 'POST', path: '/api/logout' }, { method: 'GET', path: '/api/auth/oidc' },
+  { method: 'POST', path: '/api/login' }, { method: 'POST', path: '/api/logout' }, { method: 'POST', path: '/api/reports' }, { method: 'GET', path: '/api/auth/oidc' },
   { method: '*', path: '/api/agent-host' }, { method: '*', path: '/api/agent-host/tokens' },
   { method: '*', path: '/api/editor-credentials' }, { method: '*', path: `/api/editor-credentials/${id}` }, { method: '*', path: `/api/editor-requests/${id}` }, { method: '*', path: `/api/editor-requests/${id}/${id}` },
   { method: '*', path: '/api/links' }, { method: '*', path: `/api/links/${id}` },

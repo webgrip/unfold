@@ -8,6 +8,7 @@
 @import url('styles/trace.css') layer(views);
 @import url('styles/feeds.css') layer(views);
 @import url('styles/proposed.css') layer(views);
+@import url('styles/report.css') layer(views);
 @import url('styles/runs.css') layer(views);
 @import url('styles/activity.css') layer(views);
 @import url('styles/insights.css') layer(views);

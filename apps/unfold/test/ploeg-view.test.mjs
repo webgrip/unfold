@@ -420,8 +420,8 @@ test('the writer’s problem and solution sit under the title, from the newest w
   const html = detailMarkup(current, model({ detailId: '50', lane: 'awaiting_review' }));
   assert.ok(html.indexOf('id="work-account"') > html.indexOf('id="ploeg-item-title"') && html.indexOf('id="work-account"') < html.indexOf('id="work-decision"'), 'between the title and the decision box');
   assert.match(html, /<section class="work-account" id="work-account" aria-labelledby="work-account-title"><h3 class="sr-only" id="work-account-title">Problem and solution<\/h3>/);
-  assert.match(html, /data-side="problem"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">01<\/span>Problem<\/h4><div class="prose work-account-text"><p>Half-cent totals round differently/);
-  assert.match(html, /data-side="solution"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">02<\/span>Solution<\/h4><div class="prose work-account-text"><ul>/);
+  assert.match(html, /data-side="problem"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">01<\/span>Problem<\/h4><div data-private class="prose work-account-text"><p>Half-cent totals round differently/);
+  assert.match(html, /data-side="solution"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">02<\/span>Solution<\/h4><div data-private class="prose work-account-text"><ul>/);
   assert.match(html, /Written by<\/span><span>builder<\/span><span>Round 1<\/span><time/);
   assert.match(html, /The agent’s own account: verify it against pull request #9\./);
   assert.match(html, /data-action="work-run" data-id="13"/);
@@ -529,7 +529,7 @@ test('the Work Item page offers its branch for checkout, in VS Code or as a git 
   const dialog = checkoutDialogMarkup(live, null, { origin: 'https://unfold.example' });
   assert.match(dialog, /<h2 id="confirm-title">Check out this branch<\/h2>/);
   assert.match(dialog, /href="vscode:\/\/webgrip\.unfold\/checkout\?workItem=50&amp;origin=https%3A%2F%2Funfold\.example"/);
-  assert.match(dialog, /<pre class="work-checkout-command mono">git fetch origin agent\/vik-50 &amp;&amp; git worktree add \.\.\/shop-agent-vik-50 agent\/vik-50 &amp;&amp; cd \.\.\/shop-agent-vik-50 &amp;&amp; git merge --ff-only origin\/agent\/vik-50<\/pre>/);
+  assert.match(dialog, /<pre data-private class="work-checkout-command mono">git fetch origin agent\/vik-50 &amp;&amp; git worktree add \.\.\/shop-agent-vik-50 agent\/vik-50 &amp;&amp; cd \.\.\/shop-agent-vik-50 &amp;&amp; git merge --ff-only origin\/agent\/vik-50<\/pre>/);
   assert.match(dialog, /adds a worktree for the branch beside that clone and opens it in a new window/);
   assert.match(dialog, /data-action="work-copy-command"/);
   assert.match(dialog, /a clone of acme\/shop open in VS Code/);

@@ -251,7 +251,7 @@ function brief(task) {
   if (!text) return '<p class="tasks-brief-empty">This task has no description. Read the original task before you start work.</p>';
   const long = text.length > longBrief || text.split('\n').length > 24;
   const toggle = long ? act('data-action="task-brief"', { label: briefExpanded ? 'Show less' : 'Show the whole brief', icon: briefExpanded ? 'chevron-up' : 'chevron-down', variant: 'ghost', size: 'sm' }) : '';
-  return `<div class="tasks-brief${long && !briefExpanded ? ' is-clipped' : ''}"><div class="prose" id="task-brief">${markdown(text)}</div></div>${toggle ? `<div class="tasks-brief-toggle">${toggle}</div>` : ''}`;
+  return `<div class="tasks-brief${long && !briefExpanded ? ' is-clipped' : ''}"><div data-private class="prose" id="task-brief">${markdown(text)}</div></div>${toggle ? `<div class="tasks-brief-toggle">${toggle}</div>` : ''}`;
 }
 
 function updated(task) {

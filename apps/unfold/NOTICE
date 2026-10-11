@@ -16,6 +16,11 @@ three.js authors, licensed under the MIT License. Its licence text is
 public/vendor/three/LICENSE and travels with the copy. scripts/vendor-three.mjs
 copies it from the pinned npm package.
 
+This product bundles html-to-image 1.11.13 (public/vendor/html-to-image/),
+Copyright 2017-2025 W.Y., licensed under the MIT License. Its licence text is
+public/vendor/html-to-image/LICENSE and travels with the copy.
+scripts/vendor-html-to-image.mjs copies it from the pinned npm package.
+
 The container image includes ws 8.22.0 (node_modules/ws/), Copyright 2011 Einar
 Otto Stangvik, 2013 Arnout Kazemier and contributors, and 2016 Luigi Pinca and
 contributors, licensed under the MIT License. Its licence text is

@@ -377,6 +377,7 @@ export function paletteEntries(context) {
   entries.push({ id: 'refresh', group: 'commands', primary: true, label: 'Refresh this page', keywords: 'reload update fetch again', icon: 'refresh', run: 'refresh', restore: true });
   if (context.canCreate) entries.push({ id: 'new-session', group: 'commands', primary: true, label: 'New session', keywords: 'create start crew objective', icon: 'plus', action: 'new', keys: context.view === 'sessions' ? ['n'] : null, single: true, restore: true });
   entries.push({ id: 'shortcuts', group: 'commands', primary: true, label: 'Show keyboard shortcuts', keywords: 'keys help hotkeys', icon: 'keyboard', action: 'shortcuts-open', keys: ['?'], single: true, restore: true });
+  entries.push({ id: 'report', group: 'commands', label: 'Report a problem', keywords: 'bug issue feedback broken wrong screenshot file', icon: 'flag', action: 'report-open' });
   entries.push({ id: 'preferences', group: 'commands', primary: true, label: 'Open preferences', keywords: 'prefs settings theme density format shortcuts options', icon: 'settings', hash: 'settings/preferences', run: 'go' });
   entries.push({ id: 'notify', group: 'commands', keywords: 'notifications desktop alerts bell notify', icon: 'bell', run: 'notify', restore: true, quiet: true, ...notificationCommand(context.notifications) });
   entries.push({ id: 'density', group: 'commands', label: context.density === 'compact' ? 'Use comfortable density' : 'Use compact density', keywords: 'density rows spacing compact comfortable', icon: 'list', run: 'density', restore: true });
