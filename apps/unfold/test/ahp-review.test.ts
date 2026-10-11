@@ -174,18 +174,15 @@ test('feedback sent while the crew can still read it becomes an instruction nami
   assert.equal(recorded.role, 'operator');
 });
 
-test('VS Code\'s Agent Merge accepts a candidate waiting for review and cannot be turned off again; it merges nothing', { timeout: testTimeout(60_000) }, async t => {
+test('VS Code\'s Agent Merge never accepts a candidate: it is refused with where to accept, and the candidate keeps waiting for review', { timeout: testTimeout(60_000) }, async t => {
   const { client, session, changeset, stored } = await reviewable(t);
   client.notify('dispatchAction', { channel: session, clientSeq: 2, action: { type: 'session/configChanged', config: { agentMerge: { enabled: true, overrides: { mergePullRequest: 'never' } } } } });
-  const echoed = await client.until(message => action(message, session, 'session/configChanged'));
-  assert.equal(echoed.params.rejectionReason, undefined);
-  assert.equal(stored().review?.decision, 'accepted');
-  assert.deepEqual((await client.rpc('subscribe', { channel: session })).snapshot.state.config.values.agentMerge, { enabled: true });
-  assert.deepEqual((await client.rpc('subscribe', { channel: changeset })).snapshot.state.operations, undefined);
-  client.notify('dispatchAction', { channel: session, clientSeq: 3, action: { type: 'session/configChanged', config: { agentMerge: { enabled: false } } } });
   await client.until(() => Boolean(rejection(client, session, 'session/configChanged')));
-  assert.match(rejection(client, session, 'session/configChanged')!.params.rejectionReason, /cannot be withdrawn/);
-  assert.equal(stored().review?.decision, 'accepted');
+  assert.match(rejection(client, session, 'session/configChanged')!.params.rejectionReason, /Agent Merge does not accept for Unfold\. Review the change and choose Accept in the Changes view/);
+  assert.equal(stored().review, undefined);
+  assert.equal((await client.rpc('subscribe', { channel: session })).snapshot.state.config.values?.agentMerge, undefined);
+  const operations = (await client.rpc('subscribe', { channel: changeset })).snapshot.state.operations as Json[];
+  assert.ok(operations.some(operation => operation.id === 'accept'), 'Accept stays the way to accept');
 });
 
 test('the 059675b9 session offers no review and refuses Agent Merge: nothing waits for review', { timeout: testTimeout(60_000) }, async t => {
@@ -206,7 +203,7 @@ test('the 059675b9 session offers no review and refuses Agent Merge: nothing wai
   await client.rpc('subscribe', { channel: session });
   client.notify('dispatchAction', { channel: session, clientSeq: 1, action: { type: 'session/configChanged', config: { agentMerge: { enabled: true } } } });
   await client.until(() => Boolean(rejection(client, session, 'session/configChanged')));
-  assert.match(rejection(client, session, 'session/configChanged')!.params.rejectionReason, /waits for your review; this session has none/);
+  assert.match(rejection(client, session, 'session/configChanged')!.params.rejectionReason, /Agent Merge does not accept for Unfold/);
   assert.equal(server.app.store.getSession(created.id)!.review, undefined);
 });
 

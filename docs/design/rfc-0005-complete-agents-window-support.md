@@ -198,9 +198,9 @@ Acceptance:
 - comments on two files and **Request changes** produce one Ploeg review round whose brief quotes both comments with file and line;
 - **Reject** records the rejection with its note.
 
-### 3.2 Candidate accept as Agent Merge · M · **Decision, open**
+### 3.2 Candidate accept as Agent Merge · M · **Decided: Agent Merge does not accept**
 
-**State: built against the recommendation** in [`b3d6c196`](https://forgejo.webgrip.dev/webgrip/unfold/commit/b3d6c196f15ceab1c1f99f1159ed726b411fca0d). Enabling Agent Merge accepts the candidate through the review path; merging itself stays on the forge. That is closer to option (b) than to the recommended (a). The owner still decides; until then the built behaviour stands.
+**State: decided 2026-10-11, option (a).** The owner chose the recommendation: enabling Agent Merge is refused with where to accept, so accepting a candidate or opening its pull request stays an explicit Accept in the Changes view. It was first built as accept in [`b3d6c196`](https://forgejo.webgrip.dev/webgrip/unfold/commit/b3d6c196f15ceab1c1f99f1159ed726b411fca0d) and narrowed afterwards.
 
 **(bundle 21267149, 18392306)**
 
@@ -311,7 +311,7 @@ It is the gate for calling an item done; every **(bundle)** claim above is unver
 | 2.3 | Read-only terminal | L | decided and built, [`1cf1d92d`](https://forgejo.webgrip.dev/webgrip/unfold/commit/1cf1d92da5b4a7340b4c39c7b88519b6ea475c00) |
 | 2.4 | Closing choice for review | S | replaced by review operations, [`b3d6c196`](https://forgejo.webgrip.dev/webgrip/unfold/commit/b3d6c196f15ceab1c1f99f1159ed726b411fca0d) |
 | 3.1 | Reject, request changes, comments | L | built in Unfold, [`b3d6c196`](https://forgejo.webgrip.dev/webgrip/unfold/commit/b3d6c196f15ceab1c1f99f1159ed726b411fca0d); Ploeg review round open |
-| 3.2 | Agent Merge | M | **Decision** open; built as accept, [`b3d6c196`](https://forgejo.webgrip.dev/webgrip/unfold/commit/b3d6c196f15ceab1c1f99f1159ed726b411fca0d) |
+| 3.2 | Agent Merge | M | Decided 2026-10-11: never accepts; Accept stays explicit |
 | 3.3 | Picker, model label, notifications | M | picker and label built, [`49f59ebe`](https://forgejo.webgrip.dev/webgrip/unfold/commit/49f59ebe2f17b98e49adccd2341fc93cd2620802), [`5542eff8`](https://forgejo.webgrip.dev/webgrip/unfold/commit/5542eff8d240ae4a89cf02f28a720a97cf7ce47a); choice bits open |
 | 3.4 | Automations | done | [`cd32a431`](https://forgejo.webgrip.dev/webgrip/unfold/commit/cd32a431f46c4dc1a7c6dfae77d29e23d13e4ada) |
 | 3.5 | Plugins | M | built, [`c3c6c07e`](https://forgejo.webgrip.dev/webgrip/unfold/commit/c3c6c07ea79c5387eaaea8d0a3b0858a32739703) |
@@ -330,7 +330,4 @@ Taken on 2026-10-10:
 3. **Automations (3.4).** Yes; built as a read-only catalogue, because a scheduled run would be work Ploeg never authorized.
 4. **Asks in the chat (3.7).** Approved; a stopped session asks by default, a running one steers by default and asks with `/ask`. Built.
 
-Still open:
-
-1. **Agent Merge (3.2).** Today enabling Agent Merge accepts the candidate through the review path. This RFC recommended showing branch changes only and keeping merging a person's act. Keep what was built, or narrow it to branch changes.
-2. **"Run again with this message" (Phase 0).** It keeps the original brief and gives the message to the new crew as its first instruction, rather than making the message the brief. A brief under 20 characters or 4 words is refused by the engine, and "Test" or "Make it funnier" alone would lose the original brief. Confirm, or make the message the brief when it passes the brief rule.
+Decided by the owner on 2026-10-11: Agent Merge never accepts (3.2), and "Run again with this message" keeps the original brief and gives the message to the new crew as its first instruction (Phase 0).

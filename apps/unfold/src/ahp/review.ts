@@ -342,9 +342,9 @@ export class CandidateReview {
   }
 
   /**
-   * VS Code's Agent Merge for an Unfold session. Enabling it accepts a candidate that waits for review, through the same review
-   * path and owner check as Accept, and for a gated candidate opens its pull request through the publish route; the pull request
-   * is still merged on the forge, never from the editor. Returns why it is refused.
+   * VS Code's Agent Merge for an Unfold session only reflects the review, it never decides it: enabling it is refused with
+   * where to accept, so accepting a candidate or opening its pull request stays an explicit Accept in the Changes view. Turning it
+   * off after acceptance is refused because an acceptance cannot be withdrawn. Returns why it is refused.
    */
   async agentMerge(client: Sender, channel: string, session: Session, action: Json, origin: Origin): Promise<string | undefined> {
     const value = action.config.agentMerge;
@@ -353,16 +353,8 @@ export class CandidateReview {
     const decided = this.decided(session);
     if (!enabled && decided) return 'Your acceptance is recorded and cannot be withdrawn. Merge or close the pull request on the forge.';
     if (enabled && !decided) {
-      if (this.host.gated(session)) {
-        const readiness = this.host.readiness(session);
-        if (!readiness?.enabled) return 'Publishing is not enabled in this workbench. Approve the commit in the workbench and open the pull request on the forge.';
-        if (!awaitingReview(session, true, readiness)) return 'Accept and open pull request needs a candidate whose independent checks passed. Run them in the workbench first.';
-        if (client.user.role === 'viewer') return 'Viewers cannot review a candidate';
-        try { await this.publish(client.user, session); } catch (error) { return error instanceof Error ? error.message : 'The pull request could not be opened.'; }
-      } else {
-        if (!awaitingReview(session, false)) return session.review ? `This candidate was ${session.review.decision} by ${session.review.byName}.` : 'Agent Merge accepts a candidate that waits for your review; this session has none yet.';
-        this.host.engine.review(session.id, { decision: 'accepted' }, client.user);
-      }
+      const accept = this.host.gated(session) ? 'Accept and open pull request' : 'Accept';
+      return `Agent Merge does not accept for Unfold. Review the change and choose ${accept} in the Changes view.`;
     }
     this.host.echo(client, channel, action, origin, other => other.user.id === client.user.id);
     return undefined;

@@ -70,19 +70,11 @@ test('the Agents window lists Accept and open pull request on a verified gated c
   assert.deepEqual(git.pullRequest, pullRequest);
 });
 
-test('Agent Merge on a verified gated candidate publishes instead of refusing, and a failing receipt is refused without publishing', { timeout: testTimeout(60_000) }, async t => {
+test('Agent Merge on a verified gated candidate publishes nothing: it is refused with Accept and open pull request as the way', { timeout: testTimeout(60_000) }, async t => {
   const { client, session, published } = await gatedSession(t, verified);
   await client.rpc('subscribe', { channel: session });
   client.notify('dispatchAction', { channel: session, clientSeq: 1, action: { type: 'session/configChanged', config: { agentMerge: { enabled: true } } } });
-  const echoed = await client.until(message => action(message, session, 'session/configChanged'));
-  assert.equal(echoed.params.rejectionReason, undefined);
-  assert.equal(published.length, 1);
-
-  const failing = await gatedSession(t, { enabled: true, verified: false });
-  assert.deepEqual((await failing.client.rpc('subscribe', { channel: failing.changeset })).snapshot.state.operations, undefined, 'a receipt that did not pass lists no publish operation');
-  await failing.client.rpc('subscribe', { channel: failing.session });
-  failing.client.notify('dispatchAction', { channel: failing.session, clientSeq: 1, action: { type: 'session/configChanged', config: { agentMerge: { enabled: true } } } });
-  const refused = await failing.client.until(message => action(message, failing.session, 'session/configChanged'));
-  assert.match(refused.params.rejectionReason, /independent checks passed/);
-  assert.equal(failing.published.length, 0);
+  const refused = await client.until(message => action(message, session, 'session/configChanged'));
+  assert.match(refused.params.rejectionReason, /choose Accept and open pull request in the Changes view/);
+  assert.equal(published.length, 0);
 });
