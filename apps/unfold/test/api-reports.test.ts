@@ -189,3 +189,16 @@ test('the browser buffers are reduced to their allowed fields whatever the page 
   assert.equal(sanitizeBuffer('requests', Array.from({ length: 40 }, () => ({ method: 'GET', path: '/a' }))).length, 20);
   assert.deepEqual(sanitizeBuffer('console', 'not a list'), []);
 });
+
+test('reports never default to, or land in, a project Ploeg dispatches work from', async () => {
+  const { reportSettings } = await import('../src/reports.ts');
+  const dispatch = { id: 'ploeg-board', name: 'Ploeg board', provider: 'vikunja' as const, baseUrl: 'https://vikunja.test/api/v1', project: '11', repositoryId: 'ploeg', token: 't', executionOwner: 'ploeg' as const };
+  const own = { ...dispatch, id: 'feedback', name: 'Feedback', project: '30', executionOwner: 'interactive' as const };
+  assert.equal(reportSettings(undefined, [dispatch], 'live'), null, 'a dispatch board is never the default target');
+  assert.deepEqual(reportSettings(undefined, [dispatch, own], 'live'), { sourceId: 'feedback', project: '30' });
+  assert.throws(() => reportSettings({ source: 'ploeg-board' }, [dispatch], 'live'), /Ploeg dispatches the tasks there/);
+  assert.deepEqual(reportSettings({ source: 'ploeg-board', project: '30' }, [dispatch], 'live'), { sourceId: 'ploeg-board', project: '30' }, 'the same tracker in another project is fine');
+  assert.equal(reportSettings(false, [own], 'live'), null);
+  assert.equal(reportSettings(undefined, [own], 'demo'), null, 'the demo never files');
+  assert.throws(() => reportSettings({ source: 'nope' }, [own], 'live'), /must name a Forgejo or Vikunja task source/);
+});

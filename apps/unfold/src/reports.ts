@@ -40,19 +40,25 @@ export type ReportOutcome = { id: string; status: StoredReport['status']; url?: 
 /**
  * Resolves `reports` from the configuration file: `false` turns Report a problem off, `{ source, project? }` names a
  * Forgejo or Vikunja task source and optionally another repository or project, and leaving it out picks the first
- * Forgejo or Vikunja source with a token. Returns null when nothing can file reports.
+ * Forgejo or Vikunja source with a token that Unfold owns. A source Ploeg dispatches from is never a default, and naming
+ * one needs another project, so a report never becomes agent work. Returns null when nothing can file reports.
  */
 export function reportSettings(raw: unknown, sources: TaskSourceConfig[] | undefined, mode: AppConfig['mode']): ReportTarget | null {
   if (raw === false || mode === 'demo') return null;
   const fileable = (sources ?? []).filter(source => (source.provider === 'forgejo' || source.provider === 'vikunja') && source.token);
-  if (raw === undefined) return fileable[0] ? { sourceId: fileable[0].id, project: fileable[0].project } : null;
+  if (raw === undefined) {
+    const own = fileable.find(source => source.executionOwner === 'interactive');
+    return own ? { sourceId: own.id, project: own.project } : null;
+  }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !['source', 'project'].includes(key))) throw new Error('reports must be false or { source, project? }');
   const value = raw as Record<string, unknown>;
   const source = fileable.find(entry => entry.id === value.source);
   if (!source) throw new Error('reports.source must name a Forgejo or Vikunja task source with a token');
   const project = value.project === undefined ? source.project : value.project;
   if (typeof project !== 'string') throw new Error('reports.project must be owner/repository for Forgejo or a numeric Vikunja project ID');
-  return { sourceId: source.id, project: reportTargetProject(source, project) };
+  const target = reportTargetProject(source, project);
+  if (source.executionOwner === 'ploeg' && target === source.project) throw new Error(`reports.project must differ from ${source.id}'s project: Ploeg dispatches the tasks there, so a report would become agent work`);
+  return { sourceId: source.id, project: target };
 }
 
 function text(value: FormDataEntryValue | null, field: string, max: number, required = false): string {
