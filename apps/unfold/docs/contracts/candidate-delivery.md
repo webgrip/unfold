@@ -14,6 +14,8 @@ The capture export has synthetic history. The controller imports an operator-pro
 
 It creates one deterministic commit whose parent is the actual approved base SHA. Its message binds the manifest and policy hashes. Verification and approval refer to this exact commit; the canonical download contains that commit and real ancestry. Nothing checks one commit and silently reconstructs another for publication.
 
+The control service runs `git` for this and for publication, so the workbench image carries `git` and `git-remote-https` with their libraries; its build fails if `git --version` does not run.
+
 The original capture, trace and signed provenance remain available. Their `verification: not_performed` statement describes capture time; an independent Ploeg receipt records later verification.
 
 ## Verification policy
