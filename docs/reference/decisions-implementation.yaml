@@ -40,10 +40,6 @@ ploeg:
     implemented: "yes"
     note: Tracker selections bind canonical work items
     evidence: apps/ploeg/pkg/httpapi/operator_source.go
-  "0027":
-    implemented: "yes"
-    note: One frozen attempt; production publication stays disabled
-    evidence: apps/ploeg/pkg/store/operator_delivery.go
   "0028":
     implemented: "yes"
     note: Release policy guard runs in CI

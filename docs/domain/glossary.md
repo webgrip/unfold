@@ -31,12 +31,12 @@ The observable conditions a Result must satisfy to answer the requested work. Th
 ## Agency
 *Context: Offering*
 
-A business that uses Unfold to build software for its Clients and pays for it. A freelancer, or an in-house team that is its own only Client, is an Agency too. An Agency reviews and merges every pull request and owns production. It uses Unfold hosted, in its own Tenant, or self-hosted.
+A business that uses Unfold to build software for its Clients and pays for it. A freelancer, or an in-house team that is its own only Client, is an Agency too. An Agency reviews and merges every pull request and owns production. It uses Unfold hosted, in its own Tenant, or self-hosted. In hosted Unfold its Tenant has its own namespaces, default-deny network, sandboxed runtime and model budget (ADR-0017, not implemented yet).
 
 **Do not use:** customer, operator, reseller  
-**Not to be confused with** [Tenant](#tenant): The isolated space that holds one Agency's work in hosted Unfold.  
-**Not to be confused with** [Client](#client): The Agency's own customer.  
-**See also:** [Tenant](#tenant), [Client](#client), [Acceptance](#acceptance)  
+**Not to be confused with** [Tenant](../reference/glossary.md#tenant): The isolated space that holds one Agency's work in hosted Unfold.  
+**Not to be confused with** [Client](../reference/glossary.md#client): The Agency's own customer.  
+**See also:** [Tenant](../reference/glossary.md#tenant), [Client](../reference/glossary.md#client), [Acceptance](#acceptance)  
 
 ## Agent
 *Context: Execution*
@@ -81,7 +81,7 @@ A Work Item moving from a later Gate back to an earlier one, with a reason: defe
 An authorized spending limit for work. It is separate from a provisional usage estimate and from the eventual reconciled charge. Ploeg holds the budget pool of each Shift. A Budget is named by what it limits: a Shift Budget (set by the Work Item's Size), a Client Budget (per Client per month, set by the Agency) or an Agency Budget (metered usage per month). Its cap is the limit amount, not a separate concept.
 
 **Do not use:** cap (as a noun for a limit)  
-**See also:** [Shift](../reference/glossary.md#shift), [Authority](../reference/glossary.md#authority), [Size](#size), [Client](#client), [Agency](#agency)  
+**See also:** [Shift](../reference/glossary.md#shift), [Authority](../reference/glossary.md#authority), [Size](#size), [Client](../reference/glossary.md#client), [Agency](#agency)  
 
 ## Candidate
 *Context: Participation · Owner: Unfold*
@@ -92,28 +92,20 @@ The reviewable change Unfold captures from a Session's Workspace when its Crew s
 **Not to be confused with** [Result](#result): What a Work Item delivers with its Evidence; a Candidate is one piece of that Evidence.  
 **See also:** [Session](#session), [Workspace](#workspace), [Evidence](#evidence), [Review](#review)  
 
-## Client
-*Context: Offering*
-
-An Agency's customer. A Client submits Requests, answers Refinement questions, approves Quotes and gives feedback on Preview Environments in the Client Portal. Unfold never contacts a Client directly. Inside a Tenant a Client owns tracker sources and repositories, and its users see only the Work Items from them (ADR-0017, decided 2026-10-04, not implemented yet).
-
-**Do not use:** customer, end client, end customer  
-**See also:** [Agency](#agency), [Client Portal](#client-portal), [Client Profile](#client-profile), [Quote](#quote), [Request](#request)  
-
 ## Client Portal
 *Context: Offering · Owner: Unfold*
 
-The part of Unfold where Clients submit Requests, talk to the refinement agent, approve Quotes and open Preview Environments through signed links. It shows the Agency's price; Unfold's own charge is hidden unless the Agency shows it.
+The part of Unfold where Clients submit Requests, talk to the refinement agent, answer Refinement questions, approve Quotes and give feedback on Preview Environments through signed links. It is the only way Unfold reaches a Client; Unfold never contacts a Client directly. A Client's users see only the Work Items from that Client's sources. It shows the Agency's price; Unfold's own charge is hidden unless the Agency shows it.
 
 **Also known as:** Portal  
-**See also:** [Client](#client), [Quote](#quote), [Unfold](#unfold)  
+**See also:** [Client](../reference/glossary.md#client), [Quote](#quote), [Unfold](#unfold)  
 
 ## Client Profile
 *Context: Offering*
 
 A Client's Definition of Ready, Definition of Done and extra instructions for agents. It ranks below the delivery contract, like repository instructions. The Definition of Done becomes Acceptance Conditions.
 
-**See also:** [Client](#client), [Ready](#ready), [Acceptance Conditions](#acceptance-conditions), [Refinement](#refinement)  
+**See also:** [Client](../reference/glossary.md#client), [Ready](#ready), [Acceptance Conditions](#acceptance-conditions), [Refinement](#refinement)  
 
 ## Crack
 *Context: Cards*
@@ -278,7 +270,7 @@ A running copy of one pull request's change, deployed with generated test data b
 
 **Also known as:** Preview  
 **Do not use:** staging, review app  
-**See also:** [Acceptance](#acceptance), [Client Portal](#client-portal), [Tenant](#tenant)  
+**See also:** [Acceptance](#acceptance), [Client Portal](#client-portal), [Tenant](../reference/glossary.md#tenant)  
 
 ## Qualification
 *Context: Release*
@@ -292,7 +284,7 @@ Recorded, repeatable proof that a component or path works as required before any
 
 A Work Item's Size and the Agency's price for it, drafted by Refinement and approved by the Client or by the Agency on its behalf. A Work Item with a Client waits as proposed until its Quote is approved.
 
-**See also:** [Size](#size), [Refinement](#refinement), [Client](#client), [Ticket](#ticket)  
+**See also:** [Size](#size), [Refinement](#refinement), [Client](../reference/glossary.md#client), [Ticket](#ticket)  
 
 ## Rarity
 *Context: Cards*
@@ -323,7 +315,7 @@ A Client's ask and the conversation about it, received through the Client Portal
 
 **Do not use:** client ticket  
 **Not to be confused with** [Work Item](../reference/glossary.md#work-item): The unit of work Ploeg runs Shifts against; a Request becomes one or more of them.  
-**See also:** [Client](#client), [Refinement](#refinement), [Quote](#quote), [Client Portal](#client-portal)  
+**See also:** [Client](../reference/glossary.md#client), [Refinement](#refinement), [Quote](#quote), [Client Portal](#client-portal)  
 
 ## Result
 *Context: Work*
@@ -427,13 +419,6 @@ Backstage's documentation format: a static site built from Markdown by MkDocs wi
 
 **See also:** [Zensical](#zensical)  
 
-## Tenant
-*Context: Offering*
-
-The isolated space that holds one Agency's Work Items, Shifts, credentials, Preview Environments and Budgets: in hosted Unfold its own namespaces, default-deny network, sandboxed runtime and model budget. Ploeg records it on every Team, Work Item, Shift and credential. Every install has at least one; a self-hosted install starts with a default Tenant. Clients are users and owners of sources inside a Tenant, never Tenants. Decided by ADR-0017 (2026-10-04); not implemented yet.
-
-**See also:** [Agency](#agency), [Client](#client), [Preview Environment](#preview-environment)  
-
 ## Ticket
 *Context: Offering*
 
@@ -461,7 +446,7 @@ The product, its application and the monorepo that holds them. In the Unfold app
 
 The Client-safe projection of a Work Item that an Ask answers from: its title, objective, Acceptance Conditions, state, Runs with their summaries and Verdicts, pull request and preview status, and spend totals. It never holds prompts, tool input or output, transcripts, diffs, gateway details, operator notes or another Work Item's facts. Proposed in system ADR-0031.
 
-**See also:** [Ask](../reference/glossary.md#ask), [Client](#client)  
+**See also:** [Ask](../reference/glossary.md#ask), [Client](../reference/glossary.md#client)  
 
 ## Workspace
 *Context: Execution*
@@ -510,7 +495,7 @@ Agency names the business that uses Unfold, so "the Agency edition" would mean t
 
 ## Terms owned by other models
 
-This model uses these terms with their owners' meaning: [Admission](../reference/glossary.md#admission), [Ask](../reference/glossary.md#ask), [Authority](../reference/glossary.md#authority), [Follow-Up](../reference/glossary.md#follow-up), [Harness](../reference/glossary.md#harness), [Lease](../reference/glossary.md#lease), [Outcome](../reference/glossary.md#outcome), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team), [Tracker Item](../reference/glossary.md#tracker-item), [Verdict](../reference/glossary.md#verdict), [Work Item](../reference/glossary.md#work-item), [Work Target](../reference/glossary.md#work-target).
+This model uses these terms with their owners' meaning: [Admission](../reference/glossary.md#admission), [Ask](../reference/glossary.md#ask), [Authority](../reference/glossary.md#authority), [Client](../reference/glossary.md#client), [Follow-Up](../reference/glossary.md#follow-up), [Harness](../reference/glossary.md#harness), [Lease](../reference/glossary.md#lease), [Outcome](../reference/glossary.md#outcome), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team), [Tenant](../reference/glossary.md#tenant), [Tracker Item](../reference/glossary.md#tracker-item), [Verdict](../reference/glossary.md#verdict), [Work Item](../reference/glossary.md#work-item), [Work Target](../reference/glossary.md#work-target).
 
 ## Decisions cited
 
