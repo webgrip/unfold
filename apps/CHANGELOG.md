@@ -1,3 +1,13 @@
+## [unfold-v0.4.0-rc.69](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.68...unfold-v0.4.0-rc.69) (2026-10-11)
+
+### Added
+
+* **unfold:** show budget a blocked Run still holds, and ask about spend over MCP ([762e340](https://forgejo.webgrip.dev/webgrip/unfold/commit/762e340c916f93db1a4287ddbfca48ec3731dbf4)), references [#105](https://forgejo.webgrip.dev/webgrip/unfold/issues/105)
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.7 [skip ci] ([6c4bf11](https://forgejo.webgrip.dev/webgrip/unfold/commit/6c4bf11e286e30de246327d77f1618fc265f112e))
+
 ## [unfold-v0.4.0-rc.68](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.67...unfold-v0.4.0-rc.68) (2026-10-11)
 
 ### Added
