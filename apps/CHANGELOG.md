@@ -1,3 +1,9 @@
+## [unfold-v0.4.0-rc.65](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.64...unfold-v0.4.0-rc.65) (2026-10-11)
+
+### Fixed
+
+* **unfold:** start a turn's outcome on its own paragraph in VS Code ([a24170d](https://forgejo.webgrip.dev/webgrip/unfold/commit/a24170d4fd22cd7d834cdd3934f3884b04e9fa22))
+
 ## [unfold-v0.4.0-rc.64](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.63...unfold-v0.4.0-rc.64) (2026-10-11)
 
 ### Added
