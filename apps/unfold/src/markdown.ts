@@ -281,3 +281,11 @@ export function htmlToMarkdown(html: string, base?: string, dialect: MarkdownDia
 export function looksLikeHtml(text: string): boolean {
   return /<\/?(?:p|br|div|span|strong|b|em|i|s|u|code|pre|ul|ol|li|h[1-6]|blockquote|a|hr|img|table|tr|td|th|label|input)(?:\s[^>]*)?\/?>/i.test(text);
 }
+
+/**
+ * Escapes the dollar signs of Markdown that VS Code's chat would otherwise typeset as maths, such as the two amounts in
+ * "US$ 0,02 of US$ 0,25", and leaves code spans, fenced code and dollars already escaped untouched.
+ */
+export function escapeMathDelimiters(markdown: string): string {
+  return markdown.split(/(```[\s\S]*?```|`[^`\n]*`)/).map((piece, index) => index % 2 ? piece : piece.replace(/(?<!\\)\$/g, '\\$')).join('');
+}

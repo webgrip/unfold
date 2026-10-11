@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { application, login, request } from './api-support.ts';
 import { action, connect, defaultChatOf, vscodeAgentsWindow, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
-import { CommandLog, commandLineOf, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel, terminalChannel } from '../src/ahp/terminals.ts';
+import { CommandLog, clientTerminalNotice, commandLineOf, noClientShell, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel, terminalChannel } from '../src/ahp/terminals.ts';
 import { plainRedactedText } from '../src/redaction.ts';
 import type { Event } from '../src/types.ts';
 
@@ -162,8 +162,19 @@ test('a command the crew runs streams into a read-only terminal on its tool call
   bob.notify('dispatchAction', { channel: terminal, clientSeq: 1, action: { type: 'terminal/input', data: 'x' } });
   assert.equal((await bob.until(message => message.params?.origin?.clientSeq === 1)).params.rejectionReason, 'Terminal not found', 'a refusal does not confirm another person\'s terminal exists');
   for (const method of ['createTerminal', 'disposeTerminal']) {
-    await assert.rejects(alice.rpc(method, { channel: terminal, claim: { kind: 'client', clientId: 'alice' } }), (error: Json) => error.code === -32009 && error.message === noClientTerminals, `${method} is refused`);
+    await assert.rejects(alice.rpc(method, { channel: terminal, claim: { kind: 'client', clientId: 'alice' } }), (error: Json) => error.code === -32009 && error.message === noClientTerminals, `${method} is refused on a crew command's terminal`);
   }
+  const own = 'agenthost-terminal:/0d5c7f4e-1b2a-4c3d-9e8f-a1b2c3d4e5f6';
+  assert.deepEqual(await alice.rpc('createTerminal', { channel: own, claim: { kind: 'client', clientId: 'alice' }, cwd: 'file:///home/alice', cols: 80, rows: 24 }), {}, 'the terminal VS Code opens for a session is accepted rather than shown as a launch failure');
+  const ownState = (await alice.rpc('subscribe', { channel: own })).snapshot.state;
+  assert.deepEqual(ownState.content, [{ type: 'unclassified', value: clientTerminalNotice }]);
+  assert.equal(ownState.lifecycle.status, 'running');
+  assert.equal(ownState.claim.kind, 'client');
+  alice.notify('dispatchAction', { channel: own, clientSeq: 200, action: { type: 'terminal/input', data: 'ls\r' } });
+  assert.equal((await alice.until(message => message.params?.origin?.clientSeq === 200)).params.rejectionReason, noClientShell, 'it starts no shell and takes no input');
+  await assert.rejects(bob.rpc('subscribe', { channel: own }), 'another connection cannot read it');
+  assert.deepEqual(await alice.rpc('disposeTerminal', { channel: own }), {});
+  await assert.rejects(alice.rpc('subscribe', { channel: own }), 'a disposed terminal is gone');
   assert.equal(alice.inbox.some(message => message.params?.channel === terminal && message.params?.action?.type === 'terminal/input' && !message.params.rejectionReason), false, 'no input is ever echoed as accepted');
 
   server.app.store.appendEvent(session.id, 'tool', 'system', { name: 'bash', status: 'completed', partId: 'call-1', output: `\u001b[32m3 passing\u001b[0m\npassword=${adminPassword}\n` }, 'run-1');

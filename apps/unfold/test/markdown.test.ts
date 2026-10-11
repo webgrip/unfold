@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { htmlToMarkdown, looksLikeHtml } from '../src/markdown.ts';
+import { escapeMathDelimiters, htmlToMarkdown, looksLikeHtml } from '../src/markdown.ts';
 import { scaledTimeout, threadCpuMilliseconds } from './timeframes.ts';
 
 test('TipTap task descriptions become readable Markdown', () => {
@@ -93,4 +93,10 @@ test('the unfold dialect stays inert: hostile HTML renders through the browser r
     if (tag === 'a' && attributes) assert.match(attributes, /^ href="https?:\/\/[^"\s<>]+" target="_blank" rel="noopener noreferrer"$/);
   }
   assert.doesNotMatch(rendered, /href="(?!https?:)/);
+});
+
+test('dollar signs reach VS Code\'s chat as text, not maths, outside code', () => {
+  assert.equal(escapeMathDelimiters('Spend: US$ 0,02 (settled · of US$ 0,25)'), 'Spend: US\\$ 0,02 (settled · of US\\$ 0,25)');
+  assert.equal(escapeMathDelimiters('Run `$PLOEG_VERIFY_SCRIPT` then\n```sh\necho "$HOME"\n```\nUS$ 1'), 'Run `$PLOEG_VERIFY_SCRIPT` then\n```sh\necho "$HOME"\n```\nUS\\$ 1');
+  assert.equal(escapeMathDelimiters('already \\$ escaped'), 'already \\$ escaped');
 });

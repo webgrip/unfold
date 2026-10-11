@@ -65,7 +65,7 @@ test('the 059675b9 session reads as stopped in the Agents window: activity, an o
   assert.match(outcome.content, /^\n\n\*\*Stopped\*\* · Reviewer approved the change · the session stopped before finishing/);
   assert.ok(outcome.content.startsWith('\n\n'), 'the outcome opens its own paragraph, so a crew message that ends in a code fence is closed before it');
   assert.match(outcome.content, /interrupted, approved in its transcript/);
-  assert.match(outcome.content, /Spend: US\$\s0,03 \(observed, not settled · of US\$\s0,25\)/);
+  assert.match(outcome.content, /Spend: US\\\$\s0,03 \(observed, not settled · of US\\\$\s0,25\)/, 'both dollar signs are escaped, so VS Code typesets no maths between them');
   assert.match(outcome.content, /Ploeg stopped the execution and holds it for reconciliation\. It will not retry by itself\.$/, 'the outcome says why it stopped');
   assert.doesNotMatch(outcome.content, /Next:|does not offer delivery/, 'its next steps are the "What next?" choice, not a second list beside it');
   assert.equal(turns.at(-1).state, 'complete');

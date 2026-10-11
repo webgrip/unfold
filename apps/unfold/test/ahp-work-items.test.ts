@@ -255,7 +255,10 @@ test('a Work Item\'s chat is one turn per Round with each Run a ploeg_run subage
   assert.ok(chat.turns.every((turn: Json) => turn.message.origin.kind === 'systemNotification' && turn.state === 'complete'));
   const parts = chat.turns.flatMap((turn: Json) => turn.responseParts);
   assert.deepEqual(parts.filter((part: Json) => part.kind === 'toolCall').map((part: Json) => [part.toolCall.toolName, part.toolCall.displayName, part.toolCall.status, part.toolCall._meta.toolKind]), [[ploegRunToolName, 'Implementer', 'completed', 'subagent'], [ploegRunToolName, 'Reviewer', 'completed', 'subagent']]);
-  assert.ok(!parts.some((part: Json) => part.kind === 'markdown'), 'no agent message is invented in the session chat');
+  assert.deepEqual(parts.filter((part: Json) => part.kind === 'markdown').map((part: Json) => part.content), [
+    '**Implementer opened the [pull request #42](https://forge.invalid/pulls/42).** Rounded half up in the order totals. Open Implementer above for the full report.',
+    '**Reviewer approved.** The change is correct. Open Reviewer above for the full report.',
+  ], 'each finished Run gets one line of what Ploeg recorded for it, and no agent message is invented');
   assert.deepEqual(parts.filter((part: Json) => part.kind === 'systemNotification').map((part: Json) => part.content), [noAgentMessages]);
   const reviewer = parts.find((part: Json) => part.kind === 'toolCall' && part.toolCall.displayName === 'Reviewer').toolCall;
   assert.equal(reviewer.pastTenseMessage, 'Reviewer approved');

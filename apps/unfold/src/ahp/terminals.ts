@@ -23,8 +23,37 @@ export function parseTerminalChannel(uri: string): { sessionId: string; commandI
 /** The reason every client action on a terminal is refused. */
 export const readOnlyTerminal = 'This terminal is a read-only record of a command the crew ran in its sandbox. Unfold takes no input, resizing, clearing or renaming from a client, and never opens a shell in a sandbox.';
 
-/** The reason `createTerminal` and `disposeTerminal` are refused. */
-export const noClientTerminals = 'Unfold does not open or close terminals. It shows the commands its crew runs as read-only terminals on their tool calls, and keeps them as part of the session\'s history.';
+/** The reason `createTerminal` and `disposeTerminal` are refused on a crew command's terminal. */
+export const noClientTerminals = 'A crew command\'s terminal belongs to its session. Unfold neither opens nor closes it for a client.';
+
+/** The reason a client's own terminal refuses every action. */
+export const noClientShell = 'This terminal starts no shell. Write in the session\'s chat to steer its crew.';
+
+/** The most terminals one connection may hold. VS Code asks for one each time it shows a session of this host. */
+export const maxClientTerminals = 16;
+
+const clientTerminalPattern = /^[a-z][a-z0-9+.-]{0,40}:\/[A-Za-z0-9_./-]{1,200}$/;
+
+/** Whether a URI a client names for a terminal of its own is one this host holds for it: any well-formed URI outside the crew's `ahp-terminal:` namespace. */
+export const clientTerminalUri = (uri: unknown): uri is string => typeof uri === 'string' && clientTerminalPattern.test(uri) && !uri.startsWith('ahp-terminal:');
+
+/** What a client's own terminal shows, since it runs nothing: where the crew's commands appear instead. */
+export const clientTerminalNotice = [
+  '\x1b[1mUnfold · read-only\x1b[0m',
+  '',
+  'Crews run their commands in isolated sandboxes, never on this machine.',
+  'Each command appears as its own terminal on the tool call that ran it:',
+  'open one from the session\'s chat to see the command and its output.',
+  '',
+  '\x1b[2mThis terminal starts no shell. Write in the session\'s chat to steer a crew.\x1b[0m',
+  '',
+].join('\r\n');
+
+/** A client's own terminal as AHP 0.9 defines it: the notice as plain output, claimed by that client, running until the client disposes it. */
+export function clientTerminalState(clientId: string, name: unknown): Json {
+  const title = typeof name === 'string' && name.trim() ? name.trim().slice(0, maxTitle) : 'Unfold';
+  return { title, content: [{ type: 'unclassified', value: clientTerminalNotice }], lifecycle: { status: 'running' }, claim: { kind: 'client', clientId }, supportsCommandDetection: false, isPty: false };
+}
 
 const shellTools = new Set(['bash', 'shell', 'sh', 'zsh', 'terminal', 'run_command', 'execute_command', 'run_shell_command']);
 const finishedStatuses = new Set(['completed', 'error', 'failed']);
