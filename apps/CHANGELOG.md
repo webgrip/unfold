@@ -1,3 +1,18 @@
+## [unfold-v0.4.0-rc.68](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.67...unfold-v0.4.0-rc.68) (2026-10-11)
+
+### Added
+
+* **unfold:** accept and open pull request from the Agents window ([fe0640e](https://forgejo.webgrip.dev/webgrip/unfold/commit/fe0640e6fc85428a6ab8894f5ae27e2a45609274))
+* **unfold:** accept and open pull request from the delivery gate ([682cd16](https://forgejo.webgrip.dev/webgrip/unfold/commit/682cd162b06644ec8c167819054e56a1209cb312))
+* **unfold:** accept and open pull request from the VS Code panels ([a68e203](https://forgejo.webgrip.dev/webgrip/unfold/commit/a68e203cf01302f8841a3ead76223de6dc551a89))
+* **unfold:** file Report a problem into Forgejo and Vikunja ([5a1b90e](https://forgejo.webgrip.dev/webgrip/unfold/commit/5a1b90e799babdb8e24c2b6513e24dfc1367b3bc))
+* **unfold:** Report a problem from the top bar, with a marked-up screenshot ([fb1b748](https://forgejo.webgrip.dev/webgrip/unfold/commit/fb1b7482ad4fc14ce9cb244da1eba5ef1ca758f1))
+
+### Fixed
+
+* **deps:** update dependency prettier ( 3.9.9 ➔ 3.9.10 ) ([e800786](https://forgejo.webgrip.dev/webgrip/unfold/commit/e8007860e9816fa49824056e61686520f3a606a8))
+* **unfold:** never file a report into a project Ploeg dispatches from ([0fa7360](https://forgejo.webgrip.dev/webgrip/unfold/commit/0fa7360858f95d62f5fd68f5feed45a882112862))
+
 ## [unfold-v0.4.0-rc.67](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.66...unfold-v0.4.0-rc.67) (2026-10-11)
 
 ### Added
