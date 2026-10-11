@@ -25,7 +25,7 @@ references:
     note: A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
 imports:
   - model: ../../apps/ploeg/docs/domain/model.yaml
-    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Work Target, Tracker Item, Follow-Up, Admission, Authority]
+    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Work Target, Tracker Item, Follow-Up, Admission, Authority, Ask]
 contexts:
   - name: System
     description: The applications that make up Unfold and how they divide the work.
