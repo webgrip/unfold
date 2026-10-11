@@ -43,7 +43,8 @@ function configText(value: unknown, maxLength: number): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= maxLength && !/[\u0000-\u001f\u007f]/.test(value);
 }
 
-function apiRoot(value: unknown, provider: TaskProvider): string {
+/** Checks a tracker API root: HTTPS (HTTP on loopback only), no credentials, query or fragment, and the provider's API suffix. */
+export function apiRoot(value: unknown, provider: TaskProvider): string {
   if (!configText(value, 2048) || /[%\\]/.test(value)) throw new Error('Task source baseUrl must be a complete API root URL');
   let parsed: URL;
   try { parsed = new URL(value); } catch { throw new Error('Task source baseUrl must be a complete API root URL'); }
