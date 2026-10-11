@@ -8,6 +8,7 @@ import { CrackError } from './cards/cracks.ts';
 import { valueStream, type ValueStream } from './value-stream.ts';
 import type { CardService, CommentRequest, CommentResult, FactsQuery } from './cards/service.ts';
 import { readRunLogs, RunLogsError, type RunLogs } from './run-logs.ts';
+import { parseTranscriptPage, transcriptCursor, transcriptLimits, TranscriptError, unavailableTranscript, type RunTranscript } from './run-transcript.ts';
 import type { PloegCardFlow, PloegCardPipeline, PloegCardShape, PloegPlayCITiming, PloegPlayShape, PloegPlayTimeline } from './card-kpis.ts';
 
 export type PloegState = 'ingested' | 'queued' | 'leased' | 'done' | 'needs_human' | 'awaiting_review' | 'stale' | 'withdrawn' | 'proposed';
@@ -954,6 +955,25 @@ export class PloegClient {
     if (!found || found.workItemId !== id) throw new PloegError(404, 'ploeg_not_found', 'This Run is not part of the Work Item.');
     try { return await readRunLogs(this.observability, found, { demo: this.demo, after }); }
     catch (error) { if (error instanceof RunLogsError) throw new PloegError(error.status, error.code, error.message); throw error; }
+  }
+  /**
+   * Reads one page of the agent transcript of one Run of a Work Item the caller may see (Ploeg ADR-0090), entries after
+   * the seq `after`. A Ploeg without the transcript endpoint answers `available: false` with reason `unsupported`; the
+   * demo runs no agents and answers reason `demo`.
+   */
+  async runTranscript(user: User, id: string, runId: string, after?: string, fresh = false): Promise<RunTranscript> {
+    if (!/^[1-9][0-9]{0,18}$/.test(runId)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg Run identifier.');
+    const cursor = transcriptCursor(after);
+    if (cursor === null) throw new PloegError(400, 'transcript_cursor', 'Use a cursor from an earlier read of this transcript.');
+    const view = await this.detail(user, id, fresh);
+    const found = view.runs.find(entry => entry.id === runId);
+    if (!found || found.workItemId !== id) throw new PloegError(404, 'ploeg_not_found', 'This Run is not part of the Work Item.');
+    if (this.demo) return unavailableTranscript(id, runId, 'demo', cursor, true);
+    let data: unknown;
+    try { data = await this.request(`runs/${runId}/transcript?${new URLSearchParams({ after: String(cursor), limit: String(transcriptLimits.page) })}`, true, { added: true }); }
+    catch (error) { if (error instanceof PloegError && error.code === 'ploeg_unsupported') return unavailableTranscript(id, runId, 'unsupported', cursor, false); throw error; }
+    try { return { workItemId: id, runId, available: true, ...parseTranscriptPage(data, runId, cursor), demo: false, fetchedAt: new Date().toISOString() }; }
+    catch (error) { if (error instanceof TranscriptError) throw new PloegError(502, 'ploeg_transcript_invalid', `Ploeg returned a Run transcript Unfold cannot read (${error.path}).`); throw error; }
   }
   /** Reads a Work Item's Run card, assembled by Unfold from Ploeg's delivery facts. Without those facts it refuses with 503 `cards_facts_unavailable`. */
   async card(user: User, id: string, fresh = false): Promise<PloegCardView> {

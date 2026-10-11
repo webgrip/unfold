@@ -14,6 +14,7 @@ import { deliveryStages, stageTime } from './core/delivery-track.js';
 import { streamChart, streamLanes } from './core/value-stream.js';
 import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
+import { runTranscriptMarkup } from './run-transcript.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -915,7 +916,7 @@ export function runLogsMarkup(run, entry) {
   return ui.disclosure({ summary: 'Pod logs', id: `work-run-logs-${run.id}`, body: `<div class="work-run-logs">${runLogsBody(run, entry)}</div>` });
 }
 
-function runBody(run, { demo, now, live, attempts, grafanaUrl, logs }) {
+function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts }) {
   const failure = runFailure(run);
   const retriedAs = failure?.retries ? attempts?.get(String(run.id))?.next : null;
   const parts = [];
@@ -944,6 +945,7 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl, logs }) {
     ['Model cost', demo ? '<span class="subtle">Demo · no model calls</span>' : neverStarted(run) ? '<span class="subtle">Nothing ran</span>' : run.costStatus === 'observed' && amount(run.usage?.costUsd) ? `<span class="num">${moneyText(run.usage.costUsd)}</span>` : '<span class="subtle">Not reported</span>'],
     ['Tokens', tokens],
   ]));
+  parts.push(runTranscriptMarkup(run, transcripts?.get(String(run.id))));
   parts.push(runLogsMarkup(run, logs?.get(String(run.id))));
   const grafana = runExplorer(run.keyAlias, grafanaUrl);
   const copy = ui.button({ label: 'Copy link to this Run', icon: 'copy', variant: 'ghost', size: 'xs', action: 'work-copy-run', data: { id: run.id, workItem: run.workItemId } });
@@ -968,7 +970,7 @@ function runRow(run, context, { round }) {
 function runsMarkup(detail, model) {
   const shift = latestShift(detail);
   const groups = runGroups(detail.runs, shift?.id);
-  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs };
+  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts };
   const render = (list, continued) => list.map(group => `${group.label && !continued.has(group.key) ? `<p class="work-run-group">${escape(group.label)}</p>` : ''}${group.runs.map(run => runRow(run, context, { round: group.label })).join('')}`).join('');
   const shown = [];
   const rest = [];

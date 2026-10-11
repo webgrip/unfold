@@ -103,6 +103,12 @@ export async function run({ page, app, assert, screenshot }) {
     assert.equal(await dialog.getByRole('button', { name: 'Cancel Work Item' }).isDisabled(), true, 'the demo cannot cancel anything');
     await dialog.getByRole('button', { name: 'Keep it' }).click();
     await dialog.waitFor({ state: 'hidden' });
+    await page.locator('#work-run-51 > summary').click();
+    const transcript = page.locator('#work-run-transcript-51');
+    assert.equal(await transcript.evaluate(element => element.open), true, 'what the agent did is open while the Run runs');
+    await transcript.getByText('No agent in the demo').waitFor();
+    assert.equal(await transcript.getByText('The demo runs no agents, so it has no transcript to show.').isVisible(), true, 'the demo invents no transcript');
+    assert.ok(await page.evaluate(() => document.querySelector('#work-run-transcript-51').compareDocumentPosition(document.querySelector('#work-run-logs-51')) & Node.DOCUMENT_POSITION_FOLLOWING), 'above the Pod logs');
     await page.goto(`http://127.0.0.1:${app.server.address().port}/#work/115?lane=all`);
     await page.waitForFunction(() => document.activeElement?.id === 'ploeg-item-title');
     assert.equal(await page.evaluate(() => { const row = document.querySelector('[data-work-row][aria-current="true"]'); const pane = row.closest('.work-list').getBoundingClientRect(); const box = row.getBoundingClientRect(); return box.top >= pane.top && box.bottom <= pane.bottom; }), true, 'a deep link scrolls its row into the list pane');
