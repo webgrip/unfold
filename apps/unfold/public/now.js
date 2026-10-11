@@ -445,20 +445,52 @@ function runningRow(run, context) {
   return `<li><a class="list-row now-run" href="#work/${escape(run.workItemId)}" id="now-row-r-${escape(run.id)}" data-tone="live" data-now-row><span class="list-row-lead"><span class="live-dot" aria-hidden="true"></span></span><div class="list-row-main"><span class="list-row-title">${escape(run.workItemTitle || `Work Item ${run.workItemId}`)}</span><span class="list-row-meta">${facts}</span><div class="now-run-meter">${spend}</div></div><span class="list-row-trail num">${elapsed}</span></a></li>`;
 }
 
+/**
+ * The Work Items in flight that no running Run stands for: queued or received ones waiting for a worker, and leased
+ * ones between two Runs. Each comes once, in the order Ploeg listed them. Null when the active group failed to load.
+ * @param {object} data A `GET /api/ploeg/now` response.
+ * @returns {object[] | null}
+ */
+export function waitingToRun(data) {
+  if (data?.errors?.active) return null;
+  const running = new Set((data?.errors?.running ? [] : data?.running || []).map(run => String(run.workItemId)));
+  const seen = new Set();
+  return (Array.isArray(data?.active) ? data.active : []).filter(entry => {
+    const id = String(entry?.id ?? '');
+    if (!id || running.has(id) || seen.has(id) || !['ingested', 'queued', 'leased'].includes(entry.state)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+function queuedRow(entry, context) {
+  const leased = entry.state === 'leased';
+  const what = leased ? 'Between Runs' : entry.state === 'ingested' ? 'Received' : 'Waiting for a worker';
+  const facts = joinDots([`<span class="now-flight-state">${escape(what)}</span>`, escape(entry.team), reference(entry), repository(entry.target)]);
+  const since = leased ? null : moment(entry.updatedAt) ?? moment(entry.createdAt);
+  const trail = since === null ? '' : `<span class="now-when"><span class="now-when-label">Queued </span>${format.timeHtml(since, { now: context.now })}</span>`;
+  return `<li>${listRow({ href: `#work/${entry.id}`, id: `now-row-q-${entry.id}`, tone: leased ? 'live' : 'neutral', lead: icon(leased ? 'circle-half' : 'circle-dashed'), title: entry.title || `Work Item ${entry.id}`, meta: facts, trail, data: { nowRow: true, flight: entry.state } })}</li>`;
+}
+
 function runningCard(view, context) {
   const data = view.data;
   const error = data.errors?.running;
-  const runs = data.running;
+  const runs = error ? [] : data.running;
+  const queued = waitingToRun(data) || [];
+  const total = runs.length + queued.length;
   let body;
-  if (error) body = errorState('running', 'Could not load what is running', error);
-  else if (!runs.length) {
-    const queued = view.summary?.data?.totals?.workItems?.queued;
+  if (error && !queued.length) body = errorState('running', 'Could not load what is running', error);
+  else if (!total) {
     const pending = view.summary?.data?.totals?.runs?.pending;
-    const detail = amount(pending) && pending > 0 ? `${format.plural(pending, 'Run')} ${pending === 1 ? 'waits' : 'wait'} for a worker.` : amount(queued) && queued > 0 ? `${format.plural(queued, 'Work Item')} ${queued === 1 ? 'is' : 'are'} queued.` : 'Nothing is queued either.';
-    body = emptyState({ icon: 'runs', compact: true, title: 'No Run is working', body: escape(detail) });
-  } else body = `<ul class="list now-list">${runs.map(run => runningRow(run, context)).join('')}</ul>`;
-  const total = error ? 0 : runs.length;
-  return `<section class="card flush now-card now-running" aria-labelledby="now-running-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-running-title">Running now${total ? count(total, { tone: 'live' }) : ''}</h2></div><div class="card-actions">${button({ id: 'now-running-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=running', ariaLabel: 'View all running Runs' })}</div></header><div class="card-body">${body}</div></section>`;
+    const detail = amount(pending) && pending > 0 ? `${format.plural(pending, 'Run')} ${pending === 1 ? 'waits' : 'wait'} for a worker.` : context.handOver ? 'Hand a task to a team and follow it here, from queue to pull request.' : 'Nothing is queued either.';
+    const action = context.handOver ? button({ id: 'now-hand-over', label: 'Hand over a task', icon: 'tasks', size: 'sm', href: '#tasks' }) : '';
+    body = emptyState({ icon: 'runs', compact: true, title: 'Nothing in flight', body: escape(detail), actions: action });
+  } else {
+    const failed = error ? `<li>${errorState('running', 'Could not load what is running', error)}</li>` : '';
+    body = `<ul class="list now-list">${runs.map(run => runningRow(run, context)).join('')}${failed}${queued.slice(0, groupLimit).map(entry => queuedRow(entry, context)).join('')}${moreRow(queued.length - Math.min(queued.length, groupLimit), { place: 'Work', more: '#work?lane=queued' }, stateTruncated(data, 'queued'))}</ul>`;
+  }
+  const label = total ? count(total, { tone: 'live', label: `${format.plural(runs.length, 'Run')} running, ${format.plural(queued.length, 'Work Item')} waiting to run` }) : '';
+  return `<section class="card flush now-card now-running" aria-labelledby="now-running-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-running-title">In flight${label}</h2></div><div class="card-actions">${button({ id: 'now-running-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=running', ariaLabel: 'View all running Runs' })}</div></header><div class="card-body">${body}</div></section>`;
 }
 
 function recentRow(run, context) {
@@ -635,19 +667,20 @@ export function offersRetry(input) {
 
 /**
  * Renders the Now page body: the "Since you were away" digest, the stat row, what waits on you (ready for
- * review, needs you with its reason, proposed), what runs now with its budget meter and what finished recently.
+ * review, needs you with its reason, proposed), what is in flight (running Runs with their budget meter, then Work Items waiting to run) and what finished recently.
  * `input` is `state.now` plus `since` (the digest baseline, null on a first visit), `shown` (the ids on screen,
  * see `visibleNow`), `summary` ({ data, error } of the 24-hour summary) and `caughtUp`.
- * `options` takes `grafanaUrl` and `singleKeys` (show the j/k/o hints).
+ * `options` takes `grafanaUrl`, `singleKeys` (show the j/k/o hints) and `handOver` (an empty In flight card offers
+ * to hand over a task).
  * @param {object} input
- * @param {{ grafanaUrl?: string, singleKeys?: boolean }} [options]
+ * @param {{ grafanaUrl?: string, singleKeys?: boolean, handOver?: boolean }} [options]
  * @param {number} [now]
  * @returns {string}
  */
 export function nowMarkup(input, options = {}, now = Date.now()) {
   if (!input?.data) return input?.error ? `<div class="now now-failed">${failureMarkup(input.error)}</div>` : loadingMarkup();
   const list = value => Array.isArray(value) ? value : [];
-  const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: list(input.data.running), recent: list(input.data.recent) } };
+  const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: list(input.data.running), active: list(input.data.active), recent: list(input.data.recent) } };
   const since = view.since === undefined ? null : view.since;
   const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), runs: view.data.errors.recent ? [] : view.data.recent, dots: true };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);

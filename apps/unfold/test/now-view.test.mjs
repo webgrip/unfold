@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nowMarkup, digestCounts, digestSection, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, byWaitingSince, awayAfter, reasonGlyph, offersRetry, mayHoldMore, stateTruncated, runPage, groupLimit, subgroupLimit } from '../public/now.js';
+import { nowMarkup, digestCounts, digestSection, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, byWaitingSince, awayAfter, reasonGlyph, offersRetry, mayHoldMore, stateTruncated, runPage, groupLimit, subgroupLimit, waitingToRun } from '../public/now.js';
 import { listReason } from '../public/core/reasons.js';
 import { icon } from '../public/core/icons.js';
 
@@ -40,8 +40,8 @@ const view = (extra = {}) => ({ data: nowData(), error: null, since: '2026-09-20
 
 test('the Now page lists waiting work in the order Review, Needs you, Proposed, then what runs and what finished', () => {
   const html = nowMarkup(view(), options, nowAt);
-  for (const title of ['Waiting on you', 'Ready for your review', 'Needs you', 'Proposed', 'Running now', 'Recently finished']) assert.match(html, new RegExp(title));
-  const order = ['Ready for your review', 'Needs you<', 'Proposed<', 'Running now', 'Recently finished'].map(text => html.indexOf(text));
+  for (const title of ['Waiting on you', 'Ready for your review', 'Needs you', 'Proposed', 'In flight', 'Recently finished']) assert.match(html, new RegExp(title));
+  const order = ['Ready for your review', 'Needs you<', 'Proposed<', 'In flight', 'Recently finished'].map(text => html.indexOf(text));
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'groups are out of order');
   assert.match(html, /<a class="list-row" href="#work\/105"[^>]*data-now-row/);
   assert.match(html, /href="#work\/102"[^>]*data-now-row/, 'a running Run opens its Work Item');
@@ -177,7 +177,7 @@ test('an empty queue is a positive, specific state', () => {
   data.running = [];
   assert.match(nowMarkup(view({ data }), options, nowAt), /No Run is working right now; the last Run finished <time[^>]*>15 min ago<\/time>; 2 Work Items are queued\./);
   assert.match(nowMarkup(view({ data }), options, nowAt), /No Run is working[\s\S]*1 Run waits for a worker\./);
-  assert.doesNotMatch(nowMarkup(view({ data }), options, nowAt), /Running now<span class="count"/, 'a zero count is left out');
+  assert.doesNotMatch(nowMarkup(view({ data }), options, nowAt), /In flight<span class="count"/, 'a zero count is left out');
   assert.doesNotMatch(nowMarkup(view({ data }), options, nowAt), /Waiting on you<span class="count"/);
 });
 
@@ -213,7 +213,7 @@ test('malformed groups and unexpected states never break the page or vanish', ()
   data.recent = null;
   data.waiting.push({ id: '113', team: 'delivery', state: 'stale', title: 'Migrate the order export', url: '', createdAt: at, updatedAt: at, infraFailures: 10, spentUsd: null, pullRequestUrl: '' });
   const html = nowMarkup(view({ data }), options, nowAt);
-  assert.match(html, /No Run is working/);
+  assert.match(html, /Nothing in flight/);
   assert.match(html, /No Run has finished yet/);
   assert.match(html, /id="now-group-needs">[\s\S]*Migrate the order export/, 'a stale item lands with the items that need you');
   assert.match(html, /Infrastructure kept failing/);
@@ -507,7 +507,7 @@ test('a failed refusal read shows an inline notice with Try again and leaves eve
   const html = nowMarkup(input, options, nowAt);
   assert.match(html, /Could not load tasks Ploeg could not start/);
   assert.match(html, /id="now-retry-refused"[^>]*data-action="now-retry"/);
-  for (const text of ['Ready for your review', 'Review the rounding criteria', 'Running now', 'Recently finished']) assert.match(html, new RegExp(text));
+  for (const text of ['Ready for your review', 'Review the rounding criteria', 'In flight', 'Recently finished']) assert.match(html, new RegExp(text));
   assert.equal(offersRetry(input), true);
   const older = nowMarkup(view(), options, nowAt);
   assert.doesNotMatch(older, /Could not start|Could not load tasks Ploeg could not start/, 'an older Ploeg without the list shows no group and no notice');
@@ -526,4 +526,38 @@ test('waiting rows and their actions carry data-insight names, so confusion sign
   assert(rows.has('now.row.needs-you') && rows.has('now.row.review'), 'Needs you and review rows are named');
   assert.match(html, /data-insight="now\.row\.primary"/);
   assert.match(html, /data-insight="now\.row\.link"/);
+});
+
+test('In flight lists what runs, then what waits to run, so handed-over work never drops out of sight', () => {
+  const data = nowData();
+  data.active = [
+    { id: '102', team: 'delivery', state: 'leased', title: 'Regression investigation', createdAt: at, updatedAt: at, provider: 'vikunja', externalId: 'VIK-102', target },
+    { id: '120', team: 'delivery', state: 'leased', title: 'Between two Rounds', createdAt: at, updatedAt: at, provider: 'vikunja', externalId: 'VIK-120', target },
+    { id: '186', team: 'bronze', state: 'queued', title: 'Plan the TypeScript 7 route', createdAt: '2026-09-20T09:40:00Z', updatedAt: '2026-09-20T09:55:00Z', provider: 'vikunja', externalId: '1092', target },
+    { id: '186', team: 'bronze', state: 'queued', title: 'Plan the TypeScript 7 route', createdAt: at, updatedAt: at, provider: 'vikunja', externalId: '1092', target },
+  ];
+  assert.deepEqual(waitingToRun(data).map(entry => entry.id), ['120', '186'], 'a Work Item with a running Run is listed once, as that Run');
+  const html = nowMarkup(view({ data }), options, nowAt);
+  const card = html.slice(html.indexOf('now-running'), html.indexOf('now-recent'));
+  assert.match(card, /In flight<span class="count" data-tone="live" aria-label="1 Run running, 2 Work Items waiting to run">3<\/span>/);
+  assert.ok(card.indexOf('now-row-r-40') < card.indexOf('now-row-q-120') && card.indexOf('now-row-q-120') < card.indexOf('now-row-q-186'), 'running first');
+  assert.match(card, /<a class="list-row" href="#work\/186" id="now-row-q-186" data-tone="neutral" data-now-row data-flight="queued">/);
+  assert.match(card, /Waiting for a worker[\s\S]*bronze[\s\S]*Queued <\/span><time[^>]*>5 min ago/);
+  assert.match(card, /id="now-row-q-120" data-tone="live"[\s\S]*?Between Runs/);
+});
+
+test('an empty In flight card invites a hand-over when you can make one', () => {
+  const data = { ...nowData(), running: [], active: [] };
+  const quiet = view({ data, summary: summary({ totals: { workItems: { queued: 0 }, runs: { pending: 0 }, spend: {} } }) });
+  const invite = nowMarkup(quiet, { ...options, handOver: true }, nowAt);
+  assert.match(invite, /Nothing in flight[\s\S]*Hand a task to a team and follow it here, from queue to pull request\.[\s\S]*href="#tasks" id="now-hand-over"/);
+  assert.doesNotMatch(nowMarkup(quiet, options, nowAt), /now-hand-over/, 'viewers and workbenches without a Ploeg task connection get no invitation');
+});
+
+test('a failed active group keeps the running Runs and adds nothing', () => {
+  const data = { ...nowData(), active: [{ id: '186', team: 'bronze', state: 'queued', title: 'Queued', createdAt: at, updatedAt: at }], errors: { active: 'Ploeg timed out' } };
+  assert.equal(waitingToRun(data), null);
+  const html = nowMarkup(view({ data }), options, nowAt);
+  assert.match(html, /now-row-r-40/);
+  assert.doesNotMatch(html, /now-row-q-186/);
 });

@@ -5,11 +5,19 @@ import { amountText, dateTime, money, parseAmount, plural, relative } from '../c
 import { icon } from '../core/icons.js';
 import { markdown } from '../core/markdown.js';
 import { parseHash, buildHash } from '../core/route.js';
-import { singleKeyAllowed } from '../core/keys.js';
+import { singleKeyAllowed, singleKeysEnabled } from '../core/keys.js';
 import { sessionStatus, workItemState } from '../core/states.js';
-import { badge, budgetInput, button, callout, chip, count, demoNote, demoSessionsText, disclosure, emptyState, skeleton, stateBadge, timeAgo } from '../core/ui.js';
+import { badge, budgetInput, button, callout, chip, count, demoNote, demoSessionsText, disclosure, emptyState, segmented, skeleton, stateBadge, timeAgo } from '../core/ui.js';
 import { repoName, taskSources, selectedTaskSource, providerName, providerLabels } from '../core/lookup.js';
+import { live } from '../core/live.js';
+import { onCountsChange } from '../core/counts.js';
+import { attention } from '../core/attention.js';
+import { popMark, prefersStill } from '../core/motion.js';
+import { markSvg } from '../core/brand.js';
 import { shell } from '../shell.js';
+import { currentWorkItem, followDelay, followTarget, handoffTrack, notifyOffer, offersNotify, passesFilter, standingBadge, standingFromStatus, taskFilters, taskStandings, trackKey, trackMarkup } from '../handoff.js';
+
+export { currentWorkItem };
 
 const trackers = ['forgejo', 'github', 'gitlab', 'clickup', 'vikunja'];
 const statuses = { open: ['Open', 'circle'], closed: ['Closed', 'check-circle'], unknown: ['Status unknown', 'help-circle'] };
@@ -25,6 +33,13 @@ let ploegError = null;
 let ploegBusy = '';
 let ploegTeam = '';
 let ploegRequest = 0;
+let standings = new Map();
+let taskFilter = 'all';
+let shownTrack = '';
+let arrival = '';
+let nextFollow = 0;
+let notifyBusy = false;
+let flight = null;
 
 const act = (attribute, options) => button(options).replace('<button ', `<button ${attribute} `);
 const ownerLabel = source => source?.executionOwner === 'ploeg' ? 'Runs on Ploeg' : 'Sessions here';
@@ -41,8 +56,33 @@ function remember(taskId = '') {
   if (state.view === 'tasks' && location.hash !== hash) history.replaceState(null, '', hash);
 }
 
-/** The Work Item that says where a task stands with Ploeg: the first one still in progress, otherwise the most recent. */
-export function currentWorkItem(status) { return status.workItems.find(item => !settledStates.includes(item.state)) || status.workItems[0]; }
+const teamKey = 'unfold.handoffTeam';
+const notifyLaterKey = 'unfold.handoffNotifyLater';
+
+function storedJson(key, fallback) {
+  try { const value = JSON.parse(globalThis.localStorage?.getItem(key) ?? 'null'); return value ?? fallback; } catch { return fallback; }
+}
+
+function storeJson(key, value) {
+  try { globalThis.localStorage?.setItem(key, JSON.stringify(value)); } catch {}
+}
+
+function rememberedTeam(sourceId) {
+  const saved = storedJson(teamKey, {});
+  return saved && typeof saved === 'object' && typeof saved[sourceId] === 'string' ? saved[sourceId] : '';
+}
+
+function rememberTeam(sourceId, team) {
+  const saved = storedJson(teamKey, {});
+  storeJson(teamKey, { ...(saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}), [sourceId]: team });
+}
+
+const standingKey = task => `${task.provider}:${task.id}`;
+
+function standingOf(task) {
+  if (ploegStatus && requestedId === String(task.id) && state.task && String(state.task.id) === String(task.id)) return standingFromStatus(ploegStatus);
+  return standings.get(standingKey(task)) || null;
+}
 
 /** Whether the Ploeg card offers a hand-off: Ploeg answered and allows it, the task is open, no team holds it, and a team is on offer. */
 export function canHandOff(status, task) {
@@ -92,9 +132,14 @@ function statusBadge(status, style) {
   return badge({ label, glyph, tone: 'neutral', size: 'sm', style });
 }
 
-function filteredTasks() {
+function searchedTasks() {
   const search = state.taskSearch.trim().toLowerCase();
   return state.tasks.filter(task => `${task.id} ${task.title}`.toLowerCase().includes(search));
+}
+
+function filteredTasks() {
+  const filter = ploegOwned(selectedTaskSource()) ? taskFilter : 'all';
+  return searchedTasks().filter(task => passesFilter(filter, standingOf(task)));
 }
 
 function taskRow(task) {
@@ -103,8 +148,9 @@ function taskRow(task) {
   const updated = task.updatedAt ? `<span class="tasks-row-dot" aria-hidden="true">·</span>${timeAgo(task.updatedAt)}` : '';
   const holders = (task.assignees || []).map(person => person.username);
   const held = holders.length ? badge({ label: holders.length > 2 ? `${holders.slice(0, 2).join(', ')} +${holders.length - 2}` : holders.join(', '), glyph: 'user', tone: 'neutral', size: 'sm', style: 'plain', title: `Assigned to ${holders.join(', ')}` }) : '';
-  const meta = `<span class="num">#${escape(task.id)}</span>${task.status === 'open' ? '' : statusBadge(task.status, 'plain')}${held}${session ? badge({ label: 'Has a session', glyph: 'sessions', tone: 'neutral', size: 'sm', style: 'plain' }) : ''}${updated}`;
-  return `<li><button type="button" class="list-row tasks-row" id="task-row-${escape(task.id)}" data-action="task-preview" data-id="${escape(task.id)}"${selected ? ' aria-current="true"' : ''}><span class="list-row-main"><span class="list-row-title" title="${escape(task.title)}">${escape(task.title)}</span><span class="list-row-meta">${meta}</span></span></button></li>`;
+  const standing = ploegOwned(selectedTaskSource()) ? standingOf(task) : null;
+  const meta = `${standingBadge(standing)}<span class="num">#${escape(task.id)}</span>${task.status === 'open' ? '' : statusBadge(task.status, 'plain')}${standing ? '' : held}${session ? badge({ label: 'Has a session', glyph: 'sessions', tone: 'neutral', size: 'sm', style: 'plain' }) : ''}${updated}`;
+  return `<li><button type="button" class="list-row tasks-row" id="task-row-${escape(task.id)}" data-action="task-preview" data-id="${escape(task.id)}"${standing ? ` data-standing="${escape(standing.state)}"` : ''}${selected ? ' aria-current="true"' : ''}><span class="list-row-main"><span class="list-row-title" title="${escape(task.title)}">${escape(task.title)}</span><span class="list-row-meta">${meta}</span></span></button></li>`;
 }
 
 function listBody(source) {
@@ -115,6 +161,10 @@ function listBody(source) {
     return emptyState({ tone: unlinked ? 'attention' : 'danger', icon: unlinked ? 'link' : 'x-circle', title: unlinked ? 'Link your account first' : 'Could not load tasks', body: `<span role="alert">${escape(state.taskError)}</span>`, actions });
   }
   const shown = filteredTasks();
+  if (!shown.length && searchedTasks().length && taskFilter !== 'all') {
+    const none = taskFilter === 'idle' ? { title: 'Every task here is with Ploeg', body: 'Nothing on this page waits to be handed over.' } : { title: 'No task here is with Ploeg', body: 'Pick a task and hand it to a team. It shows up under this filter while Ploeg works on it.' };
+    return emptyState({ icon: taskFilter === 'idle' ? 'check-circle' : 'work', title: none.title, body: none.body, actions: act('data-action="task-filter" data-id="all"', { label: 'Show all tasks', size: 'sm' }) });
+  }
   if (!shown.length && state.taskSearch.trim()) return emptyState({ icon: 'search', title: 'No tasks match', body: `Nothing on this page matches “${escape(state.taskSearch.trim())}”. Search covers titles and numbers.`, actions: act('data-action="task-search-clear"', { label: 'Clear search', size: 'sm' }) });
   if (!shown.length) return emptyState({ icon: 'inbox', title: state.taskPage > 1 ? 'No open tasks on this page' : 'No open tasks', body: `Open tasks in ${escape(source?.name || 'this connection')} show up here. Refresh after you add one.`, actions: act('data-action="task-refresh"', { label: 'Refresh', icon: 'refresh', size: 'sm' }) });
   return `<ul class="list tasks-list" aria-label="Tasks">${shown.map(taskRow).join('')}</ul>`;
@@ -137,9 +187,16 @@ function listTitle(source, sources) {
   return `<h2 class="card-title tasks-source-title" id="tasks-source-title"><label class="sr-only" for="task-source">Connection</label>${picker}${listCount()}</h2>`;
 }
 
+function filterBar() {
+  const searched = searchedTasks();
+  const items = taskFilters.map(filter => ({ id: filter.id, label: filter.label, count: filter.id === 'all' ? null : searched.filter(task => passesFilter(filter.id, standingOf(task))).length, selected: taskFilter === filter.id }));
+  return `<div class="tasks-filter">${segmented({ label: 'Show tasks', items, action: 'task-filter' })}</div>`;
+}
+
 function listPane(source, sources) {
   const refresh = act('data-action="task-refresh"', { icon: 'refresh', ariaLabel: 'Refresh tasks', title: 'Refresh tasks', variant: 'ghost', size: 'sm', disabled: state.taskLoading });
-  const search = `<div class="tasks-search-row"><label class="tasks-search">${icon('search')}<span class="sr-only">Search loaded tasks</span><input id="task-search" type="search" placeholder="Filter by title or number" value="${escape(state.taskSearch)}" autocomplete="off"></label></div>`;
+  const filters = ploegOwned(source) && !state.taskLoading && !state.taskError && state.tasks.length ? filterBar() : '';
+  const search = `<div class="tasks-search-row"><label class="tasks-search">${icon('search')}<span class="sr-only">Search loaded tasks</span><input id="task-search" type="search" placeholder="Filter by title or number" value="${escape(state.taskSearch)}" autocomplete="off"></label>${filters}</div>`;
   const subtitle = `${escape(providerName(source?.provider))} · ${escape(repoName(source?.repositoryId))} · ${ownerLabel(source)}`;
   return `<section class="card tasks-list-card" aria-labelledby="tasks-source-title"><header class="card-header tasks-list-header"><div class="card-heading">${listTitle(source, sources)}<p class="card-subtitle">${subtitle}</p></div><div class="card-actions">${refresh}</div></header>${search}<div class="tasks-list-body">${listBody(source)}</div>${pagination()}</section>`;
 }
@@ -217,27 +274,68 @@ function workItemRow(item) {
 
 function teamPicker(status) {
   const teams = status.teams;
-  if (!teams.some(team => team.id === ploegTeam)) ploegTeam = teams.find(team => !team.paused)?.id || teams[0]?.id || '';
+  if (!teams.some(team => team.id === ploegTeam)) {
+    const remembered = rememberedTeam(state.taskSourceId);
+    ploegTeam = teams.find(team => team.id === remembered && !team.paused)?.id || teams.find(team => !team.paused)?.id || teams[0]?.id || '';
+  }
   const chosen = teams.find(team => team.id === ploegTeam);
-  const choices = teams.map(team => `<label class="tasks-team-option" for="task-team-${escape(team.id)}"><input type="radio" id="task-team-${escape(team.id)}" name="team" value="${escape(team.id)}"${team.id === ploegTeam ? ' checked' : ''}${ploegBusy ? ' disabled' : ''}><span><span class="tasks-team-name">${escape(team.id)}${team.paused ? badge({ label: 'Paused', glyph: 'pause-circle', tone: 'attention', size: 'sm' }) : ''}</span><span class="tasks-team-hint">${escape(team.roles.length ? team.roles.join(' → ') : 'No roles')} · ${escape(team.queueDepth)} queued</span></span></label>`).join('');
-  const submit = button({ type: 'submit', variant: 'primary', icon: 'arrow', label: ploegBusy === 'handoff' ? 'Handing over…' : `Hand to ${chosen.id}`, busy: ploegBusy === 'handoff', disabled: Boolean(ploegBusy), id: 'task-handoff-submit' });
-  return `<form class="tasks-handoff" data-form="task-handoff"><fieldset class="tasks-handoff-teams"><legend class="field-label">Hand to Ploeg</legend><div class="tasks-team-options">${choices}</div></fieldset><div class="tasks-handoff-actions">${submit}<p class="field-hint">Assigns “${escape(chosen.assignee)}” in ${escape(providerName(state.task?.provider))} and comments that you handed it over.</p></div></form>`;
+  const queue = team => team.queueDepth ? `${team.queueDepth} queued` : 'free';
+  const submit = button({ type: 'submit', variant: 'primary', icon: 'arrow', label: ploegBusy === 'handoff' ? 'Handing over…' : `Hand to ${chosen.id}`, busy: ploegBusy === 'handoff', disabled: Boolean(ploegBusy), id: 'task-handoff-submit', kbd: singleKeysEnabled() ? 'H' : undefined });
+  const pills = teams.length === 1
+    ? `<input type="hidden" name="team" value="${escape(chosen.id)}">`
+    : `<fieldset class="handoff-teams"><legend class="sr-only">Team</legend>${teams.map(team => `<label class="handoff-team" for="task-team-${escape(team.id)}" title="${escape(team.roles.length ? team.roles.join(' → ') : 'No roles')}"><input type="radio" id="task-team-${escape(team.id)}" name="team" value="${escape(team.id)}"${team.id === ploegTeam ? ' checked' : ''}${ploegBusy ? ' disabled' : ''}><span class="handoff-team-name">${escape(team.id)}</span><span class="handoff-team-load">${team.paused ? 'paused' : escape(queue(team))}</span></label>`).join('')}</fieldset>`;
+  const how = `<p class="handoff-how">Ploeg builds it on a branch and opens a pull request for your review. Assigns “${escape(chosen.assignee)}” in ${escape(providerName(state.task?.provider))}.</p>`;
+  return `<form class="handoff-bar" data-form="task-handoff">${pills}${submit}</form>${how}`;
 }
+
+function followActions(status) {
+  const item = currentWorkItem(status);
+  const follow = followTarget(status);
+  const pull = item?.state === 'awaiting_review' ? safeUrl(item.prUrl) : null;
+  const parts = [];
+  if (pull) parts.push(button({ label: 'Review pull request', icon: 'pull-request', href: pull, external: true, variant: 'primary', id: 'task-review-pr' }));
+  if (follow) parts.push(button({ label: follow.label, icon: follow.icon, href: follow.href, variant: pull ? 'secondary' : 'primary', id: 'task-follow' }));
+  if (canTakeBack(status)) parts.push(...status.assignedTeams.map(team => act('data-action="task-take-back"', { label: ploegBusy === 'take-back' ? 'Taking back…' : `Take back from ${team}`, icon: 'back', variant: 'ghost', size: 'sm', data: { team }, busy: ploegBusy === 'take-back', disabled: Boolean(ploegBusy) })));
+  return parts.length ? `<div class="tasks-ploeg-actions">${parts.join('')}</div>` : '';
+}
+
+function notifyLater() { return storedJson(notifyLaterKey, false) === true; }
 
 function ploegBody(task) {
   if (ploegLoading && !ploegStatus) return skeleton({ rows: 2, variant: 'text' });
   if (ploegError && !ploegStatus) return `<div role="alert">${callout({ tone: 'danger', title: 'Could not read this task’s Ploeg status', body: `<p>${escape(ploegError.message)}</p>`, actions: act('data-action="task-ploeg-refresh"', { label: 'Try again', icon: 'refresh', size: 'sm' }) })}</div>`;
   if (!ploegStatus) return '';
   const status = ploegStatus;
-  const situation = ploegSituation(status, task);
   const item = currentWorkItem(status);
-  const parts = [`<div role="status">${callout({ tone: situation.tone, title: situation.headline, body: situation.next ? `<p>${escape(situation.next)}</p>` : '' })}</div>`];
+  const track = handoffTrack(status);
+  const parts = [];
+  if (track) {
+    const arrived = arrival !== '' && trackKey(track) === shownTrack;
+    parts.push(`<div class="handoff" data-tone="${escape(track.tone)}">${trackMarkup(track, { arrived })}</div>`);
+  } else if (!canHandOff(status, task) || item) {
+    const situation = ploegSituation(status, task);
+    parts.push(`<div role="status">${callout({ tone: situation.tone, title: situation.headline, body: situation.next ? `<p>${escape(situation.next)}</p>` : '' })}</div>`);
+  }
   if (ploegError) { const failure = ploegChangeFailure(ploegError); parts.push(`<div role="alert">${callout({ tone: 'danger', title: failure.title, body: `<p>${escape(failure.body)}</p>` })}</div>`); }
-  if (status.workItems.length) parts.push(`<ul class="tasks-work-items" aria-label="Ploeg Work Items for this task">${status.workItems.map(workItemRow).join('')}</ul>`);
+  if (track) parts.push(followActions(status));
+  if (track && offersNotify(status, attention.status(), notifyLater())) parts.push(notifyOffer({ busy: notifyBusy }));
+  const earlier = track ? status.workItems.filter(entry => entry.id !== track.workItemId) : status.workItems;
+  if (earlier.length) {
+    const list = `<ul class="tasks-work-items" aria-label="${track ? 'Earlier Work Items for this task' : 'Ploeg Work Items for this task'}">${earlier.map(workItemRow).join('')}</ul>`;
+    parts.push(track ? disclosure({ summary: earlier.length === 1 ? 'An earlier attempt' : `${earlier.length} earlier attempts`, body: list, plain: true }) : list);
+  }
   if (canHandOff(status, task)) parts.push(teamPicker(status));
   else if (status.available && !status.handoff.allowed && status.handoff.reason && (!item || settledStates.includes(item.state))) parts.push(`<p class="tasks-ploeg-reason">${escape(status.handoff.reason)}</p>`);
-  if (canTakeBack(status)) parts.push(`<div class="tasks-ploeg-actions">${status.assignedTeams.map(team => act('data-action="task-take-back"', { label: ploegBusy === 'take-back' ? 'Taking back…' : `Take back from ${team}`, icon: 'back', size: 'sm', data: { team }, busy: ploegBusy === 'take-back', disabled: Boolean(ploegBusy) })).join('')}</div>`);
+  if (!track && canTakeBack(status)) parts.push(followActions(status));
   return parts.join('');
+}
+
+/** The sentence a screen reader hears when the hand-off track moves: where the task is now and what happens next. */
+export function trackSentence(task, track) {
+  const current = track.steps.find(step => step.state === 'current');
+  const title = task?.title ? `“${task.title}”` : 'This task';
+  if (!current) return `${title} is done.`;
+  return `${title}: ${current.label}${current.detail ? `. ${current.detail}` : ''}.`;
 }
 
 function ploegCard(task) {
@@ -305,6 +403,7 @@ function renderTasks() {
   const demo = state.bootstrap.mode === 'demo' ? demoNote(demoSessionsText) : '';
   const content = `<div class="tasks-page">${unlinkedNotice(source)}${demo}<div class="tasks-layout" data-focus="${focus === 'solo' ? 'list' : focus}"${focus === 'solo' ? ' data-solo' : ''}>${listPane(source, sources)}${focus === 'solo' ? '' : detailPane(source)}</div></div>`;
   renderHtml(shell(content, focus === 'detail' ? { ...page, back: { label: 'All tasks', action: 'task-close', id: 'task-back' } } : page));
+  playArrival();
 }
 
 function settleFocus(fromRow) {
@@ -369,7 +468,7 @@ async function openTask(id, preserveDraft = false) {
   if (!preserveDraft) state.taskDraft = { crewId: state.bootstrap.crews[0]?.id || '', runtime: state.bootstrap.runtimes[0]?.id || '', budgetUsd: amountText(Math.min(5, state.bootstrap.maxBudgetUsd)) };
   remember(requestedId);
   if (!preserveDraft) resetPloeg();
-  if (ploegOwned(selectedTaskSource())) loadPloeg(sourceId, requestedId);
+  if (ploegOwned(selectedTaskSource())) loadPloeg(sourceId, requestedId).catch(() => {});
   if (onTasks()) { renderTasks(); settleFocus(fromRow); revealDetail(); }
   try {
     const task = await api(`/api/task-sources/${encodeURIComponent(sourceId)}/tasks/${encodeURIComponent(id)}`);
@@ -395,19 +494,101 @@ function closeTask() {
 function resetPloeg() {
   ++ploegRequest;
   ploegStatus = null; ploegLoading = false; ploegError = null; ploegBusy = '';
+  shownTrack = ''; arrival = ''; nextFollow = 0; notifyBusy = false;
 }
 
 const ploegPath = (sourceId, id, tail) => `/api/task-sources/${encodeURIComponent(sourceId)}/tasks/${encodeURIComponent(id)}/${tail}`;
 
-async function loadPloeg(sourceId, id, fresh = false) {
+function takeStatus(status, { watched = true, moment = '' } = {}) {
+  ploegStatus = status; ploegError = null;
+  const track = handoffTrack(status);
+  const key = trackKey(track);
+  const moved = key !== shownTrack;
+  if (moved && track && (watched || moment)) {
+    arrival = moment || 'pop';
+    if (state.task) announce(trackSentence(state.task, track));
+  }
+  shownTrack = key;
+  const delay = followDelay(status);
+  nextFollow = delay === null ? 0 : Date.now() + delay;
+}
+
+async function loadPloeg(sourceId, id, fresh = false, { watched = false } = {}) {
   const request = ++ploegRequest;
   ploegLoading = true;
   try {
     const status = await api(ploegPath(sourceId, id, `ploeg${fresh ? '?refresh=1' : ''}`));
-    if (request !== ploegRequest) return;
-    ploegStatus = status; ploegError = null;
-  } catch (error) { if (request === ploegRequest) ploegError = { code: error.code, message: error.message }; }
+    if (request !== ploegRequest) return false;
+    takeStatus(status, { watched });
+    return true;
+  } catch (error) { if (request === ploegRequest) ploegError = { code: error.code, message: error.message }; throw error; }
   finally { if (request === ploegRequest) { ploegLoading = false; if (onTasks()) renderTasks(); } }
+}
+
+async function followHandoff() {
+  if (!onTasks() || !state.task || !ploegStatus || ploegBusy || ploegLoading || !nextFollow || Date.now() < nextFollow) return false;
+  if (!ploegOwned(selectedTaskSource())) return false;
+  const early = (handoffTrack(ploegStatus)?.at ?? 9) <= 1;
+  return loadPloeg(state.taskSourceId, String(state.task.id), early, { watched: true });
+}
+
+async function loadStandings() {
+  if (!onTasks() || !ploegOwned(selectedTaskSource())) return;
+  try { applyStandings(await api('/api/ploeg/now')); } catch {}
+}
+
+function applyStandings(data) {
+  if (!data) return;
+  const next = taskStandings(data);
+  const same = next.size === standings.size && [...next].every(([key, value]) => { const old = standings.get(key); return old && old.state === value.state && old.id === value.id; });
+  standings = next;
+  if (!same && onTasks()) renderTasks();
+}
+
+function playArrival() {
+  const launch = flight;
+  flight = null;
+  if (arrival) {
+    arrival = '';
+    const mark = document.querySelector('.handoff-step[aria-current="step"] .handoff-mark');
+    const ink = mark?.querySelector('.brand-ink');
+    const fold = mark?.querySelector('.brand-fold');
+    if (ink && fold) popMark(ink, fold);
+  }
+  if (launch) fly(launch);
+}
+
+function land(taskId) {
+  for (const target of [document.querySelector(`#task-row-${CSS.escape(taskId)} .list-row-meta > :first-child`), document.querySelector('.tasks-filter [data-id="ploeg"] .count')]) {
+    if (!target) continue;
+    target.classList.remove('is-landing');
+    void target.offsetWidth;
+    target.classList.add('is-landing');
+  }
+}
+
+function fly({ from, taskId }) {
+  const target = document.querySelector(`#task-row-${CSS.escape(taskId)} .list-row-meta > :first-child`);
+  const to = target && visible(target) ? target.getBoundingClientRect() : null;
+  if (!from || !to || prefersStill() || typeof document.body.animate !== 'function') { land(taskId); return; }
+  const plane = document.createElement('div');
+  plane.className = 'handoff-flight';
+  plane.setAttribute('aria-hidden', 'true');
+  plane.innerHTML = markSvg({ className: 'handoff-flight-mark' });
+  document.body.append(plane);
+  const start = { x: from.left + from.width / 2 - 14, y: from.top + from.height / 2 - 14 };
+  const end = { x: to.left + 6, y: to.top + to.height / 2 - 14 };
+  const lift = Math.min(start.y, end.y) - 90;
+  const angle = Math.atan2(end.y - start.y, end.x - start.x) * 180 / Math.PI;
+  const at = (x, y, turn, scale) => ({ transform: `translate(${x}px, ${y}px) rotate(${turn}deg) scale(${scale})` });
+  const motion = plane.animate([
+    { ...at(start.x, start.y, 0, 0.6), opacity: 0 },
+    { ...at(start.x, start.y - 18, -20, 1.1), opacity: 1, offset: 0.12 },
+    { ...at((start.x + end.x) / 2, lift, angle - 30, 1), opacity: 1, offset: 0.55 },
+    { ...at(end.x, end.y, angle + 10, 0.7), opacity: 1, offset: 0.92 },
+    { ...at(end.x, end.y, angle + 10, 0.3), opacity: 0 },
+  ], { duration: 720, easing: 'cubic-bezier(.3,.1,.25,1)', fill: 'forwards' });
+  motion.finished.catch(() => {}).finally(() => { plane.remove(); land(taskId); });
 }
 
 async function refreshTask(sourceId, id) {
@@ -425,6 +606,7 @@ async function changePloeg(kind, team) {
   const sourceId = state.taskSourceId;
   const id = String(task.id);
   const request = ++ploegRequest;
+  const launchFrom = document.getElementById('task-handoff-submit')?.getBoundingClientRect() || null;
   ploegBusy = kind; ploegError = null;
   if (onTasks()) renderTasks();
   try {
@@ -432,16 +614,28 @@ async function changePloeg(kind, team) {
       ? await api(ploegPath(sourceId, id, 'handoff'), { method: 'POST', body: JSON.stringify({ team, revision: task.revision }) })
       : await api(`${ploegPath(sourceId, id, 'handoff')}?team=${encodeURIComponent(team)}`, { method: 'DELETE' });
     if (request !== ploegRequest) return;
-    ploegStatus = status;
-    notify(kind === 'handoff' ? `Handed to team ${team}. Ploeg queues it within seconds.` : `Withdrawn from team ${team}.`);
+    takeStatus(status, { watched: false, moment: kind === 'handoff' ? 'pop' : '' });
+    if (kind === 'handoff') { rememberTeam(sourceId, team); nextFollow = Date.now() + 2000; flight = { from: launchFrom, taskId: id }; }
+    announce(kind === 'handoff' ? `Handed to ${team}. Ploeg picks it up in a moment.` : `Taken back from ${team}.`);
     for (const warning of status.warnings || []) notify(warning, true);
     await refreshTask(sourceId, id);
-    if (kind === 'handoff') setTimeout(() => { if (requestedId === id && sourceId === state.taskSourceId && !ploegBusy) loadPloeg(sourceId, id, true); }, 5000);
   } catch (error) {
     if (request !== ploegRequest) return;
     ploegError = { code: error.code, message: error.message };
     if (error.status === 409 && error.code === 'task_changed') await refreshTask(sourceId, id);
   } finally { if (request === ploegRequest) { ploegBusy = ''; if (onTasks()) renderTasks(); } }
+}
+
+async function enableNotifications() {
+  if (notifyBusy) return;
+  notifyBusy = true;
+  renderTasks();
+  let result = 'off';
+  try { result = await attention.enable(); } finally { notifyBusy = false; }
+  if (onTasks()) renderTasks();
+  const message = result === 'on' ? 'Notifications on. Unfold tells you when it is ready for review or needs you, while an Unfold tab is open.' : result === 'denied' ? 'Your browser blocked notifications for this site. Allow them in its site settings, then turn them on under Preferences.' : 'Notifications stay off. You can turn them on any time under Preferences.';
+  notify(message, result !== 'on');
+  document.getElementById('task-follow')?.focus();
 }
 
 function chooseTeam(element, event) {
@@ -455,7 +649,7 @@ async function loadTaskPage() {
   if (state.view !== 'tasks' || !taskSources().length) return;
   const { query } = parseHash(location.hash);
   const source = taskSources().some(entry => entry.id === query.source) ? query.source : state.taskSourceId || taskSources()[0].id;
-  await loadTasks(source, 1, { keepTask: query.task || '' });
+  await Promise.all([loadTasks(source, 1, { keepTask: query.task || '' }), loadStandings()]);
 }
 
 async function importTask(data) {
@@ -477,6 +671,14 @@ async function importTask(data) {
 
 function keepTaskDraft(element, event) { if (state.taskDraft && event.target.name) state.taskDraft[event.target.name] = event.target.value; }
 
+function handOffKey(event) {
+  if (state.view !== 'tasks' || event.key !== 'h' || !singleKeyAllowed(event)) return false;
+  if (!state.task || !ploegStatus || ploegBusy || !canHandOff(ploegStatus, state.task) || !ploegTeam) return false;
+  event.preventDefault();
+  changePloeg('handoff', ploegTeam);
+  return true;
+}
+
 function moveInList(event) {
   if (state.view !== 'tasks' || !['j', 'k'].includes(event.key) || !singleKeyAllowed(event)) return false;
   const rows = [...document.querySelectorAll('.tasks-row')].filter(visible);
@@ -489,6 +691,9 @@ function moveInList(event) {
   rows[next].focus();
   return true;
 }
+
+live.register('tasks', { interval: 1000, refresh: followHandoff });
+onCountsChange(data => { if (state.view === 'tasks' && data) applyStandings(data); });
 
 /** The Tasks page (`#tasks?source=&task=`): the task list of one connection beside the selected task's brief, its Ploeg status and hand-off when Ploeg runs the connection, the import form, and the connections dialog. */
 export default {
@@ -505,7 +710,10 @@ export default {
     'task-close': () => closeTask(),
     'task-brief': () => { briefExpanded = !briefExpanded; renderTasks(); if (!briefExpanded) document.getElementById('task-preview-title')?.scrollIntoView({ block: 'nearest' }); },
     'task-search-clear': () => { state.taskSearch = ''; renderTasks(); document.getElementById('task-search')?.focus(); },
-    'task-ploeg-refresh': () => { if (state.task) loadPloeg(state.taskSourceId, String(state.task.id), true); },
+    'task-ploeg-refresh': () => { if (state.task) loadPloeg(state.taskSourceId, String(state.task.id), true, { watched: true }).catch(() => {}); },
+    'task-filter': button => { taskFilter = taskFilters.some(filter => filter.id === button.dataset.id) ? button.dataset.id : 'all'; renderTasks(); document.querySelector(`.tasks-filter [data-id="${taskFilter}"]`)?.focus(); },
+    'task-notify-on': () => enableNotifications(),
+    'task-notify-later': () => { storeJson(notifyLaterKey, true); renderTasks(); document.getElementById('task-follow')?.focus(); },
     'task-take-back': button => changePloeg('take-back', button.dataset.team),
   },
   forms: { 'task-import': importTask, 'task-handoff': data => changePloeg('handoff', data.team || ploegTeam) },
@@ -514,9 +722,9 @@ export default {
     '[data-form="task-import"]': keepTaskDraft,
   },
   changes: {
-    '#task-source': element => loadTasks(element.value),
+    '#task-source': element => { taskFilter = 'all'; loadTasks(element.value).then(loadStandings); },
     '[data-form="task-import"]': keepTaskDraft,
     '[data-form="task-handoff"]': chooseTeam,
   },
-  keys: [moveInList],
+  keys: [moveInList, handOffKey],
 };

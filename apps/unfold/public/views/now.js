@@ -9,6 +9,7 @@ import { singleKeyAllowed, singleKeysEnabled } from '../core/keys.js';
 import { live } from '../core/live.js';
 import { prefs } from '../core/prefs.js';
 import { applyNowCounts } from '../core/counts.js';
+import { taskSources } from '../core/lookup.js';
 
 const baselineKey = 'unfold.nowSince';
 const view = Object.assign(state.now, { summary: { data: null, error: null }, summaryRequest: 0, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false, keepFocus: false });
@@ -63,7 +64,8 @@ function restoreFocus(keep) {
 
 function renderNow() {
   if (view.since === undefined) arrive();
-  const content = nowMarkup(view, { grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled() });
+  const handOver = state.bootstrap?.user?.role !== 'viewer' && taskSources().some(source => source.executionOwner === 'ploeg');
+  const content = nowMarkup(view, { grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), handOver });
   const keep = focusedTarget();
   renderHtml(shell(content, { title: 'Now', subtitle: 'What waits on you, what runs and what finished, across your Teams.', actions: refreshButton() }));
   restoreFocus(keep);

@@ -377,76 +377,11 @@
   margin-inline-start: auto;
 }
 
-.tasks-handoff {
-  display: grid;
-  gap: var(--space-3);
-}
-
-.tasks-handoff-teams {
-  display: grid;
-  gap: var(--space-2);
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-
-.tasks-team-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
-  gap: var(--space-1-5);
-}
-
-.tasks-team-option {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2-5);
-  padding: var(--space-2-5) var(--space-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
-}
-
-.tasks-team-option:hover {
-  border-color: var(--border-control);
-}
-
-.tasks-team-option:has(input:checked) {
-  border-color: var(--accent-graphic);
-  background: var(--bg-selected);
-}
-
-.tasks-team-option > input {
-  margin-top: 0.125rem;
-}
-
-.tasks-team-name {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-weight: var(--weight-medium);
-}
-
-.tasks-team-hint {
-  display: block;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: var(--leading-xs);
-}
-
-.tasks-handoff-actions,
 .tasks-ploeg-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-}
-
-.tasks-handoff-actions > .field-hint {
-  flex: 1 1 16rem;
-  margin: 0;
 }
 
 .tasks-ploeg-reason {
@@ -687,4 +622,394 @@
   border-radius: var(--radius-xs);
   background: var(--bg-sunken);
   color: var(--text);
+}
+
+.tasks-search-row:has(.tasks-filter) {
+  display: grid;
+  gap: var(--space-2-5);
+}
+
+.tasks-filter .segmented {
+  width: 100%;
+}
+
+.tasks-filter .segment {
+  flex: 1 1 0;
+  justify-content: center;
+}
+
+.tasks-row[data-standing] .list-row-meta > :first-child {
+  margin-inline-end: var(--space-0-5);
+}
+
+.tasks-standing {
+  display: inline-flex;
+}
+
+.handoff {
+  --dot: 1.5rem;
+  --dot-current: 2.25rem;
+  padding: var(--space-4) var(--space-4) var(--space-3);
+  border: 1px solid var(--tone-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--tone-bg), var(--bg-surface) 70%);
+}
+
+.handoff-track {
+  --reached: 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.handoff-track::before,
+.handoff-track::after {
+  position: absolute;
+  top: calc(var(--dot-current) / 2 - 1px);
+  left: calc(var(--dot-current) / 2);
+  height: 2px;
+  border-radius: 1px;
+  content: "";
+}
+
+.handoff-track[data-reached="1"] { --reached: 1; }
+.handoff-track[data-reached="2"] { --reached: 2; }
+.handoff-track[data-reached="3"],
+.handoff-track[data-reached="4"] { --reached: 3; }
+
+.handoff-track::before {
+  width: calc(75% - var(--space-2) / 4);
+  background: var(--border);
+}
+
+.handoff-track::after {
+  width: calc(var(--reached) * (25% - var(--space-2) / 12));
+  background: linear-gradient(90deg, var(--success-solid), var(--tone-solid));
+  transform-origin: left center;
+}
+
+.handoff-step {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+  color: var(--text-muted);
+}
+
+.handoff-dot {
+  display: grid;
+  width: var(--dot-current);
+  height: var(--dot-current);
+  place-items: center;
+}
+
+.handoff-dot::before {
+  grid-area: 1 / 1;
+  width: var(--dot);
+  height: var(--dot);
+  border: 2px solid var(--border-control);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  content: "";
+}
+
+.handoff-dot > svg {
+  grid-area: 1 / 1;
+  position: relative;
+}
+
+.handoff-step[data-step="done"] .handoff-dot::before {
+  border-color: var(--success-solid);
+  background: var(--success-solid);
+}
+
+.handoff-step[data-step="done"] .handoff-dot > svg.icon {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--success-bg);
+  stroke-width: 3;
+}
+
+.handoff-step[data-step="current"] {
+  color: var(--text);
+}
+
+.handoff-step[data-step="current"] .handoff-dot::before {
+  width: var(--dot-current);
+  height: var(--dot-current);
+  border-color: var(--tone-solid);
+  background: var(--bg-surface);
+  box-shadow: 0 0 0 4px var(--tone-bg), var(--shadow-sm);
+}
+
+.handoff-mark {
+  width: 1.375rem;
+  height: 1.375rem;
+  overflow: visible;
+}
+
+.handoff-mark .brand-ink {
+  fill: var(--text);
+}
+
+.handoff-mark .brand-fold {
+  fill: var(--brand-fold);
+}
+
+.handoff-text {
+  display: grid;
+  gap: var(--space-0-5);
+  min-width: 0;
+}
+
+.handoff-label {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-sm);
+}
+
+.handoff-step[data-step="current"] .handoff-label {
+  color: var(--tone-fg);
+  font-weight: var(--weight-semibold);
+}
+
+.handoff-detail {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  text-wrap: pretty;
+}
+
+.handoff-notify {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-3);
+  align-items: start;
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--border-control);
+  border-radius: var(--radius-md);
+}
+
+.handoff-notify-icon {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--bg-sunken);
+  color: var(--text-muted);
+}
+
+.handoff-notify-text {
+  margin: 0;
+  align-self: center;
+  font-size: var(--text-sm);
+  line-height: var(--leading-sm);
+}
+
+.handoff-notify-actions {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 2;
+  gap: var(--space-2);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .handoff[data-tone="live"] .handoff-step[data-step="current"] .handoff-dot::before {
+    animation: handoff-breathe 2.4s var(--ease-standard) infinite;
+  }
+
+  .handoff-step[data-arrived] .handoff-dot {
+    animation: handoff-arrive 560ms var(--ease-enter) both;
+  }
+
+  .handoff-step[data-arrived] .handoff-text {
+    animation: rise-in var(--duration-slow) var(--ease-enter) both;
+  }
+
+  .handoff-track:has([data-arrived])::after {
+    animation: handoff-fill 640ms var(--ease-enter) both;
+  }
+}
+
+@keyframes handoff-breathe {
+  0%, 100% { box-shadow: 0 0 0 4px var(--tone-bg), var(--shadow-sm); }
+  50% { box-shadow: 0 0 0 8px var(--tone-bg), var(--shadow-sm); }
+}
+
+@keyframes handoff-arrive {
+  0% { transform: scale(0.6); opacity: 0.4; }
+  60% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes handoff-fill {
+  from { transform: scaleX(calc((var(--reached) - 1) / var(--reached))); }
+  to { transform: scaleX(1); }
+}
+
+@media (max-width: 40rem) {
+  .handoff-track {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  .handoff-track::before,
+  .handoff-track::after {
+    top: calc(var(--dot-current) / 2);
+    left: calc(var(--dot-current) / 2 - 1px);
+    width: 2px;
+  }
+
+  .handoff-track::before {
+    height: calc(100% - var(--dot-current));
+  }
+
+  .handoff-track::after {
+    height: calc(var(--reached) / 3 * (100% - var(--dot-current)));
+    background: linear-gradient(180deg, var(--success-solid), var(--tone-solid));
+    transform-origin: center top;
+  }
+
+  .handoff-step {
+    grid-template-columns: var(--dot-current) 1fr;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .handoff-track:has([data-arrived])::after {
+      animation-name: handoff-fill-down;
+    }
+  }
+}
+
+@keyframes handoff-fill-down {
+  from { transform: scaleY(calc((var(--reached) - 1) / var(--reached))); }
+  to { transform: scaleY(1); }
+}
+
+.handoff-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.handoff-bar > .button {
+  margin-inline-start: auto;
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.handoff-bar > .button:active:not([disabled]) {
+  transform: scale(0.97);
+}
+
+.handoff-teams {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.handoff-team {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1-5);
+  max-width: 100%;
+  padding: var(--space-1-5) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard);
+}
+
+.handoff-team:hover {
+  border-color: var(--border-control);
+}
+
+.handoff-team > input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.handoff-team:has(input:checked) {
+  border-color: var(--text);
+  background: var(--bg-selected);
+}
+
+.handoff-team:has(input:focus-visible) {
+  outline: 2px solid var(--focus-ring, var(--accent-graphic));
+  outline-offset: 2px;
+}
+
+.handoff-team-name {
+  overflow: hidden;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.handoff-team-load {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.handoff-how {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+}
+
+.handoff-flight {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  width: 28px;
+  height: 28px;
+  pointer-events: none;
+}
+
+.handoff-flight-mark {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 4px 6px rgb(0 0 0 / 0.25));
+}
+
+.handoff-flight-mark .brand-ink {
+  fill: var(--text);
+}
+
+.handoff-flight-mark .brand-fold {
+  fill: var(--brand-fold);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .is-landing {
+    animation: handoff-land 520ms var(--ease-enter);
+  }
+}
+
+@keyframes handoff-land {
+  0% { transform: scale(0.7); }
+  55% { transform: scale(1.18); }
+  100% { transform: scale(1); }
 }
