@@ -5,3 +5,4 @@ __pycache__/
 .claude/worktrees/
 .claude/settings.local.json
 CLAUDE.local.md
+.agents/skills/source-command-*/
