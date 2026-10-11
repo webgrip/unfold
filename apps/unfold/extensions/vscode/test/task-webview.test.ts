@@ -191,6 +191,15 @@ test('a Work Item without a tracker task shows Ploeg’s header, state, Runs and
   assert.equal(view.primaryAction(work).dataset.action, 'open-ploeg');
 });
 
+test('the account shows plain words first and folds the developer detail', () => {
+  assert.deepEqual(view.accountParts('Shoppers could lower an order total.\n\n### For developers\n- The cart API accepted a negative quantity.'), { plain: 'Shoppers could lower an order total.', developers: '- The cart API accepted a negative quantity.' });
+  assert.deepEqual(view.accountParts('No heading here.'), { plain: 'No heading here.', developers: '' });
+  const parts: StubElement[] = view.sections(current({ workItems: [item('awaiting_review')] }, {}, { detail: detail('awaiting_review', { runs: [run('105', { problem: 'Shoppers could lower an order total.\n\n### For developers\n- The cart API accepted a negative quantity.', solution: 'Negative amounts are refused.' })] }) }));
+  const all = parts.map(part => part.textContent).join('');
+  assert.match(all, /Shoppers could lower an order total\.For developersThe cart API accepted a negative quantity\./);
+  assert.doesNotMatch(all, /### For developers/);
+});
+
 test('the problem and solution come from the newest writer of the latest Shift, with the agent caveat', () => {
   const account = view.writerAccount(detail('awaiting_review', { runs: [run('100', { problem: 'Old', solution: 'Old fix', shiftId: '6' }), run('105', { problem: 'The total was missing', solution: 'Show one total' })] }));
   assert.equal(account.runId, '105');

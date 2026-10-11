@@ -811,10 +811,27 @@ export function writerAccount(detail) {
   return { runId: run.id, role: run.role || '', round: run.round || 0, at: run.finishedAt || run.startedAt || '', problem: text(run.problem), solution: text(run.solution), earlierShift: Boolean(shift && run.shiftId !== shift.id) };
 }
 
+/**
+ * Splits one half of a writer's account at its "For developers" heading: `plain` is written for a product owner and a
+ * client, `developers` holds the technical detail. An account without the heading is all `plain`.
+ */
+export function accountParts(text) {
+  const value = String(text ?? '');
+  const heading = /^ {0,3}#{1,6}[ \t]*for developers[ \t]*:?[ \t]*#*[ \t]*$/im.exec(value);
+  if (!heading) return { plain: value.trim(), developers: '' };
+  return { plain: value.slice(0, heading.index).trim(), developers: value.slice(heading.index + heading[0].length).trim() };
+}
+
 function accountMarkup(detail) {
   const account = writerAccount(detail);
   if (!account) return '';
-  const side = (key, index, heading, text) => `<div class="work-account-side" data-side="${key}"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">${index}</span>${heading}</h4>${text ? `<div data-private class="prose work-account-text">${markdown(text, { baseLevel: 5 })}</div>` : `<p class="work-account-missing">${escape('Not reported.')}</p>`}</div>`;
+  const body = text => {
+    const { plain, developers } = accountParts(text);
+    const lead = plain ? `<div data-private class="prose work-account-text">${markdown(plain, { baseLevel: 5 })}</div>` : '';
+    const more = developers ? `<details class="work-account-dev"><summary>${escape('For developers')}</summary><div data-private class="prose work-account-dev-text">${markdown(developers, { baseLevel: 5 })}</div></details>` : '';
+    return lead + more;
+  };
+  const side = (key, index, heading, text) => `<div class="work-account-side" data-side="${key}"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">${index}</span>${heading}</h4>${text ? body(text) : `<p class="work-account-missing">${escape('Not reported.')}</p>`}</div>`;
   const source = [account.role || 'writer', account.round ? `Round ${account.round}` : '', account.earlierShift ? 'earlier Shift' : ''].filter(Boolean).map(part => `<span>${escape(part)}</span>`);
   if (account.at) source.push(ui.timeAgo(account.at));
   const number = ploegReview(detail).pullRequestNumber;

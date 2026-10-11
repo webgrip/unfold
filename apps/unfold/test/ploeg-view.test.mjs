@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, canStop, cellSummary, checkoutDialogMarkup, contextDialogMarkup, contextErrors, contextMarkup, contextReach, contextSize, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runLogsMarkup, runAttempts, runGroups, runOrder, runResult, statusFacts, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
+import { accountParts, activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, canStop, cellSummary, checkoutDialogMarkup, contextDialogMarkup, contextErrors, contextMarkup, contextReach, contextSize, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runLogsMarkup, runAttempts, runGroups, runOrder, runResult, statusFacts, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
 import { grafanaTeam, runExplorer } from '../public/core/observability.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
@@ -449,6 +449,18 @@ test('the writer’s problem and solution sit under the title, from the newest w
   current.runs.pop();
   assert.equal(writerAccount(current), null);
   assert.doesNotMatch(detailMarkup(current, model({ detailId: '50' })), /work-account/, 'no card until a writer reports');
+});
+
+test('a writer’s account leads with plain words and folds the developer detail away', () => {
+  assert.deepEqual(accountParts('Shoppers could lower an order total.\n\n### For developers\n- The cart API accepted a negative quantity.'), { plain: 'Shoppers could lower an order total.', developers: '- The cart API accepted a negative quantity.' });
+  assert.deepEqual(accountParts('**For developers** stays plain when it is not a heading.'), { plain: '**For developers** stays plain when it is not a heading.', developers: '' });
+  assert.deepEqual(accountParts('## for developers:\n- Only detail.'), { plain: '', developers: '- Only detail.' });
+  const current = detail();
+  current.runs[1].problem = 'Shoppers could lower an order total.\n\n### For developers\n- The cart API accepted a negative quantity.';
+  current.runs[1].solution = 'Negative amounts are refused. Nothing else changes for shoppers.';
+  const html = detailMarkup(current, model({ detailId: '50', lane: 'awaiting_review' }));
+  assert.match(html, /data-side="problem"><h4 class="work-account-label">.*?Problem<\/h4><div data-private class="prose work-account-text"><p>Shoppers could lower an order total\.<\/p><\/div><details class="work-account-dev"><summary>For developers<\/summary><div data-private class="prose work-account-dev-text"><ul><li>The cart API accepted/);
+  assert.doesNotMatch(html, /data-side="solution">.*?work-account-dev/, 'an account without the heading has no fold');
 });
 
 test('the demo’s writer accounts say they are illustrative', () => {
