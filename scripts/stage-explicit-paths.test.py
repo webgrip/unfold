@@ -137,5 +137,14 @@ class OtherHarnesses(unittest.TestCase):
         self.assertIn("'tool.execute.before'", plugin)
 
 
+class Heredocs(unittest.TestCase):
+    def test_a_heredoc_body_is_not_a_command(self):
+        self.assertEqual(bash("git commit -F - <<'EOF'\nfix: stop git add -A in docs\nEOF").returncode, 0)
+        self.assertEqual(bash('git commit -m "$(cat <<-EOF\n\tnever git commit -a\n\tEOF\n)"').returncode, 0)
+
+    def test_a_command_after_a_heredoc_is_still_checked(self):
+        self.assertEqual(bash('cat <<EOF > notes.txt\ngit add .\nEOF\ngit add -A').returncode, 2)
+
+
 if __name__ == '__main__':
     unittest.main()

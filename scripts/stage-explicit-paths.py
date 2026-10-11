@@ -20,11 +20,25 @@ PLOEG_REASON = (
 PLOEG = Path(__file__).resolve().parent.parent / 'apps/ploeg'
 RELEASE_TAG = re.compile(r'^v0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$')
 MOVES_CHECKOUT = {'checkout', 'switch', 'pull', 'merge', 'rebase', 'commit', 'reset', 'cherry-pick', 'revert', 'am', 'restore', 'stash'}
+HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1[^\n]*\n")
 SEPARATORS = {'&&', '||', ';', '|', '&', '\n', '(', ')'}
 GIT_OPTIONS_WITH_VALUE = {'-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path', '--config-env'}
 WHOLE_TREE_PATHSPECS = {'.', './', ':/', ':/.', ':(top)'}
 COMMIT_OPTIONS_WITH_VALUE = set('mFCctS')
 FALLBACK = re.compile(r'\bgit\b[^;&|\n]*?\b(?:add\s+(?:[^;&|\n]*\s)?(?:-A|--all|\.)(?=\s|$)|commit\s+(?:[^;&|\n]*\s)?(?:-[A-Za-z]*a[A-Za-z]*|--all)(?=\s|$))')
+
+
+def without_heredoc_bodies(command):
+    result, position = [], 0
+    for match in HEREDOC.finditer(command):
+        if match.start() < position:
+            continue
+        result.append(command[position:match.end()])
+        delimiter = match.group(2)
+        end = re.compile(r'^[ \t]*' + re.escape(delimiter) + r'[ \t]*$', re.M).search(command, match.end())
+        position = end.end() if end else len(command)
+    result.append(command[position:])
+    return ''.join(result)
 
 
 def segments(command):
@@ -114,9 +128,9 @@ def commits_all(arguments):
 
 def denial(command, cwd):
     try:
-        parsed = list(segments(command))
+        parsed = list(segments(without_heredoc_bodies(command)))
     except ValueError:
-        return REASON if FALLBACK.search(command) else None
+        return REASON if FALLBACK.search(without_heredoc_bodies(command)) else None
     for words in parsed:
         subcommand, arguments = git_subcommand(words)
         if subcommand == 'add' and stages_whole_tree(arguments):
