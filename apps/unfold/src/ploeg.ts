@@ -5,6 +5,7 @@ import { cardKpis, playKpis } from './card-kpis.ts';
 import { sourceTaskUrl, type TaskSourceConfig } from './tasks.ts';
 import { FactsError, parseFactsPage, parseFactsResponse, type FactsPage, type WorkItemFacts } from './cards/facts.ts';
 import { CrackError } from './cards/cracks.ts';
+import { valueStream, type ValueStream } from './value-stream.ts';
 import type { CardService, CommentRequest, CommentResult, FactsQuery } from './cards/service.ts';
 import type { PloegCardFlow, PloegCardPipeline, PloegCardShape, PloegPlayCITiming, PloegPlayShape, PloegPlayTimeline } from './card-kpis.ts';
 
@@ -929,6 +930,19 @@ export class PloegClient {
     this.remember(result.item.id, result.item.title);
     const copy = structuredClone(result);
     return { ...copy, item: presented(copy.item), demo: this.demo, fetchedAt: new Date().toISOString() };
+  }
+  /** Reads a Work Item's value stream: its tracker, pull request, CI and deploy timeline from Ploeg's delivery facts. The demo has no such facts and says so. */
+  async valueStream(user: User, id: string, fresh = false): Promise<ValueStream> {
+    this.authorize(user);
+    if (!/^[1-9][0-9]{0,18}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
+    if (this.demo) {
+      const item = this.demoItems().find(entry => entry.id === id);
+      if (!item || !this.allowed(user, item.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+      return { workItemId: id, trackerCreatedAt: null, admittedAt: item.createdAt, closed: false, lanes: [], notes: ['The demo has no tracker, forge, CI or deploy facts; it shows only its Shifts and Runs.'], demo: true, fetchedAt: new Date().toISOString() };
+    }
+    const facts = await this.workItemFacts(id, fresh);
+    if (facts.workItem.id !== id || !this.allowed(user, facts.workItem.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
+    return valueStream(facts);
   }
   /** Reads a Work Item's Run card, assembled by Unfold from Ploeg's delivery facts. Without those facts it refuses with 503 `cards_facts_unavailable`. */
   async card(user: User, id: string, fresh = false): Promise<PloegCardView> {

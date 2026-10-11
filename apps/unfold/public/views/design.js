@@ -76,6 +76,7 @@ const classReference = [
   ['.timeline / .timeline-item (.timeline-marker .timeline-content .timeline-title .timeline-meta)', 'Vertical event list', 'markup'],
   ['.steps / .step (.step-marker .step-label)', 'Horizontal stepper; [aria-current=step]; [data-tone]', 'markup'],
   ['.round-ladder / .round-cell (.round-cell-title .round-cell-meta)', 'Roles by Rounds grid as a table; [data-empty]', 'markup'],
+  ['.stream / .stream-lane (.stream-track .stream-bar .stream-mark)', 'Value-stream Gantt from core/value-stream.js: SVG lanes on one time axis, HTML bars in foreignObject; bar [data-tone] [data-waiting] [data-running]', 'markup'],
   ['.field (.field-label .field-hint .field-error) / .field.inline', 'Form field layout; bare inputs are styled in base', 'markup'],
   ['.stack / .cluster (.gap-xs .gap-sm .gap-md .gap-lg .gap-xl)', 'Vertical and wrapping horizontal layout', 'utility'],
   ['.sr-only .num .mono .truncate .nowrap .muted .subtle', 'Utilities', 'utility'],

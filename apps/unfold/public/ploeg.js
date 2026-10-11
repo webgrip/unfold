@@ -10,6 +10,7 @@ import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.j
 import { traceMarkup } from './core/attribution.js';
 import { workStages } from './core/stages.js';
 import { deliveryStages, stageTime } from './core/delivery-track.js';
+import { streamChart, streamLanes } from './core/value-stream.js';
 import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
 
@@ -962,35 +963,46 @@ function runsMarkup(detail, model) {
   return `<div class="work-runs">${render(shown, new Set())}</div>${more}`;
 }
 
+/** The value-stream chart of a Work Item: the stream Unfold read from Ploeg's facts with the detail's Shifts and Runs, or '' with nothing to draw. */
+export function streamMarkup(detail, model) {
+  const stream = model.stream && String(model.stream.workItemId) === String(detail.item.id) ? model.stream : null;
+  const lanes = streamLanes({ stream, shifts: detail.shifts || [], runs: detail.runs || [], runTone: runResult });
+  return streamChart({ lanes, stream, now: model.now, zoom: model.streamZoom, label: `Value stream of ${detail.item.title}` });
+}
+
+function storyCard(subtitle, body) {
+  return `<section class="card flush" id="work-rounds"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-rounds-title">Value stream</h3><p class="card-subtitle">${subtitle}</p></div></header><div class="card-body">${body}</div></section>`;
+}
+
 function storyMarkup(detail, model) {
   const shifts = detail.shifts || [];
   const runs = detail.runs || [];
   const state = detail.item.state;
+  const chart = streamMarkup(detail, model);
+  const early = text => chart && model.stream?.lanes?.length ? storyCard(text, `<div class="work-story-overview">${chart}</div>`) : `<p class="work-note" id="work-rounds">${icon('circle-dashed')}<span>${text}</span></p>`;
   if (!shifts.length && !runs.length) {
     const text = state === 'proposed' ? 'No Shift yet. One opens after a person approves the proposal.' : ['done', 'withdrawn', 'stale', 'needs_human'].includes(state) ? 'No Shift or Run ran for this Work Item.' : 'No Shift has opened yet. One opens when a worker of the Team takes the Work Item.';
-    return `<p class="work-note" id="work-rounds">${icon('circle-dashed')}<span>${escape(text)}</span></p>`;
+    return early(escape(text));
   }
   const demo = detail.demo;
   if (!runs.length) {
     const shift = shifts[0];
     const text = shift.closedAt ? `The Shift closed ${ui.timeAgo(shift.closedAt)} before any Run started: ${escape(closeReasonLabel(shift.closeReason).replace(/^./, letter => letter.toLowerCase()))}.` : `A Shift opened ${ui.timeAgo(shift.openedAt)}. No Run has started yet.`;
-    return `<p class="work-note" id="work-rounds">${icon('circle-dashed')}<span>${text}</span></p>`;
+    return early(text);
   }
   const failures = runs.filter(failed).length;
   const runsNote = `${plural(runs.length, 'Run')}${failures ? `, ${failures === runs.length && failures > 1 ? 'all' : failures} failed or stuck` : ''}`;
   if (!shifts.length) {
-    const subtitle = `${runsNote}. These Runs ran before Shifts existed, so there is no Round ladder or Shift budget.`;
-    return `<section class="card flush" id="work-rounds"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-rounds-title">Runs</h3><p class="card-subtitle">${escape(subtitle)}</p></div></header><div class="card-body">${runsMarkup(detail, model)}</div></section>`;
+    const subtitle = `${runsNote}. These Runs ran before Shifts existed, so there is no Shift budget.`;
+    return storyCard(escape(subtitle), `${chart ? `<div class="work-story-overview">${chart}</div>` : ''}${runsMarkup(detail, model)}`);
   }
   const [current, ...earlier] = shifts;
-  const currentRuns = runs.filter(run => run.shiftId === current.id);
-  const ladder = ladderMarkup(currentRuns, { demo, now: model.now, label: 'Rounds of the current Shift' });
   const older = earlier.length ? `<div class="work-shifts"><h4 class="overline">Earlier Shifts</h4><ul class="work-shift-list">${earlier.map(shift => `<li class="work-shift"><p class="work-shift-line">${shiftLine(shift)}</p>${shiftMeter(shift, demo, '')}${ui.disclosure({ summary: 'Show its Rounds', plain: true, id: `work-shift-${shift.id}`, body: ladderMarkup(runs.filter(run => run.shiftId === shift.id), { demo, now: model.now, label: `Rounds of the Shift opened ${dateTime(shift.openedAt)}` }) || '<p class="subtle">No Runs.</p>' })}</li>`).join('')}</ul></div>` : '';
   const truncated = [detail.truncated?.shifts ? 'Ploeg capped the Shift history. Earlier Shifts may be missing.' : '', detail.truncated?.runs ? 'Ploeg capped the Run history. Earlier Runs may be missing.' : ''].filter(Boolean).map(text => `<p class="meta">${escape(text)}</p>`).join('');
-  const overview = `<div class="work-story-overview">${ladder}<div class="work-shift-budget">${shiftMeter(current, demo)}</div></div>`;
+  const overview = `<div class="work-story-overview">${chart}<div class="work-shift-budget">${shiftMeter(current, demo)}</div></div>`;
   const list = `<div class="work-story-runs"><p class="work-story-heading"><span class="overline">Runs</span><span class="meta">${escape(runsNote)}</span></p>${runsMarkup(detail, model)}</div>`;
   const tail = older || truncated ? `<div class="work-story-tail">${older}${truncated}</div>` : '';
-  return `<section class="card flush" id="work-rounds"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-rounds-title" title="${escape(termTitle('round'))}">Rounds</h3><p class="card-subtitle">${shiftLine(current)}</p></div></header><div class="card-body">${overview}${list}${tail}</div></section>`;
+  return storyCard(shiftLine(current), `${overview}${list}${tail}`);
 }
 
 function checkpointFor(entry, checkpoints) {

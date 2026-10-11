@@ -375,7 +375,8 @@ test('the Round ladder is Roles by Rounds with retries counted, and Runs list fa
   assert.equal(ladder.writes.implementer, true);
   assert.equal(roundLadder(ploegDemo.details['112'].runs).cells.implementer[1].length, 10);
   const html = detailMarkup(demoDetail('112'), model({ detailId: '112' }));
-  assert.match(html, /<span class="round-cell-meta">10 Runs: 10 failed<\/span>/, 'a cell with retries counts its Runs by result');
+  const implementer = html.slice(html.indexOf('data-group="run"'), html.indexOf('</li>', html.indexOf('data-group="run"')));
+  assert.equal(implementer.match(/data-action="work-run"/g).length, 10, 'each retry is its own bar on its Role lane');
   assert.match(html, /Show 2 more Runs/);
   const mixed = [{ id: '5', state: 'finished', outcome: 'pr_opened' }, { id: '6', state: 'running', outcome: '' }, { id: '3', state: 'finished', outcome: 'failed', failureReason: 'infra_node' }, { id: '4', state: 'finished', outcome: 'stuck' }];
   assert.deepEqual(runOrder(mixed).map(run => run.id), ['4', '3', '6', '5']);
@@ -611,7 +612,7 @@ test('a Round cell explains itself by its failures, not by the Run that never st
   live.shifts[0].closedAt = '2026-09-28T10:10:00Z';
   live.runs = runs;
   const html = detailMarkup(live, model({ detailId: '50' }));
-  assert.match(html, /<span class="round-cell-meta">5 Runs: 4 failed, 1 not started<\/span>/);
+  assert.equal(html.match(/class="stream-bar" data-tone="[a-z]+"[^>]*data-action="work-run"/g).length, 4, 'the value stream draws the four Runs that started and leaves out the one that never did');
   assert.match(html, /<span class="work-fact" title="Round 2 of the latest attempt\. Shift: [^"]+ Round: [^"]+">5 agent runs in 2 attempts<\/span>/, 'the header says how much agent work it took in plain words, with the glossary terms on hover');
   assert.doesNotMatch(html, /<span class="work-fact">Round \d/, 'the header does not lead with the Round jargon');
   const row = html.slice(html.indexOf('id="work-run-5"'));

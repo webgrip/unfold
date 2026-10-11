@@ -20,9 +20,9 @@ const liveInterval = 30000;
 const reviewFactLimit = 12;
 const runCard = 'unfold-card.work-run-card';
 if (globalThis.document) watchCardMoments(runCard);
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, askBusy: false, askDraft: '' };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, askBusy: false, askDraft: '' };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, askBusy: false, askDraft: '' }));
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, askBusy: false, askDraft: '' }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued' };
 const laneFor = item => laneOfState[item?.state] || 'all';
@@ -70,6 +70,8 @@ function model() {
     runNotice: work.runNotice,
     now: Date.now(),
     card: work.card?.id === work.detailId ? work.card.data : null,
+    stream: work.stream?.id === work.detailId ? work.stream.data : null,
+    streamZoom: work.streamZoom,
     trace: work.trace?.id === work.detailId ? work.trace.data : null,
     traceBusy: work.traceBusy,
     traceResult: work.traceResult?.id === work.detailId ? work.traceResult : null,
@@ -312,6 +314,25 @@ async function loadCard(id, { fresh = false } = {}) {
   if (visible() && !state.ploegDetailLoading) renderWork();
 }
 
+async function loadStream(id, { fresh = false } = {}) {
+  const request = ++work.streamRequest;
+  let stream = null;
+  try { stream = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/value-stream${fresh ? '?refresh=1' : ''}`); }
+  catch { if (work.stream?.id === id && work.stream.data) return; }
+  if (request !== work.streamRequest || work.detailId !== id) return;
+  const next = signature(stream);
+  if (work.stream?.id === id && work.stream.signature === next) return;
+  work.stream = { id, data: stream, signature: next };
+  if (visible() && !state.ploegDetailLoading) renderWork();
+}
+
+function zoomStream(button) {
+  const zoom = button.dataset.id === 'agents' ? 'agents' : 'all';
+  if (zoom === work.streamZoom) return;
+  work.streamZoom = zoom;
+  renderWork();
+}
+
 async function loadTrace(id, { fresh = false } = {}) {
   const request = ++work.traceRequest;
   const query = fresh ? '?refresh=1' : '';
@@ -469,6 +490,7 @@ async function submitContext(data, form) {
 
 async function loadDetail(id, { fresh = false, quiet = false } = {}) {
   void loadCard(id, { fresh });
+  void loadStream(id, { fresh });
   void loadContext(id, { fresh });
   void loadAsks(id);
   void loadTrace(id, { fresh });
@@ -759,7 +781,7 @@ async function submitTraceStep(data, form) {
   } finally {
     work.traceBusy = false;
     if (visible() && work.detailId === id) {
-      await Promise.all([loadTrace(id, { fresh: true }), loadCard(id, { fresh: true })]);
+      await Promise.all([loadTrace(id, { fresh: true }), loadCard(id, { fresh: true }), loadStream(id, { fresh: true })]);
       renderWork();
       $('#work-trace-result')?.focus();
     }
@@ -858,6 +880,7 @@ export default {
     'work-cancel': () => work.cancelBusy ? null : openCancel(),
     'work-brief': () => toggleBrief(),
     'work-run': jumpToRun,
+    'work-stream-zoom': zoomStream,
     'work-section': jumpToSection,
     'work-context-add': () => openContext(),
     'work-ask-open': () => openAsk(),

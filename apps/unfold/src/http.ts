@@ -490,6 +490,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (path === '/api/ploeg/work-items') return json(res, 200, sanitize(await ploeg.items(user, text(url.searchParams.get('team'), 'Team', 100), (url.searchParams.get('state') ?? 'all') as PloegState | 'all', url.searchParams.get('after') ?? '0', fresh)));
             const card = /^\/api\/ploeg\/work-items\/([^/]+)\/card$/.exec(path);
             if (card) return json(res, 200, sanitize(await ploeg.card(user, card[1], fresh)));
+            const stream = /^\/api\/ploeg\/work-items\/([^/]+)\/value-stream$/.exec(path);
+            if (stream) return json(res, 200, sanitize(await ploeg.valueStream(user, stream[1], fresh)));
             const candidates = /^\/api\/ploeg\/work-items\/([^/]+)\/crack-candidates$/.exec(path);
             if (candidates) return json(res, 200, sanitize(await ploeg.crackCandidates(user, candidates[1], fresh)));
             const cracks = /^\/api\/ploeg\/work-items\/([^/]+)\/cracks$/.exec(path);
