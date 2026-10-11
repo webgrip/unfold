@@ -432,6 +432,19 @@ test('Now warns in a severe callout when Runs hold budget Ploeg cannot release, 
   assert.match(one, /Show the Run</);
 });
 
+test('Now says a blocked but unsettled hold waits for settlement, not that its key could not be blocked', () => {
+  const rows = [{ ...unsettledRow('264', '184', 0.25, '2026-10-10T20:01:39Z'), accountState: 'blocked' }];
+  const html = nowMarkup(view({ summary: summary({ unsettled: unsettled(rows), unsettledError: null }) }), options, nowAt);
+  const block = html.slice(html.indexOf('now-unsettled'), html.indexOf('</details>', html.indexOf('now-unsettled')));
+  assert.match(block, /keys are blocked, but Ploeg has not settled their spend an hour after they finished/);
+  assert.match(block, /investigate-a-runs-spend\.md<\/code>, “Decide whether to wait or act”/);
+  assert.match(block, /key blocked · /);
+  assert.doesNotMatch(block, /could not be blocked/);
+
+  const mixed = nowMarkup(view({ summary: summary({ unsettled: unsettled([...rows, unsettledRow('41', '101', 1, '2026-10-10T06:00:00Z')]), unsettledError: null }) }), options, nowAt);
+  assert.match(mixed, /could not be blocked at the gateway/);
+});
+
 test('Now shows no unsettled callout with none, without the list, or in the demo', () => {
   const quiet = [
     view({ summary: summary({ unsettled: unsettled([]), unsettledError: null }) }),

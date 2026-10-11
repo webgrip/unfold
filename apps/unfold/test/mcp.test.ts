@@ -23,7 +23,7 @@ test('unfold-mcp tells a client what waits, why, and what to do, from the demo w
   assert.equal(await server.handle({ jsonrpc: '2.0', method: 'notifications/initialized' }), undefined);
 
   const listed = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  assert.deepEqual(listed?.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions']);
+  assert.deepEqual(listed?.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_spend']);
   for (const tool of listed?.result.tools ?? []) {
     assert.equal(tool.annotations.readOnlyHint, true, tool.name);
     assert.match(tool.name, /^[a-z][a-z0-9_]{0,29}$/);
@@ -56,6 +56,11 @@ test('unfold-mcp tells a client what waits, why, and what to do, from the demo w
   const found = await call(server, 'unfold_find_work', { team: stuck.team, state: 'needs_human' });
   assert(found.structuredContent.items.length > 0 && found.structuredContent.items.every((item: { state: string }) => item.state === 'needs_human'));
   assert.equal((await call(server, 'unfold_sessions')).structuredContent.sessions.length, 0);
+  const demoSpend = await call(server, 'unfold_spend', { window: '24h' });
+  assert.equal(demoSpend.isError, undefined, JSON.stringify(demoSpend));
+  assert.equal(demoSpend.structuredContent.demo, true);
+  assert.equal(demoSpend.structuredContent.summary, 'This is the illustrative demo: nothing ran and nothing was spent.');
+  assert.equal((await call(server, 'unfold_spend', { window: '1y' })).isError, true);
 
   const missing = await call(server, 'unfold_get_work', { id: 'not a link' });
   assert.equal(missing.isError, true);
@@ -123,5 +128,32 @@ test('unfold-mcp speaks newline-delimited JSON-RPC on stdio and answers bad line
   assert.deepEqual(lines.map(line => line.id ?? null), [1, null, null, 3]);
   assert.equal(lines[1].error.code, -32700);
   assert.equal(lines[2].error.code, -32600);
-  assert.equal(lines[3].result.tools.length, 4);
+  assert.equal(lines[3].result.tools.length, 5);
+});
+
+test('unfold_spend names the Work Items whose finished Runs still hold budget, and says when it cannot tell', async t => {
+  let unsettled: unknown = { count: 1, heldUsd: 0.25, accounts: [{ runId: '264', workItemId: '184', team: 'unfold', accountState: 'blocked', heldUsd: 0.25, since: '2026-10-10T20:01:39Z' }] };
+  let unsettledError: unknown = null;
+  const fake = createServer((req, res) => {
+    assert.equal(req.url, '/api/ploeg/summary?window=7d');
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ demo: false, window: '7d', teams: [{ team: 'unfold', workItems: { needsHuman: 1 }, runs: { finished: 3, failed: 1, stuck: 1 }, spend: { settledUsd: 0.3238, reservedUsd: 0.25 } }], totals: { spend: { settledUsd: 0.3238, reservedUsd: 0.25 } }, unsettled, unsettledError }));
+  });
+  await new Promise<void>(resolve => fake.listen(0, '127.0.0.1', resolve));
+  t.after(() => fake.close());
+  const address = fake.address();
+  assert(address && typeof address !== 'string');
+  const url = `http://127.0.0.1:${address.port}`;
+  const server = createMcpServer({ url, token: `vle_${'b'.repeat(43)}` });
+
+  const spend = (await call(server, 'unfold_spend')).structuredContent;
+  assert.equal(spend.summary, '$0.32 settled and $0.25 held in 7d. 1 finished Runs still hold $0.25: Work Item 184.');
+  assert.deepEqual(spend.stuckHolds, [{ workItemId: '184', runId: '264', team: 'unfold', keyState: 'blocked', heldUsd: 0.25, since: '2026-10-10T20:01:39Z', link: `${url}/#work/184` }]);
+  assert.deepEqual(spend.teams[0], { team: 'unfold', settledUsd: 0.32, reservedUsd: 0.25, needsHuman: 1, runsFinished: 3, runsFailed: 1, runsStuck: 1 });
+
+  unsettled = null;
+  unsettledError = { code: 'ploeg_unavailable', message: 'Ploeg could not list the Runs whose budget it cannot release.' };
+  const unknown = (await call(server, 'unfold_spend')).structuredContent;
+  assert.equal(unknown.stuckHolds, null, 'an unreadable list is never reported as zero stuck');
+  assert.match(unknown.summary, /Stuck holds unknown: Ploeg could not list/);
 });

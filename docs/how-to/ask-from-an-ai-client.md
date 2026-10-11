@@ -42,6 +42,7 @@ Start with `unfold`. Add `ploeg` when you want spend and Run history across Team
 | `unfold_find_work` | One Team's Work Items, by state, paged |
 | `unfold_get_work` | Why one Work Item waits, Ploeg's own words, the Run that explains it, budget and spend per Shift, its Runs |
 | `unfold_sessions` | Your workbench sessions |
+| `unfold_spend` | Spend settled and held per Team for 24h, 7d or 30d, and the finished Runs whose budget hold Ploeg has not released, each with its Work Item |
 
 ## Ploeg
 
