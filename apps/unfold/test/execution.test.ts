@@ -864,7 +864,7 @@ test('the agent host turns a message into a stranded session into a choice, and 
   await until(() => f.server.app.store.getSession(session.id)!.status === 'completed' && f.state.commandAttempts.length >= commands + 2, 'the chosen delivery did not complete the session and report it to Ploeg');
   assert.deepEqual(f.state.commandAttempts.slice(commands).map(command => command.action), ['resume', 'report'], 'delivery goes through Ploeg');
   assert.equal(f.runtime.calls, 2, 'delivery makes no model call');
-  const outcome = await client.until(message => isAction('chat/responsePart')(message) && /^\*\*Ready for your review\*\*/.test(message.params.action.part.content ?? ''));
+  const outcome = await client.until(message => isAction('chat/responsePart')(message) && /^\n\n\*\*Ready for your review\*\*/.test(message.params.action.part.content ?? ''));
   await client.until(message => isAction('chat/turnComplete')(message) && message.params.action.turnId === outcome.params.action.turnId);
   assert.equal(f.server.app.store.listSessions().length, 1, 'delivery creates no session');
 });

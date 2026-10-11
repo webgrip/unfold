@@ -750,14 +750,14 @@ export class AgentHost {
     return this.config.baseUrl ? `${this.config.baseUrl.replace(/\/+$/, '')}/#session/${encodeURIComponent(session.id)}` : '';
   }
 
-  /** One Markdown part that ends a turn with the outcome: what happened, the change, spend, why it stopped and what to do next. Added once per turn. A session that stopped by itself gets its next steps as the "What next?" choice instead, so its outcome says only why it stopped. */
+  /** One Markdown part that ends a turn with the outcome, opening with a blank line because VS Code renders consecutive Markdown parts as one document and a crew's text may end in an unclosed line: what happened, the change, spend, why it stopped and what to do next. Added once per turn. A session that stopped by itself gets its next steps as the "What next?" choice instead, so its outcome says only why it stopped. */
   private outcome(projection: Projection, session: Session): Json[] {
     const turn = projection.activeTurn;
     if (!turn || turn.outcome) return [];
     turn.outcome = true;
     const progress = sessionProgress(session, { events: this.store.events(session.id) });
     const again = session.status === 'cancelled' && !session.sourceTask ? '\n\nSend a message here to run it again with your message as an instruction for its crew; nothing runs until you choose.' : '';
-    return this.addPart(projection, { kind: 'markdown', id: `${turn.id}-outcome`, content: `${outcomeMarkdown(progress, { sessionUrl: this.sessionPage(session), nextSteps: session.status !== 'interrupted' })}${again}` });
+    return this.addPart(projection, { kind: 'markdown', id: `${turn.id}-outcome`, content: `\n\n${outcomeMarkdown(progress, { sessionUrl: this.sessionPage(session), nextSteps: session.status !== 'interrupted' })}${again}` });
   }
 
   /** What a person reads after sending an instruction: when a Run will read it, or that no crew will and what to do instead. */
