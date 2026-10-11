@@ -12,7 +12,7 @@ Unfold turns units of work into pull requests that AI agents write and you revie
 
 A unit of work, a **Work Item**, is something you have decided to do, or a problem described well enough that a solution can be formulated or at least conceived. You assign it to an agent team. Unfold runs the agents with a budget and a credential that expires, until a pull request is ready for your review, and you merge. Work can also create work: splitting a Work Item, or making it ready, is a job for agents too.
 
-**Status:** internal tool, pre-1.0, one owner, self-hosted on Kubernetes. Not a hosted service.
+**Status:** pre-1.0, self-hosted on Kubernetes, with its owner as the only user. A hosted service for agencies is decided ([ADR-0005](adr/adr-0005-unfold-is-offered-to-agencies.md)) but not built.
 
 **Parts:**
 
