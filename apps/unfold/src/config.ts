@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppConfig, Repository, Crew, Placement, WorkspaceBackend } from './types.ts';
 import { validateTaskSources } from './tasks.ts';
+import { reportSettings } from './reports.ts';
 import { validatePloeg } from './ploeg.ts';
 import { validateCardRules } from './cards/settings.ts';
 import { validateDeliveryConfig } from './delivery-config.ts';
@@ -345,5 +346,6 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   if (!existsSync(config.publicDir)) throw new Error('Browser application directory is missing');
   if (config.taskSources?.some(source => source.ploeg) && !config.execution) throw new Error('Ploeg tracker targets require shared execution configuration');
   config.delivery = validateDeliveryConfig(raw.delivery, config);
+  config.reports = reportSettings(raw.reports, config.taskSources, mode);
   return config;
 }

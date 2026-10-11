@@ -51,6 +51,17 @@ if (shippedFonts.length) {
   if (!read('public/styles.css')?.includes('@font-face')) failures.push('public/styles.css names Archivo but declares no @font-face, so the interface would silently fall back');
 }
 
+const vendoredHtmlToImage = read('public/vendor/html-to-image/VERSION')?.trim();
+if (vendoredHtmlToImage) {
+  const mit = read('public/vendor/html-to-image/LICENSE');
+  if (!mit?.includes('MIT License') || !mit.includes('W.Y.')) failures.push('public/vendor/html-to-image/ holds html-to-image but not its MIT licence text; the MIT License requires the notice to travel with the copy');
+  if (!read('NOTICE')?.includes(`html-to-image ${vendoredHtmlToImage}`)) failures.push(`NOTICE does not name the bundled html-to-image ${vendoredHtmlToImage}`);
+  if (!/path = "public\/vendor\/html-to-image\/\*\*"[\s\S]*?SPDX-License-Identifier = "MIT"/.test(read('REUSE.toml') ?? '')) failures.push('REUSE.toml does not declare public/vendor/html-to-image/** as MIT');
+  const pinned = JSON.parse(read('package.json') ?? '{}').devDependencies?.['html-to-image'];
+  if (pinned !== vendoredHtmlToImage) failures.push(`public/vendor/html-to-image/ is ${vendoredHtmlToImage} but package.json pins ${pinned ?? 'nothing'}; run npm run vendor:html-to-image`);
+  if (!(read('src/http.ts') ?? '').includes('html-to-image')) failures.push('src/http.ts does not serve /vendor/html-to-image/, so Report a problem could not take a screenshot');
+}
+
 const vendoredThree = read('public/vendor/three/VERSION')?.trim();
 if (vendoredThree) {
   const mit = read('public/vendor/three/LICENSE');
@@ -59,7 +70,7 @@ if (vendoredThree) {
   if (!/path = "public\/vendor\/three\/\*\*"[\s\S]*?SPDX-License-Identifier = "MIT"/.test(read('REUSE.toml') ?? '')) failures.push('REUSE.toml does not declare public/vendor/three/** as MIT');
   const pinned = JSON.parse(read('package.json') ?? '{}').devDependencies?.three;
   if (pinned !== vendoredThree) failures.push(`public/vendor/three/ is three ${vendoredThree} but package.json pins ${pinned ?? 'nothing'}; run npm run vendor:three`);
-  if (!(read('src/http.ts') ?? '').includes('vendor\\/three\\/')) failures.push('src/http.ts does not serve /vendor/three/, so the forge skin would 404 in the running workbench');
+  if (!/vendor\\\/\(\?:[a-z|-]*\bthree\b|vendor\\\/three\\\//.test(read('src/http.ts') ?? '')) failures.push('src/http.ts does not serve /vendor/three/, so the forge skin would 404 in the running workbench');
 }
 
 for (const [doc, target] of [['README.md', '](LICENSE)'], ['README.md', '../../docs/brand/TRADEMARK.md']]) {

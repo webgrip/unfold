@@ -30,14 +30,16 @@
     "extension:package": "npm --prefix extensions/vscode run package",
     "extension:verify": "node scripts/extension-verify.mjs",
     "vendor:three": "node scripts/vendor-three.mjs",
-    "vendor:check": "node scripts/vendor-three.mjs --check",
+    "vendor:check": "node scripts/vendor-three.mjs --check && node scripts/vendor-html-to-image.mjs --check",
     "icons:build": "node scripts/build-icons.mjs --png",
-    "icons:check": "node scripts/build-icons.mjs --check"
+    "icons:check": "node scripts/build-icons.mjs --check",
+    "vendor:html-to-image": "node scripts/vendor-html-to-image.mjs"
   },
   "license": "Apache-2.0",
   "devDependencies": {
     "@types/node": "24.19.2",
     "@types/ws": "8.18.2",
+    "html-to-image": "1.11.13",
     "playwright": "1.64.0",
     "three": "0.186.1",
     "typescript": "7.0.2"

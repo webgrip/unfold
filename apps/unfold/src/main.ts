@@ -35,7 +35,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const engine = new Engine(store, config, runtimes, broker, links);
   engine.recover();
   const agentHost = new AgentHost(config, store, engine);
-  const { server, cards, closeStreams, stopInsight } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config));
+  const { server, cards, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config));
   server.on('upgrade', (req, socket, head) => { if (!agentHost.handleUpgrade(req, socket, head)) socket.destroy(); });
   let closed = false;
   const cardTimers: NodeJS.Timeout[] = [];
@@ -55,7 +55,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
     if (server.listening) await new Promise<void>((done) => { server.close(() => done()); server.closeIdleConnections(); });
     store.close();
   }
-  return { server, store, engine, agentHost, close, startCardSweeps };
+  return { server, store, engine, agentHost, reports, close, startCardSweeps };
 }
 
 async function main() {

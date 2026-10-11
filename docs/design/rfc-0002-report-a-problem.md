@@ -4,7 +4,16 @@
 >
 > **TL;DR.** One button and one palette command. The browser takes a DOM screenshot with code, diffs and pull-request text blurred, lets the person mark it up, and collects recent errors, failed requests and the ids on screen. Unfold's server files it as an issue or task in the tenant's own tracker, with attachments, in two API calls, and shows the link. Nothing is captured in the background, and nothing leaves the install except to the tenant's tracker.
 
-Accepted with its ADR on 2026-10-05. Nothing here is built yet. Every route, setting and file name is proposed.
+Accepted with its ADR on 2026-10-05. **Built on 2026-10-11 (VIK-1895), in the web application:** the top-bar button and palette command, the screenshot with private regions blurred, the markup canvas, the console and request buffers, `POST /api/reports`, filing into Forgejo and Vikunja with attachments, and the 24-hour retry. The target is set in the configuration (`reports`, see [task connections](../../apps/unfold/docs/operations/task-connections.md)), not yet in a settings screen.
+
+Still proposed: the VS Code extension command, the Settings target screen, GitHub, GitLab and ClickUp filing, and the replay attachment.
+
+What building it changed:
+
+* **html-to-image, not snapdom.** snapdom inserts inline `<style>` elements into the live page to measure it, which `style-src 'self'` blocks, so its capture came out the wrong size. html-to-image writes styles only into its detached copy and works under the unchanged CSP. Unfold builds the `@font-face` rules itself with the fonts inlined, because html-to-image would otherwise resolve relative font URLs by setting a document base URI, which `base-uri 'none'` refuses.
+* **The private blur** comes from a constructed stylesheet that applies `filter: blur(6px)` to `[data-private]` for the moment of the copy, rather than a change to the clone.
+* **Scrolled pages.** html-to-image lays the copy out unscrolled. The capture shifts back the content of the scrolled window and of each scrolled container, leaves fixed elements in place and moves sticky ones to where they are on screen, so the screenshot shows what the person sees.
+* **`data-private`** marks every `<pre>`, every container that renders tracker or pull-request text through `markdown()`, and the diff view. `test/report-client.test.mjs` fails when one is added without it.
 
 ## What it looks like
 
