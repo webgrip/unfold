@@ -54,8 +54,16 @@ export async function run({ page, app, assert, screenshot }) {
   await page.evaluate(() => { const saved = JSON.parse(localStorage.getItem('unfold.prefs') || '{}'); saved.lastVisit = new Date(Date.now() - 3 * 3600 * 1000).toISOString(); localStorage.setItem('unfold.prefs', JSON.stringify(saved)); });
   await page.getByRole('link', { name: 'Now', exact: true }).click();
   await page.locator('.now-digest[data-kind="changes"]').waitFor();
-  assert.match(await page.locator('.now-digest').innerText(), /^Since \d\d:\d\d[\s\S]*Runs? finished/, 'the digest does not sum up what changed while away');
   const since = await page.evaluate(() => JSON.parse(sessionStorage.getItem('unfold.nowSince')).since);
+  const sinceExpected = await page.evaluate(value => {
+    const start = new Date(value);
+    const pad = part => String(part).padStart(2, '0');
+    const clock = `${pad(start.getHours())}:${pad(start.getMinutes())}`;
+    return start.toDateString() === new Date().toDateString() ? `Since ${clock}` : `Since yesterday ${clock}`;
+  }, since);
+  const digest = await page.locator('.now-digest').innerText();
+  assert(digest.startsWith(sinceExpected), `the digest does not start with "${sinceExpected}": ${digest.slice(0, 40)}`);
+  assert.match(digest, /Runs? finished/, 'the digest does not sum up what changed while away');
   assert.equal(Date.parse(await page.locator('.now-digest-title time').first().getAttribute('datetime')), Date.parse(since), 'the digest start is not a time element');
   assert(await page.locator('[data-now-row][data-unread]').count() > 0, 'rows that changed while away carry no unread dot');
   assert.equal(await page.locator('[data-now-row][data-unread] .sr-only').first().innerText(), 'New since your last visit.', 'an unread dot has no text alternative');
