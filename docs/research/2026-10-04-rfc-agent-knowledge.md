@@ -166,6 +166,15 @@ A pack is worth its tokens only if it changes outcomes. Each Run records pack si
 
 ADR-0021 and Ploeg ADR-0065 and ADR-0066 stay proposed until the measurement spike (VIK-1859) reports.
 
+## Owner decisions, 2026-10-11
+
+The owner asked for agents to write knowledge per Work Item, Client, repository and Tenant. Decided, with the design in [ADR-0034](../adr/adr-0034-agent-knowledge-is-scoped-to-tenant-client-repository-and-work-item-in-two-graphs-per-tenant.md) and [ADR-0035](../adr/adr-0035-interactive-sessions-reach-tenant-knowledge-only-through-unfold-mcp.md) (both proposed):
+
+1. Two graphs per Tenant: reviewed knowledge scoped to the Tenant, a Client or a repository, and Work Item Notes.
+2. Agents write Work Item Notes without review; a wider scope is a Promotion a Tenant admin accepts. This replaces "every learning is reviewed" from the Learnings section.
+3. Interactive sessions reach knowledge only through unfold-mcp, which asks Ploeg for the signed-in person.
+4. Hosted Tenants keep Omnigraph (decision 1 above, confirmed).
+
 ## Open questions for the owner
 
 1. Is Omnigraph the knowledge store for hosted Unfold, or only for the homelab, with Postgres plus files for hosted Tenants?
