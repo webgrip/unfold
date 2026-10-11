@@ -723,3 +723,10 @@ test('Pod logs say when they load, are not connected, have no lines yet or faile
   assert.match(several, /<span class="work-run-log-stream">b<\/span> x/);
   assert.match(several, /Could not refresh: Timed out\./, 'an earlier read stays on screen when a refresh fails');
 });
+
+test('each Run shows what the agent did above its Pod logs', () => {
+  const html = detailMarkup(detail(), model({ detailId: '50', lane: 'awaiting_review', runTranscripts: new Map([['14', { data: { available: true, complete: true, truncated: false }, entries: [{ seq: 1, at, kind: 'message', text: 'Done.' }], trimmed: false }]]) }));
+  const transcript = html.indexOf('id="work-run-transcript-14"');
+  assert.ok(transcript > 0 && transcript < html.indexOf('id="work-run-logs-14"'));
+  assert.match(html, /data-run-transcript="14"[^]*<p>Done\.<\/p>/);
+});
