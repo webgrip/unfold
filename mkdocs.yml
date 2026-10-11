@@ -49,6 +49,7 @@ nav:
       - Documentation policy: documentation.md
       - Documentation publishing: operations/docs-publishing.md
       - CI and releases: operations/ci.md
+      - Troubleshoot CI and releases: operations/ci-troubleshooting.md
       - Source and artifacts: operations/artifacts.md
       - Migration: migration.md
       - System decisions: adr/index.md
