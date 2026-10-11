@@ -25,7 +25,7 @@ references:
     note: A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
 imports:
   - model: ../../apps/ploeg/docs/domain/model.yaml
-    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Work Target, Tracker Item, Follow-Up, Admission, Authority, Ask]
+    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Work Target, Tracker Item, Follow-Up, Admission, Authority, Ask, Tenant, Client]
 contexts:
   - name: System
     description: The applications that make up Unfold and how they divide the work.
@@ -332,7 +332,9 @@ terms:
       A business that uses Unfold to build software for its Clients and pays for
       it. A freelancer, or an in-house team that is its own only Client, is an
       Agency too. An Agency reviews and merges every pull request and owns
-      production. It uses Unfold hosted, in its own Tenant, or self-hosted.
+      production. It uses Unfold hosted, in its own Tenant, or self-hosted. In
+      hosted Unfold its Tenant has its own namespaces, default-deny network,
+      sandboxed runtime and model budget (ADR-0017, not implemented yet).
     avoid: [customer, operator, reseller]
     not_to_be_confused_with:
       - term: Tenant
@@ -340,36 +342,16 @@ terms:
       - term: Client
         note: The Agency's own customer.
     see_also: [Tenant, Client, Acceptance]
-  - name: Tenant
-    context: Offering
-    definition: >
-      The isolated space that holds one Agency's Work Items, Shifts, credentials,
-      Preview Environments and Budgets: in hosted Unfold its own namespaces,
-      default-deny network, sandboxed runtime and model budget. Ploeg records it
-      on every Team, Work Item, Shift and credential. Every install has at least
-      one; a self-hosted install starts with a default Tenant. Clients are users
-      and owners of sources inside a Tenant, never Tenants. Decided by ADR-0017
-      (2026-10-04); not implemented yet.
-    see_also: [Agency, Client, Preview Environment]
-  - name: Client
-    context: Offering
-    definition: >
-      An Agency's customer. A Client submits Requests, answers Refinement
-      questions, approves Quotes and gives feedback on Preview Environments in
-      the Client Portal. Unfold never contacts a Client directly. Inside a
-      Tenant a Client owns tracker sources and repositories, and its users see
-      only the Work Items from them (ADR-0017, decided 2026-10-04, not
-      implemented yet).
-    avoid: [customer, end client, end customer]
-    see_also: [Agency, Client Portal, Client Profile, Quote, Request]
   - name: Client Portal
     context: Offering
     owner: unfold
     definition: >
       The part of Unfold where Clients submit Requests, talk to the refinement
-      agent, approve Quotes and open Preview Environments through signed links.
-      It shows the Agency's price; Unfold's own charge is hidden unless the
-      Agency shows it.
+      agent, answer Refinement questions, approve Quotes and give feedback on
+      Preview Environments through signed links. It is the only way Unfold
+      reaches a Client; Unfold never contacts a Client directly. A Client's
+      users see only the Work Items from that Client's sources. It shows the
+      Agency's price; Unfold's own charge is hidden unless the Agency shows it.
     synonyms: [Portal]
     see_also: [Client, Quote, Unfold]
   - name: Client Profile
