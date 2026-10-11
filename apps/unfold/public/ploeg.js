@@ -9,6 +9,7 @@ import { grafanaTeam, runExplorer } from './core/observability.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
 import { traceMarkup } from './core/attribution.js';
 import { workStages } from './core/stages.js';
+import { cardView } from './cards/card-model.js';
 import { deliveryStages, stageTime } from './core/delivery-track.js';
 import { streamChart, streamLanes } from './core/value-stream.js';
 import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
@@ -692,8 +693,6 @@ function check(tone, glyph, title, detailText, short = '') {
   return { tone, short: short || title, html: `<li class="work-check" data-tone="${tone}"><span class="work-check-icon" aria-hidden="true">${icon(glyph)}</span><div class="work-check-main"><p class="work-check-title">${title}</p>${detailText ? `<p class="meta">${detailText}</p>` : ''}</div></li>` };
 }
 
-const checkRank = { danger: 0, attention: 0, neutral: 1, success: 2 };
-
 function reviewPlan(detail) {
   const review = ploegReview(detail);
   const pr = safeUrl(review.pullRequestUrl);
@@ -712,25 +711,14 @@ function neutralChecksLine(entries) {
 }
 
 /**
- * The review box for a Ready-for-review item. On its own it carries the evidence receipt, the checklist and the
- * actions. `hero` is true while the Run card sits above it, so the box keeps only what the card does not show: the
- * checks (with the neutral ones folded into one muted line) and the forge outcomes. The "On the forge" outcomes are
- * always a closed disclosure.
+ * The review box for a Ready-for-review item, below the status panel that already carries the spend and the primary
+ * action: the checks before a merge (warnings and successes, with the neutral ones folded into one muted line), the
+ * link to the findings and the forge outcomes as a closed disclosure.
  */
-function reviewBox(detail, model, plan, { hero = false } = {}) {
+function reviewBox(detail, model, plan) {
   const item = detail.item;
   const { review } = plan;
-  const demo = detail.demo;
-  const verdict = review.verdict === null ? null : verdictMeta(review.verdict);
   const spent = review.spend;
-  const receipt = ui.dl([
-    ['Agent review', verdict ? ui.badge({ tone: verdict.tone, glyph: verdict.glyph, label: verdict.short, title: verdict.label, size: 'sm' }) : '<span class="subtle">No reviewer ran</span>'],
-    ['Findings', `<span class="num">${escape(review.findings.length)}</span>`],
-    ['Rounds', review.rounds ? `<span class="num">${escape(review.rounds)}</span>` : null],
-    ['Time', review.seconds !== null ? `<span class="num">${escape(duration(review.seconds))}</span>` : null],
-    ['Branch', review.branch ? `<span class="mono">${escape(review.branch)}</span>` : null],
-    ['Spend', spent ? ui.meter({ settled: spent.settledUsd, reserved: spent.reservedUsd, authorized: spent.authorizedUsd, demo, label: '', size: 'sm' }) : '<span class="subtle">No Shift recorded</span>'],
-  ]);
   const checks = [];
   const merge = mergeStateView(item);
   const mergeCheck = merge.key === 'unreported' ? null : check(merge.tone, merge.glyph, escape(merge.title), escape(merge.detail), 'merge state');
@@ -738,33 +726,32 @@ function reviewBox(detail, model, plan, { hero = false } = {}) {
   const mergeNote = mergeCheck ? '' : `<p class="meta work-checklist-note">${escape(merge.title)}</p>`;
   const pr = safeUrl(review.pullRequestUrl);
   checks.push(pr ? check('success', 'check-circle', `Pull request${review.pullRequestNumber ? ` #${escape(review.pullRequestNumber)}` : ''} reported by the writer`, item.target ? `${escape(repoName(item.target))}${review.branch ? ` · <span class="mono">${escape(review.branch)}</span>` : ''}` : '', 'pull request') : check('attention', 'alert', 'No pull request link reported', review.branch ? `Find it on the forge by its branch <span class="mono">${escape(review.branch)}</span>.` : 'Find it on the forge.', 'pull request link'));
-  if (!hero) {
-    if (verdict?.key === 'approve') checks.push(check('success', 'check-circle', 'The agent reviewer approved', 'Agent review is evidence, not a human review.'));
-    else if (verdict?.key === 'request_changes') checks.push(check('attention', 'alert', 'The agent reviewer asked for changes', 'Read the findings before you merge.'));
-    else if (verdict) checks.push(check('neutral', 'circle-dashed', 'No agent verdict', review.lastReader?.outcome === 'no_change_needed' ? 'The reviewer reported no change needed but gave no verdict.' : review.findings.length ? 'The reviewer left findings but gave no verdict.' : 'The reviewer gave no verdict.', 'agent verdict'));
-    else checks.push(check('neutral', 'circle-dashed', 'No agent review', 'No reviewer ran in this Shift.', 'agent review'));
+  const verdict = review.verdict === null ? null : verdictMeta(review.verdict);
+  if (verdict?.key === 'approve') checks.push(check('success', 'check-circle', 'The agent reviewer approved', 'Agent review is evidence, not a human review.'));
+  else if (verdict?.key === 'request_changes') checks.push(check('attention', 'alert', 'The agent reviewer asked for changes', 'Read the findings before you merge.'));
+  else if (verdict) checks.push(check('neutral', 'circle-dashed', 'No agent verdict', review.lastReader?.outcome === 'no_change_needed' ? 'The reviewer reported no change needed but gave no verdict.' : review.findings.length ? 'The reviewer left findings but gave no verdict.' : 'The reviewer gave no verdict.', 'agent verdict'));
+  else checks.push(check('neutral', 'circle-dashed', 'No agent review', 'No reviewer ran in this Shift.', 'agent review'));
+  if (!detail.demo && spent && amount(spent.settledUsd)) {
+    if (spent.settledUsd <= spent.authorizedUsd) checks.push(check('success', 'check-circle', `Within its ${moneyText(spent.authorizedUsd)} budget`, `${moneyText(spent.settledUsd)} settled.`));
+    else checks.push(check('danger', 'x-circle', `Over its ${moneyText(spent.authorizedUsd)} budget`, `${moneyText(spent.settledUsd)} settled.`));
   }
-  if (demo) { if (!hero) checks.push(check('neutral', 'circle-dashed', 'Spend: demo', 'No model calls, so nothing was spent.', 'spend')); }
-  else if (!spent || !amount(spent.settledUsd)) { if (!hero) checks.push(check('neutral', 'circle-dashed', 'Spend not reported', 'Ploeg has not settled the spend of this Shift.', 'spend')); }
-  else if (spent.settledUsd <= spent.authorizedUsd) checks.push(check('success', 'check-circle', `Within its ${moneyText(spent.authorizedUsd)} budget`, `${moneyText(spent.settledUsd)} settled.`));
-  else checks.push(check('danger', 'x-circle', `Over its ${moneyText(spent.authorizedUsd)} budget`, `${moneyText(spent.settledUsd)} settled.`));
-  checks.push(check('neutral', 'circle-dashed', 'CI checks: not reported', 'Unfold does not read CI. Check them on the pull request.', 'CI'));
+  const ci = Array.isArray(model.card?.plays) ? model.card.plays.at(-1)?.ci?.state : '';
+  if (!ci || ci === 'unknown') checks.push(check('neutral', 'circle-dashed', 'CI checks: not reported', 'The forge sent no CI state. Check them on the pull request.', 'CI'));
   const files = review.instructionFiles;
   if (files.length) checks.push(check('attention', 'alert', files.length === 1 ? 'Findings name an instruction file' : 'Findings name instruction files', `${files.map(name => `<code>${escape(name)}</code>`).join(' ')} ${files.length === 1 ? 'is' : 'are'} named in the findings. Check ${files.length === 1 ? 'it' : 'them'} in the diff before you merge.`));
   checks.push(safeUrl(item.url) ? check('success', 'check-circle', `Linked to its ${escape(trackerName(item.provider) || 'tracker')} task`, '') : check('neutral', 'circle-dashed', 'No tracker link reported', '', 'tracker link'));
-  const ordered = checks.map((entry, index) => ({ ...entry, index })).sort((a, b) => checkRank[a.tone] - checkRank[b.tone] || a.index - b.index);
   const rest = checks.filter(entry => entry !== mergeCheck);
-  const visible = hero ? [...(mergeCheck ? [mergeCheck] : []), ...rest.filter(entry => entry.tone === 'danger' || entry.tone === 'attention'), ...rest.filter(entry => entry.tone === 'success')] : ordered;
-  const fold = hero ? neutralChecksLine(rest.filter(entry => entry.tone === 'neutral')) : '';
+  const reviewed = entry => ['agent verdict', 'agent review'].includes(entry.short);
+  const visible = [...(mergeCheck ? [mergeCheck] : []), ...rest.filter(entry => entry.tone === 'danger' || entry.tone === 'attention'), ...rest.filter(entry => entry.tone === 'neutral' && reviewed(entry)), ...rest.filter(entry => entry.tone === 'success')];
+  const fold = neutralChecksLine(rest.filter(entry => entry.tone === 'neutral' && !reviewed(entry)));
   const forge = ui.disclosure({ summary: 'On the forge', id: `work-forge-${item.id}`, body: ui.dl([
     ['Merge', 'Ploeg marks the Work Item Done.'],
     ['Request changes', 'Ploeg queues a fix Round for the same Team, on the same branch.'],
     ['Close without merging', 'The Work Item comes back to you as Needs you.'],
   ], { rows: true }) });
   const truncated = review.truncated ? '<p class="meta">Ploeg capped this history. Earlier records may be missing.</p>' : '';
-  const actions = hero ? (plan.findings ? `<div class="work-decision-actions">${plan.findings}</div>` : '') : plan.actions.length ? `<div class="work-decision-actions">${plan.actions.join('')}</div>` : '';
-  const head = hero ? '' : `<div class="work-decision-part"><p class="work-decision-sentence">${escape(pr ? 'The agents are done. Read the pull request and decide on the forge; Unfold does not merge.' : 'The agents are done, but Ploeg reported no pull request link.')}</p><div class="work-receipt">${receipt}</div>${truncated}</div>`;
-  const body = `${head}<div class="work-decision-part"><h4 class="overline">Before you merge</h4><ul class="work-checklist">${visible.map(entry => entry.html).join('')}</ul>${mergeNote}${fold}${hero ? truncated : ''}${actions}</div><div class="work-decision-part">${forge}</div>`;
+  const actions = plan.findings ? `<div class="work-decision-actions">${plan.findings}</div>` : '';
+  const body = `<div class="work-decision-part"><h4 class="overline">Before you merge</h4><ul class="work-checklist">${visible.map(entry => entry.html).join('')}</ul>${mergeNote}${fold}${truncated}${actions}</div><div class="work-decision-part">${forge}</div>`;
   return ui.card({ id: 'work-decision', region: true, title: 'Ready for your review', icon: 'pull-request', tone: 'review', level: 3, body });
 }
 
@@ -1271,8 +1258,8 @@ function cancelResultMarkup(model) {
   return `<div class="work-cancel-result" id="work-cancel-result" tabindex="-1" role="status">${ui.callout({ tone: summary.tone, title: summary.title, body: `<ul class="work-cancel-lines">${summary.items.map(entry => `<li data-tone="${entry.tone}">${icon(entry.glyph)}<span>${escape(entry.text)}</span></li>`).join('')}</ul>` })}</div>`;
 }
 
-/** The state headline that leads the Run card: the item's state, with what the review shows about it. */
-function cardHeadline(detail, model, reason, plan) {
+/** The headline of the status panel: the item's state, with what the review shows about it. */
+function statusHeadline(detail, reason, plan) {
   const item = detail.item;
   const state = workItemState(displayState(item, detail.events));
   if (reason) return `${state.heading || state.label} · ${reason.chip}`;
@@ -1284,23 +1271,101 @@ function cardHeadline(detail, model, reason, plan) {
     const rounds = review.rounds ? ` after ${plural(review.rounds, 'Round')}` : '';
     return `${state.heading || state.label} · ${verdictText[0].toUpperCase() + verdictText.slice(1)} ${where}${rounds}`;
   }
+  const running = (detail.runs || []).filter(run => run.state === 'running');
+  if (item.state === 'leased' && running.length === 1) {
+    const run = running[0];
+    return `${state.heading || state.label} · ${run.role || 'Agent'}${run.round ? ` in Round ${run.round}` : ''}`;
+  }
   return state.heading || state.label;
 }
 
-/**
- * The Run card that heads the Work Item detail: a `<unfold-card>` that `views/work.js` gives the card object once
- * Ploeg sent one (`model.card`). It states what happened in one headline (state, verdict, pull request, Rounds) and
- * carries the primary action, above everything else and across the full content width. Empty without a card, so an
- * older Ploeg or a failed read leaves no trace and the page falls back to the review box's own primary action.
- */
-export function cardSectionMarkup(detail, model, { reason = null, plan = null } = {}) {
-  const card = model.card;
-  if (!card || String(card.workItemId) !== detail.item.id) return '';
-  const primary = plan?.primary || '';
-  return `<section class="work-card" id="work-card" aria-labelledby="work-card-headline"><h3 class="work-card-headline" id="work-card-headline">${escape(cardHeadline(detail, model, reason, plan))}</h3><unfold-card class="work-run-card" data-work-item="${escape(detail.item.id)}"></unfold-card>${primary ? `<div class="work-card-actions">${primary}</div>` : ''}</section>`;
+const quiet = (label, value, detail = '') => ({ label, value, detail, quiet: true, text: true });
+
+function spendFact(detail, card, now) {
+  const shift = latestShift(detail);
+  if (detail.demo) return { label: 'Spend', value: 'Demo', detail: 'No model calls, so nothing was spent', quiet: true, text: true };
+  const live = card?.live && amount(card.live.costUsd) && amount(card.live.runSeconds) ? card.live.costUsd : null;
+  const settled = shift && amount(shift.spentUsd) ? shift.spentUsd : null;
+  const spent = live ?? settled ?? (amount(card?.totals?.costUsd) && card.totals.costStatus !== 'not_reported' ? card.totals.costUsd : null);
+  if (spent === null) return quiet('Spend', 'Not reported', shift && amount(shift.budgetUsd) ? `Shift budget ${money(shift.budgetUsd)}` : '');
+  const meter = shift && amount(shift.budgetUsd) ? ui.meter({ settled: spent, reserved: shift.reservedUsd, authorized: shift.budgetUsd, observed: live !== null, label: '', size: 'sm' }) : '';
+  const note = live !== null ? 'Observed so far; it settles when the Run ends' : shift && !shift.closedAt && amount(shift.reservedUsd) && shift.reservedUsd > 0 ? 'Settled; the rest is reserved for Runs' : 'Settled';
+  return { label: 'Spend', value: money(spent), detailHtml: `${meter}<span>${escape(note)}</span>` };
 }
 
-/** The Work Item detail: header, the writer's problem and solution, the Run card that states what happened, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
+function runTimeFact(detail, view, now) {
+  if (view?.runTime.known) return { label: 'Run time', value: view.runTime.value, detail: view.runTime.live ? 'So far' : 'All Runs added up' };
+  const timed = (detail.runs || []).map(run => runSeconds(run, now)).filter(amount);
+  if (!timed.length) return quiet('Run time', detail.runs?.length ? 'Not reported' : 'No Runs yet');
+  return { label: 'Run time', value: duration(timed.reduce((total, value) => total + value, 0)), detail: detail.runs.some(run => run.state === 'running') ? 'So far' : 'All Runs added up' };
+}
+
+function crewFact(detail, view) {
+  const shift = latestShift(detail);
+  const round = shift ? `Round ${shift.round}${detail.shifts?.length > 1 ? ` of attempt ${detail.shifts.length}` : ''}` : '';
+  const roles = new Map();
+  for (const run of detail.runs || []) roles.set(run.role || 'agent', (roles.get(run.role || 'agent') || 0) + 1);
+  const value = view && view.crew !== 'No agent Runs yet' ? view.crew : [...roles].map(([role, total]) => `${role} ×${total}`).join(' · ');
+  if (!value) return quiet('Crew', 'No Runs yet', round);
+  return { label: 'Crew', value, detail: round, text: true };
+}
+
+function pullRequestFact(detail, view) {
+  const url = safeUrl(view?.pr?.url || prLink(detail));
+  const number = view?.pr?.number ?? pullRequestPath.exec(url)?.[1];
+  if (!number && !url) return quiet('Pull request', 'None yet', detail.item.state === 'leased' ? 'The writer opens it' : '');
+  const link = url ? `<a class="work-inline-link" href="${escape(url)}" target="_blank" rel="noopener noreferrer" data-link-out="pr">View on the forge${icon('external')}${newTab}</a>` : '';
+  return { label: 'Pull request', value: number ? `#${number}` : linkLabel(url), detailHtml: [view?.pr ? escape(view.pr.state.label) : '', link].filter(Boolean).join(' · ') };
+}
+
+function checksFact(detail, view) {
+  if (!view?.pr) return prLink(detail) ? quiet('Checks', 'Not reported', 'The forge sent no CI state') : quiet('Checks', 'No pull request yet');
+  if (!view.pr.ci) return quiet('Checks', 'Not reported', 'The forge sent no CI state');
+  return { label: 'Checks', value: view.pr.ci.label, tone: view.pr.ci.tone, icon: view.pr.ci.glyph, text: true };
+}
+
+function changeFact(view) {
+  if (!view) return quiet('Change', 'Not reported');
+  if (!view.diff.known) return quiet('Change', view.diff.value);
+  return { label: 'Change', value: `${view.diff.addText} ${view.diff.delText}`, detail: [view.diff.filesText, view.diff.partial ? 'some pull requests not measured' : ''].filter(Boolean).join(' · ') };
+}
+
+function approvalFact(view) {
+  if (!view?.steward.signed) return quiet('Approval', 'No person yet', 'Nobody merged or approved it');
+  return { label: 'Approval', value: view.steward.name, detail: view.steward.detail, text: true };
+}
+
+const flowKeys = new Set(['leadTime', 'cycleTime', 'timeToStart', 'firstFeedback', 'blocked', 'estimate', 'timeToProduction', 'openToMerge', 'complexity']);
+
+/**
+ * The facts of the status panel, in three labelled groups: the agent work (spend, tokens, run time, crew), the
+ * change (pull request, checks, diff, approval) and its flow (lead, cycle and the other times Unfold counted). Each
+ * fact is a `ui.stat` option object. `card` is the Work Item's delivery facts as Unfold assembled them, or null while
+ * they load or when Ploeg sends none; the agents' group then reads Ploeg's own records.
+ */
+export function statusFacts(detail, card, { now = Date.now() } = {}) {
+  const view = card && String(card.workItemId) === detail.item.id ? cardView(card, { now }) : null;
+  const tokens = view?.tokens.known ? { label: 'Tokens', value: view.tokens.value, detail: view.tokens.detail } : quiet('Tokens', detail.demo ? 'None' : view ? view.tokens.value : 'Not reported', detail.demo ? 'Demo · no model calls' : '');
+  const flow = (view?.kpis.headline || []).filter(entry => flowKeys.has(entry.key)).map(entry => ({ label: entry.label, value: entry.value, detail: [entry.working ? `${entry.working} working` : '', entry.detail].filter(Boolean).join(' · ') }));
+  return [
+    { id: 'agents', label: 'Agent work', facts: [spendFact(detail, card, now), tokens, runTimeFact(detail, view, now), crewFact(detail, view)] },
+    { id: 'change', label: 'Change', facts: [pullRequestFact(detail, view), checksFact(detail, view), changeFact(view), approvalFact(view)] },
+    ...(flow.length ? [{ id: 'flow', label: 'Flow', facts: flow }] : []),
+  ];
+}
+
+/**
+ * The status panel that heads the Work Item detail, across the full content width: one headline with the state and
+ * what the review shows, the primary action, and every figure that says where the work stands, grouped by
+ * `statusFacts`.
+ */
+export function statusMarkup(detail, model, { reason = null, plan = null } = {}) {
+  const primary = plan?.primary || '';
+  const groups = statusFacts(detail, model.card, { now: model.now }).map(group => `<div class="work-status-group" role="group" aria-labelledby="work-status-${group.id}"><h4 class="work-status-label overline" id="work-status-${group.id}">${escape(group.label)}</h4><div class="stat-row work-status-stats">${group.facts.map(fact => ui.stat(fact)).join('')}</div></div>`).join('');
+  return `<section class="work-status" id="work-status" aria-labelledby="work-status-headline"><div class="work-status-head"><h3 class="work-status-headline" id="work-status-headline">${escape(statusHeadline(detail, reason, plan))}</h3>${primary ? `<div class="work-status-actions">${primary}</div>` : ''}</div>${groups}</section>`;
+}
+
+/** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
 export function detailMarkup(recordedDetail, model) {
   const detail = reconcileDetail(recordedDetail, model.sessions);
   const reason = detailReason(detail);
@@ -1314,17 +1379,17 @@ export function detailMarkup(recordedDetail, model) {
     plan = reviewPlan(detail);
     primary = plan.primary;
   }
-  const card = cardSectionMarkup(detail, model, { reason, plan });
+  const status = statusMarkup(detail, model, { reason, plan });
   let decision;
   if (reason) decision = needsYouBox(detail, model, reason, plan);
-  else if (item.state === 'awaiting_review') decision = reviewBox(detail, model, plan, { hero: Boolean(card) });
+  else if (item.state === 'awaiting_review') decision = reviewBox(detail, model, plan);
   else decision = statusBox(detail, model);
   const parts = [
     headerMarkup(detail, model, reason),
     stagesMarkup(detail, model),
     model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : '',
     cancelResultMarkup(model),
-    card,
+    status,
     accountMarkup(detail),
     decision,
     model.asksEnabled === false ? '' : askMarkup(detail, model),

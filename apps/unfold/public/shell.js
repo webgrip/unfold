@@ -32,7 +32,7 @@ const cardPages = [['binder', '#binder', 'cards', 'Binder'], ['packs', '#packs',
 const quick = ['now', 'work', 'runs'];
 const settingsPages = [['preferences', '#settings/preferences', 'Preferences'], ['system', '#settings/environment', 'Environment'], ['account', '#settings/accounts', 'Linked accounts'], ['editors', '#settings/editors', 'Signed-in editors'], ['card-identity', '#settings/cards', 'Card logins'], ['designer', '#settings/card-designer', 'Card designer']];
 const areas = { session: 'sessions', account: 'settings', system: 'settings', preferences: 'settings', design: 'settings', 'card-identity': 'settings', designer: 'settings', editors: 'settings', 'editor-sign-in': 'settings' };
-const groupOf = { binder: 'Your cards', packs: 'Your cards', season: 'Your cards', settings: 'Settings' };
+const groupOf = { binder: 'Your cards', card: 'Your cards', packs: 'Your cards', season: 'Your cards', settings: 'Settings' };
 const themes = [['system', 'monitor', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']];
 const ploegStates = {
   demo: ['neutral', 'Ploeg: demo data', 'Illustrative Ploeg records. No Run executes and no model is called.'],

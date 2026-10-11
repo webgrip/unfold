@@ -25,22 +25,22 @@ export async function run({ page, app, assert, screenshot }) {
       }
     });
     watch.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-shown', 'data-fx'] });
-    const card = document.querySelector('unfold-card.work-run-card');
+    const card = document.querySelector('unfold-card.card-page-card');
     if (card?.shadowRoot) watch.observe(card.shadowRoot, { subtree: true, attributes: true, attributeFilter: ['data-fx-sweep', 'data-forge-state'] });
   });
   const log = () => page.evaluate(() => ({ ...window.fxLog, phases: [...window.fxLog.phases] }));
   const open = async id => {
-    await page.evaluate(id => { location.hash = `#work/${id}?lane=all`; }, id);
-    await page.waitForFunction(id => document.querySelector('unfold-card.work-run-card')?.dataset.workItem === id && document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.gc:not([hidden])'), id, { timeout: 30000 });
+    await page.evaluate(id => { location.hash = `#card/${id}`; }, id);
+    await page.waitForFunction(id => document.querySelector('unfold-card.card-page-card')?.dataset.workItem === id && document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('.gc:not([hidden])'), id, { timeout: 30000 });
   };
   const settled = () => page.waitForFunction(() => !document.querySelector('unfold-card[data-fx]') && (document.querySelector('.fx-title')?.hidden ?? true), null, { timeout: 15000 });
 
   await page.setViewportSize({ width: 1440, height: 1040 });
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.goto(`${base}/#work/101?lane=all`);
+  await page.goto(`${base}/#card/101`);
   await page.evaluate(() => { const prefs = JSON.parse(localStorage.getItem('unfold.prefs') || '{}'); delete prefs.cardMotion; localStorage.setItem('unfold.prefs', JSON.stringify(prefs)); });
   await page.reload();
-  await page.locator('unfold-card.work-run-card, .work-detail').first().waitFor();
+  await page.locator('unfold-card.card-page-card, .card-page-wrap').first().waitFor();
 
   const [status, mark] = await markSeen('114', daysAgo(3));
   assert.equal(status, 200, 'a person can set their seen mark on a card in their Teams');
@@ -48,7 +48,7 @@ export async function run({ page, app, assert, screenshot }) {
   await record();
   await open('114');
   await page.waitForFunction(() => window.fxLog.titles.some(title => title.text === 'Merged'), null, { timeout: 15000 });
-  await page.waitForFunction(() => document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.card[data-fx-sweep="gold"]'), null, { timeout: 5000 });
+  await page.waitForFunction(() => document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('.card[data-fx-sweep="gold"]'), null, { timeout: 5000 });
   await page.waitForTimeout(260);
   await screenshot('effects-merge-native');
   await settled();
@@ -66,7 +66,7 @@ export async function run({ page, app, assert, screenshot }) {
   await page.waitForFunction(() => !document.querySelector('canvas.fx-overlay'), null, { timeout: 8000 });
 
   await page.reload();
-  await page.waitForFunction(() => document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.gc:not([hidden])'), null, { timeout: 30000 });
+  await page.waitForFunction(() => document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('.gc:not([hidden])'), null, { timeout: 30000 });
   await record();
   await page.waitForTimeout(1500);
   assert.equal((await log()).titles.length, 0, 'a reload does not replay the merge');
@@ -76,11 +76,11 @@ export async function run({ page, app, assert, screenshot }) {
   await record();
   await open('117');
   await page.waitForFunction(() => window.fxLog.titles.some(title => title.text === 'Foil'), null, { timeout: 30000 });
-  await page.waitForFunction(() => document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.forge')?.dataset.forgeState === 'ceremony', null, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('.forge')?.dataset.forgeState === 'ceremony', null, { timeout: 10000 });
   await page.waitForTimeout(500);
   await screenshot('effects-finish-forge');
   await settled();
-  await page.waitForFunction(() => document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.forge')?.dataset.forgeState === 'still', null, { timeout: 10000 });
+  await page.waitForFunction(() => document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('.forge')?.dataset.forgeState === 'still', null, { timeout: 10000 });
   const finish = await log();
   assert.equal(finish.titles.find(title => title.text === 'Foil')?.tier, 'epic', 'a finish step is an epic ceremony');
 
@@ -104,8 +104,8 @@ export async function run({ page, app, assert, screenshot }) {
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('unfold.prefs')).cardMotion), 'off');
   assert.equal(await page.getByRole('switch', { name: 'Card sound' }).isChecked(), false, 'card sound is off by default');
   await markSeen('118', daysAgo(3));
-  await page.goto(`${base}/#work/101?lane=all`);
-  await page.locator('.work-detail, unfold-card').first().waitFor();
+  await page.goto(`${base}/#card/101`);
+  await page.locator('.card-page-wrap, unfold-card').first().waitFor();
   await record();
   await open('118');
   await page.waitForFunction(() => /Cracked/.test(document.querySelector('#announcement')?.textContent ?? ''), null, { timeout: 15000 });

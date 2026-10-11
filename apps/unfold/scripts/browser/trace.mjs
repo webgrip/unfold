@@ -1,5 +1,5 @@
 /**
- * Gates, cracks and sets on the Run card, and Trace this bug on a bug Work Item: the gates strip with its bounce marker
+ * Gates, cracks and sets on the card page, and Trace this bug on a bug's Work Item page: the gates strip with its bounce marker
  * and right-first-time chip, the crack and set chips, the Gates, Condition and Set tabs, the epic's children grid, and
  * the demo attribution flow (candidates, a pending crack, Confirm and Propose dialogs that check their fields and say
  * the demo recorded nothing) at desktop and phone widths.
@@ -7,10 +7,13 @@
 export async function run({ page, app, assert, screenshot }) {
   const base = `http://127.0.0.1:${app.server.address().port}`;
   const open = async (id, title) => {
+    await page.goto(`${base}/#card/${id}`);
+    await page.waitForFunction(text => document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('.gc:not([hidden]) [data-slot="title"]')?.textContent === text, title);
+    return page.locator('unfold-card.card-page-card');
+  };
+  const openWork = async id => {
     await page.goto(`${base}/#work/${id}?lane=all`);
     await page.waitForFunction(() => document.activeElement?.id === 'ploeg-item-title');
-    await page.waitForFunction(text => document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.gc:not([hidden]) [data-slot="title"]')?.textContent === text, title);
-    return page.locator('unfold-card.work-run-card');
   };
   const capture = async name => { await page.evaluate(() => window.scrollTo(0, 0)); await screenshot(name); };
   await page.setViewportSize({ width: 1440, height: 1040 });
@@ -43,6 +46,8 @@ export async function run({ page, app, assert, screenshot }) {
   await card.getByRole('tab', { name: 'Review & CI' }).click();
   assert.match(await card.getByRole('tabpanel', { name: 'Review & CI' }).innerText(), /demo-dev\s+cosigner \(mended a crack\)/, 'the person who mended the crack is on the roster as cosigner');
   await page.keyboard.press('Escape');
+  await openWork('118');
+  assert.equal(await page.locator('unfold-card').count(), 0, 'the Work Item page shows no card');
   const traced = page.locator('#work-trace');
   assert.equal(await traced.getByRole('heading', { level: 3 }).innerText(), 'Bugs traced to this Work Item');
   assert.equal(await traced.getByRole('button', { name: 'Dispute' }).count(), 1, 'the card’s steward may dispute a confirmed crack within five working days');
@@ -57,7 +62,7 @@ export async function run({ page, app, assert, screenshot }) {
   await capture('work-card-epic-set');
   await page.keyboard.press('Escape');
 
-  await open('124', 'A postcode with a space makes the shipping form answer 500');
+  await openWork('124');
   const panel = page.locator('#work-trace');
   await panel.waitFor();
   assert.equal(await panel.getByRole('heading', { level: 3 }).innerText(), 'Trace this bug');

@@ -6,11 +6,11 @@
  */
 export async function run({ page, app, assert, screenshot }) {
   const base = `http://127.0.0.1:${app.server.address().port}`;
-  const host = () => page.locator('unfold-card.work-run-card');
+  const host = () => page.locator('unfold-card.card-page-card');
   const open = async id => {
-    await page.goto(`${base}/#work/${id}?lane=all`);
-    await page.waitForFunction(id => { const card = document.querySelector('unfold-card.work-run-card'); return card?.card?.workItemId === id && card.shadowRoot?.querySelector('.gc:not([hidden]) [data-slot="title"]'); }, id, { timeout: 30000 });
-    await page.locator('#work-card').scrollIntoViewIfNeeded();
+    await page.goto(`${base}/#card/${id}`);
+    await page.waitForFunction(id => { const card = document.querySelector('unfold-card.card-page-card'); return card?.card?.workItemId === id && card.shadowRoot?.querySelector('.gc:not([hidden]) [data-slot="title"]'); }, id, { timeout: 30000 });
+    await page.locator('#card-page').scrollIntoViewIfNeeded();
     return host();
   };
   const noSideScroll = async label => assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true, `${label}: no horizontal scroll`);
@@ -22,7 +22,7 @@ export async function run({ page, app, assert, screenshot }) {
     const card = await open(id);
     assert.equal(await card.getAttribute('data-skin'), skin, `#${id} draws ${skin}`);
     if (skin === 'forge') {
-      await page.waitForFunction(() => ['still', 'live', 'paused', 'failed'].includes(document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.forge')?.dataset.forgeState), null, { timeout: 30000 });
+      await page.waitForFunction(() => ['still', 'live', 'paused', 'failed'].includes(document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('.forge')?.dataset.forgeState), null, { timeout: 30000 });
       assert.match(await card.locator('.forge-kpis').textContent(), /Key figures\s*Lead time [\d ]+d[\s\S]*First feedback 14 min[\s\S]*CI/, `#${id}: the forge's text facts carry the headline figures`);
     } else {
       const items = card.locator('.gc-front .uc-kpis .uc-kpi');

@@ -865,3 +865,19 @@
     transform: none;
   }
 }
+
+.card-page-wrap {
+  display: grid;
+  justify-items: center;
+  min-width: 0;
+}
+
+.card-page {
+  inline-size: min(100%, 64rem);
+  min-width: 0;
+}
+
+.card-page-card {
+  inline-size: 100%;
+  min-block-size: 0;
+}

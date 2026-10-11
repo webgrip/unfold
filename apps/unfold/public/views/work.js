@@ -10,16 +10,12 @@ import { singleKeyAllowed, isTyping } from '../core/keys.js';
 import { shell } from '../shell.js';
 import { enterPloegView, openPloegDialog } from './ploeg-common.js';
 import { stepDialogMarkup, stepOutcome, stepRequest } from '../core/attribution.js';
-import '../cards/unfold-card.js';
-import { cardMotion, clearEffects, watchCardMoments } from '../cards/effects/unfold.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
 const runPath = /^[1-9][0-9]{0,19}$/;
 const liveInterval = 30000;
 const reviewFactLimit = 12;
-const runCard = 'unfold-card.work-run-card';
-if (globalThis.document) watchCardMoments(runCard);
 const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, askBusy: false, askDraft: '' };
 
 onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, askBusy: false, askDraft: '' }));
@@ -116,10 +112,7 @@ function renderWork() {
   const listTop = scroller ? scroller.scrollTop : 0;
   const target = focusTarget();
   const current = model();
-  const previousCard = document.querySelector('unfold-card.work-run-card');
-  const cardFocus = previousCard && document.activeElement === previousCard ? previousCard.focusKey : null;
   renderHtml(shell(workMarkup(current), shellOptions(current)));
-  hydrateCard(previousCard, cardFocus);
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
   const list = $('.work-list-pane .work-list');
   if (list && listTop) list.scrollTop = listTop;
@@ -146,19 +139,6 @@ function revealPendingRun() {
   run.open = true;
   run.scrollIntoView({ block: 'start', behavior: motion() });
   run.querySelector('summary')?.focus({ preventScroll: true });
-}
-
-function hydrateCard(previous, focusKey) {
-  const slot = document.querySelector('unfold-card.work-run-card');
-  const data = work.card?.id === work.detailId ? work.card.data : null;
-  if (!slot || !data) return;
-  let element = slot;
-  if (previous && previous !== slot && previous.dataset.workItem === slot.dataset.workItem) { slot.replaceWith(previous); element = previous; }
-  if (previous && previous.dataset.workItem !== slot.dataset.workItem) clearEffects();
-  if (cardMotion() !== 'full') element.setAttribute('motion', 'still');
-  else if (element.getAttribute('motion') === 'still') element.removeAttribute('motion');
-  if (element.card !== data) element.card = data;
-  if (focusKey) element.restoreFocus(focusKey);
 }
 
 function revealLane() {
@@ -204,7 +184,7 @@ function observeActions() {
   work.stickyObserver?.disconnect();
   work.stickyObserver = null;
   const bar = $('.work-sticky-actions');
-  const primary = $('.work-card-actions .button.primary') || $('#work-decision .button.primary');
+  const primary = $('.work-status-actions .button.primary') || $('#work-decision .button.primary');
   if (!bar || !primary || typeof IntersectionObserver !== 'function') return;
   work.stickyObserver = new IntersectionObserver(entries => { for (const entry of entries) bar.toggleAttribute('data-covered', entry.isIntersecting); }, { rootMargin: '0px 0px -96px 0px' });
   work.stickyObserver.observe(primary);

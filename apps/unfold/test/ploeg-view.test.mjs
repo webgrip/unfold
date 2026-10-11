@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, canStop, cellSummary, checkoutDialogMarkup, contextDialogMarkup, contextErrors, contextMarkup, contextReach, contextSize, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
+import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, canStop, cellSummary, checkoutDialogMarkup, contextDialogMarkup, contextErrors, contextMarkup, contextReach, contextSize, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, statusFacts, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
 import { grafanaTeam, runExplorer } from '../public/core/observability.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
@@ -222,46 +222,56 @@ test('a checkpoint pull request link wins over Run links, and a missing link is 
   assert.doesNotMatch(html, /Open pull request/);
 });
 
-test('a ready-for-review item gets an evidence receipt, a checklist that is never green for unknowns, and what the forge actions do', () => {
+test('a ready-for-review item leads with a status panel: the headline, the primary action and every figure', () => {
   const html = detailMarkup(detail(), model({ detailId: '50', lane: 'awaiting_review' }));
-  assert.match(html, /<h3 class="card-title" id="work-decision-title">[^]*Ready for your review<\/h3>/);
-  assert.match(html, /<a class="button primary" href="https:\/\/forge.test\/acme\/shop\/pulls\/9" target="_blank" rel="noopener noreferrer" data-link-out="pr">[^]*Open pull request #9/);
-  assert.equal((html.match(/>Open pull request #9</g) || []).length, 2, 'the primary action in the review box and in the phone action bar');
+  assert.match(html, /<h3 class="work-status-headline" id="work-status-headline">Ready for your review · Agent approved PR #9 after 2 Rounds<\/h3>/, 'the headline states what happened');
+  assert.ok(html.indexOf('id="ploeg-item-title"') < html.indexOf('id="work-status"') && html.indexOf('id="work-status"') < html.indexOf('id="work-decision"'), 'the status panel heads the detail, above the review box');
+  assert.match(html, /<div class="work-status-actions"><a class="button primary" href="https:\/\/forge.test\/acme\/shop\/pulls\/9" target="_blank" rel="noopener noreferrer" data-link-out="pr">[^]*Open pull request #9[^]*<\/a><\/div><\/div>/, 'the panel carries the primary action');
+  assert.equal((html.match(/>Open pull request #9</g) || []).length, 2, 'the primary action in the status panel and in the phone action bar');
   assert.match(html, /<div class="work-sticky-actions" role="group" aria-label="Next step"><a class="button primary"[^>]*>[^]*Open pull request #9/);
-  assert.match(html, /<button type="button" class="button ghost work-jump" data-action="work-run" data-id="14">Read the findings/);
-  assert.match(html, /Agent review[^]*Agent approved/);
-  assert.match(html, /<dt>Time<\/dt><dd><span class="num">14 min<\/span>/);
-  assert.match(html, /Pull request #9 reported by the writer/);
-  assert.match(html, /The agent reviewer approved[^]*Agent review is evidence, not a human review\./);
-  assert.match(html, new RegExp(`Within its US\\$${space}2,50 budget`));
-  assert.match(html, /data-tone="neutral"><span class="work-check-icon" aria-hidden="true">[^]*CI checks: not reported/, 'CI is never shown green');
-  assert.match(html, /Findings name instruction files[^]*<code>CLAUDE\.md<\/code> <code>\.claude\/<\/code> are named in the findings\. Check them in the diff before you merge\./);
-  const titles = [...html.matchAll(/<li class="work-check" data-tone="(\w+)">[^]*?<p class="work-check-title">([^<]*)/g)].map(match => [match[1], match[2]]);
-  assert.deepEqual(titles.map(([tone]) => tone), ['attention', 'neutral', 'success', 'success', 'success', 'success'], 'what needs attention comes first, then unknowns, then passes');
-  assert.equal(titles[0][1], 'Findings name instruction files');
-  assert.match(html, /<details class="disclosure" id="work-forge-50"><summary><span class="disclosure-summary">On the forge<\/span>/);
-  assert.match(html, /<dt>Merge<\/dt><dd>Ploeg marks the Work Item Done\.<\/dd>[^]*<dt>Request changes<\/dt>[^]*<dt>Close without merging<\/dt><dd>The Work Item comes back to you as Needs you\.<\/dd>/);
-  assert.match(html, new RegExp(`<strong class="meter-value">US\\$${space}1,23</strong>`), 'money in nl-NL with two decimals');
+  const panel = html.slice(html.indexOf('id="work-status"'), html.indexOf('id="work-decision"'));
+  assert.deepEqual([...panel.matchAll(/<h4 class="work-status-label overline" id="work-status-(\w+)">/g)].map(match => match[1]), ['agents', 'change'], 'the agents and the change, and no flow group without delivery facts');
+  assert.deepEqual([...panel.matchAll(/<span class="stat-label">([^<]*)<\/span>/g)].map(match => match[1]), ['Spend', 'Tokens', 'Run time', 'Crew', 'Pull request', 'Checks', 'Change', 'Approval']);
+  assert.match(panel, new RegExp(`<strong class="meter-value">US\\$${space}1,23</strong>`), 'money in nl-NL with two decimals');
+  assert.match(panel, /<strong class="stat-value">#9<\/strong>/);
+  assert.doesNotMatch(panel, /unfold-card|rarity|Ticket card|plays|Unsigned/i, 'no card traces on the Work Item page');
+  const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));
+  assert.doesNotMatch(box, /<div class="work-receipt">/, 'the box leaves the figures to the status panel');
+  assert.doesNotMatch(box, /Open pull request #9/, 'the box does not repeat the primary action');
+  assert.match(box, /<button type="button" class="button ghost work-jump" data-action="work-run" data-id="14">Read the findings/);
+  assert.match(box, /Pull request #9 reported by the writer/);
+  assert.match(box, new RegExp(`Within its US\\$${space}2,50 budget`));
+  assert.match(box, /The agent reviewer approved[^]*Agent review is evidence, not a human review\./);
+  assert.match(box, /<p class="meta work-checklist-note">1 not reported: CI<\/p>/, 'CI is never shown green; the unknown folds into a muted line');
+  assert.match(box, /Findings name instruction files[^]*<code>CLAUDE\.md<\/code> <code>\.claude\/<\/code> are named in the findings\. Check them in the diff before you merge\./);
+  const titles = [...box.matchAll(/<li class="work-check" data-tone="(\w+)">[^]*?<p class="work-check-title">([^<]*)/g)].map(match => [match[1], match[2]]);
+  assert.equal(titles[0][1], 'Findings name instruction files', 'what needs attention comes first');
+  assert.match(box, /<details class="disclosure" id="work-forge-50"><summary><span class="disclosure-summary">On the forge<\/span>/);
+  assert.match(box, /<dt>Merge<\/dt><dd>Ploeg marks the Work Item Done\.<\/dd>[^]*<dt>Request changes<\/dt>[^]*<dt>Close without merging<\/dt><dd>The Work Item comes back to you as Needs you\.<\/dd>/);
   assert.doesNotMatch(html, /<form|style=/);
 });
 
-test('a Ready-for-review item with a card leads with its state headline and primary action, and its review box folds the neutral checks', () => {
-  const html = detailMarkup(detail(), model({ detailId: '50', lane: 'awaiting_review', card: { workItemId: '50' } }));
-  assert.match(html, /<h3 class="work-card-headline" id="work-card-headline">Ready for your review · Agent approved PR #9 after 2 Rounds<\/h3>/, 'the headline states what happened');
-  assert.ok(html.indexOf('id="ploeg-item-title"') < html.indexOf('id="work-card"') && html.indexOf('id="work-card"') < html.indexOf('id="work-decision"'), 'the card heads the detail, above the review box');
-  assert.match(html, /<div class="work-card-actions"><a class="button primary" href="https:\/\/forge.test\/acme\/shop\/pulls\/9"[^>]*data-link-out="pr">[^]*Open pull request #9[^]*<\/a><\/div><\/section>/, 'the card carries the primary action and nothing else');
+test('with delivery facts, the status panel reads tokens, the diff, checks, approval and flow from them', () => {
+  const card = { workItemId: '50', state: 'in_review', totals: { inputTokens: 433100, outputTokens: 21700, runSeconds: 300, runs: 2, rounds: 2 }, crew: [{ role: 'builder', runs: 1 }, { role: 'reviewer', runs: 1 }], plays: [{ number: 9, state: 'open', url: 'https://forge.test/acme/shop/pulls/9', additions: 120, deletions: 8, changedFiles: 4, ci: { state: 'success' } }], steward: { name: 'ryan', source: 'approver' }, flow: { leadTime: { seconds: 86400 * 23, start: 'tracker_created', end: 'now', running: true }, cycleTime: { seconds: 300, start: 'first_run', end: 'now', running: true } } };
+  const groups = statusFacts(detail(), card, { now: Date.parse('2026-10-11T12:00:00Z') });
+  const facts = Object.fromEntries(groups.flatMap(group => group.facts.map(fact => [fact.label, fact])));
+  assert.match(facts.Tokens.value, /433,1K in · 21,7K out/);
+  assert.equal(facts['Run time'].value, '5 min');
+  assert.equal(facts.Crew.value, 'builder ×1 · reviewer ×1');
+  assert.equal(facts.Change.value, '+120 −8');
+  assert.equal(facts.Change.detail, '4 files');
+  assert.equal(facts.Checks.value, 'CI passed');
+  assert.equal(facts.Approval.value, 'ryan');
+  const html = detailMarkup(detail(), model({ detailId: '50', lane: 'awaiting_review', card }));
   const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));
-  assert.doesNotMatch(box, /<div class="work-receipt">/, 'the box leaves the receipt to the card');
-  assert.match(box, /<p class="meta work-checklist-note">1 not reported: CI<\/p>/, 'the one neutral check folds into a muted line');
-  assert.match(box, /<details class="disclosure" id="work-forge-50">/, 'the forge outcomes are closed');
-  assert.doesNotMatch(box, /Open pull request #9/, 'the box does not repeat the primary action');
+  assert.doesNotMatch(box, /CI checks: not reported/, 'the review box does not contradict the reported CI state');
 });
 
 test('a needs-you item explains why with Ploeg’s own words, the evidence Runs and what to do in the tracker', () => {
   const html = detailMarkup(demoDetail('109'), model({ detailId: '109' }));
   assert.match(html, /Why this needs you/);
   assert.doesNotMatch(html, /work-decision-headline/, 'the reason is said once, in the status line, not again as a box headline');
-  assert.equal((html.match(/Reviewer still wants changes/g) || []).length, 1);
+  assert.equal((html.match(/Reviewer still wants changes/g) || []).length, 2, 'once in the status headline and once in the decision box');
   assert.match(html, /“the reviewer kept asking for changes and the fix-round cap was reached; a person is asked to take over”/);
   assert.match(html, /data-action="work-run" data-id="44"/);
   assert.match(html, /Read the findings\. Finish the branch by hand, or sharpen the ticket\.<\/p><div class="work-step-actions"><a class="button primary" href="https:\/\/forge\.example\.invalid\/example\/order-service\/pulls\/7"[^>]*data-link-out="pr">[^]*Open pull request #7[^]*<button type="button" class="button ghost work-jump" data-action="work-run" data-id="44">Read the reviewer’s findings/, 'the step says which button to press: the pull request first, then the findings');
@@ -407,8 +417,8 @@ test('demo spend is never invented and unknown live spend is never zero', () => 
   const unknown = detail();
   unknown.shifts[0].spentUsd = null;
   const html = detailMarkup(unknown, model({ detailId: '50' }));
-  assert.match(html, /Spend not reported/);
-  assert.match(html, /<span class="meter-value">Not reported<\/span>/);
+  assert.match(html, /<span class="stat-label">Spend<\/span><strong class="stat-value is-text" data-quiet>Not reported<\/strong>/);
+  assert.doesNotMatch(html, new RegExp(`US\\$${space}0,00`));
 });
 
 test('the writer’s problem and solution sit under the title, from the newest writing Run of the latest Shift', () => {
