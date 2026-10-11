@@ -17,6 +17,7 @@ nav:
       - How work flows: concepts/how-work-flows.md
       - Architecture: concepts/architecture.md
       - Inside a Run: concepts/inside-a-run.md
+      - Users and their journeys: concepts/users-and-journeys.md
       - Journeys: concepts/journeys.md
       - Who Unfold is for: concepts/who-unfold-is-for.md
       - Run Cards (mostly proposed): concepts/run-cards.md

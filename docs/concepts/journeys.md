@@ -8,7 +8,7 @@ verified_by: "source read of apps/ploeg (pkg/httpapi, pkg/shiftengine, pkg/store
 
 # Journeys
 
-Five end-to-end paths through Unfold, each from the point of view of the person who starts it. [Inside a Run](inside-a-run.md) zooms into the Run box that appears in several of them. The [glossary](../reference/glossary.md) defines Work Item, Shift, Round, Role, Run, Team and Lease.
+Five end-to-end paths through Unfold, each from the point of view of the person who starts it. These are the technical paths a Work Item takes; who uses Unfold and the journeys they need are on [Users and their journeys](users-and-journeys.md). [Inside a Run](inside-a-run.md) zooms into the Run box that appears in several of them. The [glossary](../reference/glossary.md) defines Work Item, Shift, Round, Role, Run, Team and Lease.
 
 | Journey | Starts with | Ends with |
 | --- | --- | --- |
