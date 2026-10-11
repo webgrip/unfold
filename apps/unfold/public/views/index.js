@@ -18,6 +18,7 @@ import dialogs from './dialogs.js';
 import report from './report.js';
 import design from './design.js';
 import binder from './binder.js';
+import card from './card.js';
 import packs from './packs.js';
 import season from './season.js';
 import cardIdentity from './card-identity.js';
@@ -27,4 +28,4 @@ import editors from './editors.js';
 import { chrome } from '../shell.js';
 
 /** Every view descriptor. The order is the dispatch order for key bindings and page loaders. */
-export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, insights, ploegFeeds, account, system, status, preferences, cardIdentity, editors, editorSignIn, binder, packs, season, palette, chrome, dialogs, report, design, designer];
+export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, insights, ploegFeeds, account, system, status, preferences, cardIdentity, editors, editorSignIn, binder, card, packs, season, palette, chrome, dialogs, report, design, designer];

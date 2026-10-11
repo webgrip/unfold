@@ -25,11 +25,11 @@ export async function run({ page, app, assert, screenshot }) {
     ['122', 'forge', 'legendary', 'revealed'],
   ];
   const labels = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
-  const host = () => page.locator('unfold-card.work-run-card');
+  const host = () => page.locator('unfold-card.card-page-card');
   const open = async id => {
-    await page.goto(`${base}/#work/${id}?lane=all`);
-    await page.waitForFunction(id => { const card = document.querySelector('unfold-card.work-run-card'); return card?.card?.workItemId === id && card.shadowRoot?.querySelector('.gc:not([hidden]) [data-slot="title"]'); }, id, { timeout: 30000 });
-    await page.locator('#work-card').scrollIntoViewIfNeeded();
+    await page.goto(`${base}/#card/${id}`);
+    await page.waitForFunction(id => { const card = document.querySelector('unfold-card.card-page-card'); return card?.card?.workItemId === id && card.shadowRoot?.querySelector('.gc:not([hidden]) [data-slot="title"]'); }, id, { timeout: 30000 });
+    await page.locator('#card-page').scrollIntoViewIfNeeded();
     return host();
   };
   await page.setViewportSize({ width: 1440, height: 1040 });
@@ -49,7 +49,7 @@ export async function run({ page, app, assert, screenshot }) {
       if (state === 'revealed' && skin !== 'holo') assert.match(ring.image, /gradient/, `#${id}: a revealed ${tier} frame is metal`);
       if (state === 'predicted') assert.deepEqual([ring.image, ring.animation], ['none', 'uc-glow'], `#${id}: a predicted rarity glows instead of showing the metal`);
     } else {
-      await page.waitForFunction(() => ['still', 'live', 'paused', 'failed'].includes(document.querySelector('unfold-card.work-run-card')?.shadowRoot?.querySelector('.forge')?.dataset.forgeState), null, { timeout: 30000 });
+      await page.waitForFunction(() => ['still', 'live', 'paused', 'failed'].includes(document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('.forge')?.dataset.forgeState), null, { timeout: 30000 });
       assert.match(await card.locator('.forge-facts').textContent(), new RegExp(`Rarity\\s*${state === 'predicted' ? `Predicted ${tier}` : labels[tier]}`), `#${id}: the forge's text facts carry the rarity`);
     }
     await screenshot(`rarity-${skin}-${tier}-${state}-${id}`);
@@ -74,7 +74,7 @@ export async function run({ page, app, assert, screenshot }) {
   const ceremony = async (id, detail) => {
     await open(id);
     await page.reload();
-    await page.waitForFunction(id => document.querySelector('unfold-card.work-run-card')?.card?.workItemId === id && document.querySelector('unfold-card.work-run-card').shadowRoot?.querySelector('.gc:not([hidden])'), id, { timeout: 30000 });
+    await page.waitForFunction(id => document.querySelector('unfold-card.card-page-card')?.card?.workItemId === id && document.querySelector('unfold-card.card-page-card').shadowRoot?.querySelector('.gc:not([hidden])'), id, { timeout: 30000 });
     await page.evaluate(() => {
       window.rarityLog = { titles: [], dim: false };
       new MutationObserver(records => { for (const entry of records) { const target = entry.target; if (target instanceof Element && target.matches('.fx-title') && target.dataset.shown !== undefined) window.rarityLog.titles.push({ main: target.querySelector('.fx-title-main')?.textContent, sub: target.querySelector('.fx-title-sub')?.textContent ?? '', tier: target.dataset.tier, tone: target.dataset.tone }); } }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['data-shown'] });
@@ -82,7 +82,7 @@ export async function run({ page, app, assert, screenshot }) {
     await page.evaluate(async ([id, detail]) => {
       const { effects } = await import('/cards/effects/unfold.js');
       const { cardAsOf } = await import('/cards/collection-model.js');
-      const host = document.querySelector('unfold-card.work-run-card');
+      const host = document.querySelector('unfold-card.card-page-card');
       const at = host.card.rarity.revealedAt;
       effects.request({ workItemId: id, kind: 'rarity', at, detail }, { key: id, host, card: host.card, before: cardAsOf(host.card, Date.parse(at) - 1000) });
     }, [id, detail]);

@@ -95,6 +95,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0038](../../apps/unfold/docs/adrs/0038-the-application-shows-unfold-and-is-organised-around-work.md) | The application shows Unfold, and is organised around work | 2026-10-04 | — |
 | Unfold | [0039](../../apps/unfold/docs/adrs/0039-unfold-collects-context-files-and-hands-them-to-ploeg.md) | Unfold collects context files and hands them to Ploeg | 2026-10-04 | — |
 | Unfold | [0040](../../apps/unfold/docs/adrs/0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) | Accept opens a pull request through the trusted publisher in the Unfold control service | 2026-10-11 | — |
+| Unfold | [0041](../../apps/unfold/docs/adrs/0041-the-work-item-page-shows-plain-figures-and-the-card-has-its-own-page.md) | The Work Item page shows plain figures, and the card has its own page | 2026-10-11 | — |
 
 ## Proposed
 
