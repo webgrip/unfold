@@ -12,11 +12,8 @@ PROJECT_DOC_MAX_BYTES = 32 * 1024
 DUPLICATE_MIN_WORDS = 8
 INVISIBLE = re.compile(r'[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]')
 AGENT_FILE_NAMES = {'AGENTS.md', 'CLAUDE.md', '.cursorrules'}
-AGENT_DIRECTORIES = {'.claude', '.agents', '.openhands', '.ai'}
-RULES_DIRECTORY = '.ai/rules'
-RULE_LINE_LIMIT = 20
-LINKED_DIRECTORIES = {'.claude/rules': '../.ai/rules', '.claude/skills': '../.agents/skills'}
-QUOTED_GLOB = re.compile(r'^  - "([^"]+)"$')
+AGENT_DIRECTORIES = {'.claude', '.agents', '.openhands'}
+LINKED_DIRECTORIES = {'.claude/skills': '../.agents/skills'}
 FENCE = re.compile(r'^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[^\n]*$', re.M | re.S)
 CODE_SPAN = re.compile(r'(`+)(.+?)\1', re.S)
 INLINE_LINK = re.compile(r'!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)')
@@ -221,59 +218,6 @@ def check_linked_directories(root, files):
     return failures
 
 
-def rule_files(files):
-    return sorted(name for name in files if PurePosixPath(name).parent == PurePosixPath(RULES_DIRECTORY) and name.endswith('.md'))
-
-
-def rule_globs(text):
-    lines = text.splitlines()
-    if not lines or lines[0] != '---' or '---' not in lines[1:]:
-        return None
-    header = lines[1:lines.index('---', 1)]
-    if not header or header[0] != 'paths:':
-        return None
-    globs = [QUOTED_GLOB.match(line) for line in header[1:]]
-    if not globs or not all(globs):
-        return None
-    return [match.group(1) for match in globs]
-
-
-def glob_pattern(glob):
-    pattern, index = '', 0
-    while index < len(glob):
-        if glob.startswith('**/', index):
-            pattern, index = pattern + '(?:.*/)?', index + 3
-        elif glob.startswith('**', index):
-            pattern, index = pattern + '.*', index + 2
-        elif glob[index] == '*':
-            pattern, index = pattern + '[^/]*', index + 1
-        elif glob[index] == '?':
-            pattern, index = pattern + '[^/]', index + 1
-        elif glob[index] == '{' and '}' in glob[index:]:
-            end = glob.index('}', index)
-            pattern, index = pattern + '(?:' + '|'.join(re.escape(part) for part in glob[index + 1:end].split(',')) + ')', end + 1
-        else:
-            pattern, index = pattern + re.escape(glob[index]), index + 1
-    return re.compile(pattern + r'\Z')
-
-
-def check_rules(root, files):
-    failures = []
-    for name in rule_files(files):
-        text = (root / name).read_text(encoding='utf-8')
-        globs = rule_globs(text)
-        if globs is None:
-            failures.append(failure(name, 'rules', 'must open with front matter whose only key is `paths:`, a list of double-quoted globs (`  - "src/**"`); a rule without paths loads in every session, so put it in AGENTS.md instead.'))
-            continue
-        for glob in globs:
-            if not any(glob_pattern(glob).match(candidate) for candidate in files):
-                failures.append(failure(name, 'rules', f'glob "{glob}" matches no tracked file; globs are anchored at the repository root.'))
-        count = len(text.splitlines())
-        if count > RULE_LINE_LIMIT:
-            failures.append(failure(name, 'rules', f'{count} lines; the limit is {RULE_LINE_LIMIT}. Keep the trap and its reason here and move the explanation into docs/.'))
-    return failures
-
-
 def sentences(text):
     blocks, current = [], []
     for line in prose(text).splitlines():
@@ -313,13 +257,12 @@ def check(root, files):
     agents = agents_files(files)
     return [
         *check_budget(root, agents),
-        *check_links(root, [*agents, *rule_files(files)]),
+        *check_links(root, agents),
         *check_commands(root, agents),
         *check_bridge(root, agents, files),
         *check_unicode(root, files),
         *check_duplication(root, agents),
         *check_linked_directories(root, files),
-        *check_rules(root, files),
     ]
 
 
@@ -338,7 +281,7 @@ def main():
         for line in failures:
             print(f'  {line}', file=sys.stderr)
         sys.exit(1)
-    print(f'Agent instruction files: {len(agents)} AGENTS.md file(s) and the path rules pass budget, links, commands, bridge, unicode, duplication, layout and rule checks')
+    print(f'Agent instruction files: {len(agents)} AGENTS.md file(s) pass budget, links, commands, bridge, unicode, duplication and layout checks')
 
 
 if __name__ == '__main__':
