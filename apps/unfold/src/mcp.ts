@@ -130,6 +130,27 @@ export function createMcpServer(options: McpOptions) {
         return { summary: `${sessions.length} sessions.`, sessions };
       },
     },
+    {
+      name: 'unfold_spend', title: 'Spend and stuck holds',
+      description: 'What Ploeg spent and still holds, per Team and in total, for the last 24h, 7d or 30d, and the finished Runs whose budget hold Ploeg has not released, each with its Work Item. Use it for "what did this cost" and "is any money stuck". For one Work Item\'s spend, use unfold_get_work.',
+      inputSchema: object({ window: string('24h, 7d or 30d; default 7d', { enum: ['24h', '7d', '30d'] }) }),
+      outputSchema: object({ summary: { type: 'string' }, demo: { type: 'boolean' }, window: { type: 'string' }, settledUsd: { type: 'number' }, reservedUsd: { type: 'number' }, teams: { type: 'array', items: { type: 'object' } }, stuckHolds: { type: ['array', 'null'], items: { type: 'object' } }, stuckHoldsError: { type: ['string', 'null'] } }, ['summary', 'demo', 'window', 'settledUsd', 'reservedUsd', 'teams', 'stuckHolds', 'stuckHoldsError']),
+      async run(args) {
+        const window = args.window ?? '7d';
+        if (!['24h', '7d', '30d'].includes(window)) throw new Error('window must be 24h, 7d or 30d.');
+        const data = await get(`/api/ploeg/summary?window=${window}`);
+        const demo = Boolean(data.demo);
+        const teams = (data.teams ?? []).map((team: Json) => ({ team: String(team.team), settledUsd: cents(team.spend?.settledUsd), reservedUsd: cents(team.spend?.reservedUsd), needsHuman: Number(team.workItems?.needsHuman ?? 0), runsFinished: Number(team.runs?.finished ?? 0), runsFailed: Number(team.runs?.failed ?? 0), runsStuck: Number(team.runs?.stuck ?? 0) }));
+        const settledUsd = cents(data.totals?.spend?.settledUsd);
+        const reservedUsd = cents(data.totals?.spend?.reservedUsd);
+        const stuckHolds = data.unsettled ? (data.unsettled.accounts ?? []).map((entry: Json) => ({ workItemId: String(entry.workItemId), runId: String(entry.runId), team: String(entry.team), keyState: String(entry.accountState), heldUsd: cents(entry.heldUsd), since: entry.since, link: link(String(entry.workItemId)) })) : null;
+        const stuckHoldsError = data.unsettled ? null : String(data.unsettledError?.message ?? 'Unfold could not list the Runs whose hold Ploeg cannot release.');
+        const held = stuckHolds ? cents(stuckHolds.reduce((sum: number, entry: Json) => sum + entry.heldUsd, 0)) : 0;
+        const stuck = stuckHolds === null ? ` Stuck holds unknown: ${stuckHoldsError}` : stuckHolds.length ? ` ${stuckHolds.length} finished Runs still hold ${usd(held)}: ${stuckHolds.map((entry: Json) => `Work Item ${entry.workItemId}`).join(', ')}.` : ' No budget is stuck.';
+        const summary = demo ? 'This is the illustrative demo: nothing ran and nothing was spent.' : `${usd(settledUsd)} settled and ${usd(reservedUsd)} held in ${data.window ?? window}.${stuck}`;
+        return { summary, demo, window: String(data.window ?? window), settledUsd, reservedUsd, teams, stuckHolds, stuckHoldsError };
+      },
+    },
   ];
 
   async function handle(message: unknown): Promise<Json | undefined> {

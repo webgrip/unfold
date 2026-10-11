@@ -419,6 +419,12 @@ test('the summary carries the Runs whose hold Ploeg cannot release, scoped and s
   assert.equal(all.body.unsettled.count, 4);
   assert.equal(all.body.unsettled.heldUsd, 13.5);
 
+  unsettled = res => reply(res, 200, { generatedAt: '2026-10-10T22:00:00Z', accounts: [{ ...unsettledAccount('264', '184', 'delivery', 0.25, '2026-10-10T20:01:39Z'), accountState: 'blocked' }], totals: { count: 1, heldUsd: 0.25 } });
+  const stuck = await request(server.url, '/api/ploeg/summary?window=24h&refresh=1', reader);
+  assert.equal(stuck.body.unsettledError, null, 'a blocked account Ploeg still holds is a valid row, not a malformed list');
+  assert.equal(stuck.body.unsettled.accounts[0].accountState, 'blocked');
+  assert.equal(stuck.body.unsettled.heldUsd, 0.25);
+
   unsettled = res => { res.writeHead(503).end(); return true; };
   const failed = await request(server.url, '/api/ploeg/summary?window=7d&refresh=1', reader);
   assert.equal(failed.status, 200, 'a failed unsettled read never fails the summary');

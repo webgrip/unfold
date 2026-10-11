@@ -62,3 +62,4 @@ Chosen option: "A separate `unfold-mcp` process", because it gives the client Un
 
 * Amends ADR-0011's "where": Unfold's own facts come from `unfold-mcp`, and Ploeg's facts come from `ploeg-mcp`.
 * How-to: [Ask Unfold and Ploeg from an AI client](../how-to/ask-from-an-ai-client.md).
+* 2026-10-11 — A fifth read-only tool, `unfold_spend`, reports spend per Team and the finished Runs whose budget hold Ploeg has not released. It reads the same summary the Activity page shows, so a blocked account still unsettled an hour after its Run appears once Ploeg reports it ([ploeg-hq #105](https://github.com/ploeg-hq/ploeg/pull/105)).

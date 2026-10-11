@@ -602,7 +602,11 @@ function unsettledBanner(view, now) {
   const runs = unsettled.count === 1 ? '1 Run holds' : `${format.count(unsettled.count)} Runs hold`;
   const rows = accounts.map(entry => `<li class="now-unsettled-run"><a href="#work/${escape(entry.workItemId)}">Work Item ${escape(entry.workItemId)}</a> <span class="subtle">Run ${escape(entry.runId)} · ${escape(entry.team)} · key ${escape(entry.accountState)} · ${escape(format.money(entry.heldUsd))} held since ${format.timeHtml(entry.since, { now })}</span></li>`).join('');
   const list = disclosure({ summary: unsettled.count === 1 ? 'Show the Run' : `Show the ${format.count(unsettled.count)} Runs`, body: `<ul class="now-unsettled-runs">${rows}</ul>` });
-  const body = `<p>Their model keys could not be blocked at the gateway, often because the key is already gone. Each keeps its full hold (${escape(format.money(unsettled.heldUsd))} in total) until someone settles it by hand. Follow <code>apps/ploeg/docs/ops/managed-workers.md</code>, “Reconcile uncertainty”.</p>${list}`;
+  const blocked = accounts.length > 0 && accounts.every(entry => entry.accountState === 'blocked');
+  const cause = blocked
+    ? `Their model keys are blocked, but Ploeg has not settled their spend an hour after they finished. Each keeps its hold (${escape(format.money(unsettled.heldUsd))} in total) until settlement runs. Follow <code>apps/ploeg/docs/how-to/investigate-a-runs-spend.md</code>, “Decide whether to wait or act”.`
+    : `Their model keys could not be blocked at the gateway, often because the key is already gone. Each keeps its full hold (${escape(format.money(unsettled.heldUsd))} in total) until someone settles it by hand. Follow <code>apps/ploeg/docs/ops/managed-workers.md</code>, “Reconcile uncertainty”.`;
+  const body = `<p>${cause}</p>${list}`;
   return `<div class="now-banner now-unsettled" role="status">${callout({ tone: 'severe', title: `${runs} budget Ploeg cannot release`, body })}</div>`;
 }
 

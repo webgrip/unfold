@@ -30,7 +30,7 @@ export type PloegWorkCounts = Record<'queued' | 'leased' | 'awaitingReview' | 'n
 export type PloegRunCounts = Record<'pending' | 'running' | 'finished' | 'failed' | 'stuck', number>;
 export type PloegSpend = { settledUsd: number; reservedUsd: number };
 export type PloegTeamSummary = { team: string; workItems: PloegWorkCounts; runs: PloegRunCounts; spend: PloegSpend; lastActivityAt: string | null };
-export type PloegUnsettledAccount = { runId: string; workItemId: string; team: string; accountState: 'minting' | 'issued' | 'unknown'; heldUsd: number; since: string };
+export type PloegUnsettledAccount = { runId: string; workItemId: string; team: string; accountState: 'minting' | 'issued' | 'unknown' | 'blocked'; heldUsd: number; since: string };
 /** Finished Runs whose budget hold Ploeg cannot release, oldest first, with their count and held total summed from exactly these rows. */
 export type PloegUnsettled = { count: number; heldUsd: number; accounts: PloegUnsettledAccount[] };
 export type PloegSummary = { demo: boolean; window: PloegWindow; generatedAt: string; teams: PloegTeamSummary[]; totals: { workItems: PloegWorkCounts; runs: PloegRunCounts; spend: PloegSpend }; unsettled: PloegUnsettled | null; unsettledError: { code: string; message: string } | null; fetchedAt: string };
@@ -239,7 +239,7 @@ export function summaryTotals(teams: PloegTeamSummary[]): PloegSummary['totals']
   const add = <K extends string>(keys: readonly K[], pick: (team: PloegTeamSummary) => Record<K, number>) => Object.fromEntries(keys.map(key => [key, teams.reduce((sum, team) => sum + pick(team)[key], 0)])) as Record<K, number>;
   return { workItems: add(workKeys, team => team.workItems), runs: add(runKeys, team => team.runs), spend: add(['settledUsd', 'reservedUsd'] as const, team => team.spend) };
 }
-const unsettledStates = ['minting', 'issued', 'unknown'] as const;
+const unsettledStates = ['minting', 'issued', 'unknown', 'blocked'] as const;
 function unsettledAccount(value: unknown): PloegUnsettledAccount {
   const data = record(value);
   const state = oneOf(data.accountState, unsettledStates);
