@@ -14,6 +14,10 @@ INVISIBLE = re.compile(r'[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\u
 AGENT_FILE_NAMES = {'AGENTS.md', 'CLAUDE.md', '.cursorrules'}
 AGENT_DIRECTORIES = {'.claude', '.agents', '.openhands'}
 LINKED_DIRECTORIES = {'.claude/skills': '../.agents/skills'}
+KNOWLEDGE = 'knowledge'
+CONCEPT_TYPES = {'Convention', 'Decision', 'Fact', 'Pitfall'}
+CONCEPT_FIELDS = ('type', 'title', 'description', 'resource', 'tags')
+FORGE_SOURCE = 'https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/'
 FENCE = re.compile(r'^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[^\n]*$', re.M | re.S)
 CODE_SPAN = re.compile(r'(`+)(.+?)\1', re.S)
 INLINE_LINK = re.compile(r'!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)')
@@ -218,6 +222,44 @@ def check_linked_directories(root, files):
     return failures
 
 
+def front_matter_fields(text):
+    lines = text.splitlines()
+    if not lines or lines[0] != '---' or '---' not in lines[1:]:
+        return None
+    fields = {}
+    for line in lines[1:lines.index('---', 1)]:
+        key, separator, value = line.partition(':')
+        if separator and not key.startswith(' '):
+            fields[key.strip()] = value.strip().strip('"')
+    return fields
+
+
+def check_knowledge(root, files):
+    concepts = sorted(name for name in files if name.startswith(KNOWLEDGE + '/') and name.endswith('.md') and name != f'{KNOWLEDGE}/index.md')
+    if not concepts:
+        return []
+    failures = []
+    index = root / KNOWLEDGE / 'index.md'
+    listed = set(link_targets(index.read_text(encoding='utf-8'))) if index.is_file() else set()
+    shared = sentences((root / 'AGENTS.md').read_text(encoding='utf-8')) if (root / 'AGENTS.md').is_file() else set()
+    for name in concepts:
+        text = (root / name).read_text(encoding='utf-8')
+        fields = front_matter_fields(text) or {}
+        missing = [field for field in CONCEPT_FIELDS if not fields.get(field)]
+        if missing:
+            failures.append(failure(name, 'knowledge', f'front matter lacks {", ".join(missing)}.'))
+        if fields.get('type') and fields['type'] not in CONCEPT_TYPES:
+            failures.append(failure(name, 'knowledge', f'type {fields["type"]!r} is not one of {", ".join(sorted(CONCEPT_TYPES))}.'))
+        resource = fields.get('resource', '')
+        if resource.startswith(FORGE_SOURCE) and resource[len(FORGE_SOURCE):].split('#', 1)[0] not in files:
+            failures.append(failure(name, 'knowledge', f'resource {resource} names no tracked file; point it at the page that owns the knowledge.'))
+        if str(PurePosixPath(name).relative_to(KNOWLEDGE)) not in listed:
+            failures.append(failure(name, 'knowledge', f'not listed in {KNOWLEDGE}/index.md.'))
+        for sentence in sorted(shared & sentences(text)):
+            failures.append(failure(name, 'knowledge', f'repeats a root AGENTS.md sentence; AGENTS.md is the source, so link to the page that owns it instead: "{sentence}"'))
+    return failures
+
+
 def sentences(text):
     blocks, current = [], []
     for line in prose(text).splitlines():
@@ -263,6 +305,7 @@ def check(root, files):
         *check_unicode(root, files),
         *check_duplication(root, agents),
         *check_linked_directories(root, files),
+        *check_knowledge(root, files),
     ]
 
 
@@ -281,7 +324,7 @@ def main():
         for line in failures:
             print(f'  {line}', file=sys.stderr)
         sys.exit(1)
-    print(f'Agent instruction files: {len(agents)} AGENTS.md file(s) pass budget, links, commands, bridge, unicode, duplication and layout checks')
+    print(f'Agent instruction files: {len(agents)} AGENTS.md file(s) and the knowledge bundle pass budget, links, commands, bridge, unicode, duplication, layout and knowledge checks')
 
 
 if __name__ == '__main__':

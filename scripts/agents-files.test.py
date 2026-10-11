@@ -219,5 +219,48 @@ class LinkedSkills(Fixture):
         self.assertEqual(self.failures('layout'), [])
 
 
+CONCEPT = """---
+type: Pitfall
+title: "A trap"
+description: "What goes wrong."
+resource: https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/app/docs/index.md#part
+tags: [trap]
+---
+
+# A trap
+
+It went wrong on a date, and the page explains it.
+"""
+
+
+class Knowledge(Fixture):
+    def setUp(self):
+        super().setUp()
+        self.write('knowledge/pitfalls/trap.md', CONCEPT)
+        self.write('knowledge/index.md', '# Knowledge\n\n- [A trap](pitfalls/trap.md) (Pitfall)\n')
+
+    def test_valid_bundle_passes(self):
+        self.assertEqual(self.failures('knowledge'), [])
+
+    def test_missing_fields_and_unknown_type_fail(self):
+        self.write('knowledge/pitfalls/trap.md', CONCEPT.replace('type: Pitfall', 'type: Rule').replace('tags: [trap]\n', ''))
+        failures = ' '.join(self.failures('knowledge'))
+        self.assertIn('lacks tags', failures)
+        self.assertIn("type 'Rule'", failures)
+
+    def test_resource_must_name_a_tracked_file(self):
+        self.write('knowledge/pitfalls/trap.md', CONCEPT.replace('apps/app/docs/index.md', 'docs/gone.md'))
+        self.assertIn('names no tracked file', self.failures('knowledge')[0])
+
+    def test_concept_must_be_indexed(self):
+        self.write('knowledge/index.md', '# Knowledge\n')
+        self.assertIn('not listed in knowledge/index.md', self.failures('knowledge')[0])
+
+    def test_copy_of_a_root_rule_fails(self):
+        self.write('AGENTS.md', ROOT + '\nStage only the paths you wrote because other sessions share this checkout.\n')
+        self.write('knowledge/pitfalls/trap.md', CONCEPT + '\nStage only the paths you wrote because other sessions share this checkout.\n')
+        self.assertIn('repeats a root AGENTS.md sentence', self.failures('knowledge')[0])
+
+
 if __name__ == '__main__':
     unittest.main()
