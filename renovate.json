@@ -20,6 +20,7 @@
   "git-submodules": {
     "enabled": true
   },
+  "cloneSubmodules": true,
   "customManagers": [
     {
       "customType": "regex",
@@ -149,7 +150,7 @@
       "enabled": false
     },
     {
-      "description": "Ploeg is a submodule pinned to a release of github.com/ploeg-hq/ploeg (system ADR-0019). .gitmodules names the release tag, so Renovate compares release tags as semver and proposes the newest, release candidates included, as a build(ploeg) pull request that never releases Unfold. A person merges it, because each move changes the engine Unfold runs on. A release is already reviewed and gated by Ploeg's CI, so there is no soak.",
+      "description": "Ploeg is a submodule pinned to a release of github.com/ploeg-hq/ploeg (system ADR-0019). .gitmodules names the release tag, so Renovate compares release tags as semver and proposes the newest, release candidates included, as a build(ploeg) pull request that never releases Unfold. A person merges it, because each move changes the engine Unfold runs on. After the bump Renovate regenerates the combined glossary and the decision register from the new pin, so a Ploeg ADR or domain change arrives green. A release is already reviewed and gated by Ploeg's CI, so there is no soak.",
       "matchManagers": [
         "git-submodules"
       ],
@@ -159,9 +160,17 @@
       "semanticCommitType": "build",
       "semanticCommitScope": "ploeg",
       "commitMessageTopic": "Ploeg",
-      "prBodyNotes": [
-        "When docs-check reports a stale combined glossary or decision register, Ploeg's domain model or ADR ledger changed: run `mise run domain` and `mise run docs-decisions` on this branch and push the result."
-      ],
+      "postUpgradeTasks": {
+        "commands": [
+          "./scripts/renovate-ploeg-docs.sh"
+        ],
+        "fileFilters": [
+          "docs/domain/**",
+          "docs/reference/glossary.md",
+          "docs/reference/decisions.md"
+        ],
+        "executionMode": "branch"
+      },
       "ignoreUnstable": false
     },
     {
