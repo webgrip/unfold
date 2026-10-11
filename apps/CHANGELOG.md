@@ -1,3 +1,19 @@
+## [unfold-v0.4.0-rc.70](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.69...unfold-v0.4.0-rc.70) (2026-10-11)
+
+### Added
+
+* **unfold:** hand a task over in one move and follow it to the pull request ([94f2724](https://forgejo.webgrip.dev/webgrip/unfold/commit/94f27245ff4e6b036a8b44881960cac9cfa433dc))
+* **unfold:** show a Work Item's value stream as a Gantt chart ([3cdae4f](https://forgejo.webgrip.dev/webgrip/unfold/commit/3cdae4f2e3b51059001bd9c6f860425f936f87c0))
+
+### Fixed
+
+* **unfold:** give Report a problem a connection of its own ([338423e](https://forgejo.webgrip.dev/webgrip/unfold/commit/338423ec7b4bf72f0bf1b438daff08acec2c68b2))
+* **unfold:** keep three or more ticks on a seven-hour value stream in UTC ([9ac844c](https://forgejo.webgrip.dev/webgrip/unfold/commit/9ac844c8e28fdb7b2c1fa1bae634c5601383b92a))
+
+### Build
+
+* **ploeg:** update ploeg ( v0.2.0-rc.15 ➔ v0.2.0-rc.16 ) ([32d39e3](https://forgejo.webgrip.dev/webgrip/unfold/commit/32d39e39980b53e777afc7c421929619d2994a90))
+
 ## [unfold-v0.4.0-rc.69](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.68...unfold-v0.4.0-rc.69) (2026-10-11)
 
 ### Added
