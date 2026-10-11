@@ -77,5 +77,24 @@ class Settings(unittest.TestCase):
         self.assertTrue(any('scripts/stage-explicit-paths.py' in command for command in commands), commands)
 
 
+class OtherHarnesses(unittest.TestCase):
+    def test_any_tool_with_a_shell_command_is_checked(self):
+        for name in ['terminal', 'bash', None]:
+            event = {'tool_input': {'command': 'git add -A'}}
+            if name:
+                event['tool_name'] = name
+            self.assertEqual(run(event).returncode, 2, name)
+
+    def test_openhands_hook_runs_the_guard(self):
+        config = json.loads((SETTINGS.parent.parent / '.openhands/hooks.json').read_text())
+        commands = [hook['command'] for group in config['pre_tool_use'] for hook in group['hooks']]
+        self.assertTrue(any('scripts/stage-explicit-paths.py' in command for command in commands))
+
+    def test_opencode_plugin_runs_the_guard(self):
+        plugin = (SETTINGS.parent.parent / '.opencode/plugins/stage-explicit-paths.js').read_text()
+        self.assertIn('scripts/stage-explicit-paths.py', plugin)
+        self.assertIn("'tool.execute.before'", plugin)
+
+
 if __name__ == '__main__':
     unittest.main()

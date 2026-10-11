@@ -1,0 +1,5 @@
+^(.*/)?(AGENTS|CLAUDE)\.md$ @ryangr0
+^\.(agents|claude|openhands|opencode|forgejo)/ @ryangr0
+^knowledge/ @ryangr0
+^openspec/(config\.yaml|schemas/) @ryangr0
+^scripts/(agents-files|stage-explicit-paths)\.py$ @ryangr0

@@ -3,7 +3,7 @@ type: reference
 audience: [contributor, agent]
 owner: unfold
 last_verified: 2026-10-11
-verified_by: "Load matrix from Ploeg's adapters (apps/ploeg/pkg/harness/adapters, pkg/worker/adapters.go, task.go) and the homelab Team configuration; Claude Code rows measured with headless probes on 2.1.296 (PR #308). OpenHands, opencode and Codex rows marked inferred were read from their sources and docs, not measured."
+verified_by: "OpenHands hook loading checked by running its SDK hook manager on .openhands/hooks.json. Load matrix from Ploeg's adapters (apps/ploeg/pkg/harness/adapters, pkg/worker/adapters.go, task.go) and the homelab Team configuration; Claude Code rows measured with headless probes on 2.1.296 (PR #308). OpenHands, opencode and Codex rows marked inferred were read from their sources and docs, not measured."
 ---
 
 # Agent instructions
@@ -36,8 +36,8 @@ Where each kind of knowledge about working on Unfold lives, and what each agent 
 | --- | --- | --- | --- | --- |
 | Claude Code, interactive | yes | when it reads a file under that directory | yes, through the link | `.claude/settings.json` runs |
 | Claude Code under Ploeg | yes | as above | yes | none: Ploeg starts it with `disableAllHooks` |
-| OpenHands under Ploeg (Unfold's Team today) | yes | only because Ploeg's brief says to read the nearest one | yes, plus `.openhands/skills` | `.openhands/hooks.json` would run (inferred) |
-| opencode | yes | when it walks up from a file (inferred) | yes (inferred) | `.opencode/` plugins would run (inferred) |
+| OpenHands under Ploeg (Unfold's Team today) | yes | only because Ploeg's brief says to read the nearest one | yes, plus `.openhands/skills` | `.openhands/hooks.json` runs (checked with the OpenHands SDK's hook manager) |
+| opencode | yes | when it walks up from a file (inferred) | yes (inferred) | `.opencode/plugins/` run (inferred; not yet observed) |
 | Codex | yes | only from the root down to the working directory | yes (inferred) | a project hook needs Codex's hook trust; not observed to run |
 
 Ploeg starts every agent with a fresh home directory, so nothing from a person's `~/.claude` or `~/.codex` reaches a Run. It installs its own skills, `ploeg-verify-before-handoff` and `ploeg-review-against-work-item`, outside the clone.
