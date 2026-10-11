@@ -46,3 +46,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0030](adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md) | Run cards are an Unfold domain on top of Ploeg's delivery facts | accepted | 2026-10-10 |
 | [ADR-0031](adr-0031-people-ask-about-a-work-item-through-a-metered-read-only-ask-paid-from-a-monthly-allowance.md) | People ask about a Work Item through a metered, read-only Ask paid from a monthly allowance | proposed | 2026-10-10 |
 | [ADR-0032](adr-0032-unfold-also-serves-its-own-read-only-mcp-tools-next-to-ploeg-mcp.md) | Unfold also serves its own read-only MCP tools, next to ploeg-mcp | accepted | 2026-10-10 |
+| [ADR-0033](adr-0033-unfold-plans-non-trivial-changes-as-openspec-changes.md) | Unfold plans non-trivial changes as OpenSpec changes | accepted | 2026-10-11 |

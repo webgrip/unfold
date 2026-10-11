@@ -45,6 +45,7 @@ const groups = [
       gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs', 'scripts/verify-gate.test.mjs', 'scripts/ci-warnings.test.mjs', 'scripts/release-repair.test.mjs', 'scripts/release-floors.test.cjs', 'scripts/ploeg-pin.test.mjs']),
     ],
   },
+  { name: 'openspec', inputs: ['openspec'], gates: [gate('.', 'openspec', ['validate', '--all', '--strict', '--no-interactive'])] },
   { name: 'integration', gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },
   { name: 'docs', gates: [gate('.', 'uv', ['run', '--frozen', 'python', 'scripts/docs.py', '--check'])] },
 ];
