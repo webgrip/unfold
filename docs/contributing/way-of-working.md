@@ -3,7 +3,7 @@ type: explanation
 audience: [contributor, agent]
 owner: unfold
 last_verified: 2026-10-11
-verified_by: "Read against AGENTS.md, apps/*/AGENTS.md, .forgejo/workflows/on_pull_request.yml, scripts/verify.mjs, scripts/stage-explicit-paths.py, apps/.releaserc.cjs, the last 50 closed pull requests on Forgejo and Ploeg's writer and reviewer prompts in apps/ploeg/pkg/worker/task.go. Branch protection is described as decided on 2026-10-11, not as observed."
+verified_by: "Read against AGENTS.md, apps/*/AGENTS.md, .forgejo/workflows/on_pull_request.yml, scripts/verify.mjs, scripts/stage-explicit-paths.py, apps/.releaserc.cjs, the last 50 closed pull requests on Forgejo and Ploeg's writer and reviewer prompts in apps/ploeg/pkg/worker/task.go. Branch rule for development read from the Forgejo settings on 2026-10-11."
 ---
 
 # How work on Unfold is done
@@ -21,12 +21,12 @@ Three kinds of contributor change this repository: the owner, interactive agent 
 5. **The gates.** `mise run verify` from the repository root before every push, `mise run docs-check` after a docs or `AGENTS.md` change. CI runs the same gates.
 6. **A pull request** into `development`: [Open a pull request](open-a-pull-request.md). One whole change per pull request ([ADR-0010](../adr/adr-0010-pull-requests-are-small-whole-and-explained.md) sets the size limits Unfold applies to agent work; its checks are not built yet, so here they are guidance).
 7. **Review** against the [review guide](review.md). Tools decide format, types, tests and policy; review covers intent, risk and what no test sees.
-8. **Merge** when every required check is green. Wait until a running `release` job on `development` has finished first: a merge during a release cancels the runs that would test it and the release tags the new head untested.
+8. **Merge** when every required check is green; Forgejo refuses the merge before that. Wait until a running `release` job on `development` has finished first: a merge during a release cancels the runs that would test it and the release tags the new head untested.
 9. **Release.** Every push to `development` that touches an application cuts a release candidate ([CI and releases](../operations/ci.md)).
 
-## Decided, not yet built
+## Branch rules
 
-On 2026-10-11 the owner decided that `development` requires the `checks`, `release-policy` and `ploeg-pin` jobs to pass before a merge, with no required approvals. Until the branch rule is set in Forgejo, CI is advisory: never merge a red check.
+Since 2026-10-11, `development` is protected in Forgejo: a pull request merges only when `[Workflow] On Pull Request / checks`, `release-policy` and `ploeg-pin` (all `(pull_request)`) passed, with no required approvals. `warnings` is left out on purpose, because it is sometimes never scheduled when two runs overlap. Pushing stays enabled, because the `release` job pushes its release commit straight to the branch; a direct push does not run through the checks, so only CI pushes there. `main`, which receives only promotion pull requests and the site's release commit, gets the same rule.
 
 ## Where things are written down
 
