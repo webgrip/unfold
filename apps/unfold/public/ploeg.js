@@ -15,6 +15,7 @@ import { streamChart, streamLanes } from './core/value-stream.js';
 import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
 import { runTranscriptMarkup } from './run-transcript.js';
+import { defaultLogView, logViewerMarkup } from './run-log-view.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -917,20 +918,20 @@ function runLogsBody(run, entry) {
   }
   const pods = [...new Set(data.pods.map(entry => entry.pod))];
   const several = pods.length > 1;
-  const text = lines.map(line => `${several && line.stream ? `<span class="work-run-log-stream">${escape(line.stream)}</span> ` : ''}${escape(line.text)}`).join('\n');
-  const head = `<div class="work-run-log-head"><p class="meta"><span class="num">${escape(plural(lines.length, 'line'))}</span>${entry.truncated ? ' · newest shown' : ''} · ${several ? `${escape(plural(pods.length, 'pod'))}: ` : 'Pod '}${pods.map(pod => `<span class="mono">${escape(pod)}</span>`).join(', ')}${data.live ? ' · <span class="live-dot" aria-hidden="true"></span> live' : ''}</p>${grafana ? `<div class="work-run-tools">${grafana}</div>` : ''}</div>`;
-  return `${head}<pre class="work-log work-run-log" data-private data-run-log="${escape(run.id)}" tabindex="0" aria-label="${escape(`Pod logs of Run ${run.id}`)}">${text}</pre>${stale}`;
+  const head = `<div class="work-run-log-head"><p class="meta">${entry.truncated ? '<span>Newest lines shown</span> · ' : ''}${several ? `${escape(plural(pods.length, 'pod'))}: ` : 'Pod '}${pods.map(pod => `<span class="mono">${escape(pod)}</span>`).join(', ')}${data.live ? ' · <span class="live-dot" aria-hidden="true"></span> live' : ''}</p>${grafana ? `<div class="work-run-tools">${grafana}</div>` : ''}</div>`;
+  return `${head}${logViewerMarkup(run, lines, entry.view || defaultLogView(), { several })}${stale}`;
 }
 
 /**
  * The "Pod logs" disclosure of one Run: closed until opened, then the agent pod's lines read by the view, oldest
- * first. `entry` is the view's state for the Run: `{ data, lines, truncated, error }`, or nothing before the first read.
+ * first, in the log viewer. `entry` is the view's state for the Run: `{ data, lines, truncated, error, view }`, or nothing
+ * before the first read; `view` holds the viewer's filters (see {@link defaultLogView}).
  * @param {{ id: string|number }} run
  * @param {{ data?: object, lines?: object[], truncated?: boolean, error?: { message: string } } | undefined} entry
  * @returns {string}
  */
 export function runLogsMarkup(run, entry) {
-  return ui.disclosure({ summary: 'Pod logs', id: `work-run-logs-${run.id}`, body: `<div class="work-run-logs">${runLogsBody(run, entry)}</div>` });
+  return ui.disclosure({ summary: 'Pod logs', id: `work-run-logs-${run.id}`, body: `<div class="work-run-logs" data-run-logs="${escape(run.id)}">${runLogsBody(run, entry)}</div>` });
 }
 
 function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts }) {
