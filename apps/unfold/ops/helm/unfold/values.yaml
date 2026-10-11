@@ -50,6 +50,38 @@ workspaceProvisioner: pod
 workspaceRuntimeClassName: kata
 workspaceWarmPool: ""
 workspaceEgress: []
+delivery:
+  enabled: false
+  verifierTokenEnv: UNFOLD_VERIFIER_TOKEN
+  policies: []
+  inputs:
+    mountPath: /var/lib/unfold-delivery
+    volume: {}
+  publisher:
+    enabled: false
+    apiUrl: ""
+    username: ""
+    tokenEnv: UNFOLD_PUBLISHER_TOKEN
+    existingSecret: ""
+    secretKey: token
+  verifier:
+    namespace: unfold-verifier
+    createNamespace: true
+    runtimeClassName: kata
+    image: ""
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+    timeoutSeconds: 300
+    networkProbe: {}
+    nodeSelector: {}
+    affinity: {}
+    tolerations: []
+    imagePullSecrets: []
 config:
   maxConcurrentSessions: 2
   maxBudgetUsd: 10

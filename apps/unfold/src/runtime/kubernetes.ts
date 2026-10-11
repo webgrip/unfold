@@ -7,6 +7,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { RuntimeFailure, transportFailure } from '../failures.ts';
 import type { AppConfig, Credential, Repository, Session, Workspace, WorkspaceWait, WorkspaceWaitPhase } from '../types.ts';
 import { WorkerRelay, relayEndpoint } from './relay.ts';
+import { WebSocket } from 'ws';
 
 type KubernetesConfig = NonNullable<AppConfig['kubernetes']> & {
   ingressFrom?: Record<string, unknown>[]; egress?: Record<string, unknown>[];
@@ -49,12 +50,15 @@ export function waitFailure(wait: { phase: WorkspaceWaitPhase; reason?: string }
   return new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, wait ? `The workspace was still ${wait.phase} when the time limit ran out.${wait.reason ? `\n${wait.reason}` : ''}` : undefined);
 }
 
+/** The API server address and the credential files a Kubernetes API client authenticates with; each defaults to the in-cluster service account. */
+export type KubernetesApiConfig = { apiUrl?: string; tokenFile?: string; caFile?: string };
+
 export class KubernetesClient {
-  readonly config: KubernetesConfig;
+  readonly config: KubernetesApiConfig;
 
-  constructor(config: KubernetesConfig) { this.config = config; }
+  constructor(config: KubernetesApiConfig) { this.config = config; }
 
-  async request(path: string, method = 'GET', body?: unknown, allowMissing = false, raw = false): Promise<any> {
+  private async endpoint(path: string): Promise<{ url: URL; token: string; ca: Buffer }> {
     const origin = this.config.apiUrl ?? `https://${process.env.KUBERNETES_SERVICE_HOST ?? 'kubernetes.default.svc'}:${process.env.KUBERNETES_SERVICE_PORT_HTTPS ?? '443'}`;
     const url = new URL(path, origin);
     if (url.protocol !== 'https:' || url.username || url.password) throw new Error('Kubernetes API requires HTTPS');
@@ -62,10 +66,27 @@ export class KubernetesClient {
       readFile(this.config.tokenFile ?? '/var/run/secrets/kubernetes.io/serviceaccount/token', 'utf8'),
       readFile(this.config.caFile ?? '/var/run/secrets/kubernetes.io/serviceaccount/ca.crt'),
     ]);
+    return { url, token: token.trim(), ca };
+  }
+
+  /** Opens a WebSocket to a streaming subresource such as `pods/attach` or `pods/exec`, offering the given channel subprotocols in order. The socket is paused so no message is lost before the caller listens and resumes it. */
+  async stream(path: string, protocols: string[]): Promise<WebSocket> {
+    const { url, token, ca } = await this.endpoint(path);
+    url.protocol = 'wss:';
+    return new Promise((done, reject) => {
+      const socket = new WebSocket(url, protocols, { headers: { authorization: `Bearer ${token}` }, ca, handshakeTimeout: 10_000, maxPayload: 4 * 1024 * 1024 });
+      socket.once('open', () => { socket.pause(); done(socket); });
+      socket.once('unexpected-response', (request, response) => { response.resume(); request.destroy(); reject(new RuntimeFailure('workspace_setup', 'workspace')); });
+      socket.once('error', error => reject(transportFailure(error, 'workspace')));
+    });
+  }
+
+  async request(path: string, method = 'GET', body?: unknown, allowMissing = false, raw = false): Promise<any> {
+    const { url, token, ca } = await this.endpoint(path);
     const payload = body === undefined ? undefined : JSON.stringify(body);
     return new Promise((done, reject) => {
       const req = httpsRequest(url, { method, ca, headers: {
-        authorization: `Bearer ${token.trim()}`, 'content-type': 'application/json',
+        authorization: `Bearer ${token}`, 'content-type': 'application/json',
         ...(payload === undefined ? {} : { 'content-length': Buffer.byteLength(payload) }),
       } }, response => {
         let size = 0;

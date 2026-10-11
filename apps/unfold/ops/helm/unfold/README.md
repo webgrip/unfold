@@ -58,3 +58,29 @@ Start from [values.live.example.yaml](values.live.example.yaml). [Running Unfold
 ## Workspace size
 
 Each agent workspace is one pod. `workspaceCpu` and `workspaceMemory` are its limits. `workspaceCpuRequest` and `workspaceMemoryRequest` are what it reserves on a node; left empty, it reserves its limits, so a workspace starts only on a node with the full limits free. Reserving less lets workspaces fit on a busier cluster and burst up to their limits while the node has room. A workspace that no node has room for waits, then fails with "No machine had room to start the workspace", and the Status page shows it.
+
+## Candidate delivery
+
+`delivery.enabled: true` (live mode only) writes `config.delivery` and renders what the [Kubernetes verifier](../../../docs/contracts/candidate-delivery.md#kubernetes-verifier) needs. Leave `config.delivery` unset; the chart refuses both. Unfold validates the result at startup, so a policy the chart renders but the server rejects stops the workbench rather than running unverified.
+
+| Value | Default | Sets |
+| --- | --- | --- |
+| `delivery.verifierTokenEnv` | `UNFOLD_VERIFIER_TOKEN` | The environment variable holding Ploeg's verifier credential. It comes from `credentialsSecret`. |
+| `delivery.policies` | `[]` | `config.delivery.policies`, one per repository. Point `approvedBaseBundle` and `directory` under `delivery.inputs.mountPath`; every `image` must be `name@sha256:…`. |
+| `delivery.inputs.volume` | `{}` | A Kubernetes volume source (for example a read-only `persistentVolumeClaim`) mounted read-only at `delivery.inputs.mountPath` (default `/var/lib/unfold-delivery`), holding approved-base bundles and policy files. The path must be outside `/data`. |
+| `delivery.publisher.enabled` | `false` | Adds `config.delivery.publisher` (`kind: forgejo`, `apiUrl`, `tokenEnv`, optional `username`). |
+| `delivery.publisher.existingSecret`, `secretKey` | `""`, `token` | The dedicated Secret whose key becomes the `delivery.publisher.tokenEnv` variable (default `UNFOLD_PUBLISHER_TOKEN`) in the workbench container only. Required when the publisher is enabled. |
+| `delivery.verifier.namespace` | `unfold-verifier` | Where check pods run; must differ from the release namespace. `createNamespace` (default `true`) creates it with the `restricted` Pod Security level. |
+| `delivery.verifier.runtimeClassName` | `kata` | The check pods' RuntimeClass. |
+| `delivery.verifier.image` | `""` | Required. A digest-pinned image with a statically linked `/bin/busybox`, such as a `busybox:*-musl` digest. |
+| `delivery.verifier.resources` | 100m/128Mi requests, 1/512Mi limits | Both check-pod containers. The RuntimeClass overhead is added on top. |
+| `delivery.verifier.timeoutSeconds` | `300` | Each check pod's `activeDeadlineSeconds`. |
+| `delivery.verifier.networkProbe` | `{}` | `{host, port}`, an IP address check pods must not reach. Empty uses the API server's service address. |
+| `delivery.verifier.nodeSelector`, `affinity`, `tolerations`, `imagePullSecrets` | empty | Passed to every check pod. Use them to keep check pods off nodes that must not run them. |
+
+In the verifier namespace the chart renders:
+
+- a NetworkPolicy selecting `dev.webgrip.unfold/network: none` with `policyTypes: [Ingress, Egress]` and no rules, which the verifier checks for before each verification and probes from inside each pod;
+- a Role bound to the workbench service account: `pods` get, create and delete; `pods/attach` and `pods/exec` get and create (the WebSocket upgrade is a GET; newer API servers authorize it as create); `networkpolicies` list. It has no `pods/log`, Secret or list-pods access.
+
+The chart refuses to render when `workspaceAgentSecrets` lists `credentialsSecret` or `delivery.publisher.existingSecret`.

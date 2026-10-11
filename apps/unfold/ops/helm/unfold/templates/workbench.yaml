@@ -99,6 +99,13 @@ spec:
             - name: UNFOLD_INSIGHT_EXPORT_LEVEL
               value: {{ .Values.insight.level | quote }}
             {{- end }}
+            {{- if and .Values.delivery.enabled .Values.delivery.publisher.enabled }}
+            - name: {{ .Values.delivery.publisher.tokenEnv }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.delivery.publisher.existingSecret }}
+                  key: {{ .Values.delivery.publisher.secretKey }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -115,6 +122,11 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
+            {{- if and .Values.delivery.enabled .Values.delivery.inputs.volume }}
+            - name: delivery-inputs
+              mountPath: {{ .Values.delivery.inputs.mountPath }}
+              readOnly: true
+            {{- end }}
           readinessProbe:
             httpGet:
               path: /readyz
@@ -142,6 +154,10 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi
+        {{- if and .Values.delivery.enabled .Values.delivery.inputs.volume }}
+        - name: delivery-inputs
+          {{- toYaml .Values.delivery.inputs.volume | nindent 10 }}
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service

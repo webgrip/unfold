@@ -44,7 +44,7 @@ test('Kubernetes DELETE frames its complete JSON body and preserves a reused con
   server.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address() as { port: number };
-  const client = new KubernetesClient({ namespace: 'workspaces', image: 'fixture', storageSize: '1Gi', cpu: '1', memory: '1Gi', apiUrl: `https://127.0.0.1:${address.port}`, tokenFile, caFile });
+  const client = new KubernetesClient({ apiUrl: `https://127.0.0.1:${address.port}`, tokenFile, caFile });
   const deletion = { gracePeriodSeconds: 20, dryRun: ['All'], reason: 'préparation' };
   assert.equal(await client.request('/api/v1/namespaces/workspaces/pods/old', 'DELETE', deletion, true), undefined);
   assert.deepEqual(await client.request('/api/v1/namespaces/workspaces/pods'), { kind: 'PodList', items: [] });
