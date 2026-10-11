@@ -41,6 +41,11 @@ nav:
       - Product language: domain/overview.md
       - Open questions: landscape/questions.md
   - Contribute:
+      - How work on Unfold is done: contributing/way-of-working.md
+      - Set up a worktree: contributing/set-up-a-worktree.md
+      - Open a pull request: contributing/open-a-pull-request.md
+      - Review guide: contributing/review.md
+      - Agent instructions: contributing/agent-instructions.md
       - Documentation policy: documentation.md
       - Documentation publishing: operations/docs-publishing.md
       - CI and releases: operations/ci.md

@@ -26,22 +26,7 @@ rather than after.
 
 ## Before you open a pull request
 
-Run the gates the CI runs:
-
-```sh
-npm ci
-npm run typecheck
-npm test
-npm run check
-npm run design:check
-npm run icons:check
-npm run license:check
-helm lint ops/helm/unfold
-```
-
-Read [AGENTS.md](AGENTS.md) for how this repository expects work to be done, and
-[docs/adrs/](docs/adrs/README.md) for decisions that are already settled — an ADR is the place to
-argue with one, not a pull request that quietly reverses it.
+Follow [How work on Unfold is done](../../docs/contributing/way-of-working.md). `mise run verify` from the repository root runs every gate CI runs, including this application's. Read [AGENTS.md](AGENTS.md) for how this application expects work to be done, and [docs/adrs/](docs/adrs/README.md) for decisions that are already settled: an ADR is the place to argue with one, not a pull request that quietly reverses it.
 
 ## Reporting something
 
