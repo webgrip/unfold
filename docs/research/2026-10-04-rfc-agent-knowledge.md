@@ -174,6 +174,9 @@ The owner asked for agents to write knowledge per Work Item, Client, repository 
 2. Agents write Work Item Notes without review; a wider scope is a Promotion a Tenant admin accepts. This replaces "every learning is reviewed" from the Learnings section.
 3. Interactive sessions reach knowledge only through unfold-mcp, which asks Ploeg for the signed-in person.
 4. Hosted Tenants keep Omnigraph (decision 1 above, confirmed).
+5. A note a person writes in a session reaches Runs at once; only a Tenant admin promotes.
+6. An accepted repository Promotion also opens a pull request to the repository's `knowledge/` directory now, which answers open question 2 below: both.
+7. All these decisions stay proposed until the measurement spike reports.
 
 ## Open questions for the owner
 

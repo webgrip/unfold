@@ -28,7 +28,7 @@ People work with agents outside Ploeg's Runs too: a Claude Code or Codex session
 Chosen option: "Knowledge tools in unfold-mcp, which asks Ploeg for the signed-in person", because Unfold is the only component that knows the person, their Tenant, Client and role, and Ploeg can check that again without trusting a laptop.
 
 * unfold-mcp ([ADR-0032](adr-0032-unfold-also-serves-its-own-read-only-mcp-tools-next-to-ploeg-mcp.md)) gains `unfold_search_knowledge` and `unfold_read_knowledge`, and two write tools: `unfold_write_note` (a Work Item Note on a Work Item the person can see) and `unfold_suggest_promotion` (a Promotion request). Write tools are marked as writes so the client asks the person first.
-* Unfold resolves the person from the editor credential (Unfold ADR-0037) and their SSO groups, and calls Ploeg's operator knowledge routes naming the person, role and Client (Ploeg ADR-0087). Ploeg applies the scopes.
+* Unfold resolves the person from the editor credential (Unfold ADR-0037) and their SSO groups, and calls Ploeg's operator knowledge routes naming the person, role and Client (Ploeg ADR-0089). Ploeg applies the scopes.
 * Text that agents or trackers wrote stays under `untrusted` in every answer.
 * ploeg-mcp gains no knowledge tool: its operator token names no person.
 * No Omnigraph URL or token is part of any session's configuration.
@@ -60,3 +60,4 @@ Proposed checks, none built yet: the unfold-mcp tests of VIK-2007 against a fake
 
 * Design: `openspec/changes/scoped-agent-knowledge/`; ticket VIK-2007; Ploeg's side VIK-2006.
 * 2026-10-11 — Proposed after the owner chose sessions through Unfold's MCP server.
+* 2026-10-11 — Owner answers: a session note reaches Runs at once; a Tenant member's Promotion request waits for an admin. Kept proposed until the measurement spike (VIK-1859) reports.

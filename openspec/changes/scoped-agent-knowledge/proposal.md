@@ -22,7 +22,7 @@ review surface). Ticket: VIK-2004, epic VIK-1858.
 - **System ADR-0035 (proposed)**: interactive sessions reach Tenant knowledge
   only through unfold-mcp, which asks Ploeg for the signed-in person.
 - **Ploeg's part** is ploeg-hq's change `scoped-knowledge-and-work-item-notes`
-  (Ploeg ADR-0085 to ADR-0087, pull request #107). It lands there first; Unfold
+  (Ploeg ADR-0087 to ADR-0089, pull request #107). It lands there first; Unfold
   only moves the pin.
 - **Unfold application, later**: knowledge tools in unfold-mcp (VIK-2007), and
   the Work Item page and review queue for notes and Promotions (VIK-1868).

@@ -47,6 +47,18 @@ to the knowledge graph by Omnigraph itself.
 - **WHEN** the run actor writes to the knowledge graph
 - **THEN** Omnigraph answers 403
 
+### Requirement: Repository knowledge also reaches the repository's git
+
+An accepted repository Promotion SHALL also open a pull request that adds the
+concept to the repository's `knowledge/` directory, delivered by a Run. Once
+that file is on the default branch, a pack SHALL keep it over the graph copy.
+
+#### Scenario: A client merges the knowledge pull request
+
+- **GIVEN** an accepted repository Promotion whose pull request the client merged
+- **WHEN** a Run of that repository is briefed
+- **THEN** its pack holds the repository's file, not the graph copy
+
 ### Requirement: No graph token outside Ploeg
 
 Graph tokens SHALL be held by Ploeg's ploegd only. No Run, harness, session,

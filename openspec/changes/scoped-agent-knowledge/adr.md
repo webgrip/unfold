@@ -21,7 +21,7 @@ Proposed records this change builds on: ADR-0021 (knowledge base as OKF).
 - `docs/adr/adr-0034-agent-knowledge-is-scoped-to-tenant-client-repository-and-work-item-in-two-graphs-per-tenant.md`
 - `docs/adr/adr-0035-interactive-sessions-reach-tenant-knowledge-only-through-unfold-mcp.md`
 
-Ploeg's records: ADR-0085 to ADR-0087 in ploeg-hq pull request #107.
+Ploeg's records: ADR-0087 to ADR-0089 in ploeg-hq pull request #107.
 
 ## Supersessions
 

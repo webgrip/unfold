@@ -78,9 +78,23 @@ the queue should look, measured on the first 10 Promotions.
 Additive. ADR-0021 stays as it is until ADR-0034 is accepted; the RFC records
 both sets of owner answers. No code changes in this change.
 
+### D6 — Repository Promotions reach git
+
+An accepted repository Promotion also creates an approved Work Item on that
+repository; its Run adds the concept under `knowledge/` and opens a pull
+request the client reviews like any other. Ploeg gains no forge write path of
+its own. Once the file is merged, packs keep the repository's file over the
+graph copy, because the client owns their git. Each accepted repository
+Promotion costs one small Run.
+
+## Owner answers, 2026-10-11 (second round)
+
+- ADR-0034, ADR-0035 and Ploeg ADR-0087 to ADR-0089 stay proposed until the
+  measurement spike (VIK-1859) reports; the pull requests merge as proposals.
+- A note a person writes in a session reaches Runs at once.
+- Only a Tenant admin promotes; a member's request waits.
+- Repository Promotions open a `knowledge/` pull request now (D6).
+
 ## Open Questions
 
-- Whether a session note should reach Runs immediately (designed: yes, like a
-  Run's note).
-- Whether a Tenant member, not only an admin, may promote to repository scope
-  in their own Tenant.
+None open from this change.
