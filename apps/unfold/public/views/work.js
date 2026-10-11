@@ -1,7 +1,7 @@
 import { workMarkup, askDialogMarkup, contextDialogMarkup, contextErrors, ploegLanes, activePloegLane, mergeOverviews, teamOverview, appendPage, refreshOverview, reviewFacts, cancelDialogMarkup, checkoutDialogMarkup, workItemRef, workRefreshButton, laneBackLabel } from '../ploeg.js';
 import { state, onForget } from '../core/state.js';
 import { api, unauthorized } from '../core/api.js';
-import { $, renderHtml, notify, announce, safeUrl } from '../core/dom.js';
+import { $, renderHtml, notify, announce, safeUrl, download } from '../core/dom.js';
 import { buildHash } from '../core/route.js';
 import { live } from '../core/live.js';
 import { prefs } from '../core/prefs.js';
@@ -11,6 +11,7 @@ import { shell } from '../shell.js';
 import { enterPloegView, openPloegDialog } from './ploeg-common.js';
 import { stepDialogMarkup, stepOutcome, stepRequest } from '../core/attribution.js';
 import { transcriptEntryCap } from '../run-transcript.js';
+import { defaultLogView, logDownloadText } from '../run-log-view.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -108,7 +109,8 @@ function focusTarget() {
   const active = document.activeElement;
   if (!active || active === document.body || active.id) return null;
   if (active.matches('[data-work-row]')) return `[data-work-row][data-id="${CSS.escape(active.dataset.id)}"]`;
-  if (active.dataset.action) return `[data-action="${CSS.escape(active.dataset.action)}"]${active.dataset.id ? `[data-id="${CSS.escape(active.dataset.id)}"]` : ''}`;
+  const panel = active.closest('[data-run-logs]');
+  if (active.dataset.action) return `${panel ? `[data-run-logs="${CSS.escape(panel.dataset.runLogs)}"] ` : ''}[data-action="${CSS.escape(active.dataset.action)}"]${active.dataset.id ? `[data-id="${CSS.escape(active.dataset.id)}"]` : ''}${active.dataset.from ? `[data-from="${CSS.escape(active.dataset.from)}"]` : ''}`;
   const details = active.closest('details[id]');
   if (active.tagName === 'SUMMARY' && details) return `#${CSS.escape(details.id)} > summary`;
   return null;
@@ -121,11 +123,11 @@ function renderWork() {
   const listTop = scroller ? scroller.scrollTop : 0;
   const target = focusTarget();
   const current = model();
-  const logScroll = new Map([...document.querySelectorAll('#app pre[data-run-log]')].map(element => [element.dataset.runLog, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
+  const logScroll = new Map([...document.querySelectorAll('#app [data-run-log]')].map(element => [element.dataset.runLog, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
   const transcriptScroll = new Map([...document.querySelectorAll('#app [data-run-transcript]')].map(element => [element.dataset.runTranscript, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
   renderHtml(shell(workMarkup(current), shellOptions(current)));
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
-  for (const element of document.querySelectorAll('#app pre[data-run-log]')) { const kept = logScroll.get(element.dataset.runLog); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
+  for (const element of document.querySelectorAll('#app [data-run-log]')) { const kept = logScroll.get(element.dataset.runLog); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
   for (const element of document.querySelectorAll('#app [data-run-transcript]')) { const kept = transcriptScroll.get(element.dataset.runTranscript); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
   loadUnreadTranscripts();
   const list = $('.work-list-pane .work-list');
@@ -586,6 +588,61 @@ function retryRunLogs(button) {
   void loadRunLogs(runId, { fresh: true });
 }
 
+function logViewOf(element) {
+  const runId = element.closest('[data-run-logs]')?.dataset.runLogs || element.dataset.id;
+  if (!runId || !work.detailId) return null;
+  const entry = runLogEntry(runId);
+  entry.view ||= defaultLogView();
+  return { runId, entry, view: entry.view };
+}
+
+function setLogLevel(button) {
+  const found = logViewOf(button);
+  if (!found) return;
+  found.view.level = button.dataset.id || 'all';
+  renderWork();
+}
+
+function toggleLogDisplay(button) {
+  const found = logViewOf(button);
+  const option = button.dataset.id === 'times' ? 'times' : 'wrap';
+  if (!found) return;
+  found.view[option] = !found.view[option];
+  renderWork();
+}
+
+function setLogRange(button) {
+  const found = logViewOf(button);
+  if (!found) return;
+  const from = Number(button.dataset.from);
+  const to = Number(button.dataset.to);
+  found.view.range = Number.isFinite(from) && Number.isFinite(to) && button.dataset.from && found.view.range?.from !== from ? { from, to, last: button.dataset.last === 'true' } : null;
+  renderWork();
+}
+
+function clearLogFilters(button) {
+  const found = logViewOf(button);
+  if (!found) return;
+  Object.assign(found.view, { level: 'all', query: '', range: null });
+  renderWork();
+}
+
+function downloadRunLog(button) {
+  const found = logViewOf(button);
+  if (!found?.entry.lines.length) return;
+  const several = new Set((found.entry.data?.pods || []).map(entry => entry.pod)).size > 1;
+  download(`run-${found.runId}-pod-logs.log`, logDownloadText(found.entry.lines, found.view, { several }));
+}
+
+let logSearchTimer = 0;
+function searchRunLog(input) {
+  const found = logViewOf(input);
+  if (!found) return;
+  found.view.query = input.value;
+  clearTimeout(logSearchTimer);
+  logSearchTimer = setTimeout(renderWork, 150);
+}
+
 function runTranscriptEntry(runId) {
   if (work.transcripts?.id !== work.detailId) work.transcripts = { id: work.detailId, runs: new Map() };
   let entry = work.transcripts.runs.get(runId);
@@ -1019,6 +1076,11 @@ export default {
     'work-run': jumpToRun,
     'work-stream-zoom': zoomStream,
     'work-run-logs-retry': retryRunLogs,
+    'work-run-log-level': setLogLevel,
+    'work-run-log-toggle': toggleLogDisplay,
+    'work-run-log-range': setLogRange,
+    'work-run-log-clear': clearLogFilters,
+    'work-run-log-download': downloadRunLog,
     'work-run-transcript-retry': retryRunTranscript,
     'work-section': jumpToSection,
     'work-context-add': () => openContext(),
@@ -1031,6 +1093,7 @@ export default {
     'trace-resolve': openCrackStep('resolve'),
   },
   forms: { 'trace-step': submitTraceStep, 'work-context': submitContext, 'work-ask': submitAsk },
+  inputs: { '[data-run-log-search]': searchRunLog },
   changes: {
     '#ploeg-team': changeTeam,
   },

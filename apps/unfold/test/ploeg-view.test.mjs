@@ -715,8 +715,10 @@ test('the Context card lists attached files, flags steering uploads and says whi
 test('each Run has a closed Pod logs disclosure that shows the lines once read, newest at the bottom', () => {
   const html = detailMarkup(detail(), model({ detailId: '50', lane: 'awaiting_review', runLogs: new Map([['14', { data: { available: true, live: false, pods: [{ namespace: 'ploeg', pod: 'sbx-worker-a', container: 'worker' }], grafanaUrl: 'https://grafana.test/explore?x=1' }, lines: [{ at, text: 'first <b>' }, { at: later, text: 'last' }], truncated: false, error: null }]]) }));
   assert.match(html, /<details class="disclosure" id="work-run-logs-14"><summary><span class="disclosure-summary">Pod logs<\/span>/, 'closed until opened, so nothing loads before');
-  assert.match(html, /<pre class="work-log work-run-log" data-private data-run-log="14" tabindex="0" aria-label="Pod logs of Run 14">first &lt;b&gt;\nlast<\/pre>/);
-  assert.match(html, /2 lines<\/span> · Pod <span class="mono">sbx-worker-a<\/span>/);
+  assert.match(html, /<div class="log-lines" data-private data-run-log="14" data-wrap="true" tabindex="0" role="region" aria-label="Pod logs of Run 14">/);
+  assert.ok(html.indexOf('first &lt;b&gt;') > 0 && html.indexOf('first &lt;b&gt;') < html.indexOf('>last<'), 'oldest line first, escaped');
+  assert.match(html, /Pod <span class="mono">sbx-worker-a<\/span>/);
+  assert.match(html, /<span class="num">2 lines<\/span>/);
   assert.match(html, /href="https:\/\/grafana.test\/explore\?x=1"[^>]*data-link-out="grafana-logs"[^]*Open in Grafana/);
 });
 
@@ -732,7 +734,7 @@ test('Pod logs say when they load, are not connected, have no lines yet or faile
   assert.match(failed, /class="callout" data-tone="danger"[^]*The logs could not be read[^]*The log store could not be reached\.[^]*data-action="work-run-logs-retry" data-id="7"/);
   const several = runLogsMarkup(run, { data: { available: true, live: true, pods: [{ pod: 'a' }, { pod: 'b' }] }, lines: [{ at, text: 'x', stream: 'b' }], error: { message: 'Timed out.' } });
   assert.match(several, /2 pods: <span class="mono">a<\/span>, <span class="mono">b<\/span> · <span class="live-dot"/);
-  assert.match(several, /<span class="work-run-log-stream">b<\/span> x/);
+  assert.match(several, /<span class="log-stream">b<\/span> <span class="log-message">x<\/span>/);
   assert.match(several, /Could not refresh: Timed out\./, 'an earlier read stays on screen when a refresh fails');
 });
 
