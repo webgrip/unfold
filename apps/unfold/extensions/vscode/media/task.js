@@ -653,12 +653,24 @@ export function writerAccount(detail) {
   return { runId: run.id, role: run.role || '', round: run.round || 0, at: run.finishedAt || run.startedAt || '', problem: text(run.problem), solution: text(run.solution), earlierShift: Boolean(shift && run.shiftId !== shift.id) };
 }
 
+/** Splits one half of a writer's account at its "For developers" heading; an account without the heading is all `plain`. */
+export function accountParts(value) {
+  const body = String(value ?? '');
+  const heading = /^ {0,3}#{1,6}[ \t]*for developers[ \t]*:?[ \t]*#*[ \t]*$/im.exec(body);
+  if (!heading) return { plain: body.trim(), developers: '' };
+  return { plain: body.slice(0, heading.index).trim(), developers: body.slice(heading.index + heading[0].length).trim() };
+}
+
 function accountSection(current) {
   const { detail } = subject(current);
   const account = writerAccount(detail);
   if (!account) return null;
   const number = pullRequestNumber(pullRequestUrl(current));
-  const side = (key, heading, body) => element('div', { className: `account-side account-${key}` }, element('h3', {}, heading), body ? markdown(body) : element('p', { className: 'muted' }, 'Not reported.'));
+  const parts = (key, body) => {
+    const { plain, developers } = accountParts(body);
+    return [plain ? markdown(plain) : null, developers ? folded(`account-${key}-developers`, { className: 'account-developers' }, element('summary', {}, 'For developers'), markdown(developers)) : null];
+  };
+  const side = (key, heading, body) => element('div', { className: `account-side account-${key}` }, element('h3', {}, heading), ...(body ? parts(key, body) : [element('p', { className: 'muted' }, 'Not reported.')]));
   const source = [account.role || 'writer', account.round ? `Round ${account.round}` : '', account.earlierShift ? 'earlier Shift' : '', account.at ? relative(account.at) : ''].filter(Boolean).join(' · ');
   return element('section', { className: 'card account', 'aria-labelledby': 'account-heading' },
     element('div', { className: 'section-heading' }, element('h2', { id: 'account-heading' }, 'Problem → Solution'), element('span', {}, `Written by ${source}`)),

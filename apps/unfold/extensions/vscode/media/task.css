@@ -83,6 +83,10 @@
 .account-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
 .account-arrow { display: none; color: var(--muted); align-self: center; }
 .account-side .markdown { font-size: 13px; }
+.account-developers { margin-top: var(--space-2); color: var(--muted); }
+.account-developers > summary { cursor: pointer; font-size: 12px; font-weight: 600; }
+.account-developers[open] > summary { margin-bottom: var(--space-1); }
+.account-developers .markdown { font-size: 12px; }
 .caveat { margin: var(--space-3) 0 0; }
 
 .run-group + .run-group, .more-runs { margin-top: var(--space-3); }

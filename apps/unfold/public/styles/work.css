@@ -906,6 +906,24 @@
   content: "";
 }
 
+.work-account-dev {
+  max-width: var(--prose-max);
+  margin-top: var(--space-3);
+  color: var(--text-subtle);
+  font-size: var(--text-sm);
+}
+
+.work-account-dev > summary {
+  width: fit-content;
+  cursor: pointer;
+  font-weight: var(--weight-semibold);
+}
+
+.work-account-dev-text {
+  margin-top: var(--space-2);
+  line-height: var(--leading-md);
+}
+
 .work-account-missing {
   margin: 0;
   color: var(--text-subtle);
