@@ -1,3 +1,19 @@
+## [unfold-v0.4.0-rc.71](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.70...unfold-v0.4.0-rc.71) (2026-10-11)
+
+### Added
+
+* **unfold:** lead the Work Item page with a status panel and give the card its own page ([6c751b3](https://forgejo.webgrip.dev/webgrip/unfold/commit/6c751b3bbfd0fb1a13734d4f819b6ef208eb9637))
+* **unfold:** show each Run's agent pod logs on the Work Item page ([b692da4](https://forgejo.webgrip.dev/webgrip/unfold/commit/b692da408c96888369c27dea2542228f18dc728e))
+
+### Fixed
+
+* **unfold:** make Work Item sessions in the Agents window read clearly ([6b2bc7e](https://forgejo.webgrip.dev/webgrip/unfold/commit/6b2bc7e6c3366c1bee719273cdcb94125fdb5ec4))
+* **unfold:** speak plainly in Trace this bug ([c5cd748](https://forgejo.webgrip.dev/webgrip/unfold/commit/c5cd748ddc2b6b8bf4bd761b99e314b4639c750b))
+
+### Docs
+
+* **unfold:** record that a client's own terminal is accepted read-only ([2fbf61e](https://forgejo.webgrip.dev/webgrip/unfold/commit/2fbf61eb239e2808f6c7572c19f33e761a34de5b))
+
 ## [unfold-v0.4.0-rc.70](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.69...unfold-v0.4.0-rc.70) (2026-10-11)
 
 ### Added
