@@ -147,6 +147,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   } : undefined;
   const asks = new AskService(store, ploeg, askAuthority, { demo: askDemo, gatewayUrl: config.litellm?.baseUrl, secrets });
   agentHost?.useAsks(asks);
+  agentHost?.useDelivery(delivery);
   function sanitize<T>(value: T): T {
     if (typeof value === 'string') return withoutKnownSecrets(value, secrets) as T;
     if (Array.isArray(value)) return value.map(item => sanitize(item)) as T;

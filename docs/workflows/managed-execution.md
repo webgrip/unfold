@@ -105,7 +105,7 @@ Only queued, pristine work can be adopted. Ploeg atomically retires wholly unsta
 
 Follow the [candidate delivery contract](../../apps/unfold/docs/contracts/candidate-delivery.md) to register one trusted policy. Provision its approved base bundle, pinned image and policy files outside workspace storage. Add a distinct Ploeg consumer with `verify: true`, team scope and no execution permission; give only the control service its secret reference through `delivery.verifierTokenEnv`. Register the matching policy digest, `verifierId: "unfold-docker-v1"` and minimum fixed check count in Ploeg's `PLOEG_OPERATOR_DELIVERY_POLICIES`. Keep `publicationEnabled: false`.
 
-Once a shared session has completed and confirmed stop, **Run independent checks** creates a canonical commit on the approved base and executes the policy in fresh Docker containers. Review its canonical bundle and check results, then **Approve this commit**. The approval and receipt live in Ploeg; the UI explicitly states that publication is disabled. The ordinary session review does not authorize publication.
+Once a shared session has completed and confirmed stop, **Run independent checks** creates a canonical commit on the approved base and executes the policy in fresh Docker containers. Review its canonical bundle and check results, then **Approve this commit**. The approval and receipt live in Ploeg; the UI explicitly states that publication is disabled. With a publisher configured, **Accept and open pull request** replaces that button and opens one pull request through the publish route. The ordinary session review does not authorize publication.
 
 From `apps/ploeg`, the optional delivery qualification is:
 

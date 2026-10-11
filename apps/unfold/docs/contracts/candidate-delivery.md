@@ -87,7 +87,7 @@ All routes require the existing session's owner or administrator; mutations also
 | `POST /api/sessions/{id}/delivery/publish` | Require exactly the displayed `candidateId`, `receiptId` and `policySha256` (400 `publication_binding_required` otherwise). Approve when missing, then reserve, push and open one pull request. Replays resume the persisted phase. |
 | `GET /api/sessions/{id}/delivery/download` | Download the canonical Git bundle for review. |
 
-[ADR 0040](../adrs/0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) decides that “Accept” on a verified candidate approves that commit and opens a pull request through the trusted publisher. The publisher and its publish route are built; wiring “Accept” to them is proposed: today the session's ordinary “Accept” review is a separate historical review note, and only “Approve this commit” creates the candidate-bound delivery approval.
+[ADR 0040](../adrs/0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) decides that “Accept” on a verified candidate approves that commit and opens a pull request through the trusted publisher. The session's ordinary “Accept” review is a separate historical review note. Only “Approve this commit” or “Accept and open pull request” creates the candidate-bound delivery approval. With a publisher configured, the browser, the VS Code panels and the Agents window offer “Accept and open pull request” on a verified candidate in place of “Approve this commit”; it calls the publish route with the displayed identities, and the Agents window, which displays none, sends the candidate and receipt Ploeg holds at that moment.
 
 ## Publication boundary
 

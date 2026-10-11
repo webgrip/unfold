@@ -789,6 +789,16 @@ async function loadDelivery(id) {
   if (state.session?.id === id && state.view === 'session') renderSession();
 }
 
+async function publishDelivery() {
+  if (state.deliveryBusy || !state.session) return;
+  const id = state.session.id;
+  const payload = { candidateId: state.delivery?.candidate?.id, receiptId: state.delivery?.receipt?.id, policySha256: state.delivery?.policySha256 };
+  ++state.deliveryRequest; state.deliveryBusy = true; state.deliveryPublishError = ''; renderSession();
+  try { const view = await api(`/api/sessions/${id}/delivery/publish`, { method: 'POST', body: JSON.stringify(payload) }); if (state.session?.id === id) { ++state.deliveryRequest; state.delivery = view; state.deliveryError = ''; } }
+  catch (error) { if (state.session?.id === id) { state.deliveryPublishError = error.message; state.deliveryBusy = false; await loadDelivery(id); } }
+  finally { if (state.session?.id === id) { state.deliveryBusy = false; renderSession(); } }
+}
+
 async function actDelivery(action) {
   if (state.deliveryBusy || !state.session) return;
   const id = state.session.id;
@@ -803,7 +813,7 @@ async function openSession(id) {
   const token = ++opening;
   disconnect();
   if (state.session?.id !== id) state.tab = 'stream';
-  ++state.deliveryRequest; state.delivery = null; state.deliveryError = ''; state.deliveryBusy = false;
+  ++state.deliveryRequest; state.delivery = null; state.deliveryError = ''; state.deliveryPublishError = ''; state.deliveryBusy = false;
   load = { id, error: null };
   state.session = null; state.view = 'session'; state.online = false;
   renderSession();
@@ -997,6 +1007,7 @@ export default {
     'delivery-refresh': () => loadDelivery(state.session.id),
     'delivery-verify': control => actDelivery(control.dataset.action),
     'delivery-approve': control => actDelivery(control.dataset.action),
+    'delivery-publish': publishDelivery,
     'session-reload': () => openSession(load.id),
     tab: inspectEvidence,
     start: control => lifecycle(control.dataset.action),

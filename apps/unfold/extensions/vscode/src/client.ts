@@ -1,5 +1,5 @@
 import type { PloegCard, PloegDetail, PloegNow, PloegOverview } from './ploeg-types.js';
-import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat, Investigation, Recovery, RecoveryAction } from './types.js';
+import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat, Investigation, Recovery, RecoveryAction, DeliveryView, PublicationBinding } from './types.js';
 import type { BrowserLoginStart } from './browser-login.js';
 
 export type StreamHandlers = { onOpen?: () => void; onEvent: (event: SessionEvent) => void };
@@ -160,6 +160,8 @@ export class UnfoldClient {
   permissions(id: string): Promise<Permission[]> { return this.request(`/api/sessions/${identifier(id)}/permissions`); }
   create(input: SessionInput): Promise<Session> { return this.request('/api/sessions', 'POST', input); }
   action(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/${action}`, 'POST', {}); }
+  delivery(id: string): Promise<DeliveryView> { return this.request(`/api/sessions/${identifier(id)}/delivery`); }
+  publish(id: string, binding: PublicationBinding): Promise<DeliveryView> { return this.request(`/api/sessions/${identifier(id)}/delivery/publish`, 'POST', { candidateId: binding.candidateId, receiptId: binding.receiptId, policySha256: binding.policySha256 }); }
   review(id: string, decision: 'accepted' | 'rejected', note?: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/review`, 'POST', { decision, ...(note ? { note } : {}) }); }
   message(id: string, text: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/messages`, 'POST', { text }); }
   respond(id: string, requestId: string, answer: Decision): Promise<Session> {

@@ -38,6 +38,7 @@ export type Bootstrap = {
   runtimes: { id: string; name: string; available: boolean }[];
   placements?: Placement[];
   taskSources?: TaskSource[];
+  deliveryRepositories?: string[];
 };
 export type Placement = { id: string; name: string; isolation: 'working-directory' | 'container' | 'pod'; default: boolean };
 export type SessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: string; placement?: string; approval?: Approval; budgetUsd: number; model?: string };
@@ -53,7 +54,15 @@ export type Permission = { id: string; kind: 'permission' | 'question'; title: s
 export type Decision = { decision?: 'once' | 'always' | 'reject'; answers?: string[][] };
 export type Freshness = { transport: 'live' | 'polling' | 'offline'; observedAt: string };
 export type Observability = { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; traceQuery?: string; logsQuery?: string };
-export type SessionDetail = { session: Session; events: SessionEvent[]; permissions: Permission[]; user: User; mode: 'demo' | 'live'; sharedExecution?: boolean; origin: string; freshness: Freshness; gateway?: string; observability?: Observability };
+export type SessionDetail = { session: Session; events: SessionEvent[]; permissions: Permission[]; user: User; mode: 'demo' | 'live'; sharedExecution?: boolean; origin: string; freshness: Freshness; gateway?: string; observability?: Observability; publication?: PublicationOffer };
+/** A publication's progress as `GET /api/sessions/{id}/delivery` reports it. */
+export type PublicationPhase = 'reserving' | 'authorized' | 'pushed' | 'proposed' | 'published' | 'unknown' | 'recovery_required' | 'refused';
+/** The delivery view of a gated session: the frozen candidate, its receipt and approval, and the publication when publishing is enabled. */
+export type DeliveryView = { configured: boolean; policySha256?: string; candidate?: { id: string; policySha256: string; canonicalSha: string } | null; receipt?: { id: string; passed: boolean } | null; approval?: { actor: string } | null; publication?: { phase: PublicationPhase; operationId: string; branch: string; pullRequest?: { number: number; url: string } }; publicationEnabled: boolean };
+/** Exactly the identities `POST /api/sessions/{id}/delivery/publish` requires, as the panel displayed them. */
+export type PublicationBinding = { candidateId: string; receiptId: string; policySha256: string };
+/** What a panel shows for a gated session: whether it offers Accept and open pull request, the identities it sends, and the pull request stage. */
+export type PublicationOffer = { offered: boolean; binding?: PublicationBinding; state: 'ready' | 'publishing' | 'published' | 'recovery' | 'refused'; title: string; detail: string; pullRequest?: { number: number; url: string } };
 
 export type TaskProvider = 'demo' | 'forgejo' | 'github' | 'gitlab' | 'clickup' | 'vikunja';
 export type TaskSource = { id: string; name: string; provider: TaskProvider; repositoryId: string; executionOwner: 'interactive' | 'ploeg'; handoff?: boolean; ploeg?: { target: { forge: string; owner: string; repo: string; baseBranch: string } } };

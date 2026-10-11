@@ -525,7 +525,7 @@ function render() {
   const tableScroll = [...document.querySelectorAll('.table-scroll')].map(node => node.scrollLeft);
   const stream = document.getElementById('stream');
   const atBottom = !stream || stream.scrollHeight - stream.scrollTop - stream.clientHeight < 40;
-  const { session, user, mode, permissions, events, origin, freshness, gateway } = detail;
+  const { session, user, mode, permissions, events, origin, freshness, gateway, publication } = detail;
   const writer = user.role !== 'viewer';
   const mutable = writer && connected && !pending;
   const actionable = ['queued', 'running', 'exporting', 'waiting_input', 'paused', 'interrupted'].includes(session.status);
@@ -543,7 +543,9 @@ function render() {
     element('div', { className: `situation situation-${session.status}` }, element('p', { className: 'headline' }, headline), next ? element('p', { className: 'next' }, next) : null),
     element('div', { className: 'toolbar', 'aria-label': 'Session actions' },
       writer && session.status === 'queued' ? action('Start crew', 'start', { className: 'primary', disabled: !mutable }) : null,
-      writer && session.status === 'completed' && !session.review ? action('Accept', 'review', { className: 'primary', 'data-decision': 'accepted' }) : null,
+      writer && session.status === 'completed' && !session.review && publication?.offered ? action(publication.state === 'publishing' ? 'Continue opening the pull request' : 'Accept and open pull request', 'publish', { className: 'primary', disabled: !mutable, title: 'Approves this verified commit if you have not yet, then pushes it to its own branch and opens one pull request. Merging it stays with you.' }) : null,
+      publication?.pullRequest ? element('button', { type: 'button', className: 'primary', 'data-open-url': publication.pullRequest.url, title: publication.pullRequest.url }, `Open pull request #${publication.pullRequest.number} ↗`) : null,
+      writer && session.status === 'completed' && !session.review && !publication?.offered && !publication?.pullRequest ? action('Accept', 'review', { className: 'primary', 'data-decision': 'accepted', title: 'Records your decision in the session. Nothing is pushed or merged.' }) : null,
       writer && session.status === 'completed' && !session.review ? action('Reject…', 'review', { 'data-decision': 'rejected' }) : null,
       writer && ['running', 'waiting_input'].includes(session.status) ? action('Pause', 'pause', { disabled: !mutable }) : null,
       writer && ['paused', 'interrupted'].includes(session.status) ? action('Resume', 'resume', { className: 'primary', disabled: !mutable }) : null,
@@ -555,6 +557,7 @@ function render() {
   const notices = [];
   if (mode === 'demo') notices.push(element('div', { className: 'notice demo' }, element('strong', {}, 'Demonstration'), 'Real fixture changes and checks. No AI calls or model spending.'));
   if (!connected) notices.push(element('div', { className: 'notice warning', role: 'status' }, element('strong', {}, 'Disconnected'), connectionMessage, ` Showing the state observed at ${clock(freshness.observedAt)}.`));
+  if (publication) notices.push(element('div', { className: `notice publication publication-${publication.state}${['recovery', 'refused'].includes(publication.state) ? ' warning' : ''}`, role: 'status' }, element('strong', {}, `Pull request · ${publication.title}`), publication.detail));
   const failure = failureNotice(session);
   if (failure) notices.push(failure);
   const decisionSection = requests.length ? element('section', { className: 'decisions', id: 'decisions', 'aria-label': 'Decisions waiting for you' }, element('div', { className: 'section-heading' }, element('h2', {}, requests.length === 1 ? 'Your decision' : `${requests.length} decisions waiting`), element('span', {}, 'Nothing continues until you answer')), ...requests.map(request => decisionCard(request, session, mutable))) : null;
@@ -599,6 +602,7 @@ document.addEventListener('click', event => {
   if (type === 'filter') { activityFilter = button.dataset.filter; remember(); render(); return; }
   if (type === 'jump-decision') { focusTarget = { decisions: true }; render(); return; }
   if (type === 'review') { bridge.postMessage({ type: 'review', decision: button.dataset.decision }); return; }
+  if (type === 'publish') { pending = true; render(); bridge.postMessage({ type: 'publish' }); return; }
   if (type === 'budget-open') { budgetOpen = true; render(); document.getElementById('budget-amount')?.focus(); return; }
   if (type === 'budget-close') { budgetOpen = false; render(); return; }
   if (type === 'edit-answer') { confirming.delete(button.dataset.id); render(); return; }
@@ -698,7 +702,7 @@ window.addEventListener('message', event => {
     const previous = detail;
     const reconnected = !connected;
     detail = message.detail; connected = true; connectionMessage = '';
-    const key = JSON.stringify({ session: detail.session, permissions: detail.permissions, events: detail.events.length, last: detail.events.at(-1)?.id, user: detail.user, origin: detail.origin });
+    const key = JSON.stringify({ session: detail.session, permissions: detail.permissions, events: detail.events.length, last: detail.events.at(-1)?.id, user: detail.user, origin: detail.origin, publication: detail.publication });
     if (previous && !reconnected && key === lastRenderKey && !message.focus) { const badge = document.getElementById('freshness'); if (badge) badge.textContent = `${detail.freshness.transport === 'live' ? 'Live' : 'Polling'} · observed ${clock(detail.freshness.observedAt)}`; return; }
     lastRenderKey = key;
     if (message.focus) focusTarget = { tab: message.focus.tab, requestId: message.focus.requestId, runId: message.focus.runId, decisions: Boolean(message.focus.requestId) };

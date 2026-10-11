@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Engine } from '../engine.ts';
+import type { DeliveryView, PublicationReadiness } from '../delivery.ts';
 import type { Store } from '../store.ts';
 import type { AppConfig, Session, User } from '../types.ts';
 
@@ -7,8 +8,8 @@ type Json = Record<string, any>;
 type Origin = { clientId: string; clientSeq: number };
 type Sender = { user: User };
 
-/** The changeset operations a candidate that waits for review offers: the workbench's own Accept and Reject, and Request changes. */
-export const reviewOperationIds = { accept: 'accept', reject: 'reject', requestChanges: 'request-changes' } as const;
+/** The changeset operations a candidate that waits for review offers: the workbench's own Accept and Reject, Request changes, and Accept and open pull request for a verified candidate under a delivery policy. */
+export const reviewOperationIds = { accept: 'accept', reject: 'reject', requestChanges: 'request-changes', publish: 'accept-and-open-pull-request' } as const;
 /** What a person decides about a candidate through a question in the session's chat. */
 export type ReviewKind = 'rejected' | 'changes';
 
@@ -35,15 +36,21 @@ export function parseAnnotationsChannel(uri: string): { id: string; session: str
   return parsed ? { id: parsed[2], session: `${parsed[1]}:/${parsed[2]}` } : undefined;
 }
 
-/** Whether a candidate waits for the person's review in VS Code: the session completed, nobody reviewed it, and no delivery policy hands the review to the forge. */
-export function awaitingReview(session: Session, gated: boolean): boolean {
-  return session.status === 'completed' && !session.review && !gated;
+/** Whether a gated candidate can be accepted into a pull request now: publishing is enabled, its passing receipt is recorded under the current policy, and no pull request is published yet. */
+export function publishable(readiness: PublicationReadiness | undefined): boolean {
+  return Boolean(readiness?.enabled && readiness.verified && readiness.publication?.phase !== 'published');
 }
 
-/** The candidate's review operations. Request changes needs a follow-up session, which a task imported from a tracker cannot get here. */
-export function reviewOperations(session: Session, gated: boolean): Json[] {
-  if (!awaitingReview(session, gated)) return [];
+/** Whether a candidate waits for the person's review in VS Code: the session completed and nobody reviewed it, and under a delivery policy, the candidate is publishable. */
+export function awaitingReview(session: Session, gated: boolean, readiness?: PublicationReadiness): boolean {
+  return session.status === 'completed' && !session.review && (!gated || publishable(readiness));
+}
+
+/** The candidate's review operations. Request changes needs a follow-up session, which a task imported from a tracker cannot get here. A gated candidate offers only Accept and open pull request. */
+export function reviewOperations(session: Session, gated: boolean, readiness?: PublicationReadiness): Json[] {
+  if (!awaitingReview(session, gated, readiness)) return [];
   const operation = (id: string, label: string, description: string, icon: string) => ({ id, label, description, scopes: ['changeset'], icon, status: 'idle' });
+  if (gated) return [operation(reviewOperationIds.publish, 'Accept and open pull request', 'Approves this verified commit if you have not yet, then Unfold\'s publisher pushes it to its own branch and opens one pull request on the forge. Merging it stays with you.', 'git-pull-request')];
   return [
     operation(reviewOperationIds.accept, 'Accept', 'Records your acceptance in the session history, as Accept in the workbench does. Nothing is pushed or merged.', 'check'),
     ...(session.sourceTask ? [] : [operation(reviewOperationIds.requestChanges, 'Request changes…', 'Asks in the session\'s chat what should change. Your answer and your comments on the candidate become the instructions of a new session with the same brief, which waits for you to start it.', 'comment-discussion')]),
@@ -174,6 +181,8 @@ export type ReviewHost = {
   engineId: (publicId: string) => string;
   publicId: (engineId: string) => string;
   gated: (session: Session) => boolean;
+  readiness: (session: Session) => PublicationReadiness | undefined;
+  publish: (session: Session, user: User) => Promise<DeliveryView>;
   mayView: (user: User, ownerId: string) => boolean;
   echo: (sender: Sender, channel: string, action: Json, origin: Origin, audience?: (client: Sender) => boolean) => void;
   openChoice: (session: Session) => Json | undefined;
@@ -321,34 +330,58 @@ export class CandidateReview {
     return action.type === 'session/configChanged' && action.replace !== true && Boolean(config) && typeof config === 'object' && Object.keys(config).length === 1 && Object.hasOwn(config, 'agentMerge');
   }
 
+  private publication(session: Session) { return this.host.gated(session) ? this.host.readiness(session)?.publication : undefined; }
+
+  private decided(session: Session): boolean { return session.review?.decision === 'accepted' || this.publication(session)?.phase === 'published'; }
+
+  /** Accept and open pull request for a gated candidate: the publish route with the candidate and receipt Ploeg holds now. Returns what to tell the person. */
+  async publish(user: User, session: Session): Promise<string> {
+    const view = await this.host.publish(session, user);
+    const pullRequest = view.publication?.pullRequest;
+    return pullRequest ? `Accepted by ${user.name}. Pull request #${pullRequest.number} is open on the forge: ${pullRequest.url}. Merging it stays with you.` : `Accepted by ${user.name}. The pull request is not confirmed yet (${view.publication?.phase ?? 'not started'}); the workbench shows its state.`;
+  }
+
   /**
    * VS Code's Agent Merge for an Unfold session. Enabling it accepts a candidate that waits for review, through the same review
-   * path and owner check as Accept; the pull request is still merged on the forge, never from the editor. Returns why it is refused.
+   * path and owner check as Accept, and for a gated candidate opens its pull request through the publish route; the pull request
+   * is still merged on the forge, never from the editor. Returns why it is refused.
    */
-  agentMerge(client: Sender, channel: string, session: Session, action: Json, origin: Origin): string | undefined {
+  async agentMerge(client: Sender, channel: string, session: Session, action: Json, origin: Origin): Promise<string | undefined> {
     const value = action.config.agentMerge;
     if (value !== undefined && value !== null && (typeof value !== 'object' || Array.isArray(value))) return 'agentMerge must be an object';
     const enabled = value?.enabled === true;
-    const accepted = session.review?.decision === 'accepted';
-    if (!enabled && accepted) return 'Your acceptance is recorded in the session history and cannot be withdrawn. Merge or close the pull request on the forge.';
-    if (enabled && !accepted) {
-      if (this.host.gated(session)) return 'Ploeg delivers this session through a pull request. Review and merge it on the forge.';
-      if (!awaitingReview(session, false)) return session.review ? `This candidate was ${session.review.decision} by ${session.review.byName}.` : 'Agent Merge accepts a candidate that waits for your review; this session has none yet.';
-      this.host.engine.review(session.id, { decision: 'accepted' }, client.user);
+    const decided = this.decided(session);
+    if (!enabled && decided) return 'Your acceptance is recorded and cannot be withdrawn. Merge or close the pull request on the forge.';
+    if (enabled && !decided) {
+      if (this.host.gated(session)) {
+        const readiness = this.host.readiness(session);
+        if (!readiness?.enabled) return 'Publishing is not enabled in this workbench. Approve the commit in the workbench and open the pull request on the forge.';
+        if (!awaitingReview(session, true, readiness)) return 'Accept and open pull request needs a candidate whose independent checks passed. Run them in the workbench first.';
+        if (client.user.role === 'viewer') return 'Viewers cannot review a candidate';
+        try { await this.publish(client.user, session); } catch (error) { return error instanceof Error ? error.message : 'The pull request could not be opened.'; }
+      } else {
+        if (!awaitingReview(session, false)) return session.review ? `This candidate was ${session.review.decision} by ${session.review.byName}.` : 'Agent Merge accepts a candidate that waits for your review; this session has none yet.';
+        this.host.engine.review(session.id, { decision: 'accepted' }, client.user);
+      }
     }
     this.host.echo(client, channel, action, origin, other => other.user.id === client.user.id);
     return undefined;
   }
 
-  /** A started session's configuration with the Agent Merge state VS Code reads from its values: enabled once the candidate is accepted. */
+  /** A started session's configuration with the Agent Merge state VS Code reads from its values: enabled once the candidate is accepted or its pull request published. */
   withConfigValues(session: Session, config: Json): Json {
-    return session.review?.decision === 'accepted' ? { ...config, values: { ...config.values, agentMerge: { enabled: true } } } : config;
+    return this.decided(session) ? { ...config, values: { ...config.values, agentMerge: { enabled: true } } } : config;
   }
 
-  /** The branch facts VS Code reads from `_meta.git`: the candidate's branch and the base it is compared with. Nothing about a local checkout. */
+  /**
+   * The branch facts VS Code reads from `_meta.git`: the candidate's branch and the base it is compared with, or, once a gated
+   * candidate is being published, the publication branch and its verified pull request. Nothing about a local checkout.
+   */
   gitMeta(session: Session): Json {
     const repository = this.host.config.repositories.find(repo => repo.id === session.repositoryId);
-    if (!session.branch) return {};
-    return { git: { branchName: session.branch, ...(repository?.baseBranch ? { baseBranchName: repository.baseBranch } : {}) } };
+    const publication = this.publication(session);
+    const branchName = publication?.branch ?? session.branch;
+    if (!branchName) return {};
+    return { git: { branchName, ...(repository?.baseBranch ? { baseBranchName: repository.baseBranch } : {}), ...(publication?.pullRequest ? { pullRequest: { number: publication.pullRequest.number, url: publication.pullRequest.url } } : {}) } };
   }
 }

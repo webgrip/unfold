@@ -7,6 +7,7 @@ import type { Engine } from '../engine.ts';
 import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile } from '../candidates.ts';
 import type { AppConfig, Event, PermissionRequest, Repository, Session, User, WorkspaceBackend } from '../types.ts';
 import type { Recovery } from '../engine.ts';
+import type { DeliveryService } from '../delivery.ts';
 import { SessionConfigError, acceptSessionConfig, approvalOf, changePendingConfig, composerModel, resolveSessionConfig, sessionConfigCompletions, sessionConfigSchema, sessionConfigState, startedConfigChange } from './session-config.ts';
 import { TrackerAutomations, automationsChannel, autonomousAutomationsMeta, isAutomationsChannel } from './automations.ts';
 import { WebSocketConnection, connectionToken, isWebSocketUpgrade, rejectUpgrade, upgradeToWebSocket } from './websocket.ts';
@@ -263,6 +264,7 @@ export class AgentHost {
   readonly workItemCommands: WorkItemCommands;
 
   private readonly redact: (text: string) => string;
+  private delivery?: DeliveryService;
 
   constructor(config: AppConfig, store: Store, engine: Engine) {
     this.config = config; this.store = store; this.engine = engine;
@@ -282,6 +284,8 @@ export class AgentHost {
       engineId: id => this.engineId(id),
       publicId: id => this.publicId(id),
       gated: session => this.gated(session),
+      readiness: session => this.delivery?.readiness(session),
+      publish: (session, user) => { if (!this.delivery) throw Object.assign(new Error('Publishing is not enabled in this workbench.'), { status: 409, code: 'publication_disabled' }); return this.delivery.publishCurrent(session.id, user); },
       mayView: (user, ownerId) => this.mayView(user, ownerId),
       echo: (sender, channel, action, origin, audience) => this.echo(sender as Client, channel, action, origin, audience),
       openChoice: session => this.openChoice(this.projection(session)),
@@ -305,6 +309,9 @@ export class AgentHost {
 
   /** Connects the Ask service, so a person can ask about a session's Work Item from its chat without reaching the crew (system ADR-0031). */
   useAsks(service: ChatAskService): void { this.chatAsks.service = service; }
+
+  /** Connects candidate delivery, so a gated session's verified candidate offers Accept and open pull request through the publish route. */
+  useDelivery(service: DeliveryService): void { this.delivery = service; }
 
   /** Evicts the projection and summary of every ended session nobody has subscribed to for the idle period; a later subscribe rebuilds them from the durable events. Returns the evicted session ids. */
   evictIdleSessions(now = Date.now()): string[] {
@@ -645,11 +652,11 @@ export class AgentHost {
   /** Whether a delivery policy hands this session's review to the forge, where Ploeg's pull request is reviewed and merged. */
   private gated(session: Session): boolean { return Boolean(session.execution && this.config.delivery?.policies.some(policy => policy.repositoryId === session.repositoryId)); }
 
-  private reviewOperations(session: Session): Json[] { return reviewOperations(session, this.gated(session)); }
+  private reviewOperations(session: Session): Json[] { const gated = this.gated(session); return reviewOperations(session, gated, gated ? this.delivery?.readiness(session) : undefined); }
 
   private operations(session: Session): Json[] { return this.reviewOperations(session); }
 
-  private invokeOperation(client: Client, params: Json): Json {
+  private async invokeOperation(client: Client, params: Json): Promise<Json> {
     const channel = String(params.channel ?? '');
     if (parseChannel(channel)?.kind !== 'changeset') throw new RpcError(codes.invalidParams, 'channel must be an ahp-changeset channel');
     const session = this.sessionFor(client.user, channel);
@@ -657,6 +664,13 @@ export class AgentHost {
     const operation = this.operations(session).find(item => item.id === params.operationId);
     if (!operation) throw new RpcError(codes.invalidParams, `This changeset offers no operation ${JSON.stringify(params.operationId)}`);
     if (params.target !== undefined) throw new RpcError(codes.invalidParams, `${operation.label} applies to the whole candidate, not to a file or range`);
+    if (operation.id === reviewOperationIds.publish) {
+      if (client.user.role === 'viewer' || !this.mayView(client.user, session.ownerId)) throw new RpcError(codes.permissionDenied, 'Viewers cannot review a candidate');
+      let message: string;
+      try { message = await this.review.publish(client.user, session); } catch (error) { throw asRpcError(error); }
+      this.broadcast(this.changesetUri(session), { type: 'changeset/operationsChanged', operations: this.operations(session) });
+      return { message };
+    }
     if (operation.id !== reviewOperationIds.accept) { if (client.user.role === 'viewer' || !this.mayView(client.user, session.ownerId)) throw new RpcError(codes.permissionDenied, 'Viewers cannot review a candidate'); return this.review.ask(client.user, session, operation.id); }
     let reviewed: Session;
     try { reviewed = this.engine.review(session.id, { decision: 'accepted' }, client.user); } catch (error) { throw asRpcError(error); }
@@ -2002,7 +2016,7 @@ export class AgentHost {
         const { intent, text } = messageIntent(action.message);
         if (!text) return intent === 'ask' ? 'Type a question after /ask' : 'Empty message';
         if (!feedback && (intent === 'ask' || (intent !== 'steer' && this.chatAsks.covers(session) && this.asksByDefault(session)))) return this.askInTurn(client, session, text, origin, action.turnId ?? null);
-        if (session.status === 'completed') return this.reviewOperations(session).length ? 'This candidate waits for your review. Accept it, request changes or reject it from the Changes view, or comment on its files and submit the comments.' : 'The session has completed; start a new session';
+        if (session.status === 'completed') return this.reviewOperations(session).some(operation => operation.id === reviewOperationIds.publish) ? 'This verified candidate waits for your review. Accept and open its pull request from the Changes view.' : this.reviewOperations(session).length ? 'This candidate waits for your review. Accept it, request changes or reject it from the Changes view, or comment on its files and submit the comments.' : 'The session has completed; start a new session';
         if (feedback) return this.dispatchToSession(client, channel, kind, session, { ...action, message: { ...action.message, text: `/steer ${this.review.feedbackInstruction(action.message, feedback)}`, attachments: undefined } }, origin);
         if (ended || this.openChoice(this.projection(session))) return this.offerForMessage(client, session, text, origin, action.turnId ?? null);
         const projection = this.projection(session);
@@ -2103,7 +2117,7 @@ export class AgentHost {
       const flag = viewFlags[String(action.type)];
       const session = pending ? undefined : this.sessionFor(client.user, channel);
       if (!pending && !session) { reject('Session not found'); return; }
-      const reason = !pending && this.review.handlesConfig(action) ? (parsed.kind === 'session' ? this.review.agentMerge(client, channel, session!, action, origin) : 'session/configChanged is dispatched on the session channel')
+      const reason = !pending && this.review.handlesConfig(action) ? (parsed.kind === 'session' ? await this.review.agentMerge(client, channel, session!, action, origin) : 'session/configChanged is dispatched on the session channel')
         : flag ? this.setViewFlag(client, channel, parsed.kind, pending, action, origin, flag)
         : pending ? await this.dispatchToPending(client, channel, parsed.kind, pending, action, origin)
         : await this.dispatchToSession(client, channel, parsed.kind, session!, action, origin);

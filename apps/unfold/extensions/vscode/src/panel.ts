@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import { randomBytes } from 'node:crypto';
 import { ApiError, type UnfoldClient } from './client.js';
-import type { Approval, Bootstrap, CandidateFormat, Decision, Freshness, SessionDetail, SessionEvent } from './types.js';
+import { readPublication } from './publication.js';
+import type { Approval, Bootstrap, CandidateFormat, Decision, Freshness, PublicationBinding, SessionDetail, SessionEvent } from './types.js';
 
 export type PanelTab = 'brief' | 'changes' | 'checks' | 'activity' | 'gateway';
 export type InstructionOutcome = { state: 'saved' | 'unknown' | 'failed'; message?: string };
@@ -15,6 +16,7 @@ export interface PanelHost {
   sessionEvent(type: string): void;
   lifecycle(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<void>;
   review(id: string, decision: 'accepted' | 'rejected'): Promise<void>;
+  publish(id: string, binding: PublicationBinding): Promise<void>;
   instruction(id: string, text: string, pauseFirst: boolean): Promise<InstructionOutcome>;
   decide(id: string, requestId: string, decision: Decision): Promise<void>;
   openArtifact(id: string, artifactId: string, file?: string): Promise<void>;
@@ -40,6 +42,7 @@ export class SessionPanel implements vscode.Disposable {
   private readonly host: PanelHost;
   private readonly onDispose: () => void;
   private events: SessionEvent[] = [];
+  private publication?: SessionDetail['publication'];
   private busy = false;
   private queued = false;
   private disposed = false;
@@ -87,9 +90,12 @@ export class SessionPanel implements vscode.Disposable {
     try {
       const [session, events, permissions, bootstrap] = await Promise.all([client.session(this.id), client.history(this.id, this.events.at(-1)?.id || 0), client.permissions(this.id), this.host.bootstrap()]);
       if (this.disposed || client !== this.host.client() || revision !== this.host.revision()) return;
+      const publication = await readPublication(client, session, bootstrap);
+      if (this.disposed || client !== this.host.client() || revision !== this.host.revision()) return;
       this.merge(events);
       this.freshness = { transport: this.stream ? 'live' : this.freshness.transport === 'offline' ? 'polling' : this.freshness.transport, observedAt: new Date().toISOString() };
-      const detail: SessionDetail = { session, events: this.events.slice(-300), permissions, user: bootstrap.user, mode: bootstrap.mode, origin: client.origin, freshness: this.freshness, ...(typeof bootstrap.gateway === 'string' ? { gateway: bootstrap.gateway } : {}), ...(bootstrap.observability ? { observability: bootstrap.observability } : {}) };
+      const detail: SessionDetail = { session, events: this.events.slice(-300), permissions, user: bootstrap.user, mode: bootstrap.mode, origin: client.origin, freshness: this.freshness, ...(typeof bootstrap.gateway === 'string' ? { gateway: bootstrap.gateway } : {}), ...(bootstrap.observability ? { observability: bootstrap.observability } : {}), ...(publication ? { publication } : {}) };
+      this.publication = publication;
       this.panel.title = session.title;
       await this.panel.webview.postMessage({ type: 'session', detail, focus: this.pendingFocus });
       this.pendingFocus = undefined;
@@ -176,6 +182,7 @@ export class SessionPanel implements vscode.Disposable {
         case 'budget': { if (typeof message.amountUsd === 'number') await this.host.budget(this.id, message.amountUsd); return; }
         case 'approval': { if (message.approval === 'auto' || message.approval === 'manual') await this.host.setApproval(this.id, message.approval); return; }
         case 'start': case 'pause': case 'resume': case 'cancel': case 'retry': await this.host.lifecycle(this.id, message.type); return;
+        case 'publish': { if (this.publication?.binding) await this.host.publish(this.id, this.publication.binding); await this.refresh(); return; }
         case 'review': { if (message.decision === 'accepted' || message.decision === 'rejected') await this.host.review(this.id, message.decision); return; }
         case 'open-url': { const url = typeof message.url === 'string' ? message.url : ''; if (/^https:\/\/[^\s]+$/.test(url) && !url.includes('@')) await vscode.env.openExternal(vscode.Uri.parse(url)); return; }
       }

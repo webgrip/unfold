@@ -23,7 +23,8 @@ import { TaskPanels, type TaskPanelHost } from './task-panel.js';
 import { checkOutWorkItemBranch } from './checkout.js';
 import { sessionEligibility } from './task-view.js';
 import * as wizard from './wizard.js';
-import type { Approval, Bootstrap, Session, TaskSnapshot, TaskSource, CandidateFormat, Decision, Permission } from './types.js';
+import type { Approval, Bootstrap, Session, TaskSnapshot, TaskSource, CandidateFormat, Decision, Permission, PublicationBinding } from './types.js';
+import { readPublication } from './publication.js';
 
 type SessionRef = string | SessionEntry | undefined;
 type Draft = { repositoryId?: string; crewId?: string; runtime?: string; placement?: string; approval?: Approval; model?: string; title?: string; objective?: string; budgetUsd?: number; autoStart?: boolean };
@@ -138,6 +139,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     register('openArtifact', (value, artifactId) => this.openArtifactCommand(value, artifactId));
     register('reviewDecision', (value, requestId) => this.reviewDecision(value, requestId));
     register('reviewNextDecision', () => this.reviewNextDecision());
+    register('acceptAndOpenPullRequest', value => this.publishCommand(value));
     register('findSession', () => this.findSession());
     register('history', value => this.historyCommand(value));
     register('sendInstruction', value => this.sendInstructionCommand(value));
@@ -871,6 +873,26 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   }
 
   private async lifecycleCommand(action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry', value: SessionRef): Promise<void> { const id = await this.choose(value, `${action[0].toUpperCase()}${action.slice(1)} which session?`); if (id) await this.lifecycle(id, action); }
+  private async publishCommand(value: SessionRef): Promise<void> {
+    const id = await this.choose(value, 'Accept and open a pull request for which session?');
+    if (!id) return;
+    const offer = await readPublication(this.current, await this.current.session(id), await this.bootstrap());
+    if (!offer?.binding) { void vscode.window.showWarningMessage(offer ? `${offer.title}. ${offer.detail}` : 'This session has no verified candidate to publish, or this workbench does not publish. Record your review instead.'); return; }
+    await this.publish(id, offer.binding);
+  }
+
+  async publish(id: string, binding: PublicationBinding): Promise<void> {
+    const choice = await vscode.window.showInformationMessage('Accept this commit and open a pull request?', { modal: true, detail: `Unfold approves commit ${binding.candidateId.slice(0, 12)} if you have not yet, then its publisher pushes that exact commit to its own branch and opens one pull request on the forge. Merging it stays with you.` }, 'Accept and open pull request');
+    if (choice !== 'Accept and open pull request') return;
+    const view = await this.current.publish(id, binding);
+    const pullRequest = view.publication?.phase === 'published' ? view.publication.pullRequest : undefined;
+    const url = pullRequest ? safeHttpsUrl(pullRequest.url) : undefined;
+    await this.refresh();
+    if (!pullRequest) { void vscode.window.showWarningMessage(`The pull request is not confirmed yet (${view.publication?.phase ?? 'not started'}). The session shows its state.`); return; }
+    const next = await vscode.window.showInformationMessage(`Accepted. Pull request #${pullRequest.number} is open; merging it stays with you.`, ...(url ? ['Open pull request'] : []));
+    if (next === 'Open pull request' && url) await vscode.env.openExternal(vscode.Uri.parse(url));
+  }
+
   async review(id: string, decision: 'accepted' | 'rejected'): Promise<void> {
     const note = await vscode.window.showInputBox({ title: decision === 'accepted' ? 'Accept this outcome' : 'Reject this outcome', prompt: decision === 'accepted' ? 'Optional note, recorded in the session.' : 'Why is it rejected? Required, so the next attempt can use it.', ignoreFocusOut: true, validateInput: value => decision === 'rejected' && !value.trim() ? 'A reason is required.' : value.length > 2000 ? 'Keep the note under 2000 characters.' : undefined });
     if (note === undefined) return;

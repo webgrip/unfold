@@ -206,6 +206,12 @@
         "icon": "$(eye)"
       },
       {
+        "command": "unfold.acceptAndOpenPullRequest",
+        "title": "Accept and Open Pull Request",
+        "category": "Unfold",
+        "icon": "$(git-pull-request)"
+      },
+      {
         "command": "unfold.sendInstruction",
         "title": "Send Instruction to Session",
         "category": "Unfold",
