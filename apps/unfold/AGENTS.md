@@ -4,7 +4,7 @@ The Unfold application is where people define, follow, steer and review the work
 
 ## Commands
 
-Run `mise exec -- npm test` and `mise exec -- npm run check` in this directory before delivery. `mise run demo` from the Unfold root starts the deterministic demo.
+Before delivery, run `mise run verify` from the repository root: it adds `typecheck`, `design:check`, `icons:check`, `license:check` and the backlog check to `npm test` and `npm run check`, which pass with type errors in tests. While iterating, `mise exec -- npm run typecheck` and `mise exec -- npm test` in this directory are the fast pair. `mise run demo` starts the deterministic demo.
 
 ## Rules
 

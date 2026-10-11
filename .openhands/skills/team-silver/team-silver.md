@@ -2,7 +2,7 @@
 name: team-silver
 description: >-
   The Team Silver delivery discipline for a single OpenHands agent working on
-  Unfold, the repository that contains Ploeg itself: phased delivery, the Go/Helm gate set run before every PR
+  Unfold, the repository that pins Ploeg as a submodule: phased delivery, the `mise run verify` gate set run before every PR
   update, an explicit adversarial self-review pass focused on failure paths
   (this repo moves money via per-run LLM keys), and the release-train rules.
 ---

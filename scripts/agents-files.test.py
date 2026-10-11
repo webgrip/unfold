@@ -197,5 +197,76 @@ class Duplication(Fixture):
         self.assertNotIn('Short one.', found)
 
 
+RULE = '---\npaths:\n  - "apps/app/**/*.json"\n  - "mise.toml"\n---\n\n# Rule\n\nSee [the index](../../apps/app/docs/index.md).\n'
+
+
+class LinkedDirectories(Fixture):
+    def test_rules_and_skills_need_their_symlinks(self):
+        self.write('.ai/rules/app.md', RULE)
+        self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
+        failures = self.failures('layout')
+        self.assertEqual(len(failures), 2)
+        self.link('.claude/rules', '../.ai/rules')
+        self.link('.claude/skills', '../.agents/skills')
+        self.assertEqual(self.failures('layout'), [])
+
+    def test_symlink_to_the_wrong_directory_fails(self):
+        self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
+        self.write('elsewhere/x/SKILL.md', '---\nname: x\n---\n')
+        self.link('.claude/skills', '../elsewhere')
+        self.assertIn("points to '../elsewhere'", self.failures('layout')[0])
+
+    def test_a_real_directory_is_not_a_link(self):
+        self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
+        self.write('.claude/skills/x/SKILL.md', '---\nname: x\n---\n')
+        self.assertIn('must be a tracked symlink', self.failures('layout')[0])
+
+    def test_nothing_to_link_needs_no_link(self):
+        self.assertEqual(self.failures('layout'), [])
+
+
+class Rules(Fixture):
+    def setUp(self):
+        super().setUp()
+        self.link('.claude/rules', '../.ai/rules')
+
+    def test_valid_rule_passes(self):
+        self.write('.ai/rules/app.md', RULE)
+        self.assertEqual(self.failures(), [])
+
+    def test_rule_without_paths_fails(self):
+        self.write('.ai/rules/app.md', '# Rule\n\nAlways loaded.\n')
+        self.assertIn('only key is `paths:`', self.failures('rules')[0])
+
+    def test_unquoted_or_inline_globs_fail(self):
+        for header in ['paths:\n  - apps/**', 'paths: ["apps/**"]', 'paths:', 'description: x\npaths:\n  - "apps/**"']:
+            self.write('.ai/rules/app.md', f'---\n{header}\n---\n\n# Rule\n')
+            self.assertEqual(len(self.failures('rules')), 1, header)
+
+    def test_glob_that_matches_nothing_fails(self):
+        self.write('.ai/rules/app.md', RULE.replace('apps/app/**/*.json', '*.json'))
+        failures = self.failures('rules')
+        self.assertEqual(len(failures), 1)
+        self.assertIn('"*.json" matches no tracked file', failures[0])
+
+    def test_rule_over_the_line_limit_fails(self):
+        self.write('.ai/rules/app.md', RULE + 'line\n' * 15)
+        self.assertIn('the limit is 20', self.failures('rules')[0])
+
+    def test_broken_link_in_a_rule_fails(self):
+        self.write('.ai/rules/app.md', RULE + '\n[gone](../../docs/gone.md)\n')
+        self.assertIn('.ai/rules/app.md: [links]', self.failures('links')[0])
+
+    def test_glob_dialect(self):
+        cases = [
+            ('**/*.ts', 'a/b/c.ts', True), ('**/*.ts', 'c.ts', True), ('*.ts', 'a/c.ts', False),
+            ('apps/*/mise.toml', 'apps/x/mise.toml', True), ('apps/*/mise.toml', 'apps/x/y/mise.toml', False),
+            ('.forgejo/**', '.forgejo/workflows/a.yml', True), ('src/{a,b}.ts', 'src/b.ts', True),
+            ('src/?.ts', 'src/ab.ts', False), ('mise.toml', 'mise.toml.bak', False),
+        ]
+        for glob, name, expected in cases:
+            self.assertEqual(bool(agents.glob_pattern(glob).match(name)), expected, (glob, name))
+
+
 if __name__ == '__main__':
     unittest.main()
