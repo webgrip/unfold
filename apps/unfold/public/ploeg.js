@@ -880,7 +880,42 @@ function runLinks(run) {
   return `<div class="cluster gap-sm">${links.map(link => `<a class="chip" href="${escape(link.url)}" target="_blank" rel="noopener noreferrer">${icon(/^Pull request/.test(link.label) ? 'pull-request' : 'link')}<span>${escape(link.label)}</span>${newTab}</a>`).join('')}</div>`;
 }
 
-function runBody(run, { demo, now, live, attempts, grafanaUrl }) {
+const logTitles = { demo: 'No pod logs in the demo', not_connected: 'Logs are not connected', no_alias: 'No pod to read logs from' };
+
+function runLogsBody(run, entry) {
+  const data = entry?.data;
+  if (!data) {
+    if (entry?.error) return ui.callout({ tone: 'danger', title: 'The logs could not be read', body: `<p>${escape(entry.error.message)}</p>`, actions: ui.button({ label: 'Try again', icon: 'refresh', variant: 'secondary', size: 'xs', action: 'work-run-logs-retry', data: { id: run.id } }) });
+    return '<p class="meta work-run-log-status" aria-busy="true">Loading logs…</p>';
+  }
+  const target = safeUrl(data.grafanaUrl);
+  const grafana = target ? ui.button({ label: 'Open in Grafana', icon: 'activity', variant: 'ghost', size: 'xs', href: target, external: true, data: { linkOut: 'grafana-logs' } }) : '';
+  const stale = entry.error ? `<p class="meta work-run-log-status" data-tone="danger">Could not refresh: ${escape(entry.error.message)}</p>` : '';
+  if (!data.available) return ui.emptyState({ compact: true, icon: data.reason === 'not_connected' ? 'settings' : 'terminal', title: logTitles[data.reason] || 'No logs for this Run', body: `<p>${escape(data.reason === 'not_connected' ? 'Logs are not connected: set observability.logsUrl.' : data.message || '')}</p>`, actions: grafana });
+  const lines = entry.lines || [];
+  if (!lines.length) {
+    const body = data.reason === 'not_started' ? data.message : data.live ? 'Lines appear here while the agent pod writes them.' : data.pods.length ? 'The pod wrote no lines in this Run’s window.' : 'The log store holds no lines for this Run’s pod. They may have aged out.';
+    return `${ui.emptyState({ compact: true, icon: 'terminal', title: 'No log lines yet', body: `<p>${escape(body)}</p>`, actions: grafana })}${stale}`;
+  }
+  const pods = [...new Set(data.pods.map(entry => entry.pod))];
+  const several = pods.length > 1;
+  const text = lines.map(line => `${several && line.stream ? `<span class="work-run-log-stream">${escape(line.stream)}</span> ` : ''}${escape(line.text)}`).join('\n');
+  const head = `<div class="work-run-log-head"><p class="meta"><span class="num">${escape(plural(lines.length, 'line'))}</span>${entry.truncated ? ' · newest shown' : ''} · ${several ? `${escape(plural(pods.length, 'pod'))}: ` : 'Pod '}${pods.map(pod => `<span class="mono">${escape(pod)}</span>`).join(', ')}${data.live ? ' · <span class="live-dot" aria-hidden="true"></span> live' : ''}</p>${grafana ? `<div class="work-run-tools">${grafana}</div>` : ''}</div>`;
+  return `${head}<pre class="work-log work-run-log" data-private data-run-log="${escape(run.id)}" tabindex="0" aria-label="${escape(`Pod logs of Run ${run.id}`)}">${text}</pre>${stale}`;
+}
+
+/**
+ * The "Pod logs" disclosure of one Run: closed until opened, then the agent pod's lines read by the view, oldest
+ * first. `entry` is the view's state for the Run: `{ data, lines, truncated, error }`, or nothing before the first read.
+ * @param {{ id: string|number }} run
+ * @param {{ data?: object, lines?: object[], truncated?: boolean, error?: { message: string } } | undefined} entry
+ * @returns {string}
+ */
+export function runLogsMarkup(run, entry) {
+  return ui.disclosure({ summary: 'Pod logs', id: `work-run-logs-${run.id}`, body: `<div class="work-run-logs">${runLogsBody(run, entry)}</div>` });
+}
+
+function runBody(run, { demo, now, live, attempts, grafanaUrl, logs }) {
   const failure = runFailure(run);
   const retriedAs = failure?.retries ? attempts?.get(String(run.id))?.next : null;
   const parts = [];
@@ -909,6 +944,7 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl }) {
     ['Model cost', demo ? '<span class="subtle">Demo · no model calls</span>' : neverStarted(run) ? '<span class="subtle">Nothing ran</span>' : run.costStatus === 'observed' && amount(run.usage?.costUsd) ? `<span class="num">${moneyText(run.usage.costUsd)}</span>` : '<span class="subtle">Not reported</span>'],
     ['Tokens', tokens],
   ]));
+  parts.push(runLogsMarkup(run, logs?.get(String(run.id))));
   const grafana = runExplorer(run.keyAlias, grafanaUrl);
   const copy = ui.button({ label: 'Copy link to this Run', icon: 'copy', variant: 'ghost', size: 'xs', action: 'work-copy-run', data: { id: run.id, workItem: run.workItemId } });
   const grafanaLink = grafana ? ui.button({ label: 'Grafana', icon: 'activity', variant: 'ghost', size: 'xs', href: grafana, external: true, data: { linkOut: 'grafana' } }) : '';
@@ -932,7 +968,7 @@ function runRow(run, context, { round }) {
 function runsMarkup(detail, model) {
   const shift = latestShift(detail);
   const groups = runGroups(detail.runs, shift?.id);
-  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl };
+  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs };
   const render = (list, continued) => list.map(group => `${group.label && !continued.has(group.key) ? `<p class="work-run-group">${escape(group.label)}</p>` : ''}${group.runs.map(run => runRow(run, context, { round: group.label })).join('')}`).join('');
   const shown = [];
   const rest = [];

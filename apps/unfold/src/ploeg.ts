@@ -7,6 +7,7 @@ import { FactsError, parseFactsPage, parseFactsResponse, type FactsPage, type Wo
 import { CrackError } from './cards/cracks.ts';
 import { valueStream, type ValueStream } from './value-stream.ts';
 import type { CardService, CommentRequest, CommentResult, FactsQuery } from './cards/service.ts';
+import { readRunLogs, RunLogsError, type RunLogs } from './run-logs.ts';
 import type { PloegCardFlow, PloegCardPipeline, PloegCardShape, PloegPlayCITiming, PloegPlayShape, PloegPlayTimeline } from './card-kpis.ts';
 
 export type PloegState = 'ingested' | 'queued' | 'leased' | 'done' | 'needs_human' | 'awaiting_review' | 'stale' | 'withdrawn' | 'proposed';
@@ -781,6 +782,7 @@ export class PloegClient {
   private readonly config?: AppConfig['ploeg'];
   private readonly taskSources: TaskSourceConfig[];
   private readonly demo: boolean;
+  private readonly observability: AppConfig['observability'];
   private cachedToken: string | undefined;
   private readonly cache = new Map<string, { until: number; value: unknown }>();
   private readonly titles = new Map<string, string>();
@@ -836,7 +838,7 @@ export class PloegClient {
     const pr = record(comment.pullRequest);
     return { pullRequest: { id: identifier(pr.id), forge: field(pr.forge, 64), owner: field(pr.owner, 256), repo: field(pr.repo, 256), number: numeric(pr.number, true) }, commentId: comment.commentId === null || comment.commentId === undefined ? null : numeric(comment.commentId, true), imageUrl: comment.imageUrl === null || comment.imageUrl === undefined ? null : field(comment.imageUrl, 4096), created: comment.created === true };
   }
-  constructor(config: AppConfig) { this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); }
+  constructor(config: AppConfig) { this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); }
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
@@ -943,6 +945,15 @@ export class PloegClient {
     const facts = await this.workItemFacts(id, fresh);
     if (facts.workItem.id !== id || !this.allowed(user, facts.workItem.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
     return valueStream(facts);
+  }
+  /** Reads the agent pod logs of one Run of a Work Item the caller may see; `after` is the `cursor` of an earlier read. See {@link readRunLogs}. */
+  async runLogs(user: User, id: string, runId: string, after?: string, fresh = false): Promise<RunLogs> {
+    if (!/^[1-9][0-9]{0,19}$/.test(runId)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg Run identifier.');
+    const view = await this.detail(user, id, fresh);
+    const found = view.runs.find(entry => entry.id === runId);
+    if (!found || found.workItemId !== id) throw new PloegError(404, 'ploeg_not_found', 'This Run is not part of the Work Item.');
+    try { return await readRunLogs(this.observability, found, { demo: this.demo, after }); }
+    catch (error) { if (error instanceof RunLogsError) throw new PloegError(error.status, error.code, error.message); throw error; }
   }
   /** Reads a Work Item's Run card, assembled by Unfold from Ploeg's delivery facts. Without those facts it refuses with 503 `cards_facts_unavailable`. */
   async card(user: User, id: string, fresh = false): Promise<PloegCardView> {

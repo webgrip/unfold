@@ -104,10 +104,16 @@ The Activity stream shows one card per tool call with its status; open it for th
 A profile can point the workbench at the estate's Grafana so every session links out to where the rest of the evidence lives:
 
 ```json
-"observability": { "grafanaUrl": "https://grafana.example", "dashboards": { "spend": "litellm", "reliability": "litellm-reliability", "finops": "finops-fleet" }, "tracesDatasource": "victoriatraces", "logsDatasource": "victorialogs" }
+"observability": { "grafanaUrl": "https://grafana.example", "dashboards": { "spend": "litellm", "reliability": "litellm-reliability", "finops": "finops-fleet" }, "tracesDatasource": "victoriatraces", "logsDatasource": "victorialogs", "logsUrl": "http://vlsingle-victorialogs.observability.svc.cluster.local:9428" }
 ```
 
 **Settings › Environment** lists the dashboards, the budget panel links to the spend board whose "Cost per run" table is keyed by the session's key alias, and the Gateway tab opens Grafana Explore on the trace and log datasources for the session's time window, or for one request's window from its row. The default trace query selects the gateway's service and the default log query its namespace and container; `traceQuery` and `logsQuery` override them and may use `{callId}`, `{alias}` and `{sessionId}` once the estate records the gateway call id as a span attribute or log field. At the second estate the spend board's per-run rows come from the ledger exporter, which reads the gateway's request log by key alias, so a session's cost survives the revocation of its key.
+
+### Pod logs per Run
+
+Set `observability.logsUrl` to the VictoriaLogs base URL, for example `http://vlsingle-victorialogs.observability.svc.cluster.local:9428`, and each Run on a Work Item page gets a **Pod logs** disclosure. Ploeg does not record which pod ran a Run, so the server finds it in two LogsQL queries against `/select/logsql/query`: the pods whose lines carry the Run's `trace=<key alias>` (the worker's run logger writes it on every line) between two minutes before the Run started and two minutes after it finished, then those pods' lines in the same window. A retried Run can show more than one pod; each line is then labelled with its pod. The answer holds the newest 500 lines, each cut at 4,000 characters, with terminal escapes stripped and credentials masked. While the Run is running and the disclosure is open, the page asks for newer lines every five seconds; it stops when the disclosure closes, the tab is hidden or the Run finishes. The route is `GET /api/ploeg/work-items/<id>/runs/<run>/logs` and authorizes like the Work Item itself.
+
+Without `logsUrl` the disclosure says the logs are not connected and, when `grafanaUrl` and `logsDatasource` are set, links Grafana Explore to the same search. The demo has no agent pods and says so. In Kubernetes the Unfold pod needs NetworkPolicy egress to the VictoriaLogs pod on TCP 9428 (on the owner's homelab, pods labelled `app.kubernetes.io/name: vlsingle` and `app.kubernetes.io/instance: victorialogs` in the `observability` namespace); without it every read fails with "The log store could not be reached".
 
 ## Card themes and generated art
 

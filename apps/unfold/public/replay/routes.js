@@ -65,6 +65,7 @@ export const refusedRoutes = Object.freeze([
   { method: '*', path: `/api/card-themes/${id}` }, { method: 'POST', path: '/api/card-assets' }, { method: 'GET', path: `/api/card-assets/${id}` }, { method: 'POST', path: '/api/card-art/generate' },
   { method: 'POST', path: '/api/status/notes' }, { method: 'POST', path: `/api/status/notes/${id}/resolve` },
   { method: 'POST', path: '/api/task-imports' }, { method: '*', path: `/api/task-sources/${id}/tasks/${id}/${id}` },
+  { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/logs` },
   { method: 'POST', path: `/api/ploeg/work-items/${id}/${id}` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/cracks/${id}/${id}` },
   { method: 'GET', path: `/api/sessions/${id}/delivery` }, { method: '*', path: `/api/sessions/${id}/${id}` }, { method: '*', path: `/api/sessions/${id}/${id}/${id}` },
 ]);
