@@ -1,0 +1,59 @@
+== WINDOW
+min|max|count
+2026-09-29 05:41:45.407763+00|2026-10-11 12:21:03.363949+00|20
+== PER TEAM (Shifts opened since 2026-09-29)
+team|shifts|runs|runs_unsettled|spend_usd|p50|p90|ready|merged|cap_hit|usd_per_merged
+bronze|11|33|0|5.4987|0.5280|0.8682|7|6|0|0.9165
+silver|9|24|0|14.0062|1.3931|2.3447|2|3|0|4.6687
+== PER TEAM AND ROLE MODELS
+team|role_models|shifts|spend_usd|merged|ready
+bronze|builder=fireworks-deepseek-v4p1-flash reviewer=fireworks-glm-5p3-flash|6|2.6981|4|5
+bronze|builder=deepseek-chat reviewer=deepseek-chat|3|1.6830|1|1
+bronze|builder=fireworks-deepseek-v4p1-flash|2|1.1176|1|1
+silver|builder=claude-sonnet-5 builder=fireworks-deepseek-v4p1-flash|3|3.4086|1|0
+silver|builder=claude-sonnet-5 reviewer=deepseek-chat|2|4.8567|1|1
+silver|builder=deepseek-chat reviewer=fireworks-glm-5p3-flash|2|3.5932|1|1
+silver|builder=claude-sonnet-5|1|0.0000|0|0
+silver|builder=deepseek-chat|1|2.1477|0|0
+== CLOSE REASONS
+team|close_reason|settled_state|count
+bronze|review_approved|awaiting_review|4
+bronze|plan_exhausted|awaiting_review|2
+bronze|run stuck: builder round 1|needs_human|1
+bronze|run stuck: builder round 3|needs_human|1
+bronze|withdrawn_unassigned|awaiting_review|1
+bronze|run stuck: reviewer round 2|needs_human|1
+bronze|plan_exhausted|needs_human|1
+silver|writing_run_failed_repeatedly|needs_human|4
+silver|plan_exhausted|needs_human|2
+silver|review_approved|awaiting_review|2
+silver|run stuck: builder round 1|needs_human|1
+== PER ROLE AND SETTLED MODEL (byModel)
+team|role|model|runs|cost_usd|input_tokens|output_tokens
+bronze|builder|fireworks_ai/accounts/fireworks/models/deepseek-v4p1-flash|8|2.5709|116268511|1088937
+bronze|reviewer|fireworks_ai/accounts/fireworks/models/glm-5p3-flash|5|0.5603|13191953|179062
+silver|builder|deepseek/deepseek-flash|1|0.2601|7348601|91793
+silver|builder|fireworks_ai/accounts/fireworks/models/gpt-oss-120b|1|0.0629|1958119|24521
+silver|builder|claude-sonnet-5|1|0.0000|0|0
+== PER SHIFT
+shift_id|work_item_id|team|opened|close_reason|settled_state|merged|runs|runs_unsettled|spend|budget
+108|133|silver|2026-09-29|plan_exhausted|needs_human|f|2|0|2.5678|6.0000
+109|129|silver|2026-09-29|run stuck: builder round 1|needs_human|f|1|0|0.0000|6.0000
+110|131|silver|2026-09-29|review_approved|awaiting_review|t|2|0|2.2889|6.0000
+111|132|silver|2026-09-29|writing_run_failed_repeatedly|needs_human|t|3|0|1.3806|6.0000
+112|130|bronze|2026-09-29|run stuck: reviewer round 2|needs_human|f|2|0|0.2450|8.0000
+113|138|bronze|2026-09-29|plan_exhausted|needs_human|t|5|0|0.8682|8.0000
+114|129|silver|2026-09-29|writing_run_failed_repeatedly|needs_human|f|3|0|1.0278|6.0000
+115|133|silver|2026-09-29|writing_run_failed_repeatedly|needs_human|f|3|0|1.0002|6.0000
+116|130|bronze|2026-09-29|plan_exhausted|awaiting_review|f|3|0|0.5698|8.0000
+117|138|bronze|2026-09-29|withdrawn_unassigned|awaiting_review|t|2|0|0.0000|8.0000
+118|138|bronze|2026-09-29|plan_exhausted|awaiting_review|t|2|0|0.6845|8.0000
+119|129|silver|2026-09-30|writing_run_failed_repeatedly|needs_human|f|3|0|2.1477|6.0000
+120|133|silver|2026-09-30|plan_exhausted|needs_human|f|4|0|2.2001|6.0000
+121|132|silver|2026-09-30|review_approved|awaiting_review|t|3|0|1.3931|6.0000
+122|147|bronze|2026-10-01|review_approved|awaiting_review|t|2|0|0.4289|8.0000
+123|148|bronze|2026-10-01|review_approved|awaiting_review|t|2|0|0.5676|8.0000
+126|151|bronze|2026-10-05|run stuck: builder round 3|needs_human|f|4|0|0.5280|8.0000
+127|152|bronze|2026-10-05|run stuck: builder round 1|needs_human|f|2|0|1.1176|8.0000
+160|185|bronze|2026-10-10|review_approved|awaiting_review|t|7|0|0.3443|8.0000
+161|186|bronze|2026-10-11|review_approved|awaiting_review|f|2|0|0.1448|8.0000
