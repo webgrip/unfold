@@ -40,8 +40,10 @@ export function workItemRefusal(actionType: unknown): string {
 
 /** What a Work Item session says about the Runs' own words: Ploeg keeps each Run's report, not its conversation. */
 export const noAgentMessages = 'Ploeg records what each Run reported when it finished, not its messages or tool calls, so this chat shows the Rounds, their Runs and what each Run reported.';
-/** Said in a Ploeg Run's own chat for the same reason. */
+/** Said in a finished Ploeg Run's own chat for the same reason. */
 export const noRunMessages = 'Ploeg records no messages or tool calls for its Runs. This is what the Run reported when it finished.';
+/** Said in a Ploeg Run's own chat while the Run works or waits to start. */
+export const runNotFinished = (role: string, pending: boolean) => `${role} ${pending ? 'waits to start' : 'is working'}. Ploeg keeps what a Run reports when it finishes, not its messages or tool calls, so its report appears here then.`;
 /** The activity of a Work Item session while Ploeg cannot be read. */
 export const staleActivity = 'Ploeg is unreachable; last known state';
 
@@ -157,21 +159,41 @@ const turnMessage = (round: Round) => ({ text: `Round ${round.round}${round.shif
 const noticePart = (round: Round, index: number): Json[] => index === 0 ? [{ kind: 'systemNotification', content: noAgentMessages }] : [];
 const duration = (from: string, to: string) => Math.max(0, Date.parse(to) - Date.parse(from)) || 0;
 
-function turnOf(round: Round, index: number, spelling: Spelling): Json {
-  const turn = { id: round.turnId, startedAt: round.startedAt, message: turnMessage(round), responseParts: [...noticePart(round, index), ...round.runs.map(run => runPart(run, spelling))] };
+const firstSentence = (text: string) => {
+  const line = text.trim().split('\n').find(entry => entry.trim())?.trim() ?? '';
+  const end = line.search(/[.!?](\s|$)/);
+  const sentence = end >= 0 ? line.slice(0, end + 1) : line;
+  return sentence.length > 240 ? `${sentence.slice(0, 239)}…` : sentence;
+};
+
+/** One line under a finished Run in the Work Item's chat: what it came to, and the pull request a writing Run opened. */
+export function verdictParts(run: PloegRun, item: PloegItem): Json[] {
+  if (run.state !== 'finished') return [];
+  const role = roleName(run.role);
+  const pullRequest = run.writes && item.pullRequest?.url ? `[pull request${item.pullRequest.number ? ` #${item.pullRequest.number}` : ''}](${item.pullRequest.url})` : '';
+  const verification = /verification passed/i.test(run.summary) ? 'Ploeg\'s checks passed.' : /verification failed/i.test(run.summary) ? 'Ploeg\'s checks failed.' : '';
+  const headline = run.verdict ? `${role} ${verdictText(run.verdict)}` : failed(run) ? `${role} stopped` : pullRequest && run.outcome === 'pr_opened' ? `${role} opened the ${pullRequest}` : `${role} finished`;
+  const gist = failed(run) ? firstSentence(run.failureReason || run.stuckReason || run.summary) : verification || firstSentence(run.summary);
+  return [{ kind: 'markdown', id: `${runToolCallId(run)}-verdict`, content: `**${headline}.**${gist ? ` ${gist}` : ''} Open ${role} above for the full report.` }];
+}
+
+function turnOf(round: Round, index: number, spelling: Spelling, item: PloegItem): Json {
+  const turn = { id: round.turnId, startedAt: round.startedAt, message: turnMessage(round), responseParts: [...noticePart(round, index), ...round.runs.flatMap(run => [runPart(run, spelling), ...verdictParts(run, item)])] };
   return round.open ? turn : { ...turn, duration: duration(round.startedAt, round.finishedAt), state: 'complete' };
 }
 
 /** A Work Item session's chat: one turn per Round in the order Ploeg ran them, each Run a `ploeg_run` subagent call, and nothing a Run did not report. */
 export function workItemChatState(entry: WorkItemRecord, detail: PloegDetail, spelling: Spelling, flags: ViewFlags): Json {
-  const turns = rounds(detail).map((round, index) => ({ round, turn: turnOf(round, index, spelling) }));
+  const turns = rounds(detail).map((round, index) => ({ round, turn: turnOf(round, index, spelling, detail.item) }));
   const active = turns.find(({ round }) => round.open);
   return { ...workItemChatSummary(entry, spelling, flags), turns: turns.filter(({ round }) => !round.open).map(({ turn }) => turn), ...(active ? { activeTurn: active.turn } : {}) };
 }
 
-function runChatSummary(run: PloegRun, spelling: Spelling): Json {
-  const role = roleName(run.role);
-  return { resource: runChatChannel(spelling.session, runToolCallId(run)), title: role, status: run.state !== 'finished' ? statusBits.inProgress : failed(run) ? statusBits.error : statusBits.idle, modifiedAt: run.finishedAt ?? run.startedAt ?? new Date(0).toISOString(), ...(run.state === 'running' ? { activity: `${role} is working` } : {}), origin: { kind: 'tool', chat: spelling.chat, toolCallId: runToolCallId(run) }, interactivity: 'read-only' };
+const runActivity = (run: PloegRun) => run.state === 'running' ? `${roleName(run.role)} is working` : run.state === 'pending' ? 'Waiting to start' : null;
+
+function runChatSummary(run: PloegRun, spelling: Spelling, since: string): Json {
+  const activity = runActivity(run);
+  return { resource: runChatChannel(spelling.session, runToolCallId(run)), title: roleName(run.role), status: run.state !== 'finished' ? statusBits.inProgress : failed(run) ? statusBits.error : statusBits.idle, modifiedAt: run.finishedAt ?? run.startedAt ?? since, ...(activity ? { activity } : {}), origin: { kind: 'tool', chat: spelling.chat, toolCallId: runToolCallId(run) }, interactivity: 'read-only' };
 }
 
 function reportParts(run: PloegRun, turnId: string): Json[] {
@@ -180,10 +202,11 @@ function reportParts(run: PloegRun, turnId: string): Json[] {
   return sections.length ? [{ kind: 'markdown', id: `${turnId}-report`, content: sections.map(([title, value]) => `**${title}**\n\n${value.trim()}`).join('\n\n') }] : [];
 }
 
-function runTurn(run: PloegRun): Json {
+function runTurn(run: PloegRun, since: string): Json {
   const turnId = `${runToolCallId(run)}-turn`;
-  const startedAt = run.startedAt ?? run.finishedAt ?? new Date(0).toISOString();
-  const turn = { id: turnId, startedAt, message: { text: `${roleName(run.role)} · Round ${run.round}`, origin: { kind: 'systemNotification' } }, responseParts: [{ kind: 'systemNotification', content: noRunMessages }, ...reportParts(run, turnId)] };
+  const startedAt = run.startedAt ?? run.finishedAt ?? since;
+  const notice = run.state === 'finished' ? noRunMessages : runNotFinished(roleName(run.role), run.state === 'pending');
+  const turn = { id: turnId, startedAt, message: { text: `${roleName(run.role)} · Round ${run.round}`, origin: { kind: 'systemNotification' } }, responseParts: [{ kind: 'systemNotification', content: notice }, ...reportParts(run, turnId)] };
   return run.state === 'finished' ? { ...turn, duration: duration(startedAt, run.finishedAt ?? startedAt), state: failed(run) ? 'error' : 'complete' } : turn;
 }
 
@@ -191,15 +214,15 @@ function runTurn(run: PloegRun): Json {
 export function workItemRunChatState(detail: PloegDetail, toolCallId: string, spelling: Spelling): Json | undefined {
   const run = detail.runs.find(entry => runToolCallId(entry) === toolCallId);
   if (!run) return undefined;
-  const turn = runTurn(run);
-  return { ...runChatSummary(run, spelling), ...(run.state === 'finished' ? { turns: [turn] } : { turns: [], activeTurn: turn }) };
+  const turn = runTurn(run, detail.item.updatedAt);
+  return { ...runChatSummary(run, spelling, detail.item.updatedAt), ...(run.state === 'finished' ? { turns: [turn] } : { turns: [], activeTurn: turn }) };
 }
 
 /** A Work Item session as a client subscribes to it: read-only, without changesets, configuration or input requests of its own. */
 export function workItemSessionState(entry: WorkItemRecord, detail: PloegDetail, spelling: Spelling, flags: ViewFlags, protocolVersion: string, activeClients: Json[]): Json {
   return {
     ...workItemSummary(entry, spelling, flags, protocolVersion), lifecycle: 'ready', activeClients,
-    chats: [workItemChatSummary(entry, spelling, flags), ...[...detail.runs].sort(byId).map(run => runChatSummary(run, spelling))], defaultChat: spelling.chat,
+    chats: [workItemChatSummary(entry, spelling, flags), ...[...detail.runs].sort(byId).map(run => runChatSummary(run, spelling, detail.item.updatedAt))], defaultChat: spelling.chat,
     config: { schema: { type: 'object', properties: {} }, values: {} }, customizations: [], inputNeeded: [],
   };
 }
@@ -222,12 +245,13 @@ function completeAction(turnId: string, toolCall: Json): RoutedAction {
   return { to: 'chat', action: { type: 'chat/toolCallComplete', turnId, toolCallId: toolCall.toolCallId, result: { success, pastTenseMessage, content, ...(error ? { error } : {}) } } };
 }
 
-function runChatActions(before: PloegRun | undefined, run: PloegRun, spelling: Spelling): RoutedAction[] {
-  if (!before) return [{ to: 'session', action: { type: 'session/chatAdded', summary: runChatSummary(run, spelling) } }];
+function runChatActions(before: PloegRun | undefined, run: PloegRun, spelling: Spelling, since: string): RoutedAction[] {
+  if (!before) return [{ to: 'session', action: { type: 'session/chatAdded', summary: runChatSummary(run, spelling, since) } }];
   if (before.state === run.state) return [];
-  const actions: RoutedAction[] = [{ to: 'session', action: { type: 'session/chatUpdated', chat: runChatChannel(spelling.session, runToolCallId(run)), changes: { status: runChatSummary(run, spelling).status, activity: run.state === 'running' ? `${roleName(run.role)} is working` : null, modifiedAt: runChatSummary(run, spelling).modifiedAt } } }];
+  const summary = runChatSummary(run, spelling, since);
+  const actions: RoutedAction[] = [{ to: 'session', action: { type: 'session/chatUpdated', chat: runChatChannel(spelling.session, runToolCallId(run)), changes: { status: summary.status, activity: runActivity(run), modifiedAt: summary.modifiedAt } } }];
   if (run.state === 'finished') {
-    const turn = runTurn(run);
+    const turn = runTurn(run, since);
     const toolCallId = runToolCallId(run);
     for (const part of reportParts(run, turn.id)) actions.push({ to: { run: toolCallId }, action: { type: 'chat/responsePart', turnId: turn.id, part } });
     actions.push({ to: { run: toolCallId }, action: failed(run) ? { type: 'chat/error', turnId: turn.id, duration: turn.duration, part: { kind: 'error', error: { errorType: 'run_failed', message: run.failureReason || run.stuckReason || `${roleName(run.role)} stopped` } } } : { type: 'chat/turnComplete', turnId: turn.id, duration: turn.duration } });
@@ -247,7 +271,7 @@ export function workItemTranscriptActions(before: PloegDetail, after: PloegDetai
   rounds(after).forEach((round, index) => {
     const prior = previous.get(round.key);
     if (prior && !prior.open) return;
-    const turn = turnOf(round, index, spelling);
+    const turn = turnOf(round, index, spelling, after.item);
     if (!prior) {
       actions.push({ to: 'chat', action: { type: 'chat/turnStarted', turnId: turn.id, startedAt: turn.startedAt, message: turn.message } });
       for (const part of turn.responseParts) actions.push(...(part.kind === 'toolCall' ? spawnActions(turn.id, part) : [{ to: 'chat' as const, action: { type: 'chat/responsePart', turnId: turn.id, part } }]));
@@ -255,13 +279,14 @@ export function workItemTranscriptActions(before: PloegDetail, after: PloegDetai
       const known = new Set(prior.runs.map(run => run.id));
       for (const part of turn.responseParts.filter((entry: Json) => entry.kind === 'toolCall')) {
         const run = round.runs.find(entry => runToolCallId(entry) === part.toolCall.toolCallId)!;
-        if (!known.has(run.id)) actions.push(...spawnActions(turn.id, part));
-        else if (part.toolCall.status === 'completed' && previousRuns.get(run.id)?.state !== 'finished') actions.push(completeAction(turn.id, part.toolCall));
+        const verdicts = verdictParts(run, after.item).map(verdict => ({ to: 'chat' as const, action: { type: 'chat/responsePart', turnId: turn.id, part: verdict } }));
+        if (!known.has(run.id)) actions.push(...spawnActions(turn.id, part), ...verdicts);
+        else if (part.toolCall.status === 'completed' && previousRuns.get(run.id)?.state !== 'finished') actions.push(completeAction(turn.id, part.toolCall), ...verdicts);
       }
     }
     if (!round.open) actions.push({ to: 'chat', action: { type: 'chat/turnComplete', turnId: turn.id, duration: turn.duration } });
   });
-  for (const run of [...after.runs].sort(byId)) actions.push(...runChatActions(previousRuns.get(run.id), run, spelling));
+  for (const run of [...after.runs].sort(byId)) actions.push(...runChatActions(previousRuns.get(run.id), run, spelling, after.item.updatedAt));
   return actions;
 }
 

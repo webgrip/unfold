@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import type { IncomingMessage } from 'node:http';
 import type { Duplex } from 'node:stream';
+import { escapeMathDelimiters } from '../markdown.ts';
 import type { AgentHostView, Store } from '../store.ts';
 import type { Engine } from '../engine.ts';
 import { patchLineCounts, readCandidate, readCandidateBlob, type CandidateFile } from '../candidates.ts';
@@ -20,7 +21,7 @@ import { Declines, declineEvents, declinedAnswers, stoppingRefusal, yesNoOptions
 import { SpendNotices, observeSpend, runEndSpend } from './spend.ts';
 import { resumable, resumeRefusal, runAgainReply, turnResumedEvent } from './try-again.ts';
 import { knownSecrets, plainRedactedText, withoutKnownSecrets } from '../redaction.ts';
-import { CommandLog, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel } from './terminals.ts';
+import { CommandLog, clientTerminalState, clientTerminalUri, maxClientTerminals, noClientShell, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel } from './terminals.ts';
 import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBaseline, sessionChatCatalog, speaksCatalog, supportedVersions } from './versions.ts';
 import { ChatAsks, askMarkdown, commandCompletions, messageIntent, type ChatAskEntry, type ChatAskService } from './asks.ts';
 import { candidateEdits, carryRuns, parseRunChannel, runChatChannel, runChatState, runChats, runFinished, runMessage, runRoute, runStarted, runTool, runTranscripts, stopRuns, toolActions, type RunTranscripts, type Spelling } from './runs.ts';
@@ -81,7 +82,7 @@ export function sessionSchemeFor(clientInfo: unknown, meta: unknown): SessionSch
 }
 
 type Json = Record<string, any>;
-type Client = { id: string; clientId?: string; scheme: SessionScheme; protocolVersion: string; connection: WebSocketConnection; user: User; token: string; checkedAt: number; connectedAt: string; clientInfo?: { name?: string; version?: string }; subscriptions: Set<string>; initialized: boolean; activeSessions?: number };
+type Client = { id: string; clientId?: string; scheme: SessionScheme; protocolVersion: string; connection: WebSocketConnection; user: User; token: string; checkedAt: number; connectedAt: string; clientInfo?: { name?: string; version?: string }; subscriptions: Set<string>; initialized: boolean; activeSessions?: number; terminals?: Map<string, unknown> };
 /** One initialized connection as its owner sees it in `GET /api/agent-host`. */
 export type AttachedClient = { name?: string; version?: string; protocolVersion: string; connectedAt: string; tokenId: string };
 type View = Pick<Client, 'user' | 'scheme' | 'protocolVersion'>;
@@ -115,6 +116,8 @@ const clientTurnId = /^[A-Za-z0-9_.:-]{1,128}$/;
 const actionOrigins = new WeakMap<Json, Origin>();
 const channelKey = (uri: string) => { if (isAutomationsChannel(uri)) return automationsChannel; const parsed = parseChannel(uri); const annotations = parsed ? undefined : parseAnnotationsChannel(uri); return parsed ? `${parsed.kind}:${parsed.id}${parsed.run ? `:${parsed.run}` : ''}` : annotations ? `annotations:${annotations.id}` : uri; };
 
+/** Keeps the dollar signs of every Markdown part a client receives literal, so VS Code's chat typesets no maths. */
+const plainDollars = (_key: string, value: unknown) => value && typeof value === 'object' && (value as Json).kind === 'markdown' && typeof (value as Json).content === 'string' ? { ...(value as Json), content: escapeMathDelimiters((value as Json).content) } : value;
 const codes = { parse: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internal: -32603, sessionNotFound: -32001, providerNotFound: -32002, sessionExists: -32003, turnInProgress: -32004, unsupportedVersion: -32005, authRequired: -32007, notFound: -32008, permissionDenied: -32009, conflict: -32011 };
 
 class RpcError extends Error { code: number; data?: unknown; constructor(code: number, message: string, data?: unknown) { super(message); this.code = code; this.data = data; } }
@@ -429,7 +432,7 @@ export class AgentHost {
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
 
-  private send(client: Client, message: Json): void { if (message.method !== 'action' || isActionKnownToVersion(message.params?.action?.type, client.protocolVersion)) client.connection.send(JSON.stringify(message)); }
+  private send(client: Client, message: Json): void { if (message.method !== 'action' || isActionKnownToVersion(message.params?.action?.type, client.protocolVersion)) client.connection.send(JSON.stringify(message, plainDollars)); }
 
   private notify(channelFilter: string, method: string, params: Json | ((client: Client) => Json), ownerId?: string, audience?: (client: Client) => boolean): void {
     for (const client of this.clients) if (client.initialized && client.subscriptions.has(channelFilter) && (ownerId === undefined || this.mayView(client.user, ownerId)) && (!audience || audience(client))) this.send(client, { jsonrpc: '2.0', method, params: typeof params === 'function' ? params(client) : params });
@@ -516,7 +519,7 @@ export class AgentHost {
     return {
       resource: this.sessionUri(session, view), provider, title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).session, activity: activity(session),
       createdAt: session.createdAt, modifiedAt: session.updatedAt,
-      ...this.project(repository),
+      ...this.project(repository, session.repositoryId),
       ...(session.candidate?.status === 'ready' ? { changes: { files: session.candidate.fileCount } } : {}),
       ...sessionChatCatalog(view.protocolVersion, this.chatSummary(session, view), session.candidate?.status === 'ready' ? { files: session.candidate.fileCount } : undefined),
       _meta: { ...this.review.gitMeta(session), 'dev.webgrip.unfold': { status: session.status, placement: session.placement, budgetUsd: session.budgetUsd, spentUsd: session.spentUsd, costStatus: session.costStatus, candidate: session.candidate?.status } },
@@ -1126,10 +1129,25 @@ export class AgentHost {
     }
   }
 
+  /**
+   * A terminal VS Code asks for each time it shows one of this host's sessions. It starts no shell: it holds a notice that
+   * says where the crew's commands appear, refuses every action, and lives as long as the connection or until disposed.
+   */
+  private createClientTerminal(client: Client, params: Json): Json {
+    const channel = params.channel;
+    if (parseTerminalChannel(String(channel))) throw new RpcError(codes.permissionDenied, noClientTerminals);
+    if (!clientTerminalUri(channel)) throw new RpcError(codes.invalidParams, 'channel must be a terminal URI of the client\'s own');
+    const terminals = client.terminals ??= new Map();
+    if (!terminals.has(channel) && terminals.size >= maxClientTerminals) throw new RpcError(codes.invalidParams, `A connection holds at most ${maxClientTerminals} terminals`);
+    terminals.set(channel, params.name);
+    return {};
+  }
+
   private snapshot(client: Client, channel: string): Json {
     if (channel === rootChannel) { const state = this.rootState(client.user); client.activeSessions = state.activeSessions; return { resource: rootChannel, state, fromSeq: this.serverSeq }; }
     const terminal = parseTerminalChannel(channel);
     if (terminal) return { resource: channel, state: this.terminalState(client, terminal), fromSeq: this.serverSeq };
+    if (client.terminals?.has(channel)) return { resource: channel, state: clientTerminalState(client.clientId ?? client.id, client.terminals.get(channel)), fromSeq: this.serverSeq };
     const parsed = parseChannel(channel);
     if (!parsed) throw new RpcError(codes.notFound, 'Unknown channel');
     if (parsed.run) { const session = this.sessionFor(client.user, channel); const state = session && runChatState(this.projection(session).runs, parsed.run, this.spelling(session, client)); if (!state) throw new RpcError(codes.notFound, 'Unknown channel'); return { resource: channel, state, fromSeq: this.serverSeq }; }
@@ -1156,8 +1174,19 @@ export class AgentHost {
     return { resource: sessionChannel(pending.id, view.scheme), provider, title: pending.config.title ?? 'New session', status: statusBits.idle | this.viewOf(view, pending.id).session, createdAt: pending.createdAt, modifiedAt: pending.createdAt, ...this.project(this.config.repositories.find(repo => repo.id === pending.config.repository)), ...sessionChatCatalog(view.protocolVersion, this.pendingChat(pending, view)) };
   }
 
-  private project(repository: Repository | undefined): Json {
-    return repository ? { project: { uri: repository.url, displayName: repositoryWorkspaceNames(this.config.repositories).get(repository.id) } } : {};
+  private project(repository: Repository | undefined, repositoryId?: string): Json {
+    if (repository) return { project: { uri: repository.url, displayName: repositoryWorkspaceNames(this.config.repositories).get(repository.id) } };
+    return repositoryId ? { project: { uri: `${repositoriesDirectory}/${encodeURIComponent(repositoryId)}`, displayName: `Unfold · ${repositoryId}` } } : {};
+  }
+
+  /** The project a Work Item groups under: the configured repository its Ploeg target names, otherwise the target's own repository, otherwise its Team. */
+  private workItemProject(item: WorkItemRecord['item']): Json {
+    const target = item.target;
+    const path = target ? `/${target.owner}/${target.repo}`.toLowerCase() : undefined;
+    const repository = path ? this.config.repositories.find(repo => { try { return new URL(repo.url).pathname.replace(/\.git$/i, '').replace(/\/+$/, '').toLowerCase().endsWith(path); } catch { return false; } }) : undefined;
+    if (repository) return this.project(repository);
+    if (target) return { project: { uri: `${repositoriesDirectory}/${encodeURIComponent(`${target.owner}-${target.repo}`)}`, displayName: `Unfold · ${target.repo}` } };
+    return { project: { uri: `${repositoriesDirectory}/${encodeURIComponent(`team-${item.team}`)}`, displayName: `Ploeg · ${item.team}` } };
   }
 
   private repositoryDirectories(): Json[] {
@@ -1256,7 +1285,8 @@ export class AgentHost {
       case 'sessionConfigCompletions': return sessionConfigCompletions(resolveSessionConfig(this.config, params.config, this.repositoryFromPickedFolder(params.workingDirectory)).schema, String(params.property));
       case 'createSession': return this.createSession(client, params);
       case 'createChat': return this.createChat(client, params);
-      case 'createTerminal': case 'disposeTerminal': throw new RpcError(codes.permissionDenied, noClientTerminals);
+      case 'createTerminal': return this.createClientTerminal(client, params);
+      case 'disposeTerminal': if (parseTerminalChannel(String(params.channel))) throw new RpcError(codes.permissionDenied, noClientTerminals); client.terminals?.delete(String(params.channel)); return {};
       case 'disposeSession': return this.disposeSession(client, params);
       case 'disposeChat': return {};
       case 'fetchTurns': return {};
@@ -1397,7 +1427,7 @@ export class AgentHost {
 
   private workItemSpelling(publicId: string, view: Pick<View, 'scheme'>): Spelling { return { session: sessionChannel(publicId, view.scheme), chat: chatChannel(publicId, view.scheme) }; }
 
-  private workItemSummary(entry: WorkItemRecord, view: View): Json { return workItemSummary(entry, this.workItemSpelling(entry.publicId, view), this.viewOf(view, entry.publicId), view.protocolVersion); }
+  private workItemSummary(entry: WorkItemRecord, view: View): Json { return { ...workItemSummary(entry, this.workItemSpelling(entry.publicId, view), this.viewOf(view, entry.publicId), view.protocolVersion), ...this.workItemProject(entry.item) }; }
 
   /** The person's Work Item sessions for `listSessions`. Whatever Ploeg does, Unfold's own sessions still list. */
   private async workItemSummaries(client: Client): Promise<Json[]> {
@@ -1415,7 +1445,7 @@ export class AgentHost {
     const flags = this.viewOf(client, parsed.id);
     const open = this.workItemCommands.open(client.user.id, found.entry.workItemId);
     const state = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling)
-      : parsed.kind === 'session' ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id)), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] }
+      : parsed.kind === 'session' ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id)), ...this.workItemProject(found.entry.item), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] }
       : parsed.kind === 'chat' ? withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId), this.workItemCommands.notes(client.user.id, found.entry.workItemId))
       : undefined;
     if (!state) throw new RpcError(codes.notFound, 'Unknown channel');
@@ -1429,7 +1459,7 @@ export class AgentHost {
     for (const entry of change.added) this.notify(rootChannel, 'root/sessionAdded', viewer => ({ channel: rootChannel, summary: this.workItemSummary(entry, viewer) }), undefined, own);
     for (const entry of change.changed) {
       if (workItemStatus(entry) === statusBits.inputNeeded && !entry.stale) this.store.clearAgentHostFlags(entry.publicId, statusBits.isRead, at);
-      this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.workItemSummary(entry, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, ...catalogOf(summary) } }; }, undefined, own);
+      this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.workItemSummary(entry, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, ...(summary.project ? { project: summary.project } : {}), ...catalogOf(summary) } }; }, undefined, own);
       this.broadcast(sessionChannel(entry.publicId), viewer => { const summary = this.workItemSummary(entry, viewer); return { type: 'session/chatUpdated', chat: chatChannel(entry.publicId, viewer.scheme), changes: { title: summary.title, status: summary.chats?.[0]?.status ?? summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt } }; }, undefined, own);
     }
     for (const publicId of change.removed) this.notify(rootChannel, 'root/sessionRemoved', viewer => ({ channel: rootChannel, session: sessionChannel(publicId, viewer.scheme) }), undefined, own);
@@ -2108,6 +2138,7 @@ export class AgentHost {
       if (isAutomationsChannel(channel)) { reject(this.automations.refuse(action)); return; }
       const terminal = parseTerminalChannel(channel);
       if (terminal) { reject(this.sessionFor(client.user, sessionChannel(terminal.sessionId)) ? readOnlyTerminal : 'Terminal not found'); return; }
+      if (client.terminals?.has(channel)) { reject(noClientShell); return; }
       const parsed = parseChannel(channel);
       if (!parsed) { reject('Unknown channel'); return; }
       if (parsed.run) { reject('A Run\'s chat is read-only; send messages in the session\'s chat'); return; }
