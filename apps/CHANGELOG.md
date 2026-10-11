@@ -1,3 +1,13 @@
+## [unfold-v0.4.0-rc.66](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.65...unfold-v0.4.0-rc.66) (2026-10-11)
+
+### Added
+
+* **unfold:** answer Dutch standing questions from the record ([ecad7bb](https://forgejo.webgrip.dev/webgrip/unfold/commit/ecad7bb866a753151ae8602f29c59a0a29610aa3))
+
+### Tests
+
+* **unfold:** expect the Now digest's start from the same moment, including yesterday ([406c9c7](https://forgejo.webgrip.dev/webgrip/unfold/commit/406c9c7eaff12e159e45909c9ccace9912cd13ee))
+
 ## [unfold-v0.4.0-rc.65](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.64...unfold-v0.4.0-rc.65) (2026-10-11)
 
 ### Fixed
