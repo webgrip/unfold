@@ -1,3 +1,24 @@
+## [unfold-v0.4.0-rc.67](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.66...unfold-v0.4.0-rc.67) (2026-10-11)
+
+### Added
+
+* **unfold:** verify delivery candidates in kata pods and configure delivery in the chart ([24db28e](https://forgejo.webgrip.dev/webgrip/unfold/commit/24db28eee8e25eeae672496bff4f843a722b6efb))
+
+### Docs
+
+* **site:** slim the agent rules and import AGENTS.md from CLAUDE.md ([c2261b8](https://forgejo.webgrip.dev/webgrip/unfold/commit/c2261b892575fa082195e37fc0231aea2119834b))
+* troubleshoot CI and releases from what actually broke ([7a18ea0](https://forgejo.webgrip.dev/webgrip/unfold/commit/7a18ea0abb6fd3f15fe196c4cd68e06ca6ba4a9e))
+* **unfold:** document the Kubernetes verifier and the chart's delivery values ([8ae6086](https://forgejo.webgrip.dev/webgrip/unfold/commit/8ae608614ed9e102a6f3f7d0c0f4327c476d3249))
+* write down how work on Unfold is done, for people and agents ([efd8db9](https://forgejo.webgrip.dev/webgrip/unfold/commit/efd8db9a77f4b402afe4303c5d20948df2c7a80c))
+
+### Tests
+
+* **unfold:** typecheck before the unit tests run ([0f0f266](https://forgejo.webgrip.dev/webgrip/unfold/commit/0f0f266d4cd7f41d05711e09977384233246a155))
+
+### Internal
+
+* **agents:** add path rules, link skills for every agent, fix the Unfold gate ([087b61d](https://forgejo.webgrip.dev/webgrip/unfold/commit/087b61d69129085eeffb435aea487166bb8eb8be))
+
 ## [unfold-v0.4.0-rc.66](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.65...unfold-v0.4.0-rc.66) (2026-10-11)
 
 ### Added
