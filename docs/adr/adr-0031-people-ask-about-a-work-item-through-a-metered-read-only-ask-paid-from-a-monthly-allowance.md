@@ -91,6 +91,7 @@ The Session page's Investigate button already does this for "why did it stop".
 * 2026-10-10 — The owner chose an allowance as the charging model, and decided that prices and allowances are discussed in the open.
 * 2026-10-10 — Proposed.
 * 2026-10-10 — The owner approved "deterministic first, model last": standing questions are answered from the record for free, and only the rest becomes a metered Ask. See [the update below](#update-2026-10-10-deterministic-first-model-last).
+* 2026-10-11 — Standing questions asked in Dutch are answered from the record too, with a Dutch lead before the English answer. See [the update below](#update-2026-10-11-dutch-standing-questions).
 * Related: [ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md), [ADR-0007](adr-0007-clients-approve-ready-work.md), [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md)
 
 ## Update, 2026-10-10: deterministic first, model last
@@ -108,3 +109,12 @@ The owner approved answering the standing questions about a Work Item without a 
 **The demo uses the same rules.** The demo's own fixed rules are gone; it answers standing questions through the same matcher and says it has no model for any other question. Asking the model anyway in the demo is refused with no spend.
 
 This changes the decision's "Answer from the record with rules" option from "the demo's answer" to the first step of every Ask. The rest of the decision stands: every model answer is still admitted, capped and metered by Ploeg.
+
+## Update, 2026-10-11: Dutch standing questions
+
+The owner and the people he works with ask in Dutch: "wat doet hij nu?", "waarom is het gestopt?", "wat heeft het gekost?", "is het klaar?". Under the 2026-10-10 rule those went to the model and were paid for, although the record answers them.
+
+**The matcher knows Dutch phrasings for the same eight intents.** [`src/ask/record.ts`](../../apps/unfold/src/ask/record.ts) holds a Dutch list beside the English one, under the same rule: after trimming a greeting ("hoi", "hallo"), "graag", "alsjeblieft" or "a.u.b." and closing punctuation, the whole question must be one short phrasing, at most 80 characters, one sentence, and match exactly one intent. A question that matches the same intent in both languages, such as "Status?", counts as English. Compound questions, predictions ("wanneer is het klaar?", "wat gaat het kosten?"), the present-tense "wat kost het?" and questions about content still go to the model.
+
+**The record answer stays English, with a Dutch lead.** A Dutch question's record answer starts with "Antwoord uit het dossier, in het Engels zoals Unfold het toont." and then gives the same English answer an English question gets. Most of a record answer is not a template in this file: the phase label, headline, stop reason, Role steps and action labels come from the progress statechart, and the state text and stop reasons from the brief, all in English, the language of the whole UI. Translating only the templates would mix languages inside a sentence, and translating the statechart would add a second vocabulary to keep in step with the UI. A person who wants the answer in Dutch can use "Ask the model anyway"; the model answers in the language of the question. When Unfold gets a Dutch UI, record answers should follow it instead of carrying the lead.
+

@@ -6,7 +6,7 @@ import { AskAllowanceUsedUp, PloegError, type PloegAskAllowance } from '../ploeg
 import { withoutKnownSecrets } from '../redaction.ts';
 import type { Store } from '../store.ts';
 import { briefText, workItemBrief, type WorkItemBrief } from './brief.ts';
-import { demoUnanswered, matchIntent, recordAnswer } from './record.ts';
+import { demoUnanswered, matchQuestion, recordAnswer } from './record.ts';
 import type { Ask, AskAudience } from './types.ts';
 
 export { AskAllowanceUsedUp };
@@ -93,8 +93,9 @@ export class AskService {
     const question = this.clean(rawQuestion, questionLimit);
     const brief = await this.brief(user, workItemId);
     const ask: Ask = { id: randomUUID(), workItemId, workItemTitle: brief.title, askerId: user.id, askerName: user.name, audience, question, answer: '', status: 'answering', demo: brief.demo || this.options.demo, ploegAskId: null, model: null, costUsd: null, costStatus: 'pending', failure: null, source: 'model', intent: null, createdAt: this.now(), answeredAt: null };
-    const intent = request.model ? null : matchIntent(question);
-    const fromRecord = intent ? recordAnswer(intent, brief, audience) : null;
+    const match = request.model ? null : matchQuestion(question);
+    const intent = match?.intent ?? null;
+    const fromRecord = match ? recordAnswer(match.intent, brief, audience, match.language) : null;
     if (intent && fromRecord) {
       Object.assign(ask, { answer: this.clean(fromRecord, answerLimit), status: 'answered', source: 'record', intent, costUsd: ask.demo ? null : 0, costStatus: ask.demo ? 'demo' : 'settled', answeredAt: this.now() });
       this.store.saveAsk(ask);

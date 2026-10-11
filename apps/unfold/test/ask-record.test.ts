@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { money } from '../public/core/format.js';
 import { sessionProgress } from '../public/core/progress.js';
 import { workItemBrief, briefText, type BriefSession } from '../src/ask/brief.ts';
-import { matchIntent, recordAnswer, type RecordIntent } from '../src/ask/record.ts';
+import { dutchLead, matchIntent, matchQuestion, recordAnswer, type RecordIntent } from '../src/ask/record.ts';
 import { AskService, type AskAuthority, type AskGrant, type AskWorkItems } from '../src/ask/service.ts';
 import type { PloegCard, PloegDetail, PloegItem, PloegRun } from '../src/ploeg.ts';
 import { Store } from '../src/store.ts';
@@ -33,7 +33,7 @@ const unmatched = [
   'What changed in the readme?',
   'Why did the reviewer approve the change?',
   'How much will it cost to finish?',
-  'Waarom is het gestopt?',
+  'Warum hat es aufgehört?',
   'Status of the deploy pipeline?',
   'Can you make it funnier?',
   'Is it done? I need it for the demo tomorrow.',
@@ -47,6 +47,46 @@ test('each standing question maps to exactly its intent', () => {
 
 test('a question that is not exactly a standing question goes to the model', () => {
   for (const question of unmatched) assert.equal(matchIntent(question), null, question);
+});
+
+const dutchStanding: Record<RecordIntent, string[]> = {
+  doing: ['Wat doet hij nu?', 'Status?', 'Wat is de status van het werk?', 'Waar is hij nu mee bezig?', 'Hoe staat het ervoor?', 'Hoe ver is het?', 'Is hij nog bezig?', 'Hoi, wat gebeurt er nu?', 'Wat is de voortgang van deze taak?'],
+  stopped: ['Waarom is het gestopt?', 'Waarom stopte hij?', 'Waarom staat het stil?', 'Waarom wacht het?', 'Waar wacht hij op?', 'Waarom is het nog niet klaar?', 'Wat houdt het tegen?'],
+  spend: ['Wat heeft het gekost?', 'Hoeveel heeft het tot nu toe gekost?', 'Hoeveel is er uitgegeven?', 'Wat waren de kosten?', 'Kosten?', 'Hoeveel budget heeft het al gebruikt?', 'Wat kostte het?'],
+  next: ['Wat moet ik nu doen?', 'Wat is de volgende stap?', 'Volgende stappen?', 'Wat nu?', 'Moet ik nog iets doen?', 'Wat heb je van mij nodig?', 'Wat moeten we met dit ticket doen, alsjeblieft?'],
+  who: ['Wie werkt eraan?', 'Wie werkt er nu?', 'Wie is ermee bezig?', 'Welke agent is actief?', 'Welke rol werkt eraan?'],
+  done: ['Is het klaar?', 'Is het al af?', 'Is het werk afgerond?', 'Is de taak klaar a.u.b.?'],
+  pull_request: ['Waar is de PR?', 'Is er al een pull request?', 'Heeft hij een PR geopend?', 'Wat is de status van de PR?', 'Heeft het al een merge request?'],
+  preview: ['Is er een preview?', 'Waar is de previewomgeving?', 'Heeft het al een preview?', 'Hallo, is er een preview, graag?'],
+};
+
+const dutchUnmatched = [
+  'Is het klaar en waar is de PR?',
+  'Waarom is het gestopt? Wat heeft het gekost?',
+  'Wanneer is het klaar?',
+  'Wanneer komt er een PR?',
+  'Wat gaat het nog kosten?',
+  'Wat kost het?',
+  'Wat is er veranderd in de readme?',
+  'Waarom keurde de reviewer de wijziging goed?',
+  'Welke browsers heeft het getest?',
+  'Hoe gaat het?',
+  'Is het klaar? Ik heb het morgen nodig voor de demo.',
+  `Wat doet hij nu ${'en ook '.repeat(12)}`,
+];
+
+test('each Dutch standing question maps to exactly its intent and is marked Dutch', () => {
+  for (const [intent, questions] of Object.entries(dutchStanding)) for (const question of questions) {
+    assert.deepEqual(matchQuestion(question), { intent, language: question === 'Status?' ? 'en' : 'nl' }, question);
+  }
+});
+
+test('a Dutch question that is not exactly a standing question goes to the model', () => {
+  for (const question of dutchUnmatched) assert.equal(matchQuestion(question), null, question);
+});
+
+test('an English standing question is marked English', () => {
+  for (const questions of Object.values(standing)) for (const question of questions) assert.equal(matchQuestion(question)?.language, 'en', question);
 });
 
 function run(overrides: Partial<PloegRun> = {}): PloegRun {
@@ -83,6 +123,13 @@ test('without a session, each intent answers from the brief alone', () => {
   const stopped = workItemBrief(detail({ state: 'needs_human', latestShift: { id: '5', closeReason: 'pool_exhausted' } } as Partial<PloegItem>, [run({ state: 'finished' })]));
   assert.equal(recordAnswer('stopped', stopped, 'internal'), 'It stopped because it used up its budget.');
   for (const intent of Object.keys(standing) as RecordIntent[]) assert.doesNotMatch(String(recordAnswer(intent, review, 'internal')), /LEAK/);
+});
+
+test('a record answer to a Dutch question leads in Dutch and keeps the English answer the UI shows', () => {
+  const leased = workItemBrief(detail(), card(0.42));
+  assert.equal(recordAnswer('stopped', leased, 'internal', 'nl'), `${dutchLead} It has not stopped. It is being worked on now.`);
+  assert.equal(recordAnswer('stopped', leased, 'internal', 'en'), 'It has not stopped. It is being worked on now.');
+  assert.equal(recordAnswer('next', leased, 'client', 'nl'), null, 'a question the record cannot answer still goes to the model');
 });
 
 test('the next step is never answered from the record for a Client', () => {
@@ -163,6 +210,16 @@ test('a standing question is answered from the record with no admission, no mode
   assert.deepEqual(calls, []);
   assert.deepEqual(requests, []);
   assert.equal(store.asksAbout('42', 5)[0].source, 'record');
+});
+
+test('a Dutch standing question is answered from the record with the Dutch lead and no model call', async () => {
+  const { service, calls, requests } = harness();
+  const ask = await service.ask(owner, '42', 'Waarom is het gestopt?');
+  assert.deepEqual([ask.source, ask.intent, ask.costUsd, ask.answer], ['record', 'stopped', 0, `${dutchLead} It has not stopped. It is being worked on now.`]);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(requests, []);
+  const other = await service.ask(owner, '42', 'Wanneer is het klaar?');
+  assert.equal(other.source, 'model');
 });
 
 test('a standing question is answered from the record even when no Ploeg or gateway is configured', async () => {

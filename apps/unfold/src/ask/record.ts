@@ -69,27 +69,112 @@ const phrasings: Record<RecordIntent, string[]> = {
   ],
 };
 
-const patterns = Object.entries(phrasings).map(([intent, list]) => ({ intent: intent as RecordIntent, pattern: new RegExp(`^(?:${list.join('|')})$`) }));
+const dutchSubject = '(?:het|hij|ze|zij|dit|dat|dit werk|het werk|deze taak|de taak|dit werkitem|het werkitem|dit item|het item|dit ticket|het ticket|de agents?|de agenten|de ploeg)';
+const dutchNow = '(?: (?:nu|op dit moment|op het moment|momenteel|vandaag))?';
+const dutchSoFar = '(?: (?:tot nu toe|tot nu|tot zover|al|in totaal))?';
+const dutchPr = '(?:pr|pull ?request|merge ?request)';
+const dutchPreview = 'preview(?:[- ]?omgeving)?';
+
+const dutchPhrasings: Record<RecordIntent, string[]> = {
+  doing: [
+    `(?:wat is )?(?:de )?(?:huidige )?(?:status|voortgang|stand van zaken)(?: van ${dutchSubject})?${dutchNow}`,
+    `wat (?:doet|doen) ${dutchSubject}${dutchNow}`,
+    `waar (?:is|zijn) ${dutchSubject}${dutchNow} mee bezig`,
+    `wat gebeurt er${dutchNow}(?: (?:met|bij) ${dutchSubject})?${dutchNow}`,
+    `hoe (?:staat|staan) ${dutchSubject} ervoor${dutchNow}`,
+    `hoe staat het ervoor(?: met ${dutchSubject})?${dutchNow}`,
+    `hoe ver (?:is|zijn) ${dutchSubject}${dutchNow}`,
+    `hoe (?:gaat|loopt) het (?:met|bij) ${dutchSubject}${dutchNow}`,
+    `(?:is|zijn) ${dutchSubject}${dutchNow} (?:nog )?(?:bezig|aan het werk|actief|aan de gang)`,
+  ],
+  stopped: [
+    `waarom (?:is|zijn) ${dutchSubject} (?:gestopt|vastgelopen|mislukt|gefaald|gepauzeerd|stilgevallen|stilgezet)`,
+    `waarom (?:stopte|stopten|faalde|faalden) ${dutchSubject}`,
+    `waarom (?:staat|staan|ligt|liggen|zit|zitten) ${dutchSubject}${dutchNow} (?:stil|vast|te wachten|in de wacht|on hold|op pauze)`,
+    `waarom (?:wacht|wachten) ${dutchSubject}${dutchNow}`,
+    `waarom (?:is|zijn) ${dutchSubject} (?:nog )?niet (?:klaar|af|afgerond|verder gegaan|doorgegaan)`,
+    `waar (?:wacht|wachten) ${dutchSubject}${dutchNow} op`,
+    `waarop (?:wacht|wachten) ${dutchSubject}${dutchNow}`,
+    `wat (?:houdt|houden|hield|hielden) ${dutchSubject} tegen`,
+  ],
+  spend: [
+    `(?:wat|hoeveel) (?:heeft|hebben) ${dutchSubject}${dutchSoFar} gekost`,
+    `hoeveel (?:geld|budget) (?:heeft|hebben) ${dutchSubject}${dutchSoFar} (?:gekost|gebruikt|verbruikt|uitgegeven)`,
+    `hoeveel (?:is|werd) er${dutchSoFar} (?:aan ${dutchSubject} )?(?:uitgegeven|besteed)`,
+    `wat (?:kostte|kostten) ${dutchSubject}`,
+    `wat (?:zijn|waren) de (?:kosten|uitgaven)(?: van ${dutchSubject})?${dutchSoFar}`,
+    `(?:kosten|uitgaven)(?: tot nu toe)?`,
+  ],
+  next: [
+    `wat (?:moet|kan|moeten|kunnen) (?:ik|we|wij)(?: nu| hierna)?(?: (?:ermee|hiermee|daarmee|met ${dutchSubject}))? doen`,
+    `wat (?:is|zijn) (?:de )?volgende stap(?:pen)?`,
+    `volgende stap(?:pen)?`,
+    `wat nu`,
+    `(?:moet|moeten) (?:ik|we|wij)(?: nu)? (?:nog )?iets doen`,
+    `(?:is|valt) er (?:nog )?iets (?:voor (?:mij|ons) )?te doen`,
+    `wat (?:heb je|heeft ${dutchSubject}|hebben ${dutchSubject}) van (?:mij|ons) nodig`,
+  ],
+  who: [
+    `wie (?:werkt|werken)${dutchNow} (?:eraan|er aan|aan ${dutchSubject})${dutchNow}`,
+    `wie (?:werkt|werken) er${dutchNow}`,
+    `wie (?:is|zijn) er${dutchNow} (?:mee )?bezig`,
+    `wie (?:is|zijn)${dutchNow} (?:ermee bezig|bezig met ${dutchSubject})`,
+    `welke (?:rol|rollen|agent|agents|agenten) (?:is|zijn|werkt|werken)${dutchNow} (?:eraan|ermee bezig|bezig|actief|aan het werk)(?: (?:aan|met) ${dutchSubject})?`,
+  ],
+  done: [
+    `(?:is|zijn) ${dutchSubject} (?:al )?(?:klaar|af|voltooid|afgerond|gereed)`,
+    `(?:heeft|hebben) ${dutchSubject} het (?:al )?(?:afgerond|voltooid)`,
+  ],
+  pull_request: [
+    `waar (?:is|staat) (?:de|het|zijn) ${dutchPr}`,
+    `(?:is|was) er (?:al )?(?:een )?${dutchPr}`,
+    `(?:heeft|hebben) ${dutchSubject} (?:al )?(?:een|de) ${dutchPr} (?:geopend|aangemaakt|gemaakt|ingediend|opengezet)`,
+    `(?:heeft|hebben) ${dutchSubject} (?:al )?een ${dutchPr}`,
+    `(?:wat is )?de status van de ${dutchPr}`,
+  ],
+  preview: [
+    `(?:is|was) er (?:al )?(?:een )?${dutchPreview}`,
+    `waar (?:is|staat) (?:de|het|zijn) ${dutchPreview}`,
+    `(?:heeft|hebben) ${dutchSubject} (?:al )?een ${dutchPreview}`,
+  ],
+};
+
+/** The language a standing question was asked in. Record answers stay English either way; a Dutch question gets a Dutch lead saying so. */
+export type RecordLanguage = 'en' | 'nl';
+
+/** A standing question and the language it was asked in. */
+export type RecordMatch = { intent: RecordIntent; language: RecordLanguage };
+
+const compile = (language: RecordLanguage, source: Record<RecordIntent, string[]>) =>
+  Object.entries(source).map(([intent, list]) => ({ intent: intent as RecordIntent, language, pattern: new RegExp(`^(?:${list.join('|')})$`) }));
+const patterns = [...compile('en', phrasings), ...compile('nl', dutchPhrasings)];
 const questionLimit = 80;
 
 function normalized(question: string): string {
   return question.normalize('NFKC').toLowerCase().replace(/[‘’`]/g, "'").replace(/\s+/g, ' ').trim()
-    .replace(/^(?:(?:hi|hey|hello|ok|okay|so|and|quick question)[,:!]?\s+)+/, '')
-    .replace(/^please,?\s+/, '')
-    .replace(/,?\s+please(?=[\s?!.]*$)/, '')
+    .replace(/^(?:(?:hi|hey|hello|ok|okay|so|and|quick question|hoi|hallo|hé|dag|goedemorgen|goedemiddag|goedenavond|oké|dus|en|snelle vraag)[,:!]?\s+)+/, '')
+    .replace(/^(?:please|alsjeblieft|alstublieft),?\s+/, '')
+    .replace(/,?\s+(?:please|graag|alsjeblieft|alstublieft|aub|a\.u\.b)(?=[\s?!.]*$)/, '')
     .replace(/[\s?!.]+$/, '');
 }
 
 /**
- * The standing question a question asks, or null. Precision over recall: the whole question, after trimming greetings,
- * "please" and closing punctuation, must be one of a fixed set of English phrasings, short, a single sentence, and
- * match exactly one intent. Anything else, including two questions in one, goes to the model.
+ * The standing question a question asks and its language, or null. Precision over recall: the whole question, after
+ * trimming greetings, "please" and closing punctuation in English or Dutch, must be one of a fixed set of English or
+ * Dutch phrasings, short, a single sentence, and match exactly one intent. Anything else, including two questions in
+ * one, goes to the model.
  */
-export function matchIntent(question: string): RecordIntent | null {
+export function matchQuestion(question: string): RecordMatch | null {
   const text = normalized(question);
   if (!text || text.length > questionLimit || /[?!.;:\n]/.test(text)) return null;
   const found = patterns.filter(entry => entry.pattern.test(text));
-  return found.length === 1 ? found[0].intent : null;
+  if (new Set(found.map(entry => entry.intent)).size !== 1) return null;
+  return { intent: found[0].intent, language: found.some(entry => entry.language === 'en') ? 'en' : 'nl' };
+}
+
+/** The standing question a question asks, or null; see `matchQuestion`. */
+export function matchIntent(question: string): RecordIntent | null {
+  return matchQuestion(question)?.intent ?? null;
 }
 
 const capital = (value: string) => value ? value[0].toUpperCase() + value.slice(1) : value;
@@ -191,9 +276,16 @@ const answers: Record<RecordIntent, (brief: WorkItemBrief, audience: AskAudience
   },
 };
 
-/** The answer to a standing question from the brief alone, or null when the record cannot answer it for this audience and the model should. */
-export function recordAnswer(intent: RecordIntent, brief: WorkItemBrief, audience: AskAudience): string | null {
-  return answers[intent](brief, audience);
+/** How a record answer to a Dutch question starts: the answer itself stays in the English the rest of Unfold shows. */
+export const dutchLead = 'Antwoord uit het dossier, in het Engels zoals Unfold het toont.';
+
+/**
+ * The answer to a standing question from the brief alone, or null when the record cannot answer it for this audience
+ * and the model should. A question asked in Dutch gets `dutchLead` before the English answer.
+ */
+export function recordAnswer(intent: RecordIntent, brief: WorkItemBrief, audience: AskAudience, language: RecordLanguage = 'en'): string | null {
+  const answer = answers[intent](brief, audience);
+  return answer !== null && language === 'nl' ? `${dutchLead} ${answer}` : answer;
 }
 
 /** What the deterministic demo says to a question that is not a standing question: it has no model to ask. */
