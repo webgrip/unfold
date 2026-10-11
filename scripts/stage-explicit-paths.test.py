@@ -13,8 +13,11 @@ def run(event):
     return subprocess.run([sys.executable, str(HOOK)], input=payload, capture_output=True, text=True)
 
 
-def bash(command):
-    return run({'hook_event_name': 'PreToolUse', 'tool_name': 'Bash', 'tool_input': {'command': command, 'description': 'test'}})
+def bash(command, cwd=None):
+    event = {'hook_event_name': 'PreToolUse', 'tool_name': 'Bash', 'tool_input': {'command': command, 'description': 'test'}}
+    if cwd:
+        event['cwd'] = str(cwd)
+    return run(event)
 
 
 class Denied(unittest.TestCase):
@@ -67,6 +70,44 @@ class Allowed(unittest.TestCase):
     def test_other_tools_and_bad_input_pass(self):
         self.assertEqual(run({'tool_name': 'Write', 'tool_input': {'content': 'git add .'}}).returncode, 0)
         self.assertEqual(run('not json').returncode, 0)
+
+
+ROOT = SETTINGS.parent.parent
+
+
+class PloegCheckout(unittest.TestCase):
+    def test_moving_or_changing_the_pinned_checkout_is_blocked(self):
+        for command, cwd in [
+            ('git -C apps/ploeg checkout fix/operator-execution-hold', ROOT),
+            ('git -C apps/ploeg pull --tags origin development', ROOT),
+            ('git -C apps/ploeg switch -c fix/x', ROOT),
+            ('git -C apps/ploeg checkout origin/development', ROOT),
+            ('cd apps/ploeg && git checkout -b fix/x && git pull origin development', ROOT),
+            ('git -C apps -C ploeg reset --hard origin/development', ROOT),
+            ('git commit -m "fix: x"', ROOT / 'apps/ploeg'),
+            ('git stash pop', ROOT / 'apps/ploeg/pkg'),
+            ('git -C /x -C ' + str(ROOT / 'apps/ploeg') + ' merge origin/development', ROOT),
+        ]:
+            result = bash(command, cwd)
+            self.assertEqual(result.returncode, 2, command)
+            self.assertIn('pinned Ploeg release', result.stderr, command)
+            self.assertIn('worktree add', result.stderr, command)
+
+    def test_reading_fetching_worktrees_and_release_pins_pass(self):
+        for command, cwd in [
+            ('git -C apps/ploeg checkout v0.2.0-rc.16', ROOT),
+            ('git -C apps/ploeg checkout --detach v0.2.0', ROOT),
+            ('git -C apps/ploeg fetch --tags origin', ROOT),
+            ('git -C apps/ploeg log --oneline -5', ROOT),
+            ('git -C apps/ploeg worktree add ../../../ploeg-x -b fix/x origin/development', ROOT),
+            ('git submodule update apps/ploeg', ROOT),
+            ('git checkout -b fix/x', ROOT),
+            ('git -C apps/unfold checkout -- src/a.ts', ROOT),
+            ('git pull', ROOT.parent / 'ploeg-hold'),
+            ('git status', ROOT / 'apps/ploeg'),
+        ]:
+            result = bash(command, cwd)
+            self.assertEqual(result.returncode, 0, f'{command}: {result.stderr}')
 
 
 class Settings(unittest.TestCase):
