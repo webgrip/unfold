@@ -5,7 +5,7 @@ Unfold turns units of work (Work Items) into pull requests that are ready for hu
 ## Commands
 
 - Run `mise run setup` once, then run every tool through `mise exec --`.
-- Run `mise run verify` before delivery. It runs both application gates and the cross-application qualification. Live-provider tests stay opt-in.
+- Run `mise run verify` before delivery. It runs every application's gates and the cross-application qualification. Live-provider tests stay opt-in.
 - Run `mise run docs-check` after changing anything under `docs/`, an application's `docs/`, or an `AGENTS.md`.
 
 ## Rules
@@ -22,8 +22,8 @@ Unfold turns units of work (Work Items) into pull requests that are ready for hu
 
 ## Where things live
 
-- Each application's `AGENTS.md` adds its own rules. Read it before changing that application.
-- Product direction: Unfold is self-hosted first, then offered to agencies as a hosted service. [Who Unfold is for](docs/concepts/who-unfold-is-for.md) explains it; ADRs 0005–0010 record the decisions, and none of it is implemented yet. Read that page before product, pricing, portal or tenancy work.
+- A directory's `AGENTS.md` adds rules for the files under it, such as each application's and `.forgejo/`'s. Read the nearest one before changing a file.
+- Before product, pricing, portal or tenancy work, read [Who Unfold is for](docs/concepts/who-unfold-is-for.md): self-hosted first, then a hosted service for agencies (ADRs 0005–0010), none of it built yet.
 - Shared guides are in `docs/`, starting at [docs/index.md](docs/index.md). Application contracts, ADRs and research stay inside the application.
 - Before changing behavior that crosses Ploeg and Unfold, read [managed execution](docs/workflows/managed-execution.md).
-- `.openhands/`, `.opencode/` and `.agents/` hold configuration for agents working on Unfold itself. What Ploeg supports for other repositories is defined in `apps/ploeg/pkg/harness` and `apps/ploeg/docs/contracts/`.
+- Skills for agents working on Unfold itself go in `.agents/skills/`. What Ploeg supports for other repositories is defined in `apps/ploeg/pkg/harness` and `apps/ploeg/docs/contracts/`.

@@ -13,6 +13,7 @@ DUPLICATE_MIN_WORDS = 8
 INVISIBLE = re.compile(r'[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]')
 AGENT_FILE_NAMES = {'AGENTS.md', 'CLAUDE.md', '.cursorrules'}
 AGENT_DIRECTORIES = {'.claude', '.agents', '.openhands'}
+LINKED_DIRECTORIES = {'.claude/skills': '../.agents/skills'}
 FENCE = re.compile(r'^[ \t]*(`{3,}|~{3,})[^\n]*\n.*?^[ \t]*\1[^\n]*$', re.M | re.S)
 CODE_SPAN = re.compile(r'(`+)(.+?)\1', re.S)
 INLINE_LINK = re.compile(r'!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)')
@@ -201,6 +202,22 @@ def check_unicode(root, files):
     return failures
 
 
+def check_linked_directories(root, files):
+    failures = []
+    for link, target in LINKED_DIRECTORIES.items():
+        source = str(PurePosixPath(link).parent / target)
+        source = os.path.normpath(source)
+        if not any(name.startswith(source + '/') for name in files):
+            continue
+        path = root / link
+        fix = f'run `rm -rf {link} && ln -s {target} {link}`, then git add {link}.'
+        if link not in files or not path.is_symlink():
+            failures.append(failure(link, 'layout', f'must be a tracked symlink to {target} so Claude Code reads {source}/; {fix}'))
+        elif os.readlink(path) != target:
+            failures.append(failure(link, 'layout', f'symlink points to {os.readlink(path)!r}, not {target}; {fix}'))
+    return failures
+
+
 def sentences(text):
     blocks, current = [], []
     for line in prose(text).splitlines():
@@ -245,6 +262,7 @@ def check(root, files):
         *check_bridge(root, agents, files),
         *check_unicode(root, files),
         *check_duplication(root, agents),
+        *check_linked_directories(root, files),
     ]
 
 
@@ -263,7 +281,7 @@ def main():
         for line in failures:
             print(f'  {line}', file=sys.stderr)
         sys.exit(1)
-    print(f'Agent instruction files: {len(agents)} AGENTS.md file(s) pass budget, links, commands, bridge, unicode and duplication checks')
+    print(f'Agent instruction files: {len(agents)} AGENTS.md file(s) pass budget, links, commands, bridge, unicode, duplication and layout checks')
 
 
 if __name__ == '__main__':

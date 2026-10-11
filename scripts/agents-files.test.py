@@ -197,5 +197,27 @@ class Duplication(Fixture):
         self.assertNotIn('Short one.', found)
 
 
+class LinkedSkills(Fixture):
+    def test_skills_need_their_symlink(self):
+        self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
+        self.assertIn('must be a tracked symlink', self.failures('layout')[0])
+        self.link('.claude/skills', '../.agents/skills')
+        self.assertEqual(self.failures('layout'), [])
+
+    def test_symlink_to_the_wrong_directory_fails(self):
+        self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
+        self.write('elsewhere/x/SKILL.md', '---\nname: x\n---\n')
+        self.link('.claude/skills', '../elsewhere')
+        self.assertIn("points to '../elsewhere'", self.failures('layout')[0])
+
+    def test_a_real_directory_is_not_a_link(self):
+        self.write('.agents/skills/x/SKILL.md', '---\nname: x\n---\n')
+        self.write('.claude/skills/x/SKILL.md', '---\nname: x\n---\n')
+        self.assertIn('must be a tracked symlink', self.failures('layout')[0])
+
+    def test_nothing_to_link_needs_no_link(self):
+        self.assertEqual(self.failures('layout'), [])
+
+
 if __name__ == '__main__':
     unittest.main()
