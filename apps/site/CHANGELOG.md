@@ -1,3 +1,13 @@
+## [unfold-site-v1.0.0-rc.7](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.6...unfold-site-v1.0.0-rc.7) (2026-10-11)
+
+### Fixed
+
+* **deps:** update dependency prettier ( 3.9.9 ➔ 3.9.10 ) ([e800786](https://forgejo.webgrip.dev/webgrip/unfold/commit/e8007860e9816fa49824056e61686520f3a606a8))
+
+### Docs
+
+* **site:** slim the agent rules and import AGENTS.md from CLAUDE.md ([c2261b8](https://forgejo.webgrip.dev/webgrip/unfold/commit/c2261b892575fa082195e37fc0231aea2119834b))
+
 ## [unfold-site-v1.0.0-rc.6](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.5...unfold-site-v1.0.0-rc.6) (2026-10-10)
 
 ### Added
