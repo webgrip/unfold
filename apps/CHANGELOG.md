@@ -1,3 +1,23 @@
+## [unfold-v0.4.0-rc.64](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.63...unfold-v0.4.0-rc.64) (2026-10-11)
+
+### Added
+
+* **unfold:** route messages to running Work Items as next-Round notes ([2ad5245](https://forgejo.webgrip.dev/webgrip/unfold/commit/2ad52453264fd10856f1cfaddc034bf6ef17eb0a))
+
+### Fixed
+
+* **unfold:** accept the automation catalogue as VS Code spells it ([bcdfbc6](https://forgejo.webgrip.dev/webgrip/unfold/commit/bcdfbc695b245dae04301d8c0813da36d258f51e))
+* **unfold:** never call a pull request on finished or withdrawn work open ([45e6d76](https://forgejo.webgrip.dev/webgrip/unfold/commit/45e6d763a7aeb65ab73210c545aa818f750990d8))
+* **unfold:** show Work Items whose Runs predate Shifts ([0156007](https://forgejo.webgrip.dev/webgrip/unfold/commit/0156007b5e48af2c8b505261610a4a1511da26d1))
+
+### Tests
+
+* **unfold:** wait on the host's grace timer in the dropped active-client test ([ca80173](https://forgejo.webgrip.dev/webgrip/unfold/commit/ca80173664c8fb84657b229dfcdc5e1d9c0f7fc6))
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.6 [skip ci] ([73e4372](https://forgejo.webgrip.dev/webgrip/unfold/commit/73e437253fe632c8f41d7fbe15624e7c973160d7))
+
 ## [unfold-v0.4.0-rc.63](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.62...unfold-v0.4.0-rc.63) (2026-10-10)
 
 ### Added
