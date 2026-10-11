@@ -32,7 +32,7 @@ export interface AskWorkItems {
 }
 
 /** How one Ask is answered: `model` true skips the record and asks the model even for a standing question. */
-export type AskRequest = { model?: boolean };
+export type AskRequest = { model?: boolean; recordOnly?: boolean };
 
 export type AskOptions = { demo: boolean; gatewayUrl?: string; secrets: readonly string[]; fetch?: typeof fetch; now?: () => Date };
 
@@ -85,7 +85,8 @@ export class AskService {
   /**
    * Asks one question about a Work Item the caller can see and returns the stored Ask, answered, refused or failed.
    * A standing question is answered from the record first, free and with no model call (`source: 'record'`); any other
-   * question, or any question with `request.model`, is admitted by Ploeg and answered with one model call.
+   * question, or any question with `request.model`, is admitted by Ploeg and answered with one model call. With
+   * `request.recordOnly`, a question the record does not answer is refused with `ask_needs_model` and nothing is stored or spent.
    */
   async ask(user: User, workItemId: string, rawQuestion: unknown, audience: AskAudience = 'internal', request: AskRequest = {}): Promise<Ask> {
     if (typeof rawQuestion !== 'string' || !rawQuestion.trim()) throw new PloegError(400, 'ask_question', 'Type a question.');
@@ -101,6 +102,7 @@ export class AskService {
       this.store.saveAsk(ask);
       return ask;
     }
+    if (request.recordOnly && !ask.demo) throw new PloegError(409, 'ask_needs_model', 'The record does not answer this question. Asking a model would spend from the Ask Allowance.');
     if (ask.demo) {
       Object.assign(ask, request.model
         ? { status: 'refused', failure: 'This is a demo: there is no model to ask, so nothing was asked or spent.', costStatus: 'demo', answeredAt: this.now() }

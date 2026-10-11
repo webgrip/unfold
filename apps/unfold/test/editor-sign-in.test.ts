@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import { Auth, editorCredentialDays } from '../src/auth.ts';
+import { Auth, editorCredentialDays, editorLabel } from '../src/auth.ts';
 import { Store } from '../src/store.ts';
 import { configuration } from './api-support.ts';
 import type { User } from '../src/types.ts';
@@ -121,4 +121,20 @@ test('an editor credential expires after its lifetime, is listed without its tok
   tick(editorCredentialDays * 86_400_000 + 1);
   assert.equal(auth.user(withBearer(second)), undefined);
   assert.deepEqual(auth.editorCredentials(person), []);
+});
+
+test('a sign-in started by unfold-mcp is named after its host on the approval page and on its credential', t => {
+  const { auth, tick } = setup(t);
+  assert.equal(editorLabel(undefined, undefined), 'VS Code');
+  assert.equal(editorLabel('vscode', 'laptop'), 'VS Code');
+  assert.equal(editorLabel('mcp', 'ryan-laptop'), 'unfold-mcp on ryan-laptop');
+  for (const host of ['', 'evil host', '<script>', 'a'.repeat(64), 42]) assert.equal(editorLabel('mcp', host), 'unfold-mcp', String(host));
+  const started = auth.beginEditor('192.0.2.1', editorLabel('mcp', 'ryan-laptop'));
+  assert.equal(auth.claimEditor(started.code, person), true);
+  assert.equal(auth.editorRequest(started.code, person)?.label, 'unfold-mcp on ryan-laptop');
+  auth.decideEditor(started.code, person, 'approved');
+  tick(1000);
+  const ready = auth.collectEditor(started.code, started.secret);
+  assert.equal(ready.status, 'ready');
+  assert.deepEqual(auth.editorCredentials(person).map(item => item.label), ['unfold-mcp on ryan-laptop']);
 });

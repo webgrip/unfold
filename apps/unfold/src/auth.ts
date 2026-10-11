@@ -4,8 +4,8 @@ import type { AppConfig, User } from './types.ts';
 import type { EditorCredential, Store } from './store.ts';
 
 /** How an editor sign-in looks to the person who signed in for it. */
-export type EditorRequestView = { userCode: string; createdAt: string; expiresAt: string; status: 'waiting' | 'approved' | 'denied' };
-type EditorTicket = { secretHash: string; userCode: string; createdAt: number; lastPoll: number; failures: number; signedInBy?: string; decision?: 'approved' | 'denied' };
+export type EditorRequestView = { userCode: string; label: string; createdAt: string; expiresAt: string; status: 'waiting' | 'approved' | 'denied' };
+type EditorTicket = { secretHash: string; userCode: string; label: string; createdAt: number; lastPoll: number; failures: number; signedInBy?: string; decision?: 'approved' | 'denied' };
 
 const editorTicketMs = 600_000;
 const editorPollSeconds = 2;
@@ -17,6 +17,15 @@ export const editorCredentialDays = 30;
 /** Every editor credential starts with this prefix, so it is never mistaken for a browser session. */
 export const editorTokenPrefix = 'vle_';
 const editorTokenPattern = /^vle_[A-Za-z0-9_-]{43}$/;
+
+/**
+ * The name an editor sign-in and its credential carry: `VS Code` unless the client says it is `unfold-mcp`, which is
+ * named after the host it runs on. Unfold builds the name, so a client cannot put its own text on the approval page.
+ */
+export function editorLabel(client: unknown, host: unknown): string {
+  if (client !== 'mcp') return 'VS Code';
+  return typeof host === 'string' && /^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(host) ? `unfold-mcp on ${host}` : 'unfold-mcp';
+}
 
 export function hashPassword(password: string): string {
   if (password.length < 12 || password.length > 1024) throw new Error('Use a password between 12 and 1024 characters');
@@ -127,7 +136,7 @@ export class Auth {
   private readonly editorStarts = new Map<string, { count: number; since: number }>();
 
   /** Starts an editor sign-in. Its ticket stays pending until the person who signs in for it approves it in a browser. */
-  beginEditor(address: string): { code: string; secret: string; userCode: string; expiresIn: number; interval: number } {
+  beginEditor(address: string, label = editorLabel(undefined, undefined)): { code: string; secret: string; userCode: string; expiresIn: number; interval: number } {
     const now = Date.now();
     for (const [code, item] of this.editors) if (now - item.createdAt > editorTicketMs) this.editors.delete(code);
     for (const [key, window] of this.editorStarts) if (now - window.since > editorTicketMs) this.editorStarts.delete(key);
@@ -138,7 +147,7 @@ export class Auth {
     const code = randomBytes(9).toString('base64url');
     const secret = randomBytes(32).toString('base64url');
     const userCode = Array.from({ length: 8 }, (_, index) => `${index === 4 ? '-' : ''}${userCodeAlphabet[randomInt(userCodeAlphabet.length)]}`).join('');
-    this.editors.set(code, { secretHash: digest(secret), userCode, createdAt: now, lastPoll: 0, failures: 0 });
+    this.editors.set(code, { secretHash: digest(secret), userCode, label, createdAt: now, lastPoll: 0, failures: 0 });
     return { code, secret, userCode, expiresIn: editorTicketMs / 1000, interval: editorPollSeconds };
   }
 
@@ -160,7 +169,7 @@ export class Auth {
   editorRequest(code: string, user: User): EditorRequestView | undefined {
     const item = this.liveTicket(code);
     if (!item || item.signedInBy !== user.id) return undefined;
-    return { userCode: item.userCode, createdAt: new Date(item.createdAt).toISOString(), expiresAt: new Date(item.createdAt + editorTicketMs).toISOString(), status: item.decision ?? 'waiting' };
+    return { userCode: item.userCode, label: item.label, createdAt: new Date(item.createdAt).toISOString(), expiresAt: new Date(item.createdAt + editorTicketMs).toISOString(), status: item.decision ?? 'waiting' };
   }
 
   /** Approves or denies an editor sign-in that `user` signed in for. A ticket takes one decision. */
@@ -194,7 +203,7 @@ export class Auth {
     const user = { id: record.id, name: record.name, role: record.role };
     const token = `${editorTokenPrefix}${randomBytes(32).toString('base64url')}`;
     const expiresAt = new Date(now + editorCredentialDays * 86_400_000).toISOString();
-    this.store.createEditorCredential({ id: randomBytes(12).toString('hex'), tokenHash: digest(token), userId: user.id, label: 'VS Code', scope: 'editor', createdAt: new Date(now).toISOString(), expiresAt });
+    this.store.createEditorCredential({ id: randomBytes(12).toString('hex'), tokenHash: digest(token), userId: user.id, label: item.label, scope: 'editor', createdAt: new Date(now).toISOString(), expiresAt });
     return { status: 'ready', user, token, expiresAt };
   }
 

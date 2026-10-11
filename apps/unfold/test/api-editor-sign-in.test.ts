@@ -17,8 +17,8 @@ async function poll(url: string, started: Started, secret = started.secret) {
   return answer;
 }
 
-async function begin(url: string): Promise<Started> {
-  const started = await request(url, '/api/auth/editor', { method: 'POST', body: {}, csrf: false });
+async function begin(url: string, client: Record<string, unknown> = {}): Promise<Started> {
+  const started = await request(url, '/api/auth/editor', { method: 'POST', body: client, csrf: false });
   assert.equal(started.status, 200, started.text);
   return started.body;
 }
@@ -43,6 +43,7 @@ test('the phishing flow fails: a victim who follows an attacker\'s editor link a
   assert.equal(page.body.status, 'waiting');
   assert.equal(page.body.workbench, new URL(server.url).host);
   assert.equal(page.body.user, 'person@example.com');
+  assert.equal(page.body.label, 'VS Code');
   assert.equal(page.body.credentialDays, 30);
   const stillPending = await poll(server.url, attacker);
   assert.equal(stillPending.status, 202);
@@ -155,4 +156,15 @@ test('editor sign-ins are rate-limited per address and polling faster than the i
   const twice = await request(server.url, `/api/auth/editor/${first.code}`, { method: 'POST', body: { secret: first.secret }, csrf: false });
   assert.equal(twice.status, 429);
   assert.equal(twice.body.error.code, 'slow_down');
+});
+
+test('an unfold-mcp sign-in shows the client and host it named, built by Unfold, on the approval page', async t => {
+  const { server, idp } = await workbench(t);
+  const started = await begin(server.url, { client: 'mcp', host: 'ryan-laptop' });
+  const browser = await signInForEditor(started.url, idp);
+  const page = await request(server.url, `/api/editor-requests/${started.code}`, { cookie: browser.cookie });
+  assert.equal(page.body.label, 'unfold-mcp on ryan-laptop');
+  const forged = await begin(server.url, { client: 'mcp', host: 'Approve me <b>now</b>' });
+  const other = await signInForEditor(forged.url, idp);
+  assert.equal((await request(server.url, `/api/editor-requests/${forged.code}`, { cookie: other.cookie })).body.label, 'unfold-mcp');
 });

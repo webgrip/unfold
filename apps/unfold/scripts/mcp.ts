@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createMcpServer, serveStdio } from '../src/mcp.ts';
 
@@ -21,7 +22,7 @@ else {
 async function login() {
   const base = url.replace(/\/+$/, '');
   const headers = { 'content-type': 'application/json', 'x-unfold-request': '1' };
-  const started = await fetch(`${base}/api/auth/editor`, { method: 'POST', headers, body: '{}' });
+  const started = await fetch(`${base}/api/auth/editor`, { method: 'POST', headers, body: JSON.stringify({ client: 'mcp', host: hostname().split('.')[0] }) });
   if (!started.ok) {
     process.stderr.write(`unfold-mcp: Unfold answered ${started.status}. Signing in from a client needs single sign-on configured on this Unfold.\n`);
     process.exit(1);

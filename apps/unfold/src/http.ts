@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
-import { Auth, editorCredentialDays, type EditorRequestView } from './auth.ts';
+import { Auth, editorCredentialDays, editorLabel, type EditorRequestView } from './auth.ts';
 import type { Engine } from './engine.ts';
 import { publicSession, type Store } from './store.ts';
 import { getTask, listTasks, presentTask, publicTaskSource, TaskError } from './tasks.ts';
@@ -184,7 +184,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       }
       if (method === 'GET' && path === '/api/auth/methods') return json(res, 200, { local: true, oidc: oidc?.configured() ? { name: config.auth.oidc!.displayName, issuer: config.auth.oidc!.issuer } : null });
       if (method === 'POST' && path === '/api/auth/editor' && oidc?.configured()) {
-        const started = auth.beginEditor(req.socket.remoteAddress || 'unknown');
+        const requested = req.headers['content-type']?.startsWith('application/json') ? await body(req) : {};
+        const started = auth.beginEditor(req.socket.remoteAddress || 'unknown', editorLabel(requested.client, requested.host));
         return json(res, 200, { code: started.code, secret: started.secret, userCode: started.userCode, expiresIn: started.expiresIn, interval: started.interval, url: `${config.baseUrl ?? `http://${req.headers.host}`}/api/auth/oidc?editor=${encodeURIComponent(started.code)}` });
       }
       if (method === 'POST' && editorCollect) {
@@ -458,7 +459,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               if (method === 'GET') return json(res, 200, sanitize(await asks.about(user, asked[1])));
               if (method !== 'POST') fault(405, 'method', 'Ask with POST; list Asks with GET.');
               const data = await body(req);
-              return json(res, 201, sanitize(await asks.ask(user, asked[1], data.question, 'internal', { model: data.askModel === true })));
+              if (data.askModel === true && data.recordOnly === true) fault(400, 'ask_request', 'Choose askModel or recordOnly, not both.');
+              return json(res, 201, sanitize(await asks.ask(user, asked[1], data.question, 'internal', { model: data.askModel === true, recordOnly: data.recordOnly === true })));
             } catch (error) {
               if (error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } });
               throw error;

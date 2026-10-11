@@ -12,15 +12,16 @@ const roleNames = { admin: 'administrator', operator: 'operator', viewer: 'viewe
 
 /**
  * The plain-language question the approval page asks, naming the workbench and the person.
- * @param {{ workbench: string }} request
+ * @param {{ workbench: string, label?: string }} request
  * @returns {string}
  */
 export function editorQuestion(request) {
-  return `A VS Code editor is asking to sign in to ${request.workbench} as you.`;
+  const client = request.label && request.label !== 'VS Code' ? request.label : 'A VS Code editor';
+  return `${client} is asking to sign in to ${request.workbench} as you.`;
 }
 
 function decided(request) {
-  if (request.status === 'approved') return callout({ tone: 'success', icon: 'check-circle', title: 'Approved', body: '<p>Return to VS Code: it finishes signing in by itself. You can sign this editor out at any time under <a href="#settings/editors">Settings › Signed-in editors</a>.</p>' });
+  if (request.status === 'approved') return callout({ tone: 'success', icon: 'check-circle', title: 'Approved', body: `<p>Return to ${escape(request.label && request.label !== 'VS Code' ? request.label : 'VS Code')}: it finishes signing in by itself. You can sign this editor out at any time under <a href="#settings/editors">Settings › Signed-in editors</a>.</p>` });
   return callout({ tone: 'neutral', icon: 'x-circle', title: 'Denied', body: '<p>The editor gets no access. If you did not start this sign-in, someone may have sent you the link on purpose; you do not need to do anything else.</p>' });
 }
 
@@ -35,7 +36,7 @@ function body() {
     ['What approving gives', escape(`A separate editor sign-in that acts in this workbench as you, with your role, for ${request.credentialDays} days or until you sign it out. It cannot approve other editors.`)],
   ], { rows: true });
   const code = `<div class="editor-code"><p class="settings-row-label">Your editor shows this code</p><p class="editor-code-value num" aria-label="${escape(request.userCode.split('').join(' '))}">${escape(request.userCode)}</p></div>`;
-  const warning = `<p class="settings-footnote">${icon('alert')}<span>Approve only if you started this sign-in in your own VS Code just now and it shows the same code. If someone sent you this link, deny it.</span></p>`;
+  const warning = `<p class="settings-footnote">${icon('alert')}<span>Approve only if you started this sign-in yourself just now, in your own ${escape(request.label && request.label !== 'VS Code' ? request.label : 'VS Code')}, and it shows the same code. If someone sent you this link, deny it.</span></p>`;
   const actions = request.status === 'waiting' ? `<div class="editor-actions">${button({ label: 'Approve', icon: 'check', variant: 'primary', action: 'editor-approve' })}${button({ label: 'Deny', icon: 'x', variant: 'danger-ghost', action: 'editor-deny' })}</div>` : decided(request);
   return `<p class="editor-question"><strong>${escape(editorQuestion(request))}</strong></p>${code}${facts}${warning}${actions}`;
 }
