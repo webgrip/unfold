@@ -467,3 +467,86 @@ export async function commentOnTask(source: TaskSourceConfig, nativeId: string, 
   if (source.provider !== 'vikunja') throw new TaskError(422, 'handoff_unsupported', 'Only Vikunja tasks can be handed to Ploeg from the workbench.');
   await write(source, 'PUT', `/tasks/${id}/comments`, { comment: html });
 }
+
+/** A file Report a problem attaches to the issue it files. */
+export type IssueFile = { name: string; type: string; bytes: Uint8Array<ArrayBuffer> };
+/** The issue or task Report a problem filed: its native id, the number used in later calls, and its web address. */
+export type FiledIssue = { id: string; number: string; url: string };
+
+const reportProviders = new Set<TaskProvider>(['forgejo', 'vikunja']);
+const uploadTimeoutMs = 30000;
+
+async function fileRequest(source: TaskSourceConfig, method: 'POST' | 'PUT' | 'PATCH' | 'GET', path: string, body?: unknown): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), body instanceof FormData ? uploadTimeoutMs : timeoutMs);
+  try {
+    const json = body !== undefined && !(body instanceof FormData);
+    const response = await fetch(new URL(`${source.baseUrl}${path}`), { method, headers: { ...headers(source), ...(json ? { 'Content-Type': 'application/json' } : {}) }, ...(body === undefined ? {} : { body: json ? JSON.stringify(body) : body as FormData }), redirect: 'manual', signal: controller.signal });
+    if (!response.ok) {
+      const answer = (await response.text().catch(() => '')).slice(0, 300);
+      if (response.status >= 300 && response.status < 400) throw new TaskError(502, 'task_redirect_refused', 'The tracker redirected the request. Update its configured API root.');
+      if (response.status === 401 || response.status === 403) throw new TaskError(502, 'report_write_forbidden', `The tracker refused the workbench's token (HTTP ${response.status}). Give it permission to create issues or tasks and attachments.`);
+      if (response.status === 404) throw new TaskError(404, 'report_target_missing', 'The tracker could not find the configured repository or project.');
+      if (response.status === 429) throw new TaskError(503, 'task_rate_limited', 'The tracker rate limit was reached. Unfold will try again.');
+      throw new TaskError(502, 'report_tracker_failed', `The tracker answered HTTP ${response.status}${answer ? `: ${answer}` : ''}`);
+    }
+    const text = await response.text();
+    return text ? JSON.parse(text) : {};
+  } catch (error) {
+    if (error instanceof TaskError) throw error;
+    if (controller.signal.aborted) throw new TaskError(504, 'task_timeout', 'The tracker did not respond in time.');
+    throw new TaskError(502, 'task_unreachable', 'The tracker could not be reached. Check its configured URL and network access.');
+  } finally { clearTimeout(timer); }
+}
+
+function reportProject(source: TaskSourceConfig, project: string): string {
+  if (!reportProviders.has(source.provider)) throw new TaskError(422, 'report_provider_unsupported', 'Report a problem files into Forgejo and Vikunja only.');
+  return configuredProject(project, source.provider);
+}
+
+/**
+ * Creates the issue (Forgejo) or task (Vikunja) for one report in `project`, with the label `reported-in-app` when
+ * a Forgejo repository has it. `body` is Markdown for Forgejo and HTML for Vikunja.
+ */
+export async function createIssue(source: TaskSourceConfig, project: string, title: string, body: string): Promise<FiledIssue> {
+  const target = reportProject(source, project);
+  if (source.provider === 'forgejo') {
+    const labels = await fileRequest(source, 'GET', `/repos/${target}/labels?limit=50`).catch(() => []);
+    const label = Array.isArray(labels) ? labels.find(entry => record(entry).name === 'reported-in-app') : undefined;
+    const issue = record(await fileRequest(source, 'POST', `/repos/${target}/issues`, { title, body, ...(label ? { labels: [record(label).id] } : {}) }));
+    const number = String(issue.number ?? '');
+    if (!numericId.test(number) || typeof issue.html_url !== 'string') throw new TaskError(502, 'task_response_invalid', 'The tracker did not answer with an issue number and address.');
+    return { id: String(issue.id ?? number), number, url: issue.html_url };
+  }
+  const task = record(await fileRequest(source, 'PUT', `/projects/${target}/tasks`, { title, description: body }));
+  const id = String(task.id ?? '');
+  if (!numericId.test(id)) throw new TaskError(502, 'task_response_invalid', 'The tracker did not answer with a task id.');
+  return { id, number: id, url: sourceTaskUrl(source, id) };
+}
+
+/** Attaches one file to a filed issue or task and returns its download address when the tracker gives one. */
+export async function attachToIssue(source: TaskSourceConfig, project: string, issue: FiledIssue, file: IssueFile): Promise<string | undefined> {
+  const target = reportProject(source, project);
+  const form = new FormData();
+  const blob = new Blob([file.bytes], { type: file.type });
+  if (source.provider === 'forgejo') {
+    form.append('attachment', blob, file.name);
+    const asset = record(await fileRequest(source, 'POST', `/repos/${target}/issues/${issue.number}/assets?name=${encodeURIComponent(file.name)}`, form));
+    return typeof asset.browser_download_url === 'string' ? asset.browser_download_url : undefined;
+  }
+  form.append('files', blob, file.name);
+  await fileRequest(source, 'PUT', `/tasks/${issue.id}/attachments`, form);
+  return undefined;
+}
+
+/** Replaces a filed Forgejo issue's body, so it can show the screenshot uploaded after it was created. */
+export async function updateIssueBody(source: TaskSourceConfig, project: string, issue: FiledIssue, body: string): Promise<void> {
+  const target = reportProject(source, project);
+  if (source.provider !== 'forgejo') return;
+  await fileRequest(source, 'PATCH', `/repos/${target}/issues/${issue.number}`, { body });
+}
+
+/** Checks a report target's project against its provider's rules, so a bad setting fails at start-up. */
+export function reportTargetProject(source: TaskSourceConfig, project: string): string {
+  try { return reportProject(source, project); } catch (error) { throw new Error(error instanceof TaskError ? error.message : `reports.project ${(error as Error).message.replace(/^Task source project/, 'must be')}`); }
+}

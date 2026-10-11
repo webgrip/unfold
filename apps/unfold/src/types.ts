@@ -52,8 +52,11 @@ export type AppConfig = {
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; traceQuery?: string; logsQuery?: string };
   insight?: InsightConfig;
   productEvents?: boolean;
+  reports?: ReportTarget | null;
 };
 
+/** Where Report a problem files: one configured task source (Forgejo or Vikunja), optionally in another repository or project. */
+export type ReportTarget = { sourceId: string; project: string };
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
 /** One product event the browser or VS Code extension posted, after the catalogue checked it. */
 export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean> };

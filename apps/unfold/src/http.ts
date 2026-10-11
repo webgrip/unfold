@@ -24,6 +24,7 @@ import { CardThemes, ThemeError } from './card-themes.ts';
 import { AssetError, assetLimits, maxImageSide, maxUploadBytes } from './card-assets.ts';
 import { CardArtError, CardArtGenerator, maxArtAttempts } from './card-art.ts';
 import { InsightService, maxEventPayloadBytes, parseInsightEvents } from './insight.ts';
+import { ReportError, ReportService, parseReport } from './reports.ts';
 import { knownSecrets, withoutKnownSecrets } from './redaction.ts';
 import { AskService, type AskAuthority } from './ask/service.ts';
 
@@ -32,7 +33,7 @@ const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(
 /** The most events one storage read loads while streaming a session's history to a live event client. */
 export const eventReplayBatch = 200;
 const eventReplayBuffered = 262144;
-const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:(?:skins\/[a-z0-9][a-z0-9-]*(?:\/world)?|effects)\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/three\/[a-z0-9][a-z0-9-]*\.js)$/;
+const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:(?:skins\/[a-z0-9][a-z0-9-]*(?:\/world)?|effects)\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/(?:three|html-to-image)\/[a-z0-9][a-z0-9-]*\.js)$/;
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
 
@@ -135,6 +136,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const themes = new CardThemes(store, config);
   const cardArt = new CardArtGenerator(config);
   const insight = new InsightService(store, config, applicationVersion);
+  const reports = new ReportService(store, config, applicationVersion);
   const secrets = knownSecrets(config);
   const askDemo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true);
   const askAuthority: AskAuthority | undefined = config.ploeg && !askDemo ? {
@@ -264,6 +266,17 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           }
           fault(405, 'method', 'Unsupported method.');
         }
+        if (method === 'POST' && path === '/api/reports') {
+          try {
+            const parsed = await parseReport(req);
+            const outcome = await reports.submit(user, parsed);
+            if (config.productEvents !== false) insight.ingest([{ name: 'report.filed', at: new Date().toISOString(), session: '', screen: parsed.context.screen ?? '', ...(parsed.context.workItemId !== undefined ? { workItemId: parsed.context.workItemId } : {}), props: {} }], user);
+            return json(res, 201, outcome);
+          } catch (error) {
+            if (error instanceof ReportError) return json(res, error.status, { error: { code: error.code, message: error.message } });
+            throw error;
+          }
+        }
         if (method === 'POST' && path === '/api/insight/events') {
           if (config.productEvents === false) { res.writeHead(204, { 'Cache-Control': 'no-store' }); return res.end(); }
           if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot post product events.');
@@ -281,6 +294,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           gatewayPolicy: config.gatewayPolicy ?? null,
           observability: config.observability ?? null,
           insight: { events: config.productEvents !== false && user.role !== 'viewer' },
+          reports: { target: reports.publicTarget(), demo: config.mode === 'demo' },
           repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
           taskSources: (config.taskSources ?? []).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null })),
           crews: config.crews, models: config.models,
@@ -640,5 +654,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   });
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
-  return { server, cards, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => insight.stop() };
+  return { server, cards, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); }, reports };
 }

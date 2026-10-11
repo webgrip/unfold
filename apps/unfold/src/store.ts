@@ -61,6 +61,9 @@ export class Store {
       CREATE TABLE IF NOT EXISTS asks (id TEXT PRIMARY KEY, work_item_id TEXT NOT NULL, asker_id TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS asks_work_item ON asks(work_item_id, created_at);
       CREATE INDEX IF NOT EXISTS asks_asker ON asks(asker_id, created_at);
+      CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, status TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, last_error TEXT, url TEXT, filed_at TEXT, issue TEXT);
+      CREATE INDEX IF NOT EXISTS reports_due ON reports(status, next_attempt_at);
+      CREATE TABLE IF NOT EXISTS report_files (report_id TEXT NOT NULL REFERENCES reports(id), name TEXT NOT NULL, type TEXT NOT NULL, content BLOB NOT NULL, PRIMARY KEY (report_id, name));
       CREATE TABLE IF NOT EXISTS agent_host_views (user_id TEXT NOT NULL, session_id TEXT NOT NULL, session_flags INTEGER NOT NULL, chat_flags INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, session_id));
     `);
   }
@@ -400,6 +403,43 @@ export class Store {
     });
   }
 
+  /** Stores one report and its files in one transaction, before Unfold tries to file it. */
+  saveReport(report: StoredReport, files: StoredReportFile[]): void {
+    this.transaction(() => {
+      this.db.prepare('INSERT INTO reports(id,user_id,status,title,body,created_at,attempts,next_attempt_at) VALUES(?,?,?,?,?,?,0,?)').run(report.id, report.userId, report.status, report.title, JSON.stringify(report.body), report.createdAt, report.nextAttemptAt ?? null);
+      const insert = this.db.prepare('INSERT INTO report_files(report_id,name,type,content) VALUES(?,?,?,?)');
+      for (const file of files) insert.run(report.id, file.name, file.type, file.content);
+    });
+  }
+
+  /** One stored report, or undefined. */
+  report(id: string): StoredReport | undefined {
+    const row = this.db.prepare('SELECT * FROM reports WHERE id=?').get(id) as Record<string, string | number | null> | undefined;
+    return row ? storedReport(row) : undefined;
+  }
+
+  /** A stored report's files in the order they were saved. */
+  reportFiles(id: string): StoredReportFile[] {
+    return (this.db.prepare('SELECT name, type, content FROM report_files WHERE report_id=? ORDER BY rowid').all(id) as { name: string; type: string; content: Uint8Array }[])
+      .map(row => ({ name: row.name, type: row.type, content: new Uint8Array(row.content) }));
+  }
+
+  /** Reports waiting to be filed whose next attempt is due at `now`, oldest first. */
+  dueReports(now: string): StoredReport[] {
+    return (this.db.prepare("SELECT * FROM reports WHERE status IN ('pending','retrying') AND next_attempt_at IS NOT NULL AND next_attempt_at <= ? ORDER BY created_at LIMIT 20").all(now) as Record<string, string | number | null>[]).map(storedReport);
+  }
+
+  /** Records the outcome of one filing attempt. */
+  updateReport(id: string, change: { status: StoredReport['status']; attempts?: number; nextAttemptAt?: string | null; lastError?: string | null; url?: string | null; filedAt?: string | null; issue?: StoredReportIssue }): void {
+    this.db.prepare('UPDATE reports SET status=?, attempts=COALESCE(?,attempts), next_attempt_at=?, last_error=?, url=COALESCE(?,url), filed_at=COALESCE(?,filed_at), issue=COALESCE(?,issue) WHERE id=?')
+      .run(change.status, change.attempts ?? null, change.nextAttemptAt ?? null, change.lastError ?? null, change.url ?? null, change.filedAt ?? null, change.issue ? JSON.stringify(change.issue) : null, id);
+  }
+
+  /** Deletes the files of reports filed before `cutoff`, keeping the report row and its address. Returns how many reports lost files. */
+  pruneReportFiles(cutoff: string): number {
+    return Number(this.db.prepare('DELETE FROM report_files WHERE report_id IN (SELECT id FROM reports WHERE filed_at IS NOT NULL AND filed_at < ?)').run(cutoff).changes);
+  }
+
   /** How many events of one name one actor recorded on one Work Item after `after`, up to and including `through`. */
   countProductEvents(tenantId: string, actor: string, name: string, workItemId: number, after: string, through: string): number {
     return Number((this.db.prepare('SELECT COUNT(*) AS n FROM product_event WHERE tenant_id=? AND actor=? AND name=? AND work_item_id=? AND at > ? AND at <= ?').get(tenantId, actor, name, workItemId, after, through) as { n: number }).n);
@@ -457,6 +497,16 @@ export const cardSeenLimit = 2000;
 export type StoredPackEntry = { workItemId: string; kind: 'new' | 'upgrade'; moments: { kind: string; at: string; detail: Record<string, string | number> }[] };
 export type StoredPack = { packId: string; openedAt: string; period: Record<string, unknown>; entries: StoredPackEntry[]; demo: boolean };
 export type StoredPull = { workItemId: string; packId: string; pattern: string; altArt: number | null; fullArt: boolean; goldSignature: boolean; oddsVersion: string; message: string; digest: string; pulledAt: string };
+/** A report Unfold keeps until its tracker accepts it: `pending` before the first attempt, `retrying` after a refusal, `filed` with its address, `failed` after a day of refusals, `kept` when no tracker is configured. */
+export type StoredReport = { id: string; userId: string; status: 'pending' | 'retrying' | 'filed' | 'failed' | 'kept'; title: string; body: Record<string, unknown>; createdAt: string; attempts: number; nextAttemptAt?: string; lastError?: string; url?: string; filedAt?: string; issue?: StoredReportIssue };
+/** The issue a report created before every file was attached, so a retry continues it instead of filing a second one. */
+export type StoredReportIssue = { id: string; number: string; url: string; attached: string[]; screenshotUrl?: string };
+export type StoredReportFile = { name: string; type: string; content: Uint8Array<ArrayBuffer> };
+
+function storedReport(row: Record<string, string | number | null>): StoredReport {
+  return { id: String(row.id), userId: String(row.user_id), status: String(row.status) as StoredReport['status'], title: String(row.title), body: JSON.parse(String(row.body)), createdAt: String(row.created_at), attempts: Number(row.attempts), ...(row.next_attempt_at ? { nextAttemptAt: String(row.next_attempt_at) } : {}), ...(row.last_error ? { lastError: String(row.last_error) } : {}), ...(row.url ? { url: String(row.url) } : {}), ...(row.filed_at ? { filedAt: String(row.filed_at) } : {}), ...(row.issue ? { issue: JSON.parse(String(row.issue)) } : {}) };
+}
+
 export type StoredProductEvent = { tenantId: string; actor: string; session: string; name: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean>; at: string };
 export type ProductEventDaily = { tenantId: string; day: string; name: string; screen: string; count: number; actors: number };
 

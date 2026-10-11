@@ -15,10 +15,11 @@ export const insightCatalogue: Readonly<Record<string, readonly string[]>> = Obj
   'ui.dead_click': ['element'],
   'ui.u_turn': [],
   'ui.link_out_burst': ['count'],
+  'report.filed': [],
 });
 
 /** Events only the server records. A browser that posts one has it dropped like an unknown name. */
-export const serverOnlyEvents: ReadonlySet<string> = new Set(['ui.link_out_burst', 'work_item.back_in_needs_you']);
+export const serverOnlyEvents: ReadonlySet<string> = new Set(['ui.link_out_burst', 'work_item.back_in_needs_you', 'report.filed']);
 /** How many `link_out.opened` on one Work Item before one `needs_you.command_sent` make a `ui.link_out_burst`. */
 export const linkOutBurst = 3;
 const burstLookbackMs = 86_400_000;
