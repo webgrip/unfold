@@ -5,7 +5,7 @@ import * as ui from './ui.js';
 const minute = 60_000;
 const hour = 60 * minute;
 const day = 24 * hour;
-const steps = [minute, 5 * minute, 15 * minute, 30 * minute, hour, 3 * hour, 6 * hour, 12 * hour, day, 2 * day, 7 * day, 14 * day, 30 * day, 90 * day];
+const steps = [minute, 5 * minute, 15 * minute, 30 * minute, hour, 2 * hour, 3 * hour, 6 * hour, 12 * hour, day, 2 * day, 7 * day, 14 * day, 30 * day, 90 * day];
 const groupOrder = ['ticket', 'status', 'shift', 'run', 'pullRequest', 'ci', 'environment'];
 const labelledShare = 9;
 const shortDay = at => new Intl.DateTimeFormat(formatLocale() === 'nl' ? 'nl-NL' : undefined, { day: 'numeric', month: 'short' }).format(at);
