@@ -24,6 +24,7 @@ Unfold turns units of work (Work Items) into pull requests that are ready for hu
 
 - A directory's `AGENTS.md` adds rules for the files under it, such as each application's and `.forgejo/`'s. Read the nearest one before changing a file.
 - Before product, pricing, portal or tenancy work, read [Who Unfold is for](docs/concepts/who-unfold-is-for.md): self-hosted first, then a hosted service for agencies (ADRs 0005–0010), none of it built yet.
-- Shared guides are in `docs/`, starting at [docs/index.md](docs/index.md). Application contracts, ADRs and research stay inside the application.
+- Shared guides start at [docs/index.md](docs/index.md); application contracts, ADRs and research stay inside the application.
 - Before changing behavior that crosses Ploeg and Unfold, read [managed execution](docs/workflows/managed-execution.md).
-- Skills for agents working on Unfold itself go in `.agents/skills/`. What Ploeg supports for other repositories is defined in `apps/ploeg/pkg/harness` and `apps/ploeg/docs/contracts/`.
+- Before opening or reviewing a pull request, read [How work on Unfold is done](docs/contributing/way-of-working.md) and the [review guide](docs/contributing/review.md).
+- Before adding an agent rule, skill or command, read [Agent instructions](docs/contributing/agent-instructions.md) for where it belongs.

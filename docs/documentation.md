@@ -65,7 +65,7 @@ Use MADR 4.0 in each ledger. A `proposed` ADR is a question, not a decision. Acc
 
 ## Records and history
 
-Research, evidence, superseded explanations, design baselines, planning exports and OpenSpec changes are records.
+Research, evidence, superseded explanations, design baselines, planning exports and OpenSpec changes are records. An OpenSpec change is a record once it is archived; while it is open it changes like any working draft, and `openspec/specs/` holds the current requirements ([ADR-0033](adr/adr-0033-unfold-plans-non-trivial-changes-as-openspec-changes.md)).
 
 * A record keeps its path and content. It is dated, and only a superseded-by link may be added. A product rename is the exception: the rename to Unfold rewrote records and their file names ([ADR-0020](adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md)), and captured evidence still keeps its exact content.
 * The docs build marks records as "not current guidance" and removes them from search and navigation. Explicit links still reach them.

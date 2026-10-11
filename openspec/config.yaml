@@ -1,0 +1,64 @@
+schema: spec-driven-with-adr
+
+# Injected into every artifact prompt. It points at the documents that hold the
+# knowledge instead of copying them: AGENTS.md, docs/ and the domain model are
+# checked by mise run docs-check, this file is not.
+context: |
+  ## Product
+
+  Unfold turns Work Items into pull requests that are ready for human review.
+  Ploeg (apps/ploeg, a pinned submodule from github.com/ploeg-hq/ploeg)
+  authorizes, budgets and executes every Run; the Unfold application
+  (apps/unfold) is where people define, follow and review that work; apps/site
+  is the marketing site with its own release train.
+
+  Read before designing anything non-trivial:
+
+  - `AGENTS.md` and the `AGENTS.md` nearest each directory the change touches.
+  - `docs/concepts/` — how work flows, architecture, inside a Run.
+  - `docs/adr/index.md` (system) and `apps/unfold/docs/adrs/README.md`
+    (application) — the decision ledgers. Design within accepted records.
+  - `apps/unfold/docs/contracts/` — Unfold's published contracts; Ploeg's are
+    under `apps/ploeg/docs/contracts/` and change only in ploeg-hq.
+  - `docs/workflows/managed-execution.md` before anything crossing Ploeg and Unfold.
+  - `docs/contributing/way-of-working.md` and `docs/contributing/review.md`.
+
+  ## Ubiquitous language
+
+  Use the terms in `docs/reference/glossary.md` exactly, in prose and in
+  identifiers: Work Item, Run, Shift, Role, Team, Outcome, Tracker Item,
+  Follow-Up, Agent, Workspace, Budget, Run Card. A missing concept goes into
+  `docs/domain/model.yaml` first (`mise run domain` regenerates the pages).
+
+  ## Applications
+
+  A change belongs to one application: apps/unfold, apps/site, or the system
+  docs. A change that needs Ploeg to change is two changes: the Ploeg part
+  lands in ploeg-hq first, then a `ploeg`-scoped commit moves the pin.
+
+rules:
+  proposal:
+    - Name the application the change belongs to, and the ticket (VIK-<id>)
+    - Include a "Non-goals" section
+    - Use glossary terms exactly; cite ADRs by number instead of restating them
+  specs:
+    - Never restate a published contract from apps/unfold/docs/contracts/ or
+      Ploeg's contracts; reference it
+    - Normative keywords per RFC 2119 (SHALL, MUST, SHOULD, MAY)
+    - State what happens on restart, retry and cancel for anything that spends
+      money or changes a Run's state
+  design:
+    - Read the accepted ADRs first and design within them, or flag a
+      supersession under Open Questions
+    - Durable commitments become ADRs in the adr step; design.md keeps only
+      change-local reasoning
+  adr:
+    - System decisions go to docs/adr/, application decisions to
+      apps/unfold/docs/adrs/, each in its ledger's own naming
+    - Every record carries a Confirmation subsection naming the check that
+      enforces it
+    - Never mark a record accepted on the owner's behalf
+  tasks:
+    - Every change ends with `mise run verify` (and `mise run docs-check` when
+      docs or AGENTS.md changed) and pastes the output in the pull request
+    - A bug fix includes a test that fails without the fix
