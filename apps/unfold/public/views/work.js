@@ -16,9 +16,12 @@ const itemPath = /^work\/([1-9][0-9]{0,19})$/;
 const runPath = /^[1-9][0-9]{0,19}$/;
 const liveInterval = 30000;
 const reviewFactLimit = 12;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, askBusy: false, askDraft: '' };
+const logInterval = 5000;
+const logLineCap = 2000;
+const logPanel = /^work-run-logs-([1-9][0-9]{0,19})$/;
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, askBusy: false, askDraft: '', logs: null };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, askBusy: false, askDraft: '' }));
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, askBusy: false, askDraft: '', logs: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued' };
 const laneFor = item => laneOfState[item?.state] || 'all';
@@ -78,6 +81,7 @@ function model() {
     asks: work.asks?.id === work.detailId ? work.asks.data : null,
     askBusy: work.askBusy,
     askDraft: work.askDraft,
+    runLogs: work.logs?.id === work.detailId ? work.logs.runs : null,
   };
 }
 
@@ -112,8 +116,10 @@ function renderWork() {
   const listTop = scroller ? scroller.scrollTop : 0;
   const target = focusTarget();
   const current = model();
+  const logScroll = new Map([...document.querySelectorAll('#app pre[data-run-log]')].map(element => [element.dataset.runLog, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
   renderHtml(shell(workMarkup(current), shellOptions(current)));
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
+  for (const element of document.querySelectorAll('#app pre[data-run-log]')) { const kept = logScroll.get(element.dataset.runLog); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
   const list = $('.work-list-pane .work-list');
   if (list && listTop) list.scrollTop = listTop;
   if (target && (!document.activeElement || document.activeElement === document.body)) (document.querySelector(target) || (target.includes('ploeg-refresh') ? $('[data-action="ploeg-refresh"][data-id="toolbar"]') : null))?.focus({ preventScroll: true });
@@ -506,6 +512,72 @@ async function loadDetail(id, { fresh = false, quiet = false } = {}) {
   }
 }
 
+function runLogEntry(runId) {
+  if (work.logs?.id !== work.detailId) work.logs = { id: work.detailId, runs: new Map() };
+  let entry = work.logs.runs.get(runId);
+  if (!entry) { entry = { data: null, lines: [], truncated: false, cursor: null, error: null, busy: false }; work.logs.runs.set(runId, entry); }
+  return entry;
+}
+
+const logShape = entry => JSON.stringify([entry.lines.length, entry.lines.at(-1)?.at, entry.truncated, entry.error?.message, entry.data?.available, entry.data?.live, entry.data?.reason, entry.data?.pods?.length]);
+
+async function loadRunLogs(runId, { fresh = false } = {}) {
+  const id = work.detailId;
+  if (!id) return false;
+  const entry = runLogEntry(runId);
+  if (entry.busy) return false;
+  entry.busy = true;
+  const before = entry.data ? logShape(entry) : null;
+  const after = !fresh && entry.data?.available && entry.cursor ? entry.cursor : null;
+  try {
+    const data = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/logs${after ? `?${new URLSearchParams({ after })}` : ''}`);
+    if (work.detailId !== id || work.logs?.runs.get(runId) !== entry) return false;
+    const appended = Boolean(after) && !data.truncated;
+    entry.lines = (appended ? [...entry.lines, ...data.lines] : data.lines).slice(-logLineCap);
+    entry.truncated = appended ? entry.truncated || entry.lines.length === logLineCap : data.truncated;
+    entry.cursor = data.cursor;
+    entry.data = data;
+    entry.error = null;
+  } catch (error) {
+    if (work.detailId !== id || work.logs?.runs.get(runId) !== entry) return false;
+    entry.error = { message: error.message, code: error.code || '' };
+  } finally { entry.busy = false; }
+  if (visible() && logShape(entry) !== before) renderWork();
+  return true;
+}
+
+function openLogPanels() {
+  return [...document.querySelectorAll('#app details[id^="work-run-logs-"][open]')].filter(element => element.closest('details.work-run')?.open !== false).map(element => logPanel.exec(element.id)?.[1]).filter(Boolean);
+}
+
+function runIsLive(runId) {
+  const entry = work.logs?.id === work.detailId ? work.logs.runs.get(runId) : null;
+  if (entry?.data) return entry.data.available === true && entry.data.live === true;
+  return (state.ploegDetail?.runs || []).some(run => String(run.id) === runId && run.state !== 'finished');
+}
+
+function loadOpenedLogs(event) {
+  if (!visible() || !event.target?.open || !event.target.closest?.('#app')) return;
+  for (const runId of openLogPanels()) { const entry = work.logs?.id === work.detailId ? work.logs.runs.get(runId) : null; if (!entry || (!entry.data && !entry.busy)) void loadRunLogs(runId, { fresh: true }); }
+}
+
+async function pollRunLogs() {
+  if (!visible() || !work.detailId) return false;
+  const running = openLogPanels().filter(runIsLive);
+  if (!running.length) return false;
+  await Promise.all(running.map(runId => loadRunLogs(runId)));
+  return true;
+}
+
+function retryRunLogs(button) {
+  const runId = button.dataset.id;
+  if (!runId || !work.detailId) return;
+  const entry = runLogEntry(runId);
+  entry.error = null;
+  if (!entry.data) renderWork();
+  void loadRunLogs(runId, { fresh: true });
+}
+
 async function refreshQuietly() {
   if (!visible() || work.cancelBusy) return;
   await Promise.all([loadOverview({ quiet: true }), work.detailId ? loadDetail(work.detailId, { quiet: true }) : null]);
@@ -515,6 +587,8 @@ function registerLive() {
   if (work.registered) return;
   work.registered = true;
   live.register('work', { interval: liveInterval, refresh: refreshQuietly });
+  live.register('work-logs', { interval: logInterval, refresh: pollRunLogs, scope: 'global' });
+  document.addEventListener('toggle', loadOpenedLogs, true);
   addEventListener('scroll', schedulePane, { passive: true });
   addEventListener('resize', schedulePane, { passive: true });
 }
@@ -861,6 +935,7 @@ export default {
     'work-brief': () => toggleBrief(),
     'work-run': jumpToRun,
     'work-stream-zoom': zoomStream,
+    'work-run-logs-retry': retryRunLogs,
     'work-section': jumpToSection,
     'work-context-add': () => openContext(),
     'work-ask-open': () => openAsk(),

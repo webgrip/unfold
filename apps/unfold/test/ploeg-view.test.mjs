@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, canStop, cellSummary, checkoutDialogMarkup, contextDialogMarkup, contextErrors, contextMarkup, contextReach, contextSize, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runAttempts, runGroups, runOrder, runResult, statusFacts, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
+import { activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, canStop, cellSummary, checkoutDialogMarkup, contextDialogMarkup, contextErrors, contextMarkup, contextReach, contextSize, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runLogsMarkup, runAttempts, runGroups, runOrder, runResult, statusFacts, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
 import { grafanaTeam, runExplorer } from '../public/core/observability.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
@@ -698,4 +698,28 @@ test('the Context card lists attached files, flags steering uploads and says whi
   assert.match(contextErrors({ name: 'a.zip', size: 20 * 1024 * 1024 + 1 }, '').file, /20 MiB/);
   assert.match(contextErrors({ name: 'a.md', size: 1 }, 'x'.repeat(501)).note, /500/);
   assert.deepEqual([contextSize(512), contextSize(20 * 1024 * 1024)], ['512 B', '20 MiB']);
+});
+
+test('each Run has a closed Pod logs disclosure that shows the lines once read, newest at the bottom', () => {
+  const html = detailMarkup(detail(), model({ detailId: '50', lane: 'awaiting_review', runLogs: new Map([['14', { data: { available: true, live: false, pods: [{ namespace: 'ploeg', pod: 'sbx-worker-a', container: 'worker' }], grafanaUrl: 'https://grafana.test/explore?x=1' }, lines: [{ at, text: 'first <b>' }, { at: later, text: 'last' }], truncated: false, error: null }]]) }));
+  assert.match(html, /<details class="disclosure" id="work-run-logs-14"><summary><span class="disclosure-summary">Pod logs<\/span>/, 'closed until opened, so nothing loads before');
+  assert.match(html, /<pre class="work-log work-run-log" data-private data-run-log="14" tabindex="0" aria-label="Pod logs of Run 14">first &lt;b&gt;\nlast<\/pre>/);
+  assert.match(html, /2 lines<\/span> · Pod <span class="mono">sbx-worker-a<\/span>/);
+  assert.match(html, /href="https:\/\/grafana.test\/explore\?x=1"[^>]*data-link-out="grafana-logs"[^]*Open in Grafana/);
+});
+
+test('Pod logs say when they load, are not connected, have no lines yet or failed', () => {
+  const run = { id: '7' };
+  assert.match(runLogsMarkup(run, undefined), /Loading logs…/);
+  const unconnected = runLogsMarkup(run, { data: { available: false, reason: 'not_connected', live: false, pods: [], grafanaUrl: 'https://grafana.test/explore' }, lines: [] });
+  assert.match(unconnected, /Logs are not connected<\/p>[^]*Logs are not connected: set observability\.logsUrl\./);
+  assert.match(unconnected, /Open in Grafana/);
+  assert.match(runLogsMarkup(run, { data: { available: false, reason: 'demo', message: 'The demo runs no agent pods, so it has no pod logs to show.', live: false, pods: [] }, lines: [] }), /No pod logs in the demo[^]*runs no agent pods/);
+  assert.match(runLogsMarkup(run, { data: { available: true, live: true, pods: [] }, lines: [] }), /No log lines yet[^]*Lines appear here while the agent pod writes them\./);
+  const failed = runLogsMarkup(run, { data: null, lines: [], error: { message: 'The log store could not be reached.' } });
+  assert.match(failed, /class="callout" data-tone="danger"[^]*The logs could not be read[^]*The log store could not be reached\.[^]*data-action="work-run-logs-retry" data-id="7"/);
+  const several = runLogsMarkup(run, { data: { available: true, live: true, pods: [{ pod: 'a' }, { pod: 'b' }] }, lines: [{ at, text: 'x', stream: 'b' }], error: { message: 'Timed out.' } });
+  assert.match(several, /2 pods: <span class="mono">a<\/span>, <span class="mono">b<\/span> · <span class="live-dot"/);
+  assert.match(several, /<span class="work-run-log-stream">b<\/span> x/);
+  assert.match(several, /Could not refresh: Timed out\./, 'an earlier read stays on screen when a refresh fails');
 });
