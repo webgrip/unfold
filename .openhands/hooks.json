@@ -1,0 +1,13 @@
+{
+  "pre_tool_use": [
+    {
+      "matcher": "*",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "python3 \"$OPENHANDS_PROJECT_DIR\"/scripts/stage-explicit-paths.py"
+        }
+      ]
+    }
+  ]
+}

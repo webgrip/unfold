@@ -91,9 +91,9 @@ def main():
         event = json.load(sys.stdin)
     except json.JSONDecodeError:
         return 0
-    if event.get('tool_name') != 'Bash':
+    command = (event.get('tool_input') or {}).get('command')
+    if not isinstance(command, str):
         return 0
-    command = (event.get('tool_input') or {}).get('command') or ''
     if denied(command):
         print(REASON.format(command=command), file=sys.stderr)
         return 2
