@@ -60,7 +60,7 @@ test('a report is filed as a Forgejo issue with three attachments, the screensho
     return { status: 404, body: {} };
   });
   t.after(() => forgejo.close());
-  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { sourceId: 'forge', project: 'webgrip/unfold' }; config.baseUrl = undefined; });
+  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'webgrip/unfold' }; config.baseUrl = undefined; });
   t.after(() => app.close());
   const { cookie } = await login(app.url);
 
@@ -101,8 +101,9 @@ test('a report is filed as a Vikunja task with its files attached and its addres
   });
   t.after(() => vikunja.close());
   const app = await application('live', config => {
-    config.taskSources = [{ id: 'board', name: 'Board', provider: 'vikunja', baseUrl: vikunja.url, project: '12', repositoryId: 'order-service', token: 'vikunja-test-token', executionOwner: 'interactive' }];
-    config.reports = { sourceId: 'board', project: '12' };
+    const board = { id: 'board', name: 'Board', provider: 'vikunja' as const, baseUrl: vikunja.url, project: '12', repositoryId: 'order-service', token: 'vikunja-test-token', executionOwner: 'interactive' as const };
+    config.taskSources = [board];
+    config.reports = { source: board, project: '12' };
   });
   t.after(() => app.close());
   const { cookie } = await login(app.url);
@@ -126,7 +127,7 @@ test('a refusing tracker keeps the report, says it will retry, and the retry con
     return { status: 404, body: {} };
   });
   t.after(() => forgejo.close());
-  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { sourceId: 'forge', project: 'webgrip/unfold' }; });
+  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'webgrip/unfold' }; });
   t.after(() => app.close());
   const { cookie } = await login(app.url);
   const errors: string[] = [];
@@ -195,10 +196,56 @@ test('reports never default to, or land in, a project Ploeg dispatches work from
   const dispatch = { id: 'ploeg-board', name: 'Ploeg board', provider: 'vikunja' as const, baseUrl: 'https://vikunja.test/api/v1', project: '11', repositoryId: 'ploeg', token: 't', executionOwner: 'ploeg' as const };
   const own = { ...dispatch, id: 'feedback', name: 'Feedback', project: '30', executionOwner: 'interactive' as const };
   assert.equal(reportSettings(undefined, [dispatch], 'live'), null, 'a dispatch board is never the default target');
-  assert.deepEqual(reportSettings(undefined, [dispatch, own], 'live'), { sourceId: 'feedback', project: '30' });
+  assert.deepEqual(reportSettings(undefined, [dispatch, own], 'live'), { source: own, project: '30' });
   assert.throws(() => reportSettings({ source: 'ploeg-board' }, [dispatch], 'live'), /Ploeg dispatches the tasks there/);
-  assert.deepEqual(reportSettings({ source: 'ploeg-board', project: '30' }, [dispatch], 'live'), { sourceId: 'ploeg-board', project: '30' }, 'the same tracker in another project is fine');
+  assert.deepEqual(reportSettings({ source: 'ploeg-board', project: '30' }, [dispatch], 'live'), { source: dispatch, project: '30' }, 'the same tracker in another project is fine');
   assert.equal(reportSettings(false, [own], 'live'), null);
   assert.equal(reportSettings(undefined, [own], 'demo'), null, 'the demo never files');
   assert.throws(() => reportSettings({ source: 'nope' }, [own], 'live'), /must name a Forgejo or Vikunja task source/);
+});
+
+test('reports can have a connection of their own, which is not a task source, and a missing token turns filing off instead of stopping Unfold', async t => {
+  const { reportSettings } = await import('../src/reports.ts');
+  const previous = process.env.UNFOLD_REPORTS_TEST_TOKEN;
+  t.after(() => { if (previous === undefined) delete process.env.UNFOLD_REPORTS_TEST_TOKEN; else process.env.UNFOLD_REPORTS_TEST_TOKEN = previous; });
+  const sources = [{ id: 'ploeg-board', name: 'Ploeg board', provider: 'vikunja' as const, baseUrl: 'https://vikunja.test/api/v1', project: '11', repositoryId: 'ploeg', token: 't', executionOwner: 'ploeg' as const }];
+  const raw = { provider: 'forgejo', baseUrl: 'https://forgejo.test/api/v1', project: 'WebGrip/Unfold', tokenEnv: 'UNFOLD_REPORTS_TEST_TOKEN' };
+  process.env.UNFOLD_REPORTS_TEST_TOKEN = 'reports-token';
+  const target = reportSettings(raw, sources, 'live');
+  assert.equal(target?.project, 'webgrip/unfold');
+  assert.deepEqual({ provider: target?.source.provider, baseUrl: target?.source.baseUrl, token: target?.source.token, executionOwner: target?.source.executionOwner }, { provider: 'forgejo', baseUrl: 'https://forgejo.test/api/v1', token: 'reports-token', executionOwner: 'interactive' });
+  assert.equal(sources.length, 1, 'the connection is not added to the task sources, so the Tasks page never lists it');
+
+  delete process.env.UNFOLD_REPORTS_TEST_TOKEN;
+  const errors: string[] = [];
+  const original = console.error;
+  console.error = (...args: unknown[]) => { errors.push(String(args[0])); };
+  t.after(() => { console.error = original; });
+  assert.equal(reportSettings(raw, sources, 'live'), null, 'Unfold starts and keeps reports');
+  assert(errors.some(line => line.includes('reports.token_missing') && line.includes('UNFOLD_REPORTS_TEST_TOKEN')));
+
+  assert.throws(() => reportSettings({ ...raw, provider: 'github' }, sources, 'live'), /reports.provider must be forgejo or vikunja/);
+  assert.throws(() => reportSettings({ ...raw, baseUrl: 'http://forgejo.test/api/v1' }, sources, 'live'), /HTTPS/);
+  assert.throws(() => reportSettings({ ...raw, project: 'not a repo' }, sources, 'live'), /owner\/repository/);
+  assert.throws(() => reportSettings({ ...raw, source: 'ploeg-board' }, sources, 'live'), /provider, baseUrl, project and tokenEnv only/);
+});
+
+test('a configuration with its own report connection loads, keeps the task sources as they were, and the server files with it', async t => {
+  const forgejo = await tracker(call => {
+    if (call.path.includes('/labels')) return { status: 200, body: [] };
+    if (call.method === 'POST' && call.path.endsWith('/issues')) return { status: 201, body: { id: 3, number: 9, html_url: 'https://forgejo.test/webgrip/unfold/issues/9' } };
+    if (call.path.includes('/assets')) return { status: 201, body: { browser_download_url: 'https://forgejo.test/a.png' } };
+    return { status: 201, body: {} };
+  });
+  t.after(() => forgejo.close());
+  const { reportSettings } = await import('../src/reports.ts');
+  process.env.UNFOLD_REPORTS_SERVER_TOKEN = 'server-token';
+  t.after(() => { delete process.env.UNFOLD_REPORTS_SERVER_TOKEN; });
+  const app = await application('live', config => { config.reports = reportSettings({ provider: 'forgejo', baseUrl: forgejo.url, project: 'webgrip/unfold', tokenEnv: 'UNFOLD_REPORTS_SERVER_TOKEN' }, config.taskSources, 'live'); });
+  t.after(() => app.close());
+  assert(!app.config.taskSources?.some(source => source.id === 'reports'), 'no task source was added');
+  const { cookie } = await login(app.url);
+  const filed = await post(app.url, cookie, report());
+  assert.equal(filed.body.status, 'filed', filed.text);
+  assert.equal(filed.body.url, 'https://forgejo.test/webgrip/unfold/issues/9');
 });

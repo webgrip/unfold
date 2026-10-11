@@ -55,8 +55,8 @@ export type AppConfig = {
   reports?: ReportTarget | null;
 };
 
-/** Where Report a problem files: one configured task source (Forgejo or Vikunja), optionally in another repository or project. */
-export type ReportTarget = { sourceId: string; project: string };
+/** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own) and the repository or project. */
+export type ReportTarget = { source: TaskSourceConfig; project: string };
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
 /** One product event the browser or VS Code extension posted, after the catalogue checked it. */
 export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean> };

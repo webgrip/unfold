@@ -193,8 +193,15 @@ Report a problem ([RFC-0002](../../../../docs/design/rfc-0002-report-a-problem.m
 "reports": { "source": "forgejo-unfold", "project": "webgrip/unfold" }
 ```
 
+Or give reports a connection of their own, which is not a task source and never appears on the Tasks page. Use this when no task source fits, for example when the repository is one Ploeg dispatches work for, where a task source owned by Unfold is refused at start-up:
+
+```json
+"reports": { "provider": "forgejo", "baseUrl": "https://forgejo.example/api/v1", "project": "webgrip/unfold", "tokenEnv": "UNFOLD_REPORTS_FORGEJO_TOKEN" }
+```
+
 * `source` names a Forgejo or Vikunja task source with a token. Leave `reports` out to use the first such source that Unfold owns (`executionOwner: interactive`) and its own project. A source Ploeg dispatches from is never the default, and naming one requires a different `project`, so a report never becomes agent work. Set `reports` to `false` to keep every report in Unfold and file nothing.
 * `project` is optional: `owner/repository` on Forgejo, or a numeric project ID on Vikunja, when reports belong somewhere other than the source's work.
+* If the variable `tokenEnv` names is not set, Unfold starts anyway, logs `reports.token_missing` and keeps reports without filing them.
 * The token needs to create issues and upload issue attachments on Forgejo (`write:issue`), or create tasks and attachments in the project on Vikunja.
 * Unfold keeps each report before it files it. If the tracker refuses or cannot be reached, the person sees "Saved. Unfold will file it when the tracker answers", and Unfold retries with growing gaps for 24 hours, continuing an issue it already created. The server log line `report.file_failed` gives the tracker's answer.
 * Files are deleted 90 days after a report is filed. The report row and its address stay.

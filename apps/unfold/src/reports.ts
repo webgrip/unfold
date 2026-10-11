@@ -3,7 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import type { AppConfig, ReportTarget, User } from './types.ts';
 import type { TaskSourceConfig } from './tasks.ts';
 import type { Store, StoredReport, StoredReportFile, StoredReportIssue } from './store.ts';
-import { attachToIssue, createIssue, reportTargetProject, TaskError, updateIssueBody, type IssueFile } from './tasks.ts';
+import { apiRoot, attachToIssue, createIssue, reportTargetProject, TaskError, updateIssueBody, type IssueFile } from './tasks.ts';
 
 export const maxReportBytes = 8 * 1024 * 1024;
 export const maxReportFiles = 5;
@@ -38,27 +38,47 @@ export type ParsedReport = { title: string; happened: string; expected: string; 
 export type ReportOutcome = { id: string; status: StoredReport['status']; url?: string; message: string };
 
 /**
- * Resolves `reports` from the configuration file: `false` turns Report a problem off, `{ source, project? }` names a
- * Forgejo or Vikunja task source and optionally another repository or project, and leaving it out picks the first
- * Forgejo or Vikunja source with a token that Unfold owns. A source Ploeg dispatches from is never a default, and naming
- * one needs another project, so a report never becomes agent work. Returns null when nothing can file reports.
+ * Resolves `reports` from the configuration file. `false` turns filing off. `{ source, project? }` names a Forgejo or
+ * Vikunja task source and optionally another repository or project. `{ provider, baseUrl, project, tokenEnv }` is a
+ * connection of its own, which never appears among the task sources or on the Tasks page. Leaving `reports` out picks
+ * the first Forgejo or Vikunja source with a token that Unfold owns. A source Ploeg dispatches from is never a default,
+ * and naming one needs another project, so a report never becomes agent work. A missing token turns filing off with a
+ * warning instead of stopping Unfold. Returns null when nothing can file reports.
  */
 export function reportSettings(raw: unknown, sources: TaskSourceConfig[] | undefined, mode: AppConfig['mode']): ReportTarget | null {
   if (raw === false || mode === 'demo') return null;
   const fileable = (sources ?? []).filter(source => (source.provider === 'forgejo' || source.provider === 'vikunja') && source.token);
   if (raw === undefined) {
     const own = fileable.find(source => source.executionOwner === 'interactive');
-    return own ? { sourceId: own.id, project: own.project } : null;
+    return own ? { source: own, project: own.project } : null;
   }
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw) || Object.keys(raw).some(key => !['source', 'project'].includes(key))) throw new Error('reports must be false or { source, project? }');
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('reports must be false, { source, project? } or { provider, baseUrl, project, tokenEnv }');
   const value = raw as Record<string, unknown>;
+  if ('provider' in value) return ownConnection(value);
+  if (Object.keys(value).some(key => !['source', 'project'].includes(key))) throw new Error('reports must be false, { source, project? } or { provider, baseUrl, project, tokenEnv }');
   const source = fileable.find(entry => entry.id === value.source);
   if (!source) throw new Error('reports.source must name a Forgejo or Vikunja task source with a token');
   const project = value.project === undefined ? source.project : value.project;
   if (typeof project !== 'string') throw new Error('reports.project must be owner/repository for Forgejo or a numeric Vikunja project ID');
   const target = reportTargetProject(source, project);
   if (source.executionOwner === 'ploeg' && target === source.project) throw new Error(`reports.project must differ from ${source.id}'s project: Ploeg dispatches the tasks there, so a report would become agent work`);
-  return { sourceId: source.id, project: target };
+  return { source, project: target };
+}
+
+function ownConnection(value: Record<string, unknown>): ReportTarget | null {
+  if (Object.keys(value).some(key => !['provider', 'baseUrl', 'project', 'tokenEnv'].includes(key))) throw new Error('reports with its own connection takes provider, baseUrl, project and tokenEnv only');
+  if (value.provider !== 'forgejo' && value.provider !== 'vikunja') throw new Error('reports.provider must be forgejo or vikunja');
+  if (typeof value.tokenEnv !== 'string' || !/^[A-Z][A-Z0-9_]{0,127}$/.test(value.tokenEnv)) throw new Error('reports.tokenEnv must name an environment variable');
+  if (typeof value.project !== 'string') throw new Error('reports.project must be owner/repository for Forgejo or a numeric Vikunja project ID');
+  const provider = value.provider as 'forgejo' | 'vikunja';
+  const base: TaskSourceConfig = { id: 'reports', name: 'Report a problem', provider, baseUrl: apiRoot(value.baseUrl, provider), project: '', repositoryId: '', executionOwner: 'interactive' };
+  const project = reportTargetProject(base, value.project);
+  const token = process.env[value.tokenEnv];
+  if (!token) {
+    console.error(JSON.stringify({ level: 'warn', event: 'reports.token_missing', message: `reports.tokenEnv names ${value.tokenEnv}, which is not set; Unfold keeps reports and files none` }));
+    return null;
+  }
+  return { source: { ...base, project, token }, project };
 }
 
 function text(value: FormDataEntryValue | null, field: string, max: number, required = false): string {
@@ -235,15 +255,14 @@ export class ReportService {
   }
 
   private source(): TaskSourceConfig | undefined {
-    const target = this.config.reports;
-    return target ? this.config.taskSources?.find(source => source.id === target.sourceId) : undefined;
+    return this.config.reports?.source;
   }
 
   /** The tracker reports go to, as the dialog names it, or null when nothing files them. */
   publicTarget(): string | null {
     const source = this.source();
     if (!source || !this.config.reports) return null;
-    return `${source.provider === 'forgejo' ? 'Forgejo' : 'Vikunja'} · ${source.provider === 'vikunja' ? `${source.name} (project ${this.config.reports.project})` : this.config.reports.project}`;
+    return `${source.provider === 'forgejo' ? 'Forgejo' : 'Vikunja'} · ${source.provider === 'vikunja' ? `project ${this.config.reports.project}` : this.config.reports.project}`;
   }
 
   /** Stores one report and tries to file it at once. A refusal leaves it saved for the retries. */
