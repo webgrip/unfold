@@ -62,13 +62,14 @@ test('the 059675b9 session reads as stopped in the Agents window: activity, an o
   assert.ok(parts.some((part: Json) => part.kind === 'markdown' && /^\*\*Implementer\*\* finished\./.test(part.content)));
   const outcome = turns.at(-1).responseParts.at(-1);
   assert.equal(outcome.kind, 'markdown');
-  assert.match(outcome.content, /^\*\*Stopped\*\* · Reviewer approved the change · the session stopped before finishing/);
+  assert.match(outcome.content, /^\n\n\*\*Stopped\*\* · Reviewer approved the change · the session stopped before finishing/);
+  assert.ok(outcome.content.startsWith('\n\n'), 'the outcome opens its own paragraph, so a crew message that ends in a code fence is closed before it');
   assert.match(outcome.content, /interrupted, approved in its transcript/);
   assert.match(outcome.content, /Spend: US\$\s0,03 \(observed, not settled · of US\$\s0,25\)/);
   assert.match(outcome.content, /Ploeg stopped the execution and holds it for reconciliation\. It will not retry by itself\.$/, 'the outcome says why it stopped');
   assert.doesNotMatch(outcome.content, /Next:|does not offer delivery/, 'its next steps are the "What next?" choice, not a second list beside it');
   assert.equal(turns.at(-1).state, 'complete');
-  assert.equal(parts.filter((part: Json) => part.kind === 'markdown' && /^\*\*Stopped\*\*/.test(part.content)).length, 1, 'the outcome is said once');
+  assert.equal(parts.filter((part: Json) => part.kind === 'markdown' && /^\n\n\*\*Stopped\*\*/.test(part.content)).length, 1, 'the outcome is said once');
 });
 
 test('a session that stopped by itself ends with its next steps as a choice in a host turn, offered once and never acted on', { timeout: testTimeout(60_000) }, async t => {
