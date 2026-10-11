@@ -73,14 +73,15 @@ export async function run({ page, app, assert, screenshot }) {
   assert.equal(await panel.getByRole('button', { name: 'Propose as cause' }).count(), 1, 'only the candidate nobody attributed yet can be proposed');
   await panel.locator('#work-trace-rules summary').click();
   assert.match(await panel.locator('#work-trace-rules').innerText(), /Two people confirm/);
+  assert.doesNotMatch(await panel.innerText(), /\b(?:crack(?:s|ed)?|cards?|plays?|steward|mend(?:s|ed)?|evolved)\b/i, 'the Work Item page speaks plainly; the game words stay on the card page');
   await capture('work-trace-bug');
 
   await panel.getByRole('button', { name: 'Confirm' }).click();
   const dialog = page.locator('#confirm-dialog');
-  await dialog.getByRole('heading', { name: 'Confirm this crack?' }).waitFor();
+  await dialog.getByRole('heading', { name: 'Confirm this link?' }).waitFor();
   assert.match(await dialog.innerText(), /Demo: this checks Ploeg’s rules and records nothing/);
   await capture('work-trace-confirm-dialog');
-  await dialog.getByRole('button', { name: 'Confirm crack' }).click();
+  await dialog.getByRole('button', { name: 'Confirm cause' }).click();
   const result = page.locator('#work-trace-result');
   await result.waitFor();
   await page.waitForFunction(() => document.activeElement?.id === 'work-trace-result');
@@ -90,12 +91,12 @@ export async function run({ page, app, assert, screenshot }) {
   await panel.getByRole('button', { name: 'Propose as cause' }).click();
   await dialog.getByRole('heading', { name: 'Propose a cause' }).waitFor();
   assert.match(await dialog.innerText(), /records the proposal as self-reported/, 'the person who merged the play is told it counts as self-reported');
-  await dialog.getByRole('button', { name: 'Propose crack' }).click();
+  await dialog.getByRole('button', { name: 'Propose as cause' }).click();
   assert.equal(await dialog.locator('[data-error-for="severity"]').innerText(), 'Choose a severity.', 'a proposal needs a severity before anything is sent');
   assert.equal(await page.evaluate(() => document.activeElement?.name), 'severity');
   await dialog.getByRole('radio', { name: /S4 · cosmetic/ }).check();
   await dialog.getByLabel('Note').fill('The shared error handler swallowed the 422.');
-  await dialog.getByRole('button', { name: 'Propose crack' }).click();
+  await dialog.getByRole('button', { name: 'Propose as cause' }).click();
   await page.waitForFunction(() => /as proposed/.test(document.getElementById('work-trace-result')?.innerText ?? ''));
   await capture('work-trace-result');
 

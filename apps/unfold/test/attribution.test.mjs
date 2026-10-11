@@ -16,7 +16,7 @@ const candidate = extra => ({ card: item('120', 'Audit log on refund'), play: 15
 test('the page offers each attribution step only to the people Ploeg allows, and says why not', () => {
   const pending = crack();
   assert.equal(crackSteps(pending, viewer('other'), { now }).confirm.allowed, true, 'a second person confirms');
-  assert.match(crackSteps(pending, viewer('STEW'), { now }).confirm.why, /steward, so someone else confirms/, 'the steward never confirms, whatever the case of the login');
+  assert.match(crackSteps(pending, viewer('STEW'), { now }).confirm.why, /You own this change, so someone else confirms/, 'the owner never confirms, whatever the case of the login');
   assert.match(crackSteps(pending, viewer('fixer'), { now }).confirm.why, /proposed it, so a second person confirms/);
   assert.equal(crackSteps(pending, viewer('stew'), { now }).evolved.allowed, false, 'the steward does not decide their own card evolved');
   assert.equal(crackSteps(pending, viewer('other'), { now }).evolved.allowed, true);
@@ -36,7 +36,7 @@ test('the page offers each attribution step only to the people Ploeg allows, and
 
 test('a candidate can be proposed until the bug has three open attributions, and its merger is warned that it self-reports', () => {
   assert.deepEqual([candidateSteps(candidate(), viewer('other'), 0).propose.allowed, candidateSteps(candidate(), viewer('other'), 0).self], [true, false]);
-  assert.match(candidateSteps(candidate(), viewer('other'), 3).propose.why, /at most 3 cards/);
+  assert.match(candidateSteps(candidate(), viewer('other'), 3).propose.why, /at most 3 changes/);
   assert.equal(candidateSteps(candidate({ attribution: 'proposed' }), viewer('other'), 1).propose.allowed, false, 'an attributed card is not proposed twice');
   const merger = candidateSteps(candidate(), viewer('MERGER'), 0);
   assert.deepEqual([merger.propose.allowed, merger.self, merger.evolved.allowed], [true, true, false]);
@@ -46,7 +46,7 @@ test('Trace this bug lists candidates and attributions with the steps the viewer
   const trace = { workItemId: '124', demo: false, viewer: viewer('other'), cracks: [crack({ note: '<img src=x onerror=alert(1)>' }), crack({ id: '8', state: 'confirmed', card: item('121', '404s'), confirmedBy: ['fixer', 'second'], confirmedAt: '2026-09-30T10:00:00Z', disputeUntil: '2026-10-07T10:00:00Z' })], candidates: { bug: item('124', 'Postcode with a space'), fixFiles: 3, fixFilesTruncated: false, since: '2025-09-25T10:00:00Z', until: '2026-09-25T10:00:00Z', candidates: [candidate({ card: item('118', 'Validate postcodes'), attribution: 'proposed' }), candidate()] } };
   const html = traceMarkup(trace, { now });
   assert.match(html, /<h3 class="card-title" id="work-trace-title">.*Trace this bug<\/h3>/);
-  assert.match(html, /A crack is an inquiry, not a verdict\./);
+  assert.match(html, /A link is an inquiry, not a verdict\./);
   for (const rule of traceRules) assert(html.includes(rule.replaceAll('’', '’')), `the rules say: ${rule.slice(0, 40)}`);
   assert.match(html, /Two people confirm/);
   assert.match(html, /within five working days/);
@@ -54,7 +54,7 @@ test('Trace this bug lists candidates and attributions with the steps the viewer
   assert.equal((html.match(/data-action="trace-dispute"/g) || []).length, 0, 'someone who is not the steward cannot dispute');
   assert.equal((html.match(/data-action="trace-propose"/g) || []).length, 1, 'only the unattributed candidate can be proposed');
   assert.match(html, /1 file of 3 the fix touched \(33%\)/);
-  assert.match(html, /The steward <span class="trace-person">stew<\/span> can dispute until/);
+  assert.match(html, /The owner <span class="trace-person">stew<\/span> can dispute until/);
   assert(!html.includes('<img src=x'), 'notes are escaped');
   assert(!/style="/.test(html), 'no inline styles under the CSP');
   const steward = traceMarkup({ ...trace, viewer: viewer('stew') }, { now });
@@ -70,6 +70,20 @@ test('Trace this bug lists candidates and attributions with the steps the viewer
   assert.match(card, /data-action="trace-dispute"/, 'the steward can dispute from their own card’s page');
 });
 
+test('the trace panel and its dialogs speak plainly: no trading-card words, which belong to the card page', () => {
+  const readable = html => `${html.replace(/<[^>]*>/g, ' ')} ${[...html.matchAll(/(?:title|aria-label)="([^"]*)"/g)].map(match => match[1]).join(' ')}`;
+  const game = /\b(?:crack(?:s|ed)?|cards?|plays?|steward|mend(?:s|ed)?|evolved)\b/i;
+  const bug = { workItemId: '124', title: 'Postcode with a space' };
+  const cracks = [crack(), crack({ id: '8', state: 'confirmed', confirmedBy: ['fixer', 'second'], confirmedAt: '2026-09-30T10:00:00Z', disputeUntil: '2026-10-07T10:00:00Z', mended: { pr: '31', by: 'stew', bySteward: true } }), crack({ id: '9', state: 'disputed', disputedBy: 'stew', resolvedBy: 'referee', resolution: 'unlinked' }), crack({ id: '10', state: 'evolved', evolvedBy: 'other' })];
+  const candidates = { bug: item('124', 'Postcode with a space'), fixFiles: 3, fixFilesTruncated: true, since: '2025-09-25T10:00:00Z', until: '2026-09-25T10:00:00Z', candidates: [candidate({ reverted: true }), candidate({ attribution: 'confirmed' })] };
+  const views = [traceMarkup({ workItemId: '124', demo: true, viewer: viewer('merger'), cracks, candidates }, { now }), traceMarkup({ workItemId: '121', demo: false, viewer: viewer('stew'), cracks: cracks.map(entry => ({ ...entry, card: item('121', '404s') })), candidates: null }, { now }), traceRules.join(' ')];
+  for (const step of ['confirm', 'dispute', 'resolve']) views.push(stepDialogMarkup(step, crack({ state: step === 'resolve' ? 'disputed' : 'confirmed', disputeReason: 'Not mine' }), { bug }));
+  views.push(stepDialogMarkup('propose', candidate({ mergedBy: 'me' }), { bug, viewer: viewer('me') }), stepDialogMarkup('evolved', { card: '121', bug: '124', title: '404s' }, { bug }));
+  for (const [state, viewerLogin] of [['proposed', 'stew'], ['proposed', 'fixer'], ['confirmed', 'stew'], ['disputed', 'stew']]) Object.values(crackSteps(crack({ state, disputeUntil: '2026-01-01T00:00:00Z' }), viewer(viewerLogin), { now })).forEach(step => views.push(step.why));
+  Object.values(candidateSteps(candidate(), viewer('MERGER'), 3)).forEach(step => views.push(step?.why ?? ''));
+  for (const view of views) assert.doesNotMatch(readable(view), game);
+});
+
 test('step dialogs ask for what Ploeg needs, check it before sending, and the outcome says when nothing was recorded', () => {
   const bug = { workItemId: '124', title: 'Postcode with a space' };
   const propose = stepDialogMarkup('propose', candidate({ mergedBy: 'me' }), { bug, viewer: viewer('me'), demo: true });
@@ -79,11 +93,11 @@ test('step dialogs ask for what Ploeg needs, check it before sending, and the ou
   assert.match(propose, /Demo: this checks Ploeg’s rules and records nothing/);
   assert.match(stepDialogMarkup('dispute', crack({ state: 'confirmed' }), { bug }), /name="reason"[^>]*required/);
   assert.match(stepDialogMarkup('resolve', crack({ state: 'disputed', disputeReason: 'Not mine' }), { bug }), /If your team names referees, only they can resolve/);
-  assert.match(stepDialogMarkup('evolved', { card: '121', bug: '124', title: '404s' }, { bug }), /marked evolved and gets no crack/);
+  assert.match(stepDialogMarkup('evolved', { card: '121', bug: '124', title: '404s' }, { bug }), /after it was accepted. It gets no link/);
   assert.deepEqual(stepRequest('propose', { play: '15', note: '' }).errors, { severity: 'Choose a severity.', share: 'Choose primary or contributing.' });
   assert.deepEqual(stepRequest('propose', { severity: 'S2', share: 'primary', discovery: 'discovered', play: '15', note: ' Pattern. ' }).body, { severity: 'S2', share: 'primary', discovery: 'discovered', play: 15, note: 'Pattern.' });
   assert.deepEqual(stepRequest('confirm', { severity: '', share: '' }).body, {}, 'keeping severity and share sends neither');
-  assert.equal(stepRequest('dispute', { reason: '  ' }).errors.reason, 'Say why the bug did not come from this card.');
+  assert.equal(stepRequest('dispute', { reason: '  ' }).errors.reason, 'Say why the bug did not come from this change.');
   assert.equal(stepRequest('resolve', {}).errors.resolution, 'Choose uphold or unlink.');
   const result = { crack: crack({ state: 'confirmed' }), demo: true, message: 'Demo: Ploeg recorded nothing.' };
   assert.deepEqual(stepOutcome('confirm', result), { tone: 'neutral', title: 'Demo · nothing recorded', text: 'Ploeg would now record the attribution Validate postcodes → Postcode with a space as confirmed. Demo: Ploeg recorded nothing.' });

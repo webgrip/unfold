@@ -9,10 +9,10 @@ export const maxCracksPerBug = 3;
 /** The states an attribution passes through, with how the page names them. */
 export const crackStates = Object.freeze({
   proposed: Object.freeze({ label: 'Proposed', tone: 'attention', glyph: 'help-circle', detail: 'Waits for a second person' }),
-  confirmed: Object.freeze({ label: 'Confirmed', tone: 'danger', glyph: 'x-circle', detail: 'On the card' }),
+  confirmed: Object.freeze({ label: 'Confirmed', tone: 'danger', glyph: 'x-circle', detail: 'Linked to the change' }),
   disputed: Object.freeze({ label: 'Disputed', tone: 'attention', glyph: 'alert', detail: 'Waits for a referee; it keeps counting' }),
-  unlinked: Object.freeze({ label: 'Unlinked', tone: 'neutral', glyph: 'circle-slash', detail: 'A referee took it off the card' }),
-  evolved: Object.freeze({ label: 'Requirement changed', tone: 'neutral', glyph: 'refresh', detail: 'No crack: the card evolved' }),
+  unlinked: Object.freeze({ label: 'Unlinked', tone: 'neutral', glyph: 'circle-slash', detail: 'A referee removed the link' }),
+  evolved: Object.freeze({ label: 'Requirement changed', tone: 'neutral', glyph: 'refresh', detail: 'No link: the requirement changed' }),
 });
 
 /** The severities triage sets, with what each means. */
@@ -25,12 +25,12 @@ export const severityChoices = Object.freeze([
 
 /** The rules of tracing a bug, in the order a person meets them. */
 export const traceRules = Object.freeze([
-  'A crack is an inquiry, not a verdict: it records that a bug came from an earlier change so the team can learn from it. It never scores a person.',
-  'Ploeg only suggests candidates: earlier merged plays that touched the files this bug’s fix touched. It never cracks a card by itself.',
+  'A link is an inquiry, not a verdict: it records that a bug came from an earlier change so the team can learn from it. It never scores a person.',
+  'Ploeg only suggests candidates: earlier merged pull requests that touched the files this bug’s fix touched. It never links the bug to a change by itself.',
   'Usually the person who fixed the bug proposes the cause, with a severity and whether it was the primary or a contributing cause.',
-  'Two people confirm: a second person who is neither the card’s steward nor the proposer confirms it. Only then does the card crack.',
-  'The card’s steward can dispute a confirmed crack within five working days. The crack keeps counting until a referee who took no part decides, and that decision is final.',
-  'When the requirement changed rather than the code being wrong, mark Requirement changed: the card is marked evolved and gets no crack.',
+  'Two people confirm: a second person who is neither the change’s owner (the person who approved or merged it) nor the proposer confirms it. Only then is the bug linked to the change.',
+  'The change’s owner can dispute a confirmed link within five working days. The link keeps counting until a referee who took no part decides, and that decision is final.',
+  'When the requirement changed rather than the code being wrong, mark Requirement changed: the change gets no link.',
 ]);
 
 const same = (a, b) => Boolean(a) && Boolean(b) && String(a).toLowerCase() === String(b).toLowerCase();
@@ -50,12 +50,12 @@ export function crackSteps(crack, viewer, { now = Date.now() } = {}) {
   const me = viewer.login;
   const steward = same(me, crack.steward);
   const proposer = same(me, crack.proposedBy);
-  const confirm = crack.state !== 'proposed' ? refused('') : steward ? refused('You are this card’s steward, so someone else confirms.') : proposer ? refused('You proposed it, so a second person confirms.') : allowed();
+  const confirm = crack.state !== 'proposed' ? refused('') : steward ? refused('You own this change, so someone else confirms.') : proposer ? refused('You proposed it, so a second person confirms.') : allowed();
   const closed = crack.disputeUntil && now > Date.parse(crack.disputeUntil);
-  const dispute = crack.state !== 'confirmed' || crack.resolution ? refused('') : !steward ? refused('') : closed ? refused('The five working days to dispute this crack have passed.') : allowed();
+  const dispute = crack.state !== 'confirmed' || crack.resolution ? refused('') : !steward ? refused('') : closed ? refused('The five working days to dispute this link have passed.') : allowed();
   const involved = [crack.steward, crack.proposedBy, crack.confirmedBy?.[1], crack.disputedBy].some(person => same(me, person));
-  const resolve = crack.state !== 'disputed' ? refused('') : involved ? refused('You took part in this crack, so someone else referees.') : allowed();
-  const evolved = crack.state !== 'proposed' ? refused('') : steward ? refused('The steward does not decide that their own card evolved.') : allowed();
+  const resolve = crack.state !== 'disputed' ? refused('') : involved ? refused('You took part in this link, so someone else referees.') : allowed();
+  const evolved = crack.state !== 'proposed' ? refused('') : steward ? refused('The owner of a change does not decide that its requirement changed.') : allowed();
   return { confirm, dispute, resolve, evolved };
 }
 
@@ -71,8 +71,8 @@ export function candidateSteps(candidate, viewer, open) {
   if (!viewer?.canAct || !viewer.login) return { propose: none, evolved: none, self: false };
   const self = same(viewer.login, candidate.mergedBy);
   if (candidate.attribution) return { propose: refused(''), evolved: refused(''), self };
-  const propose = open >= maxCracksPerBug ? refused(`A bug cracks at most ${maxCracksPerBug} cards.`) : allowed();
-  const evolved = self ? refused('You merged this play, so you are probably its steward: someone else decides that it evolved.') : allowed();
+  const propose = open >= maxCracksPerBug ? refused(`A bug links to at most ${maxCracksPerBug} changes.`) : allowed();
+  const evolved = self ? refused('You merged this pull request, so you are probably its owner: someone else decides that its requirement changed.') : allowed();
   return { propose, evolved, self };
 }
 
@@ -84,18 +84,18 @@ function crackFacts(crack) {
   if (crack.severity) parts.push(severityChoices.find(choice => choice.value === crack.severity)?.label ?? crack.severity);
   if (crack.share) parts.push(crack.share === 'primary' ? 'primary cause' : 'contributing cause');
   if (crack.discovery) parts.push({ self: 'self-reported', discovered: 'found by someone else', concealed: 'concealed' }[crack.discovery] ?? crack.discovery);
-  if (crack.play) parts.push(`play #${crack.play}`);
+  if (crack.play) parts.push(`pull request #${crack.play}`);
   return parts.join(' · ');
 }
 
 function crackHistory(crack, now) {
   const lines = [`Proposed by ${person(crack.proposedBy)} ${escape(dateTime(crack.proposedAt))}`];
   if (crack.confirmedBy?.length >= 2) lines.push(`Confirmed by ${person(crack.confirmedBy[1])} ${escape(dateTime(crack.confirmedAt))}`);
-  if (crack.state === 'confirmed' && !crack.resolution && crack.disputeUntil) lines.push(now > Date.parse(crack.disputeUntil) ? 'The steward’s five working days to dispute have passed' : `The steward${crack.steward ? ` ${person(crack.steward)}` : ''} can dispute until ${escape(dateTime(crack.disputeUntil))}`);
+  if (crack.state === 'confirmed' && !crack.resolution && crack.disputeUntil) lines.push(now > Date.parse(crack.disputeUntil) ? 'The owner’s five working days to dispute have passed' : `The owner${crack.steward ? ` ${person(crack.steward)}` : ''} can dispute until ${escape(dateTime(crack.disputeUntil))}`);
   if (crack.disputedBy) lines.push(`Disputed by ${person(crack.disputedBy)} ${escape(dateTime(crack.disputedAt))}${crack.disputeReason ? `: “${escape(crack.disputeReason)}”` : ''}`);
   if (crack.resolvedBy) lines.push(`${crack.resolution === 'unlinked' ? 'Unlinked' : 'Upheld'} by referee ${person(crack.resolvedBy)} ${escape(dateTime(crack.resolvedAt))}`);
   if (crack.evolvedBy) lines.push(`Marked as a changed requirement by ${person(crack.evolvedBy)} ${escape(dateTime(crack.evolvedAt))}`);
-  if (crack.mended) lines.push(`Mended in #${escape(crack.mended.pr)}${crack.mended.by ? ` by ${person(crack.mended.by)}` : ''}${crack.mended.bySteward ? ' (the steward)' : ''}${crack.mended.confirmedAt ? ', mend confirmed' : ', mend stands 30 days before it counts'}`);
+  if (crack.mended) lines.push(`Fixed in #${escape(crack.mended.pr)}${crack.mended.by ? ` by ${person(crack.mended.by)}` : ''}${crack.mended.bySteward ? ' (the owner)' : ''}${crack.mended.confirmedAt ? ', fix confirmed' : ', fix stands 30 days before it counts'}`);
   return lines;
 }
 
@@ -112,7 +112,7 @@ function crackItem(crack, viewer, { now, side, busy }) {
   const why = [steps.confirm, steps.dispute, steps.resolve].map(step => step.why).filter(Boolean)[0] || '';
   const other = side === 'bug' ? crack.card : crack.bug;
   const heading = side === 'bug' ? `Caused by ${workLink(other, 'Work Item')}` : `Bug ${workLink(other, 'bug')}`;
-  const steward = crack.steward ? ` · steward ${person(crack.steward)}` : '';
+  const steward = crack.steward ? ` · owner ${person(crack.steward)}` : '';
   return `<li class="trace-item" data-state="${escape(crack.state)}" id="trace-crack-${escape(crack.id)}"><div class="trace-item-head"><span class="trace-glyph" data-tone="${escape(meta.tone)}" aria-hidden="true">${icon(meta.glyph)}</span><div class="trace-item-text"><p class="trace-item-title">${heading}</p><p class="trace-item-meta">${ui.badge({ tone: meta.tone, label: meta.label, title: meta.detail, size: 'sm' })} ${escape(crackFacts(crack))}${steward}</p></div></div>${crack.note ? `<p class="trace-note">“${escape(crack.note)}”</p>` : ''}<ul class="trace-history">${crackHistory(crack, now).map(line => `<li>${line}</li>`).join('')}</ul>${actions.length ? `<div class="trace-actions"${busy ? ' aria-busy="true"' : ''}>${actions.join('')}</div>` : ''}${why && !actions.length ? `<p class="trace-why">${icon('info')}<span>${escape(why)}</span></p>` : ''}</li>`;
 }
 
@@ -126,8 +126,8 @@ function candidateItem(candidate, viewer, open, fixFiles, bug) {
   const state = candidate.attribution ? crackStates[candidate.attribution] : null;
   const shared = `${plural(candidate.sharedFiles, 'file')} of ${fixFiles} the fix touched (${percent(candidate.share)})`;
   const files = candidate.files.length ? `<details class="trace-files"><summary>${escape(plural(candidate.files.length, 'shared path'))}</summary><ul>${candidate.files.map(file => `<li class="mono">${escape(file)}</li>`).join('')}</ul></details>` : '';
-  const why = steps.self && !candidate.attribution && steps.propose.allowed ? 'You merged this play, so you are probably its steward: Ploeg records your proposal as self-reported, which weighs half.' : steps.propose.why;
-  return `<li class="trace-item trace-candidate" data-attribution="${escape(candidate.attribution ?? 'none')}"><div class="trace-item-head"><span class="trace-glyph" data-tone="${state ? escape(state.tone) : 'neutral'}" aria-hidden="true">${icon(state ? state.glyph : 'pull-request')}</span><div class="trace-item-text"><p class="trace-item-title">${workLink(candidate.card)}</p><p class="trace-item-meta">Play #${escape(candidate.play)} in ${escape(candidate.repo)}, merged ${escape(dateTime(candidate.mergedAt))}${candidate.mergedBy ? ` by ${person(candidate.mergedBy)}` : ''} · ${escape(shared)}${candidate.reverted ? ` ${ui.badge({ tone: 'danger', label: 'Reverted', size: 'sm', title: 'This play was reverted; a crack on it is at least S2.' })}` : ''}${state ? ` ${ui.badge({ tone: state.tone, label: `Already ${state.label.toLowerCase()}`, size: 'sm' })}` : ''}</p></div></div>${files}${actions.length ? `<div class="trace-actions">${actions.join('')}</div>` : ''}${why ? `<p class="trace-why">${icon('info')}<span>${escape(why)}</span></p>` : ''}</li>`;
+  const why = steps.self && !candidate.attribution && steps.propose.allowed ? 'You merged this pull request, so you are probably its owner: Ploeg records your proposal as self-reported, which weighs half.' : steps.propose.why;
+  return `<li class="trace-item trace-candidate" data-attribution="${escape(candidate.attribution ?? 'none')}"><div class="trace-item-head"><span class="trace-glyph" data-tone="${state ? escape(state.tone) : 'neutral'}" aria-hidden="true">${icon(state ? state.glyph : 'pull-request')}</span><div class="trace-item-text"><p class="trace-item-title">${workLink(candidate.card)}</p><p class="trace-item-meta">Pull request #${escape(candidate.play)} in ${escape(candidate.repo)}, merged ${escape(dateTime(candidate.mergedAt))}${candidate.mergedBy ? ` by ${person(candidate.mergedBy)}` : ''} · ${escape(shared)}${candidate.reverted ? ` ${ui.badge({ tone: 'danger', label: 'Reverted', size: 'sm', title: 'This pull request was reverted; a link to it is at least S2.' })}` : ''}${state ? ` ${ui.badge({ tone: state.tone, label: `Already ${state.label.toLowerCase()}`, size: 'sm' })}` : ''}</p></div></div>${files}${actions.length ? `<div class="trace-actions">${actions.join('')}</div>` : ''}${why ? `<p class="trace-why">${icon('info')}<span>${escape(why)}</span></p>` : ''}</li>`;
 }
 
 /**
@@ -149,19 +149,19 @@ export function traceMarkup(trace, { now = Date.now(), busy = false, result = nu
   const viewer = trace.viewer ?? { login: null, canAct: false, reason: '' };
   const isBug = candidates.length > 0 || asBug.length > 0;
   const title = isBug ? 'Trace this bug' : 'Bugs traced to this Work Item';
-  const subtitle = 'A crack is an inquiry, not a verdict.';
+  const subtitle = 'A link is an inquiry, not a verdict.';
   const parts = [];
   if (trace.demo) parts.push(ui.callout({ tone: 'neutral', icon: 'info', title: 'Demo', body: `<p>${escape('These candidates and attributions are sample data. The actions check Ploeg’s rules and record nothing.')}</p>` }));
   if (!viewer.canAct && viewer.reason) parts.push(ui.callout({ tone: 'attention', title: 'You can read this, not act on it', body: `<p>${escape(viewer.reason)}</p>` }));
-  else if (viewer.login) parts.push(`<p class="trace-viewer">${icon('user')}<span>Ploeg knows you as <span class="mono">${escape(viewer.login)}</span>. It compares that with each card’s steward and proposer.</span></p>`);
+  else if (viewer.login) parts.push(`<p class="trace-viewer">${icon('user')}<span>Ploeg knows you as <span class="mono">${escape(viewer.login)}</span>. It compares that with the owner of each change (the person who approved or merged it) and its proposer.</span></p>`);
   if (result) parts.push(`<div class="trace-result" id="work-trace-result" tabindex="-1" role="status">${ui.callout({ tone: result.tone, title: result.title, body: `<p>${escape(result.text)}</p>` })}</div>`);
   if (asBug.length) parts.push(`<section class="trace-group" aria-labelledby="work-trace-cracks"><h4 class="trace-group-title" id="work-trace-cracks">On this bug · ${escape(plural(asBug.length, 'attribution'))}${open >= maxCracksPerBug ? ' · limit reached' : ''}</h4><ol class="trace-list">${asBug.map(crack => crackItem(crack, viewer, { now, side: 'bug', busy })).join('')}</ol></section>`);
   if (candidates.length) {
     const window = trace.candidates.since && trace.candidates.until ? ` merged between ${dateTime(trace.candidates.since)} and ${dateTime(trace.candidates.until)}` : '';
     const truncated = trace.candidates.fixFilesTruncated ? ' The fix touched more files than Ploeg keeps, so the list may miss a cause.' : '';
-    parts.push(`<section class="trace-group" aria-labelledby="work-trace-candidates"><h4 class="trace-group-title" id="work-trace-candidates">Candidates Ploeg found · ${escape(plural(candidates.length, 'play'))}</h4><p class="trace-hint">${escape(`Earlier plays of this Team${window} that touched a file this bug’s fix touched, most shared files first. A shared file is a lead, not proof.${truncated}`)}</p><ol class="trace-list">${candidates.map(candidate => candidateItem(candidate, viewer, open, trace.candidates.fixFiles, id)).join('')}</ol></section>`);
+    parts.push(`<section class="trace-group" aria-labelledby="work-trace-candidates"><h4 class="trace-group-title" id="work-trace-candidates">Candidates Ploeg found · ${escape(plural(candidates.length, 'pull request'))}</h4><p class="trace-hint">${escape(`Earlier pull requests of this Team${window} that touched a file this bug’s fix touched, most shared files first. A shared file is a lead, not proof.${truncated}`)}</p><ol class="trace-list">${candidates.map(candidate => candidateItem(candidate, viewer, open, trace.candidates.fixFiles, id)).join('')}</ol></section>`);
   }
-  if (asCard.length) parts.push(`<section class="trace-group" aria-labelledby="work-trace-card"><h4 class="trace-group-title" id="work-trace-card">Bugs traced to this card · ${escape(plural(asCard.length, 'attribution'))}</h4><ol class="trace-list">${asCard.map(crack => crackItem(crack, viewer, { now, side: 'card', busy })).join('')}</ol></section>`);
+  if (asCard.length) parts.push(`<section class="trace-group" aria-labelledby="work-trace-card"><h4 class="trace-group-title" id="work-trace-card">Bugs traced to this Work Item · ${escape(plural(asCard.length, 'attribution'))}</h4><ol class="trace-list">${asCard.map(crack => crackItem(crack, viewer, { now, side: 'card', busy })).join('')}</ol></section>`);
   parts.push(ui.disclosure({ id: 'work-trace-rules', summary: 'How tracing a bug works', body: `<ol class="trace-rules">${traceRules.map(rule => `<li>${escape(rule)}</li>`).join('')}</ol>`, open: !asBug.length && !asCard.length }));
   return `<section class="card trace" id="work-trace" aria-labelledby="work-trace-title"${busy ? ' aria-busy="true"' : ''}><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-trace-title">${icon('search')}${escape(title)}</h3><p class="card-subtitle">${escape(subtitle)}</p></div></header><div class="card-body trace-body">${parts.join('')}</div></section>`;
 }
@@ -169,8 +169,8 @@ export function traceMarkup(trace, { now = Date.now(), busy = false, result = nu
 const radios = (name, choices, { required = false, selected = '' } = {}) => `<div class="trace-choices" role="radiogroup" aria-labelledby="trace-${name}-label"${required ? ' aria-required="true"' : ''}>${choices.map(choice => `<label class="trace-choice"><input type="radio" name="${name}" value="${escape(choice.value)}"${choice.value === selected ? ' checked' : ''}><span><b>${escape(choice.label)}</b>${choice.hint ? `<small>${escape(choice.hint)}</small>` : ''}</span></label>`).join('')}</div>`;
 const fieldset = (name, label, body, hint = '') => `<div class="field trace-field" data-field="${name}"><p class="field-label" id="trace-${name}-label">${escape(label)}</p>${body}${hint ? `<p class="field-hint">${escape(hint)}</p>` : ''}<p class="field-error" data-error-for="${name}" hidden></p></div>`;
 const note = (label = 'Note', hint = 'Optional. At most 2000 characters; it is kept in Ploeg’s audit log.', required = false) => `<div class="field trace-field" data-field="${required ? 'reason' : 'note'}"><label class="field-label" for="trace-${required ? 'reason' : 'note'}">${escape(label)}</label><textarea id="trace-${required ? 'reason' : 'note'}" name="${required ? 'reason' : 'note'}" rows="3" maxlength="2000"${required ? ' required' : ''}></textarea><p class="field-hint">${escape(hint)}</p><p class="field-error" data-error-for="${required ? 'reason' : 'note'}" hidden></p></div>`;
-const shareChoices = [{ value: 'primary', label: 'Primary cause', hint: 'This play is the main reason the bug exists.' }, { value: 'contributing', label: 'Contributing cause', hint: 'It made the bug possible or worse; another change is the main cause.' }];
-const discoveryChoices = [{ value: 'discovered', label: 'Discovered', hint: 'Someone other than the card’s steward found it.' }, { value: 'concealed', label: 'Concealed', hint: 'The card’s steward merged this bug’s fix without linking it. Ploeg checks this.' }];
+const shareChoices = [{ value: 'primary', label: 'Primary cause', hint: 'This pull request is the main reason the bug exists.' }, { value: 'contributing', label: 'Contributing cause', hint: 'It made the bug possible or worse; another change is the main cause.' }];
+const discoveryChoices = [{ value: 'discovered', label: 'Discovered', hint: 'Someone other than the change’s owner found it.' }, { value: 'concealed', label: 'Concealed', hint: 'The change’s owner merged this bug’s fix without linking it. Ploeg checks this.' }];
 const demoLine = demo => demo ? `<p class="trace-demo">${icon('info')}<span>Demo: this checks Ploeg’s rules and records nothing.</span></p>` : '';
 
 function dialogShell({ step, id, bug = '', title, lead, body, submit, variant = 'primary', demo }) {
@@ -189,32 +189,32 @@ export function stepDialogMarkup(step, target, { bug, viewer, demo = false } = {
   if (step === 'propose') {
     const self = same(viewer?.login, target.mergedBy);
     return dialogShell({
-      step, id: target.card.workItemId, bug: bug?.workItemId, demo, title: 'Propose a cause', submit: 'Propose crack',
-      lead: `<p>You propose that play #${escape(target.play)} of <strong>${escape(target.card.title)}</strong> caused ${bugName}. A second person who is neither the card’s steward nor you must confirm it before it reaches the card.</p>${self ? `<p class="trace-why">${icon('info')}<span>You merged this play, so you are probably its steward. Ploeg then records the proposal as self-reported, which weighs half.</span></p>` : ''}<input type="hidden" name="play" value="${escape(target.play)}">`,
-      body: `${fieldset('severity', 'Severity', radios('severity', severityChoices, { required: true }), 'As triage set it. A reverted play is at least S2.')}${fieldset('share', 'Share', radios('share', shareChoices, { required: true, selected: 'primary' }))}${fieldset('discovery', 'How it was found', radios('discovery', discoveryChoices, { selected: 'discovered' }), 'Ploeg records self when the card’s steward proposes.')}${note('Note', 'Optional. Say what in the play caused the bug. At most 2000 characters; it is kept in Ploeg’s audit log.')}`,
+      step, id: target.card.workItemId, bug: bug?.workItemId, demo, title: 'Propose a cause', submit: 'Propose as cause',
+      lead: `<p>You propose that pull request #${escape(target.play)} of <strong>${escape(target.card.title)}</strong> caused ${bugName}. A second person who is neither the change’s owner (the person who approved or merged it) nor you must confirm it before the bug is linked to the change.</p>${self ? `<p class="trace-why">${icon('info')}<span>You merged this pull request, so you are probably its owner. Ploeg then records the proposal as self-reported, which weighs half.</span></p>` : ''}<input type="hidden" name="play" value="${escape(target.play)}">`,
+      body: `${fieldset('severity', 'Severity', radios('severity', severityChoices, { required: true }), 'As triage set it. A reverted pull request is at least S2.')}${fieldset('share', 'Share', radios('share', shareChoices, { required: true, selected: 'primary' }))}${fieldset('discovery', 'How it was found', radios('discovery', discoveryChoices, { selected: 'discovered' }), 'Ploeg records self when the change’s owner proposes.')}${note('Note', 'Optional. Say what in the pull request caused the bug. At most 2000 characters; it is kept in Ploeg’s audit log.')}`,
     });
   }
   if (step === 'evolved') return dialogShell({
     step, id: target.card, bug: target.bug, demo, title: 'Requirement changed?', submit: 'Mark as changed requirement', variant: 'secondary',
-    lead: `<p>${bugName} is no defect of <strong>${escape(target.title || `Work Item ${target.card}`)}</strong>: the requirement changed after it was accepted. The card is marked evolved and gets no crack.</p><p class="trace-hint">A proposed attribution becomes a changed requirement; a confirmed one cannot. The card’s steward cannot decide this for their own card.</p>${target.crack ? `<input type="hidden" name="crack" value="${escape(target.crack)}">` : ''}`,
+    lead: `<p>${bugName} is no defect of <strong>${escape(target.title || `Work Item ${target.card}`)}</strong>: the requirement changed after it was accepted. It gets no link.</p><p class="trace-hint">A proposed attribution becomes a changed requirement; a confirmed one cannot. The owner of a change cannot decide this for their own change.</p>${target.crack ? `<input type="hidden" name="crack" value="${escape(target.crack)}">` : ''}`,
     body: note(),
   });
   const facts = `<p class="trace-hint">${escape([target.severity ? severityChoices.find(choice => choice.value === target.severity)?.label : '', target.share ? `${target.share} cause` : '', `proposed by ${target.proposedBy}`].filter(Boolean).join(' · '))}</p>`;
   const card = `<strong>${escape(target.card.title)}</strong>`;
   if (step === 'confirm') return dialogShell({
-    step, id: target.id, demo, title: 'Confirm this crack?', submit: 'Confirm crack',
-    lead: `<p>You are the second person: you agree that ${card} caused ${bugName}. Once you confirm, the card cracks and its steward has five working days to dispute.</p>${facts}`,
+    step, id: target.id, demo, title: 'Confirm this link?', submit: 'Confirm cause',
+    lead: `<p>You are the second person: you agree that ${card} caused ${bugName}. Once you confirm, the bug is linked to the change and its owner has five working days to dispute.</p>${facts}`,
     body: `${fieldset('severity', 'Severity', radios('severity', [{ value: '', label: `Keep ${target.severity ?? 'it'}` }, ...severityChoices.filter(choice => choice.value !== target.severity)], { selected: '' }), 'Correct it only when triage got it wrong.')}${fieldset('share', 'Share', radios('share', [{ value: '', label: `Keep ${target.share ?? 'it'}` }, ...shareChoices.filter(choice => choice.value !== target.share)], { selected: '' }))}${note()}`,
   });
   if (step === 'dispute') return dialogShell({
-    step, id: target.id, demo, title: 'Dispute this crack?', submit: 'Dispute', variant: 'secondary',
-    lead: `<p>You are the steward of ${card}. Say why ${bugName} did not come from it. A referee who took no part decides, and that decision is final. Until then the crack keeps counting.</p>${facts}`,
+    step, id: target.id, demo, title: 'Dispute this link?', submit: 'Dispute', variant: 'secondary',
+    lead: `<p>You are the owner of ${card}: you approved or merged it. Say why ${bugName} did not come from it. A referee who took no part decides, and that decision is final. Until then the link keeps counting.</p>${facts}`,
     body: note('Reason', 'Required. At most 2000 characters.', true),
   });
   return dialogShell({
     step: 'resolve', id: target.id, demo, title: 'Resolve this dispute', submit: 'Record decision',
-    lead: `<p>The steward disputed that ${card} caused ${bugName}${target.disputeReason ? `: “${escape(target.disputeReason)}”` : '.'} As a referee who took no part, decide. The decision is final. If your team names referees, only they can resolve.</p>${facts}`,
-    body: `${fieldset('resolution', 'Decision', radios('resolution', [{ value: 'upheld', label: 'Uphold', hint: 'The crack stands, confirmed again.' }, { value: 'unlinked', label: 'Unlink', hint: 'The crack comes off the card and stays in its history.' }], { required: true }))}${note()}`,
+    lead: `<p>The owner disputed that ${card} caused ${bugName}${target.disputeReason ? `: “${escape(target.disputeReason)}”` : '.'} As a referee who took no part, decide. The decision is final. If your team names referees, only they can resolve.</p>${facts}`,
+    body: `${fieldset('resolution', 'Decision', radios('resolution', [{ value: 'upheld', label: 'Uphold', hint: 'The link stands, confirmed again.' }, { value: 'unlinked', label: 'Unlink', hint: 'The link is removed and stays in its history.' }], { required: true }))}${note()}`,
   });
 }
 
@@ -236,7 +236,7 @@ export function stepRequest(step, data) {
     if (Number(text('play')) > 0) body.play = Number(text('play'));
   }
   if (step === 'confirm') { if (text('severity')) body.severity = text('severity'); if (text('share')) body.share = text('share'); }
-  if (step === 'dispute') { if (!text('reason')) errors.reason = 'Say why the bug did not come from this card.'; body.reason = text('reason'); }
+  if (step === 'dispute') { if (!text('reason')) errors.reason = 'Say why the bug did not come from this change.'; body.reason = text('reason'); }
   if (step === 'resolve') { if (!['upheld', 'unlinked'].includes(text('resolution'))) errors.resolution = 'Choose uphold or unlink.'; body.resolution = text('resolution'); }
   if (step !== 'dispute' && text('note')) body.note = text('note');
   for (const key of ['note', 'reason']) if (text(key).length > 2000) errors[key] = 'At most 2000 characters.';
