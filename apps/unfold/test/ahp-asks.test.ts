@@ -120,7 +120,7 @@ test('a message typed into the stopped 059675b9 session is an Ask: answered in i
   const replaced = client.inbox.find(message => action(message, chat, 'chat/inputCompleted') && message.params.action.requestId === closing.params.action.request.id)!;
   assert.equal(replaced.params.action.response, 'cancel', 'the open "What next?" is answered as replaced');
   const part = await client.until(message => action(message, chat, 'chat/responsePart') && message.params.action.turnId === 'ask-turn');
-  assert.match(part.params.action.part.content, new RegExp(`^\\*\\*Ask\\*\\* · not sent to the crew\\n\\n${answerText.replace(/\./g, '\\.')}\\n\\n\\*US\\$\\s0,01 \\(not settled yet\\) · US\\$\\s4,58 of US\\$\\s5,00 left this month, until 1 November\\*$`));
+  assert.match(part.params.action.part.content, new RegExp(`^\\*\\*Ask\\*\\* · not sent to the crew\\n\\n${answerText.replace(/\./g, '\\.')}\\n\\n\\*US\\\\\\$\\s0,01 \\(not settled yet\\) · US\\\\\\$\\s4,58 of US\\\\\\$\\s5,00 left this month, until 1 November\\*$`), 'each dollar sign is escaped, so VS Code typesets no maths');
   await client.until(message => action(message, chat, 'chat/turnComplete') && message.params.action.turnId === 'ask-turn');
   const again = await client.until(message => action(message, chat, 'chat/inputRequested') && message.params.serverSeq > part.params.serverSeq);
   assert.deepEqual(again.params.action.request.questions[0].options.map((option: Json) => option.id), ['run_again_start', 'run_again', 'dismiss'], 'the next steps come back after the answer');
