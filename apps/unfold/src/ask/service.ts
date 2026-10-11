@@ -38,6 +38,7 @@ export type AskOptions = { demo: boolean; gatewayUrl?: string; secrets: readonly
 
 const questionLimit = 2000;
 const answerLimit = 2000;
+const askOutputTokens = 1500;
 const listLimit = 50;
 const refreshLimit = 5;
 const instructions = [
@@ -123,9 +124,10 @@ export class AskService {
     }
     Object.assign(ask, { ploegAskId: grant.askId, model: grant.models[0] ?? null });
     try {
-      ask.answer = this.clean(await this.complete(grant, brief, question), answerLimit);
+      const reply = await this.complete(grant, brief, question);
+      ask.answer = this.clean(reply.text, answerLimit);
       ask.status = ask.answer ? 'answered' : 'failed';
-      if (!ask.answer) ask.failure = 'The model returned no answer.';
+      if (!ask.answer) ask.failure = reply.cut ? 'The model used all its room thinking and wrote no answer. Only this attempt was charged.' : 'The model returned no answer. Only this attempt was charged.';
     } catch {
       Object.assign(ask, { status: 'failed', failure: 'The model did not answer. Only this attempt was charged.' });
     } finally {
@@ -136,20 +138,21 @@ export class AskService {
     return ask;
   }
 
-  private async complete(grant: AskGrant, brief: WorkItemBrief, question: string): Promise<string> {
+  private async complete(grant: AskGrant, brief: WorkItemBrief, question: string): Promise<{ text: string; cut: boolean }> {
     const model = grant.models[0];
     if (!model) throw new Error('no model');
     const base = this.options.gatewayUrl!.replace(/\/$/, '');
     const response = await (this.options.fetch ?? fetch)(`${base}/chat/completions`, {
       method: 'POST', headers: { authorization: `Bearer ${grant.key}`, 'content-type': 'application/json' }, signal: AbortSignal.timeout(30_000),
-      body: JSON.stringify({ model, temperature: 0, max_tokens: 400, messages: [
+      body: JSON.stringify({ model, temperature: 0, max_tokens: askOutputTokens, messages: [
         { role: 'system', content: instructions },
         { role: 'user', content: `<record>\n${briefText(brief)}\n</record>\n\n<question>\n${question}\n</question>` },
       ] }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data: any = await response.json();
-    return String(data?.choices?.[0]?.message?.content ?? '');
+    const choice = data?.choices?.[0];
+    return { text: String(choice?.message?.content ?? ''), cut: choice?.finish_reason === 'length' };
   }
 
   /** The Asks about a Work Item the caller can see, newest first, and its Team's Ask Allowance when Ploeg reports one. Pending costs are refreshed from Ploeg, a few at a time. */

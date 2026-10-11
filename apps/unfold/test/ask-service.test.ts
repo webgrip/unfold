@@ -38,12 +38,12 @@ function authority(overrides: Partial<AskAuthority> = {}) {
   return { value, calls };
 }
 
-function gateway(answer: string | Error) {
+function gateway(answer: string | Error, finishReason = 'stop') {
   const requests: { url: string; auth: string; body: any }[] = [];
   const fetcher = (async (url: string, init: RequestInit) => {
     requests.push({ url, auth: String((init.headers as Record<string, string>).authorization), body: JSON.parse(String(init.body)) });
     if (answer instanceof Error) throw answer;
-    return new Response(JSON.stringify({ choices: [{ message: { content: answer } }] }), { status: 200, headers: { 'content-type': 'application/json' } });
+    return new Response(JSON.stringify({ choices: [{ message: { content: answer }, finish_reason: finishReason }] }), { status: 200, headers: { 'content-type': 'application/json' } });
   }) as unknown as typeof fetch;
   return { fetcher, requests };
 }
@@ -186,4 +186,17 @@ test('a record-only Ask answers a standing question for free and refuses any oth
   assert.deepEqual(auth.calls, [], 'Ploeg admitted nothing');
   assert.equal(net.requests.length, 0, 'no model was called');
   assert.equal(store.asksAbout('42', 5).length, 1, 'only the free answer is stored');
+});
+
+test('a reasoning model gets room to think before it answers, and an answer cut off while thinking says so', async () => {
+  const store = new Store(':memory:');
+  const auth = authority();
+  const net = gateway('', 'length');
+  const ask = await service(store, workItems(), auth.value, net.fetcher).ask(owner, '42', 'Why did you choose this direction?');
+  assert.ok(net.requests[0].body.max_tokens >= 1500, 'a 400-token cap was spent on reasoning alone on homelab (2026-10-11)');
+  assert.equal(ask.status, 'failed');
+  assert.equal(ask.failure, 'The model used all its room thinking and wrote no answer. Only this attempt was charged.');
+  assert.deepEqual(auth.calls, ['admit 42 36 Why did you choose this direction?', 'finish 42 p-1']);
+  const empty = await service(store, workItems(), authority().value, gateway('').fetcher).ask(owner, '42', 'Why did you choose this direction?');
+  assert.equal(empty.failure, 'The model returned no answer. Only this attempt was charged.');
 });
