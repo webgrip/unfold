@@ -3,7 +3,7 @@ type: reference
 audience: [contributor, agent]
 owner: unfold
 last_verified: 2026-10-11
-verified_by: "OpenHands hook loading checked by running its SDK hook manager on .openhands/hooks.json. Load matrix from Ploeg's adapters (apps/ploeg/pkg/harness/adapters, pkg/worker/adapters.go, task.go) and the homelab Team configuration; Claude Code rows measured with headless probes on 2.1.296 (PR #308). OpenHands, opencode and Codex rows marked inferred were read from their sources and docs, not measured."
+verified_by: "OpenHands row measured with 18 headless OpenHands 1.16.0 runs on 2026-10-11 (VIK-2001); the hook outcome reproduced with and without a mise shim under a fresh home. Load matrix from Ploeg's adapters (apps/ploeg/pkg/harness/adapters, pkg/worker/adapters.go, task.go) and the homelab Team configuration; Claude Code rows measured with headless probes on 2.1.296 (PR #308). OpenHands, opencode and Codex rows marked inferred were read from their sources and docs, not measured."
 ---
 
 # Agent instructions
@@ -36,11 +36,13 @@ Where each kind of knowledge about working on Unfold lives, and what each agent 
 | --- | --- | --- | --- | --- |
 | Claude Code, interactive | yes | when it reads a file under that directory | yes, through the link | `.claude/settings.json` runs |
 | Claude Code under Ploeg | yes | as above | yes | none: Ploeg starts it with `disableAllHooks` |
-| OpenHands under Ploeg (Unfold's Team today) | yes | only because Ploeg's brief says to read the nearest one | yes, plus `.openhands/skills` | `.openhands/hooks.json` runs (checked with the OpenHands SDK's hook manager) |
+| OpenHands under Ploeg (Unfold's Team today) | yes (probe: 6 of 6 quoted it without opening a file) | when Ploeg's brief says to read the nearest one (probe: 6 of 6 read `.forgejo/AGENTS.md` before editing a workflow) | yes, plus `.openhands/skills` (probe: 6 of 6 saw a repository skill's description) | `.openhands/hooks.json` runs before every tool call (seen in every probe run); it blocks only when the hook's `python3` starts, see below |
 | opencode | yes | when it walks up from a file (inferred) | yes (inferred) | `.opencode/plugins/` run (inferred; not yet observed) |
 | Codex | yes | only from the root down to the working directory | yes (inferred) | a project hook needs Codex's hook trust; not observed to run |
 
 Ploeg starts every agent with a fresh home directory, so nothing from a person's `~/.claude` or `~/.codex` reaches a Run. It installs its own skills, `ploeg-verify-before-handoff` and `ploeg-review-against-work-item`, outside the clone.
+
+The OpenHands row was measured on 2026-10-11 with OpenHands 1.16.0, team silver's models (DeepSeek V4.1 Flash and GLM 5.3 Flash through LiteLLM), a fresh home directory and Ploeg's own brief wording, three runs per model. A hook only blocks with exit code 2; any other failure lets the call through. In the probe the hook's `python3` resolved to a mise shim, which refuses to run without a trusted configuration under a fresh home, so the hook exited 1 and `git add -A` went through in all six runs. With the runner image's own Python (it has no mise) the same hook exits 2 and blocks. When a guard matters, run its command once in the harness's real environment, home directory and `PATH` included.
 
 ## Adding a line
 
