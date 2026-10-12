@@ -52,6 +52,7 @@ const groups = [
 
 const cpus = process.env.UNFOLD_VERIFY_CPUS;
 const parallelism = cpus ? { GOMAXPROCS: cpus, GOFLAGS: `${process.env.GOFLAGS ?? ''} -p=${cpus}`.trim(), UNFOLD_TEST_CONCURRENCY: cpus } : {};
+const locale = process.env.LC_ALL || process.env.LANG ? {} : { LC_ALL: 'C.UTF-8' };
 
 const results = process.env.UNFOLD_VERIFY_RESULTS ? resultCache(process.env.UNFOLD_VERIFY_RESULTS, { reuse: process.env.UNFOLD_VERIFY_REUSE === 'true' }) : undefined;
 const toolVersions = scope => Object.fromEntries(Object.entries(JSON.parse(execFileSync('mise', ['-C', scope, 'ls', '--current', '--json'], { cwd: root, encoding: 'utf8' }))).map(([tool, installs]) => [tool, installs.map(install => install.version)]));
@@ -81,7 +82,7 @@ function execute(step) {
   const started = performance.now();
   const gate = runGate('mise', ['exec', '--', step.command, ...step.args], {
     cwd: resolve(root, step.scope),
-    env: { ...process.env, ...parallelism, ...step.env },
+    env: { ...process.env, ...locale, ...parallelism, ...step.env },
     keepStdout: !step.discardStdout,
     captureStdout: step.emptyStdout,
   });
