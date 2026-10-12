@@ -1,3 +1,19 @@
+## [unfold-v0.4.0-rc.73](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.72...unfold-v0.4.0-rc.73) (2026-10-12)
+
+### Added
+
+* **unfold:** make Report a problem fast to fill and point at ([5c6d147](https://forgejo.webgrip.dev/webgrip/unfold/commit/5c6d147f945f9b35270af4f205bdac0bfb810d46))
+
+### Fixed
+
+* **unfold:** leave the loading curtain out of Report a problem's screenshot ([9c4b751](https://forgejo.webgrip.dev/webgrip/unfold/commit/9c4b751ad77aafc34be84f189701a2dd45a0166f))
+* **unfold:** serve run-log-view.js so the app loads again ([fc8f7f6](https://forgejo.webgrip.dev/webgrip/unfold/commit/fc8f7f6af41ebb8dc81237c99c6e097f0ce2bbaa)), references [#340](https://forgejo.webgrip.dev/webgrip/unfold/issues/340)
+* **unfold:** serve run-log-view.js so the browser workbench starts ([c3c0a49](https://forgejo.webgrip.dev/webgrip/unfold/commit/c3c0a491be36dc97183c3f18d851c2835019da1b)), references [#340](https://forgejo.webgrip.dev/webgrip/unfold/issues/340)
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.8 [skip ci] ([01faba7](https://forgejo.webgrip.dev/webgrip/unfold/commit/01faba768676624ad900eb8256ecc385351156de))
+
 ## [unfold-v0.4.0-rc.72](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.71...unfold-v0.4.0-rc.72) (2026-10-12)
 
 ### Added
