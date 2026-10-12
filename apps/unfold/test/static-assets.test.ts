@@ -217,3 +217,13 @@ test('a tiny text file is served uncompressed even when gzip is accepted', { tim
   assert.equal(tiny.body.toString('utf8'), 'a{}');
   assert.equal((await fetchRaw(server.url, '/styles/tiny.css', { 'accept-encoding': 'gzip', 'if-none-match': tiny.headers.etag! })).status, 304);
 });
+
+test('every browser module at the top of public is served, so no import in the app fails to load', { timeout: testTimeout(15_000) }, async t => {
+  const { readdir } = await import('node:fs/promises');
+  const modules = (await readdir(new URL('../public/', import.meta.url))).filter(name => name.endsWith('.js'));
+  const app = await application('demo');
+  t.after(() => app.close());
+  const missing = [];
+  for (const name of modules) if ((await get(app.url, `/${name}`)).status !== 200) missing.push(name);
+  assert.deepEqual(missing, []);
+});
