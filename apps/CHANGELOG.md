@@ -1,3 +1,27 @@
+## [unfold-v0.4.0-rc.72](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.71...unfold-v0.4.0-rc.72) (2026-10-12)
+
+### Added
+
+* **ploeg:** update all non-major dependencies ([51157ce](https://forgejo.webgrip.dev/webgrip/unfold/commit/51157ce70af96fc0ed061b68cc7bd9b0d21f6051))
+* **unfold:** ask about a Work Item over MCP, and name each sign-in ([d91746e](https://forgejo.webgrip.dev/webgrip/unfold/commit/d91746e008e8de5cf78a82593aeac6fe32b4e9cd))
+* **unfold:** lead the Problem and Solution card with plain words, fold the developer detail ([246cfcf](https://forgejo.webgrip.dev/webgrip/unfold/commit/246cfcf2d32345e53b710ba7843ab072eaa45064)), references [ploeg-hq/ploeg#116](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/116)
+* **unfold:** read pod logs like Grafana's log panel ([5fdb838](https://forgejo.webgrip.dev/webgrip/unfold/commit/5fdb8384ef174fcb946ebffc79fd54a2ff90ccea))
+* **unfold:** show what the agent did in each Run ([19297a0](https://forgejo.webgrip.dev/webgrip/unfold/commit/19297a08677abb78c28a36dea456a110028cf20c))
+
+### Fixed
+
+* **unfold:** give an Ask room to reason before it answers ([2b12411](https://forgejo.webgrip.dev/webgrip/unfold/commit/2b124111d92ae57f8acd2f66917611c8f62d884a))
+* **unfold:** let VS Code's Agent Merge never accept a candidate ([4aeae4d](https://forgejo.webgrip.dev/webgrip/unfold/commit/4aeae4dea5256a9afaf3be00d726863f59682dd5))
+* **unfold:** ship git in the workbench image for governed delivery ([054490b](https://forgejo.webgrip.dev/webgrip/unfold/commit/054490bf4eb06fc4ef4d0ffb401f5d962e34ae82))
+
+### Docs
+
+* **unfold:** list the Run pod logs route in the API contract ([4afaf1b](https://forgejo.webgrip.dev/webgrip/unfold/commit/4afaf1bce3fc24419166e0dc1edc4a9fad064d94))
+
+### Build
+
+* **ploeg:** update ploeg ( v0.2.0-rc.16 ➔ v0.2.0-rc.17 ) ([87d9061](https://forgejo.webgrip.dev/webgrip/unfold/commit/87d9061b32f4c57086413c885116a2c20ff4421d))
+
 ## [unfold-v0.4.0-rc.71](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.70...unfold-v0.4.0-rc.71) (2026-10-11)
 
 ### Added
