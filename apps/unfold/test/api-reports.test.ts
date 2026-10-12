@@ -33,7 +33,9 @@ function report(extra: Record<string, string> = {}): FormData {
   form.append('title', 'The Now page shows a stale count');
   form.append('happened', 'The waiting count said 9 but only 7 rows were listed.');
   form.append('expected', 'The count matches the rows.');
-  form.append('context', JSON.stringify({ route: '#now?since=secret', screen: 'now', workItemId: 42, browser: 'Chrome 141 on Linux', viewport: '1280×900', locale: 'nl-NL', token: 'must not travel' }));
+  form.append('kind', 'broken');
+  form.append('impact', 'blocks');
+  form.append('context', JSON.stringify({ route: '#now?since=secret', screen: 'now', workItemId: 42, browser: 'Chrome 141 on Linux', viewport: '1280×900', locale: 'nl-NL', element: 'button “Approve” in “Delivery gate”', trail: ['#work', '#now?since=secret', 'javascript:alert(1)'], token: 'must not travel' }));
   form.append('screenshot', new Blob([png], { type: 'image/png' }), 'screenshot.png');
   form.append('console', new Blob([JSON.stringify([{ level: 'error', message: 'TypeError: x is undefined', source: '/now.js?v=1', line: 12, at: '2026-10-11T10:00:00.000Z', stack: 'secret stack' }])], { type: 'application/json' }), 'console.json');
   form.append('requests', new Blob([JSON.stringify([{ method: 'GET', path: '/api/work?token=abc', status: 500, durationMs: 120, at: '2026-10-11T10:00:00.000Z', headers: { authorization: 'Bearer secret' }, body: '{"password":"x"}' }])], { type: 'application/json' }), 'requests.json');
@@ -73,7 +75,10 @@ test('a report is filed as a Forgejo issue with three attachments, the screensho
   const issue = JSON.parse(created.body.toString());
   assert.equal(issue.title, 'The Now page shows a stale count');
   assert.deepEqual(issue.labels, [7], 'the reported-in-app label is used when the repository has it');
-  assert.match(issue.body, /## What happened\n\nThe waiting count said 9/);
+  assert.match(issue.body, /## What went wrong\n\nThe waiting count said 9/);
+  assert.match(issue.body, /\| Impact \| Blocks me \|/);
+  assert.match(issue.body, /\| Pointed at \| button “Approve” in “Delivery gate” \|/);
+  assert.match(issue.body, /\| Pages before \| #work → #now \|/, 'the trail keeps hash routes without their queries');
   assert.match(issue.body, /\| Page \| #now \|/, 'the query string never reaches the tracker');
   assert.match(issue.body, /\| Work Item \| 42 \|/);
   assert.doesNotMatch(issue.body, /must not travel/);
@@ -112,7 +117,7 @@ test('a report is filed as a Vikunja task with its files attached and its addres
   assert.equal(filed.body.status, 'filed');
   assert.match(filed.body.url, /\/tasks\/1996$/);
   const task = JSON.parse(vikunja.calls[0].body.toString());
-  assert.match(task.description, /^<h2>What happened<\/h2><p>The waiting count said 9/);
+  assert.match(task.description, /^<h2>What went wrong<\/h2><p>The waiting count said 9/);
   assert.equal(vikunja.calls.filter(call => call.path === '/api/v1/tasks/1996/attachments').length, 3);
   assert(vikunja.calls.filter(call => call.path.endsWith('/attachments')).every(call => call.body.includes('name="files"')), 'Vikunja receives each file in the files field');
 });
@@ -165,6 +170,8 @@ test('a report must say what happened, carry only allowed files and stay under t
   const huge = report();
   huge.set('screenshot', new Blob([png, new Uint8Array(9 * 1024 * 1024)], { type: 'image/png' }), 'screenshot.png');
   assert.equal((await post(app.url, cookie, huge)).status, 413);
+  assert.equal((await post(app.url, cookie, report({ kind: 'rant' }))).body.error.code, 'report_kind_invalid');
+  assert.equal((await post(app.url, cookie, report({ kind: 'idea' }))).body.error.code, 'report_impact_invalid', 'an idea has no impact');
   const json = await fetch(`${app.url}/api/reports`, { method: 'POST', headers: { cookie, 'x-unfold-request': '1', 'content-type': 'application/json' }, body: '{}' });
   assert.equal(json.status, 415);
 
@@ -174,6 +181,30 @@ test('a report must say what happened, carry only allowed files and stay under t
   assert.equal(kept.status, 201, kept.text);
   assert.equal(kept.body.status, 'kept', 'with no tracker configured the report is kept in Unfold');
   assert.match(kept.body.message, /No tracker is set up for reports/);
+});
+
+test('an idea is filed under its own heading without an expectation, and each person lists only their own reports, newest first', async t => {
+  const app = await application('live');
+  t.after(() => app.close());
+  const { cookie } = await login(app.url);
+  const form = report({ kind: 'idea', title: 'Idea for Runs: filter by repository' });
+  form.delete('impact');
+  const kept = await post(app.url, cookie, form);
+  assert.equal(kept.status, 201, kept.text);
+  const stored = app.app.store.report(kept.body.id)!;
+  assert.deepEqual({ kind: stored.body.kind, expected: stored.body.expected, impact: stored.body.impact }, { kind: 'idea', expected: '', impact: undefined });
+  const { markdownBody } = await import('../src/reports.ts');
+  assert.match(markdownBody(stored, '1.0.0'), /^## What would help\n/);
+  assert.doesNotMatch(markdownBody(stored, '1.0.0'), /What I expected/);
+  await post(app.url, cookie, report({ title: 'Second' }));
+
+  app.app.store.addUser({ id: 'viewer-iris', name: 'iris@example.test', role: 'viewer', passwordHash: await hashPassword('viewer-password-1414') });
+  const viewer = await login(app.url, 'iris@example.test', 'viewer-password-1414');
+  const list = async (as: string) => (await (await fetch(`${app.url}/api/reports`, { headers: { cookie: as, 'x-unfold-request': '1' } })).json()).reports;
+  const mine = await list(cookie);
+  assert.deepEqual(mine.map((entry: { title: string; status: string }) => [entry.title, entry.status]), [['Second', 'kept'], ['Idea for Runs: filter by repository', 'kept']]);
+  assert.deepEqual(Object.keys(mine[0]).sort(), ['createdAt', 'id', 'status', 'title'], 'no body, context or error text in the list');
+  assert.deepEqual(await list(viewer.cookie), [], 'another person never sees these');
 });
 
 test('the demo says it is one and files nothing', async t => {

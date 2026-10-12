@@ -268,6 +268,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           }
           fault(405, 'method', 'Unsupported method.');
         }
+        if (method === 'GET' && path === '/api/reports') return json(res, 200, { reports: reports.mine(user) });
         if (method === 'POST' && path === '/api/reports') {
           try {
             const parsed = await parseReport(req);

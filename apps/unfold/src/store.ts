@@ -424,6 +424,11 @@ export class Store {
       .map(row => ({ name: row.name, type: row.type, content: new Uint8Array(row.content) }));
   }
 
+  /** One person's latest reports, newest first. */
+  userReports(userId: string, limit: number): StoredReport[] {
+    return (this.db.prepare('SELECT * FROM reports WHERE user_id=? ORDER BY created_at DESC LIMIT ?').all(userId, limit) as Record<string, string | number | null>[]).map(storedReport);
+  }
+
   /** Reports waiting to be filed whose next attempt is due at `now`, oldest first. */
   dueReports(now: string): StoredReport[] {
     return (this.db.prepare("SELECT * FROM reports WHERE status IN ('pending','retrying') AND next_attempt_at IS NOT NULL AND next_attempt_at <= ? ORDER BY created_at LIMIT 20").all(now) as Record<string, string | number | null>[]).map(storedReport);
