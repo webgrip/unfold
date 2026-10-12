@@ -1,10 +1,12 @@
 export const consoleLimit = 50;
 export const consoleWindowMs = 10 * 60_000;
 export const requestLimit = 20;
+export const trailLimit = 8;
 export const privateBlurPx = 6;
 
 const consoleEntries = [];
 const requestEntries = [];
+const trailEntries = [];
 
 function summary(value) {
   if (value instanceof Error) return `${value.name}: ${value.message}`;
@@ -42,20 +44,33 @@ export function rememberRequest({ method = 'GET', url, status, durationMs, at = 
   if (requestEntries.length > requestLimit) requestEntries.splice(0, requestEntries.length - requestLimit);
 }
 
-/** The console entries of the last ten minutes and the failed requests, ready to attach, with times as ISO strings. */
-export function buffers(now = Date.now()) {
-  const iso = entry => ({ ...entry, at: new Date(entry.at).toISOString() });
-  return { console: consoleEntries.filter(entry => now - entry.at <= consoleWindowMs).map(iso), requests: requestEntries.map(iso) };
+/**
+ * Keeps one page the person went to: the address hash without its query, so a report can say how they got there.
+ * A repeat of the last page is not kept twice. The trail holds the last eight pages.
+ * @param {string} hash
+ */
+export function rememberRoute(hash, at = Date.now()) {
+  const route = (String(hash || '#now').split('?')[0] || '#now').slice(0, 120);
+  if (!route.startsWith('#') || trailEntries.at(-1)?.route === route) return;
+  trailEntries.push({ route, at });
+  if (trailEntries.length > trailLimit) trailEntries.splice(0, trailEntries.length - trailLimit);
 }
 
-/** Empties both buffers, for tests. */
+/** The console entries of the last ten minutes, the failed requests and the pages visited, with times as ISO strings. */
+export function buffers(now = Date.now()) {
+  const iso = entry => ({ ...entry, at: new Date(entry.at).toISOString() });
+  return { console: consoleEntries.filter(entry => now - entry.at <= consoleWindowMs).map(iso), requests: requestEntries.map(iso), trail: trailEntries.map(entry => entry.route) };
+}
+
+/** Empties the buffers, for tests. */
 export function clearBuffers() {
   consoleEntries.length = 0;
   requestEntries.length = 0;
+  trailEntries.length = 0;
 }
 
 /**
- * Starts keeping console errors and warnings, uncaught errors and unhandled rejections in the page's memory. Nothing
+ * Starts keeping console errors and warnings, uncaught errors, unhandled rejections and the pages visited in the page's memory. Nothing
  * leaves the page until the person files a report, and a reload forgets everything.
  * @param {Window} target
  */
@@ -66,6 +81,8 @@ export function startCapture(target = window) {
   }
   target.addEventListener('error', event => rememberConsole({ level: 'error', message: event.message || summary(event.error), source: event.filename, line: event.lineno }));
   target.addEventListener('unhandledrejection', event => rememberConsole({ level: 'error', message: `Unhandled rejection: ${summary(event.reason)}` }));
+  rememberRoute(target.location.hash);
+  target.addEventListener('hashchange', () => rememberRoute(target.location.hash));
 }
 
 /**

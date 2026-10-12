@@ -4,8 +4,8 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 globalThis.location ??= new URL('https://unfold.test/#now');
-const { buffers, clearBuffers, consoleLimit, rememberConsole, rememberRequest, requestLimit } = await import('../public/core/report-capture.js');
-const { arrowHead, markFrom, spanned } = await import('../public/core/annotate.js');
+const { buffers, clearBuffers, consoleLimit, rememberConsole, rememberRequest, rememberRoute, requestLimit, trailLimit } = await import('../public/core/report-capture.js');
+const { arrowHead, markAround, markFrom, spanned, targetAt } = await import('../public/core/annotate.js');
 
 const publicDir = new URL('../public/', import.meta.url);
 
@@ -69,9 +69,35 @@ test('a drag becomes a box, arrow or blur mark only when it is big enough, and t
   assert(left[0] < 100 && right[0] < 100 && Math.sign(left[1]) === -Math.sign(right[1]), 'the head points back from the tip on both sides');
 });
 
-test('the suggested title is the page name and the first sentence of what happened', async () => {
+test('a click picks the smallest thing under the pointer, lifted to the control it sits in, and boxes it with a little room', () => {
+  const button = { id: 'button', x: 100, y: 100, w: 80, h: 30 };
+  const glyph = { id: 'glyph', x: 104, y: 106, w: 16, h: 16 };
+  const card = { id: 'card', x: 0, y: 0, w: 400, h: 300 };
+  const targets = [card, button, glyph];
+  assert.equal(targetAt(targets, { x: 110, y: 110 }).id, 'glyph');
+  assert.equal(targetAt(targets, { x: 110, y: 110 }, target => (target === glyph ? button : undefined)).id, 'button', 'an icon inside a button picks the button');
+  assert.equal(targetAt(targets, { x: 300, y: 250 }).id, 'card');
+  assert.equal(targetAt(targets, { x: 500, y: 500 }), null);
+  assert.deepEqual(markAround('box', { ...button, label: 'button “Approve”' }, { width: 1000, height: 800 }), { kind: 'box', x: 96, y: 96, w: 88, h: 38, element: 'button “Approve”' });
+  assert.deepEqual(markAround('blur', { x: 0, y: 2, w: 20, h: 10 }, { width: 22, height: 800 }), { kind: 'blur', x: 0, y: 0, w: 22, h: 16 }, 'the room stops at the screenshot edge');
+});
+
+test('the trail keeps the last pages visited without their queries or repeats', () => {
+  clearBuffers();
+  rememberRoute('#now');
+  rememberRoute('#now');
+  rememberRoute('#work/12?token=secret');
+  rememberRoute('javascript:alert(1)');
+  assert.deepEqual(buffers().trail, ['#now', '#work/12']);
+  for (let index = 0; index < trailLimit + 3; index++) rememberRoute(`#work/${index}`);
+  assert.equal(buffers().trail.length, trailLimit);
+});
+
+test('the suggested title is the page name and the first sentence of what happened, and says when it is an idea or confusing', async () => {
   const { suggestTitle } = await import('../public/views/report.js');
   assert.equal(suggestTitle('Now', 'The count says 9. Only 7 rows show.'), 'Now: The count says 9.');
+  assert.equal(suggestTitle('Runs', 'Filter by repository.', 'idea'), 'Idea for Runs: Filter by repository.');
+  assert.equal(suggestTitle('Runs', 'Is it still going?', 'confusing'), 'Confusing on Runs: Is it still going?');
   assert.equal(suggestTitle('Work', 'Retry does nothing\nsecond line'), 'Work: Retry does nothing');
   assert.equal(suggestTitle('Now', '  '), '');
 });

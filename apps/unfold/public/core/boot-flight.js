@@ -6,7 +6,7 @@ const lifting = 200;
 /**
  * Keeps the loading screen's mark flying until the application has replaced the loading screen and the flight in
  * progress has landed, so every load shows at least one whole flight. A copy of the loading screen covers the page
- * meanwhile; it is inert and hidden from assistive technology, so the application underneath is usable at once. It
+ * meanwhile; it is inert and hidden from assistive technology and from Report a problem's screenshot, so the application underneath is usable at once. It
  * lifts after `longestHold` milliseconds at the latest. With reduced motion, or once the application has already
  * replaced the loading screen, nothing is copied.
  * @param {Element | null} boot
@@ -17,6 +17,7 @@ export function flyWhileLoading(boot) {
   curtain.className = 'boot boot-curtain';
   curtain.setAttribute('aria-hidden', 'true');
   curtain.inert = true;
+  curtain.dataset.reportSkip = '';
   curtain.innerHTML = boot.innerHTML;
   document.body.append(curtain);
   const loop = loopMark(curtain.querySelector('.brand-ink'), curtain.querySelector('.brand-fold'));

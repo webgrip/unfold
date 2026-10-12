@@ -24,6 +24,7 @@ import { icon } from './icons.js';
 export const shortcuts = [
   { id: 'help', keys: ['?'], label: 'Show keyboard shortcuts', group: 'General', single: true },
   { id: 'palette', keys: ['/'], also: ['Mod', 'K'], label: 'Search and commands', group: 'General', single: true },
+  { id: 'report', keys: ['!'], label: 'Report a problem with a screenshot of this page', group: 'General', single: true },
   { id: 'escape', keys: ['Esc'], label: 'Close a dialog, a menu or the open Work Item', group: 'General' },
   { id: 'go-now', keys: ['g', 'n'], label: 'Now', group: 'Go to', single: true, route: 'now' },
   { id: 'go-work', keys: ['g', 'w'], label: 'Work', group: 'Go to', single: true, route: 'work' },

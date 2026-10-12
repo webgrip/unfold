@@ -31,9 +31,18 @@ export class ReportError extends Error {
 }
 
 /** What the browser can say about where the person was. Every field is optional and short. */
-export type ReportContext = { route?: string; screen?: string; workItemId?: number; shiftId?: number; runId?: string; browser?: string; viewport?: string; locale?: string };
+export type ReportContext = { route?: string; screen?: string; workItemId?: number; shiftId?: number; runId?: string; browser?: string; viewport?: string; locale?: string; element?: string; trail?: string[] };
+/** What the person reports: something that broke, something confusing, or an idea. */
+export type ReportKind = 'broken' | 'confusing' | 'idea';
+/** How much a broken thing is in the person's way, when they say. */
+export type ReportImpact = 'blocks' | 'slows' | 'minor';
 /** A posted report after every field and file was checked and every buffer entry reduced to its allowed fields. */
-export type ParsedReport = { title: string; happened: string; expected: string; context: ReportContext; files: StoredReportFile[] };
+export type ParsedReport = { title: string; kind: ReportKind; impact?: ReportImpact; happened: string; expected: string; context: ReportContext; files: StoredReportFile[] };
+/** One of the person's own reports, as the dialog lists them after filing. */
+export type ReportSummary = { id: string; title: string; status: StoredReport['status']; url?: string; createdAt: string };
+
+const kindHeadings: Record<ReportKind, string> = { broken: 'What went wrong', confusing: 'What was confusing', idea: 'What would help' };
+const impactWords: Record<ReportImpact, string> = { blocks: 'Blocks me', slows: 'Slows me down', minor: 'Small thing' };
 /** What the route answers: filed with its address, kept to retry, or kept because nothing can file it. */
 export type ReportOutcome = { id: string; status: StoredReport['status']; url?: string; message: string };
 
@@ -96,6 +105,12 @@ function count(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 }
 
+function trail(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const routes = value.slice(-8).flatMap(entry => { const route = short(entry, 120); return route?.startsWith('#') ? [route.split('?')[0]] : []; });
+  return routes.length ? routes : undefined;
+}
+
 function context(raw: FormDataEntryValue | null): ReportContext {
   if (typeof raw !== 'string' || !raw) return {};
   if (raw.length > 4096) throw new ReportError(422, 'report_context_invalid', 'The page context is too large.');
@@ -112,6 +127,8 @@ function context(raw: FormDataEntryValue | null): ReportContext {
     ...(short(value.browser, 120) ? { browser: short(value.browser, 120) } : {}),
     ...(short(value.viewport, 32) && /^\d{1,5}×\d{1,5}$/.test(String(value.viewport)) ? { viewport: String(value.viewport) } : {}),
     ...(short(value.locale, 35) && /^[A-Za-z0-9-]+$/.test(String(value.locale)) ? { locale: String(value.locale) } : {}),
+    ...(short(value.element, 240) ? { element: short(value.element, 240) } : {}),
+    ...(trail(value.trail) ? { trail: trail(value.trail) } : {}),
   };
   return result;
 }
@@ -179,7 +196,11 @@ export async function parseReport(req: IncomingMessage): Promise<ParsedReport> {
   }
   const happened = text(form.get('happened'), 'happened', 4000, true);
   const title = text(form.get('title'), 'title', 200) || happened.split(/(?<=[.!?])\s|\n/)[0].slice(0, 120);
-  return { title, happened, expected: text(form.get('expected'), 'expected', 4000), context: context(form.get('context')), files };
+  const kind = form.get('kind') ?? 'broken';
+  if (kind !== 'broken' && kind !== 'confusing' && kind !== 'idea') throw new ReportError(422, 'report_kind_invalid', 'A report is broken, confusing or idea.');
+  const impact = form.get('impact');
+  if (impact !== null && (kind !== 'broken' || !(String(impact) in impactWords))) throw new ReportError(422, 'report_impact_invalid', 'Only something broken has an impact: blocks, slows or minor.');
+  return { title, kind, ...(impact !== null ? { impact: impact as ReportImpact } : {}), happened, expected: kind === 'broken' ? text(form.get('expected'), 'expected', 4000) : '', context: context(form.get('context')), files };
 }
 
 function markdownText(value: string): string {
@@ -193,8 +214,11 @@ function htmlText(value: string): string {
 function facts(report: StoredReport, version: string, baseUrl: string | undefined): [string, string, string?][] {
   const context = report.body.context as ReportContext;
   const link = (path: string) => (baseUrl ? `${baseUrl}/${path}` : undefined);
+  const impact = report.body.impact as ReportImpact | undefined;
   return [
+    ...(impact && impactWords[impact] ? [['Impact', impactWords[impact]] as [string, string]] : []),
     ...(context.route ? [['Page', context.route, link(context.route)] as [string, string, string?]] : []),
+    ...(context.element ? [['Pointed at', context.element] as [string, string]] : []),
     ...(context.workItemId !== undefined ? [['Work Item', String(context.workItemId), link(`#work/${context.workItemId}`)] as [string, string, string?]] : []),
     ...(context.shiftId !== undefined ? [['Shift', String(context.shiftId)] as [string, string]] : []),
     ...(context.runId ? [['Run', context.runId] as [string, string]] : []),
@@ -202,7 +226,12 @@ function facts(report: StoredReport, version: string, baseUrl: string | undefine
     ...(context.browser ? [['Browser', context.browser] as [string, string]] : []),
     ...(context.viewport ? [['Viewport', context.viewport] as [string, string]] : []),
     ...(context.locale ? [['Locale', context.locale] as [string, string]] : []),
+    ...(context.trail?.length ? [['Pages before', context.trail.join(' → ')] as [string, string]] : []),
   ];
+}
+
+function heading(report: StoredReport): string {
+  return kindHeadings[report.body.kind as ReportKind] ?? kindHeadings.broken;
 }
 
 /** The Markdown body of a Forgejo issue: what happened, what was expected, the page facts and, once uploaded, the screenshot. */
@@ -211,7 +240,7 @@ export function markdownBody(report: StoredReport, version: string, baseUrl?: st
   const expected = String(report.body.expected ?? '');
   const rows = facts(report, version, baseUrl).map(([name, value, href]) => `| ${name} | ${href ? `[${markdownText(value)}](${href})` : markdownText(value)} |`);
   return [
-    '## What happened', '', markdownText(happened), '',
+    `## ${heading(report)}`, '', markdownText(happened), '',
     ...(expected ? ['## What I expected', '', markdownText(expected), ''] : []),
     '| | |', '| --- | --- |', ...rows, '',
     ...(screenshotUrl ? [`![Screenshot](${screenshotUrl})`, ''] : []),
@@ -225,7 +254,7 @@ export function htmlBody(report: StoredReport, version: string, baseUrl?: string
   const paragraphs = (value: string) => value.split(/\n{2,}/).map(part => `<p>${htmlText(part).replace(/\n/g, '<br>')}</p>`).join('');
   const expected = String(report.body.expected ?? '');
   const rows = facts(report, version, baseUrl).map(([name, value, href]) => `<tr><th>${htmlText(name)}</th><td>${href ? `<a href="${htmlText(href)}">${htmlText(value)}</a>` : htmlText(value)}</td></tr>`).join('');
-  return `<h2>What happened</h2>${paragraphs(String(report.body.happened ?? ''))}${expected ? `<h2>What I expected</h2>${paragraphs(expected)}` : ''}<table>${rows}</table>${attachments.length ? `<p>Attached: ${htmlText(attachments.join(', '))}.</p>` : ''}<p><em>Filed with Report a problem in Unfold.</em></p>`;
+  return `<h2>${heading(report)}</h2>${paragraphs(String(report.body.happened ?? ''))}${expected ? `<h2>What I expected</h2>${paragraphs(expected)}` : ''}<table>${rows}</table>${attachments.length ? `<p>Attached: ${htmlText(attachments.join(', '))}.</p>` : ''}<p><em>Filed with Report a problem in Unfold.</em></p>`;
 }
 
 /**
@@ -265,6 +294,11 @@ export class ReportService {
     return `${source.provider === 'forgejo' ? 'Forgejo' : 'Vikunja'} · ${source.provider === 'vikunja' ? `project ${this.config.reports.project}` : this.config.reports.project}`;
   }
 
+  /** The person's own latest reports, newest first, with where each one went. */
+  mine(user: User, limit = 5): ReportSummary[] {
+    return this.store.userReports(user.id, limit).map(report => ({ id: report.id, title: report.title, status: report.status, ...(report.url && report.status === 'filed' ? { url: report.url } : {}), createdAt: report.createdAt }));
+  }
+
   /** Stores one report and tries to file it at once. A refusal leaves it saved for the retries. */
   async submit(user: User, parsed: ParsedReport): Promise<ReportOutcome> {
     const at = this.now().getTime();
@@ -273,7 +307,7 @@ export class ReportService {
     this.recent.set(user.id, [...recent, at]);
     const now = this.now().toISOString();
     const source = this.source();
-    const report: StoredReport = { id: randomUUID(), userId: user.id, status: source ? 'pending' : 'kept', title: parsed.title, body: { happened: parsed.happened, expected: parsed.expected, context: parsed.context }, createdAt: now, attempts: 0 };
+    const report: StoredReport = { id: randomUUID(), userId: user.id, status: source ? 'pending' : 'kept', title: parsed.title, body: { kind: parsed.kind, ...(parsed.impact ? { impact: parsed.impact } : {}), happened: parsed.happened, expected: parsed.expected, context: parsed.context }, createdAt: now, attempts: 0 };
     this.store.saveReport(report, parsed.files);
     if (!source) {
       return { id: report.id, status: 'kept', message: this.config.mode === 'demo' ? 'This is the demo: Unfold kept the report and filed nothing.' : 'No tracker is set up for reports. Unfold kept it, and an administrator can name one under reports in the configuration.' };

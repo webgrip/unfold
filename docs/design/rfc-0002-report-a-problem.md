@@ -15,13 +15,22 @@ What building it changed:
 * **Scrolled pages.** html-to-image lays the copy out unscrolled. The capture shifts back the content of the scrolled window and of each scrolled container, leaves fixed elements in place and moves sticky ones to where they are on screen, so the screenshot shows what the person sees.
 * **`data-private`** marks every `<pre>`, every container that renders tracker or pull-request text through `markdown()`, and the diff view. `test/report-client.test.mjs` fails when one is added without it.
 
+**Redesigned on 2026-10-12.** The owner found the first dialog unusable: a shrunken screenshot, three empty boxes of equal weight, plumbing shown as checkboxes. The redesign follows what the in-app reporters that work have in common (Sentry User Feedback, Google Send feedback, Jam, Marker.io, BugHerd, Vercel comments):
+
+* **One required field.** The person picks what kind of report it is (*Something broke*, *Confusing*, *Idea*). The question and its example change with the kind. What they expected and how much it is in their way are optional and only offered for something broken. The title is written from the page and the first sentence, shown as a preview, and editable.
+* **Point at it.** With Highlight or Hide, a click on the screenshot boxes or blurs the thing under the pointer, using the page's own layout from the moment the dialog opened. The report names it, for example `button “Approve” in “Delivery gate”`, and never uses text inside `[data-private]`. Dragging still draws a free box.
+* **A larger screenshot.** The dialog fills most of the window and the screenshot gets the space the form does not need. Regions blurred automatically are outlined and labelled *Hidden automatically* on screen only, so a blur never looks like a rendering fault.
+* **Context without plumbing.** Console messages and failed requests appear only when there are any, with the latest one shown. Page, Work Item, the last pages visited, version, browser and window size are one sentence.
+* **Fast and forgiving.** `!` opens it, `H`, `B`, `A` and `T` pick a tool, Ctrl or ⌘ Z undoes, Ctrl or ⌘ Enter files. Text survives an accidental close as a draft in the browser for 7 days. The submit button is never disabled while the screenshot is still being taken; filing waits for it.
+* **The loop closes.** After filing, the dialog links the issue, copies the link, and lists the person's earlier reports with their status (`GET /api/reports`, the person's own five).
+
 ## What it looks like
 
-![Report a problem dialog: an annotated screenshot of the Now page with a box and a label, a code block blurred automatically, the form with what happened and what was expected, the list of attachments, and the target tracker](img/report-a-problem.png)
+![Report a problem dialog: a large screenshot of a Work Item page with the Ready for review filter boxed by one click, the kind switch set to Something broke, the description, the optional impact, the control it points at, what is sent with it, and the suggested title](img/report-a-problem.png)
 
-1. The screenshot is of the current page, taken in the browser. The person draws boxes, arrows and text, and can blur more.
+1. The screenshot is of the current page, taken in the browser. The person clicks or drags to highlight or hide, and can add arrows and labels.
 2. Regions marked private (code, diffs, pull-request text, secrets) are blurred before the person sees the screenshot. They can blur more, never less.
-3. Each attachment is listed and can be unticked.
+3. Each attachment that has content is listed and can be unticked.
 4. The masked 60-second replay appears only on an instance whose tenant has replay switched on, and is unticked by default.
 
 And what lands in the tracker:
