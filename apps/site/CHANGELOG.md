@@ -1,3 +1,9 @@
+## [unfold-site-v1.0.0-rc.8](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.7...unfold-site-v1.0.0-rc.8) (2026-10-12)
+
+### Added
+
+* **ploeg:** update all non-major dependencies ([51157ce](https://forgejo.webgrip.dev/webgrip/unfold/commit/51157ce70af96fc0ed061b68cc7bd9b0d21f6051))
+
 ## [unfold-site-v1.0.0-rc.7](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.6...unfold-site-v1.0.0-rc.7) (2026-10-11)
 
 ### Fixed
