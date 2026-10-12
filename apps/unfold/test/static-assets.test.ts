@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { request as httpRequest } from 'node:http';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
@@ -84,6 +84,18 @@ test('the workbench entry, shell and its core and view modules are served from t
     assert.equal(response.status, 200, `${path}: ${response.body}`);
     assert.equal(response.type, 'text/javascript; charset=utf-8', path);
     assert.equal(response.body, await readFile(join(server.config.publicDir, path.slice(1)), 'utf8'), path);
+  }
+});
+
+test('every top-level public module is served, so an import of a new one cannot stop the workbench from starting', { timeout: testTimeout(15_000) }, async t => {
+  const server = await application('demo');
+  t.after(() => server.close());
+  const modules = (await readdir(server.config.publicDir)).filter(name => name.endsWith('.js'));
+  assert(modules.includes('run-log-view.js'));
+  for (const name of modules) {
+    const response = await get(server.url, `/${name}`);
+    assert.equal(response.status, 200, `/${name}: ${response.body}`);
+    assert.equal(response.type, 'text/javascript; charset=utf-8', name);
   }
 });
 
