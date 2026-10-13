@@ -23,6 +23,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--check', action='store_true')
 parser.add_argument('--stage-only', action='store_true')
 parser.add_argument('--domain', action='store_true')
+parser.add_argument('--domain-check', action='store_true', help='check only the pages generated from the domain models and the ADR ledgers, which a Ploeg pin move can break')
 args = parser.parse_args()
 ploeg = root / 'apps/ploeg'
 if not (ploeg / 'docs').is_dir():
@@ -32,6 +33,7 @@ ploeg_source_url = f'https://github.com/ploeg-hq/ploeg/blob/{ploeg_pin}/'
 domain_models = ['docs/domain']
 glossary_models = ['docs/domain', 'apps/ploeg/docs/domain']
 glossary = 'docs/reference/glossary.md'
+conflict_report = 'ploeg-glossary-conflicts.txt'
 
 
 def generate_domain(folder, out):
@@ -39,7 +41,35 @@ def generate_domain(folder, out):
 
 
 def combined_glossary():
-    return subprocess.run([sys.executable, str(root / 'scripts/generate-domain.py'), '--glossary', glossary, '--stdout', *[f'{folder}/model.yaml' for folder in glossary_models]], cwd=root, check=True, capture_output=True, text=True).stdout
+    result = subprocess.run([sys.executable, str(root / 'scripts/generate-domain.py'), '--glossary', glossary, '--stdout', *[f'{folder}/model.yaml' for folder in glossary_models]], cwd=root, capture_output=True, text=True)
+    if result.returncode:
+        raise SystemExit(result.stderr.strip() or f'scripts/generate-domain.py --glossary exited {result.returncode}')
+    return result.stdout
+
+
+def generated_domain_problems():
+    problems = []
+    if (root / conflict_report).exists():
+        problems.append(f'{conflict_report} is the clash report scripts/renovate-ploeg-docs.sh wrote after a Ploeg pin move. Resolve the clashes it lists, run mise run domain, and delete it.')
+    for folder in domain_models:
+        with tempfile.TemporaryDirectory(prefix='unfold-domain-') as temporary:
+            generate_domain(folder, temporary)
+            for generated in sorted(Path(temporary).glob('*.md')):
+                if generated.read_bytes() != (root / folder / generated.name).read_bytes():
+                    problems.append(f'Stale generated domain view: {folder}/{generated.name}; run mise run domain')
+    try:
+        if not (root / glossary).exists() or (root / glossary).read_text() != combined_glossary():
+            problems.append(f'Stale combined glossary: {glossary}; run mise run domain')
+    except SystemExit as clash:
+        problems.append(str(clash))
+    decisions = subprocess.run([sys.executable, str(root / 'scripts/docs-decisions.py'), '--check'], cwd=root, capture_output=True, text=True)
+    if decisions.returncode:
+        problems.append((decisions.stderr or decisions.stdout).strip() or 'Stale decision register; run mise run docs-decisions')
+    return problems
+
+
+def generated_domain_failure(problems):
+    return 'Pages generated from the domain models or the ADR ledgers are wrong; docs/operations/ci.md#the-ploeg-pin-pull-request explains each case:\n' + '\n'.join(f'- {problem}' for problem in problems)
 
 
 if args.domain:
@@ -49,6 +79,12 @@ if args.domain:
     (root / glossary).write_text(combined_glossary())
     print(f'Unfold domain: {len(domain_models)} model, {glossary} from {len(glossary_models)} models')
     sys.exit()
+if args.domain_check:
+    problems = generated_domain_problems()
+    if problems:
+        raise SystemExit(generated_domain_failure(problems))
+    print(f'Unfold domain: {glossary} and the decision register match {len(glossary_models)} domain models and the pinned ADR ledgers')
+    sys.exit()
 staging = root / '.build/docs'
 site = root / '.build/site'
 revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
@@ -57,17 +93,13 @@ source_url = f'https://forgejo.webgrip.dev/webgrip/unfold/src/commit/{revision}/
 if args.check:
     for test in ['docs-output.test.py', 'docs-live.test.py', 'docs-rules.test.py', 'docs-decisions.test.py', 'docs-adr.test.py', 'agents-files.test.py', 'stage-explicit-paths.test.py', 'docs-vale.test.py', 'tutorial-smoke.test.py', 'generate-domain.test.py']:
         subprocess.run([sys.executable, str(root / 'scripts' / test)], check=True)
-    for folder in domain_models:
-        with tempfile.TemporaryDirectory(prefix='unfold-domain-') as temporary:
-            generate_domain(folder, temporary)
-            for generated in Path(temporary).glob('*.md'):
-                assert generated.read_bytes() == (root / folder / generated.name).read_bytes(), f'Stale generated domain view: {folder}/{generated.name}; run mise run domain'
-    assert (root / glossary).exists() and (root / glossary).read_text() == combined_glossary(), f'Stale combined glossary: {glossary}; run mise run domain'
+    problems = generated_domain_problems()
+    if problems:
+        raise SystemExit(generated_domain_failure(problems))
     for name, expected in json.loads((root / 'docs/landscape/generated-sources.json').read_text()).items():
         assert hashlib.sha256((root / name).read_bytes()).hexdigest() == expected, f'Stale landscape: {name}; rebuild with node apps/unfold/scripts/build-landscape.mjs'
     for ledger in ['docs/adr', 'apps/unfold/docs/adrs']:
         subprocess.run([sys.executable, str(root / 'scripts/validate_adr_consistency.py'), str(root), '--adr-dir', ledger], check=True)
-    subprocess.run([sys.executable, str(root / 'scripts/docs-decisions.py'), '--check'], check=True)
     subprocess.run([sys.executable, str(root / 'scripts/agents-files.py')], check=True)
 
 if staging.exists():

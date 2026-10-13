@@ -442,6 +442,38 @@ def gen_events(model):
     return "\n".join(lines)
 
 
+def imports_from(importer, source):
+    target = Path(source["_path"]).resolve()
+    for imp in importer.get("imports", []) or []:
+        if (Path(importer["_path"]).parent / imp["model"]).resolve() == target:
+            return imp["model"]
+    return None
+
+
+def clash_advice(name, first, second):
+    def label(m):
+        return f"{m.get('project', 'a model')} ({m['_path']})"
+
+    lines = [f"{name!r} is defined by {label(first)} and {label(second)}.",
+             "    Owner rule: Ploeg owns a term when Ploeg stores it or its API names it; otherwise Unfold owns it."]
+    for upstream, downstream in ((first, second), (second, first)):
+        model = imports_from(downstream, upstream)
+        if model is None:
+            continue
+        theirs, ours, path = upstream.get("project", "the imported model"), downstream.get("project", "the importing model"), downstream["_path"]
+        return "\n".join(lines + [
+            f"    Suggested owner: {theirs}, because {ours} imports from {theirs}'s model and that model now defines {name!r}.",
+            f"    To take {theirs}'s definition:",
+            f"      1. In {path}, add {name!r} to the terms of the import of {model}.",
+            f"      2. Delete {name!r} from the terms in {path}.",
+            f"      3. Move anything only {ours}'s definition said into one of {ours}'s terms that links to {name!r} (see_also), then run mise run domain.",
+            f"    If {theirs} neither stores {name!r} nor names it in its API, {ours} owns it instead: remove it from "
+            f"{theirs}'s model upstream, release, and move the pin."])
+    return "\n".join(lines + [
+        "    Neither model imports the other. Decide the owner by that rule; the other model then imports the term "
+        "from the owner's model and deletes its own copy, then run mise run domain."])
+
+
 def gen_combined(models, path):
     out_dir = Path(path).parent
 
@@ -455,24 +487,32 @@ def gen_combined(models, path):
         for r in m.get("retired_terms", []) or []:
             retired.append((r, m))
 
-    names = {}
+    names, holders = {}, {}
+    live = {id(t) for t, _ in entries}
     for t, m in entries + retired:
         key = str(t["name"]).lower()
         if key in names:
-            errors.append(f"{t['name']!r} is defined by {names[key]} and {m['_path']}")
+            first, first_live = holders[key]
+            if first_live and id(t) in live:
+                errors.append(clash_advice(t["name"], first, m))
+            else:
+                errors.append(f"{t['name']!r} is defined by {names[key]} and {m['_path']}, at least once as a retired term; "
+                              "a name is either a term or retired, so keep one of the two entries")
         names[key] = m["_path"]
+        holders[key] = (m, id(t) in live)
     for t, m in entries:
         for syn in t.get("synonyms", []) or []:
             if str(syn).lower() in names:
-                errors.append(f"synonym {syn!r} of {t['name']!r} names another term")
+                errors.append(f"synonym {syn!r} of {t['name']!r} in {m['_path']} names another term; drop the synonym")
         refs = list(t.get("see_also", []) or []) + [e["term"] for e in t.get("not_to_be_confused_with", []) or []]
         for ref in refs:
             if str(ref).lower() not in names:
-                errors.append(f"{t['name']!r} refers to {ref!r}, which no model defines")
+                errors.append(f"{t['name']!r} in {m['_path']} refers to {ref!r}, which no model defines; "
+                              "point it at the term that replaced it or drop the reference")
     for r, m in retired:
         for use in r.get("use", []):
             if str(use).lower() not in names:
-                errors.append(f"retired {r['name']!r} points to {use!r}, which no model defines")
+                errors.append(f"retired {r['name']!r} in {m['_path']} points to {use!r}, which no model defines")
     if errors:
         sys.exit("Combined glossary conflicts:\n" + "\n".join(f"  - {e}" for e in errors))
 

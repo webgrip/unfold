@@ -62,6 +62,10 @@ description = "Regenerate the domain pages and the combined glossary from the mo
 run = "node apps/unfold/scripts/ploeg-words.mjs"
 description = "Regenerate the Ploeg words reference page from docs/domain/ploeg-words.json"
 
+[tasks.domain-check]
+run = "uv run --frozen python scripts/docs.py --domain-check"
+description = "Check the domain pages, the combined glossary and the decision register against the models and the pinned Ploeg; the ploeg-docs pull request check"
+
 [tasks.docs-decisions]
 run = "uv run --frozen python scripts/docs-decisions.py"
 description = "Regenerate the decision register from the three ADR ledgers"

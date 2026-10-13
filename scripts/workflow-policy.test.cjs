@@ -22,7 +22,7 @@ test('event entry points preserve validation and keep application publication ou
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
-  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'ploeg-pin', 'release-policy', 'warnings']);
+  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'ploeg-docs', 'ploeg-pin', 'release-policy', 'warnings']);
   assert.deepEqual(pr.jobs.checks, source.jobs.checks);
   assert.deepEqual(pr.jobs.warnings, source.jobs.warnings);
   assert.deepEqual(pr.jobs['ploeg-pin'], source.jobs['ploeg-pin']);
@@ -39,7 +39,7 @@ test('event entry points preserve validation and keep application publication ou
 
 test('every job that verifies, documents or demonstrates Unfold checks out the pinned Ploeg submodule', () => {
   const checkout = job => job.steps.find(step => String(step.uses).startsWith('actions/checkout@'));
-  for (const [file, name] of [['on_pull_request.yml', 'checks'], ['on_pull_request.yml', 'ploeg-pin'], ['on_source_change.yml', 'checks'], ['on_source_change.yml', 'ploeg-pin'], ['on_schedule.yml', 'external-links'], ['on_schedule.yml', 'tutorial-smoke'], ['on_docs_change.yml', 'verify-publication']]) {
+  for (const [file, name] of [['on_pull_request.yml', 'checks'], ['on_pull_request.yml', 'ploeg-pin'], ['on_pull_request.yml', 'ploeg-docs'], ['on_source_change.yml', 'checks'], ['on_source_change.yml', 'ploeg-pin'], ['on_schedule.yml', 'external-links'], ['on_schedule.yml', 'tutorial-smoke'], ['on_schedule.yml', 'ploeg-ahead'], ['on_docs_change.yml', 'verify-publication']]) {
     assert.equal(checkout(workflows[file].jobs[name]).with?.submodules, 'recursive', `${file}: ${name}`);
   }
   for (const name of ['generate-documentation', 'deploy-docs-site']) {
@@ -47,6 +47,18 @@ test('every job that verifies, documents or demonstrates Unfold checks out the p
   }
   const mise = fs.readFileSync(path.join(root, 'mise.toml'), 'utf8');
   assert.match(mise, /\[tasks\.setup\]\nrun = \[\n  "git submodule sync --recursive",\n  "git submodule update --init --recursive",/);
+});
+
+test('every pull request checks the Ploeg-derived pages on their own, and a weekly run checks the Ploeg to come', () => {
+  const pr = workflows['on_pull_request.yml'].jobs['ploeg-docs'];
+  assert.equal(pr.steps.at(-1).run, 'mise exec -- uv run --frozen python scripts/docs.py --domain-check');
+  assert.equal(pr.needs, undefined);
+  assert.doesNotMatch(JSON.stringify(pr), /secrets\.|permissions/);
+  const ahead = workflows['on_schedule.yml'].jobs['ploeg-ahead'];
+  assert.deepEqual(ahead.strategy.matrix.ploeg, ['newest-release', 'development']);
+  assert.equal(ahead.strategy['fail-fast'], false);
+  assert.match(ahead.steps.at(-1).run, /scripts\/renovate-ploeg-docs\.sh\n.*scripts\/docs\.py --domain-check/);
+  assert.doesNotMatch(JSON.stringify(ahead), /secrets\.|permissions|continue-on-error/);
 });
 
 test('a pull request and a release need the pinned Ploeg commit on Ploeg main', () => {
@@ -399,7 +411,7 @@ test('the weekly external link check is scheduled, pinned and reports without bl
   const schedule = workflows['on_schedule.yml'];
   assert.deepEqual(Object.keys(schedule.on).sort(), ['schedule', 'workflow_dispatch']);
   assert.match(schedule.on.schedule[0].cron, /^\d+ \d+ \* \* [0-6]$/);
-  assert.deepEqual(Object.keys(schedule.jobs), ['external-links', 'tutorial-smoke', 'release-notes']);
+  assert.deepEqual(Object.keys(schedule.jobs), ['external-links', 'tutorial-smoke', 'ploeg-ahead', 'release-notes']);
   const step = schedule.jobs['external-links'].steps.find(step => step.run === 'mise run docs-links-external');
   assert.equal(step['continue-on-error'], true);
   assert.doesNotMatch(JSON.stringify(schedule), /secrets\.|permissions|UNFOLD_(RELEASES|DOCS_PUBLISH)_ENABLED/);

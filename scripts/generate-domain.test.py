@@ -83,5 +83,39 @@ class UnfoldModelAdrReferences(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
 
+class CombinedGlossaryClash(unittest.TestCase):
+    def combine(self, unfold):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'docs/domain').mkdir(parents=True)
+            (root / 'apps/ploeg/docs/domain').mkdir(parents=True)
+            (root / 'docs/domain/model.yaml').write_text(unfold)
+            (root / 'apps/ploeg/docs/domain/model.yaml').write_text(PLOEG)
+            return subprocess.run([sys.executable, str(GENERATOR), '--glossary', 'docs/reference/glossary.md', '--stdout', 'docs/domain/model.yaml', 'apps/ploeg/docs/domain/model.yaml'], cwd=root, capture_output=True, text=True)
+
+    def test_a_term_both_models_define_names_the_importing_model_as_the_one_to_change(self):
+        result = self.combine(UNFOLD.replace('references:', 'imports:\n  - model: ../../apps/ploeg/docs/domain/model.yaml\n    terms: [Work Item]\nreferences:', 1) + """  - name: Run
+    context: Work
+    definition: Unfold's own reading of a Run.
+""")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '')
+        self.assertIn("'Run' is defined by Unfold (docs/domain/model.yaml) and Ploeg (apps/ploeg/docs/domain/model.yaml).", result.stderr)
+        self.assertIn('Owner rule: Ploeg owns a term when Ploeg stores it or its API names it; otherwise Unfold owns it.', result.stderr)
+        self.assertIn("Suggested owner: Ploeg, because Unfold imports from Ploeg's model", result.stderr)
+        self.assertIn("1. In docs/domain/model.yaml, add 'Run' to the terms of the import of ../../apps/ploeg/docs/domain/model.yaml.", result.stderr)
+        self.assertIn("2. Delete 'Run' from the terms in docs/domain/model.yaml.", result.stderr)
+        self.assertIn("3. Move anything only Unfold's definition said into one of Unfold's terms that links to 'Run'", result.stderr)
+
+    def test_a_clash_without_an_import_asks_for_an_owner_decision(self):
+        result = self.combine(UNFOLD + """  - name: Run
+    context: Work
+    definition: Unfold's own reading of a Run.
+""")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Neither model imports the other.', result.stderr)
+        self.assertNotIn('Suggested owner', result.stderr)
+
+
 if __name__ == '__main__':
     unittest.main()
