@@ -113,8 +113,8 @@ test('the Ask dialog offers to ask the model even for a standing question, excep
 
 test('a failed Ask says why, offers to ask again when that may help, and a provisional cost shows its amount', () => {
   const html = askMarkup(detail(), { asks: { items: [
-    ask({ id: 'f1', status: 'failed', answer: '', failureCode: 'timeout', retryable: true, failure: 'The model took longer than a minute, so Unfold stopped waiting. Try again; a shorter question helps.', costStatus: 'pending', costUsd: 0.0004 }),
-    ask({ id: 'f2', status: 'failed', answer: '', failureCode: 'key_rejected', retryable: false, failure: 'The model gateway refused the key.', costStatus: 'pending', costUsd: null }),
+    ask({ id: 'f1', status: 'failed', answer: '', failureCode: 'timeout', retryable: true, failure: 'The model took longer than a minute, so Unfold stopped waiting. Try again; a shorter question helps.', costStatus: 'provisional', costUsd: 0.0004 }),
+    ask({ id: 'f2', status: 'failed', answer: '', failureCode: 'key_rejected', retryable: false, failure: 'The model gateway refused the key.', costStatus: 'provisional', costUsd: null }),
     ask({ id: 'c1', answer: 'It changed the login form and', cutOff: true }),
   ], demo: false, error: '' }, askBusy: false });
   assert.match(html, /class="work-ask-failure" role="note" data-status="failed" data-code="timeout"/);

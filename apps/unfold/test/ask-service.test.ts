@@ -357,7 +357,7 @@ test('an Ask left answering by a restart is closed as interrupted the next time 
   const store = new Store(':memory:');
   const { captured, reports } = recorder();
   const asks = reporting(store, scripted([]).fetcher, reports);
-  const base = { workItemId: '42', workItemTitle: 'login: fix Safari', askerId: 'owner', askerName: 'Owner', audience: 'internal' as const, question: 'Why?', answer: '', status: 'answering' as const, demo: false, model: 'glm-5.3-flash', costUsd: null, costStatus: 'pending' as const, failure: null, source: 'model' as const, intent: null, answeredAt: null };
+  const base = { workItemId: '42', workItemTitle: 'login: fix Safari', askerId: 'owner', askerName: 'Owner', audience: 'internal' as const, question: 'Why?', answer: '', status: 'answering' as const, demo: false, model: 'glm-5.3-flash', costUsd: null, costStatus: 'provisional' as const, failure: null, source: 'model' as const, intent: null, answeredAt: null };
   store.saveAsk({ ...base, id: 'old', ploegAskId: 'p-9', createdAt: '2026-10-10T09:50:00Z' });
   store.saveAsk({ ...base, id: 'fresh', ploegAskId: 'p-10', createdAt: '2026-10-10T09:59:30Z' });
   const listed = (await asks.about(owner, '42')).asks;
