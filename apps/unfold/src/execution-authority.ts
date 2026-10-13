@@ -5,7 +5,8 @@ import { PloegError } from './ploeg.ts';
 import type { PloegRevision } from './investigation.ts';
 
 type Command = { commandId: string; action: string; expectedRevision: number; generation: number; state?: string; text?: string; stopConfirmed?: boolean; authenticatedBy?: string };
-const states = ['admitted', 'running', 'waiting_input', 'pause_requested', 'paused', 'cancel_requested', 'cancelled', 'completed', 'failed', 'interrupted'];
+/** The Operator Execution states Unfold accepts from Ploeg; `test/ploeg-contract.test.ts` checks them against Ploeg's domain model. */
+export const executionStates = ['admitted', 'running', 'waiting_input', 'pause_requested', 'paused', 'cancel_requested', 'cancelled', 'completed', 'failed', 'interrupted'];
 const unavailable = (failure: AuthorityFailure = { cause: 'invalid_response' }) => Object.assign(new PloegError(503, 'execution_unconfirmed', 'Ploeg could not confirm this operation. Execution remains fenced; reconnect and reconcile before continuing.'), { failure });
 
 /** How long one authority request may take, except a credential request. */
@@ -63,7 +64,7 @@ export class ExecutionAuthority {
 
   private bind(session: Session, value: any): ExecutionBinding {
     const prior = this.current(session.id);
-    if (!value || !/^[a-f0-9]{32}$/.test(value.id) || !/^[1-9][0-9]{0,19}$/.test(value.workItemId) || value.sessionId !== session.id || value.actor !== session.ownerId || value.team !== (prior?.team ?? this.config.execution!.team) || value.demo !== (session.runtime === 'demo') || !Number.isSafeInteger(value.revision) || value.revision < 1 || !Number.isSafeInteger(value.generation) || value.generation < 1 || !states.includes(value.state) || !['human', 'background'].includes(value.supervision) || typeof value.stopConfirmed !== 'boolean' || !Number.isFinite(Date.parse(value.expiresAt))) throw unavailable();
+    if (!value || !/^[a-f0-9]{32}$/.test(value.id) || !/^[1-9][0-9]{0,19}$/.test(value.workItemId) || value.sessionId !== session.id || value.actor !== session.ownerId || value.team !== (prior?.team ?? this.config.execution!.team) || value.demo !== (session.runtime === 'demo') || !Number.isSafeInteger(value.revision) || value.revision < 1 || !Number.isSafeInteger(value.generation) || value.generation < 1 || !executionStates.includes(value.state) || !['human', 'background'].includes(value.supervision) || typeof value.stopConfirmed !== 'boolean' || !Number.isFinite(Date.parse(value.expiresAt))) throw unavailable();
     const binding: ExecutionBinding = { id: value.id, workItemId: value.workItemId, team: value.team, state: value.state, revision: value.revision, generation: value.generation, supervision: value.supervision, expiresAt: value.expiresAt, stopConfirmed: value.stopConfirmed };
     if (prior && prior.id !== binding.id || session.sourceTask?.ploeg && session.sourceTask.ploeg.workItemId !== binding.workItemId) throw unavailable();
     if (prior && prior.revision > binding.revision) return prior;

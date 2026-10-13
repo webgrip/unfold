@@ -158,6 +158,10 @@ export type PloegAskSpend = { state: 'open' | 'finished' | 'expired'; costStatus
 
 const askRole = 'ask';
 const states: PloegState[] = ['ingested', 'queued', 'leased', 'done', 'needs_human', 'awaiting_review', 'stale', 'withdrawn', 'proposed'];
+const runStates: PloegRun['state'][] = ['pending', 'running', 'finished'];
+const runCostStatuses: PloegRun['costStatus'][] = ['observed', 'unknown'];
+const askStates: PloegAskSpend['state'][] = ['open', 'finished', 'expired'];
+const askCostStatuses: PloegAskSpend['costStatus'][] = ['provisional', 'settled', 'unknown'];
 const invalid = () => new PloegError(502, 'ploeg_response', 'Ploeg returned an unsupported operator response.');
 const forgeLogin = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 const identifier = (value: unknown): string => { if (typeof value !== 'string' || !/^[1-9][0-9]{0,19}$/.test(value)) throw invalid(); return value; };
@@ -201,6 +205,8 @@ function item(value: unknown): PloegItem {
   return { ...result, ...provenance(data) };
 }
 const mergeStates: PloegMergeState[] = ['clean', 'conflicted', 'unknown'];
+/** The values of each enum in Ploeg's operator contract that this client accepts; `test/ploeg-contract.test.ts` checks them against Ploeg's published schema. */
+export const ploegAccepted = Object.freeze({ workItemStates: states, runStates, runCostStatuses, askStates, askCostStatuses, mergeStates, refusalCodes });
 function pullRequest(value: unknown): PloegPullRequest {
   const data = record(value);
   const number = data.number === undefined || data.number === null ? null : numeric(data.number, true);
@@ -216,7 +222,7 @@ function provenance(data: Record<string, unknown>): Pick<PloegItem, 'sourceWorkI
 }
 function run(value: unknown): PloegRun {
   const data = record(value);
-  if (!['pending', 'running', 'finished'].includes(data.state as string) || !['observed', 'unknown'].includes(data.costStatus as string)) throw invalid();
+  if (!(runStates as string[]).includes(data.state as string) || !(runCostStatuses as string[]).includes(data.costStatus as string)) throw invalid();
   const usage = nullable(data.usage, value => { const usage = record(value); return Object.fromEntries(['inputTokens', 'outputTokens', 'costUsd'].filter(key => usage[key] !== undefined).map(key => [key, numeric(usage[key], key !== 'costUsd')])); });
   if (data.costStatus === 'observed' && usage?.costUsd === undefined) throw invalid();
   return { id: identifier(data.id), workItemId: identifier(data.workItemId), shiftId: nullable(data.shiftId, identifier), team: field(data.team, 100), role: field(data.role, 100), round: numeric(data.round, true), writes: boolean(data.writes), state: data.state as PloegRun['state'], startedAt: nullable(data.startedAt, timestamp), finishedAt: nullable(data.finishedAt, timestamp), expiresAt: nullable(data.expiresAt, timestamp), outcome: nullable(data.outcome, value => field(value, 100)), summary: field(data.summary, 64000), stuckReason: field(data.stuckReason, 16000), links: array(data.links, link, 100).filter(Boolean), findings: field(data.findings, 64000), verdict: field(data.verdict, 100), problem: optionalText(data.problem, 16000), solution: optionalText(data.solution, 16000), failureReason: nullable(data.failureReason, value => field(value, 16000)), authorizedUsd: numeric(data.authorizedUsd), usage, costStatus: data.costStatus as PloegRun['costStatus'], keyAlias: nullable(data.keyAlias, value => field(value, 512)) };
@@ -358,8 +364,8 @@ function askAllowance(value: unknown): PloegAskAllowance {
 function askSpend(value: unknown): PloegAskSpend {
   const ask = record(value);
   const spend = record(ask.spend);
-  const state = ['open', 'finished', 'expired'].includes(String(ask.state)) ? ask.state as PloegAskSpend['state'] : 'finished';
-  const costStatus = ['provisional', 'settled', 'unknown'].includes(String(spend.costStatus)) ? spend.costStatus as PloegAskSpend['costStatus'] : 'unknown';
+  const state = (askStates as string[]).includes(String(ask.state)) ? ask.state as PloegAskSpend['state'] : 'finished';
+  const costStatus = (askCostStatuses as string[]).includes(String(spend.costStatus)) ? spend.costStatus as PloegAskSpend['costStatus'] : 'unknown';
   return { state, costStatus, usd: spend.usd === null || spend.usd === undefined ? null : numeric(spend.usd) };
 }
 
