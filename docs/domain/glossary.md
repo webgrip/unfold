@@ -484,11 +484,6 @@ A second name for the unit of work made every rule ambiguous about which record 
 
 A repair is work created by work; Ploeg's Follow-Up already names it.
 
-### Execution
-*Use instead: [Shift](../reference/glossary.md#shift), [Run](../reference/glossary.md#run)*
-
-The attempt it named is a Shift, and one Role's part of it is a Run. A second name for a Shift would make every execution statement ambiguous. The word remains a bounded-context name and part of Ploeg's Operator Execution record.
-
 ### Crew
 *Use instead: [Team](../reference/glossary.md#team)*
 
