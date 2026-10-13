@@ -25,7 +25,8 @@ import cardIdentity from './card-identity.js';
 import designer from './designer.js';
 import editorSignIn from './editor-sign-in.js';
 import editors from './editors.js';
+import labs from './labs.js';
 import { chrome } from '../shell.js';
 
 /** Every view descriptor. The order is the dispatch order for key bindings and page loaders. */
-export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, insights, ploegFeeds, account, system, status, preferences, cardIdentity, editors, editorSignIn, binder, card, packs, season, palette, chrome, dialogs, report, design, designer];
+export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, insights, ploegFeeds, account, system, status, preferences, cardIdentity, editors, labs, editorSignIn, binder, card, packs, season, palette, chrome, dialogs, report, design, designer];

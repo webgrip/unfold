@@ -11,7 +11,8 @@ import { traceMarkup } from './core/attribution.js';
 import { workStages } from './core/stages.js';
 import { cardView } from './cards/card-model.js';
 import { deliveryStages, stageTime } from './core/delivery-track.js';
-import { streamChart, streamLanes } from './core/value-stream.js';
+import { streamChart, streamLanes, streamStats } from './core/value-stream.js';
+import { flightMarkup, flightPlan } from './core/flight-profile.js';
 import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
 import { runTranscriptMarkup } from './run-transcript.js';
@@ -1427,6 +1428,18 @@ export function statusMarkup(detail, model, { reason = null, plan = null } = {})
   return `<section class="work-status" id="work-status" aria-labelledby="work-status-headline"><div class="work-status-head"><h3 class="work-status-headline" id="work-status-headline">${escape(statusHeadline(detail, reason, plan))}</h3>${primary ? `<div class="work-status-actions">${primary}</div>` : ''}</div>${groups}</section>`;
 }
 
+/**
+ * The head of a Work Item page while the `work.flight-profile` flag is on: the Work Item as a flight, from its
+ * Shifts, Runs, Run card and session, with the value stream's waits and work to scale below it.
+ */
+export function flightProfileMarkup(detail, model) {
+  const card = model.card && String(model.card.workItemId) === detail.item.id ? model.card : null;
+  const plan = flightPlan({ detail, card, sessions: model.sessions, now: model.now, publisher: Boolean(model.publisher) });
+  const stream = model.stream && String(model.stream.workItemId ?? detail.item.id) === detail.item.id ? model.stream : null;
+  const lanes = stream ? streamLanes({ stream, shifts: detail.shifts || [], runs: detail.runs || [], runTone: runResult }) : [];
+  return flightMarkup(plan, { stats: lanes.length ? streamStats(lanes, { stream, now: model.now }) : null });
+}
+
 /** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
 export function detailMarkup(recordedDetail, model) {
   const detail = reconcileDetail(recordedDetail, model.sessions);
@@ -1448,7 +1461,7 @@ export function detailMarkup(recordedDetail, model) {
   else decision = statusBox(detail, model);
   const parts = [
     headerMarkup(detail, model, reason),
-    stagesMarkup(detail, model),
+    model.flags?.['work.flight-profile'] === true ? flightProfileMarkup(detail, model) : stagesMarkup(detail, model),
     model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : '',
     cancelResultMarkup(model),
     status,

@@ -12,7 +12,7 @@ Operators can read and change sessions they own. Administrators can access all s
 | --- | --- |
 | `POST /api/login` | `{name,password}` → `{user}` and login cookie |
 | `POST /api/logout` | `{}` → `{ok:true}` and expired cookie |
-| `GET /api/bootstrap` | Current user, mode, registered repositories/crews/models/runtimes, enabled workspace `placements` and limits, and `insight.events`, which tells the browser whether to post product events |
+| `GET /api/bootstrap` | Current user, mode, registered repositories/crews/models/runtimes, enabled workspace `placements` and limits, `insight.events`, which tells the browser whether to post product events, `flags`, the evaluated values of the feature flags the browser may see (see [Feature flags](#feature-flags)), and `deliveryPublisher`, whether Accept can open a pull request |
 | `GET /api/reports` | The signed-in person's own five latest reports, newest first, after reading the tracker again for those last read over two minutes ago (waiting at most 2.5 s) → `200 {reports:[{id,title,status,url?,createdAt,stage,words,unread,others,joined,fix?,release?,comments}],updates}`. `stage` and `words` say where it stands (`got-it`, `looking`, `replied`, `needs-info`, `fix-coming`, `fix-merged`, `fixed`, `shipped`, `closed`, `duplicate`, `not-planned`, or the filing status); `fix` is the pull request naming the issue, `release` the first release of the running line after its merge with `live`; `comments` are the latest three as plain text with `mine` for those the workbench's account wrote; `unread` marks team activity since the person last looked and `updates` counts them. Never another person's report, and never the body, context or tracker error |
 | `POST /api/reports/seen` | Marks the person's filed reports as seen → `200 {updates:0}` |
 | `GET /api/reports/similar?q=&route=` | Up to three open filed reports from the last 180 days whose title and text share words with `q`, preferring `route` → `200 {reports:[{id,title,words,people,mine}]}`. Only titles travel |
@@ -477,6 +477,17 @@ Proposed ([ADR 0031](../adrs/0031-card-themes-a-card-designer-and-generated-art.
 | `POST /api/card-art/generate` | `{prompt, attempt?, compilerLog?}` → `{code, problems, attempt, model}`; live mode with `cardThemes.ai` only |
 
 [Card themes](card-themes.md) holds the format, the validation rules, the asset limits, resolution and generated art.
+
+## Feature flags
+
+Flags are flagd rules evaluated in Unfold for the signed-in person ([ADR 0043](../adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md)). The browser only ever receives values. Targeting rules stay on the server. Each evaluation's context is `{targetingKey, userId, role, teams, tenantId, mode, labs, labsOff}`, where `labs` and `labsOff` are the flags the person opted in to and out of.
+
+| Method and path | Response |
+| --- | --- |
+| `GET /api/flags` | `{values, labs}`: `values` maps each browser-visible flag to its value for the caller; `labs` lists the flags the caller may opt in or out of, each `{key, title, description, kind, expires, value, variant, reason, choice}`, with `choice` `on`, `off` or `default` and `reason` an OpenFeature resolution reason. Every role may read it |
+| `PUT /api/flags/:key/choice` | `{choice: "on" \| "off" \| "default"}` → the same shape as `GET /api/flags`. Stores or clears the caller's choice; 404 `flag_not_found` for a flag not offered in Labs, 400 `flag_choice` otherwise. Every role may choose |
+| `GET /api/admin/flags` | Administrators only (403 otherwise): `{flags, audit, file}`. Each flag is `{key, metadata, rule, source, override, expired, evaluation, evaluations}`: its registry metadata, its effective flagd rule, the layer that last changed it (`code`, `config`, `file` or `override`), the override `{variant, reason, by, at}` or null, whether its removal date passed, its evaluation for the caller, and its evaluation counts per variant since the process started. `audit` is the newest 50 override changes `{flagKey, action, variant, reason, actor, at}`, `file` is `{file, error}`: the watched flag file and why its last change was rejected |
+| `PUT /api/admin/flags/:key/override` | Administrators only: `{variant, reason}` forces `variant` for everyone and needs a reason of at most 300 characters; `{variant: null}` clears the override. Answers like `GET /api/admin/flags`. 404 `flag_not_found`, 400 `flag_variant` for a variant the flag lacks. Each change is appended to the audit trail |
 
 ## Static files
 

@@ -5,8 +5,11 @@ import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import type { Session, Event, PermissionRequest, User } from './types.ts';
 import type { Ask } from './ask/types.ts';
 import type { IssueState } from './tasks.ts';
+import type { FlagOverride } from './flags.ts';
 
 export type StoredUser = User & { passwordHash: string };
+/** One change to an administrator flag override. */
+export type FlagAuditEntry = { flagKey: string; action: 'override_set' | 'override_cleared'; variant: string | null; reason: string; actor: string; at: string };
 export type Login = { tokenHash: string; userId: string; expiresAt: string };
 /** A credential issued to one editor after its person approved the sign-in in a browser. The token itself is never stored. */
 export type EditorCredential = { id: string; tokenHash: string; userId: string; label: string; scope: 'editor'; createdAt: string; expiresAt: string; lastUsedAt?: string };
@@ -67,6 +70,9 @@ export class Store {
       CREATE TABLE IF NOT EXISTS report_files (report_id TEXT NOT NULL REFERENCES reports(id), name TEXT NOT NULL, type TEXT NOT NULL, content BLOB NOT NULL, PRIMARY KEY (report_id, name));
       CREATE TABLE IF NOT EXISTS report_follow (report_id TEXT PRIMARY KEY REFERENCES reports(id), state TEXT, checked_at TEXT NOT NULL, seen_at TEXT);
       CREATE TABLE IF NOT EXISTS agent_host_views (user_id TEXT NOT NULL, session_id TEXT NOT NULL, session_flags INTEGER NOT NULL, chat_flags INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, session_id));
+      CREATE TABLE IF NOT EXISTS flag_choices (user_id TEXT NOT NULL, flag_key TEXT NOT NULL, enabled INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, flag_key));
+      CREATE TABLE IF NOT EXISTS flag_overrides (flag_key TEXT PRIMARY KEY, variant TEXT NOT NULL, reason TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS flag_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, flag_key TEXT NOT NULL, action TEXT NOT NULL, variant TEXT, reason TEXT NOT NULL, actor TEXT NOT NULL, at TEXT NOT NULL);
     `);
   }
 
@@ -308,6 +314,40 @@ export class Store {
   }
 
   deleteSecret(id: string): void { this.db.prepare('DELETE FROM internal_state WHERE id=?').run(id); }
+
+  /** A person's Labs choices: flag key to true (opted in) or false (opted out). A flag without a choice is absent. */
+  flagChoices(userId: string): Record<string, boolean> {
+    const rows = this.db.prepare('SELECT flag_key, enabled FROM flag_choices WHERE user_id=?').all(userId) as { flag_key: string; enabled: number }[];
+    return Object.fromEntries(rows.map(row => [row.flag_key, row.enabled === 1]));
+  }
+
+  /** Records or clears (`null`) a person's Labs choice for one flag. */
+  setFlagChoice(userId: string, flagKey: string, enabled: boolean | null, at: string): void {
+    if (enabled === null) this.db.prepare('DELETE FROM flag_choices WHERE user_id=? AND flag_key=?').run(userId, flagKey);
+    else this.db.prepare('INSERT INTO flag_choices(user_id,flag_key,enabled,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id,flag_key) DO UPDATE SET enabled=excluded.enabled, updated_at=excluded.updated_at').run(userId, flagKey, enabled ? 1 : 0, at);
+  }
+
+  /** Every administrator flag override, by flag key. */
+  flagOverrides(): Record<string, FlagOverride> {
+    const rows = this.db.prepare('SELECT flag_key, variant, reason, set_by, set_at FROM flag_overrides').all() as { flag_key: string; variant: string; reason: string; set_by: string; set_at: string }[];
+    return Object.fromEntries(rows.map(row => [row.flag_key, { variant: row.variant, reason: row.reason, by: row.set_by, at: row.set_at }]));
+  }
+
+  /** Sets or clears (`null`) an administrator override and appends the change to the flag audit trail, in one transaction. */
+  setFlagOverride(flagKey: string, override: FlagOverride | null, actor: string): void {
+    this.transaction(() => {
+      const at = override?.at ?? new Date().toISOString();
+      if (override) this.db.prepare('INSERT INTO flag_overrides(flag_key,variant,reason,set_by,set_at) VALUES(?,?,?,?,?) ON CONFLICT(flag_key) DO UPDATE SET variant=excluded.variant, reason=excluded.reason, set_by=excluded.set_by, set_at=excluded.set_at').run(flagKey, override.variant, override.reason, override.by, override.at);
+      else this.db.prepare('DELETE FROM flag_overrides WHERE flag_key=?').run(flagKey);
+      this.db.prepare('INSERT INTO flag_audit(flag_key,action,variant,reason,actor,at) VALUES(?,?,?,?,?,?)').run(flagKey, override ? 'override_set' : 'override_cleared', override?.variant ?? null, override?.reason ?? '', actor, at);
+    });
+  }
+
+  /** The newest flag audit entries, newest first. */
+  flagAudit(limit = 50): FlagAuditEntry[] {
+    const rows = this.db.prepare('SELECT flag_key, action, variant, reason, actor, at FROM flag_audit ORDER BY id DESC LIMIT ?').all(limit) as { flag_key: string; action: string; variant: string | null; reason: string; actor: string; at: string }[];
+    return rows.map(row => ({ flagKey: row.flag_key, action: row.action as FlagAuditEntry['action'], variant: row.variant, reason: row.reason, actor: row.actor, at: row.at }));
+  }
 
   /** The forge and tracker logins a person listed as theirs, used to find their card copies. */
   cardIdentity(userId: string): { logins: string[]; updatedAt: string } | undefined {

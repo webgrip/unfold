@@ -45,6 +45,17 @@ Unfold records product events from the browser in its own database ([RFC-0001](.
 
 The server sends the export, never the browser, so the workbench pod needs egress to the collector. [Running Unfold live](../../../docs/operations/live.md) describes what each level sends, and [the dashboard](../../grafana/README.md) reads it back in Grafana.
 
+## Feature flags
+
+`featureFlags` is a flagd document of rule changes for the flags this version of Unfold knows. The chart renders it as the ConfigMap `<name>-flags`, mounts it at `/etc/unfold-flags/flags.json` and sets `UNFOLD_FLAGS_FILE`. The ConfigMap is left out of the pod's checksum, so a change applies within about a minute, without a restart: Unfold polls the file every 5 seconds and keeps the last good rules if a change is invalid. Set flags here, not under `config.flags`; the chart refuses both. Examples and the list of flags: [Feature flags](../../../docs/operations/feature-flags.md).
+
+```yaml
+featureFlags:
+  flags:
+    work.flight-profile:
+      defaultVariant: "on"
+```
+
 ## Live mode
 
 Live mode reaches services the chart cannot guess, and none of them has a default. The chart does not check them; Unfold does at startup. With `config.execution` set, it refuses to start without a Ploeg connection and a gateway URL. Set them in values or in the `credentialsSecret` environment:

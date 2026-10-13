@@ -8,6 +8,7 @@ import { sentryTarget } from './error-reports.ts';
 import { validatePloeg } from './ploeg.ts';
 import { validateCardRules } from './cards/settings.ts';
 import { validateDeliveryConfig } from './delivery-config.ts';
+import { flagSettings, loadRegistry } from './flags.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultCrews: Crew[] = [
@@ -331,6 +332,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     productEvents: productEventsSetting(),
     cards,
     cardThemes: cardThemeSettings(raw.cardThemes, mode),
+    flags: flagSettings(raw.flags, loadRegistry()),
     litellm: litellmBase && (adminKey || raw.execution) ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
   };
   if (config.execution !== undefined) {

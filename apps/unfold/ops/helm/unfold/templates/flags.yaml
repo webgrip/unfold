@@ -1,0 +1,10 @@
+{{- if .Values.featureFlags }}
+{{- if hasKey .Values.config "flags" -}}{{- fail "Set feature flags through featureFlags, not config.flags" -}}{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "unfold.name" . }}-flags
+  labels: {{- include "unfold.labels" . | nindent 4 }}
+data:
+  flags.json: {{ toJson .Values.featureFlags | quote }}
+{{- end }}
