@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { AppConfig, Repository, Crew, Placement, WorkspaceBackend } from './types.ts';
 import { validateTaskSources } from './tasks.ts';
 import { reportSettings } from './reports.ts';
+import { sentryTarget } from './error-reports.ts';
 import { validatePloeg } from './ploeg.ts';
 import { validateCardRules } from './cards/settings.ts';
 import { validateDeliveryConfig } from './delivery-config.ts';
@@ -171,6 +172,19 @@ function insightLevel(value: string | undefined): 'aggregate' | 'events' {
   return value as 'aggregate' | 'events';
 }
 
+/**
+ * Reads the optional error tracker. `UNFOLD_SENTRY_DSN` is a Sentry DSN (Sentry, GlitchTip and Bugsink accept the same
+ * envelopes); `UNFOLD_SENTRY_ENVIRONMENT` names the environment events carry and defaults to the mode.
+ */
+export function errorReportSettings(mode: string): AppConfig['errorReports'] {
+  const dsn = process.env.UNFOLD_SENTRY_DSN;
+  if (!dsn) return undefined;
+  sentryTarget(dsn);
+  const environment = process.env.UNFOLD_SENTRY_ENVIRONMENT || mode;
+  if (!/^[A-Za-z0-9_.-]{1,64}$/.test(environment)) throw new Error('UNFOLD_SENTRY_ENVIRONMENT must be a short name such as production or staging');
+  return { dsn, environment };
+}
+
 /** Reads `UNFOLD_INSIGHT_EVENTS`: product events are recorded unless it is `off`, as ADR-0023's tenant default says. */
 export function productEventsSetting(): boolean {
   const value = process.env.UNFOLD_INSIGHT_EVENTS || 'on';
@@ -310,6 +324,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     gatewayPolicy,
     observability,
     insight: insightSettings(),
+    errorReports: errorReportSettings(mode),
     productEvents: productEventsSetting(),
     cards,
     cardThemes: cardThemeSettings(raw.cardThemes, mode),

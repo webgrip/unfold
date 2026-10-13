@@ -61,6 +61,8 @@ Supply credentials through the deployment's secret mechanism or a short-lived sh
 | `UNFOLD_INSIGHT_EXPORT` | Product-event sink: `off` (default), `faro` or `otlp` |
 | `UNFOLD_INSIGHT_EXPORT_URL` | Full collector URL the server posts to; required for `faro` and `otlp`. For Faro it ends in `/collect`, for OTLP/HTTP in `/v1/logs` |
 | `UNFOLD_INSIGHT_EXPORT_LEVEL` | `aggregate` (default, each finished day's rollup) or `events` (each event with its pseudonymous actor hash) |
+| `UNFOLD_SENTRY_DSN` | Optional Sentry DSN (`https://<key>@<host>/<project>`). Server errors (HTTP 5xx), unhandled rejections, crashes and failed Asks are sent there as Sentry envelopes; GlitchTip and Bugsink accept them too. Without it they are only logged. See [Error reports](#error-reports) |
+| `UNFOLD_SENTRY_ENVIRONMENT` | Environment name on each event, such as `staging`; defaults to the mode |
 
 The insight export forwards product events the browser and VS Code extension post to `POST /api/insight/events` ([RFC-0001](../../../../docs/design/rfc-0001-product-events-and-confusion-signals.md)). The call is server to server, so the browser never contacts the collector and the CSP stays `'self'`.
 
@@ -116,6 +118,44 @@ Set `observability.logsUrl` to the VictoriaLogs base URL, for example `http://vl
 The page reads each line the way Grafana's log panel does, in the browser over the lines it holds. Go `slog` text (logfmt) and JSON lines give a level, a message and their other fields; any other line is its own message, with a level only when a level word such as `WARN` leads it. Above the lines a volume chart counts lines per level over the Run's time, and choosing a bar shows only that slice. Level filters with counts, a search that marks its matches, Wrap and Times switches and a Download of the shown lines sit between the chart and the lines. Fields every line carries, such as `trace` and `role`, show once above the lines instead of on each one. A line opens to its store time, level, pod and fields and its raw text. The search and filters stay on the page and never reach the log store; for anything older than the newest 500 lines, use **Open in Grafana**.
 
 Without `logsUrl` the disclosure says the logs are not connected and, when `grafanaUrl` and `logsDatasource` are set, links Grafana Explore to the same search. The demo has no agent pods and says so. In Kubernetes the Unfold pod needs NetworkPolicy egress to the VictoriaLogs pod on TCP 9428 (on the owner's homelab, pods labelled `app.kubernetes.io/name: vlsingle` and `app.kubernetes.io/instance: victorialogs` in the `observability` namespace); without it every read fails with "The log store could not be reached".
+
+## Error reports
+
+Set `UNFOLD_SENTRY_DSN` (in Helm, `errorReports.existingSecret`) and Unfold sends what needs someone's attention to that error tracker, without an SDK: one envelope per event to `/api/<project>/envelope/`, at most 30 a minute, each waiting at most three seconds and never delaying the request that caused it. Every report is also written to the log as an `error.reported` line, with or without a DSN.
+
+| Source | Level | Grouped by |
+| --- | --- | --- |
+| A request that fails with 5xx | error | method and route, with ids replaced by `:id` |
+| An unhandled promise rejection | error | the error |
+| An uncaught exception, which still stops the process | fatal | the error |
+| A failed Ask (see below) | error or warning | `ask`, the failure code and the model |
+| A key Ploeg could not block after an Ask | error | `ask`, `finish` and the model |
+
+Before an event leaves, configured secrets, the DSN itself, URL credentials, `sk-` keys and bearer, basic and token values are replaced by `[redacted]`, and the user id is replaced by the first 16 hex digits of its SHA-256. Events carry the release `unfold@<version>`, the host name and the environment. A tracker that is down or refuses an event costs one `error.report_failed` log line.
+
+### Why an Ask has no answer
+
+Each failed or refused Ask stores a `failureCode`, says why in plain words on the Work Item page, in the VS Code chat and through `unfold_ask`, and offers **Ask again** when another try may help. Every failure is logged as `ask.failed` or `ask.refused`.
+
+| Code | What the person reads | Ask again | Reported |
+| --- | --- | --- | --- |
+| `allowance_used_up` | The Team's Ask Allowance is used up, and when it resets | no | no |
+| `not_admitted` | Ploeg's own reason, such as a Team with no Ask policy | no | warning |
+| `ploeg_unavailable` | Ploeg could not be reached or failed | yes | error |
+| `no_model` | The Team has no model for Asks | no | error |
+| `gateway_unreachable` | The model gateway could not be reached | yes | error |
+| `key_rejected` | The gateway refused the Ask's key (HTTP 401 or 403) | no | error |
+| `budget_exceeded` | Answering needed more than the per-Ask Budget | yes | warning |
+| `rate_limited` | The provider is busy (HTTP 429) | yes | warning |
+| `provider_error` | The provider failed (any other HTTP error) | yes | error |
+| `bad_response` | The gateway's reply could not be read | yes | error |
+| `timeout` | No answer within 60 seconds | yes | warning |
+| `cut_off` | The model spent all 1,500 output tokens reasoning and wrote nothing | yes | warning |
+| `filtered` | The provider withheld the answer under its content rules | no | warning |
+| `empty` | The model returned an empty answer | yes | warning |
+| `interrupted` | Unfold restarted while answering; set the next time the Asks are listed, two minutes after the question | yes | warning |
+
+The call asks for `reasoning_effort: low`, since an answer is at most 120 words; a gateway that refuses that parameter is asked once more without it. An answer the model stopped at its length limit is kept and marked `cutOff`. Costs show as Ploeg reports them: an amount with "not final yet" while Ploeg can still correct it (a day after the Ask), "Cost not known yet" before the gateway has recorded anything, and "Nothing charged" for an Ask refused before any model call.
 
 ## Card themes and generated art
 

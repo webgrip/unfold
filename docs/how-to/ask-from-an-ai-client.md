@@ -43,7 +43,7 @@ Start with `unfold`. Add `ploeg` when you want spend and Run history across Team
 | `unfold_get_work` | Why one Work Item waits, Ploeg's own words, the Run that explains it, budget and spend per Shift, its Runs |
 | `unfold_sessions` | Your workbench sessions |
 | `unfold_spend` | Spend settled and held per Team for 24h, 7d or 30d, and the finished Runs whose budget hold Ploeg has not released, each with its Work Item |
-| `unfold_ask` | One question about a Work Item. A standing question ("why did it stop?", "what did it cost so far?") is answered from the record, free. Any other question needs `use_model: true`; your client then asks you to confirm, and one model call spends up to the per-Ask Budget from the Team's Ask Allowance. A client that cannot ask you is refused and gets a link to the Work Item instead |
+| `unfold_ask` | One question about a Work Item. A standing question ("why did it stop?", "what did it cost so far?") is answered from the record, free. Any other question needs `use_model: true`; your client then asks you to confirm, and one model call spends up to the per-Ask Budget from the Team's Ask Allowance. A client that cannot ask you is refused and gets a link to the Work Item instead. An Ask without an answer returns `failureCode` (such as `allowance_used_up`, `timeout` or `cut_off`) and `retryable`, which says whether asking again may help |
 
 ## Ploeg
 

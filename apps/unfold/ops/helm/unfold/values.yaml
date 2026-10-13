@@ -28,6 +28,10 @@ insight:
   export: "off"
   url: ""
   level: aggregate
+errorReports:
+  existingSecret: ""
+  secretKey: sentry-dsn
+  environment: ""
 mode: demo
 baseUrl: ""
 credentialsSecret: unfold-credentials

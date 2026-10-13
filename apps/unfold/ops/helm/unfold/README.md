@@ -38,6 +38,9 @@ Unfold records product events from the browser in its own database ([RFC-0001](.
 | `insight.export` | `"off"` | `UNFOLD_INSIGHT_EXPORT`: `faro` or `otlp` forwards events to a collector. Quote `"off"`: unquoted, YAML reads it as `false` and the schema refuses it. |
 | `insight.url` | `""` | `UNFOLD_INSIGHT_EXPORT_URL`, required unless the export is off. A Faro URL ends in `/collect`, an OTLP/HTTP one in `/v1/logs`. |
 | `insight.level` | `aggregate` | `UNFOLD_INSIGHT_EXPORT_LEVEL`: `aggregate` sends each finished day's totals with no actor; `events` sends each event with its pseudonymous actor. |
+| `errorReports.existingSecret` | `""` | Secret holding a Sentry DSN; sets `UNFOLD_SENTRY_DSN`, so server errors and failed Asks reach a Sentry, GlitchTip or Bugsink project. Empty sends nothing; failures are still logged. |
+| `errorReports.secretKey` | `sentry-dsn` | Key in that Secret. |
+| `errorReports.environment` | `""` | `UNFOLD_SENTRY_ENVIRONMENT`, the environment events carry, such as `staging`; empty uses the mode. |
 
 The server sends the export, never the browser, so the workbench pod needs egress to the collector. [Running Unfold live](../../../docs/operations/live.md) describes what each level sends, and [the dashboard](../../grafana/README.md) reads it back in Grafana.
 

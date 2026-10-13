@@ -68,9 +68,10 @@ function spendLine(ask: Ask, entry: ChatAskEntry): string {
   const source = ask.source ?? (ask.demo ? 'record' : 'model');
   if (ask.status === 'answered' && source === 'record') return ask.demo ? 'Demo · answered from the record · no model call, nothing spent' : 'Answered from the record · no model call';
   if (ask.demo) return 'Demo · no model call, nothing spent';
-  if (ask.status === 'refused') return 'Nothing was charged. An administrator can raise the allowance.';
+  if (ask.status === 'refused') return !ask.failureCode || ask.failureCode === 'allowance_used_up' ? 'Nothing was charged. An administrator can raise the allowance.' : 'Nothing was charged.';
+  if (ask.status !== 'answered' && ask.costStatus === 'settled' && ask.costUsd === 0) return 'Nothing was charged.';
   if (!ask.ploegAskId) return '';
-  const cost = ask.costUsd === null ? 'cost pending in Ploeg' : `${money(ask.costUsd)}${ask.costStatus === 'settled' ? '' : ' (not settled yet)'}`;
+  const cost = ask.costUsd === null ? 'cost not known yet' : `${money(ask.costUsd)}${ask.costStatus === 'settled' ? '' : ' (not final yet)'}`;
   const left = entry.allowance ? ` · ${money(entry.allowance.remainingUsd)} of ${money(entry.allowance.limitUsd)} left this month, until ${resetDay(entry.allowance.resetAt)}` : '';
   return `${cost}${left}`;
 }
@@ -82,9 +83,10 @@ export function askMarkdown(ask: Ask | undefined, entry: ChatAskEntry): string {
   const body = ask.status === 'answered' ? ask.answer
     : ask.status === 'answering' ? 'No answer arrived: the workbench stopped while it was asking. Ask again.'
     : ask.status === 'refused' ? `Not answered. ${ask.failure ?? 'Ploeg refused the question.'}`
-    : `Not answered. ${ask.failure ?? 'The question could not be answered.'}`;
+    : `Not answered. ${ask.failure ?? 'The question could not be answered.'}${ask.retryable ? ' Send `/ask` again to retry.' : ''}`;
+  const cut = ask.status === 'answered' && ask.cutOff ? '\n\n*The model stopped at its length limit, so this answer may be cut off.*' : '';
   const spend = spendLine(ask, entry);
-  return [`**Ask** · not sent to the crew`, `${quoted}${body}`, spend ? `*${spend}*` : ''].filter(Boolean).join('\n\n');
+  return [`**Ask** · not sent to the crew`, `${quoted}${body}${cut}`, spend ? `*${spend}*` : ''].filter(Boolean).join('\n\n');
 }
 
 /** Why a session's chat cannot ask, or undefined when it can: Asks are about a Work Item, so a session needs one in Ploeg. */

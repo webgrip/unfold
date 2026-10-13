@@ -1220,7 +1220,11 @@ export function contextMarkup(detail, model) {
 function askCost(ask) {
   if (ask.source === 'record' && ask.status === 'answered') return `<span class="work-ask-cost">${ui.badge({ label: 'Answered from the record · no model call', tone: 'neutral', size: 'sm' })}</span>`;
   if (ask.costStatus === 'demo') return `<span class="work-ask-cost">${ui.badge({ label: 'Demo answer · no model call', tone: 'neutral', size: 'sm' })}</span>`;
-  if (ask.costStatus === 'pending') return `<span class="work-ask-cost">${escape('Cost pending')}</span>`;
+  const nothing = ask.costStatus === 'settled' && ask.costUsd === 0 && ask.status !== 'answered';
+  if (nothing) return `<span class="work-ask-cost">${escape('Nothing charged')}</span>`;
+  if (ask.costStatus === 'pending') return typeof ask.costUsd === 'number'
+    ? `<span class="work-ask-cost" title="${escape('Ploeg can still correct this amount for a day after the Ask.')}">${escape('Cost ')}${moneyHtml(ask.costUsd)}${escape(' · not final yet')}</span>`
+    : `<span class="work-ask-cost" title="${escape('Ploeg reports the cost once the gateway has recorded it, usually within a few minutes.')}">${escape('Cost not known yet')}</span>`;
   if (ask.costStatus === 'unknown' || typeof ask.costUsd !== 'number') return `<span class="work-ask-cost">${escape('Cost not reported')}</span>`;
   return `<span class="work-ask-cost">${escape('Cost ')}${moneyHtml(ask.costUsd)}</span>`;
 }
@@ -1230,10 +1234,12 @@ function askItem(ask, { modelOffered = false } = {}) {
     ? `<p class="work-ask-answer">${escape(ask.answer)}</p>`
     : ask.status === 'answering'
       ? `<p class="work-ask-answer" aria-busy="true">${escape('Answering…')}</p>`
-      : `<p class="work-ask-failure" role="note">${icon(ask.status === 'refused' ? 'info' : 'alert')}<span>${escape(ask.failure || 'No answer.')}</span></p>`;
+      : `<p class="work-ask-failure" role="note" data-status="${escape(ask.status)}"${ask.failureCode ? ` data-code="${escape(ask.failureCode)}"` : ''}>${icon(ask.status === 'refused' ? 'info' : 'alert')}<span>${escape(ask.failure || 'No answer.')}</span></p>`;
+  const cut = ask.status === 'answered' && ask.cutOff ? `<p class="work-ask-note">${icon('info')}<span>${escape('The model stopped at its length limit, so this answer may be cut off.')}</span></p>` : '';
   const when = ask.createdAt ? `<time datetime="${escape(ask.createdAt)}">${escape(dateTime(ask.createdAt))}</time>` : '';
   const anyway = modelOffered && ask.source === 'record' && ask.status === 'answered' ? ui.button({ label: 'Ask the model anyway', icon: 'help-circle', size: 'xs', variant: 'ghost', action: 'work-ask-model', data: { id: ask.id }, title: 'One model call, paid from your Team\'s Ask Allowance' }) : '';
-  return `<li class="work-ask-item"><p class="work-ask-question"><strong>${escape(ask.askerName || 'Someone')}</strong> ${escape('asked')}: ${escape(ask.question)}</p>${reply}<p class="work-ask-meta">${when}${askCost(ask)}${anyway}</p></li>`;
+  const again = modelOffered && ask.status === 'failed' && ask.retryable ? ui.button({ label: 'Ask again', icon: 'refresh', size: 'xs', variant: 'ghost', action: 'work-ask-again', data: { id: ask.id }, title: 'Opens the question so you can send it again' }) : '';
+  return `<li class="work-ask-item"><p class="work-ask-question"><strong>${escape(ask.askerName || 'Someone')}</strong> ${escape('asked')}: ${escape(ask.question)}</p>${reply}${cut}<p class="work-ask-meta">${when}${askCost(ask)}${anyway}${again}</p></li>`;
 }
 
 /**
@@ -1262,10 +1268,10 @@ export function askMarkup(detail, model) {
   return `<section class="card work-ask" id="work-ask" aria-labelledby="work-ask-title"${model.askBusy ? ' aria-busy="true"' : ''}><header class="card-header"><div class="card-heading"><h3 class="card-title" id="work-ask-title">${icon('help-circle')}Ask about this work</h3><p class="card-subtitle">${escape(intro)}</p></div><div class="card-actions">${action}</div></header><div class="card-body work-ask-body">${left}${list}</div></section>`;
 }
 
-/** The Ask a question dialog for `detail`: one question of at most 2000 characters, which never reaches the agents, and outside the demo a choice to ask the model even for a standing question. */
-export function askDialogMarkup(detail) {
+/** The Ask a question dialog for `detail`: one question of at most 2000 characters, which never reaches the agents, and outside the demo a choice to ask the model even for a standing question. `question` fills the field, to ask a failed question again. */
+export function askDialogMarkup(detail, { question = '' } = {}) {
   const demo = Boolean(detail.demo);
-  const field = `<div class="field"><label class="field-label" for="work-ask-question">${escape('Your question')}</label><textarea id="work-ask-question" name="question" rows="3" maxlength="2000" required aria-describedby="work-ask-hint"></textarea><p class="field-hint" id="work-ask-hint">${escape('For example: why did it stop, what changed, what has it cost so far?')}</p><p class="field-error" data-error-for="question" hidden></p></div>`;
+  const field = `<div class="field"><label class="field-label" for="work-ask-question">${escape('Your question')}</label><textarea id="work-ask-question" name="question" rows="3" maxlength="2000" required aria-describedby="work-ask-hint">${escape(question)}</textarea><p class="field-hint" id="work-ask-hint">${escape('For example: why did it stop, what changed, what has it cost so far?')}</p><p class="field-error" data-error-for="question" hidden></p></div>`;
   const note = demo ? 'This is a demo: the answer comes from fixed rules, with no model call and no spend.' : 'The answer comes from what Unfold knows about this Work Item. The agents do not see your question. A standing question, such as where it stands, why it stopped, what it cost or what to do next, is answered from the record for free; any other answer is one model call paid from your Team\'s Ask Allowance.';
   const anyway = demo ? '' : `<div class="session-choice"><input type="checkbox" id="work-ask-model" name="askModel" value="true" aria-describedby="work-ask-model-hint"><div><label class="field-label" for="work-ask-model">${escape('Ask the model even if the record answers it')}</label><p class="field-hint" id="work-ask-model-hint">${escape('One model call, paid from your Team\'s Ask Allowance.')}</p></div></div>`;
   return `<form data-form="work-ask" data-id="${escape(detail.item.id)}" class="work-ask-dialog" novalidate><header class="dialog-header"><h2 id="confirm-title">${escape('Ask about this work')}</h2>${ui.iconButton({ icon: 'x', label: 'Close', action: 'close-dialog' })}</header><div class="dialog-body"><p>${escape(note)}</p>${field}${anyway}</div><footer class="dialog-footer">${ui.button({ label: 'Cancel', action: 'close-dialog' })}${ui.button({ label: 'Ask', variant: 'primary', type: 'submit' })}</footer></form>`;

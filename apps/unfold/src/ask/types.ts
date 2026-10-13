@@ -7,7 +7,16 @@ export type AskStatus = 'answering' | 'answered' | 'failed' | 'refused';
 /** Where an answer came from: the record, with no model call and no spend, or one metered model call admitted by Ploeg. */
 export type AskSource = 'record' | 'model';
 
-/** A question about one Work Item and its answer, as Unfold stores it apart from Session events. `costUsd` is null until Ploeg settles the Ask; a demo Ask has no cost. An answer from the record costs nothing and names the standing question it answered in `intent`. */
+/**
+ * Why an Ask has no answer. Refused before any model call: `allowance_used_up`, `not_admitted`. Failed before any model
+ * call, so nothing was spent: `ploeg_unavailable`, `no_model`, `gateway_unreachable`. Failed at the model gateway or
+ * provider: `key_rejected`, `budget_exceeded`, `rate_limited`, `provider_error`, `bad_response`, `timeout`. Failed with
+ * no answer text: `cut_off` (the model spent its output thinking), `filtered`, `empty`. `interrupted`: Unfold stopped
+ * while the Ask was being answered.
+ */
+export type AskFailureCode = 'allowance_used_up' | 'not_admitted' | 'ploeg_unavailable' | 'no_model' | 'gateway_unreachable' | 'key_rejected' | 'budget_exceeded' | 'rate_limited' | 'provider_error' | 'bad_response' | 'timeout' | 'cut_off' | 'filtered' | 'empty' | 'interrupted';
+
+/** A question about one Work Item and its answer, as Unfold stores it apart from Session events. `costUsd` is null until Ploeg reports the Ask's spend; a demo Ask has no cost. A failed or refused Ask says why in `failure`, names the cause in `failureCode` and says in `retryable` whether asking again may help. `cutOff` marks an answer the model stopped writing at its length limit. An answer from the record costs nothing and names the standing question it answered in `intent`. */
 export type Ask = {
   id: string;
   workItemId: string;
@@ -24,6 +33,9 @@ export type Ask = {
   costUsd: number | null;
   costStatus: 'demo' | 'pending' | 'settled' | 'unknown';
   failure: string | null;
+  failureCode?: AskFailureCode | null;
+  retryable?: boolean;
+  cutOff?: boolean;
   source: AskSource;
   intent: string | null;
   createdAt: string;

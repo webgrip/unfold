@@ -377,10 +377,10 @@ async function loadAsks(id) {
   if (visible() && !state.ploegDetailLoading) renderWork();
 }
 
-function openAsk() {
+function openAsk(question = '') {
   const detail = state.ploegDetail;
   if (!detail || detail.item.id !== work.detailId || work.askBusy) return;
-  const dialog = openPloegDialog(askDialogMarkup(detail));
+  const dialog = openPloegDialog(askDialogMarkup(detail, { question }));
   dialog.querySelector('#work-ask-question')?.focus();
   dialog.addEventListener('close', () => { if (!work.askBusy) $('[data-action="work-ask-open"]')?.focus(); }, { once: true });
 }
@@ -402,6 +402,11 @@ async function submitAsk(data, form) {
   if (!id || id !== work.detailId || work.askBusy) return;
   form.closest('dialog')?.close();
   await postAsk(id, question, askModel);
+}
+
+function askAgain(button) {
+  const ask = work.asks?.id === work.detailId ? work.asks.data?.items?.find(entry => entry.id === button.dataset.id) : null;
+  if (ask) openAsk(ask.question);
 }
 
 function askModelAnyway(button) {
@@ -1086,6 +1091,7 @@ export default {
     'work-context-add': () => openContext(),
     'work-ask-open': () => openAsk(),
     'work-ask-model': askModelAnyway,
+    'work-ask-again': askAgain,
     'trace-propose': openPropose,
     'trace-evolved': openEvolved,
     'trace-confirm': openCrackStep('confirm'),

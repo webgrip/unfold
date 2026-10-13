@@ -27,6 +27,7 @@ import { InsightService, maxEventPayloadBytes, parseInsightEvents } from './insi
 import { ReportError, ReportService, parseReport } from './reports.ts';
 import { knownSecrets, withoutKnownSecrets } from './redaction.ts';
 import { AskService, type AskAuthority } from './ask/service.ts';
+import { noErrorReports, type ErrorReports } from './error-reports.ts';
 
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
@@ -34,6 +35,11 @@ const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(
 export const eventReplayBatch = 200;
 const eventReplayBuffered = 262144;
 const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:(?:skins\/[a-z0-9][a-z0-9-]*(?:\/world)?|effects)\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/(?:three|html-to-image)\/[a-z0-9][a-z0-9-]*\.js)$/;
+
+/** A request path with its ids replaced by `:id`, so errors on one route group together. */
+export function routeShape(path: string): string {
+  return path.split('/').map(part => /^[0-9]+$|^[0-9a-f-]{16,}$|^[A-Za-z0-9_-]{20,}$/i.test(part) ? ':id' : part).join('/').slice(0, 200);
+}
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
 
@@ -113,7 +119,7 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
   if (req.headers['sec-fetch-site'] === 'cross-site') fault(403, 'origin', 'Cross-site requests are not allowed.');
 }
 
-export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc) {
+export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports) {
   const auth = new Auth(store, config);
   const ploeg = new PloegClient(config);
   const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
@@ -145,7 +151,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     spend: async (user, id, askId) => { const spend = await ploeg.askSpend(user, id, askId); return { costUsd: spend.usd, costStatus: spend.costStatus === 'provisional' ? 'pending' : spend.costStatus }; },
     allowance: (user, team) => ploeg.askAllowance(user, team),
   } : undefined;
-  const asks = new AskService(store, ploeg, askAuthority, { demo: askDemo, gatewayUrl: config.litellm?.baseUrl, secrets });
+  const asks = new AskService(store, ploeg, askAuthority, { demo: askDemo, gatewayUrl: config.litellm?.baseUrl, secrets, reports: errors });
   agentHost?.useAsks(asks);
   agentHost?.useDelivery(delivery);
   function sanitize<T>(value: T): T {
@@ -658,7 +664,11 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       const status = Number(error.status || error.statusCode) || 500;
       const code = error.code || (status === 500 ? 'internal_error' : 'request_failed');
       const message = status >= 500 && !(error instanceof TaskError) && !(error instanceof PloegError) && !(error instanceof CardArtError) && !(error instanceof AssetError) && !(error instanceof ThemeError) ? 'The operation could not be completed. Check the server log.' : error.message;
-      if (status >= 500) console.error(JSON.stringify({ level: 'error', event: 'http.failed', message: String(error.message).slice(0, 200).replace(/sk-[\w-]+/g, '[redacted]') }));
+      if (status >= 500) {
+        console.error(JSON.stringify({ level: 'error', event: 'http.failed', message: String(error.message).slice(0, 200).replace(/sk-[\w-]+/g, '[redacted]') }));
+        const route = `${req.method || 'GET'} ${routeShape(new URL(req.url || '/', 'http://localhost').pathname)}`;
+        errors.capture(error, { level: 'error', tags: { feature: 'http', route, http_status: status, code }, fingerprint: ['http', route, String(code)] });
+      }
       json(res, status, sanitize({ error: { code, message } }));
     }
   });

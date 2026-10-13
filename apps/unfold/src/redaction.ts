@@ -1,6 +1,6 @@
 import type { AppConfig } from './types.ts';
 
-/** The configured secret values the workbench never serves: card theme, delivery verifier and publisher, gateway, runtime, bootstrap, Ploeg and task source credentials. */
+/** The configured secret values the workbench never serves: card theme, delivery verifier and publisher, gateway, runtime, bootstrap, Ploeg and task source credentials and the error tracker DSN. */
 export function knownSecrets(config: AppConfig): string[] {
   return [
     config.cardThemes?.ai ? process.env[config.cardThemes.ai.keyEnv] : undefined,
@@ -8,7 +8,7 @@ export function knownSecrets(config: AppConfig): string[] {
     config.delivery?.publisher ? process.env[config.delivery.publisher.tokenEnv] : undefined,
     config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword,
     config.ploeg?.tokenEnv ? process.env[config.ploeg.tokenEnv] : undefined,
-    ...(config.taskSources ?? []).map(source => source.token),
+    ...(config.taskSources ?? []).map(source => source.token), config.errorReports?.dsn,
   ].filter((value): value is string => Boolean(value));
 }
 

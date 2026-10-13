@@ -93,7 +93,7 @@ test('live: a used-up allowance refuses the Ask before any model call', async t 
   const asked = await request(api.url, '/api/ploeg/work-items/101/asks', { method: 'POST', cookie, body: { question: 'Is it merged yet?' } });
   assert.equal(asked.status, 201, asked.text);
   assert.equal(asked.body.status, 'refused');
-  assert.equal(asked.body.failure, 'Ask Allowance used up. It resets on 1 November.');
+  assert.equal(asked.body.failure, "Your Team's Ask Allowance is used up, so nothing was asked or charged. It resets on 1 November.");
   assert.equal(prompts.length, 0);
 });
 
