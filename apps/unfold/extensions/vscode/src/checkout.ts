@@ -2,11 +2,11 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as vscode from 'vscode';
 import type { CheckoutTarget, Core } from './core.js';
-import type { PloegCard, PloegDetail } from './ploeg-types.js';
+import type { RunCard, PloegDetail } from './ploeg-types.js';
 import { cloneUrl, expectedRepository, hostAliases, matchingRepositories, parseWorktrees, type GitApi, type GitRepository } from './git-remotes.js';
 
 /** What the Work Item's branch checkout reads from the workbench: its detail and, when Ploeg sent one, its Run card. */
-export type CheckoutSource = { detail: PloegDetail; card?: PloegCard };
+export type CheckoutSource = { detail: PloegDetail; card?: RunCard };
 
 const pullRequestPath = /\/(?:pulls?|merge_requests)\/\d+\/?$/;
 

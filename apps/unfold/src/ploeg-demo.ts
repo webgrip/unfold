@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { addDemoKpis } from './ploeg-demo-kpis.ts';
 import type { DemoKpiSpec } from './ploeg-demo-kpis.ts';
 import { fixedRarityTier, percentileRarityTier, rarityCohortMinimum, rarityFormula, rarityPercentile, rarityQuarter, rarityScore } from './rarity.ts';
-import type { PloegActivityEvent, PloegCard, PloegCardCondition, PloegCardGates, PloegCrack, PloegCrackCandidates, PloegGate, PloegCardDeployment, PloegCardGrade, PloegCardPlay, PloegCardRarityInputs, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRefusal, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
+import type { PloegActivityEvent, RunCard, RunCardCondition, RunCardGates, PloegCrack, PloegCrackCandidates, PloegGate, RunCardDeployment, RunCardGrade, RunCardPlay, RunCardRarityInputs, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRefusal, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
 
 const anchor = Math.floor(Date.now() / 60_000) * 60_000;
 /** The minute, in epoch milliseconds, that every illustrative Ploeg timestamp is relative to: the clock when this module loaded. */
@@ -95,14 +95,14 @@ const demoSkins: Record<string, string> = {
 };
 const notCollectedInputs = ['durability.survival', 'review.ciFirstGreen', 'review.findings'];
 type InputSpec = { weight: number; reverted?: boolean; days: number; reverts?: number; hotfixes?: number; budget?: number | null; defects: number; plays?: number; failed?: number; changes?: number; rounds: number };
-const gradeInputs = (spec: InputSpec): NonNullable<PloegCardGrade['inputs']> => ({
+const gradeInputs = (spec: InputSpec): NonNullable<RunCardGrade['inputs']> => ({
   reliability: { crackWeight: spec.weight, reverted: spec.reverted ?? false },
   durability: { daysLive: spec.days, liveSince: ago(spec.days * day + 300), reverts: spec.reverts ?? 0, hotfixes: spec.hotfixes ?? 0, survival: null },
   delivery: { budgetShare: spec.budget ?? null, defectBounces: spec.defects, extraPlays: spec.plays ?? 0, failedRuns: spec.failed ?? 0 },
   review: { ciFirstGreen: null, findings: null, changeRequests: spec.changes ?? 0, reviewRounds: spec.rounds, reworkRounds: null },
   notCollected: notCollectedInputs,
 });
-const demoGrades: Record<string, PloegCardGrade> = {
+const demoGrades: Record<string, RunCardGrade> = {
   '119': { formula: '2026.2', overall: 8.5, provisional: true, subgrades: { reliability: 8, durability: 9, delivery: 8.5, review: 8 }, label: null, qualifiers: [], inputs: gradeInputs({ weight: 2, days: 118, defects: 0, plays: 1, changes: 2, rounds: 2 }) },
   '120': { formula: '2026.2', overall: 9.5, provisional: false, subgrades: { reliability: 9.5, durability: 10, delivery: 9, review: 9 }, label: null, qualifiers: [], inputs: gradeInputs({ weight: 0.25, days: 205, defects: 0, failed: 1, changes: 1, rounds: 2 }) },
   '122': { formula: '2026.2', overall: 10, provisional: false, subgrades: { reliability: 10, durability: 10, delivery: 10, review: 10 }, label: 'black', qualifiers: [], inputs: gradeInputs({ weight: 0, days: 400, defects: 0, rounds: 1 }) },
@@ -118,7 +118,7 @@ const demoGrades: Record<string, PloegCardGrade> = {
 const workdaysLater = (minutes: number, workdays: number) => { let at = anchor - minutes * 60_000; for (let left = workdays; left > 0;) { at += 86_400_000; const weekday = new Date(at).getUTCDay(); if (weekday !== 0 && weekday !== 6) left--; } return new Date(at).toISOString().replace('.000Z', 'Z'); };
 const bugRef = { workItemId: '124', ref: 'DEMO-24', title: 'A postcode with a space makes the shipping form answer 500' };
 const bugMend = { at: ago(2 * day + 60), by: 'demo-dev', pr: 24, bySteward: false, confirmedAt: null };
-const demoConditions: Record<string, PloegCardCondition> = {
+const demoConditions: Record<string, RunCardCondition> = {
   '118': { state: 'cracked', cracks: [{ id: '7101', bug: bugRef, severity: 'S3', share: 'primary', discovery: 'discovered', proposedAt: ago(2 * day), confirmedAt: ago(day), confirmedBy: ['demo-dev', 'demo-tester'], disputed: false, weight: 1, warranty: 'full', mended: bugMend }] },
   '119': { state: 'cracked', cracks: [{ id: 'demo-crack-119', bug: { workItemId: null, ref: 'DEMO-31', title: 'Cart total keeps the cached price after a currency switch' }, severity: 'S2', share: 'primary', discovery: 'discovered', proposedAt: ago(9 * day), confirmedAt: ago(8 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, weight: 2, warranty: 'full', mended: null }] },
   '120': { state: 'mended', cracks: [{ id: 'demo-crack-120', bug: { workItemId: null, ref: 'DEMO-32', title: 'Refund audit entry missed partial refunds' }, severity: 'S3', share: 'primary', discovery: 'self', proposedAt: ago(60 * day), confirmedAt: ago(59 * day), confirmedBy: ['demo-operator', 'demo-reviewer'], disputed: false, weight: 0.25, warranty: 'full', mended: { at: ago(55 * day), by: 'demo-operator', pr: 68, bySteward: true, confirmedAt: ago(25 * day) } }] },
@@ -156,7 +156,7 @@ const demoGateSpecs: Record<string, GateSpec> = {
   '142': { visits: flow(showcaseMerged('142')) },
 };
 const gateOrder: PloegGate[] = ['development', 'test', 'acceptance', 'done'];
-function demoGates(id: string): PloegCardGates | undefined {
+function demoGates(id: string): RunCardGates | undefined {
   const spec = demoGateSpecs[id];
   if (!spec) return undefined;
   const history = spec.visits.map(([gate, minutes], index) => ({ gate, enteredAt: ago(minutes), leftAt: index + 1 < spec.visits.length ? ago(spec.visits[index + 1][1]) : null }));
@@ -347,8 +347,8 @@ const demoReviewer = 'demo-operator';
 const demoSha = (item: string, number: number) => createHash('sha1').update(`demo-${item}-${number}`).digest('hex');
 const pipeline = (item: string, environment: string) => `https://forge.example.invalid/example/order-service/actions/runs/${item}-${environment}`;
 
-function demoRelease(specs: PlaySpec[]): Pick<PloegCard, 'deployments' | 'release'> {
-  const firsts = new Map<string, PloegCardDeployment & { minutes: number }>();
+function demoRelease(specs: PlaySpec[]): Pick<RunCard, 'deployments' | 'release'> {
+  const firsts = new Map<string, RunCardDeployment & { minutes: number }>();
   for (const spec of specs) for (const [environment, minutes] of spec.deploys ?? []) {
     const earlier = firsts.get(environment);
     if (!earlier || minutes > earlier.minutes) firsts.set(environment, { environment, firstDeployedAt: ago(minutes), sha: demoSha(spec.item, spec.number), url: pipeline(spec.item, environment), minutes });
@@ -361,12 +361,12 @@ function demoRelease(specs: PlaySpec[]): Pick<PloegCard, 'deployments' | 'releas
   return { deployments, release: latest.deploys?.length ? null : { at: ago(latest.merged.minutes), source: 'merge', environment: 'production' } };
 }
 
-function demoCard(item: PloegItem): PloegCard {
+function demoCard(item: PloegItem): RunCard {
   const detail = details[item.id];
   const shift = shifts.get(item.id) ?? null;
   const own = runSpecs.filter(spec => spec.item === item.id);
   const ownPlays = playSpecs.filter(spec => spec.item === item.id);
-  const plays: PloegCardPlay[] = ownPlays.map(spec => {
+  const plays: RunCardPlay[] = ownPlays.map(spec => {
     return { number: spec.number, url: pull(spec.number), state: spec.merged ? 'merged' : 'open', shiftId: shift?.id ?? null, branch: shift?.branch ?? '', headSha: '', mergeCommitSha: spec.merged ? demoSha(spec.item, spec.number) : '', mergedAt: spec.merged ? ago(spec.merged.minutes) : null, mergedBy: spec.merged?.by ?? '', closedAt: null, additions: spec.additions, deletions: spec.deletions, changedFiles: spec.changedFiles, ci: null, reviews: spec.merged ? [{ reviewer: demoReviewer, state: 'approved', receivedAt: ago(spec.merged.review), headSha: '' }] : [], deployments: (spec.deploys ?? []).map(([environment, minutes]) => ({ environment, firstDeployedAt: ago(minutes), sha: demoSha(spec.item, spec.number), url: pipeline(spec.item, environment) })) };
   });
   const latest = plays.at(-1);
@@ -412,7 +412,7 @@ function demoCard(item: PloegItem): PloegCard {
     demo: true,
   };
 }
-function demoRoster(id: string, merged: PloegCardPlay | null, plays: PloegCardPlay[]): PloegCard['roster'] {
+function demoRoster(id: string, merged: RunCardPlay | null, plays: RunCardPlay[]): RunCard['roster'] {
   const roles = new Map<string, Set<string>>();
   const mark = (name: string, role: string) => { if (!name) return; if (!roles.has(name)) roles.set(name, new Set()); roles.get(name)!.add(role); };
   if (merged) mark(merged.mergedBy, 'merger');
@@ -425,20 +425,20 @@ function demoRoster(id: string, merged: PloegCardPlay | null, plays: PloegCardPl
   const order = ['developer', 'merger', 'reviewer', 'qa', 'po', 'acceptor', 'cosigner'];
   return [...roles].map(([name, held]) => ({ name, roles: order.filter(role => held.has(role)) }));
 }
-function demoSets(cards: Record<string, PloegCard>): void {
+function demoSets(cards: Record<string, RunCard>): void {
   for (const [epicId, childIds] of Object.entries(demoEpics)) demoSet(cards, epicId, childIds);
 }
-function demoSet(cards: Record<string, PloegCard>, epicId: string, childIds: string[]): void {
+function demoSet(cards: Record<string, RunCard>, epicId: string, childIds: string[]): void {
   const epic = cards[epicId];
   const children = childIds.map(id => cards[id]);
-  const settled = (card: PloegCard) => card.state === 'merged' && Boolean(card.release) && Date.parse(card.release!.at) <= anchor - 30 * 86_400_000;
-  const cracked = (card: PloegCard) => card.condition?.cracks.some(crack => !crack.mended?.confirmedAt) ?? false;
+  const settled = (card: RunCard) => card.state === 'merged' && Boolean(card.release) && Date.parse(card.release!.at) <= anchor - 30 * 86_400_000;
+  const cracked = (card: RunCard) => card.condition?.cracks.some(crack => !crack.mended?.confirmedAt) ?? false;
   const complete = children.every(card => settled(card) && !cracked(card));
   const epicRef = { workItemId: epicId, ref: epic.externalRef, title: epic.title };
   epic.set = { role: 'epic', epic: epicRef, position: null, size: children.length, children: children.map(card => ({ workItemId: card.workItemId, title: card.title, state: card.state, settled: settled(card), cracked: cracked(card) })), complete };
   children.forEach((card, index) => { card.set = { role: 'child', epic: epicRef, position: index + 1, size: children.length, children: [], complete }; });
 }
-function rarityInputs(card: PloegCard, spec: RaritySpec, predicted: boolean): PloegCardRarityInputs {
+function rarityInputs(card: RunCard, spec: RaritySpec, predicted: boolean): RunCardRarityInputs {
   const plays = predicted ? card.plays : card.plays.filter(play => play.state === 'merged');
   const files = plays.reduce((total, play) => total + (play.changedFiles ?? 0), 0);
   const novel = Math.min(files, predicted ? spec.predicted?.novel ?? spec.novel : spec.novel);
@@ -453,7 +453,7 @@ function rarityInputs(card: PloegCard, spec: RaritySpec, predicted: boolean): Pl
     notCollected: ['complexity', 'estimate'],
   };
 }
-function demoRarities(cards: Record<string, PloegCard>): void {
+function demoRarities(cards: Record<string, RunCard>): void {
   const scored = Object.entries(demoRaritySpecs).map(([id, spec]) => {
     const card = cards[id];
     const released = card.state === 'merged' && card.release ? card.release.at : null;
@@ -461,10 +461,10 @@ function demoRarities(cards: Record<string, PloegCard>): void {
     const after = released ? rarityInputs(card, spec, false) : null;
     return { card, released, before, after, predictedScore: rarityScore(before, true), revealedScore: after ? rarityScore(after, false) : null };
   });
-  const cohortKey = (card: PloegCard, at: string | number) => `${card.target?.owner}/${card.target?.repo}|${rarityQuarter(at)}`.toLowerCase();
+  const cohortKey = (card: RunCard, at: string | number) => `${card.target?.owner}/${card.target?.repo}|${rarityQuarter(at)}`.toLowerCase();
   const revealedScores = new Map<string, number[]>();
   for (const entry of scored) if (entry.released && entry.revealedScore !== null) revealedScores.set(cohortKey(entry.card, entry.released), [...(revealedScores.get(cohortKey(entry.card, entry.released)) ?? []), entry.revealedScore]);
-  const rank = (card: PloegCard, at: string | number, score: number, own: boolean) => {
+  const rank = (card: RunCard, at: string | number, score: number, own: boolean) => {
     const cohort = [...(revealedScores.get(cohortKey(card, at)) ?? []), ...(own ? [] : [score])];
     const percentile = cohort.length >= rarityCohortMinimum ? rarityPercentile(score, cohort) : null;
     return { tier: percentile === null ? fixedRarityTier(score) : percentileRarityTier(percentile), percentile, cohort: { target: `${card.target?.owner}/${card.target?.repo}`.toLowerCase(), quarter: rarityQuarter(at), size: cohort.length } };
@@ -484,7 +484,7 @@ function demoRarities(cards: Record<string, PloegCard>): void {
     card.rarity = { formula: rarityFormula, predicted: null, revealed: null, tier: 'legendary', score: null, percentile: null, cohort: null, inputs: { reach: { modules: null, repos: null }, sensitive: { files: null, paths: [] }, novelty: { share: null, files: null, novel: null }, size: { countedLines: null }, set: null, truncated: false, notCollected: ['complexity', 'estimate'] }, revealedAt: null };
   }
 }
-const cards: Record<string, PloegCard> = Object.fromEntries(items.map(item => [item.id, demoCard(item)]));
+const cards: Record<string, RunCard> = Object.fromEntries(items.map(item => [item.id, demoCard(item)]));
 demoSets(cards);
 demoRarities(cards);
 

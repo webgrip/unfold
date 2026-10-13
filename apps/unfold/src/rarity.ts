@@ -1,4 +1,4 @@
-import type { PloegCardRarityInputs, PloegRarityTier } from './ploeg.ts';
+import type { RunCardRarityInputs, PloegRarityTier } from './ploeg.ts';
 
 /** The rarity formula this module computes (Ploeg ADR-0056, proposed). It matches `rarityComponents` in `public/cards/card-model.js`. */
 export const rarityFormula = '2026.1';
@@ -12,7 +12,7 @@ export const rarityCohortMinimum = 30;
 export const raritySetBonus = 10;
 
 /** Each component from 0 to 1 under formula 2026.1; an unknown input adds nothing. */
-export function rarityComponents(inputs: PloegCardRarityInputs): Record<keyof typeof rarityWeights, number> {
+export function rarityComponents(inputs: RunCardRarityInputs): Record<keyof typeof rarityWeights, number> {
   const modules = Math.max(1, inputs.reach.modules ?? 0);
   const repos = Math.max(1, inputs.reach.repos ?? 1);
   const files = inputs.novelty.files ?? 0;
@@ -26,7 +26,7 @@ export function rarityComponents(inputs: PloegCardRarityInputs): Record<keyof ty
 }
 
 /** The challenge score from 0 to 100, to one decimal; a predicted score adds the set bonus when the card is in an epic's set. */
-export function rarityScore(inputs: PloegCardRarityInputs, predicted: boolean): number {
+export function rarityScore(inputs: RunCardRarityInputs, predicted: boolean): number {
   const parts = rarityComponents(inputs);
   const raw = 100 * (Object.keys(rarityWeights) as (keyof typeof rarityWeights)[]).reduce((total, key) => total + rarityWeights[key] * parts[key], 0);
   return Math.round(Math.min(100, raw + (predicted && inputs.set === true ? raritySetBonus : 0)) * 10) / 10;

@@ -1,5 +1,5 @@
-import type { PloegCard, PloegCardPlay, PloegGate } from './ploeg.ts';
-import type { PloegCardFlow, PloegCardPipeline, PloegCardShape, PloegDuration, PloegFlowKind, PloegFlowStatus, PloegPlayCITiming, PloegPlayShape, PloegPlayTimeline, PloegSpan } from './card-kpis.ts';
+import type { RunCard, RunCardPlay, PloegGate } from './ploeg.ts';
+import type { RunCardFlow, RunCardPipeline, RunCardShape, PloegDuration, PloegFlowKind, PloegFlowStatus, PloegPlayCITiming, PloegPlayShape, PloegPlayTimeline, PloegSpan } from './card-kpis.ts';
 
 const minute = 60_000;
 const day = 1440;
@@ -53,7 +53,7 @@ function pair(from: number, to: number): PloegDuration {
 
 const median = (values: number[]) => { if (!values.length) return null; const sorted = values.slice().sort((a, b) => a - b); const middle = Math.floor(sorted.length / 2); return sorted.length % 2 ? sorted[middle] : Math.round((sorted[middle - 1] + sorted[middle]) / 2); };
 
-function flowFor(card: PloegCard, spec: DemoKpiSpec, { anchor, queuedAt }: Context): PloegCardFlow {
+function flowFor(card: RunCard, spec: DemoKpiSpec, { anchor, queuedAt }: Context): RunCardFlow {
   const at = (minutes: number) => anchor - minutes * minute;
   const now = anchor;
   const steps = spec.steps.slice().sort((a, b) => b[3] - a[3]);
@@ -120,7 +120,7 @@ function flowFor(card: PloegCard, spec: DemoKpiSpec, { anchor, queuedAt }: Conte
   };
 }
 
-function timelineFor(play: PloegCardPlay, spec: PlayKpiSpec, anchor: number): PloegPlayTimeline {
+function timelineFor(play: RunCardPlay, spec: PlayKpiSpec, anchor: number): PloegPlayTimeline {
   const at = (minutes: number | null | undefined) => minutes === null || minutes === undefined ? null : anchor - minutes * minute;
   const opened = at(spec.opened)!;
   const ready = at(spec.ready ?? spec.opened)!;
@@ -138,7 +138,7 @@ function timelineFor(play: PloegCardPlay, spec: PlayKpiSpec, anchor: number): Pl
   };
 }
 
-function ciFor(play: PloegCardPlay, spec: CISpec, anchor: number): PloegPlayCITiming {
+function ciFor(play: RunCardPlay, spec: CISpec, anchor: number): PloegPlayCITiming {
   return {
     runs: spec.runs, failedRuns: spec.failed ?? 0, reruns: spec.reruns ?? 0, lastGreenSeconds: spec.lastGreen ?? null, queueSeconds: spec.queue, timeToGreenSeconds: spec.toGreen ?? null,
     minutes: spec.minutes, slowest: spec.slowest.map(([name, seconds]) => ({ name, seconds })), firstPassGreen: spec.firstPass ?? null, source: 'actions', truncated: false,
@@ -146,7 +146,7 @@ function ciFor(play: PloegCardPlay, spec: CISpec, anchor: number): PloegPlayCITi
   };
 }
 
-function shapeFor(play: PloegCardPlay, spec: ShapeSpec): PloegPlayShape {
+function shapeFor(play: RunCardPlay, spec: ShapeSpec): PloegPlayShape {
   const counted = (play.additions ?? 0) + (play.deletions ?? 0);
   return {
     complexity: { method: 'indentation/2026.1', added: spec.added, removed: spec.removed, net: spec.added - spec.removed, maxDepth: spec.depth, hotspots: spec.hotspots.map(([path, added]) => ({ path, added })) },
@@ -155,7 +155,7 @@ function shapeFor(play: PloegCardPlay, spec: ShapeSpec): PloegPlayShape {
   };
 }
 
-function pipelineFor(plays: PloegCardPlay[]): PloegCardPipeline | undefined {
+function pipelineFor(plays: RunCardPlay[]): RunCardPipeline | undefined {
   const timed = plays.filter(play => play.timeline || play.ciTiming);
   if (!timed.length) return undefined;
   const first = timed[0];
@@ -171,7 +171,7 @@ function pipelineFor(plays: PloegCardPlay[]): PloegCardPipeline | undefined {
   };
 }
 
-function cardShapeFor(plays: PloegCardPlay[]): PloegCardShape | undefined {
+function cardShapeFor(plays: RunCardPlay[]): RunCardShape | undefined {
   const merged = plays.filter(play => play.mergedAt);
   const shapes = merged.map(play => play.shape).filter((shape): shape is PloegPlayShape => Boolean(shape));
   if (!shapes.length) return undefined;
@@ -185,7 +185,7 @@ function cardShapeFor(plays: PloegCardPlay[]): PloegCardShape | undefined {
  * demo cards that `specs` names, derived from each card's own illustrative times: its plays, deploys, gates, cracks
  * and Runs. No model call or spend is invented; Runs and their times are the demo's own.
  */
-export function addDemoKpis(cards: Record<string, PloegCard>, specs: Record<string, DemoKpiSpec>, context: Context): void {
+export function addDemoKpis(cards: Record<string, RunCard>, specs: Record<string, DemoKpiSpec>, context: Context): void {
   for (const [id, spec] of Object.entries(specs)) {
     const card = cards[id];
     if (!card) continue;

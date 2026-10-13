@@ -187,7 +187,7 @@ function identity() {
   const fixed = Boolean(designer.base);
   return `<div class="designer-grid">
     <div class="field"><label class="field-label" for="designer-name">Name</label><input id="designer-name" type="text" maxlength="80" value="${escape(draft.name)}" placeholder="Acme 2026" data-designer-field="name"${disabledAttr()}></div>
-    <div class="field"><label class="field-label" for="designer-id">Theme id</label><input id="designer-id" type="text" maxlength="64" value="${escape(draft.id)}" placeholder="acme" pattern="[a-z0-9][a-z0-9-]*" data-designer-field="id"${fixed || !editable() ? ' disabled' : ''} aria-describedby="designer-id-hint"><span class="field-hint" id="designer-id-hint">What a Work Target names as cardStyle.theme. Lowercase letters, digits and dashes.</span></div>
+    <div class="field"><label class="field-label" for="designer-id">Theme id</label><input id="designer-id" type="text" maxlength="64" value="${escape(draft.id)}" placeholder="acme" pattern="[a-z0-9][a-z0-9-]*" data-designer-field="id"${fixed || !editable() ? ' disabled' : ''} aria-describedby="designer-id-hint"><span class="field-hint" id="designer-id-hint">What a repository’s card style names as its theme. Lowercase letters, digits and dashes.</span></div>
   </div>
   <fieldset class="field"><legend class="field-label">Skin</legend><div class="designer-choices">${skins().map(skin => radio('extends', skin.id, skin.name, draft.extends === skin.id)).join('')}</div></fieldset>`;
 }
@@ -250,14 +250,14 @@ function actions() {
 
 function snippet() {
   const id = designer.draft.id || '<theme id>';
-  return `config:\n  targets:\n    <target key>:\n      repo: <owner>/<repository>\n      cardStyle:\n        skin: ${designer.draft.extends}\n        theme: ${id}`;
+  return `"cards": {\n  "rules": {\n    "repositories": {\n      "<owner>/<repository>": {\n        "style": { "skin": "${designer.draft.extends}", "theme": "${id}" }\n      }\n    }\n  }\n}`;
 }
 
 function useCard() {
   const json = JSON.stringify(themeDocument(designer.draft, rulesOf(designer.draft.extends)), null, 2);
   return `<section class="card settings-card" aria-labelledby="designer-use-title"><header class="card-header"><h2 class="card-title" id="designer-use-title">Use it for a project</h2></header><div class="card-body designer-body">
-    <p>Ploeg decides which Work Target gets which look. Add <code>cardStyle</code> to the target in Ploeg’s configuration (Unfold does not change Ploeg’s config) and its Run cards draw with this theme.</p>
-    <pre data-private class="designer-code" tabindex="0" aria-label="Ploeg configuration"><code>${escape(snippet())}</code></pre>
+    <p>Unfold decides which repository gets which look. Add this <code>style</code> to the repository under <code>cards.rules.repositories</code> in Unfold’s configuration and restart Unfold; its Run cards then draw with this theme.</p>
+    <pre data-private class="designer-code" tabindex="0" aria-label="Unfold configuration"><code>${escape(snippet())}</code></pre>
     <details class="designer-json"><summary>Theme JSON (format v1)</summary><pre data-private class="designer-code" tabindex="0"><code>${escape(json)}</code></pre>${act('', { label: 'Copy theme JSON', size: 'sm', action: 'designer-copy', icon: 'copy' })}</details>
     <p class="meta">A theme saved here lives in Unfold’s store. To manage themes as files instead, put this JSON in the mounted themes folder (cardThemes.directory).</p>
   </div></section>`;

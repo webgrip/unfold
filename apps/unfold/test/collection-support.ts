@@ -1,7 +1,7 @@
-import { parseCard, type PloegCard } from '../src/ploeg.ts';
+import { parseCard, type RunCard } from '../src/ploeg.ts';
 
 /** A Run card as the proxy validates it: merged on 2 September 2026 and released the next day, rostered to ryan (developer, merger) and iris (reviewer). */
-export function card(id: string, overrides: Record<string, unknown> = {}): PloegCard {
+export function card(id: string, overrides: Record<string, unknown> = {}): RunCard {
   return parseCard({
     workItemId: id, title: `Work Item ${id}`, team: 'delivery', state: 'merged', style: { skin: 'unfold-native' },
     steward: { name: 'ryan', source: 'merged_by' }, roster: [{ name: 'ryan', roles: ['developer', 'merger'] }, { name: 'iris', roles: ['reviewer'] }],

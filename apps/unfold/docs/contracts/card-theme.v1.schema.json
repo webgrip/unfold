@@ -19,7 +19,7 @@
   },
   "properties": {
     "schemaVersion": { "const": 1 },
-    "id": { "description": "What a Work Target names as cardStyle.theme in Ploeg's configuration.", "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+    "id": { "description": "What a repository's card style names as its theme, under cards.rules.repositories in Unfold's configuration.", "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
     "name": { "type": "string", "minLength": 1, "maxLength": 80 },
     "extends": { "description": "The shipped skin pack the theme sits on: forge or unfold-native.", "$ref": "#/$defs/name" },
     "tokens": {

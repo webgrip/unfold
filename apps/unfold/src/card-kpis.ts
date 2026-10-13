@@ -11,7 +11,7 @@ export type PloegFlowCalendar = { timezone: string; days: string[]; start: strin
 /** One mended confirmed crack's time from confirmation to mend. */
 export type PloegFlowRestore = PloegDuration & { crackId: string; confirmedAt: string; mendedAt: string };
 /** A Run card's flow figures (Ploeg ADR-0057, proposed): time per tracker status, lead and cycle time, queue and agent time, merge to deploy. null is a fact Ploeg does not know. */
-export type PloegCardFlow = {
+export type RunCardFlow = {
   statuses: PloegFlowStatus[]; statusesSince: string | null; truncated: boolean;
   gates: Record<string, PloegDuration>; kinds: Partial<Record<PloegFlowKind, PloegDuration>>;
   leadTime: PloegSpan | null; cycleTime: PloegSpan | null; timeToStart: PloegSpan | null;
@@ -48,13 +48,13 @@ export type PloegPlayShape = {
   docsTouched: number | null; languages: PloegLanguage[]; truncated: boolean; capturedAt: string | null;
 };
 /** Review and CI summed up across a card's plays (Ploeg ADR-0058, proposed). */
-export type PloegCardPipeline = {
+export type RunCardPipeline = {
   plays: number | null; toFirstFeedbackSeconds: number | null; openToMergeSeconds: number | null; reviewRounds: number | null; comments: number | null; firstPassGreen: boolean | null;
   median: { toFirstFeedbackSeconds: number | null; openToMergeSeconds: number | null; responseSeconds: number | null; lastGreenSeconds: number | null };
   ci: { runs: number | null; failedRuns: number | null; reruns: number | null; minutes: number | null; queueSeconds: number | null } | null;
 };
 /** The change shape of a card's merged plays added up (Ploeg ADR-0058, proposed). */
-export type PloegCardShape = Omit<PloegPlayShape, 'capturedAt'> & { plays: number | null; complete: boolean };
+export type RunCardShape = Omit<PloegPlayShape, 'capturedAt'> & { plays: number | null; complete: boolean };
 
 type Json = Record<string, unknown>;
 const flowKinds: PloegFlowKind[] = ['active', 'waiting', 'blocked', 'done'];
@@ -141,7 +141,7 @@ function restore(value: unknown): PloegFlowRestore | null {
  * Unfold does not know is dropped, an unreadable figure or sub-object becomes null (an unreadable list entry is left out),
  * and anything that is not an object, including an older Ploeg's absent flow, is null.
  */
-export function cardFlow(value: unknown): PloegCardFlow | null {
+export function cardFlow(value: unknown): RunCardFlow | null {
   return guarded(value, data => {
     const production = guarded(data.timeToProduction, entry => { const length = duration(entry); const environment = typeof entry.environment === 'string' && environmentName.test(entry.environment) ? entry.environment : null; return length && environment ? { environment, ...length } : null; });
     return {
@@ -218,7 +218,7 @@ export function playShape(value: unknown): PloegPlayShape | null {
 }
 
 /** Reads a card's review and CI summary across its plays (Ploeg ADR-0058, proposed), strictly but additively; null when it is not an object. */
-export function cardPipeline(value: unknown): PloegCardPipeline | null {
+export function cardPipeline(value: unknown): RunCardPipeline | null {
   return guarded(value, data => {
     const median = isRecord(data.median) ? data.median : {};
     const ci = guarded(data.ci, totals => ({ runs: whole(totals.runs), failedRuns: whole(totals.failedRuns), reruns: whole(totals.reruns), minutes: amount(totals.minutes), queueSeconds: whole(totals.queueSeconds) }));
@@ -232,7 +232,7 @@ export function cardPipeline(value: unknown): PloegCardPipeline | null {
 }
 
 /** Reads a card's change shape over its merged plays (Ploeg ADR-0058, proposed), strictly but additively; null when it is not an object. */
-export function cardShape(value: unknown): PloegCardShape | null {
+export function cardShape(value: unknown): RunCardShape | null {
   return guarded(value, data => ({ plays: whole(data.plays), complete: flag(data.complete) ?? false, ...shapeFields(data) }));
 }
 
@@ -246,7 +246,7 @@ export function playKpis(data: Json): { timeline?: PloegPlayTimeline | null; ciT
 }
 
 /** The KPI fields of a card, each present only when Ploeg sent it, so an older Ploeg's card keeps its shape. */
-export function cardKpis(data: Json): { flow?: PloegCardFlow | null; pipeline?: PloegCardPipeline | null; shape?: PloegCardShape | null } {
+export function cardKpis(data: Json): { flow?: RunCardFlow | null; pipeline?: RunCardPipeline | null; shape?: RunCardShape | null } {
   return {
     ...(data.flow === undefined ? {} : { flow: cardFlow(data.flow) }),
     ...(data.pipeline === undefined ? {} : { pipeline: cardPipeline(data.pipeline) }),

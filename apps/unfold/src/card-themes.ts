@@ -69,7 +69,7 @@ export function validateTheme(input: unknown, skins: ReadonlyMap<string, SkinRul
   const data = record(input, 'A theme');
   for (const key of Object.keys(data)) if (!themeKeys.has(key)) invalid(`A theme has no field ${key}.`);
   if (data.schemaVersion !== themeSchemaVersion) invalid(`schemaVersion must be ${themeSchemaVersion}.`);
-  if (typeof data.id !== 'string' || !slug.test(data.id)) invalid('id must be lowercase letters, digits and dashes, up to 64 characters, as in Ploeg’s cardStyle.theme.');
+  if (typeof data.id !== 'string' || !slug.test(data.id)) invalid('id must be lowercase letters, digits and dashes, up to 64 characters, as a repository’s card style names it.');
   if (typeof data.name !== 'string' || !data.name.trim() || data.name.length > 80 || /[\x00-\x1f\x7f]/.test(data.name)) invalid('name must be text of 1 to 80 characters.');
   const skin = typeof data.extends === 'string' ? skins.get(currentSkin(data.extends)) : undefined;
   if (!skin) invalid(`extends must name a skin this Unfold ships: ${[...skins.keys()].join(', ')}.`);

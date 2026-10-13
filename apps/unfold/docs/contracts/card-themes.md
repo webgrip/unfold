@@ -26,7 +26,7 @@ A theme is a JSON object. [`card-theme.v1.schema.json`](card-theme.v1.schema.jso
 | Field | Rule |
 | --- | --- |
 | `schemaVersion` | `1` |
-| `id` | Lowercase letters, digits and dashes, up to 64 characters. It is what a Work Target names as `cardStyle.theme` in Ploeg's configuration |
+| `id` | Lowercase letters, digits and dashes, up to 64 characters. It is what a repository's card style names as `theme`, under `cards.rules.repositories` in Unfold's configuration |
 | `name` | 1 to 80 characters, no control characters |
 | `extends` | A skin pack Unfold ships: `forge` or `unfold-native`. Custom code skins are not supported |
 | `tokens` | Only custom properties the skin's manifest lists in `themeTokens`. Colours are `#rgb` or `#rrggbb`; `--gc-radius` is a whole number of pixels from `0px` to `32px`. No other CSS value is accepted |
@@ -72,7 +72,7 @@ Themes live in Unfold's store (`card_themes`), and every save is kept as a versi
 
 ## Resolution
 
-Ploeg's card carries `style: { skin, theme }`, from the Work Target's `cardStyle` (Ploeg's configuration; Unfold never changes it). The runtime ([`public/cards/themes.js`](../../public/cards/themes.js), [`unfold-card.js`](../../public/cards/unfold-card.js)):
+A card carries `style: { skin, theme }`, which Unfold sets from the repository's `cards.rules.repositories."owner/name".style` in its own configuration ([run cards upgrade](../operations/run-cards-upgrade.md#configuration-to-move)). Ploeg knows nothing about card styles. The runtime ([`public/cards/themes.js`](../../public/cards/themes.js), [`unfold-card.js`](../../public/cards/unfold-card.js)):
 
 1. reads the theme named by `style.theme` with `GET /api/card-themes/:id`, cached for 30 seconds per page. A missing theme, a 404 or an unreachable Unfold leaves the card without a theme;
 2. draws the skin the theme `extends`, or `style.skin` without a theme, falling back as before (Unfold Native without WebGL2);

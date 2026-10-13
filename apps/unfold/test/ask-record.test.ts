@@ -6,7 +6,7 @@ import { sessionProgress } from '../public/core/progress.js';
 import { workItemBrief, briefText, type BriefSession } from '../src/ask/brief.ts';
 import { dutchLead, matchIntent, matchQuestion, recordAnswer, type RecordIntent } from '../src/ask/record.ts';
 import { AskService, type AskAuthority, type AskGrant, type AskWorkItems } from '../src/ask/service.ts';
-import type { PloegCard, PloegDetail, PloegItem, PloegRun } from '../src/ploeg.ts';
+import type { RunCard, PloegDetail, PloegItem, PloegRun } from '../src/ploeg.ts';
 import { Store } from '../src/store.ts';
 import type { Event, Session, User } from '../src/types.ts';
 
@@ -100,7 +100,7 @@ function detail(item: Partial<PloegItem> = {}, runs: PloegRun[] = [run()]): Ploe
   };
 }
 
-const card = (costUsd: number, costStatus: 'observed' | 'not_reported' = 'observed') => ({ totals: { costStatus, usageComplete: true, costUsd } }) as unknown as PloegCard;
+const card = (costUsd: number, costStatus: 'observed' | 'not_reported' = 'observed') => ({ totals: { costStatus, usageComplete: true, costUsd } }) as unknown as RunCard;
 
 test('without a session, each intent answers from the brief alone', () => {
   const leased = workItemBrief(detail(), card(0.42));

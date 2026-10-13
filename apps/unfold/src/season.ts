@@ -1,4 +1,4 @@
-import type { PloegCard } from './ploeg.ts';
+import type { RunCard } from './ploeg.ts';
 import { cardMoments } from './packs.ts';
 
 const day = 86_400_000;
@@ -58,8 +58,8 @@ function median(values: number[]): SeasonMedian {
 }
 
 /** Medians of the KPI figures over the given cards: lead time of delivered cards, time to first feedback, CI minutes and flow efficiency. */
-export function seasonMedians(cards: PloegCard[]): SeasonMedians {
-  const numbers = (pick: (card: PloegCard) => number | null | undefined) => cards.map(pick).filter((value): value is number => typeof value === 'number');
+export function seasonMedians(cards: RunCard[]): SeasonMedians {
+  const numbers = (pick: (card: RunCard) => number | null | undefined) => cards.map(pick).filter((value): value is number => typeof value === 'number');
   return {
     leadTimeSeconds: median(numbers(card => card.flow?.leadTime && !card.flow.leadTime.running ? card.flow.leadTime.seconds : null)),
     firstFeedbackSeconds: median(numbers(card => card.pipeline?.toFirstFeedbackSeconds)),
@@ -75,14 +75,14 @@ export function seasonMedians(cards: PloegCard[]): SeasonMedians {
  * the bounce reasons recorded in the quarter, complete set cards, and the team medians of lead time, time to first
  * feedback, CI minutes and flow efficiency over the shipped cards. A figure whose facts no card carries is null.
  */
-export function seasonAggregates(cards: PloegCard[], team: string, quarter: Quarter, now = Date.now()): SeasonAggregates {
+export function seasonAggregates(cards: RunCard[], team: string, quarter: Quarter, now = Date.now()): SeasonAggregates {
   const start = Date.parse(quarter.start);
   const end = Math.min(Date.parse(quarter.end), now);
   const within = (at: string) => { const ms = Date.parse(at); return ms >= start && ms < end; };
   const own = cards.filter(card => card.team === team);
   let shipped = 0; let liveMs = 0; let cracks = 0; let mends = 0;
   const finishes: Record<string, number> = {};
-  const shippedCards: PloegCard[] = [];
+  const shippedCards: RunCard[] = [];
   for (const card of own) {
     const moments = cardMoments(card, now);
     if (moments.some(moment => moment.kind === 'merged' && within(moment.at))) { shipped++; shippedCards.push(card); }

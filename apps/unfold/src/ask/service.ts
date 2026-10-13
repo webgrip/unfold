@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { User } from '../types.ts';
 import { sessionForWorkItem } from '../../public/core/progress.js';
-import type { PloegCard, PloegCardView, PloegCostStatus, PloegDetail } from '../ploeg.ts';
+import type { RunCard, RunCardView, PloegCostStatus, PloegDetail } from '../ploeg.ts';
 import { AskAllowanceUsedUp, PloegError, type PloegAskAllowance } from '../ploeg.ts';
 import { withoutKnownSecrets } from '../redaction.ts';
 import type { Store } from '../store.ts';
@@ -29,7 +29,7 @@ export interface AskAuthority {
 /** The Work Item reads an Ask needs. Both refuse a Work Item outside the caller's Teams. */
 export interface AskWorkItems {
   detail(user: User, id: string, fresh?: boolean): Promise<PloegDetail>;
-  card(user: User, id: string, fresh?: boolean): Promise<PloegCardView>;
+  card(user: User, id: string, fresh?: boolean): Promise<RunCardView>;
 }
 
 /** How one Ask is answered: `model` true skips the record and asks the model even for a standing question. */
@@ -118,7 +118,7 @@ export class AskService {
 
   private async brief(user: User, workItemId: string): Promise<WorkItemBrief> {
     const detail = await this.workItems.detail(user, workItemId, true);
-    let card: PloegCard | undefined;
+    let card: RunCard | undefined;
     try { card = (await this.workItems.card(user, workItemId)).card; } catch { card = undefined; }
     const session = sessionForWorkItem(this.store.listSessions(), detail.item.id);
     return workItemBrief(detail, card, session ? { session, events: this.store.events(session.id), now: this.clock().getTime(), viewer: user.role === 'viewer' } : undefined);

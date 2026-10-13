@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { AppConfig, User } from './types.ts';
 import type { CardSeenSnapshot, Store, StoredPack, StoredPackEntry, StoredPull } from './store.ts';
-import type { PloegCard, PloegCardList } from './ploeg.ts';
+import type { RunCard, RunCardList } from './ploeg.ts';
 import { validateCards } from './config.ts';
 import { cardMoments, copyOf, drawPull, lastActivity, packFloor, periodById, planPacks, publishedOdds, type Moment, type PackPlan, type Period, type PeriodRules } from './packs.ts';
 import { quarterAt, quarterById, recentQuarters, seasonAggregates } from './season.ts';
@@ -9,8 +9,8 @@ import { cardWorldLimit, shownWorld, validateWorld, WorldError, worldFactsOf } f
 
 /** Where the collection reads cards: Ploeg's operator API through `PloegClient`, or a stub in tests. */
 export interface CardSource {
-  memberCards(user: User, logins: string[], fresh?: boolean): Promise<PloegCardList>;
-  teamCards(user: User, team: string, since: string | undefined, fresh?: boolean): Promise<PloegCardList>;
+  memberCards(user: User, logins: string[], fresh?: boolean): Promise<RunCardList>;
+  teamCards(user: User, team: string, since: string | undefined, fresh?: boolean): Promise<RunCardList>;
   teams(user: User, fresh?: boolean): Promise<{ id: string }[]>;
   forgeLogin?(user: User): string | null;
   card?(user: User, id: string, fresh?: boolean): Promise<unknown>;
@@ -102,7 +102,7 @@ export class Collection {
     return { identity, list, cards };
   }
 
-  private plans(user: User, cards: PloegCard[], now: number) {
+  private plans(user: User, cards: RunCard[], now: number) {
     const started = Date.parse(this.store.binderMark(user.id)?.startedAt ?? iso(now));
     return planPacks(cards, this.rules, team => packFloor(started, team, this.rules, this.backfill), now);
   }
@@ -238,13 +238,13 @@ export class Collection {
   }
 
   /** The card, read within the person's Teams, and the copy they hold of it, or null. */
-  private async decoratable(user: User, workItemId: string): Promise<{ card: PloegCard; copy: ReturnType<typeof copyOf> }> {
+  private async decoratable(user: User, workItemId: string): Promise<{ card: RunCard; copy: ReturnType<typeof copyOf> }> {
     if (!workItemPattern.test(workItemId)) throw new CollectionError(400, 'card_id', 'Use a valid Work Item identifier.');
     const identity = this.identity(user);
-    let card: PloegCard | undefined;
+    let card: RunCard | undefined;
     if (this.source.card) {
-      const read = await this.source.card(user, workItemId) as { card?: PloegCard } | PloegCard | null;
-      card = read && typeof read === 'object' && 'card' in read ? read.card : read as PloegCard | undefined;
+      const read = await this.source.card(user, workItemId) as { card?: RunCard } | RunCard | null;
+      card = read && typeof read === 'object' && 'card' in read ? read.card : read as RunCard | undefined;
     } else card = (await this.source.memberCards(user, identity.logins)).cards.find(entry => entry.workItemId === workItemId);
     if (!card || card.workItemId !== workItemId) throw new CollectionError(404, 'card_not_found', 'This card is not in your Teams.');
     return { card, copy: copyOf(card, identity.logins, identity.verified) };
@@ -293,7 +293,7 @@ export class Collection {
     return this.present(user, stored, cards);
   }
 
-  private present(user: User, stored: StoredPack, cards: PloegCard[]) {
+  private present(user: User, stored: StoredPack, cards: RunCard[]) {
     const pulls = this.store.pulls(user.id);
     const identity = this.identity(user);
     return {

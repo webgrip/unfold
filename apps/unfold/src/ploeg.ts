@@ -9,7 +9,7 @@ import { valueStream, type ValueStream } from './value-stream.ts';
 import type { CardService, CommentRequest, CommentResult, FactsQuery } from './cards/service.ts';
 import { readRunLogs, RunLogsError, type RunLogs } from './run-logs.ts';
 import { parseTranscriptPage, transcriptCursor, transcriptLimits, TranscriptError, unavailableTranscript, type RunTranscript } from './run-transcript.ts';
-import type { PloegCardFlow, PloegCardPipeline, PloegCardShape, PloegPlayCITiming, PloegPlayShape, PloegPlayTimeline } from './card-kpis.ts';
+import type { RunCardFlow, RunCardPipeline, RunCardShape, PloegPlayCITiming, PloegPlayShape, PloegPlayTimeline } from './card-kpis.ts';
 
 export type PloegState = 'ingested' | 'queued' | 'leased' | 'done' | 'needs_human' | 'awaiting_review' | 'stale' | 'withdrawn' | 'proposed';
 export type PloegTeam = { id: string; paused: boolean | null; queueDepth: number; roles: { id: string; queueDepth: number }[]; assignees: string[]; pinnedScopes: string[] };
@@ -80,42 +80,42 @@ export type PloegNoted = { workItemId: string; noteId: string; commandId: string
 export type PloegCancelGuard = { commandId: string; expectedShiftId?: string };
 export type PloegCancellation = PloegDecisionResult & { withdrawn: boolean | null; shiftId: string | null; cancelledRuns: number | null; stoppedRuns: number | null; keysBlocked: boolean | null; message: string };
 export type PloegRunFilter = { team?: string; state?: string; outcome?: string; before?: string };
-export type PloegCardStyle = { skin: string; theme: string | null };
-export type PloegCardCheck = { context: string; state: string };
-export type PloegCardReview = { reviewer: string; state: string; receivedAt: string | null; headSha: string };
-export type PloegCardPlay = { number: number; url: string; state: string; shiftId: string | null; branch: string; headSha: string; mergeCommitSha: string; mergedAt: string | null; mergedBy: string; closedAt: string | null; additions?: number; deletions?: number; changedFiles?: number; ci: { state: string; checks: PloegCardCheck[]; headSha: string; capturedAt: string | null } | null; reviews: PloegCardReview[]; deployments?: PloegCardDeployment[]; timeline?: PloegPlayTimeline | null; ciTiming?: PloegPlayCITiming | null; shape?: PloegPlayShape | null };
-export type PloegCardCrew = { role: string; writes: boolean | null; runs?: number; costUsd?: number; inputTokens?: number; outputTokens?: number };
-export type PloegCardTotals = { costStatus: 'observed' | 'reserved' | 'not_reported'; usageComplete: boolean | null; firstRunAt: string | null; lastRunAt: string | null } & Partial<Record<'costUsd' | 'authorizedUsd' | 'inputTokens' | 'outputTokens' | 'cacheReadInputTokens' | 'cacheCreationInputTokens' | 'turns' | 'toolCalls' | 'runs' | 'failedRuns' | 'rounds' | 'shifts' | 'runSeconds', number>>;
-export type PloegCardEvent = { at: string; kind: string; actor: string; detail: Record<string, string | number | boolean> };
+export type RunCardStyle = { skin: string; theme: string | null };
+export type RunCardCheck = { context: string; state: string };
+export type RunCardReview = { reviewer: string; state: string; receivedAt: string | null; headSha: string };
+export type RunCardPlay = { number: number; url: string; state: string; shiftId: string | null; branch: string; headSha: string; mergeCommitSha: string; mergedAt: string | null; mergedBy: string; closedAt: string | null; additions?: number; deletions?: number; changedFiles?: number; ci: { state: string; checks: RunCardCheck[]; headSha: string; capturedAt: string | null } | null; reviews: RunCardReview[]; deployments?: RunCardDeployment[]; timeline?: PloegPlayTimeline | null; ciTiming?: PloegPlayCITiming | null; shape?: PloegPlayShape | null };
+export type RunCardCrew = { role: string; writes: boolean | null; runs?: number; costUsd?: number; inputTokens?: number; outputTokens?: number };
+export type RunCardTotals = { costStatus: 'observed' | 'reserved' | 'not_reported'; usageComplete: boolean | null; firstRunAt: string | null; lastRunAt: string | null } & Partial<Record<'costUsd' | 'authorizedUsd' | 'inputTokens' | 'outputTokens' | 'cacheReadInputTokens' | 'cacheCreationInputTokens' | 'turns' | 'toolCalls' | 'runs' | 'failedRuns' | 'rounds' | 'shifts' | 'runSeconds', number>>;
+export type RunCardEvent = { at: string; kind: string; actor: string; detail: Record<string, string | number | boolean> };
 /** The first deploy of a Work Item's merged plays to one environment. */
-export type PloegCardDeployment = { environment: string; firstDeployedAt: string | null; sha: string; url: string };
+export type RunCardDeployment = { environment: string; firstDeployedAt: string | null; sha: string; url: string };
 /** When the latest merged play reached production (`deploy`), or its merge when the project reports no deploys (`merge`). */
-export type PloegCardRelease = { at: string; source: string; environment: string };
+export type RunCardRelease = { at: string; source: string; environment: string };
 /** The Work Item's usage so far while a Run is running (Ploeg ADR-0049): what finished Runs recorded plus the gateway's running total. A cost or token figure Ploeg could not read is absent. */
-export type PloegCardLive = { runningRuns: number; observedAt: string | null; runSeconds: number; usageComplete: boolean } & Partial<Record<'costUsd' | 'inputTokens' | 'outputTokens', number>>;
+export type RunCardLive = { runningRuns: number; observedAt: string | null; runSeconds: number; usageComplete: boolean } & Partial<Record<'costUsd' | 'inputTokens' | 'outputTokens', number>>;
 /** The facts a card's grade used, per subgrade (card contract P2b). `null` is a fact Ploeg does not know; `notCollected` names every input Ploeg has no source for yet, as `subgrade.input`. `missing` (formula 2026.3, Ploeg ADR-0061) names the inputs Ploeg can collect but has no fact for on this card, and is absent when Ploeg did not send it. */
-export type PloegCardGradeInputs = { reliability: { crackWeight: number | null; reverted: boolean | null }; durability: { daysLive: number | null; liveSince: string | null; reverts: number | null; hotfixes: number | null; survival: number | null }; delivery: { budgetShare: number | null; defectBounces: number | null; extraPlays: number | null; failedRuns: number | null }; review: { ciFirstGreen: boolean | null; findings: number | null; changeRequests: number | null; reviewRounds: number | null; reworkRounds: number | null }; notCollected: string[]; missing?: string[] };
+export type RunCardGradeInputs = { reliability: { crackWeight: number | null; reverted: boolean | null }; durability: { daysLive: number | null; liveSince: string | null; reverts: number | null; hotfixes: number | null; survival: number | null }; delivery: { budgetShare: number | null; defectBounces: number | null; extraPlays: number | null; failedRuns: number | null }; review: { ciFirstGreen: boolean | null; findings: number | null; changeRequests: number | null; reviewRounds: number | null; reworkRounds: number | null }; notCollected: string[]; missing?: string[] };
 /** A card's grade (card contract P2b): Ploeg computes it with a versioned formula (2026.1, 2026.2 with cracks, reverts and hotfixes, or 2026.3 counting rework rounds and missing inputs); Unfold only displays it. `inputs` is absent when Ploeg sent none or a shape Unfold cannot read. */
-export type PloegCardGrade = { formula: string; overall: number; provisional: boolean; subgrades: Partial<Record<'reliability' | 'durability' | 'delivery' | 'review', number>>; label: 'black' | 'gold' | null; qualifiers: string[]; inputs?: PloegCardGradeInputs };
+export type RunCardGrade = { formula: string; overall: number; provisional: boolean; subgrades: Partial<Record<'reliability' | 'durability' | 'delivery' | 'review', number>>; label: 'black' | 'gold' | null; qualifiers: string[]; inputs?: RunCardGradeInputs };
 /** One confirmed crack (card contract P3): a bug traced back to this card, and its mend when someone fixed it. `weight`, `warranty` and the mend's `confirmedAt` stay absent when Ploeg does not send them. */
-export type PloegCardCrack = { id: string; bug: { workItemId: string | null; ref: string; title: string } | null; severity: string; share: string; discovery: string; proposedAt: string | null; confirmedAt: string | null; confirmedBy: string[]; disputed: boolean; weight?: number; warranty?: 'full' | 'half' | 'history'; mended: { at: string | null; by: string; pr: number | null; bySteward: boolean; confirmedAt?: string | null } | null };
+export type RunCardCrack = { id: string; bug: { workItemId: string | null; ref: string; title: string } | null; severity: string; share: string; discovery: string; proposedAt: string | null; confirmedAt: string | null; confirmedBy: string[]; disputed: boolean; weight?: number; warranty?: 'full' | 'half' | 'history'; mended: { at: string | null; by: string; pr: number | null; bySteward: boolean; confirmedAt?: string | null } | null };
 /** A card's condition (card contract P3): cracked while a confirmed crack is open, mended once every crack was fixed. */
-export type PloegCardCondition = { state: 'cracked' | 'mended'; cracks: PloegCardCrack[] };
+export type RunCardCondition = { state: 'cracked' | 'mended'; cracks: RunCardCrack[] };
 /** A delivery gate on the Work Item's board (Ploeg ADR-0051). */
 export type PloegGate = 'development' | 'test' | 'acceptance' | 'done';
 /** Where the Work Item stands on its board's delivery gates and how it got there (Ploeg ADR-0051). `rightFirstTime` counts, per gate after development that the Work Item entered, the defect and unknown bounces that left it. */
-export type PloegCardGates = { current: PloegGate; history: { gate: PloegGate; enteredAt: string; leftAt: string | null }[]; bounces: { from: PloegGate; to: PloegGate; at: string; reason: string; actor: string }[]; rightFirstTime: Partial<Record<'test' | 'acceptance' | 'done', number>> };
+export type RunCardGates = { current: PloegGate; history: { gate: PloegGate; enteredAt: string; leftAt: string | null }[]; bounces: { from: PloegGate; to: PloegGate; at: string; reason: string; actor: string }[]; rightFirstTime: Partial<Record<'test' | 'acceptance' | 'done', number>> };
 /** The card's place in its epic's set (Ploeg ADR-0053). `children` is listed on the epic's own card only; `position` is null there. */
-export type PloegCardSet = { role: 'epic' | 'child'; epic: { workItemId: string | null; ref: string; title: string }; position: number | null; size: number; children: { workItemId: string; title: string; state: string; settled: boolean; cracked: boolean }[]; complete: boolean };
+export type RunCardSet = { role: 'epic' | 'child'; epic: { workItemId: string | null; ref: string; title: string }; position: number | null; size: number; children: { workItemId: string; title: string; state: string; settled: boolean; cracked: boolean }[]; complete: boolean };
 /** A rarity tier (Ploeg ADR-0056, proposed), lowest first. */
 export type PloegRarityTier = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 /** The facts a rarity score used (Ploeg ADR-0056, proposed). null is a fact Ploeg does not know. */
-export type PloegCardRarityInputs = { reach: { modules: number | null; repos: number | null }; sensitive: { files: number | null; paths: string[] }; novelty: { share: number | null; files: number | null; novel: number | null }; size: { countedLines: number | null }; set: boolean | null; truncated: boolean; notCollected: string[] };
+export type RunCardRarityInputs = { reach: { modules: number | null; repos: number | null }; sensitive: { files: number | null; paths: string[] }; novelty: { share: number | null; files: number | null; novel: number | null }; size: { countedLines: number | null }; set: boolean | null; truncated: boolean; notCollected: string[] };
 /** A card's rarity (Ploeg ADR-0056, proposed): how exceptional its change was, as a challenge score from 0 to 100, predicted before the merge and revealed at release, tiered by percentile in its repository and quarter. */
-export type PloegCardRarity = { formula: string; predicted: PloegRarityTier | null; revealed: PloegRarityTier | null; tier: PloegRarityTier; score: number | null; percentile: number | null; cohort: { target: string; quarter: string; size: number } | null; inputs: PloegCardRarityInputs | null; revealedAt: string | null };
+export type RunCardRarity = { formula: string; predicted: PloegRarityTier | null; revealed: PloegRarityTier | null; tier: PloegRarityTier; score: number | null; percentile: number | null; cohort: { target: string; quarter: string; size: number } | null; inputs: RunCardRarityInputs | null; revealedAt: string | null };
 /** A Run card: one per Work Item, its pull requests as plays, as Unfold assembles it from Ploeg's delivery facts (root ADR-0030). Facts only; an unknown value is absent or null, never zero. `finish` is always `matte`; the browser derives the finish from `release`. `rarity`, `grade`, `condition`, `gates` and `set` are validated, and a shape the browser cannot read becomes null. `deployments`, `release`, `live`, `gates`, `evolved`, `set`, `flow`, `pipeline` and `shape`, and a play's `timeline`, `ciTiming` and `shape`, are absent when the card has none, and an unreadable one is null. */
-export type PloegCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: PloegCardStyle; state: string; rarity: PloegCardRarity | null; finish: 'matte'; grade: PloegCardGrade | null; condition: PloegCardCondition | null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: PloegCardCrew[]; plays: PloegCardPlay[]; totals: PloegCardTotals; events: PloegCardEvent[]; deployments?: PloegCardDeployment[]; release?: PloegCardRelease | null; live?: PloegCardLive | null; gates?: PloegCardGates | null; evolved?: true; set?: PloegCardSet | null; flow?: PloegCardFlow | null; pipeline?: PloegCardPipeline | null; shape?: PloegCardShape | null; demo: boolean };
-export type PloegCardView = { card: PloegCard; demo: boolean; fetchedAt: string };
+export type RunCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: RunCardStyle; state: string; rarity: RunCardRarity | null; finish: 'matte'; grade: RunCardGrade | null; condition: RunCardCondition | null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: RunCardCrew[]; plays: RunCardPlay[]; totals: RunCardTotals; events: RunCardEvent[]; deployments?: RunCardDeployment[]; release?: RunCardRelease | null; live?: RunCardLive | null; gates?: RunCardGates | null; evolved?: true; set?: RunCardSet | null; flow?: RunCardFlow | null; pipeline?: RunCardPipeline | null; shape?: RunCardShape | null; demo: boolean };
+export type RunCardView = { card: RunCard; demo: boolean; fetchedAt: string };
 /** A Work Item named in an attribution. */
 export type PloegCrackItem = { workItemId: string; title: string; externalRef: string };
 /** The state of an attribution (Ploeg ADR-0052): proposed by the fixer, confirmed by a second person, disputed by the steward, unlinked by a referee, or evolved when the requirement changed. */
@@ -135,7 +135,7 @@ export type PloegAttributionStep = 'propose' | 'evolved' | 'confirm' | 'dispute'
 /** What an attribution step returns: the attribution as Ploeg recorded it, or in the demo as Ploeg would record it, with nothing kept. */
 export type PloegAttributionResult = { crack: PloegCrack; demo: boolean; message: string };
 /** Cards for a binder or team page, and where they came from: Ploeg's card list, a bounded scan of recent Work Items, or the demo. */
-export type PloegCardList = { cards: PloegCard[]; source: { kind: 'list' | 'scan' | 'demo'; scanned: number; truncated: boolean } };
+export type RunCardList = { cards: RunCard[]; source: { kind: 'list' | 'scan' | 'demo'; scanned: number; truncated: boolean } };
 export type PloegOverview ={ configured: boolean; available: boolean; demo: boolean; teams: PloegTeam[]; selectedTeam?: string; lanes?: Record<PloegLane, PloegPresentedPage>; fetchedAt?: string; trackerUrl?: string; message: string };
 
 export class PloegError extends Error {
@@ -424,7 +424,7 @@ function cardText(value: unknown, max = 256): string { return absent(value) ? ''
 function cardTime(value: unknown): string | null { return absent(value) || value === '' ? null : timestamp(value); }
 function cardList<T>(value: unknown, parse: (value: unknown) => T, max: number): T[] { return absent(value) ? [] : array(value, parse, max); }
 function styleName(value: unknown): string | null { return typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(value) ? value : null; }
-function cardPlay(value: unknown): PloegCardPlay {
+function cardPlay(value: unknown): RunCardPlay {
   const data = record(value);
   if (typeof data.number !== 'number' || !Number.isSafeInteger(data.number) || data.number < 1) throw invalid();
   const status = absent(data.ci) ? null : record(data.ci);
@@ -433,18 +433,18 @@ function cardPlay(value: unknown): PloegCardPlay {
   const counts = ['additions', 'deletions', 'changedFiles'] as const;
   return { number: data.number, url: absent(data.url) ? '' : link(data.url), state: cardToken(data.state), shiftId: looseId(data.shiftId), branch: cardText(data.branch, 512), headSha: cardText(data.headSha, 64), mergeCommitSha: cardText(data.mergeCommitSha, 64), mergedAt: cardTime(data.mergedAt), mergedBy: cardText(data.mergedBy), closedAt: cardTime(data.closedAt), ...optionalNumbers(data, counts, counts), ci, reviews, ...cardDeployments(data.deployments), ...playKpis(data) };
 }
-function cardCrew(value: unknown): PloegCardCrew {
+function cardCrew(value: unknown): RunCardCrew {
   const data = record(value);
   return { role: field(data.role, 100), writes: absent(data.writes) ? null : boolean(data.writes), ...optionalNumbers(data, ['runs', 'costUsd', 'inputTokens', 'outputTokens'] as const, ['runs', 'inputTokens', 'outputTokens']) };
 }
-function cardTotals(value: unknown): PloegCardTotals {
+function cardTotals(value: unknown): RunCardTotals {
   const data = absent(value) ? {} : record(value);
   const status = absent(data.costStatus) ? 'not_reported' : data.costStatus;
   if (!['observed', 'reserved', 'not_reported'].includes(status as string)) throw invalid();
   const counts = ['inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens', 'turns', 'toolCalls', 'runs', 'failedRuns', 'rounds', 'shifts'] as const;
-  return { costStatus: status as PloegCardTotals['costStatus'], usageComplete: absent(data.usageComplete) ? null : boolean(data.usageComplete), firstRunAt: cardTime(data.firstRunAt), lastRunAt: cardTime(data.lastRunAt), ...optionalNumbers(data, ['costUsd', 'authorizedUsd', 'runSeconds', ...counts] as const, counts) };
+  return { costStatus: status as RunCardTotals['costStatus'], usageComplete: absent(data.usageComplete) ? null : boolean(data.usageComplete), firstRunAt: cardTime(data.firstRunAt), lastRunAt: cardTime(data.lastRunAt), ...optionalNumbers(data, ['costUsd', 'authorizedUsd', 'runSeconds', ...counts] as const, counts) };
 }
-function cardEvent(value: unknown): PloegCardEvent {
+function cardEvent(value: unknown): RunCardEvent {
   const data = record(value);
   const raw = absent(data.detail) ? {} : record(data.detail);
   const detail: Record<string, string | number | boolean> = {};
@@ -456,19 +456,19 @@ function cardEvent(value: unknown): PloegCardEvent {
   }
   return { at: timestamp(data.at), kind: cardToken(data.kind, 'unknown'), actor: cardText(data.actor), detail };
 }
-function cardDeployment(value: unknown): PloegCardDeployment {
+function cardDeployment(value: unknown): RunCardDeployment {
   const data = record(value);
   return { environment: field(data.environment, 64).toLowerCase(), firstDeployedAt: cardTime(data.firstDeployedAt), sha: cardText(data.sha, 64), url: absent(data.url) ? '' : link(data.url) };
 }
-function cardDeployments(value: unknown): { deployments?: PloegCardDeployment[] } {
+function cardDeployments(value: unknown): { deployments?: RunCardDeployment[] } {
   return value === undefined ? {} : { deployments: cardList(value, cardDeployment, 50).filter(entry => entry.environment) };
 }
-function cardRelease(value: unknown): PloegCardRelease | null {
+function cardRelease(value: unknown): RunCardRelease | null {
   if (value === null) return null;
   const data = record(value);
   return { at: timestamp(data.at), source: cardToken(data.source, 'deploy'), environment: absent(data.environment) || data.environment === '' ? 'production' : field(data.environment, 64).toLowerCase() };
 }
-function cardLive(value: unknown): PloegCardLive | null {
+function cardLive(value: unknown): RunCardLive | null {
   if (value === null) return null;
   const data = record(value);
   const { runningRuns, runSeconds, ...usage } = optionalNumbers(data, ['runningRuns', 'runSeconds', 'costUsd', 'inputTokens', 'outputTokens'] as const, ['runningRuns', 'runSeconds', 'inputTokens', 'outputTokens']);
@@ -481,7 +481,7 @@ function halfStep(value: unknown): number { if (typeof value !== 'number' || val
 function readable<T>(parse: () => T): T | null { try { return parse(); } catch { return null; } }
 const gradeInputKeys = /^(?:reliability|durability|delivery|review)\.[A-Za-z]{1,64}$/;
 function maybe<T>(value: unknown, parse: (value: unknown) => T): T | null { return absent(value) ? null : parse(value); }
-function gradeInputs(value: unknown): PloegCardGradeInputs | undefined {
+function gradeInputs(value: unknown): RunCardGradeInputs | undefined {
   if (absent(value)) return undefined;
   return readable(() => {
     const data = record(value);
@@ -503,7 +503,7 @@ function gradeInputs(value: unknown): PloegCardGradeInputs | undefined {
     };
   }) ?? undefined;
 }
-function cardGrade(value: unknown): PloegCardGrade | null {
+function cardGrade(value: unknown): RunCardGrade | null {
   if (absent(value)) return null;
   return readable(() => {
     const data = record(value);
@@ -522,7 +522,7 @@ function cardGrade(value: unknown): PloegCardGrade | null {
   });
 }
 const warranties = ['full', 'half', 'history'] as const;
-function cardCrack(value: unknown): PloegCardCrack {
+function cardCrack(value: unknown): RunCardCrack {
   const data = record(value);
   const bug = absent(data.bug) ? null : record(data.bug);
   const mended = absent(data.mended) ? null : record(data.mended);
@@ -539,7 +539,7 @@ function cardCrack(value: unknown): PloegCardCrack {
     mended: mended ? { at: cardTime(mended.at), by: cardText(mended.by), pr: absent(mended.pr) ? null : numeric(mended.pr, true), bySteward: absent(mended.bySteward) ? false : boolean(mended.bySteward), ...(mended.confirmedAt === undefined ? {} : { confirmedAt: cardTime(mended.confirmedAt) }) } : null,
   };
 }
-function cardCondition(value: unknown): PloegCardCondition | null {
+function cardCondition(value: unknown): RunCardCondition | null {
   if (absent(value)) return null;
   return readable(() => {
     const data = record(value);
@@ -550,7 +550,7 @@ function cardCondition(value: unknown): PloegCardCondition | null {
 const gateNames: PloegGate[] = ['development', 'test', 'acceptance', 'done'];
 const bounceReasons = ['defect', 'requirement', 'misunderstood', 'environment', 'unknown'];
 function gate(value: unknown): PloegGate { if (!gateNames.includes(value as PloegGate)) throw invalid(); return value as PloegGate; }
-function cardGates(value: unknown): PloegCardGates | null {
+function cardGates(value: unknown): RunCardGates | null {
   if (absent(value)) return null;
   return readable(() => {
     const data = record(value);
@@ -564,7 +564,7 @@ function cardGates(value: unknown): PloegCardGates | null {
   });
 }
 const setStates = ['drafting', 'in_review', 'merged', 'closed', 'withdrawn'];
-function cardSet(value: unknown): PloegCardSet | null {
+function cardSet(value: unknown): RunCardSet | null {
   if (absent(value)) return null;
   return readable(() => {
     const data = record(value);
@@ -583,7 +583,7 @@ function cardSet(value: unknown): PloegCardSet | null {
 const rarityTiers: PloegRarityTier[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 function rarityTier(value: unknown): PloegRarityTier { if (!rarityTiers.includes(value as PloegRarityTier)) throw invalid(); return value as PloegRarityTier; }
 function share(value: unknown): number { const number = numeric(value); if (number > 1) throw invalid(); return number; }
-function rarityInputs(value: unknown): PloegCardRarityInputs | null {
+function rarityInputs(value: unknown): RunCardRarityInputs | null {
   if (absent(value)) return null;
   const data = record(value);
   const part = (key: string) => absent(data[key]) ? {} : record(data[key]);
@@ -603,7 +603,7 @@ function rarityInputs(value: unknown): PloegCardRarityInputs | null {
   };
 }
 /** Reads a card's rarity (Ploeg ADR-0056, proposed): strict on every field it knows, blind to fields it does not, and null when absent, null or unreadable. */
-export function cardRarity(value: unknown): PloegCardRarity | null {
+export function cardRarity(value: unknown): RunCardRarity | null {
   if (absent(value)) return null;
   return readable(() => {
     const data = record(value);
@@ -622,8 +622,8 @@ export function cardRarity(value: unknown): PloegCardRarity | null {
     };
   });
 }
-/** Validates a Run card from Ploeg: known fields only, safe links, bounded lists, absent values kept absent. It drops Ploeg's finish, and keeps a rarity, grade, condition, gates or set only in the shape the card contract defines; KPI figures pass through figure by figure (`card-kpis.ts`). */
-export function parseCard(value: unknown): PloegCard {
+/** Validates a Run card Unfold assembled from Ploeg's delivery facts: known fields only, safe links, bounded lists, absent values kept absent. It drops Ploeg's finish, and keeps a rarity, grade, condition, gates or set only in the shape the card contract defines; KPI figures pass through figure by figure (`card-kpis.ts`). */
+export function parseCard(value: unknown): RunCard {
   const data = record(value);
   const style = absent(data.style) ? {} : record(data.style);
   const stewardData = absent(data.steward) ? null : record(data.steward);
@@ -998,7 +998,7 @@ export class PloegClient {
     catch (error) { if (error instanceof TranscriptError) throw new PloegError(502, 'ploeg_transcript_invalid', `Ploeg returned a Run transcript Unfold cannot read (${error.path}).`); throw error; }
   }
   /** Reads a Work Item's Run card, assembled by Unfold from Ploeg's delivery facts. Without those facts it refuses with 503 `cards_facts_unavailable`. */
-  async card(user: User, id: string, fresh = false): Promise<PloegCardView> {
+  async card(user: User, id: string, fresh = false): Promise<RunCardView> {
     this.authorize(user);
     if (!/^[1-9][0-9]{0,19}$/.test(id)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg work item identifier.');
     if (this.demo) {
@@ -1011,17 +1011,17 @@ export class PloegClient {
     return { card: owned, demo: false, fetchedAt: new Date().toISOString() };
   }
   /** Lists the cards whose roster or steward names any of `logins`, newest activity first, across the caller's teams. The demo lists the demo cards. Without Ploeg's delivery facts it refuses with 503 `cards_facts_unavailable`. */
-  async memberCards(user: User, logins: string[], fresh = false): Promise<PloegCardList> {
+  async memberCards(user: User, logins: string[], fresh = false): Promise<RunCardList> {
     this.authorize(user);
     const wanted = new Set(logins.map(login => login.toLowerCase()));
-    const holds = (card: PloegCard) => card.roster.some(person => wanted.has(person.name.toLowerCase())) || Boolean(card.steward && wanted.has(card.steward.name.toLowerCase()));
+    const holds = (card: RunCard) => card.roster.some(person => wanted.has(person.name.toLowerCase())) || Boolean(card.steward && wanted.has(card.steward.name.toLowerCase()));
     if (!wanted.size) return { cards: [], source: { kind: this.demo ? 'demo' : 'list', scanned: 0, truncated: false } };
     if (this.demo) return { cards: Object.values(ploegDemo.cards).filter(card => this.allowed(user, card.team) && holds(card)).map(card => structuredClone(card)), source: { kind: 'demo', scanned: 0, truncated: false } };
     const owned = await (await this.cards(fresh)).memberCards([...wanted], fresh);
     return { cards: owned.cards.map(card => parseCard(card)).filter(card => this.allowed(user, card.team) && holds(card)), source: { kind: 'list', scanned: owned.scanned, truncated: owned.truncated } };
   }
   /** Lists one Team's cards for its team page; the demo lists the demo cards. Without Ploeg's delivery facts it refuses with 503 `cards_facts_unavailable`. */
-  async teamCards(user: User, team: string, since: string | undefined, fresh = false): Promise<PloegCardList> {
+  async teamCards(user: User, team: string, since: string | undefined, fresh = false): Promise<RunCardList> {
     this.authorize(user);
     if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
     if (this.demo) return { cards: Object.values(ploegDemo.cards).filter(card => card.team === team).map(card => structuredClone(card)), source: { kind: 'demo', scanned: 0, truncated: false } };

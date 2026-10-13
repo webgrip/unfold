@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { briefText, workItemBrief } from '../src/ask/brief.ts';
-import type { PloegCard, PloegDetail, PloegItem, PloegRun } from '../src/ploeg.ts';
+import type { RunCard, PloegDetail, PloegItem, PloegRun } from '../src/ploeg.ts';
 
 const secret = (name: string) => `LEAK-${name}-7f3a`;
 const at = (clock: string) => `2026-10-10T${clock}Z`;
@@ -66,12 +66,12 @@ test('spend is final only when every Run reported a settled cost, and so far whi
 });
 
 test('the card decides spend when it is available, and unknown spend is never zero', () => {
-  const card = { demo: false, deployments: [{ environment: 'preview', firstDeployedAt: at('10:30:00'), sha: secret('deploy-sha'), url: secret('preview-url') }], totals: { costStatus: 'observed', usageComplete: false, firstRunAt: null, lastRunAt: null, costUsd: 0.5 } } as unknown as PloegCard;
+  const card = { demo: false, deployments: [{ environment: 'preview', firstDeployedAt: at('10:30:00'), sha: secret('deploy-sha'), url: secret('preview-url') }], totals: { costStatus: 'observed', usageComplete: false, firstRunAt: null, lastRunAt: null, costUsd: 0.5 } } as unknown as RunCard;
   const brief = workItemBrief(detail(), card);
   assert.deepEqual(brief.spend, { status: 'provisional', deliveryUsd: 0.5 });
   assert.deepEqual(brief.previews, [{ environment: 'preview', since: at('10:30:00') }]);
   assert.equal(JSON.stringify(brief).match(/LEAK-/g), null);
-  const unreported = workItemBrief(detail(), { ...card, totals: { costStatus: 'not_reported', usageComplete: null, firstRunAt: null, lastRunAt: null } } as PloegCard);
+  const unreported = workItemBrief(detail(), { ...card, totals: { costStatus: 'not_reported', usageComplete: null, firstRunAt: null, lastRunAt: null } } as RunCard);
   assert.deepEqual(unreported.spend, { status: 'unknown', deliveryUsd: null });
 });
 

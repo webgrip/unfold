@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { Collection, CollectionError, type CardSource } from '../src/collection.ts';
 import { Store } from '../src/store.ts';
 import { cardWorldLimit, shownWorld, validateWorld, type WorldFacts } from '../src/card-worlds.ts';
-import type { PloegCard } from '../src/ploeg.ts';
+import type { RunCard } from '../src/ploeg.ts';
 import type { User } from '../src/types.ts';
 import { application, configuration, login, request } from './api-support.ts';
 import { card } from './collection-support.ts';
@@ -15,7 +15,7 @@ const fresh: WorldFacts = { days: null, merged: false, condition: null };
 const merged28: WorldFacts = { days: 28, merged: true, condition: null };
 const decoration = (extra: Record<string, unknown> = {}) => ({ v: 1, kind: 'islands', tod: 'auto', weather: 'clear', objects: [{ t: 'tree', x: -0.9, z: -0.6, s: 0.25 }], ...extra });
 
-function setup(cards: PloegCard[], now: string, withCard = true) {
+function setup(cards: RunCard[], now: string, withCard = true) {
   const store = new Store(':memory:');
   let clock = Date.parse(now);
   const source: CardSource = {
