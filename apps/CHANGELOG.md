@@ -1,3 +1,10 @@
+## [unfold-v0.4.0-rc.76](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.75...unfold-v0.4.0-rc.76) (2026-10-13)
+
+### Added
+
+* **unfold:** feature flags with Labs, and the Work Item flight profile behind one ([73c7a0f](https://forgejo.webgrip.dev/webgrip/unfold/commit/73c7a0fbe831604f2b8f608325cca8116b4713e7))
+* **unfold:** percentage rollouts, segments, ramps and OFREP for feature flags ([9852443](https://forgejo.webgrip.dev/webgrip/unfold/commit/985244377a87445e40e183e2c1209ca9c0a8b796))
+
 ## [unfold-v0.4.0-rc.75](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.74...unfold-v0.4.0-rc.75) (2026-10-13)
 
 ### Added
