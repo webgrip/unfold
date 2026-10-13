@@ -4,9 +4,16 @@ type Json = Record<string, any>;
 
 /**
  * A command the crew ran in its sandbox, as its durable `tool` events record it. `id` is the id of the event that first named
- * the command, so a command keeps its terminal across reconnects and restarts.
+ * the command, so a command keeps its terminal across reconnects and restarts. `streamed` counts the raw characters its
+ * `tool.output` events covered, and `held` is the unfinished last line not yet cleaned and shown.
  */
-export type CrewCommand = { id: string; key: string; runId?: string; commandLine: string; title: string; startedAt: number; finished: boolean; output: string; truncated: boolean; exitCode?: number; durationMs?: number };
+export type CrewCommand = { id: string; key: string; runId?: string; commandLine: string; title: string; startedAt: number; finished: boolean; output: string; truncated: boolean; streamed: number; held: string; exitCode?: number; durationMs?: number };
+
+/**
+ * The bounds of live command output: the characters one `tool.output` event may add, the longest unfinished line held back
+ * for redaction, the output a command keeps for a snapshot, and the preview a finished tool call carries.
+ */
+export const liveOutputLimits = Object.freeze({ chunk: 16_384, heldLine: 4096, kept: 64_000, preview: 4000 });
 
 /** What one durable event did to the session's commands: the command a `tool` event belongs to, and the terminal actions to broadcast. */
 export type CommandUpdate = { command?: CrewCommand; content?: Json; actions: Json[] };
@@ -98,6 +105,7 @@ export class CommandLog {
     const data = event.data as Json;
     if (event.type === 'run.finished') return { actions: this.endOpen(command => command.runId === event.runId) };
     if (sessionStops.has(event.type)) return { actions: this.endOpen(() => true) };
+    if (event.type === 'tool.output') return this.append(event, data);
     if (event.type !== 'tool') return { actions: [] };
     const key = `${event.runId ?? ''}:${typeof data.partId === 'string' && data.partId ? data.partId : String(data.name ?? 'tool')}`;
     const at = Date.parse(event.at) || 0;
@@ -108,7 +116,7 @@ export class CommandLog {
       const line = this.clean(commandLine);
       const described = typeof data.title === 'string' && data.title.trim() && data.title.trim() !== commandLine ? this.clean(data.title.trim()) : '';
       const title = (described || line.split('\n')[0]).slice(0, maxTitle);
-      command = { id: String(event.id), key, ...(event.runId ? { runId: event.runId } : {}), commandLine: line, title, startedAt: at, finished: false, output: '', truncated: false };
+      command = { id: String(event.id), key, ...(event.runId ? { runId: event.runId } : {}), commandLine: line, title, startedAt: at, finished: false, output: '', truncated: false, streamed: 0, held: '' };
       this.commands.set(command.id, command);
       this.open.set(key, command.id);
     }
@@ -118,7 +126,9 @@ export class CommandLog {
 
   /** The tool result content that points a tool call at its command's terminal, with the outcome once the command finished. */
   content(command: CrewCommand): Json {
-    const result = command.finished ? { result: { ...(command.exitCode !== undefined ? { exitCode: command.exitCode } : {}), preview: command.output, truncated: command.truncated } } : {};
+    const long = command.output.length > liveOutputLimits.preview;
+    const preview = long ? `…${command.output.slice(-liveOutputLimits.preview)}` : command.output;
+    const result = command.finished ? { result: { ...(command.exitCode !== undefined ? { exitCode: command.exitCode } : {}), preview, truncated: command.truncated || long } } : {};
     return { type: 'terminal', resource: terminalChannel(this.publicId, command.id), title: command.title, isPty: false, ...result };
   }
 
@@ -129,10 +139,54 @@ export class CommandLog {
     return { title: command.title, content: [part], lifecycle, claim: { kind: 'session', session: claim.session, chat: claim.chat }, supportsCommandDetection: true, isPty: false };
   }
 
+  /**
+   * Appends one `tool.output` event to its open command: `data` is raw output and `offset` the number of the command's raw
+   * characters before it. A repeated or overlapping chunk adds only what is new, a gap is marked, and only whole lines are
+   * cleaned and sent, so a credential split across two chunks is masked like any other.
+   */
+  private append(event: Event, data: Json): CommandUpdate {
+    const command = this.commands.get(this.open.get(`${event.runId ?? ''}:${typeof data.partId === 'string' ? data.partId : ''}`) ?? '');
+    if (!command || typeof data.data !== 'string' || !data.data || !Number.isSafeInteger(data.offset) || data.offset < 0) return { actions: [] };
+    const end = data.offset + data.data.length;
+    if (end <= command.streamed) return { command, actions: [] };
+    let fresh = data.data.slice(Math.max(0, command.streamed - data.offset));
+    let missing = Math.max(0, data.offset - command.streamed);
+    if (fresh.length > liveOutputLimits.chunk) { missing += fresh.length - liveOutputLimits.chunk; fresh = fresh.slice(-liveOutputLimits.chunk); }
+    command.streamed = end;
+    const shown: string[] = [];
+    if (missing) { shown.push(this.release(command)); command.truncated = true; shown.push(this.keep(command, `\n… ${missing} characters of output not kept …\n`)); }
+    command.held += fresh;
+    const lineEnd = command.held.lastIndexOf('\n');
+    if (lineEnd >= 0) { shown.push(this.keep(command, this.clean(command.held.slice(0, lineEnd + 1)))); command.held = command.held.slice(lineEnd + 1); }
+    if (command.held.length > liveOutputLimits.heldLine) shown.push(this.release(command));
+    const text = shown.join('');
+    return { command, actions: text ? this.onTerminal(command, [{ type: 'terminal/data', data: text }]) : [] };
+  }
+
+  private release(command: CrewCommand): string {
+    const text = command.held ? this.keep(command, this.clean(command.held)) : '';
+    command.held = '';
+    return text;
+  }
+
+  private keep(command: CrewCommand, text: string): string {
+    command.output += text;
+    if (command.output.length > liveOutputLimits.kept) { command.output = `…${command.output.slice(-liveOutputLimits.kept)}`; command.truncated = true; }
+    return text;
+  }
+
+  private onTerminal(command: CrewCommand, actions: Json[]): Json[] {
+    const channel = terminalChannel(this.publicId, command.id);
+    for (const action of actions) terminalActionChannels.set(action, channel);
+    return actions;
+  }
+
   private finish(command: CrewCommand, data: Json, at: number): Json[] {
-    const recorded = typeof data.output === 'string' && data.output ? data.output : typeof data.error === 'string' ? data.error : '';
-    command.output = this.clean(recorded);
-    command.truncated = recorded.startsWith('…');
+    if (!command.streamed) {
+      const recorded = typeof data.output === 'string' && data.output ? data.output : typeof data.error === 'string' ? data.error : '';
+      command.output = this.clean(recorded);
+      command.truncated = recorded.startsWith('…');
+    }
     if (Number.isInteger(data.exitCode)) command.exitCode = data.exitCode;
     command.durationMs = Number.isFinite(data.durationMs) && data.durationMs >= 0 ? Math.round(data.durationMs) : Math.max(0, at - command.startedAt);
     return this.close(command);
@@ -145,14 +199,12 @@ export class CommandLog {
   private close(command: CrewCommand): Json[] {
     command.finished = true;
     this.open.delete(command.key);
+    const shown = command.streamed ? this.release(command) : command.output;
     const exit = command.exitCode !== undefined ? { exitCode: command.exitCode } : {};
-    const actions: Json[] = [
-      ...(command.output ? [{ type: 'terminal/data', data: command.output }] : []),
+    return this.onTerminal(command, [
+      ...(shown ? [{ type: 'terminal/data', data: shown }] : []),
       { type: 'terminal/commandFinished', commandId: command.id, ...exit, ...(command.durationMs !== undefined ? { durationMs: command.durationMs } : {}) },
       { type: 'terminal/exited', ...exit },
-    ];
-    const channel = terminalChannel(this.publicId, command.id);
-    for (const action of actions) terminalActionChannels.set(action, channel);
-    return actions;
+    ]);
   }
 }

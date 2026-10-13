@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { application, login, request } from './api-support.ts';
 import { action, connect, defaultChatOf, vscodeAgentsWindow, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
-import { CommandLog, clientTerminalNotice, commandLineOf, noClientShell, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel, terminalChannel } from '../src/ahp/terminals.ts';
+import { CommandLog, clientTerminalNotice, commandLineOf, liveOutputLimits, noClientShell, noClientTerminals, parseTerminalChannel, readOnlyTerminal, terminalActionChannel, terminalChannel } from '../src/ahp/terminals.ts';
 import { plainRedactedText } from '../src/redaction.ts';
 import type { Event } from '../src/types.ts';
 
@@ -227,4 +227,86 @@ test('a deterministic demo run shows each check it really ran as a terminal with
   assert.equal(baseline.content[0].output, terminals[0].content[0].result.preview);
   const edit = parts.find((part: Json) => part.kind === 'toolCall' && part.toolCall.toolName === 'edit src/order.js')!;
   assert.ok(!(edit.toolCall.content ?? []).some((item: Json) => item.type === 'terminal'), 'a file edit is not a command and gets no terminal');
+});
+
+test('live output chunks reach a command\'s terminal line by line, in offset order, masked across chunk boundaries', () => {
+  const log = new CommandLog('session-live', text => plainRedactedText(text.split('known-secret-value').join('[redacted]')));
+  const chunk = (offset: number, data: string, partId = 'p1', runId = 'run-1') => log.apply(event('tool.output', { partId, offset, data }, runId));
+  assert.deepEqual(chunk(0, 'early\n'), { actions: [] }, 'output before its command is known has no terminal to land on');
+  const started = log.apply(event('tool', { name: 'bash', status: 'running', partId: 'p1', input: JSON.stringify({ command: 'npm test' }) }));
+  const claim = { session: 'ahp-session:/session-live', chat: 'ahp-chat:/x' };
+  let state = log.state(started.command!, claim);
+  const data = (update: { actions: Json[] }) => update.actions.map(item => { assert.equal(terminalActionChannel(item), terminalChannel('session-live', started.command!.id)); state = reduceTerminal(state, item); return item.data; }).join('');
+
+  assert.equal(data(chunk(0, 'one\ntwo')), 'one\n', 'an unfinished line waits for the rest of it');
+  assert.equal(data(chunk(7, ' Bearer known-sec')), '');
+  assert.equal(data(chunk(24, 'ret-value done\n')), 'two Bearer [redacted] done\n', 'a credential split across two chunks is masked once the line is whole');
+  assert.equal(data(chunk(0, 'one\ntwo Bearer known-secret-value done\n')), '', 'a chunk sent again adds nothing');
+  assert.equal(data(chunk(33, ' done\nthree\n')), 'three\n', 'an overlapping chunk adds only what is new');
+  assert.equal(data(chunk(80, 'four\n')), '\n… 35 characters of output not kept …\nfour\n', 'a gap is marked instead of joined silently');
+  assert.equal(data(chunk(10, 'x', 'p2')), '', 'another tool call\'s chunk is not this command\'s output');
+  assert.equal(started.command!.truncated, true);
+
+  const done = log.apply(event('tool', { name: 'bash', status: 'completed', partId: 'p1', output: '…the tail OpenCode kept\n' }, 'run-1', '2026-10-10T10:00:02.000Z'));
+  assert.deepEqual(done.actions.map(item => item.type), ['terminal/commandFinished', 'terminal/exited'], 'the completed event does not repeat output the terminal already showed');
+  for (const item of done.actions) state = reduceTerminal(state, item);
+  assert.equal(state.content[0].output, 'one\ntwo Bearer [redacted] done\nthree\n\n… 35 characters of output not kept …\nfour\n');
+  assert.deepEqual(JSON.parse(JSON.stringify(state)), log.state(started.command!, claim), 'a live client and a later snapshot see the same terminal');
+  assert.equal(done.content!.result.preview, state.content[0].output);
+  assert.equal(done.content!.result.truncated, true);
+  assert.deepEqual(chunk(85, 'late\n'), { actions: [] }, 'a finished command takes no more output');
+});
+
+test('live output is bounded: a held line is released at its limit, an oversized chunk keeps its tail, and a stop flushes what is held', () => {
+  const log = new CommandLog('session-bounds', plainRedactedText);
+  const started = log.apply(event('tool', { name: 'bash', status: 'running', partId: 'b1', input: JSON.stringify({ command: 'yes' }) }, 'run-b'));
+  const command = started.command!;
+  const long = 'y'.repeat(liveOutputLimits.heldLine + 1);
+  assert.equal(log.apply(event('tool.output', { partId: 'b1', offset: 0, data: long }, 'run-b')).actions[0].data, long, 'a line longer than the hold limit is shown rather than held forever');
+  const flood = 'z'.repeat(liveOutputLimits.chunk + 10) + '\n';
+  const flooded = log.apply(event('tool.output', { partId: 'b1', offset: long.length, data: flood }, 'run-b')).actions[0].data;
+  assert.match(flooded, /^\n… 11 characters of output not kept …\nz+\n$/);
+  for (let offset = long.length + flood.length, index = 0; command.output.length <= liveOutputLimits.kept; index++) {
+    const line = `${index} ${'w'.repeat(1000)}\n`;
+    log.apply(event('tool.output', { partId: 'b1', offset, data: line }, 'run-b'));
+    offset += line.length;
+  }
+  assert.ok(command.output.length <= liveOutputLimits.kept + 1, 'the kept output never outgrows its bound');
+  assert.ok(command.output.startsWith('…'));
+  log.apply(event('tool.output', { partId: 'b1', offset: command.streamed, data: 'partial' }, 'run-b'));
+  const stopped = log.apply(event('session.interrupted', {}, 'run-b'));
+  assert.deepEqual(stopped.actions.map(item => item.type), ['terminal/data', 'terminal/commandFinished', 'terminal/exited']);
+  assert.equal(stopped.actions[0].data, 'partial', 'a stop shows the unfinished line it held');
+  for (const invalid of [{ offset: -1, data: 'x' }, { offset: 1.5, data: 'x' }, { offset: 0, data: 7 }, { offset: 0, data: '' }]) assert.deepEqual(log.apply(event('tool.output', { partId: 'b1', ...invalid }, 'run-b')).actions, []);
+});
+
+test('a terminal receives live output while its command runs, and a reconnecting client gets the same output', { timeout: testTimeout(60_000) }, async t => {
+  const server = await application('live');
+  t.after(() => server.close());
+  const auth = await login(server.url, 'admin', adminPassword);
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: auth.cookie, body: { label: 'live-output' } });
+  const attach = async () => {
+    const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
+    t.after(() => client.close());
+    await client.open;
+    await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: `live-${randomUUID()}`, clientInfo: vscodeAgentsWindow, _meta: { 'vscode.ahpSessionUris': true }, initialSubscriptions: ['ahp-root://'] });
+    return client;
+  };
+  const client = await attach();
+  const session = server.app.engine.create({ title: 'Live output', objective: 'Fix the order rounding regression and provide the actual verification result.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode', budgetUsd: 1 }, { id: 'admin', name: 'admin', role: 'admin' });
+  const chat = defaultChatOf(`ahp-session:/${session.id}`);
+  await client.rpc('subscribe', { channel: chat });
+  server.app.store.appendEvent(session.id, 'tool', 'system', { name: 'bash', status: 'running', partId: 'call-live', input: JSON.stringify({ command: 'npm test' }) }, 'run-1');
+  const attached = await client.until(message => action(message, chat, 'chat/toolCallContentChanged'));
+  const terminal = attached.params.action.content[0].resource;
+  let state = (await client.rpc('subscribe', { channel: terminal })).snapshot.state;
+  server.app.store.appendEvent(session.id, 'tool.output', 'system', { partId: 'call-live', offset: 0, data: `\u001b[32m1 passing\u001b[0m\npassword=${adminPassword}\n` }, 'run-1');
+  const live = await client.until(message => action(message, terminal, 'terminal/data'));
+  state = reduceTerminal(state, live.params.action);
+  assert.equal(shownOutput(state), '1 passing\r\npassword=[redacted]\r\n');
+  assert.equal(state.content[0].isComplete, false, 'the output arrived while the command still runs');
+  const later = await attach();
+  const resumed = (await later.rpc('subscribe', { channel: terminal })).snapshot.state;
+  assert.equal(shownOutput(resumed), shownOutput(state), 'a client that connects later gets the output so far');
+  assert.equal(JSON.stringify([...client.inbox, ...later.inbox]).includes(adminPassword), false, 'the secret never crossed the wire');
 });
