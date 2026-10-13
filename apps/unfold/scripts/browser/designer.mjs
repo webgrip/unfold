@@ -64,7 +64,7 @@ export async function run({ page, app, live, password, artModel, assert, screens
   await page.getByRole('button', { name: 'Save theme' }).click();
   await page.locator('.designer-message', { hasText: 'Saved version 1 of Acme 2026' }).waitFor();
   await page.getByText('Version 1 · saved by Demo operator', { exact: false }).first().waitFor();
-  assert.match(await page.locator('.designer-code').first().innerText(), /cardStyle:\s+skin: forge\s+theme: acme/, 'the Ploeg config snippet names the theme');
+  assert.match(await page.locator('.designer-code').first().innerText(), /"style": \{ "skin": "forge", "theme": "acme" \}/, 'the Unfold config snippet names the theme');
 
   await page.reload();
   await page.getByRole('heading', { level: 1, name: 'Card designer' }).waitFor();
