@@ -150,6 +150,44 @@ def validate(model):
         if ctx and ctx not in contexts:
             warn(f"dialogue {d.get('title')!r} references unknown context {ctx!r}")
 
+    if str(model.get("owner", "")).lower() != "unfold":
+        return
+    base = model["_path"].parent if "_path" in model else None
+    ledgers = {
+        "system": ("../adr", "adr-{}-*.md"),
+        "Ploeg": ("../../apps/ploeg/docs/adrs", "{}-*.md"),
+        "Unfold": ("../../apps/unfold/docs/adrs", "{}-*.md"),
+    }
+    scopes = {"system": "system", "System": "system", "Ploeg": "Ploeg", "Unfold": "Unfold"}
+    adr = re.compile(r"(?:\b(\w+)\s+)?\bADRs?[- ]?(\d{4})")
+
+    def strings(value, where):
+        if isinstance(value, str):
+            yield where, value
+        elif isinstance(value, dict):
+            for key, item in value.items():
+                if not str(key).startswith("_") and key not in ("references", "imports"):
+                    yield from strings(item, f"{where}.{key}" if where else str(key))
+        elif isinstance(value, list):
+            for item in value:
+                label = (item.get("name") or item.get("id") or item.get("phrase") or item.get("title")) if isinstance(item, dict) else None
+                yield from strings(item, f"{where}[{label}]" if label else where)
+
+    errors = []
+    for where, text in strings(model, ""):
+        for match in adr.finditer(" ".join(text.split())):
+            scope = scopes.get(match.group(1) or "")
+            if scope is None:
+                errors.append(f"{where}: {match.group(0)[match.group(0).index('ADR'):]!r} names no ledger; write system ADR-NNNN, Unfold ADR NNNN or Ploeg ADR-NNNN")
+                continue
+            folder, pattern = ledgers[scope]
+            if base is not None and (base / folder).is_dir() and not list((base / folder).glob(pattern.format(match.group(2)))):
+                errors.append(f"{where}: {match.group(0)!r} is not in the {scope} ledger ({folder})")
+    if errors:
+        for e in errors:
+            print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
 
 
 
