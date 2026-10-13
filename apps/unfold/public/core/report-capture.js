@@ -189,7 +189,8 @@ export function scrollShifts(document, exclude) {
  * Takes the screenshot: the visible part of the page rasterised by html-to-image from Unfold's own origin, with every
  * `[data-private]` region blurred in the copy, and `exclude` (the report dialog) left out. Other open dialogs stay in,
  * because the problem may be in one. Scrolled content is shifted back for the moment of the copy (see scrollShifts). The blur rule lives in a
- * constructed stylesheet for the moment of the copy only, which the CSP allows.
+ * constructed stylesheet for the moment of the copy only, which the CSP allows. Its rules switch transitions off: with
+ * reduced motion every property transitions for 0.01ms, and html-to-image would copy the value a transition starts from.
  * @param {{ exclude?: Element | null }} [options]
  * @returns {Promise<HTMLCanvasElement>}
  */
@@ -206,7 +207,7 @@ export async function captureScreen({ exclude = null } = {}) {
     if (window.scrollX !== scrollX || window.scrollY !== scrollY) window.scrollTo(scrollX, scrollY);
   }
   const sheet = new CSSStyleSheet();
-  sheet.replaceSync([`[data-private]{filter:blur(${privateBlurPx}px) !important}`, ...shifts.offsets.map(([x, y], index) => `[data-report-shift="${index}"]{translate:${-x}px ${-y}px !important}`)].join('\n'));
+  sheet.replaceSync([`[data-private]{filter:blur(${privateBlurPx}px) !important;transition:none !important}`, ...shifts.offsets.map(([x, y], index) => `[data-report-shift="${index}"]{translate:${-x}px ${-y}px !important;transition:none !important}`)].join('\n'));
   const width = document.documentElement.clientWidth;
   const height = document.documentElement.clientHeight;
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
