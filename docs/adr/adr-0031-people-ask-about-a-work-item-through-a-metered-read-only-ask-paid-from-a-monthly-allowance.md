@@ -1,6 +1,6 @@
 ---
-status: proposed
-date: 2026-10-10
+status: accepted
+date: 2026-10-13
 decision-makers: Ryan Grippeling
 ---
 
@@ -92,6 +92,7 @@ The Session page's Investigate button already does this for "why did it stop".
 * 2026-10-10 — Proposed.
 * 2026-10-10 — The owner approved "deterministic first, model last": standing questions are answered from the record for free, and only the rest becomes a metered Ask. See [the update below](#update-2026-10-10-deterministic-first-model-last).
 * 2026-10-11 — Standing questions asked in Dutch are answered from the record too, with a Dutch lead before the English answer. See [the update below](#update-2026-10-11-dutch-standing-questions).
+* 2026-10-13 — Accepted as built, with Ploeg ADR-0082. See [the update below](#update-2026-10-13-accepted-as-built).
 * Related: [ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md), [ADR-0007](adr-0007-clients-approve-ready-work.md), [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md)
 
 ## Update, 2026-10-10: deterministic first, model last
@@ -118,3 +119,6 @@ The owner and the people he works with ask in Dutch: "wat doet hij nu?", "waarom
 
 **The record answer stays English, with a Dutch lead.** A Dutch question's record answer starts with "Antwoord uit het dossier, in het Engels zoals Unfold het toont." and then gives the same English answer an English question gets. Most of a record answer is not a template in this file: the phase label, headline, stop reason, Role steps and action labels come from the progress statechart, and the state text and stop reasons from the brief, all in English, the language of the whole UI. Translating only the templates would mix languages inside a sentence, and translating the statechart would add a second vocabulary to keep in step with the UI. A person who wants the answer in Dutch can use "Ask the model anyway"; the model answers in the language of the question. When Unfold gets a Dutch UI, record answers should follow it instead of carrying the lead.
 
+## Update, 2026-10-13: accepted as built
+
+Ask runs on the homelab, so the owner accepted this decision as built. One part of the brief differs from the decision text: the [`WorkItemBrief`](../../apps/unfold/src/ask/brief.ts) holds the title and objective, the state with why it waits or stopped, the Runs, the pull request, the previews, the spend with its cost status and, when a session drives the Work Item, its progress. It has no Acceptance Conditions field yet. Everything else in the decision stands.

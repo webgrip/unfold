@@ -38,8 +38,10 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0024](../adr/adr-0024-bug-reports-are-filed-by-unfold-into-the-tenants-own-tracker.md) | Bug reports are filed by Unfold into the tenant's own tracker | 2026-10-05 | — |
 | System | [0025](../adr/adr-0025-unfold-asks-one-ease-question-on-anomalies-and-a-random-baseline.md) | Unfold asks one ease question on anomalies and a random baseline | 2026-10-05 | — |
 | System | [0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md) | Run cards are an Unfold domain on top of Ploeg's delivery facts | 2026-10-10 | — |
+| System | [0031](../adr/adr-0031-people-ask-about-a-work-item-through-a-metered-read-only-ask-paid-from-a-monthly-allowance.md) | People ask about a Work Item through a metered, read-only Ask paid from a monthly allowance | 2026-10-13 | — |
 | System | [0032](../adr/adr-0032-unfold-also-serves-its-own-read-only-mcp-tools-next-to-ploeg-mcp.md) | Unfold also serves its own read-only MCP tools, next to ploeg-mcp | 2026-10-10 | — |
 | System | [0033](../adr/adr-0033-unfold-plans-non-trivial-changes-as-openspec-changes.md) | Unfold plans non-trivial changes as OpenSpec changes | 2026-10-11 | — |
+| System | [0036](../adr/adr-0036-ploeg-and-unfold-use-one-vocabulary-with-named-screen-words.md) | Ploeg and Unfold use one vocabulary, with named screen words | 2026-10-13 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
@@ -112,7 +114,6 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0021](../adr/adr-0021-agents-are-briefed-from-a-per-tenant-knowledge-base-exchanged-as-okf.md) | Agents are briefed from a per-Tenant knowledge base exchanged as OKF | 2026-10-04 | unknown | — |
 | System | [0026](../adr/adr-0026-unfold-is-an-installable-web-app-that-notifies-from-the-server.md) | Unfold is an installable web app that notifies from the server | 2026-10-05 | unknown | — |
 | System | [0027](../adr/adr-0027-unfold-checks-its-ploeg-client-against-ploegs-published-schemas.md) | Unfold checks its Ploeg client against Ploeg's published schemas | 2026-10-05 | unknown | — |
-| System | [0031](../adr/adr-0031-people-ask-about-a-work-item-through-a-metered-read-only-ask-paid-from-a-monthly-allowance.md) | People ask about a Work Item through a metered, read-only Ask paid from a monthly allowance | 2026-10-10 | unknown | — |
 | System | [0034](../adr/adr-0034-agent-knowledge-is-scoped-to-tenant-client-repository-and-work-item-in-two-graphs-per-tenant.md) | Agent knowledge is scoped to Tenant, Client, repository and Work Item, in two graphs per Tenant | 2026-10-11 | unknown | — |
 | System | [0035](../adr/adr-0035-interactive-sessions-reach-tenant-knowledge-only-through-unfold-mcp.md) | Interactive sessions reach Tenant knowledge only through unfold-mcp | 2026-10-11 | unknown | — |
 | Ploeg | [0015](../../apps/ploeg/docs/adrs/0015-routing-is-core-policy-over-provider-opaque-scopes.md) | Route work in the core over provider-opaque Scopes | 2026-07-29 | partial | Scope resolver exists; tracker team mapping is still live ([source](../../apps/ploeg/pkg/target/resolver.go)) |
