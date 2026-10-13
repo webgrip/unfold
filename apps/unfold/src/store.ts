@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import type { Session, Event, PermissionRequest, User } from './types.ts';
 import type { Ask } from './ask/types.ts';
+import type { IssueState } from './tasks.ts';
 
 export type StoredUser = User & { passwordHash: string };
 export type Login = { tokenHash: string; userId: string; expiresAt: string };
@@ -64,6 +65,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, status TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, last_error TEXT, url TEXT, filed_at TEXT, issue TEXT);
       CREATE INDEX IF NOT EXISTS reports_due ON reports(status, next_attempt_at);
       CREATE TABLE IF NOT EXISTS report_files (report_id TEXT NOT NULL REFERENCES reports(id), name TEXT NOT NULL, type TEXT NOT NULL, content BLOB NOT NULL, PRIMARY KEY (report_id, name));
+      CREATE TABLE IF NOT EXISTS report_follow (report_id TEXT PRIMARY KEY REFERENCES reports(id), state TEXT, checked_at TEXT NOT NULL, seen_at TEXT);
       CREATE TABLE IF NOT EXISTS agent_host_views (user_id TEXT NOT NULL, session_id TEXT NOT NULL, session_flags INTEGER NOT NULL, chat_flags INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, session_id));
     `);
   }
@@ -440,6 +442,40 @@ export class Store {
       .run(change.status, change.attempts ?? null, change.nextAttemptAt ?? null, change.lastError ?? null, change.url ?? null, change.filedAt ?? null, change.issue ? JSON.stringify(change.issue) : null, id);
   }
 
+  /** What the tracker last said about a filed report, when Unfold last asked and when its reporter last looked. */
+  reportFollow(id: string): StoredReportFollow | undefined {
+    const row = this.db.prepare('SELECT state, checked_at, seen_at FROM report_follow WHERE report_id=?').get(id) as { state: string | null; checked_at: string; seen_at: string | null } | undefined;
+    return row ? { ...(row.state ? { state: JSON.parse(row.state) } : {}), checkedAt: row.checked_at, ...(row.seen_at ? { seenAt: row.seen_at } : {}) } : undefined;
+  }
+
+  /** Records what the tracker said about a filed report at `checkedAt`; `state` is absent when the tracker could not be read. */
+  saveReportFollow(id: string, state: IssueState | undefined, checkedAt: string): void {
+    this.db.prepare('INSERT INTO report_follow(report_id,state,checked_at) VALUES(?,?,?) ON CONFLICT(report_id) DO UPDATE SET state=COALESCE(excluded.state,report_follow.state), checked_at=excluded.checked_at')
+      .run(id, state ? JSON.stringify(state) : null, checkedAt);
+  }
+
+  /** Marks one filed report as seen by its reporter up to `at`. */
+  markReportSeen(id: string, at: string): void {
+    this.db.prepare("INSERT INTO report_follow(report_id,checked_at,seen_at) VALUES(?,'1970-01-01T00:00:00.000Z',?) ON CONFLICT(report_id) DO UPDATE SET seen_at=excluded.seen_at").run(id, at);
+  }
+
+  /** Filed reports created after `since` that Unfold last asked about before `checkedBefore`, skipping those closed before `closedBefore`; least recently asked first. */
+  followDue(since: string, checkedBefore: string, closedBefore: string, limit: number): StoredReport[] {
+    return (this.db.prepare(`SELECT r.* FROM reports r LEFT JOIN report_follow f ON f.report_id=r.id WHERE r.status='filed' AND r.created_at > ? AND (f.checked_at IS NULL OR f.checked_at < ?)
+      AND NOT (COALESCE(json_extract(f.state,'$.open'),1)=0 AND COALESCE(json_extract(f.state,'$.closedAt'),'9999') < ? AND (json_extract(f.state,'$.fix.mergedAt') IS NULL OR json_extract(f.state,'$.release.live')=1))
+      ORDER BY COALESCE(f.checked_at,'') LIMIT ?`).all(since, checkedBefore, closedBefore, limit) as Record<string, string | number | null>[]).map(storedReport);
+  }
+
+  /** Filed reports created after `since`, newest first, for finding one a new report repeats. */
+  filedReports(since: string, limit: number): StoredReport[] {
+    return (this.db.prepare("SELECT * FROM reports WHERE status='filed' AND created_at > ? ORDER BY created_at DESC LIMIT ?").all(since, limit) as Record<string, string | number | null>[]).map(storedReport);
+  }
+
+  /** How many reports were filed onto the issue at `url`. */
+  reportsOnIssue(url: string): number {
+    return Number((this.db.prepare("SELECT COUNT(*) AS n FROM reports WHERE url=? AND status='filed'").get(url) as { n: number }).n);
+  }
+
   /** Deletes the files of reports filed before `cutoff`, keeping the report row and its address. Returns how many reports lost files. */
   pruneReportFiles(cutoff: string): number {
     return Number(this.db.prepare('DELETE FROM report_files WHERE report_id IN (SELECT id FROM reports WHERE filed_at IS NOT NULL AND filed_at < ?)').run(cutoff).changes);
@@ -505,8 +541,10 @@ export type StoredPull = { workItemId: string; packId: string; pattern: string; 
 /** A report Unfold keeps until its tracker accepts it: `pending` before the first attempt, `retrying` after a refusal, `filed` with its address, `failed` after a day of refusals, `kept` when no tracker is configured. */
 export type StoredReport = { id: string; userId: string; status: 'pending' | 'retrying' | 'filed' | 'failed' | 'kept'; title: string; body: Record<string, unknown>; createdAt: string; attempts: number; nextAttemptAt?: string; lastError?: string; url?: string; filedAt?: string; issue?: StoredReportIssue };
 /** The issue a report created before every file was attached, so a retry continues it instead of filing a second one. */
-export type StoredReportIssue = { id: string; number: string; url: string; attached: string[]; screenshotUrl?: string };
+export type StoredReportIssue = { id: string; number: string; url: string; attached: string[]; screenshotUrl?: string; joined?: true; commented?: true };
 export type StoredReportFile = { name: string; type: string; content: Uint8Array<ArrayBuffer> };
+/** What Unfold last read from the tracker about a filed report, and when its reporter last looked at it. */
+export type StoredReportFollow = { state?: IssueState; checkedAt: string; seenAt?: string };
 
 function storedReport(row: Record<string, string | number | null>): StoredReport {
   return { id: String(row.id), userId: String(row.user_id), status: String(row.status) as StoredReport['status'], title: String(row.title), body: JSON.parse(String(row.body)), createdAt: String(row.created_at), attempts: Number(row.attempts), ...(row.next_attempt_at ? { nextAttemptAt: String(row.next_attempt_at) } : {}), ...(row.last_error ? { lastError: String(row.last_error) } : {}), ...(row.url ? { url: String(row.url) } : {}), ...(row.filed_at ? { filedAt: String(row.filed_at) } : {}), ...(row.issue ? { issue: JSON.parse(String(row.issue)) } : {}) };

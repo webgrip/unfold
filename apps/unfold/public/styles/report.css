@@ -364,6 +364,233 @@
   font-size: var(--text-xs);
 }
 
+.report-dialog.report-mine-dialog {
+  width: min(var(--dialog-md), calc(100vw - var(--space-6)));
+  height: fit-content;
+  max-height: calc(100dvh - var(--space-6));
+}
+
+.report-mine {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  max-height: calc(100dvh - var(--space-6));
+}
+
+.report-mine-body {
+  overflow-y: auto;
+}
+
+.report-mine-lead {
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.report-mine-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin-inline-start: auto;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.report-mine-link:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.report-mine-link .icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.report-similar {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2-5) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-subtle);
+  font-size: var(--text-sm);
+}
+
+.report-similar[hidden] {
+  display: none;
+}
+
+.report-similar ul {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report-similar li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 var(--space-2);
+}
+
+.report-similar-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-similar-meta {
+  grid-column: 1;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.report-similar li .button {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+}
+
+.report-similar-lead,
+.report-similar-chosen {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.report-similar-chosen {
+  align-items: center;
+  color: var(--text);
+}
+
+.report-similar-chosen > span {
+  flex: 1;
+}
+
+:is(.report-similar-lead, .report-similar-chosen) > .icon {
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.report-follows {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report-follow {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2-5) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  font-size: var(--text-sm);
+}
+
+.report-follow.is-new {
+  border-color: var(--attention-emphasis);
+}
+
+.report-follow-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.report-follow-new {
+  color: var(--attention-fg);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.report-follow-title,
+.report-follow-proof {
+  margin: 0;
+}
+
+.report-follow-title {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.report-follow-proof {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.report-comments {
+  display: grid;
+  gap: var(--space-1-5);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.report-comment {
+  padding-inline-start: var(--space-2-5);
+  border-inline-start: 2px solid var(--border);
+}
+
+.report-comment.is-mine {
+  border-inline-start-color: var(--border-subtle);
+}
+
+.report-comment-who {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.report-comment p {
+  margin: var(--space-0-5) 0 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.report-reply summary {
+  color: var(--accent-fg);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.report-reply form {
+  display: grid;
+  gap: var(--space-1-5);
+  margin-top: var(--space-1-5);
+}
+
+.report-reply textarea {
+  width: 100%;
+}
+
+.report-reply-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  color: var(--text-muted);
+}
+
+.report-acknowledgement {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.report-recent > .button {
+  margin-top: var(--space-2);
+}
+
 @media (max-width: 60rem) {
   .report-dialog {
     height: calc(100dvh - var(--space-6));

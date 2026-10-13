@@ -1,6 +1,6 @@
 export const consoleLimit = 50;
 export const consoleWindowMs = 10 * 60_000;
-export const requestLimit = 20;
+export const requestLimit = 50;
 export const trailLimit = 8;
 export const privateBlurPx = 6;
 
@@ -34,7 +34,8 @@ export function rememberConsole({ level, args = [], message, source, line, at = 
 }
 
 /**
- * Keeps one failed request: method, path without its query string, status, duration and time. Never a header or body.
+ * Keeps one request, whether it worked or failed: method, path without its query string, status (none when the
+ * network failed), duration and time. Never a header or body. The buffer holds the last 50.
  * @param {{ method?: string, url: string, status?: number, durationMs?: number, at?: number }} entry
  */
 export function rememberRequest({ method = 'GET', url, status, durationMs, at = Date.now() }) {
@@ -56,7 +57,7 @@ export function rememberRoute(hash, at = Date.now()) {
   if (trailEntries.length > trailLimit) trailEntries.splice(0, trailEntries.length - trailLimit);
 }
 
-/** The console entries of the last ten minutes, the failed requests and the pages visited, with times as ISO strings. */
+/** The console entries of the last ten minutes, the last requests and the pages visited, with times as ISO strings. */
 export function buffers(now = Date.now()) {
   const iso = entry => ({ ...entry, at: new Date(entry.at).toISOString() });
   return { console: consoleEntries.filter(entry => now - entry.at <= consoleWindowMs).map(iso), requests: requestEntries.map(iso), trail: trailEntries.map(entry => entry.route) };

@@ -1,9 +1,11 @@
 import { state } from '../core/state.js';
-import { $, escape } from '../core/dom.js';
-import { button, iconButton, segmented, timeAgo } from '../core/ui.js';
+import { $, announce, escape } from '../core/dom.js';
+import { badge, button, iconButton, segmented, timeAgo } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { isMac, isTyping, keyLabel, singleKeyAllowed } from '../core/keys.js';
 import { browserName, buffers, captureScreen, rememberRequest } from '../core/report-capture.js';
+import { applyReports, following, markReportsSeen } from '../core/report-follow.js';
+import { api } from '../core/api.js';
 import { createAnnotation, markAround, markFrom, targetAt } from '../core/annotate.js';
 import { screenFields } from '../core/insight.js';
 import { parseHash } from '../core/route.js';
@@ -25,7 +27,16 @@ const draftDays = 7;
 const pickable = 'a,button,input,select,textarea,summary,label,img,svg,canvas,h1,h2,h3,h4,p,li,tr,td,th,dt,dd,pre,table,[role],[data-action],[class*="chip"],[class*="badge"],[class*="card"],[class*="stat"],section,article,aside,nav,header,figure';
 const controls = 'a,button,summary,label,input,select,textarea,[role="button"],[role="tab"],[role="link"],[role="checkbox"],[data-action]';
 const roleNames = { a: 'link', button: 'button', input: 'field', select: 'menu', textarea: 'field', summary: 'disclosure', label: 'label', img: 'image', svg: 'icon', canvas: 'canvas', h1: 'heading', h2: 'heading', h3: 'heading', h4: 'heading', p: 'text', li: 'list item', tr: 'row', td: 'cell', th: 'column header', dt: 'term', dd: 'value', pre: 'code', table: 'table', section: 'section', article: 'article', aside: 'panel', nav: 'navigation', header: 'header', figure: 'figure' };
+const similarDelayMs = 600;
+/** How each stage of a report looks: its glyph and badge tone. */
+export const stageLooks = Object.freeze({
+  filing: ['clock', 'neutral'], waiting: ['clock', 'attention'], 'not-filed': ['x-circle', 'danger'], kept: ['inbox', 'neutral'],
+  'got-it': ['check', 'neutral'], looking: ['eye', 'live'], 'needs-info': ['help-circle', 'attention'], replied: ['bell', 'attention'],
+  'fix-coming': ['pull-request', 'live'], 'fix-merged': ['pull-request', 'review'], fixed: ['check-circle', 'success'], shipped: ['check-circle', 'success'],
+  duplicate: ['circle-slash', 'neutral'], 'not-planned': ['circle-slash', 'neutral'], closed: ['circle-slash', 'neutral'],
+});
 let current = null;
+let similarTimer = null;
 
 /**
  * A suggested title: the page's name and the first sentence of what happened, which the person can change. An idea
@@ -125,11 +136,12 @@ function includedMarkup(collected, workItemId) {
   const row = (name, label, detail) => `<label class="report-include"><input type="checkbox" name="attach" value="${name}" checked><span class="report-include-text"><span>${escape(label)}</span>${detail ? `<small>${escape(detail)}</small>` : ''}</span></label>`;
   const errors = collected.console.filter(entry => entry.level === 'error');
   const lastMessage = errors.at(-1) ?? collected.console.at(-1);
-  const lastRequest = collected.requests.at(-1);
+  const failedRequests = collected.requests.filter(entry => !entry.status || entry.status >= 400);
+  const lastRequest = failedRequests.at(-1) ?? collected.requests.at(-1);
   const rows = [
     `<label class="report-include"><input type="checkbox" name="attach" value="screenshot" checked><span class="report-include-text"><span>Screenshot</span><small data-report-marks>Code, diffs and pull-request text are hidden.</small></span></label>`,
     collected.console.length ? row('console', `${collected.console.length} console ${collected.console.length === 1 ? 'message' : 'messages'}`, lastMessage?.message ?? '') : '',
-    collected.requests.length ? row('requests', `${collected.requests.length} failed ${collected.requests.length === 1 ? 'request' : 'requests'}`, lastRequest ? `${lastRequest.method} ${lastRequest.path}${lastRequest.status ? ` → ${lastRequest.status}` : ''} · ${ago(lastRequest.at)}` : '') : '',
+    collected.requests.length ? row('requests', `${collected.requests.length} recent ${collected.requests.length === 1 ? 'request' : 'requests'}${failedRequests.length ? `, ${failedRequests.length} failed` : ''}`, lastRequest ? `${lastRequest.method} ${lastRequest.path} → ${lastRequest.status ?? 'no answer'} · ${ago(lastRequest.at)}` : '') : '',
   ].join('');
   const always = ['this page', ...(workItemId !== undefined ? [`Work Item ${workItemId}`] : []), ...(collected.trail.length > 1 ? [`the last ${collected.trail.length} pages you opened`] : []), 'Unfold version', 'browser', 'window size'];
   return `<fieldset class="report-included"><legend class="field-label">Sent with it</legend>${rows}<p class="report-always">${icon('info')}<span>Also ${escape(always.join(', ').replace(/, ([^,]*)$/, ' and $1'))}. Never headers, request bodies or text outside the screenshot.</span></p></fieldset>`;
@@ -140,7 +152,7 @@ function formMarkup(collected, context, draft) {
   const toolbar = toolSet.map(tool => `<button type="button" class="report-tool" data-action="report-tool" data-tool="${tool.id}" aria-pressed="${tool.id === current.tool}" title="${escape(`${tool.hint} (${tool.key.toUpperCase()})`)}" aria-keyshortcuts="${tool.key}" aria-label="${tool.label}">${icon(tool.glyph)}<span aria-hidden="true">${tool.label}</span></button>`).join('');
   const mod = keyLabel('Mod', isMac());
   return `<form data-form="report" novalidate>
-<header class="dialog-header"><h2 id="report-title">Report a problem</h2>${iconButton({ icon: 'x', label: 'Close', action: 'close-dialog' })}</header>
+<header class="dialog-header"><h2 id="report-title">Report a problem</h2>${mineLink()}${iconButton({ icon: 'x', label: 'Close', action: 'close-dialog' })}</header>
 <div class="dialog-body report-body">
   <section class="report-stage" aria-label="Screenshot">
     <div class="report-tools" role="toolbar" aria-label="Mark up the screenshot">${toolbar}<span class="report-tools-gap"></span><button type="button" class="report-tool" data-action="report-undo" disabled aria-keyshortcuts="Control+Z Meta+Z" title="Undo the last mark (${escape(mod)} Z)" aria-label="Undo">${icon('undo')}<span aria-hidden="true">Undo</span></button></div>
@@ -151,6 +163,7 @@ function formMarkup(collected, context, draft) {
     ${draft ? `<p class="report-draft" role="status">${icon('clock')}<span>Your unsent report is back.</span>${button({ label: 'Start over', variant: 'ghost', size: 'xs', action: 'report-discard-draft' })}</p>` : ''}
     <div class="report-kinds">${segmented({ label: 'What kind of report', action: 'report-kind', items: Object.entries(kinds).map(([id, entry]) => ({ id, label: entry.label, icon: entry.glyph, selected: id === current.kind })) })}</div>
     <div class="field"><label class="field-label" for="report-happened" data-report-question>${escape(kind.question)}</label><textarea id="report-happened" name="happened" rows="5" maxlength="4000" required aria-describedby="report-happened-error" placeholder="${escape(`For example: ${kind.example}`)}"></textarea><p class="field-error" id="report-happened-error" data-error-for="report-happened" hidden></p></div>
+    <div class="report-similar" data-report-similar aria-live="polite" hidden></div>
     <div class="report-expected" data-report-expected${current.kind === 'broken' ? '' : ' hidden'}>
       <button type="button" class="report-reveal" data-action="report-add-expected"${draft?.expected ? ' hidden' : ''}>${icon('plus')}<span>Add what you expected instead</span></button>
       <div class="field" data-report-expected-field${draft?.expected ? '' : ' hidden'}><label class="field-label" for="report-expected">What did you expect instead?</label><textarea id="report-expected" name="expected" rows="3" maxlength="4000"></textarea></div>
@@ -390,6 +403,49 @@ function typed(input) {
   if (input.name === 'title') current.titleEdited = true;
   else updateTitle(form);
   writeDraft(form);
+  if (input.name === 'happened' && following()) {
+    clearTimeout(similarTimer);
+    similarTimer = setTimeout(() => { void suggestSimilar(form); }, similarDelayMs);
+  }
+}
+
+async function suggestSimilar(form) {
+  if (!current || !form.isConnected || current.duplicateOf) return;
+  const text = `${form.elements.title.value} ${form.elements.happened.value}`.trim();
+  const holder = form.querySelector('[data-report-similar]');
+  if (text.length < 12) { holder.hidden = true; holder.innerHTML = ''; return; }
+  const asked = text;
+  let found = [];
+  try { ({ reports: found = [] } = await api(`/api/reports/similar?q=${encodeURIComponent(text.slice(0, 600))}&route=${encodeURIComponent(current.context.route)}`)); } catch { return; }
+  if (!current || current.duplicateOf || `${form.elements.title.value} ${form.elements.happened.value}`.trim() !== asked) return;
+  found = found.filter(entry => !current.notSame?.has(entry.id));
+  holder.hidden = !found.length;
+  holder.innerHTML = found.length ? `<p class="report-similar-lead">${icon('search')}<span>Is it one of these? Joining one tells you when it is fixed, too.</span></p><ul>${found.map(entry => `<li><span class="report-similar-title">${escape(entry.title)}</span><span class="report-similar-meta">${escape(entry.words)} · ${entry.mine ? 'yours' : `${entry.people} ${entry.people === 1 ? 'person' : 'people'}`}</span>${button({ label: 'Same problem', size: 'xs', action: 'report-same', data: { id: entry.id, title: entry.title, people: String(entry.people) } })}</li>`).join('')}</ul>` : '';
+}
+
+function chooseSame(control) {
+  if (!current) return;
+  const form = control.closest('form');
+  current.duplicateOf = control.dataset.id;
+  const people = Number(control.dataset.people) || 1;
+  const holder = form.querySelector('[data-report-similar]');
+  holder.hidden = false;
+  holder.innerHTML = `<p class="report-similar-chosen" role="status">${icon('check')}<span>You join “${escape(control.dataset.title)}”. ${people} ${people === 1 ? 'person has' : 'people have'} hit it; your text, screenshot and details go on it as a comment, and you hear when it is fixed.</span>${button({ label: 'Not the same', variant: 'ghost', size: 'xs', action: 'report-not-same', data: { id: control.dataset.id } })}</p>`;
+  const label = form.querySelector('#report-submit .button-label');
+  if (label) label.textContent = 'Add to report';
+}
+
+function notSame(control) {
+  if (!current) return;
+  const form = control.closest('form');
+  current.notSame = new Set([...(current.notSame ?? []), control.dataset.id]);
+  current.duplicateOf = null;
+  const holder = form.querySelector('[data-report-similar]');
+  holder.hidden = true;
+  holder.innerHTML = '';
+  const label = form.querySelector('#report-submit .button-label');
+  if (label) label.textContent = 'File report';
+  form.elements.happened.focus();
 }
 
 function reportKeys(event) {
@@ -429,6 +485,7 @@ async function submitReport(_data, form) {
   const elements = pointedAt();
   const data = new FormData();
   data.append('kind', report.kind);
+  if (report.duplicateOf) data.append('duplicateOf', report.duplicateOf);
   if (report.kind === 'broken' && report.impact) data.append('impact', report.impact);
   data.append('title', form.elements.title.value.trim() || suggestTitle(report.page, happened, report.kind));
   data.append('happened', happened);
@@ -456,36 +513,123 @@ async function submitReport(_data, form) {
   }
 }
 
-const statusWords = { filed: ['check-circle', 'Filed'], pending: ['clock', 'Filing'], retrying: ['clock', 'Waiting for the tracker'], failed: ['x-circle', 'Not filed'], kept: ['inbox', 'Kept in Unfold'] };
+function mineLink() {
+  if (!following()) return '';
+  const updates = state.reportUpdates || 0;
+  return `<button type="button" class="report-mine-link" data-action="report-mine">${icon('inbox')}<span>Your reports</span>${updates ? `<span class="app-count" data-tone="attention">${updates}<span class="app-visually-hidden"> with news</span></span>` : ''}</button>`;
+}
+
+function issueReference(url) {
+  const match = url ? /\/([^/]+\/[^/]+)\/(?:issues|pulls)\/(\d+)$/.exec(url) : null;
+  return match ? `${match[1]}#${match[2]}` : '';
+}
+
+function link(url, text) {
+  return `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(text)}</a>`;
+}
+
+/**
+ * One of the person's reports as the dialog lists it: where it stands in words, the proof (the pull request, the
+ * release that carries it, how many others hit it), the team's latest comments and, when `reply` is set and the
+ * report is filed, a box to add details that lands on the issue.
+ * @param {Record<string, any>} report
+ * @param {{ reply?: boolean }} [options]
+ */
+export function followRow(report, { reply = false } = {}) {
+  const [glyph, tone] = stageLooks[report.stage] ?? stageLooks.kept;
+  const title = report.url ? link(report.url, report.title) : escape(report.title);
+  const proof = [
+    report.fix ? `${report.fix.merged ? 'Fixed by' : 'Fix in'} ${report.fix.url ? link(report.fix.url, issueReference(report.fix.url) || `#${report.fix.number}`) : `#${escape(report.fix.number)}`}` : '',
+    report.release ? `${report.release.live ? 'live in' : 'coming in'} ${report.release.url ? link(report.release.url, report.release.tag) : escape(report.release.tag)}` : '',
+    report.joined ? 'you joined this report' : '',
+    report.others ? `${report.others} ${report.others === 1 ? 'other person' : 'other people'} hit this too` : '',
+    `filed ${timeAgo(report.createdAt)}`,
+  ].filter(Boolean).join(' · ');
+  const comments = (report.comments ?? []).slice(-2).map(comment => `<li class="report-comment${comment.mine ? ' is-mine' : ''}"><span class="report-comment-who">${comment.mine ? 'Added from Unfold' : escape(comment.author)} · ${timeAgo(comment.at)}</span><p>${escape(comment.text)}</p></li>`).join('');
+  const open = report.stage === 'needs-info' || report.stage === 'replied';
+  const box = reply && report.status === 'filed' && report.url ? `<details class="report-reply"${open ? ' open' : ''}><summary>${open ? 'Answer the team' : 'Reply or add details'}</summary><form data-form="report-reply" data-id="${escape(report.id)}" novalidate><label class="app-visually-hidden" for="report-reply-${escape(report.id)}">Your reply on “${escape(report.title)}”</label><textarea id="report-reply-${escape(report.id)}" name="text" rows="3" maxlength="4000" placeholder="What else should the team know?"></textarea><div class="report-reply-row"><small>Posted on the issue under your name.</small>${button({ label: 'Send', icon: 'send', size: 'xs', variant: 'primary', type: 'submit' })}</div><p class="field-error" data-reply-error role="alert" hidden></p></form></details>` : '';
+  return `<li class="report-follow${report.unread ? ' is-new' : ''}" data-stage="${escape(report.stage)}"><div class="report-follow-head">${badge({ tone, glyph, label: report.words, size: 'sm' })}${report.unread ? '<span class="report-follow-new">New</span>' : ''}</div><p class="report-follow-title">${title}</p><p class="report-follow-proof">${proof}</p>${comments ? `<ul class="report-comments" data-private>${comments}</ul>` : ''}${box}</li>`;
+}
 
 async function recentReports(skip) {
   try {
-    const response = await fetch('/api/reports', { credentials: 'same-origin', headers: { 'X-Unfold-Request': '1' } });
-    if (!response.ok) return '';
-    const { reports = [] } = await response.json();
-    const rows = reports.filter(report => report.id !== skip).slice(0, 4).map(report => {
-      const [glyph, word] = statusWords[report.status] ?? statusWords.kept;
-      const title = report.url ? `<a href="${escape(report.url)}" target="_blank" rel="noopener noreferrer">${escape(report.title)}</a>` : escape(report.title);
-      return `<li>${icon(glyph)}<span class="report-recent-title">${title}</span><span class="report-recent-meta">${escape(word)} · ${timeAgo(report.createdAt)}</span></li>`;
-    }).join('');
-    return rows ? `<section class="report-recent" aria-labelledby="report-recent-title"><h3 id="report-recent-title">Your earlier reports</h3><ul>${rows}</ul></section>` : '';
+    const data = await api('/api/reports');
+    applyReports(data);
+    const rows = (data.reports ?? []).filter(report => report.id !== skip).slice(0, 3).map(report => followRow(report)).join('');
+    return rows ? `<section class="report-recent" aria-labelledby="report-recent-title"><h3 id="report-recent-title">Your earlier reports</h3><ul class="report-follows">${rows}</ul>${following() ? button({ label: 'See all your reports', variant: 'ghost', size: 'xs', action: 'report-mine' }) : ''}</section>` : '';
   } catch { return ''; }
 }
 
 async function showOutcome(form, outcome) {
   const body = form.querySelector('.report-body');
-  const reference = outcome.url ? /\/([^/]+\/[^/]+)\/issues\/(\d+)$/.exec(outcome.url) : null;
   const filed = outcome.status === 'filed' && outcome.url;
-  const linkText = reference ? `${reference[1]}#${reference[2]}` : 'the filed report';
-  const lead = filed ? `Filed as <a href="${escape(outcome.url)}" target="_blank" rel="noopener noreferrer">${escape(linkText)}</a>. Follow it there: answers and fixes land on the issue.` : escape(outcome.message || 'Unfold kept the report.');
+  const linkText = issueReference(outcome.url) || 'the filed report';
+  const others = outcome.others ? ` ${outcome.others} ${outcome.others === 1 ? 'other person' : 'other people'} hit it before you.` : '';
+  const lead = filed
+    ? outcome.joined
+      ? `Added to ${link(outcome.url, linkText)} as a comment.${escape(others)} You hear here when it is fixed.`
+      : `Filed as ${link(outcome.url, linkText)}. Unfold tells you here when the team answers or fixes it.`
+    : escape(outcome.message || 'Unfold kept the report.');
   body.classList.add('is-done');
   form.closest('dialog')?.classList.add('is-done');
-  body.innerHTML = `<div class="report-outcome" role="status">${icon(filed ? 'check-circle' : 'clock')}<h3>${filed ? 'Thanks, it’s filed' : 'Thanks, it’s saved'}</h3><p>${lead}</p></div>`;
+  const heading = filed ? (outcome.joined ? 'Thanks, you’re on it too' : 'Thanks, it’s filed') : 'Thanks, it’s saved';
+  body.innerHTML = `<div class="report-outcome" role="status">${icon(filed ? 'check-circle' : 'clock')}<h3>${heading}</h3><p>${lead}</p>${outcome.acknowledgement ? `<p class="report-acknowledgement">${escape(outcome.acknowledgement)}</p>` : ''}</div>`;
   const actions = filed ? `${button({ label: 'Copy link', icon: 'copy', action: 'report-copy-link', data: { url: outcome.url } })}${button({ label: 'Open issue', href: outcome.url, external: true })}` : '';
   form.querySelector('.dialog-footer').innerHTML = `${actions}${button({ label: 'Done', variant: 'primary', action: 'close-dialog', autofocus: true })}`;
   form.querySelector('.dialog-footer [data-action="close-dialog"]')?.focus();
   const recent = await recentReports(outcome.id);
   if (recent && body.isConnected) body.insertAdjacentHTML('beforeend', recent);
+}
+
+/** Shows the person's own reports in the dialog: where each stands, the proof, the team's comments and a reply box. */
+export async function openMine() {
+  const dialog = $('#report-dialog');
+  if (!dialog || !state.bootstrap) return;
+  const form = dialog.querySelector('form[data-form="report"]');
+  if (form && current) writeDraft(form);
+  current = null;
+  dialog.className = 'dialog report-dialog report-mine-dialog';
+  dialog.innerHTML = `<div class="report-mine">
+<header class="dialog-header"><h2 id="report-title">Your reports</h2>${iconButton({ icon: 'x', label: 'Close', action: 'close-dialog' })}</header>
+<div class="dialog-body report-mine-body" data-report-mine><p class="report-taking" role="status"><span class="spinner" aria-hidden="true"></span>Asking the tracker where your reports stand…</p></div>
+<footer class="dialog-footer">${button({ label: 'Report a new problem', icon: 'flag', variant: 'primary', action: 'report-new' })}</footer>
+</div>`;
+  if (!dialog.open) dialog.showModal();
+  const holder = dialog.querySelector('[data-report-mine]');
+  try {
+    const data = await api('/api/reports');
+    applyReports(data);
+    if (!holder.isConnected) return;
+    const reports = data.reports ?? [];
+    holder.innerHTML = reports.length
+      ? `<p class="report-mine-lead">Your last ${reports.length === 1 ? 'report' : `${reports.length} reports`}, as the tracker has them now.</p><ul class="report-follows">${reports.map(report => followRow(report, { reply: true })).join('')}</ul>`
+      : `<p class="report-mine-lead">You have not reported anything yet. When you do, you follow it here: answers, the fix and the release that carries it.</p>`;
+    await markReportsSeen().catch(() => {});
+  } catch (problem) {
+    if (holder.isConnected) holder.innerHTML = `<p class="report-taking">${icon('alert')}${escape(problem.message)}</p>`;
+  }
+}
+
+async function newReport() {
+  const dialog = $('#report-dialog');
+  if (dialog?.open) dialog.close();
+  await openReport();
+}
+
+async function sendReply(data, form) {
+  const error = form.querySelector('[data-reply-error]');
+  const text = String(data.text ?? '').trim();
+  if (!text) { error.textContent = 'Write what you want to add first.'; error.hidden = false; form.elements.text.focus(); return; }
+  error.hidden = true;
+  try {
+    const { report } = await api(`/api/reports/${encodeURIComponent(form.dataset.id)}/replies`, { method: 'POST', body: JSON.stringify({ text }) });
+    const row = form.closest('.report-follow');
+    row.outerHTML = followRow(report, { reply: true });
+    announce('Your reply is on the issue.');
+  } catch (problem) {
+    error.textContent = problem.message;
+    error.hidden = false;
+  }
 }
 
 async function copyLink(control) {
@@ -511,8 +655,12 @@ export default {
     'report-edit-title': control => editTitle(control),
     'report-discard-draft': control => discardDraft(control),
     'report-copy-link': control => copyLink(control),
+    'report-mine': () => openMine(),
+    'report-new': () => newReport(),
+    'report-same': control => chooseSame(control),
+    'report-not-same': control => notSame(control),
   },
-  forms: { report: submitReport },
+  forms: { report: submitReport, 'report-reply': sendReply },
   inputs: { '#report-happened': typed, '#report-expected': typed, '#report-title-input': typed },
   keys: [reportKeys],
 };

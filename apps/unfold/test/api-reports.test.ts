@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { once } from 'node:events';
+import { readFileSync } from 'node:fs';
 import { application, login } from './api-support.ts';
 import { hashPassword } from '../src/auth.ts';
 import { sanitizeBuffer } from '../src/reports.ts';
@@ -203,7 +204,8 @@ test('an idea is filed under its own heading without an expectation, and each pe
   const list = async (as: string) => (await (await fetch(`${app.url}/api/reports`, { headers: { cookie: as, 'x-unfold-request': '1' } })).json()).reports;
   const mine = await list(cookie);
   assert.deepEqual(mine.map((entry: { title: string; status: string }) => [entry.title, entry.status]), [['Second', 'kept'], ['Idea for Runs: filter by repository', 'kept']]);
-  assert.deepEqual(Object.keys(mine[0]).sort(), ['createdAt', 'id', 'status', 'title'], 'no body, context or error text in the list');
+  assert.deepEqual(Object.keys(mine[0]).sort(), ['comments', 'createdAt', 'id', 'joined', 'others', 'stage', 'status', 'title', 'unread', 'words'], 'no body, context or error text in the list');
+  assert.deepEqual({ stage: mine[0].stage, words: mine[0].words }, { stage: 'kept', words: 'Kept in Unfold' });
   assert.deepEqual(await list(viewer.cookie), [], 'another person never sees these');
 });
 
@@ -218,7 +220,7 @@ test('the demo says it is one and files nothing', async t => {
 test('the browser buffers are reduced to their allowed fields whatever the page sent', () => {
   assert.deepEqual(sanitizeBuffer('requests', [{ method: 'POST', path: '/api/reports?x=1#y', status: 502, durationMs: 9, headers: { cookie: 'c' }, body: 'b', at: '2026-10-11T10:00:00Z' }, { method: 'get', path: 'https://evil.test/' }]), [{ method: 'POST', path: '/api/reports', status: 502, durationMs: 9, at: '2026-10-11T10:00:00.000Z' }]);
   assert.deepEqual(sanitizeBuffer('console', [{ level: 'log', message: 'x'.repeat(600), source: 'https://unfold.test/app.js?token=1', line: 3, args: [{ password: 'p' }] }]), [{ level: 'error', message: 'x'.repeat(500), source: 'https://unfold.test/app.js', line: 3 }]);
-  assert.equal(sanitizeBuffer('requests', Array.from({ length: 40 }, () => ({ method: 'GET', path: '/a' }))).length, 20);
+  assert.equal(sanitizeBuffer('requests', Array.from({ length: 80 }, () => ({ method: 'GET', path: '/a', status: 200 }))).length, 50, 'every request of the last 50 travels, not only the failed ones');
   assert.deepEqual(sanitizeBuffer('console', 'not a list'), []);
 });
 
@@ -258,7 +260,7 @@ test('reports can have a connection of their own, which is not a task source, an
   assert.throws(() => reportSettings({ ...raw, provider: 'github' }, sources, 'live'), /reports.provider must be forgejo or vikunja/);
   assert.throws(() => reportSettings({ ...raw, baseUrl: 'http://forgejo.test/api/v1' }, sources, 'live'), /HTTPS/);
   assert.throws(() => reportSettings({ ...raw, project: 'not a repo' }, sources, 'live'), /owner\/repository/);
-  assert.throws(() => reportSettings({ ...raw, source: 'ploeg-board' }, sources, 'live'), /provider, baseUrl, project and tokenEnv only/);
+  assert.throws(() => reportSettings({ ...raw, source: 'ploeg-board' }, sources, 'live'), /provider, baseUrl, project, tokenEnv and acknowledgement only/);
 });
 
 test('a configuration with its own report connection loads, keeps the task sources as they were, and the server files with it', async t => {
@@ -279,4 +281,148 @@ test('a configuration with its own report connection loads, keeps the task sourc
   const filed = await post(app.url, cookie, report());
   assert.equal(filed.body.status, 'filed', filed.text);
   assert.equal(filed.body.url, 'https://forgejo.test/webgrip/unfold/issues/9');
+});
+
+const runningVersion = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version as string;
+
+function filedForgejo(extra: (call: Call) => { status: number; body: unknown } | undefined) {
+  return (call: Call) => {
+    const answered = extra(call);
+    if (answered) return answered;
+    if (call.path.startsWith('/api/v1/repos/webgrip/unfold/labels')) return { status: 200, body: [] };
+    if (call.method === 'POST' && call.path === '/api/v1/repos/webgrip/unfold/issues') return { status: 201, body: { id: 9001, number: 252, html_url: 'https://forgejo.test/webgrip/unfold/issues/252' } };
+    if (call.method === 'POST' && call.path.includes('/issues/252/assets')) return { status: 201, body: { browser_download_url: `https://forgejo.test/attachments/${new URL(call.path, 'http://x').searchParams.get('name')}` } };
+    if (call.method === 'PATCH') return { status: 201, body: {} };
+    if (call.path === '/api/v1/user') return { status: 200, body: { login: 'unfold-reports' } };
+    return { status: 404, body: {} };
+  };
+}
+
+async function reportsOf(url: string, cookie: string) {
+  return (await fetch(`${url}/api/reports`, { headers: { cookie, 'x-unfold-request': '1' } })).json();
+}
+
+test('a filed report follows its issue: the team’s comment, the merged fix and the release that carries it, with a notice until the reporter looks', async t => {
+  let closed = false;
+  const later = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
+  const forgejo = await tracker(filedForgejo(call => {
+    if (call.method === 'GET' && call.path === '/api/v1/repos/webgrip/unfold/issues/252') return { status: 200, body: { number: 252, state: closed ? 'closed' : 'open', closed_at: closed ? later(60) : null, labels: [], assignees: [] } };
+    if (call.path.startsWith('/api/v1/repos/webgrip/unfold/issues/252/timeline')) return { status: 200, body: closed ? [
+      { id: 1, type: 'comment', body: 'Thanks! I can see it, **looking**. ![x](https://forgejo.test/x.png)', user: { login: 'ryangr0' }, created_at: later(10) },
+      { id: 2, type: 'pull_ref', ref_issue: { number: 351, html_url: 'https://forgejo.test/webgrip/unfold/pulls/351' }, created_at: later(20) },
+      { id: 3, type: 'close', created_at: later(60) },
+    ] : [] };
+    if (call.path === '/api/v1/repos/webgrip/unfold/pulls/351') return { status: 200, body: { number: 351, html_url: 'https://forgejo.test/webgrip/unfold/pulls/351', merged: true, merged_at: later(50) } };
+    if (call.path.startsWith('/api/v1/repos/webgrip/unfold/releases')) return { status: 200, body: [
+      { tag_name: `unfold-v${runningVersion}`, html_url: 'https://forgejo.test/r/running', created_at: later(90) },
+      { tag_name: 'unfold-v0.0.1-rc.2', html_url: 'https://forgejo.test/r/first', created_at: later(70) },
+      { tag_name: 'ploeg-v9.9.9', html_url: 'https://forgejo.test/r/other', created_at: later(55) },
+      { tag_name: 'unfold-v0.0.1-rc.1', html_url: 'https://forgejo.test/r/old', created_at: later(-60) },
+    ] };
+    return undefined;
+  }));
+  t.after(() => forgejo.close());
+  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'webgrip/unfold' }; });
+  t.after(() => app.close());
+  const { cookie } = await login(app.url);
+  assert.equal((await post(app.url, cookie, report())).body.status, 'filed');
+
+  const fresh = await reportsOf(app.url, cookie);
+  assert.deepEqual({ stage: fresh.reports[0].stage, words: fresh.reports[0].words, unread: fresh.reports[0].unread, updates: fresh.updates }, { stage: 'got-it', words: 'Got it', unread: false, updates: 0 }, 'filed and nobody has looked yet');
+
+  closed = true;
+  app.app.store.db.prepare('UPDATE report_follow SET checked_at=?').run('2000-01-01T00:00:00.000Z');
+  const shipped = await reportsOf(app.url, cookie);
+  const entry = shipped.reports[0];
+  assert.deepEqual({ stage: entry.stage, words: entry.words, unread: entry.unread, updates: shipped.updates }, { stage: 'shipped', words: 'Fixed in 0.0.1-rc.2', unread: true, updates: 1 }, 'the first release of the running line after the merge, never another product’s tag');
+  assert.deepEqual(entry.fix, { number: '351', url: 'https://forgejo.test/webgrip/unfold/pulls/351', merged: true });
+  assert.deepEqual(entry.release, { tag: '0.0.1-rc.2', url: 'https://forgejo.test/r/first', live: true });
+  assert.deepEqual(entry.comments.map((comment: { author: string; text: string; mine: boolean }) => [comment.author, comment.text, comment.mine]), [['ryangr0', 'Thanks! I can see it, **looking**. [image]', false]], 'comments travel as plain text without images');
+
+  assert.equal((await fetch(`${app.url}/api/reports/seen`, { method: 'POST', headers: { cookie, 'x-unfold-request': '1' } })).status, 200);
+  const looked = await reportsOf(app.url, cookie);
+  assert.deepEqual({ unread: looked.reports[0].unread, updates: looked.updates }, { unread: false, updates: 0 });
+});
+
+test('the reporter adds details from Unfold as a comment under their name; nobody else can, and a kept report cannot', async t => {
+  const forgejo = await tracker(filedForgejo(call => {
+    if (call.method === 'POST' && call.path === '/api/v1/repos/webgrip/unfold/issues/252/comments') return { status: 201, body: { id: 77 } };
+    return undefined;
+  }));
+  t.after(() => forgejo.close());
+  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'webgrip/unfold' }; });
+  t.after(() => app.close());
+  const { cookie } = await login(app.url);
+  const filed = await post(app.url, cookie, report());
+  const reply = (as: string, id: string, text: unknown) => fetch(`${app.url}/api/reports/${id}/replies`, { method: 'POST', headers: { cookie: as, 'x-unfold-request': '1', 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+
+  const added = await reply(cookie, filed.body.id, 'It also happens on <b>Firefox</b> @everyone');
+  assert.equal(added.status, 201, await added.clone().text());
+  const comment = JSON.parse(forgejo.calls.find(call => call.path.endsWith('/issues/252/comments'))!.body.toString());
+  assert.match(comment.body, /^\*\*.+\*\* adds, from Unfold:\n\nIt also happens on &lt;b&gt;Firefox&lt;\/b&gt; @​everyone\n$/, 'escaped, and a mention cannot ping anyone');
+  assert.equal((await reply(cookie, filed.body.id, '  ')).status, 422);
+
+  app.app.store.addUser({ id: 'viewer-iris', name: 'iris@example.test', role: 'viewer', passwordHash: await hashPassword('viewer-password-1414') });
+  const viewer = await login(app.url, 'iris@example.test', 'viewer-password-1414');
+  assert.equal((await reply(viewer.cookie, filed.body.id, 'not mine')).status, 404, 'another person’s report is unknown to them');
+  assert.equal((await reply(cookie, 'not-a-report', 'x')).status, 404);
+});
+
+test('a report that repeats an open one is suggested while typing and joins that issue as a comment instead of a second issue', async t => {
+  const forgejo = await tracker(filedForgejo(call => {
+    if (call.method === 'POST' && call.path === '/api/v1/repos/webgrip/unfold/issues/252/comments') return { status: 201, body: { id: 78 } };
+    return undefined;
+  }));
+  t.after(() => forgejo.close());
+  const app = await application('live', config => { config.taskSources = [forgejoSource(forgejo.url)]; config.reports = { source: forgejoSource(forgejo.url), project: 'webgrip/unfold', acknowledgement: 'We read every report on weekdays.' }; });
+  t.after(() => app.close());
+  const { cookie } = await login(app.url);
+  const first = await post(app.url, cookie, report());
+  assert.equal(first.body.acknowledgement, 'We read every report on weekdays.');
+
+  app.app.store.addUser({ id: 'viewer-iris', name: 'iris@example.test', role: 'viewer', passwordHash: await hashPassword('viewer-password-1414') });
+  const other = await login(app.url, 'iris@example.test', 'viewer-password-1414');
+  const similar = async (q: string) => (await (await fetch(`${app.url}/api/reports/similar?q=${encodeURIComponent(q)}&route=%23now`, { headers: { cookie: other.cookie, 'x-unfold-request': '1' } })).json()).reports;
+  const found = await similar('The waiting count is wrong, more rows than listed');
+  assert.deepEqual(found.map((entry: Record<string, unknown>) => ({ ...entry })), [{ id: first.body.id, title: 'The Now page shows a stale count', words: 'Got it', people: 1, mine: false }], 'only the title and where it stands, never what was written');
+  assert.deepEqual(await similar('Dark mode please'), []);
+
+  const joined = await post(app.url, other.cookie, report({ duplicateOf: first.body.id, happened: 'Same here, the waiting count is off.' }));
+  assert.equal(joined.status, 201, joined.text);
+  assert.deepEqual({ status: joined.body.status, url: joined.body.url, joined: joined.body.joined, others: joined.body.others }, { status: 'filed', url: 'https://forgejo.test/webgrip/unfold/issues/252', joined: true, others: 1 });
+  assert.equal(forgejo.calls.filter(call => call.method === 'POST' && call.path.endsWith('/issues')).length, 1, 'no second issue');
+  const comment = JSON.parse(forgejo.calls.find(call => call.path.endsWith('/issues/252/comments'))!.body.toString());
+  assert.match(comment.body, /^\*\*Someone else hit this too\.\*\*\n\n## What went wrong\n\nSame here/);
+  assert.match(comment.body, /!\[Screenshot\]\(https:\/\/forgejo\.test\/attachments\/screenshot\.png\)/);
+  const mine = (await reportsOf(app.url, cookie)).reports[0];
+  assert.equal(mine.others, 1, 'the first reporter sees that someone else hit it too');
+  assert.equal((await post(app.url, cookie, report({ duplicateOf: 'nope' }))).body.error.code, 'report_duplicate_invalid');
+});
+
+test('where a report stands reads the tracker the way a reporter would', async () => {
+  const { reportProgress } = await import('../src/reports.ts');
+  const filed = { id: 'r', userId: 'u', status: 'filed' as const, title: 't', body: {}, createdAt: '2026-10-12T08:00:00.000Z', filedAt: '2026-10-12T08:00:01.000Z', attempts: 1 };
+  const state = { open: true, labels: [] as string[], assigned: false, comments: [] as { id: string; author: string; text: string; at: string; mine: boolean }[] };
+  const words = (change: Partial<typeof state> & Record<string, unknown>) => reportProgress(filed, { ...state, ...change }).words;
+  assert.equal(words({}), 'Got it');
+  assert.equal(words({ assigned: true }), 'Looking into it');
+  assert.equal(words({ comments: [{ id: '1', author: 'team', text: 'Which browser?', at: '2026-10-12T09:00:00.000Z', mine: false }] }), 'The team replied');
+  assert.equal(words({ comments: [{ id: '1', author: 'team', text: 'Which browser?', at: '2026-10-12T09:00:00.000Z', mine: false }, { id: '2', author: 'bot', text: 'Firefox', at: '2026-10-12T10:00:00.000Z', mine: true }] }), 'Looking into it', 'after the reporter answered, the ball is with the team');
+  assert.equal(words({ labels: ['needs-info'] }), 'Needs more info');
+  assert.equal(words({ fix: { number: '3', url: 'u', merged: false } }), 'Fix in progress');
+  assert.equal(words({ fix: { number: '3', url: 'u', merged: true, mergedAt: '2026-10-12T11:00:00.000Z' } }), 'Fix merged');
+  assert.equal(words({ open: false, fix: { number: '3', url: 'u', merged: true, mergedAt: '2026-10-12T11:00:00.000Z' } }), 'Fixed', 'fixed, but no release of the running line carries it yet');
+  assert.equal(words({ open: false, labels: ['duplicate'] }), 'Closed as a duplicate');
+  assert.equal(words({ open: false, labels: ["won't fix"] }), 'Closed: not planned');
+  assert.equal(words({ open: false }), 'Closed', 'closed without a fix is never called fixed');
+  assert.equal(reportProgress({ ...filed, status: 'retrying' }).words, 'Waiting for the tracker');
+  assert.equal(reportProgress(filed).words, 'Got it', 'before the first read');
+});
+
+test('the acknowledgement line is one short line of configuration', async () => {
+  const { reportSettings } = await import('../src/reports.ts');
+  const own = { id: 'feedback', name: 'Feedback', provider: 'vikunja' as const, baseUrl: 'https://vikunja.test/api/v1', project: '30', repositoryId: 'x', token: 't', executionOwner: 'interactive' as const };
+  assert.equal(reportSettings({ source: 'feedback', acknowledgement: ' We look within a day. ' }, [own], 'live')?.acknowledgement, 'We look within a day.');
+  assert.throws(() => reportSettings({ source: 'feedback', acknowledgement: 'x'.repeat(281) }, [own], 'live'), /acknowledgement must be one line/);
+  assert.throws(() => reportSettings({ source: 'feedback', acknowledgement: 'two\nlines' }, [own], 'live'), /acknowledgement must be one line/);
 });
