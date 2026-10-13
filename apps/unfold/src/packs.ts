@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import type { PloegCard } from './ploeg.ts';
+import type { RunCard } from './ploeg.ts';
 
 const day = 86_400_000;
 
@@ -92,7 +92,7 @@ const iso = (ms: number) => new Date(ms).toISOString().replace('.000Z', 'Z');
  * play, released (the release time), the rarity revealed (its `revealedAt`, Ploeg ADR-0056, proposed), each finish step
  * crossed (release time plus the step's days), each confirmed crack and each mend. Rarity never changes a pull's odds.
  */
-export function cardMoments(card: PloegCard, now = Date.now()): Moment[] {
+export function cardMoments(card: RunCard, now = Date.now()): Moment[] {
   const id = card.workItemId;
   const moments: Moment[] = [];
   const add = (kind: MomentKind, at: number | null, detail: Record<string, string | number> = {}) => { if (at !== null && at <= now) moments.push({ workItemId: id, kind, at: iso(at), detail }); };
@@ -113,7 +113,7 @@ export function cardMoments(card: PloegCard, now = Date.now()): Moment[] {
 }
 
 /** The time of a card's latest moment, or null when it has none yet. */
-export function lastActivity(card: PloegCard, now = Date.now()): string | null {
+export function lastActivity(card: RunCard, now = Date.now()): string | null {
   return cardMoments(card, now).at(-1)?.at ?? null;
 }
 
@@ -180,7 +180,7 @@ export type PackPlan = { period: Period; entries: PackEntry[] };
  * moments. Only periods that start at or after the card's floor count, so a person's history before their first visit
  * (less the backfill) never becomes a stack of packs.
  */
-export function planPacks(cards: PloegCard[], rules: PeriodRules, floorFor: (team: string) => number, now = Date.now()): PackPlan[] {
+export function planPacks(cards: RunCard[], rules: PeriodRules, floorFor: (team: string) => number, now = Date.now()): PackPlan[] {
   const plans = new Map<string, PackPlan>();
   for (const card of cards) {
     const floor = floorFor(card.team);
@@ -206,7 +206,7 @@ export const copyRoles = Object.freeze(['developer', 'reviewer', 'qa', 'po', 'ac
  * steward it. Null when none of `logins` is on the roster. `steward` is true only for a login in `verified` (the
  * administrator's mapping), because a self-declared login never attributes a card to anyone.
  */
-export function copyOf(card: PloegCard, logins: string[], verified: string[] = []): { role: string; roles: string[]; steward: boolean } | null {
+export function copyOf(card: RunCard, logins: string[], verified: string[] = []): { role: string; roles: string[]; steward: boolean } | null {
   const mine = new Set(logins.map(login => login.toLowerCase()));
   const trusted = new Set(verified.map(login => login.toLowerCase()));
   const roles = [...new Set(card.roster.filter(person => mine.has(person.name.toLowerCase())).flatMap(person => person.roles))];

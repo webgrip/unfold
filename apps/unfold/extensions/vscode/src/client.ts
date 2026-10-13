@@ -1,4 +1,4 @@
-import type { PloegCard, PloegDetail, PloegNow, PloegOverview } from './ploeg-types.js';
+import type { RunCard, PloegDetail, PloegNow, PloegOverview } from './ploeg-types.js';
 import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat, Investigation, Recovery, RecoveryAction, DeliveryView, PublicationBinding } from './types.js';
 import type { BrowserLoginStart } from './browser-login.js';
 
@@ -120,8 +120,8 @@ export class UnfoldClient {
   ploeg(team?: string, fresh = false): Promise<PloegOverview> { const query = new URLSearchParams(); if (team) query.set('team', team); if (fresh) query.set('refresh', '1'); return this.request(`/api/ploeg?${query}`); }
   ploegNow(fresh = false): Promise<PloegNow> { return this.request(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`); }
   workItem(id: string, fresh = false): Promise<PloegDetail> { return this.request(`/api/ploeg/work-items/${workItemId(id)}${fresh ? '?refresh=1' : ''}`); }
-  async workItemCard(id: string): Promise<PloegCard | undefined> {
-    try { return (await this.request<{ card?: PloegCard }>(`/api/ploeg/work-items/${workItemId(id)}/card`)).card; }
+  async workItemCard(id: string): Promise<RunCard | undefined> {
+    try { return (await this.request<{ card?: RunCard }>(`/api/ploeg/work-items/${workItemId(id)}/card`)).card; }
     catch (error) { if (error instanceof ApiError && error.status === 404) return undefined; throw error; }
   }
   ploegDashboard(id?: string): string { return `${this.origin}/#work${id ? `/${workItemId(id)}` : ''}`; }

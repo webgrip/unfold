@@ -1,4 +1,4 @@
-import type { PloegCard } from './ploeg.ts';
+import type { RunCard } from './ploeg.ts';
 
 /** What a decoration may set as its world: one of the forge's worlds, or `off` for the theme's art. Mirrors `public/cards/skins/forge/world/rules.js`. */
 export const worldChoices = Object.freeze(['islands', 'deepsea', 'city', 'off']);
@@ -46,7 +46,7 @@ const round = (value: number, places: number) => Math.round(value * 10 ** places
  * The facts a card's world reads, from the card itself and the clock: whole days since its release (null until
  * released), whether its state is merged, and its condition. The browser derives the same from the card's view.
  */
-export function worldFactsOf(card: PloegCard, now = Date.now()): WorldFacts {
+export function worldFactsOf(card: RunCard, now = Date.now()): WorldFacts {
   const at = card.release?.at ? Date.parse(card.release.at) : NaN;
   const days = Number.isFinite(at) ? Math.max(0, Math.floor((now - at) / day)) : null;
   const state = card.condition?.state;

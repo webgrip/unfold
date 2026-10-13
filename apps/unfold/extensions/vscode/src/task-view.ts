@@ -1,5 +1,5 @@
 import type { UnfoldClient } from './client.js';
-import type { PloegCard, PloegDetail } from './ploeg-types.js';
+import type { RunCard, PloegDetail } from './ploeg-types.js';
 import type { Bootstrap, Session, SessionEvent, TaskPloegStatus, TaskSnapshot, TaskSource } from './types.js';
 
 const settled = ['done', 'withdrawn', 'stale'];
@@ -34,7 +34,7 @@ export function workItemMoving(state: string | undefined): boolean {
 }
 
 /** What Ploeg reported for one Work Item. `problem` explains a detail that could not be read; an older server without the card route leaves `card` absent. */
-export type PloegFacts = { detail?: PloegDetail; card?: PloegCard; problem?: string };
+export type PloegFacts = { detail?: PloegDetail; card?: RunCard; problem?: string };
 
 /** Reads a Work Item's detail and Run card side by side. It never throws: a failed detail becomes `problem`, a missing one (404) or a missing card leaves the field absent. */
 export async function ploegFacts(client: Pick<UnfoldClient, 'workItem' | 'workItemCard'>, id: string, fresh: boolean): Promise<PloegFacts> {

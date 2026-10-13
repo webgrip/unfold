@@ -4,11 +4,11 @@ import { newCalendar, newKindMap, defaultCalendar, type Calendar, type Hours, ty
 import { newGateMap, type GateMap, type Statuses } from './gate.ts';
 import { defaultCardSkin, defaultHotfixLabel, defaultReleaseEnvironment, type CardRules, type CardStyle } from './assemble.ts';
 
-/** One repository's card rules: what Ploeg's `cardStyle`, `release`, `rarity` and `cardShape` said on a Work Target or project. */
+/** One repository's card rules: its skin and theme, release environment, rarity paths and play shape paths. */
 export type CardRepositorySettings = { style?: { skin: string; theme?: string }; releaseEnvironment?: string; rarity?: RarityRules; shape?: ShapeRules };
-/** One board's card rules, keyed `<provider>:<scope>`: what Ploeg's `statusKinds` and `gates` said on a project. */
+/** One board's card rules, keyed `<provider>:<scope>`: its status kinds and gate labels. */
 export type CardBoardSettings = { statusKinds?: Kinds; gates?: Statuses };
-/** One Team's card rules: what Ploeg's `teams.<team>.cards` and `workingHours` said. */
+/** One Team's card rules: referees, hotfix labels, the pull request comment and working hours. */
 export type CardTeamSettings = { referees?: string[]; hotfixLabels?: string[]; pullRequestComment?: boolean; workingHours?: Hours };
 /** The card rules Unfold owns (root ADR-0030). Every setting is optional and takes Ploeg's old default. */
 export type CardRuleSettings = { bots?: string[]; flow?: boolean; rarity?: boolean; repositories?: Record<string, CardRepositorySettings>; boards?: Record<string, CardBoardSettings>; teams?: Record<string, CardTeamSettings> };

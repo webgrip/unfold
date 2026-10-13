@@ -1,6 +1,6 @@
 import { sessionProgress } from '../../public/core/progress.js';
 import { costStatusWord } from '../../public/core/states.js';
-import type { PloegCard, PloegCostStatus, PloegDetail, PloegRun, PloegState } from '../ploeg.ts';
+import type { RunCard, PloegCostStatus, PloegDetail, PloegRun, PloegState } from '../ploeg.ts';
 import type { Event, Session } from '../types.ts';
 
 /** How sure a brief's spend figure is: settled by Ploeg, still provisional, not reported, or a demo with no spend. */
@@ -95,7 +95,7 @@ function word(value: unknown): string | null {
   return typeof value === 'string' && code.test(value) ? value : null;
 }
 
-function spendOf(detail: PloegDetail, card: PloegCard | undefined, runs: PloegRun[]): WorkItemBrief['spend'] {
+function spendOf(detail: PloegDetail, card: RunCard | undefined, runs: PloegRun[]): WorkItemBrief['spend'] {
   if (detail.demo || card?.demo) return { status: 'demo', deliveryUsd: null };
   if (card) {
     const { costStatus, usageComplete, costUsd } = card.totals;
@@ -138,7 +138,7 @@ export function briefProgress({ session, events, now, viewer }: BriefSession): B
 }
 
 /** Builds the brief for one Work Item from Ploeg's detail and, when available, its card and the session that drives it. Pure. Ask Runs are left out, so earlier questions never feed later answers. */
-export function workItemBrief(detail: PloegDetail, card?: PloegCard, session?: BriefSession): WorkItemBrief {
+export function workItemBrief(detail: PloegDetail, card?: RunCard, session?: BriefSession): WorkItemBrief {
   const { item } = detail;
   let truncated = detail.truncated.runs;
   const [objective, objectiveCut] = clip(item.description, limits.objective);

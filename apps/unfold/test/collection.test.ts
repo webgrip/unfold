@@ -7,7 +7,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { Collection, CollectionError, type CardSource } from '../src/collection.ts';
 import { Store } from '../src/store.ts';
 import { drawPull } from '../src/packs.ts';
-import type { PloegCard } from '../src/ploeg.ts';
+import type { RunCard } from '../src/ploeg.ts';
 import type { User } from '../src/types.ts';
 import { configuration } from './api-support.ts';
 import { card } from './collection-support.ts';
@@ -17,7 +17,7 @@ const iris: User = { id: 'u-iris', name: 'iris@example.test', role: 'operator' }
 const admin: User = { id: 'u-admin', name: 'admin', role: 'admin' };
 const at = (iso: string) => Date.parse(iso);
 
-function source(cards: PloegCard[], teams = ['delivery'], mapping: Record<string, string> = {}): CardSource & { calls: string[][] } {
+function source(cards: RunCard[], teams = ['delivery'], mapping: Record<string, string> = {}): CardSource & { calls: string[][] } {
   const calls: string[][] = [];
   return {
     calls,
@@ -28,7 +28,7 @@ function source(cards: PloegCard[], teams = ['delivery'], mapping: Record<string
   };
 }
 
-function setup(cards: PloegCard[], now: string, configure: (config: ReturnType<typeof configuration>) => void = () => {}, mapping: Record<string, string> = {}) {
+function setup(cards: RunCard[], now: string, configure: (config: ReturnType<typeof configuration>) => void = () => {}, mapping: Record<string, string> = {}) {
   const store = new Store(':memory:');
   const config = configuration('/unused', 'live');
   configure(config);

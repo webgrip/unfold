@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { ApiError, type UnfoldClient } from './client.js';
 import { providerNames, safeHttpsUrl } from './status.js';
 import { awaitingPloeg, currentWorkItemId, linkedSessionFor, ploegFacts, progressEventsOf, sessionEligibility, unsupportedStatus, workItemMoving } from './task-view.js';
-import type { PloegCard, PloegDetail } from './ploeg-types.js';
+import type { RunCard, PloegDetail } from './ploeg-types.js';
 import { readPublication } from './publication.js';
 import type { Bootstrap, PublicationBinding, PublicationOffer, Recovery, Session, SessionEvent, TaskPloegStatus, TaskPreview, TaskSnapshot, TaskSource } from './types.js';
 
@@ -34,11 +34,11 @@ export type LinkedSession = { session: Session; events: SessionEvent[]; viewer: 
 export type TaskView = {
   kind: 'task'; task: TaskPreview; source: { id: string; name: string; provider: string; handoff: boolean; executionOwner: string };
   repositoryName: string; status: TaskPloegStatus; session: { allowed: boolean; reason?: string }; host: string; loadedAt: string; preferredTeam?: string;
-  workItemId?: string; detail?: PloegDetail; card?: PloegCard; ploegProblem?: string; linked?: LinkedSession;
+  workItemId?: string; detail?: PloegDetail; card?: RunCard; ploegProblem?: string; linked?: LinkedSession;
 };
 
 /** The state a Work Item panel posts to its webview: a Ploeg Work Item without a tracker task the workbench knows. */
-export type WorkItemView = { kind: 'work'; workItemId: string; detail: PloegDetail; card?: PloegCard; host: string; loadedAt: string; linked?: LinkedSession };
+export type WorkItemView = { kind: 'work'; workItemId: string; detail: PloegDetail; card?: RunCard; host: string; loadedAt: string; linked?: LinkedSession };
 
 type PanelTarget = { kind: 'task'; source: TaskSource; taskId: string } | { kind: 'work'; workItemId: string };
 
