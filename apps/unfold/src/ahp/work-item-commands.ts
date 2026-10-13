@@ -212,7 +212,7 @@ export class WorkItemCommands {
     const explanations: Record<WorkItemCommandKind, () => string> = {
       decide: () => `${entry.item.title} waits for approval before Ploeg queues it for ${entry.item.team}.`,
       withdraw: () => workItemCommandText.withdrawQuestion(entry.item.id),
-      requeue: () => `${workItemCommandText.requeueQuestion(entry.item.team, Boolean(note))} Ploeg opens a new Shift and tells its Runs why the last one stopped${note ? ' and what you wrote' : ''}.${raisedPoolUsd !== undefined ? ` The last Shift's ${money(previousPool)} budget ran out, so you can restart with up to ${money(raisedPoolUsd)}.` : ''}`,
+      requeue: () => `${workItemCommandText.requeueQuestion(entry.item.team, Boolean(note))} Ploeg opens a new attempt and tells its Runs why the last one stopped${note ? ' and what you wrote' : ''}.${raisedPoolUsd !== undefined ? ` The last attempt's ${money(previousPool)} budget ran out, so you can restart with up to ${money(raisedPoolUsd)}.` : ''}`,
     };
     const requests: Record<WorkItemCommandKind, () => Json> = { decide: () => decideRequest(requestId, entry), withdraw: () => withdrawRequest(requestId, entry), requeue: () => requeueRequest(requestId, entry, Boolean(note), raisedPoolUsd) };
     const prompt: WorkItemPrompt = {

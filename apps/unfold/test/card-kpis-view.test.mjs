@@ -71,7 +71,7 @@ test('the front leads with the figures that tell the most for each state', () =>
 
 test('the Flow tab draws a bar and a table of time per status, tiles with meanings, the clock toggle and what is not collected', () => {
   const tab = flowTab(card({ flow: flow() }));
-  assert.match(tab.lead, /^Delivered in 8 d 6 h from ticket to release; 41% of the cycle was active work\.$/);
+  assert.match(tab.lead, /^Delivered in 8 d 6 h from task to release; 41% of the cycle was active work\.$/);
   const types = tab.blocks.map(block => block.type);
   assert.deepEqual(types, ['clock', 'stats', 'bar', 'table', 'glossary']);
   assert.equal(tab.blocks[0].calendar, 'Working hours: Mon–Fri 09:00–17:00 Europe/Amsterdam');

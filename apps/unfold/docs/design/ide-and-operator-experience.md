@@ -8,7 +8,7 @@ The 0.3.0 extension implements the editor sections of this design that the curre
 
 ## 0.2.0 implementation update
 
-The shipped VSIX now includes a native **Linked Tasks** tree and a shared task browsing/import workflow for Vikunja, ClickUp, Forgejo, GitHub and GitLab. Operators inspect a read-only source preview, choose the crew/runtime/budget, create a queued session and start it separately. Session views retain the imported source snapshot. The evidence panel and **Download Review Candidate** command save an authenticated Git bundle, binary patch or manifest through an explicit local save dialog. Task-provider credentials stay on the server; the editor uses its existing origin-bound Unfold login.
+The shipped VSIX now includes a native **Linked Tasks** tree and a shared task browsing/import workflow for Vikunja, ClickUp, Forgejo, GitHub and GitLab. Operators inspect a read-only source preview, choose the Team, runtime and budget, create a queued session and start it separately. Session views retain the imported source snapshot. The evidence panel and **Download Review Candidate** command save an authenticated Git bundle, binary patch or manifest through an explicit local save dialog. Task-provider credentials stay on the server; the editor uses its existing origin-bound Unfold login.
 
 The browser exposes the same connections and API through a Tasks workspace, revision preview and repository handoff panel. This release has actual server-client and browser-rendered webview coverage. Native VS Code Extension Host activation and desktop SecretStorage still require qualification on a machine with VS Code. [Release instructions](../operations/iteration-0.2.0.md) describe the implemented flow; the remaining editor architecture below is the planned product scope.
 
@@ -35,7 +35,7 @@ Use native TreeViews, Quick Picks, command menus, documents and editor diffs whe
 
 ## 2. What exists, and what this design adds
 
-The server currently supports owned sessions, registered repositories and crews, sequential implementation/review, durable events, explicit pause/resume/cancel, operator instructions, structured permission responses, retained artifacts, scoped spending and a read-only Ploeg queue view. Its three roles are administrator, operator and viewer. There is no shared team membership, work-order claim protocol, tracker ticket intake or human merge API in that baseline.
+The server currently supports owned sessions, registered repositories and Teams, sequential implementation/review, durable events, explicit pause/resume/cancel, operator instructions, structured permission responses, retained artifacts, scoped spending and a read-only Ploeg queue view. Its three roles are administrator, operator and viewer. There is no shared team membership, work-order claim protocol, tracker ticket intake or human merge API in that baseline.
 
 The first extension slice uses those existing routes: grouped session navigation; creation and lifecycle commands; a themed session panel; read-only artifact/history documents; explicitly confirmed context attachments; and cookie authentication through SecretStorage. It polls server state and fetches durable history using a cursor. It does not yet promise native per-file base/head diffs, OAuth device sign-in, team queues or a connection into the worker's filesystem. Verify the exact shipped commands in the extension manifest before demonstrating them.
 
@@ -101,7 +101,7 @@ The following is the target command catalogue, not a statement that every comman
 | --- | --- |
 | Unfold: Connect / Switch Deployment | Select trusted destination and authenticate |
 | Unfold: Sign Out | Remove credentials and revoke login session |
-| Unfold: New Session | Registered repository, brief, crew, runtime and budget; preview before creation |
+| Unfold: New Session | Registered repository, brief, Team, runtime and budget; preview before creation |
 | Unfold: Start from Ticket | Select an eligible normalized ticket; show source revision and readiness gaps |
 | Unfold: Find Session | Search visible sessions by title, ticket, repository or ID |
 | Unfold: Review Next Decision | Select the oldest relevant unresolved decision; never grant permission merely by navigating |
@@ -179,17 +179,17 @@ The future stream contract should return a snapshot with a high-water cursor, th
 | Intentional pause | Paused by the named operator | Resume after confirming brief and authorization |
 | Process recovery | Interrupted; no replacement run started | Inspect retained result and reconciliation |
 | Metering pending | Last recorded spend; awaiting settlement | Inspect evidence; wait for settlement |
-| Metering unknown | Spend unconfirmed; prior authorization remains reserved | Reconcile; request administrator review |
+| Metering unknown | Spend unconfirmed; the prior Hold remains | Reconcile; request administrator review |
 | Review revision changed | Previous approval applies to an older revision | Run required checks and obtain a new review |
 
-Unknown cost never becomes `$0`. Show authorized, last observed and reserved amounts as distinct values where the server supplies them. Do not calculate precise remaining allowance from incomplete spend. An authorized increase does not erase unresolved prior usage. Accounting warnings should state the blocker and permitted action in one sentence, keeping API and gateway internals in an expandable diagnostic section.
+Unknown cost never becomes `$0`. Show authorized, last observed and held amounts as distinct values where the server supplies them. Do not calculate precise remaining allowance from incomplete spend. An authorized increase does not erase unresolved prior usage. Accounting warnings should state the blocker and permitted action in one sentence, keeping API and gateway internals in an expandable diagnostic section.
 
 ## 10. Three complete workflows
 
 ### Ticket to a human-reviewed merge
 
 1. A PO prepares a ClickUp or Forgejo ticket using the agreed Definition of Ready. The connector materializes a versioned work order; missing acceptance criteria appear as a readiness gap.
-2. An operator selects the eligible item in VS Code or the browser, reviews repository mapping, crew, execution owner and budget, then dispatches through the designated authority. The UI displays Ploeg or Unfold ownership explicitly.
+2. An operator selects the eligible item in VS Code or the browser, reviews repository mapping, Team, execution owner and budget, then dispatches through the designated authority. The UI displays Ploeg or Unfold ownership explicitly.
 3. Ploeg allocates a remote workspace and starts the authorized attempt. Unfold presents its projected state and intervention link. Closing VS Code leaves the run intact.
 4. A specific tool permission or domain question appears in Needs attention. The operator inspects and answers that request; unrelated requests remain unanswered.
 5. The run produces a branch and evidence manifest. VS Code opens the patch and checks against the recorded head. Agent approval is labeled machine review; human acceptance remains outstanding.
@@ -200,18 +200,18 @@ Steps involving normalized tickets, cross-plane handoff, editor workspace access
 
 ### Unfold improves Unfold
 
-1. Run a stable Unfold release as the supervisor. Register this repository and a bounded crew; give candidate workers no access to the supervisor's state, keys or deployment authority.
+1. Run a stable Unfold release as the supervisor. Register this repository and a bounded Team; give candidate workers no access to the supervisor's state, keys or deployment authority.
 2. Select a small backlog issue with executable acceptance criteria, such as cursor replay behavior. Pin the base revision and required checks. Self-modification means producing a reviewed candidate branch, not editing the running supervisor.
 3. The agent implements in an isolated workspace; a separate verification environment executes server and extension checks. The result includes the changed contract, relevant tests and diff.
 4. Use the installed stable extension to inspect that candidate. Test a candidate extension in an isolated VS Code profile connected to a disposable candidate server, with a distinguishable deployment label.
 5. A human reviews and merges. CI builds immutable release artifacts and a controlled deployment job upgrades the supervisor after migration and rollback checks. The worker cannot approve its own production deployment.
-6. Record escaped defects and operator effort against the ticket to improve the crew procedure. Promote changed skills through the same review path; do not let a successful run silently rewrite global instructions.
+6. Record escaped defects and operator effort against the ticket to improve the Team's procedure. Promote changed skills through the same review path; do not let a successful run silently rewrite global instructions.
 
 ### Interrupted run with unconfirmed spend
 
 1. An operator's laptop disconnects while a remote run is active. The UI reports stale observation without suggesting the agent has stopped.
 2. The control server restarts. Recovery marks the attempt interrupted, stops or fences remaining execution, revokes its credential and attempts settlement. No replacement attempt starts.
-3. On reconnect, the extension fetches the current snapshot and history. It shows retained changes, the last observed spend and the unresolved reservation. Resume is unavailable while its server precondition fails.
+3. On reconnect, the extension fetches the current snapshot and history. It shows retained changes, the last observed spend and the unresolved Hold. Resume is unavailable while its server precondition fails.
 4. The operator inspects evidence; an administrator resolves accounting or authorizes an explicit bounded recovery decision according to policy. This is recorded with actor and reason.
 5. A permitted resume starts a new identifiable attempt or continues the supported harness state under the server's declared semantics. The UI states which occurred. Existing instructions and previous evidence remain attributable to their original attempts.
 
@@ -236,7 +236,7 @@ Restricted Mode should still allow observation of already authorized remote sess
 | Evidence | Rename, deletion, binary patch, stale head and missing content | Honest immutable evidence; no fabricated base file |
 | Decisions | Two questions; multi-select; duplicate response; broad grant | Preserve semantics and scope; reject stale decisions |
 | Network | Duplicate events, cursor jumps, downtime, retained-history expiry | Deduplication, fresh snapshot, honest gap label; no paid replay |
-| Monetary ambiguity | Unknown spend with a successful-looking diff | Reservation remains visible; no invented remaining allowance |
+| Monetary ambiguity | Unknown spend with a successful-looking diff | The Hold remains visible; no invented remaining allowance |
 | Local takeover | Dirty tree and untracked file collide with candidate | No destructive mutation; offer a separate worktree |
 | Remote takeover | Old agent continues after lease transfer | Fencing rejects stale publication and records the attempt |
 | Injection | Ticket HTML, command link, malicious file path or webview payload | Render inert text; reject unauthorized host commands |

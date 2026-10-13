@@ -3,7 +3,7 @@ import { icon } from './core/icons.js';
 import { markdown } from './core/markdown.js';
 import { count as formatCount, money, moneyHtml, plural, duration, dateTime, decimal } from './core/format.js';
 import * as ui from './core/ui.js';
-import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, runFailure, runFailureText, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason } from './core/states.js';
+import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, runFailure, runFailureText, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason, costStatuses, costStatusWord } from './core/states.js';
 import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph } from './core/reasons.js';
 import { grafanaTeam, runExplorer } from './core/observability.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
@@ -289,10 +289,12 @@ export function runResult(run) {
   return unreportedOutcome(run);
 }
 
+const capital = value => value ? value[0].toUpperCase() + value.slice(1) : value;
+
 function runCost(run, demo) {
   if (demo || neverStarted(run)) return '';
-  if (run.costStatus === 'observed' && amount(run.usage?.costUsd)) return money(run.usage.costUsd);
-  return 'Not reported';
+  if (run.costStatus !== 'unknown' && amount(run.usage?.costUsd)) return money(run.usage.costUsd);
+  return capital(costStatuses.unknown);
 }
 
 function runSeconds(run, now) {
@@ -733,7 +735,7 @@ function reviewBox(detail, model, plan) {
   if (verdict?.key === 'approve') checks.push(check('success', 'check-circle', 'The agent reviewer approved', 'Agent review is evidence, not a human review.'));
   else if (verdict?.key === 'request_changes') checks.push(check('attention', 'alert', 'The agent reviewer asked for changes', 'Read the findings before you merge.'));
   else if (verdict) checks.push(check('neutral', 'circle-dashed', 'No agent verdict', review.lastReader?.outcome === 'no_change_needed' ? 'The reviewer reported no change needed but gave no verdict.' : review.findings.length ? 'The reviewer left findings but gave no verdict.' : 'The reviewer gave no verdict.', 'agent verdict'));
-  else checks.push(check('neutral', 'circle-dashed', 'No agent review', 'No reviewer ran in this Shift.', 'agent review'));
+  else checks.push(check('neutral', 'circle-dashed', 'No agent review', 'No reviewer ran in this attempt.', 'agent review'));
   if (!detail.demo && spent && amount(spent.settledUsd)) {
     if (spent.settledUsd <= spent.authorizedUsd) checks.push(check('success', 'check-circle', `Within its ${moneyText(spent.authorizedUsd)} budget`, `${moneyText(spent.settledUsd)} settled.`));
     else checks.push(check('danger', 'x-circle', `Over its ${moneyText(spent.authorizedUsd)} budget`, `${moneyText(spent.settledUsd)} settled.`));
@@ -834,7 +836,7 @@ function accountMarkup(detail) {
     return lead + more;
   };
   const side = (key, index, heading, text) => `<div class="work-account-side" data-side="${key}"><h4 class="work-account-label"><span class="work-account-index" aria-hidden="true">${index}</span>${heading}</h4>${text ? body(text) : `<p class="work-account-missing">${escape('Not reported.')}</p>`}</div>`;
-  const source = [account.role || 'writer', account.round ? `Round ${account.round}` : '', account.earlierShift ? 'earlier Shift' : ''].filter(Boolean).map(part => `<span>${escape(part)}</span>`);
+  const source = [account.role || 'writer', account.round ? `Round ${account.round}` : '', account.earlierShift ? 'earlier attempt' : ''].filter(Boolean).map(part => `<span>${escape(part)}</span>`);
   if (account.at) source.push(ui.timeAgo(account.at));
   const number = ploegReview(detail).pullRequestNumber;
   const foot = `<footer class="work-account-foot"><p class="work-account-source"><span class="work-account-source-label">Written by</span>${source.join('')}</p><p class="work-account-caveat">${escape(`The agent’s own account: verify it against ${number ? `pull request #${number}` : 'the pull request'}.`)}</p>${runJump({ id: account.runId })}</footer>`;
@@ -885,7 +887,7 @@ function ladderMarkup(runs, { demo, now, label }) {
   return `<div class="table-wrap work-ladder" role="region" tabindex="0" aria-label="${escape(label)}"><table class="round-ladder"><caption class="sr-only">${escape(label)}: Roles by Rounds</caption><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
 }
 
-function shiftMeter(shift, demo, label = 'Shift budget') {
+function shiftMeter(shift, demo, label = 'Attempt budget') {
   return ui.meter({ settled: shift.spentUsd, reserved: shift.reservedUsd, authorized: shift.budgetUsd, demo, label });
 }
 
@@ -961,7 +963,7 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts
     ['Finished', run.finishedAt ? ui.timeAt(run.finishedAt) : run.state === 'running' ? 'Still running' : null],
     ['Duration', time !== null ? `<span class="num">${escape(duration(time))}</span>` : null],
     ['Authorized', demo ? '<span class="subtle">Demo · no model calls</span>' : amount(run.authorizedUsd) && run.authorizedUsd > 0 ? `<span class="num">${moneyText(run.authorizedUsd)}</span>` : '<span class="subtle">Not reported</span>'],
-    ['Model cost', demo ? '<span class="subtle">Demo · no model calls</span>' : neverStarted(run) ? '<span class="subtle">Nothing ran</span>' : run.costStatus === 'observed' && amount(run.usage?.costUsd) ? `<span class="num">${moneyText(run.usage.costUsd)}</span>` : '<span class="subtle">Not reported</span>'],
+    ['Model cost', demo ? '<span class="subtle">Demo · no model calls</span>' : neverStarted(run) ? '<span class="subtle">Nothing ran</span>' : run.costStatus !== 'unknown' && amount(run.usage?.costUsd) ? `<span class="num">${moneyText(run.usage.costUsd)}</span> <span class="subtle">${costStatusWord(run.costStatus)}</span>` : `<span class="subtle">${capital(costStatuses.unknown)}</span>`],
     ['Tokens', tokens],
   ]));
   parts.push(runTranscriptMarkup(run, transcripts?.get(String(run.id))));
@@ -969,7 +971,7 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts
   const grafana = runExplorer(run.keyAlias, grafanaUrl);
   const copy = ui.button({ label: 'Copy link to this Run', icon: 'copy', variant: 'ghost', size: 'xs', action: 'work-copy-run', data: { id: run.id, workItem: run.workItemId } });
   const grafanaLink = grafana ? ui.button({ label: 'Grafana', icon: 'activity', variant: 'ghost', size: 'xs', href: grafana, external: true, data: { linkOut: 'grafana' } }) : '';
-  const ids = `<div class="work-run-ids-row"><p class="meta work-run-ids">Run <span class="mono">${escape(run.id)}</span>${run.shiftId ? ` · Shift <span class="mono">${escape(run.shiftId)}</span>` : ''}${run.keyAlias ? ` · Key <span class="mono">${escape(run.keyAlias)}</span>` : ''}</p><div class="work-run-tools">${copy}${grafanaLink}</div></div>`;
+  const ids = `<div class="work-run-ids-row"><p class="meta work-run-ids">Run <span class="mono">${escape(run.id)}</span>${run.shiftId ? ` · attempt <span class="mono">${escape(run.shiftId)}</span>` : ''}${run.keyAlias ? ` · Key <span class="mono">${escape(run.keyAlias)}</span>` : ''}</p><div class="work-run-tools">${copy}${grafanaLink}</div></div>`;
   parts.push(ids);
   return parts.join('');
 }
@@ -1025,24 +1027,24 @@ function storyMarkup(detail, model) {
   const chart = streamMarkup(detail, model);
   const early = text => chart && model.stream?.lanes?.length ? storyCard(text, `<div class="work-story-overview">${chart}</div>`) : `<p class="work-note" id="work-rounds">${icon('circle-dashed')}<span>${text}</span></p>`;
   if (!shifts.length && !runs.length) {
-    const text = state === 'proposed' ? 'No Shift yet. One opens after a person approves the proposal.' : ['done', 'withdrawn', 'stale', 'needs_human'].includes(state) ? 'No Shift or Run ran for this Work Item.' : 'No Shift has opened yet. One opens when a worker of the Team takes the Work Item.';
+    const text = state === 'proposed' ? 'No attempt yet. One starts after a person approves the proposal.' : ['done', 'withdrawn', 'stale', 'needs_human'].includes(state) ? 'No attempt or Run ran for this Work Item.' : 'No attempt has started yet. One starts when a worker of the Team takes the Work Item.';
     return early(escape(text));
   }
   const demo = detail.demo;
   if (!runs.length) {
     const shift = shifts[0];
-    const text = shift.closedAt ? `The Shift closed ${ui.timeAgo(shift.closedAt)} before any Run started: ${escape(closeReasonLabel(shift.closeReason).replace(/^./, letter => letter.toLowerCase()))}.` : `A Shift opened ${ui.timeAgo(shift.openedAt)}. No Run has started yet.`;
+    const text = shift.closedAt ? `The attempt closed ${ui.timeAgo(shift.closedAt)} before any Run started: ${escape(closeReasonLabel(shift.closeReason).replace(/^./, letter => letter.toLowerCase()))}.` : `An attempt started ${ui.timeAgo(shift.openedAt)}. No Run has started yet.`;
     return early(text);
   }
   const failures = runs.filter(failed).length;
   const runsNote = `${plural(runs.length, 'Run')}${failures ? `, ${failures === runs.length && failures > 1 ? 'all' : failures} failed or stuck` : ''}`;
   if (!shifts.length) {
-    const subtitle = `${runsNote}. These Runs ran before Shifts existed, so there is no Shift budget.`;
+    const subtitle = `${runsNote}. These Runs ran before attempts were recorded, so there is no attempt budget.`;
     return storyCard(escape(subtitle), `${chart ? `<div class="work-story-overview">${chart}</div>` : ''}${runsMarkup(detail, model)}`);
   }
   const [current, ...earlier] = shifts;
-  const older = earlier.length ? `<div class="work-shifts"><h4 class="overline">Earlier Shifts</h4><ul class="work-shift-list">${earlier.map(shift => `<li class="work-shift"><p class="work-shift-line">${shiftLine(shift)}</p>${shiftMeter(shift, demo, '')}${ui.disclosure({ summary: 'Show its Rounds', plain: true, id: `work-shift-${shift.id}`, body: ladderMarkup(runs.filter(run => run.shiftId === shift.id), { demo, now: model.now, label: `Rounds of the Shift opened ${dateTime(shift.openedAt)}` }) || '<p class="subtle">No Runs.</p>' })}</li>`).join('')}</ul></div>` : '';
-  const truncated = [detail.truncated?.shifts ? 'Ploeg capped the Shift history. Earlier Shifts may be missing.' : '', detail.truncated?.runs ? 'Ploeg capped the Run history. Earlier Runs may be missing.' : ''].filter(Boolean).map(text => `<p class="meta">${escape(text)}</p>`).join('');
+  const older = earlier.length ? `<div class="work-shifts"><h4 class="overline">Earlier attempts</h4><ul class="work-shift-list">${earlier.map(shift => `<li class="work-shift"><p class="work-shift-line">${shiftLine(shift)}</p>${shiftMeter(shift, demo, '')}${ui.disclosure({ summary: 'Show its Rounds', plain: true, id: `work-shift-${shift.id}`, body: ladderMarkup(runs.filter(run => run.shiftId === shift.id), { demo, now: model.now, label: `Rounds of the attempt started ${dateTime(shift.openedAt)}` }) || '<p class="subtle">No Runs.</p>' })}</li>`).join('')}</ul></div>` : '';
+  const truncated = [detail.truncated?.shifts ? 'Ploeg capped the attempt history. Earlier attempts may be missing.' : '', detail.truncated?.runs ? 'Ploeg capped the Run history. Earlier Runs may be missing.' : ''].filter(Boolean).map(text => `<p class="meta">${escape(text)}</p>`).join('');
   const overview = `<div class="work-story-overview">${chart}<div class="work-shift-budget">${shiftMeter(current, demo)}</div></div>`;
   const list = `<div class="work-story-runs"><p class="work-story-heading"><span class="overline">Runs</span><span class="meta">${escape(runsNote)}</span></p>${runsMarkup(detail, model)}</div>`;
   const tail = older || truncated ? `<div class="work-story-tail">${older}${truncated}</div>` : '';
@@ -1096,7 +1098,7 @@ function technicalMarkup(detail) {
     ['Attempts', `${escape(item.attempts ?? '—')} agent · ${escape(item.infraFailures ?? '—')} infrastructure`],
     ['Next eligible', item.nextEligibleAt ? ui.timeAt(item.nextEligibleAt) : null],
     ['Lease', item.lease ? `renewed ${ui.timeAt(item.lease.renewedAt)} · expires ${ui.timeAt(item.lease.expiresAt)}` : null],
-    ['Shift (attempt)', shift ? `<span class="mono">${escape(shift.id)}</span>${shift.closeReason ? ` · <span class="mono">${escape(shift.closeReason)}</span>` : ''}` : null],
+    ['Attempt', shift ? `<span class="mono">${escape(shift.id)}</span>${shift.closeReason ? ` · <span class="mono">${escape(shift.closeReason)}</span>` : ''}` : null],
     ['Checkpoints', detail.checkpoints?.length ? `<span class="num">${escape(detail.checkpoints.length)}</span> <span class="subtle">(listed in Activity)</span>` : null],
     ['Created', ui.timeAt(item.createdAt)],
     ['Updated', ui.timeAt(item.updatedAt)],
@@ -1187,7 +1189,7 @@ export function contextReach(detail) {
 }
 
 function contextItem(entry) {
-  const steering = entry.phase === 'while_steering' ? ui.chip({ label: 'Added while steering', tone: 'attention', title: 'Uploaded while a Shift was open: it reached the next Run, not the one running then.' }) : '';
+  const steering = entry.phase === 'while_steering' ? ui.chip({ label: 'Added while steering', tone: 'attention', title: 'Uploaded during an attempt: it reached the next Run, not the one running then.' }) : '';
   const meta = [contextSize(entry.bytes), plural(entry.files, 'file'), entry.addedBy ? `added by ${entry.addedBy}` : ''].filter(Boolean).map(part => `<span>${escape(part)}</span>`).join('');
   const note = entry.note ? `<p class="work-context-note">${escape(entry.note)}</p>` : '';
   return `<li class="work-context-item"><p class="work-context-head">${icon('file')}<span class="work-context-name">${escape(entry.name)}</span>${steering}</p><p class="work-context-meta">${meta}${ui.timeAgo(entry.addedAt)}</p>${note}</li>`;
@@ -1223,11 +1225,10 @@ function askCost(ask) {
   if (ask.costStatus === 'demo') return `<span class="work-ask-cost">${ui.badge({ label: 'Demo answer · no model call', tone: 'neutral', size: 'sm' })}</span>`;
   const nothing = ask.costStatus === 'settled' && ask.costUsd === 0 && ask.status !== 'answered';
   if (nothing) return `<span class="work-ask-cost">${escape('Nothing charged')}</span>`;
-  if (ask.costStatus === 'pending') return typeof ask.costUsd === 'number'
-    ? `<span class="work-ask-cost" title="${escape('Ploeg can still correct this amount for a day after the Ask.')}">${escape('Cost ')}${moneyHtml(ask.costUsd)}${escape(' · not final yet')}</span>`
-    : `<span class="work-ask-cost" title="${escape('Ploeg reports the cost once the gateway has recorded it, usually within a few minutes.')}">${escape('Cost not known yet')}</span>`;
-  if (ask.costStatus === 'unknown' || typeof ask.costUsd !== 'number') return `<span class="work-ask-cost">${escape('Cost not reported')}</span>`;
-  return `<span class="work-ask-cost">${escape('Cost ')}${moneyHtml(ask.costUsd)}</span>`;
+  if (typeof ask.costUsd !== 'number' || ask.costStatus === 'unknown' || !Object.hasOwn(costStatuses, ask.costStatus)) return `<span class="work-ask-cost" title="${escape('Ploeg reports the cost once the gateway has recorded it, usually within a few minutes.')}">${escape(`Cost ${costStatuses.unknown}`)}</span>`;
+  if (ask.costStatus === 'settled') return `<span class="work-ask-cost">${escape('Cost ')}${moneyHtml(ask.costUsd)}</span>`;
+  const correction = ask.costStatus === 'provisional' ? ` title="${escape('Ploeg can still correct this amount for a day after the Ask.')}"` : '';
+  return `<span class="work-ask-cost"${correction}>${escape('Cost ')}${moneyHtml(ask.costUsd)}${escape(` · ${costStatusWord(ask.costStatus)}`)}</span>`;
 }
 
 function askItem(ask, { modelOffered = false } = {}) {
@@ -1255,7 +1256,7 @@ export function askMarkup(detail, model) {
   const intro = demo
     ? 'This is a demo: answers come from fixed rules about this Work Item, with no model call and no spend.'
     : 'Ask in your own words where this work stands. The agents do not see your question and it does not change the work. Standing questions, such as why it stopped or what it cost, are answered from the record for free; any other answer is paid from your Team\'s Ask Allowance.';
-  const pending = model.askBusy && model.askDraft ? askItem({ askerName: 'You', question: model.askDraft, status: 'answering', costStatus: demo ? 'demo' : 'pending', createdAt: '' }) : '';
+  const pending = model.askBusy && model.askDraft ? askItem({ askerName: 'You', question: model.askDraft, status: 'answering', costStatus: demo ? 'demo' : 'provisional', createdAt: '' }) : '';
   const allowance = !demo ? asks?.allowance : null;
   const usedUp = Boolean(allowance && (!allowance.asksEnabled || allowance.remainingUsd < allowance.askBudgetUsd));
   let list;
@@ -1350,9 +1351,9 @@ function spendFact(detail, card, now) {
   const live = card?.live && amount(card.live.costUsd) && amount(card.live.runSeconds) ? card.live.costUsd : null;
   const settled = shift && amount(shift.spentUsd) ? shift.spentUsd : null;
   const spent = live ?? settled ?? (amount(card?.totals?.costUsd) && card.totals.costStatus !== 'not_reported' ? card.totals.costUsd : null);
-  if (spent === null) return quiet('Spend', 'Not reported', shift && amount(shift.budgetUsd) ? `Shift budget ${money(shift.budgetUsd)}` : '');
+  if (spent === null) return quiet('Spend', capital(costStatuses.unknown), shift && amount(shift.budgetUsd) ? `Attempt budget ${money(shift.budgetUsd)}` : '');
   const meter = shift && amount(shift.budgetUsd) ? ui.meter({ settled: spent, reserved: shift.reservedUsd, authorized: shift.budgetUsd, observed: live !== null, label: '', size: 'sm' }) : '';
-  const note = live !== null ? 'Observed so far; it settles when the Run ends' : shift && !shift.closedAt && amount(shift.reservedUsd) && shift.reservedUsd > 0 ? 'Settled; the rest is reserved for Runs' : 'Settled';
+  const note = live !== null ? 'Observed so far; it settles when the Run ends' : shift && !shift.closedAt && amount(shift.reservedUsd) && shift.reservedUsd > 0 ? 'Settled; the rest is held for Runs' : 'Settled';
   return { label: 'Spend', value: money(spent), detailHtml: `${meter}<span>${escape(note)}</span>` };
 }
 
@@ -1369,8 +1370,8 @@ function crewFact(detail, view) {
   const roles = new Map();
   for (const run of detail.runs || []) roles.set(run.role || 'agent', (roles.get(run.role || 'agent') || 0) + 1);
   const value = view && view.crew !== 'No agent Runs yet' ? view.crew : [...roles].map(([role, total]) => `${role} ×${total}`).join(' · ');
-  if (!value) return quiet('Crew', 'No Runs yet', round);
-  return { label: 'Crew', value, detail: round, text: true };
+  if (!value) return quiet('Roles', 'No Runs yet', round);
+  return { label: 'Roles', value, detail: round, text: true };
 }
 
 function pullRequestFact(detail, view) {
@@ -1401,7 +1402,7 @@ function approvalFact(view) {
 const flowKeys = new Set(['leadTime', 'cycleTime', 'timeToStart', 'firstFeedback', 'blocked', 'estimate', 'timeToProduction', 'openToMerge', 'complexity']);
 
 /**
- * The facts of the status panel, in three labelled groups: the agent work (spend, tokens, run time, crew), the
+ * The facts of the status panel, in three labelled groups: the agent work (spend, tokens, run time, Roles that ran), the
  * change (pull request, checks, diff, approval) and its flow (lead, cycle and the other times Unfold counted). Each
  * fact is a `ui.stat` option object. `card` is the Work Item's delivery facts as Unfold assembled them, or null while
  * they load or when Ploeg sends none; the agents' group then reads Ploeg's own records.
@@ -1547,7 +1548,7 @@ export function cancelDialogMarkup(detail, { demo = false } = {}) {
   const pending = detail.runs.filter(run => run.state === 'pending').length;
   const tracker = trackerName(item.provider) || 'its tracker';
   const open = shift && !shift.closedAt;
-  const consequences = [['x-circle', open ? 'Withdraws the Work Item and closes its open Shift.' : 'Withdraws the Work Item.']];
+  const consequences = [['x-circle', open ? 'Withdraws the Work Item and closes its open attempt.' : 'Withdraws the Work Item.']];
   if (running || pending) {
     consequences.push(['pause-circle', running ? `Stops ${plural(running, 'running Run')}${pending ? ` and cancels ${plural(pending, 'waiting Run')}` : ''}.` : `Cancels ${plural(pending, 'waiting Run')}.`]);
     consequences.push(['lock', 'Blocks the model keys of those Runs, so they cannot spend more.']);

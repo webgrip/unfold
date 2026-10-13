@@ -19,6 +19,14 @@ export type EditorCredential = { id: string; tokenHash: string; userId: string; 
 /** A note an administrator posts on the Status page while something affects the workbench. */
 export type StatusNote = { id: string; severity: 'info' | 'degraded' | 'outage'; text: string; author: string; createdAt: string; resolvedAt?: string; resolvedBy?: string };
 
+const retiredCostStatus = 'pending';
+
+function restoreAsk(body: string): Ask {
+  const ask: Ask = JSON.parse(body);
+  if ((ask.costStatus as string) === retiredCostStatus) ask.costStatus = 'provisional';
+  return ask;
+}
+
 function eventFromRow(row: Record<string, unknown>): Event {
   return { id: Number(row.id), sessionId: String(row.session_id), type: String(row.type), at: String(row.at), actor: String(row.actor), ...(row.run_id ? { runId: String(row.run_id) } : {}), data: JSON.parse(String(row.data)) };
 }
@@ -113,6 +121,7 @@ export class Store {
 
   private restoreSession(body: string): Session {
     const session: Session = JSON.parse(body);
+    if ((session.costStatus as string) === retiredCostStatus) session.costStatus = 'observed';
     const workspace = this.getSecret<Session['workspace']>(`workspace:${session.id}`);
     if (workspace) session.workspace = workspace;
     return session;
@@ -145,17 +154,17 @@ export class Store {
 
   getAsk(id: string): Ask | undefined {
     const row = this.db.prepare('SELECT body FROM asks WHERE id=?').get(id) as { body: string } | undefined;
-    return row ? JSON.parse(row.body) : undefined;
+    return row ? restoreAsk(row.body) : undefined;
   }
 
   /** At most `limit` Asks about one Work Item, newest first. */
   asksAbout(workItemId: string, limit: number): Ask[] {
-    return (this.db.prepare('SELECT body FROM asks WHERE work_item_id=? ORDER BY created_at DESC, id DESC LIMIT ?').all(workItemId, limit) as { body: string }[]).map(row => JSON.parse(row.body));
+    return (this.db.prepare('SELECT body FROM asks WHERE work_item_id=? ORDER BY created_at DESC, id DESC LIMIT ?').all(workItemId, limit) as { body: string }[]).map(row => restoreAsk(row.body));
   }
 
   /** At most `limit` Asks one person asked, newest first. */
   asksBy(askerId: string, limit: number): Ask[] {
-    return (this.db.prepare('SELECT body FROM asks WHERE asker_id=? ORDER BY created_at DESC, id DESC LIMIT ?').all(askerId, limit) as { body: string }[]).map(row => JSON.parse(row.body));
+    return (this.db.prepare('SELECT body FROM asks WHERE asker_id=? ORDER BY created_at DESC, id DESC LIMIT ?').all(askerId, limit) as { body: string }[]).map(row => restoreAsk(row.body));
   }
 
   /** Runs one trivial query, proving the database answers without reading or decrypting any stored record. */

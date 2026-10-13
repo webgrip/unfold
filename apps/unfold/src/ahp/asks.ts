@@ -3,6 +3,7 @@ import type { PloegAskAllowance } from '../ploeg.ts';
 import type { Store } from '../store.ts';
 import type { Session, User } from '../types.ts';
 import { money } from '../../public/core/format.js';
+import { costStatusWord } from '../../public/core/states.js';
 
 type Json = Record<string, any>;
 
@@ -12,12 +13,12 @@ export interface ChatAskService {
   about(user: User, workItemId: string): Promise<{ asks: Ask[]; allowance: PloegAskAllowance | null }>;
 }
 
-/** The two chat commands: `/ask` answers a question without reaching the crew, `/steer` sends the message towards a crew. */
+/** The two chat commands: `/ask` answers a question without reaching the team, `/steer` sends the message towards the team. */
 export type ChatIntent = 'ask' | 'steer';
 
 /**
  * Where an Ask sits in the chat. `turn` is the person's own turn, `inline` a part of the turn that is open (a question
- * sent while a crew works), `choice` the turn of the message choice whose **Ask instead** the person picked.
+ * sent while the team works), `choice` the turn of the message choice whose **Ask instead** the person picked.
  */
 export type AskPlacement = 'turn' | 'inline' | 'choice';
 
@@ -33,8 +34,8 @@ const entriesKey = (sessionId: string) => `ahp-asks:${sessionId}`;
 const commandPattern = /^\s*\/(ask|steer)(?=\s|$)\s*/i;
 
 const commands: { command: ChatIntent; argumentHint: string; description: (askByDefault: boolean) => string }[] = [
-  { command: 'ask', argumentHint: 'question', description: askByDefault => askByDefault ? 'Ask about this work. A message here is already an Ask; no crew reads it.' : 'Ask about this work instead of steering. Answered at once, never read by the crew, paid from your Team\'s Ask Allowance.' },
-  { command: 'steer', argumentHint: 'message', description: () => 'Send the message towards a crew instead of asking: choose to run the session again with it.' },
+  { command: 'ask', argumentHint: 'question', description: askByDefault => askByDefault ? 'Ask about this work. A message here is already an Ask; the team never reads it.' : 'Ask about this work instead of steering. Answered at once, never read by the team, paid from your Team\'s Ask Allowance.' },
+  { command: 'steer', argumentHint: 'message', description: () => 'Send the message towards the team instead of asking: choose to run the session again with it.' },
 ];
 
 /** The command a message starts with, typed or picked from the completion list, and the message without it. */
@@ -71,22 +72,22 @@ function spendLine(ask: Ask, entry: ChatAskEntry): string {
   if (ask.status === 'refused') return !ask.failureCode || ask.failureCode === 'allowance_used_up' ? 'Nothing was charged. An administrator can raise the allowance.' : 'Nothing was charged.';
   if (ask.status !== 'answered' && ask.costStatus === 'settled' && ask.costUsd === 0) return 'Nothing was charged.';
   if (!ask.ploegAskId) return '';
-  const cost = ask.costUsd === null ? 'cost not known yet' : `${money(ask.costUsd)}${ask.costStatus === 'settled' ? '' : ' (not final yet)'}`;
+  const cost = ask.costUsd === null ? `cost ${costStatusWord('unknown')}` : `${money(ask.costUsd)}${ask.costStatus === 'settled' ? '' : ` (${costStatusWord(ask.costStatus)})`}`;
   const left = entry.allowance ? ` · ${money(entry.allowance.remainingUsd)} of ${money(entry.allowance.limitUsd)} left this month, until ${resetDay(entry.allowance.resetAt)}` : '';
   return `${cost}${left}`;
 }
 
-/** The Markdown an Ask shows in the chat: a badge that says no crew read it, the answer or why there is none, and its spend. */
+/** The Markdown an Ask shows in the chat: a badge that says the team never read it, the answer or why there is none, and its spend. */
 export function askMarkdown(ask: Ask | undefined, entry: ChatAskEntry): string {
   const quoted = entry.placement === 'inline' ? `> ${entry.text.replace(/\n/g, '\n> ')}\n\n` : '';
-  if (!ask) return `**Ask** · not sent to the crew\n\n${quoted}This Ask is no longer stored.`;
+  if (!ask) return `**Ask** · not sent to the team\n\n${quoted}This Ask is no longer stored.`;
   const body = ask.status === 'answered' ? ask.answer
     : ask.status === 'answering' ? 'No answer arrived: the workbench stopped while it was asking. Ask again.'
     : ask.status === 'refused' ? `Not answered. ${ask.failure ?? 'Ploeg refused the question.'}`
     : `Not answered. ${ask.failure ?? 'The question could not be answered.'}${ask.retryable ? ' Send `/ask` again to retry.' : ''}`;
   const cut = ask.status === 'answered' && ask.cutOff ? '\n\n*The model stopped at its length limit, so this answer may be cut off.*' : '';
   const spend = spendLine(ask, entry);
-  return [`**Ask** · not sent to the crew`, `${quoted}${body}${cut}`, spend ? `*${spend}*` : ''].filter(Boolean).join('\n\n');
+  return [`**Ask** · not sent to the team`, `${quoted}${body}${cut}`, spend ? `*${spend}*` : ''].filter(Boolean).join('\n\n');
 }
 
 /** Why a session's chat cannot ask, or undefined when it can: Asks are about a Work Item, so a session needs one in Ploeg. */

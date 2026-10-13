@@ -223,13 +223,13 @@ function importForm(task) {
   const placement = draft.placement || placements.find(entry => entry.default)?.id || placements[0]?.id;
   const budget = budgetInput({ id: 'task-budget', name: 'budgetUsd', value: draft.budgetUsd, attrs: 'aria-describedby="task-budget-hint"' });
   const fields = [
-    field('task-crew', 'Crew', `<select id="task-crew" name="crewId" aria-describedby="task-crew-hint">${options(boot.crews, draft.crewId)}</select>`, escape(crew ? crew.roles.map(role => role.name).join(' and ') : '')),
+    field('task-crew', 'Team', `<select id="task-crew" name="crewId" aria-describedby="task-crew-hint">${options(boot.crews, draft.crewId)}</select>`, escape(crew ? crew.roles.map(role => role.name).join(' and ') : '')),
     runtimeField(boot.runtimes || [], draft.runtime),
     placements.length > 1 ? field('task-placement', 'Workspace placement', `<select id="task-placement" name="placement">${options(placements, placement)}</select>`) : '',
     field('task-budget', 'Session budget', budget, `At most ${escape(money(boot.maxBudgetUsd))} per session.`),
   ].join('');
   const form = `<form id="task-import-form" class="tasks-import-fields" data-form="task-import">${fields}${importNote('form')}</form>`;
-  return `<section class="card tasks-import" aria-labelledby="task-import-title"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="task-import-title">Bring this task onto the floor</h3><p class="card-subtitle">Creates a queued session for ${escape(repoName(task.repositoryId))} with the crew and budget you choose.</p></div></header>${form}</section>`;
+  return `<section class="card tasks-import" aria-labelledby="task-import-title"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="task-import-title">Bring this task onto the floor</h3><p class="card-subtitle">Creates a queued session for ${escape(repoName(task.repositoryId))} with the team and budget you choose.</p></div></header>${form}</section>`;
 }
 
 function decisionBar() {
@@ -250,7 +250,7 @@ function importArea(task, source) {
 
 function notices(task) {
   const parts = [];
-  if (state.taskChanged) parts.push(callout({ tone: 'attention', title: 'The source task changed', body: '<p>This is its latest version. Read the updated brief before you create the session. Your crew and budget choices are kept.</p>' }));
+  if (state.taskChanged) parts.push(callout({ tone: 'attention', title: 'The source task changed', body: '<p>This is its latest version. Read the updated brief before you create the session. Your team and budget choices are kept.</p>' }));
   if (state.taskPreviewError) parts.push(`<div role="alert">${callout({ tone: 'danger', title: 'The session was not created', body: `<p>${escape(state.taskPreviewError)}</p>` })}</div>`);
   const session = sessionFor(task);
   if (session) {
@@ -259,7 +259,7 @@ function notices(task) {
   }
   if (task.ploeg) {
     const target = task.ploeg.expectedTarget;
-    parts.push(callout({ tone: 'neutral', icon: 'work', title: `Continues Work Item #${task.ploeg.workItemId}`, body: `<p><a href="#work/${escape(task.ploeg.workItemId)}">Open Work Item #${escape(task.ploeg.workItemId)}</a> · ${escape(target.owner)}/${escape(target.repo)} · ${escape(target.baseBranch)}</p><p>Importing prepares your session. Start checks the source again and claims this Work Item for your crew.</p>` }));
+    parts.push(callout({ tone: 'neutral', icon: 'work', title: `Continues Work Item #${task.ploeg.workItemId}`, body: `<p><a href="#work/${escape(task.ploeg.workItemId)}">Open Work Item #${escape(task.ploeg.workItemId)}</a> · ${escape(target.owner)}/${escape(target.repo)} · ${escape(target.baseBranch)}</p><p>Importing prepares your session. Start checks the source again and claims this Work Item for your team.</p>` }));
   }
   return parts.join('');
 }
@@ -662,7 +662,7 @@ async function importTask(data) {
     const session = await api('/api/task-imports', { method: 'POST', body: JSON.stringify({ sourceId: selected.sourceId, taskId: selected.id, revision: selected.revision, ...(selected.bindingRevision ? { bindingRevision: selected.bindingRevision } : {}), crewId: data.crewId, runtime: data.runtime, ...(data.placement ? { placement: data.placement } : {}), budgetUsd: parseAmount(data.budgetUsd) }) });
     state.sessions = [session, ...state.sessions.filter(item => item.id !== session.id)]; state.tab = 'stream';
     location.hash = `session/${session.id}`;
-    notify(existingIds.has(session.id) ? 'Opened the existing session for this task. No additional work was started.' : 'Task imported. Read the brief, then start the crew when you are ready.');
+    notify(existingIds.has(session.id) ? 'Opened the existing session for this task. No additional work was started.' : 'Task imported. Read the brief, then start the team when you are ready.');
   } catch (error) {
     if (error.status === 409 && ['task_changed', 'task_binding_changed'].includes(error.code) && state.view === 'tasks' && state.taskSourceId === selected.sourceId) await openTask(selected.id, true);
     else { state.taskPreviewError = error.message; notify(error.message, true); }

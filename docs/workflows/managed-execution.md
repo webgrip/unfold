@@ -51,7 +51,7 @@ The registry is `PLOEG_OPERATOR_CONSUMERS`; the separate named environment varia
 
 Open **Now** or **Work** in the browser, or the **Ploeg** view in the editor. In Work, choose a Team, or all of them, and a lane: **Ready for review**, **Needs you**, **Running**, **Queued** or the paginated **All**. A Work Item's page gives the writing agent's problem and solution, says why it waits and what to do, then shows its shifts and runs, reviewer findings, safe audit records with the checkpoints, and observed versus unresolved budget. Every snapshot states its limits. In the browser a failed refresh keeps the last data read, with its age in the status strip ("Updated … ago") and, on Now, Proposed, Runs, Activity and Insights, a notice that it could not refresh. The editor clears content it can no longer read rather than presenting it as live.
 
-Create a session with a registered repository, a crew, a concrete objective and a budget. Start explicitly. Its **Ploeg runs this session** card shows the Team, who supervises and the Work Item's state, and links to the Work Item. **Continue in background** and **Supervise here** retain the execution, workspace and history. A message becomes durable before it is accepted for the next turn. Permission and question responses continue through the existing session UI.
+Create a session with a registered repository, a Team, a concrete objective and a budget. Start explicitly. Its **Ploeg runs this session** card shows the Team, who supervises and the Work Item's state, and links to the Work Item. **Continue in background** and **Supervise here** retain the execution, workspace and history. A message becomes durable before it is accepted for the next turn. Permission and question responses continue through the existing session UI.
 
 Close the client and reconnect: execution remains server-owned. Pause waits for runtime interruption and acknowledges it to Ploeg. Resume is explicit and advances the generation. Cancel persists intent, stops locally even if Ploeg is unreachable, and retries reconciliation without restarting work.
 
@@ -60,7 +60,7 @@ Close the client and reconnect: execution remains server-owned. Pause waits for 
 | Situation | Expected behavior |
 | --- | --- |
 | Start response is lost | Replay the same admission or command identity; no second Run |
-| Browser disconnects | Crew continues under its existing grant; history is replayable |
+| Browser disconnects | The Team continues under its existing grant; history is replayable |
 | Ploeg becomes unreachable | Workbench interrupts, attempts key blocking, preserves unresolved state |
 | Pause cannot confirm interruption | Resume remains blocked; capability blocking is attempted |
 | Unfold restarts | Active sessions become interrupted; no native turn starts automatically |
@@ -87,7 +87,7 @@ mise run integration
 
 The Go test starts real PostgreSQL and Ploeg HTTP handlers, creates an ephemeral scoped consumer and launches [the workbench qualification](../../apps/unfold/scripts/qualify-ploeg.ts). That script uses the real Unfold HTTP API and deterministic runtime: it changes a real Git fixture, executes failing and passing checks, verifies the review, detaches a stream, changes supervision, pauses, resumes, cancels, reopens the application and checks retained evidence. Its output explicitly reports zero inference calls and zero spend. This is distinct from the illustrative records in an unconnected demo workbench.
 
-The same run also exercises the paid path's credential lifecycle against a [local fake LiteLLM gateway](../../scripts/fake-litellm.mjs). Ploeg's real broker and PostgreSQL inference accounts serve [a second workbench qualification](../../apps/unfold/scripts/qualify-ploeg-inference.ts). Admission reserves the budget, the first role mints a capped, model-scoped key, and completion or cancellation blocks it. A blocked capability cannot resume. The fake gateway refuses inference and reports zero spend, so the report still records zero model calls and zero spend. Its limits state that no real gateway, model or budget enforcement ran.
+The same run also exercises the paid path's credential lifecycle against a [local fake LiteLLM gateway](../../scripts/fake-litellm.mjs). Ploeg's real broker and PostgreSQL inference accounts serve [a second workbench qualification](../../apps/unfold/scripts/qualify-ploeg-inference.ts). Admission holds the budget, the first role mints a capped, model-scoped key, and completion or cancellation blocks it. A blocked capability cannot resume. The fake gateway refuses inference and reports zero spend, so the report still records zero model calls and zero spend. Its limits state that no real gateway, model or budget enforcement ran.
 
 See [validation](../../apps/unfold/docs/validation.md) for the recorded result. A production pilot still needs one live scoped OpenCode run against the estate's LiteLLM/Fireworks route, actual workspace isolation, attributable metering, intervention, key blocking and cleanup. Start with one team and measure time to reviewed result and human intervention minutes before increasing concurrency.
 

@@ -12,7 +12,7 @@ export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('heading', { name: 'Baseline checks (expected failure)', exact: true }).waitFor();
   await page.getByRole('heading', { name: 'Independent review checks', exact: true }).waitFor();
   await page.getByRole('tab', { name: 'Handoff', exact: true }).click();
-  await page.getByRole('heading', { name: 'What the crew reported', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'What the team reported', exact: true }).waitFor();
   const narrowFacts = await page.locator('#evidence-panel-handoff .fact').evaluateAll(facts => facts.map(fact => fact.getBoundingClientRect().width).filter(width => width < 200));
   assert.deepEqual(narrowFacts, [], 'The handoff findings are squeezed into narrow columns');
   await page.getByRole('tab', { name: /Checks/ }).click();
@@ -60,7 +60,7 @@ export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('button', { name: /New session/ }).click();
   assert.equal(await page.evaluate(() => document.activeElement?.id), 'new-title-input', 'The new-session dialog does not start on its first field');
   await page.getByRole('dialog').getByRole('button', { name: 'Create session' }).click();
-  await page.getByRole('region', { name: 'Start the crew when the brief is right' }).getByRole('button', { name: 'Start crew', exact: true }).click();
+  await page.getByRole('region', { name: 'Start the team when the brief is right' }).getByRole('button', { name: 'Start team', exact: true }).click();
   const keyboardSessionId = new URL(page.url()).hash.slice('#session/'.length);
   const pausePath = `**/api/sessions/${keyboardSessionId}/pause`;
   const pauseReceived = Promise.withResolvers();
@@ -177,7 +177,7 @@ export async function run({ page, app, assert, screenshot }) {
   await page.locator('#evidence-panel-stream').getByText(failedSession.failure.message, { exact: true }).waitFor();
   await failure.getByText('Prompt submission is unconfirmed. Check remote execution and gateway spend before starting new work.', { exact: true }).waitFor();
   await failure.getByText('No automatic retry will be started.', { exact: true }).waitFor();
-  assert.equal(await page.getByRole('button', { name: /^(Start crew|Resume|Retry)$/ }).count(), 0, 'Ambiguous paid execution offers an unsafe repeat action');
+  assert.equal(await page.getByRole('button', { name: /^(Start team|Resume|Retry)$/ }).count(), 0, 'Ambiguous paid execution offers an unsafe repeat action');
   await screenshot('failure-guidance');
   failedSession.failure.message = '<button id="untrusted-runtime-markup">Execute again</button>';
   failedSession.failure.remediation = '<img src="/untrusted-runtime-markup" onerror="alert(1)">';

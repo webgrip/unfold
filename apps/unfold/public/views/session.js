@@ -226,9 +226,9 @@ function eventMarkup(event) {
   if (event.type === 'permission') return streamItem({ kind: 'system', tone: 'attention', marker: icon('lock'), head: `<span class="stream-text-inline">${escape(role)} ${data.kind === 'question' ? 'asked a question' : 'asked for permission'}${data.title ? `: ${escape(data.title)}` : ''}</span>${at}` });
   if (event.type === 'brief.unclear') {
     const questions = (data.questions || []).length ? `<ul class="stream-list">${data.questions.map(question => `<li>${escape(question)}</li>`).join('')}</ul>` : '';
-    return streamItem({ kind: 'message', tone: 'attention', marker: icon('help-circle'), head: `<strong class="stream-actor">Brief check</strong>${at}`, body: `<p class="stream-note">The brief is not enough to start on. ${escape(data.reason || '')}</p>${questions}<p class="stream-note subtle">Answer the question at the top of this page; the crew starts once you do. Nothing beyond one small check has been spent.</p>` });
+    return streamItem({ kind: 'message', tone: 'attention', marker: icon('help-circle'), head: `<strong class="stream-actor">Brief check</strong>${at}`, body: `<p class="stream-note">The brief is not enough to start on. ${escape(data.reason || '')}</p>${questions}<p class="stream-note subtle">Answer the question at the top of this page; the team starts once you do. Nothing beyond one small check has been spent.</p>` });
   }
-  if (event.type === 'brief.clarified') return streamItem({ kind: 'system', tone: 'success', marker: icon('check'), head: `<span class="stream-text-inline">You clarified the brief; the crew starts.</span>${at}` });
+  if (event.type === 'brief.clarified') return streamItem({ kind: 'system', tone: 'success', marker: icon('check'), head: `<span class="stream-text-inline">You clarified the brief; the team starts.</span>${at}` });
   if (event.type === 'session.failed') return failureItem(data.failure, data.message || data.failure?.message, at);
   if (event.type === 'run.runaway') return streamItem({ kind: 'system', tone: 'danger', marker: icon('alert'), head: `<span class="stream-text-inline">${escape(data.message || 'A role exceeded its tool-call limit.')}</span>${at}` });
   if (event.type === 'review.recorded') return streamItem({ kind: 'system', tone: data.decision === 'accepted' ? 'success' : 'neutral', marker: icon(data.decision === 'accepted' ? 'check-circle' : 'x-circle'), head: `<span class="stream-text-inline">${escape(data.decision === 'accepted' ? 'Accepted' : 'Rejected')} by ${escape(data.byName || role)}${data.note ? `: ${escape(data.note)}` : ''}</span>${at}` });
@@ -273,18 +273,18 @@ function startingPhase() {
 
 function workingMarkup(session) {
   const run = session.runs.find(item => ['running', 'waiting_input'].includes(item.status));
-  if (session.status === 'waiting_input') return streamItem({ kind: 'status', tone: 'attention', marker: icon('alert'), head: `<span class="stream-text-inline">${escape(run?.roleName || 'The crew')} is waiting for your decision at the top of this page.</span>` });
+  if (session.status === 'waiting_input') return streamItem({ kind: 'status', tone: 'attention', marker: icon('alert'), head: `<span class="stream-text-inline">${escape(run?.roleName || 'The team')} is waiting for your decision at the top of this page.</span>` });
   if (!isActive(session)) return '';
   const starting = !run && session.status !== 'exporting' ? startingPhase() : null;
   if (starting) return `<li class="stream-item" data-kind="status" data-tone="live"><span class="stream-marker" aria-hidden="true"><span class="live-dot"></span></span><div class="stream-body"><div class="stream-head"><span class="stream-text-inline">${escape(workspacePhaseLabel(starting.data.phase))} · since ${timeHtml(starting.at, { display: 'time' })}</span></div></div></li>`;
-  const text = session.status === 'exporting' ? 'Preparing the repository handoff' : `${run?.roleName || 'The crew'} is working`;
+  const text = session.status === 'exporting' ? 'Preparing the repository handoff' : `${run?.roleName || 'The team'} is working`;
   return `<li class="stream-item" data-kind="status" data-tone="live"><span class="stream-marker" aria-hidden="true"><span class="live-dot"></span></span><div class="stream-body"><div class="stream-head"><span class="stream-text-inline">${escape(text)}${run?.startedAt ? ` · started ${timeHtml(run.startedAt, { display: 'time' })}` : ''}</span></div></div></li>`;
 }
 
 function streamMarkup(session) {
   const events = visibleEvents();
   const failure = session.status === 'failed' && session.failure && !events.some(event => event.type === 'session.failed') ? failureItem(session.failure, session.failure.message) : '';
-  if (!events.length && !failure) return emptyState({ icon: 'activity', compact: true, title: 'Nothing has happened yet', body: '<p>Start the crew to see its work here as it happens.</p>' });
+  if (!events.length && !failure) return emptyState({ icon: 'activity', compact: true, title: 'Nothing has happened yet', body: '<p>Start the team to see its work here as it happens.</p>' });
   return `<ol class="session-stream">${events.map(eventMarkup).join('')}${failure}${workingMarkup(session)}</ol>`;
 }
 
@@ -335,7 +335,7 @@ const snapshotPatchLimit = 1024 * 1024;
 let snapshotPatch = { sessionId: null, status: 'idle', content: '' };
 
 /**
- * Where the Changes tab reads a session's changes: `'artifacts'` when the crew recorded diffs, `'snapshot'` when it
+ * Where the Changes tab reads a session's changes: `'artifacts'` when the team recorded diffs, `'snapshot'` when it
  * recorded none but the repository snapshot holds a patch, and `'none'` otherwise.
  * @param {{ artifacts: { kind: string }[], candidate?: { status: string, formats?: string[] } }} session
  * @returns {'artifacts' | 'snapshot' | 'none'}
@@ -391,7 +391,7 @@ function diffMarkup(session) {
   const source = changesSource(session);
   if (source === 'snapshot') return snapshotDiffMarkup(session);
   const artifacts = session.artifacts.filter(artifact => artifact.kind === 'diff');
-  if (!artifacts.length) return emptyState({ icon: 'code', compact: true, title: isFinished(session) ? 'No changes were recorded' : 'Changes will appear here', body: '<p>The crew attaches the actual diff of its workspace as the session progresses.</p>' });
+  if (!artifacts.length) return emptyState({ icon: 'code', compact: true, title: isFinished(session) ? 'No changes were recorded' : 'Changes will appear here', body: '<p>The team attaches the actual diff of its workspace as the session progresses.</p>' });
   const download = artifacts.length === 1 ? button({ label: 'Download', icon: 'download', variant: 'ghost', size: 'sm', action: 'download-artifact', data: { id: artifacts[0].id } }) : '';
   return diffView(artifacts.map(artifact => ({ artifact, files: parseDiff(artifact.content) })), download);
 }
@@ -432,7 +432,7 @@ function handoffMarkup(session) {
   const artifacts = session.artifacts.filter(artifact => ['summary', 'link', 'transcript'].includes(artifact.kind));
   const summaries = session.runs.filter(run => run.summary);
   if (!artifacts.length && !summaries.length) return emptyState({ icon: 'branch', compact: true, title: 'No handoff yet', body: '<p>Each role leaves a summary and the reviewer its findings when they finish.</p>' });
-  const crew = summaries.length ? `<section class="session-artifact" aria-labelledby="handoff-crew-title"><header class="session-artifact-header"><h3 class="session-artifact-title" id="handoff-crew-title">What the crew reported</h3></header><ul class="session-summaries">${summaries.map(run => `<li>${avatar({ name: run.roleName, kind: 'agent', size: 'sm' })}<div class="session-summary-body"><p class="session-summary-head"><strong>${escape(run.roleName)}</strong>${run.verdict ? (meta => badge({ tone: meta.tone, glyph: meta.glyph, label: meta.short, title: `${meta.label}. Agent review is evidence, not a human review.` }))(verdictMeta(run.verdict)) : ''}</p><p class="session-summary-text">${escape(run.summary)}</p></div></li>`).join('')}</ul></section>` : '';
+  const crew = summaries.length ? `<section class="session-artifact" aria-labelledby="handoff-crew-title"><header class="session-artifact-header"><h3 class="session-artifact-title" id="handoff-crew-title">What the team reported</h3></header><ul class="session-summaries">${summaries.map(run => `<li>${avatar({ name: run.roleName, kind: 'agent', size: 'sm' })}<div class="session-summary-body"><p class="session-summary-head"><strong>${escape(run.roleName)}</strong>${run.verdict ? (meta => badge({ tone: meta.tone, glyph: meta.glyph, label: meta.short, title: `${meta.label}. Agent review is evidence, not a human review.` }))(verdictMeta(run.verdict)) : ''}</p><p class="session-summary-text">${escape(run.summary)}</p></div></li>`).join('')}</ul></section>` : '';
   const parts = artifacts.map(artifact => {
     if (artifact.kind === 'summary') {
       const { facts, rest } = summaryFacts(artifact.content);
@@ -456,7 +456,7 @@ function panelMarkup(session, id) {
 
 function composerMarkup(session) {
   if (isFinished(session) || session.status === 'exporting' || !canOperate()) return '';
-  const hint = session.status === 'queued' ? 'Saved instructions reach the first role when the crew starts.' : session.status === 'paused' || session.status === 'interrupted' ? 'Saved instructions reach the role when you resume.' : 'Saved instructions reach the next role that starts. To give them to the role working now, pause and resume.';
+  const hint = session.status === 'queued' ? 'Saved instructions reach the first role when the team starts.' : session.status === 'paused' || session.status === 'interrupted' ? 'Saved instructions reach the role when you resume.' : 'Saved instructions reach the next role that starts. To give them to the role working now, pause and resume.';
   return `<form class="session-composer" data-form="message"><label class="field-label" for="operator-message">Steer the next execution</label><div class="session-composer-row"><textarea id="operator-message" name="text" rows="2" maxlength="16000" placeholder="Add a constraint, clarify the objective or leave a note for the next role…" aria-describedby="operator-message-hint" required>${escape(state.draft)}</textarea>${button({ label: 'Save instruction', icon: 'send', type: 'submit' })}</div><p class="field-hint" id="operator-message-hint">${escape(hint)}</p>${askPointer(session)}</form>`;
 }
 
@@ -468,7 +468,7 @@ export function askPointer(session) {
 }
 
 function evidenceMarkup(session) {
-  if (notStarted(session)) return `<section class="card flush session-evidence" aria-labelledby="session-evidence-title"><header class="card-header"><h2 class="card-title" id="session-evidence-title">Evidence</h2></header><div class="session-evidence-empty">${emptyState({ icon: 'activity', compact: true, title: 'Evidence appears once the crew starts', body: '<p>Activity, gateway calls, changes, checks and the handoff show up here as each role works.</p>' })}</div>${composerMarkup(session)}</section>`;
+  if (notStarted(session)) return `<section class="card flush session-evidence" aria-labelledby="session-evidence-title"><header class="card-header"><h2 class="card-title" id="session-evidence-title">Evidence</h2></header><div class="session-evidence-empty">${emptyState({ icon: 'activity', compact: true, title: 'Evidence appears once the team starts', body: '<p>Activity, gateway calls, changes, checks and the handoff show up here as each role works.</p>' })}</div>${composerMarkup(session)}</section>`;
   const counts = { diff: changesSource(session) === 'snapshot' ? session.candidate.fileCount : session.artifacts.filter(artifact => artifact.kind === 'diff').length, test: session.artifacts.filter(artifact => artifact.kind === 'test').length };
   const list = tabs({ id: 'evidence', label: 'Session evidence', action: 'tab', items: evidenceTabs.map(tab => ({ ...tab, selected: state.tab === tab.id, count: counts[tab.id] || null })) });
   const panels = evidenceTabs.map(({ id }) => `<div class="session-panel" role="tabpanel" id="evidence-panel-${id}" aria-labelledby="evidence-tab-${id}" tabindex="0" data-tab="${id}" data-session-id="${escape(session.id)}"${state.tab === id ? '' : ' hidden'}>${state.tab === id ? panelMarkup(session, id) : ''}</div>`).join('');
@@ -494,7 +494,7 @@ function crewMarkup(session) {
     const kind = run.mode === 'write' ? 'Writes the change' : index === session.runs.length - 1 ? 'Reviews independently' : 'Analyses';
     return `<li class="step session-step"${shown.tone ? ` data-tone="${shown.tone}"` : ''}${index === current ? ' aria-current="step"' : ''}><span class="step-marker">${shown.marker}</span><span class="session-step-text"><span class="step-label">${escape(run.roleName)}</span><span class="session-step-state">${shown.html}</span><span class="session-step-kind">${escape(kind)}</span></span></li>`;
   }).join('');
-  return `<section class="card session-crew" aria-labelledby="session-crew-title"><div class="session-crew-heading"><h2 class="session-section-title" id="session-crew-title">Crew</h2><p class="session-section-note">${escape(crewName(session.crewId))}</p></div><ol class="steps session-steps">${steps}</ol></section>`;
+  return `<section class="card session-crew" aria-labelledby="session-crew-title"><div class="session-crew-heading"><h2 class="session-section-title" id="session-crew-title">Team</h2><p class="session-section-note">${escape(crewName(session.crewId))}</p></div><ol class="steps session-steps">${steps}</ol></section>`;
 }
 
 function briefMarkup(session) {
@@ -503,7 +503,7 @@ function briefMarkup(session) {
   const description = plainTaskText(task);
   const actions = externalLink('Open original task', task.url);
   const source = `<p class="session-source">${icon('tag')}<span>Imported from <strong>${escape(providerName(task.provider))} #${escape(task.id)}</strong></span><span class="session-source-revision">revision <code>${escape(shortSha(task.revision))}</code></span></p>`;
-  const body = `${source}${description.trim() ? `<div data-private class="prose session-prose">${markdown(description)}</div>` : '<p class="subtle">The task has no description.</p>'}${disclosure({ id: 'session-agent-prompt', plain: true, summary: 'What the crew was told', body: `<p class="session-prompt-note">The workbench wraps the task in this prompt. The task text inside it is treated as untrusted reference material.</p><pre data-private class="session-pre session-prompt">${escape(session.objective)}</pre>` })}`;
+  const body = `${source}${description.trim() ? `<div data-private class="prose session-prose">${markdown(description)}</div>` : '<p class="subtle">The task has no description.</p>'}${disclosure({ id: 'session-agent-prompt', plain: true, summary: 'What the team was told', body: `<p class="session-prompt-note">The workbench wraps the task in this prompt. The task text inside it is treated as untrusted reference material.</p><pre data-private class="session-pre session-prompt">${escape(session.objective)}</pre>` })}`;
   return card({ id: 'session-brief', title: 'Brief', subtitle: task.title && task.title !== session.title ? task.title : undefined, actions, body });
 }
 
@@ -566,7 +566,7 @@ async function copyInvestigation() {
 }
 
 function permissionMarkup(session, request) {
-  const role = session.runs.find(run => run.id === request.runId)?.roleName || 'The crew';
+  const role = session.runs.find(run => run.id === request.runId)?.roleName || 'The team';
   const id = `permission-${escape(request.id)}`;
   if (request.kind === 'permission') {
     const actions = canOperate() ? `<div class="session-decision-actions">${button({ label: 'Allow once', icon: 'check', variant: 'primary', action: 'permission', data: { id: request.id, decision: 'once' } })}${button({ label: 'Allow matching requests', action: 'permission', data: { id: request.id, decision: 'always' } })}${button({ label: 'Reject', icon: 'x', variant: 'danger-ghost', action: 'permission', data: { id: request.id, decision: 'reject' } })}</div>` : '<p class="subtle">An operator decides this request.</p>';
@@ -622,15 +622,15 @@ function reviewMarkup(session) {
     return `<section class="callout session-callout" data-tone="${accepted ? 'success' : 'neutral'}" aria-labelledby="session-review-title"><span class="callout-icon" aria-hidden="true">${icon(accepted ? 'check-circle' : 'x-circle')}</span><div class="callout-content"><h2 class="callout-title" id="session-review-title" tabindex="-1">${accepted ? 'Accepted' : 'Rejected'} by ${escape(session.review.byName)} <span class="session-callout-time">${timeAgo(session.review.at)}</span></h2><div class="callout-body">${session.review.note ? `<p>“${escape(session.review.note)}”</p>` : '<p>No note was left.</p>'}<p class="subtle">Recorded in the session history. The workbench did not push or merge anything.</p></div></div>${actions}</section>`;
   }
   const actions = canOperate() ? `<div class="session-decision-actions session-review-actions">${button({ label: 'Accept', icon: 'check', variant: 'primary', action: 'review', data: { decision: 'accepted' } })}${button({ label: 'Reject…', icon: 'x', variant: 'danger-ghost', action: 'review', data: { decision: 'rejected' } })}${button({ label: 'Inspect changes', icon: 'arrow', variant: 'ghost', action: 'tab', data: { id: 'diff' } })}</div>` : '<p class="subtle">An operator records the review.</p>';
-  return `<section class="card session-decision session-review" data-tone="review" aria-labelledby="session-review-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="session-review-title" tabindex="-1">${icon('eye')}Your review is next</h2><p class="card-subtitle">The crew finished and captured the change. Nothing has been pushed or merged.</p></div></header><div class="card-body">${receiptMarkup(session)}<p class="session-decision-text">An agent review is not your review. Inspect the changes, checks and transcripts, then record your decision.</p>${actions}</div></section>`;
+  return `<section class="card session-decision session-review" data-tone="review" aria-labelledby="session-review-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="session-review-title" tabindex="-1">${icon('eye')}Your review is next</h2><p class="card-subtitle">The team finished and captured the change. Nothing has been pushed or merged.</p></div></header><div class="card-body">${receiptMarkup(session)}<p class="session-decision-text">An agent review is not your review. Inspect the changes, checks and transcripts, then record your decision.</p>${actions}</div></section>`;
 }
 
 function stateNoticeMarkup(session) {
   if (session.status === 'paused') return `<section class="callout session-callout" data-tone="neutral" aria-labelledby="session-paused-title"><span class="callout-icon" aria-hidden="true">${icon('pause-circle')}</span><div class="callout-content"><h2 class="callout-title" id="session-paused-title">Paused</h2><div class="callout-body"><p>The context and budget stay attached. Resume continues the current role with the instructions you saved.</p></div></div></section>`;
   if (session.status === 'queued' && canOperate()) {
     const busy = state.busy && busyAction === 'start';
-    const spend = session.costStatus === 'demo' ? 'This demonstration makes real Git changes and runs real checks without model calls or spend.' : `The crew may spend up to ${money(session.budgetUsd)}; nothing is spent until you start it.`;
-    return `<section class="callout session-callout session-start" data-tone="neutral" aria-labelledby="session-queued-title"><span class="callout-icon" aria-hidden="true">${icon('play')}</span><div class="callout-content"><h2 class="callout-title" id="session-queued-title">Start the crew when the brief is right</h2><div class="callout-body"><p>${escape(spend)} Check the brief and the budget first.</p></div></div><div class="callout-actions">${button({ id: 'session-start', label: 'Start crew', icon: 'play', variant: 'primary', action: 'start', disabled: state.busy, busy })}</div></section>`;
+    const spend = session.costStatus === 'demo' ? 'This demonstration makes real Git changes and runs real checks without model calls or spend.' : `The team may spend up to ${money(session.budgetUsd)}; nothing is spent until you start it.`;
+    return `<section class="callout session-callout session-start" data-tone="neutral" aria-labelledby="session-queued-title"><span class="callout-icon" aria-hidden="true">${icon('play')}</span><div class="callout-content"><h2 class="callout-title" id="session-queued-title">Start the team when the brief is right</h2><div class="callout-body"><p>${escape(spend)} Check the brief and the budget first.</p></div></div><div class="callout-actions">${button({ id: 'session-start', label: 'Start team', icon: 'play', variant: 'primary', action: 'start', disabled: state.busy, busy })}</div></section>`;
   }
   return '';
 }
@@ -645,7 +645,7 @@ function budgetMarkup(session) {
   const finished = isFinished(session);
   const observed = !finished && typeof session.observedUsd === 'number' && session.observedUsd > session.spentUsd;
   const gauge = session.costStatus === 'demo' ? meter({ demo: true, authorized: session.budgetUsd, label: '', size: 'lg' }) : session.costStatus === 'unknown' ? meter({ settled: null, authorized: session.budgetUsd, label: '', size: 'lg' }) : meter({ settled: observed ? session.observedUsd : session.spentUsd, authorized: session.budgetUsd, label: observed ? 'Observed' : '', size: 'lg' });
-  const accounting = session.costStatus === 'demo' ? 'A deterministic demonstration: no model is called and nothing is spent.' : observed ? 'Observed at the gateway. It settles later.' : session.costStatus === 'unknown' ? 'Spend was not reported. Unknown usage is never treated as zero; the earlier authorization stays reserved.' : session.costStatus === 'pending' ? 'Waiting for the gateway to settle the last requests.' : 'Settled at the gateway.';
+  const accounting = session.costStatus === 'demo' ? 'A deterministic demonstration: no model is called and nothing is spent.' : observed ? 'Observed at the gateway. It settles later.' : session.costStatus === 'unknown' ? 'Spend was not reported. Unknown usage is never treated as zero; its budget stays held.' : session.costStatus === 'observed' ? 'Waiting for the gateway to settle the last requests.' : 'Settled at the gateway.';
   const usage = (session.usage || []).length ? `<ul class="session-usage">${session.usage.map(entry => `<li><span class="session-usage-model">${escape(entry.group ? `${entry.group} → ${entry.model}` : entry.model)}</span><span class="session-usage-value">${escape(plural(entry.requests, 'request'))}${entry.failures ? ` · ${escape(formatCount(entry.failures))} refused` : ''} · ${moneyHtml(entry.usd)}</span></li>`).join('')}</ul>` : '';
   const grafana = state.bootstrap.observability?.grafanaUrl && state.bootstrap.observability.dashboards?.spend ? externalLink('Cost per run in Grafana', `${state.bootstrap.observability.grafanaUrl.replace(/\/$/, '')}/d/${state.bootstrap.observability.dashboards.spend}`, 'secondary') : '';
   const authorize = state.bootstrap.user.role === 'admin' && !finished && session.status !== 'exporting' && session.costStatus !== 'demo' ? button({ id: 'session-budget-authorize', label: 'Authorize more budget', icon: 'coins', action: 'budget' }) : '';
@@ -681,7 +681,7 @@ function approvalMarkup(session) {
   const isolated = ['docker', 'kubernetes'].includes(session.placement);
   const active = !isFinished(session);
   if (session.approval === 'auto') return card({ id: 'session-approval', title: 'Tool approval', body: `<p class="session-card-note">Automatic for this session: tool use inside the sandbox runs without asking. Questions still reach you.</p>${active && canOperate() ? `<div class="session-card-actions">${button({ label: 'Ask me again', size: 'sm', action: 'approval', data: { approval: 'manual' } })}</div>` : ''}` });
-  if (active && isolated && canOperate()) return card({ id: 'session-approval', title: 'Tool approval', body: `<p class="session-card-note">Every tool use asks you. The workspace is isolated, so you can let the crew work unattended for the rest of this session.</p><div class="session-card-actions">${button({ label: 'Approve automatically', size: 'sm', action: 'approval', data: { approval: 'auto' } })}</div>` });
+  if (active && isolated && canOperate()) return card({ id: 'session-approval', title: 'Tool approval', body: `<p class="session-card-note">Every tool use asks you. The workspace is isolated, so you can let the team work unattended for the rest of this session.</p><div class="session-card-actions">${button({ label: 'Approve automatically', size: 'sm', action: 'approval', data: { approval: 'auto' } })}</div>` });
   return '';
 }
 
@@ -689,7 +689,7 @@ function detailsMarkup(session) {
   const reviewed = session.runs.filter(run => run.mode === 'read' && run.status === 'completed');
   const approved = reviewed.filter(run => run.verdict === 'approve').length;
   const reviewers = reviewed.length;
-  const model = session.model ? (state.bootstrap.models.find(item => item.id === session.model) || { name: session.model }).name : 'Crew default';
+  const model = session.model ? (state.bootstrap.models.find(item => item.id === session.model) || { name: session.model }).name : 'Team default';
   const tracker = session.trackerUrl ? externalLink('Open tracker', session.trackerUrl, 'secondary') : '';
   const facts = dl([
     ['Branch', `<code class="session-truncate" title="${escape(session.branch)}">${escape(session.branch)}</code>`],
@@ -884,7 +884,7 @@ async function lifecycle(action) {
     const session = await api(`/api/sessions/${sessionId}/${action}`, { method: 'POST', body: '{}' });
     state.sessions = state.sessions.map(item => item.id === sessionId ? session : item);
     if (state.view === 'session' && state.session?.id === sessionId) state.session = session;
-    notify(action === 'pause' ? 'Paused. Your context and budget remain attached to this session.' : action === 'cancel' ? 'Cancelled. This work will not automatically retry.' : 'The crew is starting.');
+    notify(action === 'pause' ? 'Paused. Your context and budget remain attached to this session.' : action === 'cancel' ? 'Cancelled. This work will not automatically retry.' : 'The team is starting.');
   }
   catch (error) { notify(error.message, true); }
   finally { state.busy = false; busyAction = null; if (state.view === 'session' && state.session?.id === sessionId) renderSession(); }
@@ -919,11 +919,11 @@ function inspectEvidence(control) {
 
 async function closeWorkItem(control) { control.disabled = true; try { state.session = await api(`/api/sessions/${state.session.id}/close-work-item`, { method: 'POST', body: '{}' }); notify('Closed. The Work Item has left Needs you; this session and its history stay.'); renderSession(); } catch (error) { notify(error.message, true); control.disabled = false; } }
 
-async function retry(control) { control.disabled = true; try { await api(`/api/sessions/${state.session.id}/retry`, { method: 'POST', body: '{}' }); notify('Trying again. The crew starts from the beginning.'); await openSession(state.session.id); } catch (error) { notify(error.message, true); control.disabled = false; } }
+async function retry(control) { control.disabled = true; try { await api(`/api/sessions/${state.session.id}/retry`, { method: 'POST', body: '{}' }); notify('Trying again. The team starts from the beginning.'); await openSession(state.session.id); } catch (error) { notify(error.message, true); control.disabled = false; } }
 
 function duplicate() { const source = state.session; location.hash = 'sessions'; openNew(); const form = $('#new-session form'); if (form) { for (const [name, value] of Object.entries({ title: source.title, objective: source.objective, repositoryId: source.repositoryId, crewId: source.crewId, model: source.model || '', budgetUsd: source.budgetUsd })) { const field = form.elements[name]; if (field) field.value = value; } if (source.placement && form.elements.placement) form.elements.placement.value = source.placement; if (source.approval === 'auto' && form.elements.approval) form.elements.approval.checked = true; const advanced = $('#new-advanced'); if (advanced && (source.model || source.approval === 'auto' || source.placement)) advanced.open = true; } }
 
-async function setApproval(control) { control.disabled = true; try { state.session = await api(`/api/sessions/${state.session.id}/approval`, { method: 'POST', body: JSON.stringify({ approval: control.dataset.approval }) }); notify(control.dataset.approval === 'auto' ? 'The crew now works without asking for each tool.' : 'The crew asks you again before each tool.'); renderSession(); } finally { control.disabled = false; } }
+async function setApproval(control) { control.disabled = true; try { state.session = await api(`/api/sessions/${state.session.id}/approval`, { method: 'POST', body: JSON.stringify({ approval: control.dataset.approval }) }); notify(control.dataset.approval === 'auto' ? 'The team now works without asking for each tool.' : 'The team asks you again before each tool.'); renderSession(); } finally { control.disabled = false; } }
 
 async function setSupervision(control) {
   if (!state.session || state.busy) return;
@@ -990,14 +990,14 @@ async function answerQuestion(data, form) {
   if (error) error.hidden = true;
   await api(`/api/sessions/${state.session.id}/permissions/${id}`, { method: 'POST', body: JSON.stringify({ answers: replies }) });
   answers.delete(id);
-  notify('Your answer was delivered to the crew.');
+  notify('Your answer was delivered to the team.');
 }
 
 function keepOtherAnswer(element) { answerDraft(element).other[element.dataset.index] = element.value; }
 
 function keepChoice(element) { const draft = answerDraft(element); draft.choices[element.dataset.index] = element.value; }
 
-/** The session workspace: the decision the crew waits on first, then the brief, crew progress, evidence, budget, handoff and delivery, kept live over the event stream. */
+/** The session workspace: the decision the team waits on first, then the brief, team progress, evidence, budget, handoff and delivery, kept live over the event stream. */
 export default {
   id: 'session',
   match: hash => hash.startsWith('session/') ? { id: hash.slice(8) } : null,

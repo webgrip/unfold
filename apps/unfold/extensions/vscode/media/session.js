@@ -40,15 +40,15 @@ function situation(session) {
   const reviewing = reviewers(session);
   const rejected = reviewing.find(run => run.verdict === 'request_changes');
   switch (session.status) {
-    case 'waiting_input': return [`${role ?? 'The crew'} is waiting for your decision.`, 'Answer the pending request below; nothing continues until you do.'];
+    case 'waiting_input': return [`${role ?? 'The team'} is waiting for your decision.`, 'Answer the pending request below; nothing continues until you do.'];
     case 'failed': return session.failure ? [`${failureStage(session.failure)} failed: ${session.failure.message}`, session.failure.remediation]
       : rejected ? [`${rejected.roleName} requested changes.`, 'Read the review findings, then send a revised instruction and resume, or cancel.']
       : [session.blocker || 'Execution stopped without approval.', 'Inspect the activity and checks, then decide whether to resume with new instructions.'];
     case 'interrupted': return ['Execution was interrupted; no replacement run started.', 'Inspect retained evidence and spend, then resume deliberately.'];
     case 'paused': return [`Paused${role ? ` while ${role} was working` : ''}.`, 'Add instructions if needed, then resume to continue with them.'];
-    case 'running': return [`${role ?? 'The crew'} is working in the remote workspace.`, 'You can keep editing. Pause to steer, or wait for the next decision.'];
+    case 'running': return [`${role ?? 'The team'} is working in the remote workspace.`, 'You can keep editing. Pause to steer, or wait for the next decision.'];
     case 'exporting': return ['Capturing the repository state for review.', 'The candidate download appears when the snapshot is complete.'];
-    case 'queued': return ['Authorized and ready; nothing has run yet.', 'Start the remote crew when the brief is right.'];
+    case 'queued': return ['Authorized and ready; nothing has run yet.', 'Start the remote team when the brief is right.'];
     case 'completed': return [`Required reviewers approved (${reviewing.filter(run => run.verdict === 'approve').length} of ${reviewing.length}).`, 'Machine review is done. Human review and your repository checks are still required.'];
     case 'cancelled': return ['Cancelled by an operator.', 'Evidence stays available. Create a new session to try again.'];
     default: return [readable(session.status), ''];
@@ -106,7 +106,7 @@ function decisionCard(request, session, mutable) {
   const role = roleFor(session, request.runId);
   const busy = !mutable || pending;
   const card = element('section', { className: 'decision-card', id: `decision-${request.id}`, 'aria-labelledby': `decision-title-${request.id}` },
-    element('div', { className: 'eyebrow' }, request.kind === 'question' ? 'CREW QUESTION' : 'PERMISSION REQUEST', role ? element('span', { className: 'eyebrow-detail' }, `· ${role}`) : null),
+    element('div', { className: 'eyebrow' }, request.kind === 'question' ? 'TEAM QUESTION' : 'PERMISSION REQUEST', role ? element('span', { className: 'eyebrow-detail' }, `· ${role}`) : null),
     element('h2', { id: `decision-title-${request.id}` }, request.title));
   if (request.kind === 'permission') {
     const scope = permissionScope(request);
@@ -147,7 +147,7 @@ function decisionCard(request, session, mutable) {
 }
 
 function crewStrip(session) {
-  if (!session.runs.length) return element('p', { className: 'empty' }, 'The crew is ready. Starting this session creates its remote runs.');
+  if (!session.runs.length) return element('p', { className: 'empty' }, 'The team is ready. Starting this session creates its remote runs.');
   const total = session.runs.length;
   return element('ol', { className: 'crew' }, ...session.runs.map((run, index) => {
     const stateText = run.status === 'completed' ? (run.verdict === 'approve' ? 'Explicitly approved' : run.verdict === 'request_changes' ? 'Requested changes' : run.verdict === 'inconclusive' ? 'Inconclusive' : 'Work completed') : run.status === 'running' ? 'Working in the remote workspace' : run.status === 'waiting_input' ? 'Waiting for your decision' : run.status === 'queued' ? 'Waiting for its turn' : run.status === 'failed' ? 'Failed' : readable(run.status);
@@ -204,7 +204,7 @@ function evidenceButton(artifact, extra) {
 
 function changesTab(session) {
   const diffs = session.artifacts.filter(artifact => artifact.kind === 'diff');
-  if (!diffs.length) return element('div', { className: 'empty-state' }, element('h3', {}, 'Changes will appear here'), element('p', {}, 'The crew attaches its repository changes as it works. Only retained patches are shown; nothing is applied locally.'));
+  if (!diffs.length) return element('div', { className: 'empty-state' }, element('h3', {}, 'Changes will appear here'), element('p', {}, 'The team attaches its repository changes as it works. Only retained patches are shown; nothing is applied locally.'));
   return element('div', { className: 'changes' }, ...diffs.map(artifact => {
     const files = parsePatch(artifact.content);
     const added = files.reduce((sum, file) => sum + file.added, 0);
@@ -263,8 +263,8 @@ function systemText(event, session) {
   const role = (session && roleFor(session, event.runId)) || data.role || 'Role';
   if (event.type === 'run.finished') return `${role} finished${data.verdict ? ` · ${verdictLabel(data.verdict)}` : data.status && data.status !== 'completed' ? ` · ${readable(data.status)}` : ''}`;
   if (event.type === 'permission') return `${roleName} ${data.kind === 'question' ? 'asked a question' : 'asked for permission'}${data.title ? `: ${data.title}` : ''}`;
-  if (event.type === 'brief.unclear') return `Brief check: not enough to start on. ${data.reason || ''}${Array.isArray(data.questions) && data.questions.length ? ` Questions: ${data.questions.join(' / ')}` : ''} Answer in the decision panel; the crew starts once you do.`;
-  if (event.type === 'brief.clarified') return 'Brief clarified by the operator; the crew starts.';
+  if (event.type === 'brief.unclear') return `Brief check: not enough to start on. ${data.reason || ''}${Array.isArray(data.questions) && data.questions.length ? ` Questions: ${data.questions.join(' / ')}` : ''} Answer in the decision panel; the team starts once you do.`;
+  if (event.type === 'brief.clarified') return 'Brief clarified by the operator; the team starts.';
   if (event.type === 'run.runaway') return String(data.message || 'A role exceeded its tool-call limit.');
   if (event.type === 'budget.observed') return `Observed at the gateway: ${currency(data.observedUsd)} of ${currency(data.budgetUsd)}${typeof data.requests === 'number' ? ` · ${data.requests} request${data.requests === 1 ? '' : 's'}` : ''}`;
   if (event.type === 'approval.changed') return data.approval === 'auto' ? 'Tool use is now approved automatically inside the sandbox' : 'Tool use asks you again';
@@ -285,7 +285,7 @@ function systemText(event, session) {
     case 'candidate.ready': return 'Review candidate captured';
     case 'candidate.preparing': return 'Capturing the review candidate';
     case 'candidate.unavailable': return 'Review candidate unavailable';
-    case 'permission.asked': return 'The crew asked for a decision';
+    case 'permission.asked': return 'The team asked for a decision';
     case 'permission.resolved': return 'An operator decision was recorded';
     default: return readable(event.type);
   }
@@ -294,7 +294,7 @@ function systemText(event, session) {
 function eventNode(event, session) {
   const category = eventCategory(event);
   if (category === 'crew' || category === 'operator') {
-    const role = category === 'operator' ? 'You' : roleFor(session, event.runId) || 'Crew';
+    const role = category === 'operator' ? 'You' : roleFor(session, event.runId) || 'Team';
     return element('article', { className: `message message-${category}` }, element('div', { className: 'avatar', 'aria-hidden': 'true' }, role.slice(0, 1)), element('div', { className: 'message-body' }, element('header', {}, element('strong', {}, role), event.data.applies === 'next_execution' ? element('span', { className: 'tag' }, 'Next execution') : null, element('time', { datetime: event.at }, clock(event.at))), markdown(String(event.data.text ?? event.data.message ?? ''))));
   }
   if (category === 'tools') {
@@ -345,12 +345,12 @@ function briefEvent(event, session) {
 }
 
 function activityTab(session, events) {
-  const filters = [['all', 'All'], ['crew', 'Crew'], ['tools', 'Tools'], ['workbench', 'Workbench']];
+  const filters = [['all', 'All'], ['crew', 'Team'], ['tools', 'Tools'], ['workbench', 'Workbench']];
   const visible = visibleEvents(events).filter(event => activityFilter === 'all' || eventCategory(event) === activityFilter || (activityFilter === 'crew' && eventCategory(event) === 'operator'));
   const active = ['running', 'exporting', 'waiting_input'].includes(session.status);
   return element('div', { className: 'activity' },
     element('div', { className: 'activity-bar' }, element('div', { className: 'chips', role: 'group', 'aria-label': 'Filter activity' }, ...filters.map(([id, label]) => action(label, 'filter', { className: `chip-button${activityFilter === id ? ' selected' : ''}`, 'data-filter': id, 'aria-pressed': activityFilter === id }))), element('div', { className: 'activity-tools' }, element('label', { className: 'follow' }, element('input', { type: 'checkbox', id: 'follow', checked: follow }), 'Follow newest'), action('Open complete history', 'history', { className: 'quiet' }))),
-    element('div', { className: 'stream', id: 'stream', tabindex: '0', 'aria-label': 'Durable activity' }, ...(visible.length ? visible.map(event => eventNode(event, session)) : [element('div', { className: 'empty-state compact' }, element('h3', {}, session.runs.length ? 'Nothing matches this filter' : 'The workspace is ready'), element('p', {}, session.runs.length ? 'Choose another filter.' : 'Start the session to see the crew work.'))]), active ? element('div', { className: 'working', role: 'status' }, element('span', { className: 'dots', 'aria-hidden': 'true' }, element('i'), element('i'), element('i')), session.status === 'exporting' ? 'Preparing the repository handoff' : session.status === 'waiting_input' ? 'Waiting for your decision' : 'The crew is working') : null),
+    element('div', { className: 'stream', id: 'stream', tabindex: '0', 'aria-label': 'Durable activity' }, ...(visible.length ? visible.map(event => eventNode(event, session)) : [element('div', { className: 'empty-state compact' }, element('h3', {}, session.runs.length ? 'Nothing matches this filter' : 'The workspace is ready'), element('p', {}, session.runs.length ? 'Choose another filter.' : 'Start the session to see the team work.'))]), active ? element('div', { className: 'working', role: 'status' }, element('span', { className: 'dots', 'aria-hidden': 'true' }, element('i'), element('i'), element('i')), session.status === 'exporting' ? 'Preparing the repository handoff' : session.status === 'waiting_input' ? 'Waiting for your decision' : 'The team is working') : null),
     element('p', { className: 'footnote' }, `Showing ${visible.length} of ${events.length} retained events. Events are read from the server without restarting any work.`));
 }
 
@@ -372,7 +372,7 @@ function composer(session, writer) {
   const canPause = ['running', 'waiting_input'].includes(session.status);
   const stateText = instruction.state === 'sending' ? 'Sending…' : instruction.state === 'saved' ? `Saved for the next execution${instruction.at ? ` · ${instruction.at}` : ''}.` : instruction.state === 'unknown' ? 'Delivery unknown. Refresh before sending again; it may already be saved.' : instruction.state === 'failed' ? instruction.message || 'The instruction could not be saved.' : draft.trim() ? 'Draft on this device. Nothing is sent until you choose Send.' : canPause ? 'Saved instructions apply to the next execution. Pause first to apply one to the active run.' : 'Saved for the next execution.';
   return element('form', { id: 'instruction-form', className: 'composer' },
-    element('label', { for: 'instruction' }, 'Steer the crew'),
+    element('label', { for: 'instruction' }, 'Steer the team'),
     textarea,
     element('div', { className: 'composer-footer' },
       element('p', { id: 'instruction-state', className: `instruction-state state-${instruction.state}`, role: 'status' }, stateText),
@@ -421,8 +421,8 @@ function budgetCard(session, user) {
   const shown = observed ?? session.spentUsd;
   const ratio = session.budgetUsd ? Math.min(1, shown / session.budgetUsd) : 0;
   const warn = session.costStatus !== 'demo' && ratio >= 0.8;
-  const statusText = session.costStatus === 'demo' ? 'Demo · no AI calls' : observed !== undefined ? 'Observed at the gateway · settles later' : session.costStatus === 'settled' ? 'Spend reconciled' : session.costStatus === 'unknown' ? 'Spend unconfirmed · authorization stays reserved' : 'Settlement pending';
-  const card = element('section', { className: `card budget-card${warn ? ' budget-warn' : ''}` }, element('div', { className: 'eyebrow' }, observed !== undefined ? 'OBSERVED AT THE GATEWAY' : 'OBSERVED SPEND'), element('p', { className: 'spend' }, currency(shown)), element('p', { className: 'muted' }, `of ${currency(session.budgetUsd)} authorized${observed !== undefined ? ` · ${currency(session.spentUsd)} settled` : ''}${session.costStatus === 'unknown' ? ` · ${currency(session.budgetUsd)} reserved` : ''}`), element('progress', { max: session.budgetUsd || 1, value: Math.min(shown, session.budgetUsd || 1), 'aria-label': 'Observed spending against authorized budget' }), element('div', { className: `cost-status cost-${session.costStatus}` }, statusText), costCurve(session), usageList(session), element('p', { className: 'footnote' }, session.costStatus === 'demo' ? 'This fixture verifies the workflow without using an LLM.' : session.costStatus === 'unknown' ? 'Unknown usage is never treated as zero.' : 'In-flight requests and delayed provider reports can affect final spending.'));
+  const statusText = session.costStatus === 'demo' ? 'Demo · no AI calls' : observed !== undefined ? 'Observed at the gateway · settles later' : session.costStatus === 'settled' ? 'Spend reconciled' : session.costStatus === 'unknown' ? 'Spend unconfirmed · budget stays held' : 'Spend so far · not final yet';
+  const card = element('section', { className: `card budget-card${warn ? ' budget-warn' : ''}` }, element('div', { className: 'eyebrow' }, observed !== undefined ? 'OBSERVED AT THE GATEWAY' : 'OBSERVED SPEND'), element('p', { className: 'spend' }, currency(shown)), element('p', { className: 'muted' }, `of ${currency(session.budgetUsd)} authorized${observed !== undefined ? ` · ${currency(session.spentUsd)} settled` : ''}${session.costStatus === 'unknown' ? ` · ${currency(session.budgetUsd)} held` : ''}`), element('progress', { max: session.budgetUsd || 1, value: Math.min(shown, session.budgetUsd || 1), 'aria-label': 'Observed spending against authorized budget' }), element('div', { className: `cost-status cost-${session.costStatus}` }, statusText), costCurve(session), usageList(session), element('p', { className: 'footnote' }, session.costStatus === 'demo' ? 'This fixture verifies the workflow without using an LLM.' : session.costStatus === 'unknown' ? 'Unknown usage is never treated as zero.' : 'In-flight requests and delayed provider reports can affect final spending.'));
   if (user.role === 'admin' && !['completed', 'cancelled', 'exporting'].includes(session.status)) {
     if (budgetOpen) card.append(element('form', { id: 'budget-form', className: 'budget-form' }, element('label', { for: 'budget-amount' }, 'Additional amount · USD'), element('input', { id: 'budget-amount', type: 'number', min: '0.01', step: '0.01', required: true, disabled: pending }), element('div', { className: 'toolbar' }, element('button', { type: 'submit', className: 'primary', disabled: pending }, 'Authorize'), action('Cancel', 'budget-close', { className: 'quiet' }))));
     else card.append(action('Authorize more budget', 'budget-open', { className: 'quiet', disabled: !connected || pending }));
@@ -439,7 +439,7 @@ function approvalCard(session, writer) {
   return element('section', { className: `card approval-card approval-${automatic ? 'auto' : 'manual'}`, 'aria-label': 'Tool approval' },
     element('div', { className: 'eyebrow' }, 'APPROVAL'),
     element('h2', {}, automatic ? 'Automatic for this session' : 'Every tool use asks you'),
-    element('p', { className: 'muted' }, automatic ? 'Tool use inside the sandbox is approved without asking. Questions from the crew still wait for you.' : 'The workspace is isolated, so you can let the crew work unattended for the rest of this session.'),
+    element('p', { className: 'muted' }, automatic ? 'Tool use inside the sandbox is approved without asking. Questions from the team still wait for you.' : 'The workspace is isolated, so you can let the team work unattended for the rest of this session.'),
     active && writer ? element('div', { className: 'toolbar' }, automatic ? action('Ask me again', 'approval', { className: 'quiet', 'data-approval': 'manual', disabled: busy }) : action('Approve automatically', 'approval', { 'data-approval': 'auto', disabled: busy })) : null);
 }
 
@@ -542,7 +542,7 @@ function render() {
     element('p', { className: 'subtitle' }, element('span', {}, session.repositoryId), ' / ', element('span', {}, session.crewId), ' · ', session.runtime, session.placement ? ` · ${session.placement}` : '', session.approval === 'auto' ? ' · approves automatically' : '', ' · ', element('code', {}, session.branch)),
     element('div', { className: `situation situation-${session.status}` }, element('p', { className: 'headline' }, headline), next ? element('p', { className: 'next' }, next) : null),
     element('div', { className: 'toolbar', 'aria-label': 'Session actions' },
-      writer && session.status === 'queued' ? action('Start crew', 'start', { className: 'primary', disabled: !mutable }) : null,
+      writer && session.status === 'queued' ? action('Start team', 'start', { className: 'primary', disabled: !mutable }) : null,
       writer && session.status === 'completed' && !session.review && publication?.offered ? action(publication.state === 'publishing' ? 'Continue opening the pull request' : 'Accept and open pull request', 'publish', { className: 'primary', disabled: !mutable, title: 'Approves this verified commit if you have not yet, then pushes it to its own branch and opens one pull request. Merging it stays with you.' }) : null,
       publication?.pullRequest ? element('button', { type: 'button', className: 'primary', 'data-open-url': publication.pullRequest.url, title: publication.pullRequest.url }, `Open pull request #${publication.pullRequest.number} ↗`) : null,
       writer && session.status === 'completed' && !session.review && !publication?.offered && !publication?.pullRequest ? action('Accept', 'review', { className: 'primary', 'data-decision': 'accepted', title: 'Records your decision in the session. Nothing is pushed or merged.' }) : null,
@@ -565,7 +565,7 @@ function render() {
   const nav = element('div', { className: 'tabs', role: 'tablist', 'aria-label': 'Session information' }, ...tabs.map(value => action('', 'tab', { id: `tab-${value}`, 'data-tab': value, role: 'tab', 'aria-controls': 'tab-content', 'aria-selected': tab === value, tabindex: tab === value ? '0' : '-1', className: tab === value ? 'selected' : '' }, value === 'changes' ? ['Changes', diffs ? element('span', { className: 'count' }, String(diffs)) : null] : value === 'checks' ? ['Checks', checks ? element('span', { className: 'count' }, String(checks)) : null] : value === 'gateway' ? ['Gateway', requestCount ? element('span', { className: 'count' }, String(requestCount)) : null] : value[0].toUpperCase() + value.slice(1))));
   const content = tab === 'brief' ? briefTab(session) : tab === 'changes' ? changesTab(session) : tab === 'checks' ? checksTab(session) : tab === 'gateway' ? gatewayTab(session, gateway, detail.observability) : activityTab(session, events);
   const main = element('div', { className: 'main-column' },
-    element('section', { className: 'crew-section' }, element('div', { className: 'section-heading' }, element('h2', {}, 'Your crew'), element('span', {}, `Sequential roles · ${placementText(session.placement, host)}`)), crewStrip(session)),
+    element('section', { className: 'crew-section' }, element('div', { className: 'section-heading' }, element('h2', {}, 'Your team'), element('span', {}, `Sequential roles · ${placementText(session.placement, host)}`)), crewStrip(session)),
     nav, element('div', { id: 'tab-content', role: 'tabpanel', 'aria-labelledby': `tab-${tab}`, className: 'tab-content' }, content),
     composer(session, writer));
 
@@ -709,7 +709,7 @@ window.addEventListener('message', event => {
     if (message.focus?.tab && tabs.includes(message.focus.tab) && !message.focus.requestId) { tab = message.focus.tab; remember(); }
     for (const id of [...decisions.keys()]) if (!detail.permissions.some(request => request.id === id && !request.resolved)) { decisions.delete(id); confirming.delete(id); }
     render();
-    if (previous && detail.permissions.filter(request => !request.resolved).length > previous.permissions.filter(request => !request.resolved).length) announce('The crew is waiting for your decision.');
+    if (previous && detail.permissions.filter(request => !request.resolved).length > previous.permissions.filter(request => !request.resolved).length) announce('The team is waiting for your decision.');
     else if (previous && previous.session.status !== detail.session.status) announce(`Session is now ${statusNames[detail.session.status] || detail.session.status}.`);
   } else if (message.type === 'connection') { connected = message.connected; connectionMessage = message.message || ''; if (message.freshness && detail) detail.freshness = message.freshness; render(); }
   else if (message.type === 'focus') { focusTarget = { tab: message.tab, requestId: message.requestId, runId: message.runId, decisions: Boolean(message.requestId) }; if (message.tab && tabs.includes(message.tab) && !message.requestId) tab = message.tab; remember(); render(); }

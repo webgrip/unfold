@@ -304,7 +304,7 @@ const pages = [
   { id: 'activity', label: 'Activity', icon: 'activity', keys: ['g', 'a'], keywords: 'audit events feed log history' },
   { id: 'insights', label: 'Insights', icon: 'insights', keys: ['g', 'i'], keywords: 'spend cost budget money throughput overview' },
   { id: 'tasks', label: 'Tasks', icon: 'tasks', keys: ['g', 't'], keywords: 'tracker import vikunja clickup issues tickets' },
-  { id: 'sessions', label: 'Sessions', icon: 'sessions', keys: ['g', 's'], keywords: 'workbench crews interactive', count: 'sessions', tone: 'attention', describe: n => `${n} need you`, sessions: true },
+  { id: 'sessions', label: 'Sessions', icon: 'sessions', keys: ['g', 's'], keywords: 'workbench teams interactive', count: 'sessions', tone: 'attention', describe: n => `${n} need you`, sessions: true },
 ];
 const lanes = [
   { hash: 'work?lane=needs_human', label: 'Needs you', icon: 'alert', keywords: 'blocked stuck attention escalated human', count: 'needsYou', tone: 'attention', describe: n => `${n} need you` },
@@ -375,7 +375,7 @@ export function paletteEntries(context) {
   if (context.theme !== 'system') entries.push({ id: 'theme-system', group: 'commands', label: 'Follow the system theme', keywords: 'theme appearance automatic os', icon: 'monitor', run: 'theme', value: 'system', restore: true });
   entries.push({ id: 'live', group: 'commands', primary: true, label: context.paused ? 'Resume auto-refresh' : 'Pause auto-refresh', keywords: 'live updates refresh automatically polling', icon: context.paused ? 'play' : 'pause', run: 'live', restore: true });
   entries.push({ id: 'refresh', group: 'commands', primary: true, label: 'Refresh this page', keywords: 'reload update fetch again', icon: 'refresh', run: 'refresh', restore: true });
-  if (context.canCreate) entries.push({ id: 'new-session', group: 'commands', primary: true, label: 'New session', keywords: 'create start crew objective', icon: 'plus', action: 'new', keys: context.view === 'sessions' ? ['n'] : null, single: true, restore: true });
+  if (context.canCreate) entries.push({ id: 'new-session', group: 'commands', primary: true, label: 'New session', keywords: 'create start team objective', icon: 'plus', action: 'new', keys: context.view === 'sessions' ? ['n'] : null, single: true, restore: true });
   entries.push({ id: 'shortcuts', group: 'commands', primary: true, label: 'Show keyboard shortcuts', keywords: 'keys help hotkeys', icon: 'keyboard', action: 'shortcuts-open', keys: ['?'], single: true, restore: true });
   entries.push({ id: 'report', group: 'commands', label: 'Report a problem', keywords: 'bug issue feedback broken wrong screenshot file', icon: 'flag', action: 'report-open' });
   if (state.bootstrap?.reports?.target && !state.bootstrap.reports.demo) entries.push({ id: 'report-mine', group: 'commands', label: 'Your reports', keywords: 'bug issue feedback status fixed reply follow', icon: 'inbox', action: 'report-mine' });

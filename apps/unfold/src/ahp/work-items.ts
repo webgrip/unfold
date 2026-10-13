@@ -155,7 +155,7 @@ function runPart(run: PloegRun, spelling: Spelling): Json {
   return { kind: 'toolCall', toolCall: { ...base, status: 'completed', ...runResult(run, spawned) } };
 }
 
-const turnMessage = (round: Round) => ({ text: `Round ${round.round}${round.shifts > 1 && round.shiftNumber ? ` · Shift ${round.shiftNumber}` : ''}`, origin: { kind: 'systemNotification' } });
+const turnMessage = (round: Round) => ({ text: `Round ${round.round}${round.shifts > 1 && round.shiftNumber ? ` · Attempt ${round.shiftNumber}` : ''}`, origin: { kind: 'systemNotification' } });
 const noticePart = (round: Round, index: number): Json[] => index === 0 ? [{ kind: 'systemNotification', content: noAgentMessages }] : [];
 const duration = (from: string, to: string) => Math.max(0, Date.parse(to) - Date.parse(from)) || 0;
 

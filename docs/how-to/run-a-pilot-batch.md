@@ -73,7 +73,7 @@ Record one row per Work Item. Read the values from the Work Item's page in Unfol
 | `rework` | `none`, `owner-<minutes>` for edits you made, or `reassigned-<count>` for send-backs | You |
 | `notes` | What went wrong or surprised you, in one line | You |
 
-ploegd settles a Run's spend from LiteLLM's spend logs after `PLOEG_LLM_SETTLE_AFTER`, 15 minutes by default. Until then the amount counts as reserved. Write `settled_usd` only after settlement; if an amount stays reserved, record it with a `reserved` note.
+ploegd settles a Run's spend from LiteLLM's spend logs after `PLOEG_LLM_SETTLE_AFTER`, 15 minutes by default. Until then the amount counts as held. Write `settled_usd` only after settlement; if an amount stays held, record it with a `reserved` note.
 
 Count a send-back and its new Shift in the same row: add the Rounds and spend of every Shift, and your review minutes for every pass.
 

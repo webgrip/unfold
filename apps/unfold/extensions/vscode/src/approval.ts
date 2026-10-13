@@ -6,7 +6,7 @@ export type ApprovalClient = { setApproval(id: string, approval: Approval): Prom
 export type ApprovalUi = { pick(choices: ApprovalChoice[], current: Approval | undefined): Promise<Approval | undefined>; info(message: string): void };
 
 export const approvalChoices: ApprovalChoice[] = [
-  { label: '$(shield) Approve automatically', description: 'auto', detail: 'Tool use inside the sandbox is approved without asking. Questions from the crew still wait for you.', value: 'auto' },
+  { label: '$(shield) Approve automatically', description: 'auto', detail: 'Tool use inside the sandbox is approved without asking. Questions from the team still wait for you.', value: 'auto' },
   { label: '$(bell-dot) Ask me again', description: 'manual', detail: 'Every read, search and shell command waits for your decision.', value: 'manual' },
 ];
 
@@ -17,7 +17,7 @@ export function approvalAvailable(session: Pick<Session, 'status' | 'placement'>
 }
 
 export function approvalMessage(approval: Approval): string {
-  return approval === 'auto' ? 'The crew now works without asking for each tool.' : 'The crew asks you again before each tool.';
+  return approval === 'auto' ? 'The team now works without asking for each tool.' : 'The team asks you again before each tool.';
 }
 
 export async function setApproval(client: ApprovalClient, ui: ApprovalUi, session: Session): Promise<Approval | undefined> {

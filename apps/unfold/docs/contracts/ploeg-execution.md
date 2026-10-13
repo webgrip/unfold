@@ -8,11 +8,11 @@ This is the opt-in execution contract implemented by [the authority client](../.
 | --- | --- |
 | Tracker | Existing tracker content, priority and assignment |
 | Ploeg | Admission, Work Item, Shift, operator Run, command revisions, generation and inference authorization |
-| Unfold | Authenticated human session, registered repository, delegated crew execution, native workspace, intervention and candidate evidence |
+| Unfold | Authenticated human session, registered repository, delegated Team execution, native workspace, intervention and candidate evidence |
 | Harness | Reasoning, tools and its opaque native conversation state |
 | LiteLLM | Scoped key enforcement, routing and available metering records |
 
-One manual session admits one manual-origin Work Item, one Shift and one `operator` Run. Successful completion retains the operator report and marks its Run finished; it does not infer a forge Outcome such as a published proposal or no change needed. Unfold's sequential crew roles remain visible as Steps of that one Run; they do not become separate Ploeg Runs in this increment. The consumer authorizes the registered repository and attests the session owner's identity. This is a trusted service boundary, not end-user OIDC verification inside Ploeg.
+One manual session admits one manual-origin Work Item, one Shift and one `operator` Run. Successful completion retains the operator report and marks its Run finished; it does not infer a forge Outcome such as a published proposal or no change needed. The sequential Roles of Unfold's Team remain visible as Steps of that one Run; they do not become separate Ploeg Runs in this increment. The consumer authorizes the registered repository and attests the session owner's identity. This is a trusted service boundary, not end-user OIDC verification inside Ploeg.
 
 The read model is separate: Unfold exposes bounded snapshots of existing Ploeg work to the browser and editor. [Registered tracker imports](ploeg-tracker-binding.md) bind an existing pristine Vikunja or ClickUp Work Item through the optional admission `source` pin. They do not create another manual item. Unmapped and unsupported sources remain unavailable for shared import.
 
@@ -67,7 +67,7 @@ The workbench uses Ploeg's scoped credential instead of its local management bro
 
 A confirmed pause preserves the same capped key for explicit resume. The key can remain usable until its gateway TTL; this is unsuitable as a hostile-process revocation boundary. Unknown or blocked keys cannot be silently replaced. Restart or uncertain interruption attempts to block the key; paid continuation then requires reconciliation rather than a fresh hidden authorization. A failed shared execution remains terminal, and the workbench cannot increase its budget.
 
-Observed spend remains provisional. Unfold exposes it through `observedUsd` with pending or unknown `costStatus`; it does not treat a quiet meter, or a blocked key's meter, as final settlement. Once Ploeg reports the capability `reconciled`, its settlement has run, and Unfold records the gateway's observed spend as `spentUsd` with `costStatus: "settled"` and a `budget.settled` event. A stopped session is read for this at most once every five minutes until it settles. Ploeg settles only a finished Run, so an interrupted execution settles after it is delivered or cancelled. Ploeg retains unresolved authorization after expiry and blocking. Trusted final accounting is a distinct control-plane operation. Demo sessions explicitly report no model calls and zero spend.
+Observed spend remains provisional. Unfold exposes it through `observedUsd` with `costStatus` `observed` or `unknown`; it does not treat a quiet meter, or a blocked key's meter, as final settlement. Once Ploeg reports the capability `reconciled`, its settlement has run, and Unfold records the gateway's observed spend as `spentUsd` with `costStatus: "settled"` and a `budget.settled` event. A stopped session is read for this at most once every five minutes until it settles. Ploeg settles only a finished Run, so an interrupted execution settles after it is delivered or cancelled. Ploeg retains unresolved authorization after expiry and blocking. Trusted final accounting is a distinct control-plane operation. Demo sessions explicitly report no model calls and zero spend.
 
 ## Current operating envelope
 

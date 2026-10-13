@@ -1,9 +1,10 @@
 import { sessionProgress } from '../../public/core/progress.js';
-import type { PloegCard, PloegDetail, PloegRun, PloegState } from '../ploeg.ts';
+import { costStatusWord } from '../../public/core/states.js';
+import type { PloegCard, PloegCostStatus, PloegDetail, PloegRun, PloegState } from '../ploeg.ts';
 import type { Event, Session } from '../types.ts';
 
 /** How sure a brief's spend figure is: settled by Ploeg, still provisional, not reported, or a demo with no spend. */
-export type BriefSpendStatus = 'settled' | 'provisional' | 'unknown' | 'demo';
+export type BriefSpendStatus = PloegCostStatus | 'demo';
 
 /** One Run as a brief shows it: what it did in words, never its prompt, tools, findings or failure detail. */
 export type BriefRun = { role: string; round: number; state: PloegRun['state']; outcome: string | null; verdict: string | null; summary: string; problem: string; solution: string; startedAt: string | null; finishedAt: string | null };
@@ -101,10 +102,11 @@ function spendOf(detail: PloegDetail, card: PloegCard | undefined, runs: PloegRu
     if (costStatus === 'not_reported' || typeof costUsd !== 'number') return { status: 'unknown', deliveryUsd: null };
     return { status: costStatus === 'observed' && usageComplete === true ? 'settled' : 'provisional', deliveryUsd: costUsd };
   }
-  const observed = runs.filter(run => run.costStatus === 'observed' && typeof run.usage?.costUsd === 'number');
-  if (!observed.length) return { status: 'unknown', deliveryUsd: null };
-  const total = observed.reduce((sum, run) => sum + (run.usage?.costUsd ?? 0), 0);
-  return { status: observed.length === runs.length ? 'settled' : 'provisional', deliveryUsd: Math.round(total * 1e6) / 1e6 };
+  const costed = runs.filter(run => run.costStatus !== 'unknown' && typeof run.usage?.costUsd === 'number');
+  if (!costed.length) return { status: 'unknown', deliveryUsd: null };
+  const total = costed.reduce((sum, run) => sum + (run.usage?.costUsd ?? 0), 0);
+  const status = costed.length < runs.length || costed.some(run => run.costStatus === 'observed') ? 'observed' : costed.some(run => run.costStatus === 'provisional') ? 'provisional' : 'settled';
+  return { status, deliveryUsd: Math.round(total * 1e6) / 1e6 };
 }
 
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
@@ -199,7 +201,7 @@ export function briefText(brief: WorkItemBrief): string {
     `Last updated: ${brief.updatedAt}`,
     brief.pullRequest ? `Pull request${brief.pullRequest.number === null ? '' : ` #${brief.pullRequest.number}`}: ${pullRequestText[brief.pullRequest.status]}` : 'Pull request: none yet',
     brief.previews.length ? `Previews: ${brief.previews.map(preview => `${preview.environment}${preview.since ? ` since ${preview.since}` : ''}`).join('; ')}` : 'Previews: none',
-    `Spend on the work so far: ${brief.spend.status === 'demo' ? 'none, this is a demo' : brief.spend.deliveryUsd === null ? 'not reported yet' : `${usd(brief.spend.deliveryUsd)} (${brief.spend.status})`}`,
+    `Spend on the work so far: ${brief.spend.status === 'demo' ? 'none, this is a demo' : brief.spend.deliveryUsd === null ? costStatusWord('unknown') : `${usd(brief.spend.deliveryUsd)} (${costStatusWord(brief.spend.status)})`}`,
     ...progressLines(brief.progress),
     '',
     'What was asked for:',

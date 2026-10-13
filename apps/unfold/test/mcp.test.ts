@@ -53,6 +53,7 @@ test('unfold-mcp tells a client what waits, why, and what to do, from the demo w
     assert(detail.structuredContent.reason?.chip, JSON.stringify(detail.structuredContent));
     assert.match(detail.structuredContent.summary, /^Work Item 101 is needs_human: .*Fix: /);
     assert.match(detail.structuredContent.summary, /Illustrative demo, nothing was spent/);
+    assert(detail.structuredContent.shifts.every((shift: { heldUsd: unknown; reservedUsd: unknown }) => typeof shift.heldUsd === 'number' && shift.heldUsd === shift.reservedUsd), 'each Shift says what it holds as heldUsd, and as reservedUsd for one release');
   }
 
   assert(now.structuredContent.teams.includes(stuck.team));
@@ -140,7 +141,7 @@ test('unfold_spend names the Work Items whose finished Runs still hold budget, a
   const fake = createServer((req, res) => {
     assert.equal(req.url, '/api/ploeg/summary?window=7d');
     res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ demo: false, window: '7d', teams: [{ team: 'unfold', workItems: { needsHuman: 1 }, runs: { finished: 3, failed: 1, stuck: 1 }, spend: { settledUsd: 0.3238, reservedUsd: 0.25 } }], totals: { spend: { settledUsd: 0.3238, reservedUsd: 0.25 } }, unsettled, unsettledError }));
+    res.end(JSON.stringify({ demo: false, window: '7d', teams: [{ team: 'unfold', workItems: { needsHuman: 1 }, runs: { finished: 3, failed: 1, stuck: 1 }, spend: { settledUsd: 0.3238, heldUsd: 0.25 } }], totals: { spend: { settledUsd: 0.3238, reservedUsd: 0.25 } }, unsettled, unsettledError }));
   });
   await new Promise<void>(resolve => fake.listen(0, '127.0.0.1', resolve));
   t.after(() => fake.close());
@@ -152,7 +153,8 @@ test('unfold_spend names the Work Items whose finished Runs still hold budget, a
   const spend = (await call(server, 'unfold_spend')).structuredContent;
   assert.equal(spend.summary, '$0.32 settled and $0.25 held in 7d. 1 finished Runs still hold $0.25: Work Item 184.');
   assert.deepEqual(spend.stuckHolds, [{ workItemId: '184', runId: '264', team: 'unfold', keyState: 'blocked', heldUsd: 0.25, since: '2026-10-10T20:01:39Z', link: `${url}/#work/184` }]);
-  assert.deepEqual(spend.teams[0], { team: 'unfold', settledUsd: 0.32, reservedUsd: 0.25, needsHuman: 1, runsFinished: 3, runsFailed: 1, runsStuck: 1 });
+  assert.deepEqual(spend.teams[0], { team: 'unfold', settledUsd: 0.32, heldUsd: 0.25, reservedUsd: 0.25, needsHuman: 1, runsFinished: 3, runsFailed: 1, runsStuck: 1 }, 'a newer Ploeg reports heldUsd, and reservedUsd still carries it for one release');
+  assert.deepEqual([spend.heldUsd, spend.reservedUsd], [0.25, 0.25], 'an older Ploeg reports only reservedUsd');
 
   unsettled = null;
   unsettledError = { code: 'ploeg_unavailable', message: 'Ploeg could not list the Runs whose budget it cannot release.' };
@@ -174,7 +176,7 @@ function askingUnfold(t: { after(fn: () => void): void }) {
     if (body.recordOnly && body.question !== 'What did it cost so far?') { res.statusCode = 409; res.end(JSON.stringify({ error: { code: 'ask_needs_model', message: 'The record does not answer this question.' } })); return; }
     res.statusCode = 201;
     res.end(JSON.stringify(body.askModel
-      ? { question: body.question, answer: 'Firefox is not affected.', status: 'answered', source: 'model', costUsd: 0.0011, costStatus: 'pending' }
+      ? { question: body.question, answer: 'Firefox is not affected.', status: 'answered', source: 'model', costUsd: 0.0011, costStatus: 'provisional' }
       : { question: body.question, answer: 'US$ 0.03 so far.', status: 'answered', source: 'record', costUsd: 0, costStatus: 'settled' }));
   });
   t.after(() => fake.close());

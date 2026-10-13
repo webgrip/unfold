@@ -32,7 +32,7 @@ const object = (properties: Json, required: string[] = []) => ({ type: 'object',
 const untrustedTitle = object({ title: { type: 'string' } }, ['title']);
 const reasonSchema = { type: ['object', 'null'], description: 'Why it waits and what to do, as Unfold shows it', properties: { code: { type: 'string' }, chip: { type: 'string' }, sentence: { type: 'string' }, fix: { type: 'string' }, action: { type: 'string' } } };
 const workRow = object({
-  id: { type: 'string' }, state: { type: 'string' }, team: { type: 'string' }, tracker: { type: 'string' }, taskUrl: { type: 'string' }, link: { type: 'string', description: 'The Work Item in Unfold' },
+  id: { type: 'string' }, state: { type: 'string', description: 'Ploeg\'s Work Item state; `leased` is the older name of `active`' }, team: { type: 'string' }, tracker: { type: 'string' }, taskUrl: { type: 'string' }, link: { type: 'string', description: 'The Work Item in Unfold' },
   attempts: { type: 'number' }, spentUsd: { type: ['number', 'null'] }, pullRequestUrl: { type: 'string' }, reason: reasonSchema, untrusted: untrustedTitle,
 }, ['id', 'state', 'team', 'tracker', 'link', 'untrusted']);
 
@@ -119,7 +119,7 @@ export function createMcpServer(options: McpOptions) {
     {
       name: 'unfold_find_work', title: 'Find Work Items',
       description: 'List one Team\'s Work Items in Unfold, optionally by state, with the reason each needs_human item waits. Use unfold_now for what waits right now; it lists the Teams you can read. Pass nextCursor back as after for the next page.',
-      inputSchema: object({ team: string('Team id, as unfold_now lists it'), state: string('needs_human, awaiting_review, proposed, queued, leased, stale, done or withdrawn'), after: string('nextCursor from the previous page') }, ['team']),
+      inputSchema: object({ team: string('Team id, as unfold_now lists it'), state: string('needs_human, awaiting_review, proposed, ingested, queued, active (being worked on; older Ploeg calls it leased, and both are accepted), stale, done or withdrawn'), after: string('nextCursor from the previous page') }, ['team']),
       outputSchema: object({ summary: { type: 'string' }, items: { type: 'array', items: workRow }, nextCursor: { type: ['string', 'null'] } }, ['summary', 'items', 'nextCursor']),
       async run(args) {
         if (typeof args.team !== 'string' || !args.team) throw new Error('team is required; unfold_now lists the Teams you can read.');
@@ -141,7 +141,7 @@ export function createMcpServer(options: McpOptions) {
         const demo = Boolean(detail.demo);
         const reason = reasons.detailReason(detail);
         const warning = reasons.routingWarning(detail.item);
-        const shifts = (detail.shifts ?? []).map((shift: Json) => ({ id: String(shift.id), round: shift.round, budgetUsd: cents(shift.budgetUsd), spentUsd: cents(shift.spentUsd), reservedUsd: cents(shift.reservedUsd), openedAt: shift.openedAt, closedAt: shift.closedAt, closeReason: clip(shift.closeReason, 1000) }));
+        const shifts = (detail.shifts ?? []).map((shift: Json) => ({ id: String(shift.id), round: shift.round, budgetUsd: cents(shift.budgetUsd), spentUsd: cents(shift.spentUsd), heldUsd: held(shift), reservedUsd: held(shift), openedAt: shift.openedAt, closedAt: shift.closedAt, closeReason: clip(shift.closeReason, 1000) }));
         const runs = (detail.runs ?? []).slice(0, 12).map((run: Json) => ({ id: String(run.id), role: run.role, round: run.round, writes: Boolean(run.writes), state: run.state, outcome: run.outcome, verdict: run.verdict || '', stuckReason: clip(run.stuckReason, 500), failureReason: run.failureReason ?? '', costUsd: typeof run.usage?.costUsd === 'number' ? cents(run.usage.costUsd) : null, links: run.links ?? [], untrusted: { summary: clip(run.summary, 800), findings: clip(run.findings, 2000) } }));
         const event = (detail.events ?? []).find((entry: Json) => entry.action === `work_item.${detail.item.state}` && entry.detail?.reason);
         const item = row(detail.item, demo);
@@ -166,21 +166,21 @@ export function createMcpServer(options: McpOptions) {
       name: 'unfold_spend', title: 'Spend and stuck holds',
       description: 'What Ploeg spent and still holds, per Team and in total, for the last 24h, 7d or 30d, and the finished Runs whose budget hold Ploeg has not released, each with its Work Item. Use it for "what did this cost" and "is any money stuck". For one Work Item\'s spend, use unfold_get_work.',
       inputSchema: object({ window: string('24h, 7d or 30d; default 7d', { enum: ['24h', '7d', '30d'] }) }),
-      outputSchema: object({ summary: { type: 'string' }, demo: { type: 'boolean' }, window: { type: 'string' }, settledUsd: { type: 'number' }, reservedUsd: { type: 'number' }, teams: { type: 'array', items: { type: 'object' } }, stuckHolds: { type: ['array', 'null'], items: { type: 'object' } }, stuckHoldsError: { type: ['string', 'null'] } }, ['summary', 'demo', 'window', 'settledUsd', 'reservedUsd', 'teams', 'stuckHolds', 'stuckHoldsError']),
+      outputSchema: object({ summary: { type: 'string' }, demo: { type: 'boolean' }, window: { type: 'string' }, settledUsd: { type: 'number' }, heldUsd: { type: 'number' }, reservedUsd: { type: 'number', description: 'Deprecated: the same amount as heldUsd' }, teams: { type: 'array', items: { type: 'object' } }, stuckHolds: { type: ['array', 'null'], items: { type: 'object' } }, stuckHoldsError: { type: ['string', 'null'] } }, ['summary', 'demo', 'window', 'settledUsd', 'heldUsd', 'reservedUsd', 'teams', 'stuckHolds', 'stuckHoldsError']),
       async run(args) {
         const window = args.window ?? '7d';
         if (!['24h', '7d', '30d'].includes(window)) throw new Error('window must be 24h, 7d or 30d.');
         const data = await get(`/api/ploeg/summary?window=${window}`);
         const demo = Boolean(data.demo);
-        const teams = (data.teams ?? []).map((team: Json) => ({ team: String(team.team), settledUsd: cents(team.spend?.settledUsd), reservedUsd: cents(team.spend?.reservedUsd), needsHuman: Number(team.workItems?.needsHuman ?? 0), runsFinished: Number(team.runs?.finished ?? 0), runsFailed: Number(team.runs?.failed ?? 0), runsStuck: Number(team.runs?.stuck ?? 0) }));
+        const teams = (data.teams ?? []).map((team: Json) => ({ team: String(team.team), settledUsd: cents(team.spend?.settledUsd), heldUsd: held(team.spend), reservedUsd: held(team.spend), needsHuman: Number(team.workItems?.needsHuman ?? 0), runsFinished: Number(team.runs?.finished ?? 0), runsFailed: Number(team.runs?.failed ?? 0), runsStuck: Number(team.runs?.stuck ?? 0) }));
         const settledUsd = cents(data.totals?.spend?.settledUsd);
-        const reservedUsd = cents(data.totals?.spend?.reservedUsd);
+        const heldUsd = held(data.totals?.spend);
         const stuckHolds = data.unsettled ? (data.unsettled.accounts ?? []).map((entry: Json) => ({ workItemId: String(entry.workItemId), runId: String(entry.runId), team: String(entry.team), keyState: String(entry.accountState), heldUsd: cents(entry.heldUsd), since: entry.since, link: link(String(entry.workItemId)) })) : null;
         const stuckHoldsError = data.unsettled ? null : String(data.unsettledError?.message ?? 'Unfold could not list the Runs whose hold Ploeg cannot release.');
-        const held = stuckHolds ? cents(stuckHolds.reduce((sum: number, entry: Json) => sum + entry.heldUsd, 0)) : 0;
-        const stuck = stuckHolds === null ? ` Stuck holds unknown: ${stuckHoldsError}` : stuckHolds.length ? ` ${stuckHolds.length} finished Runs still hold ${usd(held)}: ${stuckHolds.map((entry: Json) => `Work Item ${entry.workItemId}`).join(', ')}.` : ' No budget is stuck.';
-        const summary = demo ? 'This is the illustrative demo: nothing ran and nothing was spent.' : `${usd(settledUsd)} settled and ${usd(reservedUsd)} held in ${data.window ?? window}.${stuck}`;
-        return { summary, demo, window: String(data.window ?? window), settledUsd, reservedUsd, teams, stuckHolds, stuckHoldsError };
+        const stuckUsd = stuckHolds ? cents(stuckHolds.reduce((sum: number, entry: Json) => sum + entry.heldUsd, 0)) : 0;
+        const stuck = stuckHolds === null ? ` Stuck holds unknown: ${stuckHoldsError}` : stuckHolds.length ? ` ${stuckHolds.length} finished Runs still hold ${usd(stuckUsd)}: ${stuckHolds.map((entry: Json) => `Work Item ${entry.workItemId}`).join(', ')}.` : ' No budget is stuck.';
+        const summary = demo ? 'This is the illustrative demo: nothing ran and nothing was spent.' : `${usd(settledUsd)} settled and ${usd(heldUsd)} held in ${data.window ?? window}.${stuck}`;
+        return { summary, demo, window: String(data.window ?? window), settledUsd, heldUsd, reservedUsd: heldUsd, teams, stuckHolds, stuckHoldsError };
       },
     },
     {
@@ -206,7 +206,7 @@ export function createMcpServer(options: McpOptions) {
         const sessions = sessionList.filter(session => changed(session.updatedAt)).slice(0, 15).map(session => ({ id: String(session.id), status: String(session.status ?? ''), updatedAt: session.updatedAt ?? null, link: `${base}/#session/${encodeURIComponent(String(session.id))}`, untrusted: { title: clip(session.title ?? session.objective ?? session.task?.title, 300) } }));
         const refused = ((now.refused ?? []) as Json[]).filter(task => changed(task.refusedAt)).slice(0, 15).map(task => ({ tracker: `${task.provider}:${task.externalId}`, team: String(task.team ?? ''), code: String(task.code ?? ''), reason: clip(task.reason, 500), taskUrl: String(task.url ?? ''), untrusted: { title: clip(task.title, 300) } }));
         const stuck = summary.unsettled ? (summary.unsettled.accounts ?? []) as Json[] : null;
-        const spend = { window: String(summary.window ?? window), settledUsd: cents(summary.totals?.spend?.settledUsd), heldUsd: cents(summary.totals?.spend?.reservedUsd), stuckHolds: stuck === null ? null : stuck.map(entry => ({ workItemId: String(entry.workItemId), heldUsd: cents(entry.heldUsd), keyState: String(entry.accountState), link: link(String(entry.workItemId)) })) };
+        const spend = { window: String(summary.window ?? window), settledUsd: cents(summary.totals?.spend?.settledUsd), heldUsd: held(summary.totals?.spend), stuckHolds: stuck === null ? null : stuck.map(entry => ({ workItemId: String(entry.workItemId), heldUsd: cents(entry.heldUsd), keyState: String(entry.accountState), link: link(String(entry.workItemId)) })) };
         if (args.remember !== false) await rememberDigest(until);
         const parts = [
           needsYou.length ? `${needsYou.length} started needing you (${needsYou.map(item => `${item.id}: ${item.reason?.chip ?? item.state}`).join('; ')})` : '',
@@ -225,7 +225,7 @@ export function createMcpServer(options: McpOptions) {
       name: 'unfold_ask', title: 'Ask about a Work Item', readOnly: false,
       description: 'Ask one question about a Work Item, such as why it stopped or what it cost. A standing question is answered from the Work Item\'s record, free. Any other question needs use_model: true: the person is then asked to confirm, and one model call spends up to the per-Ask Budget from the Team\'s Ask Allowance. Without that confirmation nothing is asked or spent.',
       inputSchema: object({ id: string('Work Item id, or an Unfold link to it'), question: string('One question, under 2000 characters'), use_model: { type: 'boolean', description: 'Ask a model when the record does not answer; the person must confirm the spend' } }, ['id', 'question']),
-      outputSchema: object({ summary: { type: 'string' }, asked: { type: 'boolean' }, needsModel: { type: 'boolean' }, source: { type: ['string', 'null'] }, costUsd: { type: ['number', 'null'] }, costStatus: { type: ['string', 'null'] }, failureCode: { type: ['string', 'null'], description: 'Why there is no answer, such as allowance_used_up, timeout or cut_off; null when answered' }, retryable: { type: 'boolean', description: 'Whether asking the same question again may help' }, link: { type: 'string' }, untrusted: { type: 'object' } }, ['summary', 'asked', 'needsModel', 'source', 'costUsd', 'costStatus', 'failureCode', 'retryable', 'link', 'untrusted']),
+      outputSchema: object({ summary: { type: 'string' }, asked: { type: 'boolean' }, needsModel: { type: 'boolean' }, source: { type: ['string', 'null'] }, costUsd: { type: ['number', 'null'] }, costStatus: { type: ['string', 'null'], description: 'How sure costUsd is: observed (so far), provisional (not final yet), settled (final), unknown (not known yet), or demo' }, failureCode: { type: ['string', 'null'], description: 'Why there is no answer, such as allowance_used_up, timeout or cut_off; null when answered' }, retryable: { type: 'boolean', description: 'Whether asking the same question again may help' }, link: { type: 'string' }, untrusted: { type: 'object' } }, ['summary', 'asked', 'needsModel', 'source', 'costUsd', 'costStatus', 'failureCode', 'retryable', 'link', 'untrusted']),
       async run(args) {
         const id = workItemId(args.id);
         const question = typeof args.question === 'string' ? args.question.trim() : '';
@@ -347,5 +347,7 @@ function clip(value: unknown, max: number): string {
 }
 
 function cents(value: unknown): number { return Math.round((Number(value) || 0) * 100) / 100; }
+/** The Hold a Ploeg record reports, in cents: `heldUsd` since system ADR-0036, `reservedUsd` from an older Ploeg. */
+function held(record: Json | undefined): number { return cents(record?.heldUsd ?? record?.reservedUsd); }
 
 function usd(value: number): string { return `$${value.toFixed(2)}`; }

@@ -7,5 +7,5 @@
 | Days live | Day 8 · Foil finish |
 | Grade | 8.5 · provisional · RT · formula 2026.3 · missing delivery.defectBounces |
 | Steward | anna · Merged the pull request |
-| Crew | builder ×2 · reviewer ×1 |
+| Roles | builder ×2 · reviewer ×1 |
 | Ids | #⁠42 · VIK-1701 · webgrip/ploeg |

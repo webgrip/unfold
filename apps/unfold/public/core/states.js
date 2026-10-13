@@ -24,12 +24,13 @@ export const tones = Object.freeze(['neutral', 'live', 'attention', 'review', 's
 
 const table = (entries) => Object.freeze(Object.fromEntries(Object.entries(entries).map(([key, [label, tone, glyph, extra = {}]]) => [key, Object.freeze({ key, label, tone, glyph, ...extra })])));
 
-/** Work Item states (`PloegState`). `done` is "Done", never "Merged": it also covers no-change outcomes and rejected proposals. */
+/** Work Item states (`PloegState`). `done` is "Done", never "Merged": it also covers no-change outcomes and rejected proposals. `active` is the newer name of `leased` (system ADR-0036); both read "Running". */
 export const workItemStates = table({
   proposed: ['Proposed', 'neutral', 'proposed', { heading: 'Proposed', description: 'An agent proposed this work; nothing runs until a person approves it.' }],
   ingested: ['Received', 'neutral', 'inbox', { description: 'Recorded from the tracker and not queued yet.' }],
   queued: ['Queued', 'neutral', 'circle-dashed', { description: 'Waiting for a worker of its Team.' }],
   leased: ['Running', 'live', 'circle-half', { live: true, description: 'An agent is working on it.' }],
+  active: ['Running', 'live', 'circle-half', { live: true, description: 'An agent is working on it.' }],
   awaiting_review: ['Ready for review', 'review', 'pull-request', { heading: 'Ready for your review', description: 'A pull request is open and the agents are done.' }],
   needs_human: ['Needs you', 'attention', 'alert', { heading: 'Needs you', description: 'Ploeg stopped and will not retry by itself.' }],
   stale: ['Stopped retrying', 'severe', 'clock', { description: 'Ploeg gave up after repeated agent or infrastructure failures.' }],
@@ -55,6 +56,15 @@ export function displayState(item, events) {
   }
   return item.provider === 'ploeg' && !item.latestShift && !(item.attempts > 0) ? 'rejected' : 'done';
 }
+
+/**
+ * How sure a money figure is (system ADR-0036). Ploeg owns the values; these are the words a screen shows next to
+ * an amount: still moving, settled once but still correctable, final, or not known.
+ */
+export const costStatuses = Object.freeze({ observed: 'so far', provisional: 'not final yet', settled: 'final', unknown: 'not known yet' });
+
+/** The screen word for a cost status; a status Unfold does not know reads as not known yet. */
+export function costStatusWord(status) { return Object.hasOwn(costStatuses, status) ? costStatuses[status] : costStatuses.unknown; }
 
 /** Run states. */
 export const runStates = table({
@@ -434,7 +444,8 @@ export function auditEvent(entry) {
     case 'work_item.approved': return event('Approved', 'success', 'check', said);
     case 'work_item.rejected': return event('Rejected', 'neutral', 'circle-slash', said);
     case 'work_item.withdrawn': return event('Withdrawn', 'neutral', 'circle-slash', withdrawnReason(reason) || said);
-    case 'work_item.leased': return event('Running', 'live', 'runs', said);
+    case 'work_item.leased':
+    case 'work_item.active': return event('Running', 'live', 'runs', said);
     case 'work_item.needs_human': return event('Needs you', 'attention', 'alert', said);
     case 'work_item.awaiting_review': return event('Ready for your review', 'review', 'pull-request', said);
     case 'work_item.done': return event('Done', 'success', 'check-circle', reason === 'pull request merged' ? 'The pull request was merged' : said);
@@ -448,7 +459,7 @@ export function auditEvent(entry) {
     case 'round.reopened': return event(`Round${round} retried after a failed writer`, 'severe', 'refresh', said);
     case 'run.claimed': return event(`${capital(role(detail))} started${round ? ` Round${round}` : ''}${access ? ` as ${access}` : ''}`, 'live', 'play', authorized);
     case 'run.expired': return event(`${capital(role(detail))} stopped responding`, 'severe', 'zap', said);
-    case 'shift.closed': { const meta = closeReasonMeta(reason); return event('Shift closed', reason ? meta.tone : 'neutral', 'stop', reason ? meta.label : ''); }
+    case 'shift.closed': { const meta = closeReasonMeta(reason); return event('Attempt closed', reason ? meta.tone : 'neutral', 'stop', reason ? meta.label : ''); }
     case 'lease.acquired': return event('A worker took the Work Item', 'live', 'play', said);
     case 'lease.expired': return event('Worker stopped responding · Ploeg retries', 'severe', 'zap', failures);
     case 'infra_cap': return event('Infrastructure kept failing; Ploeg stopped', 'severe', 'zap', failures);
@@ -460,7 +471,7 @@ export function auditEvent(entry) {
     case 'delivery.approved': return event('Delivery approved', 'success', 'check-circle', said);
     case 'delivery.publication_published': return event('Published to the forge', 'success', 'pull-request', said);
     case 'delivery.publication_unknown': return event('Publication result unknown', 'attention', 'alert', said);
-    case 'llm.reserved': return event('Budget reserved for a Run', 'neutral', 'coins', authorized);
+    case 'llm.reserved': return event('Budget held for a Run', 'neutral', 'coins', authorized);
     case 'llm.minting': return event('Model key requested', 'neutral', 'lock', said);
     case 'llm.issued': return event('Model key issued', 'neutral', 'lock', said);
     case 'llm.observed': return event('Model spend observed', 'neutral', 'coins', said);

@@ -192,7 +192,7 @@ function underwriter(view, h) {
   const line = steward.signed
     ? `<span class="tk-line" title="${e(steward.detail || 'Signed')}"><span class="tk-ink" aria-hidden="true">${e(steward.name)}</span><i class="tk-nib" aria-hidden="true"></i></span>`
     : `<span class="tk-line tk-off" title="${e(steward.detail)}"><span class="tk-uns" aria-hidden="true">× UNSIGNED</span></span>`;
-  return `<div class="tk-uw" data-slot="steward"><div class="tk-uwl"><span class="tk-k">UNDERWRITER · STEWARD</span>${line}</div><div class="tk-uwr"><span class="tk-k">ANALYST · CREW</span><span class="tk-crew">${e(view.crew)}</span></div><span class="sr-only">${e(steward.text)}</span></div>`;
+  return `<div class="tk-uw" data-slot="steward"><div class="tk-uwl"><span class="tk-k">UNDERWRITER · STEWARD</span>${line}</div><div class="tk-uwr"><span class="tk-k">ANALYST · ROLES</span><span class="tk-crew">${e(view.crew)}</span></div><span class="sr-only">${e(steward.text)}</span></div>`;
 }
 
 function tapeItems(view, extra) {

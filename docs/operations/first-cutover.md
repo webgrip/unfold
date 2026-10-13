@@ -18,7 +18,7 @@ This procedure does not enable general availability. The Unfold application and 
 
 Use one operator, one registered test repository, one concurrent session and an explicitly approved model budget. The current GitOps configuration sets a per-session ceiling of USD 0.25; confirm the effective setting and model access before using it. An in-flight request can settle after cancellation, so the configured budget is not proof of an exact final charge. Do not enable unattended dispatch for this first interactive test.
 
-Choose either an isolated pilot with a separate database and Unfold volume, or an upgrade of the existing installation. An isolated pilot can qualify the new application pair without proving an upgrade of existing data. Record which claim the test is meant to establish. The existing Unfold contract requires a registered repository and crew; use a disposable repository or an approved fixture branch and review the resulting change without publishing it.
+Choose either an isolated pilot with a separate database and Unfold volume, or an upgrade of the existing installation. An isolated pilot can qualify the new application pair without proving an upgrade of existing data. Record which claim the test is meant to establish. The existing Unfold contract requires a registered repository and Team; use a disposable repository or an approved fixture branch and review the resulting change without publishing it.
 
 From Unfold, record the source revision and check that the checkout is clean:
 
@@ -161,7 +161,7 @@ Follow [managed setup and recovery](../workflows/managed-execution.md) and the [
 
 | Check | Pass condition |
 | --- | --- |
-| Identity and readiness | The intended user signs in through the real login flow. Registered repository, model, crew and spending limit are correct. Authenticated health passes; public `/healthz` alone does not prove provider access. |
+| Identity and readiness | The intended user signs in through the real login flow. Registered repository, model, Team and spending limit are correct. Authenticated health passes; public `/healthz` alone does not prove provider access. |
 | Standalone independence | In a separate standalone configuration with no Ploeg connection or execution binding, Unfold completes the bounded fixture with its configured live harness/provider. Never test this by removing authority from a managed session. |
 | Managed authority | Starting the managed session creates exactly one corresponding Ploeg Work Item/Shift/Run. The repository, actor, team and budget match. |
 | Actual execution | The workspace clones the intended Unfold or fixture revision, the configured model is called, and the recorded verification command really runs. Evidence identifies the candidate and the test output. |

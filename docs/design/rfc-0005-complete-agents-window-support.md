@@ -2,7 +2,7 @@
 
 > Status: **Partly implemented** 2026-10-10, in `unfold-v0.4.0-rc.58` · Date: 2026-10-10 · Owner decision: "I want complete support." · Research: [VS Code 1.141 fit](../../apps/unfold/docs/research/2026-10-08-vscode-1-141-fit.md), [AHP sign-in spike](../../apps/unfold/docs/research/2026-10-10-ahp-sign-in-spike.md) · Decision record: [Unfold ADR 0012](../../apps/unfold/docs/adrs/0012-agent-host-protocol-host.md)
 >
-> **TL;DR.** A person can follow, steer, recover and review every Unfold session from VS Code's Agents window without the Unfold extension and without the browser. Phase 0 shipped with this RFC: a message no crew reads becomes a choice, a running session acknowledges every message, and a stopped session ends with its next steps. Twelve parallel sessions built most of Phases 1 to 3 on the same day; each item below says what landed, with its commit. The owner decided declining, terminals, automations and Asks in the chat. Agent Merge and the "Run again with this message" semantics are still open.
+> **TL;DR.** A person can follow, steer, recover and review every Unfold session from VS Code's Agents window without the Unfold extension and without the browser. Phase 0 shipped with this RFC: a message no Team reads becomes a choice, a running session acknowledges every message, and a stopped session ends with its next steps. Twelve parallel sessions built most of Phases 1 to 3 on the same day; each item below says what landed, with its commit. The owner decided declining, terminals, automations and Asks in the chat. Agent Merge and the "Run again with this message" semantics are still open.
 
 Each item opens with its **State**; what follows the state is the proposal as it was written, kept for its bundle evidence. Where the build differs from the proposal, the state says so. After the parallel work, one reconciliation pass checked the overlapping pieces against the bundle and left one rule each ([ADR 0012](../../apps/unfold/docs/adrs/0012-agent-host-protocol-host.md)). Wire shapes marked **(bundle)** were read in the VS Code 1.141.0 stable bundle (`/Applications/Visual Studio Code.app/Contents/Resources/app/out/vs/sessions/sessions.desktop.main.js`) on 2026-10-10, with the byte offset of the code. No desktop VS Code has rendered any of it yet; that is [VIK-1922](https://vikunja.webgrip.dev/tasks/1922).
 
@@ -25,18 +25,18 @@ The rules stay: managed execution never falls back to standalone, nothing auto-r
 | Sessions, chats, URIs, read and archive marks | Built; both URI spellings accepted | 1.141 dossier, follow-up table |
 | Turns and parts | `markdown`, `systemNotification`, tool calls with input, output and exit code, input requests, `chat/usage` with tokens only | `host.ts` `reduce`, [`f4d21869`](https://forgejo.webgrip.dev/webgrip/unfold/commit/f4d218695923f8bcad2c19bc665cfc9e023c1b46) |
 | Messages into a running session | Instruction for the next Run; "Queued for the <Role>'s next step", then "Picked up by <Role> at HH:MM UTC" | Phase 0, [`cab2b260`](https://forgejo.webgrip.dev/webgrip/unfold/commit/cab2b260651ca6069f864f2ce9c4dea35e250b1a) |
-| Messages no crew reads | A choice: run again, deliver approved work first, or cancel; a failed session included | Phase 0, [`cab2b260`](https://forgejo.webgrip.dev/webgrip/unfold/commit/cab2b260651ca6069f864f2ce9c4dea35e250b1a) |
+| Messages no Team reads | A choice: run again, deliver approved work first, or cancel; a failed session included | Phase 0, [`cab2b260`](https://forgejo.webgrip.dev/webgrip/unfold/commit/cab2b260651ca6069f864f2ce9c4dea35e250b1a) |
 | Stopped or failed sessions | A failed session the Run-again path accepts ends with a resumable error and **Try Again**; an interrupted session, or a failed one without Try Again, ends with a "What next?" choice | [`cab2b260`](https://forgejo.webgrip.dev/webgrip/unfold/commit/cab2b260651ca6069f864f2ce9c4dea35e250b1a), [`7612b486`](https://forgejo.webgrip.dev/webgrip/unfold/commit/7612b486ed2c159afa993f89c495d937b7731eb9) |
 | Candidate | A `session` changeset; **Accept**, **Request changes…** and **Reject…** as operations; per-file comments as annotations | [`b3d6c196`](https://forgejo.webgrip.dev/webgrip/unfold/commit/b3d6c196f15ceab1c1f99f1159ed726b411fca0d), [`review.ts`](../../apps/unfold/src/ahp/review.ts) |
 | `serverSeq` | Reserved in blocks in the store, kept with remembered and active clients across a restart; an ended session's projection is evicted after ten idle minutes | [`51a55029`](https://forgejo.webgrip.dev/webgrip/unfold/commit/51a5502970fcd03965ec828b3439171b4bab6d85), [`continuity.ts`](../../apps/unfold/src/ahp/continuity.ts) ([VIK-1646](https://vikunja.webgrip.dev/tasks/1646)) |
 | Automations | A read-only catalogue of Ploeg's tracker routes; create, schedules, runs and cancellation refused | [`cd32a431`](https://forgejo.webgrip.dev/webgrip/unfold/commit/cd32a431f46c4dc1a7c6dfae77d29e23d13e4ada), [`automations.ts`](../../apps/unfold/src/ahp/automations.ts), ADR 0012 |
-| Needs-you notifications | The extension notifies the owner per state change, inside the VS Code window only; a crew question sets the needs-input status bits, an open host choice does not | [`4cdd2686`](https://forgejo.webgrip.dev/webgrip/unfold/commit/4cdd268647c7c08f8ad08fe6b93417b8b6f03925) |
-| Questions | Text, single- and multi-select; yes/no as a Yes/No single-select; a decline is a recorded answer the crew receives | [`7612b486`](https://forgejo.webgrip.dev/webgrip/unfold/commit/7612b486ed2c159afa993f89c495d937b7731eb9), [`questions.ts`](../../apps/unfold/src/ahp/questions.ts) |
+| Needs-you notifications | The extension notifies the owner per state change, inside the VS Code window only; a Team question sets the needs-input status bits, an open host choice does not | [`4cdd2686`](https://forgejo.webgrip.dev/webgrip/unfold/commit/4cdd268647c7c08f8ad08fe6b93417b8b6f03925) |
+| Questions | Text, single- and multi-select; yes/no as a Yes/No single-select; a decline is a recorded answer the Team receives | [`7612b486`](https://forgejo.webgrip.dev/webgrip/unfold/commit/7612b486ed2c159afa993f89c495d937b7731eb9), [`questions.ts`](../../apps/unfold/src/ahp/questions.ts) |
 | Roles | Each Run is a subagent tool call with a read-only chat of its own | [`f4d21869`](https://forgejo.webgrip.dev/webgrip/unfold/commit/f4d218695923f8bcad2c19bc665cfc9e023c1b46), [`runs.ts`](../../apps/unfold/src/ahp/runs.ts) |
-| Terminals | Each crew command is a read-only terminal; every input is refused | [`1cf1d92d`](https://forgejo.webgrip.dev/webgrip/unfold/commit/1cf1d92da5b4a7340b4c39c7b88519b6ea475c00), [`terminals.ts`](../../apps/unfold/src/ahp/terminals.ts) |
-| Session config | Crew, budget, placement and approvals in VS Code's own pickers; the model reads `Ploeg crew · <team>` | [`49f59ebe`](https://forgejo.webgrip.dev/webgrip/unfold/commit/49f59ebe2f17b98e49adccd2341fc93cd2620802), [`5542eff8`](https://forgejo.webgrip.dev/webgrip/unfold/commit/5542eff8d240ae4a89cf02f28a720a97cf7ce47a), [`session-config.ts`](../../apps/unfold/src/ahp/session-config.ts) |
+| Terminals | Each Team command is a read-only terminal; every input is refused | [`1cf1d92d`](https://forgejo.webgrip.dev/webgrip/unfold/commit/1cf1d92da5b4a7340b4c39c7b88519b6ea475c00), [`terminals.ts`](../../apps/unfold/src/ahp/terminals.ts) |
+| Session config | Team, budget, placement and approvals in VS Code's own pickers; the model reads `Ploeg team · <team>` | [`49f59ebe`](https://forgejo.webgrip.dev/webgrip/unfold/commit/49f59ebe2f17b98e49adccd2341fc93cd2620802), [`5542eff8`](https://forgejo.webgrip.dev/webgrip/unfold/commit/5542eff8d240ae4a89cf02f28a720a97cf7ce47a), [`session-config.ts`](../../apps/unfold/src/ahp/session-config.ts) |
 | MCP and plugins | The repository's gateway MCP server is listed read-only; client plugins are refused | [`c3c6c07e`](https://forgejo.webgrip.dev/webgrip/unfold/commit/c3c6c07ea79c5387eaaea8d0a3b0858a32739703), [`customizations.ts`](../../apps/unfold/src/ahp/customizations.ts) |
-| Asks | A message into a stopped or completed session asks about its Work Item; `/ask` asks from a running one; never read by a crew | [`25d8a127`](https://forgejo.webgrip.dev/webgrip/unfold/commit/25d8a127b5e9b10c5d914d5ed6d66c875f618c12), [`asks.ts`](../../apps/unfold/src/ahp/asks.ts) |
+| Asks | A message into a stopped or completed session asks about its Work Item; `/ask` asks from a running one; never read by a Team | [`25d8a127`](https://forgejo.webgrip.dev/webgrip/unfold/commit/25d8a127b5e9b10c5d914d5ed6d66c875f618c12), [`asks.ts`](../../apps/unfold/src/ahp/asks.ts) |
 | Sign-in | A pasted token | sign-in spike |
 
 ### The incident that started this
@@ -47,7 +47,7 @@ On production rc.54, typing "Test" into the stopped Ploeg session `059675b9` (Wo
 
 | Item | What it does | How VS Code shows it | Acceptance (met) |
 | --- | --- | --- | --- |
-| 0.1 A message no crew reads becomes a choice | The turn is accepted with the client's turn id and origin. A Markdown part says why no crew reads it. An input request asks one single-select question: **Run again and start**, **Run again with this message**, **Deliver the approved work first** (only when the recovery answer lists delivery) and **Cancel**. Answers call `run-again`, `start` and `deliver` under the same owner checks; nothing starts without the pick. The message becomes the new session's first instruction, which keeps the brief and passes the 20-character brief rule. The new session is announced with `root/sessionAdded` | `chat/turnStarted` echo, `chat/responsePart` (`markdown`), `chat/inputRequested` (`questions[0].kind: 'single-select'`, `allowFreeformInput: false`), rendered as a question carousel **(bundle 10539425)**; the answer arrives as `chat/inputCompleted` with `answers['0'].value = {kind: 'selected', value: <option id>}` | `test/ahp-progress.test.ts`, `test/execution.test.ts` |
+| 0.1 A message no Team reads becomes a choice | The turn is accepted with the client's turn id and origin. A Markdown part says why no Team reads it. An input request asks one single-select question: **Run again and start**, **Run again with this message**, **Deliver the approved work first** (only when the recovery answer lists delivery) and **Cancel**. Answers call `run-again`, `start` and `deliver` under the same owner checks; nothing starts without the pick. The message becomes the new session's first instruction, which keeps the brief and passes the 20-character brief rule. The new session is announced with `root/sessionAdded` | `chat/turnStarted` echo, `chat/responsePart` (`markdown`), `chat/inputRequested` (`questions[0].kind: 'single-select'`, `allowFreeformInput: false`), rendered as a question carousel **(bundle 10539425)**; the answer arrives as `chat/inputCompleted` with `answers['0'].value = {kind: 'selected', value: <option id>}` | `test/ahp-progress.test.ts`, `test/execution.test.ts` |
 | 0.2 Running sessions acknowledge every message | "Queued for the <Role>'s next step", then "Picked up by <Role> at HH:MM UTC" when that Run starts | `chat/responsePart` (`systemNotification`) in the message's own turn | `test/ahp-progress.test.ts`, `test/ahp-actions.test.ts` |
 | 0.3 A stopped session ends with its next steps | An interrupted or failed session gets one host turn, "What next?", with the recovery answer's available steps and links to the pull request and the session page. Offered once per stop | A `systemNotification`-origin turn, then the same carousel | `test/ahp-progress.test.ts`, `test/execution.test.ts` |
 
@@ -90,25 +90,25 @@ Acceptance:
 
 ### 1.4 Yes/no questions and spend · S
 
-**State: built** in [`7612b486`](https://forgejo.webgrip.dev/webgrip/unfold/commit/7612b486ed2c159afa993f89c495d937b7731eb9), then corrected. That commit sent yes/no as the `boolean` kind, which 1.141 shows as **True** and **False** (the bundle's `chat.inputRequest.boolean.true` and `.false` messages). The reconciliation sends a Yes/No single-select as proposed below, and the crew still receives its own label. Spend is a `systemNotification` at each threshold of 50, 80 and 100 % and at a Run's end; a Run's line is left out when it repeats the figure the chat last gave, so a demo says it once.
+**State: built** in [`7612b486`](https://forgejo.webgrip.dev/webgrip/unfold/commit/7612b486ed2c159afa993f89c495d937b7731eb9), then corrected. That commit sent yes/no as the `boolean` kind, which 1.141 shows as **True** and **False** (the bundle's `chat.inputRequest.boolean.true` and `.false` messages). The reconciliation sends a Yes/No single-select as proposed below, and the Team still receives its own label. Spend is a `systemNotification` at each threshold of 50, 80 and 100 % and at a Run's end; a Run's line is left out when it repeats the figure the chat last gave, so a demo says it once.
 
-- **Yes/no.** **(bundle 10539427)** A `boolean` question renders as **True** and **False**, not Yes and No. A crew's yes/no question is therefore sent as a single-select question with options `Yes` and `No`, and the answer is mapped back to a boolean.
+- **Yes/no.** **(bundle 10539427)** A `boolean` question renders as **True** and **False**, not Yes and No. A Team's yes/no question is therefore sent as a single-select question with options `Yes` and `No`, and the answer is mapped back to a boolean.
 - **Spend.** **(bundle 10547340)** The usage footer reads `inputTokens`, `outputTokens` and `_meta.cost`, and labels it "{model} • N credits" or "{model} · {pricing}". Credits are a Copilot unit, so Unfold's spend goes into a `systemNotification` at each Run's end, "Reviewer · US$ 0,03 observed · of US$ 0,25", and `_meta.cost` stays unset.
 
 Acceptance:
 
-- a yes/no question from the demo crew round-trips;
+- a yes/no question from the demo Team round-trips;
 - every finished Run's turn carries one spend line in the shared money format.
 
 ### 1.5 Declining questions ([VIK-1921](https://vikunja.webgrip.dev/tasks/1921)) · S · **Decided**
 
-**State: decided and built** in [`7612b486`](https://forgejo.webgrip.dev/webgrip/unfold/commit/7612b486ed2c159afa993f89c495d937b7731eb9). A decline continues the crew with the decline recorded (option A): every question is answered with "Declined by <name>: no answer will be given…", and `question.declined` is a session event.
+**State: decided and built** in [`7612b486`](https://forgejo.webgrip.dev/webgrip/unfold/commit/7612b486ed2c159afa993f89c495d937b7731eb9). A decline continues the Team with the decline recorded (option A): every question is answered with "Declined by <name>: no answer will be given…", and `question.declined` is a session event.
 
 VS Code lets a person skip a question (`allowSkip` is always true; skipping sends `response: 'cancel'`), and the host refuses it today.
 
-**Option A (recommended).** Skipping answers the question with "The person declined to answer". The crew continues and the decline is recorded as evidence.
+**Option A (recommended).** Skipping answers the question with "The person declined to answer". The Team continues and the decline is recorded as evidence.
 
-- Trade-off: a crew may guess where a person meant "stop".
+- Trade-off: a Team may guess where a person meant "stop".
 
 **Option B.** Skipping pauses the session.
 
@@ -116,7 +116,7 @@ VS Code lets a person skip a question (`allowSkip` is always true; skipping send
 
 Acceptance: the engine and API take a decline; the host maps `cancel` to it; the decline is in the transcript.
 
-## Phase 2: the crew, natively
+## Phase 2: the Team, natively
 
 ### 2.1 Roles as AHP subagents · L
 
@@ -145,11 +145,11 @@ The host already serves file contents through `unfold-candidate:` and `unfold-di
 Acceptance:
 
 - the demo's writer edits show as edit parts with `+n −m`, and opening one shows the diff;
-- a crew's file read shows as a read, not as Copilot's `view`.
+- a Team's file read shows as a read, not as Copilot's `view`.
 
 ### 2.3 A read-only live terminal stream · L · **Decided**
 
-**State: decided and built** in [`1cf1d92d`](https://forgejo.webgrip.dev/webgrip/unfold/commit/1cf1d92da5b4a7340b4c39c7b88519b6ea475c00). The owner chose read-only. Each crew command is an `ahp-terminal:` channel projected from the durable tool events with the store's redaction; input, resize, clear, rename, create and dispose are refused. ADR 0012 records it.
+**State: decided and built** in [`1cf1d92d`](https://forgejo.webgrip.dev/webgrip/unfold/commit/1cf1d92da5b4a7340b4c39c7b88519b6ea475c00). The owner chose read-only. Each Team command is an `ahp-terminal:` channel projected from the durable tool events with the store's redaction; input, resize, clear, rename, create and dispose are refused. ADR 0012 records it.
 
 ADR 0012 declined terminals because the protocol lets a host claim a terminal and receive input. **(bundle 15516537, 15520994)** VS Code claims a terminal it creates and sends typing as `terminal/input`. No client-side read-only gate was found, so read-only can only be enforced by the host.
 
@@ -215,11 +215,11 @@ Mapping Accept to Agent Merge lets VS Code's own merge button merge the pull req
 
 Acceptance for (a): the branch picker shows the session branch and **Show Changes** opens its diff.
 
-### 3.3 Crew, budget and placement in the new-session picker; the model label; OS notifications · M
+### 3.3 Team, budget and placement in the new-session picker; the model label; OS notifications · M
 
-**State: picker and model label built** in [`49f59ebe`](https://forgejo.webgrip.dev/webgrip/unfold/commit/49f59ebe2f17b98e49adccd2341fc93cd2620802) and [`5542eff8`](https://forgejo.webgrip.dev/webgrip/unfold/commit/5542eff8d240ae4a89cf02f28a720a97cf7ce47a). Notifications: a crew question sets the needs-input bits; an open host choice does not, and the extension's notifications ([`4cdd2686`](https://forgejo.webgrip.dev/webgrip/unfold/commit/4cdd268647c7c08f8ad08fe6b93417b8b6f03925)) show inside the window only. `usage.model` is not sent.
+**State: picker and model label built** in [`49f59ebe`](https://forgejo.webgrip.dev/webgrip/unfold/commit/49f59ebe2f17b98e49adccd2341fc93cd2620802) and [`5542eff8`](https://forgejo.webgrip.dev/webgrip/unfold/commit/5542eff8d240ae4a89cf02f28a720a97cf7ce47a). Notifications: a Team question sets the needs-input bits; an open host choice does not, and the extension's notifications ([`4cdd2686`](https://forgejo.webgrip.dev/webgrip/unfold/commit/4cdd268647c7c08f8ad08fe6b93417b8b6f03925)) show inside the window only. `usage.model` is not sent.
 
-The picker and the model label were built on 2026-10-10 and recorded in ADR 0012: crew, budget and placement carry `enumLabels`, approvals use `approvalMode`, a draft accepts `session/configChanged`, the composer's model is the crew, and user turns carry no `message.model`. `usage.model` and the notification bits remain.
+The picker and the model label were built on 2026-10-10 and recorded in ADR 0012: Team, budget and placement carry `enumLabels`, approvals use `approvalMode`, a draft accepts `session/configChanged`, the composer's model is the Team, and user turns carry no `message.model`. `usage.model` and the notification bits remain.
 
 **Picker.** **(bundle 9818265, 9835439)** The generic picker shows a property when it is `boolean`, or a `string` with `enum` or `enumDynamic`, and the session is new or the property is `sessionMutable`. Labels come from `enumLabels`; Unfold sends only `enumDescriptions`, so the picker shows raw ids. `budgetUsd` is a number and never shows.
 
@@ -228,11 +228,11 @@ The picker and the model label were built on 2026-10-10 and recorded in ADR 0012
 
 **Model label.** **(bundle 20974200)** The label under a response resolves `turn.usage.model` first and then the user turn's `message.model.id`, printing "{name} ({rawId})". The host stamps every user turn with `config.models[0]`, whatever the Role used. Stop sending `message.model`. Send `usage.model` only when the gateway reported which model answered, and use an id from `agents[].models`.
 
-**OS notifications.** **(bundle 18859900, 18284529)** VS Code's Agents window notifies on a status change to needs-input (bits 8|16), error (2), or complete (after 1.5 s), unless the window has focus or the chat is open. The extension's own notifications (`4cdd2686`) show inside the window only and need the extension. Set bits 8|16 while a crew question or a Phase 0 choice is open, so "Needs you" reaches the desktop without it. The server-side notifications of [RFC-0004](rfc-0004-unfold-on-phones-and-desktops.md) are the path when VS Code is closed.
+**OS notifications.** **(bundle 18859900, 18284529)** VS Code's Agents window notifies on a status change to needs-input (bits 8|16), error (2), or complete (after 1.5 s), unless the window has focus or the chat is open. The extension's own notifications (`4cdd2686`) show inside the window only and need the extension. Set bits 8|16 while a Team question or a Phase 0 choice is open, so "Needs you" reaches the desktop without it. The server-side notifications of [RFC-0004](rfc-0004-unfold-on-phones-and-desktops.md) are the path when VS Code is closed.
 
 Acceptance:
 
-- the picker shows Crew, Budget and Placement with labels;
+- the picker shows Team, Budget and Placement with labels;
 - a turn's label names the model the gateway reported, or nothing;
 - an unfocused window raises one notification per open choice.
 
@@ -249,11 +249,11 @@ The owner asked for automations; built read-only on 2026-10-10 in [`cd32a431`](h
 - `remoteAgentHost.addPlugin` writes `root/configChanged` with `config.customizations: [{uri, displayName}]` and reads them back from `rootState.config.values.customizations`.
 - A client also sends its customizations in `session/activeClientSet`.
 
-Unfold's crews run in Ploeg's sandboxes, not on the person's machine, so a client plugin cannot run there. The host accepts and echoes the root config, so VS Code does not error, but lists no customizations as applied.
+Unfold's Teams run in Ploeg's sandboxes, not on the person's machine, so a client plugin cannot run there. The host accepts and echoes the root config, so VS Code does not error, but lists no customizations as applied.
 
-[ADR-0011](../adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md)'s `ploeg-mcp` is the supported way to bring MCP: a crew's repository declares its servers, Ploeg runs them. The credential caveat of the 1.141 dossier, recommendation 6, applies.
+[ADR-0011](../adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md)'s `ploeg-mcp` is the supported way to bring MCP: a Team's repository declares its servers, Ploeg runs them. The credential caveat of the 1.141 dossier, recommendation 6, applies.
 
-Acceptance: **Add Plugin** against Unfold shows "not applied to Unfold crews" and changes nothing.
+Acceptance: **Add Plugin** against Unfold shows "not applied to Unfold teams" and changes nothing.
 
 ### 3.6 Proper sign-in · S now, M later
 
@@ -268,13 +268,13 @@ Acceptance: the issue draft sits in `apps/unfold/docs/research/`; a re-evaluatio
 
 **State: built**, [`25d8a127`](https://forgejo.webgrip.dev/webgrip/unfold/commit/25d8a127b5e9b10c5d914d5ed6d66c875f618c12). The owner approved bringing Unfold Asks ([ADR-0031](../adr/adr-0031-people-ask-about-a-work-item-through-a-metered-read-only-ask-paid-from-a-monthly-allowance.md)) into the Agents window on 2026-10-10.
 
-A person can steer the crew or ask about the work. An Ask is answered at once by the Ask service, from the record or by one model call Ploeg admits and meters, and no crew reads it.
+A person can steer the Team or ask about the work. An Ask is answered at once by the Ask service, from the record or by one model call Ploeg admits and meters, and no Team reads it.
 
 - **Stopped, stranded, failed, cancelled or completed:** a typed message is an Ask. `/steer` gives the old message choice, which now also offers **Ask instead**. An Ask replaces an open "What next?" choice and the host offers it again after the answer. A completed session keeps its composer while it has a Work Item.
-- **Running, queued or paused:** a typed message steers, as before. `/ask` asks; sent while the crew works, the answer sits in the crew's open turn.
+- **Running, queued or paused:** a typed message steers, as before. `/ask` asks; sent while the Team works, the answer sits in the Team's open turn.
 - **The mechanism (bundle 18537997, 20890891, 14057749, 20984397).** `initialize` names `/` in `completionTriggerCharacters`, and `completions` returns `/ask` and `/steer` as command items with `_meta.command` and `_meta.argumentHint`. VS Code 1.141 shows them as command chips. A mode or agent picker entry is not possible, because 1.141 lists only local custom agents there. A choice on every message would add a click to every instruction.
-- **The answer:** a Markdown part with the badge `**Ask** · not sent to the crew` and its spend: the cost and the allowance left until its reset day, "Answered from the record · no model call", or a used-up allowance with its reset date and "Nothing was charged".
-- **Asking fails:** with no Ploeg, no gateway or no Work Item, the message choice says why and sends nothing until the person picks. In a running session that choice is **Send it to the crew** or **Cancel**.
+- **The answer:** a Markdown part with the badge `**Ask** · not sent to the team` and its spend: the cost and the allowance left until its reset day, "Answered from the record · no model call", or a used-up allowance with its reset date and "Nothing was charged".
+- **Asking fails:** with no Ploeg, no gateway or no Work Item, the message choice says why and sends nothing until the person picks. In a running session that choice is **Send it to the team** or **Cancel**.
 - **Persistence:** Asks stay out of the session's events. The chat keeps which Ask follows which event, so a reconnect, an eviction or a restart renders it in the same place.
 
 Acceptance: `test/ahp-asks.test.ts` covers the 059675b9 session with a fake Ploeg and gateway: an Ask in its own turn, a restart, a used-up allowance, asking unavailable, `/steer` with **Ask instead**, `/ask` in a running session, a completed session, and a record answer. A desktop check is part of 4.1.
@@ -288,7 +288,7 @@ Run against production in VS Code 1.141 and the then-current Stable, with screen
 - attach;
 - create a session;
 - send a message while it runs and see the acknowledgement and the pickup;
-- answer a crew question;
+- answer a Team question;
 - stop it;
 - type into the stopped session and pick each option;
 - accept a candidate;
@@ -325,9 +325,9 @@ S is up to a day, M up to three days, L about a week, each including tests, docs
 
 Taken on 2026-10-10:
 
-1. **Declining a question (1.5).** A decline continues the crew with the decline recorded. Built.
+1. **Declining a question (1.5).** A decline continues the Team with the decline recorded. Built.
 2. **Terminals (2.3).** Read-only, never interactive. Built.
 3. **Automations (3.4).** Yes; built as a read-only catalogue, because a scheduled run would be work Ploeg never authorized.
 4. **Asks in the chat (3.7).** Approved; a stopped session asks by default, a running one steers by default and asks with `/ask`. Built.
 
-Decided by the owner on 2026-10-11: Agent Merge never accepts (3.2), and "Run again with this message" keeps the original brief and gives the message to the new crew as its first instruction (Phase 0).
+Decided by the owner on 2026-10-11: Agent Merge never accepts (3.2), and "Run again with this message" keeps the original brief and gives the message to the new Team as its first instruction (Phase 0).

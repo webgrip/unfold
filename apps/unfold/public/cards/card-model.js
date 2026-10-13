@@ -150,7 +150,7 @@ const stewardSources = { merged_by: 'Merged the pull request', approver: 'Approv
 const rosterRoles = { merger: 'merger', reviewer: 'reviewer', qa: 'QA (moved it out of test)', acceptor: 'acceptor (moved it out of acceptance)', cosigner: 'cosigner (mended a crack)' };
 const inReview = Object.freeze({ key: 'in_review', label: 'In review', tone: 'review', glyph: 'pull-request' });
 const playMeta = state => state ? playState(state) : inReview;
-const costStatuses = { observed: 'Observed', reserved: 'Reserved, not settled', not_reported: notReported };
+const costStatuses = { observed: 'Observed', reserved: 'Held, not final yet', not_reported: notReported };
 const environmentOrder = ['development', 'test', 'acceptance', 'staging', 'production'];
 const environmentRank = name => { const index = environmentOrder.indexOf(name); return index === -1 ? environmentOrder.length : index; };
 const shortSha = sha => text(sha).slice(0, 7);
@@ -245,9 +245,9 @@ function costView(card) {
   if (!known(totals.costUsd) || totals.costStatus === 'not_reported') return { value: notReported, caption: of, text: notReported, share: null, over: false, status: 'not_reported', label: `Cost: not reported${authorized === null ? '' : `, ${money(authorized)} authorized`}` };
   const reserved = totals.costStatus === 'reserved';
   const share = authorized === null ? null : Math.min(1, totals.costUsd / authorized);
-  const caption = [reserved ? 'reserved' : '', of].filter(Boolean).join(' · ');
+  const caption = [reserved ? 'held' : '', of].filter(Boolean).join(' · ');
   const percent = authorized === null ? '' : `, ${Math.round(totals.costUsd / authorized * 100)}% of ${money(authorized)} authorized`;
-  return { value: money(totals.costUsd), caption, text: money(totals.costUsd), share, over: authorized !== null && totals.costUsd > authorized, status: reserved ? 'reserved' : 'observed', label: `Cost: ${money(totals.costUsd)}${reserved ? ' reserved' : ''}${percent}` };
+  return { value: money(totals.costUsd), caption, text: money(totals.costUsd), share, over: authorized !== null && totals.costUsd > authorized, status: reserved ? 'reserved' : 'observed', label: `Cost: ${money(totals.costUsd)}${reserved ? ' held' : ''}${percent}` };
 }
 
 function tokensView(card) {
@@ -374,7 +374,7 @@ function agent(card) {
       reported('Runs', totals.runs, count),
       reported('Failed Runs', totals.failedRuns, count),
       reported('Rounds', totals.rounds, count),
-      reported('Shifts', totals.shifts, count),
+      reported('Attempts', totals.shifts, count),
       usageRow(card, 'Turns', totals.turns),
       usageRow(card, 'Tool calls', totals.toolCalls),
       live ? row('Run time so far', duration(live.runSeconds)) : reported('Run time', totals.runSeconds, duration),
@@ -383,7 +383,7 @@ function agent(card) {
       uncollected('Peak context'),
       uncollected('Active time'),
     ],
-    lists: crew.length ? [{ title: 'Crew', items: crew.map(member => ({ title: `${member.role}${member.writes === true ? ' · writer' : member.writes === false ? ' · reader' : ''}`, meta: known(member.runs) ? plural(member.runs, 'Run') : notReported, tone: 'neutral', glyph: member.writes ? 'code' : 'eye' })) }] : [],
+    lists: crew.length ? [{ title: 'Roles', items: crew.map(member => ({ title: `${member.role}${member.writes === true ? ' · writer' : member.writes === false ? ' · reader' : ''}`, meta: known(member.runs) ? plural(member.runs, 'Run') : notReported, tone: 'neutral', glyph: member.writes ? 'code' : 'eye' })) }] : [],
   };
 }
 
@@ -607,10 +607,10 @@ function conditionTab(card, condition) {
 }
 
 function setTab(set) {
-  if (!set) return { rows: [row('Set', 'Not part of an epic set', 'unreported')], lists: [], groups: [], note: 'Ploeg builds a set from the tracker’s parent relations: the Work Items an epic named as its children before their first Shift.' };
+  if (!set) return { rows: [row('Set', 'Not part of an epic set', 'unreported')], lists: [], groups: [], note: 'Ploeg builds a set from the tracker’s parent relations: the Work Items an epic named as its children before their first attempt.' };
   const epicName = [set.epic.ref, set.epic.title].filter(Boolean).join(' · ');
   if (set.role === 'child') return {
-    rows: [row('Set', set.text), row('Epic', epicName), row('Position', set.position !== null ? `${set.position} of ${set.size}, in the order their first Shifts opened` : notReported, set.position !== null ? 'ok' : 'unreported'), row('Set complete', set.complete ? 'Yes' : 'Not yet')],
+    rows: [row('Set', set.text), row('Epic', epicName), row('Position', set.position !== null ? `${set.position} of ${set.size}, in the order their first attempts opened` : notReported, set.position !== null ? 'ok' : 'unreported'), row('Set complete', set.complete ? 'Yes' : 'Not yet')],
     lists: [], groups: [], note: 'A set completes when every Work Item in it merged, has been live 30 days and has no crack without a confirmed mend.',
   };
   return {

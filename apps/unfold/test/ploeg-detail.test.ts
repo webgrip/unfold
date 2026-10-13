@@ -32,3 +32,35 @@ test('a Work Item detail parses when a finished Run from before Shifts existed r
   legacy.state = 'running';
   assert.throws(() => detail({ schemaVersion: '1.0', ...sample }), /unsupported operator response/, 'a Run of another team that is still running is refused');
 });
+
+test('a Work Item Ploeg calls active reads as leased, and an unknown state is still refused', () => {
+  const sample = structuredClone((ploegDemo.details as any)['102']) as any;
+  assert.equal(detail({ schemaVersion: '1.0', ...sample }).item.state, 'leased');
+  sample.item.state = 'active';
+  assert.equal(detail({ schemaVersion: '1.0', ...sample }).item.state, 'leased');
+  sample.item.state = 'borrowed';
+  assert.throws(() => detail({ schemaVersion: '1.0', ...sample }), /unsupported operator response/);
+});
+
+test('a Run reads every Cost Status Ploeg reports, and a Shift reads its Hold from heldUsd or the older reservedUsd', () => {
+  const sample = structuredClone((ploegDemo.details as any)['104']) as any;
+  const costed = sample.runs.find((run: any) => run.usage?.costUsd !== undefined) ?? sample.runs[0];
+  costed.usage = { ...(costed.usage ?? {}), costUsd: 0.25 };
+  for (const status of ['observed', 'provisional', 'settled', 'unknown']) {
+    costed.costStatus = status;
+    assert.equal(detail({ schemaVersion: '1.0', ...sample }).runs.find(run => run.id === costed.id)!.costStatus, status);
+  }
+  costed.costStatus = 'pending';
+  assert.throws(() => detail({ schemaVersion: '1.0', ...sample }), /unsupported operator response/);
+  costed.costStatus = 'settled';
+  delete costed.usage.costUsd;
+  assert.throws(() => detail({ schemaVersion: '1.0', ...sample }), /unsupported operator response/, 'a cost status other than unknown carries a figure');
+  costed.costStatus = 'unknown';
+  const shift = sample.shifts[0];
+  shift.reservedUsd = 0.5;
+  assert.equal(detail({ schemaVersion: '1.0', ...sample }).shifts[0].reservedUsd, 0.5);
+  shift.heldUsd = 0.5;
+  assert.equal(detail({ schemaVersion: '1.0', ...sample }).shifts[0].reservedUsd, 0.5);
+  delete shift.reservedUsd;
+  assert.equal(detail({ schemaVersion: '1.0', ...sample }).shifts[0].reservedUsd, 0.5);
+});

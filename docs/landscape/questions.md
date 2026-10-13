@@ -22,7 +22,7 @@ This is a discussion guide, not an implementation backlog. Open language choices
 
 ## Round one: responsibility
 
-**A developer starts local work.** The product direction requires this to work without Ploeg. Current standalone Unfold supports that path, with a registered repository and crew. Repository-free conversation and fully offline model inference are separate capabilities; neither follows from independence from Ploeg.
+**A developer starts local work.** The product direction requires this to work without Ploeg. Current standalone Unfold supports that path, with a registered repository and Team. Repository-free conversation and fully offline model inference are separate capabilities; neither follows from independence from Ploeg.
 
 **Both applications need execution machinery.** Separate three choices: who authorizes work, where the runner executes, and which code is reused. A common runner could implement workspace setup, harness invocation, interruption and evidence capture while Ploeg retains scheduling and budgets and Unfold retains interaction. Unfold retains separate engines after the [fixture comparison](../research/2026-09-12-execution-boundary.md). Reopen extraction when a concrete behavior needs the same fix in both engines. Go and TypeScript do not become a shared library merely by moving into one repository; a process or wire contract may be the useful boundary.
 

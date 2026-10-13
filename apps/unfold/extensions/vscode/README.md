@@ -25,8 +25,8 @@ mise exec -- npm run demo
 1. Open the **Unfold** activity bar and run **Unfold: Connect to Workbench**. Enter `http://127.0.0.1:4080`; demo mode supplies its identified demonstration user.
 2. **Now** lists the demo's illustrative Ploeg work, marked as an illustration: pull requests ready for your review, work that needs you, proposals and running Runs. None of it makes model calls or spends anything.
 3. Expand **Tasks → Demo tasks** and open the fixture task. It opens in its own tab with its description; the demo fixture is not linked to Ploeg.
-4. Choose **Start a supervised session**, select a crew, runtime and budget, then confirm **Create session**. The wizard supports going back before confirmation.
-5. Choose **Start remote crew** in the queued session. This command name also controls work on a local workbench.
+4. Choose **Start a supervised session**, select a team, runtime and budget, then confirm **Create session**. The wizard supports going back before confirmation.
+5. Choose **Start remote team** in the queued session. This command name also controls work on a local workbench.
 6. Inspect **Checks**, **Changes** and the final review, then download the Git bundle, patch or manifest from **Brief**.
 
 The demo runs a fixed repository fixture and real checks without AI calls or Ploeg. An arbitrary objective in demo mode does not turn the fixture into a live coding agent. **New Remote Session** creates an ad hoc session; live work requires a configured live runtime. See the [demo guide](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/operations/demo.md).
@@ -65,7 +65,7 @@ States, reasons, amounts and dates come from the browser's own modules, so both 
 | Surface | What to use it for |
 | --- | --- |
 | Now | See what waits on you across every Team, and what is running |
-| Sessions tree | Find active work, pending decisions, queued sessions and history. Expand a session for its crew, evidence and source task |
+| Sessions tree | Find active work, pending decisions, queued sessions and history. Expand a session for its team, evidence and source task |
 | Brief | Read the objective, imported snapshot, retained transcripts, review candidate and handoff |
 | Changes | Inspect captured patches by file |
 | Checks | Read recorded check output and distinguish passing, failing and expected fixture failures |
@@ -76,7 +76,7 @@ States, reasons, amounts and dates come from the browser's own modules, so both 
 
 **Check Out Branch**, in the Work Item panel and on Now and Work rows, opens the branch Ploeg works on in its own git worktree, in a new window, so the open clone of the Work Item's repository stays on its branch. It reads the Work Item from the workbench, finds the open folder with a remote that points at the target repository's full path on the forge of its pull request link, fetches the branch, and adds a worktree beside that clone named after the clone and the branch (`shop-agent-vik-50` beside `shop`), creating a local tracking branch when there is none. A worktree that already has the branch is reused. It fast-forwards the branch when it is only behind and leaves a diverged branch as it is. Without a matching clone it offers the git command and, when the forge is known, **Clone repository**. The browser's **Open in VS Code** opens `vscode://webgrip.unfold/checkout?workItem=<id>&origin=<workbench>`: the extension refuses a link for another workbench than the one it is connected to, and always asks before it adds a worktree. Demo Work Items have nothing to check out. A remote host matches the forge when it is the same host, when both share a parent domain below their first label (`forgejo-ssh.example.dev` and `forgejo.example.dev`), or when `unfold.remoteHostAliases` maps it to the forge, for example `{"ssh.git.example.com": "git.example.com"}`. Before the Work Item has a pull request link, a clone of the same full path on any host matches.
 
-The crew strip distinguishes implementation, analysis and the final independent review. Earlier read roles supply analysis. Writing crews require an explicit final approval. A completed session awaits the person's review; accept or reject it from the toolbar or **Record Review** command. Rejection requires a reason, and the decision records the person who made it. Accept only records your decision in the session; nothing is pushed or merged.
+The team strip distinguishes implementation, analysis and the final independent review. Earlier read roles supply analysis. Writing teams require an explicit final approval. A completed session awaits the person's review; accept or reject it from the toolbar or **Record Review** command. Rejection requires a reason, and the decision records the person who made it. Accept only records your decision in the session; nothing is pushed or merged.
 
 A session under a delivery policy, on a workbench whose delivery view reports `publicationEnabled`, offers **Accept and open pull request** instead, once its independent checks passed, as the primary action in the session panel and the Work Item panel, or through **Unfold: Accept and Open Pull Request**. After a confirmation it sends the candidate, receipt and policy the panel displayed to the workbench's publish route, which approves the commit when needed and opens one pull request; merging stays with you. The panels then show the pull request stage: **Publishing…**, **Pull request #N** with **Open pull request #N ↗**, **Needs recovery** with what stopped it, or **Refused**. A candidate whose checks did not pass is never offered it.
 
@@ -86,7 +86,7 @@ Start, pause, resume and cancel follow the server's permitted transitions. Cance
 
 No API mutation is retried automatically. A read that meets an unreachable workbench or a gateway error is retried once. If a response is lost, refresh before repeating the action: the server may have accepted it. Shared execution also has stricter recovery and budget rules than standalone mode. In particular, the current shared API does not support the standalone additional-budget operation. See the [HTTP contract](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/contracts/api.md).
 
-The spending card distinguishes authorization, observations, reservations and settlement. Unknown spend is not zero. Gateway data can arrive late and cannot prove an exact ceiling for requests already in flight.
+The spending card distinguishes authorization, observations, holds and settlement. Unknown spend is not zero. Gateway data can arrive late and cannot prove an exact ceiling for requests already in flight.
 
 ## Work from a task
 
@@ -96,7 +96,7 @@ Select a task to open its task view. The description is rendered from the tracke
 
 **Hand to Ploeg** is offered on boards that Ploeg owns. Choose a team and confirm: the workbench assigns that team's tracker user and comments that you handed it over, which is how Ploeg receives work. Ploeg queues it, works on a branch and opens a pull request for review. **Take back** removes the assignment while the item is still queued; work that has started is cancelled from the browser's Work Item page. Viewers can read the task view but cannot hand work over. Older workbench servers show the task without Ploeg status.
 
-**Start a supervised session** prepares operator-led work instead: choose the crew and authorization, then confirm the workbench and task revision. A stale revision requires a fresh preview. Repeating the same import reopens its existing session; it does not create another paid attempt. Import prepares queued work; Start begins execution. Standalone import requires an interactive source and repository. In shared mode, registered Vikunja and ClickUp targets can bind to the existing Ploeg Work Item, which is claimed on Start. Import itself does not mutate the tracker. Source text cannot select another repository or change execution authority.
+**Start a supervised session** prepares operator-led work instead: choose the team and authorization, then confirm the workbench and task revision. A stale revision requires a fresh preview. Repeating the same import reopens its existing session; it does not create another paid attempt. Import prepares queued work; Start begins execution. Standalone import requires an interactive source and repository. In shared mode, registered Vikunja and ClickUp targets can bind to the existing Ploeg Work Item, which is claimed on Start. Import itself does not mutate the tracker. Source text cannot select another repository or change execution authority.
 
 ## Bring back evidence
 

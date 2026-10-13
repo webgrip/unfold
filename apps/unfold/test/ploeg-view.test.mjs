@@ -231,7 +231,7 @@ test('a ready-for-review item leads with a status panel: the headline, the prima
   assert.match(html, /<div class="work-sticky-actions" role="group" aria-label="Next step"><a class="button primary"[^>]*>[^]*Open pull request #9/);
   const panel = html.slice(html.indexOf('id="work-status"'), html.indexOf('id="work-decision"'));
   assert.deepEqual([...panel.matchAll(/<h4 class="work-status-label overline" id="work-status-(\w+)">/g)].map(match => match[1]), ['agents', 'change'], 'the agents and the change, and no flow group without delivery facts');
-  assert.deepEqual([...panel.matchAll(/<span class="stat-label">([^<]*)<\/span>/g)].map(match => match[1]), ['Spend', 'Tokens', 'Run time', 'Crew', 'Pull request', 'Checks', 'Change', 'Approval']);
+  assert.deepEqual([...panel.matchAll(/<span class="stat-label">([^<]*)<\/span>/g)].map(match => match[1]), ['Spend', 'Tokens', 'Run time', 'Roles', 'Pull request', 'Checks', 'Change', 'Approval']);
   assert.match(panel, new RegExp(`<strong class="meter-value">US\\$${space}1,23</strong>`), 'money in nl-NL with two decimals');
   assert.match(panel, /<strong class="stat-value">#9<\/strong>/);
   assert.doesNotMatch(panel, /unfold-card|rarity|Ticket card|plays|Unsigned/i, 'no card traces on the Work Item page');
@@ -257,7 +257,7 @@ test('with delivery facts, the status panel reads tokens, the diff, checks, appr
   const facts = Object.fromEntries(groups.flatMap(group => group.facts.map(fact => [fact.label, fact])));
   assert.match(facts.Tokens.value, /433,1K in · 21,7K out/);
   assert.equal(facts['Run time'].value, '5 min');
-  assert.equal(facts.Crew.value, 'builder ×1 · reviewer ×1');
+  assert.equal(facts.Roles.value, 'builder ×1 · reviewer ×1');
   assert.equal(facts.Change.value, '+120 −8');
   assert.equal(facts.Change.detail, '4 files');
   assert.equal(facts.Checks.value, 'CI passed');
@@ -320,7 +320,7 @@ test('plan_exhausted tells no pull request apart from unresolved changes and nev
 test('a budget stop shows its meter in the decision box and never zero money in the demo', () => {
   const html = detailMarkup(demoDetail('110'), model({ detailId: '110' }));
   const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));
-  assert.match(box, new RegExp(`The Shift’s budget of US\\$${space}0,04 could not pay for the next Round\\.<`));
+  assert.match(box, new RegExp(`The attempt’s budget of US\\$${space}0,04 could not pay for the next Round\\.<`));
   assert.match(box, /<div class="work-decision-meter"><div class="meter" data-demo>[^]*Demo · no model calls/);
   assert.doesNotMatch(html, new RegExp(`US\\$${space}0,00`));
   assert.match(box, /Then assign the task to the Team again in its tracker\.<\/p><div class="work-step-actions"><span class="work-find">Find <strong class="mono">DEMO-10<\/strong> in the demo tracker<\/span><button type="button" class="button secondary" data-action="work-copy-ref" data-value="DEMO-10">/, 'the tracker is the next step, named and copyable');
@@ -335,10 +335,10 @@ test('the page says each thing once: checkpoints fold into Activity, an empty st
   assert.match(html, /<p class="work-run-group">Round 4<\/p>/, 'Runs are grouped by Round for phones');
   assert.match(html, /<span class="work-run-round">Round 4 · <\/span>reader/, 'and name their Round in the row on wide screens');
   const withdrawn = detailMarkup(demoDetail('115'), model({ detailId: '115' }));
-  assert.match(withdrawn, /<p class="work-note" id="work-rounds">[^]*The Shift closed <time[^]*before any Run started: the task was unassigned from the Team\./);
+  assert.match(withdrawn, /<p class="work-note" id="work-rounds">[^]*The attempt closed <time[^]*before any Run started: the task was unassigned from the Team\./);
   assert.doesNotMatch(withdrawn, /class="card flush" id="work-rounds"/);
   const legacy = detailMarkup(demoDetail('113'), model({ detailId: '113' }));
-  assert.match(legacy, /3 Runs, all failed or stuck\. These Runs ran before Shifts existed/);
+  assert.match(legacy, /3 Runs, all failed or stuck\. These Runs ran before attempts were recorded/);
   assert.match(legacy, /<p class="work-log">Illustrative log tail/, 'a log tail keeps the mono font');
   const killed = detailMarkup(demoDetail('112'), model({ detailId: '112' }));
   assert.match(killed, /Cause: infrastructure, not the agent\. If it keeps happening, check the nodes and the network\./);
@@ -417,7 +417,7 @@ test('demo spend is never invented and unknown live spend is never zero', () => 
   const unknown = detail();
   unknown.shifts[0].spentUsd = null;
   const html = detailMarkup(unknown, model({ detailId: '50' }));
-  assert.match(html, /<span class="stat-label">Spend<\/span><strong class="stat-value is-text" data-quiet>Not reported<\/strong>/);
+  assert.match(html, /<span class="stat-label">Spend<\/span><strong class="stat-value is-text" data-quiet>Not known yet<\/strong>/);
   assert.doesNotMatch(html, new RegExp(`US\\$${space}0,00`));
 });
 
@@ -442,7 +442,7 @@ test('the writer’s problem and solution sit under the title, from the newest w
   current.runs[1].solution = '';
   assert.equal(writerAccount(current).runId, '11');
   assert.equal(writerAccount(current).earlierShift, true, 'a new Shift’s writer has not reported yet, so the earlier account shows and says so');
-  assert.match(detailMarkup(current, model({ detailId: '50' })), /<span>Round 1<\/span><span>earlier Shift<\/span>/);
+  assert.match(detailMarkup(current, model({ detailId: '50' })), /<span>Round 1<\/span><span>earlier attempt<\/span>/);
   current.runs.at(-1).solution = '';
   assert.match(detailMarkup(current, model({ detailId: '50' })), /Solution<\/h4><p class="work-account-missing">Not reported\.<\/p>/, 'a missing half says so instead of leaving a hole');
 
@@ -536,7 +536,7 @@ test('Cancel is offered to operators on live work only, and its dialog lists wha
   const stopped = cancelDialogMarkup(demoDetail('109'));
   assert.match(stopped, /<ul class="work-consequences"><li><svg[^]*?<\/svg><span>Withdraws the Work Item\.<\/span><\/li><li><svg[^]*?<\/svg><span>Comments on the task in Vikunja/, 'nothing runs, so the dialog promises no stopped Runs');
   assert.doesNotMatch(stopped, /Stops any Run/);
-  assert.match(cancelDialogMarkup(demoDetail('102')), /Withdraws the Work Item and closes its open Shift\./);
+  assert.match(cancelDialogMarkup(demoDetail('102')), /Withdraws the Work Item and closes its open attempt\./);
   const demo = cancelDialogMarkup(demoDetail('109'), { demo: true });
   assert.match(demo, /Not available in the demo/);
   assert.match(demo, /value="cancel" disabled>Cancel Work Item/);
@@ -635,7 +635,7 @@ test('a Round cell explains itself by its failures, not by the Run that never st
   live.runs = runs;
   const html = detailMarkup(live, model({ detailId: '50' }));
   assert.equal(html.match(/class="stream-bar" data-tone="[a-z]+"[^>]*data-action="work-run"/g).length, 4, 'the value stream draws the four Runs that started and leaves out the one that never did');
-  assert.match(html, /<span class="work-fact" title="Round 2 of the latest attempt\. Shift: [^"]+ Round: [^"]+">5 agent runs in 2 attempts<\/span>/, 'the header says how much agent work it took in plain words, with the glossary terms on hover');
+  assert.match(html, /<span class="work-fact" title="Round 2 of the latest attempt\. Attempt: [^"]+ Round: [^"]+">5 agent runs in 2 attempts<\/span>/, 'the header says how much agent work it took in plain words, with the glossary terms on hover');
   assert.doesNotMatch(html, /<span class="work-fact">Round \d/, 'the header does not lead with the Round jargon');
   const row = html.slice(html.indexOf('id="work-run-5"'));
   assert.doesNotMatch(row.slice(0, row.indexOf('</summary>')), /Not reported/, 'a Run that never started has no cost to report');

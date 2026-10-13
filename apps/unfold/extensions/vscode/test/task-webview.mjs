@@ -182,7 +182,7 @@ try {
   await page.locator('.details-fold > summary').click();
   await page.locator('.fact-list').getByText(/Ploeg still lists its operator Run as running/).waitFor();
   assert.equal(await page.locator('.fact-list').getByText(/no finished Run recorded that verdict/).count(), 0, 'what the checklist says is not repeated as a note');
-  assert.equal(await page.getByText('Cost per role').count(), 0, 'Ploeg\'s operator Run is not presented as the crew');
+  assert.equal(await page.getByText('Cost per role').count(), 0, 'Ploeg\'s operator Run is not presented as the team');
   await page.locator('.run-row').getByText('Stopped', { exact: true }).waitFor();
   assert.match((await page.locator('#runs-heading').locator('..').innerText()), /As Ploeg records it/);
   await page.locator('.details-fold > summary').click();

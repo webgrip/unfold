@@ -31,7 +31,7 @@ export function resumeRefusal(session: Pick<Session, 'status' | 'sourceTask'>, t
  * it: what the session carries over, where it is, and whether it started.
  */
 export function runAgainReply(next: Pick<Session, 'title' | 'budgetUsd'>, page: string, outcome: { started?: boolean; withMessage?: boolean; startError?: string } = {}): string {
-  const created = `Created a new session, **${next.title}**, with this session's brief, repository, crew, placement and budget (${money(next.budgetUsd)})${outcome.withMessage ? ', and your message as an instruction its crew reads' : ''}. It is in the Agents window's session list${page ? ` and on [its session page](${page})` : ''}. This session stays as it is.`;
+  const created = `Created a new session, **${next.title}**, with this session's brief, repository, team, placement and budget (${money(next.budgetUsd)})${outcome.withMessage ? ', and your message as an instruction its team reads' : ''}. It is in the Agents window's session list${page ? ` and on [its session page](${page})` : ''}. This session stays as it is.`;
   if (outcome.startError) return `${created}\n\nStarting it did not work: ${outcome.startError} It waits for you to start it.`;
   return outcome.started ? `${created}\n\nIt started as a new Ploeg authorization.` : `${created}\n\nIt waits for you: send it a message to start it, or start it on its session page.`;
 }

@@ -13,7 +13,16 @@ Ploeg names a value in its API; Unfold shows a person a label for it. This page 
 
 `apps/unfold/test/ploeg-contract.test.ts` keeps it true. For every value in Ploeg's published schemas it checks that this table lists it, that `apps/unfold/src/ploeg.ts` accepts it, and that the label here is the one Unfold renders; values Ploeg does not publish in a schema are checked against the Ploeg code or domain model that defines them. Its failure message names the value and the file to change. A Ploeg pin update re-runs it. [Who owns a term](../contributing/agent-instructions.md#who-owns-a-term) says which application decides each word.
 
-A value marked "Unfold only" is one Unfold derives; Ploeg never sends it. In the MCP column, "same" means Unfold passes Ploeg's value through unchanged.
+A value marked "Unfold only" is one Unfold derives; Ploeg never sends it. A value "accepted ahead of Ploeg" is one the next Ploeg release sends and Unfold already accepts. In the MCP column, "same" means Unfold passes Ploeg's value through unchanged.
+
+## Screen words for Ploeg terms
+
+Docs, the API and the glossary use the Ploeg term. Screens may use a friendlier word, but only the one recorded here (system ADR-0036).
+
+| Ploeg term | Screen word | Note |
+|---|---|---|
+| [Shift](glossary.md#shift) | attempt | Docs, API and glossary say Shift; screens say "attempt" ("2 agent runs in 1 attempt"). A view never uses both words for the same thing. |
+| [Tracker Item](glossary.md#tracker-item) | task | Docs and API say Tracker Item; screens say "task" (the Tasks page). "Ticket" is only the billing unit of system ADR-0006. |
 
 ## Work Item state
 
@@ -21,14 +30,15 @@ Ploeg term: [Work Item](glossary.md#work-item). Ploeg publishes it in `operator-
 
 Unfold accepts: apps/unfold/src/ploeg.ts `ploegAccepted.workItemStates`. Screen words: apps/unfold/public/core/states.js `workItemStates`; the stage strip from apps/unfold/public/core/stages.js `workStages`, without a Run card.
 
-MCP: passes the Ploeg value through as `state` in unfold_now, unfold_find_work and unfold_get_work.
+MCP: passes Unfold's state through as `state` in unfold_now, unfold_find_work and unfold_get_work; unfold_find_work's `state` filter accepts both `active` and `leased`.
 
 | Value | Screen label | Stage | MCP | Note |
 |---|---|---|---|---|
-| `ingested` | Received | Define | same | **MCP gap:** unfold_find_work's `state` hint in apps/unfold/src/mcp.ts lists every other state but not this one. |
+| `ingested` | Received | Define | same |  |
 | `proposed` | Proposed | Define | same |  |
 | `queued` | Queued | Execute | same |  |
-| `leased` | Running | Execute | same |  |
+| `leased` | Running | Execute | same | Deprecated: Ploeg renames it `active` (system ADR-0036). Until every Ploeg Unfold talks to sends `active`, Unfold accepts both and keeps `leased` as its own name. |
+| `active` | Running | Execute | leased | Accepted ahead of Ploeg: The pinned Ploeg does not send it yet; its next release (ploeg-hq/ploeg#131) sends it in place of `leased`. Unfold accepts it now and reads it as `leased` (apps/unfold/src/ploeg.ts `ploegState`). |
 | `needs_human` | Needs you | Execute (stopped) | same |  |
 | `awaiting_review` | Ready for review (heading: Ready for your review) | Review | same |  |
 | `stale` | Stopped retrying | Execute (stopped) | same |  |
@@ -174,30 +184,33 @@ MCP: not exposed: unfold_sessions reports Unfold's own session status.
 
 ## Run cost status
 
-Ploeg term: [Inference Account](glossary.md#inference-account). Ploeg publishes it in `operator-api.v1.schema.json` `/$defs/run/properties/costStatus`.
+Ploeg term: [Inference Account](glossary.md#inference-account). Ploeg publishes it in `operator-api.v1.schema.json` `/$defs/run/properties/costStatus`. One cost status set for every money figure, owned by Ploeg (system ADR-0036): `observed`, `provisional`, `settled`, `unknown`. This field publishes the part of it shown here.
 
-Unfold accepts: apps/unfold/src/ploeg.ts `ploegAccepted.runCostStatuses`. Screen words: apps/unfold/public/ploeg.js (the Run's Model cost row).
+Unfold accepts: apps/unfold/src/ploeg.ts `ploegAccepted.runCostStatuses`. Screen words: apps/unfold/public/core/states.js `costStatuses`, the word shown next to the amount.
 
 MCP: not exposed: unfold_get_work gives `costUsd`, null when Ploeg reported none.
 
 | Value | Screen label | MCP | Note |
 |---|---|---|---|
-| `observed` | (the amount) | costUsd |  |
-| `unknown` | Not reported | costUsd: null |  |
+| `observed` | so far | costUsd |  |
+| `provisional` | not final yet | costUsd | Accepted ahead of Ploeg: Ploeg's next release (ploeg-hq/ploeg#131) sends it; the pinned Ploeg does not yet. Unfold already accepts and words it. |
+| `settled` | final | costUsd | Accepted ahead of Ploeg: Ploeg's next release (ploeg-hq/ploeg#131) sends it; the pinned Ploeg does not yet. Unfold already accepts and words it. |
+| `unknown` | not known yet | costUsd: null |  |
 
 ## Ask cost status
 
-Ploeg term: [Ask](glossary.md#ask). Ploeg publishes it in `operator-api.v1.schema.json` `/$defs/askSpend/properties/costStatus`, `operator-api.v1.schema.json` `/$defs/factsAsk/properties/costStatus`.
+Ploeg term: [Ask](glossary.md#ask). Ploeg publishes it in `operator-api.v1.schema.json` `/$defs/askSpend/properties/costStatus`, `operator-api.v1.schema.json` `/$defs/factsAsk/properties/costStatus`. One cost status set for every money figure, owned by Ploeg (system ADR-0036): `observed`, `provisional`, `settled`, `unknown`. This field publishes the part of it shown here.
 
-Unfold accepts: apps/unfold/src/ploeg.ts `ploegAccepted.askCostStatuses`. Screen words: apps/unfold/public/ploeg.js (the cost next to an Ask). Renamed in: apps/unfold/src/http.ts (`askAuthority.spend`).
+Unfold accepts: apps/unfold/src/ploeg.ts `ploegAccepted.askCostStatuses`. Screen words: apps/unfold/public/core/states.js `costStatuses`, the word shown next to the amount.
 
-MCP: `costStatus` in unfold_ask, in Unfold's words.
+MCP: `costStatus` in unfold_ask, Ploeg's value unchanged.
 
 | Value | Screen label | MCP | Note |
 |---|---|---|---|
-| `provisional` | Cost not known yet | pending | Renamed: Unfold's HTTP layer renames Ploeg's `provisional` to `pending` before storing the Ask. |
-| `settled` | (the amount) | same |  |
-| `unknown` | Cost not reported | same |  |
+| `observed` | so far | same | Accepted ahead of Ploeg: Ploeg's next release (ploeg-hq/ploeg#131) sends it; the pinned Ploeg does not yet. Unfold already accepts and words it. |
+| `provisional` | not final yet | same | Retired Unfold word: Unfold called it `pending` before system ADR-0036. An Ask stored with `pending` reads as `provisional` (apps/unfold/src/store.ts). |
+| `settled` | final | same |  |
+| `unknown` | not known yet | same |  |
 
 ## Audit event
 
@@ -229,7 +242,7 @@ MCP: not exposed; unfold_get_work quotes the reason of the latest `work_item.<st
 | `round.reopened` | [Round](glossary.md#round) | Round retried after a failed writer | not exposed |  |
 | `run.claimed` | [Run](glossary.md#run) | An agent started | not exposed |  |
 | `run.expired` | [Run](glossary.md#run) | An agent stopped responding | not exposed |  |
-| `shift.closed` | [Shift](glossary.md#shift) | Shift closed | not exposed |  |
+| `shift.closed` | [Shift](glossary.md#shift) | Attempt closed | not exposed |  |
 | `lease.acquired` | [Lease](glossary.md#lease) | A worker took the Work Item | not exposed |  |
 | `lease.expired` | [Lease](glossary.md#lease) | Worker stopped responding · Ploeg retries | not exposed |  |
 | `infra_cap` | [Lease](glossary.md#lease) | Infrastructure kept failing; Ploeg stopped | not exposed |  |
@@ -242,7 +255,7 @@ MCP: not exposed; unfold_get_work quotes the reason of the latest `work_item.<st
 | `delivery.publication_published` | [Publication Operation](glossary.md#publication-operation) | Published to the forge | not exposed |  |
 | `delivery.publication_unknown` | [Publication Operation](glossary.md#publication-operation) | Publication result unknown | not exposed |  |
 | `delivery.publication_reserved` | [Publication Operation](glossary.md#publication-operation) | Publication reserved | not exposed |  |
-| `llm.reserved` | [Inference Account](glossary.md#inference-account) | Budget reserved for a Run | not exposed |  |
+| `llm.reserved` | [Inference Account](glossary.md#inference-account) | Budget held for a Run | not exposed |  |
 | `llm.minting` | [Inference Account](glossary.md#inference-account) | Model key requested | not exposed |  |
 | `llm.issued` | [Inference Account](glossary.md#inference-account) | Model key issued | not exposed |  |
 | `llm.observed` | [Inference Account](glossary.md#inference-account) | Model spend observed | not exposed |  |
@@ -266,7 +279,6 @@ MCP: not exposed; unfold_get_work quotes the reason of the latest `work_item.<st
 
 Values Ploeg sends that Unfold does not word yet. The test records them as they are; when one is fixed, remove its `gap` from the table.
 
-* Work Item state `ingested`: unfold_find_work's `state` hint in apps/unfold/src/mcp.ts lists every other state but not this one.
 * Run failure reason `credential_leak`: states.js has no entry, so the screen shows the humanized key.
 * Shift close reason `review_failed`: reasons.js does not know it: if it ever ends in needs_human, the chip reads "Unrecognised: review_failed".
 * Shift close reason `checks_not_passed`: states.js and reasons.js do not know it: the Shift row quotes the raw code and the Needs-you chip reads "Unrecognised: checks_not_passed", although Ploeg hands the Work Item to a person.

@@ -138,7 +138,7 @@ test('C10: the candidate offers Accept, the workbench\'s own review, under the s
 const askedQuestions = [
   { question: 'Which rounding rule should money use?', header: 'Rounding', options: [{ label: 'Half up', description: 'Round 0.5 away from zero.' }, { label: 'Half even' }], multiple: false },
   { question: 'Which currencies must the fix cover?', header: 'Currencies', options: [{ label: 'EUR' }, { label: 'USD' }, { label: 'JPY' }], multiple: true, custom: false },
-  { question: 'Anything else the crew should know?' },
+  { question: 'Anything else the team should know?' },
 ];
 
 class QuestionRuntime extends DemoRuntime {
@@ -181,7 +181,7 @@ test('C11: questions carry a message and their choices, and answers map back to 
   assert.deepEqual(asked.questions.map((question: Json) => [question.id, question.kind, question.title, question.message]), [
     ['0', 'single-select', 'Rounding', 'Which rounding rule should money use?'],
     ['1', 'multi-select', 'Currencies', 'Which currencies must the fix cover?'],
-    ['2', 'text', undefined, 'Anything else the crew should know?'],
+    ['2', 'text', undefined, 'Anything else the team should know?'],
   ]);
   assert.deepEqual(asked.questions[0].options, [{ id: '0', label: 'Half up', description: 'Round 0.5 away from zero.' }, { id: '1', label: 'Half even' }]);
   assert.equal(asked.questions[0].allowFreeformInput, true);
@@ -203,7 +203,7 @@ test('C11: questions carry a message and their choices, and answers map back to 
 
 const chatActions = (client: { inbox: Json[] }, chat: string, upTo = Infinity) => client.inbox.filter(message => message.method === 'action' && message.params.channel === chat && !message.params.rejectionReason && message.params.serverSeq <= upTo).map(message => message.params.action);
 
-test('C12: an answer the crew still waits for moves into the turn an instruction opens, so the client can still answer it', { timeout: testTimeout(60_000) }, async t => {
+test('C12: an answer the team still waits for moves into the turn an instruction opens, so the client can still answer it', { timeout: testTimeout(60_000) }, async t => {
   const { runtime, client, chat } = await asking(t);
   const requested = await client.until(message => action(message, chat, 'chat/inputRequested'));
   const requestId = requested.params.action.request.id;
@@ -240,8 +240,8 @@ test('C12: a brief question opens a host turn when none is active, the way VS Co
   assert.equal(snapshot.activeTurn, undefined, 'the instruction\'s turn has ended and no turn is active');
 
   const requestId = randomUUID();
-  const questions = ['What should the crew change?', 'How will you know it is done?'];
-  server.app.store.savePermission({ id: requestId, sessionId: session.id, runId: session.runs[0].id, nativeId: `brief:${randomUUID()}`, kind: 'question', title: 'The brief needs more before the crew starts', detail: 'It names no observable outcome.', questions: questions.map(question => ({ question })), resolved: false });
+  const questions = ['What should the team change?', 'How will you know it is done?'];
+  server.app.store.savePermission({ id: requestId, sessionId: session.id, runId: session.runs[0].id, nativeId: `brief:${randomUUID()}`, kind: 'question', title: 'The brief needs more before the team starts', detail: 'It names no observable outcome.', questions: questions.map(question => ({ question })), resolved: false });
   const waiting = server.app.store.getSession(session.id)!;
   waiting.status = 'waiting_input';
   server.app.store.saveSession(waiting);
@@ -249,7 +249,7 @@ test('C12: a brief question opens a host turn when none is active, the way VS Co
 
   const requested = await client.until(message => action(message, chat, 'chat/inputRequested'));
   assert.deepEqual(requested.params.action.request.questions.map((question: Json) => [question.kind, question.message]), questions.map(question => ['text', question]));
-  assert.equal(requested.params.action.request.message, 'The brief needs more before the crew starts\n\nIt names no observable outcome.');
+  assert.equal(requested.params.action.request.message, 'The brief needs more before the team starts\n\nIt names no observable outcome.');
   const started = client.inbox.find(message => action(message, chat, 'chat/turnStarted'))!;
   assert.ok(started.params.serverSeq < requested.params.serverSeq, 'the host opens the turn before it asks');
   assert.equal(started.params.action.message.origin.kind, 'systemNotification', 'a host-initiated turn does not pretend the person typed');

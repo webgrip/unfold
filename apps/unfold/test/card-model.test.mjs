@@ -84,7 +84,7 @@ test('missing and unknown fields read Not reported or Not collected yet, never a
   const partial = cardView({ ...contractCard(), plays: [{ number: 3, state: 'merged', reviews: [] }], totals: { costUsd: 0.5, costStatus: 'reserved', inputTokens: 100, usageComplete: false } });
   assert.equal(partial.diff.value, notReported);
   assert.equal(partial.pr.ciText, 'CI not reported');
-  assert.equal(partial.cost.caption, 'reserved');
+  assert.equal(partial.cost.caption, 'held');
   assert.equal(partial.tokens.partial, true);
   assert.equal(partial.tokens.detail, 'Some Runs did not report usage');
   const unstated = cardView({ ...contractCard(), plays: [{ number: 4, reviews: [{ reviewer: 'ryan', state: 'commented' }], ci: { state: 'pending', checks: [], headSha: 'abc', capturedAt: '2026-10-01T11:00:00Z' } }] });

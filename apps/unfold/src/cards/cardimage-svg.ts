@@ -190,7 +190,7 @@ function cracks(c: string[], v: CardView): void {
 }
 
 function crewRow(c: string[], v: CardView, y: number): number {
-  c.push(`<text x="${pad}" y="${y + 12}" font-size="9" font-weight="700" letter-spacing="0.8" fill="${p.muted}">CREW</text>`);
+  c.push(`<text x="${pad}" y="${y + 12}" font-size="9" font-weight="700" letter-spacing="0.8" fill="${p.muted}">ROLES</text>`);
   c.push(`<text x="${pad + 44}" y="${y + 12}" font-size="12" fill="${p.text}">${esc(fit(v.crew, 42))}</text>`);
   return y + 16;
 }

@@ -19,7 +19,7 @@ const cell = text => String(text ?? '').replaceAll('|', '\\|').replaceAll('\n', 
 const valueCell = row => row.prefix ? `${code(row.value)}…` : row.value === '' ? `${code('')} (empty)` : code(row.value);
 
 function note(row) {
-  return [row.unfoldOnly ? `Unfold only: ${row.unfoldOnly}` : '', row.rename ? `Renamed: ${row.rename}` : '', row.prefix ? `Prefix; the label shown is for ${code(row.example)}.` : '', row.gap ? `**Gap:** ${row.gap}` : '', row.mcpGap ? `**MCP gap:** ${row.mcpGap}` : ''].filter(Boolean).join(' ');
+  return [row.unfoldOnly ? `Unfold only: ${row.unfoldOnly}` : '', row.acceptedAhead ? `Accepted ahead of Ploeg: ${row.acceptedAhead}` : '', row.deprecated ? `Deprecated: ${row.deprecated}` : '', row.retired ? `Retired Unfold word: ${row.retired}` : '', row.prefix ? `Prefix; the label shown is for ${code(row.example)}.` : '', row.gap ? `**Gap:** ${row.gap}` : '', row.mcpGap ? `**MCP gap:** ${row.mcpGap}` : ''].filter(Boolean).join(' ');
 }
 
 function where(set) {
@@ -41,7 +41,7 @@ function table(set) {
   const head = ['Value', ...(terms ? ['Ploeg term'] : []), ...(labels ? ['Screen label'] : []), ...(chips ? ['Needs-you chip'] : []), ...(stages ? ['Stage'] : []), 'MCP', 'Note'];
   const lines = [`| ${head.join(' | ')} |`, `|${head.map(() => '---').join('|')}|`];
   for (const row of set.values) {
-    const label = row.label === undefined ? '' : row.amount ? `(${row.label})` : `${row.label}${row.heading ? ` (heading: ${row.heading})` : ''}${row.short && row.short !== row.label ? ` (short: ${row.short})` : ''}`;
+    const label = row.label === undefined ? '' : `${row.label}${row.heading ? ` (heading: ${row.heading})` : ''}${row.short && row.short !== row.label ? ` (short: ${row.short})` : ''}`;
     lines.push(`| ${[valueCell(row), ...(terms ? [row.ploegTerm ? termLink(row.ploegTerm) : termLink(set.ploegTerm)] : []), ...(labels ? [cell(label)] : []), ...(chips ? [row.chip === null || row.chip === undefined ? '—' : cell(row.chip)] : []), ...(stages ? [cell(row.stage)] : []), cell(row.mcp === row.value ? 'same' : row.mcp), cell(note(row))].join(' | ')} |`);
   }
   return lines;
@@ -66,7 +66,15 @@ export function render(words) {
     '',
     '`apps/unfold/test/ploeg-contract.test.ts` keeps it true. For every value in Ploeg\'s published schemas it checks that this table lists it, that `apps/unfold/src/ploeg.ts` accepts it, and that the label here is the one Unfold renders; values Ploeg does not publish in a schema are checked against the Ploeg code or domain model that defines them. Its failure message names the value and the file to change. A Ploeg pin update re-runs it. [Who owns a term](../contributing/agent-instructions.md#who-owns-a-term) says which application decides each word.',
     '',
-    'A value marked "Unfold only" is one Unfold derives; Ploeg never sends it. In the MCP column, "same" means Unfold passes Ploeg\'s value through unchanged.',
+    'A value marked "Unfold only" is one Unfold derives; Ploeg never sends it. A value "accepted ahead of Ploeg" is one the next Ploeg release sends and Unfold already accepts. In the MCP column, "same" means Unfold passes Ploeg\'s value through unchanged.',
+    '',
+    '## Screen words for Ploeg terms',
+    '',
+    'Docs, the API and the glossary use the Ploeg term. Screens may use a friendlier word, but only the one recorded here (system ADR-0036).',
+    '',
+    '| Ploeg term | Screen word | Note |',
+    '|---|---|---|',
+    ...(words.screenWords ?? []).map(entry => `| ${termLink(entry.term)} | ${cell(entry.word)} | ${cell(entry.note)} |`),
     '',
     ...words.sets.flatMap(set => [`## ${set.name}`, '', ...where(set).flatMap(line => [line, '']), ...table(set), '']),
     '## Known gaps',

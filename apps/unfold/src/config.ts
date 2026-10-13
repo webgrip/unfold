@@ -12,11 +12,11 @@ import { flagSettings, loadRegistry } from './flags.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultCrews: Crew[] = [
-  { id: 'delivery', name: 'Delivery crew', description: 'An implementer makes the change. An independent reviewer checks the evidence.', roles: [
+  { id: 'delivery', name: 'Delivery team', description: 'An implementer makes the change. An independent reviewer checks the evidence.', roles: [
     { id: 'implementer', name: 'Implementer', mode: 'write', instruction: 'Implement the objective in the assigned repository. Make the smallest coherent change. Run the configured verification commands. Record actual results and unresolved risks. Do not merge or deploy. End with a concise summary.' },
     { id: 'reviewer', name: 'Reviewer', mode: 'read', instruction: 'Independently inspect the diff and verification evidence. Do not modify source or push. Return a verdict on its own line: VERDICT: approve, VERDICT: request_changes, or VERDICT: inconclusive. Approve only if the acceptance criteria are demonstrably satisfied. Explain concrete findings.' }
   ]},
-  { id: 'investigation', name: 'Investigation crew', description: 'An analyst investigates. A second reader challenges the findings.', roles: [
+  { id: 'investigation', name: 'Investigation team', description: 'An analyst investigates. A second reader challenges the findings.', roles: [
     { id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate the objective without modifying source or pushing. Cite files and evidence. Identify what is verified and what remains uncertain. End with VERDICT: approve if the investigation is complete, otherwise VERDICT: inconclusive.' },
     { id: 'challenger', name: 'Challenger', mode: 'read', instruction: 'Review the investigation independently. Look for unsupported conclusions and overlooked constraints. Do not modify source. End with VERDICT: approve, VERDICT: request_changes, or VERDICT: inconclusive.' }
   ]}
@@ -218,12 +218,12 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (repo.mcp !== undefined) validateRepositoryMcp(repo.mcp, repo.id);
   }
   const crews = mode === 'demo' ? defaultCrews.filter(crew => crew.id === 'delivery') : raw.crews || defaultCrews;
-  if (!Array.isArray(crews) || !crews.length) throw new Error('At least one crew is required');
+  if (!Array.isArray(crews) || !crews.length) throw new Error('At least one team is required in crews');
   const crewIds = new Set<string>();
   for (const crew of crews) {
-    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(crew.id) || crewIds.has(crew.id)) throw new Error('Crew IDs must be unique lowercase slugs');
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(crew.id) || crewIds.has(crew.id)) throw new Error('Team IDs in crews must be unique lowercase slugs');
     crewIds.add(crew.id);
-    if (!Array.isArray(crew.roles) || !crew.roles.length || crew.roles.length > 8) throw new Error(`Crew ${crew.id} requires 1–8 roles`);
+    if (!Array.isArray(crew.roles) || !crew.roles.length || crew.roles.length > 8) throw new Error(`Team ${crew.id} requires 1–8 roles`);
     const roleIds = new Set();
     for (const role of crew.roles) {
       if (!role.id || roleIds.has(role.id) || !role.name || !role.instruction || !['read','write'].includes(role.mode)) throw new Error(`Invalid role in ${crew.id}`);

@@ -213,3 +213,24 @@ test('the board, admission time, checkpoints and budget holds are read when Ploe
   refused(f => { f.checkpoints = [{ id: 'x', phase: '', branch: '', prUrl: '', createdAt: '2026-09-20T10:00:00Z' }]; }, 'facts.checkpoints[0].id');
   refused(f => { f.runBudgetHolds = [{ runId: '1', shiftId: null, reservedUsd: 'lots' }]; }, 'facts.runBudgetHolds[0].reservedUsd');
 });
+
+test('facts read the Hold and the active state from a Ploeg that names them, and from one that does not yet', () => {
+  const older = document();
+  older.shifts[0].reservedUsd = 0.4;
+  older.runBudgetHolds = [{ runId: '12', shiftId: null, reservedUsd: 0.75 }];
+  const newer = document();
+  newer.shifts[0].heldUsd = 0.4;
+  newer.shifts[0].reservedUsd = 0.4;
+  newer.runBudgetHolds = [{ runId: '12', shiftId: null, heldUsd: 0.75, reservedUsd: 0.75 }];
+  newer.workItem.state = 'active';
+  const heldOnly = document();
+  delete heldOnly.shifts[0].reservedUsd;
+  heldOnly.shifts[0].heldUsd = 0.4;
+  heldOnly.runBudgetHolds = [{ runId: '12', shiftId: null, heldUsd: 0.75 }];
+  for (const facts of [older, newer, heldOnly]) {
+    const parsed = parseWorkItemFacts(facts);
+    assert.equal(parsed.shifts[0].reservedUsd, 0.4);
+    assert.deepEqual(parsed.runBudgetHolds, [{ runId: '12', shiftId: null, reservedUsd: 0.75 }]);
+  }
+  assert.equal(parseWorkItemFacts(newer).workItem.state, 'leased');
+});

@@ -16,7 +16,7 @@ const steps = [
   { id: 'ploeg', name: 'Ploeg authorizes the work' },
   { id: 'gateway', name: 'The gateway issues the budget' },
   { id: 'workspaces', name: 'A machine starts the workspace' },
-  { id: 'crew', name: 'The crew works' },
+  { id: 'crew', name: 'The team works' },
 ];
 const stateWords = { ok: 'Working', degraded: 'Unreliable', down: 'Stopped here', idle: 'Not proven recently', not_used: 'Not used here', ready: 'Ready', unproven: 'Not proven', unreached: 'Not reached' };
 const noteLooks = { info: { tone: 'info', label: 'Information' }, degraded: { tone: 'attention', label: 'Work starts, but not reliably' }, outage: { tone: 'danger', label: 'New work cannot start' } };
@@ -32,7 +32,7 @@ const isAdmin = () => state.bootstrap?.user?.role === 'admin';
 const panel = ({ id, title, total, subtitle, list }) => `<section class="card settings-card" aria-labelledby="${id}-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="${id}-title">${escape(title)}${total ? ` <span class="count">${total}</span>` : ''}</h2><p class="card-subtitle">${escape(subtitle)}</p></div></header>${list}</section>`;
 
 /**
- * The four steps a new session takes, in the engine's order, each with the state of the check behind it. The crew
+ * The four steps a new session takes, in the engine's order, each with the state of the check behind it. The team
  * step has no check of its own: it is `unreached` when a step before it is down, `unproven` when the workspace step is
  * not proven recently, and `ready` otherwise.
  * @param {{ checks: { id: string, state: string, summary: string, checkedAt?: string, detail?: string }[] }} value

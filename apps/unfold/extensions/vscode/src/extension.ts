@@ -600,13 +600,13 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const draft = { ...(this.drafts.get(key) ?? {}), ...fixed };
     const steps: wizard.Step<Draft>[] = [];
     if (!fixed.repositoryId) steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Repository`, placeholder: 'Choose a registered repository', selected: state.repositoryId, items: bootstrap.repositories.map(repo => ({ label: repo.name, description: `${repo.baseBranch}${repo.executionOwner === 'ploeg' ? ' · Ploeg-owned' : ''}`, detail: repo.description, value: repo.id })) }).then(value => value === wizard.back || value === undefined ? value : { repositoryId: value }));
-    steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Crew`, placeholder: 'Choose a reusable crew', selected: state.crewId, items: bootstrap.crews.map(crew => ({ label: crew.name, description: crew.roles.map(role => role.name).join(' → '), detail: crew.description, value: crew.id })) }).then(value => value === wizard.back || value === undefined ? value : { crewId: value }));
+    steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Team`, placeholder: 'Choose a reusable team', selected: state.crewId, items: bootstrap.crews.map(crew => ({ label: crew.name, description: crew.roles.map(role => role.name).join(' → '), detail: crew.description, value: crew.id })) }).then(value => value === wizard.back || value === undefined ? value : { crewId: value }));
     if (!demo && bootstrap.models.length) steps.push(async (state, position) => {
       const routes = await this.current.models().catch(() => []);
       const describe = (modelId: string) => { const route = routes.find(item => item.modelId === modelId); if (!route) return ''; const tiers = route.tiers ? Object.entries(route.tiers).map(([tier, target]) => `${tier.toLowerCase()} → ${target}${routes.find(item => item.modelId === target)?.provider ? ` (${routes.find(item => item.modelId === target)!.provider})` : ''}`).join(' · ') : ''; return route.tiers ? `Router: ${tiers}` : route.provider ? `Served by ${route.provider}` : ''; };
       const first = bootstrap.models[0];
-      return wizard.pick<string>({ ...position, title: `${label} · Model`, placeholder: 'Choose the model for every role, or keep the crew default', selected: state.model ?? '', items: [
-        { label: '$(organization) Crew default', description: first?.modelId ?? '', detail: first?.modelId ? describe(first.modelId) : 'Each role uses the model its crew names.', value: '' },
+      return wizard.pick<string>({ ...position, title: `${label} · Model`, placeholder: 'Choose the model for every role, or keep the team default', selected: state.model ?? '', items: [
+        { label: '$(organization) Team default', description: first?.modelId ?? '', detail: first?.modelId ? describe(first.modelId) : 'Each role uses the model its team names.', value: '' },
         ...bootstrap.models.map(model => ({ label: model.name, description: model.modelId ?? '', detail: model.modelId ? describe(model.modelId) : '', value: model.id })),
       ] }).then(value => value === wizard.back || value === undefined ? value : { model: value || undefined });
     });
@@ -616,10 +616,10 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const effectivePlacement = (state: Draft) => state.placement ?? placements.find(placement => placement.default)?.id;
     if (offerApproval) steps.push({ applies: state => isolatedPlacement(effectivePlacement(state)), run: (state, position) => wizard.pick<Approval>({ ...position, title: `${label} · Tool approval`, placeholder: 'Approve tool use automatically?', selected: state.approval ?? 'manual', items: [
       { label: '$(bell-dot) Ask me before each tool', description: 'manual', detail: 'Every read, search and shell command waits for your decision.', value: 'manual' },
-      { label: '$(shield) Approve tool use automatically', description: 'auto', detail: `The ${effectivePlacement(state)} workspace is the boundary. Questions from the crew still wait for you.`, value: 'auto' },
+      { label: '$(shield) Approve tool use automatically', description: 'auto', detail: `The ${effectivePlacement(state)} workspace is the boundary. Questions from the team still wait for you.`, value: 'auto' },
     ] }).then(value => value === wizard.back || value === undefined ? value : { approval: value }) });
     if (!fixed.title) steps.push((state, position) => wizard.input({ ...position, title: `${label} · Title`, prompt: 'A concise outcome, up to 160 characters', value: state.title ?? (demo ? 'Correct order rounding' : ''), validate: text => text.trim() && text.length <= 160 ? undefined : 'Use a title between 1 and 160 characters.' }).then(value => value === wizard.back || value === undefined ? value : { title: value.trim() }));
-    if (!fixed.objective) steps.push((state, position) => wizard.input({ ...position, title: `${label} · Objective`, prompt: demo ? 'Demo runs the fixed rounding fixture with real checks, without model calls.' : 'What should the crew change, verify and return for review?', value: state.objective ?? (demo ? 'Fix the rounding regression and provide the real test result and an independent review.' : ''), validate: text => text.trim() && text.length <= 16000 ? undefined : 'Use an objective between 1 and 16,000 characters.' }).then(value => value === wizard.back || value === undefined ? value : { objective: value.trim() }));
+    if (!fixed.objective) steps.push((state, position) => wizard.input({ ...position, title: `${label} · Objective`, prompt: demo ? 'Demo runs the fixed rounding fixture with real checks, without model calls.' : 'What should the team change, verify and return for review?', value: state.objective ?? (demo ? 'Fix the rounding regression and provide the real test result and an independent review.' : ''), validate: text => text.trim() && text.length <= 16000 ? undefined : 'Use an objective between 1 and 16,000 characters.' }).then(value => value === wizard.back || value === undefined ? value : { objective: value.trim() }));
     steps.push(async (state, position) => {
       const chosen = await wizard.pick<number | 'custom'>({ ...position, title: `${label} · Spending authorization`, placeholder: demo ? 'Demonstration allocation; actual AI spend remains $0' : `Authorized maximum in USD, up to $${bootstrap.maxBudgetUsd}`, selected: state.budgetUsd, items: wizard.budgetItems(bootstrap.maxBudgetUsd, demo) });
       if (chosen === wizard.back || chosen === undefined) return chosen;
@@ -633,19 +633,19 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       const crew = bootstrap.crews.find(item => item.id === state.crewId);
       const placement = effectivePlacement(state);
       const placementName = placements.find(item => item.id === placement)?.name ?? placement ?? 'default placement';
-      const model = state.model ? bootstrap.models.find(item => item.id === state.model)?.name ?? state.model : 'Crew default';
+      const model = state.model ? bootstrap.models.find(item => item.id === state.model)?.name ?? state.model : 'Team default';
       const automatic = state.approval === 'auto' && isolatedPlacement(placement);
       const summary: Array<vscode.QuickPickItem & { value: 'create' | 'create-start' | 'change' }> = [
         { label: 'Summary', kind: vscode.QuickPickItemKind.Separator, value: 'change' },
         { label: `$(folder) ${repository?.name ?? state.repositoryId}`, description: 'repository', value: 'change' },
-        { label: `$(organization) ${crew?.name ?? state.crewId}`, description: 'crew', detail: crew?.roles.map(role => role.name).join(' → '), value: 'change' },
+        { label: `$(organization) ${crew?.name ?? state.crewId}`, description: 'team', detail: crew?.roles.map(role => role.name).join(' → '), value: 'change' },
         { label: `$(hubot) ${model}`, description: 'model', value: 'change' },
         { label: `$(server) ${placementName}`, description: 'placement', detail: `Runs in ${placementLabel(placement, this.current.origin)}.`, value: 'change' },
         { label: `$(shield) ${automatic ? 'Tool use approved automatically' : 'Every tool use asks you'}`, description: 'approval', value: 'change' },
         { label: `$(credit-card) $${(state.budgetUsd ?? 0).toFixed(2)} authorized`, description: 'budget', value: 'change' },
         { label: `$(note) ${state.title ?? ''}`, description: 'title', detail: (state.objective ?? '').replace(/\s+/g, ' ').slice(0, 200), value: 'change' },
         { label: 'Create', kind: vscode.QuickPickItemKind.Separator, value: 'change' },
-        { label: '$(play) Create and start the crew', description: 'starts now', value: 'create-start' },
+        { label: '$(play) Create and start the team', description: 'starts now', value: 'create-start' },
         { label: '$(check) Create only', description: 'start it later from the session', value: 'create' },
       ];
       const chosen = await wizard.pick<'create' | 'create-start' | 'change'>({ ...position, title: `${label} · Review`, placeholder: 'Pick a line to change it, or create the session', items: summary });
@@ -800,7 +800,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     if (!eligibility.allowed) { void vscode.window.showInformationMessage(eligibility.reason ?? 'This task cannot start a session.'); return; }
     const draft = await this.engagement(bootstrap, `import:${task.key}`, { repositoryId: task.repositoryId, title: task.title, objective: task.description || task.title }, 'Start a supervised session');
     if (!draft) return;
-    const confirm = await vscode.window.showInformationMessage('Create a session from this task revision?', { modal: true, detail: `${task.title}\n${providerNames[task.provider] ?? task.provider} ${task.identifier ?? `#${task.id}`} → ${task.repositoryId}\n${target.origin}\n${bootstrap.crews.find(crew => crew.id === draft.crewId)?.name} · ${draft.runtime} · $${draft.budgetUsd!.toFixed(2)} authorized\nThe crew starts only when you choose Start remote crew.` }, 'Create session');
+    const confirm = await vscode.window.showInformationMessage('Create a session from this task revision?', { modal: true, detail: `${task.title}\n${providerNames[task.provider] ?? task.provider} ${task.identifier ?? `#${task.id}`} → ${task.repositoryId}\n${target.origin}\n${bootstrap.crews.find(crew => crew.id === draft.crewId)?.name} · ${draft.runtime} · $${draft.budgetUsd!.toFixed(2)} authorized\nThe team starts only when you choose Start remote team.` }, 'Create session');
     if (confirm !== 'Create session') return;
     this.assertTarget(target, generation);
     let session: Session;
@@ -916,7 +916,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   private async sendInstructionCommand(value: SessionRef): Promise<void> {
     const id = await this.choose(value);
     if (!id) return;
-    const text = await vscode.window.showInputBox({ title: 'Instruction to the crew', prompt: 'Saved for the next execution. Pause and resume to apply it to an active run.', ignoreFocusOut: true, validateInput: text => text.trim() && text.length <= 16000 ? undefined : 'Use 1 to 16,000 characters.' });
+    const text = await vscode.window.showInputBox({ title: 'Instruction to the team', prompt: 'Saved for the next execution. Pause and resume to apply it to an active run.', ignoreFocusOut: true, validateInput: text => text.trim() && text.length <= 16000 ? undefined : 'Use 1 to 16,000 characters.' });
     if (!text?.trim()) return;
     const outcome = await this.instruction(id, text, false);
     if (outcome.state !== 'saved') throw new Error(outcome.message);
@@ -997,7 +997,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const target = this.current; const generation = this.generation;
     this.assertTarget(target, generation);
     const updated = await target.setApproval(id, approval);
-    void vscode.window.showInformationMessage(updated.approval === 'auto' ? 'The crew now works without asking for each tool.' : 'The crew asks you again before each tool.');
+    void vscode.window.showInformationMessage(updated.approval === 'auto' ? 'The team now works without asking for each tool.' : 'The team asks you again before each tool.');
     await this.refresh();
     await this.panels.get(id)?.refresh();
   }

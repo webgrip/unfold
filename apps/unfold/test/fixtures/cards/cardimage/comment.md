@@ -13,7 +13,7 @@
 | Grade | 8.5 · provisional · RT · formula 2026.3 · missing delivery.defectBounces |
 | Condition | Mended · 1 crack sealed |
 | Steward | anna · Merged the pull request |
-| Crew | builder ×2 · reviewer ×1 |
+| Roles | builder ×2 · reviewer ×1 |
 | Ids | #⁠42 · VIK-1701 · webgrip/ploeg |
 
 <sub>Posted by Ploeg when this card reached a moment: a merge, a release to production, a new finish or a mend. It shows the change's own facts and its steward; nothing on it ranks or scores a person.</sub>

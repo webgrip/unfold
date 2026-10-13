@@ -22,13 +22,13 @@ The ranking is a proxy from those sources, not measured use: the first two are f
 
 | Claim on the page | Evidence | Wording allowed |
 | --- | --- | --- |
-| The four steps and their order | `Engine.execute`: Ploeg authority, then the budget credential, then `runtime.prepare`, then each Role | "Ploeg authorizes the work", "The gateway issues the budget", "A machine starts the workspace", "The crew works" |
+| The four steps and their order | `Engine.execute`: Ploeg authority, then the budget credential, then `runtime.prepare`, then each Role | "Ploeg authorizes the work", "The gateway issues the budget", "A machine starts the workspace", "The team works" |
 | A step is working | A live probe within the last 15 seconds (gateway liveness, a fresh Ploeg `teams` call) or a workspace started within 24 hours | "Working · checked HH:MM:SS"; never green without a check |
 | Step 3 stopped for capacity | The workspace Pod's `PodScheduled` condition is `Unschedulable` | "Every machine is busy" |
 | How long a new session would wait | `kubernetes.provisionTimeoutMs` or `docker.provisionTimeoutMs`, default 180 s | "waits up to N minutes for a machine, then stops" |
 | The wait is not charged | No model call happens while a workspace is prepared | "The wait is not charged"; not "nothing was charged", because the brief check and credential come earlier |
-| The crew step | It has no check of its own | "Ready" or "Not reached", never "Working" |
-| No recent workspace start | No `workspace.ready` in 24 hours | "Probably." and "step 3 is not proven yet"; the crew step reads "Not proven" |
+| The team step | It has no check of its own | "Ready" or "Not reached", never "Working" |
+| No recent workspace start | No `workspace.ready` in 24 hours | "Probably." and "step 3 is not proven yet"; the team step reads "Not proven" |
 | The demo | Every check reads not in use | "This is a demo." |
 | Whose problem it is | A stopped step is a workbench service or capacity | "This is a problem on the workbench; there is nothing to change in your session" |
 | A failed refresh | The last report is kept | "Unknown." with the time of the failed check and what the last check said; the line is greyed |
@@ -88,7 +88,7 @@ Three fresh reviewers, given only the rendered screenshots and the job stories, 
 | --- | --- |
 | The administrator's note sat below the line, under the fold on a phone, apart from the retry advice | Fixed: open notes sit under the verdict; the next step says when no note exists yet |
 | "Last known: Yes." still read as yes | Fixed: "Unknown." with the last result in words |
-| "Yes" when step 3 was unproven, and the crew step "Ready" after it | Fixed: "Probably."; the crew step reads "Not proven" |
+| "Yes" when step 3 was unproven, and the team step "Ready" after it | Fixed: "Probably."; the team step reads "Not proven" |
 | The page did not say whose problem it is | Fixed: one sentence on a stopped step |
 | Per-session scheduler messages repeated step 3's; long titles took four lines | Fixed: a duplicate message is left out; titles wrap to two lines |
 | Loading showed no text | Fixed: "Checking…" in the verdict's place |

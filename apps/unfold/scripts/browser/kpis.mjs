@@ -42,7 +42,7 @@ export async function run({ page, app, assert, screenshot }) {
   await flowCard.getByRole('button', { name: 'More info' }).click();
   await flowCard.getByRole('tab', { name: 'Flow' }).click();
   const flow = flowCard.getByRole('tabpanel', { name: 'Flow' });
-  assert.match(await flow.innerText(), /^Delivered in \d+ d( \d+ h)? from ticket to release; \d+% of the cycle was active work\./, 'the Flow tab leads with a summary');
+  assert.match(await flow.innerText(), /^Delivered in \d+ d( \d+ h)? from task to release; \d+% of the cycle was active work\./, 'the Flow tab leads with a summary');
   assert(await flow.locator('.kp-bar svg g[data-clock-value="calendar"] rect').count() >= 4, 'a stacked bar of time per status');
   assert.deepEqual(await flow.locator('.kp-legend li').evaluateAll(items => items.map(item => item.dataset.kind)), ['active', 'waiting'], 'the legend names the kinds drawn');
   const rows = await flow.locator('.kp-table tbody tr').count();

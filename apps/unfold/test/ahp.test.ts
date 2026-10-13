@@ -8,7 +8,7 @@ import { activity, chatChannel, diffEntries, parseChannel } from '../src/ahp/hos
 import { settle, testTimeout, waitFor } from './timeframes.ts';
 import { action, closed, connect, defaultChatOf, vscodeAgentsWindow, type Json } from './ahp-support.ts';
 
-test('the agent host speaks AHP 0.9: initialize, create a session from a chat, stream the crew, share state with a second client and expose the candidate as a changeset', { timeout: testTimeout(60_000) }, async t => {
+test('the agent host speaks AHP 0.9: initialize, create a session from a chat, stream the team, share state with a second client and expose the candidate as a changeset', { timeout: testTimeout(60_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'test' } });

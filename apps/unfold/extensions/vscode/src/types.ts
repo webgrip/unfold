@@ -18,7 +18,7 @@ export type ModelUsage = { model: string; group?: string; requests: number; fail
 export type Session = {
   id: string; title: string; objective: string; repositoryId: string; crewId: string; runtime: string; placement?: string; approval?: Approval; model?: string;
   ownerId: string; ownerName: string; status: SessionStatus; budgetUsd: number; spentUsd: number; observedUsd?: number; usage?: ModelUsage[]; requests?: GatewayRequest[];
-  costStatus: 'demo' | 'pending' | 'settled' | 'unknown'; createdAt: string; updatedAt: string; branch: string; blocker?: string;
+  costStatus: 'demo' | 'observed' | 'settled' | 'unknown'; createdAt: string; updatedAt: string; branch: string; blocker?: string;
   trackerUrl?: string;
   failure?: ExecutionFailure;
   execution?: ExecutionBinding;

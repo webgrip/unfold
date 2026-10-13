@@ -2,7 +2,7 @@
   "name": "@webgrip/unfold",
   "version": "0.4.0-rc.76",
   "private": true,
-  "description": "A self-hosted operator workbench for remote agent crews",
+  "description": "A self-hosted operator workbench for remote agent teams",
   "type": "module",
   "engines": {
     "node": ">=24.0.0 <25"

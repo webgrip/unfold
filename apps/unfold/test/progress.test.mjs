@@ -114,7 +114,7 @@ test('no phase repeats its status label as the headline', () => {
     assert.ok(!progress.headline.startsWith(`${progress.meta.label} · `), `${status}: ${progress.headline}`);
   }
   assert.equal(sessionProgress({ ...base, status: 'completed', candidate: { status: 'ready', fileCount: 2 } }, { now: at }).headline, '2 files', 'a review without a verdict leads with the change');
-  assert.equal(sessionProgress({ ...base, status: 'completed' }, { now: at }).headline, 'The crew finished');
+  assert.equal(sessionProgress({ ...base, status: 'completed' }, { now: at }).headline, 'The team finished');
 });
 
 test('a step report previews its first paragraph as plain text, never a table or raw Markdown', () => {
@@ -153,7 +153,7 @@ test('a question, a pause, a failure, a restart and a demo each read as themselv
 });
 
 test('spend is never a made-up zero', () => {
-  assert.equal(spendOf({ costStatus: 'pending', spentUsd: 0, budgetUsd: 1 }).text, 'Not reported');
+  assert.equal(spendOf({ costStatus: 'observed', spentUsd: 0, budgetUsd: 1 }).text, 'Not reported');
   assert.equal(spendOf({ costStatus: 'unknown', budgetUsd: 1 }).status, 'unknown');
 });
 

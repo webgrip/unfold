@@ -70,7 +70,7 @@ test('the forge paints the same facts as every skin: demo cards spend nothing an
   const observed = faceFacts(cardView(card(), { now }));
   assert.deepEqual([observed.coin.top, observed.coin.main], ['US$', '0,58']);
   assert.equal(observed.sub, 'webgrip/glide · Round 2');
-  assert.deepEqual(observed.rows.map(([label]) => label), ['Crew', 'Plays', 'Diff', 'Run time', 'Live']);
+  assert.deepEqual(observed.rows.map(([label]) => label), ['Roles', 'Plays', 'Diff', 'Run time', 'Live']);
   assert.equal(observed.rows[2][1], '+214 −38 · 6 files');
   assert.equal(observed.grade, null);
   assert.deepEqual(observed.steward, { signed: true, name: 'ryan', detail: 'Merged the pull request' });

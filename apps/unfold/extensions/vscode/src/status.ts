@@ -82,7 +82,7 @@ export function situation(session: Session): { headline: string; next: string } 
   const reviewing = reviewers(session);
   const rejected = reviewing.find(run => run.verdict === 'request_changes');
   switch (session.status) {
-    case 'waiting_input': return { headline: `${role ?? 'The crew'} is waiting for your decision.`, next: 'Answer the pending request below; nothing continues until you do.' };
+    case 'waiting_input': return { headline: `${role ?? 'The team'} is waiting for your decision.`, next: 'Answer the pending request below; nothing continues until you do.' };
     case 'failed': return session.failure
       ? { headline: `${failureStage(session.failure)} failed: ${session.failure.message}`, next: session.failure.remediation }
       : rejected
@@ -90,10 +90,10 @@ export function situation(session: Session): { headline: string; next: string } 
         : { headline: session.blocker || 'Execution stopped without approval.', next: 'Inspect the activity and checks, then decide whether to resume with new instructions.' };
     case 'interrupted': return { headline: 'Execution was interrupted; no replacement run started.', next: 'Inspect retained evidence and spend, then resume deliberately.' };
     case 'paused': return { headline: `Paused${role ? ` while ${role} was working` : ''}.`, next: 'Add instructions if needed, then resume to continue with them.' };
-    case 'running': return { headline: `${role ?? 'The crew'} is working in ${placementLabel(session.placement)}.`, next: 'You can keep editing. Pause to steer, or wait for the next decision.' };
+    case 'running': return { headline: `${role ?? 'The team'} is working in ${placementLabel(session.placement)}.`, next: 'You can keep editing. Pause to steer, or wait for the next decision.' };
     case 'exporting': return { headline: 'Capturing the repository state for review.', next: 'The candidate download appears when the snapshot is complete.' };
-    case 'queued': return { headline: 'Authorized and ready; nothing has run yet.', next: 'Start the crew when the brief is right.' };
-    case 'completed': return session.review ? { headline: `${session.review.decision === 'accepted' ? 'Accepted' : 'Rejected'} by ${session.review.byName}.`, next: session.review.note ?? 'Recorded in the session history. Nothing was pushed or merged by the workbench.' } : { headline: 'The crew finished and the candidate is captured. Your review is next.', next: 'Inspect the changes, checks and transcripts, then accept or reject. Nothing has been pushed or merged.' };
+    case 'queued': return { headline: 'Authorized and ready; nothing has run yet.', next: 'Start the team when the brief is right.' };
+    case 'completed': return session.review ? { headline: `${session.review.decision === 'accepted' ? 'Accepted' : 'Rejected'} by ${session.review.byName}.`, next: session.review.note ?? 'Recorded in the session history. Nothing was pushed or merged by the workbench.' } : { headline: 'The team finished and the candidate is captured. Your review is next.', next: 'Inspect the changes, checks and transcripts, then accept or reject. Nothing has been pushed or merged.' };
     case 'cancelled': return { headline: 'Cancelled by an operator.', next: 'Evidence stays available. Create a new session to try again.' };
   }
   return { headline: presentationFor(session).name, next: '' };

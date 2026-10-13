@@ -76,7 +76,7 @@ try {
   const settled = await account(finished.execution!.id);
   assert.ok(settled.observedUsd === null || settled.observedUsd === 0, `unexpected spend ${settled.observedUsd}`);
   const issued = runtime.keys.filter(Boolean);
-  assert.ok(runtime.calls >= 2, 'both crew roles ran');
+  assert.ok(runtime.calls >= 2, 'both team roles ran');
   assert.ok(issued.length >= 1 && issued.length === runtime.keys.length, 'the managed workspace received the minted credential');
   assert.equal(new Set(issued).size, 1, 'one execution uses one minted credential');
   assert.match(issued[0]!, /^sk-fake-/);
@@ -105,7 +105,7 @@ try {
     qualification: 'real Ploeg PostgreSQL, HTTP authority and LiteLLM broker with Unfold managed execution against a fake LiteLLM gateway',
     mode: 'live', gateway: 'fake', modelCalls: 0, spendUsd: 0,
     credentialsIssued: new Set(runtime.keys.filter(Boolean)).size,
-    checks: ['admission reserves a managed inference budget', 'credential minted through the gateway on first role', 'one credential serves every crew role', 'completion blocks the gateway key', 'cancellation blocks the gateway key', 'blocked capability cannot resume', 'no minted key in session projection', 'workbench holds no gateway master broker'],
+    checks: ['admission reserves a managed inference budget', 'credential minted through the gateway on first role', 'one credential serves every team role', 'completion blocks the gateway key', 'cancellation blocks the gateway key', 'blocked capability cannot resume', 'no minted key in session projection', 'workbench holds no gateway master broker'],
   })}\n`);
 } finally {
   await app.close();

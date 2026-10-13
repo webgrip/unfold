@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { AgentRuntime, ExecutionContext, RuntimeKind, Session } from '../src/types.ts';
 import { application, login, request, createInput, sessionUntil } from './api-support.ts';
 
-test('an analysis role reports without a verdict and only the final reviewer decides the crew', async t => {
+test('an analysis role reports without a verdict and only the final reviewer decides the team', async t => {
   const prompts: string[] = [];
   const runtime: AgentRuntime = {
     kind: 'opencode',
@@ -17,7 +17,7 @@ test('an analysis role reports without a verdict and only the final reviewer dec
   } as unknown as AgentRuntime;
   const server = await application('live', config => {
     config.runtime = { kind: 'opencode', backend: 'local', timeoutMs: 30_000 };
-    config.crews.push({ id: 'investigation', name: 'Investigation crew', description: 'Analyst then challenger', roles: [
+    config.crews.push({ id: 'investigation', name: 'Investigation team', description: 'Analyst then challenger', roles: [
       { id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate.' },
       { id: 'challenger', name: 'Challenger', mode: 'read', instruction: 'Challenge the findings.' },
     ] });

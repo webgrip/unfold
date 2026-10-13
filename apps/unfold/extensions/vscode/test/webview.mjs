@@ -94,7 +94,7 @@ try {
   await page.getByRole('button', { name: 'Tools', exact: true }).click();
   assert(await page.locator('#stream .tool').count() >= 2, 'tool events are listed');
   assert.equal(await page.locator('#stream .message, #stream .system-event').count(), 0, 'the Tools filter hides other activity');
-  await page.getByRole('button', { name: 'Crew', exact: true }).click();
+  await page.getByRole('button', { name: 'Team', exact: true }).click();
   assert(await page.locator('#stream .message').count() >= 1);
   await page.getByRole('button', { name: 'All', exact: true }).click();
   assert.equal(await page.locator('#stream > *').count(), allEvents);
@@ -156,8 +156,8 @@ try {
   await send();
   await page.getByText('Reviewer is working in the remote workspace.', { exact: true }).waitFor();
   assert.equal(await page.locator('#decisions').count(), 0, 'resolved decisions leave the panel');
-  await page.getByText('The crew is working', { exact: true }).waitFor();
-  const composer = page.getByRole('textbox', { name: 'Steer the crew' });
+  await page.getByText('The team is working', { exact: true }).waitFor();
+  const composer = page.getByRole('textbox', { name: 'Steer the team' });
   await composer.fill('Keep the source API unchanged.');
   await page.locator('#instruction-state', { hasText: 'Draft on this device.' }).waitFor();
   await send();
@@ -231,7 +231,7 @@ try {
   assert((await page.locator('.failure-detail').textContent()).includes('exit 137'));
   assert.equal(await page.locator('.execution-failure img, .execution-failure script').count(), 0);
   assert.equal(await page.evaluate(() => window.compromised), undefined);
-  assert.equal(await page.getByRole('button', { name: /^(Start remote crew|Resume)$/ }).count(), 0);
+  assert.equal(await page.getByRole('button', { name: /^(Start team|Start remote team|Resume)$/ }).count(), 0);
   await noOverflow('Failure guidance');
   await shot('session-failed-narrow.png');
   await page.getByRole('button', { name: 'Refresh', exact: true }).click();

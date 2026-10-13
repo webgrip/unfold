@@ -115,6 +115,55 @@ test('HTTP projection authenticates and intersects local user mapping with deplo
   assert.equal(server.app.store.listSessions().length, 0, 'reading external work must not create execution records');
 });
 
+test('a state filter of active asks Ploeg for leased, and a Work Item Ploeg sends as active comes back as leased', async t => {
+  const upstreamApi = await upstream(t);
+  const ploeg = client(upstreamApi.config);
+  const asked: string[] = [];
+  upstreamApi.intercept((req, res) => {
+    if (!req.url?.includes('work-items?')) return false;
+    asked.push(new URL(req.url, 'http://ploeg.test').searchParams.get('state') ?? '');
+    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', items: [{ ...upstreamApi.details['103'].item, state: 'active' }], nextCursor: null })); return true;
+  });
+  const page = await ploeg.items(admin, 'delivery', 'active', '0', true);
+  assert.deepEqual(asked, ['leased']);
+  assert.deepEqual(page.items.map(item => item.state), ['leased']);
+  await assert.rejects(ploeg.items(admin, 'delivery', 'borrowed'), /valid Ploeg state/);
+});
+
+test('the summary reads active and heldUsd from a newer Ploeg and leased and reservedUsd from the pinned one', async t => {
+  const upstreamApi = await upstream(t);
+  const older = summaryTeam('delivery', 2);
+  older.workItems.leased = 3;
+  const newer = structuredClone(older) as any;
+  newer.team = 'research';
+  newer.workItems.active = 3;
+  newer.spend.heldUsd = 0.5;
+  const newest = structuredClone(newer) as any;
+  newest.team = 'ops';
+  delete newest.workItems.leased;
+  delete newest.spend.reservedUsd;
+  upstreamApi.intercept((req, res) => {
+    const url = new URL(req.url!, 'http://fixture.invalid');
+    if (url.pathname.endsWith('/summary')) return reply(res, 200, { generatedAt: '2026-09-10T09:00:00Z', window: url.searchParams.get('window'), teams: [older, newer, newest], totals: {} });
+    if (url.pathname.endsWith('/unsettled-accounts')) return reply(res, 200, { generatedAt: '2026-09-10T09:00:00Z', accounts: [], totals: { runs: 0, heldUsd: 0 } });
+    return false;
+  });
+  const ploeg = new PloegClient({ ...configuration('/unused', 'live'), ploeg: { ...upstreamApi.config, teams: ['delivery', 'research', 'ops'] } });
+  const summary = await ploeg.summary(admin, '7d', true);
+  assert.deepEqual(summary.teams.map(team => [team.team, team.workItems.leased, team.spend.reservedUsd]), [['delivery', 3, 0.5], ['research', 3, 0.5], ['ops', 3, 0.5]]);
+});
+
+test('an Ask\'s spend keeps every Cost Status Ploeg reports, the observed of a newer Ploeg as well as the provisional of the pinned one', async t => {
+  const upstreamApi = await upstream(t);
+  let status = 'observed';
+  upstreamApi.intercept((req, res) => {
+    if (!req.url?.includes('/asks/')) return false;
+    return reply(res, 200, { schemaVersion: '1.0', ask: { state: 'finished', spend: { costStatus: status, usd: status === 'unknown' ? null : 0.01 } } });
+  });
+  const ploeg = client(upstreamApi.config);
+  for (status of ['observed', 'provisional', 'settled', 'unknown']) assert.equal((await ploeg.askSpend(admin, '101', 'a-1')).costStatus, status);
+});
+
 test('opaque bigint cursors paginate and unexpected team records or cross-item evidence fail closed', async t => {
   const upstreamApi = await upstream(t);
   for (let n = 0; n < 27; n++) {

@@ -98,7 +98,7 @@ export async function run({ page, app, assert, screenshot }) {
     await page.getByRole('button', { name: 'Cancel Work Item' }).click();
     const dialog = page.getByRole('dialog', { name: 'Cancel this Work Item?' });
     await dialog.waitFor();
-    assert.equal(await dialog.getByText('Withdraws the Work Item and closes its open Shift.', { exact: true }).isVisible(), true, 'the dialog leads with the main consequence');
+    assert.equal(await dialog.getByText('Withdraws the Work Item and closes its open attempt.', { exact: true }).isVisible(), true, 'the dialog leads with the main consequence');
     assert.equal(await dialog.getByText('Not available in the demo').isVisible(), true);
     assert.equal(await dialog.getByRole('button', { name: 'Cancel Work Item' }).isDisabled(), true, 'the demo cannot cancel anything');
     await dialog.getByRole('button', { name: 'Keep it' }).click();

@@ -171,7 +171,7 @@ export function openTarget(entry) {
   const pr = entry?.state === 'awaiting_review' ? safeUrl(entry.pullRequestUrl) : null;
   if (pr) return { href: pr, label: 'pull request' };
   const tracker = safeUrl(entry?.url);
-  return tracker ? { href: tracker, label: 'tracker item' } : null;
+  return tracker ? { href: tracker, label: 'task' } : null;
 }
 
 /** Finished Runs newest first by the moment they finished; Runs without a finish time keep their order at the end. */
@@ -595,7 +595,7 @@ function statsMarkup(view) {
   const settled = summary?.totals?.spend?.settledUsd;
   const reserved = summary?.totals?.spend?.reservedUsd;
   const spend = demo ? { value: '—', quiet: true, detail: 'Demo · no model calls' }
-    : summary ? { value: amount(settled) ? format.money(settled) : format.notReported, quiet: !amount(settled), detail: amount(reserved) && reserved > 0 ? `Settled · ${format.money(reserved)} reserved` : 'Settled' }
+    : summary ? { value: amount(settled) ? format.money(settled) : format.notReported, quiet: !amount(settled), detail: amount(reserved) && reserved > 0 ? `Settled · ${format.money(reserved)} held` : 'Settled' }
     : { value: '—', quiet: true, detail: unreported };
   const tiles = [
     tile({ label: 'Waiting on you', glyph: 'inbox', tone: 'attention', value: waiting ? `${format.count(waiting.length)}${waitingMore}` : '—', quiet: !waiting, detail: waiting ? breakdown.length ? joinDots(breakdown.map(part => escape(part))) : 'Nothing to decide' : 'Could not be loaded' }),

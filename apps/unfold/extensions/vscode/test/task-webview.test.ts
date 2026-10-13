@@ -110,7 +110,7 @@ test('cost is the observed total marked unsettled, a live figure so far, or Not 
   const observed = view.costSummary(current(base, {}, { card: card() }));
   assert.equal(spaced(observed.value), 'US$ 0,42');
   assert.equal(observed.note, 'observed, not settled');
-  assert.equal(view.costSummary(current(base, {}, { card: card({ totals: { costStatus: 'reserved', costUsd: 1, usageComplete: null } }) })).note, 'reserved, not settled');
+  assert.equal(view.costSummary(current(base, {}, { card: card({ totals: { costStatus: 'reserved', costUsd: 1, usageComplete: null } }) })).note, 'held, not final yet');
   const live = view.costSummary(current(base, {}, { card: card({ live: { runningRuns: 1, observedAt: now, runSeconds: 90, usageComplete: true, costUsd: 0.05 } }) }));
   assert.equal(spaced(live.value), 'US$ 0,05');
   assert.match(live.note, /so far/);
@@ -285,7 +285,7 @@ test('effort reads as agent runs and attempts, with Round and Shift explained on
   const facts: StubElement = view.headFacts(value);
   const attempts = facts.find('div').find(node => node.find('dt')[0]?.textContent === 'Attempts');
   assert.ok(attempts, 'an Attempts fact replaces Rounds');
-  assert.match(attempts.find('dt')[0].getAttribute('title') ?? '', /^Shift: one Team’s whole attempt[^]*Round: a set of agent runs/);
+  assert.match(attempts.find('dt')[0].getAttribute('title') ?? '', /^Attempt: one Team’s whole try[^]*Round: a set of agent runs/);
   assert.match(attempts.textContent, /^Attempts12 rounds in the latest$/);
   assert.doesNotMatch(facts.textContent, /Shift|Rounds/);
   const runs: StubElement = view.runsSection(value);

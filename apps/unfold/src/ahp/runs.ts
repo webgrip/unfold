@@ -179,7 +179,7 @@ export function runMessage(transcripts: RunTranscripts, event: Event): Json[] {
 
 const finishedStatuses = new Set(['completed', 'error', 'failed']);
 
-/** The terminal a crew command's tool call points at, as the session's command log derives it from the same event. */
+/** The terminal a team command's tool call points at, as the session's command log derives it from the same event. */
 export type ToolTerminal = { command?: { commandLine: string }; content?: Json };
 /** How the host renders tool events: the event's terminal, the redaction its text passes through, and the contributor of a tool a session's MCP server provides. */
 export type ToolRendering = { terminal?: ToolTerminal; clean?: (value: string) => string; contributed?: (toolName: string) => { contributor: Json; _meta: Json } | undefined };

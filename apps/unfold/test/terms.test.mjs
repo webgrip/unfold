@@ -30,7 +30,7 @@ test('the Round and Shift tooltips say what the glossary says', () => {
   assert.match(source, /\*\*Round\*\* \| A set of Runs within a Shift that start together\./);
   assert.match(source, /\*\*Shift\*\* \| One Team's engagement with one Work Item/);
   assert.match(glossary.round, /^Round: a set of agent runs within one attempt that start together\./);
-  assert.match(glossary.shift, /^Shift: one Team’s whole attempt at a Work Item\./);
+  assert.match(glossary.shift, /^Attempt: one Team’s whole try at a Work Item\./);
   assert.equal(termTitle('shift', 'round'), `${glossary.shift} ${glossary.round}`);
   assert.equal(termTitle('unknown'), '');
 });

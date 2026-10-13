@@ -22,8 +22,8 @@ export function streamLanes({ stream, shifts = [], runs = [], runTone }) {
   const opened = shifts.filter(shift => toMs(shift.openedAt) !== null).sort((a, b) => toMs(a.openedAt) - toMs(b.openedAt));
   if (opened.length) {
     lanes.push({
-      key: 'shift', group: 'shift', label: 'Shifts', sublabel: `${opened.length} ${opened.length === 1 ? 'attempt' : 'attempts'}`, url: null, marks: [],
-      bars: opened.map((shift, index) => ({ start: shift.openedAt, end: shift.closedAt, label: `Shift ${index + 1}`, detail: `${shift.round} ${shift.round === 1 ? 'Round' : 'Rounds'}${shift.closedAt ? '' : ' · still open'}`, tone: shift.closedAt ? 'neutral' : 'live', waiting: true })),
+      key: 'shift', group: 'shift', label: 'Attempts', sublabel: `${opened.length} ${opened.length === 1 ? 'attempt' : 'attempts'}`, url: null, marks: [],
+      bars: opened.map((shift, index) => ({ start: shift.openedAt, end: shift.closedAt, label: `Attempt ${index + 1}`, detail: `${shift.round} ${shift.round === 1 ? 'Round' : 'Rounds'}${shift.closedAt ? '' : ' · still open'}`, tone: shift.closedAt ? 'neutral' : 'live', waiting: true })),
     });
   }
   const started = runs.filter(run => toMs(run.startedAt) !== null).sort((a, b) => toMs(a.startedAt) - toMs(b.startedAt));

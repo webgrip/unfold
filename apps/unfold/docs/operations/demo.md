@@ -3,7 +3,7 @@ type: tutorial
 audience: [owner, operator, contributor]
 owner: unfold
 last_verified: 2026-10-01
-verified_by: "On 2026-10-01 read scripts/record-replay.ts, public/replay/ and the root mise demo-record task for the hosted replay section; Read apps/unfold/package.json (demo, smoke), src/config.ts (demo repository, crew, port 4080, UNFOLD_DATA_DIR), src/runtime/demo.ts, scripts/smoke.mjs and examples/order-service; on 2026-09-30 the landing page, Demo badge, Sessions item, session start, evidence tabs and demo budget label were re-read in apps/unfold/public/app.js, shell.js, views/sessions.js and views/session.js at 68c90cf on feat/unfold-redesign"
+verified_by: "On 2026-10-01 read scripts/record-replay.ts, public/replay/ and the root mise demo-record task for the hosted replay section; Read apps/unfold/package.json (demo, smoke), src/config.ts (demo repository, Team, port 4080, UNFOLD_DATA_DIR), src/runtime/demo.ts, scripts/smoke.mjs and examples/order-service; on 2026-09-30 the landing page, Demo badge, Sessions item, session start, evidence tabs and demo budget label were re-read in apps/unfold/public/app.js, shell.js, views/sessions.js and views/session.js at 68c90cf on feat/unfold-redesign"
 ---
 
 # A ten-minute coworker walkthrough
@@ -31,8 +31,8 @@ Starting this path requires `npm ci --omit=dev` once, for the server's one runti
 | Time | Show or do | What a coworker should understand |
 | --- | --- | --- |
 | 0–1 min | Open the workbench, which lands on **Now**, and point at the **Demo** badge in the status strip | This is executable workflow evidence with no AI spend |
-| 1–2 min | Open **Sessions**, choose **New session** and create an **Order service** session with **Delivery crew**. Use “Fix the rounding regression and independently review the resulting diff.” as the objective | Repository, crew and spending authorization are explicit inputs |
-| 2–4 min | Select **Start crew** and follow the **Activity** tab | The implementer copies an isolated fixture, proves the regression, edits source and reruns the checks |
+| 1–2 min | Open **Sessions**, choose **New session** and create an **Order service** session with **Delivery team**. Use “Fix the rounding regression and independently review the resulting diff.” as the objective | Repository, Team and spending authorization are explicit inputs |
+| 2–4 min | Select **Start team** and follow the **Activity** tab | The implementer copies an isolated fixture, proves the regression, edits source and reruns the checks |
 | 4–5 min | Open the baseline and verification artifacts | A deliberately failing `node --test` baseline is followed by passing tests; green status has executable evidence |
 | 5–6 min | Inspect **Workspace changes** on the **Changes** tab and **Independent review checks** on the **Checks** tab | The reviewer inspects the actual diff and reruns tests; approval is a distinct result |
 | 6–7 min | Reload the browser and return to the session | A connection does not own the work; the result and event history are durable |
@@ -58,7 +58,7 @@ The site build records the replay itself, from the same checkout, into `apps/sit
 
 ## CTO discussion
 
-The proposition is a shared operating contract: people choose an objective and authorization, then spend their attention on blockers and evidence. Crew configuration and portable procedures carry reusable knowledge; the harness can change behind a maintained adapter. Workspaces run remotely when the service is deployed remotely.
+The proposition is a shared operating contract: people choose an objective and authorization, then spend their attention on blockers and evidence. Team configuration and portable procedures carry reusable knowledge; the harness can change behind a maintained adapter. Workspaces run remotely when the service is deployed remotely.
 
 Roles execute in sequence and the control plane has one writer. The fixture does not exercise live model access, OIDC sign-in or cluster isolation. Completing it does not merge a change, and a read-only prompt is not a sandbox. See the [architecture](../architecture.md) and [validation evidence](../validation.md).
 

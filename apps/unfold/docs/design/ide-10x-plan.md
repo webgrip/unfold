@@ -18,7 +18,7 @@ The screenshot that prompted this plan shows a failed investigation session. The
 | The tree shows title and status only. | No spend, no age, no active role, no pending decision, no children to navigate. |
 | The status bar counts but does not act. | "2 need input" has no route to the oldest decision. |
 | Instruction state is binary. | Sent instructions cannot be distinguished from drafts or unknown deliveries. |
-| Updates arrive on a 5-second poll. | A running crew feels frozen; a decision appears late. |
+| Updates arrive on a 5-second poll. | A running Team feels frozen; a decision appears late. |
 | Multi-step creation has no back button. | One typo restarts six prompts. |
 | Evidence documents get a fresh timestamped URI every time. | Reopening a diff opens another tab. |
 | A window reload closes every session panel. | Context is lost on every extension update. |
@@ -37,7 +37,7 @@ The screenshot that prompted this plan shows a failed investigation session. The
 ### W1 · Sidebar that orients
 
 - Session items show repository, state, observed spend and age. Tooltips carry the status sentence and next action.
-- Sessions expand into children: pending decisions, crew roles with status, retained evidence, the review candidate and the imported task. Each child opens the right thing.
+- Sessions expand into children: pending decisions, the Team's Roles with status, retained evidence, the review candidate and the imported task. Each child opens the right thing.
 - The activity-bar badge counts sessions waiting for this operator. Groups are ordered attention, running, ready, history; items within a group sort by last change.
 - Inline actions per state: start when ready, resume when paused or interrupted, open decisions when waiting.
 - `Unfold: Find Session` searches title, ID, repository and imported task. `Unfold: Review Next Decision` opens the oldest unresolved decision.
@@ -54,10 +54,10 @@ The screenshot that prompted this plan shows a failed investigation session. The
 
 - Hero: title, status, situation sentence, next action, primary control.
 - Decision cards inline: permission scope from the adapter payload, **Allow once** prominent, **Reject** equally reachable, broader grant only when the adapter exposes patterns. Questions keep their option semantics and show a confirmation summary.
-- Crew strip with the active role highlighted and per-role summaries rendered as safe Markdown.
+- Team strip with the active role highlighted and per-role summaries rendered as safe Markdown.
 - Tabs **Brief · Changes · Checks · Activity**. Changes lists files with added and removed line counts and opens the patch at that file. Checks shows pass, fail or expected-failure per artifact with its output. Activity is chronological, filterable, coalesces streamed text and folds tool output.
 - Composer with four delivery states: draft on this device, sending, saved for next execution, delivery unknown. An explicit **pause first** option when a run is active.
-- Budget card with authorized, observed and reserved amounts; administrators can authorize more from the panel.
+- Budget card with authorized, observed and held amounts; administrators can authorize more from the panel.
 - Freshness footer: live, polling or disconnected, with the last observed time.
 
 ### W5 · Live updates
@@ -72,8 +72,8 @@ The screenshot that prompted this plan shows a failed investigation session. The
 
 ### W7 · Guided creation
 
-- New session and task import run in one multi-step flow with a back button and retained draft. Budget offers presets within the deployment limit. A final confirmation shows destination, repository, crew, runtime and authorization before anything is created.
-- A Get Started walkthrough covers connect, browse tasks, start the crew, review evidence.
+- New session and task import run in one multi-step flow with a back button and retained draft. Budget offers presets within the deployment limit. A final confirmation shows destination, repository, Team, runtime and authorization before anything is created.
+- A Get Started walkthrough covers connect, browse tasks, start the Team, review evidence.
 
 ### W8 · Verification and release
 

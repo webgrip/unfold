@@ -73,7 +73,7 @@ test('an Ask is admitted by Ploeg, answered with its key from the brief, and fin
   assert.equal(ask.status, 'answered');
   assert.equal(ask.answer, 'It is being worked on now.');
   assert.equal(ask.ploegAskId, 'p-1');
-  assert.equal(ask.costStatus, 'pending');
+  assert.equal(ask.costStatus, 'provisional');
   assert.deepEqual(auth.calls, ['admit 42 36 Which browsers did it test?', 'finish 42 p-1']);
   assert.equal(net.requests[0].url, 'http://gateway.test/v1/chat/completions');
   assert.equal(net.requests[0].auth, 'Bearer sk-ask-key');
@@ -139,7 +139,7 @@ test('an empty or overlong question is refused', async () => {
   await assert.rejects(asks.ask(owner, '42', 'x'.repeat(2001)), (error: PloegError) => error.code === 'ask_question');
 });
 
-test('listing Asks refreshes pending costs from Ploeg', async () => {
+test('listing Asks refreshes costs that are not final yet from Ploeg', async () => {
   const store = new Store(':memory:');
   const auth = authority();
   const asks = service(store, workItems(), auth.value, gateway('Fine.').fetcher);
@@ -149,6 +149,41 @@ test('listing Asks refreshes pending costs from Ploeg', async () => {
   assert.deepEqual(shown, allowance);
   assert.equal(auth.calls.at(-1), 'allowance bronze');
   assert.equal(store.asksAbout('42', 1)[0].costStatus, 'settled');
+});
+
+test('an Ask stored before system ADR-0036 with Unfold\'s retired `pending` reads as Ploeg\'s `provisional` and is still refreshed', async () => {
+  const store = new Store(':memory:');
+  const auth = authority();
+  const asks = service(store, workItems(), auth.value, gateway('Fine.').fetcher);
+  const asked = await asks.ask(owner, '42', 'Which browsers did it test?');
+  store.db.prepare('UPDATE asks SET body=? WHERE id=?').run(JSON.stringify({ ...asked, costStatus: 'pending' }), asked.id);
+  assert.equal(store.getAsk(asked.id)!.costStatus, 'provisional');
+  assert.equal(store.asksAbout('42', 1)[0].costStatus, 'provisional');
+  assert.equal(store.asksBy(owner.id, 1)[0].costStatus, 'provisional');
+  const { asks: [listed] } = await asks.about(owner, '42');
+  assert.deepEqual([listed.costUsd, listed.costStatus], [0.0011, 'settled']);
+  assert.equal(store.getAsk(asked.id)!.costStatus, 'settled');
+});
+
+test('an Ask Ploeg reports as observed or unknown before it settles is refreshed until Ploeg reports it settled', async () => {
+  const store = new Store(':memory:');
+  let spend = { costUsd: null as number | null, costStatus: 'unknown' as 'observed' | 'unknown' | 'settled' };
+  const auth = authority({ async spend() { return spend; } });
+  const asks = service(store, workItems(), auth.value, gateway('Fine.').fetcher);
+  await asks.ask(owner, '42', 'Which browsers did it test?');
+  assert.deepEqual((await asks.about(owner, '42')).asks.map(ask => [ask.costUsd, ask.costStatus]), [[null, 'unknown']]);
+  spend = { costUsd: 0.004, costStatus: 'observed' };
+  assert.deepEqual((await asks.about(owner, '42')).asks.map(ask => [ask.costUsd, ask.costStatus]), [[0.004, 'observed']]);
+  spend = { costUsd: 0.005, costStatus: 'settled' };
+  assert.deepEqual((await asks.about(owner, '42')).asks.map(ask => [ask.costUsd, ask.costStatus]), [[0.005, 'settled']]);
+});
+
+test('a session stored with the retired `pending` cost status reads as `observed`', () => {
+  const store = new Store(':memory:');
+  const session = { id: 's-1', ownerId: 'owner', updatedAt: at, costStatus: 'pending', runs: [], artifacts: [] };
+  store.db.prepare('INSERT INTO sessions(id,owner_id,updated_at,body) VALUES(?,?,?,?)').run(session.id, session.ownerId, session.updatedAt, JSON.stringify(session));
+  assert.equal(store.getSession('s-1')!.costStatus, 'observed');
+  assert.equal(store.listSessions()[0].costStatus, 'observed');
 });
 
 test('the demo says work that is still going or done has not stopped', async () => {
@@ -322,7 +357,7 @@ test('an Ask left answering by a restart is closed as interrupted the next time 
   const store = new Store(':memory:');
   const { captured, reports } = recorder();
   const asks = reporting(store, scripted([]).fetcher, reports);
-  const base = { workItemId: '42', workItemTitle: 'login: fix Safari', askerId: 'owner', askerName: 'Owner', audience: 'internal' as const, question: 'Why?', answer: '', status: 'answering' as const, demo: false, model: 'glm-5.3-flash', costUsd: null, costStatus: 'pending' as const, failure: null, source: 'model' as const, intent: null, answeredAt: null };
+  const base = { workItemId: '42', workItemTitle: 'login: fix Safari', askerId: 'owner', askerName: 'Owner', audience: 'internal' as const, question: 'Why?', answer: '', status: 'answering' as const, demo: false, model: 'glm-5.3-flash', costUsd: null, costStatus: 'provisional' as const, failure: null, source: 'model' as const, intent: null, answeredAt: null };
   store.saveAsk({ ...base, id: 'old', ploegAskId: 'p-9', createdAt: '2026-10-10T09:50:00Z' });
   store.saveAsk({ ...base, id: 'fresh', ploegAskId: 'p-10', createdAt: '2026-10-10T09:59:30Z' });
   const listed = (await asks.about(owner, '42')).asks;

@@ -6,5 +6,5 @@
 | Pull request | #⁠57 · Merged · CI passed |
 | Days live | Day 8 · Foil finish |
 | Steward | &lt;b&gt;ann&amp;a&lt;/b&gt; · Approved the pull request |
-| Crew | &lt;img src=x&gt; ×1 |
+| Roles | &lt;img src=x&gt; ×1 |
 | Ids | #⁠42 · VIK-1"/&gt;&lt;x · webgrip/ploeg |

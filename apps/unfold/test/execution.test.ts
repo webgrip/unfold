@@ -394,7 +394,7 @@ test('a newer generation learned between roles cannot authorize the old executor
   };
   t.mock.timers.enable({ apis: ['setInterval'] });
   await f.server.app.engine.start(session.id, owner);
-  await until(() => ['failed', 'completed'].includes(f.server.app.store.getSession(session.id)!.status), 'crew did not resolve after authority generation changed');
+  await until(() => ['failed', 'completed'].includes(f.server.app.store.getSession(session.id)!.status), 'team did not resolve after authority generation changed');
   assert.equal(f.server.app.store.getSession(session.id)?.status, 'failed');
   assert.equal(f.runtime.calls, 1, 'the next role must be fenced against the generation that admitted this executor');
   assert.equal(f.state.credentialRequests, 1);
@@ -848,7 +848,7 @@ test('the agent host turns a message into a stranded session into a choice, and 
   assert.equal(turn.params.rejectionReason, undefined, 'the turn is accepted');
   const asked = (await client.until(message => isAction('chat/inputRequested')(message) && message.params.serverSeq > turn.params.serverSeq)).params.action.request;
   assert.deepEqual(options(asked), [['run_again_start', 'Run again and start'], ['run_again', 'Run again with this message'], ['deliver', 'Deliver the approved work first'], ['dismiss', 'Cancel']]);
-  assert.match(asked.questions[0].message, /\*\*Deliver the approved work first\*\*: Reviewer approved this work before the session stopped\. Unfold captures the approved branch as the candidate and Ploeg completes this session with it, without another model call\. The pull request follows the normal delivery path, and your message goes to no crew\./);
+  assert.match(asked.questions[0].message, /\*\*Deliver the approved work first\*\*: Reviewer approved this work before the session stopped\. Unfold captures the approved branch as the candidate and Ploeg completes this session with it, without another model call\. The pull request follows the normal delivery path, and your message goes to no team\./);
   client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/pendingMessageSet', kind: 'queued', id: 'late', message: { text: 'Make it funnier, please.', origin: { kind: 'user' } } } });
   assert.equal((await client.until(echo(2))).params.rejectionReason, undefined, 'a steering message is accepted too');
   await client.until(isAction('chat/pendingMessageRemoved'));
@@ -924,12 +924,12 @@ test('a managed session settles its cost from the gateway\'s observed spend once
   f.state.capability = 'blocked';
   await f.server.app.engine.reconcilePending();
   let current = f.server.app.store.getSession(session.id)!;
-  assert.equal(current.costStatus, 'pending', 'a blocked key\'s meter is not a settlement');
+  assert.equal(current.costStatus, 'observed', 'a blocked key\'s meter is not a settlement');
   assert.equal(current.observedUsd, 0.026);
   assert.equal(current.spentUsd, 0);
   f.state.capability = 'reconciled';
   await f.server.app.engine.reconcilePending();
-  assert.equal(f.server.app.store.getSession(session.id)!.costStatus, 'pending', 'settlement is read at most once per interval');
+  assert.equal(f.server.app.store.getSession(session.id)!.costStatus, 'observed', 'settlement is read at most once per interval');
   (f.server.app.engine as any).settlementReads.clear();
   await f.server.app.engine.reconcilePending();
   current = f.server.app.store.getSession(session.id)!;

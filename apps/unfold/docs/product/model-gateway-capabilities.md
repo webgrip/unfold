@@ -48,8 +48,8 @@ Each row is a small, contained change to [src/broker.ts](../../src/broker.ts) or
 |---|---|---|---|
 | Which model actually answered | The session view names the routed model per turn, not just the tier | 1.99 `router_model_name` in responses and spend logs | Read `/spend/logs` for the key alias; show model per request |
 | Auto-router savings | "This session cost X; on a fixed model it would have cost Y" | 1.99 per-request savings to callbacks, 1.100 shadow-eval savings | Read savings fields from the ledger; show in the session summary |
-| Budget windows with rollover | A long-lived crew gets a weekly allowance and unspent credit carries over | 1.100 | Set `budget_duration` and the rollover flag on generate instead of `budget_duration: null` |
-| Shared budget across a model access group | One ceiling for a whole crew or team regardless of who spends it | 1.100 | Mint keys into a model access group whose budget the estate owns |
+| Budget windows with rollover | A long-lived Team gets a weekly allowance and unspent credit carries over | 1.100 | Set `budget_duration` and the rollover flag on generate instead of `budget_duration: null` |
+| Shared budget across a model access group | One ceiling for a whole Team regardless of who spends it | 1.100 | Mint keys into a model access group whose budget the estate owns |
 | Per-model budgets on a key | A session may spend freely on Haiku but only a little on Opus | 1.99 consolidated tracking, 1.100 update enforcement | Add per-model budgets on generate from the profile |
 | Prompt-cache affinity per session | Repeated context in a long session is served from cache, at cache rates | 1.99 `prompt_cache_key` from user id, deployment affinity | Set a stable `user` and cache key per session in the harness config |
 | Session-level cache observability | The session view shows cache hit rate and what it saved | 1.100 | Read cache fields from request logs |
@@ -65,7 +65,7 @@ These need something in the estate's proxy config or cluster that neither estate
 | MCP tools through the gateway, granted per key | The sandbox gets ClickUp, GitLab or Forgejo tools with no tool credential inside it; Unfold's key grant is the only permission | 1.99 client-held credentials and per-server auth, 1.100 toolset enforcement at team and key level, RFC 7662 introspection, RS256 session tokens | Register MCP servers in the proxy. The second estate already defaults to deny with `supported_db_objects: ["mcp"]` and `require_key_mcp_access_defined: true`, so the first grant is explicit |
 | Guardrails on every turn | Estate-wide policy, including on streaming and on MCP tool calls, without the harness knowing | 1.99 MCP tool guardrails, policy pipelines on caller metadata; 1.100 guardrails on streaming | Configure guardrail providers in the proxy; the key carries the policy |
 | PII masking in the ledger | Spend and debug logs never hold personal data even when the prompt did | 1.99 | Guardrail provider configured |
-| Team and project rate limits | Per-team tokens-per-minute in both directions so one crew cannot starve another | 1.99 project ITPM/OTPM | Teams defined in the proxy; Unfold mints under a team |
+| Team and project rate limits | Per-team tokens-per-minute in both directions so one Team cannot starve another | 1.99 project ITPM/OTPM | Teams defined in the proxy; Unfold mints under a team |
 | Provider budgets and cross-provider fallback | A monthly cap per upstream provider, and Anthropic falling to Fireworks | 1.98 and earlier | A Redis or Valkey instance; the second estate's config defers this on purpose |
 | Personal OAuth login to the gateway | An operator holds their own key from an OIDC login, so the interactive lane can bill to a person rather than a minted key | 1.99 CLI PKCE login, keychain storage | SSO configured on the proxy; Unfold would accept a supplied key instead of minting |
 | Per-team trace routing | Each team's spans land in its own OTel or New Relic service name | 1.99 Phoenix per-key projects, 1.100 OTel v2 per-team `service.name` | Team callbacks configured in the proxy |
@@ -84,6 +84,6 @@ These need something in the estate's proxy config or cluster that neither estate
 The first three are cheap and visible. The fourth is the one that changes the trust model, because it removes the last credential that has to live inside a sandbox.
 
 1. Auto-router tier as a listed model, with routed model and savings shown in the session view.
-2. Budget rollover and shared crew budgets on mint.
+2. Budget rollover and shared Team budgets on mint.
 3. Prompt-cache affinity and cache observability.
-4. MCP tools through the gateway, so a merge-request crew no longer needs a forge token in its environment.
+4. MCP tools through the gateway, so a merge-request Team no longer needs a forge token in its environment.

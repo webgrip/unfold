@@ -118,12 +118,13 @@ function epic(value: unknown, path: string): FactsEpic {
   const d = object(value, path);
   return { provider: text(d.provider, `${path}.provider`, 64), externalId: text(d.externalId, `${path}.externalId`, 256), title: text(d.title ?? '', `${path}.title`, 4096), firstSeenAt: time(d.firstSeenAt, `${path}.firstSeenAt`), lastSeenAt: time(d.lastSeenAt ?? d.firstSeenAt, `${path}.lastSeenAt`), removedAt: maybeTime(d.removedAt, `${path}.removedAt`) };
 }
+const stateAsLeased = (state: string) => state === 'active' ? 'leased' : state;
 function workItem(value: unknown, path: string): FactsWorkItem {
   const d = object(value, path);
   const target = d.target === null || d.target === undefined ? null : object(d.target, `${path}.target`);
   return {
     id: id(d.id, `${path}.id`), provider: text(d.provider, `${path}.provider`, 64), externalId: text(d.externalId ?? '', `${path}.externalId`, 256), externalRef: text(d.externalRef ?? '', `${path}.externalRef`, 512),
-    url: text(d.url ?? '', `${path}.url`, 4096), title: text(d.title ?? '', `${path}.title`, 4096), state: text(d.state, `${path}.state`, 32), team: text(d.team, `${path}.team`, 100),
+    url: text(d.url ?? '', `${path}.url`, 4096), title: text(d.title ?? '', `${path}.title`, 4096), state: stateAsLeased(text(d.state, `${path}.state`, 32)), team: text(d.team, `${path}.team`, 100),
     createdAt: time(d.createdAt, `${path}.createdAt`), updatedAt: time(d.updatedAt ?? d.createdAt, `${path}.updatedAt`), trackerCreatedAt: maybeTime(d.trackerCreatedAt, `${path}.trackerCreatedAt`), estimateSeconds: maybeCount(d.estimateSeconds, `${path}.estimateSeconds`),
     target: target ? { forge: text(target.forge, `${path}.target.forge`, 64), owner: text(target.owner, `${path}.target.owner`, 256), repo: text(target.repo, `${path}.target.repo`, 256), baseBranch: text(target.baseBranch ?? '', `${path}.target.baseBranch`, 512) } : null,
     epics: list(d.epics, `${path}.epics`, epic, 50), withdrawals: list(d.withdrawals, `${path}.withdrawals`, (e, p) => { const w = object(e, p); return { at: time(w.at, `${p}.at`), actor: text(w.actor ?? '', `${p}.actor`, 512) }; }, 20),
@@ -133,7 +134,7 @@ function workItem(value: unknown, path: string): FactsWorkItem {
 }
 function shift(value: unknown, path: string): FactsShift {
   const d = object(value, path);
-  return { id: id(d.id, `${path}.id`), workItemId: id(d.workItemId, `${path}.workItemId`), team: text(d.team ?? '', `${path}.team`, 100), branch: text(d.branch ?? '', `${path}.branch`, 1024), round: count(d.round ?? 0, `${path}.round`), budgetUsd: amount(d.budgetUsd ?? 0, `${path}.budgetUsd`), spentUsd: amount(d.spentUsd ?? 0, `${path}.spentUsd`), reservedUsd: amount(d.reservedUsd ?? 0, `${path}.reservedUsd`), openedAt: time(d.openedAt, `${path}.openedAt`), closedAt: maybeTime(d.closedAt, `${path}.closedAt`), closeReason: text(d.closeReason ?? '', `${path}.closeReason`, 4096) };
+  return { id: id(d.id, `${path}.id`), workItemId: id(d.workItemId, `${path}.workItemId`), team: text(d.team ?? '', `${path}.team`, 100), branch: text(d.branch ?? '', `${path}.branch`, 1024), round: count(d.round ?? 0, `${path}.round`), budgetUsd: amount(d.budgetUsd ?? 0, `${path}.budgetUsd`), spentUsd: amount(d.spentUsd ?? 0, `${path}.spentUsd`), reservedUsd: amount(d.heldUsd ?? d.reservedUsd ?? 0, `${path}.reservedUsd`), openedAt: time(d.openedAt, `${path}.openedAt`), closedAt: maybeTime(d.closedAt, `${path}.closedAt`), closeReason: text(d.closeReason ?? '', `${path}.closeReason`, 4096) };
 }
 const usageKeys = ['inputTokens', 'outputTokens', 'costUsd', 'cacheReadInputTokens', 'cacheCreationInputTokens', 'turns', 'toolCalls'] as const;
 function usage(value: unknown, path: string): FactsUsage | null {
@@ -218,7 +219,7 @@ export function parseWorkItemFacts(value: unknown, path = 'facts'): WorkItemFact
     botLogins: list(d.botLogins, `${path}.botLogins`, (b, p) => text(b, p, 256).toLowerCase(), 100),
     truncated: { shifts: truncation('shifts'), runs: truncation('runs'), pullRequests: truncation('pullRequests'), statusTransitions: truncation('statusTransitions'), gateTransitions: truncation('gateTransitions'), ...(truncated.checkpoints === undefined ? {} : { checkpoints: truncation('checkpoints') }) },
     ...(d.checkpoints === undefined || d.checkpoints === null ? {} : { checkpoints: list(d.checkpoints, `${path}.checkpoints`, (c, p) => { const cp = object(c, p); return { id: id(cp.id, `${p}.id`), phase: text(cp.phase ?? '', `${p}.phase`, 64), branch: text(cp.branch ?? '', `${p}.branch`, 1024), prUrl: text(cp.prUrl ?? '', `${p}.prUrl`, 4096), createdAt: time(cp.createdAt, `${p}.createdAt`) }; }, 200) }),
-    ...(d.runBudgetHolds === undefined || d.runBudgetHolds === null ? {} : { runBudgetHolds: list(d.runBudgetHolds, `${path}.runBudgetHolds`, (h, p) => { const hold = object(h, p); return { runId: id(hold.runId, `${p}.runId`), shiftId: maybeId(hold.shiftId, `${p}.shiftId`), reservedUsd: amount(hold.reservedUsd, `${p}.reservedUsd`) }; }, 1000) }),
+    ...(d.runBudgetHolds === undefined || d.runBudgetHolds === null ? {} : { runBudgetHolds: list(d.runBudgetHolds, `${path}.runBudgetHolds`, (h, p) => { const hold = object(h, p); return { runId: id(hold.runId, `${p}.runId`), shiftId: maybeId(hold.shiftId, `${p}.shiftId`), reservedUsd: amount(hold.heldUsd ?? hold.reservedUsd, hold.heldUsd === undefined ? `${p}.reservedUsd` : `${p}.heldUsd`) }; }, 1000) }),
   };
   for (const entry of facts.shifts) if (entry.workItemId !== facts.workItem.id) fail(`${path}.shifts`, 'names another Work Item');
   return facts;

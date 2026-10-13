@@ -218,7 +218,7 @@ globalThis.document?.addEventListener('visibilitychange', () => {
 
 live.register('now', { interval: 30000, refresh: () => loadNow('live') });
 
-/** The Now page: the "Since you were away" digest, what waits on you, what runs now and what finished recently, across every Team you can read. `j`/`k` move between rows, Enter opens one and `o` opens its pull request or tracker item. Refreshes every 30 seconds and holds new rows behind an "N new" button. */
+/** The Now page: the "Since you were away" digest, what waits on you, what runs now and what finished recently, across every Team you can read. `j`/`k` move between rows, Enter opens one and `o` opens its pull request or task. Refreshes every 30 seconds and holds new rows behind an "N new" button. */
 export default {
   id: 'now',
   match: hash => hash === 'now' ? {} : null,

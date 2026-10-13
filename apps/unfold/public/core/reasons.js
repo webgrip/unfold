@@ -46,12 +46,12 @@ const copy = {
   },
   budget_exhausted_before_fix_round: {
     chip: 'Budget ran out',
-    sentence: 'The Shift’s budget had too little left to pay for another fix Round.',
+    sentence: 'The attempt’s budget had too little left to pay for another fix Round.',
     fix: 'Finish the work by hand, or raise the Team’s budget in its configuration.',
   },
   budget_exhausted: {
     chip: 'Budget ran out',
-    sentence: 'The Shift’s budget could not pay for the next Round.',
+    sentence: 'The attempt’s budget could not pay for the next Round.',
     fix: 'Finish the work by hand, or raise the Team’s budget in its configuration.',
   },
   budget_held: {
@@ -76,7 +76,7 @@ const copy = {
   },
   plan_removed: {
     chip: 'Team plan removed',
-    sentence: 'The Team’s plan was removed from the configuration while the Shift ran.',
+    sentence: 'The Team’s plan was removed from the configuration during the attempt.',
     fix: 'Restore the plan, or move the task to another Team.',
   },
   pull_request_closed: {
@@ -173,12 +173,12 @@ function classify(closeReason) {
 function sentenceFor(code, text, item, demo) {
   if (code === 'budget_exhausted') {
     const { pool, spent, reserved } = parseBudgetReason(text);
-    if (pool !== null) return `The Shift’s budget of ${money(pool)} could not pay for the next Round${spent !== null && !demo ? ` (spent ${money(spent)}${reserved !== null ? `, reserved ${money(reserved)}` : ''})` : ''}.`;
+    if (pool !== null) return `The attempt’s budget of ${money(pool)} could not pay for the next Round${spent !== null && !demo ? ` (spent ${money(spent)}${reserved !== null ? `, held ${money(reserved)}` : ''})` : ''}.`;
   }
   if (code === 'budget_held') {
     const { pool, spent, reserved } = parseBudgetReason(text);
-    if (pool !== null && /^budget held/i.test(text)) return `Ploeg stopped because the Shift’s ${money(pool)} budget is held, not spent: ${spent > 0 ? `only ${money(spent)} was spent, and ` : ''}${money(reserved)} is still held for finished Runs whose spend Ploeg could not settle within a day.`;
-    if (pool !== null) return `Ploeg stopped because the Shift’s ${money(pool)} budget could not pay for the next Round, but ${spent > 0 ? `only ${money(spent)} was spent` : 'nothing was spent'}. ${money(reserved)} was held for Runs whose spend Ploeg had not settled yet.`;
+    if (pool !== null && /^budget held/i.test(text)) return `Ploeg stopped because the attempt’s ${money(pool)} budget is held, not spent: ${spent > 0 ? `only ${money(spent)} was spent, and ` : ''}${money(reserved)} is still held for finished Runs whose spend Ploeg could not settle within a day.`;
+    if (pool !== null) return `Ploeg stopped because the attempt’s ${money(pool)} budget could not pay for the next Round, but ${spent > 0 ? `only ${money(spent)} was spent` : 'nothing was spent'}. ${money(reserved)} was held for Runs whose spend Ploeg had not settled yet.`;
   }
   if (code === 'run_stuck') {
     const { role, round } = parseStuckReason(text);

@@ -33,7 +33,7 @@ No usage analytics, interviews or support tickets were available. Everything abo
 | When a Work Item stops, I want one sentence that says what was achieved, why it stopped and what I can do, so I do not have to read its history | E1–E4 |
 | When the reviewer approved but nothing was delivered, I want to deliver the approved work or run it again from VS Code, with a confirmation that says what it costs and changes | E2, E3; the concurrent recovery work |
 | When a change is ready, I want to see it in VS Code's diff editor, so I review it where I write code | E1; the request |
-| When I type into a session in the Agents window, I want to know at once whether a crew will read it | E5 |
+| When I type into a session in the Agents window, I want to know at once whether a Team will read it | E5 |
 
 Proxy top tasks, most frequent first: glance at progress; read why it stopped; open the change; act on the stop (deliver, run again, investigate); answer a question.
 
@@ -47,7 +47,7 @@ Proxy top tasks, most frequent first: glance at progress; read why it stopped; o
 | Deliver approved work | Occasionally | High: pushes a branch and opens a pull request | Specific modal confirmation naming the branch, repository and that nothing merges |
 | Run again | Occasionally | High: spends budget | Specific modal confirmation naming the Team, the budget and that the earlier Runs stay |
 | Cancel | Rarely | High: irreversible | The existing modal confirmation |
-| Answer a question | When asked | Medium | Primary action while the crew waits |
+| Answer a question | When asked | Medium | Primary action while the Team waits |
 
 Assumptions, unproven: developers keep VS Code open while work runs (E6 suggests yes); a reviewer verdict read from a transcript is worth showing when it is labelled as unrecorded (E2); the recovery actions land as an API the extension can call (see [Interface](#the-recovery-interface)).
 
@@ -148,9 +148,9 @@ AHP has no buttons in a turn, so the projection speaks in parts:
 | The session stops, fails, pauses, completes or is cancelled | One Markdown outcome part that ends the turn: the headline, the steps, spend against budget, why, and the next steps with a link to the session page and the Work Item |
 | After it stops | `activity` keeps the short headline, such as "Stopped · reviewer approved" |
 | A message arrives while a Run works | `systemNotification`: "Queued for the Reviewer's next step", and "Picked up by Reviewer at 14:02 UTC" when that Run starts |
-| A message arrives and no crew will read it | The turn is accepted; Markdown says why, and an input request offers **Run again and start**, **Run again with this message**, **Deliver the approved work first** (when available) and **Cancel** |
+| A message arrives and no Team will read it | The turn is accepted; Markdown says why, and an input request offers **Run again and start**, **Run again with this message**, **Deliver the approved work first** (when available) and **Cancel** |
 | The session stopped by itself or failed | A host turn, "What next?", with the available next steps as an input request and links to the pull request and the session page |
-| The session ended or Ploeg holds its stopped execution | No input block. A completed chat is `read-only`; any other chat takes a message, which becomes a choice when no crew will read it |
+| The session ended or Ploeg holds its stopped execution | No input block. A completed chat is `read-only`; any other chat takes a message, which becomes a choice when no Team will read it |
 
 ### Browser Work Item page
 
@@ -171,7 +171,7 @@ Ploeg's own detail goes through `reconcileDetail` on both the extension and the 
 
 ## Copy and locale
 
-Money uses the shared formatter in every surface (`US$ 0,03` in the default `nl-NL` locale), including the status bar and the Agents window. Token counts the gateway did not report read "Not reported". Role names are shown as the crew defines them; the words Run, Shift, Round, Role and Work Item follow the glossary.
+Money uses the shared formatter in every surface (`US$ 0,03` in the default `nl-NL` locale), including the status bar and the Agents window. Token counts the gateway did not report read "Not reported". Role names are shown as the Team defines them; the words Run, Shift, Round, Role and Work Item follow the glossary.
 
 ## Independent review
 

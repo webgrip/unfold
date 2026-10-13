@@ -197,7 +197,7 @@ export function activity(session: Session): string | undefined {
   return undefined;
 }
 
-/** Whether no crew will read a message sent into this session: it ended, or Ploeg holds its stopped execution. */
+/** Whether no team will read a message sent into this session: it ended, or Ploeg holds its stopped execution. */
 export function closedToMessages(session: Session): boolean {
   if (['completed', 'cancelled', 'failed'].includes(session.status)) return true;
   return session.status === 'interrupted' && Boolean(stopReason(session, [])?.retained);
@@ -310,7 +310,7 @@ export class AgentHost {
     this.workItemCommands = new WorkItemCommands(store, this.workItems.client, config.maxBudgetUsd);
   }
 
-  /** Connects the Ask service, so a person can ask about a session's Work Item from its chat without reaching the crew (system ADR-0031). */
+  /** Connects the Ask service, so a person can ask about a session's Work Item from its chat without reaching the team (system ADR-0031). */
   useAsks(service: ChatAskService): void { this.chatAsks.service = service; }
 
   /** Connects candidate delivery, so a gated session's verified candidate offers Accept and open pull request through the publish route. */
@@ -491,7 +491,7 @@ export class AgentHost {
   rootState(user: User): Json {
     return {
       agents: [{
-        provider, displayName: 'Unfold crews', description: 'Operator-led agent crews in isolated workspaces; every session ends in a reviewable candidate.',
+        provider, displayName: 'Unfold teams', description: 'Operator-led agent teams in isolated workspaces; every session ends in a reviewable candidate.',
         models: [{ ...composerModel(this.config), provider }],
         protectedResources: [],
       }],
@@ -767,22 +767,22 @@ export class AgentHost {
     return this.config.baseUrl ? `${this.config.baseUrl.replace(/\/+$/, '')}/#session/${encodeURIComponent(session.id)}` : '';
   }
 
-  /** One Markdown part that ends a turn with the outcome, opening with a blank line because VS Code renders consecutive Markdown parts as one document and a crew's text may end in an unclosed line: what happened, the change, spend, why it stopped and what to do next. Added once per turn. A session that stopped by itself gets its next steps as the "What next?" choice instead, so its outcome says only why it stopped. */
+  /** One Markdown part that ends a turn with the outcome, opening with a blank line because VS Code renders consecutive Markdown parts as one document and a team's text may end in an unclosed line: what happened, the change, spend, why it stopped and what to do next. Added once per turn. A session that stopped by itself gets its next steps as the "What next?" choice instead, so its outcome says only why it stopped. */
   private outcome(projection: Projection, session: Session): Json[] {
     const turn = projection.activeTurn;
     if (!turn || turn.outcome) return [];
     turn.outcome = true;
     const progress = sessionProgress(session, { events: this.store.events(session.id) });
-    const again = session.status === 'cancelled' && !session.sourceTask ? '\n\nSend a message here to run it again with your message as an instruction for its crew; nothing runs until you choose.' : '';
+    const again = session.status === 'cancelled' && !session.sourceTask ? '\n\nSend a message here to run it again with your message as an instruction for its team; nothing runs until you choose.' : '';
     return this.addPart(projection, { kind: 'markdown', id: `${turn.id}-outcome`, content: `\n\n${outcomeMarkdown(progress, { sessionUrl: this.sessionPage(session), nextSteps: session.status !== 'interrupted' })}${again}` });
   }
 
-  /** What a person reads after sending an instruction: when a Run will read it, or that no crew will and what to do instead. */
+  /** What a person reads after sending an instruction: when a Run will read it, or that no team will and what to do instead. */
   private instructionNotice(projection: Projection, session: Session, event: Event): string {
     const afterFinalStop = projection.finalStop !== undefined && event.id > projection.finalStop;
     if (afterFinalStop && closedToMessages(session)) {
       const progress = sessionProgress(session);
-      return `No crew will read this message: ${lowerFirst(progress.reason?.sentence ?? `the session is ${progress.meta.label.toLowerCase()}.`)} ${progress.actions.length ? `Instead: ${progress.actions.filter(action => !['open-session', 'cancel'].includes(action.id)).map(action => action.label).join(', ') || 'start a new session'}, from VS Code's Work Item view or the session page.` : 'Start a new session to try again.'}`;
+      return `No team will read this message: ${lowerFirst(progress.reason?.sentence ?? `the session is ${progress.meta.label.toLowerCase()}.`)} ${progress.actions.length ? `Instead: ${progress.actions.filter(action => !['open-session', 'cancel'].includes(action.id)).map(action => action.label).join(', ') || 'start a new session'}, from VS Code's Work Item view or the session page.` : 'Start a new session to try again.'}`;
     }
     const role = (runId?: string) => session.runs.find(run => run.id === runId)?.roleName ?? 'Role';
     if (projection.workingRun) {
@@ -893,7 +893,7 @@ export class AgentHost {
       }
       case 'brief.unclear': {
         const requestId = String(data.requestId ?? '');
-        const request = this.store.getPermission(requestId) ?? { id: requestId, sessionId: session.id, runId: '', nativeId: '', kind: 'question', title: 'The brief needs more before the crew starts', detail: String(data.reason ?? ''), questions: (Array.isArray(data.questions) ? data.questions : []).map((question: unknown) => ({ question: String(question) })) };
+        const request = this.store.getPermission(requestId) ?? { id: requestId, sessionId: session.id, runId: '', nativeId: '', kind: 'question', title: 'The brief needs more before the team starts', detail: String(data.reason ?? ''), questions: (Array.isArray(data.questions) ? data.questions : []).map((question: unknown) => ({ question: String(question) })) };
         if (requestId) actions.push(...this.raiseInput(projection, session, this.requestPart(request), event.at));
         break;
       }
@@ -1131,7 +1131,7 @@ export class AgentHost {
 
   /**
    * A terminal VS Code asks for each time it shows one of this host's sessions. It starts no shell: it holds a notice that
-   * says where the crew's commands appear, refuses every action, and lives as long as the connection or until disposed.
+   * says where the team's commands appear, refuses every action, and lives as long as the connection or until disposed.
    */
   private createClientTerminal(client: Client, params: Json): Json {
     const channel = params.channel;
@@ -1762,18 +1762,18 @@ export class AgentHost {
     const budget = money(session.budgetUsd);
     const reviewer = recovery?.review?.roleName ?? 'The reviewer';
     const meaning: Record<ChoiceOptionId, string> = {
-      run_again_start: `a new session with this session's brief, repository, crew, placement and budget (${budget})${withMessage ? ', and your message as an instruction its crew reads' : ''}. It starts at once, as a new Ploeg authorization.`,
+      run_again_start: `a new session with this session's brief, repository, team, placement and budget (${budget})${withMessage ? ', and your message as an instruction its team reads' : ''}. It starts at once, as a new Ploeg authorization.`,
       run_again: `the same new session, left ready for you to start. Nothing runs until you do.`,
-      deliver: `${reviewer} approved this work before the session stopped. Unfold captures the approved branch as the candidate and Ploeg completes this session with it, without another model call. The pull request follows the normal delivery path${withMessage ? ', and your message goes to no crew' : ''}.`,
+      deliver: `${reviewer} approved this work before the session stopped. Unfold captures the approved branch as the candidate and Ploeg completes this session with it, without another model call. The pull request follows the normal delivery path${withMessage ? ', and your message goes to no team' : ''}.`,
       resume: 'this session continues in a new generation, and every Run that did not finish runs again.',
-      ask: 'your message is answered at once as an Ask about this work. No crew reads it; Ploeg meters it against your Team\'s Ask Allowance.',
-      steer: 'the crew gets your message as an instruction, as if you had sent it without `/ask`.',
+      ask: 'your message is answered at once as an Ask about this work. No team reads it; Ploeg meters it against your Team\'s Ask Allowance.',
+      steer: 'the team gets your message as an instruction, as if you had sent it without `/ask`.',
       dismiss: withMessage ? 'nothing changes, and your message is not used.' : 'nothing changes. You can still act on the session page.',
     };
     return options.map(option => `- **${option.label}**: ${meaning[option.id]}`).join('\n');
   }
 
-  /** The choice offered for a message no crew will read: run again with the message as the brief, deliver approved work first, ask it instead, or cancel. `unasked` says why it was not answered as an Ask. */
+  /** The choice offered for a message no team will read: run again with the message as the brief, deliver approved work first, ask it instead, or cancel. `unasked` says why it was not answered as an Ask. */
   private messageOffer(session: Session, recovery: Recovery, unasked?: string): Json {
     const available = new Map(recovery.actions.filter(action => action.available).map(action => [action.id, action]));
     const options: ChoiceOption[] = [];
@@ -1782,16 +1782,16 @@ export class AgentHost {
     const reason = sessionProgress(session, { events: this.store.events(session.id) }).reason?.sentence ?? `the session is ${session.status}.`;
     const blocked = recovery.actions.find(action => action.id === 'run_again' && !action.available)?.unavailableReason;
     const notAsked = unasked ? `\n\nIt was not answered as an Ask either: ${unasked}` : '';
-    if (!options.length) return { title: 'No crew will read this message', explanation: `No crew will read this message. ${reason}${blocked ? ` It cannot run again from here: ${blocked}` : ''}${notAsked}`, options: [] };
+    if (!options.length) return { title: 'No team will read this message', explanation: `No team will read this message. ${reason}${blocked ? ` It cannot run again from here: ${blocked}` : ''}${notAsked}`, options: [] };
     if (!unasked && this.chatAsks.covers(session)) options.push({ id: 'ask', label: 'Ask instead' });
     options.push({ id: 'dismiss', label: 'Cancel' });
-    return { title: 'No crew will read this message', question: 'What should happen with your message?', explanation: `No crew will read this message. ${reason} Choose what happens with it below; nothing runs until you choose.${notAsked}`, detail: this.optionLines(session, recovery, options, true), options };
+    return { title: 'No team will read this message', question: 'What should happen with your message?', explanation: `No team will read this message. ${reason} Choose what happens with it below; nothing runs until you choose.${notAsked}`, detail: this.optionLines(session, recovery, options, true), options };
   }
 
-  /** The choice offered when a question meant for an Ask could not be asked in a session whose crew still reads messages: send it to the crew, or leave it. */
+  /** The choice offered when a question meant for an Ask could not be asked in a session whose team still reads messages: send it to the team, or leave it. */
   private steeringOffer(session: Session, unasked: string): Json {
-    const options: ChoiceOption[] = [{ id: 'steer', label: 'Send it to the crew' }, { id: 'dismiss', label: 'Cancel' }];
-    return { title: 'Not answered as an Ask', question: 'What should happen with your message?', explanation: `Your message was not answered as an Ask: ${unasked} No crew has read it. Choose what happens with it below; nothing is sent until you choose.`, detail: this.optionLines(session, undefined, options, true), options };
+    const options: ChoiceOption[] = [{ id: 'steer', label: 'Send it to the team' }, { id: 'dismiss', label: 'Cancel' }];
+    return { title: 'Not answered as an Ask', question: 'What should happen with your message?', explanation: `Your message was not answered as an Ask: ${unasked} No team has read it. Choose what happens with it below; nothing is sent until you choose.`, detail: this.optionLines(session, undefined, options, true), options };
   }
 
   /** The choice that ends a session which stopped by itself or failed: its next steps, with links to the pull request and the session page. */
@@ -1806,7 +1806,7 @@ export class AgentHost {
     const progress = sessionProgress(session, { events: this.store.events(session.id), recovery });
     const page = this.sessionPage(session);
     const links = [progress.change.pullRequest?.url ? `[Open pull request #${progress.change.pullRequest.number}](${progress.change.pullRequest.url})` : '', page && progress.change.viewable ? `[View the change](${page})` : page ? `[Open the session page](${page})` : ''].filter(Boolean).join(' · ');
-    const asking = this.chatAsks.covers(session) ? 'Or type a question: it is answered as an Ask, and no crew reads it.' : '';
+    const asking = this.chatAsks.covers(session) ? 'Or type a question: it is answered as an Ask, and no team reads it.' : '';
     return { title: 'What next?', question: 'What should happen next?', explanation: [recovery.summary, 'Nothing runs until you choose.', asking, links].filter(Boolean).join('\n\n'), detail: this.optionLines(session, recovery, options, false), options };
   }
 
@@ -1828,9 +1828,9 @@ export class AgentHost {
   }
 
   /**
-   * Turns a message no crew will read into a choice in the person's own turn. A choice still open is answered as replaced first.
-   * With `unasked`, the message was meant as an Ask that could not be made: the choice says why, and in a session whose crew
-   * still reads messages it offers to send the message to the crew.
+   * Turns a message no team will read into a choice in the person's own turn. A choice still open is answered as replaced first.
+   * With `unasked`, the message was meant as an Ask that could not be made: the choice says why, and in a session whose team
+   * still reads messages it offers to send the message to the team.
    */
   private async offerForMessage(client: Client, session: Session, text: string, origin: Origin, requestedTurnId?: unknown, known?: Recovery, unasked?: { reason: string; steerable: boolean }): Promise<undefined> {
     const recovery = unasked?.steerable ? undefined : known ?? await this.engine.recovery(session.id, client.user);
@@ -1844,7 +1844,7 @@ export class AgentHost {
     return undefined;
   }
 
-  /** Whether a typed message in this session is an Ask unless the person says `/steer`: no crew reads its messages, and no review waits for the text. */
+  /** Whether a typed message in this session is an Ask unless the person says `/steer`: no team reads its messages, and no review waits for the text. */
   private asksByDefault(session: Session): boolean {
     return closedToMessages(session) && !this.openChoice(this.projection(session))?.review;
   }
@@ -1891,7 +1891,7 @@ export class AgentHost {
     return undefined;
   }
 
-  /** Answers a question sent while a turn is open, such as a crew's, as an Ask inside that turn. The pending message stays until the answer is there. */
+  /** Answers a question sent while a turn is open, such as a team's, as an Ask inside that turn. The pending message stays until the answer is there. */
   private async askInline(client: Client, channel: string, session: Session, action: Json, text: string, origin: Origin, stranded = false): Promise<undefined> {
     this.echo(client, channel, action, origin);
     const settled = () => this.broadcast(channel, { type: 'chat/pendingMessageRemoved', kind: action.kind, id: action.id });
@@ -1943,12 +1943,12 @@ export class AgentHost {
       switch (option.id) {
         case 'dismiss': answered({ reply: dismissReply, ...(accepted ? {} : { cancelled: true }) }); return undefined;
         case 'ask': {
-          answered({ reply: 'Asking it instead. No crew reads this message.', closes: false });
+          answered({ reply: 'Asking it instead. No team reads this message.', closes: false });
           void this.askForChoice(client, session, choiceId, String(offered.text ?? '')).finally(() => this.answering.delete(choiceId));
           return undefined;
         }
         case 'steer': {
-          answered({ reply: 'Sending it to the crew.' });
+          answered({ reply: 'Sending it to the team.' });
           await this.engine.message(session.id, String(offered.text ?? ''), client.user);
           const current = this.store.getSession(session.id) ?? session;
           if (current.status === 'queued') await this.engine.start(session.id, client.user);
@@ -2015,7 +2015,7 @@ export class AgentHost {
     return [...actions, ...this.closeTurn(projection, 'complete', event.at)];
   }
 
-  /** A declined question: recorded, then passed to the crew as an explicit answer for each question. Not while the person is stopping the turn. */
+  /** A declined question: recorded, then passed to the team as an explicit answer for each question. Not while the person is stopping the turn. */
   private async decline(client: Client, session: Session, request: PermissionRequest, origin: Origin): Promise<undefined | string> {
     const projection = this.projection(session);
     if (projection.origins.has('cancel')) return stoppingRefusal;
