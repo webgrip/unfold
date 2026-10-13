@@ -73,3 +73,15 @@ test('every signal the detector sends is in the server catalogue with the proper
   assert.deepEqual(insightCatalogue['ui.dead_click'], ['element']);
   assert.deepEqual(insightCatalogue['ui.u_turn'], []);
 });
+
+test('a dead click is still dead while inert content changes, such as the loading curtain flying its mark', async () => {
+  const { pageChanged } = await import('../public/core/confusion.js');
+  const element = ({ inert = false, attributes = {} } = {}) => ({ nodeType: 1, closest: selector => (selector === '[inert]' && inert ? {} : null), getAttribute: name => attributes[name] ?? null });
+  const curtainDot = element({ inert: true, attributes: { r: '2.4' } });
+  const button = element({ attributes: { 'aria-expanded': 'true' } });
+  assert.equal(pageChanged([{ type: 'attributes', target: curtainDot, attributeName: 'r', oldValue: '2.1' }]), false, 'the curtain moving is not the page answering a click');
+  assert.equal(pageChanged([{ type: 'attributes', target: button, attributeName: 'aria-expanded', oldValue: 'true' }]), false, 'an attribute set to the value it had is no change');
+  assert.equal(pageChanged([{ type: 'attributes', target: button, attributeName: 'aria-expanded', oldValue: 'false' }]), true);
+  assert.equal(pageChanged([{ type: 'characterData', target: { nodeType: 3, parentElement: element() } }]), true, 'changed text counts');
+  assert.equal(pageChanged([{ type: 'childList', target: element({ inert: true }) }, { type: 'childList', target: element() }]), true, 'one real change among inert ones counts');
+});
