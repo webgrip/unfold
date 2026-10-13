@@ -29,6 +29,7 @@ import { knownSecrets, withoutKnownSecrets } from './redaction.ts';
 import { AskService, type AskAuthority } from './ask/service.ts';
 import { noErrorReports, type ErrorReports } from './error-reports.ts';
 
+const reportRefreshWaitMs = 2500;
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
 /** The most events one storage read loads while streaming a session's history to a live event client. */
@@ -274,7 +275,21 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           }
           fault(405, 'method', 'Unsupported method.');
         }
-        if (method === 'GET' && path === '/api/reports') return json(res, 200, { reports: reports.mine(user) });
+        if (method === 'GET' && path === '/api/reports') {
+          await Promise.race([reports.refresh(user).catch(() => undefined), new Promise(done => setTimeout(done, reportRefreshWaitMs).unref())]);
+          const mine = reports.mine(user);
+          return json(res, 200, { reports: mine, updates: mine.filter(report => report.unread).length });
+        }
+        if (method === 'POST' && path === '/api/reports/seen') { reports.seen(user); return json(res, 200, { updates: 0 }); }
+        if (method === 'GET' && path === '/api/reports/similar') return json(res, 200, { reports: reports.similar(user, (url.searchParams.get('q') ?? '').slice(0, 4000), url.searchParams.get('route')?.slice(0, 200) || undefined) });
+        const reportReply = /^\/api\/reports\/([^/]+)\/replies$/.exec(path);
+        if (method === 'POST' && reportReply) {
+          try { return json(res, 201, { report: await reports.reply(user, reportReply[1], (await body(req)).text) }); }
+          catch (error) {
+            if (error instanceof ReportError || error instanceof TaskError) return json(res, error.status, { error: { code: error.code, message: error.message } });
+            throw error;
+          }
+        }
         if (method === 'POST' && path === '/api/reports') {
           try {
             const parsed = await parseReport(req);

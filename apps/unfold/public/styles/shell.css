@@ -1551,3 +1551,15 @@
     position: static !important;
   }
 }
+
+.app-report {
+  position: relative;
+}
+
+.app-report-signal {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  margin: 0;
+  box-shadow: 0 0 0 2px var(--shell-surface);
+}

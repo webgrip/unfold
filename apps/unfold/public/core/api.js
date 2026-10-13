@@ -18,7 +18,7 @@ export async function api(path, options = {}) {
   let response;
   try { response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', 'X-Unfold-Request': '1', ...options.headers }, credentials: 'same-origin' }); }
   catch (error) { rememberRequest({ method: options.method, url: path, durationMs: performance.now() - started }); throw error; }
-  if (!response.ok) rememberRequest({ method: options.method, url: path, status: response.status, durationMs: performance.now() - started });
+  rememberRequest({ method: options.method, url: path, status: response.status, durationMs: performance.now() - started });
   const data = await response.json();
   if (!response.ok) {
     if (response.status === 401 && path !== '/api/login') unauthorized();

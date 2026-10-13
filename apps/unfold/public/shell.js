@@ -126,6 +126,11 @@ function liveButton() {
   return `<button class="app-live" type="button" data-action="live-toggle" data-live-toggle data-state="${paused ? 'paused' : 'live'}" aria-label="${label}" title="${label}">${icon(paused ? 'play' : 'pause')}<span class="app-live-label" data-live-label ${paused ? '' : 'hidden'}>Paused</span></button>`;
 }
 
+function reportLabel() {
+  const updates = state.reportUpdates || 0;
+  return updates ? `Report a problem. ${updates} of your reports ${updates === 1 ? 'has' : 'have'} news` : 'Report a problem';
+}
+
 function statusMarkup() {
   const demo = state.bootstrap.mode === 'demo';
   const facts = statusFacts();
@@ -170,7 +175,7 @@ function backMarkup(page) {
 }
 
 function topbarMarkup(page) {
-  return `<header class="app-topbar"><button class="app-icon-button app-menu-button" type="button" data-action="nav-open" aria-label="Open navigation" aria-haspopup="dialog" aria-controls="nav-drawer">${icon('menu')}</button><a class="app-home" href="#now" aria-label="Unfold home">${mark}</a>${backMarkup(page)}${breadcrumbs(page)}<div class="app-topbar-end"><button class="app-search" type="button" data-action="palette-open" aria-label="Search and commands" aria-keyshortcuts="Control+K Meta+K">${icon('search')}<span class="app-search-text" aria-hidden="true">Search or jump to…</span><kbd class="app-kbd" aria-hidden="true">${escape(keyLabel('Mod'))} K</kbd></button>${statusMarkup()}<button class="app-icon-button app-report" type="button" data-action="report-open" aria-label="Report a problem" title="Report a problem">${icon('flag')}</button>${userMenuMarkup()}</div></header>`;
+  return `<header class="app-topbar"><button class="app-icon-button app-menu-button" type="button" data-action="nav-open" aria-label="Open navigation" aria-haspopup="dialog" aria-controls="nav-drawer">${icon('menu')}</button><a class="app-home" href="#now" aria-label="Unfold home">${mark}</a>${backMarkup(page)}${breadcrumbs(page)}<div class="app-topbar-end"><button class="app-search" type="button" data-action="palette-open" aria-label="Search and commands" aria-keyshortcuts="Control+K Meta+K">${icon('search')}<span class="app-search-text" aria-hidden="true">Search or jump to…</span><kbd class="app-kbd" aria-hidden="true">${escape(keyLabel('Mod'))} K</kbd></button>${statusMarkup()}<button class="app-icon-button app-report" type="button" data-action="report-open" data-report-flag aria-label="${escape(reportLabel())}" title="${escape(reportLabel())}">${icon('flag')}<span class="app-signal app-report-signal" data-report-signal aria-hidden="true" ${state.reportUpdates ? '' : 'hidden'}></span></button>${userMenuMarkup()}</div></header>`;
 }
 
 function headerMarkup(page) {
@@ -244,6 +249,8 @@ export function updateChrome() {
   }
   for (const dot of document.querySelectorAll('[data-signal]')) { dot.hidden = !state.statusSignal; dot.dataset.tone = state.statusSignal === 'down' ? 'danger' : 'attention'; }
   for (const description of document.querySelectorAll('[data-signal-describe]')) description.textContent = state.statusSignal ? signals[state.statusSignal] : '';
+  for (const dot of document.querySelectorAll('[data-report-signal]')) dot.hidden = !state.reportUpdates;
+  for (const flag of document.querySelectorAll('[data-report-flag]')) { flag.setAttribute('aria-label', reportLabel()); flag.title = reportLabel(); }
   for (const section of document.querySelectorAll('.app-nav-section[data-group="ploeg"]')) section.toggleAttribute('data-unconfigured', state.ploegStatus === 'unconfigured');
   updateLiveState();
   const theme = prefs.get('theme');

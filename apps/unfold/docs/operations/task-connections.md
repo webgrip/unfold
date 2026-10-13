@@ -205,6 +205,9 @@ Or give reports a connection of their own, which is not a task source and never 
 * The token needs to create issues and upload issue attachments on Forgejo (`write:issue`), or create tasks and attachments in the project on Vikunja.
 * Unfold keeps each report before it files it. If the tracker refuses or cannot be reached, the person sees "Saved. Unfold will file it when the tracker answers", and Unfold retries with growing gaps for 24 hours, continuing an issue it already created. The server log line `report.file_failed` gives the tracker's answer.
 * Files are deleted 90 days after a report is filed. The report row and its address stay.
+* Unfold follows each filed report on the tracker every ten minutes for 180 days (two weeks after it closes, longer while a merged fix waits for a release) and shows the reporter where it stands. On Forgejo the token also needs to read the repository's pull requests and releases (`read:repository`) for *Fixed in* a release. A failed read logs `report.follow_failed` and keeps the last answer.
+* People can reply to their filed report from Unfold, and a repeat report joins an open one as a comment. Both are written by the token's account, so the token needs to comment on issues or tasks.
+* `acknowledgement` (optional, both forms) is one line of at most 280 characters the success screen shows, for example `"We read every report on weekdays."`. Leave it out rather than promise a response time you do not keep.
 * With no tracker configured, and always in the demo, Unfold keeps the report and says so.
 
 ## Diagnose a connection

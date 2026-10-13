@@ -551,3 +551,100 @@ export async function updateIssueBody(source: TaskSourceConfig, project: string,
 export function reportTargetProject(source: TaskSourceConfig, project: string): string {
   try { return reportProject(source, project); } catch (error) { throw new Error(error instanceof TaskError ? error.message : `reports.project ${(error as Error).message.replace(/^Task source project/, 'must be')}`); }
 }
+
+/** One comment on a filed issue or task as plain text. `mine` marks the comments the workbench's token wrote. */
+export type IssueComment = { id: string; author: string; text: string; at: string; mine: boolean };
+/** The pull request that names a filed Forgejo issue, newest first. */
+export type IssueFix = { number: string; url: string; merged: boolean; mergedAt?: string };
+/** The first release of the running version's line made after a fix was merged, and whether the running version has it. */
+export type IssueRelease = { tag: string; url: string; at: string; live: boolean };
+/** What the tracker says about a filed issue or task now. */
+export type IssueState = { open: boolean; closedAt?: string; labels: string[]; assigned: boolean; comments: IssueComment[]; fix?: IssueFix; release?: IssueRelease };
+
+const maxCommentText = 600;
+const trackerLogins = new Map<string, Promise<string>>();
+
+function plain(value: unknown, html: boolean): string {
+  const text = String(value ?? '');
+  const flat = html ? text.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li|h\d)>/gi, '\n').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&') : text.replace(/!\[[^\]]*\]\([^)]*\)/g, '[image]').replace(/<[^>]*>/g, '');
+  const squeezed = flat.replace(/\r\n?/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  return squeezed.length > maxCommentText ? `${squeezed.slice(0, maxCommentText - 1)}…` : squeezed;
+}
+
+function when(value: unknown): string | undefined {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value)) && !value.startsWith('0001-') ? new Date(value).toISOString() : undefined;
+}
+
+function trackerLogin(source: TaskSourceConfig): Promise<string> {
+  const key = `${source.baseUrl}\u0000${source.token ?? ''}`;
+  let login = trackerLogins.get(key);
+  if (!login) {
+    login = fileRequest(source, 'GET', '/user').then(value => String(record(value)[source.provider === 'forgejo' ? 'login' : 'username'] ?? ''));
+    login.catch(() => trackerLogins.delete(key));
+    trackerLogins.set(key, login);
+  }
+  return login;
+}
+
+function releaseVersion(tag: string): { line: string; version: string } | undefined {
+  const match = /^(.*?v?)(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(tag);
+  return match ? { line: match[1], version: match[2] } : undefined;
+}
+
+async function releaseAfter(source: TaskSourceConfig, target: string, mergedAt: string, version: string): Promise<IssueRelease | undefined> {
+  const listed = await fileRequest(source, 'GET', `/repos/${target}/releases?limit=50`);
+  const releases = (Array.isArray(listed) ? listed : []).map(entry => record(entry)).filter(entry => !entry.draft && typeof entry.tag_name === 'string' && when(entry.created_at))
+    .map(entry => ({ tag: String(entry.tag_name), url: typeof entry.html_url === 'string' ? entry.html_url : '', at: when(entry.created_at)! }));
+  const running = releases.find(entry => releaseVersion(entry.tag)?.version === version);
+  if (!running) return undefined;
+  const line = releaseVersion(running.tag)!.line;
+  const first = releases.filter(entry => releaseVersion(entry.tag)?.line === line && entry.at >= mergedAt).sort((a, b) => a.at.localeCompare(b.at))[0];
+  return first ? { ...first, live: first.at <= running.at } : undefined;
+}
+
+/**
+ * Reads what the tracker says about a filed issue (Forgejo) or task (Vikunja) now: open or closed, labels, whether
+ * someone is assigned, and the latest comments as plain text. For Forgejo it also finds the newest pull request that
+ * names the issue and, once that is merged, the first release of the line `version` belongs to that came after it.
+ * A release is only named when one of the repository's releases carries `version`, so another product's tags never
+ * count.
+ */
+export async function readIssueState(source: TaskSourceConfig, project: string, issue: FiledIssue, version: string): Promise<IssueState> {
+  const target = reportProject(source, project);
+  const login = await trackerLogin(source).catch(() => '');
+  if (source.provider === 'forgejo') {
+    const value = record(await fileRequest(source, 'GET', `/repos/${target}/issues/${issue.number}`));
+    const timeline = await fileRequest(source, 'GET', `/repos/${target}/issues/${issue.number}/timeline?limit=50`).catch(() => []);
+    const events = (Array.isArray(timeline) ? timeline : []).map(entry => record(entry));
+    const comments = events.filter(entry => entry.type === 'comment' && when(entry.created_at)).map(entry => {
+      const author = String(record(entry.user ?? {}).login ?? '');
+      return { id: String(entry.id ?? ''), author, text: plain(entry.body, false), at: when(entry.created_at)!, mine: Boolean(login) && author === login };
+    }).filter(comment => comment.text);
+    const reference = events.filter(entry => entry.type === 'pull_ref' && entry.ref_issue && typeof entry.ref_issue === 'object').map(entry => record(entry.ref_issue)).at(-1);
+    let fix: IssueFix | undefined;
+    if (reference && numericId.test(String(reference.number ?? ''))) {
+      const pull = record(await fileRequest(source, 'GET', `/repos/${target}/pulls/${reference.number}`).catch(() => reference));
+      fix = { number: String(reference.number), url: String(pull.html_url ?? reference.html_url ?? ''), merged: pull.merged === true, ...(when(pull.merged_at) ? { mergedAt: when(pull.merged_at) } : {}) };
+    }
+    const release = fix?.mergedAt ? await releaseAfter(source, target, fix.mergedAt, version).catch(() => undefined) : undefined;
+    const labels = (Array.isArray(value.labels) ? value.labels : []).map(label => String(record(label).name ?? '')).filter(Boolean);
+    const assignees = Array.isArray(value.assignees) ? value.assignees : [];
+    return { open: value.state !== 'closed', ...(when(value.closed_at) ? { closedAt: when(value.closed_at) } : {}), labels, assigned: assignees.length > 0, comments: comments.slice(-10), ...(fix ? { fix } : {}), ...(release ? { release } : {}) };
+  }
+  const task = record(await fileRequest(source, 'GET', `/tasks/${issue.id}`));
+  const listed = await fileRequest(source, 'GET', `/tasks/${issue.id}/comments`).catch(() => []);
+  const comments = (Array.isArray(listed) ? listed : []).map(entry => record(entry)).filter(entry => when(entry.created)).map(entry => {
+    const author = String(record(entry.author ?? {}).username ?? '');
+    return { id: String(entry.id ?? ''), author, text: plain(entry.comment, true), at: when(entry.created)!, mine: Boolean(login) && author === login };
+  }).filter(comment => comment.text);
+  const labels = (Array.isArray(task.labels) ? task.labels : []).map(label => String(record(label).title ?? '')).filter(Boolean);
+  const assignees = Array.isArray(task.assignees) ? task.assignees : [];
+  return { open: task.done !== true, ...(task.done === true && when(task.done_at) ? { closedAt: when(task.done_at) } : {}), labels, assigned: assignees.length > 0, comments: comments.slice(-10) };
+}
+
+/** Adds a comment to a filed issue or task: Markdown for Forgejo, HTML for Vikunja. */
+export async function commentOnIssue(source: TaskSourceConfig, project: string, issue: FiledIssue, body: string): Promise<void> {
+  const target = reportProject(source, project);
+  if (source.provider === 'forgejo') await fileRequest(source, 'POST', `/repos/${target}/issues/${issue.number}/comments`, { body });
+  else await fileRequest(source, 'PUT', `/tasks/${issue.id}/comments`, { comment: body });
+}

@@ -56,8 +56,8 @@ export type AppConfig = {
   reports?: ReportTarget | null;
 };
 
-/** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own) and the repository or project. */
-export type ReportTarget = { source: TaskSourceConfig; project: string };
+/** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own), the repository or project, and an optional line the success screen shows. */
+export type ReportTarget = { source: TaskSourceConfig; project: string; acknowledgement?: string };
 /** Where errors and notable failures are reported: a Sentry-protocol DSN, an OTLP/HTTP logs URL, or both, and the environment name reports carry. */
 export type ErrorReportConfig = { sentryDsn?: string; otlpUrl?: string; environment: string };
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };

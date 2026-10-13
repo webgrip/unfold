@@ -24,6 +24,17 @@ What building it changed:
 * **Fast and forgiving.** `!` opens it, `H`, `B`, `A` and `T` pick a tool, Ctrl or ⌘ Z undoes, Ctrl or ⌘ Enter files. Text survives an accidental close as a draft in the browser for 7 days. The submit button is never disabled while the screenshot is still being taken; filing waits for it.
 * **The loop closes.** After filing, the dialog links the issue, copies the link, and lists the person's earlier reports with their status (`GET /api/reports`, the person's own five).
 
+**Following a report, built on 2026-10-13.** A report that disappears into a tracker teaches people to stop reporting. Two findings shaped this slice: residents of Boston filed more 311 reports after they were shown a photo of a fixed problem, and contributors whose issues a stale bot closed without an answer stopped contributing. So Unfold now follows each filed report and never closes the loop silently:
+
+* **Where it stands, in plain words.** Unfold reads the issue every ten minutes, and again when the person opens their reports. *Got it* until someone acts, *Looking into it* once someone is assigned or comments, *The team replied* when the latest comment is the team's, *Needs more info* when a label asks for it, *Fix in progress* and *Fix merged* from a pull request that names the issue, and *Fixed in 0.4.0-rc.75* once a release of the running Unfold's line, made after the merge, carries the fix. Closing without a fix is *Closed*, *Closed as a duplicate* or *Closed: not planned*, never *Fixed*. The pull request and the release are linked as proof.
+* **News comes to the person.** The flag in the top bar gets a dot and a label that counts reports with news, and a toast names the first one, once per stage. *Your reports* (in the dialog header and the palette) lists them with the team's latest comments as plain text, and opening it marks them seen.
+* **Answer from Unfold.** Each filed report has a reply box. The reply is posted on the issue by the workbench's tracker account, under the person's name and escaped so it cannot mention anyone. A team question opens the box.
+* **Repeats join instead of piling up.** While the person types, Unfold suggests up to three open filed reports from the last 180 days with the same words, preferring the same page, and shows only their titles, stage and how many people hit them. *Same problem* adds the new report to that issue as a comment with its screenshot and files, and the person follows the issue like its first reporter. *Not the same* hides that suggestion for the rest of the report.
+* **Every recent request, not only the failed ones.** The request log keeps the last 50 requests with method, path, status and duration, still without queries, headers or bodies, so a slow or empty answer shows up too.
+* **An optional acknowledgement.** `reports.acknowledgement` sets one line the success screen shows, such as when the team reads reports. Unfold never invents a response time.
+
+Hover highlighting of the element under the pointer was already part of the redesign. Instant replay stays proposed: it needs the masked recorder from RFC-0001, which is off by default for each tenant.
+
 ## What it looks like
 
 ![Report a problem dialog: a large screenshot of a Work Item page with the Ready for review filter boxed by one click, the kind switch set to Something broke, the description, the optional impact, the control it points at, what is sent with it, and the suggested title](img/report-a-problem.png)
@@ -74,7 +85,7 @@ sequenceDiagram
 * **Private regions.** Components that render code, diffs, pull-request bodies, prompts, logs or secrets set `data-private`. Before rasterising, the clone gets `filter: blur(6px)` on those nodes and a "blurred automatically" tag. A test lists every component that renders such content and fails if one lacks the attribute.
 * **Annotation.** An in-house canvas with box, arrow, text, blur and undo, flattened into the PNG. marker.js is not used: its free licence needs a visible link, and its OEM licence (US$ 2,990) covers developer tools.
 * **Console.** `console.error`, `window.onerror` and `unhandledrejection` feed a ring buffer of the last 50 entries from the last 10 minutes: message, source file, line and time. Arguments that are objects are summarised by type, not serialised.
-* **Requests.** Unfold's own `fetch` wrapper keeps the last 20 failed requests: method, path without query string, status, duration and time. No headers and no bodies.
+* **Requests.** Unfold's own `fetch` wrapper keeps the last 50 requests, failed or not (20 failed ones until 2026-10-13): method, path without query string, status, duration and time. No headers and no bodies.
 * **Context.** Route, Work Item, Shift and Run ids on screen, Unfold and Ploeg versions, browser, viewport and locale.
 * **Replay.** Only when the tenant's replay setting is on: the last 60 s of the masked recorder from [RFC-0001](rfc-0001-product-events-and-confusion-signals.md), gzip-compressed rrweb JSON.
 

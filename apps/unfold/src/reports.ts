@@ -3,7 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import type { AppConfig, ReportTarget, User } from './types.ts';
 import type { TaskSourceConfig } from './tasks.ts';
 import type { Store, StoredReport, StoredReportFile, StoredReportIssue } from './store.ts';
-import { apiRoot, attachToIssue, createIssue, reportTargetProject, TaskError, updateIssueBody, type IssueFile } from './tasks.ts';
+import { apiRoot, attachToIssue, commentOnIssue, createIssue, readIssueState, reportTargetProject, TaskError, updateIssueBody, type IssueFile, type IssueState } from './tasks.ts';
 
 export const maxReportBytes = 8 * 1024 * 1024;
 export const maxReportFiles = 5;
@@ -12,11 +12,19 @@ export const fileRetentionMs = 90 * 24 * 3_600_000;
 const maxScreenshotBytes = 6 * 1024 * 1024;
 const maxJsonBytes = 256 * 1024;
 const maxConsoleEntries = 50;
-const maxRequestEntries = 20;
+const maxRequestEntries = 50;
 const retryCheckMs = 60_000;
 const firstRetryMs = 60_000;
 const lastRetryGapMs = 3_600_000;
 export const maxReportsPerHour = 10;
+export const maxRepliesPerHour = 20;
+const followCheckMs = 10 * 60_000;
+const followGapMs = 10 * 60_000;
+const followOnReadGapMs = 2 * 60_000;
+const followWindowMs = 180 * 24 * 3_600_000;
+const followAfterCloseMs = 14 * 24 * 3_600_000;
+const maxAcknowledgement = 280;
+const reportId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 /** A refusal of a posted report, answered with its HTTP status and code. */
@@ -37,14 +45,25 @@ export type ReportKind = 'broken' | 'confusing' | 'idea';
 /** How much a broken thing is in the person's way, when they say. */
 export type ReportImpact = 'blocks' | 'slows' | 'minor';
 /** A posted report after every field and file was checked and every buffer entry reduced to its allowed fields. */
-export type ParsedReport = { title: string; kind: ReportKind; impact?: ReportImpact; happened: string; expected: string; context: ReportContext; files: StoredReportFile[] };
-/** One of the person's own reports, as the dialog lists them after filing. */
-export type ReportSummary = { id: string; title: string; status: StoredReport['status']; url?: string; createdAt: string };
+export type ParsedReport = { title: string; kind: ReportKind; impact?: ReportImpact; happened: string; expected: string; context: ReportContext; files: StoredReportFile[]; duplicateOf?: string };
+/** Where a report stands in words a reporter reads, from what Unfold and the tracker know. */
+export type ReportStage = 'filing' | 'waiting' | 'not-filed' | 'kept' | 'got-it' | 'looking' | 'needs-info' | 'replied' | 'fix-coming' | 'fix-merged' | 'fixed' | 'shipped' | 'duplicate' | 'not-planned' | 'closed';
+/** A report's stage, the words for it, and the moment the team last did something on it. */
+export type ReportProgress = { stage: ReportStage; words: string; changedAt?: string };
+/** One of the person's own reports, as the dialog lists them: where it stands, the proof and the team's latest comments. */
+export type ReportSummary = {
+  id: string; title: string; status: StoredReport['status']; url?: string; createdAt: string;
+  stage: ReportStage; words: string; unread: boolean; others: number; joined: boolean;
+  fix?: { number: string; url: string; merged: boolean }; release?: { tag: string; url: string; live: boolean };
+  comments: { author: string; text: string; at: string; mine: boolean }[];
+};
+/** A filed report that looks like what someone is typing, without any of its text beyond the title. */
+export type SimilarReport = { id: string; title: string; words: string; people: number; mine: boolean };
 
 const kindHeadings: Record<ReportKind, string> = { broken: 'What went wrong', confusing: 'What was confusing', idea: 'What would help' };
 const impactWords: Record<ReportImpact, string> = { blocks: 'Blocks me', slows: 'Slows me down', minor: 'Small thing' };
 /** What the route answers: filed with its address, kept to retry, or kept because nothing can file it. */
-export type ReportOutcome = { id: string; status: StoredReport['status']; url?: string; message: string };
+export type ReportOutcome = { id: string; status: StoredReport['status']; url?: string; message: string; joined?: boolean; others?: number; acknowledgement?: string };
 
 /**
  * Resolves `reports` from the configuration file. `false` turns filing off. `{ source, project? }` names a Forgejo or
@@ -64,18 +83,26 @@ export function reportSettings(raw: unknown, sources: TaskSourceConfig[] | undef
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('reports must be false, { source, project? } or { provider, baseUrl, project, tokenEnv }');
   const value = raw as Record<string, unknown>;
   if ('provider' in value) return ownConnection(value);
-  if (Object.keys(value).some(key => !['source', 'project'].includes(key))) throw new Error('reports must be false, { source, project? } or { provider, baseUrl, project, tokenEnv }');
+  if (Object.keys(value).some(key => !['source', 'project', 'acknowledgement'].includes(key))) throw new Error('reports must be false, { source, project?, acknowledgement? } or { provider, baseUrl, project, tokenEnv, acknowledgement? }');
+  const acknowledgement = acknowledgementSetting(value.acknowledgement);
   const source = fileable.find(entry => entry.id === value.source);
   if (!source) throw new Error('reports.source must name a Forgejo or Vikunja task source with a token');
   const project = value.project === undefined ? source.project : value.project;
   if (typeof project !== 'string') throw new Error('reports.project must be owner/repository for Forgejo or a numeric Vikunja project ID');
   const target = reportTargetProject(source, project);
   if (source.executionOwner === 'ploeg' && target === source.project) throw new Error(`reports.project must differ from ${source.id}'s project: Ploeg dispatches the tasks there, so a report would become agent work`);
-  return { source, project: target };
+  return { source, project: target, ...(acknowledgement ? { acknowledgement } : {}) };
+}
+
+function acknowledgementSetting(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || !value.trim() || value.length > maxAcknowledgement || /[\u0000-\u001f]/.test(value)) throw new Error(`reports.acknowledgement must be one line of at most ${maxAcknowledgement} characters`);
+  return value.trim();
 }
 
 function ownConnection(value: Record<string, unknown>): ReportTarget | null {
-  if (Object.keys(value).some(key => !['provider', 'baseUrl', 'project', 'tokenEnv'].includes(key))) throw new Error('reports with its own connection takes provider, baseUrl, project and tokenEnv only');
+  if (Object.keys(value).some(key => !['provider', 'baseUrl', 'project', 'tokenEnv', 'acknowledgement'].includes(key))) throw new Error('reports with its own connection takes provider, baseUrl, project, tokenEnv and acknowledgement only');
+  const acknowledgement = acknowledgementSetting(value.acknowledgement);
   if (value.provider !== 'forgejo' && value.provider !== 'vikunja') throw new Error('reports.provider must be forgejo or vikunja');
   if (typeof value.tokenEnv !== 'string' || !/^[A-Z][A-Z0-9_]{0,127}$/.test(value.tokenEnv)) throw new Error('reports.tokenEnv must name an environment variable');
   if (typeof value.project !== 'string') throw new Error('reports.project must be owner/repository for Forgejo or a numeric Vikunja project ID');
@@ -87,7 +114,7 @@ function ownConnection(value: Record<string, unknown>): ReportTarget | null {
     console.error(JSON.stringify({ level: 'warn', event: 'reports.token_missing', message: `reports.tokenEnv names ${value.tokenEnv}, which is not set; Unfold keeps reports and files none` }));
     return null;
   }
-  return { source: { ...base, project, token }, project };
+  return { source: { ...base, project, token }, project, ...(acknowledgement ? { acknowledgement } : {}) };
 }
 
 function text(value: FormDataEntryValue | null, field: string, max: number, required = false): string {
@@ -200,7 +227,9 @@ export async function parseReport(req: IncomingMessage): Promise<ParsedReport> {
   if (kind !== 'broken' && kind !== 'confusing' && kind !== 'idea') throw new ReportError(422, 'report_kind_invalid', 'A report is broken, confusing or idea.');
   const impact = form.get('impact');
   if (impact !== null && (kind !== 'broken' || !(String(impact) in impactWords))) throw new ReportError(422, 'report_impact_invalid', 'Only something broken has an impact: blocks, slows or minor.');
-  return { title, kind, ...(impact !== null ? { impact: impact as ReportImpact } : {}), happened, expected: kind === 'broken' ? text(form.get('expected'), 'expected', 4000) : '', context: context(form.get('context')), files };
+  const duplicateOf = form.get('duplicateOf');
+  if (duplicateOf !== null && (typeof duplicateOf !== 'string' || !reportId.test(duplicateOf))) throw new ReportError(422, 'report_duplicate_invalid', 'duplicateOf names a filed report by its id.');
+  return { title, kind, ...(impact !== null ? { impact: impact as ReportImpact } : {}), happened, expected: kind === 'broken' ? text(form.get('expected'), 'expected', 4000) : '', context: context(form.get('context')), files, ...(duplicateOf ? { duplicateOf } : {}) };
 }
 
 function markdownText(value: string): string {
@@ -257,6 +286,62 @@ export function htmlBody(report: StoredReport, version: string, baseUrl?: string
   return `<h2>${heading(report)}</h2>${paragraphs(String(report.body.happened ?? ''))}${expected ? `<h2>What I expected</h2>${paragraphs(expected)}` : ''}<table>${rows}</table>${attachments.length ? `<p>Attached: ${htmlText(attachments.join(', '))}.</p>` : ''}<p><em>Filed with Report a problem in Unfold.</em></p>`;
 }
 
+const needsInfoLabel = /needs?[\s_-]*(more[\s_-]*)?info|question|waiting[\s_-]*(for|on)[\s_-]*(reporter|author)/i;
+const duplicateLabel = /duplicate/i;
+const notPlannedLabel = /won'?t[\s_-]*fix|not[\s_-]*planned|invalid/i;
+const stopWords = new Set('the and for not but was are with this that when what have has had from into then than there they its only just still does did nothing would could should page idea confusing'.split(' '));
+
+function releaseName(tag: string): string {
+  return /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(tag)?.[1] ?? tag;
+}
+
+/**
+ * Where a report stands in a reporter's words. Before it is filed that is the filing status. After, it follows the
+ * tracker: a merged pull request on a closed issue is Fixed, and Fixed in a version once a release of the running
+ * line carries it; a label that asks for information is Needs more info; a team comment, an assignee or an open pull
+ * request is someone looking into it; nothing yet is Got it. Closing without a fix says why when a label does.
+ * `changedAt` is the team's latest act, which decides whether the reporter has something new to see.
+ */
+export function reportProgress(report: StoredReport, state?: IssueState): ReportProgress {
+  if (report.status === 'pending') return { stage: 'filing', words: 'Filing' };
+  if (report.status === 'retrying') return { stage: 'waiting', words: 'Waiting for the tracker' };
+  if (report.status === 'failed') return { stage: 'not-filed', words: 'Not filed' };
+  if (report.status === 'kept') return { stage: 'kept', words: 'Kept in Unfold' };
+  if (!state) return { stage: 'got-it', words: 'Got it' };
+  const team = state.comments.filter(comment => !comment.mine);
+  const changedAt = [team.at(-1)?.at, state.closedAt, state.fix?.mergedAt, state.release?.live ? state.release.at : undefined].filter((value): value is string => Boolean(value)).sort().at(-1);
+  const progress = (stage: ReportStage, words: string): ReportProgress => ({ stage, words, ...(changedAt ? { changedAt } : {}) });
+  const labels = state.labels.join(' ');
+  if (!state.open) {
+    if (state.fix?.merged) return state.release?.live ? progress('shipped', `Fixed in ${releaseName(state.release.tag)}`) : progress('fixed', 'Fixed');
+    if (duplicateLabel.test(labels)) return progress('duplicate', 'Closed as a duplicate');
+    if (notPlannedLabel.test(labels)) return progress('not-planned', 'Closed: not planned');
+    return progress('closed', 'Closed');
+  }
+  if (needsInfoLabel.test(labels)) return progress('needs-info', 'Needs more info');
+  if (state.fix?.merged) return progress('fix-merged', 'Fix merged');
+  if (state.fix) return progress('fix-coming', 'Fix in progress');
+  if (state.comments.at(-1) && !state.comments.at(-1)!.mine) return progress('replied', 'The team replied');
+  if (team.length || state.assigned) return progress('looking', 'Looking into it');
+  return progress('got-it', 'Got it');
+}
+
+function terms(value: string): Set<string> {
+  return new Set(value.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(word => word.length >= 3 && !stopWords.has(word)));
+}
+
+function likeness(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  for (const word of a) if (b.has(word)) shared += 1;
+  return shared / Math.sqrt(a.size * b.size);
+}
+
+/** The Markdown comment that adds a repeat report to the issue it repeats. */
+export function joinedMarkdown(report: StoredReport, version: string, baseUrl?: string, screenshotUrl?: string, attachments: string[] = []): string {
+  return `**Someone else hit this too.**\n\n${markdownBody(report, version, baseUrl, screenshotUrl, attachments)}`;
+}
+
 /**
  * Stores what people report and files it into the configured tracker. A report is saved before the first attempt, so
  * a refusing or unreachable tracker loses nothing: it is retried with growing gaps for a day, and an issue created
@@ -271,6 +356,9 @@ export class ReportService {
   private retrying: Promise<void> | undefined;
   private stopped = false;
   private recent = new Map<string, number[]>();
+  private replies = new Map<string, number[]>();
+  private following: Promise<void> | undefined;
+  private followTimer: ReturnType<typeof setInterval> | undefined;
 
   constructor(store: Store, config: AppConfig, version: string, now: () => Date = () => new Date(), options: { schedule?: boolean } = {}) {
     this.store = store;
@@ -280,7 +368,14 @@ export class ReportService {
     if (options.schedule !== false) {
       this.timer = setInterval(() => { void this.retryDue(); }, retryCheckMs);
       this.timer.unref?.();
+      this.followTimer = setInterval(() => { void this.followDue(); }, followCheckMs);
+      this.followTimer.unref?.();
     }
+  }
+
+  /** The line the success screen shows after filing, when the configuration sets one. */
+  acknowledgement(): string | undefined {
+    return this.config.reports?.acknowledgement;
   }
 
   private source(): TaskSourceConfig | undefined {
@@ -294,9 +389,118 @@ export class ReportService {
     return `${source.provider === 'forgejo' ? 'Forgejo' : 'Vikunja'} · ${source.provider === 'vikunja' ? `project ${this.config.reports.project}` : this.config.reports.project}`;
   }
 
-  /** The person's own latest reports, newest first, with where each one went. */
+  /** The person's own latest reports, newest first: where each went, where it stands and whether the team did something they have not seen. */
   mine(user: User, limit = 5): ReportSummary[] {
-    return this.store.userReports(user.id, limit).map(report => ({ id: report.id, title: report.title, status: report.status, ...(report.url && report.status === 'filed' ? { url: report.url } : {}), createdAt: report.createdAt }));
+    return this.store.userReports(user.id, limit).map(report => this.summary(report));
+  }
+
+  private summary(report: StoredReport): ReportSummary {
+    const follow = report.status === 'filed' ? this.store.reportFollow(report.id) : undefined;
+    const state = follow?.state;
+    const progress = reportProgress(report, state);
+    const seen = follow?.seenAt ?? report.filedAt ?? report.createdAt;
+    const filed = report.status === 'filed' && report.url;
+    return {
+      id: report.id, title: report.title, status: report.status, ...(filed ? { url: report.url } : {}), createdAt: report.createdAt,
+      stage: progress.stage, words: progress.words, unread: Boolean(progress.changedAt && progress.changedAt > seen),
+      others: filed ? Math.max(0, this.store.reportsOnIssue(report.url!) - 1) : 0, joined: Boolean(report.issue?.joined),
+      ...(state?.fix ? { fix: { number: state.fix.number, url: state.fix.url, merged: state.fix.merged } } : {}),
+      ...(state?.release ? { release: { tag: releaseName(state.release.tag), url: state.release.url, live: state.release.live } } : {}),
+      comments: (state?.comments ?? []).filter(comment => !(comment.mine && /^\**Someone else hit this too/.test(comment.text))).slice(-3).map(({ author, text, at, mine }) => ({ author, text, at, mine })),
+    };
+  }
+
+  /** Marks the person's filed reports as seen, so nothing the team did so far counts as new. */
+  seen(user: User): void {
+    const now = this.now().toISOString();
+    for (const report of this.store.userReports(user.id, 50)) {
+      if (report.status !== 'filed') continue;
+      const changedAt = reportProgress(report, this.store.reportFollow(report.id)?.state).changedAt;
+      this.store.markReportSeen(report.id, changedAt && changedAt > now ? changedAt : now);
+    }
+  }
+
+  /**
+   * Up to three filed reports from the last 180 days that look like `text`: shared words in their titles and what
+   * happened, with a push for the same page. Closed issues are left out, so nobody joins a report that is done.
+   */
+  similar(user: User, text: string, route?: string): SimilarReport[] {
+    const wanted = terms(text);
+    if (wanted.size < 2) return [];
+    const since = new Date(this.now().getTime() - followWindowMs).toISOString();
+    const byIssue = new Map<string, { report: StoredReport; score: number }>();
+    for (const report of this.store.filedReports(since, 500)) {
+      if (report.issue?.joined || !report.url) continue;
+      const state = this.store.reportFollow(report.id)?.state;
+      if (state && !state.open) continue;
+      const context = report.body.context as ReportContext;
+      const score = likeness(wanted, terms(`${report.title} ${String(report.body.happened ?? '')}`)) + (route && context.route === route.split('?')[0] ? 0.15 : 0);
+      if (score < 0.3) continue;
+      const known = byIssue.get(report.url);
+      if (!known || known.score < score) byIssue.set(report.url, { report, score });
+    }
+    return [...byIssue.values()].sort((a, b) => b.score - a.score).slice(0, 3).map(({ report }) => ({
+      id: report.id, title: report.title, words: reportProgress(report, this.store.reportFollow(report.id)?.state).words, people: this.store.reportsOnIssue(report.url!), mine: report.userId === user.id,
+    }));
+  }
+
+  /**
+   * Posts what the reporter adds to their own filed report as a comment on its issue, under their name, and reads
+   * the issue again so the answer shows the comment.
+   */
+  async reply(user: User, id: string, raw: unknown): Promise<ReportSummary> {
+    const report = reportId.test(id) ? this.store.report(id) : undefined;
+    if (!report || report.userId !== user.id) throw new ReportError(404, 'report_unknown', 'This report is unknown.');
+    const source = this.source();
+    if (report.status !== 'filed' || !report.issue || !source) throw new ReportError(409, 'report_not_filed', 'Unfold can add to a report once it is filed.');
+    const value = typeof raw === 'string' ? raw.replace(/\r\n?/g, '\n').trim() : '';
+    if (!value) throw new ReportError(422, 'report_field_missing', 'Say what you want to add.');
+    if (value.length > 4000) throw new ReportError(422, 'report_field_too_long', 'A reply is at most 4000 characters.');
+    const at = this.now().getTime();
+    const recent = (this.replies.get(user.id) ?? []).filter(time => at - time < 3_600_000);
+    if (recent.length >= maxRepliesPerHour) throw new ReportError(429, 'rate_limited', `You added ${maxRepliesPerHour} replies in the last hour. Try again later.`);
+    this.replies.set(user.id, [...recent, at]);
+    const body = source.provider === 'forgejo'
+      ? `**${markdownText(user.name)}** adds, from Unfold:\n\n${markdownText(value)}\n`
+      : `<p><strong>${htmlText(user.name)}</strong> adds, from Unfold:</p>${value.split(/\n{2,}/).map(part => `<p>${htmlText(part).replace(/\n/g, '<br>')}</p>`).join('')}`;
+    await commentOnIssue(source, this.config.reports!.project, report.issue, body);
+    await this.follow(report, source);
+    return this.summary(this.store.report(id)!);
+  }
+
+  /** Reads the tracker again for the person's own filed reports that Unfold last asked about over two minutes ago. */
+  refresh(user: User): Promise<void> {
+    const source = this.source();
+    if (!source) return Promise.resolve();
+    const cutoff = this.now().getTime() - followOnReadGapMs;
+    const stale = this.store.userReports(user.id, 5).filter(report => report.status === 'filed' && Date.parse(this.store.reportFollow(report.id)?.checkedAt ?? '1970-01-01') < cutoff);
+    return Promise.all(stale.map(report => this.follow(report, source))).then(() => undefined);
+  }
+
+  private async follow(report: StoredReport, source: TaskSourceConfig): Promise<void> {
+    if (!report.issue) return;
+    const checkedAt = this.now().toISOString();
+    try {
+      this.store.saveReportFollow(report.id, await readIssueState(source, this.config.reports!.project, report.issue, this.version), checkedAt);
+    } catch (error) {
+      this.store.saveReportFollow(report.id, undefined, checkedAt);
+      console.error(JSON.stringify({ level: 'warn', event: 'report.follow_failed', report: report.id, message: String((error as Error)?.message ?? error).slice(0, 200) }));
+    }
+  }
+
+  /** Reads the tracker for up to 20 filed reports not asked about for ten minutes, leaving out issues closed for two weeks. */
+  followDue(): Promise<void> {
+    this.following ??= (async () => {
+      const source = this.source();
+      if (!source || this.stopped) return;
+      const now = this.now().getTime();
+      const due = this.store.followDue(new Date(now - followWindowMs).toISOString(), new Date(now - followGapMs).toISOString(), new Date(now - followAfterCloseMs).toISOString(), 20);
+      for (const report of due) {
+        if (this.stopped) return;
+        await this.follow(report, source);
+      }
+    })().finally(() => { this.following = undefined; });
+    return this.following;
   }
 
   /** Stores one report and tries to file it at once. A refusal leaves it saved for the retries. */
@@ -307,7 +511,7 @@ export class ReportService {
     this.recent.set(user.id, [...recent, at]);
     const now = this.now().toISOString();
     const source = this.source();
-    const report: StoredReport = { id: randomUUID(), userId: user.id, status: source ? 'pending' : 'kept', title: parsed.title, body: { kind: parsed.kind, ...(parsed.impact ? { impact: parsed.impact } : {}), happened: parsed.happened, expected: parsed.expected, context: parsed.context }, createdAt: now, attempts: 0 };
+    const report: StoredReport = { id: randomUUID(), userId: user.id, status: source ? 'pending' : 'kept', title: parsed.title, body: { kind: parsed.kind, ...(parsed.impact ? { impact: parsed.impact } : {}), happened: parsed.happened, expected: parsed.expected, context: parsed.context, ...(parsed.duplicateOf ? { duplicateOf: parsed.duplicateOf } : {}) }, createdAt: now, attempts: 0 };
     this.store.saveReport(report, parsed.files);
     if (!source) {
       return { id: report.id, status: 'kept', message: this.config.mode === 'demo' ? 'This is the demo: Unfold kept the report and filed nothing.' : 'No tracker is set up for reports. Unfold kept it, and an administrator can name one under reports in the configuration.' };
@@ -320,7 +524,7 @@ export class ReportService {
     try {
       const issue = await this.file(report, source);
       this.store.updateReport(report.id, { status: 'filed', attempts, url: issue.url, filedAt: this.now().toISOString(), issue, nextAttemptAt: null, lastError: null });
-      return { id: report.id, status: 'filed', url: issue.url, message: 'Filed.' };
+      return { id: report.id, status: 'filed', url: issue.url, message: issue.joined ? 'Added to the existing report.' : 'Filed.', ...(issue.joined ? { joined: true, others: Math.max(0, this.store.reportsOnIssue(issue.url) - 1) } : {}), ...(this.acknowledgement() ? { acknowledgement: this.acknowledgement() } : {}) };
     } catch (error) {
       const message = error instanceof TaskError || error instanceof Error ? error.message.slice(0, 300) : 'The tracker could not be reached.';
       const age = this.now().getTime() - Date.parse(report.createdAt);
@@ -338,6 +542,11 @@ export class ReportService {
     const names = files.map(file => file.name);
     const baseUrl = this.config.baseUrl;
     let issue = report.issue;
+    const repeated = !issue && typeof report.body.duplicateOf === 'string' ? this.store.report(report.body.duplicateOf) : undefined;
+    if (!issue && repeated?.status === 'filed' && repeated.issue && this.store.reportFollow(repeated.id)?.state?.open !== false) {
+      issue = { id: repeated.issue.id, number: repeated.issue.number, url: repeated.issue.url, attached: [], joined: true };
+      this.store.updateReport(report.id, { status: 'retrying', issue, url: issue.url, nextAttemptAt: report.nextAttemptAt ?? null });
+    }
     if (!issue) {
       const created = await createIssue(source, project, report.title, source.provider === 'forgejo' ? markdownBody(report, this.version, baseUrl, undefined, names) : htmlBody(report, this.version, baseUrl, names));
       issue = { ...created, attached: [] };
@@ -348,6 +557,13 @@ export class ReportService {
       const url = await attachToIssue(source, project, issue, { name: file.name, type: file.type, bytes: file.content } satisfies IssueFile);
       issue = { ...issue, attached: [...issue.attached, file.name], ...(file.name === 'screenshot.png' && url ? { screenshotUrl: url } : {}) };
       this.store.updateReport(report.id, { status: 'retrying', issue, nextAttemptAt: report.nextAttemptAt ?? null });
+    }
+    if (issue.joined) {
+      if (!issue.commented) {
+        await commentOnIssue(source, project, issue, source.provider === 'forgejo' ? joinedMarkdown(report, this.version, baseUrl, issue.screenshotUrl, names.filter(name => name !== 'screenshot.png' || !issue!.screenshotUrl)) : `<p><strong>Someone else hit this too.</strong></p>${htmlBody(report, this.version, baseUrl, names)}`);
+        issue = { ...issue, commented: true };
+      }
+      return issue;
     }
     if (source.provider === 'forgejo' && issue.screenshotUrl) await updateIssueBody(source, project, issue, markdownBody(report, this.version, baseUrl, issue.screenshotUrl, names.filter(name => name !== 'screenshot.png')));
     return issue;
@@ -376,6 +592,8 @@ export class ReportService {
   stop(): void {
     this.stopped = true;
     if (this.timer) clearInterval(this.timer);
+    if (this.followTimer) clearInterval(this.followTimer);
     this.timer = undefined;
+    this.followTimer = undefined;
   }
 }
