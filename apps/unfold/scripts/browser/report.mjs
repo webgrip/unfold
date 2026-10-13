@@ -1,4 +1,4 @@
-/** Report a problem: open it from the top bar, the palette and !, see private text blurred, point at a control, mark it up, keep a draft, file with Ctrl Enter in the demo. */
+/** Report a problem: open it from the top bar, the palette and !, see private text blurred, point at a control, mark it up, keep a draft, file with Ctrl Enter in the demo, and photograph a scrolled page where it is scrolled to, with and without reduced motion. */
 export async function run({ page, app, assert, screenshot }) {
   const base = `http://127.0.0.1:${app.server.address().port}`;
   await page.goto(`${base}/#now`);
@@ -122,4 +122,46 @@ export async function run({ page, app, assert, screenshot }) {
   await dialog.getByText('What would help?').waitFor();
   assert(await dialog.locator('[data-report-impact]').isHidden(), 'an idea has no impact');
   await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'hidden' });
+
+  await page.evaluate(() => { location.hash = 'now'; });
+  await page.waitForSelector('#now-asks-title');
+  await page.waitForLoadState('networkidle');
+  await page.waitForSelector('.boot-curtain', { state: 'detached' });
+  const difference = screen => page.evaluate(async png => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${png}`;
+    await image.decode();
+    const left = document.getElementById('main').getBoundingClientRect().left;
+    const top = document.querySelector('.app-topbar').getBoundingClientRect().bottom;
+    const shrink = source => {
+      const scale = source.width / document.documentElement.clientWidth;
+      const small = document.createElement('canvas');
+      small.width = 64;
+      small.height = 64;
+      const context = small.getContext('2d');
+      context.drawImage(source, left * scale, top * scale, source.width - left * scale, source.height - top * scale, 0, 0, 64, 64);
+      return context.getImageData(0, 0, 64, 64).data;
+    };
+    const [shot, seen] = [shrink(document.querySelector('#report-dialog canvas')), shrink(image)];
+    let total = 0;
+    for (let at = 0; at < shot.length; at += 4) total += Math.abs(shot[at] + shot[at + 1] + shot[at + 2] - seen[at] - seen[at + 1] - seen[at + 2]);
+    return total / shot.length;
+  }, screen.toString('base64'));
+  for (const reducedMotion of ['no-preference', 'reduce']) {
+    await page.emulateMedia({ reducedMotion });
+    await page.evaluate(() => scrollTo(0, 0));
+    const unscrolled = await page.screenshot();
+    await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+    await page.waitForFunction(() => scrollY > 0);
+    const scrolled = await page.screenshot();
+    const reportFlag = await page.locator('.app-topbar').getByRole('button', { name: 'Report a problem' }).boundingBox();
+    await page.mouse.click(reportFlag.x + reportFlag.width / 2, reportFlag.y + reportFlag.height / 2);
+    await canvas.waitFor({ timeout: 15000 });
+    const [toScrolled, toUnscrolled] = [await difference(scrolled), await difference(unscrolled)];
+    assert(toScrolled < toUnscrolled, `with ${reducedMotion} motion the screenshot shows the Now page where it is scrolled to (${toScrolled.toFixed(1)}), not its top (${toUnscrolled.toFixed(1)})`);
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+  }
+  await page.emulateMedia({ reducedMotion: null });
 }
