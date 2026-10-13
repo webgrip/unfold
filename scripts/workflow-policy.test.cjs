@@ -18,7 +18,7 @@ const verifyStep = step => /^set -o pipefail; mise run verify 2>&1 \| tee /.test
 const evaluate = (expression, context) => vm.runInNewContext(expression.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/needs\.([a-z-]+)/g, "needs['$1']"), { startsWith: (value, prefix) => value.startsWith(prefix), always: () => true, ...context });
 
 test('event entry points preserve validation and keep application publication out of pull requests and docs', () => {
-  assert.deepEqual(Object.keys(workflows).sort(), ['on_dns_change.yml', 'on_docs_change.yml', 'on_pull_request.yml', 'on_release_preview.yml', 'on_release_published.yml', 'on_schedule.yml', 'on_source_change.yml']);
+  assert.deepEqual(Object.keys(workflows).sort(), ['on_dns_change.yml', 'on_docs_change.yml', 'on_nightly.yml', 'on_pull_request.yml', 'on_release_preview.yml', 'on_release_published.yml', 'on_schedule.yml', 'on_source_change.yml']);
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
@@ -35,6 +35,21 @@ test('event entry points preserve validation and keep application publication ou
   assert.ok(verification.runs.steps.some(verifyStep));
   assert.doesNotMatch(JSON.stringify(pr), /secrets\./);
   assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'git submodule update --init --recursive && python3 scripts/docs.py --check --stage-only');
+});
+
+test('the browser flows run on every development push, every night and on command, in the Playwright image of Unfold\'s playwright version', () => {
+  const nightly = workflows['on_nightly.yml'];
+  assert.deepEqual(Object.keys(nightly.on).sort(), ['schedule', 'workflow_dispatch']);
+  assert.equal(nightly.on.schedule.length, 1);
+  assert.match(nightly.on.schedule[0].cron, /^\d+ \d+ \* \* \*$/, 'once a day');
+  const onPush = source.jobs['browser-suite'];
+  assert.equal(onPush.if, "github.ref == 'refs/heads/development'");
+  const { if: _, ...shared } = onPush;
+  assert.deepEqual(nightly.jobs['browser-suite'], shared, 'the nightly and development jobs are the same job');
+  assert.ok(!Object.values(source.jobs).some(job => [job.needs ?? []].flat().includes('browser-suite')), 'the browser flows report on development; they gate no release');
+  assert.ok(onPush.steps.some(step => step.uses === './.forgejo/actions/browser-suite'));
+  const playwright = JSON.parse(fs.readFileSync(path.join(root, 'apps/unfold/package.json'), 'utf8')).devDependencies?.playwright ?? JSON.parse(fs.readFileSync(path.join(root, 'apps/unfold/package.json'), 'utf8')).dependencies?.playwright;
+  assert.match(onPush.container.image, new RegExp(`^harbor\\.webgrip\\.dev/mcr/playwright:v${playwright.replace(/\./g, '\\.')}-noble@sha256:[0-9a-f]{64}$`), 'the image carries the Chromium build that Unfold\'s playwright package expects');
 });
 
 test('every job that verifies, documents or demonstrates Unfold checks out the pinned Ploeg submodule', () => {
@@ -72,7 +87,7 @@ test('a pull request and a release need the pinned Ploeg commit on Ploeg main', 
 
 test('only an enabled development push can version Unfold, after the checks and the release policy', () => {
   assert.equal(source.concurrency['cancel-in-progress'], false);
-  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'ploeg-pin', 'release', 'site-release', 'warnings']);
+  assert.deepEqual(Object.keys(source.jobs).sort(), ['browser-suite', 'checks', 'ploeg-pin', 'release', 'site-release', 'warnings']);
   const job = source.jobs.release;
   assert.deepEqual(job.needs, ['checks', 'ploeg-pin']);
   const policy = job.steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');

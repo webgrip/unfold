@@ -117,7 +117,7 @@ The mark moves in two ways, both drawn from the same outlines: only position, ro
 
 Both are spring-driven squash and stretch, so they overshoot and settle rather than ease to a stop. The trail and the burst take the fold's colour. With reduced motion requested, the mark stays still and the loading screen is never held.
 
-Two Playwright checks cover it at desktop, tablet and three phone sizes (390, 360 and 320 px wide): `UNFOLD_BROWSER_FLOWS=brand npm run test:browser` in `apps/unfold` (the loading flight, the sidebar and phone-drawer pop, the sign-in pop, no sideways scroll, reduced motion) and `pnpm run validate:motion` in `apps/site` after a build (every mark on both home pages, no sideways scroll, reduced motion). Neither runs in `mise run verify` or CI yet, because both need a Chromium.
+Two Playwright checks cover it at desktop, tablet and three phone sizes (390, 360 and 320 px wide): `UNFOLD_BROWSER_FLOWS=brand npm run test:browser` in `apps/unfold` (the loading flight, the sidebar and phone-drawer pop, the sign-in pop, no sideways scroll, reduced motion) and `pnpm run validate:motion` in `apps/site` after a build (every mark on both home pages, no sideways scroll, reduced motion). The first runs in CI on every push to `development` and every night ([CI and release workflows](../operations/ci.md)). The second is not in `mise run verify` or CI yet.
 
 ## Misuse
 
