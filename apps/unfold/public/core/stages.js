@@ -21,7 +21,7 @@ export function workStages(item, card = null) {
   let current = 'define';
   let stopped = null;
   let delivered = false;
-  if (state === 'queued' || state === 'leased') current = 'execute';
+  if (state === 'queued' || state === 'leased' || state === 'active') current = 'execute';
   else if (state === 'awaiting_review') current = 'review';
   else if (state === 'needs_human' || state === 'stale' || state === 'withdrawn') { current = play?.state === 'open' ? 'review' : 'execute'; stopped = state; }
   else if (state === 'done') {

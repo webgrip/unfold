@@ -124,24 +124,24 @@ export class Engine {
     if (!input || typeof input !== 'object') throw new EngineError(400, 'invalid_input', 'Session details are required.');
     const title = this.text(input.title, 'title', 200);
     const objective = this.text(input.objective, 'objective', input.sourceTask ? 110000 : 20000);
-    if (!input.sourceTask && (objective.trim().length < 20 || objective.trim().split(/\s+/).length < 4)) throw new EngineError(400, 'objective_too_thin', 'Describe what the crew should do and how you will know it is done. A greeting or a few words is not a brief, and the crew would spend your budget guessing.');
+    if (!input.sourceTask && (objective.trim().length < 20 || objective.trim().split(/\s+/).length < 4)) throw new EngineError(400, 'objective_too_thin', 'Describe what the team should do and how you will know it is done. A greeting or a few words is not a brief, and the team would spend your budget guessing.');
     const repository = this.config.repositories.find(item => item.id === input.repositoryId);
     const crew = this.config.crews.find(item => item.id === input.crewId);
-    if (!repository || !crew || !this.runtimes.has(input.runtime)) throw new EngineError(400, 'invalid_configuration', 'Choose a configured repository, crew and runtime.');
+    if (!repository || !crew || !this.runtimes.has(input.runtime)) throw new EngineError(400, 'invalid_configuration', 'Choose a configured repository, team and runtime.');
     this.interactiveRepository(repository.id, input.sourceTask);
     if ((this.config.mode === 'demo') !== (input.runtime === 'demo')) throw new EngineError(400, 'invalid_runtime', 'The runtime does not match this deployment mode.');
     const placement = this.placement(input.placement);
     const approval = this.approval(input.approval, placement);
     const model = input.model === undefined ? undefined : this.config.models.find(item => item.id === input.model)?.id;
     if (input.model !== undefined && !model) throw new EngineError(400, 'invalid_model', 'Choose a model configured on this workbench.');
-    if (!crew.roles.length || crew.roles.slice(1).some(role => role.mode !== 'read') || !crew.roles.some(role => role.mode === 'read')) throw new EngineError(400, 'invalid_crew', 'A crew requires reviewers, optionally preceded by one writer.');
-    if (new Set(crew.roles.map(role => role.id)).size !== crew.roles.length) throw new EngineError(400, 'invalid_crew', 'Crew role IDs must be unique.');
+    if (!crew.roles.length || crew.roles.slice(1).some(role => role.mode !== 'read') || !crew.roles.some(role => role.mode === 'read')) throw new EngineError(400, 'invalid_crew', 'A team requires reviewers, optionally preceded by one writer.');
+    if (new Set(crew.roles.map(role => role.id)).size !== crew.roles.length) throw new EngineError(400, 'invalid_crew', 'Team role IDs must be unique.');
     const budgetUsd = input.budgetUsd;
     if (typeof budgetUsd !== 'number' || !Number.isFinite(budgetUsd) || budgetUsd < 0 || budgetUsd > this.config.maxBudgetUsd || (input.runtime !== 'demo' && budgetUsd <= 0)) throw new EngineError(400, 'invalid_budget', 'Choose a valid budget within this deployment limit.');
     if (input.trackerUrl && input.trackerUrl !== repository.trackerUrl) throw new EngineError(400, 'invalid_tracker', 'Use the configured repository tracker link.');
     const now = new Date().toISOString();
     const id = randomUUID();
-    const session: Session = { id, title, objective, repositoryId: repository.id, crewId: crew.id, runtime: input.runtime, ...(placement ? { placement } : {}), approval, ...(model ? { model } : {}), ownerId: user.id, ownerName: user.name, status: 'queued', budgetUsd, spentUsd: 0, costStatus: input.runtime === 'demo' ? 'demo' : 'pending', createdAt: now, updatedAt: now, branch: `operator/${id}`, runs: crew.roles.map(role => ({ id: randomUUID(), sessionId: id, roleId: role.id, roleName: role.name, mode: role.mode, status: 'queued', costUsd: 0 })), artifacts: [], ...(repository.trackerUrl ? { trackerUrl: repository.trackerUrl } : {}) };
+    const session: Session = { id, title, objective, repositoryId: repository.id, crewId: crew.id, runtime: input.runtime, ...(placement ? { placement } : {}), approval, ...(model ? { model } : {}), ownerId: user.id, ownerName: user.name, status: 'queued', budgetUsd, spentUsd: 0, costStatus: input.runtime === 'demo' ? 'demo' : 'observed', createdAt: now, updatedAt: now, branch: `operator/${id}`, runs: crew.roles.map(role => ({ id: randomUUID(), sessionId: id, roleId: role.id, roleName: role.name, mode: role.mode, status: 'queued', costUsd: 0 })), artifacts: [], ...(repository.trackerUrl ? { trackerUrl: repository.trackerUrl } : {}) };
     if (input.sourceTask) { session.sourceTask = structuredClone(input.sourceTask); session.trackerUrl = input.sourceTask.url; }
     if (input.previousSessionId) session.previousSessionId = input.previousSessionId;
     this.save(session, 'session.created', user.id, { title, runtime: session.runtime, ...(placement ? { placement } : {}), approval, ...(model ? { model } : {}), budgetUsd, demo: session.runtime === 'demo', ...(input.previousSessionId ? { previousSessionId: input.previousSessionId } : {}), ...(session.sourceTask ? { sourceTask: session.sourceTask, imported: true, automaticStart: false } : {}) });
@@ -292,7 +292,7 @@ export class Engine {
       if (this.store.getSecret<boolean>(`discovery:${id}`)) await this.discoverReservations(session);
       await this.reconcile(id);
       session = this.owned(id, user);
-      if (this.reservations(id).length || this.store.getSecret<boolean>(`discovery:${id}`)) throw new EngineError(409, 'spend_unresolved', 'Previous model spend is still unknown. Its budget remains reserved; reconcile it before resuming.');
+      if (this.reservations(id).length || this.store.getSecret<boolean>(`discovery:${id}`)) throw new EngineError(409, 'spend_unresolved', 'Previous model spend is still unknown. Its budget remains held; reconcile it before resuming.');
     }
     for (const run of session.runs) if (['running', 'paused', 'waiting_input'].includes(run.status)) { run.status = 'queued'; delete run.finishedAt; }
     return this.admitAndLaunch(session, user, 'resume');
@@ -358,7 +358,7 @@ export class Engine {
     if (this.active.has(session.id) || this.admissions.has(session.id)) return 'The session is still stopping or starting.';
     if (!binding.stopConfirmed || !['paused', 'interrupted'].includes(binding.state)) return 'Ploeg has not confirmed that this execution stopped.';
     const crew = this.config.crews.find(item => item.id === session.crewId);
-    if (!crew?.roles.some(role => role.mode === 'write')) return 'This crew changes nothing, so there is no work to capture.';
+    if (!crew?.roles.some(role => role.mode === 'write')) return 'This team changes nothing, so there is no work to capture.';
     if (!session.workspace) return 'The workspace that holds the work is gone.';
     return undefined;
   }
@@ -404,7 +404,7 @@ export class Engine {
     if (current && stopped) add({ id: 'capture', label: 'Capture the change', description: 'Capture the work in the workspace as a candidate so you can read the change before you deliver it. It makes no model call, sends Ploeg no command and keeps the workspace.', path: `${base}/capture` }, this.captureBlocker(session));
     if (current && stopped) add({ id: 'deliver', label: 'Deliver the approved work', description: 'Capture the reviewed branch as a candidate and complete the session through Ploeg, without another model call. Independent checks and the pull request follow the normal delivery path.', path: `${base}/deliver` }, deliveryBlocker);
     if (stopped) add({ id: 'resume', label: 'Resume', description: 'Continue this session in its next generation. Every Run that did not finish runs again.', path: `${base}/resume` }, runsAgain ? undefined : current ? 'Ploeg blocked this execution\'s inference key when it stopped, so it cannot pay for another generation.' : 'The session cannot resume now.');
-    if (stopped || ['failed', 'cancelled'].includes(session.status)) add({ id: 'run_again', label: 'Run again', description: 'Create a new session with the same brief, crew, repository and budget. It is a new Ploeg authorization and waits for an explicit start.', path: `${base}/run-again` }, session.sourceTask ? 'A tracker task is imported again from its tracker.' : undefined);
+    if (stopped || ['failed', 'cancelled'].includes(session.status)) add({ id: 'run_again', label: 'Run again', description: 'Create a new session with the same brief, team, repository and budget. It is a new Ploeg authorization and waits for an explicit start.', path: `${base}/run-again` }, session.sourceTask ? 'A tracker task is imported again from its tracker.' : undefined);
     if (!ended) add({ id: 'cancel', label: 'Cancel', description: 'End this session. Ploeg closes its Work Item\'s execution and releases its held budget; nothing runs again.', path: `${base}/cancel` }, this.active.has(id) && session.status === 'exporting' ? 'The session is capturing its candidate.' : undefined);
     if (current && ['failed', 'cancelled'].includes(session.status) && !session.workItemClosedAt) add({ id: 'close_work_item', label: 'Close its Work Item', description: 'Withdraw this ended session\'s Work Item in Ploeg.', path: `${base}/close-work-item` }, this.active.has(id) ? stillReportingToPloeg : undefined);
     const summary = stranded
@@ -484,7 +484,7 @@ export class Engine {
     } finally { this.admissions.delete(id); }
   }
 
-  /** Creates a new queued session with this session's brief, crew, repository, placement and budget. It never starts it. */
+  /** Creates a new queued session with this session's brief, team, repository, placement and budget. It never starts it. */
   runAgain(id: string, user: User): Session {
     const session = this.owned(id, user);
     if (!['paused', 'interrupted', 'failed', 'cancelled'].includes(session.status) || this.active.has(id)) throw new EngineError(409, 'invalid_state', 'Only a stopped, failed or cancelled session can be run again.');
@@ -660,7 +660,7 @@ export class Engine {
     } catch {
       await this.authority.block(session).catch(() => undefined);
       session = this.store.getSession(id)!;
-      session.blocker = 'Execution stopped locally. Ploeg has not confirmed reconciliation; its budget remains reserved and no automatic retry is allowed.';
+      session.blocker = 'Execution stopped locally. Ploeg has not confirmed reconciliation; its budget remains held and no automatic retry is allowed.';
       this.save(session, 'execution.reconciliation_pending', 'system', { autoResumed: false, stopConfirmed });
     }
   }
@@ -686,7 +686,7 @@ export class Engine {
       if (this.store.getSecret<boolean>(`discovery:${id}`)) await this.discoverReservations(session);
       await this.reconcile(id);
       session = this.owned(id, user);
-      if (this.reservations(id).length || this.store.getSecret<boolean>(`discovery:${id}`)) throw new EngineError(409, 'spend_unresolved', 'Previous model spend is still unknown. Its budget remains reserved; reconcile it before trying again.');
+      if (this.reservations(id).length || this.store.getSecret<boolean>(`discovery:${id}`)) throw new EngineError(409, 'spend_unresolved', 'Previous model spend is still unknown. Its budget remains held; reconcile it before trying again.');
     }
     if (session.workspace) {
       try { await this.runtimes.get(session.runtime)!.dispose(session.workspace); } catch {}
@@ -847,7 +847,7 @@ export class Engine {
         this.store.setSecret(`budget:${session.id}`, holds);
         this.store.deleteSecret(`discovery:${session.id}`);
       } catch {
-        this.store.appendEvent(session.id, 'budget.discovery_unavailable', 'system', { message: 'Gateway orphan-key discovery was unavailable. Known credential holds remain reserved.' });
+        this.store.appendEvent(session.id, 'budget.discovery_unavailable', 'system', { message: 'Gateway orphan-key discovery was unavailable. Known credential holds stay in place.' });
       }
     }
   }
@@ -880,7 +880,7 @@ export class Engine {
       const response = await fetch(`${this.config.litellm.baseUrl.replace(/\/$/, '')}/chat/completions`, {
         method: 'POST', headers: { authorization: `Bearer ${credential.key}`, 'content-type': 'application/json' }, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]),
         body: JSON.stringify({ model: model.modelId, temperature: 0, max_tokens: 400, messages: [
-          { role: 'system', content: 'You screen briefs for a software crew that works inside a repository and spends real money per turn. Answer with JSON only: {"actionable": boolean, "reason": string, "questions": string[]}. A brief is actionable when a competent engineer could start work and know what done looks like. A greeting, a placeholder, a single word or a vague wish is not actionable; ask at most three short questions that would make it actionable. Do not answer the brief itself.' },
+          { role: 'system', content: 'You screen briefs for a software team that works inside a repository and spends real money per turn. Answer with JSON only: {"actionable": boolean, "reason": string, "questions": string[]}. A brief is actionable when a competent engineer could start work and know what done looks like. A greeting, a placeholder, a single word or a vague wish is not actionable; ask at most three short questions that would make it actionable. Do not answer the brief itself.' },
           { role: 'user', content: `Title: ${session.title}\n\nBrief:\n${session.objective}` },
         ] }),
       });
@@ -899,8 +899,8 @@ export class Engine {
     const current = this.store.getSession(id)!;
     this.save(current, 'brief.checked', 'system', { actionable: verdict.actionable, reason: verdict.reason, model: model.modelId });
     if (verdict.actionable) return;
-    const questions = verdict.questions.length ? verdict.questions : ['What should the crew change or find out, and how will you know it is done?'];
-    const request: PermissionRequest = { id: randomUUID(), sessionId: id, runId: current.runs[0].id, nativeId: `brief:${randomUUID()}`, kind: 'question', title: 'The brief needs more before the crew starts', detail: verdict.reason, questions: questions.map(question => ({ question })), resolved: false };
+    const questions = verdict.questions.length ? verdict.questions : ['What should the team change or find out, and how will you know it is done?'];
+    const request: PermissionRequest = { id: randomUUID(), sessionId: id, runId: current.runs[0].id, nativeId: `brief:${randomUUID()}`, kind: 'question', title: 'The brief needs more before the team starts', detail: verdict.reason, questions: questions.map(question => ({ question })), resolved: false };
     this.store.savePermission(request);
     current.status = 'waiting_input';
     this.save(current, 'brief.unclear', 'system', { reason: verdict.reason, questions, requestId: request.id });
@@ -1091,7 +1091,7 @@ export class Engine {
       signal.throwIfAborted();
       let session = this.store.getSession(id)!;
       session.workspace = workspace;
-      if (session.runtime !== 'demo') session.costStatus = 'pending';
+      if (session.runtime !== 'demo') session.costStatus = 'observed';
       this.save(session, 'workspace.ready', 'system', { backend: workspace.backend, isolation: workspace.backend === 'kubernetes' ? 'pod' : workspace.backend === 'docker' ? 'container' : 'working-directory' });
       const crew = this.config.crews.find(item => item.id === session.crewId)!;
       for (const scheduled of session.runs) {
@@ -1123,7 +1123,7 @@ export class Engine {
       }
       session = this.store.getSession(id)!;
       session.status = 'exporting';
-      this.save(session, 'candidate.preparing', 'system', { message: 'The crew finished. Preparing its reviewable change before releasing the workspace.' });
+      this.save(session, 'candidate.preparing', 'system', { message: 'The team finished. Preparing its reviewable change before releasing the workspace.' });
     } catch (error) {
       if (!signal.aborted) {
         const session = this.store.getSession(id)!;

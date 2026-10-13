@@ -20,7 +20,7 @@ export type PloegItem = { id: string; provider: string; externalId: string; revi
 export type PloegMergeState = 'clean' | 'conflicted' | 'unknown';
 /** A Work Item's pull request as Ploeg reports it. `mergeState` is null when Ploeg did not report one; `number`, `baseBranch` and `checkedAt` are null when unknown. */
 export type PloegPullRequest = { url: string; number: number | null; mergeState: PloegMergeState | null; baseBranch: string | null; headSha: string; checkedAt: string | null };
-export type PloegRun = { id: string; workItemId: string; shiftId: string | null; team: string; role: string; round: number; writes: boolean; state: 'pending' | 'running' | 'finished'; startedAt: string | null; finishedAt: string | null; expiresAt: string | null; outcome: string | null; summary: string; stuckReason: string; links: string[]; findings: string; verdict: string; problem: string; solution: string; failureReason: string | null; authorizedUsd: number; usage: { inputTokens?: number; outputTokens?: number; costUsd?: number } | null; costStatus: 'observed' | 'unknown'; keyAlias: string | null };
+export type PloegRun = { id: string; workItemId: string; shiftId: string | null; team: string; role: string; round: number; writes: boolean; state: 'pending' | 'running' | 'finished'; startedAt: string | null; finishedAt: string | null; expiresAt: string | null; outcome: string | null; summary: string; stuckReason: string; links: string[]; findings: string; verdict: string; problem: string; solution: string; failureReason: string | null; authorizedUsd: number; usage: { inputTokens?: number; outputTokens?: number; costUsd?: number } | null; costStatus: PloegCostStatus; keyAlias: string | null };
 export type PloegCheckpoint = { id: string; workItemId: string; phase: string; branch: string; prUrl: string; createdAt: string; nodeName: string; podUid: string };
 export type PloegEvent = { id: string; at: string; actor: string; action: string; workItemId: string; team: string; detail: Record<string, unknown> };
 export type PloegPresentedItem = PloegItem & { descriptionMarkdown: string };
@@ -153,15 +153,28 @@ export class AskAllowanceUsedUp extends PloegError {
 export type PloegAskAllowance = { limitUsd: number; settledUsd: number; heldUsd: number; remainingUsd: number; resetAt: string; askCount: number; askBudgetUsd: number; asksEnabled: boolean };
 /** An admitted Ask's key and allowance. `key` is shown once; Unfold calls its own gateway with it. */
 export type PloegAskGrant = { askId: string; key: string; models: string[]; expiresAt: string; allowance: PloegAskAllowance | null };
+/** How sure a cost figure from Ploeg is (system ADR-0036): still moving, settled once but correctable, final, or not known. */
+export type PloegCostStatus = 'observed' | 'provisional' | 'settled' | 'unknown';
 /** An Ask's spend as Ploeg last read it. */
-export type PloegAskSpend = { state: 'open' | 'finished' | 'expired'; costStatus: 'provisional' | 'settled' | 'unknown'; usd: number | null };
+export type PloegAskSpend = { state: 'open' | 'finished' | 'expired'; costStatus: PloegCostStatus; usd: number | null };
 
 const askRole = 'ask';
 const states: PloegState[] = ['ingested', 'queued', 'leased', 'done', 'needs_human', 'awaiting_review', 'stale', 'withdrawn', 'proposed'];
+/** The Hold a Ploeg record reports: `heldUsd` since system ADR-0036, `reservedUsd` from an older Ploeg. */
+export function heldUsd(data: Record<string, unknown>): unknown { return data.heldUsd ?? data.reservedUsd; }
+/** Work Item states a newer Ploeg sends under a new name (system ADR-0036), read as the name this client uses until every Ploeg it talks to sends the new one. */
+export const ploegStateAliases: Readonly<Record<string, PloegState>> = Object.freeze({ active: 'leased' });
+/** Reads a Work Item state from Ploeg, accepting `active` as the newer name of `leased`; undefined for a state this client does not know. */
+export function ploegState(value: unknown): PloegState | undefined {
+  if (typeof value !== 'string') return undefined;
+  if (Object.hasOwn(ploegStateAliases, value)) return ploegStateAliases[value];
+  return states.includes(value as PloegState) ? value as PloegState : undefined;
+}
 const runStates: PloegRun['state'][] = ['pending', 'running', 'finished'];
-const runCostStatuses: PloegRun['costStatus'][] = ['observed', 'unknown'];
+const costStatuses: PloegCostStatus[] = ['observed', 'provisional', 'settled', 'unknown'];
+const runCostStatuses = costStatuses;
 const askStates: PloegAskSpend['state'][] = ['open', 'finished', 'expired'];
-const askCostStatuses: PloegAskSpend['costStatus'][] = ['provisional', 'settled', 'unknown'];
+const askCostStatuses = costStatuses;
 const invalid = () => new PloegError(502, 'ploeg_response', 'Ploeg returned an unsupported operator response.');
 const forgeLogin = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 const identifier = (value: unknown): string => { if (typeof value !== 'string' || !/^[1-9][0-9]{0,19}$/.test(value)) throw invalid(); return value; };
@@ -195,18 +208,19 @@ function team(value: unknown): PloegTeam {
 }
 function shift(value: unknown): PloegShift {
   const data = record(value);
-  return { id: identifier(data.id), workItemId: identifier(data.workItemId), team: field(data.team, 100), branch: field(data.branch), round: numeric(data.round, true), budgetUsd: numeric(data.budgetUsd), spentUsd: numeric(data.spentUsd), reservedUsd: numeric(data.reservedUsd), openedAt: timestamp(data.openedAt), closedAt: nullable(data.closedAt, timestamp), closeReason: field(data.closeReason, 16000) };
+  return { id: identifier(data.id), workItemId: identifier(data.workItemId), team: field(data.team, 100), branch: field(data.branch), round: numeric(data.round, true), budgetUsd: numeric(data.budgetUsd), spentUsd: numeric(data.spentUsd), reservedUsd: numeric(heldUsd(data)), openedAt: timestamp(data.openedAt), closedAt: nullable(data.closedAt, timestamp), closeReason: field(data.closeReason, 16000) };
 }
 function item(value: unknown): PloegItem {
   const data = record(value);
-  if (!states.includes(data.state as PloegState) || typeof data.priority !== 'number' || !Number.isSafeInteger(data.priority)) throw invalid();
-  const result = { id: identifier(data.id), provider: field(data.provider, 100), externalId: field(data.externalId, 512), revision: field(data.revision, 512), team: field(data.team, 100), state: data.state as PloegState, title: field(data.title, 4096), description: field(data.description, 16384), url: link(data.url), priority: data.priority, attempts: numeric(data.attempts, true), infraFailures: numeric(data.infraFailures, true), nextEligibleAt: nullable(data.nextEligibleAt, timestamp), createdAt: timestamp(data.createdAt), updatedAt: timestamp(data.updatedAt), target: nullable(data.target, value => { const target = record(value); return { forge: field(target.forge, 100), owner: field(target.owner), repo: field(target.repo), baseBranch: field(target.baseBranch) }; }), latestShift: nullable(data.latestShift, shift), lease: nullable(data.lease, value => { const lease = record(value); return { expiresAt: timestamp(lease.expiresAt), renewedAt: timestamp(lease.renewedAt) }; }), ...(data.pullRequest === undefined ? {} : { pullRequest: nullable(data.pullRequest, pullRequest) }) };
+  const state = ploegState(data.state);
+  if (!state || typeof data.priority !== 'number' || !Number.isSafeInteger(data.priority)) throw invalid();
+  const result = { id: identifier(data.id), provider: field(data.provider, 100), externalId: field(data.externalId, 512), revision: field(data.revision, 512), team: field(data.team, 100), state, title: field(data.title, 4096), description: field(data.description, 16384), url: link(data.url), priority: data.priority, attempts: numeric(data.attempts, true), infraFailures: numeric(data.infraFailures, true), nextEligibleAt: nullable(data.nextEligibleAt, timestamp), createdAt: timestamp(data.createdAt), updatedAt: timestamp(data.updatedAt), target: nullable(data.target, value => { const target = record(value); return { forge: field(target.forge, 100), owner: field(target.owner), repo: field(target.repo), baseBranch: field(target.baseBranch) }; }), latestShift: nullable(data.latestShift, shift), lease: nullable(data.lease, value => { const lease = record(value); return { expiresAt: timestamp(lease.expiresAt), renewedAt: timestamp(lease.renewedAt) }; }), ...(data.pullRequest === undefined ? {} : { pullRequest: nullable(data.pullRequest, pullRequest) }) };
   if (result.latestShift && (result.latestShift.workItemId !== result.id || result.latestShift.team !== result.team)) throw invalid();
   return { ...result, ...provenance(data) };
 }
 const mergeStates: PloegMergeState[] = ['clean', 'conflicted', 'unknown'];
 /** The values of each enum in Ploeg's operator contract that this client accepts; `test/ploeg-contract.test.ts` checks them against Ploeg's published schema. */
-export const ploegAccepted = Object.freeze({ workItemStates: states, runStates, runCostStatuses, askStates, askCostStatuses, mergeStates, refusalCodes });
+export const ploegAccepted = Object.freeze({ workItemStates: [...states, ...Object.keys(ploegStateAliases)], runStates, runCostStatuses, askStates, askCostStatuses, mergeStates, refusalCodes });
 function pullRequest(value: unknown): PloegPullRequest {
   const data = record(value);
   const number = data.number === undefined || data.number === null ? null : numeric(data.number, true);
@@ -224,7 +238,7 @@ function run(value: unknown): PloegRun {
   const data = record(value);
   if (!(runStates as string[]).includes(data.state as string) || !(runCostStatuses as string[]).includes(data.costStatus as string)) throw invalid();
   const usage = nullable(data.usage, value => { const usage = record(value); return Object.fromEntries(['inputTokens', 'outputTokens', 'costUsd'].filter(key => usage[key] !== undefined).map(key => [key, numeric(usage[key], key !== 'costUsd')])); });
-  if (data.costStatus === 'observed' && usage?.costUsd === undefined) throw invalid();
+  if (data.costStatus !== 'unknown' && usage?.costUsd === undefined) throw invalid();
   return { id: identifier(data.id), workItemId: identifier(data.workItemId), shiftId: nullable(data.shiftId, identifier), team: field(data.team, 100), role: field(data.role, 100), round: numeric(data.round, true), writes: boolean(data.writes), state: data.state as PloegRun['state'], startedAt: nullable(data.startedAt, timestamp), finishedAt: nullable(data.finishedAt, timestamp), expiresAt: nullable(data.expiresAt, timestamp), outcome: nullable(data.outcome, value => field(value, 100)), summary: field(data.summary, 64000), stuckReason: field(data.stuckReason, 16000), links: array(data.links, link, 100).filter(Boolean), findings: field(data.findings, 64000), verdict: field(data.verdict, 100), problem: optionalText(data.problem, 16000), solution: optionalText(data.solution, 16000), failureReason: nullable(data.failureReason, value => field(value, 16000)), authorizedUsd: numeric(data.authorizedUsd), usage, costStatus: data.costStatus as PloegRun['costStatus'], keyAlias: nullable(data.keyAlias, value => field(value, 512)) };
 }
 function checkpoint(value: unknown): PloegCheckpoint { const data = record(value); return { id: identifier(data.id), workItemId: identifier(data.workItemId), phase: field(data.phase, 100), branch: field(data.branch), prUrl: link(data.prUrl), createdAt: timestamp(data.createdAt), nodeName: field(data.nodeName), podUid: field(data.podUid) }; }
@@ -241,8 +255,9 @@ const decisionKinds: PloegDecision[] = ['approve', 'reject', 'cancel'];
 const pageSize = 25;
 function token(value: unknown): string { if (value === null || value === undefined || value === '') return ''; const text = field(value, 64); if (!/^[a-z][a-z0-9_]*$/.test(text)) throw invalid(); return text; }
 function counts<K extends string>(value: unknown, keys: readonly K[]): Record<K, number> { const data = record(value); return Object.fromEntries(keys.map(key => [key, numeric(data[key], true)])) as Record<K, number>; }
-function spend(value: unknown): PloegSpend { const data = record(value); return { settledUsd: numeric(data.settledUsd), reservedUsd: numeric(data.reservedUsd) }; }
-function teamSummary(value: unknown): PloegTeamSummary { const data = record(value); return { team: field(data.team, 100), workItems: counts(data.workItems, workKeys), runs: counts(data.runs, runKeys), spend: spend(data.spend), lastActivityAt: nullable(data.lastActivityAt, timestamp) }; }
+function spend(value: unknown): PloegSpend { const data = record(value); return { settledUsd: numeric(data.settledUsd), reservedUsd: numeric(heldUsd(data)) }; }
+function workCounts(value: unknown): Record<typeof workKeys[number], number> { const data = record(value); return counts({ ...data, leased: data.active ?? data.leased }, workKeys); }
+function teamSummary(value: unknown): PloegTeamSummary { const data = record(value); return { team: field(data.team, 100), workItems: workCounts(data.workItems), runs: counts(data.runs, runKeys), spend: spend(data.spend), lastActivityAt: nullable(data.lastActivityAt, timestamp) }; }
 /** Sums per-team summaries into totals for exactly the teams a caller may see. */
 export function summaryTotals(teams: PloegTeamSummary[]): PloegSummary['totals'] {
   const add = <K extends string>(keys: readonly K[], pick: (team: PloegTeamSummary) => Record<K, number>) => Object.fromEntries(keys.map(key => [key, teams.reduce((sum, team) => sum + pick(team)[key], 0)])) as Record<K, number>;
@@ -907,10 +922,11 @@ export class PloegClient {
     for (const entry of items) this.remember(entry.id, entry.title);
     return { items, supported: true };
   }
-  async items(user: User, selectedTeam: string, state: PloegState | 'all' = 'all', after = '0', fresh = false): Promise<PloegPresentedPage> {
+  async items(user: User, selectedTeam: string, requested: string = 'all', after = '0', fresh = false): Promise<PloegPresentedPage> {
     this.authorize(user);
     if (!this.allowed(user, selectedTeam)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
-    if (!/^(0|[1-9][0-9]{0,19})$/.test(after) || (state !== 'all' && !states.includes(state))) throw new PloegError(400, 'ploeg_filter', 'Choose a valid Ploeg state and page cursor.');
+    const state = requested === 'all' ? 'all' : ploegState(requested);
+    if (!/^(0|[1-9][0-9]{0,19})$/.test(after) || !state) throw new PloegError(400, 'ploeg_filter', 'Choose a valid Ploeg state and page cursor.');
     const query = new URLSearchParams({ team: selectedTeam, after, limit: '25' });
     if (state !== 'all') query.set('state', state);
     const result = this.demo ? { items: this.demoItems().filter(item => item.team === selectedTeam && (state === 'all' || item.state === state) && BigInt(item.id) > BigInt(after)), nextCursor: null } : page(await this.request(`work-items?${query}`, fresh));

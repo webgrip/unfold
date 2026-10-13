@@ -106,7 +106,7 @@ test('without a session, each intent answers from the brief alone', () => {
   const leased = workItemBrief(detail(), card(0.42));
   assert.equal(recordAnswer('doing', leased, 'internal'), 'It is being worked on now. Running now: builder.');
   assert.equal(recordAnswer('stopped', leased, 'internal'), 'It has not stopped. It is being worked on now.');
-  assert.equal(recordAnswer('spend', leased, 'internal'), `Spend on the work so far: ${money(0.42)} (settled). Questions asked about it are counted apart.`);
+  assert.equal(recordAnswer('spend', leased, 'internal'), `Spend on the work so far: ${money(0.42)} (final). Questions asked about it are counted apart.`);
   assert.equal(recordAnswer('next', leased, 'internal'), 'Nothing is needed now.');
   assert.equal(recordAnswer('who', leased, 'internal'), 'Builder is working on it now.');
   assert.equal(recordAnswer('done', leased, 'internal'), 'No. It is being worked on now.');
@@ -119,7 +119,7 @@ test('without a session, each intent answers from the brief alone', () => {
   assert.equal(recordAnswer('pull_request', withdrawn, 'internal'), 'Pull request #77 was left as it was when the work was withdrawn; the record does not say whether it is still open.');
   assert.equal(recordAnswer('who', review, 'internal'), 'No Role is working on it now. It is finished by the agents and waiting for a person to review the pull request. The last Run was the builder, in round 1.');
   assert.equal(recordAnswer('next', review, 'internal'), null, 'the record has no fixed next step for a review, so the model answers');
-  assert.equal(recordAnswer('spend', review, 'internal'), 'Spend on the work is not reported yet.');
+  assert.equal(recordAnswer('spend', review, 'internal'), 'Spend on the work is not known yet.');
   const stopped = workItemBrief(detail({ state: 'needs_human', latestShift: { id: '5', closeReason: 'pool_exhausted' } } as Partial<PloegItem>, [run({ state: 'finished' })]));
   assert.equal(recordAnswer('stopped', stopped, 'internal'), 'It stopped because it used up its budget.');
   for (const intent of Object.keys(standing) as RecordIntent[]) assert.doesNotMatch(String(recordAnswer(intent, review, 'internal')), /LEAK/);
@@ -231,7 +231,7 @@ test('a standing question is answered from the record even when no Ploeg or gate
 test('a question that matches nothing goes through Ploeg admission and one model call', async () => {
   const { service, calls, requests } = harness();
   const ask = await service.ask(owner, '42', 'Which browsers did it test?');
-  assert.deepEqual([ask.status, ask.source, ask.intent, ask.answer, ask.costStatus, ask.ploegAskId], ['answered', 'model', null, 'From the model.', 'pending', 'p-1']);
+  assert.deepEqual([ask.status, ask.source, ask.intent, ask.answer, ask.costStatus, ask.ploegAskId], ['answered', 'model', null, 'From the model.', 'provisional', 'p-1']);
   assert.deepEqual(calls, ['admit 42 Which browsers did it test?', 'finish 42 p-1']);
   assert.equal(requests.length, 1);
 });

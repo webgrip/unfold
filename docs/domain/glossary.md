@@ -86,7 +86,7 @@ An authorized spending limit for work. It is separate from a provisional usage e
 ## Candidate
 *Context: Participation · Owner: Unfold*
 
-The reviewable change Unfold captures from a Session's Workspace when its Crew stops: a Git bundle, a binary patch and a manifest, signed when the workbench key is available. It is ready, or unavailable with a reason. Capturing it never publishes or merges anything.
+The reviewable change Unfold captures from a Session's Workspace when its Team stops: a Git bundle, a binary patch and a manifest, signed when the workbench key is available. It is ready, or unavailable with a reason. Capturing it never publishes or merges anything.
 
 **Not to be confused with** [Delivery Candidate](../reference/glossary.md#delivery-candidate): Ploeg's immutable record of one canonical commit rebuilt from a Candidate on an approved base, used for verification and approval.  
 **Not to be confused with** [Result](#result): What a Work Item delivers with its Evidence; a Candidate is one piece of that Evidence.  
@@ -121,14 +121,6 @@ The unit of the Delivery Fee: one Credit pays for one accepted S Work Item. Agen
 
 **Not to be confused with** [Budget](#budget): An authorized spending limit, not something bought.  
 **See also:** [Delivery Fee](#delivery-fee), [Size](#size)  
-
-## Crew
-*Context: Participation · Owner: Unfold*
-
-Unfold's registered, reusable list of one to eight Roles that a Session runs in order. Each Role either writes or only reads, and may name its model; the final Role gives the review Verdict. An administrator registers crews in configuration and a person picks one when starting a Session. In Ploeg's language this is a Team. New text says Team; "Start crew" remains an Unfold interface label.
-
-**Not to be confused with** [Team](../reference/glossary.md#team): Ploeg's manifest of Roles, budget and concurrency that claims a Work Item. Ploeg avoids "crew".  
-**See also:** [Team](../reference/glossary.md#team), [Role](../reference/glossary.md#role), [Session](#session), [Step](#step)  
 
 ## Cutover
 *Context: Release*
@@ -252,14 +244,14 @@ Where a Session's Workspace runs, chosen per Session from the backends a deploym
 ## Play
 *Context: Cards · Owner: Unfold*
 
-One pull request of a Work Item as its Run Card shows it, oldest first. A pull request closed after a Bounce and its merged successor are two Plays on one card. Cost and lines are summed across Plays, and each Play's Runs appear as its crew.
+One pull request of a Work Item as its Run Card shows it, oldest first. A pull request closed after a Bounce and its merged successor are two Plays on one card. Cost and lines are summed across Plays, and each Play's Runs appear as the Roles that ran.
 
 **See also:** [Run Card](#run-card), [Bounce](#bounce), [Shift](../reference/glossary.md#shift)  
 
 ## Ploeg
 *Context: System · Owner: Ploeg*
 
-Unfold's execution engine and its only Authority. It takes work from trackers and from Unfold, admits it, sets its budget, controls who may write each branch and runs the agents. Dutch for a crew or shift team.
+Unfold's execution engine and its only Authority. It takes work from trackers and from Unfold, admits it, sets its budget, controls who may write each branch and runs the agents. Dutch for a team that works a shift.
 
 **See also:** [Unfold](#unfold), [Admission](../reference/glossary.md#admission), [Authority](../reference/glossary.md#authority), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift)  
 
@@ -364,7 +356,7 @@ The record of one Work Item's change and its life in production: who carried it,
 Unfold's continuing record of a person's interaction around work: instructions, questions, actions and results. Closing a browser does not erase it. A started session is linked to one Ploeg Work Item, Shift and Run.
 
 **Not to be confused with** [Shift](../reference/glossary.md#shift): Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.  
-**See also:** [Work Item](../reference/glossary.md#work-item), [Shift](../reference/glossary.md#shift), [Crew](#crew)  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team)  
 
 ## Set Card
 *Context: Cards*
@@ -400,11 +392,11 @@ One of the four phases Unfold shows a Work Item passing on its page, in order: D
 ## Step
 *Context: Participation · Owner: Unfold*
 
-A part of one Run that Unfold performs internally, such as one Crew role in a delegated Run. A Step is not a separate Ploeg Run and has no Lease or budget of its own.
+A part of one Run that Unfold performs internally, such as one Team Role in a delegated Run. A Step is not a separate Ploeg Run and has no Lease or budget of its own.
 
 **Do not use:** role run  
 **Not to be confused with** [Run](../reference/glossary.md#run): One Role executing against a Work Item, authorized by Ploeg.  
-**See also:** [Run](../reference/glossary.md#run), [Crew](#crew), [Unfold](#unfold)  
+**See also:** [Run](../reference/glossary.md#run), [Team](../reference/glossary.md#team), [Unfold](#unfold)  
 
 ## Steward
 *Context: Cards*
@@ -496,6 +488,11 @@ A repair is work created by work; Ploeg's Follow-Up already names it.
 *Use instead: [Shift](../reference/glossary.md#shift), [Run](../reference/glossary.md#run)*
 
 The attempt it named is a Shift, and one Role's part of it is a Run. A second name for a Shift would make every execution statement ambiguous. The word remains a bounded-context name and part of Ploeg's Operator Execution record.
+
+### Crew
+*Use instead: [Team](../reference/glossary.md#team)*
+
+One concept gets one word, and Ploeg's Team already names the Roles that work a Work Item, so a second word makes a screen or a page read as two concepts (system ADR-0036).
 
 ### Agency Edition
 *Use instead: [Edition](#edition)*

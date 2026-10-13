@@ -28,14 +28,13 @@
         "accepts": "apps/unfold/src/ploeg.ts `ploegAccepted.workItemStates`",
         "labels": "apps/unfold/public/core/states.js `workItemStates`; the stage strip from apps/unfold/public/core/stages.js `workStages`, without a Run card"
       },
-      "mcp": "passes the Ploeg value through as `state` in unfold_now, unfold_find_work and unfold_get_work",
+      "mcp": "passes Unfold's state through as `state` in unfold_now, unfold_find_work and unfold_get_work; unfold_find_work's `state` filter accepts both `active` and `leased`",
       "values": [
         {
           "value": "ingested",
           "label": "Received",
           "stage": "Define",
-          "mcp": "ingested",
-          "mcpGap": "unfold_find_work's `state` hint in apps/unfold/src/mcp.ts lists every other state but not this one."
+          "mcp": "ingested"
         },
         {
           "value": "proposed",
@@ -53,7 +52,16 @@
           "value": "leased",
           "label": "Running",
           "stage": "Execute",
-          "mcp": "leased"
+          "mcp": "leased",
+          "deprecated": "Ploeg renames it `active` (system ADR-0036). Until every Ploeg Unfold talks to sends `active`, Unfold accepts both and keeps `leased` as its own name."
+        },
+        {
+          "value": "active",
+          "label": "Running",
+          "stage": "Execute",
+          "mcp": "leased",
+          "readAs": "leased",
+          "acceptedAhead": "The pinned Ploeg does not send it yet; its next release (ploeg-hq/ploeg#131) sends it in place of `leased`. Unfold accepts it now and reads it as `leased` (apps/unfold/src/ploeg.ts `ploegState`)."
         },
         {
           "value": "needs_human",
@@ -620,23 +628,35 @@
             "file": "operator-api.v1.schema.json",
             "pointer": "/$defs/run/properties/costStatus"
           }
-        ]
+        ],
+        "note": "One cost status set for every money figure, owned by Ploeg (system ADR-0036): `observed`, `provisional`, `settled`, `unknown`. This field publishes the part of it shown here."
       },
       "unfold": {
         "accepts": "apps/unfold/src/ploeg.ts `ploegAccepted.runCostStatuses`",
-        "labels": "apps/unfold/public/ploeg.js (the Run's Model cost row)"
+        "labels": "apps/unfold/public/core/states.js `costStatuses`, the word shown next to the amount"
       },
       "mcp": "not exposed: unfold_get_work gives `costUsd`, null when Ploeg reported none",
       "values": [
         {
           "value": "observed",
-          "label": "the amount",
-          "amount": true,
+          "label": "so far",
           "mcp": "costUsd"
         },
         {
+          "value": "provisional",
+          "label": "not final yet",
+          "mcp": "costUsd",
+          "acceptedAhead": "Ploeg's next release (ploeg-hq/ploeg#131) sends it; the pinned Ploeg does not yet. Unfold already accepts and words it."
+        },
+        {
+          "value": "settled",
+          "label": "final",
+          "mcp": "costUsd",
+          "acceptedAhead": "Ploeg's next release (ploeg-hq/ploeg#131) sends it; the pinned Ploeg does not yet. Unfold already accepts and words it."
+        },
+        {
           "value": "unknown",
-          "label": "Not reported",
+          "label": "not known yet",
           "mcp": "costUsd: null"
         }
       ]
@@ -655,33 +675,40 @@
             "file": "operator-api.v1.schema.json",
             "pointer": "/$defs/factsAsk/properties/costStatus"
           }
-        ]
+        ],
+        "note": "One cost status set for every money figure, owned by Ploeg (system ADR-0036): `observed`, `provisional`, `settled`, `unknown`. This field publishes the part of it shown here."
       },
       "unfold": {
         "accepts": "apps/unfold/src/ploeg.ts `ploegAccepted.askCostStatuses`",
-        "labels": "apps/unfold/public/ploeg.js (the cost next to an Ask)",
-        "renames": "apps/unfold/src/http.ts (`askAuthority.spend`)"
+        "labels": "apps/unfold/public/core/states.js `costStatuses`, the word shown next to the amount"
       },
-      "mcp": "`costStatus` in unfold_ask, in Unfold's words",
+      "mcp": "`costStatus` in unfold_ask, Ploeg's value unchanged",
       "values": [
         {
+          "value": "observed",
+          "unfold": "observed",
+          "label": "so far",
+          "mcp": "observed",
+          "acceptedAhead": "Ploeg's next release (ploeg-hq/ploeg#131) sends it; the pinned Ploeg does not yet. Unfold already accepts and words it."
+        },
+        {
           "value": "provisional",
-          "unfold": "pending",
-          "label": "Cost not known yet",
-          "mcp": "pending",
-          "rename": "Unfold's HTTP layer renames Ploeg's `provisional` to `pending` before storing the Ask."
+          "unfold": "provisional",
+          "label": "not final yet",
+          "mcp": "provisional",
+          "readsAlso": "pending",
+          "retired": "Unfold called it `pending` before system ADR-0036. An Ask stored with `pending` reads as `provisional` (apps/unfold/src/store.ts)."
         },
         {
           "value": "settled",
           "unfold": "settled",
-          "label": "the amount",
-          "amount": true,
+          "label": "final",
           "mcp": "settled"
         },
         {
           "value": "unknown",
           "unfold": "unknown",
-          "label": "Cost not reported",
+          "label": "not known yet",
           "mcp": "unknown"
         }
       ]
@@ -816,7 +843,7 @@
         {
           "value": "shift.closed",
           "ploegTerm": "Shift",
-          "label": "Shift closed",
+          "label": "Attempt closed",
           "mcp": "not exposed"
         },
         {
@@ -897,7 +924,7 @@
         {
           "value": "llm.reserved",
           "ploegTerm": "Inference Account",
-          "label": "Budget reserved for a Run",
+          "label": "Budget held for a Run",
           "mcp": "not exposed"
         },
         {
@@ -1017,6 +1044,18 @@
           "gap": "states.js has no wording for it, so the screen shows the humanized action."
         }
       ]
+    }
+  ],
+  "screenWords": [
+    {
+      "term": "Shift",
+      "word": "attempt",
+      "note": "Docs, API and glossary say Shift; screens say \"attempt\" (\"2 agent runs in 1 attempt\"). A view never uses both words for the same thing."
+    },
+    {
+      "term": "Tracker Item",
+      "word": "task",
+      "note": "Docs and API say Tracker Item; screens say \"task\" (the Tasks page). \"Ticket\" is only the billing unit of system ADR-0006."
     }
   ]
 }

@@ -142,7 +142,7 @@ test('segmented controls are labelled groups of pressed buttons or current links
 test('the meter draws settled and reserved spend from SVG attributes with an ARIA meter', () => {
   const markup = ui.meter({ settled: 1.2, reserved: 0.5, authorized: 3 });
   assert.match(markup, /role="meter" aria-label="Spend" aria-valuemin="0" aria-valuemax="3" aria-valuenow="1.2"/);
-  assert(markup.includes(`aria-valuetext="${money(1.2)} settled of ${money(3)} authorized, ${money(0.5)} reserved"`));
+  assert(markup.includes(`aria-valuetext="${money(1.2)} settled of ${money(3)} authorized, ${money(0.5)} held"`));
   assert.match(markup, /<rect class="meter-track" width="100" height="6"\/>/);
   assert.match(markup, /<rect class="meter-settled" width="40" height="6"\/>/);
   assert.match(markup, /<rect class="meter-reserved" x="40" width="16.67" height="6"\/>/);

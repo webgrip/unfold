@@ -54,7 +54,7 @@ test('activity that ends is cleared with null in root summaries and in the sessi
   const client = await open(randomUUID());
   const { session, chat, sessionSnapshot } = await runTurn(client);
   const summaries = client.inbox.filter(message => message.method === 'root/sessionSummaryChanged' && message.params.session === session).map(message => message.params.changes);
-  assert.ok(summaries.some(changes => typeof changes.activity === 'string'), 'the session had activity while its crew worked');
+  assert.ok(summaries.some(changes => typeof changes.activity === 'string'), 'the session had activity while its team worked');
   const root = summaries.reduce(merged, client.inbox.find(message => message.method === 'root/sessionAdded' && message.params.summary.resource === session)!.params.summary);
   const listed = (await client.rpc('listSessions', { channel: 'ahp-root://' })).items.find((item: Json) => item.resource === session);
   assert.equal(listed.activity, undefined);
@@ -70,7 +70,7 @@ test('the chat channel follows its activity with chat/activityChanged and clears
   const client = await open(randomUUID());
   const { session, chat, chatSnapshot } = await runTurn(client);
   const changes = actionsOn(client, chat).filter(item => item.type === 'chat/activityChanged');
-  assert.ok(changes.some(item => /is working/.test(item.activity ?? '')), `the chat reports the crew working: ${JSON.stringify(changes)}`);
+  assert.ok(changes.some(item => /is working/.test(item.activity ?? '')), `the chat reports the team working: ${JSON.stringify(changes)}`);
   assert.equal(changes.at(-1)!.activity, undefined, 'the last change clears the activity');
   const reduced = actionsOn(client, chat).reduce(reduceChat, chatSnapshot.state);
   assert.equal(reduced.activity, (await client.rpc('subscribe', { channel: chat })).snapshot.state.activity);
@@ -91,7 +91,7 @@ test('root/activeSessionsChanged tells each person how many of their own session
   await runTurn(client);
   await client.until(message => action(message, 'ahp-root://', 'root/activeSessionsChanged') && message.params.action.activeSessions === 0);
   const counts = actionsOn(client, 'ahp-root://').filter(item => item.type === 'root/activeSessionsChanged').map(item => item.activeSessions);
-  assert.deepEqual(counts, [1, 0], 'the count rises while the crew works and falls when it is done');
+  assert.deepEqual(counts, [1, 0], 'the count rises while the team works and falls when it is done');
   const reduced = counts.at(-1);
   assert.equal(reduced, (await client.rpc('subscribe', { channel: 'ahp-root://' })).snapshot.state.activeSessions);
   assert.deepEqual(actionsOn(carol, 'ahp-root://').filter(item => item.type === 'root/activeSessionsChanged'), [], 'someone who cannot see the session is told nothing');

@@ -448,7 +448,7 @@ const notCollectedFlow = Object.freeze({ statuses: 'Time per status: the board r
 function flowLead(flow) {
   const raw = flow.raw;
   const parts = [];
-  if (raw.leadTime) parts.push(`${raw.leadTime.running ? 'Open for' : 'Delivered in'} ${compactDuration(raw.leadTime.seconds)}${raw.leadTime.running ? ' so far' : ' from ticket to release'}`);
+  if (raw.leadTime) parts.push(`${raw.leadTime.running ? 'Open for' : 'Delivered in'} ${compactDuration(raw.leadTime.seconds)}${raw.leadTime.running ? ' so far' : ' from task to release'}`);
   else if (raw.cycleTime) parts.push(`${raw.cycleTime.running ? 'In progress for' : 'Worked on for'} ${compactDuration(raw.cycleTime.seconds)}`);
   if (known(raw.efficiency)) parts.push(`${percent(raw.efficiency)} of the cycle was active work`);
   const current = flow.segments.find(entry => entry.current);
@@ -466,7 +466,7 @@ function flowLead(flow) {
 export function flowTab(card) {
   const data = object(card) ?? {};
   const flow = flowModel(data);
-  if (!flow) return { rows: [row('Flow', Object.hasOwn(data, 'flow') ? 'Not reported for this Work Item' : 'This Ploeg does not send flow figures', 'unreported')], lists: [], groups: [], blocks: [], note: 'Flow is how long the ticket spent in every tracker status, and how long it took from ticket to release. Ploeg records it from the board’s status moves (Ploeg ADR-0057, proposed).' };
+  if (!flow) return { rows: [row('Flow', Object.hasOwn(data, 'flow') ? 'Not reported for this Work Item' : 'This Ploeg does not send flow figures', 'unreported')], lists: [], groups: [], blocks: [], note: 'Flow is how long the ticket spent in every tracker status, and how long it took from task to release. Ploeg records it from the board’s status moves (Ploeg ADR-0057, proposed).' };
   const raw = flow.raw;
   const tiles = [
     spanStat('leadTime', 'Lead time', raw.leadTime) ?? stat('leadTime', 'Lead time', null, { value: notReported }),

@@ -240,8 +240,8 @@ function newCost(card: CardImageCard): CostView {
   const c: CostView = { value: money(cost), caption: '', text: money(cost), ...empty };
   const caption: string[] = [];
   if (t.costStatus === 'reserved') {
-    caption.push('reserved');
-    c.text += ' reserved';
+    caption.push('held');
+    c.text += ' held';
   }
   if (of !== '') {
     caption.push(of);

@@ -73,7 +73,7 @@ test('the 059675b9 session shows each Run as a subagent with its own chat, its t
 
   const turns = (await client.rpc('subscribe', { channel: chat })).snapshot.state.turns;
   const calls = toolCalls(turns);
-  assert.deepEqual(calls.map(call => call.toolName), ['unfold_run', 'unfold_run'], 'the crew\'s tool calls sit under their Run, not in the session\'s chat');
+  assert.deepEqual(calls.map(call => call.toolName), ['unfold_run', 'unfold_run'], 'the team\'s tool calls sit under their Run, not in the session\'s chat');
   const [writes, reads] = calls;
   assert.deepEqual(writes._meta, { toolKind: 'subagent', subagentDescription: 'Implementer writes the change', subagentAgentName: 'Implementer' });
   assert.deepEqual(writes.content[0], { type: 'subagent', resource: implementer.resource, title: 'Implementer', agentName: 'Implementer', description: 'writes the change' });

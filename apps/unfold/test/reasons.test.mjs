@@ -42,8 +42,8 @@ test('plan_exhausted in needs_human names both causes, never "out of attempts"',
 test('prefixed close reasons are parsed for their numbers and Role', () => {
   assert.deepEqual(parseBudgetReason('budget exhausted: pool 3.00, spent 2.97, reserved 0.10'), { pool: 3, spent: 2.97, reserved: 0.1 });
   assert.deepEqual(parseBudgetReason('budget exhausted'), { pool: null, spent: null, reserved: null });
-  assert.equal(listReason(item('budget exhausted: pool 3.00, spent 2.97, reserved 0.10')).sentence, `The Shift’s budget of US$${space}3,00 could not pay for the next Round (spent US$${space}2,97, reserved US$${space}0,10).`);
-  assert.equal(listReason(item('budget exhausted: something else')).sentence, 'The Shift’s budget could not pay for the next Round.');
+  assert.equal(listReason(item('budget exhausted: pool 3.00, spent 2.97, reserved 0.10')).sentence, `The attempt’s budget of US$${space}3,00 could not pay for the next Round (spent US$${space}2,97, held US$${space}0,10).`);
+  assert.equal(listReason(item('budget exhausted: something else')).sentence, 'The attempt’s budget could not pay for the next Round.');
   assert.equal(listReason(item('Budget Exhausted: pool 1')).code, 'budget_exhausted');
   assert.deepEqual(parseStuckReason('run stuck: reviewer round 2'), { role: 'reviewer', round: 2 });
   assert.deepEqual(parseStuckReason('run stuck: implementer'), { role: 'implementer', round: null });
@@ -164,9 +164,9 @@ test('the detail tells plan_exhausted apart: no pull request when the writer cha
 
 test('the demo’s budget sentence names the budget but never spend it did not have', () => {
   const text = 'budget exhausted: pool 0.04, spent 0.00, reserved 0.00';
-  assert.equal(listReason(item(text), { demo: true }).sentence, `The Shift’s budget of US$${space}0,04 could not pay for the next Round.`);
+  assert.equal(listReason(item(text), { demo: true }).sentence, `The attempt’s budget of US$${space}0,04 could not pay for the next Round.`);
   assert.match(listReason(item(text)).sentence, /spent US\$/, 'live data keeps the numbers');
-  assert.equal(detailReason({ item: item(text), shifts: [shift(text)], runs: [], events: [], demo: true }).sentence, `The Shift’s budget of US$${space}0,04 could not pay for the next Round.`);
+  assert.equal(detailReason({ item: item(text), shifts: [shift(text)], runs: [], events: [], demo: true }).sentence, `The attempt’s budget of US$${space}0,04 could not pay for the next Round.`);
 });
 
 test('the detail counts the killed writer Runs when the Work Item does not', () => {
@@ -225,7 +225,7 @@ test('a budget stop whose shortfall was only held, not spent, says so and points
   const reason = listReason(item(text));
   assert.equal(reason.code, 'budget_held');
   assert.equal(reason.chip, 'Budget held, not spent');
-  assert.equal(reason.sentence, `Ploeg stopped because the Shift’s US$${space}8,00 budget could not pay for the next Round, but nothing was spent. US$${space}8,00 was held for Runs whose spend Ploeg had not settled yet.`);
+  assert.equal(reason.sentence, `Ploeg stopped because the attempt’s US$${space}8,00 budget could not pay for the next Round, but nothing was spent. US$${space}8,00 was held for Runs whose spend Ploeg had not settled yet.`);
   assert.match(reason.fix, /Raising the budget does not help/);
   assert.equal(chip('budget exhausted: pool 3.00, spent 2.97, reserved 0.10'), 'Budget ran out', 'real spend stays a budget stop');
   const failedRun = id => ({ id, shiftId: '9', role: 'builder', round: 1, writes: true, state: 'finished', startedAt: '2026-09-28T10:00:00Z', outcome: 'failed', failureReason: 'infra_llm', summary: '', stuckReason: '' });
@@ -246,7 +246,7 @@ test('Ploeg’s own held-budget close reason reads as held, never as a budget th
   assert.deepEqual(parseBudgetReason(text), { pool: 8, spent: 0, reserved: 8 });
   const reason = listReason(item(text));
   assert.equal(reason.chip, 'Budget held, not spent');
-  assert.equal(reason.sentence, `Ploeg stopped because the Shift’s US$${space}8,00 budget is held, not spent: US$${space}8,00 is still held for finished Runs whose spend Ploeg could not settle within a day.`);
+  assert.equal(reason.sentence, `Ploeg stopped because the attempt’s US$${space}8,00 budget is held, not spent: US$${space}8,00 is still held for finished Runs whose spend Ploeg could not settle within a day.`);
   assert.equal(closeReasonLabel(text), `The US$${space}8,00 budget is still held, not spent`);
 });
 

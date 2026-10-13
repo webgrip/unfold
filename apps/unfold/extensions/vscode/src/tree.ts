@@ -81,7 +81,7 @@ export class SessionTree implements vscode.TreeDataProvider<SessionEntry>, vscod
         item.tooltip = entry.run.summary ? entry.run.summary.slice(0, 800) : `${entry.run.roleName} · ${entry.run.status}`;
         item.iconPath = new vscode.ThemeIcon(runIcons[entry.run.status] ?? 'circle-outline', entry.run.verdict === 'approve' ? new vscode.ThemeColor('testing.iconPassed') : entry.run.verdict === 'request_changes' || entry.run.status === 'failed' ? new vscode.ThemeColor('list.warningForeground') : undefined);
         item.contextValue = 'run';
-        item.command = { command: 'unfold.openTab', title: 'Open crew', arguments: [entry.session.id, 'brief', entry.run.id] };
+        item.command = { command: 'unfold.openTab', title: 'Open team', arguments: [entry.session.id, 'brief', entry.run.id] };
         return item;
       }
       case 'artifact': {

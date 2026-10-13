@@ -19,11 +19,11 @@ export const composerModelId = 'unfold-crew';
 /** Thrown when a session configuration names something this workbench does not offer. */
 export class SessionConfigError extends Error {}
 
-/** The composer's model entry: the Ploeg team that authorizes managed execution, the demonstration, or the workbench's own crews. */
+/** The composer's model entry: the Ploeg team that authorizes managed execution, the demonstration, or the workbench's own teams. */
 export function composerModel(config: AppConfig): { id: string; name: string } {
-  if (config.mode === 'demo') return { id: composerModelId, name: 'Demo crew · no model calls' };
-  if (config.execution?.team) return { id: composerModelId, name: `Ploeg crew · ${config.execution.team}` };
-  return { id: composerModelId, name: 'Unfold crew' };
+  if (config.mode === 'demo') return { id: composerModelId, name: 'Demo team · no model calls' };
+  if (config.execution?.team) return { id: composerModelId, name: `Ploeg team · ${config.execution.team}` };
+  return { id: composerModelId, name: 'Unfold team' };
 }
 
 const dollars = (amount: number): string => money(amount);
@@ -45,7 +45,7 @@ function roleModel(config: AppConfig, model: string | undefined): string | undef
   return (config.models.find(item => item.id === model) ?? config.models[0])?.name;
 }
 
-/** One line naming a crew's roles in order, with the configured model each role runs on; the demonstration names none, since it calls no model. */
+/** One line naming a team's roles in order, with the configured model each role runs on; the demonstration names none, since it calls no model. */
 export function crewDescription(config: AppConfig, crew: Crew): string {
   const roles = crew.roles.map(role => {
     const model = config.mode === 'demo' ? undefined : roleModel(config, role.model);
@@ -74,32 +74,32 @@ function budgetOf(config: AppConfig, value: unknown): number | undefined {
 
 /**
  * The session configuration schema VS Code 1.141 renders in the new-session composer. Repository is read-only because the
- * Workspace picker decides it; crew, budget and placement are string enums with labels, which is what the Agents window
+ * Workspace picker decides it; team, budget and placement are string enums with labels, which is what the Agents window
  * draws as pickers; approvals use the well-known `approvalMode`, offering `allow-all` only for a container or pod placement.
  */
 export function sessionConfigSchema(config: AppConfig, values: Json = {}, live?: Session): Json {
   const budget = budgetOf(config, values.budgetUsd);
   const properties: Json = {
     repository: { type: 'string', title: 'Repository', description: 'Chosen with the Workspace picker', readOnly: true, enum: config.repositories.map(repo => repo.id), enumLabels: config.repositories.map(repo => repo.name), enumDescriptions: config.repositories.map(repo => repo.description) },
-    crew: { type: 'string', title: 'Crew', description: 'The roles that work on this session, in order', enum: config.crews.map(crew => crew.id), enumLabels: config.crews.map(crew => crew.name), enumDescriptions: config.crews.map(crew => crewDescription(config, crew)), default: config.crews[0]?.id },
+    crew: { type: 'string', title: 'Team', description: 'The roles that work on this session, in order', enum: config.crews.map(crew => crew.id), enumLabels: config.crews.map(crew => crew.name), enumDescriptions: config.crews.map(crew => crewDescription(config, crew)), default: config.crews[0]?.id },
   };
   const amounts = budgetOptions(config, budget);
   properties.budgetUsd = { type: 'string', title: 'Budget', description: `The most this session may spend on models, up to ${dollars(config.maxBudgetUsd)}`, enum: amounts.map(budgetValue), enumLabels: amounts.map(dollars), default: budgetValue(defaultBudget(config)) };
   const options = placements(config);
-  if (options.length > 1) properties.placement = { type: 'string', title: 'Placement', description: 'Where the crew\'s workspace runs', enum: options.map(item => item.id), enumLabels: options.map(item => placementLabels[item.id]), enumDescriptions: options.map(item => item.name), default: defaultPlacement(config) };
+  if (options.length > 1) properties.placement = { type: 'string', title: 'Placement', description: 'Where the team\'s workspace runs', enum: options.map(item => item.id), enumLabels: options.map(item => placementLabels[item.id]), enumDescriptions: options.map(item => item.name), default: defaultPlacement(config) };
   const placement = live ? live.placement : effectivePlacement(config, values);
   const automatic = offersAutomaticApproval(config, placement);
   properties.approvalMode = {
-    type: 'string', title: 'Approvals', description: automatic ? 'Who answers the crew\'s permission requests' : 'Automatic approval needs a container or pod placement',
+    type: 'string', title: 'Approvals', description: automatic ? 'Who answers the team\'s permission requests' : 'Automatic approval needs a container or pod placement',
     enum: automatic ? ['manual', 'allow-all'] : ['manual'], enumLabels: automatic ? ['Ask me', 'Approve inside the sandbox'] : ['Ask me'],
-    enumDescriptions: automatic ? ['You approve each permission request', 'The crew\'s permission requests are approved inside its container or pod; questions still reach you'] : ['You approve each permission request'],
+    enumDescriptions: automatic ? ['You approve each permission request', 'The team\'s permission requests are approved inside its container or pod; questions still reach you'] : ['You approve each permission request'],
     default: 'manual', ...(live && automatic && !['completed', 'failed', 'cancelled'].includes(live.status) ? { sessionMutable: true } : {}),
   };
   properties.title = { type: 'string', title: 'Session title' };
   return { type: 'object', properties, required: ['repository', 'crew', 'budgetUsd'] };
 }
 
-/** Defaults for a new session: the picked repository or the first one, the first crew, a 5 US$ budget within the limit, the runtime's default placement and manual approval. */
+/** Defaults for a new session: the picked repository or the first one, the first team, a 5 US$ budget within the limit, the runtime's default placement and manual approval. */
 export function defaultSessionConfig(config: AppConfig, repository?: string): Json {
   const placement = placements(config).length > 1 ? defaultPlacement(config) : undefined;
   return { repository: repository ?? config.repositories[0]?.id, crew: config.crews[0]?.id, budgetUsd: budgetValue(defaultBudget(config)), ...(placement ? { placement } : {}), approvalMode: 'manual' };
@@ -115,9 +115,9 @@ function normalize(config: AppConfig, requested: Json, strict: boolean): Json {
   const refuse = (message: string) => { if (strict) throw new SessionConfigError(message); };
   const fallback = defaultSessionConfig(config);
   if (config.repositories.some(repo => repo.id === requested.repository)) values.repository = requested.repository;
-  else { refuse('Choose a configured repository and crew'); values.repository = fallback.repository; }
+  else { refuse('Choose a configured repository and team'); values.repository = fallback.repository; }
   if (config.crews.some(crew => crew.id === requested.crew)) values.crew = requested.crew;
-  else { refuse('Choose a configured repository and crew'); values.crew = fallback.crew; }
+  else { refuse('Choose a configured repository and team'); values.crew = fallback.crew; }
   const budget = requested.budgetUsd === undefined ? defaultBudget(config) : budgetOf(config, requested.budgetUsd);
   if (budget === undefined) refuse(`Choose a budget up to ${dollars(config.maxBudgetUsd)}`);
   values.budgetUsd = budgetValue(budget ?? defaultBudget(config));

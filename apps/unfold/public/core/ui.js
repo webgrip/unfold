@@ -299,12 +299,12 @@ export function callout({ tone = 'neutral', icon: glyph, title, body, actions } 
 }
 
 /**
- * A budget meter: settled spend (solid) and reserved spend (lighter) against the authorized amount, drawn with SVG
+ * A budget meter: settled spend (solid) and held spend (lighter) against the authorized amount, drawn with SVG
  * attributes only. Unknown settled spend renders a hatched bar that reads "Not reported", never zero. `demo` reads
  * "Demo · no model calls" and draws no spend. Spend over the authorization turns the bar to the danger tone.
  * @param {object} options
  * @param {number|null} [options.settled] US dollars settled; null or undefined is unknown.
- * @param {number|null} [options.reserved] US dollars reserved by running work.
+ * @param {number|null} [options.reserved] US dollars held for running work.
  * @param {number|null} [options.authorized] US dollars authorized.
  * @param {boolean} [options.demo]
  * @param {string} [options.label] Caption before the amount; defaults to "Spend". Pass '' for none.
@@ -335,11 +335,11 @@ export function meter({ settled, reserved, authorized, demo = false, label = 'Sp
   const reservedWidth = round2(Math.max(0, Math.min(100 - settledWidth, held / budget * 100)));
   const over = spent > budget;
   const level = over ? 'over' : (spent + held) / budget >= 0.8 - 1e-9 ? 'warn' : '';
-  const reservedText = held > 0 ? `, ${moneyText(held)} reserved` : '';
+  const reservedText = held > 0 ? `, ${moneyText(held)} held` : '';
   const valueText = `${moneyText(spent)} ${observed ? 'observed so far' : 'settled'} of ${moneyText(budget)} authorized${reservedText}${over ? `, ${moneyText(round2(spent - budget))} over budget` : ''}`;
   const end = over ? `${escape(moneyText(round2(spent - budget)))} over` : small ? '' : `${Math.round(spent / budget * 100)}%`;
   const rects = `${settledWidth > 0 ? `<rect class="meter-settled" width="${settledWidth}" height="6"/>` : ''}${reservedWidth > 0 ? `<rect class="meter-reserved" x="${settledWidth}" width="${reservedWidth}" height="6"/>` : ''}`;
-  return `<div class="${classes}"${level ? ` data-level="${level}"` : ''} role="meter" aria-label="${escape(present(label) ? label : 'Spend')}" aria-valuemin="0" aria-valuemax="${budget}" aria-valuenow="${Math.min(spent, budget)}" aria-valuetext="${escape(valueText)}"><div class="meter-label"><span class="meter-text">${caption}<strong class="meter-value">${escape(moneyText(spent))}</strong> <span class="meter-of">of ${escape(moneyText(budget))}${held > 0 ? ` · ${escape(moneyText(held))} reserved` : ''}</span></span>${end ? `<span class="meter-end">${end}</span>` : ''}</div>${bar(rects)}</div>`;
+  return `<div class="${classes}"${level ? ` data-level="${level}"` : ''} role="meter" aria-label="${escape(present(label) ? label : 'Spend')}" aria-valuemin="0" aria-valuemax="${budget}" aria-valuenow="${Math.min(spent, budget)}" aria-valuetext="${escape(valueText)}"><div class="meter-label"><span class="meter-text">${caption}<strong class="meter-value">${escape(moneyText(spent))}</strong> <span class="meter-of">of ${escape(moneyText(budget))}${held > 0 ? ` · ${escape(moneyText(held))} held` : ''}</span></span>${end ? `<span class="meter-end">${end}</span>` : ''}</div>${bar(rects)}</div>`;
 }
 
 /**

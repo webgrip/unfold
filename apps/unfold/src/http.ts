@@ -15,7 +15,7 @@ import { readFileSync } from 'node:fs';
 import { StatusBoard, gatewayProbe } from './status.ts';
 import { CardService, importStatusLine } from './cards/service.ts';
 import { CardStore } from './cards/card-store.ts';
-import { PloegClient, PloegError, contextInput, contextUploadLimit, type PloegDecision, type PloegState } from './ploeg.ts';
+import { PloegClient, PloegError, contextInput, contextUploadLimit, type PloegDecision } from './ploeg.ts';
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
@@ -152,7 +152,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const askAuthority: AskAuthority | undefined = config.ploeg && !askDemo ? {
     admit: (user, id, askId, question) => ploeg.admitAsk(user, id, askId, question),
     finish: (user, id, askId) => ploeg.finishAsk(user, id, askId),
-    spend: async (user, id, askId) => { const spend = await ploeg.askSpend(user, id, askId); return { costUsd: spend.usd, costStatus: spend.costStatus === 'provisional' ? 'pending' : spend.costStatus }; },
+    spend: async (user, id, askId) => { const spend = await ploeg.askSpend(user, id, askId); return { costUsd: spend.usd, costStatus: spend.costStatus }; },
     allowance: (user, team) => ploeg.askAllowance(user, team),
   } : undefined;
   const asks = new AskService(store, ploeg, askAuthority, { demo: askDemo, gatewayUrl: config.litellm?.baseUrl, secrets, reports: errors });
@@ -497,12 +497,12 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const sourceId = text(data.sourceId, 'Connection', 64);
           const taskId = text(data.taskId, 'Task', 128);
           const revision = text(data.revision, 'Task revision', 128);
-          const crewId = text(data.crewId, 'Crew', 64);
+          const crewId = text(data.crewId, 'Team', 64);
           const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
           const source = config.taskSources?.find(item => item.id === sourceId);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
           if (!config.execution && (source!.executionOwner !== 'interactive' || config.repositories.find(repo => repo.id === source!.repositoryId)?.executionOwner === 'ploeg')) fault(403, 'ploeg_owned', 'Ploeg owns execution for this task connection. Assign its work through the tracker.');
-          if (!runtimeKinds.includes(runtime) || !config.crews.some(crew => crew.id === crewId)) fault(400, 'unknown_profile', 'Choose a configured crew and runtime.');
+          if (!runtimeKinds.includes(runtime) || !config.crews.some(crew => crew.id === crewId)) fault(400, 'unknown_profile', 'Choose a configured team and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
           const snapshot = await getTask(await withUserToken(source!), taskId);
           if (snapshot.revision !== revision) fault(409, 'task_changed', 'The task changed after your preview. Refresh it and review the updated version.');
@@ -515,8 +515,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const data = await body(req);
           const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
           const repositoryId = text(data.repositoryId, 'Repository', 64);
-          const crewId = text(data.crewId, 'Crew', 64);
-          if (!runtimeKinds.includes(runtime) || !config.repositories.some(repo => repo.id === repositoryId) || !config.crews.some(crew => crew.id === crewId)) fault(400, 'unknown_profile', 'Choose a configured repository, crew and runtime.');
+          const crewId = text(data.crewId, 'Team', 64);
+          if (!runtimeKinds.includes(runtime) || !config.repositories.some(repo => repo.id === repositoryId) || !config.crews.some(crew => crew.id === crewId)) fault(400, 'unknown_profile', 'Choose a configured repository, team and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
           const trackerUrl = text(data.trackerUrl, 'Tracker link', 2048, true);
           if (trackerUrl) {
@@ -599,7 +599,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (path === '/api/ploeg/events') return json(res, 200, sanitize(await ploeg.events(user, { team: optional('team'), before: optional('before') }, fresh)));
             if (path === '/api/ploeg/proposed') return json(res, 200, sanitize(await ploeg.proposed(user, fresh)));
             if (path === '/api/ploeg/now') return json(res, 200, sanitize(await ploeg.now(user, fresh)));
-            if (path === '/api/ploeg/work-items') return json(res, 200, sanitize(await ploeg.items(user, text(url.searchParams.get('team'), 'Team', 100), (url.searchParams.get('state') ?? 'all') as PloegState | 'all', url.searchParams.get('after') ?? '0', fresh)));
+            if (path === '/api/ploeg/work-items') return json(res, 200, sanitize(await ploeg.items(user, text(url.searchParams.get('team'), 'Team', 100), url.searchParams.get('state') ?? 'all', url.searchParams.get('after') ?? '0', fresh)));
             const card = /^\/api\/ploeg\/work-items\/([^/]+)\/card$/.exec(path);
             if (card) return json(res, 200, sanitize(await ploeg.card(user, card[1], fresh)));
             const stream = /^\/api\/ploeg\/work-items\/([^/]+)\/value-stream$/.exec(path);

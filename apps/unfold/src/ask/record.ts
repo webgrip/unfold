@@ -1,11 +1,12 @@
 import { money } from '../../public/core/format.js';
+import { costStatusWord } from '../../public/core/states.js';
 import type { BriefProgress, WorkItemBrief } from './brief.ts';
 import type { AskAudience } from './types.ts';
 
 /** A standing question about a Work Item that Unfold answers from the record, with no model call (system ADR-0031, update 2026-10-10). */
 export type RecordIntent = 'doing' | 'stopped' | 'spend' | 'next' | 'who' | 'done' | 'pull_request' | 'preview';
 
-const subject = '(?:it|this|that|this work|the work|this work item|the work item|this item|the item|this task|the task|this ticket|the ticket|the agents?|the crew)';
+const subject = '(?:it|this|that|this work|the work|this work item|the work item|this item|the item|this task|the task|this ticket|the ticket|the agents?|the team|the crew)';
 const now = '(?: (?:now|right now|at the moment|currently|so far|today))?';
 const sofar = '(?: (?:so far|until now|to date|yet))?';
 const pr = '(?:pr|pull request|merge request)';
@@ -221,9 +222,9 @@ const answers: Record<RecordIntent, (brief: WorkItemBrief, audience: AskAudience
     if (brief.spend.status === 'demo' || brief.progress?.spend.status === 'demo') return 'This is a demo, so no model ran and nothing was spent.';
     const apart = ' Questions asked about it are counted apart.';
     const spend = brief.progress?.spend;
-    if (spend) return spend.status === 'unknown' ? `Spend on the work is not reported yet.${spend.note ? ` Its budget: ${spend.note.replace(/^of /, '')}.` : ''}` : `Spend on the work so far: ${spend.text} (${spend.note}).${apart}`;
-    if (brief.spend.deliveryUsd === null) return 'Spend on the work is not reported yet.';
-    return `Spend on the work so far: ${money(brief.spend.deliveryUsd)} (${brief.spend.status === 'settled' ? 'settled' : 'observed, not settled'}).${apart}`;
+    if (spend) return spend.status === 'unknown' ? `Spend on the work is ${costStatusWord('unknown')}.${spend.note ? ` Its budget: ${spend.note.replace(/^of /, '')}.` : ''}` : `Spend on the work so far: ${spend.text} (${spend.note}).${apart}`;
+    if (brief.spend.deliveryUsd === null) return `Spend on the work is ${costStatusWord('unknown')}.`;
+    return `Spend on the work so far: ${money(brief.spend.deliveryUsd)} (${costStatusWord(brief.spend.status)}).${apart}`;
   },
   next(brief, audience) {
     if (audience !== 'internal') return null;

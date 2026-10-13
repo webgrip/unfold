@@ -54,13 +54,15 @@ test('a brief never feeds earlier Asks into a later answer', () => {
   assert.doesNotMatch(briefText(brief), /Answered:/);
 });
 
-test('spend is settled only when every Run reported its cost', () => {
-  assert.deepEqual(workItemBrief(detail()).spend, { status: 'settled', deliveryUsd: 0.24 });
-  const pending = workItemBrief(detail({}, [run(), run({ id: '12', usage: null, costStatus: 'unknown' })]));
-  assert.deepEqual(pending.spend, { status: 'provisional', deliveryUsd: 0.21 });
+test('spend is final only when every Run reported a settled cost, and so far while any Run is observed or unreported', () => {
+  assert.deepEqual(workItemBrief(detail()).spend, { status: 'observed', deliveryUsd: 0.24 });
+  assert.deepEqual(workItemBrief(detail({}, [run({ costStatus: 'settled' }), run({ id: '12', costStatus: 'settled' })])).spend, { status: 'settled', deliveryUsd: 0.42 });
+  assert.deepEqual(workItemBrief(detail({}, [run({ costStatus: 'settled' }), run({ id: '12', costStatus: 'provisional' })])).spend, { status: 'provisional', deliveryUsd: 0.42 });
+  const pending = workItemBrief(detail({}, [run({ costStatus: 'settled' }), run({ id: '12', usage: null, costStatus: 'unknown' })]));
+  assert.deepEqual(pending.spend, { status: 'observed', deliveryUsd: 0.21 });
   const none = workItemBrief(detail({}, [run({ usage: null, costStatus: 'unknown' })]));
   assert.deepEqual(none.spend, { status: 'unknown', deliveryUsd: null });
-  assert.match(briefText(none), /not reported yet/);
+  assert.match(briefText(none), /not known yet/);
 });
 
 test('the card decides spend when it is available, and unknown spend is never zero', () => {

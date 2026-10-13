@@ -769,8 +769,8 @@
           },
           {
             "id": "start",
-            "title": "Start the remote crew",
-            "description": "A session is authorized when created and runs only when you start it. Watch the crew live in the session panel.\n[Open a session](command:unfold.findSession)",
+            "title": "Start the remote team",
+            "description": "A session is authorized when created and runs only when you start it. Watch the team live in the session panel.\n[Open a session](command:unfold.findSession)",
             "media": {
               "markdown": "media/walkthrough/start.md"
             },

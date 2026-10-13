@@ -47,15 +47,15 @@ export async function run({ page, app, assert, screenshot }) {
     }
   }
   await page.getByRole('button', { name: 'Create session', exact: true }).click();
-  await page.getByRole('button', { name: 'Start crew', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Start team', exact: true }).waitFor();
   const importedId = new URL(page.url()).hash.slice('#session/'.length);
   const imported = app.store.getSession(importedId);
-  assert.equal(imported.status, 'queued', 'Task import started the crew without an operator start');
+  assert.equal(imported.status, 'queued', 'Task import started the team without an operator start');
   assert.equal(imported.budgetUsd, 3.25);
   assert.equal(imported.sourceTask.sourceId, 'demo-tasks');
   assert.equal(imported.sourceTask.id, '1');
   await page.getByRole('link', { name: 'Open original task (opens in a new tab)', exact: true }).waitFor();
-  await page.getByRole('button', { name: 'Start crew', exact: true }).click();
+  await page.getByRole('button', { name: 'Start team', exact: true }).click();
   await page.getByText('Your review is next', { exact: true }).waitFor({ timeout: 25000 });
   await page.getByText('Repository snapshot saved', { exact: true }).waitFor();
   for (const [name, format] of [['Git bundle', 'bundle'], ['Binary patch', 'patch'], ['Manifest', 'manifest']]) {
@@ -88,14 +88,14 @@ export async function run({ page, app, assert, screenshot }) {
   await page.getByRole('link', { name: 'Tasks', exact: true }).click();
   await page.locator('[data-action="task-preview"]').first().click();
   await page.getByLabel('Session budget', { exact: true }).fill('4.75');
-  const selectedCrew = await page.getByRole('combobox', { name: 'Crew', exact: true }).inputValue();
+  const selectedCrew = await page.getByRole('combobox', { name: 'Team', exact: true }).inputValue();
   const selectedRuntime = await page.locator('[data-form="task-import"] [name="runtime"]').inputValue();
   await page.getByRole('button', { name: 'Create session', exact: true }).click();
   await page.getByText('The source task changed', { exact: true }).waitFor();
   await page.getByText(hostileTask.description, { exact: true }).waitFor();
   assert.equal(await page.locator('#untrusted-task-markup, img[src="/untrusted-task-image"]').count(), 0, 'Source task content rendered active markup');
   assert.equal(await page.getByLabel('Session budget', { exact: true }).inputValue(), '4.75', 'Revision conflict discarded the budget draft');
-  assert.equal(await page.getByRole('combobox', { name: 'Crew', exact: true }).inputValue(), selectedCrew);
+  assert.equal(await page.getByRole('combobox', { name: 'Team', exact: true }).inputValue(), selectedCrew);
   assert.equal(await page.locator('[data-form="task-import"] [name="runtime"]').inputValue(), selectedRuntime);
   assert.equal(app.store.listSessions().length, taskSessionCount, 'Revision conflict created a session');
   await screenshot('task-revision-conflict');

@@ -24,7 +24,7 @@ try {
   assert.equal(bootstrap.mode, 'demo', 'Smoke execution requires an explicitly enabled demonstration deployment. It never initiates paid model work.');
   const repository = bootstrap.repositories.find(item => item.id === 'order-service');
   const crew = bootstrap.crews.find(item => item.id === 'delivery');
-  assert(repository && crew, 'The order-service demonstration repository and delivery crew must be configured.');
+  assert(repository && crew, 'The order-service demonstration repository and delivery team must be configured.');
   const session = await api('/api/sessions', 'POST', { title: 'Smoke check: order rounding', objective: 'Fix the reproducible order rounding regression, run the actual tests, and independently review the resulting diff.', repositoryId: repository.id, crewId: crew.id, runtime: 'demo', budgetUsd: 1 });
   createdId = session.id;
   await api(`/api/sessions/${session.id}/start`, 'POST');

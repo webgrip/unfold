@@ -3,7 +3,7 @@ import type { Event } from '../types.ts';
 type Json = Record<string, any>;
 
 /**
- * A command the crew ran in its sandbox, as its durable `tool` events record it. `id` is the id of the event that first named
+ * A command the team ran in its sandbox, as its durable `tool` events record it. `id` is the id of the event that first named
  * the command, so a command keeps its terminal across reconnects and restarts. `streamed` counts the raw characters its
  * `tool.output` events covered, and `held` is the unfinished last line not yet cleaned and shown.
  */
@@ -18,7 +18,7 @@ export const liveOutputLimits = Object.freeze({ chunk: 16_384, heldLine: 4096, k
 /** What one durable event did to the session's commands: the command a `tool` event belongs to, and the terminal actions to broadcast. */
 export type CommandUpdate = { command?: CrewCommand; content?: Json; actions: Json[] };
 
-/** The terminal channel of one crew command: `ahp-terminal:/<session>/<command>`, the session in its public spelling. */
+/** The terminal channel of one team command: `ahp-terminal:/<session>/<command>`, the session in its public spelling. */
 export const terminalChannel = (publicId: string, commandId: string) => `ahp-terminal:/${publicId}/${commandId}`;
 
 /** Parses a terminal channel into the session's public id and the command's id. */
@@ -28,31 +28,31 @@ export function parseTerminalChannel(uri: string): { sessionId: string; commandI
 }
 
 /** The reason every client action on a terminal is refused. */
-export const readOnlyTerminal = 'This terminal is a read-only record of a command the crew ran in its sandbox. Unfold takes no input, resizing, clearing or renaming from a client, and never opens a shell in a sandbox.';
+export const readOnlyTerminal = 'This terminal is a read-only record of a command the team ran in its sandbox. Unfold takes no input, resizing, clearing or renaming from a client, and never opens a shell in a sandbox.';
 
-/** The reason `createTerminal` and `disposeTerminal` are refused on a crew command's terminal. */
-export const noClientTerminals = 'A crew command\'s terminal belongs to its session. Unfold neither opens nor closes it for a client.';
+/** The reason `createTerminal` and `disposeTerminal` are refused on a team command's terminal. */
+export const noClientTerminals = 'A team command\'s terminal belongs to its session. Unfold neither opens nor closes it for a client.';
 
 /** The reason a client's own terminal refuses every action. */
-export const noClientShell = 'This terminal starts no shell. Write in the session\'s chat to steer its crew.';
+export const noClientShell = 'This terminal starts no shell. Write in the session\'s chat to steer its team.';
 
 /** The most terminals one connection may hold. VS Code asks for one each time it shows a session of this host. */
 export const maxClientTerminals = 16;
 
 const clientTerminalPattern = /^[a-z][a-z0-9+.-]{0,40}:\/[A-Za-z0-9_./-]{1,200}$/;
 
-/** Whether a URI a client names for a terminal of its own is one this host holds for it: any well-formed URI outside the crew's `ahp-terminal:` namespace. */
+/** Whether a URI a client names for a terminal of its own is one this host holds for it: any well-formed URI outside the team's `ahp-terminal:` namespace. */
 export const clientTerminalUri = (uri: unknown): uri is string => typeof uri === 'string' && clientTerminalPattern.test(uri) && !uri.startsWith('ahp-terminal:');
 
-/** What a client's own terminal shows, since it runs nothing: where the crew's commands appear instead. */
+/** What a client's own terminal shows, since it runs nothing: where the team's commands appear instead. */
 export const clientTerminalNotice = [
   '\x1b[1mUnfold · read-only\x1b[0m',
   '',
-  'Crews run their commands in isolated sandboxes, never on this machine.',
+  'Teams run their commands in isolated sandboxes, never on this machine.',
   'Each command appears as its own terminal on the tool call that ran it:',
   'open one from the session\'s chat to see the command and its output.',
   '',
-  '\x1b[2mThis terminal starts no shell. Write in the session\'s chat to steer a crew.\x1b[0m',
+  '\x1b[2mThis terminal starts no shell. Write in the session\'s chat to steer a team.\x1b[0m',
   '',
 ].join('\r\n');
 

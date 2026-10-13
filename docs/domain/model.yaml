@@ -73,7 +73,7 @@ terms:
     definition: >
       Unfold's execution engine and its only Authority. It takes work from trackers
       and from Unfold, admits it, sets its budget, controls who may write each
-      branch and runs the agents. Dutch for a crew or shift team.
+      branch and runs the agents. Dutch for a team that works a shift.
     see_also: [Unfold, Admission, Authority, Run, Shift]
   - name: Ready
     context: Work
@@ -128,39 +128,25 @@ terms:
     not_to_be_confused_with:
       - term: Shift
         note: Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.
-    see_also: [Work Item, Shift, Crew]
-  - name: Crew
-    context: Participation
-    owner: unfold
-    definition: >
-      Unfold's registered, reusable list of one to eight Roles that a Session
-      runs in order. Each Role either writes or only reads, and may name its
-      model; the final Role gives the review Verdict. An administrator registers
-      crews in configuration and a person picks one when starting a Session. In
-      Ploeg's language this is a Team. New text says Team; "Start crew" remains
-      an Unfold interface label.
-    not_to_be_confused_with:
-      - term: Team
-        note: Ploeg's manifest of Roles, budget and concurrency that claims a Work Item. Ploeg avoids "crew".
-    see_also: [Team, Role, Session, Step]
+    see_also: [Work Item, Shift, Team]
   - name: Step
     context: Participation
     owner: unfold
     definition: >
-      A part of one Run that Unfold performs internally, such as one Crew role in
+      A part of one Run that Unfold performs internally, such as one Team Role in
       a delegated Run. A Step is not a separate Ploeg Run and has no Lease or
       budget of its own.
     avoid: [role run]
     not_to_be_confused_with:
       - term: Run
         note: One Role executing against a Work Item, authorized by Ploeg.
-    see_also: [Run, Crew, Unfold]
+    see_also: [Run, Team, Unfold]
   - name: Candidate
     context: Participation
     owner: unfold
     definition: >
       The reviewable change Unfold captures from a Session's Workspace when its
-      Crew stops: a Git bundle, a binary patch and a manifest, signed when the
+      Team stops: a Git bundle, a binary patch and a manifest, signed when the
       workbench key is available. It is ready, or unavailable with a reason.
       Capturing it never publishes or merges anything.
     not_to_be_confused_with:
@@ -510,7 +496,7 @@ terms:
       One pull request of a Work Item as its Run Card shows it, oldest first.
       A pull request closed after a Bounce and its merged successor are two
       Plays on one card. Cost and lines are summed across Plays, and each
-      Play's Runs appear as its crew.
+      Play's Runs appear as the Roles that ran.
     see_also: [Run Card, Bounce, Shift]
   - name: Steward
     context: Cards
@@ -671,6 +657,13 @@ retired_terms:
       second name for a Shift would make every execution statement ambiguous.
       The word remains a bounded-context name and part of Ploeg's Operator
       Execution record.
+  - name: Crew
+    context: Participation
+    use: [Team]
+    because: >
+      One concept gets one word, and Ploeg's Team already names the Roles that
+      work a Work Item, so a second word makes a screen or a page read as two
+      concepts (system ADR-0036).
   - name: Agency Edition
     context: Offering
     use: [Edition]

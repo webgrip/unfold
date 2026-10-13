@@ -22,10 +22,11 @@ test('every state has a label, a design-system tone and a known glyph, so status
 });
 
 test('Work Item states use the one vocabulary: Needs you, Ready for review, Done and never Merged', () => {
-  assert.deepEqual(Object.keys(workItemStates).filter(key => !workItemStates[key].derived).sort(), ['awaiting_review', 'done', 'ingested', 'leased', 'needs_human', 'proposed', 'queued', 'stale', 'withdrawn']);
+  assert.deepEqual(Object.keys(workItemStates).filter(key => !workItemStates[key].derived).sort(), ['active', 'awaiting_review', 'done', 'ingested', 'leased', 'needs_human', 'proposed', 'queued', 'stale', 'withdrawn']);
   assert.deepEqual([workItemStates.rejected.label, workItemStates.rejected.tone, workItemStates.rejected.glyph], ['Rejected', 'neutral', 'circle-slash']);
   const read = key => [workItemStates[key].label, workItemStates[key].tone];
   assert.deepEqual(read('proposed'), ['Proposed', 'neutral']);
+  assert.deepEqual(read('active'), read('leased'), 'Ploeg\'s newer name for leased reads the same: Running');
   assert.deepEqual(read('ingested'), ['Received', 'neutral']);
   assert.deepEqual(read('queued'), ['Queued', 'neutral']);
   assert.deepEqual(read('leased'), ['Running', 'live']);
@@ -176,7 +177,7 @@ test('audit events read in plain words from their action and kept detail, and un
   assert.equal(label('work_item.proposed'), 'Proposed by an agent');
   assert.deepEqual(auditEvent({ action: 'work_item.rejected', detail: { reason: 'duplicate of DEMO-3' } }), { label: 'Rejected', tone: 'neutral', glyph: 'circle-slash', detail: 'Duplicate of DEMO-3' });
   assert.deepEqual([label('work_item.withdrawn', { reason: 'withdrawn_unassigned' }), auditEvent({ action: 'work_item.withdrawn', detail: { reason: 'withdrawn_unassigned' } }).detail], ['Withdrawn', 'The task was unassigned from the Team.']);
-  assert.deepEqual([label('shift.closed', { reason: 'fix_round_cap_reached' }), auditEvent({ action: 'shift.closed', detail: { reason: 'fix_round_cap_reached' } }).detail], ['Shift closed', 'The fix Rounds ran out']);
+  assert.deepEqual([label('shift.closed', { reason: 'fix_round_cap_reached' }), auditEvent({ action: 'shift.closed', detail: { reason: 'fix_round_cap_reached' } }).detail], ['Attempt closed', 'The fix Rounds ran out']);
   assert.equal(label('checkpoint.written', { phase: 'smoke_tested' }), 'Checkpoint: smoke tested');
   assert.equal(label('delivery.publication_confirmed'), 'Publication confirmed');
   assert.equal(label('checkpoint.written', { phase: 'pr_opened' }), 'Opened a pull request');

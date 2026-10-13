@@ -203,7 +203,7 @@ export class ExecutionAuthority {
     const settles = observed !== undefined && data.capabilityState === 'reconciled';
     const wasSettled = latest.costStatus === 'settled';
     if (settles) { latest.observedUsd = observed; latest.spentUsd = Math.round(observed * 1e8) / 1e8; latest.costStatus = 'settled'; }
-    else if (observed !== undefined) { latest.observedUsd = Math.max(latest.observedUsd ?? 0, observed); latest.costStatus = 'pending'; }
+    else if (observed !== undefined) { latest.observedUsd = Math.max(latest.observedUsd ?? 0, observed); latest.costStatus = 'observed'; }
     else latest.costStatus = 'unknown';
     this.store.transaction(() => {
       this.store.saveSession(latest);

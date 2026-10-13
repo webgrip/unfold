@@ -40,7 +40,7 @@ function approvalLevelsOfVscode1141(schema: Json, creating = true): string[] {
 
 function isolatedConfiguration(): AppConfig {
   const config = configuration('/nonexistent', 'live');
-  config.crews.push({ id: 'investigation', name: 'Investigation crew', description: 'Reads only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate.', model: 'reasoning' }] });
+  config.crews.push({ id: 'investigation', name: 'Investigation team', description: 'Reads only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate.', model: 'reasoning' }] });
   config.crews[0].roles[0].model = 'coding';
   config.models = [{ id: 'coding', name: 'DeepSeek V4.1 Flash (Fireworks)', providerId: 'litellm', modelId: 'coding' }, { id: 'reasoning', name: 'Claude Opus', providerId: 'litellm', modelId: 'reasoning' }];
   config.runtime = { ...config.runtime, backend: 'docker', backends: ['docker', 'local'] };
@@ -48,20 +48,20 @@ function isolatedConfiguration(): AppConfig {
   return config;
 }
 
-test('the Agents window renders crew, budget and placement as pickers, the repository read-only from the Workspace picker, and approvals in its own picker', () => {
+test('the Agents window renders team, budget and placement as pickers, the repository read-only from the Workspace picker, and approvals in its own picker', () => {
   const config = isolatedConfiguration();
   const resolved = resolveSessionConfig(config, { title: 'From the composer', isolation: 'worktree', worktreeBranchPrefix: 'copilot/' }, 'order-service');
   assert.deepEqual(Object.keys(resolved.values).sort(), ['approvalMode', 'budgetUsd', 'crew', 'placement', 'repository', 'title'], 'VS Code\'s own keys are not echoed back');
   assert.deepEqual(chipsOfVscode1141(resolved).map(chip => [chip.key, chip.label, chip.readOnly]), [
     ['repository', 'Order service', true],
-    ['crew', 'Delivery crew', false],
+    ['crew', 'Delivery team', false],
     ['budgetUsd', money(5), false],
     ['placement', 'Container', false],
   ]);
   assert.deepEqual(approvalLevelsOfVscode1141(resolved.schema), ['default', 'autoApprove'], 'a container placement may approve inside its sandbox');
   assert.equal(resolved.values.approvalMode, 'manual', 'approval defaults to asking');
   const crew = resolved.schema.properties.crew;
-  assert.deepEqual(crew.enumDescriptions, ['Builder writes on DeepSeek V4.1 Flash (Fireworks), then Reviewer reviews on DeepSeek V4.1 Flash (Fireworks).', 'Analyst reviews on Claude Opus.'], 'each crew names the model every role runs on');
+  assert.deepEqual(crew.enumDescriptions, ['Builder writes on DeepSeek V4.1 Flash (Fireworks), then Reviewer reviews on DeepSeek V4.1 Flash (Fireworks).', 'Analyst reviews on Claude Opus.'], 'each team names the model every role runs on');
   assert.deepEqual(resolved.schema.properties.budgetUsd.enum, ['1', '2', '5', '10', '25'], 'budgets stop at the deployment limit');
 
   const local = resolveSessionConfig(config, { ...resolved.values, placement: 'local', approvalMode: 'allow-all' }, 'order-service');
@@ -73,10 +73,10 @@ test('the Agents window renders crew, budget and placement as pickers, the repos
   assert.ok(resolveSessionConfig(config, { budgetUsd: 3 }).schema.properties.budgetUsd.enum.includes('3'), 'a value outside the presets stays selectable');
 });
 
-test('the composer names the crew that runs, never a gateway model', () => {
-  assert.deepEqual(composerModel(isolatedConfiguration()), { id: 'unfold-crew', name: 'Ploeg crew · silver' });
-  assert.deepEqual(composerModel(configuration('/nonexistent', 'live')), { id: 'unfold-crew', name: 'Unfold crew' });
-  assert.deepEqual(composerModel(configuration('/nonexistent', 'demo')), { id: 'unfold-crew', name: 'Demo crew · no model calls' });
+test('the composer names the team that runs, never a gateway model', () => {
+  assert.deepEqual(composerModel(isolatedConfiguration()), { id: 'unfold-crew', name: 'Ploeg team · silver' });
+  assert.deepEqual(composerModel(configuration('/nonexistent', 'live')), { id: 'unfold-crew', name: 'Unfold team' });
+  assert.deepEqual(composerModel(configuration('/nonexistent', 'demo')), { id: 'unfold-crew', name: 'Demo team · no model calls' });
 });
 
 test('a started session keeps its configuration, and only its approval stays changeable while it runs in a container', () => {
@@ -93,8 +93,8 @@ test('a started session keeps its configuration, and only its approval stays cha
   assert.deepEqual(approvalLevelsOfVscode1141(sessionConfigState(config, { ...session, placement: 'local' }).schema, false), []);
 });
 
-test('VS Code\'s new-session flow: the advertised model names the crew, a picker change before the first message reaches the session, and the repository stays the picked one', { timeout: testTimeout(60_000) }, async t => {
-  const server = await application('demo', config => { config.crews.push({ id: 'investigation', name: 'Investigation crew', description: 'Reads only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate the rounding.' }] }); });
+test('VS Code\'s new-session flow: the advertised model names the team, a picker change before the first message reaches the session, and the repository stays the picked one', { timeout: testTimeout(60_000) }, async t => {
+  const server = await application('demo', config => { config.crews.push({ id: 'investigation', name: 'Investigation team', description: 'Reads only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate the rounding.' }] }); });
   t.after(() => server.close());
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'session config' } });
   const vscode = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
@@ -102,14 +102,14 @@ test('VS Code\'s new-session flow: the advertised model names the crew, a picker
   await vscode.open;
   const clientId = randomUUID();
   const initialized = await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId, clientInfo: vscodeAgentsWindow, initialSubscriptions: ['ahp-root://'] });
-  assert.deepEqual(initialized.snapshots[0].state.agents[0].models, [{ id: 'unfold-crew', name: 'Demo crew · no model calls', provider: 'unfold' }]);
+  assert.deepEqual(initialized.snapshots[0].state.agents[0].models, [{ id: 'unfold-crew', name: 'Demo team · no model calls', provider: 'unfold' }]);
 
   const picked = `${repositoriesDirectory}/${encodeURIComponent('Unfold · order-service')}`;
   const resolved = await vscode.rpc('resolveSessionConfig', { channel: 'ahp-root://', provider: 'unfold', workingDirectory: picked });
-  assert.deepEqual(chipsOfVscode1141(resolved).map(chip => [chip.key, chip.label]), [['repository', 'Order service'], ['crew', 'Delivery crew'], ['budgetUsd', money(5)]]);
+  assert.deepEqual(chipsOfVscode1141(resolved).map(chip => [chip.key, chip.label]), [['repository', 'Order service'], ['crew', 'Delivery team'], ['budgetUsd', money(5)]]);
   assert.deepEqual(approvalLevelsOfVscode1141(resolved.schema), ['default'], 'the demonstration has no sandbox to approve inside');
   const completions = await vscode.rpc('sessionConfigCompletions', { channel: 'ahp-root://', provider: 'unfold', property: 'crew' });
-  assert.deepEqual(completions.items.map((item: Json) => item.label), ['Delivery crew', 'Investigation crew']);
+  assert.deepEqual(completions.items.map((item: Json) => item.label), ['Delivery team', 'Investigation team']);
 
   const session = `unfold:/${randomUUID()}`;
   const chat = defaultChatOf(session);

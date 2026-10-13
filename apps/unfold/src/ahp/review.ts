@@ -116,7 +116,7 @@ export function commentList(comments: readonly CandidateComment[]): string {
   return comments.map(comment => [`- ${where(comment)}: ${comment.text}`, ...comment.replies.map(reply => `  - Reply: ${reply}`)].join('\n')).join('\n');
 }
 
-/** The instruction a follow-up session's crew reads: the person's message, then each comment with its file and lines. */
+/** The instruction a follow-up session's team reads: the person's message, then each comment with its file and lines. */
 export function changesInstruction(previous: Session, message: string, comments: readonly CandidateComment[]): string {
   return [`Changes were requested on the candidate of the previous session, "${previous.title}".`, message ? `What should change:\n${message}` : '', comments.length ? `Comments on the candidate's files:\n${commentList(comments)}` : ''].filter(Boolean).join('\n\n');
 }
@@ -203,7 +203,7 @@ const questions: Record<ReviewKind, { title: string; question: string; explanati
   changes: {
     title: 'Request changes',
     question: 'What should change?',
-    explanation: comments => `Unfold records your answer as a rejection with that reason, then creates a new session with this session's brief, crew, repository, placement and budget. Your answer${comments ? ` and the ${comments === 1 ? 'comment' : `${comments} comments`} on the candidate` : ''} become its instructions. It waits for you to start it, as a new authorization. Skip the question to leave the candidate waiting for your review.`,
+    explanation: comments => `Unfold records your answer as a rejection with that reason, then creates a new session with this session's brief, team, repository, placement and budget. Your answer${comments ? ` and the ${comments === 1 ? 'comment' : `${comments} comments`} on the candidate` : ''} become its instructions. It waits for you to start it, as a new authorization. Skip the question to leave the candidate waiting for your review.`,
     asked: 'Answer the question in the session\'s chat to request the changes. Nothing is recorded until you do.',
   },
 };
@@ -253,7 +253,7 @@ export class CandidateReview {
     return comments.length ? comments : undefined;
   }
 
-  /** The instruction text for feedback sent while the crew can still read it: the person's own words and each comment with its file and lines. */
+  /** The instruction text for feedback sent while the team can still read it: the person's own words and each comment with its file and lines. */
   feedbackInstruction(message: unknown, comments: readonly CandidateComment[]): string {
     const typed = String((message as Json)?.text ?? '').trim();
     const own = typed && !typed.startsWith('/') ? `${typed}\n\n` : '';
@@ -314,7 +314,7 @@ export class CandidateReview {
       const { next } = await this.host.engine.requestChanges(session.id, { note, instructions: [changesInstruction(session, message, comments)] }, client.user);
       this.host.announceSession(next);
       const page = this.host.sessionPage(next);
-      answered({ sessionId: next.id, reply: `Recorded your request for changes as a rejection, with your reason in the session history. Created a new session, **${next.title}**, with this session's brief, repository, crew, placement and budget; ${comments.length ? 'your answer and the comments are' : 'your answer is'} its instruction. It is in the Agents window's session list${page ? ` and on [its session page](${page})` : ''}, and waits for you: send it a message or start it on its session page. This session stays as it is.` });
+      answered({ sessionId: next.id, reply: `Recorded your request for changes as a rejection, with your reason in the session history. Created a new session, **${next.title}**, with this session's brief, repository, team, placement and budget; ${comments.length ? 'your answer and the comments are' : 'your answer is'} its instruction. It is in the Agents window's session list${page ? ` and on [its session page](${page})` : ''}, and waits for you: send it a message or start it on its session page. This session stays as it is.` });
       return undefined;
     } catch (error) {
       release();

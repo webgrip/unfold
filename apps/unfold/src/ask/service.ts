@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { User } from '../types.ts';
 import { sessionForWorkItem } from '../../public/core/progress.js';
-import type { PloegCard, PloegCardView, PloegDetail } from '../ploeg.ts';
+import type { PloegCard, PloegCardView, PloegCostStatus, PloegDetail } from '../ploeg.ts';
 import { AskAllowanceUsedUp, PloegError, type PloegAskAllowance } from '../ploeg.ts';
 import { withoutKnownSecrets } from '../redaction.ts';
 import type { Store } from '../store.ts';
@@ -15,8 +15,8 @@ export { AskAllowanceUsedUp };
 /** What Ploeg hands back for an admitted Ask: a key capped at the per-Ask Budget and the models it may call. Unfold calls its own gateway with it. */
 export type AskGrant = { askId: string; key: string; models: string[]; expiresAt: string; allowance: PloegAskAllowance | null };
 
-/** An Ask's spend once Ploeg has read it: `settled` is final, `pending` may still change. */
-export type AskSpend = { costUsd: number | null; costStatus: 'pending' | 'settled' | 'unknown' };
+/** An Ask's spend once Ploeg has read it: `settled` is final; `observed`, `provisional` and `unknown` may still change. */
+export type AskSpend = { costUsd: number | null; costStatus: PloegCostStatus };
 
 /** Ploeg's side of an Ask (system ADR-0031): admit it against the allowance, finish it so its key is blocked, and read its spend. */
 export interface AskAuthority {
@@ -135,7 +135,7 @@ export class AskService {
     if (rawQuestion.length > questionLimit) throw new PloegError(400, 'ask_question', `Keep the question under ${questionLimit} characters.`);
     const question = this.clean(rawQuestion, questionLimit);
     const brief = await this.brief(user, workItemId);
-    const ask: Ask = { id: randomUUID(), workItemId, workItemTitle: brief.title, askerId: user.id, askerName: user.name, audience, question, answer: '', status: 'answering', demo: brief.demo || this.options.demo, ploegAskId: null, model: null, costUsd: null, costStatus: 'pending', failure: null, source: 'model', intent: null, createdAt: this.now(), answeredAt: null };
+    const ask: Ask = { id: randomUUID(), workItemId, workItemTitle: brief.title, askerId: user.id, askerName: user.name, audience, question, answer: '', status: 'answering', demo: brief.demo || this.options.demo, ploegAskId: null, model: null, costUsd: null, costStatus: 'provisional', failure: null, source: 'model', intent: null, createdAt: this.now(), answeredAt: null };
     const match = request.model ? null : matchQuestion(question);
     const intent = match?.intent ?? null;
     const fromRecord = match ? recordAnswer(match.intent, brief, audience, match.language) : null;
@@ -235,7 +235,7 @@ export class AskService {
     return { text: typeof content === 'string' ? content : '', finish: typeof choice.finish_reason === 'string' ? choice.finish_reason : null, usage: data?.usage ?? null };
   }
 
-  /** The Asks about a Work Item the caller can see, newest first, and its Team's Ask Allowance when Ploeg reports one. Pending costs are refreshed from Ploeg, a few at a time. */
+  /** The Asks about a Work Item the caller can see, newest first, and its Team's Ask Allowance when Ploeg reports one. Costs that are not final yet are refreshed from Ploeg, a few at a time. */
   async about(user: User, workItemId: string): Promise<{ asks: Ask[]; allowance: PloegAskAllowance | null }> {
     const detail = await this.workItems.detail(user, workItemId);
     const asks = this.store.asksAbout(workItemId, listLimit);
@@ -271,10 +271,10 @@ export class AskService {
 
   private async refresh(user: User, asks: Ask[]): Promise<void> {
     if (!this.authority) return;
-    for (const ask of asks.filter(entry => entry.costStatus === 'pending' && entry.ploegAskId).slice(0, refreshLimit)) {
+    for (const ask of asks.filter(entry => entry.costStatus !== 'settled' && entry.costStatus !== 'demo' && entry.ploegAskId).slice(0, refreshLimit)) {
       try {
         const spend = await this.authority.spend(user, ask.workItemId, ask.ploegAskId!);
-        if (spend.costStatus === 'pending' && spend.costUsd === ask.costUsd) continue;
+        if (spend.costStatus === ask.costStatus && spend.costUsd === ask.costUsd) continue;
         Object.assign(ask, { costUsd: spend.costUsd, costStatus: spend.costStatus });
         this.store.saveAsk(ask);
       } catch { continue; }

@@ -38,7 +38,7 @@ function medians(a) {
   const m = a.medians;
   if (!m) return '';
   return `<section class="card season-card season-medians" aria-labelledby="season-medians"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="season-medians">Team medians</h2><p class="card-subtitle">Typical figures of the cards shipped this quarter: half took longer, half shorter. Team aggregates only.</p></div></header><div class="season-tiles" role="group" aria-label="Team medians">${[
-    medianTile('Lead time', m.leadTimeSeconds, compactDuration, 'Ticket to release'),
+    medianTile('Lead time', m.leadTimeSeconds, compactDuration, 'Task to release'),
     medianTile('First feedback', m.firstFeedbackSeconds, compactDuration, 'Ready to the first human response'),
     medianTile('CI minutes', m.ciMinutes, value => `${decimal(value, 1)} min`, 'Every CI job attempt added up'),
     medianTile('Flow efficiency', m.flowEfficiency, percent, 'Active share of the cycle'),

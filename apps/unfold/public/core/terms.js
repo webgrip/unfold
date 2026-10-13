@@ -3,7 +3,7 @@ import { plural } from './format.js';
 /** One-sentence glossary definitions (docs/reference/glossary.md) for the Ploeg terms a surface shows as a tooltip. */
 export const glossary = Object.freeze({
   round: 'Round: a set of agent runs within one attempt that start together. Each later Round sees everything the earlier ones found.',
-  shift: 'Shift: one Team’s whole attempt at a Work Item. It owns the branch, the budget and every agent run in it.',
+  shift: 'Attempt: one Team’s whole try at a Work Item. It owns the branch, the budget and every agent run in it.',
 });
 
 /** The glossary definitions of `terms`, as one tooltip. */

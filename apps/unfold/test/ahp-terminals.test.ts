@@ -107,7 +107,7 @@ test('the demo runtime\'s exit codes and the 059675b9 session\'s events project 
   assert.deepEqual(terminal.actions.map(item => item.type), ['terminal/commandFinished', 'terminal/exited']);
 });
 
-test('a command the crew runs streams into a read-only terminal on its tool call, for the owner and administrators only', { timeout: testTimeout(60_000) }, async t => {
+test('a command the team runs streams into a read-only terminal on its tool call, for the owner and administrators only', { timeout: testTimeout(60_000) }, async t => {
   const server = await application('live');
   t.after(() => server.close());
   const { hashPassword } = await import('../src/auth.ts');
@@ -134,7 +134,7 @@ test('a command the crew runs streams into a read-only terminal on its tool call
   const toolCallId = begun.params.action.toolCallId;
   server.app.store.appendEvent(session.id, 'tool', 'system', { name: 'bash', status: 'running', partId: 'call-1', title: 'Run the tests', input: JSON.stringify({ command: `npm test -- --reporter=dot --password=${adminPassword}`, description: 'Run the tests' }) }, 'run-1');
   const ready = await alice.until(message => action(message, chat, 'chat/toolCallReady') && message.params.action.toolCallId === toolCallId);
-  assert.equal(ready.params.action.toolInput, 'npm test -- --reporter=dot --password=[redacted]', 'the command line VS Code shows is the one the crew ran, without the secret');
+  assert.equal(ready.params.action.toolInput, 'npm test -- --reporter=dot --password=[redacted]', 'the command line VS Code shows is the one the team ran, without the secret');
   const attached = await alice.until(message => action(message, chat, 'chat/toolCallContentChanged') && message.params.action.toolCallId === toolCallId);
   const [content] = attached.params.action.content;
   assert.equal(content.type, 'terminal');
@@ -162,7 +162,7 @@ test('a command the crew runs streams into a read-only terminal on its tool call
   bob.notify('dispatchAction', { channel: terminal, clientSeq: 1, action: { type: 'terminal/input', data: 'x' } });
   assert.equal((await bob.until(message => message.params?.origin?.clientSeq === 1)).params.rejectionReason, 'Terminal not found', 'a refusal does not confirm another person\'s terminal exists');
   for (const method of ['createTerminal', 'disposeTerminal']) {
-    await assert.rejects(alice.rpc(method, { channel: terminal, claim: { kind: 'client', clientId: 'alice' } }), (error: Json) => error.code === -32009 && error.message === noClientTerminals, `${method} is refused on a crew command's terminal`);
+    await assert.rejects(alice.rpc(method, { channel: terminal, claim: { kind: 'client', clientId: 'alice' } }), (error: Json) => error.code === -32009 && error.message === noClientTerminals, `${method} is refused on a team command's terminal`);
   }
   const own = 'agenthost-terminal:/0d5c7f4e-1b2a-4c3d-9e8f-a1b2c3d4e5f6';
   assert.deepEqual(await alice.rpc('createTerminal', { channel: own, claim: { kind: 'client', clientId: 'alice' }, cwd: 'file:///home/alice', cols: 80, rows: 24 }), {}, 'the terminal VS Code opens for a session is accepted rather than shown as a launch failure');

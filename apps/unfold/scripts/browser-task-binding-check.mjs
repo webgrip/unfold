@@ -29,12 +29,12 @@ try {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Tracker preview overflows mobile');
   await shot('tracker-binding-preview-mobile');
   await page.getByRole('button', { name: 'Create session', exact: false }).click();
-  await page.getByRole('button', { name: 'Start crew', exact: false }).waitFor();
+  await page.getByRole('button', { name: 'Start team', exact: false }).waitFor();
   const sessions = f.server.app.store.listSessions();
   assert.equal(sessions.length, 1); assert.equal(sessions[0].sourceTask.ploeg.workItemId, itemId); assert.equal(sessions[0].status, 'queued'); assert.equal(f.state.admissions.length, 0);
   await shot('tracker-binding-queued-mobile');
   f.state.task.done = true;
-  await page.getByRole('button', { name: 'Start crew', exact: false }).click();
+  await page.getByRole('button', { name: 'Start team', exact: false }).click();
   await page.getByText('The source task changed after import. Review its current version before starting work.', { exact: true }).waitFor();
   assert.equal(f.state.admissions.length, 0); assert.equal(f.state.inference, 0); assert.equal(f.state.prepared, 0);
   assert.equal(f.server.app.store.getSession(sessions[0].id).status, 'queued');

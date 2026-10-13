@@ -7,8 +7,8 @@ import { routingWarning } from './core/reasons.js';
 /** The Insights time windows as `[id, label]`. */
 export const ploegWindows = [['24h', '24 hours'], ['7d', '7 days'], ['30d', '30 days']];
 /** The Activity kinds a person can filter on, as `[id, label]`. */
-export const eventGroups = [['work', 'Work Items'], ['runs', 'Runs and Shifts'], ['review', 'Review and delivery'], ['spend', 'Spend'], ['other', 'Other']];
-const groupNouns = { work: 'Work Item', runs: 'Run and Shift', review: 'review and delivery', spend: 'spend', other: 'other' };
+export const eventGroups = [['work', 'Work Items'], ['runs', 'Runs and attempts'], ['review', 'Review and delivery'], ['spend', 'Spend'], ['other', 'Other']];
+const groupNouns = { work: 'Work Item', runs: 'Run and attempt', review: 'review and delivery', spend: 'spend', other: 'other' };
 
 const groupPrefixes = { work_item: 'work', created_work_item: 'work', follow_up: 'work', run: 'runs', round: 'runs', shift: 'runs', lease: 'runs', infra_cap: 'runs', operator: 'runs', outcome: 'runs', checkpoint: 'runs', review: 'review', delivery: 'review', llm: 'spend' };
 const createdKinds = { split: 'Split from its source', clarify: 'Clarification', discovered: 'Discovered work' };
@@ -251,7 +251,7 @@ export function overviewMarkup(view, helpers, now = Date.now()) {
   const { runs, workItems: items, spend } = data.totals;
   const settledTile = data.demo
     ? tile({ label: 'Settled spend', value: 'No model calls', detail: 'Demo', glyph: 'coins', text: true }, helpers)
-    : tile({ label: 'Settled spend', value: money(spend.settledUsd), detail: isNumber(spend.reservedUsd) ? `${money(spend.reservedUsd)} reserved by running Runs` : 'Reservations not reported', glyph: 'coins', text: !isNumber(spend.settledUsd) }, helpers);
+    : tile({ label: 'Settled spend', value: money(spend.settledUsd), detail: isNumber(spend.reservedUsd) ? `${money(spend.reservedUsd)} held by running Runs` : 'Holds not reported', glyph: 'coins', text: !isNumber(spend.settledUsd) }, helpers);
   const runTiles = [
     tile({ label: 'Runs finished', value: count(runs.finished), detail: 'Failed and stuck Runs included', href: '#runs?state=finished', glyph: 'runs' }, helpers),
     tile({ label: 'Failed', value: count(runs.failed), detail: runs.finished ? `${percent(runs.failed / runs.finished)} of finished Runs` : 'No finished Runs', href: '#runs?state=finished&outcome=failed', tone: 'danger', glyph: 'x-circle' }, helpers),
@@ -269,12 +269,12 @@ export function overviewMarkup(view, helpers, now = Date.now()) {
   const when = value => value ? timeHtml(value, { now }) : '<span class="subtle">None</span>';
   const settled = entry => data.demo ? '<span class="subtle">No model calls</span>' : escape(money(entry.spend.settledUsd));
   const reserved = entry => data.demo ? '<span class="subtle">—</span>' : escape(money(entry.spend.reservedUsd));
-  const runColumns = [['Team'], ['Finished', true], ['Failed', true], ['Stuck', true], ['Settled', true], ['Reserved now', true], ['Last activity']];
+  const runColumns = [['Team'], ['Finished', true], ['Failed', true], ['Stuck', true], ['Settled', true], ['Held now', true], ['Last activity']];
   const runCells = entry => [count(entry.runs.finished), count(entry.runs.failed), count(entry.runs.stuck), settled(entry), reserved(entry), when(entry.lastActivityAt)];
   const workKeys = [['awaitingReview', 'Ready for review'], ['needsHuman', 'Needs you'], ['leased', 'Running'], ['queued', 'Queued'], ['proposed', 'Proposed'], ['stale', 'Stopped retrying'], ['done', 'Done'], ['withdrawn', 'Withdrawn']];
   const workColumns = [['Team'], ...workKeys.map(([, label]) => [label, true])];
   const workCells = entry => workKeys.map(([key]) => count(entry.workItems[key]));
-  const teamCard = entry => `<article class="card insights-team" aria-labelledby="insights-team-${escape(entry.team)}"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="insights-team-${escape(entry.team)}">${escape(entry.team)}</h3><p class="card-subtitle">Last activity ${entry.lastActivityAt ? timeHtml(entry.lastActivityAt, { now }) : 'none'}</p></div></header><div class="card-body stack gap-md"><div class="stack gap-sm"><p class="overline">Runs and spend · ${escape(windowName)}</p>${ui.dl([['Finished', count(entry.runs.finished)], ['Failed', count(entry.runs.failed)], ['Stuck', count(entry.runs.stuck)], ['Settled', settled(entry)], ['Reserved', reserved(entry)]])}</div><div class="stack gap-sm"><p class="overline">Work Items now</p>${ui.dl(workKeys.map(([key, label]) => [label, count(entry.workItems[key])]))}</div></div></article>`;
+  const teamCard = entry => `<article class="card insights-team" aria-labelledby="insights-team-${escape(entry.team)}"><header class="card-header"><div class="card-heading"><h3 class="card-title" id="insights-team-${escape(entry.team)}">${escape(entry.team)}</h3><p class="card-subtitle">Last activity ${entry.lastActivityAt ? timeHtml(entry.lastActivityAt, { now }) : 'none'}</p></div></header><div class="card-body stack gap-md"><div class="stack gap-sm"><p class="overline">Runs and spend · ${escape(windowName)}</p>${ui.dl([['Finished', count(entry.runs.finished)], ['Failed', count(entry.runs.failed)], ['Stuck', count(entry.runs.stuck)], ['Settled', settled(entry)], ['Held', reserved(entry)]])}</div><div class="stack gap-sm"><p class="overline">Work Items now</p>${ui.dl(workKeys.map(([key, label]) => [label, count(entry.workItems[key])]))}</div></div></article>`;
   const runTable = teamTable({ caption: `Runs and spend per Team, last ${windowName}`, columns: runColumns, rows: data.teams.map(entry => [entry.team, runCells(entry)]) }, helpers);
   const workTable = teamTable({ caption: 'Work Items per Team, right now', columns: workColumns, rows: data.teams.map(entry => [entry.team, workCells(entry)]) }, helpers);
   const footnote = data.demo ? '' : '<p class="meta insights-footnote">Settled spend is what Ploeg settled with the model gateway. A running Run holds a reservation until it settles.</p>';
@@ -343,7 +343,7 @@ function runNotes(run, escape) {
 }
 
 function runRole(run) {
-  if (!(run.round > 0)) return [run.role ? `${capital(run.role)} (before Shifts)` : 'Role unknown (before Shifts)', run.writes ? 'writer' : 'reader'];
+  if (!(run.round > 0)) return [run.role ? `${capital(run.role)} (no attempt recorded)` : 'Role unknown (no attempt recorded)', run.writes ? 'writer' : 'reader'];
   return [run.role ? capital(run.role) : 'Role unknown', `Round ${run.round}`, run.writes ? 'writer' : 'reader'];
 }
 

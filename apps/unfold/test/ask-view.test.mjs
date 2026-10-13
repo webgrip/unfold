@@ -24,15 +24,15 @@ test('questions and answers are escaped, never rendered as markup', () => {
   assert.match(html, /&lt;script&gt;/);
 });
 
-test('pending, unknown, refused and demo Asks each say what they are', () => {
+test('not-final, unknown, refused and demo Asks each say what they are', () => {
   const html = askMarkup(detail(), { asks: { items: [
-    ask({ id: 'a', costStatus: 'pending', costUsd: null }),
+    ask({ id: 'a', costStatus: 'provisional', costUsd: null }),
     ask({ id: 'b', status: 'failed', costStatus: 'unknown', costUsd: null, answer: '', failure: 'Ploeg did not admit the question.' }),
     ask({ id: 'c', status: 'refused', costStatus: 'settled', costUsd: 0, answer: '', failure: 'Ask Allowance used up. It resets on 1 November.' }),
   ], demo: false, error: '' } });
   assert.match(html, /Cost not known yet/);
   assert.match(html, /Nothing charged/);
-  assert.match(html, /Cost not reported/);
+  assert.doesNotMatch(html, /pending|not reported/i);
   assert.match(html, /Ask Allowance used up\. It resets on 1 November\./);
   const demo = askMarkup(detail(true), { asks: { items: [ask({ demo: true, costStatus: 'demo', costUsd: null })], demo: true, error: '' } });
   assert.match(demo, /This is a demo: answers come from fixed rules/);

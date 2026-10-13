@@ -59,7 +59,7 @@ test('the gateway screens the brief cheaply, asks the operator when it is not ac
   assert.ok(prompts[0].startsWith('claude-haiku-4-5|'));
   const pending = await request(server.url, `/api/sessions/${created.body.id}/permissions`, { cookie });
   const question = pending.body.find((item: any) => item.kind === 'question' && !item.resolved);
-  assert.equal(question.title, 'The brief needs more before the crew starts');
+  assert.equal(question.title, 'The brief needs more before the team starts');
   assert.equal(question.questions.length, 2);
   actionable = true;
   const answered = await request(server.url, `/api/sessions/${created.body.id}/permissions/${question.id}`, { method: 'POST', body: { answers: [['Rename the README title'], ['The title reads Unfold']] }, cookie, csrf: true });
@@ -73,7 +73,7 @@ test('the gateway screens the brief cheaply, asks the operator when it is not ac
   assert.equal(types.filter((type: string) => type === 'brief.checked').length, 1);
 });
 
-test('an investigation crew completes with the challenger\'s verdict instead of failing, and a runaway role is stopped', async t => {
+test('an investigation team completes with the challenger\'s verdict instead of failing, and a runaway role is stopped', async t => {
   const server = await application('live', config => {
     config.runtime = { kind: 'opencode', backend: 'local', timeoutMs: 30_000, maxToolCalls: 5 };
     config.crews.push({ id: 'investigation', name: 'Investigation', description: 'read only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'look' }, { id: 'challenger', name: 'Challenger', mode: 'read', instruction: 'check' }] });

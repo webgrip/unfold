@@ -32,7 +32,7 @@ const object = (properties: Json, required: string[] = []) => ({ type: 'object',
 const untrustedTitle = object({ title: { type: 'string' } }, ['title']);
 const reasonSchema = { type: ['object', 'null'], description: 'Why it waits and what to do, as Unfold shows it', properties: { code: { type: 'string' }, chip: { type: 'string' }, sentence: { type: 'string' }, fix: { type: 'string' }, action: { type: 'string' } } };
 const workRow = object({
-  id: { type: 'string' }, state: { type: 'string' }, team: { type: 'string' }, tracker: { type: 'string' }, taskUrl: { type: 'string' }, link: { type: 'string', description: 'The Work Item in Unfold' },
+  id: { type: 'string' }, state: { type: 'string', description: 'Ploeg\'s Work Item state; `leased` is the older name of `active`' }, team: { type: 'string' }, tracker: { type: 'string' }, taskUrl: { type: 'string' }, link: { type: 'string', description: 'The Work Item in Unfold' },
   attempts: { type: 'number' }, spentUsd: { type: ['number', 'null'] }, pullRequestUrl: { type: 'string' }, reason: reasonSchema, untrusted: untrustedTitle,
 }, ['id', 'state', 'team', 'tracker', 'link', 'untrusted']);
 
@@ -119,7 +119,7 @@ export function createMcpServer(options: McpOptions) {
     {
       name: 'unfold_find_work', title: 'Find Work Items',
       description: 'List one Team\'s Work Items in Unfold, optionally by state, with the reason each needs_human item waits. Use unfold_now for what waits right now; it lists the Teams you can read. Pass nextCursor back as after for the next page.',
-      inputSchema: object({ team: string('Team id, as unfold_now lists it'), state: string('needs_human, awaiting_review, proposed, queued, leased, stale, done or withdrawn'), after: string('nextCursor from the previous page') }, ['team']),
+      inputSchema: object({ team: string('Team id, as unfold_now lists it'), state: string('needs_human, awaiting_review, proposed, ingested, queued, active (being worked on; older Ploeg calls it leased, and both are accepted), stale, done or withdrawn'), after: string('nextCursor from the previous page') }, ['team']),
       outputSchema: object({ summary: { type: 'string' }, items: { type: 'array', items: workRow }, nextCursor: { type: ['string', 'null'] } }, ['summary', 'items', 'nextCursor']),
       async run(args) {
         if (typeof args.team !== 'string' || !args.team) throw new Error('team is required; unfold_now lists the Teams you can read.');
@@ -225,7 +225,7 @@ export function createMcpServer(options: McpOptions) {
       name: 'unfold_ask', title: 'Ask about a Work Item', readOnly: false,
       description: 'Ask one question about a Work Item, such as why it stopped or what it cost. A standing question is answered from the Work Item\'s record, free. Any other question needs use_model: true: the person is then asked to confirm, and one model call spends up to the per-Ask Budget from the Team\'s Ask Allowance. Without that confirmation nothing is asked or spent.',
       inputSchema: object({ id: string('Work Item id, or an Unfold link to it'), question: string('One question, under 2000 characters'), use_model: { type: 'boolean', description: 'Ask a model when the record does not answer; the person must confirm the spend' } }, ['id', 'question']),
-      outputSchema: object({ summary: { type: 'string' }, asked: { type: 'boolean' }, needsModel: { type: 'boolean' }, source: { type: ['string', 'null'] }, costUsd: { type: ['number', 'null'] }, costStatus: { type: ['string', 'null'] }, failureCode: { type: ['string', 'null'], description: 'Why there is no answer, such as allowance_used_up, timeout or cut_off; null when answered' }, retryable: { type: 'boolean', description: 'Whether asking the same question again may help' }, link: { type: 'string' }, untrusted: { type: 'object' } }, ['summary', 'asked', 'needsModel', 'source', 'costUsd', 'costStatus', 'failureCode', 'retryable', 'link', 'untrusted']),
+      outputSchema: object({ summary: { type: 'string' }, asked: { type: 'boolean' }, needsModel: { type: 'boolean' }, source: { type: ['string', 'null'] }, costUsd: { type: ['number', 'null'] }, costStatus: { type: ['string', 'null'], description: 'How sure costUsd is: observed (so far), provisional (not final yet), settled (final), unknown (not known yet), or demo' }, failureCode: { type: ['string', 'null'], description: 'Why there is no answer, such as allowance_used_up, timeout or cut_off; null when answered' }, retryable: { type: 'boolean', description: 'Whether asking the same question again may help' }, link: { type: 'string' }, untrusted: { type: 'object' } }, ['summary', 'asked', 'needsModel', 'source', 'costUsd', 'costStatus', 'failureCode', 'retryable', 'link', 'untrusted']),
       async run(args) {
         const id = workItemId(args.id);
         const question = typeof args.question === 'string' ? args.question.trim() : '';

@@ -8,7 +8,7 @@ const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 function session(overrides: Record<string, unknown> = {}) {
   return {
     id: 's1', title: 'Fix rounding', objective: 'Fix it', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode', placement: 'docker', approval: 'manual',
-    ownerId: 'u1', ownerName: 'Ryan', status: 'running', budgetUsd: 5, spentUsd: 0.2, costStatus: 'pending', createdAt: '2026-09-10T10:00:00.000Z', updatedAt: '2026-09-10T10:05:00.000Z', branch: 'unfold/s1',
+    ownerId: 'u1', ownerName: 'Ryan', status: 'running', budgetUsd: 5, spentUsd: 0.2, costStatus: 'observed', createdAt: '2026-09-10T10:00:00.000Z', updatedAt: '2026-09-10T10:05:00.000Z', branch: 'unfold/s1',
     runs: [
       { id: 'r1', roleId: 'engineer', roleName: 'Engineer', mode: 'write', status: 'completed', startedAt: '2026-09-10T10:00:00.000Z', finishedAt: '2026-09-10T10:02:00.000Z', costUsd: 0.1 },
       { id: 'r2', roleId: 'analyst', roleName: 'Analyst', mode: 'read', status: 'completed', startedAt: '2026-09-10T10:02:00.000Z', finishedAt: '2026-09-10T10:03:00.000Z', costUsd: 0.05 },
@@ -95,7 +95,7 @@ test('run.started renders the brief this role received and run.finished shows ro
   assert.equal(violated.withClass('system-text')[0]?.textContent, 'Gateway policy: claude answered by openai/us-east');
 });
 
-test('crew labels distinguish implementation, analysis and the final independent review', () => {
+test('team labels distinguish implementation, analysis and the final independent review', () => {
   const current = session();
   assert.deepEqual(plain(current.runs.map(run => view.runLabel(current, run))), ['implementation', 'analysis', 'independent review']);
   const strip: StubElement = view.crewStrip(current);

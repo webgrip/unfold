@@ -244,10 +244,10 @@ export function costSummary(current) {
     if (live) return amount(live.costUsd) ? { value: money(live.costUsd), note: `so far · ${plural(live.runningRuns, 'Run')} running`, live: true } : { value: 'Not reported yet', note: 'a Run is running', live: true };
     const totals = card.totals || {};
     if (totals.costStatus === 'observed' && amount(totals.costUsd)) return { value: money(totals.costUsd), note: totals.usageComplete === false ? 'observed, not settled · partial' : 'observed, not settled' };
-    if (totals.costStatus === 'reserved' && amount(totals.costUsd)) return { value: money(totals.costUsd), note: 'reserved, not settled' };
+    if (totals.costStatus === 'reserved' && amount(totals.costUsd)) return { value: money(totals.costUsd), note: 'held, not final yet' };
     return { value: notReported, note: 'Ploeg reported no cost' };
   }
-  if (amount(item?.spentUsd) && item.spentUsd > 0) return { value: money(item.spentUsd), note: 'Shift spend' };
+  if (amount(item?.spentUsd) && item.spentUsd > 0) return { value: money(item.spentUsd), note: 'Attempt spend' };
   return { value: notReported, note: '' };
 }
 
@@ -305,7 +305,7 @@ export function headFacts(current) {
     stat('Team', { value: item.team || notReported, note: '' }));
 }
 
-/** The cost per role table from the Run card's crew. Null without a card or a named role. */
+/** The cost per role table from the Run card's Roles. Null without a card or a named role. */
 export function crewTable(current) {
   if (progressOf(current)) return null;
   const { card, demo } = subject(current);
@@ -398,7 +398,7 @@ function fileNames(session, limit = 3) {
   return names.length ? `${names.slice(0, limit).join(', ')}${names.length > limit ? ` and ${names.length - limit} more` : ''}` : '';
 }
 
-/** What a person checks before deciding: the change, the reviewer's verdict and the recorded checks, problems first. Null while the crew still works. */
+/** What a person checks before deciding: the change, the reviewer's verdict and the recorded checks, problems first. Null while the team still works. */
 export function gateList(current, progress) {
   if (['ready', 'preparing', 'working', 'asking', 'capturing'].includes(progress.phase) || !progress.steps.length) return null;
   const change = progress.change;
@@ -671,7 +671,7 @@ function accountSection(current) {
     return [plain ? markdown(plain) : null, developers ? folded(`account-${key}-developers`, { className: 'account-developers' }, element('summary', {}, 'For developers'), markdown(developers)) : null];
   };
   const side = (key, heading, body) => element('div', { className: `account-side account-${key}` }, element('h3', {}, heading), ...(body ? parts(key, body) : [element('p', { className: 'muted' }, 'Not reported.')]));
-  const source = [account.role || 'writer', account.round ? `Round ${account.round}` : '', account.earlierShift ? 'earlier Shift' : '', account.at ? relative(account.at) : ''].filter(Boolean).join(' · ');
+  const source = [account.role || 'writer', account.round ? `Round ${account.round}` : '', account.earlierShift ? 'earlier attempt' : '', account.at ? relative(account.at) : ''].filter(Boolean).join(' · ');
   return element('section', { className: 'card account', 'aria-labelledby': 'account-heading' },
     element('div', { className: 'section-heading' }, element('h2', { id: 'account-heading' }, 'Problem → Solution'), element('span', {}, `Written by ${source}`)),
     element('div', { className: 'account-grid' }, side('problem', 'Problem', account.problem), element('span', { className: 'account-arrow', 'aria-hidden': 'true' }, '→'), side('solution', 'Solution', account.solution)),
@@ -698,7 +698,7 @@ export function runResult(run, item = null) {
 /** A Run's cost: the observed model cost, "Demo" in the demo, otherwise "Not reported". */
 export function runCost(run, demo) {
   if (demo) return 'Demo';
-  return run.costStatus === 'observed' && amount(run.usage?.costUsd) ? money(run.usage.costUsd) : notReported;
+  return run.costStatus !== 'unknown' && amount(run.usage?.costUsd) ? money(run.usage.costUsd) : notReported;
 }
 
 function runRow(run, demo, item = null) {
@@ -747,7 +747,7 @@ export function runsSection(current, { nested = false } = {}) {
   const heading = element('div', { className: 'section-heading' }, element('h2', { id: 'runs-heading' }, 'Runs'), shift ? element('span', { title: termTitle('shift', 'round') }, [effort, shift.closedAt ? `closed ${relative(shift.closedAt)}` : `opened ${relative(shift.openedAt)}`, closeReasonLabel(shift.closeReason)].filter(Boolean).join(' · ')) : element('span', {}, ''));
   if (!runs.length) {
     const state = item?.state;
-    const note = state === 'proposed' ? 'No Shift yet. One opens after a person approves the proposal.' : ['done', 'withdrawn', 'stale', 'needs_human'].includes(state) ? 'No Run ran for this Work Item.' : 'No Run has started yet. One starts when a worker of the Team takes the Work Item.';
+    const note = state === 'proposed' ? 'No attempt yet. One opens after a person approves the proposal.' : ['done', 'withdrawn', 'stale', 'needs_human'].includes(state) ? 'No Run ran for this Work Item.' : 'No Run has started yet. One starts when a worker of the Team takes the Work Item.';
     return element('section', { className: 'card runs', 'aria-labelledby': 'runs-heading' }, heading, element('p', { className: 'muted' }, note));
   }
   let shown = 0;

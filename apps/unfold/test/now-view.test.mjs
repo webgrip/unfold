@@ -116,7 +116,7 @@ test('money is nl-NL and unknown spend is never zero', () => {
   data.waiting[0].latestShift = null;
   data.waiting[0].spentUsd = null;
   assert.match(nowMarkup(view({ data }), options, nowAt), /Spend not reported/);
-  assert.match(nowMarkup(view(), options, nowAt), /Spend · 24 h[\s\S]*?US\$\u00a04,12[\s\S]*?Settled · US\$\u00a00,40 reserved/);
+  assert.match(nowMarkup(view(), options, nowAt), /Spend · 24 h[\s\S]*?US\$\u00a04,12[\s\S]*?Settled · US\$\u00a00,40 held/);
 });
 
 test('finished Runs show outcome, agent verdict and failure in plain words, newest finish first', () => {
@@ -241,10 +241,10 @@ test('every string from Ploeg is escaped and unsafe links are dropped', () => {
   const html = nowMarkup(view({ data }), options, nowAt);
   assert.doesNotMatch(html, /<img src=x|<script>|<b>source|javascript:|secret@/);
   assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
-  assert.deepEqual(openTarget(data.waiting[0]), { href: 'https://tracker.test/tasks/105', label: 'tracker item' }, 'an unsafe pull request link falls back to the tracker');
+  assert.deepEqual(openTarget(data.waiting[0]), { href: 'https://tracker.test/tasks/105', label: 'task' }, 'an unsafe pull request link falls back to the tracker');
   assert.equal(openTarget({ ...data.waiting[0], url: 'javascript:alert(1)' }), null);
   assert.deepEqual(openTarget(nowData().waiting[0]), { href: 'https://forge.test/acme/shop/pulls/9', label: 'pull request' });
-  assert.deepEqual(openTarget(nowData().waiting[2]), { href: 'https://tracker.test/tasks/108', label: 'tracker item' });
+  assert.deepEqual(openTarget(nowData().waiting[2]), { href: 'https://tracker.test/tasks/108', label: 'task' });
 });
 
 test('the demo says it is one, once, and shows no spend', () => {

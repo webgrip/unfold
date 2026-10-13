@@ -141,7 +141,7 @@ const money = /^US\$\s*/u;
 function coin(view) {
   const cost = view.cost ?? {};
   if (view.demo || cost.status === 'demo') return { top: 'COST', main: 'Demo', caption: '', status: 'demo' };
-  if (typeof cost.value === 'string' && money.test(cost.value) && cost.value !== '< US$ 0,01') return { top: 'US$', main: cost.value.replace(money, ''), caption: cost.status === 'live' ? 'so far' : cost.status === 'reserved' ? 'reserved' : '', status: cost.status ?? '' };
+  if (typeof cost.value === 'string' && money.test(cost.value) && cost.value !== '< US$ 0,01') return { top: 'US$', main: cost.value.replace(money, ''), caption: cost.status === 'live' ? 'so far' : cost.status === 'reserved' ? 'held' : '', status: cost.status ?? '' };
   if (typeof cost.value === 'string' && cost.value.startsWith('<')) return { top: 'US$', main: '< 0,01', caption: '', status: cost.status ?? '' };
   return { top: 'COST', main: '—', caption: (cost.text || 'Not reported').toLowerCase(), status: cost.status ?? 'not_reported' };
 }
@@ -171,7 +171,7 @@ function gradeWord(grade) {
 /**
  * Everything the forge paints on the card, as plain text: the same facts as every other skin, from the view model, so
  * a demo card reads "Demo · no model calls" and an unknown value never reads as zero. `kpis` holds the headline KPI
- * figures in calendar time (Unfold ADR 0035); with them the face paints a strip of four cells and leaves crew and run time
+ * figures in calendar time (Unfold ADR 0035); with them the face paints a strip of four cells and leaves the Roles and run time
  * to the text facts and the back. `worldKind` is the inner world
  * the card shows before anyone decorates it and `worldFacts` the facts that unlock its time of day and its things.
  * @param {object} view The `cardView` model.
@@ -195,7 +195,7 @@ export function faceFacts(view) {
     condition: condition ? { state: condition.state, label: condition.label, text: condition.text } : null,
     finishLine: view.release?.released ? `${view.release.dayText} · ${view.finish.label}` : view.finish?.label ?? 'Matte',
     rows: [
-      ...(kpis.length ? [] : [['Crew', view.crew || 'No agent Runs yet']]),
+      ...(kpis.length ? [] : [['Roles', view.crew || 'No agent Runs yet']]),
       ['Plays', playLine],
       ['Diff', view.diff?.value ?? 'Not reported'],
       ...(kpis.length ? [] : [['Run time', view.runTime?.value ?? 'Not reported']]),

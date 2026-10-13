@@ -27,7 +27,7 @@ test('run labels: write is implementation, a read role before the end is analysi
 });
 
 test('the situation counts only the final read role as a reviewer', () => {
-  assert.equal(situation(session()).headline, 'The crew finished and the candidate is captured. Your review is next.');
+  assert.equal(situation(session()).headline, 'The team finished and the candidate is captured. Your review is next.');
   assert.equal(situation(session({ review: { decision: 'accepted', by: 'u', byName: 'Ryan', at: '2026-09-10T14:00:00.000Z', note: 'Fine.' } })).headline, 'Accepted by Ryan.');
   assert.equal(presentationFor(session({ review: { decision: 'rejected', by: 'u', byName: 'Ryan', at: '2026-09-10T14:00:00.000Z', note: 'No.' } })).name, 'Rejected');
   assert.equal(presentationFor(session()).name, 'Ready for your review');

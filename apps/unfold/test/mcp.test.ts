@@ -174,7 +174,7 @@ function askingUnfold(t: { after(fn: () => void): void }) {
     if (body.recordOnly && body.question !== 'What did it cost so far?') { res.statusCode = 409; res.end(JSON.stringify({ error: { code: 'ask_needs_model', message: 'The record does not answer this question.' } })); return; }
     res.statusCode = 201;
     res.end(JSON.stringify(body.askModel
-      ? { question: body.question, answer: 'Firefox is not affected.', status: 'answered', source: 'model', costUsd: 0.0011, costStatus: 'pending' }
+      ? { question: body.question, answer: 'Firefox is not affected.', status: 'answered', source: 'model', costUsd: 0.0011, costStatus: 'provisional' }
       : { question: body.question, answer: 'US$ 0.03 so far.', status: 'answered', source: 'record', costUsd: 0, costStatus: 'settled' }));
   });
   t.after(() => fake.close());

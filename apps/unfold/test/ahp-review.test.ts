@@ -153,7 +153,7 @@ test('comments submitted from VS Code\'s feedback on a candidate open Request ch
   assert.match(instruction, /`src\/order\.js` line 4-5: Name the constant\./);
 });
 
-test('feedback sent while the crew can still read it becomes an instruction naming each file and line', { timeout: testTimeout(60_000) }, async t => {
+test('feedback sent while the team can still read it becomes an instruction naming each file and line', { timeout: testTimeout(60_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
   const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };

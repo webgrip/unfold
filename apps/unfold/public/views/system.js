@@ -144,7 +144,7 @@ function repositories() {
 function crews() {
   const list = state.bootstrap.crews || [];
   const rows = list.map(crew => `<li class="settings-item"><span class="settings-item-icon" aria-hidden="true">${icon('bot')}</span><div class="settings-item-main"><p class="settings-item-title">${escape(crew.name)}</p>${crew.description ? `<p class="settings-item-text">${escape(crew.description)}</p>` : ''}<ul class="settings-item-meta" aria-label="Roles">${crew.roles.map(role => `<li>${chip({ label: role.name, icon: role.mode === 'write' ? 'code' : 'eye', title: role.mode === 'write' ? 'Changes code' : 'Reads only' })}</li>`).join('')}</ul></div></li>`).join('');
-  return `<section class="card settings-card" aria-labelledby="crews-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="crews-title">Crews <span class="count">${list.length}</span></h2><p class="card-subtitle">Reusable Roles for sessions. Their instructions are versioned with the configuration.</p></div></header><ul class="settings-items">${rows || '<li class="settings-item settings-item-empty">None configured.</li>'}</ul></section>`;
+  return `<section class="card settings-card" aria-labelledby="crews-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="crews-title">Teams <span class="count">${list.length}</span></h2><p class="card-subtitle">Reusable Roles for sessions. Their instructions are versioned with the configuration.</p></div></header><ul class="settings-items">${rows || '<li class="settings-item settings-item-empty">None configured.</li>'}</ul></section>`;
 }
 
 function renderSystem() {
@@ -164,7 +164,7 @@ async function loadSystem() {
   if (state.view === 'system' && state.bootstrap) renderSystem();
 }
 
-/** The Environment page (`#settings/environment`): health checks with next steps, the workbench limits, registered repositories and crews. */
+/** The Environment page (`#settings/environment`): health checks with next steps, the workbench limits, registered repositories and teams. */
 export default {
   id: 'system',
   match: hash => hash === 'settings/environment' ? {} : null,

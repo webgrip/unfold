@@ -114,7 +114,7 @@ export function stopReason(session, events) {
   const cause = lostFirst ? `Unfold lost Ploeg's authority to run it at ${time(lostFirst.at)}${lostFirst.data?.cause ? `, after Ploeg ${causeWords[lostFirst.data.cause] || 'did not answer'}` : ''}. ` : '';
   const plain = lostFirst ? `At ${time(lostFirst.at)} Ploeg ${causeWords[lostFirst.data?.cause] || 'stopped answering'}, so Unfold stopped the session. Nothing runs again by itself.` : '';
   if (reconciling) return { code: 'reconciliation', short: 'Ploeg holds it for reconciliation', sentence: `${cause}Ploeg stopped the execution and holds it for reconciliation. It will not retry by itself.`, plain: plain || 'Ploeg stopped the session. Nothing runs again by itself.', cause: cause.trim(), at, retained: true };
-  if (pending) return { code: 'reconciliation_pending', short: 'waiting for Ploeg to confirm the stop', sentence: 'Execution stopped here, and Ploeg has not confirmed the stop yet. Its budget stays reserved and nothing retries by itself.', plain: 'The session stopped and Ploeg has not confirmed it yet, so its budget stays held. Nothing runs again by itself.', at, retained: true };
+  if (pending) return { code: 'reconciliation_pending', short: 'waiting for Ploeg to confirm the stop', sentence: 'Execution stopped here, and Ploeg has not confirmed the stop yet. Its budget stays held and nothing retries by itself.', plain: 'The session stopped and Ploeg has not confirmed it yet, so its budget stays held. Nothing runs again by itself.', at, retained: true };
   if (lost) return { code: 'authority_lost', short: 'Ploeg authority lost', sentence: 'Unfold lost Ploeg\'s authority to run it and stopped. Nothing retries by itself.', plain: plain || 'Ploeg stopped answering, so Unfold stopped the session. Nothing runs again by itself.', at, retained: Boolean(session.execution) };
   if (restarted) return { code: 'restart', short: 'Unfold restarted', sentence: 'The workbench restarted while it ran. Nothing resumed by itself.', plain: 'Unfold restarted while the session ran. Nothing resumed by itself.', at, retained: false };
   return { code: 'interrupted', short: 'interrupted', sentence: blocker || 'This session stopped. Nothing runs until you choose what to do.', plain: blocker || 'The session stopped. Nothing runs until you choose what to do.', at, retained: Boolean(session.execution) };
@@ -337,13 +337,13 @@ function actionsFor(phase, session, { reason, change, approved, unrecorded, view
   const recovery = recoveryActions(listed);
   const list = [];
   const add = (id, label, extra = {}) => list.push({ id, label, ...extra });
-  const team = session?.execution?.team ? `team ${session.execution.team}` : 'the crew';
+  const team = session?.execution?.team ? `team ${session.execution.team}` : 'the team';
   const deliver = recovery.get('deliver');
   const again = recovery.get('run_again');
   const capture = recovery.get('capture');
   const captureAction = () => capture && !change.viewable && add('capture', 'Capture and view change', { hint: capture.description || 'Captures the change from the workspace so you can read it. No model call; nothing is sent to Ploeg.' });
   const deliverAction = () => deliver && add('deliver', 'Finish and review', { outcome: 'Finishing starts no model and spends nothing. You then accept or reject the change; nothing is pushed or merged.', confirm: { title: 'Finish the session with this change?', detail: `${unrecorded ? 'The reviewer approved in its last message, then it was interrupted before Unfold recorded the review. ' : ''}Unfold captures the change${change.branch ? ` on branch ${change.branch}` : ''} and Ploeg completes the session with it. No model runs and nothing is spent. You then accept or reject the change; nothing is pushed or merged.`, button: 'Finish' } });
-  const againAction = () => again && add('run-again', again.label || 'Run again', { hint: again.description || 'Creates a new session with the same brief, crew and budget. It does not start until you start it, and this session stays as it is.' });
+  const againAction = () => again && add('run-again', again.label || 'Run again', { hint: again.description || 'Creates a new session with the same brief, team and budget. It does not start until you start it, and this session stays as it is.' });
   const viewChange = () => change.viewable && add('view-change', 'View change');
   const download = () => change.candidate === 'ready' && add('download', 'Download change', { hint: 'Saves the captured change as a Git bundle or a patch, to apply or check out yourself.' });
   switch (phase) {
@@ -414,11 +414,11 @@ export function sessionProgress(session, { events = [], now = Date.now(), viewer
   const changed = changeText(change);
   let headline, short, next;
   switch (phase) {
-    case 'ready': headline = 'Nothing has run yet'; short = 'Ready to start'; next = 'Start the crew when the brief is right.'; break;
+    case 'ready': headline = 'Nothing has run yet'; short = 'Ready to start'; next = 'Start the team when the brief is right.'; break;
     case 'preparing': headline = 'Setting up the workspace'; short = 'Preparing the workspace'; next = 'The first Role starts as soon as the workspace is ready.'; break;
-    case 'working': headline = [`${capital(current?.role || 'The crew')} is working`, round ? `Round ${round}` : ''].filter(Boolean).join(' · '); short = `${capital(current?.role || 'The crew')} is working`; next = 'Nothing is needed from you now. Pause to steer.'; break;
-    case 'asking': headline = `${capital(current?.role || 'The crew')} asks you a question`; short = 'Waiting for your answer'; next = 'Nothing continues until you answer.'; break;
-    case 'capturing': headline = 'The crew finished; packing the change for you to read'; short = 'Capturing the change'; next = 'The change is ready to view in a moment.'; break;
+    case 'working': headline = [`${capital(current?.role || 'The team')} is working`, round ? `Round ${round}` : ''].filter(Boolean).join(' · '); short = `${capital(current?.role || 'The team')} is working`; next = 'Nothing is needed from you now. Pause to steer.'; break;
+    case 'asking': headline = `${capital(current?.role || 'The team')} asks you a question`; short = 'Waiting for your answer'; next = 'Nothing continues until you answer.'; break;
+    case 'capturing': headline = 'The team finished; packing the change for you to read'; short = 'Capturing the change'; next = 'The change is ready to view in a moment.'; break;
     case 'paused': { const held = steps.find(step => step.state === 'paused'); headline = held ? `Held while ${held.role} worked` : 'Nothing runs until someone resumes it'; } short = 'Paused'; next = 'Resume to continue; an instruction you add applies when it resumes.'; break;
     case 'stopped': {
       const delivered = change.pullRequest ? '' : approved && change.candidate === 'ready' ? 'captured, not finished yet' : approved ? 'the session stopped before finishing' : `stopped: ${reason?.short || 'interrupted'}`;
@@ -430,7 +430,7 @@ export function sessionProgress(session, { events = [], now = Date.now(), viewer
       break;
     }
     case 'failed': { const where = session.failure?.stage ? `${capital(String(session.failure.stage).replaceAll('_', ' '))} failed` : ''; const why = text(session.failure?.message) || text(session.blocker); headline = where && why ? `${where}: ${why}` : where || why || 'No reason was reported'; } short = 'Failed'; next = session.failure?.remediation || 'Investigate to see why; nothing retries by itself.'; break;
-    case 'review': headline = [achieved, changed].filter(Boolean).join(' · ') || 'The crew finished'; short = 'Ready for your review'; next = ['View the change, then accept or reject it. Nothing was pushed or merged.', useTheChange(change)].filter(Boolean).join(' '); break;
+    case 'review': headline = [achieved, changed].filter(Boolean).join(' · ') || 'The team finished'; short = 'Ready for your review'; next = ['View the change, then accept or reject it. Nothing was pushed or merged.', useTheChange(change)].filter(Boolean).join(' '); break;
     case 'changes_requested': headline = `${capital(lastReader?.role || 'The reviewer')} requested changes${changed ? ` · ${changed}` : ''}`; short = 'Changes requested'; next = 'Read the findings, then run it again with an instruction, or reject it.'; break;
     case 'accepted': headline = `Accepted by ${session.review?.byName || 'a person'}`; short = 'Accepted'; next = [session.review?.note ? `“${session.review.note}”` : '', 'The decision is recorded; nothing was pushed or merged.', useTheChange(change)].filter(Boolean).join(' '); break;
     case 'rejected': headline = `Rejected by ${session.review?.byName || 'a person'}`; short = 'Rejected'; next = session.review?.note || ''; break;
@@ -445,7 +445,7 @@ export function sessionProgress(session, { events = [], now = Date.now(), viewer
   if (ploegRunning.length && !sessionActive) facts.push(`Ploeg still lists ${ploegRunning.length === 1 ? `its ${ploegRunning[0].role || 'operator'} Run` : `${ploegRunning.length} Runs`} as running; this session stopped${reason?.at ? ` at ${time(reason.at)}` : ''}.`);
   if (!demo && change.candidate !== 'ready' && ['stopped', 'failed'].includes(phase) && (writer || change.files)) facts.push(recoveryActions(recovery).has('capture') ? 'The change is not captured yet. Capture it to read it before you deliver; that makes no model call.' : recoveryActions(recovery).has('deliver') ? 'No candidate was captured yet, so the change is only in the Run\'s evidence. Delivering captures it from the workspace first.' : 'No candidate was captured, so the change is only in the Run\'s evidence.', 'capture');
   const actions = actionsFor(phase, session, { reason, change, approved, unrecorded: Boolean(lastReader && !lastReader.verdict.recorded), viewer, demo, budget: spend.budgetUsd, recovery });
-  const activity = phase === 'working' ? `${capital(current?.role || 'The crew')} is working` : phase === 'preparing' ? 'Preparing the workspace' : short;
+  const activity = phase === 'working' ? `${capital(current?.role || 'The team')} is working` : phase === 'preparing' ? 'Preparing the workspace' : short;
   const reviewer = [...steps].reverse().find(step => step.mode === 'read' && step.summary);
   const findings = reviewer ? { role: reviewer.role, verdict: reviewer.verdict, items: reportFindings(reviewer.summary) } : null;
   return { phase, meta, headline, short, next, reason, current, steps, change, spend, facts: notes.map(note => note.text), notes, actions, activity, demo,

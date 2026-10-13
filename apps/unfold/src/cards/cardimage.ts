@@ -45,7 +45,7 @@ export function cardSummary(card: CardImageCard, now: string | Date): string {
     if (v.stewardBy !== '') steward += ` · ${v.stewardBy}`;
   }
   row('Steward', steward);
-  row('Crew', v.crew);
+  row('Roles', v.crew);
   row('Ids', v.ids.join(' · '));
   return b;
 }

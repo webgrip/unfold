@@ -63,7 +63,7 @@ test('the 059675b9 session reads as stopped in the Agents window: activity, an o
   const outcome = turns.at(-1).responseParts.at(-1);
   assert.equal(outcome.kind, 'markdown');
   assert.match(outcome.content, /^\n\n\*\*Stopped\*\* · Reviewer approved the change · the session stopped before finishing/);
-  assert.ok(outcome.content.startsWith('\n\n'), 'the outcome opens its own paragraph, so a crew message that ends in a code fence is closed before it');
+  assert.ok(outcome.content.startsWith('\n\n'), 'the outcome opens its own paragraph, so a team message that ends in a code fence is closed before it');
   assert.match(outcome.content, /interrupted, approved in its transcript/);
   assert.match(outcome.content, /Spend: US\\\$\s0,03 \(observed, not settled · of US\\\$\s0,25\)/, 'both dollar signs are escaped, so VS Code typesets no maths between them');
   assert.match(outcome.content, /Ploeg stopped the execution and holds it for reconciliation\. It will not retry by itself\.$/, 'the outcome says why it stopped');
@@ -81,7 +81,7 @@ test('a session that stopped by itself ends with its next steps as a choice in a
   assert.deepEqual(closing.questions[0].options.map((option: Json) => option.label), ['Run again and start', 'Run again, start later', 'Leave it for now']);
   assert.equal(closing.questions[0].kind, 'single-select');
   assert.equal(closing.questions[0].allowFreeformInput, false);
-  assert.match(closing.questions[0].message, /\*\*Run again and start\*\*: a new session with this session.s brief, repository, crew, placement and budget \(US\$\s0,25\)\. It starts at once, as a new Ploeg authorization\./);
+  assert.match(closing.questions[0].message, /\*\*Run again and start\*\*: a new session with this session.s brief, repository, team, placement and budget \(US\$\s0,25\)\. It starts at once, as a new Ploeg authorization\./);
   const explanation = client.inbox.find(message => action(message, chat, 'chat/responsePart') && message.params.action.part.kind === 'markdown' && message.params.action.part.id.endsWith('-choice'))!;
   assert.match(explanation.params.action.part.content, /Ploeg stopped this session and it will not run again on its own/);
   assert.match(explanation.params.action.part.content, /Nothing runs until you choose\./);
@@ -107,9 +107,9 @@ test('a message into the stopped session is accepted in its own turn and becomes
   assert.ok(replaced.params.serverSeq < echo.params.serverSeq);
   assert.deepEqual(optionIds(choice), ['run_again_start', 'run_again', 'dismiss']);
   assert.deepEqual(choice.questions[0].options.map((option: Json) => option.label), ['Run again and start', 'Run again with this message', 'Cancel']);
-  assert.match(choice.questions[0].message, /your message as an instruction its crew reads/);
+  assert.match(choice.questions[0].message, /your message as an instruction its team reads/);
   const explanation = client.inbox.find(message => action(message, chat, 'chat/responsePart') && message.params.action.turnId === 'test-turn' && message.params.action.part.kind === 'markdown')!;
-  assert.match(explanation.params.action.part.content, /^No crew will read this message\. Unfold lost Ploeg's authority to run it at \d\d:\d\d, after Ploeg did not answer in time\. Ploeg stopped the execution and holds it for reconciliation\./);
+  assert.match(explanation.params.action.part.content, /^No team will read this message\. Unfold lost Ploeg's authority to run it at \d\d:\d\d, after Ploeg did not answer in time\. Ploeg stopped the execution and holds it for reconciliation\./);
   const reduced = chatActions(client, chat).reduce(reduceChat, { turns: [] });
   assert.equal(reduced.activeTurn.id, 'test-turn');
   assert.deepEqual(reduced.activeTurn.responseParts.map((part: Json) => part.kind), ['markdown', 'inputRequest']);
@@ -134,7 +134,7 @@ test('"Run again with this message" creates a queued session with the same brief
   assert.equal(created.crewId, session.crewId);
   assert.equal(created.previousSessionId, id);
   const reply = await client.until(message => action(message, chat, 'chat/responsePart') && message.params.action.turnId === 'mime-turn' && /Created a new session/.test(message.params.action.part.content ?? ''));
-  assert.match(reply.params.action.part.content, /and your message as an instruction its crew reads/);
+  assert.match(reply.params.action.part.content, /and your message as an instruction its team reads/);
   assert.match(reply.params.action.part.content, /It waits for you: send it a message to start it/);
   await client.until(message => action(message, chat, 'chat/turnComplete') && message.params.action.turnId === 'mime-turn');
   assert.equal(server.app.store.getSession(id)!.status, 'interrupted', 'this session stays as it is');

@@ -9,7 +9,7 @@ const event = (clock: string, type: string, data: Record<string, unknown> = {}, 
 
 function session(overrides: Partial<Session> = {}): Session {
   return {
-    id: 's1', title: 'Clown readme', objective: 'x', repositoryId: 'r', crewId: 'delivery', runtime: 'opencode', ownerId: 'owner', ownerName: 'Owner', status: 'interrupted', budgetUsd: 0.25, spentUsd: 0, observedUsd: 0.03, costStatus: 'pending', createdAt: at('14:37:04'), updatedAt: at('14:40:58'), branch: 'b', artifacts: [],
+    id: 's1', title: 'Clown readme', objective: 'x', repositoryId: 'r', crewId: 'delivery', runtime: 'opencode', ownerId: 'owner', ownerName: 'Owner', status: 'interrupted', budgetUsd: 0.25, spentUsd: 0, observedUsd: 0.03, costStatus: 'observed', createdAt: at('14:37:04'), updatedAt: at('14:40:58'), branch: 'b', artifacts: [],
     execution: { id: 'e'.repeat(32), workItemId: '184', team: 'unfold', state: 'interrupted', revision: 18, generation: 1, supervision: 'human', expiresAt: at('14:42:28'), stopConfirmed: true },
     runs: [
       { id: 'r1', sessionId: 's1', roleId: 'implementer', roleName: 'Implementer', mode: 'write', status: 'completed', costUsd: 0 },

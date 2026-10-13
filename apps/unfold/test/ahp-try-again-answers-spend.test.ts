@@ -19,7 +19,7 @@ const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' 
 const objective = 'Round half up in the order totals.';
 const usd = (text: string) => text.replace(/\s/g, ' ');
 
-test('a yes/no question offers Yes and No in the crew\'s order, each keeping the id of the crew\'s own option', () => {
+test('a yes/no question offers Yes and No in the team\'s order, each keeping the id of the team\'s own option', () => {
   const choices = [{ label: 'No' }, { label: 'Yes.' }];
   assert.deepEqual(yesNoOptions({}, choices), [{ id: '0', label: 'No' }, { id: '1', label: 'Yes' }]);
   assert.deepEqual(yesNoOptions({}, [{ label: 'y' }, { label: 'N!' }]), [{ id: '0', label: 'Yes' }, { id: '1', label: 'No' }]);
@@ -39,7 +39,7 @@ test('a declined request answers every question explicitly and records each as s
 });
 
 test('spend: one line against the budget, and a notice once per threshold crossed', () => {
-  const state = initialSpend({ budgetUsd: 12, costStatus: 'pending' }, [{ type: 'budget.increased', data: { amountUsd: 4, totalBudgetUsd: 12 } }]);
+  const state = initialSpend({ budgetUsd: 12, costStatus: 'observed' }, [{ type: 'budget.increased', data: { amountUsd: 4, totalBudgetUsd: 12 } }]);
   assert.equal(state.budgetUsd, 8, 'the budget before a later increase');
   assert.equal(usd(spendLine(state)), 'Spend not reported yet · budget US$ 8,00.');
   assert.equal(observeSpend(state, { type: 'budget.observed', data: { observedUsd: 1.2 } }), undefined, 'under half the budget says nothing');
@@ -146,7 +146,7 @@ test('a message typed into a failed session becomes the message choice in its ow
   assert.equal(echo.params.rejectionReason, undefined);
   const asked = await client.until(message => action(message, chat, 'chat/inputRequested'));
   assert.deepEqual(asked.params.action.request.questions[0].options.map((option: Json) => option.id), ['run_again_start', 'run_again', 'dismiss']);
-  assert.equal(asked.params.action.request.message, 'No crew will read this message');
+  assert.equal(asked.params.action.request.message, 'No team will read this message');
   const offered = store.events(created.id).filter(event => event.type === choiceEvents.offered);
   assert.deepEqual(offered.map(event => event.data.turnId), ['typed'], 'the only choice is the one for the message; no "What next?" turn was offered');
   client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/turnResume', turnId: failed.id } });
@@ -193,7 +193,7 @@ async function asked(t: { after: (fn: () => unknown) => void }) {
   return { server, client, runtime, chat, request: requested.params.action.request as Json };
 }
 
-test('a yes/no question renders as a single-select of Yes and No, never VS Code\'s True/False boolean, and the answer reaches the crew as the label it offered', { timeout: testTimeout(60_000) }, async t => {
+test('a yes/no question renders as a single-select of Yes and No, never VS Code\'s True/False boolean, and the answer reaches the team as the label it offered', { timeout: testTimeout(60_000) }, async t => {
   const { client, runtime, chat, request: question } = await asked(t);
   assert.deepEqual(question.questions.map((item: Json) => [item.kind, item.options]), [['single-select', [{ id: '0', label: 'Yes' }, { id: '1', label: 'No' }]], ['text', undefined]]);
   const refusedAnswers = { '0': { state: 'submitted', value: { kind: 'boolean', value: false } }, '1': { state: 'submitted', value: { kind: 'text', value: 'No.' } } };
@@ -206,10 +206,10 @@ test('a yes/no question renders as a single-select of Yes and No, never VS Code\
   const echo = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 3);
   assert.equal(echo.params.rejectionReason, undefined);
   assert.deepEqual(echo.params.action.answers, answers, 'the chat keeps the answer the client sent');
-  assert.deepEqual(runtime.answers, [{ answers: [['yes.'], ['No.']] }], 'the crew reads its own spelling of the option');
+  assert.deepEqual(runtime.answers, [{ answers: [['yes.'], ['No.']] }], 'the team reads its own spelling of the option');
 });
 
-test('declining a question in VS Code becomes a recorded "declined" answer the crew receives explicitly', { timeout: testTimeout(60_000) }, async t => {
+test('declining a question in VS Code becomes a recorded "declined" answer the team receives explicitly', { timeout: testTimeout(60_000) }, async t => {
   const { server, client, runtime, chat, request: question } = await asked(t);
   client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/inputCompleted', requestId: question.id, response: 'cancel' } });
   const echo = await client.until(message => message.method === 'action' && message.params.origin?.clientSeq === 2);
@@ -217,7 +217,7 @@ test('declining a question in VS Code becomes a recorded "declined" answer the c
   assert.equal(echo.params.action.response, 'decline');
   const text = declinedAnswerText(operator);
   assert.deepEqual(echo.params.action.answers, { '0': { state: 'skipped', freeformValues: [text] }, '1': { state: 'skipped', freeformValues: [text] } });
-  assert.deepEqual(runtime.answers, [{ answers: [[text], [text]] }], 'the crew gets an explicit answer for every question');
+  assert.deepEqual(runtime.answers, [{ answers: [[text], [text]] }], 'the team gets an explicit answer for every question');
   const id = server.app.store.listSessions()[0].id;
   assert.deepEqual(server.app.store.events(id).filter(event => event.type === declineEvents.declined).map(event => [event.data.requestId, event.actor]), [[question.id, operator.id]]);
   assert.equal(server.app.store.permissions(id).every(item => item.resolved), true);
@@ -231,7 +231,7 @@ test('spend arrives as system notifications at each threshold and at the end of 
   const { store } = server.app;
   const created = server.app.engine.create({ title: 'Spending', objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 8 }, operator);
   const [writer] = created.runs;
-  store.saveSession({ ...created, status: 'running', costStatus: 'pending' });
+  store.saveSession({ ...created, status: 'running', costStatus: 'observed' });
   store.appendEvent(created.id, 'run.started', writer.roleId, { role: writer.roleName, mode: 'write' }, writer.id);
   const chat = defaultChatOf(`ahp-session:/${created.id}`);
   await client.rpc('subscribe', { channel: chat });

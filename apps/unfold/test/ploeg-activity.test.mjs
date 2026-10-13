@@ -191,10 +191,10 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
   assert.match(html, /<p class="section-description">Last 30 days · 2 Teams<\/p>/);
   assert.match(html, /<p class="meta insights-footnote">Settled spend is what Ploeg settled with the model gateway\. A running Run holds a reservation until it settles\.<\/p>/);
   assert.doesNotMatch(html, /role="region"|tabindex="0"/);
-  assert.match(html, /<dt>Reserved<\/dt>/);
-  assert.doesNotMatch(html, /<dt>Reserved now<\/dt>/);
+  assert.match(html, /<dt>Held<\/dt>/);
+  assert.doesNotMatch(html, /<dt>Held now<\/dt>/);
   assert.match(html, /data-action="ploeg-window" data-id="30d" aria-pressed="true">30 days<\/button>/);
-  assert.match(html, /US\$\s0,00 reserved by running Runs/);
+  assert.match(html, /US\$\s0,00 held by running Runs/);
   assert.match(html, /class="insights-teams"/);
   assert.doesNotMatch(html, /<svg|<canvas|polyline/);
   const demo = overviewMarkup({ window: '24h', data: { ...summary('24h'), demo: true }, loading: false, error: null }, helpers, now);
@@ -204,7 +204,7 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
   assert.match(demo, /<td class="num"><span class="subtle">No model calls<\/span><\/td>/);
   assert.doesNotMatch(demo, /<svg|<canvas|polyline/);
   const unknown = overviewMarkup({ window: '24h', data: { ...summary('24h'), totals: { ...summary('24h').totals, spend: { settledUsd: null, reservedUsd: null } } }, loading: false, error: null }, helpers, now);
-  assert.match(unknown, /<strong class="stat-value is-text">Not reported<\/strong><span class="stat-detail">Reservations not reported<\/span>/);
+  assert.match(unknown, /<strong class="stat-value is-text">Not reported<\/strong><span class="stat-detail">Holds not reported<\/span>/);
   const loading = overviewMarkup({ window: '7d', data: null, loading: true, error: null }, helpers, now);
   assert.doesNotMatch(loading, /<svg|<canvas|polyline/);
   assert.match(loading, /Runs and spend[\s\S]*Last 7 days[\s\S]*Work Items/);
@@ -312,7 +312,7 @@ test('a Run row shows state and outcome, verdict, failure, Work Item, Role, timi
   assert.doesNotMatch(demo, /class="runs-spend"|class="runs-model"|>None<|>No model calls<|runs-card-line">Demo|runs-card-spend/);
   assert.match(demo, /The worker stopped responding/);
   assert.match(demo, /Cancelled before it started/, 'a Run cancelled while pending says so');
-  assert.match(demo, /Role unknown \(before Shifts\)|\(before Shifts\)/);
+  assert.match(demo, /Role unknown \(no attempt recorded\)|\(no attempt recorded\)/);
   assert.match(demo, /Illustrative records · no model calls, no spend/);
 });
 

@@ -4,7 +4,7 @@ import { badge, button, callout, dl } from './core/ui.js';
 
 /**
  * Whether the open session goes through the delivery gate instead of a plain review: it runs under a Ploeg
- * execution on a repository with a delivery policy, and its crew finished.
+ * execution on a repository with a delivery policy, and its team finished.
  * @param {{ session?: object, bootstrap?: object }} state
  * @returns {boolean}
  */
