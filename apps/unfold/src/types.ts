@@ -3,6 +3,7 @@ import type { ExecutionFailure } from './failures.ts';
 import type { Candidate } from './candidates.ts';
 import type { TaskSourceConfig, TaskSnapshot } from './tasks.ts';
 import type { DeliveryConfig } from './delivery-config.ts';
+import type { FlagSettings } from './flags.ts';
 
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
@@ -53,6 +54,8 @@ export type AppConfig = {
   insight?: InsightConfig;
   errorReports?: ErrorReportConfig;
   productEvents?: boolean;
+  /** The deployment's feature flag rules (ADR 0043): an inline flagd document and an optional watched flagd file. */
+  flags?: FlagSettings;
   reports?: ReportTarget | null;
 };
 

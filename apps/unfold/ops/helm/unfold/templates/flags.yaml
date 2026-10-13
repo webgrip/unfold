@@ -1,0 +1,10 @@
+{{- if .Values.featureFlags }}
+{{- if and (hasKey .Values.config "flags") (or (hasKey .Values.config.flags "flags") (hasKey .Values.config.flags "$evaluators")) -}}{{- fail "Set flag rules through featureFlags; config.flags only holds providers, strategy and console" -}}{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "unfold.name" . }}-flags
+  labels: {{- include "unfold.labels" . | nindent 4 }}
+data:
+  flags.json: {{ toJson .Values.featureFlags | quote }}
+{{- end }}

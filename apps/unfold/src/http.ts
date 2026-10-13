@@ -28,6 +28,9 @@ import { ReportError, ReportService, parseReport } from './reports.ts';
 import { knownSecrets, withoutKnownSecrets } from './redaction.ts';
 import { AskService, type AskAuthority } from './ask/service.ts';
 import { noErrorReports, type ErrorReports } from './error-reports.ts';
+import { FeatureFlags, loadRegistry, type FlagContext } from './flags.ts';
+import { clientContext, ofrepBulk, ofrepFlag } from './flag-ofrep.ts';
+import { defaultTenant } from './insight.ts';
 
 const reportRefreshWaitMs = 2500;
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -154,6 +157,34 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   } : undefined;
   const asks = new AskService(store, ploeg, askAuthority, { demo: askDemo, gatewayUrl: config.litellm?.baseUrl, secrets, reports: errors });
   agentHost?.useAsks(asks);
+  const flags = new FeatureFlags({ registry: loadRegistry(), settings: config.flags ?? { document: {}, unknown: [] }, store });
+  flags.watch();
+  const flagContext = (user: User): FlagContext => {
+    const choices = store.flagChoices(user.id);
+    return { targetingKey: user.id, userId: user.id, role: user.role, tenantId: defaultTenant, mode: config.mode, teams: config.ploeg?.userTeams?.[user.id] ?? [], labs: Object.keys(choices).filter(key => choices[key]), labsOff: Object.keys(choices).filter(key => !choices[key]) };
+  };
+  const labsView = async (user: User) => {
+    const context = flagContext(user);
+    const choices = store.flagChoices(user.id);
+    return {
+      values: await flags.clientValues(context),
+      labs: (await flags.labs(context)).map(({ key, metadata, evaluation }) => ({ key, title: metadata.title, description: metadata.description, kind: metadata.kind, expires: metadata.expires ?? null, value: evaluation.value, variant: evaluation.variant ?? null, reason: evaluation.reason, choice: Object.hasOwn(choices, key) ? (choices[key] ? 'on' : 'off') : 'default' })),
+    };
+  };
+  const experimentDays = 30;
+  const adminFlags = async (user: User) => {
+    const since = new Date(Date.now() - experimentDays * 86_400_000).toISOString();
+    const listed = await flags.list(flagContext(user));
+    return sanitize({
+      flags: listed.map(view => ({ ...view, experiment: view.metadata.kind === 'experiment' || Object.keys(view.rule.variants).length > 2 ? { days: experimentDays, ...store.flagExperiment(view.key, since) } : null })),
+      segments: flags.segmentList(),
+      audit: store.flagAudit(50),
+      file: flags.fileStatus(),
+      providers: flags.providerStatus(),
+      strategy: flags.strategy,
+      console: flags.console,
+    });
+  };
   agentHost?.useDelivery(delivery);
   function sanitize<T>(value: T): T {
     if (typeof value === 'string') return withoutKnownSecrets(value, secrets) as T;
@@ -182,7 +213,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       }
       if (relay && await relay.handle(req, res, url)) return;
       const editorCollect = path.match(/^\/api\/auth\/editor\/([A-Za-z0-9_-]{8,32})$/);
-      if (['POST','PUT','PATCH','DELETE'].includes(method) && path !== '/api/auth/editor' && !editorCollect) mutationGuard(req, config);
+      const ofrep = path.startsWith('/api/ofrep/v1/evaluate/flags');
+      if (['POST','PUT','PATCH','DELETE'].includes(method) && path !== '/api/auth/editor' && !editorCollect && !ofrep) mutationGuard(req, config);
       if (method === 'POST' && path === '/api/login') {
         const data = await body(req);
         const result = auth.login(text(data.name, 'Name', 100), typeof data.password === 'string' ? data.password : '', req.socket.remoteAddress || 'unknown');
@@ -313,8 +345,63 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           insight.ingest(events, user);
           return json(res, 202, { accepted: events.length, dropped: posted - events.length });
         }
+        if (ofrep) {
+          if (method !== 'POST') fault(405, 'method', 'OFREP evaluation uses POST.');
+          const requested = req.headers['content-type']?.startsWith('application/json') ? await body(req) : {};
+          const context = { ...clientContext(requested.context), ...flagContext(user) };
+          const single = path.match(/^\/api\/ofrep\/v1\/evaluate\/flags\/([A-Za-z0-9_.-]{1,200})$/);
+          if (single) {
+            const key = decodeURIComponent(single[1]);
+            if (!flags.provider.registry.flags[key]?.metadata.client) return json(res, 404, { key, errorCode: 'FLAG_NOT_FOUND', errorDetails: 'No flag by this key is visible to clients.' });
+            const flag = ofrepFlag(await flags.details(key, context));
+            return json(res, 'errorCode' in flag ? 400 : 200, flag);
+          }
+          if (path !== '/api/ofrep/v1/evaluate/flags') fault(404, 'not_found', 'Unknown OFREP path.');
+          const { body: answer, etag } = ofrepBulk(await flags.clientDetails(context));
+          if (req.headers['if-none-match'] === etag) { res.writeHead(304, { ETag: etag, 'Cache-Control': 'no-store' }); return res.end(); }
+          res.setHeader('ETag', etag);
+          return json(res, 200, answer);
+        }
+        if (method === 'GET' && path === '/api/flags') return json(res, 200, await labsView(user));
+        const flagChoice = path.match(/^\/api\/flags\/([a-z][a-z0-9.-]{2,100})\/choice$/);
+        if (flagChoice && method === 'PUT') {
+          const key = flagChoice[1];
+          if (!flags.provider.registry.flags[key]?.metadata.labs) fault(404, 'flag_not_found', 'This flag is not offered in Labs.');
+          const data = await body(req);
+          if (!['on', 'off', 'default'].includes(String(data.choice))) fault(400, 'flag_choice', 'Choose on, off or default.');
+          store.setFlagChoice(user.id, key, data.choice === 'default' ? null : data.choice === 'on', new Date().toISOString());
+          console.log(JSON.stringify({ level: 'info', event: 'flag.choice', actor: user.id, 'feature_flag.key': key, choice: data.choice }));
+          return json(res, 200, await labsView(user));
+        }
+        const flagOverride = path.match(/^\/api\/admin\/flags\/([a-z][a-z0-9.-]{2,100})\/override$/);
+        const flagRollout = path.match(/^\/api\/admin\/flags\/([a-z][a-z0-9.-]{2,100})\/rollout$/);
+        const flagSegment = path.match(/^\/api\/admin\/flag-segments\/([a-z][a-z0-9-]{0,63})$/);
+        if ((path.startsWith('/api/admin/flags') || path.startsWith('/api/admin/flag-segments')) && user.role !== 'admin') fault(403, 'forbidden', 'Only administrators manage feature flags.');
+        if (method === 'GET' && path === '/api/admin/flags') return json(res, 200, await adminFlags(user));
+        if (method === 'GET' && path === '/api/admin/flags/export') return json(res, 200, flags.exportDocument());
+        if (flagRollout && method === 'PUT') {
+          const data = await body(req);
+          const reason = data.rollout === null ? text(data.reason, 'Reason', 300, true) : text(data.reason, 'Reason', 300);
+          const spec = flags.setRollout(flagRollout[1], data.rollout ?? null, user.name, reason);
+          console.log(JSON.stringify({ level: 'info', event: spec ? 'flag.rollout_set' : 'flag.rollout_cleared', actor: user.id, 'feature_flag.key': flagRollout[1], rules: spec?.rules.length ?? 0 }));
+          return json(res, 200, await adminFlags(user));
+        }
+        if (flagSegment && (method === 'PUT' || method === 'DELETE')) {
+          const data = method === 'PUT' ? await body(req) : null;
+          flags.setSegment(flagSegment[1], data, user.name);
+          console.log(JSON.stringify({ level: 'info', event: method === 'PUT' ? 'flag.segment_set' : 'flag.segment_deleted', actor: user.id, segment: flagSegment[1] }));
+          return json(res, 200, await adminFlags(user));
+        }
+        if (flagOverride && method === 'PUT') {
+          const data = await body(req);
+          const variant = data.variant === null ? null : text(data.variant, 'Variant', 64);
+          const reason = variant === null ? text(data.reason, 'Reason', 300, true) : text(data.reason, 'Reason', 300);
+          const override = flags.setOverride(flagOverride[1], variant, user.name, reason);
+          console.log(JSON.stringify({ level: 'info', event: override ? 'flag.override_set' : 'flag.override_cleared', actor: user.id, 'feature_flag.key': flagOverride[1], variant }));
+          return json(res, 200, await adminFlags(user));
+        }
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
-          user, mode: config.mode, sharedExecution: Boolean(config.execution), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
+          user, mode: config.mode, sharedExecution: Boolean(config.execution), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], deliveryPublisher: Boolean(config.delivery?.publisher), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
           gatewayPolicy: config.gatewayPolicy ?? null,
           observability: config.observability ?? null,
           insight: { events: config.productEvents !== false && user.role !== 'viewer' },
@@ -324,7 +411,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           crews: config.crews, models: config.models,
           runtimes: runtimeKinds.map(id => ({ id, name: id === 'demo' ? 'Demonstration' : id === 'opencode' ? 'OpenCode' : 'Command bridge', available: true })),
           placements: placements(config),
-          maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions
+          maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions,
+          flags: await flags.clientValues(flagContext(user))
         }));
         if (method === 'GET' && path === '/api/status') return json(res, 200, sanitize(await status.report(user)));
         if (method === 'POST' && path === '/api/status/notes') return json(res, 201, sanitize(status.addNote(user, await body(req))));
@@ -689,5 +777,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   });
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
-  return { server, cards, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); }, reports };
+  return { server, cards, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); }, reports };
 }

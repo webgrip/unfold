@@ -86,6 +86,32 @@ for (const path of files) {
     }
   }
 }
+const flagRegistryPath = resolve(root, 'src/flag-registry.json');
+const flagGuide = resolve(root, 'docs/operations/feature-flags.md');
+const flagCall = /(?:\benabled|\bflag|\bexposed|get(?:Boolean|String|Number|Object)(?:Value|Details)|\.details)\(\s*['"]([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)['"]|flags\?\.\[['"]([a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+)['"]\]/g;
+let flagCount = 0;
+if (existsSync(flagRegistryPath)) {
+  const registered = JSON.parse(readFileSync(flagRegistryPath, 'utf8')).flags ?? {};
+  const today = new Date().toISOString().slice(0, 10);
+  const used = new Map();
+  for (const path of files) {
+    const area = relative(root, path);
+    if (!/^(src|public)\//.test(area) || !/\.(ts|js|mjs)$/.test(path) || area.startsWith('public/vendor/')) continue;
+    for (const match of readFileSync(path, 'utf8').matchAll(flagCall)) {
+      const key = match[1] ?? match[2];
+      if (!used.has(key)) used.set(key, path);
+    }
+  }
+  const guide = existsSync(flagGuide) ? readFileSync(flagGuide, 'utf8') : '';
+  for (const [key, flag] of Object.entries(registered)) {
+    flagCount++;
+    const expires = flag.metadata?.expires;
+    if (expires && expires < today) fail(flagRegistryPath, `flag ${key} passed its removal date ${expires}: remove it, or move the date with the owner's reason in the commit`);
+    if (!used.has(key)) fail(flagRegistryPath, `flag ${key} is registered but no code in src/ or public/ evaluates it; remove it`);
+    if (!guide.includes(`\`${key}\``)) fail(flagGuide, `does not list the flag ${key}`);
+  }
+  for (const [key, path] of used) if (!Object.hasOwn(registered, key)) fail(path, `evaluates the flag ${key}, which src/flag-registry.json does not register`);
+}
 const vendorDirectory = resolve(root, 'public/vendor/three');
 let vendored = 0;
 if (existsSync(vendorDirectory)) {
@@ -106,5 +132,5 @@ if (failures.length) {
   process.stderr.write(`${failures.join('\n')}\n`);
   process.exitCode = 1;
 } else {
-  process.stdout.write(`Checked ${sources} source modules and ${jsonFiles} JSON files; ${vendored} vendored three.js ${threeVersion} files are unedited; no application entrypoint executed.\n`);
+  process.stdout.write(`Checked ${sources} source modules, ${jsonFiles} JSON files and ${flagCount} feature flags; ${vendored} vendored three.js ${threeVersion} files are unedited; no application entrypoint executed.\n`);
 }

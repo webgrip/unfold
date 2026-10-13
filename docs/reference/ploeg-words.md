@@ -195,7 +195,7 @@ MCP: `costStatus` in unfold_ask, in Unfold's words.
 
 | Value | Screen label | MCP | Note |
 |---|---|---|---|
-| `provisional` | Cost pending | pending | Renamed: Unfold's HTTP layer renames Ploeg's `provisional` to `pending` before storing the Ask. |
+| `provisional` | Cost not known yet | pending | Renamed: Unfold's HTTP layer renames Ploeg's `provisional` to `pending` before storing the Ask. |
 | `settled` | (the amount) | same |  |
 | `unknown` | Cost not reported | same |  |
 

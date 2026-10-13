@@ -1170,3 +1170,144 @@
 .vscode-connect-address input {
   inline-size: 100%;
 }
+
+.labs-now {
+  margin-top: var(--space-1);
+}
+
+.flag-override {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 14rem;
+  padding-block: var(--space-2);
+}
+
+.flag-audit {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.flag-audit-title {
+  margin-top: var(--space-4);
+}
+
+.flag-cards {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.flag-card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.flag-card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.flag-facts,
+.flag-rules,
+.flag-sources ol {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding-left: var(--space-4);
+}
+
+.flag-facts {
+  list-style: none;
+  padding-left: 0;
+}
+
+.flag-sources {
+  display: grid;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.flag-rollout,
+.flag-segment {
+  display: grid;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+}
+
+.flag-rule {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.flag-rule legend {
+  padding-inline: var(--space-1);
+  font-weight: var(--weight-semibold);
+}
+
+.flag-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--space-2) var(--space-3);
+  align-items: start;
+}
+
+.flag-rule-serve {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.flag-rule-kind,
+.flag-check,
+.flag-rule-remove {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.flag-serve {
+  display: none;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--space-2) var(--space-3);
+  align-items: start;
+}
+
+.flag-serve .field-hint {
+  grid-column: 1 / -1;
+}
+
+.flag-rule:has(input[value="variant"]:checked) .flag-serve-variant,
+.flag-rule:has(input[value="split"]:checked) .flag-serve-split,
+.flag-rule:has(input[value="ramp"]:checked) .flag-serve-ramp {
+  display: grid;
+}
+
+.flag-rule[data-blank="true"]:has(select option[value="none"]:checked) > :not(legend, .flag-rule-grid) {
+  display: none;
+}
+
+.flag-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.flag-rule .field :is(input, select) {
+  inline-size: 100%;
+  min-inline-size: 0;
+}

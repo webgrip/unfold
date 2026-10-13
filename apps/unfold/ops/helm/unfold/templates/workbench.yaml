@@ -121,6 +121,10 @@ spec:
                   name: {{ .Values.delivery.publisher.existingSecret }}
                   key: {{ .Values.delivery.publisher.secretKey }}
             {{- end }}
+            {{- if .Values.featureFlags }}
+            - name: UNFOLD_FLAGS_FILE
+              value: /etc/unfold-flags/flags.json
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -137,6 +141,11 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
+            {{- if .Values.featureFlags }}
+            - name: flags
+              mountPath: /etc/unfold-flags
+              readOnly: true
+            {{- end }}
             {{- if and .Values.delivery.enabled .Values.delivery.inputs.volume }}
             - name: delivery-inputs
               mountPath: {{ .Values.delivery.inputs.mountPath }}
@@ -169,6 +178,11 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 256Mi
+        {{- if .Values.featureFlags }}
+        - name: flags
+          configMap:
+            name: {{ include "unfold.name" . }}-flags
+        {{- end }}
         {{- if and .Values.delivery.enabled .Values.delivery.inputs.volume }}
         - name: delivery-inputs
           {{- toYaml .Values.delivery.inputs.volume | nindent 10 }}

@@ -183,6 +183,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0033](../../apps/unfold/docs/adrs/0033-a-forge-card-s-art-window-is-an-inner-world-its-holder-may-decorate-privately.md) | A forge card's art window is an inner world its holder may decorate privately | 2026-10-02 | unknown | — |
 | Unfold | [0034](../../apps/unfold/docs/adrs/0034-run-cards-show-rarity-as-frame-metal-and-a-set-symbol-and-reveal-it-once-at-release.md) | Run cards show rarity as frame metal and a set symbol, and reveal it once at release | 2026-10-02 | unknown | — |
 | Unfold | [0035](../../apps/unfold/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) | Run cards lead with three or four KPIs for their state, and keep the rest on the back | 2026-10-02 | unknown | — |
+| Unfold | [0043](../../apps/unfold/docs/adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md) | Feature flags are flagd rules evaluated in process behind OpenFeature's interface | 2026-10-13 | unknown | — |
 
 ## Other statuses
 
