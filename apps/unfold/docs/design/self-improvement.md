@@ -4,7 +4,7 @@
 
 Status: proposed operating and delivery design. Baseline: Unfold v0.1, audited 2026-09-09. This is a practical route from today's working operator session to a governed ticket-to-proposal loop. It does not claim that tracker intake, automatic publishing or deployment promotion already exist in Unfold.
 
-The first useful step is straightforward: register the Unfold repository as an allowed target, run the existing stable workbench somewhere remote, and ask a small crew to implement a bounded ticket in an isolated checkout. Humans can already steer that work through the browser. The missing pieces are trustworthy automated verification, complete change publication, shared task authority and operational recovery. Those are the first features the system should help build.
+The first useful step is straightforward: register the Unfold repository as an allowed target, run the existing stable workbench somewhere remote, and ask a small Team to implement a bounded ticket in an isolated checkout. Humans can already steer that work through the browser. The missing pieces are trustworthy automated verification, complete change publication, shared task authority and operational recovery. Those are the first features the system should help build.
 
 Self-improvement should mean **the current trusted release helps propose the next release**. An agent must not become the authority that determines whether its own patch is safe, grants itself broader tools, replenishes its budget, or deploys itself.
 
@@ -14,7 +14,7 @@ Self-improvement should mean **the current trusted release helps propose the nex
 | --- | --- | --- | --- |
 | A: assisted dogfood, usable with the current core | Operator creates an Unfold session against its registered repository; OpenCode runs remotely through LiteLLM; operator answers permissions and inspects retained work | Select task, run independent checks/CI, recover/export changed files if needed, create proposal, review and merge | Five normal bounded tickets delivered with preserved evidence and no lost work; this is a proposed pilot gate, not an existing result |
 | B: governed delivery | Canonical task admission, frozen candidate, trusted verification, draft proposal and cost reconciliation | Approve scope/risk, review proposal and merge; intervene on blockers | All task, code, checks, decisions and cost are correlated; crash/duplicate tests pass |
-| C: unattended dispatch with interactive takeover | Tracker eligibility admits work to Ploeg; crews run under leases; Unfold/web/IDE can observe, answer or take over through the same authority | Set explicit policy and spending envelopes; manage exceptions and merge eligible changes | Measured pilot demonstrates useful outcomes without hidden retries, conflicting writers or unreviewed promotion |
+| C: unattended dispatch with interactive takeover | Tracker eligibility admits work to Ploeg; Teams run under leases; Unfold/web/IDE can observe, answer or take over through the same authority | Set explicit policy and spending envelopes; manage exceptions and merge eligible changes | Measured pilot demonstrates useful outcomes without hidden retries, conflicting writers or unreviewed promotion |
 
 Lane A does not wait for the complete platform. It deliberately retains the manual steps where the baseline has no reliable automation. Lane C must not be achieved by giving every agent a tracker token and asking it to poll.
 
@@ -141,7 +141,7 @@ Ploeg owns the canonical WorkOrder, DeliveryAttempt, lease and budget authority.
 | Actor | Reads | May change | Explicitly excluded |
 | --- | --- | --- | --- |
 | Operator client | Authorized tasks, sessions, evidence, pending decisions | Scoped commands and decisions allowed by project role | Management keys, worker service accounts, implicit local code execution |
-| Ploeg admission/controller | Normalized ticket snapshot, target/crew policy, execution state | Admission, attempts, leases, scoped authorizations | Candidate code execution within controller process |
+| Ploeg admission/controller | Normalized ticket snapshot, target/Team policy, execution state | Admission, attempts, leases, scoped authorizations | Candidate code execution within controller process |
 | Implementer | Approved source snapshot and task context | Candidate files inside disposable workspace | Trusted gate policy, controller state, merge rights, deployment rights |
 | Agent reviewer | Frozen candidate, base diff and trusted check reports | Findings and a structured opinion | Writer workspace mutation, publish credential, human approval |
 | Trusted verifier | Frozen candidate plus protected acceptance plan | Its isolated scratch outputs and signed check records | Model keys, production credentials, changing the required checks during a run |
@@ -160,7 +160,7 @@ A delivery attempt freezes these identifiers before trusted verification:
 - Attempt ID, lease epoch and candidate commit/tree digest.
 - Complete change manifest, including additions, deletions, modes, binaries and explicit exclusions.
 - Trusted gate policy revision, verifier image digest and toolchain/dependency lock digest.
-- Crew/role instructions revision, harness version and model routing policy revision.
+- Team and Role instructions revision, harness version and model routing policy revision.
 - Check results, reviewer findings, human decisions, publication reference and cost observations.
 
 Verification is tied to a candidate digest. If the candidate changes after approval, the approval becomes stale. A successful CI status for another branch/head cannot count. A model alias can route to changing providers; retain the configured alias and observed provider/model identity where the gateway exposes it, and label unknown routing details honestly.
@@ -233,7 +233,7 @@ Each successfully merged ticket can improve the lane used for the next ticket. K
 | Laptop closes or IDE disconnects | Authorized remote run continues; next client replays durable events | No duplicate attempt; same session, candidate and event cursor |
 | Controller restarts | Current paid work is interrupted/reconciled; no hidden automatic replay | Visible recovery state, confirmed stop/fencing, key discovery and retained budget holds |
 | Controller is unavailable for a prolonged period | Independent lease/credential enforcement prevents indefinite authority | Simulated network partition; old worker cannot publish after lease epoch changes |
-| Worker dies after spending but before reporting | External reconciler blocks key and retains unknown-spend reservation | Cost eventually reconciles or explicit audited accountant resolution; no free replacement budget |
+| Worker dies after spending but before reporting | External reconciler blocks key and keeps the unknown spend held | Cost eventually reconciles or explicit audited accountant resolution; no free replacement budget |
 | Source ticket changes materially | Current accepted revision remains immutable; future work pauses or re-plans under policy | UI shows old/new acceptance, actor and explicit decision |
 | Candidate weakens tests/check scripts | Protected evaluator remains unchanged; risk elevates | Expected adversarial fixture fails despite green candidate-local command |
 | Candidate changes after review | Previous checks/approval become stale | Publisher rejects mismatched digest/head |
@@ -263,8 +263,8 @@ Database schema changes may make application rollback unsafe. Record that constr
 Demonstrate one traceable loop with an ordinary real ticket:
 
 1. A person marks a well-scoped ticket eligible in the existing tracker.
-2. Unfold displays the accepted brief, repository, crew, policy and authorized budget before execution.
-3. The remote crew runs while the operator changes workstation or closes the IDE.
+2. Unfold displays the accepted brief, repository, Team, policy and authorized budget before execution.
+3. The remote Team runs while the operator changes workstation or closes the IDE.
 4. A meaningful permission or ambiguity becomes a clear human decision, with the same decision visible in browser and VS Code.
 5. The system produces a complete candidate, independent checks, reviewer findings and a draft proposal.
 6. A person merges; the tracker receives a reconciled delivery update and the platform shows actual cost and human intervention time.

@@ -107,14 +107,14 @@ sequenceDiagram
     participant VS as Unfold server
     participant P as ploegd
     participant LL as LiteLLM
-    You->>VS: new session: repository, crew, objective, budget
+    You->>VS: new session: repository, Team, objective, budget
     You->>VS: Start
     VS->>P: POST /api/v1/operator/executions (admit)
     P->>P: operator-owned Work Item, Shift, operator Run, Lease
     VS->>P: POST /operator/executions/{id}/credential
     P->>LL: mint key within the consumer's budget
     P-->>VS: key
-    VS->>LL: Unfold's own engine runs the crew
+    VS->>LL: Unfold's own engine runs the Team
     VS->>P: commands: heartbeat, report
     You->>VS: Cancel
     VS->>P: command cancel
@@ -122,7 +122,7 @@ sequenceDiagram
 ```
 
 * **Admission.** Unfold asks Ploeg to admit an Operator Execution with its operator token ([`execution-authority.ts`](../../apps/unfold/src/execution-authority.ts)). Ploeg records a Work Item marked operator-owned, a Shift, an `operator` Run and a Lease, so its budget and audit cover the session. In production Unfold executes for the `unfold` Team, the `unfold` consumer's budget ceiling is US$0.25, and the `unfold`/`operator` key policy allows `deepseek-chat` for 10 minutes.
-* **Execution.** The crew then runs inside the Unfold application, not in a Ploeg worker. Moving it to `ploeg-worker` is the [proposed front-end migration](../../apps/unfold/docs/ploeg-front-end.md).
+* **Execution.** The Team then runs inside the Unfold application, not in a Ploeg worker. Moving it to `ploeg-worker` is the [proposed front-end migration](../../apps/unfold/docs/ploeg-front-end.md).
 * **No fallback.** A session Ploeg was asked to manage never runs standalone. If Ploeg is unreachable, Unfold interrupts it and tries to block the key ([`engine.ts`](../../apps/unfold/src/engine.ts)). Unfold's standalone broker still exists in the code until ADR-0002 lands.
 * **Watching tracker work.** Unfold opens on **Now**, which lists what waits on you across your Teams. **Work**, **Proposed**, **Runs**, **Activity** and **Insights** read Teams, Work Items, Runs and events through the operator API ([`ploeg.ts`](../../apps/unfold/src/ploeg.ts)). On a Work Item's page, operators and administrators have **Cancel Work Item**. After a confirmation it calls journey D's operator cancel through Unfold's `POST /api/ploeg/work-items/{id}/cancel` and shows what Ploeg reports it stopped. The demo cancels nothing and says so ([HTTP contract](../../apps/unfold/docs/contracts/api.md#cancel)).
 

@@ -32,7 +32,7 @@ Optional environment settings:
 
 ## Exercise the shared session
 
-1. Open the prepared session and press **Start crew**. Its execution panel now identifies the Ploeg execution and Work Item.
+1. Open the prepared session and press **Start team**. Its execution panel now identifies the Ploeg execution and Work Item.
 2. Change supervision to background, close or refresh the browser, and return. The server continues the same session. Take control again if it is still running.
 3. To exercise pause and resume, pause before completion and wait for the confirmed stop. Resume explicitly; the execution identity stays the same while its generation changes. The fixture takes roughly 30 seconds without intervention.
 4. Review the actual workspace patch and executed checks. Open the linked Ploeg Work Item to inspect its Shift, operator Run and retained report.

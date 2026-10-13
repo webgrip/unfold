@@ -43,7 +43,7 @@ The first three build phases are merged on `development`: P0 keeps the facts a c
 | Part | State | Where it is recorded |
 | --- | --- | --- |
 | Ploeg keeps every usage figure a harness reports, and every merge and review fact a forge reports | Built; its ADR is still proposed | [Ploeg ADR-0045](../../apps/ploeg/docs/adrs/0045-keep-run-usage-and-merge-facts.md) |
-| One card per Work Item, assembled from stored facts: state, Plays, Steward (fallback rule), Roster (merger and reviewer), agent crew, totals, events, diff size and CI | Built; assembled by Unfold. Ploeg's record of assembling it in Ploeg is rejected | system ADR-0030; formerly [Ploeg ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) |
+| One card per Work Item, assembled from stored facts: state, Plays, Steward (fallback rule), Roster (merger and reviewer), the agent Roles that ran, totals, events, diff size and CI | Built; assembled by Unfold. Ploeg's record of assembling it in Ploeg is rejected | system ADR-0030; formerly [Ploeg ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) |
 | Card style chosen per repository (`cards.rules.repositories.<repo>.style`, formerly Ploeg's `cardStyle`) | Built; seven skins: Unfold Native, the 3D forge skin and five DOM skin packs | Unfold ADR 0026 and 0028, system ADR-0030 |
 | A generic deploy endpoint, deployments per environment and the release time | Built; ADR proposed | [Ploeg ADR-0047](../../apps/ploeg/docs/adrs/0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) |
 | Usage so far while a Run is running | Built; ADR proposed | [Ploeg ADR-0049](../../apps/ploeg/docs/adrs/0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) |
@@ -65,7 +65,7 @@ To make a project count days live from real deploys, see [Send deploys from a pi
 The owner decided the unit on 2026-10-01.
 
 * **One card per Work Item.** A Work Item that bounces three times in test produces four pull requests. Four cards would split one feature's story, cost and bugs, so the card is the Work Item.
-* **Its pull requests are Plays.** Each pull request attaches as a numbered **Play** (for example #57, then #61 after the first bounce, then #64). Cost and lines are summed across Plays. The Runs of each Play appear on the back as the crew.
+* **Its pull requests are Plays.** Each pull request attaches as a numbered **Play** (for example #57, then #61 after the first bounce, then #64). Cost and lines are summed across Plays. The Runs of each Play appear on the back as the Roles that ran.
 * **An epic is its own Set Card.** An epic Work Item gets a **Set Card** whose children are Run Cards, numbered 1/5 to 5/5. Unfold builds the set from the tracker parents in Ploeg's delivery facts ([Ploeg ADR-0053](../../apps/ploeg/docs/adrs/0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md), proposed); it completes when every child has been live 30 days with no unmended Crack.
 * **Chores are tokens** (Proposed). A chore such as a dependency bump gets a minimal frame and stacks in the Binder; volume earns nothing.
 * **Failures are scuffs, not separate cards** (Proposed). A failed Shift scuffs its Work Item's card. A Work Item never delivered is shelved as withdrawn. A sprint or a release is a page, not a card.
@@ -196,7 +196,7 @@ Proposed lifecycle: drafted (a Run is live) → opened (pull request) → signed
 | QA | Defects caught before production, counted only when the developer confirms them |
 | PO | Requirement stability: Evolved count, Bounces from unclear criteria |
 | Client | Accepted first time, time to accept, days live; shown at team level |
-| Agent crew | The credit line on every copy; never a Steward |
+| Agent Roles | The credit line on every copy; never a Steward |
 
 **Shared fate.** When the card cracks, every copy cracks. When it is mended, every copy gets the gold seams and names the mender. That makes QA, the PO and the reviewer care about production too, and keeps the Crack on the change instead of on a person.
 

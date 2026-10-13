@@ -12,7 +12,7 @@ verified_by: "source read of apps/unfold/src and apps/ploeg/pkg at 352fa52; no c
 
 ## Where we start
 
-Today a "managed" Unfold session does not run in Ploeg. Unfold asks Ploeg to admit an **Operator Execution**, then runs the whole Crew itself: it builds the workspace, drives OpenCode over HTTP, calls the model with a key that Ploeg issued, and sends heartbeats and reports back. Ploeg keeps records and one inference key. The [22 September inventory](../../../docs/research/2026-09-22-glide-inventory.md) counts the result: two harness drivers, two LiteLLM brokers, two spend-hold state machines, two review orchestrators and two liveness protocols.
+Today a "managed" Unfold session does not run in Ploeg. Unfold asks Ploeg to admit an **Operator Execution**, then runs the whole Team itself: it builds the workspace, drives OpenCode over HTTP, calls the model with a key that Ploeg issued, and sends heartbeats and reports back. Ploeg keeps records and one inference key. The [22 September inventory](../../../docs/research/2026-09-22-glide-inventory.md) counts the result: two harness drivers, two LiteLLM brokers, two spend-hold state machines, two review orchestrators and two liveness protocols.
 
 For this, Ploeg writes placeholder rows. [`AdmitOperatorExecution`](../../ploeg/pkg/store/operator_execution.go) inserts a Work Item with `operator_owned = true`, a Shift on branch `operator/<session>`, an `operator` Run and a Lease. The scheduler must then skip these rows in ten queries in [`shift.go`](../../ploeg/pkg/store/shift.go). Seven of those check `NOT EXISTS (… operator_executions …)` and three check `NOT operator_owned`, and [`IngestAssigned`](../../ploeg/pkg/store/store.go) has more `operator_owned` cases.
 
@@ -132,7 +132,7 @@ Two rules carry over from the Unfold rules: an intentional pause or cancel never
 | --- | --- |
 | [`broker.ts`](../src/broker.ts) and the `litellm` config block | Only Ploeg mints keys. |
 | [`execution-authority.ts`](../src/execution-authority.ts) and the `execution` config block | Operator Executions are retired. |
-| The non-demo parts of [`engine.ts`](../src/engine.ts): authority admission and heartbeats, reservations, spend settlement and reconciliation, retry, adding budget, and runtime launch | Standalone and shared execution both end. |
+| The non-demo parts of [`engine.ts`](../src/engine.ts): authority admission and heartbeats, Holds, spend settlement and reconciliation, retry, adding budget, and runtime launch | Standalone and shared execution both end. |
 | [`runtime/opencode.ts`](../src/runtime/opencode.ts), `command.ts`, `workspace.ts`, `docker.ts`, `kubernetes.ts`, `sandbox.ts`, `relay.ts`, `git-access.ts` | Workspaces and harnesses run in `ploeg-worker`. |
 | Their tests: `broker`, `execution`, `runtime-*` except `runtime-demo`, and the standalone `api-*` cases | The behavior is gone. |
 
@@ -156,7 +156,7 @@ The delivery routes in [`operator_delivery.go`](../../ploeg/pkg/httpapi/operator
 
 Two OpenCode drivers exist: Unfold's HTTP driver for `opencode serve` and Ploeg's ACP adapter for `opencode acp`, which uses the `opencode` profile in [`profiles.go`](../../ploeg/pkg/harness/adapters/acp/profiles.go). Keep **only the ACP adapter**. It already supports several agents through profiles, it has a conformance suite ([`harnesstest`](../../ploeg/pkg/harness/harnesstest/conformance.go)), and harness changes come fastest at this boundary. Maintaining it twice is the cost ADR-0002 set out to remove.
 
-The team plan chooses the harness for each Role. Unfold stops choosing a runtime or model per session and shows the team's plan instead, so an Unfold Crew becomes a Ploeg Team. What the HTTP driver did and the ACP adapter does not do goes away: answering permission prompts and questions interactively, the pre-flight brief check, and per-Step events. S2 would bring back only follow-up messages.
+The team plan chooses the harness for each Role. Unfold stops choosing a runtime or model per session and shows the team's plan instead, so Unfold's registered Teams give way to Ploeg team plans. What the HTTP driver did and the ACP adapter does not do goes away: answering permission prompts and questions interactively, the pre-flight brief check, and per-Step events. S2 would bring back only follow-up messages.
 
 ## Migrate the cross-application check
 
@@ -213,5 +213,5 @@ Each increment can ship and be reverted on its own, and it lands with the test n
 5. Take-control as a branch hand-over: wanted, or dropped?
 6. Unfold candidates, the delivery verifier and the Agent Host Protocol host: retire them, or keep them for another purpose?
 7. The demo: keep the demo runtime, or move it onto a Ploeg fixture?
-8. Crews: retire them in favour of Ploeg team plans?
+8. Unfold's registered Teams: retire them in favour of Ploeg team plans?
 9. The priority of Unfold-submitted Work Items relative to tracker work

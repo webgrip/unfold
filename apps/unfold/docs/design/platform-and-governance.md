@@ -18,9 +18,9 @@ The uniform operator path is: select a permitted project, choose a reviewed proc
 | --- | --- | --- |
 | Identity | Local passwords, admin/operator/viewer, owner-based sessions in `src/auth.ts` and `src/http.ts` | OIDC identity, project membership, session collaborators and scoped automation identities |
 | State | Unfold SQLite, persisted events and encrypted internal state in `src/store.ts`; Ploeg already uses Postgres | Versioned Unfold commands/events; Ploeg-owned attempt leases, claim ledger and delivery outbox |
-| Execution | Sequential crew roles, explicit review verdict, interruption recovery in `src/engine.ts` | Trusted verification, independently fenced attempts and bounded fan-out |
+| Execution | A Team's sequential Roles, explicit review verdict, interruption recovery in `src/engine.ts` | Trusted verification, independently fenced attempts and bounded fan-out |
 | Placement | Local server processes or per-session Kubernetes Pod/PVC/Secret/Service in `src/runtime/` | Project isolation profiles, quota admission, orphan sweeper and verified termination |
-| Spending | Session virtual key, block-and-reconcile lifecycle and unresolved holds in `src/broker.ts` | Atomic project/client/team reservations and an append-only settlement ledger |
+| Spending | Session virtual key, block-and-reconcile lifecycle and unresolved holds in `src/broker.ts` | Atomic project/client/team Holds and an append-only settlement ledger |
 | Integration | Configured repository and read-only Ploeg queue visibility | Tracker inbox, claim ownership, change publishing and integration reconciliation |
 | Operations | Helm assets, health endpoints, automated local qualification | Qualified cluster deployment, observability, restore drills and release recovery |
 
@@ -91,19 +91,19 @@ The Unfold migration procedure drains new operator commands, takes a restorable 
 
 ## 4. Money is a separate state machine
 
-Authorize total exposure, not merely observed spend. Admission atomically reserves allowance across organization, client, team allocation and project scopes before a key is minted. A single execution consumes each applicable envelope once; parent/child scopes are views of the same exposure, not separate charges. Budget policy specifies currency, period, model profile and maximum outstanding reservations.
+Authorize total exposure, not merely observed spend. Admission atomically holds allowance across organization, client, team allocation and project scopes before a key is minted. A single execution consumes each applicable envelope once; parent/child scopes are views of the same exposure, not separate charges. Budget policy specifies currency, period, model profile and maximum outstanding Holds.
 
 Use integer micro-units or fixed-precision decimals for the ledger. Store provider-native amounts and currency, normalized accounting amount, rate source/time when conversion is needed, and whether the value is estimated, observed or reconciled. Do not silently label USD token estimates as euro invoices. Distinguish model cost, allocated infrastructure cost and an agency's commercial charge; the last follows client agreement and is not inferred from a token counter.
 
 The admission invariant is:
 
-`observed period spend + outstanding authorized exposure + new reservation ≤ authorized period allowance`
+`observed period spend + outstanding held exposure + new Hold ≤ authorized period allowance`
 
-An outstanding reservation includes unreported requests and unknown post-cancellation spend. Settlement atomically replaces a reservation with recorded spend, releasing only the unused amount. Delayed charges produce adjustment entries and can put an envelope into debt, which blocks fresh admission. Period rollover does not discard unfinished exposure: retain it against the original period and apply a separate outstanding-exposure cap to the new period. Refunds, corrections and transfers use entries with provenance; never edit a settled amount in place.
+An outstanding Hold includes unreported requests and unknown post-cancellation spend. Settlement atomically replaces a Hold with recorded spend, releasing only the unused amount. Delayed charges produce adjustment entries and can put an envelope into debt, which blocks fresh admission. Period rollover does not discard unfinished exposure: retain it against the original period and apply a separate outstanding-exposure cap to the new period. Refunds, corrections and transfers use entries with provenance; never edit a settled amount in place.
 
-The broker alone can mint/block credentials. Each attempt receives a TTL-bound model allowlist and a reference tagged with organization/project/execution/attempt IDs. Native runtime cost is provisional; gateway records settle the reservation. Publish `authorized`, `reserved`, `observed`, `unknown` and `settled` separately in UI/API. A missing spend record never becomes zero.
+The broker alone can mint/block credentials. Each attempt receives a TTL-bound model allowlist and a reference tagged with organization/project/execution/attempt IDs. Native runtime cost is provisional; gateway records settle the Hold. Publish `authorized`, `held`, `observed`, `unknown` and `settled` separately in UI/API. A missing spend record never becomes zero.
 
-LiteLLM's current documentation describes request budget reservations and fail-closed budget enforcement, including concurrency and stale Redis considerations. Qualify those exact features against the pinned deployed version, model routes and outage conditions. Retain the application reservation ledger even when gateway reservations are enabled, because it also spans retries, project allocations and admission. Some higher-level budget tiers are documented as Enterprise features; this open-source design must not silently depend on them. [LiteLLM budget enforcement](https://docs.litellm.ai/docs/proxy/users), [budget tiers](https://docs.litellm.ai/docs/proxy/rate_limit_tiers)
+LiteLLM's current documentation describes request budget reservations and fail-closed budget enforcement, including concurrency and stale Redis considerations. Qualify those exact features against the pinned deployed version, model routes and outage conditions. Retain the application Hold ledger even when gateway reservations are enabled, because it also spans retries, project allocations and admission. Some higher-level budget tiers are documented as Enterprise features; this open-source design must not silently depend on them. [LiteLLM budget enforcement](https://docs.litellm.ai/docs/proxy/users), [budget tiers](https://docs.litellm.ai/docs/proxy/rate_limit_tiers)
 
 Neither cancellation nor key blocking can undo an upstream request already accepted. The product therefore offers bounded admission and conservative accounting, with a measured maximum residual exposure, not a universal exact spend ceiling. Cap request concurrency, output tokens, retries, speculative branches and tool calls; pause when metering becomes unavailable. Apply a gateway circuit breaker to a project or entire installation when unexplained exposure exceeds policy.
 
@@ -128,7 +128,7 @@ Credential separation is concrete:
 | Operation | Credential placement | Lifetime and authority |
 | --- | --- | --- |
 | Clone approved revision | Separate init/fetch operation | Repository read only; removed before arbitrary project code runs |
-| Model calls | Attempt-scoped runtime secret or authenticated gateway relay | Approved aliases, TTL and reservation; never gateway master access |
+| Model calls | Attempt-scoped runtime secret or authenticated gateway relay | Approved aliases, TTL and Hold; never gateway master access |
 | Check project code | Fresh verifier workspace | No model, write-to-forge, cluster or production credentials |
 | Publish candidate branch/PR | Separate publisher service | Repository-scoped write, allowed branch prefix, approved candidate and publication reservation serialized with ownership transfer |
 | Deploy approved release | Existing CI/GitOps identity | Environment policy, protected review and immutable release artifact |
@@ -187,7 +187,7 @@ Instrument API, admission, provisioning, model routing, verification, publishing
 | Oldest admissible work and time to first worker | Find capacity/provisioning bottlenecks |
 | Time waiting for human decision, by reason | Identify unclear briefs and review constraints |
 | Reviewed accepted outcomes and human minutes per outcome | Evaluate useful leverage without rewarding token consumption |
-| Spend observed, reserved and unknown; oldest unknown hold | Detect exposure and reconciliation failure |
+| Spend observed, held and unknown; oldest unknown Hold | Detect exposure and reconciliation failure |
 | Stop acknowledgement and termination confirmation latency | Verify intervention works under load |
 | Leases expired, stale results rejected, orphan resources | Detect lifecycle bugs and recover safely |
 | Connector lag, 429s and unpublished outcomes | Explain tracker/forge divergence |
@@ -208,7 +208,7 @@ Keep recovery outside the product being repaired: an operator runbook and restri
 | Gate | Deliverable | Exit evidence |
 | --- | --- | --- |
 | A: controlled dogfooding | One project, protected base, durable publication handoff, trusted verifier, stop/reconcile drill | One real Unfold improvement reviewed through the forge; live spend and teardown recorded |
-| B: agency pilot | OIDC, project grants, aggregate reservations, connector ownership, isolated Kubernetes profiles | Two teams cannot read/spend/publish across projects; duplicate intake and outage drills pass |
+| B: agency pilot | OIDC, project grants, aggregate Holds, connector ownership, isolated Kubernetes profiles | Two teams cannot read/spend/publish across projects; duplicate intake and outage drills pass |
 | C: repeatable offering | Installer/preflight, supported-version matrix, project onboarding, export/deletion and restore process | A coworker operates without cluster privileges; another operator restores the system from documented artifacts |
 | D: scaled service | Fenced Ploeg workers; Unfold Postgres migration when triggered; transport only as needed | Failover does not duplicate paid work or publishing; measured SLO and cost exposure meet agreed targets |
 

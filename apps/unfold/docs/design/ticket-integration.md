@@ -57,7 +57,7 @@ Ploeg's `AGENTS.md`, `docs/architecture.md`, ADRs 0010–0017 and the executable
 
 For ClickUp use the native task ID even when users see a custom task ID. Resolve display IDs once in the adapter, with the required Workspace parameter, and persist both. For a task present in multiple Lists, route by its configured canonical/home List unless an explicit project mapping chooses another. Never create a WorkOrder per list membership. [ClickUp Get Task](https://developer.clickup.com/reference/gettask), [Get Tasks](https://developer.clickup.com/reference/gettasks).
 
-A closed ticket reopened with unchanged text still needs a fresh explicit mandate; an old approval does not authorize a new attempt. One item may have several sequential attempts. A request to retry creates a new attempt with a link to the previous outcome and an explicit budget reservation; a lost HTTP response does not. One attempt may contain several role runs. Do not call every agent run a new ticket, and do not equate an agent's completion with business delivery.
+A closed ticket reopened with unchanged text still needs a fresh explicit mandate; an old approval does not authorize a new attempt. One item may have several sequential attempts. A request to retry creates a new attempt with a link to the previous outcome and an explicit budget Hold; a lost HTTP response does not. One attempt may contain several role runs. Do not call every agent run a new ticket, and do not equate an agent's completion with business delivery.
 
 ### Immutable proposal contract
 
@@ -67,7 +67,7 @@ A closed ticket reopened with unchanged text still needs a fresh explicit mandat
 - A monotonically numbered local revision, full snapshot digest and material-content digest.
 - Title, description, independently checkable acceptance criteria, non-goals and immutable context references.
 - Registered repository/forge/project IDs, resolved base branch and base commit.
-- Digests for routing rule, crew, skills and policy; requested execution mode, risk class, budget and bounded capabilities.
+- Digests for routing rule, Team, skills and policy; requested execution mode, risk class, budget and bounded capabilities.
 - Dependencies and explicitly related source references.
 
 The schema is an execution **proposal**. `requestedBudget` confers no authorization. Its USD amount uses integer millionths so $5 is `5000000`; the adapter converts at the LiteLLM boundary and displays ordinary currency. Ledger arithmetic uses integers and never sums floating-point UI values. A zero model budget is valid for read-only planning or deterministic checks; policy determines whether any paid execution is eligible.
@@ -80,7 +80,7 @@ Keep the provider snapshot as a private artifact, then normalize a stable semant
 
 Provider `updated_at` or ClickUp `date_updated` is an observation cursor, not an authorization token or reliable total order. Two changes may have the same timestamp; a comment may update it without changing the mandate. Refetch authoritative state, compare hashes and allocate the local revision transactionally. Serialize refreshes per source identity and discard stale refresh results using a fetch-generation CAS, so a slow old HTTP request cannot overwrite a newer snapshot.
 
-Pin approval to the material digest **and** the execution proposal digest (target/base, crew, skills, policy, risk and budget). A text edit, context replacement or policy expansion invalidates the affected decisions. A label color change does not. Changing an active attempt's target is never an in-place update: stop and revoke, preserve evidence, then create a fresh proposal.
+Pin approval to the material digest **and** the execution proposal digest (target/base, Team, skills, policy, risk and budget). A text edit, context replacement or policy expansion invalidates the affected decisions. A label color change does not. Changing an active attempt's target is never an in-place update: stop and revoke, preserve evidence, then create a fresh proposal.
 
 ## 3. End-to-end flow
 
@@ -97,7 +97,7 @@ sequenceDiagram
     P->>T: Fetch authoritative item
     P->>P: Normalize revision and evaluate eligibility
     V->>P: Start approved attempt or take control
-    P->>P: Reserve budget and claim execution
+    P->>P: Hold budget and claim execution
     P->>R: Run scoped work at generation N
     R->>P: Durable evidence and outcome
     V->>P: Human decision bound to current evidence
@@ -110,7 +110,7 @@ The browser and extension connect to Unfold over its authenticated API. They nev
 
 ### The first two user journeys
 
-**ClickUp → GitLab MR.** A PO writes acceptance criteria in a permitted List. An operator marks the task eligible using a configured status/field or approves the resulting draft in Unfold. Ploeg maps that List to a registered project, GitLab repository and capability crew, preserving ClickUp priority. Unfold displays the source revision, expected changes, budget and why the work is ready. Starting creates a DeliveryAttempt and a remote workspace. The writer produces a patch; checks and an independent reviewer produce evidence. A person approves publication/review according to policy. The MR is linked back to ClickUp, whose task remains in review until the organization's delivery definition is met.
+**ClickUp → GitLab MR.** A PO writes acceptance criteria in a permitted List. An operator marks the task eligible using a configured status/field or approves the resulting draft in Unfold. Ploeg maps that List to a registered project, GitLab repository and capability Team, preserving ClickUp priority. Unfold displays the source revision, expected changes, budget and why the work is ready. Starting creates a DeliveryAttempt and a remote workspace. The writer produces a patch; checks and an independent reviewer produce evidence. A person approves publication/review according to policy. The MR is linked back to ClickUp, whose task remains in review until the organization's delivery definition is met.
 
 **Forgejo issue → Unfold improvement PR.** The issue lives in the Unfold repository. A registered mapping resolves it to Unfold's `development` branch. A person grants a low-risk mandate with a small budget and bounded file scope. The attempt runs the installed stable Unfold version against a separate checkout of its source. The candidate cannot change the running control plane, secrets or its own live approval policy. CI builds a preview from the proposed head. A person reviews that preview and merges; ordinary release automation deploys the new controller version. Self-improvement is ordinary reviewed development of the product, not an agent replacing its own supervisor.
 
@@ -198,7 +198,7 @@ Forgejo list APIs are paginated; follow the `Link` header after validating it st
 
 ### ClickUp
 
-Keep API v2 task and webhook endpoints unless an independently tested capability needs v3. Treat v2 `team_id` as a Workspace ID, not a Ploeg crew or ClickUp user group. Use namespaced internal types to make those distinctions visible.
+Keep API v2 task and webhook endpoints unless an independently tested capability needs v3. Treat v2 `team_id` as a Workspace ID, not a Ploeg Team or ClickUp user group. Use namespaced internal types to make those distinctions visible.
 
 | Operation | API path | Implementation requirement |
 | --- | --- | --- |
@@ -265,7 +265,7 @@ Business completion may require a PO acceptance, deployed revision and first tel
 
 ### Attempt ownership
 
-Ploeg adds `delivery_attempts` with `work_order_id`, `revision_id`, `shift_id`, `state`, `executor_kind`, `executor_id`, `generation`, `expected_head`, budget reservation and timestamps. Permit one active attempt for a WorkOrder through a partial unique index. A manual new attempt against an already active source returns the existing attempt plus `execution_owned`, not another worker.
+Ploeg adds `delivery_attempts` with `work_order_id`, `revision_id`, `shift_id`, `state`, `executor_kind`, `executor_id`, `generation`, `expected_head`, budget Hold and timestamps. Permit one active attempt for a WorkOrder through a partial unique index. A manual new attempt against an already active source returns the existing attempt plus `execution_owned`, not another worker.
 
 An attempt owner is either unattended Ploeg execution or an Unfold-supervised executor. Human observers do not acquire a writer lease. Taking control requests a transition; it does not start another workspace alongside the old writer. Use the existing Shift and lease semantics rather than a second mutex in Unfold.
 
@@ -294,13 +294,13 @@ After a publisher crash or partition, a negative remote query alone is insuffici
 
 | Public/operator intent | Required decision binding | Server behavior |
 | --- | --- | --- |
-| Start | WorkOrder material/proposal digests, budget, policy and identity | Create or return the same attempt; reserve budget; claim through Ploeg |
+| Start | WorkOrder material/proposal digests, budget, policy and identity | Create or return the same attempt; hold budget; claim through Ploeg |
 | Pause | Current attempt ID and version | Stop scheduling, interrupt current run, block credentials as required; retain artifacts |
 | Cancel | Current attempt ID and reason | Durable terminal intent; stop/revoke; prohibit automatic retry |
 | Resume | Current revision, policy, remaining budget and expected head | Verify freshness and ownership; new run only after explicit command |
 | Take control | Current attempt/generation and authorized operator | Run the handover protocol; never immediate dual ownership |
 | Send instruction | Current revision and active Session | Persist instruction as context; distinguish queued next-turn instruction from an applied interrupt |
-| Increase budget | Attempt, existing authorization, new total, approver limits | Append authorization; never reset observed spend or reuse settled reservation |
+| Increase budget | Attempt, existing authorization, new total, approver limits | Append authorization; never reset observed spend or reuse a settled Hold |
 | Approve publication | Exact target, base/head, diff digest, required check artifacts, policy | Permit only that publication; a new patch invalidates it |
 | Approve merge | Exact current forge head and required human role | Use ordinary forge approval/protection; omit automatic merge in initial release |
 
@@ -375,7 +375,7 @@ If both ClickUp and a Forgejo issue represent the same business work, require an
 | OAuth/PAT revoked | Mark connection unauthorized, stop new work and uncertain writebacks, alert owner; do not rotate identities silently |
 | Tracker API unavailable after PR created | Keep valid PR and evidence; mark writeback pending and retry only the writeback |
 | Lease expires or node partitions | Block credentials, reject old generation, preserve unsettled spend; no successor publication until fencing is proven |
-| Budget reservation exists but spend unknown | Hold reservation and expose reconciliation; never convert unknown to zero or regrant the entire ceiling |
+| A budget Hold exists but spend is unknown | Keep the Hold and expose reconciliation; never convert unknown to zero or regrant the entire ceiling |
 | Poisonous or malformed attachment | Treat as untrusted artifact, quarantine by policy, no executable content in controller; task may need human clarification |
 
 ## 12. Credentials and permission boundaries
@@ -384,7 +384,7 @@ If both ClickUp and a Forgejo issue represent the same business work, require an
 | --- | --- | --- | --- |
 | Integration administrator | Connection onboarding rights | Register origin, credentials, mappings and webhook lifecycle | Run arbitrary worker code inside integration service |
 | Tracker connector | Scoped tracker credential and webhook secret | Read configured objects and execute approved outbox effects | Approve work, alter budget or supply model master keys |
-| Ploeg control plane | Database, identity policy and broker access | Allocate ownership, reserve budget, mint scoped capabilities | Trust actor/target strings from an unauthenticated caller |
+| Ploeg control plane | Database, identity policy and broker access | Allocate ownership, hold budget, mint scoped capabilities | Trust actor/target strings from an unauthenticated caller |
 | Unfold service | Own sessions/decisions and narrowly scoped Ploeg client identity | Present evidence, record human decisions, request control | Use a global Ploeg credential as the operator's authorization |
 | Agent worker | Per-run model key; read-only clone/context; bounded tool capability | Execute authorized work and submit evidence | See tracker token, LiteLLM master key, Kubernetes token or browser session secret |
 | Publisher | Restricted forge write capability | Apply approved patch to expected target/head under current generation | Change controller policy, grant access or merge without separate authority |
@@ -419,7 +419,7 @@ Unfold adds a binding from Session to WorkOrder/DeliveryAttempt and a decision l
 
 1. **Observe:** connect read-only credentials, fix ClickUp scope handling, mirror items and show routing previews. No writebacks or execution.
 2. **Shadow:** run eligibility and dedup against recorded/synthetic events; compare with operator expectations, establish API-rate and receipt-latency measurements.
-3. **Canary:** one repository, one crew, one operator, low authorized budget. First manually approve every attempt and publication.
+3. **Canary:** one repository, one Team, one operator, low authorized budget. First manually approve every attempt and publication.
 4. **Repair and replay:** kill processes at each transaction boundary, replay notifications, exercise canceled/stale tasks and budget uncertainty. Demonstrate no accepted duplicate writer.
 5. **Team pilot:** add SSO/project roles, VS Code observer mode, durable control requests and review environments. Prove revocation and remote-workspace cleanup.
 6. **Bounded unattended:** permit only an agreed low-risk class under a reviewed policy and per-project WIP/cost caps. Takeover remains available.
@@ -448,7 +448,7 @@ Feature gates should correspond to capabilities (`tracker.read`, `tracker.writeb
 | Outbox | External write succeeds then local crash; reconcile existing comment/PR; ambiguous result remains visible rather than duplicate retry |
 | Loops | Platform writeback webhook does not start new work; human edit to summary is preserved; canonical/mirror pair yields one attempt |
 | Privacy | Revoked user cannot read cached tickets, events, diffs, downloads or VS Code resources through broad integration identity |
-| Money | Takeover with unknown spend retains reservation; budget approval cannot exceed approver limit; revoked generation cannot obtain fresh keys |
+| Money | Takeover with unknown spend keeps its Hold; budget approval cannot exceed approver limit; revoked generation cannot obtain fresh keys |
 | Version compatibility | ClickUp PAT/OAuth modes, supported Forgejo scopes and GitLab signed/legacy hooks each have explicit fixtures and live canary evidence |
 | Recovery | Server restart, node eviction, expired lease and connector outage do not silently convert pause/cancel/interrupted into retry |
 

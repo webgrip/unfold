@@ -127,7 +127,7 @@ Every agent run goes through Ploeg ([ADR-0002](../adr/adr-0002-ploeg-is-the-only
 
 ## Where Unfold fits
 
-Unfold is the front end. It is where you watch Shifts, steer work, read evidence and review results. Today Unfold can also execute an interactive crew itself. In that shared mode, Ploeg admits and budgets the session, but the agents run inside the Unfold application. ADR-0002 retires that path: Unfold will send work to Ploeg's workers instead. Until then, a session admitted by Ploeg never falls back to running without it.
+Unfold is the front end. It is where you watch Shifts, steer work, read evidence and review results. Today Unfold can also execute an interactive Team itself. In that shared mode, Ploeg admits and budgets the session, but the agents run inside the Unfold application. ADR-0002 retires that path: Unfold will send work to Ploeg's workers instead. Until then, a session admitted by Ploeg never falls back to running without it.
 
 ## Limits today
 

@@ -61,7 +61,7 @@ Ploeg handles dispatch. Unfold gives people a place to inspect progress, answer 
 
 ### What you can try today
 
-The Unfold prototype includes durable operator sessions, reusable sequential crews, instructions, permission responses, pause/resume/cancel, changes and check evidence. It includes OpenCode and command-runner adapters, LiteLLM credential lifecycle code and Kubernetes workspace provisioning code, with integration-specific qualification limits.
+The Unfold prototype includes durable operator sessions, reusable sequential Teams, instructions, permission responses, pause/resume/cancel, changes and check evidence. It includes OpenCode and command-runner adapters, LiteLLM credential lifecycle code and Kubernetes workspace provisioning code, with integration-specific qualification limits.
 
 The included demonstration changes real code and runs real tests. It makes no AI calls. It is a reproducible way to inspect the operating workflow before connecting a model account or cluster.
 

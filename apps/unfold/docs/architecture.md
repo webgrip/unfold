@@ -1,6 +1,6 @@
 # Architecture
 
-Unfold is a human workbench for remote agent crews. A person chooses a registered repository, objective, reusable crew and spending limit; the server owns the session after the browser disconnects. People return to a consistent view of progress, changes, checks, blockers and decisions.
+Unfold is a human workbench for remote agent Teams. A person chooses a registered repository, objective, reusable Team and spending limit; the server owns the session after the browser disconnects. People return to a consistent view of progress, changes, checks, blockers and decisions.
 
 The design shifts repeated workspace setup and supervision out of individual terminals. The useful outcome is a reviewable change with evidence. More simultaneous agents alone is not the success criterion.
 
@@ -10,13 +10,13 @@ The design shifts repeated workspace setup and supervision out of individual ter
 | --- | --- |
 | Tracker | Work content, priority and assignment |
 | Ploeg | Unattended dispatch and opt-in operator admission, Shift/Run lifecycle, commands and inference authorization |
-| Unfold | Interactive sessions, delegated crew execution, human intervention, native workspaces and reviewable evidence |
+| Unfold | Interactive sessions, delegated Team execution, human intervention, native workspaces and reviewable evidence |
 | Agent harness | Native reasoning/tool loop and opaque conversation state |
 | LiteLLM | Model routing, scoped virtual credentials and available spend records |
 | Docker Engine | Container isolation of workspaces on the workbench host |
 | Kubernetes | Pod isolation of workspaces in a team deployment |
 
-The authenticated Ploeg read API supplies scoped work and evidence snapshots. With `execution.team` configured, an interactive session becomes one Ploeg Work Item, Shift and operator Run; Unfold executes its crew under that authority. Human and background supervision preserve the same execution. [The execution contract](contracts/ploeg-execution.md) specifies this boundary, and [the operating guide](../../../docs/workflows/managed-execution.md) covers setup and recovery.
+The authenticated Ploeg read API supplies scoped work and evidence snapshots. With `execution.team` configured, an interactive session becomes one Ploeg Work Item, Shift and operator Run; Unfold executes its Team under that authority. Human and background supervision preserve the same execution. [The execution contract](contracts/ploeg-execution.md) specifies this boundary, and [the operating guide](../../../docs/workflows/managed-execution.md) covers setup and recovery.
 
 ```mermaid
 flowchart TD
@@ -36,7 +36,7 @@ flowchart TD
 
 Standalone workbench sessions retain their existing broker behavior when shared execution is not enabled. Bound sessions cannot silently fall back to standalone authority. [Registered Vikunja and ClickUp imports](contracts/ploeg-tracker-binding.md) bind to the existing queued Ploeg Work Item and claim it atomically on Start. General WorkOrders and adoption of already executing harness work remain outside this boundary.
 
-Session creation currently requires a registered repository and crew. An external ticket is optional. Repository-free conversation and automatic CI repair are product intentions, not general implemented workflows. [system ADR-0002](../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md) makes Ploeg the only execution engine: Unfold becomes its front end, and without Ploeg it runs only the deterministic demo. Until that migration lands, the standalone and shared execution paths described here remain the current implementation. See [product rule R8](../../../docs/domain/rules.md#r8).
+Session creation currently requires a registered repository and Team. An external ticket is optional. Repository-free conversation and automatic CI repair are product intentions, not general implemented workflows. [system ADR-0002](../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md) makes Ploeg the only execution engine: Unfold becomes its front end, and without Ploeg it runs only the deterministic demo. Until that migration lands, the standalone and shared execution paths described here remain the current implementation. See [product rule R8](../../../docs/domain/rules.md#r8).
 
 ## Implementation map
 
@@ -45,15 +45,15 @@ Every module in `src/`:
 | Module | Role |
 | --- | --- |
 | [`src/main.ts`](../src/main.ts) | Startup and shutdown: wires the store, runtimes, broker, engine, agent host and HTTP server |
-| [`src/config.ts`](../src/config.ts) | Parses and validates the configuration file and environment; defines the default crews and workspace placements |
-| [`src/types.ts`](../src/types.ts) | Shared domain and adapter types: session, run, crew, configuration and the runtime interface |
+| [`src/config.ts`](../src/config.ts) | Parses and validates the configuration file and environment; defines the default Teams and workspace placements |
+| [`src/types.ts`](../src/types.ts) | Shared domain and adapter types: session, run, Team, configuration and the runtime interface |
 | [`src/http.ts`](../src/http.ts) | The single router: REST API, server-sent events, static files, mutation guard and secret redaction |
 | [`src/static.ts`](../src/static.ts) | Serves the public directory with a content ETag, 304 revalidation and cached gzip for text types |
 | [`src/auth.ts`](../src/auth.ts) | Local password login, cookie sign-ins and the editor device-code sign-in |
 | [`src/oidc.ts`](../src/oidc.ts) | OpenID Connect sign-in with PKCE; maps groups or a claim to a role |
 | [`src/links.ts`](../src/links.ts) | Per-person linked GitLab and ClickUp accounts, stored encrypted, used for tracker reads and clone access |
 | [`src/store.ts`](../src/store.ts) | SQLite store for sessions, events, permissions, users, sign-ins, encrypted internal state and the card collection (logins, binder marks, opened packs and pulls, inner world decorations) |
-| [`src/engine.ts`](../src/engine.ts) | Session lifecycle: create, start, pause, resume, cancel, retry, review, messages, permissions and budget; runs crew roles in sequence, captures the candidate and recovers after a restart |
+| [`src/engine.ts`](../src/engine.ts) | Session lifecycle: create, start, pause, resume, cancel, retry, review, messages, permissions and budget; runs a Team's Roles in sequence, captures the candidate and recovers after a restart |
 | [`src/failures.ts`](../src/failures.ts) | Fixed catalogue of safe failure categories and stages, and classification of runtime errors into it |
 | [`src/broker.ts`](../src/broker.ts) | Standalone LiteLLM admin client: mints, reads, revokes and reconciles per-session virtual keys |
 | [`src/execution-authority.ts`](../src/execution-authority.ts) | Shared-mode client for Ploeg's operator execution API: admission, commands, credential, spend and block |
@@ -109,7 +109,7 @@ Node 24 runs erasable TypeScript directly. The production application has one th
 
 ## Sessions, runs and handoffs
 
-A session owns its objective, repository, branch, budget and human history. Crew roles execute sequentially. A crew may begin with one writer; every subsequent role is read-only, and at least one read role is required. The final read role reviews the work. Writing crews require its explicit approval to complete; earlier read roles supply analysis, and a wholly read-only crew does not use the same approval gate. See the [engine](../src/engine.ts). In shared mode these crew steps belong to one Ploeg operator Run; the two systems' run identifiers are not interchangeable.
+A session owns its objective, repository, branch, budget and human history. A Team's Roles execute sequentially. A Team may begin with one writer; every subsequent role is read-only, and at least one read role is required. The final read role reviews the work. Writing Teams require its explicit approval to complete; earlier read roles supply analysis, and a wholly read-only Team does not use the same approval gate. See the [engine](../src/engine.ts). In shared mode these Team steps belong to one Ploeg operator Run; the two systems' run identifiers are not interchangeable.
 
 Native harness session IDs are adapter details. They can support continuation within that harness, but are not portable conversation formats. The portable handoff consists of repository changes, an objective, remaining constraints, a summary, checks and review findings. Changing a model or harness does not migrate its hidden context.
 
@@ -117,11 +117,11 @@ Session events are persisted before they are exposed through the event stream. A
 
 ## Trust and spending
 
-Configuration supplies the allowed repository, crew, model and runtime IDs. User requests select from those registrations. Arbitrary process arguments and workspace endpoints are administrator configuration, not prompt-controlled inputs.
+Configuration supplies the allowed repository, Team, model and runtime IDs. User requests select from those registrations. Arbitrary process arguments and workspace endpoints are administrator configuration, not prompt-controlled inputs.
 
 The standalone control plane holds its login secrets, LiteLLM minting credential, Docker socket and Kubernetes authority. In shared execution mode, the LiteLLM minting credential stays in Ploeg; Unfold receives only the per-execution inference capability. A worker receives only its session's inference key, explicitly provisioned repository access and the environment names or Kubernetes Secrets an administrator listed for it. Placement is chosen per session from the backends a deployment enables ([ADR 0009](adrs/0009-workspace-placement-is-a-session-choice.md)). Without a `runtime.backend` setting the default is `local`; when `runtime.backends` lists several, the first listed is the default ([`src/config.ts`](../src/config.ts)). The `docker` backend runs the clone and the harness in a hardened container from the pinned agent image on the workbench host; choose it explicitly to keep workspaces away from the server's files. The `local` backend shares the control server’s OS user and permits access to server files through approved shell commands; use it only for trusted single-user development. Kubernetes is the intended isolated team backend for a workbench deployed in the cluster, with network policy enforcement dependent on the target cluster. Remote HTTP adapters are integrations with trusted, authenticated endpoints. A read-only role instruction is not a filesystem or credential boundary; review actual adapter and workspace enforcement before giving it production push access.
 
-`budgetUsd` is authorized spend. `spentUsd` is the standalone accounting total, accompanied by `costStatus`. Shared executions expose provisional Ploeg readings through `observedUsd` and retain pending or unknown status until independent accounting is resolved. Demo work has no model calls. Pending or unavailable live metering must remain visible, and an administrator must explicitly authorize an increase. Gateway budgets, TTL and revocation reduce exposure; they are not proof of an exact monetary ceiling for in-flight requests.
+`budgetUsd` is authorized spend. `spentUsd` is the standalone accounting total, accompanied by `costStatus`. Shared executions expose provisional Ploeg readings through `observedUsd` with `costStatus` `observed` or `unknown` until independent accounting is resolved; a session stored with the retired `pending` reads as `observed`. Demo work has no model calls. Unsettled or unavailable live metering must remain visible, and an administrator must explicitly authorize an increase. Gateway budgets, TTL and revocation reduce exposure; they are not proof of an exact monetary ceiling for in-flight requests.
 
 ## Operating envelope
 

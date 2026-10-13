@@ -12,7 +12,7 @@ Date: 2026-09-09. Starting Unfold revision: `6c8fa08`. This increment implements
 | PV-015 | Ploeg candidate authenticates before deduplication and enforces the existing body limit | Patch applies; Go/PostgreSQL tests pending. New media-type policy and transactional inbox remain open |
 | PV-074 | Ploeg candidate requires successful explicit approval from every required final reader | Patch applies; Go/PostgreSQL tests pending. Missing approval stays a human review outcome; it creates no new paid work |
 
-Local backlog status `review` means candidate code exists. It is not a tracker transition, human acceptance or production qualification. Generated briefs include the evidence and remaining checks so a crew is not assigned to recreate a change that already exists. Do not close an entire audited gap because one of its remediation tickets has candidate code.
+Local backlog status `review` means candidate code exists. It is not a tracker transition, human acceptance or production qualification. Generated briefs include the evidence and remaining checks so a Team is not assigned to recreate a change that already exists. Do not close an entire audited gap because one of its remediation tickets has candidate code.
 
 ## Try the Unfold changes
 

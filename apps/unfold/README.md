@@ -2,7 +2,7 @@
 
 Developed in [Unfold](../../README.md). Run repository-wide checks from the Unfold root.
 
-A self-hosted workbench for people steering remote agent crews. Bring a task from **Vikunja, ClickUp, Forgejo, GitHub or GitLab**, choose a reusable crew and budget, and supervise the work from a browser or VS Code. Your configured server runs the agents; your workstation remains the place you steer and review them.
+A self-hosted workbench for people steering remote agent Teams. Bring a task from **Vikunja, ClickUp, Forgejo, GitHub or GitLab**, choose a reusable Team and budget, and supervise the work from a browser or VS Code. Your configured server runs the agents; your workstation remains the place you steer and review them.
 
 Unfold sits beside [Ploeg](https://github.com/ploeg-hq/ploeg). The tracker owns priorities, Ploeg owns unattended dispatch, and Unfold owns interactive sessions and human intervention. The Ploeg workbench now exposes scoped work, evidence and spending snapshots. An opt-in shared execution path lets Ploeg admit interactive sessions while Unfold provides their workspace and human controls. [Run the unified baseline](../../docs/workflows/managed-execution.md). A completed shared session can now pass through a [canonical candidate, independent Docker checks and candidate-bound approval](docs/contracts/candidate-delivery.md); Ploeg retains the authority and evidence. Live publication remains disabled.
 
@@ -15,7 +15,7 @@ npm ci --omit=dev
 npm run demo
 ```
 
-Open **http://127.0.0.1:4080**; it lands on **Now**, marked **Demo** in the status strip. Open **Tasks**: on a wide screen **[Demo fixture] Fix checkout rounding** opens beside the list (on a phone, select it). Keep **Delivery crew** and select **Create session**. On the session page select **Start crew**, then inspect the diff on **Changes**, the failing baseline, repaired tests and independent review on **Checks**, and download the candidate from **Repository handoff**. You can also start from **Sessions** › **New session** with the **Order service** repository. The [coworker walkthrough](docs/operations/demo.md) is a ten-minute script; the [0.2.0 walkthrough](docs/operations/iteration-0.2.0.md) records that release.
+Open **http://127.0.0.1:4080**; it lands on **Now**, marked **Demo** in the status strip. Open **Tasks**: on a wide screen **[Demo fixture] Fix checkout rounding** opens beside the list (on a phone, select it). Keep **Delivery team** and select **Create session**. On the session page select **Start team**, then inspect the diff on **Changes**, the failing baseline, repaired tests and independent review on **Checks**, and download the candidate from **Repository handoff**. You can also start from **Sessions** › **New session** with the **Order service** repository. The [coworker walkthrough](docs/operations/demo.md) is a ten-minute script; the [0.2.0 walkthrough](docs/operations/iteration-0.2.0.md) records that release.
 
 This is an explicitly labeled deterministic demo. It copies an isolated Git fixture, modifies real source and executes real Node tests. It makes **zero AI calls** and records **zero model spend**. It demonstrates the operating workflow, not model quality.
 
@@ -32,7 +32,7 @@ npm run smoke
 - One task connection contract for Forgejo issues, GitHub issues, GitLab issues, ClickUp List tasks and Vikunja project tasks. An administrator registers each connection once; browser and editor use the same sources.
 - An explicit task preview and import into a queued session, with source identity and revision retained. Importing a task does not start a model request or change the tracker.
 - Durable sessions and event replay, operator instructions, pause/resume/cancel, and human permission responses.
-- Reusable crews with one optional writer followed by explicit reviewers, a branch per session, and reviewable evidence.
+- Reusable Teams with one optional writer followed by explicit reviewers, a branch per session, and reviewable evidence.
 - Retained candidate export for supported workspaces, with a manifest, binary-capable Git patch and self-contained snapshot bundle. Export availability and limits are visible; see the [iteration guide](docs/operations/iteration-0.2.0.md).
 - OpenCode server integration and a JSON-lines command bridge for additional harnesses.
 - LiteLLM virtual-key lifecycle and visible accounting states; authorized budget additions are administrator actions.
@@ -61,7 +61,7 @@ Connection registration in this iteration is administrator configuration. OAuth 
 
 ## Use it from VS Code
 
-The [desktop extension](extensions/vscode/README.md) adds a native session tree, task import, remote crew controls, a themed work/evidence/activity panel, human decisions and evidence export. Share a selection or file only after previewing its exact destination and content. The configured workbench runs the session's workspace and harness; it may be on your machine or on a remote host.
+The [desktop extension](extensions/vscode/README.md) adds a native session tree, task import, remote Team controls, a themed work/evidence/activity panel, human decisions and evidence export. Share a selection or file only after previewing its exact destination and content. The configured workbench runs the session's workspace and harness; it may be on your machine or on a remote host.
 
 Use the VSIX included in the chosen release. Install it with **Extensions → … → Install from VSIX**, connect to the demo or your remote HTTPS workbench, and import a task or create a session. To build from source:
 
@@ -78,7 +78,7 @@ The [validation matrix](docs/validation.md) records actual-server integration, b
 
 The [0.2.0 iteration](docs/operations/iteration-0.2.0.md) connects task selection to an interactive session and retained review evidence. The earlier [implementation increment](docs/operations/implementation-progress.md) added keyboard evidence navigation, stable reading/draft behavior and actionable failures. Cross-service qualification is recorded in the [real cross-service baseline](../../docs/workflows/managed-execution.md#reproduce-qualification). Ploeg's source now lives in this monorepo under `apps/ploeg`.
 
-Run the stable service separately from the candidate checkout, register the Unfold repository, and connect the task source that holds its backlog. Preview one bounded task, import it, authorize a small LiteLLM budget and start the crew. Export and independently verify the candidate before a human publishes the proposal and reviews the merge. The [iteration guide](docs/operations/iteration-0.2.0.md) records the 0.2.0 loop; the [self-improvement design](docs/design/self-improvement.md) specifies its planned automation.
+Run the stable service separately from the candidate checkout, register the Unfold repository, and connect the task source that holds its backlog. Preview one bounded task, import it, authorize a small LiteLLM budget and start the Team. Export and independently verify the candidate before a human publishes the proposal and reviews the merge. The [iteration guide](docs/operations/iteration-0.2.0.md) records the 0.2.0 loop; the [self-improvement design](docs/design/self-improvement.md) specifies its planned automation.
 
 Use the [documentation index](docs/index.md) for current guidance. The [design chapter guide](docs/PRODUCT-DESIGN.md) links the September planning baseline and market hypotheses. Those chapters contain proposals and dated gaps; the [architecture](docs/architecture.md) describes current behavior. Universal Ploeg authority and a common local or remote runner remain [open choices](../../docs/landscape/questions.md).
 

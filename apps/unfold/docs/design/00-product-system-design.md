@@ -14,7 +14,7 @@ The [first implementation increment](../operations/implementation-progress.md) a
 
 ### The short answer to self-improvement
 
-Run the previous stable Unfold release as a service and register the Unfold source repository as an allowed target. A crew edits a candidate branch in a separate remote workspace. The running service survives the candidate's mistakes. The result returns as changes, actual checks and review findings; a human reviews and merges, and the existing release pipeline deploys the next stable version. Improving Unfold does not grant an agent the right to deploy it, change its own budget or modify the rules governing its run.
+Run the previous stable Unfold release as a service and register the Unfold source repository as an allowed target. A Team edits a candidate branch in a separate remote workspace. The running service survives the candidate's mistakes. The result returns as changes, actual checks and review findings; a human reviews and merges, and the existing release pipeline deploys the next stable version. Improving Unfold does not grant an agent the right to deploy it, change its own budget or modify the rules governing its run.
 
 That first loop can be supervised manually with the existing Unfold API. Automated ticket intake, canonical change export, trusted independent verification, team identity and a single claim shared with Ploeg require the backlog in this repository. Until those controls are implemented and qualified, the first tasks should be small UI, documentation or test improvements in a disposable branch, with human-run verification before merge.
 
@@ -47,10 +47,10 @@ A single developer who only wants a faster inline assistant may be better served
 | --- | --- | --- |
 | Ploeg Engine | External work identity, dispatch, leases, shifts/runs, delivery evaluation | Existing engine; unified work-order and takeover contracts proposed |
 | Unfold Workbench | Interactive sessions, operator decisions, evidence browsing and handoffs | Existing browser application; editor extension added separately |
-| Crew library | Versioned role procedures, skills, repository contracts and model profiles | Basic crew/config and portable skill exist; registry/pinning/evaluation proposed |
+| Team library | Versioned role procedures, skills, repository contracts and model profiles | Basic Team configuration and portable skill exist; registry/pinning/evaluation proposed |
 | Runtime adapters | Translate approved runs into harness sessions and normalized evidence | Unfold OpenCode and command bridge exist; Ploeg has its own published harness seam |
 | Workspace service | Provision and reconcile isolated execution environments | Local and Kubernetes implementations exist; shared lifecycle hardening proposed |
-| Credential and budget broker | Issue minimal credentials, authorize reservations, revoke and settle | LiteLLM integration exists; stronger cross-client budget and identity controls proposed |
+| Credential and budget broker | Issue minimal credentials, place Holds, revoke and settle | LiteLLM integration exists; stronger cross-client budget and identity controls proposed |
 | Connector packages | Normalize tracker and forge events and manage limited writeback | Ploeg providers partly exist; issue intake and durable reconciliation gaps remain |
 | Verification and evidence service | Independently verify immutable candidates and attest outcomes | Proposed; writer tool output alone is not this service |
 
@@ -87,10 +87,10 @@ Use these names consistently across APIs, UI, tickets and documentation. Existin
 | Source item | A native ticket identified within its connection and scope | External tracker |
 | Work order | Immutable approved task revision and execution mandate | Ploeg |
 | Delivery attempt | One fenced execution attempt for a work order | Ploeg |
-| Shift / Run | Existing Ploeg crew lifecycle and role execution objects | Ploeg |
+| Shift / Run | Existing Ploeg attempt lifecycle and Role execution objects | Ploeg |
 | Session | Human-facing interaction and evidence context linked to an attempt | Unfold |
 | Mandate | Capabilities, client/repository scope, budget and approval needed for execution | Policy/authorization owner |
-| Crew version | Immutable role graph, skill digests and model requirements | Crew registry |
+| Team version | Immutable role graph, skill digests and model requirements | Team registry |
 | Workspace | Disposable execution environment plus retained change/state references | Workspace service |
 | Candidate | A base SHA, candidate SHA and complete retrievable change set | Forge/artifact service |
 | Check run | Actual independent execution against the candidate and policy version | Verification service |
@@ -129,13 +129,13 @@ For nontrivial changes, follow the repository's existing OpenSpec/ADR discipline
 
 ### 3. Normalize and approve
 
-The intake layer verifies delivery authenticity, durably records the notification and reads the authoritative task. It computes separate content and material hashes. The proposed work order includes source identity, instruction snapshot, acceptance criteria, allowed repository/base SHA, crew version, policy version, resource/budget limits and external write permissions.
+The intake layer verifies delivery authenticity, durably records the notification and reads the authoritative task. It computes separate content and material hashes. The proposed work order includes source identity, instruction snapshot, acceptance criteria, allowed repository/base SHA, Team version, policy version, resource/budget limits and external write permissions.
 
 Small pre-approved task classes can use a standing mandate. Higher-risk work requires an explicit human decision. Standing mandates still have owners, expiry, limits and exclusions; they are not a permanent unrestricted agent account. Changes to authentication, budget accounting, Kubernetes RBAC, release credentials or agent policy always require a separate review path in the initial product.
 
 ### 4. Claim and execute
 
-Ploeg creates a delivery attempt and issues a monotonic ownership generation. The dispatcher chooses an allowed runtime/workspace profile and reserves money and capacity atomically with the attempt's state transition. Execution obtains only the credentials needed for the approved role. A queue with available work is not permission to exceed a client's budget or concurrency limit.
+Ploeg creates a delivery attempt and issues a monotonic ownership generation. The dispatcher chooses an allowed runtime/workspace profile and holds money and reserves capacity atomically with the attempt's state transition. Execution obtains only the credentials needed for the approved role. A queue with available work is not permission to exceed a client's budget or concurrency limit.
 
 Within an attempt, begin with one writer and explicit reviewers. Parallel read-only research can be introduced after independent workspace and result-merging semantics are defined. Parallel writers require separate branches/workspaces and an integration task; they should not share one writable checkout. The first commercial pilot should prefer predictable task boundaries over dynamic, unbounded agent conversations.
 
@@ -169,7 +169,7 @@ The tracker receives one concise status summary with the review URL, current blo
 
 Reconcile key usage and release capacity separately from the work's delivery result. A failed task can still incur cost. A reviewed task can still have unsettled charges. Meter model usage, runtime minutes and relevant external services as distinct quantities, and include human review effort when evaluating productivity.
 
-Learning is an evaluated configuration change: update a skill, model profile, tool image or crew definition through version control, replay a representative benchmark, and compare acceptance quality and cost. Do not automatically promote every successful run's instructions into global memory. A client's code or findings must never become another client's implicit context.
+Learning is an evaluated configuration change: update a skill, model profile, tool image or Team definition through version control, replay a representative benchmark, and compare acceptance quality and cost. Do not automatically promote every successful run's instructions into global memory. A client's code or findings must never become another client's implicit context.
 
 ## Shared execution and takeover state
 
@@ -209,7 +209,7 @@ This is the proposed work-order/attempt product view, not a direct replacement f
 | Attempt | queued, executing, stopping, stopped, unknown | A cancellation request does not prove process death |
 | Human decision | none, required, approved, rejected, expired | A branch or policy change can invalidate approval |
 | Verification | not_started, running, passed, failed, blocked | A reviewer saying approve is not an executed check |
-| Accounting | reserved, accruing, reconciling, settled, unresolved | A terminal task can still have unpaid or delayed usage |
+| Accounting | held, accruing, reconciling, settled, unresolved | A terminal task can still have unpaid or delayed usage |
 | Synchronization | current, delayed, conflict, unavailable | A stale tracker view should not appear live |
 
 ## Interoperability without pretending everything is portable
