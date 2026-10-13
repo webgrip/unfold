@@ -24,16 +24,21 @@ export const ploegLanes = Object.freeze([
   Object.freeze({ id: 'needs_human', label: 'Needs you', tone: 'attention' }),
   Object.freeze({ id: 'leased', label: 'Running' }),
   Object.freeze({ id: 'queued', label: 'Queued' }),
-  Object.freeze({ id: 'all', label: 'All' }),
+  Object.freeze({ id: 'open', label: 'Open', newestFirst: true }),
+  Object.freeze({ id: 'closed', label: 'Closed', newestFirst: true }),
 ]);
 
 const laneIds = ploegLanes.map(lane => lane.id);
+const newestFirstLane = lane => Boolean(ploegLanes.find(entry => entry.id === lane)?.newestFirst);
+const laneOrder = lane => newestFirstLane(lane) ? newestFirst : byId;
+const spansStates = lane => lane === 'open' || lane === 'closed';
 const laneEmpty = {
   awaiting_review: ['pull-request', 'No pull requests wait for your review', 'When the agents finish a Work Item, its pull request shows up here.', 'neutral'],
   needs_human: ['check-circle', 'Nothing needs you', 'Ploeg is handling the work. When it stops and needs a person, the Work Item shows up here first.', 'success'],
   leased: ['circle-half', 'Nothing is running', 'Queued Work Items start when a worker of their Team is free.', 'neutral'],
   queued: ['circle-dashed', 'The queue is empty', 'Assign a task to a Team in your tracker and Ploeg queues it here.', 'neutral'],
-  all: ['inbox', 'No Work Items yet', 'Assign a task to a Team in your tracker. It appears here when Ploeg picks it up.', 'neutral'],
+  open: ['inbox', 'No open Work Items', 'Assign a task to a Team in your tracker. It appears here when Ploeg picks it up.', 'neutral'],
+  closed: ['check-circle', 'Nothing closed yet', 'Work Items that are done or withdrawn show up here, newest first.', 'neutral'],
 };
 const trackers = { vikunja: 'Vikunja', forgejo: 'Forgejo', github: 'GitHub', gitlab: 'GitLab', clickup: 'ClickUp' };
 const cancellable = new Set(['ingested', 'queued', 'leased']);
@@ -76,7 +81,7 @@ export function workItemRef(item) {
 
 /**
  * Merges one `GET /api/ploeg?team=` response per Team into one overview for "All teams". `results` is
- * `[{ team, data } | { team, error }]`. Lanes hold every Team's loaded items in id order; `cursors` keeps each
+ * `[{ team, data } | { team, error }]`. Lanes hold every Team's loaded items in id order, newest first in Open and Closed; `cursors` keeps each
  * Team's next page and `partial` says whether any Team has more. A Team that failed is listed in `errors`; the
  * overview is available while at least one Team answered.
  */
@@ -95,7 +100,7 @@ export function mergeOverviews(results) {
       if (page.nextCursor) cursors[team] = page.nextCursor;
       for (const item of page.items) if (!seen.has(item.id)) { seen.add(item.id); items.push(item); }
     }
-    items.sort(byId);
+    items.sort(laneOrder(lane));
     return [lane, { items, nextCursor: Object.values(cursors)[0] || null, cursors, partial: Object.keys(cursors).length > 0 }];
   }));
   const fetched = answered.map(result => Date.parse(result.data.fetchedAt)).filter(Number.isFinite);
@@ -110,13 +115,13 @@ export function teamOverview(data) {
 }
 
 /**
- * Adds a loaded page of `team` to a lane: new items only, in id order, with that Team's next cursor. The lane
+ * Adds a loaded page of `team` to `lane`: new items only, in the lane's id order, with that Team's next cursor. The lane
  * remembers in `more` which items each Team added through extra pages, so a refresh can keep them.
  */
-export function appendPage(lanePage, team, page) {
+export function appendPage(lanePage, team, page, lane) {
   const seen = new Set(lanePage.items.map(item => item.id));
   const added = page.items.filter(item => !seen.has(item.id));
-  const items = [...lanePage.items, ...added].sort(byId);
+  const items = [...lanePage.items, ...added].sort(laneOrder(lane));
   const cursors = { ...lanePage.cursors };
   if (page.nextCursor) cursors[team] = page.nextCursor; else delete cursors[team];
   const more = { ...lanePage.more, [team]: [...(lanePage.more?.[team] || []), ...added.map(item => item.id)] };
@@ -136,7 +141,7 @@ export function refreshOverview(previous, fresh) {
     if (!extended.length) return [lane, page];
     const kept = new Set(extended.flatMap(team => old.more[team]));
     const seen = new Set(page.items.map(item => item.id));
-    const items = [...page.items, ...old.items.filter(item => kept.has(item.id) && !seen.has(item.id))].sort(byId);
+    const items = [...page.items, ...old.items.filter(item => kept.has(item.id) && !seen.has(item.id))].sort(laneOrder(lane));
     const cursors = { ...page.cursors };
     for (const team of extended) { if (old.cursors?.[team]) cursors[team] = old.cursors[team]; else delete cursors[team]; }
     return [lane, { ...page, items, cursors, nextCursor: Object.values(cursors)[0] || null, partial: Object.keys(cursors).length > 0, more: old.more }];
@@ -401,7 +406,7 @@ function rowMeta(item, context) {
   const reason = listReason(item, { demo });
   const warning = routingWarning(item);
   const chips = [];
-  if (lane === 'all') chips.push(`<span class="work-row-state"${reason ? ` title="${escape(`${reason.chip}: ${reason.sentence}`)}"` : ''}>${ui.stateBadge(workItemState(displayState(item)), reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}</span>`);
+  if (spansStates(lane)) chips.push(`<span class="work-row-state"${reason ? ` title="${escape(`${reason.chip}: ${reason.sentence}`)}"` : ''}>${ui.stateBadge(workItemState(displayState(item)), reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}</span>`);
   else if (reason && !grouped) chips.push(ui.chip({ label: reason.chip, tone: reason.tone, title: `${reason.sentence} ${reason.fix}` }));
   const hint = laneHint(item, context);
   if (hint) chips.push(hint);
@@ -430,7 +435,7 @@ export function workRow(item, context) {
     lead: `<span title="${escape(reason ? reason.chip : meta.label)}">${reason ? icon(reasonGlyph(reason)) : stateGlyph(meta)}</span>`,
     title: item.title || `Work Item ${item.id}`,
     meta: rowMeta(item, context),
-    trail: `${spendMini(item, context)}<span class="work-row-age"><span class="sr-only">Updated </span>${ui.timeAgo(item.updatedAt)}</span>`,
+    trail: newestFirstLane(context.lane) ? `${spendMini(item, context)}<span class="work-row-age"><span class="sr-only">Created </span>${ui.timeAgo(item.createdAt)}</span>` : `${spendMini(item, context)}<span class="work-row-age"><span class="sr-only">Updated </span>${ui.timeAgo(item.updatedAt)}</span>`,
   })}</li>`;
 }
 
@@ -578,9 +583,10 @@ function headerMarkup(detail, model, reason) {
   return `<header class="work-detail-header"><div class="work-detail-bar"><p class="work-detail-ref overline"><span class="work-detail-kind">Work Item · </span>Team ${escape(item.team)} · ${ref(item)}</p><div class="work-detail-tools">${tools.join('')}</div>${close}</div><h2 class="work-detail-title" id="ploeg-item-title" tabindex="-1">${escape(item.title || `Work Item ${item.id}`)}</h2><div class="work-detail-status">${ui.stateBadge(meta, reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}${warning ? ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }) : ''}</div>${facts.length ? `<p class="work-detail-facts dots">${facts.join('')}</p>` : ''}</header>`;
 }
 
-/** The label of the list a Work Item page goes back to: its lane, or "All Work Items". */
+/** The label of the list a Work Item page goes back to: its lane, "Open Work Items" or "Closed Work Items". */
 export function laneBackLabel(lane) {
-  return lane === 'all' ? 'All Work Items' : ploegLanes.find(entry => entry.id === lane)?.label || 'Work';
+  if (spansStates(lane)) return `${ploegLanes.find(entry => entry.id === lane).label} Work Items`;
+  return ploegLanes.find(entry => entry.id === lane)?.label || 'Work';
 }
 
 function quote(text, at, who = 'Ploeg') {

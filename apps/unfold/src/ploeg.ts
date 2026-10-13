@@ -25,7 +25,9 @@ export type PloegCheckpoint = { id: string; workItemId: string; phase: string; b
 export type PloegEvent = { id: string; at: string; actor: string; action: string; workItemId: string; team: string; detail: Record<string, unknown> };
 export type PloegPresentedItem = PloegItem & { descriptionMarkdown: string };
 export type PloegDetail = { item: PloegItem; shifts: PloegShift[]; runs: PloegRun[]; checkpoints: PloegCheckpoint[]; events: PloegEvent[]; truncated: { shifts: boolean; runs: boolean; checkpoints: boolean; events: boolean }; demo?: boolean; fetchedAt?: string };
-export type PloegLane = 'awaiting_review' | 'needs_human' | 'leased' | 'queued' | 'all';
+export type PloegLane = 'awaiting_review' | 'needs_human' | 'leased' | 'queued' | 'open' | 'closed';
+/** What a Work Item list asks Ploeg for: one state, a lane that spans several (`open`, `closed`, newest first) or every Work Item. */
+export type PloegItemFilter = PloegState | 'open' | 'closed' | 'all';
 export type PloegPage = { items: PloegItem[]; nextCursor: string | null };
 export type PloegPresentedPage = { items: PloegPresentedItem[]; nextCursor: string | null };
 export type PloegWindow = '24h' | '7d' | '30d';
@@ -175,6 +177,9 @@ const costStatuses: PloegCostStatus[] = ['observed', 'provisional', 'settled', '
 const runCostStatuses = costStatuses;
 const askStates: PloegAskSpend['state'][] = ['open', 'finished', 'expired'];
 const askCostStatuses = costStatuses;
+const closedStates: PloegState[] = ['done', 'withdrawn'];
+const spanningFilters: Record<'open' | 'closed' | 'all', PloegState[]> = { open: states.filter(state => !closedStates.includes(state)), closed: closedStates, all: states };
+const newestFirstFilters = new Set<PloegItemFilter>(['open', 'closed']);
 const invalid = () => new PloegError(502, 'ploeg_response', 'Ploeg returned an unsupported operator response.');
 const forgeLogin = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/;
 const identifier = (value: unknown): string => { if (typeof value !== 'string' || !/^[1-9][0-9]{0,19}$/.test(value)) throw invalid(); return value; };
@@ -922,15 +927,22 @@ export class PloegClient {
     for (const entry of items) this.remember(entry.id, entry.title);
     return { items, supported: true };
   }
-  async items(user: User, selectedTeam: string, requested: string = 'all', after = '0', fresh = false): Promise<PloegPresentedPage> {
+  /**
+   * One page of `selectedTeam`'s Work Items matching `requested`: a Ploeg state, `open`, `closed` or `all`. `open` and
+   * `closed` list newest first, every other filter oldest first; `cursor` is the previous page's `nextCursor`, or `'0'`.
+   */
+  async items(user: User, selectedTeam: string, requested: string = 'all', cursor = '0', fresh = false): Promise<PloegPresentedPage> {
     this.authorize(user);
     if (!this.allowed(user, selectedTeam)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
-    const state = requested === 'all' ? 'all' : ploegState(requested);
-    if (!/^(0|[1-9][0-9]{0,19})$/.test(after) || !state) throw new PloegError(400, 'ploeg_filter', 'Choose a valid Ploeg state and page cursor.');
-    const query = new URLSearchParams({ team: selectedTeam, after, limit: '25' });
-    if (state !== 'all') query.set('state', state);
-    const result = this.demo ? { items: this.demoItems().filter(item => item.team === selectedTeam && (state === 'all' || item.state === state) && BigInt(item.id) > BigInt(after)), nextCursor: null } : page(await this.request(`work-items?${query}`, fresh));
-    if (result.items.some(item => item.team !== selectedTeam || (state !== 'all' && item.state !== state))) throw invalid();
+    const filter: PloegItemFilter | undefined = Object.hasOwn(spanningFilters, requested) ? requested as keyof typeof spanningFilters : ploegState(requested);
+    if (!/^(0|[1-9][0-9]{0,19})$/.test(cursor) || !filter) throw new PloegError(400, 'ploeg_filter', 'Choose a valid Ploeg state and page cursor.');
+    const wanted = Object.hasOwn(spanningFilters, filter) ? spanningFilters[filter as keyof typeof spanningFilters] : [filter as PloegState];
+    const newestFirst = newestFirstFilters.has(filter);
+    const query = new URLSearchParams({ team: selectedTeam, limit: '25' });
+    if (newestFirst) { query.set('order', 'desc'); if (cursor !== '0') query.set('before', cursor); } else query.set('after', cursor);
+    if (filter !== 'all') query.set('state', wanted.join(','));
+    const result = this.demo ? { items: this.demoItems().filter(item => item.team === selectedTeam && wanted.includes(item.state) && (cursor === '0' || (newestFirst ? BigInt(item.id) < BigInt(cursor) : BigInt(item.id) > BigInt(cursor)))).sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1) * (newestFirst ? -1 : 1)), nextCursor: null } : page(await this.request(`work-items?${query}`, fresh));
+    if (result.items.some(item => item.team !== selectedTeam || !wanted.includes(item.state))) throw invalid();
     for (const entry of result.items) this.remember(entry.id, entry.title);
     return { items: result.items.map(entry => presented(entry)), nextCursor: result.nextCursor };
   }
@@ -942,7 +954,7 @@ export class PloegClient {
       const teams = await this.teams(user, fresh);
       const selected = selectedTeam ?? teams[0]?.id;
       if (selected && !teams.some(team => team.id === selected)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
-      const lanes = selected ? Object.fromEntries(await Promise.all((['awaiting_review', 'needs_human', 'leased', 'queued', 'all'] as const).map(async state => [state, await this.items(user, selected, state, '0', fresh)]))) as PloegOverview['lanes'] : undefined;
+      const lanes = selected ? Object.fromEntries(await Promise.all((['awaiting_review', 'needs_human', 'leased', 'queued', 'open', 'closed'] as const).map(async state => [state, await this.items(user, selected, state, '0', fresh)]))) as PloegOverview['lanes'] : undefined;
       return { ...base, available: true, teams, selectedTeam: selected, lanes, fetchedAt: new Date().toISOString(), message: this.demo ? 'Illustrative Ploeg records. These runs were not executed; no model calls or charges.' : 'Read-only operator snapshot. Ploeg owns execution; open a linked workbench session to supervise interactive work.' };
     } catch (error) { if (error instanceof PloegError && [403, 404].includes(error.status)) throw error; return { ...base, message: error instanceof PloegError ? error.message : 'Ploeg operator data is unavailable.' }; }
   }

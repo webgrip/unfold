@@ -25,7 +25,9 @@ async function upstream(t: TestContext) {
     const send = (data: unknown) => res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...data as object }));
     if (url.pathname.endsWith('/teams')) { send({ teams: ploegDemo.teams }); return; }
     if (url.pathname.endsWith('/work-items')) {
-      const items = Object.values(details).map(detail => detail.item).filter(item => item.team === url.searchParams.get('team') && (!url.searchParams.has('state') || item.state === url.searchParams.get('state')) && BigInt(item.id) > BigInt(url.searchParams.get('after') || '0'));
+      const descending = url.searchParams.get('order') === 'desc';
+      const wanted = url.searchParams.get('state')?.split(',');
+      const items = Object.values(details).map(detail => detail.item).filter(item => item.team === url.searchParams.get('team') && (!wanted || wanted.includes(item.state)) && (descending ? !url.searchParams.has('before') || BigInt(item.id) < BigInt(url.searchParams.get('before')!) : BigInt(item.id) > BigInt(url.searchParams.get('after') || '0'))).sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1) * (descending ? -1 : 1));
       const limit = Number(url.searchParams.get('limit') || 25);
       send({ items: items.slice(0, limit), nextCursor: items.length > limit ? items[limit - 1].id : null }); return;
     }
@@ -68,14 +70,14 @@ test('live operator projection reads all lanes, complete evidence and honest unk
   assert.equal(overview.lanes?.queued.items[0].id, '103');
   assert.deepEqual(overview.lanes?.awaiting_review.items.map(item => item.id), ['105']);
   assert(upstreamApi.seen.some(call => call.path.includes('state=awaiting_review')));
-  assert.equal(upstreamApi.seen.length, 6);
+  assert.equal(upstreamApi.seen.length, 7);
   await ploeg.overview(admin);
-  assert.equal(upstreamApi.seen.length, 6);
+  assert.equal(upstreamApi.seen.length, 7);
   await ploeg.overview(admin, undefined, true);
-  assert.equal(upstreamApi.seen.length, 12);
+  assert.equal(upstreamApi.seen.length, 14);
   upstreamApi.rotate();
   await ploeg.overview(admin);
-  assert.equal(upstreamApi.seen.length, 18, 'rotating the consumer credential invalidates cached scope');
+  assert.equal(upstreamApi.seen.length, 21, 'rotating the consumer credential invalidates cached scope');
   const detail = await ploeg.detail(admin, '101');
   assert.equal(detail.demo, false);
   assert.equal(detail.runs[0].costStatus, 'unknown');
@@ -109,7 +111,7 @@ test('HTTP projection authenticates and intersects local user mapping with deplo
   assert.equal((await request(server.url, '/api/ploeg?team=research', administrator)).status, 404);
   assert.equal((await request(server.url, '/api/ploeg/work-items?team=research', reader)).status, 404);
   assert.equal((await request(server.url, '/api/ploeg/work-items/101', { ...administrator, method: 'POST' })).status, 405);
-  assert.equal((await request(server.url, '/api/ploeg/work-items?team=delivery&after=1e4', reader)).status, 400);
+  assert.equal((await request(server.url, '/api/ploeg/work-items?team=delivery&cursor=1e4', reader)).status, 400);
   assert.equal((await request(server.url, '/api/ploeg/work-items?team=delivery&state=unknown', reader)).status, 400);
   assert.equal((await request(server.url, '/api/bootstrap', administrator)).text.includes(upstreamApi.token), false);
   assert.equal(server.app.store.listSessions().length, 0, 'reading external work must not create execution records');
@@ -162,6 +164,32 @@ test('an Ask\'s spend keeps every Cost Status Ploeg reports, the observed of a n
   });
   const ploeg = client(upstreamApi.config);
   for (status of ['observed', 'provisional', 'settled', 'unknown']) assert.equal((await ploeg.askSpend(admin, '101', 'a-1')).costStatus, status);
+});
+
+test('the open and closed lanes list newest first and page backwards with before', async t => {
+  const upstreamApi = await upstream(t);
+  for (let n = 0; n < 27; n++) {
+    const id = String(9007199254740993n + BigInt(n));
+    const detail = structuredClone(upstreamApi.details['103']);
+    detail.item.id = id; detail.item.state = n % 2 ? 'done' : 'queued'; detail.events = [];
+    upstreamApi.details[id] = detail;
+  }
+  const ploeg = client(upstreamApi.config);
+  const ids = (items: { id: string }[]) => items.map(item => BigInt(item.id));
+  const open = await ploeg.items(admin, 'delivery', 'open');
+  assert.equal(open.items[0].id, '9007199254741019');
+  assert(ids(open.items).every((id, index, all) => index === 0 || id < all[index - 1]), 'open is newest first');
+  assert(open.items.every(item => !['done', 'withdrawn'].includes(item.state)));
+  const closed = await ploeg.items(admin, 'delivery', 'closed');
+  assert.equal(closed.items[0].id, '9007199254741018');
+  assert(closed.items.every(item => ['done', 'withdrawn'].includes(item.state)));
+  assert(ids(closed.items).every((id, index, all) => index === 0 || id < all[index - 1]), 'closed is newest first');
+  const requests = upstreamApi.seen.filter(entry => entry.path.includes('/work-items?')).map(entry => new URL(entry.path, 'http://fixture.invalid').searchParams);
+  assert.deepEqual(requests.map(query => [query.get('order'), query.get('state'), query.has('after')]), [['desc', 'ingested,queued,leased,needs_human,awaiting_review,stale,proposed', false], ['desc', 'done,withdrawn', false]]);
+  const older = await ploeg.items(admin, 'delivery', 'open', open.nextCursor ?? open.items.at(-1)!.id);
+  assert(older.items.every(item => BigInt(item.id) < BigInt(open.items.at(-1)!.id)), 'the next page holds only older Work Items');
+  assert.equal(upstreamApi.seen.at(-1)?.path.includes(`before=${open.nextCursor ?? open.items.at(-1)!.id}`), true);
+  await assert.rejects(ploeg.items(admin, 'delivery', 'constructor'), /valid Ploeg state/, 'a filter name is never looked up on the prototype');
 });
 
 test('opaque bigint cursors paginate and unexpected team records or cross-item evidence fail closed', async t => {

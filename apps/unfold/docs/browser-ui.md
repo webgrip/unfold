@@ -55,7 +55,7 @@ A hash is `#<path>?<query>`. [`route.js`](../public/core/route.js) splits it wit
 | Path | View | Query parameters |
 | --- | --- | --- |
 | `now` | [`now`](../public/views/now.js) | — |
-| `work`, `work/<id>` | [`work`](../public/views/work.js) | `lane` (`awaiting_review`, `needs_human`, `leased`, `queued`, `all`), `team`. With no `team`, the last Team chosen in this browser, or all Teams. A row's link carries both, so the Work Item page keeps its list; Copy link gives the bare `#work/<id>` |
+| `work`, `work/<id>` | [`work`](../public/views/work.js) | `lane` (`awaiting_review`, `needs_human`, `leased`, `queued`, `open`, `closed`; the retired `all` opens `open`), `team`. With no `team`, the last Team chosen in this browser, or all Teams. A row's link carries both, so the Work Item page keeps its list; Copy link gives the bare `#work/<id>` |
 | `proposed` | [`proposed`](../public/views/proposed.js) | `id` scrolls to that proposal and focuses it |
 | `runs` | [`runs`](../public/views/runs.js) | `team`, `state`, `outcome` |
 | `activity` | [`activity`](../public/views/activity.js) | `team`, `kind` |

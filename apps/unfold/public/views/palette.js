@@ -311,7 +311,8 @@ const lanes = [
   { hash: 'work?lane=awaiting_review', label: 'Ready for review', icon: 'pull-request', keywords: 'pr pull request review awaiting merge', count: 'review', tone: 'review', describe: n => `${n} ready for review` },
   { hash: 'work?lane=leased', label: 'Running', icon: 'activity', keywords: 'leased working in progress busy', count: 'running', tone: 'live', describe: n => `${n} running` },
   { hash: 'work?lane=queued', label: 'Queued', icon: 'circle', keywords: 'waiting backlog next' },
-  { hash: 'work?lane=all', label: 'All Work Items', icon: 'list', keywords: 'everything every lane' },
+  { hash: 'work?lane=open', label: 'Open Work Items', icon: 'list', keywords: 'all everything every lane newest' },
+  { hash: 'work?lane=closed', label: 'Closed Work Items', icon: 'check-circle', keywords: 'done withdrawn finished archived history' },
 ];
 const settings = [
   { hash: 'settings/accounts', label: 'Linked accounts', icon: 'link', keywords: 'github gitlab clickup vikunja token credentials connect' },

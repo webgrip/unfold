@@ -222,7 +222,7 @@ test('malformed groups and unexpected states never break the page or vanish', ()
 
 test('stopped work Now cannot list is a normal row that links to Work', () => {
   const html = nowMarkup(view(), options, nowAt);
-  assert.match(html, /<li class="now-item now-stale"><a class="list-row" href="#work\?lane=all" id="now-stale-open" data-tone="severe">[\s\S]*?<span class="list-row-title">1 Work Item stopped retrying after repeated failures\.<\/span>[\s\S]*?See it in Work/);
+  assert.match(html, /<li class="now-item now-stale"><a class="list-row" href="#work\?lane=open" id="now-stale-open" data-tone="severe">[\s\S]*?<span class="list-row-title">1 Work Item stopped retrying after repeated failures\.<\/span>[\s\S]*?See it in Work/);
   assert.doesNotMatch(html, /Now does not list/);
 });
 

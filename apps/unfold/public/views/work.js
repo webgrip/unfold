@@ -29,8 +29,9 @@ const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequ
 
 onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, flightRevealed: null }));
 
-const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued' };
-const laneFor = item => laneOfState[item?.state] || 'all';
+const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
+const laneFor = item => laneOfState[item?.state] || 'open';
+const retiredLanes = { all: 'open' };
 const canCancel = () => ['operator', 'admin'].includes(state.bootstrap?.user?.role);
 const canAddContext = () => Boolean(state.bootstrap?.user?.role) && state.bootstrap.user.role !== 'viewer';
 
@@ -105,7 +106,7 @@ function shellOptions(current) {
   const actions = workRefreshButton(current);
   if (!current.detailId) return { title, subtitle, actions };
   const item = current.detail?.item;
-  return { title, subtitle, actions, documentTitle: item ? tabTitle(item) : undefined, back: { label: laneBackLabel(current.lanePending ? 'all' : current.lane), href: current.listHref }, breadcrumbs: [{ label: 'Work', href: current.listHref }, { label: item ? workItemRef(item) : `#${current.detailId}` }] };
+  return { title, subtitle, actions, documentTitle: item ? tabTitle(item) : undefined, back: { label: laneBackLabel(current.lanePending ? '' : current.lane), href: current.listHref }, breadcrumbs: [{ label: 'Work', href: current.listHref }, { label: item ? workItemRef(item) : `#${current.detailId}` }] };
 }
 
 function focusTarget() {
@@ -756,7 +757,8 @@ async function enterWork({ id, query = {} } = {}) {
   registerLive();
   work.pickLane = null;
   let chosen = false;
-  if (lanes.includes(query.lane)) state.ploegLane = query.lane;
+  const lane = retiredLanes[query.lane] || query.lane;
+  if (lanes.includes(lane)) state.ploegLane = lane;
   else if (id) { const known = knownItem(id); if (known) { state.ploegLane = laneFor(known); chosen = true; } else work.pickLane = id; }
   else if (!within) state.ploegLane = null;
   const team = teamFromQuery(query);
@@ -820,11 +822,11 @@ async function loadMore() {
   work.loadingMore = true;
   renderWork();
   try {
-    const pages = await Promise.all(Object.entries(page.cursors).map(([owner, after]) => api(`/api/ploeg/work-items?${new URLSearchParams({ team: owner, state: lane, after })}`).then(result => [owner, result])));
+    const pages = await Promise.all(Object.entries(page.cursors).map(([owner, cursor]) => api(`/api/ploeg/work-items?${new URLSearchParams({ team: owner, state: lane, cursor })}`).then(result => [owner, result])));
     const current = state.ploeg;
     if (!visible() || work.loadedTeam !== team || !current?.lanes?.[lane]) return;
     let next = current.lanes[lane];
-    for (const [owner, result] of pages) next = appendPage(next, owner, result);
+    for (const [owner, result] of pages) next = appendPage(next, owner, result, lane);
     current.lanes[lane] = next;
   } catch (error) { if (state.bootstrap) notify(error.message, true); }
   finally { work.loadingMore = false; renderWork(); }
