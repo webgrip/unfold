@@ -1,3 +1,14 @@
+## [unfold-v0.4.0-rc.75](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.74...unfold-v0.4.0-rc.75) (2026-10-13)
+
+### Added
+
+* **unfold:** follow a filed report until it is fixed ([8b1b5db](https://forgejo.webgrip.dev/webgrip/unfold/commit/8b1b5dbef3ed71358eac887f05b65273eeec8f7c))
+* **unfold:** tell an AI client what changed since the last digest ([9dad671](https://forgejo.webgrip.dev/webgrip/unfold/commit/9dad67134fab68e624ded575bb0de706254c02f4))
+
+### Tests
+
+* **unfold:** check Ploeg's words against Unfold's screen words ([9470d06](https://forgejo.webgrip.dev/webgrip/unfold/commit/9470d063d4fae8e11e46e8bf8ccbff9a011465f3))
+
 ## [unfold-v0.4.0-rc.74](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.73...unfold-v0.4.0-rc.74) (2026-10-13)
 
 ### Added
