@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { hostname } from 'node:os';
+import { homedir, hostname } from 'node:os';
+import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createMcpServer, serveStdio } from '../src/mcp.ts';
 
@@ -13,7 +14,7 @@ if (!/^https?:\/\/[^\s/?#@]+(?:\/[^\s?#]*)?$/.test(url)) {
 }
 
 if (process.argv[2] === 'login') await login();
-else if (process.argv[2] === undefined) await serveStdio(createMcpServer({ url, token, version }), process.stdin, process.stdout);
+else if (process.argv[2] === undefined) await serveStdio(createMcpServer({ url, token, version, stateFile: join(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'unfold-mcp', 'digest.json') }), process.stdin, process.stdout);
 else {
   process.stderr.write('usage: unfold-mcp [login]\n');
   process.exit(2);

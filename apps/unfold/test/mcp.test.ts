@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { PassThrough } from 'node:stream';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { application } from './api-support.ts';
 import { createMcpServer, serveStdio } from '../src/mcp.ts';
 
@@ -23,7 +26,7 @@ test('unfold-mcp tells a client what waits, why, and what to do, from the demo w
   assert.equal(await server.handle({ jsonrpc: '2.0', method: 'notifications/initialized' }), undefined);
 
   const listed = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  assert.deepEqual(listed?.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_spend', 'unfold_ask']);
+  assert.deepEqual(listed?.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_spend', 'unfold_digest', 'unfold_ask']);
   for (const tool of listed?.result.tools ?? []) {
     assert.equal(tool.annotations.readOnlyHint, tool.name !== 'unfold_ask', tool.name);
     assert.match(tool.name, /^[a-z][a-z0-9_]{0,29}$/);
@@ -128,7 +131,7 @@ test('unfold-mcp speaks newline-delimited JSON-RPC on stdio and answers bad line
   assert.deepEqual(lines.map(line => line.id ?? null), [1, null, null, 3]);
   assert.equal(lines[1].error.code, -32700);
   assert.equal(lines[2].error.code, -32600);
-  assert.equal(lines[3].result.tools.length, 6);
+  assert.equal(lines[3].result.tools.length, 7);
 });
 
 test('unfold_spend names the Work Items whose finished Runs still hold budget, and says when it cannot tell', async t => {
@@ -228,4 +231,49 @@ test('unfold_ask asks a model only after the person accepts the confirmation ove
     assert.equal(unfold.posted.some(body => body.askModel === true), expectAsked, 'a model Ask is posted only after an explicit yes');
     if (!expectAsked) assert.equal(answer.summary, 'Not asked: the spend was not confirmed. Nothing was spent.');
   }
+});
+
+test('unfold_digest reports only what changed since the cutoff, and remembers it for next time', async t => {
+  const at = (hour: number) => `2026-10-13T${String(hour).padStart(2, '0')}:00:00Z`;
+  const item = (id: string, state: string, updated: string, extra: Record<string, unknown> = {}) => ({ id, state, team: 'unfold', title: `Item ${id}`, provider: 'vikunja', externalId: id, url: '', attempts: 1, infraFailures: 0, createdAt: updated, updatedAt: updated, closeReason: state === 'needs_human' ? 'plan_exhausted' : null, latestShift: state === 'needs_human' ? { round: 1, closeReason: 'plan_exhausted', budgetUsd: 1, spentUsd: 0.2, reservedUsd: 0, closedAt: updated } : null, spentUsd: null, pullRequestUrl: '', target: null, ...extra });
+  const fake = createServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/api/ploeg/now') return res.end(JSON.stringify({ demo: false, teams: ['unfold'], waiting: [item('1', 'needs_human', at(9)), item('2', 'needs_human', at(5)), item('3', 'awaiting_review', at(10)), item('4', 'proposed', at(11))], active: [], refused: [{ provider: 'vikunja', externalId: '9', team: 'unfold', title: 'Unroutable', code: 'label_missing', reason: 'No repo/ label', refusedAt: at(8), url: '' }], running: [], recent: [{ id: '70', workItemId: '3', workItemTitle: 'Item 3', team: 'unfold', role: 'writer', outcome: 'pr_opened', verdict: '', failureReason: '', finishedAt: at(10), settledUsd: 0.12 }, { id: '60', workItemId: '2', workItemTitle: 'Item 2', team: 'unfold', role: 'writer', outcome: 'stuck', finishedAt: at(4), settledUsd: 0.5 }], runningTruncated: false, recentTruncated: false, truncatedStates: [], errors: {}, fetchedAt: at(12) }));
+    if (req.url?.startsWith('/api/ploeg/summary?window=')) return res.end(JSON.stringify({ demo: false, window: req.url.split('=')[1], teams: [], totals: { spend: { settledUsd: 0.6212, reservedUsd: 0 } }, unsettled: { count: 0, heldUsd: 0, accounts: [] }, unsettledError: null }));
+    if (req.url === '/api/sessions') return res.end(JSON.stringify([{ id: 's1', status: 'completed', updatedAt: at(9), title: 'Fix login' }, { id: 's0', status: 'failed', updatedAt: at(2) }]));
+    res.statusCode = 404; res.end('{}');
+  });
+  await new Promise<void>(resolve => fake.listen(0, '127.0.0.1', resolve));
+  t.after(() => fake.close());
+  const address = fake.address();
+  assert(address && typeof address !== 'string');
+  const url = `http://127.0.0.1:${address.port}`;
+  const dir = await mkdtemp(join(tmpdir(), 'unfold-digest-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const stateFile = join(dir, 'state', 'digest.json');
+  const server = createMcpServer({ url, token: `vle_${'e'.repeat(43)}`, stateFile, now: () => new Date(at(12)) });
+
+  const digest = (await call(server, 'unfold_digest', { since: at(6) })).structuredContent;
+  assert.deepEqual(digest.needsYou.map((entry: { id: string }) => entry.id), ['1'], 'item 2 changed before the cutoff');
+  assert.equal(digest.needsYou[0].reason.code, 'plan_exhausted');
+  assert.deepEqual(digest.readyForReview.map((entry: { id: string }) => entry.id), ['3']);
+  assert.deepEqual(digest.proposed.map((entry: { id: string }) => entry.id), ['4']);
+  assert.deepEqual(digest.finishedRuns.map((run: { id: string; costUsd: number }) => [run.id, run.costUsd]), [['70', 0.12]]);
+  assert.deepEqual(digest.sessions.map((session: { id: string }) => session.id), ['s1']);
+  assert.deepEqual(digest.refused.map((task: { tracker: string }) => task.tracker), ['vikunja:9']);
+  assert.equal(digest.counts.needsYou, 1);
+  assert.match(digest.summary, /^Since 2026-10-13 06:00 UTC: 1 started needing you \(1: [^)]+\), 1 ready for review, 1 proposed, 1 Runs finished, 1 sessions changed, 1 tasks refused\. \$0\.62 settled in the last 24h; no budget is stuck\.$/);
+  assert.equal(JSON.parse(await readFile(stateFile, 'utf8'))[url], '2026-10-13T12:00:00.000Z');
+
+  const later = createMcpServer({ url, token: `vle_${'e'.repeat(43)}`, stateFile, now: () => new Date('2026-10-13T12:30:00Z') });
+  const nextCall = await call(later, 'unfold_digest', {});
+  assert.equal(nextCall.isError, undefined, JSON.stringify(nextCall.content));
+  const next = nextCall.structuredContent;
+  assert.equal(next.since, '2026-10-13T12:00:00.000Z', 'the next digest starts where the previous one ended');
+  assert.match(next.summary, /nothing changed/);
+
+  const peek = (await call(later, 'unfold_digest', { since: '7d', remember: false })).structuredContent;
+  assert.equal(peek.since, '2026-10-06T12:30:00.000Z');
+  assert.equal(JSON.parse(await readFile(stateFile, 'utf8'))[url], '2026-10-13T12:30:00.000Z', 'remember: false leaves the previous digest');
+  assert.equal((await call(later, 'unfold_digest', { since: '90d' })).isError, true);
 });
