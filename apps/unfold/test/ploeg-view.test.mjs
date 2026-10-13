@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { accountParts, activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, canStop, cellSummary, checkoutDialogMarkup, contextDialogMarkup, contextErrors, contextMarkup, contextReach, contextSize, decisionPlan, detailMarkup, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runLogsMarkup, runAttempts, runGroups, runOrder, runResult, statusFacts, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
+import { accountParts, activePloegLane, appendPage, attemptLabel, cancelDialogMarkup, cancelSummary, canStop, cellSummary, checkoutDialogMarkup, contextDialogMarkup, contextErrors, contextMarkup, contextReach, contextSize, decisionPlan, detailMarkup, laneBackLabel, linkLabel, mergeOverviews, ploegLanes, ploegReview, reasonGroups, refreshOverview, reviewFacts, roundLadder, runLogsMarkup, runAttempts, runGroups, runOrder, runResult, statusFacts, teamOverview, workItemRef, workMarkup, writerAccount } from '../public/ploeg.js';
 import { detailReason } from '../public/core/reasons.js';
 import { grafanaTeam, runExplorer } from '../public/core/observability.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
@@ -32,12 +32,14 @@ function detail() {
 }
 
 function overview(team, items, cursor = null) {
-  const lane = state => ({ items: items.filter(item => state === 'all' || item.state === state), nextCursor: cursor && state === 'needs_human' ? cursor : null });
+  const closed = item => ['done', 'withdrawn'].includes(item.state);
+  const inLane = { open: item => !closed(item), closed };
+  const lane = state => ({ items: items.filter(item => inLane[state] ? inLane[state](item) : item.state === state), nextCursor: cursor && state === 'needs_human' ? cursor : null });
   return { configured: true, available: true, demo: true, teams: ploegDemo.teams, selectedTeam: team, message: 'Illustrative', fetchedAt: at, lanes: Object.fromEntries(ploegLanes.map(({ id }) => [id, lane(id)])) };
 }
 
 test('the Ready for review lane is the default only while it holds work, and an explicit choice wins', () => {
-  assert.deepEqual(ploegLanes.map(lane => [lane.id, lane.label]), [['awaiting_review', 'Ready for review'], ['needs_human', 'Needs you'], ['leased', 'Running'], ['queued', 'Queued'], ['all', 'All']]);
+  assert.deepEqual(ploegLanes.map(lane => [lane.id, lane.label]), [['awaiting_review', 'Ready for review'], ['needs_human', 'Needs you'], ['leased', 'Running'], ['queued', 'Queued'], ['open', 'Open'], ['closed', 'Closed']]);
   const lanes = items => ({ awaiting_review: { items, nextCursor: null }, needs_human: { items: [{ id: '1' }], nextCursor: null } });
   assert.equal(activePloegLane({ ploegLane: null, ploeg: { lanes: lanes([{ id: '2' }]) } }), 'awaiting_review');
   assert.equal(activePloegLane({ ploegLane: null, ploeg: { lanes: lanes([]) } }), 'needs_human');
@@ -49,7 +51,7 @@ test('the Work list has one lane control with counts and rows that link to the W
   const items = ploegDemo.items.filter(item => item.team === 'delivery');
   const data = teamOverview(overview('delivery', items));
   const html = workMarkup(model({ data, lane: 'awaiting_review', team: 'delivery' }));
-  assert.equal((html.match(/data-action="ploeg-lane"/g) || []).length, 5, 'one lane control, five lanes');
+  assert.equal((html.match(/data-action="ploeg-lane"/g) || []).length, 6, 'one lane control, six lanes');
   assert.match(html, /data-action="ploeg-lane" data-id="awaiting_review" aria-pressed="true">Ready for review<span class="count">1<\/span>/);
   assert.match(html, /data-action="ploeg-lane" data-id="needs_human" aria-pressed="false">Needs you<span class="count">4<\/span>/);
   assert.match(html, /<a class="list-row" href="#work\/105\?lane=awaiting_review&amp;team=delivery"[^>]*data-work-row data-id="105"/);
@@ -94,9 +96,10 @@ test('the Needs you lane shows flat rows with their reason chip when no reason r
   assert.doesNotMatch(html, /work-row-spend/, 'demo rows show no budget meter: nothing was spent');
   assert.doesNotMatch(html, new RegExp(`US\\$${space}0,00`));
   assert.match(html, /<span class="sr-only">Updated <\/span><time class="num" datetime=/);
-  const all = workMarkup(model({ data: teamOverview(overview('delivery', items)), lane: 'all' }));
-  assert.match(all, /<span class="state-badge"><span class="badge" data-tone="attention" data-state="needs_human">[^]*?Needs you<\/span><span class="state-reason" data-tone="attention">Reviewer still wants changes<\/span>/, 'the All lane shows each state with its reason');
-  const research = workMarkup(model({ data: teamOverview(overview('research', ploegDemo.items.filter(item => item.team === 'research'))), lane: 'all' }));
+  const all = workMarkup(model({ data: teamOverview(overview('delivery', items)), lane: 'open' }));
+  assert.match(all, /<span class="state-badge"><span class="badge" data-tone="attention" data-state="needs_human">[^]*?Needs you<\/span><span class="state-reason" data-tone="attention">Reviewer still wants changes<\/span>/, 'the Open lane shows each state with its reason');
+  assert.match(all, /<span class="sr-only">Created <\/span><time class="num" datetime=/, 'a newest-first lane dates rows by creation, the order it lists them in');
+  const research = workMarkup(model({ data: teamOverview(overview('research', ploegDemo.items.filter(item => item.team === 'research'))), lane: 'closed' }));
   assert.match(research, /data-id="116"[^]*?<span class="badge" data-tone="neutral" data-state="rejected">[^]*?Rejected<\/span>/, 'a rejected proposal is a neutral Rejected, never a green Done');
 });
 
@@ -130,6 +133,20 @@ test('All teams merges one overview per Team in id order, keeps each Team’s cu
   assert.doesNotMatch(unavailable, /work-toolbar/, 'no toolbar Refresh beside the card that has its own Try again');
 });
 
+test('Open and Closed list newest first across Teams and pages, the other lanes oldest first', () => {
+  const delivery = overview('delivery', ploegDemo.items.filter(item => item.team === 'delivery'));
+  const research = overview('research', ploegDemo.items.filter(item => item.team === 'research'));
+  const merged = mergeOverviews([{ team: 'delivery', data: delivery }, { team: 'research', data: research }]);
+  const ids = page => page.items.map(item => BigInt(item.id));
+  const descending = list => list.every((id, index) => index === 0 || id < list[index - 1]);
+  assert(descending(ids(merged.lanes.open)) && merged.lanes.open.items.length > 1, 'Open is newest first');
+  assert(descending(ids(merged.lanes.closed)) && merged.lanes.closed.items.length > 1, 'Closed is newest first');
+  assert(ids(merged.lanes.needs_human).every((id, index, all) => index === 0 || id > all[index - 1]), 'Needs you keeps the longest waiting first');
+  const older = appendPage(merged.lanes.open, 'delivery', { items: [{ id: '1', state: 'queued', team: 'delivery', title: 'Oldest' }], nextCursor: null }, 'open');
+  assert.equal(older.items.at(-1).id, '1', 'a further page of an Open lane lands at the bottom');
+  assert.match(laneBackLabel('closed'), /^Closed Work Items$/);
+});
+
 test('grouping bands only reasons two or more Work Items share, after the flat rows, largest first', () => {
   const base = ploegDemo.items.find(item => item.id === '108');
   const other = ploegDemo.items.find(item => item.id === '109');
@@ -148,7 +165,7 @@ test('rows show spend only when there is some, or while a Work Item runs, and ne
   const spent = { ...ploegDemo.items.find(item => item.id === '109'), latestShift: { round: 4, budgetUsd: 3, spentUsd: 1.25, reservedUsd: 0, closeReason: 'fix_round_cap_reached', closedAt: at } };
   const idle = { ...ploegDemo.items.find(item => item.id === '110'), latestShift: { round: 1, budgetUsd: 3, spentUsd: 0, reservedUsd: 0, closeReason: 'budget exhausted', closedAt: at } };
   const live = { ...teamOverview(overview('delivery', [running, spent, idle])), demo: false };
-  const all = workMarkup(model({ data: live, lane: 'all' }));
+  const all = workMarkup(model({ data: live, lane: 'open' }));
   assert.match(all, /Not reported of <span class="num">US\$\u00a03,00<\/span>/, 'a running Work Item without a settlement reads Not reported');
   assert.match(all, /<span class="num">US\$\u00a01,25<\/span> of <span class="num">US\$\u00a03,00<\/span>/);
   assert.equal((all.match(/work-row-spend"/g) || []).length, 2, 'the Work Item that spent nothing shows no meter');

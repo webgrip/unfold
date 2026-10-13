@@ -298,7 +298,7 @@ function moreRow(hidden, group, capped = false) {
 function staleRow(stale) {
   if (!amount(stale) || stale < 1) return '';
   const subject = stale === 1 ? '1 Work Item stopped retrying after repeated failures.' : `${format.count(stale)} Work Items stopped retrying after repeated failures.`;
-  const row = listRow({ href: '#work?lane=all', id: 'now-stale-open', tone: 'severe', lead: icon('clock'), title: subject, trail: `<span class="now-go"><span class="now-go-text">See ${stale === 1 ? 'it' : 'them'} in Work</span>${icon('chevron')}</span>` });
+  const row = listRow({ href: '#work?lane=open', id: 'now-stale-open', tone: 'severe', lead: icon('clock'), title: subject, trail: `<span class="now-go"><span class="now-go-text">See ${stale === 1 ? 'it' : 'them'} in Work</span>${icon('chevron')}</span>` });
   return `<li class="now-item now-stale">${row}</li>`;
 }
 

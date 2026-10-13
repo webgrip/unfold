@@ -25,7 +25,7 @@ const model = (extra = {}) => ({ lane: 'awaiting_review', team: 'delivery', load
 
 function laneHtml(pr) {
   const items = [reviewItem(pr)];
-  const data = teamOverview({ configured: true, available: true, demo: false, teams: ploegDemo.teams, selectedTeam: 'delivery', message: '', fetchedAt: at, lanes: Object.fromEntries(ploegLanes.map(({ id }) => [id, { items: items.filter(item => id === 'all' || item.state === id), nextCursor: null }])) });
+  const data = teamOverview({ configured: true, available: true, demo: false, teams: ploegDemo.teams, selectedTeam: 'delivery', message: '', fetchedAt: at, lanes: Object.fromEntries(ploegLanes.map(({ id }) => [id, { items: items.filter(item => id === 'open' ? !['done', 'withdrawn'].includes(item.state) : id === 'closed' ? ['done', 'withdrawn'].includes(item.state) : item.state === id), nextCursor: null }])) });
   return workMarkup(model({ data }));
 }
 

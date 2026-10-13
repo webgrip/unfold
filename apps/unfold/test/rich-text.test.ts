@@ -157,7 +157,7 @@ test('Ploeg Work Items carry descriptionMarkdown beside the untouched descriptio
     else assert.equal(entry.descriptionMarkdown, entry.description, `${entry.id}: non-HTML descriptions are copied as they are`);
   }
   const overview = await ploeg.overview(admin, 'delivery');
-  assert(overview.lanes!.all.items.every(entry => typeof entry.descriptionMarkdown === 'string'));
+  assert([...overview.lanes!.open.items, ...overview.lanes!.closed.items].every(entry => typeof entry.descriptionMarkdown === 'string'));
   assert((await ploeg.proposed(admin)).items.every(entry => entry.descriptionMarkdown === entry.description));
 });
 

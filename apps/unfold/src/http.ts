@@ -599,7 +599,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (path === '/api/ploeg/events') return json(res, 200, sanitize(await ploeg.events(user, { team: optional('team'), before: optional('before') }, fresh)));
             if (path === '/api/ploeg/proposed') return json(res, 200, sanitize(await ploeg.proposed(user, fresh)));
             if (path === '/api/ploeg/now') return json(res, 200, sanitize(await ploeg.now(user, fresh)));
-            if (path === '/api/ploeg/work-items') return json(res, 200, sanitize(await ploeg.items(user, text(url.searchParams.get('team'), 'Team', 100), url.searchParams.get('state') ?? 'all', url.searchParams.get('after') ?? '0', fresh)));
+            if (path === '/api/ploeg/work-items') return json(res, 200, sanitize(await ploeg.items(user, text(url.searchParams.get('team'), 'Team', 100), url.searchParams.get('state') ?? 'all', url.searchParams.get('cursor') ?? '0', fresh)));
             const card = /^\/api\/ploeg\/work-items\/([^/]+)\/card$/.exec(path);
             if (card) return json(res, 200, sanitize(await ploeg.card(user, card[1], fresh)));
             const stream = /^\/api\/ploeg\/work-items\/([^/]+)\/value-stream$/.exec(path);
