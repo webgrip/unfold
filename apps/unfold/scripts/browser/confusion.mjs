@@ -18,7 +18,7 @@ export async function run({ page, app, assert }) {
     for (let tries = 0; tries < 20 && posted.length === before; tries++) await page.waitForTimeout(50);
   };
   const named = (name, element) => posted.filter(event => event.name === name && (element === undefined || event.props?.element === element));
-  const route = async target => { await page.evaluate(next => { location.hash = next; }, target); await page.waitForFunction(next => location.hash.split('?')[0] === `#${next}` && document.getElementById('page-title'), target); };
+  const route = async (target, title) => { await page.evaluate(next => { location.hash = next; }, target); await page.waitForFunction(([next, heading]) => location.hash.split('?')[0] === `#${next}` && document.getElementById('page-title')?.textContent.trim() === heading, [target, title]); };
 
   await page.goto(`${base}/#now`);
   await page.waitForFunction(() => document.getElementById('page-title'));
@@ -56,8 +56,8 @@ export async function run({ page, app, assert }) {
   const item = await page.evaluate(() => /#work\/(\d+)/.exec(document.querySelector('a[href^="#work/"]')?.getAttribute('href') ?? '')?.[1]);
   assert(item, 'the demo Now page links a Work Item');
   for (let visit = 0; visit < 2; visit++) {
-    await route(`work/${item}`);
-    await route('now');
+    await route(`work/${item}`, 'Work');
+    await route('now', 'Now');
   }
   await flush();
   const turns = named('ui.u_turn');
