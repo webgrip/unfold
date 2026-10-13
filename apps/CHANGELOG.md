@@ -1,3 +1,29 @@
+## [unfold-v0.4.0-rc.74](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.73...unfold-v0.4.0-rc.74) (2026-10-13)
+
+### Added
+
+* **unfold:** explain every Ask failure and report errors to Sentry ([8c97d92](https://forgejo.webgrip.dev/webgrip/unfold/commit/8c97d92fab11a48d02ee4773e0c0251aa741f621))
+* **unfold:** report errors over OpenTelemetry as well as the Sentry protocol ([51c2e17](https://forgejo.webgrip.dev/webgrip/unfold/commit/51c2e17665712cd5f8d1bafce242fdd739d25c9c))
+* **unfold:** stream live command output into read-only terminals ([52961ad](https://forgejo.webgrip.dev/webgrip/unfold/commit/52961ad6ead95dc060cf8bf66a7d2618823b6410))
+
+### Fixed
+
+* **unfold:** photograph a scrolled page where it is scrolled to under reduced motion ([8438a9a](https://forgejo.webgrip.dev/webgrip/unfold/commit/8438a9a3ff9f9edba4a39155a2ccb4e3ccfd0e1b)), closes [#353](https://forgejo.webgrip.dev/webgrip/unfold/issues/353)
+* **unfold:** see dead clicks while the loading curtain is still flying ([e1c8ce3](https://forgejo.webgrip.dev/webgrip/unfold/commit/e1c8ce3322b6c256f8eee6ac4097d3dfae98e885))
+
+### Docs
+
+* **unfold:** survey protocol integration gaps across AHP, ACP, MCP and neighbours ([3f87b7c](https://forgejo.webgrip.dev/webgrip/unfold/commit/3f87b7ccf097d3b329ac0a39456796f8aa42e5bf))
+
+### Tests
+
+* **unfold:** bring the Insights and progress browser flows up to date ([a330a08](https://forgejo.webgrip.dev/webgrip/unfold/commit/a330a088fc59d24120c7853429155c887f0930e6))
+* **unfold:** drop the duplicate check that every top-level module is served ([83fcf68](https://forgejo.webgrip.dev/webgrip/unfold/commit/83fcf685979dda98b8e20db5f2421c8a2940113f))
+
+### Build
+
+* **ploeg:** pin Ploeg v0.2.0-rc.19 ([662b23f](https://forgejo.webgrip.dev/webgrip/unfold/commit/662b23f2e056d6552abb94f5434e6dc707da38b5)), references [ploeg-hq/ploeg#118](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/118) [#120](https://forgejo.webgrip.dev/webgrip/unfold/issues/120) [#121](https://forgejo.webgrip.dev/webgrip/unfold/issues/121)
+
 ## [unfold-v0.4.0-rc.73](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.72...unfold-v0.4.0-rc.73) (2026-10-12)
 
 ### Added
