@@ -1,5 +1,5 @@
 {{- if .Values.featureFlags }}
-{{- if hasKey .Values.config "flags" -}}{{- fail "Set feature flags through featureFlags, not config.flags" -}}{{- end -}}
+{{- if and (hasKey .Values.config "flags") (or (hasKey .Values.config.flags "flags") (hasKey .Values.config.flags "$evaluators")) -}}{{- fail "Set flag rules through featureFlags; config.flags only holds providers, strategy and console" -}}{{- end -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:

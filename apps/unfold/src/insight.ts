@@ -17,6 +17,7 @@ export const insightCatalogue: Readonly<Record<string, readonly string[]>> = Obj
   'ui.link_out_burst': ['count'],
   'report.filed': [],
   'flag.exposed': ['feature_flag.key', 'feature_flag.result.variant'],
+  'flag.tracked': ['feature_flag.key', 'feature_flag.result.variant', 'event', 'value'],
 });
 
 /** Events only the server records. A browser that posts one has it dropped like an unknown name. */

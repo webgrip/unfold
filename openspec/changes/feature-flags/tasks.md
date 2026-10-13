@@ -15,6 +15,9 @@
 - [x] 2.6 Helm `featureFlags` ConfigMap, mounted and watched
 - [x] 2.7 `work.flight-profile`: the flight profile on the Work Item page, with tests for every route shape
 - [x] 2.8 Operations guide, API contract, chart README
+- [x] 2.9 flagd's integer bucketing; rollouts authored in Unfold (segments, splits, windows, ramps, prerequisites) compiled to flagd and exportable
+- [x] 2.10 OFREP client provider with first-match and first-successful strategies; OFREP endpoints for clients
+- [x] 2.11 Experiment readout from `flag.exposed` and `flag.tracked`; settled-flag hint
 
 ## 3. Cluster (Homelab Roadmap, not this repository)
 

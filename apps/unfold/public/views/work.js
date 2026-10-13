@@ -12,7 +12,7 @@ import { enterPloegView, openPloegDialog } from './ploeg-common.js';
 import { stepDialogMarkup, stepOutcome, stepRequest } from '../core/attribution.js';
 import { transcriptEntryCap } from '../run-transcript.js';
 import { defaultLogView, logDownloadText } from '../run-log-view.js';
-import { exposed, flagValues } from '../core/flags.js';
+import { exposed, flagValues, track } from '../core/flags.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -1020,6 +1020,7 @@ function revealFlight(previousLeft) {
 function jumpToRun(button) {
   const run = document.getElementById(`work-run-${button.dataset.id}`);
   if (!run) return;
+  track(button.closest('.flight') ? 'work.run_opened_from_flight' : 'work.run_opened');
   const more = run.closest('details:not(.work-run)');
   if (more) more.open = true;
   run.open = true;

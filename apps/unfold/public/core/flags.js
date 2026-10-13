@@ -42,3 +42,33 @@ export function exposed(key, { screen = '', workItemId } = {}) {
   const id = Number(workItemId);
   insight.track('flag.exposed', { screen, ...(Number.isSafeInteger(id) && id > 0 ? { workItemId: id } : {}), props: { 'feature_flag.key': key, 'feature_flag.result.variant': value === undefined ? 'unknown' : String(value) } });
 }
+
+/**
+ * Records a tracked event against every flag the person reached in this page load, as OpenFeature's tracking API
+ * does: a `flag.tracked` product event per flag with its variant, the event name and an optional numeric value. An
+ * experiment's readout counts the people who did it per variant.
+ */
+export function track(event, { value } = {}) {
+  for (const key of exposures) {
+    const variant = flag(key, undefined);
+    insight.track('flag.tracked', { screen: '', props: { 'feature_flag.key': key, 'feature_flag.result.variant': variant === undefined ? 'unknown' : String(variant), event, ...(Number.isFinite(value) ? { value } : {}) } });
+  }
+}
+
+let etag = '';
+
+/**
+ * Asks the server's OFREP endpoint for every flag again and keeps the answer, revalidating with the last ETag so an
+ * unchanged answer costs no body. Resolves to whether any value changed. Any OpenFeature web provider that speaks
+ * OFREP can read the same endpoint.
+ */
+export async function refreshFlags() {
+  const response = await fetch('/api/ofrep/v1/evaluate/flags', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', ...(etag ? { 'If-None-Match': etag } : {}) }, body: JSON.stringify({ context: {} }) });
+  if (response.status === 304 || !response.ok) return false;
+  etag = response.headers.get('etag') ?? '';
+  const answer = await response.json();
+  const values = Object.fromEntries((answer.flags ?? []).filter(entry => !entry.errorCode && 'value' in entry).map(entry => [entry.key, entry.value]));
+  const before = JSON.stringify(flagValues());
+  useFlagValues({ ...flagValues(), ...values });
+  return JSON.stringify(flagValues()) !== before;
+}

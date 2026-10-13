@@ -3,12 +3,12 @@ type: how-to
 audience: [owner, operator, contributor]
 owner: unfold
 last_verified: 2026-10-13
-verified_by: "On 2026-10-13 written with the implementation on branch feat/feature-flips: src/flags.ts, src/flag-registry.json, src/http.ts flag routes, public/core/flags.js, public/views/labs.js, ops/helm/unfold featureFlags (helm template rendered), scripts/check.mjs; test/flags.test.ts, test/api-flags.test.ts and the flags browser flow passed. The YAML rollout examples were not applied to a cluster."
+verified_by: "On 2026-10-13 written with the implementation on branch feat/feature-flips: src/flags.ts, src/flag-rollouts.ts, src/flag-ofrep.ts, src/flag-registry.json, src/http.ts flag and OFREP routes, public/core/flags.js, public/views/labs.js, ops/helm/unfold featureFlags (helm template rendered with providers), scripts/check.mjs; test/flags.test.ts, test/flag-ofrep.test.ts (against a local OFREP server), test/api-flags.test.ts and the flags browser flow passed. Not checked: a real flagd, Flipt or GO Feature Flag server, and the YAML examples on a cluster."
 ---
 
 # Feature flags
 
-A feature flag lets Unfold ship a change switched off, then turn it on for some people, a Team, a percentage or everyone, without a release. Rules are [flagd](https://flagd.dev/reference/flag-definitions/) documents in Git. Unfold evaluates them on the server, behind OpenFeature's interface ([ADR 0043](../adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md)), and sends the browser values only.
+A feature flag lets Unfold ship a change switched off, then turn it on without a release for some people, a Team, a percentage, a schedule or everyone. Rules are [flagd](https://flagd.dev/reference/flag-definitions/) documents, so they run on any flagd-compatible evaluator. They live in Git or are authored in Unfold and exported to Git. Unfold evaluates them on the server, behind OpenFeature's interface ([ADR 0043](../adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md)), sends the browser values only, and can ask, or be asked by, any flag service that speaks OFREP.
 
 ## The flags in this version
 
@@ -25,7 +25,8 @@ Each layer changes only the fields it names, and later layers win:
 1. **Code:** [`src/flag-registry.json`](../../src/flag-registry.json) defines every flag in full, with its metadata: `kind`, `owner`, `created`, `expires`, `title`, `description`, `client` (its value goes to the browser) and `labs` (people may opt in or out).
 2. **Configuration file:** `flags` in the JSON configuration, as a flagd document.
 3. **Flag file:** the flagd document named by `UNFOLD_FLAGS_FILE`, polled every 5 seconds. The Helm chart mounts the `featureFlags` value there as its own ConfigMap, so a change applies in about a minute without a restart. An invalid file is logged as `flag.file_invalid`, and the previous rules stay in force.
-4. **Override:** an administrator's forced variant under Settings › Labs, stored by Unfold and recorded in the audit trail.
+4. **Rollout:** rules an administrator authored under Settings › Labs (see [Rollouts in Unfold](#rollouts-in-unfold)). Set `flags.console: false` to keep every rule in Git.
+5. **Override:** an administrator's forced variant under Settings › Labs, stored by Unfold and recorded in the audit trail.
 
 A deployment may change a known flag's `state`, `variants`, `defaultVariant` and `targeting`, never its metadata. A flag this version does not know is logged as `flag.unknown` and ignored, so a deployment can name a flag before the release that adds it.
 
@@ -85,7 +86,36 @@ featureFlags:
       state: DISABLED
 ```
 
-Targeting reads `targetingKey` and `userId` (the user id), `role` (`admin`, `operator` or `viewer`), `teams` (from `ploeg.userTeams`), `tenantId`, `mode` (`live` or `demo`), `labs` and `labsOff`, plus `$flagd.flagKey` and `$flagd.timestamp`. Operators are JsonLogic's `var`, `if`, `==`, `===`, `!=`, `!==`, `!`, `!!`, `and`, `or`, `<`, `<=`, `>`, `>=`, `in` and `cat`, plus flagd's `fractional`, `sem_ver`, `starts_with` and `ends_with`. Shared rules go under `$evaluators` and are used with `$ref`. Any other operator makes the flag resolve to its code default and logs `flag.evaluation_failed` once.
+Writing targeting by hand is the same language rollouts compile to. Targeting reads `targetingKey` and `userId` (the user id), `role` (`admin`, `operator` or `viewer`), `teams` (from `ploeg.userTeams`), `tenantId`, `mode` (`live` or `demo`), `labs` and `labsOff`, plus `$flagd.flagKey` and `$flagd.timestamp`. Operators are JsonLogic's `var`, `if`, `==`, `===`, `!=`, `!==`, `!`, `!!`, `and`, `or`, `<`, `<=`, `>`, `>=`, `+`, `-`, `*`, `/`, `%`, `min`, `max`, `in`, `cat`, `merge`, `missing`, `some`, `all` and `none`, plus flagd's `fractional`, `sem_ver`, `starts_with` and `ends_with`. `fractional` weights are relative whole numbers, or expressions such as `{"-": [{"var": "$flagd.timestamp"}, 1761955200]}` for a linear ramp, exactly as in flagd. Shared rules go under `$evaluators` and are used with `$ref`. Any other operator makes the flag resolve to its code default and logs `flag.evaluation_failed` once.
+
+## Rollouts in Unfold
+
+Under Settings › Labs, an administrator opens a flag and authors a rollout. Rules are tried from the top, and the first whose people and dates match decides.
+
+| Rule part | Choices |
+| --- | --- |
+| Who | Everyone, a segment, roles, Teams, people (user ids), Tenants, or another flag's variant (a prerequisite) |
+| When | Optionally from and until a date and time: a scheduled launch or a time-boxed trial |
+| Serves | One variant, a percentage split (shares to 0.01 %, kept per person, per Tenant or per role), or a ramp from one share to another between two dates, in twenty even steps |
+
+The rollout also sets the variant when nothing matches and a switch that serves the code's default to everyone. For a Labs flag, people's opt-ins and opt-outs win over the rules unless you untick that.
+
+A person always lands in the same bucket. The bucket is flagd's hash of the flag key and their id (or Tenant, or role). Raising a share from 10 % to 20 % keeps the first 10 % on, and a ramp only ever adds people.
+
+**Segments** are named groups (roles, Teams, people, Tenants) that rules reuse. Changing a segment changes every rollout that uses it. A segment in use cannot be deleted.
+
+**Prerequisites** make a rule match only when another flag serves one of its variants, one level deep. Unfold evaluates the other flag first and passes `flagVariants` (`key=variant`) on, so a remote flag service's rules can read it too.
+
+A rollout compiles to a plain flagd rule: segments inlined, windows as `$flagd.timestamp` bounds, splits as `fractional`, ramps as twenty `fractional` steps. **Export rollouts as flagd JSON** downloads them as a flagd document. Paste it into `featureFlags` in Git (then remove the rollout here) or load it into any flagd-compatible service.
+
+## Experiments
+
+Give a flag more than two variants, or the kind `experiment`, and split people between the variants with a rollout. The browser records:
+
+* `flag.exposed` the first time a person reaches the flag in a page load;
+* `flag.tracked` whenever code calls `track('event-name', { value })` from `public/core/flags.js`, attributed to every flag the person reached in that page load.
+
+The flag's card under Labs shows, for the last 30 days, the people who saw each variant and the share of them who did each tracked event. No significance test is applied. `work.flight-profile` already tracks `work.run_opened` and `work.run_opened_from_flight`, so turning it on for half the people compares how often each half opens a Run.
 
 ## Labs and overrides
 
@@ -113,8 +143,38 @@ When a release flag has been on everywhere long enough, or its removal date is n
 ## Seeing what flags do
 
 * `flag.exposed` product events carry the flag and the variant a person saw. With `UNFOLD_INSIGHT_EXPORT` set, they reach Faro or OTLP like every product event.
-* The server logs `flag.choice`, `flag.override_set`, `flag.override_cleared`, `flag.file_reloaded`, `flag.file_invalid`, `flag.unknown` and `flag.evaluation_failed` as JSON lines.
+* The server logs these as JSON lines:
+  * `flag.choice`
+  * `flag.override_set` and `flag.override_cleared`
+  * `flag.rollout_set` and `flag.rollout_cleared`
+  * `flag.segment_set` and `flag.segment_deleted`
+  * `flag.file_reloaded`, `flag.file_invalid` and `flag.unknown`
+  * `flag.provider_refused`
+  * `flag.evaluation_failed`, with `feature_flag.key`, `feature_flag.provider.name` and `error.type`
+* Administrators see each release flag that served one variant at least fifty times since the last restart marked "ready to remove".
 
-## Moving to a flag service later
+## Using a flag service (OFREP)
 
-The rules are flagd's file format and the evaluator implements OpenFeature's provider interface. To run flagd as a daemon, use the OpenFeature Operator or adopt Flipt or Unleash, replace `FlagdProvider` in `src/flags.ts` with that provider. The registry, Labs, the API and every call site stay the same.
+Unfold can ask any service that speaks [OFREP](https://github.com/open-feature/protocol), the OpenFeature Remote Evaluation Protocol, before its own evaluator. Known OFREP servers include flagd (`--ofrep-port`, 8016), Flipt, GO Feature Flag's relay proxy and the ConfigCat proxy. Configure providers in `config.flags`, next to the Helm `featureFlags` rules:
+
+```yaml
+config:
+  flags:
+    strategy: first-successful
+    providers:
+      - kind: ofrep
+        name: flagd
+        url: http://flagd.flags.svc:8016
+        apiKeyEnv: UNFOLD_FLAGD_KEY
+        cacheMs: 30000
+```
+
+* Providers are asked in order, and Unfold's own evaluator is always the last.
+* `first-match` stops at the first provider that knows the flag. `first-successful` also skips a provider that is down, so the Git rules answer during an outage.
+* Unfold asks a service's bulk endpoint once per person and keeps the answer for `cacheMs`, revalidating with its ETag.
+* A 401 or 403 stops that provider until Unfold restarts. A 429 waits for its `Retry-After`.
+* `apiKeyEnv` sends `X-API-Key`, and `tokenEnv` sends a bearer token, both read from the environment.
+* The service's rules see the same context: `targetingKey`, `role`, `teams`, `tenantId`, `labs`, `labsOff`, `flagVariants`.
+* An override still wins before any provider is asked.
+
+Unfold also **answers** OFREP at `POST /api/ofrep/v1/evaluate/flags` (bulk, with ETag and 304) and `POST /api/ofrep/v1/evaluate/flags/{key}`, for the signed-in person or editor. Only browser-visible flags are answered. Point any OpenFeature web or editor provider that speaks OFREP at `https://<workbench>/api`.

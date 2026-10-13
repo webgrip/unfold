@@ -58,7 +58,7 @@ export const timelineRoutes = Object.freeze([
  */
 export const refusedRoutes = Object.freeze([
   { method: 'POST', path: '/api/login' }, { method: 'POST', path: '/api/logout' }, { method: 'POST', path: '/api/reports' }, { method: 'POST', path: '/api/reports/seen' }, { method: 'GET', path: '/api/reports/similar' }, { method: 'POST', path: `/api/reports/${id}/replies` }, { method: 'GET', path: '/api/auth/oidc' },
-  { method: 'GET', path: '/api/flags' }, { method: 'PUT', path: `/api/flags/${id}/choice` }, { method: 'GET', path: '/api/admin/flags' }, { method: 'PUT', path: `/api/admin/flags/${id}/override` },
+  { method: 'GET', path: '/api/flags' }, { method: 'PUT', path: `/api/flags/${id}/choice` }, { method: 'GET', path: '/api/admin/flags' }, { method: 'PUT', path: `/api/admin/flags/${id}/override` }, { method: 'PUT', path: `/api/admin/flags/${id}/rollout` }, { method: 'GET', path: '/api/admin/flags/export' }, { method: 'PUT', path: `/api/admin/flag-segments/${id}` }, { method: 'DELETE', path: `/api/admin/flag-segments/${id}` }, { method: 'POST', path: '/api/ofrep/v1/evaluate/flags' },
   { method: '*', path: '/api/agent-host' }, { method: '*', path: '/api/agent-host/tokens' },
   { method: '*', path: '/api/editor-credentials' }, { method: '*', path: `/api/editor-credentials/${id}` }, { method: '*', path: `/api/editor-requests/${id}` }, { method: '*', path: `/api/editor-requests/${id}/${id}` },
   { method: '*', path: '/api/links' }, { method: '*', path: `/api/links/${id}` },

@@ -6,10 +6,13 @@ import type { Session, Event, PermissionRequest, User } from './types.ts';
 import type { Ask } from './ask/types.ts';
 import type { IssueState } from './tasks.ts';
 import type { FlagOverride } from './flags.ts';
+import type { RolloutSpec, Segment } from './flag-rollouts.ts';
 
 export type StoredUser = User & { passwordHash: string };
 /** One change to an administrator flag override. */
-export type FlagAuditEntry = { flagKey: string; action: 'override_set' | 'override_cleared'; variant: string | null; reason: string; actor: string; at: string };
+export type FlagAuditEntry = { flagKey: string; action: 'override_set' | 'override_cleared' | 'rollout_set' | 'rollout_cleared' | 'segment_set' | 'segment_deleted'; variant: string | null; reason: string; actor: string; at: string };
+/** Distinct people who saw each variant of a flag, and who then did each tracked thing, with the summed values. */
+export type FlagExperiment = { exposures: Record<string, number>; conversions: { event: string; variant: string; people: number; value: number }[] };
 export type Login = { tokenHash: string; userId: string; expiresAt: string };
 /** A credential issued to one editor after its person approved the sign-in in a browser. The token itself is never stored. */
 export type EditorCredential = { id: string; tokenHash: string; userId: string; label: string; scope: 'editor'; createdAt: string; expiresAt: string; lastUsedAt?: string };
@@ -72,6 +75,8 @@ export class Store {
       CREATE TABLE IF NOT EXISTS agent_host_views (user_id TEXT NOT NULL, session_id TEXT NOT NULL, session_flags INTEGER NOT NULL, chat_flags INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, session_id));
       CREATE TABLE IF NOT EXISTS flag_choices (user_id TEXT NOT NULL, flag_key TEXT NOT NULL, enabled INTEGER NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, flag_key));
       CREATE TABLE IF NOT EXISTS flag_overrides (flag_key TEXT PRIMARY KEY, variant TEXT NOT NULL, reason TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS flag_rollouts (flag_key TEXT PRIMARY KEY, spec TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS flag_segments (name TEXT PRIMARY KEY, spec TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS flag_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, flag_key TEXT NOT NULL, action TEXT NOT NULL, variant TEXT, reason TEXT NOT NULL, actor TEXT NOT NULL, at TEXT NOT NULL);
     `);
   }
@@ -341,6 +346,45 @@ export class Store {
       else this.db.prepare('DELETE FROM flag_overrides WHERE flag_key=?').run(flagKey);
       this.db.prepare('INSERT INTO flag_audit(flag_key,action,variant,reason,actor,at) VALUES(?,?,?,?,?,?)').run(flagKey, override ? 'override_set' : 'override_cleared', override?.variant ?? null, override?.reason ?? '', actor, at);
     });
+  }
+
+  /** Every rollout administrators authored, by flag key. */
+  flagRollouts(): Record<string, RolloutSpec> {
+    const rows = this.db.prepare('SELECT flag_key, spec FROM flag_rollouts').all() as { flag_key: string; spec: string }[];
+    return Object.fromEntries(rows.map(row => [row.flag_key, JSON.parse(row.spec)]));
+  }
+
+  /** Stores or clears (`null`) an authored rollout and appends the change to the audit trail, in one transaction. */
+  setFlagRollout(flagKey: string, spec: RolloutSpec | null, actor: string, reason: string): void {
+    this.transaction(() => {
+      const at = new Date().toISOString();
+      if (spec) this.db.prepare('INSERT INTO flag_rollouts(flag_key,spec,set_by,set_at) VALUES(?,?,?,?) ON CONFLICT(flag_key) DO UPDATE SET spec=excluded.spec, set_by=excluded.set_by, set_at=excluded.set_at').run(flagKey, JSON.stringify(spec), actor, at);
+      else this.db.prepare('DELETE FROM flag_rollouts WHERE flag_key=?').run(flagKey);
+      this.db.prepare('INSERT INTO flag_audit(flag_key,action,variant,reason,actor,at) VALUES(?,?,?,?,?,?)').run(flagKey, spec ? 'rollout_set' : 'rollout_cleared', spec ? JSON.stringify(spec) : null, reason, actor, at);
+    });
+  }
+
+  /** Every segment administrators defined, by name. */
+  flagSegments(): Record<string, Segment> {
+    const rows = this.db.prepare('SELECT name, spec FROM flag_segments').all() as { name: string; spec: string }[];
+    return Object.fromEntries(rows.map(row => [row.name, JSON.parse(row.spec)]));
+  }
+
+  /** Stores or deletes (`null`) a segment and appends the change to the audit trail. */
+  setFlagSegment(name: string, segment: Segment | null, actor: string): void {
+    this.transaction(() => {
+      const at = new Date().toISOString();
+      if (segment) this.db.prepare('INSERT INTO flag_segments(name,spec,set_by,set_at) VALUES(?,?,?,?) ON CONFLICT(name) DO UPDATE SET spec=excluded.spec, set_by=excluded.set_by, set_at=excluded.set_at').run(name, JSON.stringify(segment), actor, at);
+      else this.db.prepare('DELETE FROM flag_segments WHERE name=?').run(name);
+      this.db.prepare('INSERT INTO flag_audit(flag_key,action,variant,reason,actor,at) VALUES(?,?,?,?,?,?)').run(`segment:${name}`, segment ? 'segment_set' : 'segment_deleted', segment ? JSON.stringify(segment.audience) : null, segment?.description ?? '', actor, at);
+    });
+  }
+
+  /** A flag's experiment readout from product events since `since`: people per variant exposed, and tracked events per variant. */
+  flagExperiment(flagKey: string, since: string): FlagExperiment {
+    const exposed = this.db.prepare(`SELECT json_extract(props, '$."feature_flag.result.variant"') AS variant, COUNT(DISTINCT actor) AS people FROM product_event WHERE name='flag.exposed' AND json_extract(props, '$."feature_flag.key"')=? AND at>=? GROUP BY variant`).all(flagKey, since) as { variant: string | null; people: number }[];
+    const tracked = this.db.prepare(`SELECT json_extract(props, '$.event') AS event, json_extract(props, '$."feature_flag.result.variant"') AS variant, COUNT(DISTINCT actor) AS people, COALESCE(SUM(json_extract(props, '$.value')), 0) AS value FROM product_event WHERE name='flag.tracked' AND json_extract(props, '$."feature_flag.key"')=? AND at>=? GROUP BY event, variant ORDER BY event, variant`).all(flagKey, since) as { event: string | null; variant: string | null; people: number; value: number }[];
+    return { exposures: Object.fromEntries(exposed.map(row => [String(row.variant ?? 'unknown'), Number(row.people)])), conversions: tracked.map(row => ({ event: String(row.event ?? ''), variant: String(row.variant ?? 'unknown'), people: Number(row.people), value: Number(row.value) })) };
   }
 
   /** The newest flag audit entries, newest first. */

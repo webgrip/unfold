@@ -71,3 +71,57 @@ test('a deployment rolls a flag out from its configuration, and a person can sti
   assert.equal(out.body.values['work.flight-profile'], false);
   assert.equal((await request(app.url, '/api/admin/flags', { cookie: admin.cookie })).body.flags.find((item: any) => item.key === 'work.flight-profile').source, 'config');
 });
+
+test('Unfold answers OFREP for the signed-in person: bulk with an ETag and 304, single flags, and only client flags', async t => {
+  const app = await application('live');
+  t.after(() => app.close());
+  const admin = await login(app.url);
+  const bulk = await request(app.url, '/api/ofrep/v1/evaluate/flags', { method: 'POST', cookie: admin.cookie, body: { context: { targetingKey: 'someone-else', screen: 'work' } }, csrf: false });
+  assert.equal(bulk.status, 200, bulk.text);
+  const flag = bulk.body.flags.find((entry: any) => entry.key === 'work.flight-profile');
+  assert.deepEqual({ value: flag.value, reason: flag.reason, variant: flag.variant }, { value: false, reason: 'STATIC', variant: 'off' });
+  const etag = bulk.response.headers.get('etag');
+  assert.ok(etag);
+  const again = await request(app.url, '/api/ofrep/v1/evaluate/flags', { method: 'POST', cookie: admin.cookie, body: { context: {} }, headers: { 'if-none-match': etag! }, csrf: false });
+  assert.equal(again.status, 304);
+  const single = await request(app.url, '/api/ofrep/v1/evaluate/flags/work.flight-profile', { method: 'POST', cookie: admin.cookie, body: { context: {} }, csrf: false });
+  assert.deepEqual({ key: single.body.key, value: single.body.value }, { key: 'work.flight-profile', value: false });
+  const missing = await request(app.url, '/api/ofrep/v1/evaluate/flags/work.nothing', { method: 'POST', cookie: admin.cookie, body: { context: {} }, csrf: false });
+  assert.deepEqual([missing.status, missing.body.errorCode], [404, 'FLAG_NOT_FOUND']);
+  assert.equal((await request(app.url, '/api/ofrep/v1/evaluate/flags', { method: 'POST', body: { context: {} }, csrf: false })).status, 401, 'OFREP needs a signed-in person or editor');
+});
+
+test('administrators author a percentage rollout and segments in Unfold, export it as flagd, and read an experiment', async t => {
+  const app = await application('live');
+  t.after(() => app.close());
+  const admin = await login(app.url);
+  const segment = await request(app.url, '/api/admin/flag-segments/admins', { method: 'PUT', cookie: admin.cookie, body: { description: 'Administrators', audience: { roles: ['admin'] } } });
+  assert.equal(segment.status, 200, segment.text);
+  assert.deepEqual(segment.body.segments.map((entry: any) => entry.name), ['admins']);
+  assert.equal((await request(app.url, '/api/admin/flags/work.flight-profile/rollout', { method: 'PUT', cookie: admin.cookie, body: { rollout: { defaultVariant: 'off', rules: [] } } })).status, 400, 'a rollout needs a reason');
+  const bad = await request(app.url, '/api/admin/flags/work.flight-profile/rollout', { method: 'PUT', cookie: admin.cookie, body: { reason: 'x', rollout: { defaultVariant: 'off', rules: [{ audience: {}, serve: { kind: 'split', weights: { on: 1, off: 1 } } }] } } });
+  assert.deepEqual([bad.status, bad.body.error.code], [400, 'flag_rollout']);
+  const set = await request(app.url, '/api/admin/flags/work.flight-profile/rollout', { method: 'PUT', cookie: admin.cookie, body: { reason: 'Admins first, everyone else at 0 %', rollout: { defaultVariant: 'off', rules: [{ id: 'admins', audience: { segment: 'admins' }, serve: { kind: 'split', weights: { on: 10000, off: 0 } } }] } } });
+  assert.equal(set.status, 200, set.text);
+  const flag = set.body.flags.find((entry: any) => entry.key === 'work.flight-profile');
+  assert.equal(flag.source, 'console');
+  assert.equal(flag.rollout.rules[0].id, 'admins');
+  assert.equal((await request(app.url, '/api/bootstrap', { cookie: admin.cookie })).body.flags['work.flight-profile'], true);
+  const exported = await request(app.url, '/api/admin/flags/export', { cookie: admin.cookie });
+  assert.deepEqual(Object.keys(exported.body.flags), ['work.flight-profile']);
+  assert.match(JSON.stringify(exported.body), /"role"/);
+  assert.equal((await request(app.url, '/api/admin/flag-segments/admins', { method: 'DELETE', cookie: admin.cookie })).status, 409, 'a segment in use stays');
+  const audit = (await request(app.url, '/api/admin/flags', { cookie: admin.cookie })).body.audit.map((entry: any) => entry.action);
+  assert.deepEqual(audit.slice(0, 2), ['rollout_set', 'segment_set']);
+  const cleared = await request(app.url, '/api/admin/flags/work.flight-profile/rollout', { method: 'PUT', cookie: admin.cookie, body: { rollout: null } });
+  assert.equal(cleared.body.flags.find((entry: any) => entry.key === 'work.flight-profile').source, 'code');
+
+  const posted = await request(app.url, '/api/insight/events', { method: 'POST', cookie: admin.cookie, body: { events: [
+    { name: 'flag.exposed', at: new Date().toISOString(), session: 's1', props: { 'feature_flag.key': 'work.flight-profile', 'feature_flag.result.variant': 'true' } },
+    { name: 'flag.tracked', at: new Date().toISOString(), session: 's1', props: { 'feature_flag.key': 'work.flight-profile', 'feature_flag.result.variant': 'true', event: 'run.opened', value: 1 } },
+  ] } });
+  assert.equal(posted.body.accepted, 2, posted.text);
+  const operatorStore = app.app.store;
+  const readout = operatorStore.flagExperiment('work.flight-profile', '2000-01-01T00:00:00Z');
+  assert.deepEqual(readout, { exposures: { true: 1 }, conversions: [{ event: 'run.opened', variant: 'true', people: 1, value: 1 }] });
+});

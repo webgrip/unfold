@@ -71,3 +71,64 @@ and `feature_flag.result.variant`.
 
 - **WHEN** a person opens two Work Item pages in one page load
 - **THEN** one `flag.exposed` event is queued for `work.flight-profile`
+
+### Requirement: Percentage rollouts are stable per person and match flagd
+
+A percentage split SHALL bucket each person by flagd's algorithm: MurmurHash3 of
+the flag key followed by the bucketing value, scaled by the total weight in
+integers. The same person SHALL get the same variant on every evaluation and on
+any flagd-compatible evaluator. Raising a share SHALL keep everyone who already
+had the variant. Without a targeting key, a split SHALL serve the default.
+
+#### Scenario: A rollout grows from 10 % to 20 %
+
+- **WHEN** an administrator raises a split from 10 % to 20 % on
+- **THEN** every person who had the flag on at 10 % still has it on
+
+### Requirement: Administrators author rollouts that compile to flagd
+
+An administrator SHALL be able to author, per flag, ordered rules. Each rule has
+an audience (everyone, a segment, roles, Teams, people, Tenants or another
+flag's variant), an optional time window, and what it serves (a variant, a
+split in basis points, or a ramp between two shares over a window). Every
+change SHALL be audited.
+
+#### Scenario: Authoring is off
+
+- **WHEN** a deployment sets `flags.console: false`
+- **THEN** saving a rollout answers 409 and the Git rules stay in force
+
+### Requirement: An authored rollout is portable flagd
+
+A rollout SHALL compile to a plain flagd rule with segments inlined, and SHALL
+be exportable as a flagd document any flagd-compatible evaluator runs.
+
+#### Scenario: A scheduled launch
+
+- **WHEN** a rule serves `on` to everyone from 1 November
+- **THEN** people without another matching rule get the default before 1 November and `on` from then, without a release or restart
+
+### Requirement: Unfold asks and answers OFREP
+
+Unfold SHALL ask configured OFREP services in order before its own evaluator,
+under the first-match or first-successful strategy. It caches each context's
+bulk answer and revalidates it with its ETag. It stops on 401 or 403 and waits
+on 429. Unfold SHALL answer OFREP bulk and single evaluations for the
+signed-in person, for browser-visible flags only, with identity attributes
+taken from the session.
+
+#### Scenario: The flag service is down
+
+- **WHEN** the strategy is first-successful and the OFREP service answers 500
+- **THEN** the flag resolves from Unfold's own rules
+
+### Requirement: Experiments read out per variant
+
+The browser SHALL record `flag.tracked` events against the flags a person
+reached, and administrators SHALL see, per variant over 30 days, the people
+exposed and the share who did each tracked event.
+
+#### Scenario: Half the people get the flight profile
+
+- **WHEN** a split gives half the people the flight profile and they open Runs
+- **THEN** the flag's readout shows people per variant and the share of each who opened a Run

@@ -1,5 +1,7 @@
 import { existsSync, readFileSync, unwatchFile, watchFile } from 'node:fs';
 import { resolve } from 'node:path';
+import { OfrepProvider } from './flag-ofrep.ts';
+import { checkSegment, checkSpec, compileSpec, prerequisitesOf, type RolloutSpec, type Segment } from './flag-rollouts.ts';
 
 /** A value a flag variant may carry. */
 export type FlagValue = boolean | string | number | Record<string, unknown> | unknown[];
@@ -10,7 +12,7 @@ export type FlagReason = 'STATIC' | 'DEFAULT' | 'TARGETING_MATCH' | 'SPLIT' | 'D
 /** OpenFeature's error codes. */
 export type FlagErrorCode = 'FLAG_NOT_FOUND' | 'TYPE_MISMATCH' | 'PARSE_ERROR' | 'GENERAL';
 /** Where a flag's effective rule came from, lowest precedence first. */
-export type FlagSource = 'code' | 'config' | 'file' | 'override';
+export type FlagSource = 'code' | 'config' | 'file' | 'console' | 'override';
 
 /** What Unfold records about a flag besides its rule: who owns it, when it goes, and where it shows. */
 export interface FlagMetadata {
@@ -89,15 +91,39 @@ export interface FlagView {
   rule: FlagRule;
   source: FlagSource;
   override: FlagOverride | null;
+  rollout: RolloutSpec | null;
   expired: boolean;
   evaluation: FlagEvaluation;
   evaluations: Record<string, number>;
+  /** Every evaluation since the process started served one variant: a release flag that may be ready to remove. */
+  settled: string | null;
 }
+
+/** A flag provider: OpenFeature's provider interface, sync or async. */
+export interface FlagProvider {
+  readonly metadata: { name: string };
+  resolveBooleanEvaluation(flagKey: string, defaultValue: boolean, context: FlagContext): FlagResolution<boolean> | Promise<FlagResolution<boolean>>;
+  resolveStringEvaluation(flagKey: string, defaultValue: string, context: FlagContext): FlagResolution<string> | Promise<FlagResolution<string>>;
+  resolveNumberEvaluation(flagKey: string, defaultValue: number, context: FlagContext): FlagResolution<number> | Promise<FlagResolution<number>>;
+  resolveObjectEvaluation<T extends Record<string, unknown> | unknown[]>(flagKey: string, defaultValue: T, context: FlagContext): FlagResolution<T> | Promise<FlagResolution<T>>;
+  /** Releases timers and connections. */
+  close?(): void;
+  /** What the provider last reported about itself, for administrators. */
+  status?(): { name: string; ready: boolean; error: string };
+}
+
+/** A remote provider speaking OFREP, the OpenFeature Remote Evaluation Protocol, configured by URL. */
+export interface OfrepSettings { kind: 'ofrep'; name: string; url: string; apiKeyEnv?: string; tokenEnv?: string; timeoutMs: number; cacheMs: number }
+/** The in-process flagd evaluator. */
+export interface FlagdSettings { kind: 'flagd' }
+/** How several providers combine (OpenFeature MultiProvider): the first that knows the flag, or the first that answers without an error. */
+export type FlagStrategy = 'first-match' | 'first-successful';
 
 const kinds: readonly FlagKind[] = ['release', 'experiment', 'ops', 'permission'];
 const keyPattern = /^[a-z][a-z0-9-]*(?:\.[a-z][a-z0-9-]*)+$/;
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 const maxRefDepth = 16;
+const maxWeightSum = 2147483647;
 const watchIntervalMs = 5000;
 
 class FlagParseError extends Error {}
@@ -165,7 +191,7 @@ export function loadRegistry(): FlagRegistry {
 export function checkDocument(raw: unknown, registry: FlagRegistry, where = 'flags'): { document: FlagDocument; unknown: string[] } {
   if (raw === undefined || raw === null) return { document: {}, unknown: [] };
   if (!plainObject(raw)) throw new Error(`${where} must be a flagd document with a flags object`);
-  for (const key of Object.keys(raw)) if (!['flags', '$evaluators', '$schema', 'file'].includes(key)) throw new Error(`${where}.${key} is not a flagd document field`);
+  for (const key of Object.keys(raw)) if (!['flags', '$evaluators', '$schema', 'metadata', 'file', 'providers', 'strategy', 'console'].includes(key)) throw new Error(`${where}.${key} is not a flagd document field`);
   const unknown: string[] = [];
   const flags: Record<string, Partial<FlagRule>> = {};
   if (raw.flags !== undefined) {
@@ -184,21 +210,47 @@ export function checkDocument(raw: unknown, registry: FlagRegistry, where = 'fla
   return { document: { flags, ...(raw.$evaluators ? { $evaluators: raw.$evaluators as Record<string, unknown> } : {}) }, unknown };
 }
 
-/** The deployment's flag settings in the configuration file: an inline flagd document and an optional watched flagd file. */
-export interface FlagSettings { document: FlagDocument; file?: string; unknown: string[] }
+/**
+ * The deployment's flag settings: an inline flagd document, an optional watched flagd file, the providers asked in
+ * order with their strategy, and whether administrators may author rollouts in Unfold (`console`).
+ */
+export interface FlagSettings { document: FlagDocument; file?: string; unknown: string[]; providers?: (FlagdSettings | OfrepSettings)[]; strategy?: FlagStrategy; console?: boolean }
 
 /** Reads `config.flags` and `UNFOLD_FLAGS_FILE`. The file, when named, wins over the inline document and is watched. */
 export function flagSettings(raw: unknown, registry: FlagRegistry, env: NodeJS.ProcessEnv = process.env): FlagSettings {
   const { document, unknown } = checkDocument(raw, registry);
   const named = env.UNFOLD_FLAGS_FILE || (plainObject(raw) && typeof raw.file === 'string' ? raw.file : undefined);
   if (plainObject(raw) && raw.file !== undefined && typeof raw.file !== 'string') throw new Error('flags.file must be a path');
-  return { document, ...(named ? { file: resolve(named) } : {}), unknown };
+  const data = plainObject(raw) ? raw : {};
+  if (data.strategy !== undefined && data.strategy !== 'first-match' && data.strategy !== 'first-successful') throw new Error('flags.strategy must be first-match or first-successful');
+  if (data.console !== undefined && typeof data.console !== 'boolean') throw new Error('flags.console must be true or false');
+  let providers: (FlagdSettings | OfrepSettings)[] = [{ kind: 'flagd' }];
+  if (data.providers !== undefined) {
+    if (!Array.isArray(data.providers) || !data.providers.length || data.providers.length > 5) throw new Error('flags.providers lists one to five providers');
+    const names = new Set<string>();
+    providers = data.providers.map((entry: unknown, index: number) => {
+      if (!plainObject(entry)) throw new Error(`flags.providers[${index}] must be an object`);
+      if (entry.kind === 'flagd') return { kind: 'flagd' } as FlagdSettings;
+      if (entry.kind !== 'ofrep') throw new Error(`flags.providers[${index}].kind must be flagd or ofrep`);
+      let url: URL;
+      try { url = new URL(String(entry.url)); } catch { throw new Error(`flags.providers[${index}].url must be the OFREP base URL`); }
+      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error(`flags.providers[${index}].url must be HTTP(S) without credentials`);
+      for (const key of ['apiKeyEnv', 'tokenEnv'] as const) if (entry[key] !== undefined && (typeof entry[key] !== 'string' || !/^[A-Z][A-Z0-9_]{0,127}$/.test(entry[key] as string))) throw new Error(`flags.providers[${index}].${key} must name an environment variable`);
+      const name = typeof entry.name === 'string' && /^[a-z][a-z0-9-]{0,40}$/.test(entry.name) ? entry.name : `ofrep-${index + 1}`;
+      if (names.has(name)) throw new Error(`flags.providers[${index}].name repeats`);
+      names.add(name);
+      const number = (value: unknown, fallback: number, min: number, max: number, key: string) => { if (value === undefined) return fallback; if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > max) throw new Error(`flags.providers[${index}].${key} must be ${min} to ${max}`); return value; };
+      return { kind: 'ofrep', name, url: url.href.replace(/\/+$/, ''), ...(entry.apiKeyEnv ? { apiKeyEnv: entry.apiKeyEnv as string } : {}), ...(entry.tokenEnv ? { tokenEnv: entry.tokenEnv as string } : {}), timeoutMs: number(entry.timeoutMs, 10_000, 100, 60_000, 'timeoutMs'), cacheMs: number(entry.cacheMs, 30_000, 0, 3_600_000, 'cacheMs') } as OfrepSettings;
+    });
+    if (!providers.some(provider => provider.kind === 'flagd')) providers.push({ kind: 'flagd' });
+  }
+  return { document, ...(named ? { file: resolve(named) } : {}), unknown, providers, strategy: (data.strategy as FlagStrategy | undefined) ?? 'first-match', console: data.console !== false };
 }
 
 const truthy = (value: unknown): boolean => Array.isArray(value) ? value.length > 0 : Boolean(value);
 
 function lookup(data: unknown, path: unknown): unknown {
-  if (path === '' || path === null || path === undefined) return data;
+  if (path === '' || path === null || path === undefined) return data && typeof data === 'object' && Object.hasOwn(data, '__item') ? (data as Record<string, unknown>).__item : data;
   let current: unknown = data;
   for (const part of String(path).split('.')) {
     if (current === null || current === undefined || typeof current !== 'object') return undefined;
@@ -237,9 +289,9 @@ export function murmur3(text: string): number {
   return h >>> 0;
 }
 
-/** The bucket, 0 to 100, a bucketing value falls in: flagd's `abs(int32(hash)) / MaxInt32 * 100`. */
-export function fractionalBucket(value: string): number {
-  return Math.abs(murmur3(value) | 0) / 2147483647 * 100;
+/** Where a bucketing value falls in `[0, total)`: flagd's `(uint64(murmur3(value)) * total) >> 32`, in integers. */
+export function fractionalBucket(value: string, total: number): number {
+  return Number((BigInt(murmur3(value)) * BigInt(total)) >> 32n);
 }
 
 function semver(value: unknown): [number, number, number, string] | null {
@@ -321,22 +373,46 @@ function evaluate(rule: unknown, scope: Scope): unknown {
     case 'fractional': {
       const first = args[0];
       const custom = !(Array.isArray(first) && typeof first[0] === 'string');
-      const bucketBy = custom ? value(0) : `${scope.flagKey}${String(scope.data.targetingKey ?? '')}`;
+      let bucketBy: unknown;
+      if (custom) bucketBy = value(0);
+      else {
+        const key = scope.data.targetingKey;
+        if (key === undefined || key === null || key === '' || typeof key !== 'string') return null;
+        bucketBy = `${scope.flagKey}${key}`;
+      }
       const buckets = (custom ? args.slice(1) : args).map(entry => evaluate(entry, scope));
       if (!buckets.length || buckets.some(entry => !Array.isArray(entry) || typeof entry[0] !== 'string')) throw new FlagParseError('fractional takes [variant, weight] pairs');
-      const weights = buckets.map(entry => (entry as unknown[]).length > 1 ? Number((entry as unknown[])[1]) : 1);
-      if (weights.some(weight => !Number.isFinite(weight) || weight < 0)) throw new FlagParseError('fractional weights must be non-negative numbers');
-      const total = weights.reduce((sum, weight) => sum + weight, 0);
-      if (total <= 0) throw new FlagParseError('fractional weights must add up to more than zero');
-      if (bucketBy === null || bucketBy === undefined || bucketBy === '') return null;
+      const weights = buckets.map(entry => (entry as unknown[]).length > 1 ? (entry as unknown[])[1] : 1);
+      if (weights.some(weight => typeof weight !== 'number' || !Number.isInteger(weight) || weight > maxWeightSum)) throw new FlagParseError('fractional weights must be whole numbers no larger than 2147483647');
+      const clamped = (weights as number[]).map(weight => Math.max(0, weight));
+      const total = clamped.reduce((sum, weight) => sum + weight, 0);
+      if (total > maxWeightSum) throw new FlagParseError('fractional weights add up to more than 2147483647');
+      if (total === 0 || bucketBy === null || bucketBy === undefined || typeof bucketBy !== 'string' || bucketBy === '') return null;
       scope.split = true;
-      const bucket = fractionalBucket(String(bucketBy));
+      const bucket = fractionalBucket(bucketBy, total);
       let edge = 0;
       for (let i = 0; i < buckets.length; i++) {
-        edge += (weights[i] / total) * 100;
+        edge += clamped[i];
         if (bucket < edge) return (buckets[i] as unknown[])[0];
       }
-      return (buckets.at(-1) as unknown[])[0];
+      return null;
+    }
+    case '+': return args.reduce((sum: number, _, index) => sum + Number(value(index)), 0);
+    case '*': return args.reduce((product: number, _, index) => product * Number(value(index)), 1);
+    case '-': return args.length === 1 ? -Number(value(0)) : Number(value(0)) - Number(value(1));
+    case '/': return Number(value(0)) / Number(value(1));
+    case '%': return Number(value(0)) % Number(value(1));
+    case 'min': return Math.min(...args.map((_, index) => Number(value(index))));
+    case 'max': return Math.max(...args.map((_, index) => Number(value(index))));
+    case 'merge': return args.flatMap((_, index) => { const part = value(index); return Array.isArray(part) ? part : [part]; });
+    case 'missing': { const keys = args.length === 1 && Array.isArray(value(0)) ? value(0) as unknown[] : args.map((_, index) => value(index)); return keys.filter(key => { const found = flagdLookup(scope.data, key); return found === undefined || found === null || found === ''; }); }
+    case 'some': case 'all': case 'none': {
+      const items = value(0);
+      if (!Array.isArray(items)) return op === 'none';
+      const test = (item: unknown) => truthy(evaluate(args[1], { ...scope, data: item && typeof item === 'object' && !Array.isArray(item) ? { ...item as Record<string, unknown>, $flagd: scope.data.$flagd } : { $flagd: scope.data.$flagd, __item: item } }));
+      if (op === 'some') return items.some(test);
+      if (op === 'all') return items.length > 0 && items.every(test);
+      return !items.some(test);
     }
     default: throw new FlagParseError(`Unknown JsonLogic operator ${op}`);
   }
@@ -368,19 +444,20 @@ function variantName(result: unknown): string | null {
   throw new FlagParseError('Targeting must return a variant name or null');
 }
 
+
 /**
- * Evaluates flagd documents in process, behind OpenFeature's provider interface: `resolveBooleanEvaluation` and its
- * siblings. Rules layer from the code's registry, then the configuration file's document, then a watched flagd file,
- * then an administrator's override; each layer replaces only the fields it names. Targeting is flagd's JsonLogic with
- * `fractional`, `sem_ver`, `starts_with`, `ends_with` and `$ref` to shared `$evaluators`, and sees `$flagd.flagKey` and
- * `$flagd.timestamp`.
+ * Evaluates flagd documents in process, behind OpenFeature's provider interface. Rules layer from the code's registry,
+ * then the configuration file's document, then a watched flagd file, then rollouts administrators authored in Unfold;
+ * each layer replaces only the fields it names. Targeting is flagd's JsonLogic with `fractional` (flagd's integer
+ * MurmurHash3 bucketing), `sem_ver`, `starts_with`, `ends_with`, `some`, `all`, `none`, arithmetic and `$ref` to
+ * shared `$evaluators`, and sees `$flagd.flagKey` and `$flagd.timestamp` (Unix seconds).
  */
-export class FlagdProvider {
-  readonly metadata = { name: 'unfold-flagd' } as const;
+export class FlagdProvider implements FlagProvider {
+  readonly metadata = { name: 'flagd' } as const;
   readonly registry: FlagRegistry;
   private config: FlagDocument;
   private file: FlagDocument = {};
-  private overrides: Record<string, FlagOverride> = {};
+  private console: Record<string, { spec: RolloutSpec; rule: FlagRule }> = {};
   private readonly now: () => Date;
 
   constructor(registry: FlagRegistry, config: FlagDocument = {}, now: () => Date = () => new Date()) {
@@ -393,8 +470,8 @@ export class FlagdProvider {
   useFile(document: FlagDocument): void { this.file = document; }
   /** Replaces the inline configuration document. */
   useConfig(document: FlagDocument): void { this.config = document; }
-  /** Replaces every administrator override. */
-  useOverrides(overrides: Record<string, FlagOverride>): void { this.overrides = { ...overrides }; }
+  /** Replaces the rollouts authored in Unfold, already compiled. */
+  useConsole(rollouts: Record<string, { spec: RolloutSpec; rule: FlagRule }>): void { this.console = { ...rollouts }; }
 
   /** The effective rule of a known flag and the layer its last change came from; null for an unknown flag. */
   rule(flagKey: string): { rule: FlagRule; source: FlagSource } | null {
@@ -408,31 +485,29 @@ export class FlagdProvider {
       Object.assign(rule, change);
       source = layer;
     }
-    if (this.overrides[flagKey] && Object.hasOwn(rule.variants, this.overrides[flagKey].variant)) source = 'override';
+    const authored = this.console[flagKey];
+    if (authored) { Object.assign(rule, { state: authored.rule.state, defaultVariant: authored.rule.defaultVariant }); if (authored.rule.targeting) rule.targeting = authored.rule.targeting; else delete rule.targeting; source = 'console'; }
     return { rule, source };
   }
+
+  /** The rollout administrators authored for a flag, if any. */
+  rollout(flagKey: string): RolloutSpec | null { return this.console[flagKey]?.spec ?? null; }
+
+  /** The flags a flag's authored rollout depends on through prerequisites. */
+  prerequisites(flagKey: string): string[] { const spec = this.rollout(flagKey); return spec ? prerequisitesOf(spec) : []; }
 
   /** The shared evaluators from every layer, later layers winning per name. */
   evaluators(): Record<string, unknown> {
     return { ...(this.registry.$evaluators ?? {}), ...(this.config.$evaluators ?? {}), ...(this.file.$evaluators ?? {}) };
   }
 
-  /** The administrator override of a flag, if one applies. */
-  override(flagKey: string): FlagOverride | null { return this.overrides[flagKey] ?? null; }
-
   private resolve<T extends FlagValue>(flagKey: string, defaultValue: T, context: FlagContext, type: FlagValueType): FlagResolution<T> {
     const found = this.rule(flagKey);
-    if (!found) return { value: defaultValue, reason: 'ERROR', errorCode: 'FLAG_NOT_FOUND', errorMessage: `Flag ${flagKey} is not in the registry`, flagMetadata: {} };
+    if (!found) return { value: defaultValue, reason: 'ERROR', errorCode: 'FLAG_NOT_FOUND', errorMessage: `Flag ${flagKey} is not in the registry`, flagMetadata: { provider: 'flagd' } };
     const { rule, source } = found;
-    const metadata = { source, kind: this.registry.flags[flagKey].metadata.kind };
-    const pick = (variant: string, reason: FlagReason): FlagResolution<T> => {
-      if (!Object.hasOwn(rule.variants, variant)) return { value: defaultValue, reason: 'ERROR', errorCode: 'GENERAL', errorMessage: `Targeting returned ${variant}, which is not a variant of ${flagKey}`, flagMetadata: metadata };
-      const value = rule.variants[variant];
-      if (typeOf(value) !== type) return { value: defaultValue, reason: 'ERROR', errorCode: 'TYPE_MISMATCH', errorMessage: `${flagKey} is a ${typeOf(value)} flag, asked for a ${type}`, flagMetadata: metadata };
-      return { value: value as T, variant, reason, flagMetadata: metadata };
-    };
+    const metadata = { provider: 'flagd', source, kind: this.registry.flags[flagKey].metadata.kind };
+    const pick = (variant: string, reason: FlagReason): FlagResolution<T> => pickVariant(rule, flagKey, variant, reason, defaultValue, type, metadata);
     if (rule.state === 'DISABLED') return { value: defaultValue, reason: 'DISABLED', flagMetadata: metadata };
-    if (source === 'override') return pick(this.overrides[flagKey].variant, 'STATIC');
     if (!rule.targeting || !Object.keys(rule.targeting as object).length) return pick(rule.defaultVariant, 'STATIC');
     const scope: Scope = { flagKey, split: false, data: { ...context, $flagd: { flagKey, timestamp: Math.floor(this.now().getTime() / 1000) } } };
     try {
@@ -449,6 +524,14 @@ export class FlagdProvider {
   resolveStringEvaluation(flagKey: string, defaultValue: string, context: FlagContext): FlagResolution<string> { return this.resolve(flagKey, defaultValue, context, 'string'); }
   resolveNumberEvaluation(flagKey: string, defaultValue: number, context: FlagContext): FlagResolution<number> { return this.resolve(flagKey, defaultValue, context, 'number'); }
   resolveObjectEvaluation<T extends Record<string, unknown> | unknown[]>(flagKey: string, defaultValue: T, context: FlagContext): FlagResolution<T> { return this.resolve(flagKey, defaultValue, context, 'object'); }
+  status() { return { name: 'flagd', ready: true, error: '' }; }
+}
+
+function pickVariant<T extends FlagValue>(rule: FlagRule, flagKey: string, variant: string, reason: FlagReason, defaultValue: T, type: FlagValueType, metadata: Record<string, string | number | boolean>): FlagResolution<T> {
+  if (!Object.hasOwn(rule.variants, variant)) return { value: defaultValue, reason: 'ERROR', errorCode: 'GENERAL', errorMessage: `Targeting returned ${variant}, which is not a variant of ${flagKey}`, flagMetadata: metadata };
+  const value = rule.variants[variant];
+  if (typeOf(value) !== type) return { value: defaultValue, reason: 'ERROR', errorCode: 'TYPE_MISMATCH', errorMessage: `${flagKey} is a ${typeOf(value)} flag, asked for a ${type}`, flagMetadata: metadata };
+  return { value: value as T, variant, reason, flagMetadata: metadata };
 }
 
 /** Counts evaluations per flag and variant (or reason, for a value without a variant) since the process started. */
@@ -474,41 +557,77 @@ export class ErrorLogger implements FlagHook {
     const key = `${hook.flagKey}:${details.errorCode}`;
     if (this.seen.has(key)) return;
     this.seen.add(key);
-    this.log(JSON.stringify({ level: 'warn', event: 'flag.evaluation_failed', 'feature_flag.key': hook.flagKey, 'error.type': details.errorCode, message: details.errorMessage }));
+    this.log(JSON.stringify({ level: 'warn', event: 'flag.evaluation_failed', 'feature_flag.key': hook.flagKey, 'feature_flag.provider.name': details.flagMetadata.provider ?? '', 'error.type': details.errorCode, 'feature_flag.error.message': details.errorMessage }));
   }
 }
 
-/** Where administrator overrides persist. */
-export interface OverrideStore {
+/** Where administrator overrides, authored rollouts and segments persist. */
+export interface FlagStore {
   flagOverrides(): Record<string, FlagOverride>;
   setFlagOverride(flagKey: string, override: FlagOverride | null, actor: string): void;
+  flagRollouts?(): Record<string, RolloutSpec>;
+  setFlagRollout?(flagKey: string, spec: RolloutSpec | null, actor: string, reason: string): void;
+  flagSegments?(): Record<string, Segment>;
+  setFlagSegment?(name: string, segment: Segment | null, actor: string): void;
 }
 
+const notFound = (error: { errorCode?: FlagErrorCode }) => error.errorCode === 'FLAG_NOT_FOUND';
+
 /**
- * Unfold's flag client, shaped like OpenFeature's: typed `get*Value` and `get*Details` calls over one provider, with
- * hooks around every evaluation. Owns the watched flag file and the administrator overrides.
+ * Unfold's flag client, shaped like OpenFeature's: typed async `get*Value` and `get*Details` calls over an ordered
+ * set of providers (the in-process flagd evaluator and any OFREP service), combined like OpenFeature's MultiProvider,
+ * with hooks around every evaluation. An administrator override wins before any provider is asked. Prerequisites are
+ * evaluated first and passed on as `flagVariants` (`key=variant`), so a remote provider's rules can read them too.
  */
 export class FeatureFlags {
   readonly provider: FlagdProvider;
+  readonly providers: FlagProvider[];
+  readonly strategy: FlagStrategy;
+  readonly console: boolean;
   readonly counter = new EvaluationCounter();
   private readonly hooks: FlagHook[] = [];
   private readonly file?: string;
-  private readonly overrides?: OverrideStore;
+  private readonly store?: FlagStore;
   private readonly log: (line: string) => void;
   private readonly now: () => Date;
+  private overrides: Record<string, FlagOverride> = {};
+  private segments: Record<string, Segment> = {};
+  private rollouts: Record<string, RolloutSpec> = {};
   private watching = false;
   private fileError = '';
 
-  constructor({ registry = loadRegistry(), settings = { document: {}, unknown: [] } as FlagSettings, overrides, now = () => new Date(), log = (line: string) => console.error(line) }: { registry?: FlagRegistry; settings?: FlagSettings; overrides?: OverrideStore; now?: () => Date; log?: (line: string) => void } = {}) {
+  constructor({ registry = loadRegistry(), settings = { document: {}, unknown: [] } as FlagSettings, store, now = () => new Date(), log = (line: string) => console.error(line), fetcher }: { registry?: FlagRegistry; settings?: FlagSettings; store?: FlagStore; now?: () => Date; log?: (line: string) => void; fetcher?: typeof fetch } = {}) {
     this.provider = new FlagdProvider(registry, settings.document, now);
+    this.providers = (settings.providers ?? [{ kind: 'flagd' }]).map(entry => entry.kind === 'flagd' ? this.provider : new OfrepProvider(entry, { log, fetcher, now }));
+    this.strategy = settings.strategy ?? 'first-match';
+    this.console = settings.console !== false;
     this.file = settings.file;
-    this.overrides = overrides;
+    this.store = store;
     this.log = log;
     this.now = now;
     this.hooks.push(this.counter, new ErrorLogger(log));
     if (settings.unknown.length) log(JSON.stringify({ level: 'warn', event: 'flag.unknown', flags: settings.unknown, message: 'The configuration names flags this version does not know; they are ignored.' }));
     if (this.file) this.reloadFile();
-    if (overrides) this.provider.useOverrides(overrides.flagOverrides());
+    this.reloadStore();
+  }
+
+  /** Reads overrides, segments and authored rollouts from the store again. */
+  reloadStore(): void {
+    if (!this.store) return;
+    this.overrides = this.store.flagOverrides();
+    this.segments = this.store.flagSegments?.() ?? {};
+    this.rollouts = this.console ? this.store.flagRollouts?.() ?? {} : {};
+    this.compileRollouts();
+  }
+
+  private compileRollouts(): void {
+    const compiled: Record<string, { spec: RolloutSpec; rule: FlagRule }> = {};
+    for (const [key, spec] of Object.entries(this.rollouts)) {
+      const base = this.provider.registry.flags[key];
+      if (!base) continue;
+      compiled[key] = { spec, rule: compileSpec(spec, { flagKey: key, segments: this.segments, labs: base.metadata.labs, variants: this.provider.rule(key)?.rule.variants ?? base.variants }) };
+    }
+    this.provider.useConsole(compiled);
   }
 
   /** Adds hooks that run around every evaluation after the built-in counter and error logger. */
@@ -540,22 +659,70 @@ export class FeatureFlags {
     });
   }
 
-  /** Stops watching the flag file. */
-  close(): void { if (this.file && this.watching) unwatchFile(this.file); this.watching = false; }
+  /** Stops watching the flag file and closes every provider. */
+  close(): void {
+    if (this.file && this.watching) unwatchFile(this.file);
+    this.watching = false;
+    for (const provider of this.providers) provider.close?.();
+  }
 
   /** The flag file's path and the error that made the last reload fail, if any. */
   fileStatus(): { file: string | null; error: string } { return { file: this.file ?? null, error: this.fileError }; }
 
-  private run<T extends FlagValue>(flagKey: string, defaultValue: T, context: FlagContext, type: FlagValueType): FlagEvaluation<T> {
+  /** Each provider's name and health, in the order they are asked. */
+  providerStatus(): { name: string; ready: boolean; error: string }[] { return this.providers.map(provider => provider.status?.() ?? { name: provider.metadata.name, ready: true, error: '' }); }
+
+  private async ask<T extends FlagValue>(provider: FlagProvider, flagKey: string, defaultValue: T, context: FlagContext, type: FlagValueType): Promise<FlagResolution<T>> {
+    try {
+      const resolution = type === 'boolean' ? provider.resolveBooleanEvaluation(flagKey, defaultValue as boolean, context)
+        : type === 'string' ? provider.resolveStringEvaluation(flagKey, defaultValue as string, context)
+          : type === 'number' ? provider.resolveNumberEvaluation(flagKey, defaultValue as number, context)
+            : provider.resolveObjectEvaluation(flagKey, defaultValue as Record<string, unknown>, context);
+      const resolved = await resolution as FlagResolution<T>;
+      return { ...resolved, flagMetadata: { provider: provider.metadata.name, ...resolved.flagMetadata } };
+    } catch (error) {
+      return { value: defaultValue, reason: 'ERROR', errorCode: 'GENERAL', errorMessage: error instanceof Error ? error.message : String(error), flagMetadata: { provider: provider.metadata.name } };
+    }
+  }
+
+  private async enrich(flagKey: string, context: FlagContext): Promise<FlagContext> {
+    if (context.flagVariants !== undefined) return context;
+    const prerequisites = this.provider.prerequisites(flagKey);
+    if (!prerequisites.length) return context;
+    const nested = { ...context, flagVariants: [] };
+    const variants: string[] = [];
+    for (const key of prerequisites) {
+      const result = await this.resolveAll(key, this.fallbackOf(key), nested, typeOf(this.fallbackOf(key)));
+      if (result.variant) variants.push(`${key}=${result.variant}`);
+    }
+    return { ...context, flagVariants: variants };
+  }
+
+  private fallbackOf(flagKey: string): FlagValue {
+    const base = this.provider.registry.flags[flagKey];
+    return base ? base.variants[base.defaultVariant] : false;
+  }
+
+  private async resolveAll<T extends FlagValue>(flagKey: string, defaultValue: T, context: FlagContext, type: FlagValueType): Promise<FlagResolution<T>> {
+    const override = this.overrides[flagKey];
+    const base = this.provider.registry.flags[flagKey];
+    if (override && base && Object.hasOwn(base.variants, override.variant)) return pickVariant(this.provider.rule(flagKey)!.rule, flagKey, override.variant, 'STATIC', defaultValue, type, { provider: 'unfold', source: 'override', kind: base.metadata.kind });
+    let last: FlagResolution<T> | null = null;
+    for (const provider of this.providers) {
+      const result = await this.ask(provider, flagKey, defaultValue, context, type);
+      last = result;
+      if (result.reason !== 'ERROR') return result;
+      if (this.strategy === 'first-match' && !notFound(result)) return result;
+    }
+    return last ?? { value: defaultValue, reason: 'ERROR', errorCode: 'FLAG_NOT_FOUND', flagMetadata: {} };
+  }
+
+  private async run<T extends FlagValue>(flagKey: string, defaultValue: T, context: FlagContext, type: FlagValueType): Promise<FlagEvaluation<T>> {
     const hook: FlagHookContext = { flagKey, defaultValue, context, type };
     let details: FlagEvaluation<T> = { flagKey, value: defaultValue, reason: 'ERROR', errorCode: 'GENERAL', flagMetadata: {} };
     try {
       for (const entry of this.hooks) entry.before?.(hook);
-      const resolution = type === 'boolean' ? this.provider.resolveBooleanEvaluation(flagKey, defaultValue as boolean, context)
-        : type === 'string' ? this.provider.resolveStringEvaluation(flagKey, defaultValue as string, context)
-          : type === 'number' ? this.provider.resolveNumberEvaluation(flagKey, defaultValue as number, context)
-            : this.provider.resolveObjectEvaluation(flagKey, defaultValue as Record<string, unknown>, context);
-      details = { flagKey, ...(resolution as FlagResolution<T>) };
+      details = { flagKey, ...(await this.resolveAll(flagKey, defaultValue, await this.enrich(flagKey, context), type)) };
       for (const entry of this.hooks) entry.after?.(hook, details);
     } catch (error) {
       for (const entry of this.hooks) entry.error?.(hook, error);
@@ -566,31 +733,36 @@ export class FeatureFlags {
     return details;
   }
 
-  getBooleanDetails(flagKey: string, defaultValue: boolean, context: FlagContext = {}): FlagEvaluation<boolean> { return this.run(flagKey, defaultValue, context, 'boolean'); }
-  getBooleanValue(flagKey: string, defaultValue: boolean, context: FlagContext = {}): boolean { return this.getBooleanDetails(flagKey, defaultValue, context).value; }
-  getStringDetails(flagKey: string, defaultValue: string, context: FlagContext = {}): FlagEvaluation<string> { return this.run(flagKey, defaultValue, context, 'string'); }
-  getStringValue(flagKey: string, defaultValue: string, context: FlagContext = {}): string { return this.getStringDetails(flagKey, defaultValue, context).value; }
-  getNumberDetails(flagKey: string, defaultValue: number, context: FlagContext = {}): FlagEvaluation<number> { return this.run(flagKey, defaultValue, context, 'number'); }
-  getNumberValue(flagKey: string, defaultValue: number, context: FlagContext = {}): number { return this.getNumberDetails(flagKey, defaultValue, context).value; }
-  getObjectDetails<T extends Record<string, unknown> | unknown[]>(flagKey: string, defaultValue: T, context: FlagContext = {}): FlagEvaluation<T> { return this.run(flagKey, defaultValue, context, 'object'); }
-  getObjectValue<T extends Record<string, unknown> | unknown[]>(flagKey: string, defaultValue: T, context: FlagContext = {}): T { return this.getObjectDetails(flagKey, defaultValue, context).value; }
+  getBooleanDetails(flagKey: string, defaultValue: boolean, context: FlagContext = {}): Promise<FlagEvaluation<boolean>> { return this.run(flagKey, defaultValue, context, 'boolean'); }
+  async getBooleanValue(flagKey: string, defaultValue: boolean, context: FlagContext = {}): Promise<boolean> { return (await this.getBooleanDetails(flagKey, defaultValue, context)).value; }
+  getStringDetails(flagKey: string, defaultValue: string, context: FlagContext = {}): Promise<FlagEvaluation<string>> { return this.run(flagKey, defaultValue, context, 'string'); }
+  async getStringValue(flagKey: string, defaultValue: string, context: FlagContext = {}): Promise<string> { return (await this.getStringDetails(flagKey, defaultValue, context)).value; }
+  getNumberDetails(flagKey: string, defaultValue: number, context: FlagContext = {}): Promise<FlagEvaluation<number>> { return this.run(flagKey, defaultValue, context, 'number'); }
+  async getNumberValue(flagKey: string, defaultValue: number, context: FlagContext = {}): Promise<number> { return (await this.getNumberDetails(flagKey, defaultValue, context)).value; }
+  getObjectDetails<T extends Record<string, unknown> | unknown[]>(flagKey: string, defaultValue: T, context: FlagContext = {}): Promise<FlagEvaluation<T>> { return this.run(flagKey, defaultValue, context, 'object'); }
+  async getObjectValue<T extends Record<string, unknown> | unknown[]>(flagKey: string, defaultValue: T, context: FlagContext = {}): Promise<T> { return (await this.getObjectDetails(flagKey, defaultValue, context)).value; }
 
   /** Evaluates one flag with its code default variant's value as the fallback, whatever its type. */
-  details(flagKey: string, context: FlagContext): FlagEvaluation {
-    const base = this.provider.registry.flags[flagKey];
-    if (!base) return this.run(flagKey, false, context, 'boolean');
-    const fallback = base.variants[base.defaultVariant];
+  details(flagKey: string, context: FlagContext): Promise<FlagEvaluation> {
+    const fallback = this.fallbackOf(flagKey);
     return this.run(flagKey, fallback, context, typeOf(fallback));
   }
 
-  /** Every flag the browser may see, evaluated for one context: `{ key: value }`. Targeting rules never leave the server. */
-  clientValues(context: FlagContext): Record<string, FlagValue> {
-    return Object.fromEntries(Object.entries(this.provider.registry.flags).filter(([, flag]) => flag.metadata.client).map(([key]) => [key, this.details(key, context).value]));
+  /** Every flag the browser may see, evaluated for one context. Targeting rules never leave the server. */
+  async clientDetails(context: FlagContext): Promise<FlagEvaluation[]> {
+    const keys = Object.entries(this.provider.registry.flags).filter(([, flag]) => flag.metadata.client).map(([key]) => key);
+    return Promise.all(keys.map(key => this.details(key, context)));
+  }
+
+  /** Every flag the browser may see, as `{ key: value }`. */
+  async clientValues(context: FlagContext): Promise<Record<string, FlagValue>> {
+    return Object.fromEntries((await this.clientDetails(context)).map(details => [details.flagKey, details.value]));
   }
 
   /** The flags a person may opt in to or out of, each with its metadata and its value for them. */
-  labs(context: FlagContext): { key: string; metadata: FlagMetadata; evaluation: FlagEvaluation }[] {
-    return Object.entries(this.provider.registry.flags).filter(([, flag]) => flag.metadata.labs).map(([key, flag]) => ({ key, metadata: flag.metadata, evaluation: this.details(key, context) }));
+  async labs(context: FlagContext): Promise<{ key: string; metadata: FlagMetadata; evaluation: FlagEvaluation }[]> {
+    const entries = Object.entries(this.provider.registry.flags).filter(([, flag]) => flag.metadata.labs);
+    return Promise.all(entries.map(async ([key, flag]) => ({ key, metadata: flag.metadata, evaluation: await this.details(key, context) })));
   }
 
   /** Whether a flag's removal date has passed. */
@@ -599,12 +771,64 @@ export class FeatureFlags {
     return Boolean(expires) && this.now().toISOString().slice(0, 10) > String(expires);
   }
 
-  /** Every flag with its effective rule, source, override, expiry and evaluation for one context, for administrators. */
-  list(context: FlagContext): FlagView[] {
-    return Object.entries(this.provider.registry.flags).map(([key, flag]) => {
+  /** Every flag with its effective rule, source, override, rollout, expiry and evaluation for one context, for administrators. */
+  async list(context: FlagContext): Promise<FlagView[]> {
+    return Promise.all(Object.entries(this.provider.registry.flags).map(async ([key, flag]) => {
       const effective = this.provider.rule(key)!;
-      return { key, metadata: flag.metadata, rule: effective.rule, source: effective.source, override: this.provider.override(key), expired: this.expired(key), evaluation: this.details(key, context), evaluations: this.counter.of(key) };
-    });
+      const override = this.overrides[key] ?? null;
+      const evaluations = this.counter.of(key);
+      const served = Object.keys(evaluations);
+      const total = Object.values(evaluations).reduce((sum, count) => sum + count, 0);
+      return { key, metadata: flag.metadata, rule: effective.rule, source: override ? 'override' as const : effective.source, override, rollout: this.provider.rollout(key), expired: this.expired(key), evaluation: await this.details(key, context), evaluations, settled: served.length === 1 && total >= 50 ? served[0] : null };
+    }));
+  }
+
+  /** The segments administrators defined. */
+  segmentList(): Segment[] { return Object.values(this.segments).sort((a, b) => a.name.localeCompare(b.name)); }
+
+  private requireStore(): FlagStore {
+    if (!this.store?.setFlagRollout || !this.store.setFlagSegment) throw Object.assign(new Error('This workbench keeps no flag store.'), { status: 409, code: 'flag_store' });
+    if (!this.console) throw Object.assign(new Error('Rollouts are managed in Git on this workbench (flags.console is false).'), { status: 409, code: 'flag_console_off' });
+    return this.store;
+  }
+
+  /** Validates, stores and applies an authored rollout, or clears it (`null`) so the Git rules apply again. */
+  setRollout(flagKey: string, raw: unknown | null, actor: string, reason: string): RolloutSpec | null {
+    const base = this.provider.registry.flags[flagKey];
+    if (!base) throw Object.assign(new Error(`Flag ${flagKey} is not in the registry.`), { status: 404, code: 'flag_not_found' });
+    const store = this.requireStore();
+    let spec: RolloutSpec | null = null;
+    if (raw !== null) {
+      try { spec = checkSpec(raw, { variants: Object.keys(this.provider.rule(flagKey)!.rule.variants), segments: Object.keys(this.segments), flags: Object.keys(this.provider.registry.flags), flagKey }); }
+      catch (error) { throw Object.assign(error as Error, { status: 400, code: 'flag_rollout' }); }
+      for (const prerequisite of prerequisitesOf(spec)) if (this.provider.prerequisites(prerequisite).length) throw Object.assign(new Error(`${prerequisite} has prerequisites of its own; prerequisites are one level deep.`), { status: 400, code: 'flag_rollout' });
+    }
+    store.setFlagRollout!(flagKey, spec, actor, reason);
+    this.reloadStore();
+    return spec;
+  }
+
+  /** Validates and stores a segment, or deletes it (`null`) when no rollout uses it; every rollout that uses it recompiles. */
+  setSegment(name: string, raw: unknown | null, actor: string): Segment | null {
+    const store = this.requireStore();
+    let segment: Segment | null = null;
+    if (raw === null) {
+      const users = Object.entries(this.rollouts).filter(([, spec]) => spec.rules.some(rule => rule.audience.segment === name)).map(([key]) => key);
+      if (users.length) throw Object.assign(new Error(`The segment is used by ${users.join(', ')}.`), { status: 409, code: 'flag_segment_in_use' });
+    } else {
+      try { segment = checkSegment({ ...(raw as object), name }); }
+      catch (error) { throw Object.assign(error as Error, { status: 400, code: 'flag_segment' }); }
+    }
+    store.setFlagSegment!(name, segment, actor);
+    this.reloadStore();
+    return segment;
+  }
+
+  /** The flagd document the authored rollouts compile to, to move them into Git or another flagd-compatible service. */
+  exportDocument(): { flags: Record<string, FlagRule> } {
+    const flags: Record<string, FlagRule> = {};
+    for (const key of Object.keys(this.rollouts)) { const effective = this.provider.rule(key); if (effective) flags[key] = effective.rule; }
+    return { flags };
   }
 
   /** Sets or clears an administrator override and persists it. Throws for an unknown flag or variant. */
@@ -614,15 +838,12 @@ export class FeatureFlags {
     const effective = this.provider.rule(flagKey)!.rule;
     if (variant !== null && !Object.hasOwn(effective.variants, variant)) throw Object.assign(new Error(`Choose one of ${Object.keys(effective.variants).join(', ')}.`), { status: 400, code: 'flag_variant' });
     const override = variant === null ? null : { variant, reason, by: actor, at: this.now().toISOString() };
-    if (this.overrides) {
-      this.overrides.setFlagOverride(flagKey, override, actor);
-      this.provider.useOverrides(this.overrides.flagOverrides());
-    } else {
-      const current: Record<string, FlagOverride> = {};
-      for (const key of Object.keys(this.provider.registry.flags)) { const entry = this.provider.override(key); if (entry && key !== flagKey) current[key] = entry; }
-      if (override) current[flagKey] = override;
-      this.provider.useOverrides(current);
-    }
+    if (this.store) { this.store.setFlagOverride(flagKey, override, actor); this.overrides = this.store.flagOverrides(); }
+    else if (override) this.overrides = { ...this.overrides, [flagKey]: override };
+    else { const { [flagKey]: _removed, ...rest } = this.overrides; this.overrides = rest; }
     return override;
   }
+
+  /** The administrator override of a flag, if one applies. */
+  override(flagKey: string): FlagOverride | null { return this.overrides[flagKey] ?? null; }
 }
