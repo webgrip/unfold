@@ -40,6 +40,7 @@ The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/pl
 | Use the Unfold name, mark or colours | [Brand](brand/README.md) · [Trademark policy](brand/TRADEMARK.md) (proposed) |
 | Check what the website claims about credentials and execution, and which settings each claim needs | [Capability matrix](reference/capability-matrix.md) |
 | Look up a term or a decision | [Glossary](reference/glossary.md) · [Decisions](reference/decisions.md) |
+| See what the screen calls a value Ploeg's API sends, and the reverse | [Ploeg words and screen words](reference/ploeg-words.md) |
 | Change Unfold | [Repository instructions](../AGENTS.md) · [Documentation policy](documentation.md) · [CI and releases](operations/ci.md) |
 
 **Out of scope:** Unfold does not merge or deploy the changes agents make. It does not host models; it reaches providers through your LiteLLM gateway.

@@ -30,6 +30,10 @@ Where each kind of knowledge about working on Unfold lives, and what each agent 
 
 `CLAUDE.md` beside each `AGENTS.md` is one line, `@AGENTS.md`, so Claude Code reads the same file. `.claude/skills` is a link to `.agents/skills`.
 
+## Who owns a term
+
+Ploeg owns a term when Ploeg stores it or its API names it, such as Run, Shift, Verdict and every state and code the operator API sends. Unfold owns presentation, product, billing and card terms. Unfold imports a Ploeg term in [`model.yaml`](../domain/model.yaml) instead of defining it again, and moves any product-only clause into one of its own terms, as Tenant and Client did in [#339](https://forgejo.webgrip.dev/webgrip/unfold/pulls/339). What the screen calls each Ploeg value is in [Ploeg words and screen words](../reference/ploeg-words.md), which `apps/unfold/test/ploeg-contract.test.ts` checks against Ploeg's published schemas.
+
 ## What each agent reads
 
 | Agent | Root `AGENTS.md` | Nested `AGENTS.md` | `.agents/skills` | Repository hooks |

@@ -34,6 +34,7 @@ nav:
       - Release and live test: operations/first-cutover.md
   - Reference:
       - Glossary: reference/glossary.md
+      - Ploeg words and screen words: reference/ploeg-words.md
       - Decisions: reference/decisions.md
       - Ploeg configuration: ploeg/reference/configuration.md
       - Capability matrix: reference/capability-matrix.md

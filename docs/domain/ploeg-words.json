@@ -1,0 +1,1022 @@
+{
+  "sets": [
+    {
+      "id": "work-item-state",
+      "name": "Work Item state",
+      "ploegTerm": "Work Item",
+      "ploeg": {
+        "schemas": [
+          {
+            "file": "operator-api.v1.schema.json",
+            "pointer": "/$defs/item/properties/state"
+          },
+          {
+            "file": "operator-api.v1.schema.json",
+            "pointer": "/$defs/factsWorkItem/properties/state"
+          },
+          {
+            "file": "taskspec.v1.schema.json",
+            "pointer": "/$defs/workItem/properties/state"
+          },
+          {
+            "file": "tracker-execution.v1.schema.json",
+            "pointer": "/$defs/item/properties/state"
+          }
+        ]
+      },
+      "unfold": {
+        "accepts": "apps/unfold/src/ploeg.ts `ploegAccepted.workItemStates`",
+        "labels": "apps/unfold/public/core/states.js `workItemStates`; the stage strip from apps/unfold/public/core/stages.js `workStages`, without a Run card"
+      },
+      "mcp": "passes the Ploeg value through as `state` in unfold_now, unfold_find_work and unfold_get_work",
+      "values": [
+        {
+          "value": "ingested",
+          "label": "Received",
+          "stage": "Define",
+          "mcp": "ingested",
+          "mcpGap": "unfold_find_work's `state` hint in apps/unfold/src/mcp.ts lists every other state but not this one."
+        },
+        {
+          "value": "proposed",
+          "label": "Proposed",
+          "stage": "Define",
+          "mcp": "proposed"
+        },
+        {
+          "value": "queued",
+          "label": "Queued",
+          "stage": "Execute",
+          "mcp": "queued"
+        },
+        {
+          "value": "leased",
+          "label": "Running",
+          "stage": "Execute",
+          "mcp": "leased"
+        },
+        {
+          "value": "needs_human",
+          "label": "Needs you",
+          "stage": "Execute (stopped)",
+          "mcp": "needs_human"
+        },
+        {
+          "value": "awaiting_review",
+          "label": "Ready for review",
+          "heading": "Ready for your review",
+          "stage": "Review",
+          "mcp": "awaiting_review"
+        },
+        {
+          "value": "stale",
+          "label": "Stopped retrying",
+          "stage": "Execute (stopped)",
+          "mcp": "stale"
+        },
+        {
+          "value": "done",
+          "label": "Done",
+          "stage": "none: finished",
+          "mcp": "done"
+        },
+        {
+          "value": "withdrawn",
+          "label": "Withdrawn",
+          "stage": "Execute (stopped)",
+          "mcp": "withdrawn"
+        },
+        {
+          "value": "rejected",
+          "label": "Rejected",
+          "stage": "none: finished",
+          "mcp": "done",
+          "unfoldOnly": "Unfold derives it for a Done proposal a person rejected; Ploeg keeps the state `done`."
+        }
+      ]
+    },
+    {
+      "id": "run-state",
+      "name": "Run state",
+      "ploegTerm": "Run",
+      "ploeg": {
+        "schemas": [
+          {
+            "file": "operator-api.v1.schema.json",
+            "pointer": "/$defs/run/properties/state"
+          },
+          {
+            "file": "operator-api.v1.schema.json",
+            "pointer": "/$defs/runListItem/properties/state"
+          }
+        ]
+      },
+      "unfold": {
+        "accepts": "apps/unfold/src/ploeg.ts `ploegAccepted.runStates`",
+        "labels": "apps/unfold/public/core/states.js `runStates`"
+      },
+      "mcp": "passes the Ploeg value through as `state` in unfold_now and unfold_get_work",
+      "values": [
+        {
+          "value": "pending",
+          "label": "Pending",
+          "mcp": "pending"
+        },
+        {
+          "value": "running",
+          "label": "Running",
+          "mcp": "running"
+        },
+        {
+          "value": "finished",
+          "label": "Finished",
+          "mcp": "finished"
+        },
+        {
+          "value": "stopped",
+          "label": "Stopped",
+          "mcp": "running",
+          "unfoldOnly": "Unfold shows a Run Ploeg still lists as running as Stopped when its Work Item or session has stopped."
+        }
+      ]
+    },
+    {
+      "id": "run-outcome",
+      "name": "Run outcome",
+      "ploegTerm": "Outcome",
+      "ploeg": {
+        "schemas": [
+          {
+            "file": "operator-api.v1.schema.json",
+            "pointer": "/$defs/run/properties/outcome"
+          },
+          {
+            "file": "outcomereport.v1.schema.json",
+            "pointer": "/properties/outcome"
+          }
+        ]
+      },
+      "unfold": {
+        "accepts": "any string: apps/unfold/src/ploeg.ts keeps the outcome as text",
+        "labels": "apps/unfold/public/core/states.js `runOutcomes`"
+      },
+      "mcp": "passes the Ploeg value through as `outcome` in unfold_get_work",
+      "values": [
+        {
+          "value": "pr_opened",
+          "label": "Opened a pull request",
+          "short": "PR opened",
+          "mcp": "pr_opened"
+        },
+        {
+          "value": "pr_updated",
+          "label": "Updated the pull request",
+          "short": "PR updated",
+          "mcp": "pr_updated"
+        },
+        {
+          "value": "issue_updated",
+          "label": "Updated the tracker item",
+          "short": "Tracker updated",
+          "mcp": "issue_updated"
+        },
+        {
+          "value": "follow_up_created",
+          "label": "Created follow-up work",
+          "short": "Follow-up created",
+          "mcp": "follow_up_created"
+        },
+        {
+          "value": "stuck",
+          "label": "Stuck",
+          "short": "Stuck",
+          "mcp": "stuck"
+        },
+        {
+          "value": "failed",
+          "label": "Failed",
+          "short": "Failed",
+          "mcp": "failed"
+        },
+        {
+          "value": "no_change_needed",
+          "label": "No change needed",
+          "short": "No change",
+          "mcp": "no_change_needed"
+        }
+      ]
+    },
+    {
+      "id": "verdict",
+      "name": "Verdict",
+      "ploegTerm": "Verdict",
+      "ploeg": {
+        "schemas": [
+          {
+            "file": "operator-api.v1.schema.json",
+            "pointer": "/$defs/run/properties/verdict"
+          },
+          {
+            "file": "operator-api.v1.schema.json",
+            "pointer": "/$defs/runListItem/properties/verdict"
+          }
+        ]
+      },
+      "unfold": {
+        "accepts": "any string: apps/unfold/src/ploeg.ts keeps the verdict as text",
+        "labels": "apps/unfold/public/core/states.js `verdicts`"
+      },
+      "mcp": "passes the Ploeg value through as `verdict` in unfold_get_work, `\"\"` for none",
+      "values": [
+        {
+          "value": "",
+          "label": "No agent verdict",
+          "short": "No verdict",
+          "mcp": ""
+        },
+        {
+          "value": "approve",
+          "label": "Agent review: approve",
+          "short": "Agent approved",
+          "mcp": "approve"
+        },
+        {
+          "value": "request_changes",
+          "label": "Agent review: changes requested",
+          "short": "Agent asked for changes",
+          "mcp": "request_changes"
+        },
+        {
+          "value": "inconclusive",
+          "label": "Agent review: inconclusive",
+          "short": "Inconclusive",
+          "mcp": "not exposed",
+          "unfoldOnly": "Unfold's own session reviewers can report it; Ploeg's schema has no such verdict."
+        }
+      ]
+    },
+    {
+      "id": "failure-reason",
+      "name": "Run failure reason",
+      "ploegTerm": "Outcome Report",
+      "ploeg": {
+        "schemas": [
+          {
+            "file": "outcomereport.v1.schema.json",
+            "pointer": "/properties/failureReason"
+          }
+        ],
+        "note": "The operator API types a Run's `failureReason` as free text; the outcome report schema names the values."
+      },
+      "unfold": {
+        "accepts": "any string: apps/unfold/src/ploeg.ts keeps the failure reason as text",
+        "labels": "apps/unfold/public/core/states.js `failureReasons`"
+      },
+      "mcp": "passes the Ploeg value through as `failureReason` in unfold_get_work, `\"\"` for none",
+      "values": [
+        {
+          "value": "infra_node",
+          "label": "The machine ended the Run",
+          "mcp": "infra_node"
+        },
+        {
+          "value": "infra_llm",
+          "label": "The model gateway failed",
+          "mcp": "infra_llm"
+        },
+        {
+          "value": "agent_error",
+          "label": "The agent harness failed",
+          "mcp": "agent_error"
+        },
+        {
+          "value": "budget",
+          "label": "The agent reached its token ceiling",
+          "mcp": "budget"
+        },
+        {
+          "value": "lease_lost",
+          "label": "The worker stopped responding",
+          "mcp": "lease_lost"
+        },
+        {
+          "value": "timeout",
+          "label": "The Run timed out",
+          "mcp": "timeout"
+        },
+        {
+          "value": "idle",
+          "label": "The agent went silent",
+          "mcp": "idle"
+        },
+        {
+          "value": "credential_leak",
+          "label": "Credential leak",
+          "mcp": "credential_leak",
+          "gap": "states.js has no entry, so the screen shows the humanized key."
+        }
+      ]
+    },
+    {
+      "id": "close-reason",
+      "name": "Shift close reason",
+      "ploegTerm": "Shift",
+      "ploeg": {
+        "source": "apps/ploeg/pkg",
+        "note": "Not in a published schema: the operator API types `closeReason` as free text. The test checks each code against the Go constant that writes it."
+      },
+      "unfold": {
+        "accepts": "any string: apps/unfold/src/ploeg.ts keeps the close reason as text",
+        "labels": "apps/unfold/public/core/states.js `closeReasonLabel` (Shift rows, audit lines) and apps/unfold/public/core/reasons.js `listReason` (the Needs-you chip)"
+      },
+      "mcp": "unfold_get_work passes `closeReason` through on each Shift; unfold_now and unfold_get_work add `reason.code` and `reason.chip` from reasons.js",
+      "values": [
+        {
+          "value": "review_approved",
+          "ploegSource": "pkg/shiftengine/reviewloop.go",
+          "label": "An agent reviewer approved",
+          "chip": "Pull request closed",
+          "mcp": "review_approved"
+        },
+        {
+          "value": "plan_exhausted",
+          "ploegSource": "pkg/shiftengine/reviewloop.go",
+          "label": "Every planned Round ran",
+          "chip": "Every Round ran, no result",
+          "mcp": "plan_exhausted"
+        },
+        {
+          "value": "review_failed",
+          "ploegSource": "pkg/shiftengine/reviewloop.go",
+          "label": "No agent reviewed it: the reviewer kept failing",
+          "chip": "Unrecognised: review_failed",
+          "mcp": "review_failed",
+          "gap": "reasons.js does not know it: if it ever ends in needs_human, the chip reads \"Unrecognised: review_failed\"."
+        },
+        {
+          "value": "fix_round_cap_reached",
+          "ploegSource": "pkg/shiftengine/reviewloop.go",
+          "label": "The fix Rounds ran out",
+          "chip": "Reviewer still wants changes",
+          "mcp": "fix_round_cap_reached"
+        },
+        {
+          "value": "budget_exhausted_before_fix_round",
+          "ploegSource": "pkg/shiftengine/reviewloop.go",
+          "label": "The budget ran out before a fix Round",
+          "chip": "Budget ran out",
+          "mcp": "budget_exhausted_before_fix_round"
+        },
+        {
+          "value": "checks_not_passed",
+          "ploegSource": "pkg/shiftengine/reviewloop.go",
+          "label": "Ploeg recorded: “checks_not_passed”",
+          "chip": "Unrecognised: checks_not_passed",
+          "mcp": "checks_not_passed",
+          "gap": "states.js and reasons.js do not know it: the Shift row quotes the raw code and the Needs-you chip reads \"Unrecognised: checks_not_passed\", although Ploeg hands the Work Item to a person."
+        },
+        {
+          "value": "writing_run_failed_repeatedly",
+          "ploegSource": "pkg/shiftengine/failedwriter.go",
+          "label": "The writer kept failing",
+          "chip": "Writer kept failing",
+          "mcp": "writing_run_failed_repeatedly"
+        },
+        {
+          "value": "writing_run_killed_repeatedly",
+          "ploegSource": "pkg/shiftengine/failedwriter.go",
+          "label": "The cluster kept stopping the writer",
+          "chip": "Cluster kept stopping the writer",
+          "mcp": "writing_run_killed_repeatedly"
+        },
+        {
+          "value": "withdrawn_unassigned",
+          "ploegSource": "pkg/store/withdraw.go",
+          "label": "The task was unassigned from the Team",
+          "chip": null,
+          "mcp": "withdrawn_unassigned"
+        },
+        {
+          "value": "withdrawn_closed",
+          "ploegSource": "pkg/store/withdraw.go",
+          "label": "The task was closed before any Run started",
+          "chip": null,
+          "mcp": "withdrawn_closed"
+        },
+        {
+          "value": "withdrawn_by_operator",
+          "ploegSource": "pkg/store/withdraw.go",
+          "label": "An operator cancelled it",
+          "chip": null,
+          "mcp": "withdrawn_by_operator"
+        },
+        {
+          "value": "withdrawn_session_ended",
+          "ploegSource": "pkg/store/withdraw.go",
+          "label": "Ploeg recorded: “withdrawn_session_ended”",
+          "chip": null,
+          "mcp": "withdrawn_session_ended",
+          "gap": "states.js does not know it: the Shift row quotes the raw code."
+        },
+        {
+          "value": "operator_adopted",
+          "ploegSource": "pkg/store/operator_source.go",
+          "label": "An Unfold session took it over",
+          "chip": null,
+          "mcp": "operator_adopted"
+        },
+        {
+          "value": "operator_admission_expired",
+          "ploegSource": "pkg/store/operator_execution.go",
+          "label": "The Unfold session never started",
+          "chip": null,
+          "mcp": "operator_admission_expired"
+        },
+        {
+          "value": "operator_completed",
+          "ploegSource": "pkg/store/operator_execution.go",
+          "composedFrom": "operator_",
+          "label": "The Unfold session completed it",
+          "chip": null,
+          "mcp": "operator_completed"
+        },
+        {
+          "value": "operator_cancelled",
+          "ploegSource": "pkg/store/operator_execution.go",
+          "composedFrom": "operator_",
+          "label": "The Unfold session was cancelled",
+          "chip": null,
+          "mcp": "operator_cancelled"
+        },
+        {
+          "value": "operator_failed",
+          "ploegSource": "pkg/store/operator_execution.go",
+          "composedFrom": "operator_",
+          "label": "The Unfold session failed",
+          "chip": "Session failed",
+          "mcp": "operator_failed"
+        },
+        {
+          "value": "budget exhausted",
+          "example": "budget exhausted: pool 5, spent 4, reserved 1",
+          "ploegSource": "pkg/shiftengine",
+          "prefix": true,
+          "label": "The US$ 5,00 budget ran out",
+          "chip": "Budget ran out",
+          "mcp": "budget exhausted: pool 5, spent 4, reserved 1"
+        },
+        {
+          "value": "budget held by unsettled runs",
+          "example": "budget held by unsettled runs: pool 5, spent 1, held 4",
+          "ploegSource": "pkg/shiftengine",
+          "prefix": true,
+          "label": "The US$ 5,00 budget is still held, not spent",
+          "chip": "Budget held, not spent",
+          "mcp": "budget held by unsettled runs: pool 5, spent 1, held 4"
+        },
+        {
+          "value": "run stuck",
+          "example": "run stuck: writer round 2",
+          "ploegSource": "pkg/shiftengine",
+          "prefix": true,
+          "label": "The writer got stuck in Round 2",
+          "chip": "Agent is stuck",
+          "mcp": "run stuck: writer round 2"
+        },
+        {
+          "value": "plan removed from configuration",
+          "example": "plan removed from configuration",
+          "ploegSource": "pkg/shiftengine",
+          "prefix": true,
+          "label": "The Team plan was removed",
+          "chip": "Team plan removed",
+          "mcp": "plan removed from configuration"
+        }
+      ]
+    },
+    {
+      "id": "needs-human-reason",
+      "name": "Operator Execution needs_human reason",
+      "ploegTerm": "Operator Execution",
+      "ploeg": {
+        "source": "apps/ploeg/pkg/store/operator_execution.go",
+        "note": "The `reason` of a `work_item.needs_human` event when an Operator Execution hands its Work Item to a person: `operator_` plus the execution state, or `operator_expired`."
+      },
+      "unfold": {
+        "accepts": "any string",
+        "labels": "apps/unfold/public/core/reasons.js `listReason` (the Needs-you chip)"
+      },
+      "mcp": "`reason.code` and `reason.chip` in unfold_now and unfold_get_work",
+      "values": [
+        {
+          "value": "operator_paused",
+          "ploegSource": "pkg/store/operator_execution.go",
+          "composedFrom": "operator_",
+          "chip": "Session paused",
+          "mcp": "operator_paused"
+        },
+        {
+          "value": "operator_interrupted",
+          "ploegSource": "pkg/store/operator_execution.go",
+          "composedFrom": "operator_",
+          "chip": "Session interrupted",
+          "mcp": "operator_interrupted"
+        },
+        {
+          "value": "operator_waiting_input",
+          "ploegSource": "pkg/store/operator_execution.go",
+          "composedFrom": "operator_",
+          "chip": "Session needs an answer",
+          "mcp": "operator_waiting_input"
+        },
+        {
+          "value": "operator_failed",
+          "ploegSource": "pkg/store/operator_execution.go",
+          "composedFrom": "operator_",
+          "chip": "Session failed",
+          "mcp": "operator_failed"
+        },
+        {
+          "value": "operator_expired",
+          "ploegSource": "pkg/store/operator_execution.go",
+          "chip": "Session lost contact",
+          "mcp": "operator_expired"
+        }
+      ]
+    },
+    {
+      "id": "execution-state",
+      "name": "Operator Execution state",
+      "ploegTerm": "Operator Execution",
+      "ploeg": {
+        "model": "apps/ploeg/docs/domain/model.yaml",
+        "note": "Not in a published schema; the states are the Operator Execution lifecycle in Ploeg's domain model."
+      },
+      "unfold": {
+        "accepts": "apps/unfold/src/execution-authority.ts `executionStates`",
+        "labels": "apps/unfold/public/core/states.js `executionStateText` (the session feed's `execution.authority` line)"
+      },
+      "mcp": "not exposed: unfold_sessions reports Unfold's own session status",
+      "values": [
+        {
+          "value": "admitted",
+          "label": "Ploeg admitted this execution",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "running",
+          "label": "Ploeg marked this execution running",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "waiting_input",
+          "label": "Ploeg is holding this execution for your answer",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "pause_requested",
+          "label": "Ploeg is pausing this execution",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "paused",
+          "label": "Ploeg paused this execution",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "cancel_requested",
+          "label": "Ploeg is cancelling this execution",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "cancelled",
+          "label": "Ploeg cancelled this execution",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "completed",
+          "label": "Ploeg recorded this execution as completed",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "failed",
+          "label": "Ploeg recorded this execution as failed",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "interrupted",
+          "label": "Ploeg recorded this execution as interrupted",
+          "mcp": "not exposed"
+        }
+      ]
+    },
+    {
+      "id": "run-cost-status",
+      "name": "Run cost status",
+      "ploegTerm": "Inference Account",
+      "ploeg": {
+        "schemas": [
+          {
+            "file": "operator-api.v1.schema.json",
+            "pointer": "/$defs/run/properties/costStatus"
+          }
+        ]
+      },
+      "unfold": {
+        "accepts": "apps/unfold/src/ploeg.ts `ploegAccepted.runCostStatuses`",
+        "labels": "apps/unfold/public/ploeg.js (the Run's Model cost row)"
+      },
+      "mcp": "not exposed: unfold_get_work gives `costUsd`, null when Ploeg reported none",
+      "values": [
+        {
+          "value": "observed",
+          "label": "the amount",
+          "amount": true,
+          "mcp": "costUsd"
+        },
+        {
+          "value": "unknown",
+          "label": "Not reported",
+          "mcp": "costUsd: null"
+        }
+      ]
+    },
+    {
+      "id": "ask-cost-status",
+      "name": "Ask cost status",
+      "ploegTerm": "Ask",
+      "ploeg": {
+        "schemas": [
+          {
+            "file": "operator-api.v1.schema.json",
+            "pointer": "/$defs/askSpend/properties/costStatus"
+          },
+          {
+            "file": "operator-api.v1.schema.json",
+            "pointer": "/$defs/factsAsk/properties/costStatus"
+          }
+        ]
+      },
+      "unfold": {
+        "accepts": "apps/unfold/src/ploeg.ts `ploegAccepted.askCostStatuses`",
+        "labels": "apps/unfold/public/ploeg.js (the cost next to an Ask)",
+        "renames": "apps/unfold/src/http.ts (`askAuthority.spend`)"
+      },
+      "mcp": "`costStatus` in unfold_ask, in Unfold's words",
+      "values": [
+        {
+          "value": "provisional",
+          "unfold": "pending",
+          "label": "Cost pending",
+          "mcp": "pending",
+          "rename": "Unfold's HTTP layer renames Ploeg's `provisional` to `pending` before storing the Ask."
+        },
+        {
+          "value": "settled",
+          "unfold": "settled",
+          "label": "the amount",
+          "amount": true,
+          "mcp": "settled"
+        },
+        {
+          "value": "unknown",
+          "unfold": "unknown",
+          "label": "Cost not reported",
+          "mcp": "unknown"
+        }
+      ]
+    },
+    {
+      "id": "audit-event",
+      "name": "Audit event",
+      "ploegTerm": "Work Item",
+      "ploeg": {
+        "source": "apps/ploeg/pkg",
+        "note": "Not in a published schema: the operator API types an event's `action` as free text. The test checks each action against the Go code that writes it. Ploeg also writes `forge.<kind>` for forge webhooks and `worker.request_rejected` without a Work Item; neither is listed."
+      },
+      "unfold": {
+        "accepts": "any string",
+        "labels": "apps/unfold/public/core/states.js `auditEvent` (Activity, the Work Item history)"
+      },
+      "mcp": "not exposed; unfold_get_work quotes the reason of the latest `work_item.<state>` event as `ploegSaid`",
+      "values": [
+        {
+          "value": "work_item.queued",
+          "label": "Queued",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.refreshed",
+          "label": "The tracker task changed",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.proposed",
+          "composedFrom": "work_item.",
+          "label": "Proposed by an agent",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.approved",
+          "label": "Approved",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.rejected",
+          "label": "Rejected",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.withdrawn",
+          "label": "Withdrawn",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.leased",
+          "composedFrom": "work_item.",
+          "label": "Running",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.needs_human",
+          "composedFrom": "work_item.",
+          "label": "Needs you",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.awaiting_review",
+          "composedFrom": "work_item.",
+          "label": "Ready for your review",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.done",
+          "composedFrom": "work_item.",
+          "label": "Done",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.stale",
+          "composedFrom": "work_item.",
+          "label": "Stopped retrying",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "created_work_item.accepted",
+          "label": "Created follow-up work",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "created_work_item.rejected",
+          "label": "Proposed work was refused by policy",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "follow_up.created",
+          "ploegTerm": "Follow-Up",
+          "label": "Follow-up created from the forge",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "follow_up.skipped",
+          "ploegTerm": "Follow-Up",
+          "label": "Follow-up skipped",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "review.changes_requested",
+          "ploegTerm": "Verdict",
+          "label": "Changes requested on the pull request",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "round.opened",
+          "ploegTerm": "Round",
+          "label": "Round started",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "round.reopened",
+          "ploegTerm": "Round",
+          "label": "Round retried after a failed writer",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "run.claimed",
+          "ploegTerm": "Run",
+          "label": "An agent started",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "run.expired",
+          "ploegTerm": "Run",
+          "label": "An agent stopped responding",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "shift.closed",
+          "ploegTerm": "Shift",
+          "label": "Shift closed",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "lease.acquired",
+          "ploegTerm": "Lease",
+          "label": "A worker took the Work Item",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "lease.expired",
+          "ploegTerm": "Lease",
+          "label": "Worker stopped responding · Ploeg retries",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "infra_cap",
+          "ploegTerm": "Lease",
+          "label": "Infrastructure kept failing; Ploeg stopped",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "checkpoint.written",
+          "ploegTerm": "Checkpoint",
+          "label": "Wrote a checkpoint",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "operator.admitted",
+          "ploegTerm": "Operator Execution",
+          "label": "An Unfold session took over",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "operator.admission_expired",
+          "ploegTerm": "Operator Execution",
+          "label": "The Unfold session never started",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "delivery.candidate_admitted",
+          "ploegTerm": "Delivery Candidate",
+          "label": "Delivery candidate admitted",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "delivery.verification_recorded",
+          "ploegTerm": "Verification Receipt",
+          "label": "Verification recorded",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "delivery.approved",
+          "ploegTerm": "Delivery Candidate",
+          "label": "Delivery approved",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "delivery.publication_published",
+          "ploegTerm": "Publication Operation",
+          "composedFrom": "delivery.publication_",
+          "label": "Published to the forge",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "delivery.publication_unknown",
+          "ploegTerm": "Publication Operation",
+          "composedFrom": "delivery.publication_",
+          "label": "Publication result unknown",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "delivery.publication_reserved",
+          "ploegTerm": "Publication Operation",
+          "composedFrom": "delivery.publication_",
+          "label": "Publication reserved",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "llm.reserved",
+          "ploegTerm": "Inference Account",
+          "label": "Budget reserved for a Run",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "llm.minting",
+          "ploegTerm": "Inference Account",
+          "label": "Model key requested",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "llm.issued",
+          "ploegTerm": "Inference Account",
+          "label": "Model key issued",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "llm.observed",
+          "ploegTerm": "Inference Account",
+          "label": "Model spend observed",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "llm.unknown",
+          "ploegTerm": "Inference Account",
+          "label": "Spend could not be settled",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "llm.reconciled",
+          "ploegTerm": "Inference Account",
+          "label": "Spend settled",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "llm.blocked",
+          "ploegTerm": "Inference Account",
+          "label": "Model key blocked",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "llm.unissued_blocked",
+          "ploegTerm": "Inference Account",
+          "label": "Unused model key blocked",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.requeued",
+          "label": "Work item: requeued",
+          "mcp": "not exposed",
+          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+        },
+        {
+          "value": "work_item.route_refused",
+          "label": "Work item: route refused",
+          "mcp": "not exposed",
+          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+        },
+        {
+          "value": "work_item.epics_seen",
+          "label": "Work item: epics seen",
+          "mcp": "not exposed",
+          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+        },
+        {
+          "value": "pull_request.mergeable",
+          "ploegTerm": "Forge Event",
+          "label": "Pull request: mergeable",
+          "mcp": "not exposed",
+          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+        },
+        {
+          "value": "pull_request.conflicted",
+          "ploegTerm": "Forge Event",
+          "label": "Pull request: conflicted",
+          "mcp": "not exposed",
+          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+        },
+        {
+          "value": "pull_request.reverted",
+          "ploegTerm": "Forge Event",
+          "label": "Pull request: reverted",
+          "mcp": "not exposed",
+          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+        },
+        {
+          "value": "pull_request_comment.upserted",
+          "ploegTerm": "Forge Event",
+          "label": "Pull request comment: upserted",
+          "mcp": "not exposed",
+          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+        },
+        {
+          "value": "pull_request_comment.deleted",
+          "ploegTerm": "Forge Event",
+          "label": "Pull request comment: deleted",
+          "mcp": "not exposed",
+          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+        },
+        {
+          "value": "deploy.recorded",
+          "ploegTerm": "Forge Event",
+          "label": "Deploy: recorded",
+          "mcp": "not exposed",
+          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+        },
+        {
+          "value": "ask.admitted",
+          "ploegTerm": "Ask",
+          "label": "Ask: admitted",
+          "mcp": "not exposed",
+          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+        },
+        {
+          "value": "ask.finished",
+          "ploegTerm": "Ask",
+          "label": "Ask: finished",
+          "mcp": "not exposed",
+          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+        }
+      ]
+    }
+  ]
+}
