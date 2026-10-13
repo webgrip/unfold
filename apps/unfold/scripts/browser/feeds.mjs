@@ -25,7 +25,7 @@ export async function run({ page, assert, screenshot }) {
     assert.match(page.url(), /#insights\?window=7d$/, 'The chosen window lives in the address');
     await page.getByRole('button', { name: 'Refresh', exact: true }).waitFor();
     assert.equal(await page.getByRole('button', { name: '7 days', exact: true }).getAttribute('aria-pressed'), 'true');
-    assert.equal(await page.locator('.insights .stat').count(), 9);
+    assert.equal(await page.locator('.insights .stat').count(), 10, 'four Run tiles and six Work Item tiles, Cannot release included');
     assert.equal(await page.locator('.insights a.stat[href="#work?lane=needs_human"]').count(), 1, 'The Needs you tile links to its lane');
     const note = page.locator('.demo-note', { hasText: 'Illustrative records · no model calls, no spend' });
     await note.waitFor({ state: 'attached' });

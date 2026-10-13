@@ -83,9 +83,24 @@ function leavesPage(element, origin) {
 }
 
 /**
+ * Whether mutation records show the page changed for the person: an attribute set again to the value it had does not
+ * count, and neither does anything inside `inert` content, such as the loading curtain whose mark flies for the first
+ * seconds of a load.
+ * @param {Iterable<{ type: string, target: Node, attributeName?: string | null, oldValue?: string | null }>} records
+ */
+export function pageChanged(records) {
+  for (const record of records) {
+    const element = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+    if (element?.closest?.('[inert]')) continue;
+    if (record.type !== 'attributes' || element.getAttribute(record.attributeName) !== record.oldValue) return true;
+  }
+  return false;
+}
+
+/**
  * Watches clicks and route changes in `document` and reports rage clicks, dead clicks and U-turns through `rules`.
  * A dead click is a click on a button, link, `[role=button]` or `[data-insight]` element after which, within
- * 100 ms, nothing in the page changed (an attribute set again to the value it had does not count), the address and focus stayed the same, and the application started no work.
+ * 100 ms, nothing in the page changed (see `pageChanged`), the address and focus stayed the same, and the application started no work.
  * @param {{ document: Document, rules: ReturnType<typeof createConfusionRules>, now?: () => number }} options
  */
 export function startConfusionDetector({ document, rules, now = () => performance.now() }) {
@@ -100,7 +115,7 @@ export function startConfusionDetector({ document, rules, now = () => performanc
     let changed = false;
     const address = window.location.href;
     const observer = new window.MutationObserver(records => {
-      if (records.some(record => record.type !== 'attributes' || record.target.getAttribute(record.attributeName) !== record.oldValue)) changed = true;
+      if (pageChanged(records)) changed = true;
     });
     observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeOldValue: true, characterData: true });
     const activityBefore = activityCount;
