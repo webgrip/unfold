@@ -173,16 +173,19 @@ function insightLevel(value: string | undefined): 'aggregate' | 'events' {
 }
 
 /**
- * Reads the optional error tracker. `UNFOLD_SENTRY_DSN` is a Sentry DSN (Sentry, GlitchTip and Bugsink accept the same
- * envelopes); `UNFOLD_SENTRY_ENVIRONMENT` names the environment events carry and defaults to the mode.
+ * Reads where errors are reported. `UNFOLD_SENTRY_DSN` is a Sentry-protocol DSN (Sentry, GlitchTip, Bugsink);
+ * `UNFOLD_ERROR_OTLP_URL` is an OTLP/HTTP logs endpoint (an OpenTelemetry collector's `/v1/logs`). Either, both or
+ * neither; `UNFOLD_ERROR_ENVIRONMENT` names the environment reports carry and defaults to the mode.
  */
 export function errorReportSettings(mode: string): AppConfig['errorReports'] {
-  const dsn = process.env.UNFOLD_SENTRY_DSN;
-  if (!dsn) return undefined;
-  sentryTarget(dsn);
-  const environment = process.env.UNFOLD_SENTRY_ENVIRONMENT || mode;
-  if (!/^[A-Za-z0-9_.-]{1,64}$/.test(environment)) throw new Error('UNFOLD_SENTRY_ENVIRONMENT must be a short name such as production or staging');
-  return { dsn, environment };
+  const sentryDsn = process.env.UNFOLD_SENTRY_DSN || undefined;
+  const otlp = process.env.UNFOLD_ERROR_OTLP_URL || undefined;
+  if (!sentryDsn && !otlp) return undefined;
+  if (sentryDsn) sentryTarget(sentryDsn);
+  const otlpUrl = otlp ? configuredUrl(otlp, 'UNFOLD_ERROR_OTLP_URL') : undefined;
+  const environment = process.env.UNFOLD_ERROR_ENVIRONMENT || mode;
+  if (!/^[A-Za-z0-9_.-]{1,64}$/.test(environment)) throw new Error('UNFOLD_ERROR_ENVIRONMENT must be a short name such as production or staging');
+  return { ...(sentryDsn ? { sentryDsn } : {}), ...(otlpUrl ? { otlpUrl } : {}), environment };
 }
 
 /** Reads `UNFOLD_INSIGHT_EVENTS`: product events are recorded unless it is `off`, as ADR-0023's tenant default says. */

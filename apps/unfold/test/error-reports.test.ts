@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { errorReportLimits, SentryErrorReports, sentryTarget, stackFrames } from '../src/error-reports.ts';
+import { ErrorReporter, errorReportLimits, otlpErrorPayload, sentryTarget, stackFrames } from '../src/error-reports.ts';
 import { errorReportSettings } from '../src/config.ts';
 import { routeShape } from '../src/http.ts';
 
@@ -24,7 +24,7 @@ test('a Sentry DSN names its envelope endpoint, also behind a path prefix', () =
 test('an error leaves as one envelope with its stack, tags, level, release and environment, and is logged', async () => {
   const net = tracker();
   const lines: string[] = [];
-  const reports = new SentryErrorReports({ dsn, environment: 'staging' }, [], { fetch: net.fetcher, log: line => lines.push(line) });
+  const reports = new ErrorReporter({ sentryDsn: dsn, environment: 'staging' }, [], { fetch: net.fetcher, log: (line: string) => lines.push(line) });
   reports.capture(new TypeError('boom'), { level: 'warning', tags: { feature: 'ask', ask_failure: 'timeout', empty: '' }, fingerprint: ['ask', 'timeout'], extra: { askId: 'a1' }, user: 'ryan@webgrip.nl' });
   await reports.flush();
   assert.equal(net.sent.length, 1);
@@ -50,7 +50,7 @@ test('an error leaves as one envelope with its stack, tags, level, release and e
 
 test('secrets, credentials and the DSN never leave in a report', async () => {
   const net = tracker();
-  const reports = new SentryErrorReports({ dsn, environment: 'live' }, ['ploeg-operator-token'], { fetch: net.fetcher, log: () => {} });
+  const reports = new ErrorReporter({ sentryDsn: dsn, environment: 'live' }, ['ploeg-operator-token'], { fetch: net.fetcher, log: () => {} });
   reports.capture(new Error(`failed with sk-live-123 and ploeg-operator-token at https://user:pass@gw.test and ${dsn}`), { extra: { header: 'Bearer abc.def', nested: { token: 'ploeg-operator-token' } } });
   await reports.flush();
   const text = JSON.stringify(net.sent[0].lines.slice(1));
@@ -59,26 +59,26 @@ test('secrets, credentials and the DSN never leave in a report', async () => {
 
 test('without a DSN a report is only logged, and a failing tracker never throws', async () => {
   const lines: string[] = [];
-  const offline = new SentryErrorReports(undefined, [], { fetch: (async () => { throw new Error('should not send'); }) as unknown as typeof fetch, log: line => lines.push(line) });
+  const offline = new ErrorReporter(undefined, [], { fetch: (async () => { throw new Error('should not send'); }) as unknown as typeof fetch, log: (line: string) => lines.push(line) });
   offline.capture(new Error('quiet'));
   offline.message('also quiet', { level: 'info' });
   await offline.flush();
   assert.equal(lines.length, 2);
-  const down = new SentryErrorReports({ dsn, environment: 'live' }, [], { fetch: (async () => { throw new Error('connection refused'); }) as unknown as typeof fetch, log: line => lines.push(line) });
+  const down = new ErrorReporter({ sentryDsn: dsn, environment: 'live' }, [], { fetch: (async () => { throw new Error('connection refused'); }) as unknown as typeof fetch, log: (line: string) => lines.push(line) });
   down.capture(new Error('x'));
   await down.flush();
   assert.match(lines.at(-1)!, /"event":"error.report_failed"/);
   const refused = tracker(429);
-  const limited = new SentryErrorReports({ dsn, environment: 'live' }, [], { fetch: refused.fetcher, log: line => lines.push(line) });
+  const limited = new ErrorReporter({ sentryDsn: dsn, environment: 'live' }, [], { fetch: refused.fetcher, log: (line: string) => lines.push(line) });
   limited.capture(new Error('x'));
   await limited.flush();
-  assert.match(lines.at(-1)!, /"event":"error.report_failed","status":429/);
+  assert.match(lines.at(-1)!, /"event":"error.report_failed","destination":"sentry","message":"HTTP 429"/);
 });
 
 test('at most 30 events a minute leave; the rest are still logged', async () => {
   const net = tracker();
   const lines: string[] = [];
-  const reports = new SentryErrorReports({ dsn, environment: 'live' }, [], { fetch: net.fetcher, log: line => lines.push(line) });
+  const reports = new ErrorReporter({ sentryDsn: dsn, environment: 'live' }, [], { fetch: net.fetcher, log: (line: string) => lines.push(line) });
   for (let index = 0; index < errorReportLimits.perMinute + 5; index++) reports.capture(new Error(`e${index}`));
   await reports.flush();
   assert.equal(net.sent.length, errorReportLimits.perMinute);
@@ -94,23 +94,65 @@ test('V8 stacks become Sentry frames, oldest call first, with application frames
   ]);
 });
 
-test('the DSN and environment come from the environment, and a bad one stops start-up', () => {
-  const saved = { dsn: process.env.UNFOLD_SENTRY_DSN, environment: process.env.UNFOLD_SENTRY_ENVIRONMENT };
+test('destinations and environment come from the environment, and a bad one stops start-up', () => {
+  const keys = ['UNFOLD_SENTRY_DSN', 'UNFOLD_ERROR_OTLP_URL', 'UNFOLD_ERROR_ENVIRONMENT'] as const;
+  const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   try {
-    delete process.env.UNFOLD_SENTRY_DSN;
+    for (const key of keys) delete process.env[key];
     assert.equal(errorReportSettings('live'), undefined);
     process.env.UNFOLD_SENTRY_DSN = dsn;
-    assert.deepEqual(errorReportSettings('live'), { dsn, environment: 'live' });
-    process.env.UNFOLD_SENTRY_ENVIRONMENT = 'staging';
-    assert.deepEqual(errorReportSettings('live'), { dsn, environment: 'staging' });
-    process.env.UNFOLD_SENTRY_ENVIRONMENT = 'not ok!';
-    assert.throws(() => errorReportSettings('live'), /UNFOLD_SENTRY_ENVIRONMENT/);
+    assert.deepEqual(errorReportSettings('live'), { sentryDsn: dsn, environment: 'live' });
+    process.env.UNFOLD_ERROR_OTLP_URL = 'http://alloy.observability:4318/v1/logs';
+    process.env.UNFOLD_ERROR_ENVIRONMENT = 'staging';
+    assert.deepEqual(errorReportSettings('live'), { sentryDsn: dsn, otlpUrl: 'http://alloy.observability:4318/v1/logs', environment: 'staging' });
+    delete process.env.UNFOLD_SENTRY_DSN;
+    assert.deepEqual(errorReportSettings('live'), { otlpUrl: 'http://alloy.observability:4318/v1/logs', environment: 'staging' }, 'OpenTelemetry alone is enough');
+    process.env.UNFOLD_ERROR_ENVIRONMENT = 'not ok!';
+    assert.throws(() => errorReportSettings('live'), /UNFOLD_ERROR_ENVIRONMENT/);
+    process.env.UNFOLD_ERROR_ENVIRONMENT = 'live';
     process.env.UNFOLD_SENTRY_DSN = 'https://errors.example.test/7';
     assert.throws(() => errorReportSettings('live'), /UNFOLD_SENTRY_DSN/);
   } finally {
-    if (saved.dsn === undefined) delete process.env.UNFOLD_SENTRY_DSN; else process.env.UNFOLD_SENTRY_DSN = saved.dsn;
-    if (saved.environment === undefined) delete process.env.UNFOLD_SENTRY_ENVIRONMENT; else process.env.UNFOLD_SENTRY_ENVIRONMENT = saved.environment;
+    for (const key of keys) if (saved[key] === undefined) delete process.env[key]; else process.env[key] = saved[key];
   }
+});
+
+test('an OpenTelemetry collector gets one log record with the exception attributes and the tags under unfold.', async () => {
+  const sent: { url: string; body: any }[] = [];
+  const fetcher = (async (url: string, init: RequestInit) => { sent.push({ url, body: JSON.parse(String(init.body)) }); return new Response('{}', { status: 200 }); }) as unknown as typeof fetch;
+  const reports = new ErrorReporter({ otlpUrl: 'http://alloy.test:4318/v1/logs', environment: 'staging' }, ['ploeg-operator-token'], { fetch: fetcher, log: () => {} });
+  assert.deepEqual(reports.destinations, ['otlp']);
+  reports.capture(new RangeError('bad ploeg-operator-token'), { level: 'warning', tags: { feature: 'ask', ask_failure: 'cut_off' }, fingerprint: ['ask', 'cut_off'], user: 'ryan@webgrip.nl', extra: { askId: 'a1' } });
+  await reports.flush();
+  assert.equal(sent[0].url, 'http://alloy.test:4318/v1/logs');
+  const [resourceLogs] = sent[0].body.resourceLogs;
+  const resource = Object.fromEntries(resourceLogs.resource.attributes.map((entry: any) => [entry.key, entry.value.stringValue]));
+  assert.equal(resource['service.name'], 'unfold');
+  assert.equal(resource['deployment.environment'], 'staging');
+  const record = resourceLogs.scopeLogs[0].logRecords[0];
+  const attributes = Object.fromEntries(record.attributes.map((entry: any) => [entry.key, entry.value.stringValue]));
+  assert.deepEqual([record.severityNumber, record.severityText, record.body.stringValue], [13, 'WARNING', 'bad [redacted]']);
+  assert.equal(attributes['exception.type'], 'RangeError');
+  assert.equal(attributes['exception.message'], 'bad [redacted]');
+  assert.match(attributes['exception.stacktrace'], /^RangeError: bad \[redacted\]\n\s+at /);
+  assert.deepEqual([attributes['unfold.feature'], attributes['unfold.ask_failure'], attributes['unfold.fingerprint'], attributes['unfold.extra']], ['ask', 'cut_off', 'ask cut_off', '{"askId":"a1"}']);
+  assert.match(attributes['unfold.user_hash'], /^[0-9a-f]{16}$/);
+  assert.doesNotMatch(JSON.stringify(sent[0].body), /ryan@webgrip|ploeg-operator-token/);
+  assert.match(record.timeUnixNano, /^\d{19}$/);
+});
+
+test('both destinations can be on at once, and one failing does not stop the other', async () => {
+  const urls: string[] = [];
+  const fetcher = (async (url: string) => { urls.push(url); if (url.includes('envelope')) throw new Error('connection refused'); return new Response('{}'); }) as unknown as typeof fetch;
+  const lines: string[] = [];
+  const reports = new ErrorReporter({ sentryDsn: dsn, otlpUrl: 'http://alloy.test:4318/v1/logs', environment: 'live' }, [], { fetch: fetcher, log: (line: string) => lines.push(line) });
+  assert.deepEqual(reports.destinations, ['sentry', 'otlp']);
+  reports.message('a note', { level: 'info' });
+  await reports.flush();
+  assert.deepEqual(urls.sort(), ['http://alloy.test:4318/v1/logs', 'https://errors.example.test/api/7/envelope/']);
+  assert.match(lines.at(-1)!, /"destination":"sentry"/);
+  const message = otlpErrorPayload({ id: 'x', at: 0, level: 'info', kind: 'message', type: 'message', message: 'hi', stack: '', frames: [], tags: {}, release: 'unfold@1', environment: 'live', host: 'h' }) as any;
+  assert.equal(message.resourceLogs[0].scopeLogs[0].logRecords[0].attributes.some((entry: any) => entry.key.startsWith('exception.')), false, 'a message carries no exception attributes');
 });
 
 test('server errors group by route, not by id', () => {

@@ -58,8 +58,8 @@ export type AppConfig = {
 
 /** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own) and the repository or project. */
 export type ReportTarget = { source: TaskSourceConfig; project: string };
-/** Where errors and notable failures are reported: a Sentry-compatible DSN and the environment name events carry. */
-export type ErrorReportConfig = { dsn: string; environment: string };
+/** Where errors and notable failures are reported: a Sentry-protocol DSN, an OTLP/HTTP logs URL, or both, and the environment name reports carry. */
+export type ErrorReportConfig = { sentryDsn?: string; otlpUrl?: string; environment: string };
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
 /** One product event the browser or VS Code extension posted, after the catalogue checked it. */
 export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean> };

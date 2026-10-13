@@ -21,7 +21,7 @@
     "affinity": { "type": "object" },
     "extraEnv": { "type": "array", "items": { "type": "object", "properties": { "name": { "type": "string", "minLength": 1 } }, "required": ["name"] } },
     "insight": { "type": "object", "additionalProperties": false, "properties": { "events": { "type": "boolean" }, "export": { "type": "string", "enum": ["off", "faro", "otlp"] }, "url": { "type": "string", "pattern": "^(https?://.+)?$" }, "level": { "type": "string", "enum": ["aggregate", "events"] } } },
-    "errorReports": { "type": "object", "additionalProperties": false, "properties": { "existingSecret": { "type": "string" }, "secretKey": { "type": "string", "minLength": 1 }, "environment": { "type": "string", "pattern": "^([A-Za-z0-9_.-]{1,64})?$" } } },
+    "errorReports": { "type": "object", "additionalProperties": false, "properties": { "environment": { "type": "string", "pattern": "^([A-Za-z0-9_.-]{1,64})?$" }, "otlpUrl": { "type": "string", "pattern": "^(https?://.+)?$" }, "sentry": { "type": "object", "additionalProperties": false, "properties": { "existingSecret": { "type": "string" }, "secretKey": { "type": "string", "minLength": 1 } } } } },
     "workspaceNamespace": { "type": "string", "maxLength": 63, "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" },
     "createWorkspaceNamespace": { "type": "boolean" },
     "workspaceImage": { "type": "string" },

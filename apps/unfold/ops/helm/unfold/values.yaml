@@ -29,9 +29,11 @@ insight:
   url: ""
   level: aggregate
 errorReports:
-  existingSecret: ""
-  secretKey: sentry-dsn
   environment: ""
+  otlpUrl: ""
+  sentry:
+    existingSecret: ""
+    secretKey: sentry-dsn
 mode: demo
 baseUrl: ""
 credentialsSecret: unfold-credentials

@@ -10,7 +10,7 @@ export type ErrorLevel = 'fatal' | 'error' | 'warning' | 'info';
 /** What a report says besides the error: a level, short searchable tags, free-form extra data and the grouping key. `user` is hashed before it leaves. */
 export type ErrorContext = { level?: ErrorLevel; tags?: Record<string, string | number | boolean | null | undefined>; extra?: Record<string, unknown>; fingerprint?: string[]; user?: string };
 
-/** Where reported errors go. The workbench reports through one of these; without a DSN it only logs. */
+/** Where reported errors go. The workbench reports through one of these; without a destination it only logs. */
 export interface ErrorReports {
   capture(error: unknown, context?: ErrorContext): void;
   message(text: string, context?: ErrorContext): void;
@@ -49,14 +49,86 @@ export function stackFrames(stack: string | undefined): { function: string; file
 
 const hashed = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 16);
 
+/** One scrubbed report, the same for every destination: what happened, how bad, where, and the context it carries. */
+export type ErrorEvent = {
+  id: string; at: number; level: ErrorLevel; kind: 'exception' | 'message'; type: string; message: string; stack: string;
+  frames: ReturnType<typeof stackFrames>; tags: Record<string, string>; extra?: unknown; fingerprint?: string[];
+  user?: string; release: string; environment: string; host: string;
+};
+
+/** A destination for reports. `send` resolves once the destination answered; a refusal or failure rejects with a short reason. */
+export type ErrorSink = { name: string; send(event: ErrorEvent, fetcher: typeof fetch): Promise<void> };
+
+async function deliver(fetcher: typeof fetch, url: string, init: RequestInit): Promise<void> {
+  const response = await fetcher(url, { ...init, method: 'POST', signal: AbortSignal.timeout(errorReportLimits.timeoutMs), redirect: 'manual' });
+  await response.body?.cancel().catch(() => undefined);
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+}
+
+/** Sends each report as a Sentry envelope, which Sentry, GlitchTip and Bugsink accept. */
+export function sentrySink(target: SentryTarget): ErrorSink {
+  return {
+    name: 'sentry',
+    send(event, fetcher) {
+      const body = event.kind === 'exception'
+        ? { exception: { values: [{ type: event.type, value: event.message, stacktrace: { frames: event.frames } }] } }
+        : { message: { formatted: event.message } };
+      const payload = {
+        event_id: event.id, timestamp: event.at / 1000, platform: 'node', level: event.level, logger: 'unfold', server_name: event.host,
+        release: event.release, environment: event.environment, tags: event.tags, extra: event.extra, fingerprint: event.fingerprint,
+        user: event.user ? { id: event.user } : undefined, ...body,
+      };
+      const envelope = `${JSON.stringify({ event_id: event.id, sent_at: new Date(event.at).toISOString(), dsn: target.dsn })}\n${JSON.stringify({ type: 'event' })}\n${JSON.stringify(payload)}\n`;
+      return deliver(fetcher, target.endpoint, { body: envelope, headers: { 'content-type': 'application/x-sentry-envelope', 'x-sentry-auth': `Sentry sentry_version=7, sentry_key=${target.key}, sentry_client=unfold/${applicationVersion}` } });
+    },
+  };
+}
+
+const severity: Record<ErrorLevel, number> = { info: 9, warning: 13, error: 17, fatal: 21 };
+
+/** The OTLP/HTTP JSON logs payload of one report: a log record with OpenTelemetry's `exception.*` attributes, its tags under `unfold.`. */
+export function otlpErrorPayload(event: ErrorEvent): Record<string, unknown> {
+  const text = (value: string) => ({ stringValue: value });
+  const attributes: Record<string, string> = {
+    'event.name': 'unfold.error',
+    ...(event.kind === 'exception' ? { 'exception.type': event.type, 'exception.message': event.message, ...(event.stack ? { 'exception.stacktrace': event.stack } : {}) } : {}),
+    ...Object.fromEntries(Object.entries(event.tags).map(([key, value]) => [`unfold.${key}`, value])),
+    ...(event.fingerprint?.length ? { 'unfold.fingerprint': event.fingerprint.join(' ') } : {}),
+    ...(event.user ? { 'unfold.user_hash': event.user } : {}),
+    ...(event.extra !== undefined ? { 'unfold.extra': JSON.stringify(event.extra) } : {}),
+    'unfold.report_id': event.id,
+  };
+  return {
+    resourceLogs: [{
+      resource: { attributes: [
+        { key: 'service.name', value: text('unfold') }, { key: 'service.version', value: text(event.release.replace(/^unfold@/, '')) },
+        { key: 'deployment.environment', value: text(event.environment) }, { key: 'host.name', value: text(event.host) },
+      ] },
+      scopeLogs: [{
+        scope: { name: 'unfold.errors', version: event.release.replace(/^unfold@/, '') },
+        logRecords: [{
+          timeUnixNano: `${BigInt(Math.round(event.at)) * 1_000_000n}`, severityNumber: severity[event.level], severityText: event.level.toUpperCase(),
+          body: text(event.message), attributes: Object.entries(attributes).map(([key, value]) => ({ key, value: text(value) })),
+        }],
+      }],
+    }],
+  };
+}
+
+/** Sends each report as an OTLP/HTTP JSON log record to `url` (a collector's `/v1/logs`), which any OpenTelemetry backend accepts. */
+export function otlpSink(url: string): ErrorSink {
+  return { name: 'otlp', send: (event, fetcher) => deliver(fetcher, url, { body: JSON.stringify(otlpErrorPayload(event)), headers: { 'content-type': 'application/json' } }) };
+}
+
 /**
- * Sends errors and notable failures to a Sentry-compatible error tracker as envelopes, with no SDK. Every report is also
+ * Reports errors and notable failures to the configured destinations, with no SDK: a Sentry-protocol tracker
+ * (`UNFOLD_SENTRY_DSN`), an OpenTelemetry collector (`UNFOLD_ERROR_OTLP_URL`), both or neither. Every report is also
  * written to the log as one JSON line. Messages, values and extra data lose known secrets and credential patterns first;
- * user ids are hashed. At most 30 events a minute leave, and a slow or failing tracker never delays or fails the caller.
+ * user ids are hashed. At most 30 events a minute leave, and a slow or failing destination never delays or fails the caller.
  */
-export class SentryErrorReports implements ErrorReports {
-  private readonly target: SentryTarget | null;
-  private readonly config: ErrorReportConfig | undefined;
+export class ErrorReporter implements ErrorReports {
+  private readonly sinks: ErrorSink[];
+  private readonly environment: string;
   private readonly secrets: readonly string[];
   private readonly fetcher: typeof fetch;
   private readonly log: (line: string) => void;
@@ -64,14 +136,17 @@ export class SentryErrorReports implements ErrorReports {
   readonly pending = new Set<Promise<void>>();
 
   constructor(config: ErrorReportConfig | undefined, secrets: readonly string[], options: { fetch?: typeof fetch; log?: (line: string) => void } = {}) {
-    this.config = config;
-    this.target = config?.dsn ? sentryTarget(config.dsn) : null;
-    this.secrets = config?.dsn ? [...secrets, config.dsn] : secrets;
+    this.sinks = [...(config?.sentryDsn ? [sentrySink(sentryTarget(config.sentryDsn))] : []), ...(config?.otlpUrl ? [otlpSink(config.otlpUrl)] : [])];
+    this.environment = config?.environment ?? 'production';
+    this.secrets = config?.sentryDsn ? [...secrets, config.sentryDsn] : secrets;
     this.fetcher = options.fetch ?? fetch;
     this.log = options.log ?? (line => console.error(line));
   }
 
-  private scrub(value: string): string { return withoutKnownSecrets(plainRedactedText(value), this.secrets); }
+  /** The destinations reports go to, by name. */
+  get destinations(): string[] { return this.sinks.map(sink => sink.name); }
+
+  private scrub(value: string): string { return value.split('\n').map(line => plainRedactedText(withoutKnownSecrets(line, this.secrets))).join('\n'); }
 
   private scrubbed(value: unknown, depth = 0): unknown {
     if (typeof value === 'string') return this.scrub(value).slice(0, errorReportLimits.extraChars);
@@ -84,35 +159,30 @@ export class SentryErrorReports implements ErrorReports {
   capture(error: unknown, context: ErrorContext = {}): void {
     const failure = error instanceof Error ? error : new Error(String(error));
     const type = failure.name === 'Error' && (failure as { code?: unknown }).code ? String((failure as { code?: unknown }).code) : failure.name;
-    this.send({ exception: { values: [{ type, value: this.scrub(failure.message), stacktrace: { frames: stackFrames(failure.stack).map(frame => ({ ...frame, filename: this.scrub(frame.filename) })) } }] } }, failure.message, context);
+    const stack = this.scrub(String(failure.stack ?? '')).split('\n').slice(0, errorReportLimits.frames + 1).join('\n');
+    this.send({ kind: 'exception', type, message: this.scrub(failure.message), stack, frames: stackFrames(failure.stack).map(frame => ({ ...frame, filename: this.scrub(frame.filename) })) }, context);
   }
 
   message(text: string, context: ErrorContext = {}): void {
-    this.send({ message: { formatted: this.scrub(text) } }, text, context);
+    this.send({ kind: 'message', type: 'message', message: this.scrub(text), stack: '', frames: [] }, context);
   }
 
-  private send(body: Record<string, unknown>, summary: string, context: ErrorContext): void {
+  private send(body: Pick<ErrorEvent, 'kind' | 'type' | 'message' | 'stack' | 'frames'>, context: ErrorContext): void {
     const level = context.level ?? 'error';
     const tags = Object.fromEntries(Object.entries(context.tags ?? {}).filter(([, value]) => value !== undefined && value !== null && value !== '').map(([key, value]) => [key, this.scrub(String(value)).slice(0, 200)]));
-    this.log(JSON.stringify({ level: level === 'fatal' ? 'error' : level === 'warning' ? 'warn' : level, event: 'error.reported', message: this.scrub(summary).slice(0, 300), ...tags }));
-    if (!this.target || !this.allowed()) return;
-    const eventId = randomUUID().replace(/-/g, '');
-    const event = {
-      event_id: eventId, timestamp: Date.now() / 1000, platform: 'node', level, logger: 'unfold', server_name: hostname(),
-      release: `unfold@${applicationVersion}`, environment: this.config?.environment ?? 'production',
-      tags, extra: context.extra ? this.scrubbed(context.extra) : undefined, fingerprint: context.fingerprint,
-      user: context.user ? { id: hashed(context.user) } : undefined, ...body,
+    this.log(JSON.stringify({ level: level === 'fatal' ? 'error' : level === 'warning' ? 'warn' : level, event: 'error.reported', message: body.message.slice(0, 300), ...tags }));
+    if (!this.sinks.length || !this.allowed()) return;
+    const event: ErrorEvent = {
+      id: randomUUID().replace(/-/g, ''), at: Date.now(), level, ...body, tags,
+      extra: context.extra ? this.scrubbed(context.extra) : undefined, fingerprint: context.fingerprint,
+      user: context.user ? hashed(context.user) : undefined, release: `unfold@${applicationVersion}`, environment: this.environment, host: hostname(),
     };
-    const envelope = `${JSON.stringify({ event_id: eventId, sent_at: new Date().toISOString(), dsn: this.target.dsn })}\n${JSON.stringify({ type: 'event' })}\n${JSON.stringify(event)}\n`;
-    const delivery = this.fetcher(this.target.endpoint, {
-      method: 'POST', body: envelope, signal: AbortSignal.timeout(errorReportLimits.timeoutMs), redirect: 'manual',
-      headers: { 'content-type': 'application/x-sentry-envelope', 'x-sentry-auth': `Sentry sentry_version=7, sentry_key=${this.target.key}, sentry_client=unfold/${applicationVersion}` },
-    }).then(async response => {
-      await response.body?.cancel().catch(() => undefined);
-      if (!response.ok) this.log(JSON.stringify({ level: 'warn', event: 'error.report_failed', status: response.status }));
-    }, (failure: unknown) => { this.log(JSON.stringify({ level: 'warn', event: 'error.report_failed', message: this.scrub(String((failure as Error)?.message ?? failure)).slice(0, 200) })); });
-    const tracked = delivery.finally(() => this.pending.delete(tracked));
-    this.pending.add(tracked);
+    for (const sink of this.sinks) {
+      const tracked: Promise<void> = sink.send(event, this.fetcher)
+        .catch((failure: unknown) => { this.log(JSON.stringify({ level: 'warn', event: 'error.report_failed', destination: sink.name, message: this.scrub(String((failure as Error)?.message ?? failure)).slice(0, 200) })); })
+        .finally(() => this.pending.delete(tracked));
+      this.pending.add(tracked);
+    }
   }
 
   private allowed(): boolean {

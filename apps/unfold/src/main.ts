@@ -14,11 +14,11 @@ import { Oidc } from './oidc.ts';
 import { buildServer } from './http.ts';
 import { loadConfig } from './config.ts';
 import { knownSecrets } from './redaction.ts';
-import { SentryErrorReports } from './error-reports.ts';
+import { ErrorReporter } from './error-reports.ts';
 import type { AppConfig, AgentRuntime, RuntimeKind } from './types.ts';
 
 export async function createApplication(config: AppConfig, options: { runtimes?: Map<RuntimeKind, AgentRuntime> } = {}) {
-  const errors = new SentryErrorReports(config.errorReports, knownSecrets(config));
+  const errors = new ErrorReporter(config.errorReports, knownSecrets(config));
   const databasePath = join(config.dataDir, 'unfold.sqlite');
   const adopted = adoptRenamedDatabase(databasePath);
   if (adopted) console.error(JSON.stringify({ level: 'info', event: 'store.renamed', message: `Moved the database from ${adopted} to ${databasePath}.` }));

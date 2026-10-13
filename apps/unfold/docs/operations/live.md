@@ -61,8 +61,9 @@ Supply credentials through the deployment's secret mechanism or a short-lived sh
 | `UNFOLD_INSIGHT_EXPORT` | Product-event sink: `off` (default), `faro` or `otlp` |
 | `UNFOLD_INSIGHT_EXPORT_URL` | Full collector URL the server posts to; required for `faro` and `otlp`. For Faro it ends in `/collect`, for OTLP/HTTP in `/v1/logs` |
 | `UNFOLD_INSIGHT_EXPORT_LEVEL` | `aggregate` (default, each finished day's rollup) or `events` (each event with its pseudonymous actor hash) |
-| `UNFOLD_SENTRY_DSN` | Optional Sentry DSN (`https://<key>@<host>/<project>`). Server errors (HTTP 5xx), unhandled rejections, crashes and failed Asks are sent there as Sentry envelopes; GlitchTip and Bugsink accept them too. Without it they are only logged. See [Error reports](#error-reports) |
-| `UNFOLD_SENTRY_ENVIRONMENT` | Environment name on each event, such as `staging`; defaults to the mode |
+| `UNFOLD_ERROR_OTLP_URL` | Optional OTLP/HTTP logs URL of an OpenTelemetry collector (ends in `/v1/logs`). Server errors (HTTP 5xx), unhandled rejections, crashes and failed Asks are sent there as log records. See [Error reports](#error-reports) |
+| `UNFOLD_SENTRY_DSN` | Optional Sentry-protocol DSN (`https://<key>@<host>/<project>`) for Sentry, GlitchTip or Bugsink; the same reports as envelopes |
+| `UNFOLD_ERROR_ENVIRONMENT` | Environment name on each report, such as `staging`; defaults to the mode |
 
 The insight export forwards product events the browser and VS Code extension post to `POST /api/insight/events` ([RFC-0001](../../../../docs/design/rfc-0001-product-events-and-confusion-signals.md)). The call is server to server, so the browser never contacts the collector and the CSP stays `'self'`.
 
@@ -121,7 +122,12 @@ Without `logsUrl` the disclosure says the logs are not connected and, when `graf
 
 ## Error reports
 
-Set `UNFOLD_SENTRY_DSN` (in Helm, `errorReports.existingSecret`) and Unfold sends what needs someone's attention to that error tracker, without an SDK: one envelope per event to `/api/<project>/envelope/`, at most 30 a minute, each waiting at most three seconds and never delaying the request that caused it. Every report is also written to the log as an `error.reported` line, with or without a DSN.
+Unfold reports what needs someone's attention to whichever error tracker it is given, without an SDK and without depending on one vendor. It has two destinations, which can be used separately or together:
+
+- **OpenTelemetry** (`UNFOLD_ERROR_OTLP_URL`, in Helm `errorReports.otlpUrl`): one OTLP/HTTP JSON log record per report, sent to a collector such as Grafana Alloy or the OpenTelemetry Collector. The record follows OpenTelemetry's exception conventions (`exception.type`, `exception.message`, `exception.stacktrace`) and adds Unfold's tags as `unfold.*` attributes, plus `unfold.fingerprint`, `unfold.user_hash`, `unfold.extra` and `unfold.report_id`. The resource is `service.name=unfold` with `service.version`, `deployment.environment` and `host.name`. Any OpenTelemetry backend can store it, alert on it and group it by `unfold.fingerprint`.
+- **Sentry protocol** (`UNFOLD_SENTRY_DSN`, in Helm `errorReports.sentry.existingSecret`): one envelope per report to `/api/<project>/envelope/`. Sentry, GlitchTip (MIT-licensed) and Bugsink accept it.
+
+At most 30 reports a minute leave. Each send waits at most three seconds and never delays the request that caused it. Every report is also written to the log as an `error.reported` line, with or without a destination. A destination that is down or refuses a report costs one `error.report_failed` log line naming it.
 
 | Source | Level | Grouped by |
 | --- | --- | --- |
@@ -131,7 +137,7 @@ Set `UNFOLD_SENTRY_DSN` (in Helm, `errorReports.existingSecret`) and Unfold send
 | A failed Ask (see below) | error or warning | `ask`, the failure code and the model |
 | A key Ploeg could not block after an Ask | error | `ask`, `finish` and the model |
 
-Before an event leaves, configured secrets, the DSN itself, URL credentials, `sk-` keys and bearer, basic and token values are replaced by `[redacted]`, and the user id is replaced by the first 16 hex digits of its SHA-256. Events carry the release `unfold@<version>`, the host name and the environment. A tracker that is down or refuses an event costs one `error.report_failed` log line.
+Before a report leaves, configured secrets, the DSN itself, URL credentials, `sk-` keys and bearer, basic and token values are replaced by `[redacted]`, and the user id is replaced by the first 16 hex digits of its SHA-256. Reports carry the release `unfold@<version>`, the host name and the environment.
 
 ### Why an Ask has no answer
 
