@@ -649,14 +649,6 @@ retired_terms:
     context: Work
     use: [Follow-Up]
     because: A repair is work created by work; Ploeg's Follow-Up already names it.
-  - name: Execution
-    context: Execution
-    use: [Shift, Run]
-    because: >
-      The attempt it named is a Shift, and one Role's part of it is a Run. A
-      second name for a Shift would make every execution statement ambiguous.
-      The word remains a bounded-context name and part of Ploeg's Operator
-      Execution record.
   - name: Crew
     context: Participation
     use: [Team]
