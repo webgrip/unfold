@@ -1,3 +1,9 @@
+## [unfold-v0.4.0-rc.78](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.77...unfold-v0.4.0-rc.78) (2026-10-13)
+
+### Added
+
+* **unfold:** list open and closed Work newest first ([fded27b](https://forgejo.webgrip.dev/webgrip/unfold/commit/fded27b0a1dd3b78dfacccb017973f047ae53831)), references [ploeg-hq/ploeg#121](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/121)
+
 ## [unfold-v0.4.0-rc.77](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.76...unfold-v0.4.0-rc.77) (2026-10-13)
 
 ### Added
