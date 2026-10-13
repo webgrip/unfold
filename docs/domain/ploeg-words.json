@@ -667,7 +667,7 @@
         {
           "value": "provisional",
           "unfold": "pending",
-          "label": "Cost pending",
+          "label": "Cost not known yet",
           "mcp": "pending",
           "rename": "Unfold's HTTP layer renames Ploeg's `provisional` to `pending` before storing the Ask."
         },
