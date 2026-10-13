@@ -92,8 +92,8 @@ test('typing / at the start of a message lists /ask, and /steer only where a mes
 
 test('an Ask reads as an Ask in the chat: its badge, the answer or why there is none, and its spend', () => {
   const answered = askMarkdown(ask({ answer: 'It stopped.', costUsd: 0.0123 }), entry());
-  assert.match(answered, /^\*\*Ask\*\* · not sent to the crew\n\nIt stopped\.\n\n\*US\$\s0,01 \(not settled yet\) · US\$\s4,58 of US\$\s5,00 left this month, until 1 November\*$/);
-  assert.match(askMarkdown(ask({ answer: 'It stopped.' }), entry()), /\*cost pending in Ploeg · /);
+  assert.match(answered, /^\*\*Ask\*\* · not sent to the crew\n\nIt stopped\.\n\n\*US\$\s0,01 \(not final yet\) · US\$\s4,58 of US\$\s5,00 left this month, until 1 November\*$/);
+  assert.match(askMarkdown(ask({ answer: 'It stopped.' }), entry()), /\*cost not known yet · /);
   assert.match(askMarkdown(ask({ answer: 'It stopped.', ploegAskId: null, model: null, costUsd: 0, costStatus: 'settled', source: 'record', intent: 'why' }), entry()), /\*Answered from the record · no model call\*$/);
   assert.match(askMarkdown(ask({ answer: 'It stopped.', demo: true, costStatus: 'demo', ploegAskId: null, source: 'record' }), entry()), /\*Demo · answered from the record · no model call, nothing spent\*$/);
   assert.match(askMarkdown(ask({ status: 'refused', demo: true, costStatus: 'demo', ploegAskId: null, failure: 'This is a demo: there is no model to ask, so nothing was asked or spent.' }), entry()), /\*Demo · no model call, nothing spent\*$/);
@@ -120,7 +120,7 @@ test('a message typed into the stopped 059675b9 session is an Ask: answered in i
   const replaced = client.inbox.find(message => action(message, chat, 'chat/inputCompleted') && message.params.action.requestId === closing.params.action.request.id)!;
   assert.equal(replaced.params.action.response, 'cancel', 'the open "What next?" is answered as replaced');
   const part = await client.until(message => action(message, chat, 'chat/responsePart') && message.params.action.turnId === 'ask-turn');
-  assert.match(part.params.action.part.content, new RegExp(`^\\*\\*Ask\\*\\* · not sent to the crew\\n\\n${answerText.replace(/\./g, '\\.')}\\n\\n\\*US\\\\\\$\\s0,01 \\(not settled yet\\) · US\\\\\\$\\s4,58 of US\\\\\\$\\s5,00 left this month, until 1 November\\*$`), 'each dollar sign is escaped, so VS Code typesets no maths');
+  assert.match(part.params.action.part.content, new RegExp(`^\\*\\*Ask\\*\\* · not sent to the crew\\n\\n${answerText.replace(/\./g, '\\.')}\\n\\n\\*US\\\\\\$\\s0,01 \\(not final yet\\) · US\\\\\\$\\s4,58 of US\\\\\\$\\s5,00 left this month, until 1 November\\*$`), 'each dollar sign is escaped, so VS Code typesets no maths');
   await client.until(message => action(message, chat, 'chat/turnComplete') && message.params.action.turnId === 'ask-turn');
   const again = await client.until(message => action(message, chat, 'chat/inputRequested') && message.params.serverSeq > part.params.serverSeq);
   assert.deepEqual(again.params.action.request.questions[0].options.map((option: Json) => option.id), ['run_again_start', 'run_again', 'dismiss'], 'the next steps come back after the answer');
@@ -161,7 +161,7 @@ test('an Ask Allowance that is used up says so with its reset date, and nothing 
   await client.rpc('subscribe', { channel: chat });
   send(client, chat, modelQuestion, 1, 'refused-turn');
   const part = await client.until(message => action(message, chat, 'chat/responsePart') && message.params.action.turnId === 'refused-turn');
-  assert.match(part.params.action.part.content, /Not answered\. Ask Allowance used up\. It resets on 1 November\./);
+  assert.match(part.params.action.part.content, /Not answered\. Your Team.s Ask Allowance is used up, so nothing was asked or charged\. It resets on 1 November\./);
   assert.match(part.params.action.part.content, /Nothing was charged/);
 });
 

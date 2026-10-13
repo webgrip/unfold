@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AskAllowanceUsedUp, AskService, type AskAuthority, type AskGrant, type AskWorkItems } from '../src/ask/service.ts';
+import { AskAllowanceUsedUp, AskService, askFailures, gatewayFailure, type AskAuthority, type AskGrant, type AskWorkItems } from '../src/ask/service.ts';
+import type { ErrorContext, ErrorReports } from '../src/error-reports.ts';
 import { PloegError, type PloegDetail } from '../src/ploeg.ts';
 import { Store } from '../src/store.ts';
 import type { User } from '../src/types.ts';
@@ -96,7 +97,7 @@ test('a used-up allowance refuses the Ask before any model call and says when it
   const net = gateway('should not be called');
   const ask = await service(store, workItems(), auth.value, net.fetcher).ask(owner, '42', 'Which browsers did it test?');
   assert.equal(ask.status, 'refused');
-  assert.equal(ask.failure, 'Ask Allowance used up. It resets on 1 November.');
+  assert.equal(ask.failure, "Your Team's Ask Allowance is used up, so nothing was asked or charged. It resets on 1 November.");
   assert.deepEqual([ask.costUsd, ask.costStatus], [0, 'settled']);
   assert.equal(net.requests.length, 0);
 });
@@ -195,8 +196,148 @@ test('a reasoning model gets room to think before it answers, and an answer cut 
   const ask = await service(store, workItems(), auth.value, net.fetcher).ask(owner, '42', 'Why did you choose this direction?');
   assert.ok(net.requests[0].body.max_tokens >= 1500, 'a 400-token cap was spent on reasoning alone on homelab (2026-10-11)');
   assert.equal(ask.status, 'failed');
-  assert.equal(ask.failure, 'The model used all its room thinking and wrote no answer. Only this attempt was charged.');
+  assert.equal(ask.failure, 'The model used all its room thinking and wrote no answer. Try again, or ask a narrower question.');
   assert.deepEqual(auth.calls, ['admit 42 36 Why did you choose this direction?', 'finish 42 p-1']);
   const empty = await service(store, workItems(), authority().value, gateway('').fetcher).ask(owner, '42', 'Why did you choose this direction?');
-  assert.equal(empty.failure, 'The model returned no answer. Only this attempt was charged.');
+  assert.equal(empty.failure, 'The model returned an empty answer. Try again.');
+});
+
+type Captured = { error: unknown; context: ErrorContext };
+function recorder() {
+  const captured: Captured[] = [];
+  const reports: ErrorReports = { capture(error, context = {}) { captured.push({ error, context }); }, message() {} };
+  return { captured, reports };
+}
+
+function scripted(replies: (Response | Error)[]) {
+  const bodies: any[] = [];
+  const fetcher = (async (_url: string, init: RequestInit) => {
+    bodies.push(JSON.parse(String(init.body)));
+    const next = replies.shift();
+    if (!next) throw new Error('no more replies');
+    if (next instanceof Error) throw next;
+    return next;
+  }) as unknown as typeof fetch;
+  return { fetcher, bodies };
+}
+
+const reply = (status: number, body: unknown) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const named = (name: string, message: string) => Object.assign(new Error(message), { name });
+const reporting = (store: Store, fetcher: typeof fetch, reports: ErrorReports, auth = authority().value, lines: string[] = []) =>
+  new AskService(store, workItems(), auth, { demo: false, gatewayUrl: 'http://gateway.test/v1', secrets: ['ploeg-operator-token'], fetch: fetcher, now: () => new Date(at), reports, log: line => lines.push(line) });
+
+test('each way a model call can fail gets its own code, message and report, and the key is always finished', async () => {
+  const cases: [Response | Error, string, 'failed', boolean, string | null][] = [
+    [named('TimeoutError', 'The operation was aborted due to timeout'), 'timeout', 'failed', true, 'warning'],
+    [new TypeError('fetch failed'), 'gateway_unreachable', 'failed', true, 'error'],
+    [reply(401, { error: { message: 'Authentication Error, Invalid proxy server token passed' } }), 'key_rejected', 'failed', false, 'error'],
+    [reply(400, { error: { message: 'Budget has been exceeded! Current cost: 0.021, Max budget: 0.02' } }), 'budget_exceeded', 'failed', true, 'warning'],
+    [reply(429, { error: { message: 'Rate limit reached' } }), 'rate_limited', 'failed', true, 'warning'],
+    [reply(502, { error: { message: 'upstream connect error' } }), 'provider_error', 'failed', true, 'error'],
+    [reply(200, '<html>proxy page</html>'), 'bad_response', 'failed', true, 'error'],
+    [reply(200, { choices: [{ message: { content: null }, finish_reason: 'content_filter' }] }), 'filtered', 'failed', false, 'warning'],
+    [reply(200, { choices: [{ message: { content: '' }, finish_reason: 'stop' }] }), 'empty', 'failed', true, 'warning'],
+  ];
+  for (const [answer, code, status, retryable, level] of cases) {
+    const store = new Store(':memory:');
+    const auth = authority();
+    const { captured, reports } = recorder();
+    const lines: string[] = [];
+    const ask = await reporting(store, scripted([answer]).fetcher, reports, auth.value, lines).ask(owner, '42', 'Is the Safari fix risky for Firefox?');
+    assert.deepEqual([ask.status, ask.failureCode, ask.retryable], [status, code, retryable], code);
+    assert.equal(ask.answer, '', code);
+    assert.ok(ask.failure && !/Only this attempt/.test(ask.failure), code);
+    assert.equal(auth.calls.at(-1), 'finish 42 p-1', `${code}: the key is blocked`);
+    assert.equal(captured.length, 1, code);
+    assert.equal(captured[0].context.level, level, code);
+    assert.deepEqual(captured[0].context.fingerprint, ['ask', code, 'glm-5.3-flash'], code);
+    assert.equal(captured[0].context.tags?.ask_failure, code);
+    assert.equal(captured[0].context.user, 'owner', 'the reporter hashes it before it leaves');
+    assert.match(lines.join('\n'), new RegExp(`"event":"ask.failed","code":"${code}"`), `${code} is logged`);
+    assert.doesNotMatch(JSON.stringify(captured[0].context), /sk-ask-key/, 'the Ask key never reaches the report');
+    assert.equal(store.asksAbout('42', 1)[0].failureCode, code, 'the code is stored');
+  }
+});
+
+test('the gateway\'s own words travel to the report but not to the person', async () => {
+  const { captured, reports } = recorder();
+  const ask = await reporting(new Store(':memory:'), scripted([reply(400, { error: { message: 'Budget has been exceeded! key=sk-ask-key' } })]).fetcher, reports).ask(owner, '42', 'Is the Safari fix risky for Firefox?');
+  assert.equal(ask.failure, 'Answering needed more than the per-Ask Budget, so the model was stopped. Ask a shorter, narrower question.');
+  assert.match(String(captured[0].context.extra?.gateway), /Budget has been exceeded/);
+  assert.doesNotMatch(String(captured[0].context.extra?.gateway), /sk-ask-key/);
+  assert.equal(captured[0].context.tags?.http_status, 400);
+});
+
+test('an Ask asks the model to reason briefly, and a gateway that refuses that setting is asked again without it', async () => {
+  const net = scripted([reply(400, { error: { message: 'Unsupported parameter: reasoning_effort' } }), reply(200, { choices: [{ message: { content: 'It is being reviewed.' }, finish_reason: 'stop' }] })]);
+  const { captured, reports } = recorder();
+  const ask = await reporting(new Store(':memory:'), net.fetcher, reports).ask(owner, '42', 'Is the Safari fix risky for Firefox?');
+  assert.equal(ask.answer, 'It is being reviewed.');
+  assert.deepEqual(net.bodies.map(body => body.reasoning_effort), ['low', undefined]);
+  assert.equal(captured.length, 0);
+});
+
+test('an answer the model stopped at its length limit is kept and marked as possibly cut off', async () => {
+  const ask = await reporting(new Store(':memory:'), scripted([reply(200, { choices: [{ message: { content: 'It changed the login form and' }, finish_reason: 'length' }] })]).fetcher, recorder().reports).ask(owner, '42', 'Is the Safari fix risky for Firefox?');
+  assert.deepEqual([ask.status, ask.cutOff, ask.failureCode ?? null], ['answered', true, null]);
+});
+
+test('a grant without a model is reported and asks nothing', async () => {
+  const auth = authority({ async admit() { return { ...grant, models: [] }; } });
+  const net = scripted([]);
+  const { captured, reports } = recorder();
+  const ask = await reporting(new Store(':memory:'), net.fetcher, reports, auth.value).ask(owner, '42', 'Is the Safari fix risky for Firefox?');
+  assert.deepEqual([ask.failureCode, ask.retryable], ['no_model', false]);
+  assert.equal(net.bodies.length, 0);
+  assert.equal(captured[0].context.level, 'error');
+});
+
+test('a used-up allowance is logged but not reported, and an unreachable Ploeg is reported', async () => {
+  const used = recorder();
+  const lines: string[] = [];
+  const refused = await reporting(new Store(':memory:'), scripted([]).fetcher, used.reports, authority({ async admit() { throw new AskAllowanceUsedUp('2026-11-01T00:00:00Z'); } }).value, lines).ask(owner, '42', 'Is the Safari fix risky for Firefox?');
+  assert.deepEqual([refused.status, refused.failureCode, refused.retryable], ['refused', 'allowance_used_up', false]);
+  assert.equal(used.captured.length, 0, 'an allowance doing its job is not an error');
+  assert.match(lines[0], /"event":"ask.refused","code":"allowance_used_up"/);
+  const down = recorder();
+  const failed = await reporting(new Store(':memory:'), scripted([]).fetcher, down.reports, authority({ async admit() { throw new PloegError(503, 'ploeg_unavailable', 'down'); } }).value).ask(owner, '42', 'Is the Safari fix risky for Firefox?');
+  assert.deepEqual([failed.failureCode, failed.retryable, failed.costStatus], ['ploeg_unavailable', true, 'unknown']);
+  assert.equal(down.captured[0].context.level, 'error');
+  const refusedByPolicy = recorder();
+  const policy = await reporting(new Store(':memory:'), scripted([]).fetcher, refusedByPolicy.reports, authority({ async admit() { throw new PloegError(409, 'ask_unconfigured', 'Asking is not set up for this Team yet.'); } }).value).ask(owner, '42', 'Is the Safari fix risky for Firefox?');
+  assert.deepEqual([policy.failureCode, policy.failure], ['not_admitted', 'Asking is not set up for this Team yet.']);
+  assert.equal(refusedByPolicy.captured[0].context.level, 'warning', 'a missing Ask policy is an administrator\'s to fix');
+});
+
+test('a key Ploeg could not block is reported, and the answer still stands', async () => {
+  const auth = authority({ async finish() { throw new PloegError(503, 'ploeg_unavailable', 'down'); } });
+  const { captured, reports } = recorder();
+  const ask = await reporting(new Store(':memory:'), scripted([reply(200, { choices: [{ message: { content: 'Fine.' }, finish_reason: 'stop' }] })]).fetcher, reports, auth.value).ask(owner, '42', 'Is the Safari fix risky for Firefox?');
+  assert.equal(ask.status, 'answered');
+  assert.equal(captured.length, 1);
+  assert.deepEqual([captured[0].context.level, captured[0].context.extra?.stage], ['error', 'finish']);
+});
+
+test('an Ask left answering by a restart is closed as interrupted the next time anyone lists it', async () => {
+  const store = new Store(':memory:');
+  const { captured, reports } = recorder();
+  const asks = reporting(store, scripted([]).fetcher, reports);
+  const base = { workItemId: '42', workItemTitle: 'login: fix Safari', askerId: 'owner', askerName: 'Owner', audience: 'internal' as const, question: 'Why?', answer: '', status: 'answering' as const, demo: false, model: 'glm-5.3-flash', costUsd: null, costStatus: 'pending' as const, failure: null, source: 'model' as const, intent: null, answeredAt: null };
+  store.saveAsk({ ...base, id: 'old', ploegAskId: 'p-9', createdAt: '2026-10-10T09:50:00Z' });
+  store.saveAsk({ ...base, id: 'fresh', ploegAskId: 'p-10', createdAt: '2026-10-10T09:59:30Z' });
+  const listed = (await asks.about(owner, '42')).asks;
+  const old = listed.find(ask => ask.id === 'old')!;
+  assert.deepEqual([old.status, old.failureCode, old.retryable], ['failed', 'interrupted', true]);
+  assert.equal(listed.find(ask => ask.id === 'fresh')!.status, 'answering', 'a question still inside its answer time is left alone');
+  assert.equal(store.asksAbout('42', 5).find(ask => ask.id === 'old')!.status, 'failed', 'stored');
+  assert.equal(captured[0].context.level, 'warning');
+});
+
+test('gateway statuses map to failures', () => {
+  assert.equal(gatewayFailure(400, '{"error":"Budget has been exceeded"}'), 'budget_exceeded');
+  assert.equal(gatewayFailure(429, 'ExceededBudget: budget'), 'budget_exceeded');
+  assert.equal(gatewayFailure(403, ''), 'key_rejected');
+  assert.equal(gatewayFailure(504, ''), 'timeout');
+  assert.equal(gatewayFailure(400, 'bad request'), 'provider_error');
+  for (const meaning of Object.values(askFailures)) assert.doesNotMatch(meaning.message, /Ploeg settles|only this attempt/i);
 });

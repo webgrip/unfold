@@ -13,9 +13,12 @@ import { Links } from './links.ts';
 import { Oidc } from './oidc.ts';
 import { buildServer } from './http.ts';
 import { loadConfig } from './config.ts';
+import { knownSecrets } from './redaction.ts';
+import { ErrorReporter } from './error-reports.ts';
 import type { AppConfig, AgentRuntime, RuntimeKind } from './types.ts';
 
 export async function createApplication(config: AppConfig, options: { runtimes?: Map<RuntimeKind, AgentRuntime> } = {}) {
+  const errors = new ErrorReporter(config.errorReports, knownSecrets(config));
   const databasePath = join(config.dataDir, 'unfold.sqlite');
   const adopted = adoptRenamedDatabase(databasePath);
   if (adopted) console.error(JSON.stringify({ level: 'info', event: 'store.renamed', message: `Moved the database from ${adopted} to ${databasePath}.` }));
@@ -35,7 +38,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const engine = new Engine(store, config, runtimes, broker, links);
   engine.recover();
   const agentHost = new AgentHost(config, store, engine);
-  const { server, cards, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config));
+  const { server, cards, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config), errors);
   server.on('upgrade', (req, socket, head) => { if (!agentHost.handleUpgrade(req, socket, head)) socket.destroy(); });
   let closed = false;
   const cardTimers: NodeJS.Timeout[] = [];
@@ -54,8 +57,9 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
     await engine.shutdown();
     if (server.listening) await new Promise<void>((done) => { server.close(() => done()); server.closeIdleConnections(); });
     store.close();
+    await errors.flush();
   }
-  return { server, store, engine, agentHost, reports, close, startCardSweeps };
+  return { server, store, engine, agentHost, reports, errors, close, startCardSweeps };
 }
 
 async function main() {
@@ -73,6 +77,12 @@ async function main() {
     console.log(JSON.stringify({ level: 'info', event: 'server.ready', mode: config.mode, url: config.baseUrl || `http://${config.host}:${port}`, message: config.mode === 'demo' ? 'Local demonstration. Real code verification; no model calls.' : 'Authenticated remote agent workbench.' }));
   });
   for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void app.close().then(() => process.exit(0)); });
+  process.on('unhandledRejection', reason => app.errors.capture(reason, { level: 'error', tags: { feature: 'process', source: 'unhandledRejection' } }));
+  process.on('uncaughtException', error => {
+    console.error(JSON.stringify({ level: 'error', event: 'process.crashed', message: String(error?.message ?? error).slice(0, 300) }));
+    app.errors.capture(error, { level: 'fatal', tags: { feature: 'process', source: 'uncaughtException' } });
+    void app.errors.flush().finally(() => process.exit(1));
+  });
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

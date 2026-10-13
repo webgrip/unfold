@@ -38,6 +38,10 @@ Unfold records product events from the browser in its own database ([RFC-0001](.
 | `insight.export` | `"off"` | `UNFOLD_INSIGHT_EXPORT`: `faro` or `otlp` forwards events to a collector. Quote `"off"`: unquoted, YAML reads it as `false` and the schema refuses it. |
 | `insight.url` | `""` | `UNFOLD_INSIGHT_EXPORT_URL`, required unless the export is off. A Faro URL ends in `/collect`, an OTLP/HTTP one in `/v1/logs`. |
 | `insight.level` | `aggregate` | `UNFOLD_INSIGHT_EXPORT_LEVEL`: `aggregate` sends each finished day's totals with no actor; `events` sends each event with its pseudonymous actor. |
+| `errorReports.otlpUrl` | `""` | `UNFOLD_ERROR_OTLP_URL`: an OpenTelemetry collector's OTLP/HTTP logs URL (ends in `/v1/logs`). Server errors and failed Asks go there as log records with `exception.*` attributes. |
+| `errorReports.sentry.existingSecret` | `""` | Secret holding a Sentry-protocol DSN; sets `UNFOLD_SENTRY_DSN` for Sentry, GlitchTip or Bugsink. |
+| `errorReports.sentry.secretKey` | `sentry-dsn` | Key in that Secret. |
+| `errorReports.environment` | `""` | `UNFOLD_ERROR_ENVIRONMENT`, the environment reports carry, such as `staging`; empty uses the mode. Either destination, both or neither; failures are always logged. |
 
 The server sends the export, never the browser, so the workbench pod needs egress to the collector. [Running Unfold live](../../../docs/operations/live.md) describes what each level sends, and [the dashboard](../../grafana/README.md) reads it back in Grafana.
 

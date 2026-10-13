@@ -2141,7 +2141,8 @@ button.stream-bar:hover {
 .work-ask-allowance,
 .work-ask-empty,
 .work-ask-error,
-.work-ask-failure {
+.work-ask-failure,
+.work-ask-note {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -2153,10 +2154,15 @@ button.stream-bar:hover {
 
 .work-ask-allowance > svg.icon,
 .work-ask-error > svg.icon,
-.work-ask-failure > svg.icon {
+.work-ask-failure > svg.icon,
+.work-ask-note > svg.icon {
   flex: none;
   width: var(--icon-sm);
   height: var(--icon-sm);
+}
+
+.work-ask-failure[data-status="failed"] {
+  color: var(--attention-fg);
 }
 
 .work-ask-list:focus {

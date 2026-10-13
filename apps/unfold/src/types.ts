@@ -51,12 +51,15 @@ export type AppConfig = {
   cardThemes?: { directory?: string; assetQuotaMb: number; ai?: { baseUrl: string; model: string; keyEnv: string; maxTokens: number; timeoutMs: number; requestsPerHour: number } };
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; traceQuery?: string; logsQuery?: string };
   insight?: InsightConfig;
+  errorReports?: ErrorReportConfig;
   productEvents?: boolean;
   reports?: ReportTarget | null;
 };
 
 /** Where Report a problem files: a Forgejo or Vikunja connection (a named task source, or one of its own) and the repository or project. */
 export type ReportTarget = { source: TaskSourceConfig; project: string };
+/** Where errors and notable failures are reported: a Sentry-protocol DSN, an OTLP/HTTP logs URL, or both, and the environment name reports carry. */
+export type ErrorReportConfig = { sentryDsn?: string; otlpUrl?: string; environment: string };
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
 /** One product event the browser or VS Code extension posted, after the catalogue checked it. */
 export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean> };

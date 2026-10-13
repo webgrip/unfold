@@ -165,7 +165,7 @@ export function createMcpServer(options: McpOptions) {
       name: 'unfold_ask', title: 'Ask about a Work Item', readOnly: false,
       description: 'Ask one question about a Work Item, such as why it stopped or what it cost. A standing question is answered from the Work Item\'s record, free. Any other question needs use_model: true: the person is then asked to confirm, and one model call spends up to the per-Ask Budget from the Team\'s Ask Allowance. Without that confirmation nothing is asked or spent.',
       inputSchema: object({ id: string('Work Item id, or an Unfold link to it'), question: string('One question, under 2000 characters'), use_model: { type: 'boolean', description: 'Ask a model when the record does not answer; the person must confirm the spend' } }, ['id', 'question']),
-      outputSchema: object({ summary: { type: 'string' }, asked: { type: 'boolean' }, needsModel: { type: 'boolean' }, source: { type: ['string', 'null'] }, costUsd: { type: ['number', 'null'] }, costStatus: { type: ['string', 'null'] }, link: { type: 'string' }, untrusted: { type: 'object' } }, ['summary', 'asked', 'needsModel', 'source', 'costUsd', 'costStatus', 'link', 'untrusted']),
+      outputSchema: object({ summary: { type: 'string' }, asked: { type: 'boolean' }, needsModel: { type: 'boolean' }, source: { type: ['string', 'null'] }, costUsd: { type: ['number', 'null'] }, costStatus: { type: ['string', 'null'] }, failureCode: { type: ['string', 'null'], description: 'Why there is no answer, such as allowance_used_up, timeout or cut_off; null when answered' }, retryable: { type: 'boolean', description: 'Whether asking the same question again may help' }, link: { type: 'string' }, untrusted: { type: 'object' } }, ['summary', 'asked', 'needsModel', 'source', 'costUsd', 'costStatus', 'failureCode', 'retryable', 'link', 'untrusted']),
       async run(args) {
         const id = workItemId(args.id);
         const question = typeof args.question === 'string' ? args.question.trim() : '';
@@ -173,8 +173,10 @@ export function createMcpServer(options: McpOptions) {
         const page = `${link(id)}`;
         const answered = (ask: Json) => {
           const asked = ask.status === 'answered';
-          const cost = ask.costUsd === null || ask.costUsd === undefined ? 'cost unknown' : ask.source === 'record' ? 'free, from the record' : `${usd(cents(ask.costUsd))} from the Ask Allowance`;
-          return { summary: asked ? `Answered (${cost}).` : `Not answered: ${clip(ask.failure, 300) || ask.status}.`, asked, needsModel: false, source: ask.source ?? null, costUsd: typeof ask.costUsd === 'number' ? ask.costUsd : null, costStatus: ask.costStatus ?? null, link: page, untrusted: { question: clip(ask.question, 2000), answer: clip(ask.answer, 4000) } };
+          const cost = ask.costUsd === null || ask.costUsd === undefined ? 'cost not known yet' : ask.source === 'record' ? 'free, from the record' : `${usd(cents(ask.costUsd))} from the Ask Allowance${ask.costStatus === 'settled' ? '' : ', not final yet'}`;
+          const why = clip(ask.failure, 300).replace(/\.$/, '') || ask.status;
+          const summary = asked ? `Answered (${cost}).${ask.cutOff ? ' The answer may be cut off at the model\'s length limit.' : ''}` : `Not answered: ${why}.${ask.retryable ? ' Asking again may help.' : ''}`;
+          return { summary, asked, needsModel: false, source: ask.source ?? null, costUsd: typeof ask.costUsd === 'number' ? ask.costUsd : null, costStatus: ask.costStatus ?? null, failureCode: ask.failureCode ?? null, retryable: ask.retryable === true, link: page, untrusted: { question: clip(ask.question, 2000), answer: clip(ask.answer, 4000) } };
         };
         if (args.use_model !== true) {
           try { return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, recordOnly: true })); }
@@ -182,7 +184,7 @@ export function createMcpServer(options: McpOptions) {
             if (!(error instanceof UnfoldAnswer) || error.code !== 'ask_needs_model') throw error;
             const allowance = (await get(`/api/ploeg/work-items/${id}/asks`)).allowance;
             const spend = allowance ? ` It would spend up to ${usd(cents(allowance.askBudgetUsd))}; ${usd(cents(allowance.remainingUsd))} is left this month.` : '';
-            return { summary: `The record does not answer this. Call again with use_model: true to ask a model; the person must confirm first.${spend}`, asked: false, needsModel: true, source: null, costUsd: null, costStatus: null, link: page, untrusted: { question } };
+            return { summary: `The record does not answer this. Call again with use_model: true to ask a model; the person must confirm first.${spend}`, asked: false, needsModel: true, source: null, costUsd: null, costStatus: null, failureCode: null, retryable: false, link: page, untrusted: { question } };
           }
         }
         if (!clientCapabilities.elicitation || !outbound) throw new Error(`This client cannot ask you to confirm a spend, so no model was asked. Ask in Unfold instead: ${page}`);
@@ -192,7 +194,7 @@ export function createMcpServer(options: McpOptions) {
         let decision: Json;
         try { decision = await outbound('elicitation/create', { message, requestedSchema: { type: 'object', properties: { confirm: { type: 'boolean', title: 'Spend from the Ask Allowance', description: 'Ask a model and pay from the allowance' } }, required: ['confirm'] } }); }
         catch { throw new Error('The confirmation did not come back, so no model was asked and nothing was spent.'); }
-        if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return { summary: 'Not asked: the spend was not confirmed. Nothing was spent.', asked: false, needsModel: true, source: null, costUsd: null, costStatus: null, link: page, untrusted: { question } };
+        if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return { summary: 'Not asked: the spend was not confirmed. Nothing was spent.', asked: false, needsModel: true, source: null, costUsd: null, costStatus: null, failureCode: null, retryable: false, link: page, untrusted: { question } };
         return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }));
       },
     },

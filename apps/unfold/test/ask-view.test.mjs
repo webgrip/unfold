@@ -30,7 +30,8 @@ test('pending, unknown, refused and demo Asks each say what they are', () => {
     ask({ id: 'b', status: 'failed', costStatus: 'unknown', costUsd: null, answer: '', failure: 'Ploeg did not admit the question.' }),
     ask({ id: 'c', status: 'refused', costStatus: 'settled', costUsd: 0, answer: '', failure: 'Ask Allowance used up. It resets on 1 November.' }),
   ], demo: false, error: '' } });
-  assert.match(html, /Cost pending/);
+  assert.match(html, /Cost not known yet/);
+  assert.match(html, /Nothing charged/);
   assert.match(html, /Cost not reported/);
   assert.match(html, /Ask Allowance used up\. It resets on 1 November\./);
   const demo = askMarkup(detail(true), { asks: { items: [ask({ demo: true, costStatus: 'demo', costUsd: null })], demo: true, error: '' } });
@@ -108,4 +109,19 @@ test('the Ask dialog offers to ask the model even for a standing question, excep
   assert.match(askDialogMarkup(detail()), /name="askModel" value="true"/);
   assert.match(askDialogMarkup(detail()), /answered from the record for free/);
   assert.doesNotMatch(askDialogMarkup(detail(true)), /askModel/);
+});
+
+test('a failed Ask says why, offers to ask again when that may help, and a provisional cost shows its amount', () => {
+  const html = askMarkup(detail(), { asks: { items: [
+    ask({ id: 'f1', status: 'failed', answer: '', failureCode: 'timeout', retryable: true, failure: 'The model took longer than a minute, so Unfold stopped waiting. Try again; a shorter question helps.', costStatus: 'pending', costUsd: 0.0004 }),
+    ask({ id: 'f2', status: 'failed', answer: '', failureCode: 'key_rejected', retryable: false, failure: 'The model gateway refused the key.', costStatus: 'pending', costUsd: null }),
+    ask({ id: 'c1', answer: 'It changed the login form and', cutOff: true }),
+  ], demo: false, error: '' }, askBusy: false });
+  assert.match(html, /class="work-ask-failure" role="note" data-status="failed" data-code="timeout"/);
+  assert.match(html, /data-action="work-ask-again" data-id="f1"/);
+  assert.doesNotMatch(html, /data-action="work-ask-again" data-id="f2"/, 'asking again cannot fix a refused key');
+  assert.match(html, /Cost <span class="num money" title="US\$\s0,0004">&lt;\sUS\$\s0,01<\/span> · not final yet/);
+  assert.match(html, /Cost not known yet/);
+  assert.match(html, /may be cut off/);
+  assert.match(askDialogMarkup(detail(), { question: 'Why <this>?' }), /<textarea[^>]*>Why &lt;this&gt;\?<\/textarea>/);
 });

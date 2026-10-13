@@ -99,6 +99,21 @@ spec:
             - name: UNFOLD_INSIGHT_EXPORT_LEVEL
               value: {{ .Values.insight.level | quote }}
             {{- end }}
+            {{- if .Values.errorReports.sentry.existingSecret }}
+            - name: UNFOLD_SENTRY_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.errorReports.sentry.existingSecret }}
+                  key: {{ .Values.errorReports.sentry.secretKey }}
+            {{- end }}
+            {{- if .Values.errorReports.otlpUrl }}
+            - name: UNFOLD_ERROR_OTLP_URL
+              value: {{ .Values.errorReports.otlpUrl | quote }}
+            {{- end }}
+            {{- if .Values.errorReports.environment }}
+            - name: UNFOLD_ERROR_ENVIRONMENT
+              value: {{ .Values.errorReports.environment | quote }}
+            {{- end }}
             {{- if and .Values.delivery.enabled .Values.delivery.publisher.enabled }}
             - name: {{ .Values.delivery.publisher.tokenEnv }}
               valueFrom:

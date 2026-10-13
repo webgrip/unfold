@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import type { AppConfig, Repository, Crew, Placement, WorkspaceBackend } from './types.ts';
 import { validateTaskSources } from './tasks.ts';
 import { reportSettings } from './reports.ts';
+import { sentryTarget } from './error-reports.ts';
 import { validatePloeg } from './ploeg.ts';
 import { validateCardRules } from './cards/settings.ts';
 import { validateDeliveryConfig } from './delivery-config.ts';
@@ -171,6 +172,22 @@ function insightLevel(value: string | undefined): 'aggregate' | 'events' {
   return value as 'aggregate' | 'events';
 }
 
+/**
+ * Reads where errors are reported. `UNFOLD_SENTRY_DSN` is a Sentry-protocol DSN (Sentry, GlitchTip, Bugsink);
+ * `UNFOLD_ERROR_OTLP_URL` is an OTLP/HTTP logs endpoint (an OpenTelemetry collector's `/v1/logs`). Either, both or
+ * neither; `UNFOLD_ERROR_ENVIRONMENT` names the environment reports carry and defaults to the mode.
+ */
+export function errorReportSettings(mode: string): AppConfig['errorReports'] {
+  const sentryDsn = process.env.UNFOLD_SENTRY_DSN || undefined;
+  const otlp = process.env.UNFOLD_ERROR_OTLP_URL || undefined;
+  if (!sentryDsn && !otlp) return undefined;
+  if (sentryDsn) sentryTarget(sentryDsn);
+  const otlpUrl = otlp ? configuredUrl(otlp, 'UNFOLD_ERROR_OTLP_URL') : undefined;
+  const environment = process.env.UNFOLD_ERROR_ENVIRONMENT || mode;
+  if (!/^[A-Za-z0-9_.-]{1,64}$/.test(environment)) throw new Error('UNFOLD_ERROR_ENVIRONMENT must be a short name such as production or staging');
+  return { ...(sentryDsn ? { sentryDsn } : {}), ...(otlpUrl ? { otlpUrl } : {}), environment };
+}
+
 /** Reads `UNFOLD_INSIGHT_EVENTS`: product events are recorded unless it is `off`, as ADR-0023's tenant default says. */
 export function productEventsSetting(): boolean {
   const value = process.env.UNFOLD_INSIGHT_EVENTS || 'on';
@@ -310,6 +327,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     gatewayPolicy,
     observability,
     insight: insightSettings(),
+    errorReports: errorReportSettings(mode),
     productEvents: productEventsSetting(),
     cards,
     cardThemes: cardThemeSettings(raw.cardThemes, mode),
