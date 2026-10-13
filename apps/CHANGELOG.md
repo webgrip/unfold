@@ -1,3 +1,27 @@
+## [unfold-v0.4.0-rc.77](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.76...unfold-v0.4.0-rc.77) (2026-10-13)
+
+### Added
+
+* **unfold:** speak Ploeg's vocabulary: Team, attempt, held and one cost status ([31a1530](https://forgejo.webgrip.dev/webgrip/unfold/commit/31a15305326561907bde63659ed4fa1f944e9802)), references [ploeg-hq/ploeg#131](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/131) [ploeg-hq/ploeg#131](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/131)
+
+### Fixed
+
+* **unfold:** carry the shared vocabulary into what landed since ([93bed78](https://forgejo.webgrip.dev/webgrip/unfold/commit/93bed78da25bca2d0541000cb6676cf9afed1899))
+* **unfold:** point the card designer at Unfold's own card style setting ([27986f7](https://forgejo.webgrip.dev/webgrip/unfold/commit/27986f797c8ab2f9570c214ebabd62fb34dc7c74))
+* **unfold:** read heldUsd before reservedUsd in every MCP tool ([0bd4a94](https://forgejo.webgrip.dev/webgrip/unfold/commit/0bd4a949aa826684a947eadf9044850319b57402))
+
+### Changed
+
+* **unfold:** name Run card types after the Run Card, not Ploeg ([b99ea0a](https://forgejo.webgrip.dev/webgrip/unfold/commit/b99ea0a481d0063b50a10548344d1ba89735bbef))
+
+### Docs
+
+* say Team, held and attempt where the docs said crew and reserved ([af68f56](https://forgejo.webgrip.dev/webgrip/unfold/commit/af68f5664e1d5266e17943b1f912c38674e74757))
+
+### Build
+
+* **ploeg:** pin Ploeg 0.2.0-rc.20 ([a36a3fb](https://forgejo.webgrip.dev/webgrip/unfold/commit/a36a3fb4bdce387a303ff6561d3569a713f162c4)), references [#131](https://forgejo.webgrip.dev/webgrip/unfold/issues/131) [#366](https://forgejo.webgrip.dev/webgrip/unfold/issues/366) [#128](https://forgejo.webgrip.dev/webgrip/unfold/issues/128)
+
 ## [unfold-v0.4.0-rc.76](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.75...unfold-v0.4.0-rc.76) (2026-10-13)
 
 ### Added
