@@ -36,6 +36,41 @@ jobs:
           submodules: recursive
       - uses: ./.forgejo/actions/tutorial-smoke
 
+  ploeg-ahead:
+    runs-on: docker
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        ploeg: [newest-release, development]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+      - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.7
+          install_args: uv
+          cache: false
+          github_token: ''
+      - name: Check out Ploeg's newest release or its development head
+        working-directory: apps/ploeg
+        env:
+          PLOEG: ${{ matrix.ploeg }}
+        run: |
+          git fetch --quiet --tags origin development
+          if [ "$PLOEG" = development ]; then
+            ref=FETCH_HEAD
+          else
+            ref=$(git -c versionsort.suffix=-rc tag --list 'v*' --sort=-v:refname | head -n 1)
+          fi
+          git checkout --quiet --detach "$ref"
+          echo "Checking Unfold's docs against Ploeg $PLOEG: $(git describe --tags --always)"
+      - name: Regenerate the Ploeg-derived pages as Renovate would, then fail on what it cannot fix
+        run: |
+          mise exec -- sh scripts/renovate-ploeg-docs.sh
+          mise exec -- uv run --frozen python scripts/docs.py --domain-check
+
   release-notes:
     runs-on: docker
     timeout-minutes: 15
