@@ -27,7 +27,7 @@ export async function run({ page, app, assert, screenshot }) {
       await callout.waitFor();
       const text = (await callout.innerText()).replace(/\s+/g, ' ');
       assert.match(text, /Implementer finished · stopped: Ploeg holds it for reconciliation/, 'the browser reads the session through the same statechart as VS Code');
-      assert.match(text, /Reviewer reader · Cut off/);
+      assert.match(text, /Reviewer reader · Interrupted/);
       assert.match(text, /Ploeg still lists its operator Run as running/);
       const page2 = (await page.locator('.work-detail, main').first().innerText()).replace(/\s+/g, ' ');
       assert.doesNotMatch(page2, /0 Rounds/, 'Rounds never read 0 beside Round 1');
