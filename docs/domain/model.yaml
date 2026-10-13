@@ -9,9 +9,9 @@ description: >
   feature inventory. Current behavior is documented in ../index.md and the
   application architecture guides. Execution terms such as Run, Shift, Lease,
   Team, Role and Outcome belong to Ploeg's model; this model imports them.
-  The agency offering (Unfold ADRs 0005 to 0010) is decided and not implemented;
+  The agency offering (system ADRs 0005 to 0010) is decided and not implemented;
   its terms are in the Offering and Billing contexts.
-version: "0.5"
+version: "0.6"
 combined_glossary: ../reference/glossary.md
 references:
   - label: system ADR-0002
@@ -38,7 +38,7 @@ contexts:
   - name: Offering
     description: >
       Who uses Unfold and what they see: Agencies, their Clients and the Client
-      Portal. Decided in Unfold ADRs 0005 to 0010; not implemented yet.
+      Portal. Decided in system ADRs 0005 to 0010; not implemented yet.
   - name: Billing
     description: >
       How work is sized, quoted and charged: Sizes, Quotes, Credits and the two
@@ -46,9 +46,11 @@ contexts:
   - name: Cards
     description: >
       Run Cards: the record of each delivered change and its life in
-      production. Ploeg assembles a card per Work Item and Unfold renders it
-      (Ploeg ADR-0046, Unfold ADR 0026); the rest of this context is proposed.
-      See ../concepts/run-cards.md.
+      production. Unfold assembles a card per Work Item from Ploeg's delivery
+      facts, keeps the card's own state and draws it (system ADR-0030, Ploeg
+      ADR-0079, Unfold ADR 0026); Ploeg keeps no card logic (Ploeg ADR-0080).
+      Terms marked proposed or not implemented are not built. See
+      ../concepts/run-cards.md.
   - name: Release
     description: How Unfold's own source, releases and documentation are proven and switched over.
   - name: Tooling
@@ -186,6 +188,22 @@ terms:
       only who is paying attention; the same execution keeps running and no new
       Run starts. Standalone Sessions have no supervision setting.
     see_also: [Session, Run, Authority]
+  - name: Stage
+    context: Participation
+    owner: unfold
+    definition: >
+      One of the four phases Unfold shows a Work Item passing on its page, in
+      order: Define, Execute, Review and Deliver. Unfold derives the current
+      Stage from Ploeg's state and the Run Card alone, and names why a stopped
+      Stage halted (needs a person, stale or withdrawn). Deliver is skipped for
+      work that ended without a merged pull request, and is never shown done
+      without a reported deploy (Unfold ADR 0038; apps/unfold/public/core/stages.js).
+    not_to_be_confused_with:
+      - term: Gate
+        note: A tracker status group after review, such as test or acceptance, that a Run Card counts Bounces between.
+      - term: Review
+        note: The assessment of a Result. The Review Stage is the time a pull request waits for it.
+    see_also: [Work Item, Review, Run Card]
   - name: Agent
     context: Execution
     definition: >
@@ -304,11 +322,14 @@ terms:
   - name: Work Item Brief
     context: Participation
     definition: >
-      The Client-safe projection of a Work Item that an Ask answers from: its
-      title, objective, Acceptance Conditions, state, Runs with their summaries
-      and Verdicts, pull request and preview status, and spend totals. It never
+      The Client-safe projection of a Work Item that an Ask answers from. It never
       holds prompts, tool input or output, transcripts, diffs, gateway details,
-      operator notes or another Work Item's facts. Proposed in system ADR-0031.
+      operator notes or another Work Item's facts. Built in Unfold
+      (apps/unfold/src/ask/brief.ts) from an allow-list: title, objective,
+      state and why it stopped, pull request and preview status, its Runs with
+      their summaries and Verdicts, progress, and spend in US dollars. It does
+      has no Acceptance Conditions field yet. Decided in system ADR-0031, which is
+      still proposed.
     see_also: [Ask, Client]
   - name: Attention Path
     context: Work
@@ -334,7 +355,8 @@ terms:
       Agency too. An Agency reviews and merges every pull request and owns
       production. It uses Unfold hosted, in its own Tenant, or self-hosted. In
       hosted Unfold its Tenant has its own namespaces, default-deny network,
-      sandboxed runtime and model budget (ADR-0017, not implemented yet).
+      sandboxed runtime and model budget (system ADR-0017; enforcement not
+      implemented yet).
     avoid: [customer, operator, reseller]
     not_to_be_confused_with:
       - term: Tenant
@@ -376,7 +398,7 @@ terms:
       Client approves in its Quote. A Size sets the Delivery Fee in Credits,
       the Shift Budget and the Diff Limit. There is no larger Size; Refinement
       splits work estimated above L.
-    examples: ["S: 1 Credit, a €4 Shift Budget, at most 150 changed lines in 5 files."]
+    examples: ["S: 1 Credit, a €4 Shift Budget, at most 150 changed lines in 5 files (system ADR-0006). Ploeg holds a Shift's budget pool in US dollars; how a euro Shift Budget becomes that pool is not decided yet."]
     see_also: [Quote, Credit, Budget, Diff Limit]
   - name: Quote
     context: Billing
@@ -471,10 +493,10 @@ terms:
     definition: >
       The record of one Work Item's change and its life in production: who
       carried it, what its Runs cost, its Plays, review, CI and deployments,
-      and, as proposed, its Grade, Rarity, Cracks and Mends. Ploeg assembles it
-      from stored facts and Unfold renders it (Ploeg ADR-0046, Unfold ADR 0026).
-      It describes a change, never a person, and its state never changes what
-      Ploeg authorizes, budgets or merges.
+      its Grade, Rarity, Cracks and Mends. Unfold assembles it on read from
+      Ploeg's delivery facts and its own card store, and draws it (system
+      ADR-0030, Unfold ADR 0026). It describes a change, never a person, and
+      its state never changes what Ploeg authorizes, budgets or merges.
     synonyms: [card]
     not_to_be_confused_with:
       - term: Run
@@ -483,7 +505,7 @@ terms:
     see_also: [Work Item, Play, Steward, Roster, Finish, Grade, Rarity, Skin]
   - name: Play
     context: Cards
-    owner: ploeg
+    owner: unfold
     definition: >
       One pull request of a Work Item as its Run Card shows it, oldest first.
       A pull request closed after a Bounce and its merged successor are two
@@ -513,9 +535,11 @@ terms:
   - name: Gate
     context: Cards
     definition: >
-      A stage a Work Item passes after review, such as development, test,
-      acceptance and production. Each project maps its tracker statuses and
-      deploy environments to Gates. Not implemented yet.
+      A point in a board's workflow that a Work Item passes after review, such as development, test,
+      acceptance and production. Each board maps its tracker statuses to Gates
+      in Unfold's cards.rules setting (boards.<provider:scope>.gates), and
+      Unfold derives a card's Gate history from the status moves in Ploeg's
+      delivery facts.
     see_also: [Bounce, Run Card, Acceptance]
   - name: Bounce
     context: Cards
@@ -523,7 +547,8 @@ terms:
       A Work Item moving from a later Gate back to an earlier one, with a
       reason: defect, requirement, misunderstood, environment or unknown. Only
       defect and unknown Bounces count against the Grade. A requirement change
-      marks the card Evolved and leaves no Crack. Not implemented yet.
+      marks the card Evolved and leaves no Crack. Unfold reads the reason from
+      a bounce:<reason> label or comment; a board without Gates has no Bounces.
     examples: ["A tester moves the ticket from In test back to In progress with the label bounce:defect; the fix becomes the card's next Play."]
     see_also: [Gate, Play, Grade, Crack]
   - name: Crack
@@ -541,7 +566,9 @@ terms:
       The confirmed fix of a Crack, drawn as gold seams that stay on the card
       (kintsugi). A mended card looks more distinguished than an untouched one,
       while its Grade ends slightly lower. Whoever mends another person's card
-      becomes a co-signer. Not implemented yet.
+      becomes a co-signer. Built: Unfold records a Mend when the bug's pull
+      request merges and confirms it after 30 days without a new Crack; the
+      gold seams are drawn by the skins.
     synonyms: [kintsugi]
     see_also: [Crack, Steward, Grade]
   - name: Finish
@@ -552,7 +579,8 @@ terms:
       then foil at 7 days, holo at 30, prism at 90, gilded at 180 and infinity
       at 365. Unfold counts the days from the first production deploy of the
       latest merged Play, or from the merge when the repository has never
-      reported a production deploy (Ploeg ADR-0047, Unfold ADR 0026).
+      reported a production deploy. The deploys come from Ploeg's delivery
+      facts (Ploeg ADR-0047, Unfold ADR 0026).
     see_also: [Run Card, Grade, Rarity, Skin]
   - name: Grade
     context: Cards
@@ -561,8 +589,9 @@ terms:
       four subgrades: 40 % reliability, 25 % durability, 20 % delivery and
       15 % review. The formula is versioned and printed on the card, and a card
       under 180 days live is capped at 9. It grades the change, never a person.
-      Ploeg computes it on read under its current formula, lists the inputs it
-      missed, and sends null until a person reviewed a Play or one merged.
+      Unfold computes it on read under the current formula (2026.3; every
+      earlier version is kept), lists the inputs it missed, and shows none
+      until a person reviewed a Play or one merged.
     not_to_be_confused_with:
       - term: Verdict
         note: A reviewing Run's approve or request_changes answer in one Round. It is one input a Grade could use, not a Grade.
@@ -572,26 +601,28 @@ terms:
     definition: >
       How exceptional a Run Card's change was, its challenge, kept apart from
       how well it was done (Grade) and how long it has lasted (Finish).
-      Cosmetic only. Ploeg scores reach, sensitive ground, novelty and damped
-      size under a versioned formula, predicts a tier at mint and reveals one at
-      release, as percentile tiers per project and quarter (common, uncommon,
-      rare, epic, legendary), and freezes the revealed tier (Ploeg ADR-0056,
-      proposed). Nothing Ploeg authorizes, budgets or merges depends on it.
+      Cosmetic only, and off unless cards.rules.rarity turns it on. Unfold
+      scores reach, sensitive ground, novelty and damped size under a
+      versioned formula, predicts a tier at mint and reveals one at release,
+      as percentile tiers per repository and quarter (common, uncommon, rare,
+      epic, legendary), and freezes the revealed tier in its card store
+      (system ADR-0030). Nothing Ploeg authorizes, budgets or merges depends
+      on it.
     see_also: [Run Card, Grade, Finish, Pack]
   - name: Set Card
     context: Cards
     definition: >
       The Run Card of an epic Work Item, whose children are Run Cards numbered
-      within the set. Proposed: it completes when every child has been live
-      for 30 days with no unmended Crack. Not implemented yet; Ploeg reads no
-      tracker parent relations.
+      within the set, read from the tracker parents in Ploeg's delivery facts.
+      A set completes when every child has been live for 30 days with no
+      unmended Crack, and its epic's card then shows as legendary.
     see_also: [Run Card, Work Item, Crack]
   - name: Binder
     context: Cards
     definition: >
       A person's private collection of the Run Cards they hold a copy of. Only
       its owner sees it, and they may share single cards. There is no manager
-      view of a Binder. Not implemented yet.
+      view of a Binder. Built in Unfold (Unfold ADR 0029, proposed).
     see_also: [Run Card, Roster, Pack]
   - name: Pack
     context: Cards
@@ -601,14 +632,16 @@ terms:
       such as a foil pattern, alternative art, full art or a gold signature,
       drawn from published odds with a recorded seed. A Pack cannot be bought,
       re-rolled or traded, and a pull never changes a Grade, a Rarity or any
-      metric. Not implemented yet.
+      metric. Built in Unfold (Unfold ADR 0029, proposed): a Pack covers an ISO
+      week unless a Team sets its own sprint length and start.
     see_also: [Binder, Rarity, Grade]
   - name: Skin
     context: Cards
     owner: unfold
     definition: >
-      The look a Run Card is drawn in, chosen per Work Target in Ploeg's
-      cardStyle. A Skin changes appearance and motion, never the facts or
+      The look a Run Card is drawn in, chosen per repository in Unfold's
+      cards.rules setting (repositories.<owner/name>.style), which replaced
+      Ploeg's retired cardStyle key. A Skin changes appearance and motion, never the facts or
       where they sit. Built: Unfold Native, the 3D forge Skin, and Holo
       Rarity, Loot Drop, Arcade Cabinet, Ticker Terminal and Mission Patch.
       Proposed: per-Client themes on top.
@@ -697,7 +730,7 @@ rules:
     statement: >
       Work can create work. A Run may produce new Work Items: it can split a Work Item into smaller ones, make
       unready work Ready, or record work it discovered. Each new Work Item names its source and is Ready or
-      explicitly not. Implemented for Runs (Ploeg ADR-0031, proposed): created Work Items stay in Ploeg, wait as
+      explicitly not. Implemented for Runs (Ploeg ADR-0031, still proposed): created Work Items stay in Ploeg, wait as
       proposed until a person approves them unless the Team sets autoDispatch, and are bounded per Team by count,
       depth, open items and a budget pool. A failed check on a Ploeg pull request also creates a repair Follow-Up
       for a Team that opted in.
@@ -743,7 +776,7 @@ rules:
   - id: R19
     statement: >
       Intended behavior — a Crack needs human confirmation by the fixer and one person who is not the Steward,
-      and the Steward may dispute it. Ploeg may propose candidates but never applies a Crack on its own.
+      and the Steward may dispute it. Unfold may propose candidates but never applies a Crack on its own.
     rationale: Automatic bug-to-change tracing is wrong too often, and a wrong Crack on a signed card is a fairness incident.
     applies_to: [Crack, Steward]
   - id: R20
@@ -785,14 +818,23 @@ ambiguities:
       keeps the Agency's tracker as the one place its Clients' asks live.
   - phrase: the period a Pack covers
     issue: >
-      A Pack is proposed once per sprint, but Unfold has no sprint concept and
+      A Pack was proposed once per sprint, but Unfold had no sprint concept and
       some teams do not work in sprints.
     options:
       - The tracker's iteration or cycle, where it has one
       - A fixed calendar period for every team
       - A period each Team sets in Ploeg's configuration
-    recommendation: Decide before Packs are built; until then the period is the team's sprint as its tracker defines it.
+    recommendation: >
+      Built in Unfold as an ISO week by default, with a Team's own sprint
+      length and start date instead (Unfold ADR 0029, proposed). The ambiguity
+      closes when that ADR is decided.
   - phrase: a Tenant and a Team
+    status: resolved
+    resolution: >
+      A Tenant sits above Teams, each Team belongs to one Tenant, and a
+      self-hosted install has a default Tenant (system ADR-0017, accepted).
+      Unfold imports the Tenant term from Ploeg's model; enforcement in Ploeg
+      and Unfold is not implemented yet.
     issue: >
       Ploeg and Unfold scope access by Team, but a Team is a capability pool and
       created work can move between Teams. The Tenant definition says

@@ -49,5 +49,39 @@ class CombinedGlossaryReferences(unittest.TestCase):
         self.assertNotIn('https:/github.com', glossary)
 
 
+class UnfoldModelAdrReferences(unittest.TestCase):
+    def generate(self, text):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'docs/domain').mkdir(parents=True)
+            (root / 'docs/adr').mkdir(parents=True)
+            (root / 'docs/adr/adr-0002-ploeg-is-the-only-engine.md').write_text('# 0002')
+            (root / 'apps/ploeg/docs/adrs').mkdir(parents=True)
+            (root / 'apps/ploeg/docs/adrs/0079-cards.md').write_text('# 0079')
+            (root / 'docs/domain/model.yaml').write_text(text)
+            return subprocess.run([sys.executable, str(GENERATOR), 'docs/domain/model.yaml', '-o', str(root / 'out')], cwd=root, capture_output=True, text=True)
+
+    def model(self, definition, owner='unfold'):
+        return f"project: Unfold\nowner: {owner}\nterms:\n  - name: Work Item\n    context: Work\n    definition: >\n      {definition}\n"
+
+    def test_a_qualified_reference_to_an_existing_record_passes(self):
+        result = self.generate(self.model('Decided in system ADR-0002 and Ploeg ADR-0079.'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_a_bare_reference_is_refused_with_the_term_that_holds_it(self):
+        result = self.generate(self.model('Decided in ADR-0002.'))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("terms[Work Item].definition: 'ADR-0002' names no ledger", result.stderr)
+
+    def test_a_reference_to_a_record_the_ledger_lacks_is_refused(self):
+        result = self.generate(self.model('Decided in Ploeg ADR-0002.'))
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("'Ploeg ADR-0002' is not in the Ploeg ledger", result.stderr)
+
+    def test_another_owners_model_keeps_its_own_ledger_words(self):
+        result = self.generate(self.model('Decided in ADR-0002.', owner='ploeg'))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+
 if __name__ == '__main__':
     unittest.main()

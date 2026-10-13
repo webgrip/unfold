@@ -61,7 +61,7 @@ Intended behavior — Unfold never contacts a Client directly; questions for a C
 
 ### R19
 
-Intended behavior — a Crack needs human confirmation by the fixer and one person who is not the Steward, and the Steward may dispute it. Ploeg may propose candidates but never applies a Crack on its own.
+Intended behavior — a Crack needs human confirmation by the fixer and one person who is not the Steward, and the Steward may dispute it. Unfold may propose candidates but never applies a Crack on its own.
 
 **Why:** Automatic bug-to-change tracing is wrong too often, and a wrong Crack on a signed card is a fairness incident.
 
@@ -191,7 +191,7 @@ Intended behavior — in projects with automatic repair enabled, failed CI creat
 
 ### R12
 
-Work can create work. A Run may produce new Work Items: it can split a Work Item into smaller ones, make unready work Ready, or record work it discovered. Each new Work Item names its source and is Ready or explicitly not. Implemented for Runs (Ploeg ADR-0031, proposed): created Work Items stay in Ploeg, wait as proposed until a person approves them unless the Team sets autoDispatch, and are bounded per Team by count, depth, open items and a budget pool. A failed check on a Ploeg pull request also creates a repair Follow-Up for a Team that opted in.
+Work can create work. A Run may produce new Work Items: it can split a Work Item into smaller ones, make unready work Ready, or record work it discovered. Each new Work Item names its source and is Ready or explicitly not. Implemented for Runs (Ploeg ADR-0031, still proposed): created Work Items stay in Ploeg, wait as proposed until a person approves them unless the Team sets autoDispatch, and are bounded per Team by count, depth, open items and a budget pool. A failed check on a Ploeg pull request also creates a repair Follow-Up for a Team that opted in.
 
 **Why:** Refining and dividing work is itself work; agents should do it under the same authority, budget and review as code.
 

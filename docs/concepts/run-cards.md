@@ -2,8 +2,8 @@
 type: explanation
 audience: [owner, operator, contributor, agent]
 owner: unfold
-last_verified: 2026-10-10
-verified_by: "ownership read against root ADR-0030, Ploeg ADR-0079 and apps/unfold/src/cards on feat/unfold-owns-run-cards, whose parity tests replay the cards Ploeg v0.2.0-rc.9 assembles; grade read against Ploeg ADR-0050, ADR-0052 and ADR-0061 and apps/ploeg/pkg/store/card_grade.go (formula 2026.3); built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0049, ADR-0057 (apps/ploeg/pkg/flow) and ADR-0058 (apps/ploeg/pkg/playkpi), Unfold ADR 0026, apps/ploeg/pkg/store/card.go and apps/unfold/public/cards on development @ 810c97a; binders, packs and seasons read against Unfold ADR 0029 and apps/unfold/src/{collection,packs,season}.ts on feat/unfold-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Unfold collection was run in its demo browser flow"
+last_verified: 2026-10-13
+verified_by: "ownership read against system ADR-0030, Ploeg ADR-0079 and apps/unfold/src/cards on feat/unfold-owns-run-cards, whose parity tests replay the cards Ploeg v0.2.0-rc.9 assembles; grade read against Ploeg ADR-0050, ADR-0052 and ADR-0061 and apps/ploeg/pkg/store/card_grade.go (formula 2026.3); built parts read against Ploeg ADR-0045, ADR-0046, ADR-0047, ADR-0049, ADR-0057 (apps/ploeg/pkg/flow) and ADR-0058 (apps/ploeg/pkg/playkpi), Unfold ADR 0026, apps/ploeg/pkg/store/card.go and apps/unfold/public/cards on development @ 810c97a; binders, packs and seasons read against Unfold ADR 0029 and apps/unfold/src/{collection,packs,season}.ts on feat/unfold-binder-packs; proposed parts checked against the owner's design page and card contracts of 2026-10-01; the Unfold collection was run in its demo browser flow; on 2026-10-13 ADR statuses re-read from the three ledgers (Ploeg ADR-0046, 0050, 0052, 0055, 0056 and 0061 rejected by Ploeg ADR-0080) and the built state re-read from apps/unfold/src/cards (assemble.ts, cracks.ts, gate.ts, settings.ts) on development @ 662b23f2"
 ---
 
 # Run Cards
@@ -28,7 +28,7 @@ So every number on a card describes the change. The person appears only as its *
 
 ## Where cards are computed
 
-Run cards are an Unfold domain on top of Ploeg ([root ADR-0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md)). Ploeg schedules and runs the agents and supplies plain delivery facts ([Ploeg ADR-0079](https://github.com/ploeg-hq/ploeg/blob/development/docs/adrs/0079-run-cards-belong-to-the-consumer-and-ploeg-supplies-delivery-facts.md)). Those facts are what it stored about a Work Item's Runs, pull requests, CI, deploys and tracker moves.
+Run cards are an Unfold domain on top of Ploeg ([system ADR-0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md)). Ploeg schedules and runs the agents and supplies plain delivery facts ([Ploeg ADR-0079](https://github.com/ploeg-hq/ploeg/blob/development/docs/adrs/0079-run-cards-belong-to-the-consumer-and-ploeg-supplies-delivery-facts.md)). Those facts are what it stored about a Work Item's Runs, pull requests, CI, deploys and tracker moves.
 
 * **Unfold computes the card from those facts** each time it is read (`apps/unfold/src/cards/`). That covers the grade, rarity, flow and play figures, condition, sets, steward and roster.
 * **Unfold keeps what people decide** in its own store: cracks and their audit trail. It also keeps what is frozen once: revealed rarities, play shapes measured from diffs nobody kept, and the card comment record.
@@ -38,24 +38,24 @@ The formulas moved from Ploeg's Go code with identical behaviour; Ploeg's own te
 
 ## What is built and what is proposed
 
-The first three build phases are merged on `development`: P0 keeps the facts a card needs, P1 puts the card on the Work Item page, and P2 adds life in production. Their ADRs still have the status `proposed`. Later phases (cracks and mends, epics and full ceremony) are not started; the skins are built and draw grades, cracks and sets when a card carries them. The Unfold side of Binders, Packs and seasons is built and reads the cards Unfold assembles from Ploeg's facts list.
+The first three build phases are merged on `development`: P0 keeps the facts a card needs, P1 puts the card on the Work Item page, and P2 adds life in production. Unfold also builds cracks and mends, sets and the Binders, Packs and seasons, all from Ploeg's delivery facts; the skins draw grades, cracks and sets when a card carries them. The Ploeg ADRs that described how Ploeg assembled the card, graded it and froze its rarity were rejected when the card left Ploeg ([Ploeg ADR-0080](../../apps/ploeg/docs/adrs/0080-ploeg-keeps-no-run-card-code-and-removes-it-in-one-release.md)); the rules they described live on in Unfold's code under [system ADR-0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md). Ploeg's ADRs for the facts themselves stay proposed.
 
 | Part | State | Where it is recorded |
 | --- | --- | --- |
 | Ploeg keeps every usage figure a harness reports, and every merge and review fact a forge reports | Built; its ADR is still proposed | [Ploeg ADR-0045](../../apps/ploeg/docs/adrs/0045-keep-run-usage-and-merge-facts.md) |
-| One card per Work Item, assembled from stored facts: state, Plays, Steward (fallback rule), Roster (merger and reviewer), agent crew, totals, events, diff size and CI | Built; ADR proposed | [Ploeg ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) |
-| Card style chosen per repository (`cards.rules.repositories.<repo>.style`, formerly Ploeg's `cardStyle`) | Built; seven skins: Unfold Native, the 3D forge skin and five DOM skin packs | Ploeg ADR-0046, Unfold ADR 0026 and 0028, root ADR-0030 |
+| One card per Work Item, assembled from stored facts: state, Plays, Steward (fallback rule), Roster (merger and reviewer), agent crew, totals, events, diff size and CI | Built; assembled by Unfold. Ploeg's record of assembling it in Ploeg is rejected | system ADR-0030; formerly [Ploeg ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) |
+| Card style chosen per repository (`cards.rules.repositories.<repo>.style`, formerly Ploeg's `cardStyle`) | Built; seven skins: Unfold Native, the 3D forge skin and five DOM skin packs | Unfold ADR 0026 and 0028, system ADR-0030 |
 | A generic deploy endpoint, deployments per environment and the release time | Built; ADR proposed | [Ploeg ADR-0047](../../apps/ploeg/docs/adrs/0047-ploeg-learns-where-a-merged-change-is-deployed-from-a-generic-deploy-endpoint.md) |
 | Usage so far while a Run is running | Built; ADR proposed | [Ploeg ADR-0049](../../apps/ploeg/docs/adrs/0049-a-run-card-reads-the-gateway-for-usage-so-far-while-a-run-is-running.md) |
 | The `<unfold-card>` runtime, the Unfold Native skin, the card on the Work Item page, days live, the finish ladder and a demo card | Built; ADR proposed | [Unfold ADR 0026](../../apps/unfold/docs/adrs/0026-run-cards-render-in-a-card-runtime-with-skin-packs-and-themes.md) |
-| A card comment on the pull request: the card as a static image above a summary table, kept as one comment and updated at a merge, a release to production, a new finish or a mend. Unfold publishes it through Ploeg's keyed comment once an operator turns on `cards.publishPullRequestComment` and a team's `pullRequestComment` | Built; ADR proposed; off by default | [Ploeg ADR-0055](../../apps/ploeg/docs/adrs/0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) |
-| Rarity: a challenge score, predicted at mint, revealed and frozen at release, tiered per project and quarter | Built; computed by Unfold, frozen in its store; ADR proposed | [Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) |
+| A card comment on the pull request: the card as a static image above a summary table, kept as one comment and updated at a merge, a release to production, a new finish or a mend. Unfold publishes it through Ploeg's keyed comment once an operator turns on `cards.publishPullRequestComment` and a team's `pullRequestComment` | Built in Unfold; off by default. The Ploeg ADR, written when Ploeg kept the comment, is rejected | system ADR-0030; formerly [Ploeg ADR-0055](../../apps/ploeg/docs/adrs/0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) |
+| Rarity: a challenge score, predicted at mint, revealed and frozen at release, tiered per repository and quarter | Built; computed by Unfold, frozen in its store, off unless `cards.rules.rarity` turns it on. The Ploeg ADR is rejected | system ADR-0030; formerly [Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) |
 | Flow figures: time in every tracker status, lead and cycle time, flow efficiency, blocked time, reopens, queue and agent time, merge to each environment and time to mend, in elapsed and working seconds | Built; computed by Unfold; ADR proposed (Unfold ADR 0035 shows them) | [Ploeg ADR-0057](../../apps/ploeg/docs/adrs/0057-a-run-cards-flow-figures-come-from-every-recorded-tracker-status-and-a-team-calendar.md) |
 | Pull request, CI and change figures: time to first feedback, approval and merge, review rounds, comments, commits, CI runs, reruns, queue and minutes, indentation complexity, test ratio | Built; computed by Unfold from per-file measurements; ADR proposed (Unfold ADR 0035 shows them) | [Ploeg ADR-0058](../../apps/ploeg/docs/adrs/0058-a-run-cards-pull-request-ci-and-change-shape-figures-are-read-from-the-forge-and-kept-per-play.md) |
 | Key figures: time in every tracker status, lead and cycle time, flow efficiency, time to first feedback, CI timings and reruns, indentation complexity, merge to production; three or four on the card's front for its state, the rest on its back, team medians on the season page | Built in Unfold on Ploeg ADR-0057 and ADR-0058; ADRs proposed | [Unfold ADR 0035](../../apps/unfold/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) |
 | Binders, Packs with published odds and stored cosmetic pulls, the pack ceremony and team season pages | Built; the card list comes from Ploeg's facts list and Unfold's order; ADR proposed | [Unfold ADR 0029](../../apps/unfold/docs/adrs/0029-binders-packs-and-pulls-collect-run-cards-privately-and-fairly.md) |
-| Grade: formula 2026.3, computed on read, with the inputs it used and the ones it missed | Built; computed by Unfold, every formula version kept; ADRs proposed | [Ploeg ADR-0050](../../apps/ploeg/docs/adrs/0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md), [ADR-0052](../../apps/ploeg/docs/adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md), [ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md) |
-| Condition: Cracks proposed, confirmed, disputed and resolved by people, and Mends from the bug's merged fix | Built; Unfold's crack workflow and store; ADR proposed | [Ploeg ADR-0052](../../apps/ploeg/docs/adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md), root ADR-0030 |
+| Grade: formula 2026.3, computed on read, with the inputs it used and the ones it missed | Built; computed by Unfold, every formula version kept. The Ploeg ADRs are rejected | system ADR-0030; formerly [Ploeg ADR-0050](../../apps/ploeg/docs/adrs/0050-a-run-cards-grade-is-a-versioned-formula-over-stored-facts.md), [ADR-0052](../../apps/ploeg/docs/adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md), [ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md) |
+| Condition: Cracks proposed, confirmed, disputed and resolved by people, and Mends from the bug's merged fix | Built; Unfold's crack workflow and store. The Ploeg ADR is rejected | system ADR-0030; formerly [Ploeg ADR-0052](../../apps/ploeg/docs/adrs/0052-a-crack-needs-the-fixer-and-a-second-person-and-ploeg-only-proposes-candidates.md) |
 | Level, Roster copies, the full Steward rule, themes, the effects director, retention | **Proposed** | This page |
 
 To make a project count days live from real deploys, see [Send deploys from a pipeline to Ploeg](../../apps/ploeg/docs/how-to/send-deploys-from-a-pipeline.md). Until a project reports deploys, the release counts from the merge, and the card says so.
@@ -66,11 +66,11 @@ The owner decided the unit on 2026-10-01.
 
 * **One card per Work Item.** A Work Item that bounces three times in test produces four pull requests. Four cards would split one feature's story, cost and bugs, so the card is the Work Item.
 * **Its pull requests are Plays.** Each pull request attaches as a numbered **Play** (for example #57, then #61 after the first bounce, then #64). Cost and lines are summed across Plays. The Runs of each Play appear on the back as the crew.
-* **An epic is its own Set Card** (Proposed). An epic Work Item gets a **Set Card** whose children are Run Cards, numbered 1/5 to 5/5. Ploeg reads no tracker parent relations yet, so this needs an ingest change first.
+* **An epic is its own Set Card.** An epic Work Item gets a **Set Card** whose children are Run Cards, numbered 1/5 to 5/5. Unfold builds the set from the tracker parents in Ploeg's delivery facts ([Ploeg ADR-0053](../../apps/ploeg/docs/adrs/0053-an-epic-is-a-set-of-the-work-items-declared-its-children-before-their-first-shift.md), proposed); it completes when every child has been live 30 days with no unmended Crack.
 * **Chores are tokens** (Proposed). A chore such as a dependency bump gets a minimal frame and stacks in the Binder; volume earns nothing.
 * **Failures are scuffs, not separate cards** (Proposed). A failed Shift scuffs its Work Item's card. A Work Item never delivered is shelved as withdrawn. A sprint or a release is a page, not a card.
 
-The card's state is derived today: `drafting` before the first pull request, `in_review` while one is open, `merged`, `closed` or `withdrawn` ([ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md)).
+The card's state is derived today: `drafting` before the first pull request, `in_review` while one is open, `merged`, `closed` or `withdrawn`. Unfold derives it from Ploeg's delivery facts (`apps/unfold/src/cards/assemble.ts`).
 
 ## Five axes
 
@@ -78,11 +78,11 @@ Collectible games keep *what a card is* apart from *what it earned*; mixing them
 
 ### Rarity: decided, built
 
-**Rarity** says how exceptional the change was, apart from how well it was done (Grade) and how long it has held up (Finish). It is cosmetic only. The owner decided on 2026-10-02 that rarity means challenge. Unfold computes it and freezes it in its store at reveal ([Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md), proposed; root ADR-0030). Rarities Ploeg froze before were imported unchanged.
+**Rarity** says how exceptional the change was, apart from how well it was done (Grade) and how long it has held up (Finish). It is cosmetic only. The owner decided on 2026-10-02 that rarity means challenge. Unfold computes it and freezes it in its store at reveal ([system ADR-0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md)), when `cards.rules.rarity` turns it on. [Ploeg ADR-0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) first described it and was rejected when the card left Ploeg. Rarities Ploeg froze before were imported unchanged.
 
 * **Challenge, from facts nobody pads afterwards.** The score adds the change's reach (modules and repositories), its sensitive ground (migrations, schemas, API definitions, deploy and CI files, and paths a Work Target marks for attention), its novelty (files no other card touched in the 180 days before) and its size in lines, damped and without lockfiles or generated files. Cost, time, tokens, bounces and the grade are never inputs. The formula is versioned and printed on the card's back.
 * **Two moments.** From its first Run the card carries a tier predicted from what is known before the merge. At release it is revealed from the real change, and the two may differ.
-* **Tiers are percentiles per project and quarter:** Legendary (top 1 %), Epic (next 4 %), Rare (next 10 %), Uncommon (next 25 %) and Common. Fixed thresholds apply while a project has fewer than 30 revealed cards that quarter.
+* **Tiers are percentiles per repository and quarter:** Legendary (top 1 %), Epic (next 4 %), Rare (next 10 %), Uncommon (next 25 %) and Common. Fixed thresholds apply while a repository has fewer than 30 revealed cards that quarter.
 * **Frozen at reveal.** Once revealed, a card keeps its tier even as its cohort grows.
 * **Sets.** An epic's own card is legendary while its set is complete.
 
@@ -105,7 +105,7 @@ Days live are whole days since the first production deploy of the latest merged 
 
 ### Grade
 
-A **Grade** works like a graded slab: 1 to 10 in half steps, computed as 0.40 reliability + 0.25 durability + 0.20 delivery + 0.15 review. Unfold computes it under formula 2026.3 ([Ploeg ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md), proposed, on top of ADR-0050 and ADR-0052). The earlier formulas 2026.1 and 2026.2 are kept in Unfold's code and tests, so an old grade can be recomputed.
+A **Grade** works like a graded slab: 1 to 10 in half steps, computed as 0.40 reliability + 0.25 durability + 0.20 delivery + 0.15 review. Unfold computes it under formula 2026.3, first described in [Ploeg ADR-0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md) on top of Ploeg ADR-0050 and ADR-0052. Those records were rejected when the card left Ploeg; the formula lives on in Unfold under system ADR-0030. The earlier formulas 2026.1 and 2026.2 are kept in Unfold's code and tests, so an old grade can be recomputed.
 
 * **Provisional cap.** While a card is under 180 days live, its grade is capped at 9. A 10 is possible only once it is Proven.
 * **Labels.** Black Label is 10 on all four subgrades. Gold Label is an overall 10. A card with a missing input earns no label.
@@ -176,7 +176,7 @@ Proposed lifecycle: drafted (a Run is live) → opened (pull request) → signed
 
 ## Gates and bounces
 
-*Proposed.* A card moves through environments, and rejections knock it back.
+*Proposed; the gate mapping and bounce reasons are built in Unfold.* A card moves through environments, and rejections knock it back.
 
 * **Gates come from the tracker.** Each project maps tracker statuses to **Gates** (development, test, acceptance, production), plus the deploy endpoint per environment. Gates differ per agency and client, so the mapping is configuration.
 * **A Bounce moves backwards.** A **Bounce** is a move from a later Gate back to an earlier one, such as "In test" back to "In progress", with a reason: defect, requirement, misunderstood, environment or unknown.
@@ -202,7 +202,7 @@ Proposed lifecycle: drafted (a Run is live) → opened (pull request) → signed
 
 **The Steward rule (proposed).** The Steward is the developer who carries the Work Item: the tracker assignee at release, handed over explicitly when needed. It falls back to the person who merged, then to the approver, and bot logins never count. The Steward answers for the change while it runs and has first right to mend it. It must be one name, so someone is told when the card cracks. A card without a Steward is an Orphan that anyone on the Roster may adopt within 14 days. Signing asks what was checked (tests read, behaviour run, risk areas), so the human is not made answerable for code they barely touched.
 
-**Built today:** the Steward is whoever merged the latest merged Play, otherwise the last approver ([ADR-0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md)). The Roster lists humans with the roles merger, reviewer, qa, acceptor and cosigner. Ploeg's facts carry no tracker assignee, so the assignee part of the proposed rule needs a tracker read in Unfold first.
+**Built today:** the Steward is whoever merged the latest merged Play, otherwise the last approver, as Unfold assembles it (`apps/unfold/src/cards/assemble.ts`). The Roster lists humans with the roles merger, reviewer, qa, acceptor and cosigner. Ploeg's facts carry no tracker assignee, so the assignee part of the proposed rule needs a tracker read in Unfold first.
 
 ## Packs
 
@@ -267,12 +267,12 @@ A **Skin** changes how a card looks and moves, never its numbers or where they s
 | Cracks | Decided | Only with human confirmation |
 | Deploy signal | Decided, built | A generic "commit is live in environment" endpoint; merge as the fallback |
 | Card style | Decided, built | Per repository in Unfold's settings; per-client themes on top of skins |
-| Where cards are computed | Decided, built | In Unfold, from Ploeg's delivery facts ([root ADR-0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md)) |
+| Where cards are computed | Decided, built | In Unfold, from Ploeg's delivery facts ([system ADR-0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md)) |
 | Visibility | Decided | Binders private; team pages for the team; clients see team aggregates only |
-| Rarity | Decided, built | Challenge, predicted at mint and frozen at release, percentile tiers per project and quarter; see [Rarity](#rarity-decided-built) |
+| Rarity | Decided, built | Challenge, predicted at mint and frozen at release, percentile tiers per repository and quarter; see [Rarity](#rarity-decided-built) |
 | Key figures | Proposed; Unfold side built | Three or four per state on the front, the rest on the back, a calendar or working-hours choice, team medians only; see [Key figures](#key-figures) |
 | Steward and roles | Proposed | Role copies with shared fate; the Steward is the developer carrying the Work Item |
-| Gates and bounces | Proposed | Tracker-status mapping per project plus the deploy endpoint |
+| Gates and bounces | Proposed; Unfold side built | Tracker-status mapping per board in `cards.rules.boards` plus the deploy endpoint |
 | Packs | Proposed; Unfold side built | Earned, cosmetic-only pulls, published odds, one per person per period (an ISO week, or a Team's sprint) |
 
 No product-level ADR records the guardrails yet; this page states them. The decided parts are recorded in the Ploeg and Unfold ADRs above.
