@@ -80,7 +80,7 @@ A person's private collection of the Run Cards they hold a copy of. Only its own
 ## Bounce
 *Context: Cards*
 
-A Work Item moving from a later Gate back to an earlier one, with a reason: defect, requirement, misunderstood, environment or unknown. Only defect and unknown Bounces count against the Grade. A requirement change marks the card Evolved and leaves no Crack. Unfold reads the reason from a bounce:<reason> label or comment; a board without Gates has no Bounces.
+A Work Item moving from a later Gate back to an earlier one, with a reason: defect, requirement, misunderstood, environment or unknown. Only defect and unknown Bounces count against the Grade. A requirement change marks the card Evolved and leaves no Crack. Unfold reads the reason from a bounce:<reason> label or comment; a board without Gates has no Bounces (Unfold ADR 0045).
 
 **Examples:** A tester moves the ticket from In test back to In progress with the label bounce:defect; the fix becomes the card's next Play.  
 **See also:** [Gate](#gate), [Play](#play), [Grade](#grade), [Crack](#crack)  
@@ -120,7 +120,7 @@ A Client's Definition of Ready, Definition of Done and extra instructions for ag
 ## Crack
 *Context: Cards*
 
-A defect confirmed against a Run Card's change. Unfold proposes candidate changes, the fixer names the cause, and a second person who is not the Steward confirms it; the Steward may dispute within five working days. A Crack is never applied automatically, carries a severity from S1 to S4, and is never totalled per person.
+A defect confirmed against a Run Card's change. Unfold proposes candidate changes, the fixer names the cause, and a second person who is not the Steward confirms it; the Steward may dispute within five working days. A Crack is never applied automatically, carries a severity from S1 to S4, and is never totalled per person (Unfold ADR 0045).
 
 **See also:** [Mend](#mend), [Steward](#steward), [Grade](#grade), [Bounce](#bounce)  
 
@@ -195,14 +195,14 @@ The visual layer a Run Card earns by staying live in production: matte, then foi
 ## Gate
 *Context: Cards*
 
-A point in a board's workflow that a Work Item passes after review, such as development, test, acceptance and production. Each board maps its tracker statuses to Gates in Unfold's cards.rules setting (boards.<provider:scope>.gates), and Unfold derives a card's Gate history from the status moves in Ploeg's delivery facts.
+A point in a board's workflow that a Work Item passes after review, such as development, test, acceptance and production. Each board maps its tracker statuses to Gates in Unfold's cards.rules setting (boards.<provider:scope>.gates), and Unfold derives a card's Gate history from the status moves in Ploeg's delivery facts (Unfold ADR 0045).
 
 **See also:** [Bounce](#bounce), [Run Card](#run-card), [Acceptance](#acceptance)  
 
 ## Grade
 *Context: Cards*
 
-A Run Card's assessment of its change from 1 to 10 in half steps, from four subgrades: 40 % reliability, 25 % durability, 20 % delivery and 15 % review. The formula is versioned and printed on the card, and a card under 180 days live is capped at 9. It grades the change, never a person. Unfold computes it on read under the current formula (2026.3; every earlier version is kept), lists the inputs it missed, and shows none until a person reviewed a Play or one merged.
+A Run Card's assessment of its change from 1 to 10 in half steps, from four subgrades: 40 % reliability, 25 % durability, 20 % delivery and 15 % review. The formula is versioned and printed on the card, and a card under 180 days live is capped at 9. It grades the change, never a person. Unfold computes it on read under the current formula (2026.3; every earlier version is kept), lists the inputs it missed, and shows none until a person reviewed a Play or one merged (Unfold ADR 0045).
 
 **Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's approve or request_changes answer in one Round. It is one input a Grade could use, not a Grade.  
 **See also:** [Run Card](#run-card), [Crack](#crack), [Bounce](#bounce), [Finish](#finish)  
@@ -218,7 +218,7 @@ The published percentage Unfold adds to token and compute cost when billing an A
 ## Mend
 *Context: Cards*
 
-The confirmed fix of a Crack, drawn as gold seams that stay on the card (kintsugi). A mended card looks more distinguished than an untouched one, while its Grade ends slightly lower. Whoever mends another person's card becomes a co-signer. Built: Unfold records a Mend when the bug's pull request merges and confirms it after 30 days without a new Crack; the gold seams are drawn by the skins.
+The confirmed fix of a Crack, drawn as gold seams that stay on the card (kintsugi). A mended card looks more distinguished than an untouched one, while its Grade ends slightly lower. Whoever mends another person's card becomes a co-signer. Built: Unfold records a Mend when the bug's pull request merges and confirms it after 30 days without a new Crack; the gold seams are drawn by the skins (Unfold ADR 0045).
 
 **Also known as:** kintsugi  
 **See also:** [Crack](#crack), [Steward](#steward), [Grade](#grade)  
@@ -254,7 +254,7 @@ Where a Session's Workspace runs, chosen per Session from the backends a deploym
 ## Play
 *Context: Cards · Owner: Unfold*
 
-One pull request of a Work Item as its Run Card shows it, oldest first. A pull request closed after a Bounce and its merged successor are two Plays on one card. Cost and lines are summed across Plays, and each Play's Runs appear as the Roles that ran.
+One pull request of a Work Item as its Run Card shows it, oldest first. A pull request closed after a Bounce and its merged successor are two Plays on one card. Cost and lines are summed across Plays, and each Play's Runs appear as the Roles that ran (Unfold ADR 0045).
 
 **See also:** [Run Card](#run-card), [Bounce](#bounce), [Shift](../reference/glossary.md#shift)  
 
@@ -346,7 +346,7 @@ An assessment of a Result against its Acceptance Conditions and supporting Evide
 ## Roster
 *Context: Cards*
 
-The humans who acted on a Run Card's change, each with their roles. Built roles: merger and reviewer. Proposed: developer, QA, PO and acceptor, each holding a copy of the card that shares its fate, so a Crack shows on every copy and a Mend names the mender on every copy.
+The humans who acted on a Run Card's change, each with their roles. Built roles: merger and reviewer. Proposed: developer, QA, PO and acceptor, each holding a copy of the card that shares its fate, so a Crack shows on every copy and a Mend names the mender on every copy. The built roles are recorded in Unfold ADR 0045.
 
 **See also:** [Run Card](#run-card), [Steward](#steward), [Binder](#binder)  
 
@@ -371,7 +371,7 @@ Unfold's continuing record of a person's interaction around work: instructions, 
 ## Set Card
 *Context: Cards*
 
-The Run Card of an epic Work Item, whose children are Run Cards numbered within the set, read from the tracker parents in Ploeg's delivery facts. A set completes when every child has been live for 30 days with no unmended Crack, and its epic's card then shows as legendary.
+The Run Card of an epic Work Item, whose children are Run Cards numbered within the set, read from the tracker parents in Ploeg's delivery facts. A set completes when every child has been live for 30 days with no unmended Crack, and its epic's card then shows as legendary (Unfold ADR 0045).
 
 **See also:** [Run Card](#run-card), [Work Item](../reference/glossary.md#work-item), [Crack](#crack)  
 
@@ -411,7 +411,7 @@ A part of one Run that Unfold performs internally, such as one Team Role in a de
 ## Steward
 *Context: Cards*
 
-The person a Run Card names as answering for its change while it runs, with first right to mend it. Built today: whoever merged the latest merged Play, otherwise the last approver; forge bot logins never count. Proposed: the developer carrying the Work Item, meaning the tracker assignee at release, falling back to the merger and then the approver. The agent is never a Steward. A Steward is a role on a change, not a measure of a person.
+The person a Run Card names as answering for its change while it runs, with first right to mend it. Built today: whoever merged the latest merged Play, otherwise the last approver; forge bot logins never count. Proposed: the developer carrying the Work Item, meaning the tracker assignee at release, falling back to the merger and then the approver. The agent is never a Steward. A Steward is a role on a change, not a measure of a person. The built rule is recorded in Unfold ADR 0045.
 
 **Do not use:** owner (of a card)  
 **See also:** [Run Card](#run-card), [Roster](#roster), [Crack](#crack), [Mend](#mend)  
