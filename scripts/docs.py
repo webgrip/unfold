@@ -23,7 +23,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--check', action='store_true')
 parser.add_argument('--stage-only', action='store_true')
 parser.add_argument('--domain', action='store_true')
-parser.add_argument('--domain-check', action='store_true', help='check only the pages generated from the domain models and the ADR ledgers, which a Ploeg pin move can break')
+parser.add_argument('--domain-check', action='store_true', help='check only the pages generated from the domain models and the ADR ledgers, which a Ploeg pin move can break, and the landscape explorer that embeds the glossary')
+parser.add_argument('--without-landscape', action='store_true', help='with --domain-check, skip the landscape explorer: rebuilding it needs a browser, and the weekly ploeg-ahead check looks only for what a person must decide')
 args = parser.parse_args()
 ploeg = root / 'apps/ploeg'
 if not (ploeg / 'docs').is_dir():
@@ -34,6 +35,7 @@ domain_models = ['docs/domain']
 glossary_models = ['docs/domain', 'apps/ploeg/docs/domain']
 glossary = 'docs/reference/glossary.md'
 conflict_report = 'ploeg-glossary-conflicts.txt'
+landscape_sources = 'docs/landscape/generated-sources.json'
 
 
 def generate_domain(folder, out):
@@ -47,7 +49,11 @@ def combined_glossary():
     return result.stdout
 
 
-def generated_domain_problems():
+def stale_landscape_sources():
+    return [name for name, expected in json.loads((root / landscape_sources).read_text()).items() if hashlib.sha256((root / name).read_bytes()).hexdigest() != expected]
+
+
+def generated_domain_problems(landscape=True):
     problems = []
     if (root / conflict_report).exists():
         problems.append(f'{conflict_report} is the clash report scripts/renovate-ploeg-docs.sh wrote after a Ploeg pin move. Resolve the clashes it lists, run mise run domain, and delete it.')
@@ -65,6 +71,8 @@ def generated_domain_problems():
     decisions = subprocess.run([sys.executable, str(root / 'scripts/docs-decisions.py'), '--check'], cwd=root, capture_output=True, text=True)
     if decisions.returncode:
         problems.append((decisions.stderr or decisions.stdout).strip() or 'Stale decision register; run mise run docs-decisions')
+    if landscape:
+        problems.extend(f'Stale landscape: {name} changed since docs/landscape/explorer.html was built; run mise run landscape' for name in stale_landscape_sources())
     return problems
 
 
@@ -80,10 +88,10 @@ if args.domain:
     print(f'Unfold domain: {len(domain_models)} model, {glossary} from {len(glossary_models)} models')
     sys.exit()
 if args.domain_check:
-    problems = generated_domain_problems()
+    problems = generated_domain_problems(landscape=not args.without_landscape)
     if problems:
         raise SystemExit(generated_domain_failure(problems))
-    print(f'Unfold domain: {glossary} and the decision register match {len(glossary_models)} domain models and the pinned ADR ledgers')
+    print(f'Unfold domain: {glossary}, the decision register{"" if args.without_landscape else " and the landscape explorer"} match {len(glossary_models)} domain models and the pinned ADR ledgers')
     sys.exit()
 staging = root / '.build/docs'
 site = root / '.build/site'
@@ -96,8 +104,6 @@ if args.check:
     problems = generated_domain_problems()
     if problems:
         raise SystemExit(generated_domain_failure(problems))
-    for name, expected in json.loads((root / 'docs/landscape/generated-sources.json').read_text()).items():
-        assert hashlib.sha256((root / name).read_bytes()).hexdigest() == expected, f'Stale landscape: {name}; rebuild with node apps/unfold/scripts/build-landscape.mjs'
     for ledger in ['docs/adr', 'apps/unfold/docs/adrs']:
         subprocess.run([sys.executable, str(root / 'scripts/validate_adr_consistency.py'), str(root), '--adr-dir', ledger], check=True)
     subprocess.run([sys.executable, str(root / 'scripts/agents-files.py')], check=True)

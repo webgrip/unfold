@@ -64,7 +64,11 @@ description = "Regenerate the Ploeg words reference page from docs/domain/ploeg-
 
 [tasks.domain-check]
 run = "uv run --frozen python scripts/docs.py --domain-check"
-description = "Check the domain pages, the combined glossary and the decision register against the models and the pinned Ploeg; the ploeg-docs pull request check"
+description = "Check the domain pages, the combined glossary, the decision register and the landscape explorer against the models and the pinned Ploeg; the ploeg-docs pull request check"
+
+[tasks.landscape]
+run = "node apps/unfold/scripts/build-landscape.mjs"
+description = "Rebuild the landscape explorer, which embeds the glossary, the domain rules and the landscape pages; needs Unfold's npm packages and Playwright's Chromium"
 
 [tasks.docs-decisions]
 run = "uv run --frozen python scripts/docs-decisions.py"

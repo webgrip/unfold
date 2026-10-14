@@ -21,7 +21,7 @@ Three kinds of contributor change this repository: the owner, interactive agent 
 5. **The gates.** `mise run verify` from the repository root before every push, `mise run docs-check` after a docs or `AGENTS.md` change. CI runs the same gates.
 6. **A pull request** into `development`: [Open a pull request](open-a-pull-request.md). One whole change per pull request ([ADR-0010](../adr/adr-0010-pull-requests-are-small-whole-and-explained.md) sets the size limits Unfold applies to agent work; its checks are not built yet, so here they are guidance).
 7. **Review** against the [review guide](review.md). Tools decide format, types, tests and policy; review covers intent, risk and what no test sees.
-8. **Merge** when every required check is green; Forgejo refuses the merge before that. Wait until a running `release` job on `development` has finished first: a merge during a release cancels the runs that would test it and the release tags the new head untested.
+8. **Merge** when every required check is green; Forgejo refuses the merge before that. Wait until a running `release` job on `development` has finished first: the release can tag the new head before that head's own run has tested it. Never cancel a `development` push run; its `release` job is how the merge ships.
 9. **Release.** Every push to `development` that touches an application cuts a release candidate ([CI and releases](../operations/ci.md)).
 
 ## Branch rules
