@@ -67,6 +67,23 @@ terms:
       the application runs only a deterministic demo that makes no model calls.
     examples: ["Current state: Unfold's own engine still executes delegated Steps until the system ADR-0002 migration is complete."]
     see_also: [Ploeg, Session, Step]
+  - name: Workbench
+    context: System
+    owner: unfold
+    definition: >
+      One running deployment of the Unfold application: its server, its
+      configuration, credentials and storage, and the host or namespace it runs
+      on. People sign in to a workbench, link accounts to it and connect the
+      VS Code extension to it; its Sessions and connections belong to it. The
+      workbench host runs its docker and local Placements, and the workbench
+      key signs its Candidates. Ploeg does not use the word.
+    examples: ["No Ploeg connection is configured for this workbench."]
+    not_to_be_confused_with:
+      - term: Workspace
+        note: The files and tools of one Run or Session; a workbench runs many.
+      - term: Unfold
+        note: The product and its application; a workbench is one deployment of it.
+    see_also: [Unfold, Session, Placement, Candidate]
   - name: Ploeg
     context: System
     owner: ploeg
@@ -190,6 +207,23 @@ terms:
       - term: Review
         note: The assessment of a Result. The Review Stage is the time a pull request waits for it.
     see_also: [Work Item, Review, Run Card]
+  - name: Needs-you Reason
+    context: Participation
+    owner: unfold
+    definition: >
+      Why a Work Item waits on a person, with its fix. Unfold reads it from
+      Ploeg's state (needs_human or stale) and the Shift's close reason, and
+      shows a short chip, a sentence that explains it, what to change and how
+      to start again: assign the task to the Team again in its tracker. Needs
+      you groups Work Items by it. A reason code Unfold does not know is named
+      as unrecognised, never hidden (apps/unfold/public/core/reasons.js; Unfold
+      ADR 0024, proposed).
+    examples: ["Checks did not pass: the Team's checks failed on the pushed commit and no fix Round could run."]
+    avoid: [needs attention]
+    not_to_be_confused_with:
+      - term: Verdict
+        note: An agent reviewer's answer; a Needs-you Reason is why a person must act.
+    see_also: [Work Item, Shift, Stage]
   - name: Agent
     context: Execution
     definition: >

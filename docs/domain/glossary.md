@@ -231,6 +231,16 @@ The service that runs a model and answers inference requests. A provider can run
 **Examples:** Fireworks.ai; DeepSeek  
 **See also:** [Harness](../reference/glossary.md#harness)  
 
+## Needs-you Reason
+*Context: Participation · Owner: Unfold*
+
+Why a Work Item waits on a person, with its fix. Unfold reads it from Ploeg's state (needs_human or stale) and the Shift's close reason, and shows a short chip, a sentence that explains it, what to change and how to start again: assign the task to the Team again in its tracker. Needs you groups Work Items by it. A reason code Unfold does not know is named as unrecognised, never hidden (apps/unfold/public/core/reasons.js; Unfold ADR 0024, proposed).
+
+**Do not use:** needs attention  
+**Not to be confused with** [Verdict](../reference/glossary.md#verdict): An agent reviewer's answer; a Needs-you Reason is why a person must act.  
+**Examples:** Checks did not pass: the Team's checks failed on the pushed commit and no fix Round could run.  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Shift](../reference/glossary.md#shift), [Stage](#stage)  
+
 ## OpenSpec
 *Context: Tooling · Owner: Ploeg*
 
@@ -467,6 +477,16 @@ One person's path from a trigger to an outcome they care about, across every too
 The Client-safe projection of a Work Item that an Ask answers from. It never holds prompts, tool input or output, transcripts, diffs, gateway details, operator notes or another Work Item's facts. Built in Unfold (apps/unfold/src/ask/brief.ts) from an allow-list: title, objective, state and why it stopped, pull request and preview status, its Runs with their summaries and Verdicts, progress, and spend in US dollars. It does has no Acceptance Conditions field yet. Decided in system ADR-0031, which is still proposed.
 
 **See also:** [Ask](../reference/glossary.md#ask), [Client](../reference/glossary.md#client)  
+
+## Workbench
+*Context: System · Owner: Unfold*
+
+One running deployment of the Unfold application: its server, its configuration, credentials and storage, and the host or namespace it runs on. People sign in to a workbench, link accounts to it and connect the VS Code extension to it; its Sessions and connections belong to it. The workbench host runs its docker and local Placements, and the workbench key signs its Candidates. Ploeg does not use the word.
+
+**Not to be confused with** [Workspace](#workspace): The files and tools of one Run or Session; a workbench runs many.  
+**Not to be confused with** [Unfold](#unfold): The product and its application; a workbench is one deployment of it.  
+**Examples:** No Ploeg connection is configured for this workbench.  
+**See also:** [Unfold](#unfold), [Session](#session), [Placement](#placement), [Candidate](#candidate)  
 
 ## Workspace
 *Context: Execution*
