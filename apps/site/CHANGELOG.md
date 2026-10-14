@@ -1,3 +1,9 @@
+## [unfold-site-v1.0.0-rc.9](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.8...unfold-site-v1.0.0-rc.9) (2026-10-14)
+
+### Added
+
+* **unfold:** accept and send Team keys beside the retired crew keys ([60e281b](https://forgejo.webgrip.dev/webgrip/unfold/commit/60e281b0c9bbffdbc77170eda0f3116ecde52d27))
+
 ## [unfold-site-v1.0.0-rc.8](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-site-v1.0.0-rc.7...unfold-site-v1.0.0-rc.8) (2026-10-12)
 
 ### Added
