@@ -9,6 +9,14 @@ rm -f "$report"
 uv run --frozen python scripts/docs-decisions.py
 if uv run --quiet --frozen python scripts/docs.py --domain 2>"$output"; then
   cat "$output" >&2
+  if command -v node >/dev/null 2>&1 && node apps/unfold/scripts/build-landscape.mjs >/dev/null 2>"$output"; then
+    exit 0
+  fi
+  {
+    echo "The landscape explorer embeds the glossary and was not rebuilt here: it needs Node, Unfold's npm packages and Playwright's Chromium."
+    echo "The ploeg-docs check reports it as a stale landscape. Run mise run landscape on this branch and push."
+    tail -n 3 "$output"
+  } >&2
   exit 0
 fi
 {

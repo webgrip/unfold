@@ -150,7 +150,7 @@
       "enabled": false
     },
     {
-      "description": "Ploeg is a submodule pinned to a release of github.com/ploeg-hq/ploeg (system ADR-0019). .gitmodules names the release tag, so Renovate compares release tags as semver and proposes the newest, release candidates included. The pin gets its own build(ploeg) pull request on renovate/ploeg: its own groupName keeps it out of the preset's all-non-major group, where a merge would have taken Ploeg along with unrelated bumps under a feat title. A person merges it, because each move changes the engine Unfold runs on and a pin commit never releases Unfold. After the bump Renovate regenerates the combined glossary and the decision register from the new pin; when the new Ploeg model clashes with Unfold's, it commits what it could regenerate plus ploeg-glossary-conflicts.txt, and the ploeg-docs check stays red until a person resolves the clash. A release is already reviewed and gated by Ploeg's CI, so there is no soak.",
+      "description": "Ploeg is a submodule pinned to a release of github.com/ploeg-hq/ploeg (system ADR-0019). .gitmodules names the release tag, so Renovate compares release tags as semver and proposes the newest, release candidates included. The pin gets its own build(ploeg) pull request on renovate/ploeg: its own groupName keeps it out of the preset's all-non-major group, where a merge would have taken Ploeg along with unrelated bumps under a feat title. A person merges it, because each move changes the engine Unfold runs on and a pin commit never releases Unfold. After the bump Renovate regenerates the combined glossary and the decision register from the new pin, and the landscape explorer where its runner has a browser; when the new Ploeg model clashes with Unfold's, it commits what it could regenerate plus ploeg-glossary-conflicts.txt, and the ploeg-docs check stays red until a person resolves the clash. A release is already reviewed and gated by Ploeg's CI, so there is no soak.",
       "matchManagers": [
         "git-submodules"
       ],
@@ -171,12 +171,14 @@
           "docs/domain/**",
           "docs/reference/glossary.md",
           "docs/reference/decisions.md",
+          "docs/landscape/explorer.html",
+          "docs/landscape/generated-sources.json",
           "ploeg-glossary-conflicts.txt"
         ],
         "executionMode": "branch"
       },
       "prBodyNotes": [
-        "**Merge only when every check is green, `ploeg-docs` included.** This pull request moves the engine Unfold runs on and never merges itself.\n\nWhen `ploeg-docs` fails, its log names the problem ([CI and release workflows](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/operations/ci.md#the-ploeg-pin-pull-request)):\n\n- **A stale page** (`Stale generated domain view`, `Stale combined glossary`, a stale decision register): run `mise run domain` and `mise run docs-decisions` on this branch and push.\n- **A term clash** (`Combined glossary conflicts`, and `ploeg-glossary-conflicts.txt` in this pull request): the new Ploeg release defines a term Unfold's model also defines. Ploeg owns a term when Ploeg stores it or its API names it; otherwise Unfold owns it. When Ploeg owns it, add the term to the Ploeg `imports` entry in `docs/domain/model.yaml`, delete Unfold's copy, and move any Unfold-only clauses into an Unfold term that links to it, as [#339](https://forgejo.webgrip.dev/webgrip/unfold/pulls/339) did for Tenant and Client. Then run `mise run domain`, delete `ploeg-glossary-conflicts.txt` and push to this branch."
+        "**Merge only when every check is green, `ploeg-docs` included.** This pull request moves the engine Unfold runs on and never merges itself.\n\nWhen `ploeg-docs` fails, its log names the problem ([CI and release workflows](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/operations/ci.md#the-ploeg-pin-pull-request)):\n\n- **A stale page** (`Stale generated domain view`, `Stale combined glossary`, a stale decision register, `Stale landscape`): run `mise run domain`, `mise run docs-decisions` and `mise run landscape` on this branch and push. Renovate's runner cannot rebuild the landscape explorer, so a Ploeg release that changes the glossary always needs `mise run landscape`.\n- **A term clash** (`Combined glossary conflicts`, and `ploeg-glossary-conflicts.txt` in this pull request): the new Ploeg release defines a term Unfold's model also defines. Ploeg owns a term when Ploeg stores it or its API names it; otherwise Unfold owns it. When Ploeg owns it, add the term to the Ploeg `imports` entry in `docs/domain/model.yaml`, delete Unfold's copy, and move any Unfold-only clauses into an Unfold term that links to it, as [#339](https://forgejo.webgrip.dev/webgrip/unfold/pulls/339) did for Tenant and Client. Then run `mise run domain`, delete `ploeg-glossary-conflicts.txt` and push to this branch."
       ],
       "ignoreUnstable": false
     },
