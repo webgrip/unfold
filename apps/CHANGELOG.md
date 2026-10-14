@@ -1,3 +1,25 @@
+## [unfold-v0.4.0-rc.79](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.78...unfold-v0.4.0-rc.79) (2026-10-14)
+
+### Added
+
+* **unfold:** open the Runs that finished since your last visit from Now ([ba15104](https://forgejo.webgrip.dev/webgrip/unfold/commit/ba151044dc9b3c0b749a54f9403c85fc79a6ba87))
+
+### Fixed
+
+* **agent:** update opencode ( 1.18.35 ➔ 1.19.0 ) ([96f99a0](https://forgejo.webgrip.dev/webgrip/unfold/commit/96f99a04ffa262564d24ce143e2198a3a38800e0))
+
+### Docs
+
+* **unfold:** plan sessions that ploeg-worker executes with a harness and model chosen per session ([60349ef](https://forgejo.webgrip.dev/webgrip/unfold/commit/60349efa8149441f1f3e35e7346e133dd08fa81b)), references [ploeg-hq/ploeg#135](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/135)
+
+### Tests
+
+* **unfold:** deep-link a withdrawn Work Item to Closed, and wait for each page ([04f1e43](https://forgejo.webgrip.dev/webgrip/unfold/commit/04f1e431a180e5c483efe6ee696deb5e801eaf16))
+
+### Build
+
+* **ploeg:** update ploeg ( v0.2.0-rc.20 ➔ v0.2.0-rc.21 ) ([b2a6e0d](https://forgejo.webgrip.dev/webgrip/unfold/commit/b2a6e0db401ff983445d230cd363d39f7d553628))
+
 ## [unfold-v0.4.0-rc.78](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.77...unfold-v0.4.0-rc.78) (2026-10-13)
 
 ### Added
