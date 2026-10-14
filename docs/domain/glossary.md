@@ -409,7 +409,7 @@ The person a Run Card names as answering for its change while it runs, with firs
 ## Supervision
 *Context: Participation · Owner: Unfold*
 
-Whether a person is watching a Ploeg-authorized Session live (human) or has handed it back to run on its own (background). Switching it changes only who is paying attention; the same execution keeps running and no new Run starts. Standalone Sessions have no supervision setting.
+Whether a person is watching a Ploeg-authorized Session live (human) or has handed it back to run on its own (background). Switching it changes only who is paying attention; the same execution keeps running and no new Run starts. Demo Sessions have no supervision setting.
 
 **See also:** [Session](#session), [Run](../reference/glossary.md#run), [Authority](../reference/glossary.md#authority)  
 

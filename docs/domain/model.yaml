@@ -172,7 +172,7 @@ terms:
       Whether a person is watching a Ploeg-authorized Session live (human) or
       has handed it back to run on its own (background). Switching it changes
       only who is paying attention; the same execution keeps running and no new
-      Run starts. Standalone Sessions have no supervision setting.
+      Run starts. Demo Sessions have no supervision setting.
     see_also: [Session, Run, Authority]
   - name: Stage
     context: Participation
@@ -695,8 +695,9 @@ rules:
     statement: >
       Ploeg is the Authority for every Run (system ADR-0002). Unfold requests Admission through Ploeg's API and never
       falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Unfold runs only
-      its deterministic demo, which makes no model calls. Current state — Unfold's standalone mode and its own engine
-      remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
+      its deterministic demo, which makes no model calls. Current state — since 2026-10-14 a live Unfold refuses to
+      start without Ploeg execution configured. Unfold's own engine, and its standalone broker code, remain until the
+      migration to ploeg-worker is complete; no new execution features are added to that engine.
     rationale: One authority, one budget path and one revocable credential per Run; runner location does not decide who authorizes work.
     applies_to: [Run, Work Item, Session]
   - id: R9

@@ -12,7 +12,7 @@ import { LiteLLMBroker } from './broker.ts';
 import { Links } from './links.ts';
 import { Oidc } from './oidc.ts';
 import { buildServer } from './http.ts';
-import { loadConfig } from './config.ts';
+import { loadConfig, requirePloegExecution } from './config.ts';
 import { knownSecrets } from './redaction.ts';
 import { ErrorReporter } from './error-reports.ts';
 import type { AppConfig, AgentRuntime, RuntimeKind } from './types.ts';
@@ -64,6 +64,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
 
 async function main() {
   const config = loadConfig();
+  requirePloegExecution(config);
   if (config.mode === 'live' && !config.repositories.length) throw new Error('Configure at least one repository with --config config/live.example.json. For the credential-free demonstration, run npm run demo.');
   const app = await createApplication(config);
   if (config.mode === 'live' && !app.store.getUserByName(config.auth.bootstrapName)) {

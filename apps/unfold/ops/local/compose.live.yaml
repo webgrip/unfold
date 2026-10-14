@@ -11,8 +11,7 @@ services:
       UNFOLD_ADMIN_NAME: ${UNFOLD_ADMIN_NAME:-admin}
       UNFOLD_ADMIN_PASSWORD: ${UNFOLD_ADMIN_PASSWORD:?Set a unique administrative password}
       LITELLM_BASE_URL: ${LITELLM_BASE_URL:?Set the LiteLLM completion base URL}
-      LITELLM_ADMIN_URL: ${LITELLM_ADMIN_URL:?Set the LiteLLM administrative base URL}
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?Set the LiteLLM administrative key}
+      PLOEG_OPERATOR_UNFOLD_TOKEN: ${PLOEG_OPERATOR_UNFOLD_TOKEN:?Set Unfold's Ploeg consumer token}
     ports:
       - "127.0.0.1:4080:4080"
     volumes:
