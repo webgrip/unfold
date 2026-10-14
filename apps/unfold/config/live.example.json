@@ -41,7 +41,7 @@
     "settlementDelayMs": 60000
   },
   "docker": {
-    "image": "unfold-agent:1.18.35",
+    "image": "unfold-agent:1.19.0",
     "cpus": 2,
     "memoryMb": 4096,
     "pidsLimit": 512
