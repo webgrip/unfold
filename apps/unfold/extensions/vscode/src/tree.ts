@@ -23,7 +23,7 @@ export function sessionTooltip(session: Session): vscode.MarkdownString {
   const { headline, next } = situation(session);
   const tooltip = new vscode.MarkdownString(undefined, true);
   tooltip.appendMarkdown(`**${session.title}**\n\n$(${state.icon.replace('~spin', '')}) ${state.name}\n\n${headline}\n\n_${next}_\n\n`);
-  tooltip.appendMarkdown(`${session.repositoryId} · ${session.crewId} · ${session.runtime}${session.placement ? ` · ${session.placement}` : ''}  \n${session.ownerName} · ${spendLabel(session)} · updated ${relativeTime(session.updatedAt)}`);
+  tooltip.appendMarkdown(`${session.repositoryId} · ${session.teamId ?? session.crewId} · ${session.runtime}${session.placement ? ` · ${session.placement}` : ''}  \n${session.ownerName} · ${spendLabel(session)} · updated ${relativeTime(session.updatedAt)}`);
   if (session.approval) tooltip.appendMarkdown(`  \n$(shield) Approval: ${approvalLabel(session)}`);
   if (session.sourceTask) tooltip.appendMarkdown(`  \nImported from ${session.sourceTask.provider} #${session.sourceTask.id}`);
   return tooltip;

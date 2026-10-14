@@ -7,7 +7,7 @@ import { icon } from '../core/icons.js';
 import { markdown } from '../core/markdown.js';
 import { avatar, badge, button, card, chip, disclosure, dl, emptyState, iconButton, meter, skeleton, stateBadge, tabs, timeAgo, timeAt } from '../core/ui.js';
 import { sessionStatus, verdict as verdictMeta, workItemState, workspacePhaseLabel, workspacePhaseProblem, executionStateText } from '../core/states.js';
-import { repoName, crewName, runtimeName, placementName, isActive, providerName, statusLabel } from '../core/lookup.js';
+import { repoName, teamName, runtimeName, placementName, isActive, providerName, statusLabel } from '../core/lookup.js';
 import { observabilityLinks, dashboardLinks } from '../core/observability.js';
 import { live } from '../core/live.js';
 import { render } from '../core/navigation.js';
@@ -432,7 +432,7 @@ function handoffMarkup(session) {
   const artifacts = session.artifacts.filter(artifact => ['summary', 'link', 'transcript'].includes(artifact.kind));
   const summaries = session.runs.filter(run => run.summary);
   if (!artifacts.length && !summaries.length) return emptyState({ icon: 'branch', compact: true, title: 'No handoff yet', body: '<p>Each role leaves a summary and the reviewer its findings when they finish.</p>' });
-  const crew = summaries.length ? `<section class="session-artifact" aria-labelledby="handoff-crew-title"><header class="session-artifact-header"><h3 class="session-artifact-title" id="handoff-crew-title">What the team reported</h3></header><ul class="session-summaries">${summaries.map(run => `<li>${avatar({ name: run.roleName, kind: 'agent', size: 'sm' })}<div class="session-summary-body"><p class="session-summary-head"><strong>${escape(run.roleName)}</strong>${run.verdict ? (meta => badge({ tone: meta.tone, glyph: meta.glyph, label: meta.short, title: `${meta.label}. Agent review is evidence, not a human review.` }))(verdictMeta(run.verdict)) : ''}</p><p class="session-summary-text">${escape(run.summary)}</p></div></li>`).join('')}</ul></section>` : '';
+  const team = summaries.length ? `<section class="session-artifact" aria-labelledby="handoff-team-title"><header class="session-artifact-header"><h3 class="session-artifact-title" id="handoff-team-title">What the team reported</h3></header><ul class="session-summaries">${summaries.map(run => `<li>${avatar({ name: run.roleName, kind: 'agent', size: 'sm' })}<div class="session-summary-body"><p class="session-summary-head"><strong>${escape(run.roleName)}</strong>${run.verdict ? (meta => badge({ tone: meta.tone, glyph: meta.glyph, label: meta.short, title: `${meta.label}. Agent review is evidence, not a human review.` }))(verdictMeta(run.verdict)) : ''}</p><p class="session-summary-text">${escape(run.summary)}</p></div></li>`).join('')}</ul></section>` : '';
   const parts = artifacts.map(artifact => {
     if (artifact.kind === 'summary') {
       const { facts, rest } = summaryFacts(artifact.content);
@@ -443,7 +443,7 @@ function handoffMarkup(session) {
     const link = safeUrl(artifact.url);
     return `<section class="session-artifact" aria-label="${escape(artifact.name)}">${artifactHeader(artifact)}${artifact.content ? `<pre data-private class="session-pre">${escape(artifact.content)}</pre>` : ''}${link ? externalLink('Open artifact', link) : ''}</section>`;
   }).join('');
-  return `${crew}${parts}`;
+  return `${team}${parts}`;
 }
 
 function panelMarkup(session, id) {
@@ -486,7 +486,7 @@ function stepState(run, starting) {
   return { tone: '', html: 'Waiting for its turn', marker: '' };
 }
 
-function crewMarkup(session) {
+function teamMarkup(session) {
   if (!session.runs.length) return '';
   const current = session.runs.findIndex(run => ['running', 'waiting_input', 'paused', 'failed'].includes(run.status));
   const steps = session.runs.map((run, index) => {
@@ -494,7 +494,7 @@ function crewMarkup(session) {
     const kind = run.mode === 'write' ? 'Writes the change' : index === session.runs.length - 1 ? 'Reviews independently' : 'Analyses';
     return `<li class="step session-step"${shown.tone ? ` data-tone="${shown.tone}"` : ''}${index === current ? ' aria-current="step"' : ''}><span class="step-marker">${shown.marker}</span><span class="session-step-text"><span class="step-label">${escape(run.roleName)}</span><span class="session-step-state">${shown.html}</span><span class="session-step-kind">${escape(kind)}</span></span></li>`;
   }).join('');
-  return `<section class="card session-crew" aria-labelledby="session-crew-title"><div class="session-crew-heading"><h2 class="session-section-title" id="session-crew-title">Team</h2><p class="session-section-note">${escape(crewName(session.crewId))}</p></div><ol class="steps session-steps">${steps}</ol></section>`;
+  return `<section class="card session-team" aria-labelledby="session-team-title"><div class="session-team-heading"><h2 class="session-section-title" id="session-team-title">Team</h2><p class="session-section-note">${escape(teamName(session.teamId))}</p></div><ol class="steps session-steps">${steps}</ol></section>`;
 }
 
 function briefMarkup(session) {
@@ -707,7 +707,7 @@ function contextMarkup(session) {
   const meta = deliveryStatus(state) || sessionStatus(session);
   const facts = [
     `<span class="session-fact">${icon('folder')}${escape(repoName(session.repositoryId))}</span>`,
-    `<span class="session-fact">${icon('bot')}${escape(crewName(session.crewId))}</span>`,
+    `<span class="session-fact">${icon('bot')}${escape(teamName(session.teamId))}</span>`,
     `<span class="session-fact" data-fact="runtime">${icon('terminal')}${escape(runtimeName(session.runtime))}</span>`,
     `<span class="session-fact">${icon('clock')}Created ${timeAgo(session.createdAt)}</span>`,
   ].join('');
@@ -774,7 +774,7 @@ function renderSession() {
     return;
   }
   const open = renderedId === session.id ? [...document.querySelectorAll('#main details[id]')].map(element => [element.id, element.open]) : [];
-  const content = `<div class="session-page">${contextMarkup(session)}${decisionMarkup(session)}<div class="session-layout"><div class="session-primary">${briefMarkup(session)}${crewMarkup(session)}${evidenceMarkup(session)}</div><aside class="session-secondary" aria-label="Session details">${budgetMarkup(session)}${candidateMarkup(session)}${executionMarkup(session)}${approvalMarkup(session)}${detailsMarkup(session)}</aside></div>${reviewBarMarkup(session)}</div>`;
+  const content = `<div class="session-page">${contextMarkup(session)}${decisionMarkup(session)}<div class="session-layout"><div class="session-primary">${briefMarkup(session)}${teamMarkup(session)}${evidenceMarkup(session)}</div><aside class="session-secondary" aria-label="Session details">${budgetMarkup(session)}${candidateMarkup(session)}${executionMarkup(session)}${approvalMarkup(session)}${detailsMarkup(session)}</aside></div>${reviewBarMarkup(session)}</div>`;
   renderHtml(shell(content, { title: session.title, overline: 'Session', actions: headerActions(session), back: { label: 'Sessions', href: '#sessions' } }));
   for (const [id, expanded] of open) { const element = document.getElementById(id); if (element) element.open = expanded; }
   renderedId = session.id;
@@ -921,7 +921,7 @@ async function closeWorkItem(control) { control.disabled = true; try { state.ses
 
 async function retry(control) { control.disabled = true; try { await api(`/api/sessions/${state.session.id}/retry`, { method: 'POST', body: '{}' }); notify('Trying again. The team starts from the beginning.'); await openSession(state.session.id); } catch (error) { notify(error.message, true); control.disabled = false; } }
 
-function duplicate() { const source = state.session; location.hash = 'sessions'; openNew(); const form = $('#new-session form'); if (form) { for (const [name, value] of Object.entries({ title: source.title, objective: source.objective, repositoryId: source.repositoryId, crewId: source.crewId, model: source.model || '', budgetUsd: source.budgetUsd })) { const field = form.elements[name]; if (field) field.value = value; } if (source.placement && form.elements.placement) form.elements.placement.value = source.placement; if (source.approval === 'auto' && form.elements.approval) form.elements.approval.checked = true; const advanced = $('#new-advanced'); if (advanced && (source.model || source.approval === 'auto' || source.placement)) advanced.open = true; } }
+function duplicate() { const source = state.session; location.hash = 'sessions'; openNew(); const form = $('#new-session form'); if (form) { for (const [name, value] of Object.entries({ title: source.title, objective: source.objective, repositoryId: source.repositoryId, teamId: source.teamId, model: source.model || '', budgetUsd: source.budgetUsd })) { const field = form.elements[name]; if (field) field.value = value; } if (source.placement && form.elements.placement) form.elements.placement.value = source.placement; if (source.approval === 'auto' && form.elements.approval) form.elements.approval.checked = true; const advanced = $('#new-advanced'); if (advanced && (source.model || source.approval === 'auto' || source.placement)) advanced.open = true; } }
 
 async function setApproval(control) { control.disabled = true; try { state.session = await api(`/api/sessions/${state.session.id}/approval`, { method: 'POST', body: JSON.stringify({ approval: control.dataset.approval }) }); notify(control.dataset.approval === 'auto' ? 'The team now works without asking for each tool.' : 'The team asks you again before each tool.'); renderSession(); } finally { control.disabled = false; } }
 

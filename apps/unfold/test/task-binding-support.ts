@@ -80,7 +80,7 @@ export async function fixture(t: Pick<TestContext, 'after'>, provider: 'vikunja'
   if (provider === 'clickup') server.app.store.setSecret(`link:clickup:${admin.user.id}`, { accessToken: linkedToken, method: 'token' });
   t.after(async () => { state.lookupGate?.resolve(); await server.close(); await new Promise<void>(resolve => { remote.close(() => resolve()); remote.closeAllConnections(); }); delete process.env[env]; });
   const preview = async (cookie = admin.cookie) => { const result = await request(server.url, '/api/task-sources/board/tasks/17', { cookie }); assert.equal(result.status, 200, result.text); return result.body; };
-  const importTask = (task: any, cookie = admin.cookie) => request(server.url, '/api/task-imports', { method: 'POST', cookie, body: { sourceId: 'board', taskId: '17', revision: task.revision, bindingRevision: task.bindingRevision, crewId: 'delivery', runtime: 'opencode', budgetUsd: 3 } });
+  const importTask = (task: any, cookie = admin.cookie) => request(server.url, '/api/task-imports', { method: 'POST', cookie, body: { sourceId: 'board', taskId: '17', revision: task.revision, bindingRevision: task.bindingRevision, teamId: 'delivery', runtime: 'opencode', budgetUsd: 3 } });
   const imported = async (cookie = admin.cookie) => { const task = await preview(cookie); const result = await importTask(task, cookie); assert.equal(result.status, 201, result.text); return result.body as Session; };
   const start = (session: Session) => request(server.url, `/api/sessions/${session.id}/start`, { method: 'POST', cookie: admin.cookie });
   return { state, server, admin, preview, importTask, imported, start };

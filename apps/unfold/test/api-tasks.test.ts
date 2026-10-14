@@ -74,7 +74,7 @@ async function snapshot(url: string, cookie?: string, sourceId = 'engineering', 
 }
 
 function importInput(revision: string, overrides: Record<string, unknown> = {}) {
-  return { sourceId: 'engineering', taskId: '17', revision, crewId: 'delivery', runtime: 'opencode', budgetUsd: 3, ...overrides };
+  return { sourceId: 'engineering', taskId: '17', revision, teamId: 'delivery', runtime: 'opencode', budgetUsd: 3, ...overrides };
 }
 
 test('task sources require authentication, redact credentials, and protect imports from viewers and cross-site requests', { timeout: testTimeout(20_000) }, async t => {
@@ -171,7 +171,7 @@ test('stale previews, closed tasks, unknown scope and invalid import parameters 
   assert.notEqual(refreshed.revision, preview.revision);
   for (const invalid of [
     { sourceId: 'unregistered-source' }, { taskId: '../secrets' }, { taskId: '' }, { revision: '' },
-    { crewId: 'unknown-crew' }, { runtime: 'demo' }, { runtime: 'shell' },
+    { teamId: 'unknown-team' }, { runtime: 'demo' }, { runtime: 'shell' },
     { budgetUsd: 0 }, { budgetUsd: -1 }, { budgetUsd: 26 }, { budgetUsd: '3' },
   ]) {
     const result = await request(server.url, '/api/task-imports', { method: 'POST', cookie: admin.cookie, body: importInput(refreshed.revision, invalid) });

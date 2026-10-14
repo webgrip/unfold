@@ -124,7 +124,7 @@ test('a command the team runs streams into a read-only terminal on its tool call
   const alice = await attach('alice-term', operatorPassword);
   const bob = await attach('bob-term', operatorPassword);
   const admin = await attach('admin', adminPassword);
-  const session = server.app.engine.create({ title: 'Alice runs tests', objective: 'Fix the order rounding regression and provide the actual verification result.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode', budgetUsd: 1 }, { id: 'alice-term', name: 'alice-term', role: 'operator' });
+  const session = server.app.engine.create({ title: 'Alice runs tests', objective: 'Fix the order rounding regression and provide the actual verification result.', repositoryId: 'order-service', teamId: 'delivery', runtime: 'opencode', budgetUsd: 1 }, { id: 'alice-term', name: 'alice-term', role: 'operator' });
   const sessionUri = `ahp-session:/${session.id}`;
   const chat = defaultChatOf(sessionUri);
   await alice.rpc('subscribe', { channel: chat });
@@ -207,7 +207,7 @@ test('a deterministic demo run shows each check it really ran as a terminal with
   await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'terminals', clientInfo: vscodeAgentsWindow, _meta: { 'vscode.ahpSessionUris': true }, initialSubscriptions: ['ahp-root://'] });
   const session = `ahp-session:/${randomUUID()}`;
   const chat = defaultChatOf(session);
-  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Terminals' } });
+  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Terminals' } });
   for (const channel of [session, chat]) await client.rpc('subscribe', { channel });
   client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'terminals-turn', startedAt: new Date().toISOString(), message: { text: 'Reproduce the rounding regression and fix it with the tests intact.', origin: { kind: 'user' } } } });
   await client.until(message => action(message, chat, 'chat/turnComplete') && message.params.action.turnId === 'terminals-turn');
@@ -293,7 +293,7 @@ test('a terminal receives live output while its command runs, and a reconnecting
     return client;
   };
   const client = await attach();
-  const session = server.app.engine.create({ title: 'Live output', objective: 'Fix the order rounding regression and provide the actual verification result.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode', budgetUsd: 1 }, { id: 'admin', name: 'admin', role: 'admin' });
+  const session = server.app.engine.create({ title: 'Live output', objective: 'Fix the order rounding regression and provide the actual verification result.', repositoryId: 'order-service', teamId: 'delivery', runtime: 'opencode', budgetUsd: 1 }, { id: 'admin', name: 'admin', role: 'admin' });
   const chat = defaultChatOf(`ahp-session:/${session.id}`);
   await client.rpc('subscribe', { channel: chat });
   server.app.store.appendEvent(session.id, 'tool', 'system', { name: 'bash', status: 'running', partId: 'call-live', input: JSON.stringify({ command: 'npm test' }) }, 'run-1');

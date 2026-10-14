@@ -6,7 +6,7 @@ import { icon } from '../core/icons.js';
 import { button, card, chip, emptyState, listRow, segmented, stateBadge, timeAgo, dl } from '../core/ui.js';
 import { deliveryStatus } from '../delivery.js';
 import { sessionStatus, sessionNeedsYou, verdict } from '../core/states.js';
-import { repoName, crewName, isActive, providerName } from '../core/lookup.js';
+import { repoName, teamName, isActive, providerName } from '../core/lookup.js';
 import { parseHash, buildHash } from '../core/route.js';
 import { singleKeysEnabled } from '../core/keys.js';
 import { live } from '../core/live.js';
@@ -83,7 +83,7 @@ function spendText(session) {
 
 function matches(session, search) {
   if (!search) return true;
-  const text = [session.title, repoName(session.repositoryId), crewName(session.crewId), listStatus(session, state.bootstrap).label, session.sourceTask?.title, session.sourceTask && `${providerName(session.sourceTask.provider)} #${session.sourceTask.id}`].filter(Boolean).join(' ').toLowerCase();
+  const text = [session.title, repoName(session.repositoryId), teamName(session.teamId), listStatus(session, state.bootstrap).label, session.sourceTask?.title, session.sourceTask && `${providerName(session.sourceTask.provider)} #${session.sourceTask.id}`].filter(Boolean).join(' ').toLowerCase();
   return search.toLowerCase().split(/\s+/).filter(Boolean).every(word => text.includes(word));
 }
 
@@ -112,7 +112,7 @@ function sessionRow(session) {
     href: `#session/${encodeURIComponent(session.id)}`,
     tone: meta.tone,
     title: session.title,
-    meta: `<span class="sessions-row-state">${stateBadge(meta)}${source}</span>${progress.length ? `<span class="sessions-row-progress">${progress.map(fact).join('')}</span>` : ''}<span class="sessions-row-facts">${fact(repoName(session.repositoryId))}${fact(crewName(session.crewId))}</span>`,
+    meta: `<span class="sessions-row-state">${stateBadge(meta)}${source}</span>${progress.length ? `<span class="sessions-row-progress">${progress.map(fact).join('')}</span>` : ''}<span class="sessions-row-facts">${fact(repoName(session.repositoryId))}${fact(teamName(session.teamId))}</span>`,
     trail: timeAgo(session.updatedAt),
   })}</li>`;
 }
@@ -121,7 +121,7 @@ function emptyList(filter, search, total) {
   if (!total) {
     if (!canOperate()) return emptyState({ icon: 'sessions', title: 'No sessions yet', body: '<p>Sessions that operators start on this workbench appear here.</p>' });
     if (demoMode()) return emptyState({ icon: 'sessions', title: 'No sessions yet', body: '<p>Run the demonstration to watch a team reproduce a rounding bug, fix it and hand you the evidence. It makes real Git changes and runs real checks, without model calls or spend.</p>', actions: [button({ id: 'sessions-empty-demo', label: 'Run the demonstration', icon: 'play', variant: 'primary', action: 'quick-demo' }), button({ id: 'sessions-empty-new', label: 'Write a brief', action: 'new' })] });
-    return emptyState({ icon: 'sessions', title: 'No sessions yet', body: `<p>Give a team an objective and a budget. You review what comes back before anything leaves the workbench. ${escape(plural(state.bootstrap.repositories.length, 'repository', 'repositories'))} and ${escape(plural(state.bootstrap.crews.length, 'team'))} are configured.</p>`, actions: button({ id: 'sessions-empty-new', label: 'Write a brief', variant: 'primary', action: 'new' }) });
+    return emptyState({ icon: 'sessions', title: 'No sessions yet', body: `<p>Give a team an objective and a budget. You review what comes back before anything leaves the workbench. ${escape(plural(state.bootstrap.repositories.length, 'repository', 'repositories'))} and ${escape(plural(state.bootstrap.teams.length, 'team'))} are configured.</p>`, actions: button({ id: 'sessions-empty-new', label: 'Write a brief', variant: 'primary', action: 'new' }) });
   }
   if (search) return emptyState({ icon: 'search', compact: true, title: `No sessions match “${search}”`, body: '<p>Search looks at titles, repositories, teams, states and source tasks.</p>', actions: button({ id: 'sessions-clear-search', label: 'Clear search', icon: 'x', action: 'sessions-clear' }) });
   if (filter === 'needs') return emptyState({ icon: 'check-circle', tone: 'success', compact: true, title: 'Nothing needs you', body: '<p>Sessions that ask a question, stop with an error or finish for review show up here.</p>' });
@@ -167,7 +167,7 @@ function asideMarkup() {
   const spent = recorded.reduce((sum, session) => sum + (Number.isFinite(session.spentUsd) ? session.spentUsd : 0), 0);
   const spend = demoMode() && !recorded.length ? '<span class="subtle">Demo · no model calls</span>' : `<span class="num">${escape(money(spent))}</span>${unknown ? '<span class="sessions-fact-note">Some sessions did not report spend</span>' : unsettled ? '<span class="sessions-fact-note">Some usage is still settling</span>' : ''}`;
   const capacity = `<span class="sessions-capacity"><span class="num">${escape(running > slots ? `${running} active · ${plural(slots, 'slot')}` : `${running} of ${plural(slots, 'slot')}`)}</span><meter min="0" max="${Math.max(1, slots)}" value="${Math.min(running, Math.max(1, slots))}" aria-label="Session slots in use"></meter></span>`;
-  const facts = card({ id: 'sessions-workbench', title: 'Workbench', body: dl([['Active now', capacity], ['Recorded spend', spend], ['Configured', escape(`${plural(state.bootstrap.repositories.length, 'repository', 'repositories')} · ${plural(state.bootstrap.crews.length, 'team')}`)]], { rows: true }) });
+  const facts = card({ id: 'sessions-workbench', title: 'Workbench', body: dl([['Active now', capacity], ['Recorded spend', spend], ['Configured', escape(`${plural(state.bootstrap.repositories.length, 'repository', 'repositories')} · ${plural(state.bootstrap.teams.length, 'team')}`)]], { rows: true }) });
   const demo = demoMode() && canOperate() && sessions.length ? card({ id: 'sessions-demo', title: 'Demonstration', icon: 'play', body: `<p class="sessions-demo-text">Follow a rounding regression from a failing test to a reviewed patch in about ten seconds.</p><ol class="sessions-demo-steps"><li>Reproduce the failure</li><li>Make and verify the fix</li><li>Review the evidence</li></ol><p class="sessions-demo-text subtle">Real Git changes and checks. No model calls, no spend.</p>${button({ id: 'sessions-demo-run', label: 'Run the demonstration', icon: 'play', action: 'quick-demo' })}` }) : '';
   return facts + demo;
 }
@@ -239,7 +239,7 @@ async function refreshSessions() {
 
 async function runDemonstration(control) {
   control.disabled = true;
-  const session = await api('/api/sessions', { method: 'POST', body: JSON.stringify({ ...demoSession, repositoryId: state.bootstrap.repositories[0].id, crewId: state.bootstrap.crews[0].id, runtime: 'demo', budgetUsd: Math.min(5, state.bootstrap.maxBudgetUsd) }) });
+  const session = await api('/api/sessions', { method: 'POST', body: JSON.stringify({ ...demoSession, repositoryId: state.bootstrap.repositories[0].id, teamId: state.bootstrap.teams[0].id, runtime: 'demo', budgetUsd: Math.min(5, state.bootstrap.maxBudgetUsd) }) });
   await api(`/api/sessions/${session.id}/start`, { method: 'POST', body: '{}' });
   state.sessions.unshift(session); state.tab = 'stream'; location.hash = `session/${session.id}`;
 }

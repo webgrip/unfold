@@ -18,9 +18,23 @@ const sentenceRecords: Record<string, string> = {
   'apps/unfold/docs/design/2026-10-10-work-item-progress.md': 'its evidence table quotes what the screens said on 2026-10-10',
 };
 const compatibleText: Record<string, string> = {
-  'At least one team is required in crews': 'names the configuration key crews, which keeps its name until it is migrated',
-  'Team IDs in crews must be unique lowercase slugs': 'names the configuration key crews, which keeps its name until it is migrated',
-  'crew step-costs': 'a class name, not text',
+  'Set teams only: crews, its retired name, lists different Teams': 'names the retired configuration key crews, which configuration still reads until step 3 of the Team migration',
+};
+const unfold = 'apps/unfold/src';
+const extension = 'apps/unfold/extensions/vscode';
+const compatibleKeys: Record<string, { reason: string; files: string[] }> = {
+  crewId: {
+    reason: 'sessions stored before system ADR-0036 spell their Team crewId, so the store reads it as teamId; the API accepts it from older clients and serves it beside teamId for one release; the extension sends it beside teamId and reads it from older workbenches; Ploeg\'s admission API names the field, so execution-authority sends it until Ploeg renames it',
+    files: [`${unfold}/types.ts`, `${unfold}/store.ts`, `${unfold}/engine.ts`, `${unfold}/http.ts`, `${unfold}/execution-authority.ts`, `${extension}/src/types.ts`, `${extension}/src/client.ts`, `${extension}/src/tree.ts`, `${extension}/media/session.js`],
+  },
+  crews: {
+    reason: 'the configuration key and bootstrap field before system ADR-0036: configuration still reads it, bootstrap serves it beside teams for one release, and the extension reads it from older workbenches',
+    files: [`${unfold}/config.ts`, `${unfold}/http.ts`, `${extension}/src/client.ts`],
+  },
+  crew: {
+    reason: 'the card field sent beside roles for one release and read from cards stored before; the AHP configuration key older clients send; and the key of the signed candidate attestation predicate, which verifiers pin and which stays unchanged',
+    files: [`${unfold}/ahp/session-config.ts`, `${unfold}/attestations.ts`, `${unfold}/cards/cardimage-view.ts`, `${unfold}/ploeg.ts`, `${unfold}/ploeg-demo.ts`, 'apps/unfold/public/cards/card-model.js', `${extension}/src/ploeg-types.ts`, `${extension}/media/task.js`],
+  },
 };
 const inputWords: Record<string, string> = {
   'apps/unfold/src/ask/record.ts': 'the standing-question matcher still understands a person who types the retired word',
@@ -101,6 +115,19 @@ test('no screen text says a retired word; stored keys, ids and class names that 
     }
     assert.deepEqual(found, [], `Screens say the retired word "${word}"; say "${use}" (docs/domain/model.yaml retired_terms)`);
   }
+});
+
+test('code spells the retired word Crew only in the compatibility keys that must remain, each with its reason', () => {
+  const found = new Map<string, Set<string>>();
+  for (const file of screens.flatMap(path => files(path, /\.(m?js|ts|html|json|css)$/))) {
+    if (records.test(file) || inputWords[file]) continue;
+    for (const [token] of readFileSync(join(repository, file), 'utf8').matchAll(/[\w-]*crew[\w-]*/gi)) {
+      const allowed = compatibleKeys[token];
+      assert(allowed?.files.includes(file), `${file} spells "${token}"; say team, or add it to compatibleKeys with the reason it must remain`);
+      found.set(token, (found.get(token) ?? new Set()).add(file));
+    }
+  }
+  for (const [token, { files: allowed }] of Object.entries(compatibleKeys)) for (const file of allowed) assert(found.get(token)?.has(file), `${file} no longer spells "${token}"; remove it from compatibleKeys`);
 });
 
 test('no living documentation page uses a retired word outside code', () => {

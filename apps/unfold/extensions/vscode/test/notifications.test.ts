@@ -12,7 +12,7 @@ const fixture = JSON.parse(readFileSync(new URL('../../../test/fixtures/session-
 
 function session(overrides: Partial<Session> = {}): Session {
   return {
-    id: 's1', title: 'Fix rounding', objective: 'Fix it', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode',
+    id: 's1', title: 'Fix rounding', objective: 'Fix it', repositoryId: 'order-service', teamId: 'delivery', runtime: 'opencode',
     ownerId: 'ryan', ownerName: 'Ryan', status: 'running', budgetUsd: 5, spentUsd: 1, costStatus: 'settled', createdAt: '2026-10-10T10:00:00.000Z', updatedAt: '2026-10-10T10:05:00.000Z', branch: 'unfold/s1',
     runs: [{ id: 'r1', roleName: 'Engineer', mode: 'write', status: 'running', startedAt: '2026-10-10T10:01:00.000Z' }],
     artifacts: [],

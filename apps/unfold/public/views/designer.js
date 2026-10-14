@@ -40,7 +40,7 @@ export function sampleCard(finish, now = Date.now()) {
   const card = {
     workItemId: 'sample', title: 'Show the delivery window on the order summary', externalRef: 'SAMPLE-1', url: '', team: 'delivery',
     target: { forge: 'forgejo', owner: 'acme', repo: 'webshop' }, style: { skin: 'forge', theme: null }, state: 'merged', rarity: null, finish: 'matte', grade: null, condition: null,
-    steward: { name: 'Sam K.', source: 'merged_by' }, roster: [{ name: 'Sam K.', roles: ['merger'] }], crew: [{ role: 'builder', writes: true, runs: 2 }, { role: 'reviewer', writes: false, runs: 1 }],
+    steward: { name: 'Sam K.', source: 'merged_by' }, roster: [{ name: 'Sam K.', roles: ['merger'] }], roles: [{ role: 'builder', writes: true, runs: 2 }, { role: 'reviewer', writes: false, runs: 1 }],
     plays: [{ number: 12, url: '', state: 'merged', shiftId: null, branch: '', headSha: '', mergeCommitSha: '', mergedAt: merged, mergedBy: 'Sam K.', closedAt: null, additions: 42, deletions: 7, changedFiles: 3, ci: null, reviews: [], deployments: [{ environment: 'production', firstDeployedAt: at, sha: '', url: '' }] }],
     totals: { costStatus: 'not_reported', usageComplete: null, runs: 3, failedRuns: 0, rounds: 1, shifts: 1 },
     events: [], deployments: [], release: { at, source: 'deploy', environment: 'production' }, demo: true,

@@ -16,7 +16,7 @@ const steps = [
   { id: 'ploeg', name: 'Ploeg authorizes the work' },
   { id: 'gateway', name: 'The gateway issues the budget' },
   { id: 'workspaces', name: 'A machine starts the workspace' },
-  { id: 'crew', name: 'The team works' },
+  { id: 'team', name: 'The team works' },
 ];
 const stateWords = { ok: 'Working', degraded: 'Unreliable', down: 'Stopped here', idle: 'Not proven recently', not_used: 'Not used here', ready: 'Ready', unproven: 'Not proven', unreached: 'Not reached' };
 const noteLooks = { info: { tone: 'info', label: 'Information' }, degraded: { tone: 'attention', label: 'Work starts, but not reliably' }, outage: { tone: 'danger', label: 'New work cannot start' } };
@@ -58,7 +58,7 @@ export function startLine(value) {
  */
 export function answer(value) {
   const line = startLine(value);
-  const checked = line.filter(step => step.id !== 'crew');
+  const checked = line.filter(step => step.id !== 'team');
   const open = value.notes.filter(note => !note.resolvedAt);
   const retry = number => `Try again when step ${number} turns green. This page checks again every 30 seconds.`;
   if (checked.every(step => step.state === 'not_used')) return { tone: 'neutral', verdict: 'This is a demo.', reason: 'Sessions here run a local fixture: real Git and checks, no model calls and no spend.', next: '', stop: null };

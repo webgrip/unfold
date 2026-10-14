@@ -24,8 +24,8 @@ async function attach(server: Awaited<ReturnType<typeof application>>, t: { afte
 async function stopped(t: { after: (fn: () => unknown) => void }) {
   const server = await application();
   t.after(() => server.close());
-  const created = server.app.engine.create({ title: fixture.session.title, objective: fixture.session.objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
-  const session: Session = { ...created, ...fixture.session, placement: undefined, approval: undefined, id: created.id, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', ownerId: created.ownerId, ownerName: created.ownerName, runs: fixture.session.runs.map((run: Json) => ({ ...run, sessionId: created.id })) };
+  const created = server.app.engine.create({ title: fixture.session.title, objective: fixture.session.objective, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const session: Session = { ...created, ...fixture.session, placement: undefined, approval: undefined, id: created.id, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', ownerId: created.ownerId, ownerName: created.ownerName, runs: fixture.session.runs.map((run: Json) => ({ ...run, sessionId: created.id })) };
   server.app.store.saveSession(session);
   for (const event of fixture.events as Event[]) server.app.store.appendEvent(created.id, event.type, event.actor, event.data, event.runId);
   const client = await attach(server, t, 'runs');
@@ -108,7 +108,7 @@ test('the 059675b9 session shows each Run as a subagent with its own chat, its t
 test('a live Run spawns its chat in the client\'s spelling and streams its tool calls there, then completes the subagent with its verdict', { timeout: testTimeout(60_000) }, async t => {
   const server = await application();
   t.after(() => server.close());
-  const created = server.app.engine.create({ title: 'Live Runs', objective: 'Round half up in the order totals.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const created = server.app.engine.create({ title: 'Live Runs', objective: 'Round half up in the order totals.', repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
   const [writer, reader] = created.runs;
   server.app.store.saveSession({ ...created, status: 'running' });
   const client = await attach(server, t, 'live', { 'vscode.ahpSessionUris': true });
@@ -163,7 +163,7 @@ test('a demo session run from the Agents window nests the demo\'s real checks un
   const client = await attach(server, t, 'demo-run', { 'vscode.ahpSessionUris': true });
   const channel = `ahp-session:/${randomUUID()}`;
   const chat = defaultChatOf(channel);
-  await client.rpc('createSession', { channel, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Demo Runs' } });
+  await client.rpc('createSession', { channel, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Demo Runs' } });
   await client.rpc('subscribe', { channel });
   await client.rpc('subscribe', { channel: chat });
   client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'demo-turn', startedAt: new Date().toISOString(), message: { text: 'Reproduce the rounding regression and fix it with the tests intact.', origin: { kind: 'user' } } } });

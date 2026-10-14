@@ -52,7 +52,7 @@ test('pulls, packs, moments, periods and roles read in plain words', () => {
   assert.equal(roleLabel('developer'), 'Developer');
 });
 
-const base = { workItemId: '119', title: 'Cache the price', team: 'delivery', style: { skin: 'unfold-native', theme: null }, state: 'merged', steward: { name: 'ryan', source: 'merged_by' }, roster: [], crew: [], totals: { costStatus: 'not_reported' }, events: [],
+const base = { workItemId: '119', title: 'Cache the price', team: 'delivery', style: { skin: 'unfold-native', theme: null }, state: 'merged', steward: { name: 'ryan', source: 'merged_by' }, roster: [], roles: [], totals: { costStatus: 'not_reported' }, events: [],
   plays: [{ number: 5, state: 'merged', mergedAt: '2026-09-02T10:00:00Z', mergedBy: 'ryan', reviews: [] }], release: { at: '2026-09-03T12:00:00Z', source: 'deploy', environment: 'production' },
   condition: { state: 'mended', cracks: [{ id: 'c', severity: 'S2', confirmedAt: '2026-09-20T10:00:00Z', mended: { at: '2026-09-25T10:00:00Z', by: 'ryan', pr: 68, bySteward: true } }] } };
 

@@ -17,7 +17,7 @@ test('an analysis role reports without a verdict and only the final reviewer dec
   } as unknown as AgentRuntime;
   const server = await application('live', config => {
     config.runtime = { kind: 'opencode', backend: 'local', timeoutMs: 30_000 };
-    config.crews.push({ id: 'investigation', name: 'Investigation team', description: 'Analyst then challenger', roles: [
+    config.teams.push({ id: 'investigation', name: 'Investigation team', description: 'Analyst then challenger', roles: [
       { id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate.' },
       { id: 'challenger', name: 'Challenger', mode: 'read', instruction: 'Challenge the findings.' },
     ] });
@@ -25,7 +25,7 @@ test('an analysis role reports without a verdict and only the final reviewer dec
   t.after(() => server.close());
   const { cookie } = await login(server.url);
   server.app.engine.broker = { mint: async (session: Session) => ({ key: 'scoped-key-fixture', alias: 'alias', reference: `unfold-${session.id}-fixture`, budgetUsd: session.budgetUsd }), revoke: async () => {}, spend: async () => 0 };
-  const created = await request(server.url, '/api/sessions', { method: 'POST', body: createInput({ runtime: 'opencode', crewId: 'investigation' }), cookie, csrf: true });
+  const created = await request(server.url, '/api/sessions', { method: 'POST', body: createInput({ runtime: 'opencode', teamId: 'investigation' }), cookie, csrf: true });
   assert.equal(created.status, 201);
   await request(server.url, `/api/sessions/${created.body.id}/start`, { method: 'POST', body: {}, cookie, csrf: true });
   const finished = await sessionUntil(server.url, created.body.id, session => ['completed', 'failed'].includes(session.status), cookie);

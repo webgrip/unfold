@@ -42,7 +42,7 @@ test('one host answers a VS Code 1.141 window in 0.9 and a VS Code main window i
   const id = randomUUID();
   const session = `ahp-session:/${id}`;
   const chat = defaultChatOf(session);
-  await current.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Two baselines' } });
+  await current.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Two baselines' } });
   const added = await current.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === session);
   assert.equal(added.params.summary.defaultChat, chat);
   assert.deepEqual(added.params.summary.chats.map((entry: Json) => entry.resource), [chat]);

@@ -90,7 +90,7 @@ export type AttestationInput = { config: AppConfig; session: Session; repository
 export function candidateStatement(input: AttestationInput): Json {
   const { session, repository, manifest } = input;
   const workspace = session.workspace;
-  const crew = input.config.crews.find(item => item.id === session.crewId);
+  const team = input.config.teams.find(item => item.id === session.teamId);
   const models = new Map(input.config.models.map(model => [model.id, model]));
   return {
     _type: statementType,
@@ -107,7 +107,7 @@ export function candidateStatement(input: AttestationInput): Json {
       repository: { id: repository.id, url: repository.url, baseBranch: repository.baseBranch, baseSha: manifest.baseSha, snapshotBaseSha: manifest.snapshotBaseSha },
       candidate: { headSha: manifest.headSha, treeSha: manifest.treeSha, fileCount: manifest.fileCount, bytes: manifest.bytes, capturedAt: manifest.createdAt, history: manifest.history, scope: manifest.scope, verification: manifest.verification, publication: manifest.publication },
       workspace: workspace ? { backend: workspace.backend, transport: workspace.metadata?.transport ?? null, image: workspace.metadata?.image ?? null, container: workspace.metadata?.container ?? null, pod: workspace.metadata?.pod ?? null, namespace: workspace.metadata?.namespace ?? null } : null,
-      crew: crew ? { id: crew.id, roles: crew.roles.map(role => ({ id: role.id, name: role.name, mode: role.mode, model: (session.model ?? role.model) ? models.get(session.model ?? role.model!)?.modelId ?? session.model ?? role.model : input.config.models[0]?.modelId ?? null })) } : null,
+      crew: team ? { id: team.id, roles: team.roles.map(role => ({ id: role.id, name: role.name, mode: role.mode, model: (session.model ?? role.model) ? models.get(session.model ?? role.model!)?.modelId ?? session.model ?? role.model : input.config.models[0]?.modelId ?? null })) } : null,
       runs: session.runs.map(run => ({ roleId: run.roleId, mode: run.mode, status: run.status, verdict: run.verdict ?? null, nativeId: run.nativeId ?? null, promptSha256: run.promptSha ?? null, costUsd: run.costUsd, startedAt: run.startedAt ?? null, finishedAt: run.finishedAt ?? null })),
       spend: { budgetUsd: session.budgetUsd, spentUsd: session.spentUsd, costStatus: session.costStatus, usage: session.usage ?? null, providers: [...new Set((session.requests ?? []).map(request => request.provider).filter(Boolean))], policy: input.config.gatewayPolicy ?? null },
       harness: { kind: session.runtime },
@@ -120,7 +120,7 @@ export function traceStatement(input: AttestationInput): Json {
   const { session, manifest } = input;
   const ranges = changedLineRanges(input.patch.toString('utf8'));
   const sessionUrl = `${input.config.baseUrl ?? `http://${input.config.host}:${input.config.port}`}/#session/${session.id}`;
-  const modelIds = [...new Set(session.runs.map(run => { const role = input.config.crews.find(crew => crew.id === session.crewId)?.roles.find(item => item.id === run.roleId); const model = input.config.models.find(item => item.id === role?.model) ?? input.config.models[0]; return model ? `${model.providerId}/${model.modelId}` : undefined; }).filter((value): value is string => Boolean(value)))];
+  const modelIds = [...new Set(session.runs.map(run => { const role = input.config.teams.find(team => team.id === session.teamId)?.roles.find(item => item.id === run.roleId); const model = input.config.models.find(item => item.id === role?.model) ?? input.config.models[0]; return model ? `${model.providerId}/${model.modelId}` : undefined; }).filter((value): value is string => Boolean(value)))];
   const record = {
     version: '0.1.0', id: randomUUID(), timestamp: new Date().toISOString(),
     vcs: { type: 'git', revision: manifest.headSha },

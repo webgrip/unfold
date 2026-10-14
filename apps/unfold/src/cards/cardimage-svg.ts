@@ -46,7 +46,7 @@ export function renderCardImage(card: CardImageCard, opts: CardImageOptions): st
   y = main(body, v, y + 18);
   if (v.grade) y = slab(body, v, y + 12);
   if (v.cracks > 0) y = conditionRow(body, v, y + 12);
-  y = crewRow(body, v, y + 14);
+  y = rolesRow(body, v, y + 14);
   y = stewardRow(body, v, y + 12);
   const height = y + 52;
 
@@ -189,9 +189,9 @@ function cracks(c: string[], v: CardView): void {
   }
 }
 
-function crewRow(c: string[], v: CardView, y: number): number {
+function rolesRow(c: string[], v: CardView, y: number): number {
   c.push(`<text x="${pad}" y="${y + 12}" font-size="9" font-weight="700" letter-spacing="0.8" fill="${p.muted}">ROLES</text>`);
-  c.push(`<text x="${pad + 44}" y="${y + 12}" font-size="12" fill="${p.text}">${esc(fit(v.crew, 42))}</text>`);
+  c.push(`<text x="${pad + 44}" y="${y + 12}" font-size="12" fill="${p.text}">${esc(fit(v.roles, 42))}</text>`);
   return y + 16;
 }
 

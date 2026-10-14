@@ -4,7 +4,7 @@ import type { CardImageCard, CardImagePlay } from './cardimage-view.ts';
 export { ContentType, Width, cardPalette, renderCardImage } from './cardimage-svg.ts';
 export type { CardImageOptions } from './cardimage-svg.ts';
 export { FinishLadder, daysLive, finishFor, money } from './cardimage-view.ts';
-export type { CardImageCard, CardImageCondition, CardImageCrew, CardImageGrade, CardImagePlay, CardImageRelease, CardImageTotals, Finish } from './cardimage-view.ts';
+export type { CardImageCard, CardImageCondition, CardImageRole, CardImageGrade, CardImagePlay, CardImageRelease, CardImageTotals, Finish } from './cardimage-view.ts';
 
 /** The compact Markdown table of the facts the card image shows, byte for byte as Ploeg's `cardimage.Summary` writes it. It names no person except the steward, and every card text is escaped so it cannot add Markdown, HTML, a mention or a reference. */
 export function cardSummary(card: CardImageCard, now: string | Date): string {
@@ -45,7 +45,7 @@ export function cardSummary(card: CardImageCard, now: string | Date): string {
     if (v.stewardBy !== '') steward += ` · ${v.stewardBy}`;
   }
   row('Steward', steward);
-  row('Roles', v.crew);
+  row('Roles', v.roles);
   row('Ids', v.ids.join(' · '));
   return b;
 }

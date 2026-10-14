@@ -84,8 +84,8 @@ p { margin: 8px 0; }
 .section-heading h2 { margin: 0; }
 .section-heading > span { color: var(--muted); font-size: 11px; text-align: right; }
 .card { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin: 0 0 16px; background: var(--surface); }
-.crew-section { margin-bottom: 20px; }
-.crew { list-style: none; padding: 0; margin: 0; }
+.team-section { margin-bottom: 20px; }
+.role-strip { list-style: none; padding: 0; margin: 0; }
 .run { display: flex; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .run:last-child { border-bottom: 0; }
 .run-number { display: flex; align-items: center; justify-content: center; flex: 0 0 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); color: var(--muted); font-size: 11px; font-weight: 600; }

@@ -96,7 +96,7 @@ export class ExecutionAuthority {
     await this.serial(session.id, async () => {
       if (this.current(session.id)) return;
       const repository = this.config.repositories.find(item => item.id === session.repositoryId)!;
-      const payload = this.store.getSecret<Record<string, unknown>>(`admission:${session.id}`) ?? { sessionId: session.id, team: this.config.execution!.team, title: session.title, objective: session.objective, repositoryId: repository.id, repositoryUrl: repository.url, baseBranch: repository.baseBranch, crewId: session.crewId, budgetUsd: session.budgetUsd, demo: session.runtime === 'demo', ...(session.sourceTask?.ploeg ? { source: session.sourceTask.ploeg } : {}) };
+      const payload = this.store.getSecret<Record<string, unknown>>(`admission:${session.id}`) ?? { sessionId: session.id, team: this.config.execution!.team, title: session.title, objective: session.objective, repositoryId: repository.id, repositoryUrl: repository.url, baseBranch: repository.baseBranch, crewId: session.teamId, budgetUsd: session.budgetUsd, demo: session.runtime === 'demo', ...(session.sourceTask?.ploeg ? { source: session.sourceTask.ploeg } : {}) };
       this.store.setSecret(`admission:${session.id}`, payload);
       const data = await this.request(session, '', payload);
       this.bind(session, data.execution);

@@ -94,6 +94,8 @@ export function instants(value: unknown): unknown {
   return value;
 }
 
+const inPloegSpelling = ({ roles, ...card }: Record<string, unknown>) => ({ ...card, crew: roles });
+
 const fixtures = readdirSync(directory).filter(name => name.endsWith('.json')).map(name => ({ name, fixture: JSON.parse(readFileSync(new URL(name, directory), 'utf8')) as Fixture }));
 
 test('every card Ploeg assembled in its own store tests is assembled identically from the delivery facts and the imported card state', () => {
@@ -103,7 +105,7 @@ test('every card Ploeg assembled in its own store tests is assembled identically
   for (const { name, fixture } of cards) {
     const { facts, ctx, frozen } = fixtureContext(fixture);
     const card = assembleCard(facts, ctx);
-    try { assert.deepEqual(instants(JSON.parse(JSON.stringify(card))), instants(fixture.card)); }
+    try { assert.deepEqual(instants(inPloegSpelling(JSON.parse(JSON.stringify(card)))), instants(fixture.card)); }
     catch (error) { failures.push(`${name}: ${(error as Error).message.slice(0, 3000)}`); continue; }
     const after = fixture.stateAfter.rarity.find(r => r.workItemId === fixture.workItemId);
     const before = fixture.state.rarity.find(r => r.workItemId === fixture.workItemId);

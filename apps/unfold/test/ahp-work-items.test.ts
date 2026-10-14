@@ -170,7 +170,7 @@ async function fixture(t: TestContext) {
   server.app.store.addUser({ id: 'viewer-1', name: 'viewer-1', role: 'viewer', passwordHash: await hashPassword(password) });
   server.app.store.addUser({ id: 'viewer-2', name: 'viewer-2', role: 'viewer', passwordHash: await hashPassword(password) });
   state.pendingCommand = key => server.app.store.getSecret(key);
-  const unfoldSession = server.app.engine.create({ title: 'An Unfold session', objective: 'Fix the order rounding regression.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode', budgetUsd: 1 }, { id: 'op-1', name: 'op-1', role: 'operator' });
+  const unfoldSession = server.app.engine.create({ title: 'An Unfold session', objective: 'Fix the order rounding regression.', repositoryId: 'order-service', teamId: 'delivery', runtime: 'opencode', budgetUsd: 1 }, { id: 'op-1', name: 'op-1', role: 'operator' });
   const attach = async (name: 'op-1' | 'viewer-1' | 'viewer-2' | 'admin') => {
     const token = name === 'admin'
       ? (await request(server.url, '/api/agent-host/tokens', { method: 'POST', cookie: (await login(server.url)).cookie, body: { label: 'work items' } })).body.token

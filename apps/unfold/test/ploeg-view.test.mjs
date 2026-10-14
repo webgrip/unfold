@@ -269,7 +269,7 @@ test('a ready-for-review item leads with a status panel: the headline, the prima
 });
 
 test('with delivery facts, the status panel reads tokens, the diff, checks, approval and flow from them', () => {
-  const card = { workItemId: '50', state: 'in_review', totals: { inputTokens: 433100, outputTokens: 21700, runSeconds: 300, runs: 2, rounds: 2 }, crew: [{ role: 'builder', runs: 1 }, { role: 'reviewer', runs: 1 }], plays: [{ number: 9, state: 'open', url: 'https://forge.test/acme/shop/pulls/9', additions: 120, deletions: 8, changedFiles: 4, ci: { state: 'success' } }], steward: { name: 'ryan', source: 'approver' }, flow: { leadTime: { seconds: 86400 * 23, start: 'tracker_created', end: 'now', running: true }, cycleTime: { seconds: 300, start: 'first_run', end: 'now', running: true } } };
+  const card = { workItemId: '50', state: 'in_review', totals: { inputTokens: 433100, outputTokens: 21700, runSeconds: 300, runs: 2, rounds: 2 }, roles: [{ role: 'builder', runs: 1 }, { role: 'reviewer', runs: 1 }], plays: [{ number: 9, state: 'open', url: 'https://forge.test/acme/shop/pulls/9', additions: 120, deletions: 8, changedFiles: 4, ci: { state: 'success' } }], steward: { name: 'ryan', source: 'approver' }, flow: { leadTime: { seconds: 86400 * 23, start: 'tracker_created', end: 'now', running: true }, cycleTime: { seconds: 300, start: 'first_run', end: 'now', running: true } } };
   const groups = statusFacts(detail(), card, { now: Date.parse('2026-10-11T12:00:00Z') });
   const facts = Object.fromEntries(groups.flatMap(group => group.facts.map(fact => [fact.label, fact])));
   assert.match(facts.Tokens.value, /433,1K in · 21,7K out/);

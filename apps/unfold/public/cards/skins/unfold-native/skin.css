@@ -272,7 +272,7 @@ a:hover {
 }
 
 .t small,
-.crew small {
+.roles small {
   display: block;
   font-size: var(--text-2xs);
   font-weight: var(--weight-semibold);
@@ -337,7 +337,7 @@ a:hover {
 .ci[data-tone="danger"] { background: var(--danger-bg); color: var(--danger-fg); }
 .ci[data-tone="live"] { background: var(--live-bg); color: var(--live-fg); }
 
-.crew {
+.roles {
   display: grid;
   gap: 0.1rem;
   margin: 0;
@@ -345,7 +345,7 @@ a:hover {
   color: var(--text-muted);
 }
 
-.crew span {
+.roles span {
   overflow-wrap: anywhere;
 }
 

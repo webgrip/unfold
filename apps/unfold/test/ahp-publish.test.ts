@@ -35,7 +35,7 @@ async function gatedSession(t: { after: (fn: () => unknown) => void }, readiness
   const server = await application('demo', config => { config.delivery = { verifierTokenEnv: 'UNFOLD_TEST_VERIFIER', policies: [{ repositoryId: 'order-service' }] } as unknown as typeof config.delivery; });
   t.after(() => server.close());
   const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };
-  const created = server.app.engine.create({ title: 'Gated', objective: 'Reproduce the rounding regression and fix it with the tests intact.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const created = server.app.engine.create({ title: 'Gated', objective: 'Reproduce the rounding regression and fix it with the tests intact.', repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
   server.app.store.saveSession({ ...created, status: 'completed', candidate: { status: 'ready', fileCount: 1 }, execution: { id: 'a'.repeat(32), workItemId: '7', team: 'delivery', state: 'completed', stopConfirmed: true } } as unknown as Session);
   const published: Published[] = [];
   const state = { readiness };

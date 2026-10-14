@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, mkdirSync, chmodSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AppConfig, Repository, Crew, Placement, WorkspaceBackend } from './types.ts';
+import type { AppConfig, Repository, Team, Placement, WorkspaceBackend } from './types.ts';
 import { validateTaskSources } from './tasks.ts';
 import { reportSettings } from './reports.ts';
 import { sentryTarget } from './error-reports.ts';
@@ -11,7 +11,7 @@ import { validateDeliveryConfig } from './delivery-config.ts';
 import { flagSettings, loadRegistry } from './flags.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-export const defaultCrews: Crew[] = [
+export const defaultTeams: Team[] = [
   { id: 'delivery', name: 'Delivery team', description: 'An implementer makes the change. An independent reviewer checks the evidence.', roles: [
     { id: 'implementer', name: 'Implementer', mode: 'write', instruction: 'Implement the objective in the assigned repository. Make the smallest coherent change. Run the configured verification commands. Record actual results and unresolved risks. Do not merge or deploy. End with a concise summary.' },
     { id: 'reviewer', name: 'Reviewer', mode: 'read', instruction: 'Independently inspect the diff and verification evidence. Do not modify source or push. Return a verdict on its own line: VERDICT: approve, VERDICT: request_changes, or VERDICT: inconclusive. Approve only if the acceptance criteria are demonstrably satisfied. Explain concrete findings.' }
@@ -217,17 +217,18 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (repo.executionOwner !== undefined && !['interactive', 'ploeg'].includes(repo.executionOwner)) throw new Error(`Invalid execution owner for repository ${repo.id}`);
     if (repo.mcp !== undefined) validateRepositoryMcp(repo.mcp, repo.id);
   }
-  const crews = mode === 'demo' ? defaultCrews.filter(crew => crew.id === 'delivery') : raw.crews || defaultCrews;
-  if (!Array.isArray(crews) || !crews.length) throw new Error('At least one team is required in crews');
-  const crewIds = new Set<string>();
-  for (const crew of crews) {
-    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(crew.id) || crewIds.has(crew.id)) throw new Error('Team IDs in crews must be unique lowercase slugs');
-    crewIds.add(crew.id);
-    if (!Array.isArray(crew.roles) || !crew.roles.length || crew.roles.length > 8) throw new Error(`Team ${crew.id} requires 1–8 roles`);
+  if (raw.teams !== undefined && raw.crews !== undefined && JSON.stringify(raw.teams) !== JSON.stringify(raw.crews)) throw new Error('Set teams only: crews, its retired name, lists different Teams');
+  const teams = mode === 'demo' ? defaultTeams.filter(team => team.id === 'delivery') : raw.teams || raw.crews || defaultTeams;
+  if (!Array.isArray(teams) || !teams.length) throw new Error('At least one team is required in teams');
+  const teamIds = new Set<string>();
+  for (const team of teams) {
+    if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(team.id) || teamIds.has(team.id)) throw new Error('Team IDs in teams must be unique lowercase slugs');
+    teamIds.add(team.id);
+    if (!Array.isArray(team.roles) || !team.roles.length || team.roles.length > 8) throw new Error(`Team ${team.id} requires 1–8 roles`);
     const roleIds = new Set();
-    for (const role of crew.roles) {
-      if (!role.id || roleIds.has(role.id) || !role.name || !role.instruction || !['read','write'].includes(role.mode)) throw new Error(`Invalid role in ${crew.id}`);
-      if (role.maxToolCalls !== undefined) number(role.maxToolCalls, 80, 1, 2000, `crews.${crew.id}.roles.${role.id}.maxToolCalls`);
+    for (const role of team.roles) {
+      if (!role.id || roleIds.has(role.id) || !role.name || !role.instruction || !['read','write'].includes(role.mode)) throw new Error(`Invalid role in ${team.id}`);
+      if (role.maxToolCalls !== undefined) number(role.maxToolCalls, 80, 1, 2000, `teams.${team.id}.roles.${role.id}.maxToolCalls`);
       roleIds.add(role.id);
     }
   }
@@ -317,7 +318,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   const config: AppConfig = {
     mode, host: process.env.UNFOLD_HOST || raw.host || '127.0.0.1', port: number(process.env.UNFOLD_PORT ?? raw.port, 4080, 0, 65535, 'port'),
     dataDir, publicDir: resolve(raw.publicDir || `${root}/public`), baseUrl: baseUrl ? configuredUrl(baseUrl, 'baseUrl') : undefined,
-    repositories, crews, models, runtime, docker,
+    repositories, teams, models, runtime, docker,
     taskSources: validateTaskSources(raw.taskSources, repositories, mode),
     auth: { secureCookies: baseUrl?.startsWith('https://') ?? false, sessionHours: 12, bootstrapName: process.env.UNFOLD_ADMIN_NAME || 'admin', ...raw.auth, bootstrapPassword: process.env.UNFOLD_ADMIN_PASSWORD },
     maxConcurrentSessions: number(raw.maxConcurrentSessions, 2, 1, 16, 'maxConcurrentSessions'), maxBudgetUsd: number(raw.maxBudgetUsd, 25, 0.01, 10000, 'maxBudgetUsd'),

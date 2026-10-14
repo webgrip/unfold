@@ -140,6 +140,7 @@ const notReportedYet = 'Not reported yet';
 const liveUsage = card => !card.demo && card.live && typeof card.live === 'object' && known(card.live.runSeconds) ? card.live : null;
 const text = value => typeof value === 'string' ? value.trim() : '';
 const list = value => Array.isArray(value) ? value : [];
+const cardRoles = card => list(card.roles ?? card.crew);
 const sum = (entries, key) => entries.reduce((total, entry) => total + entry[key], 0);
 const row = (label, value, status = 'ok') => ({ label, value, status });
 const reported = (label, value, format) => known(value) ? row(label, format(value)) : row(label, notReported, 'unreported');
@@ -295,10 +296,10 @@ function prView(all) {
   return { number: latest.number, url: text(latest.url), text: `#${latest.number}`, state: playMeta(latest.state), ci, ciText: ci ? ci.label : 'CI not reported' };
 }
 
-function crewLine(card) {
-  const crew = list(card.crew).filter(member => text(member?.role));
-  if (!crew.length) return 'No agent Runs yet';
-  return crew.map(member => known(member.runs) ? `${member.role} ×${member.runs}` : member.role).join(' · ');
+function rolesLine(card) {
+  const roles = cardRoles(card).filter(member => text(member?.role));
+  if (!roles.length) return 'No agent Runs yet';
+  return roles.map(member => known(member.runs) ? `${member.role} ×${member.runs}` : member.role).join(' · ');
 }
 
 function stewardView(card) {
@@ -348,7 +349,7 @@ function liveRow(card, label, value) {
 function economics(card, cost) {
   const totals = card.totals || {};
   const live = liveUsage(card);
-  const crew = list(card.crew).filter(member => text(member?.role));
+  const roles = cardRoles(card).filter(member => text(member?.role));
   return {
     rows: [
       row(live ? 'Cost so far' : 'Cost', card.demo ? demoCost : cost.text, cost.status === 'not_reported' ? 'unreported' : 'ok'),
@@ -361,14 +362,14 @@ function economics(card, cost) {
       card.demo ? row('Every Run reported usage', 'None · demo', 'demo') : live ? row('Every Run reported usage', live.usageComplete ? 'Yes, so far' : 'No, figures so far are partial', live.usageComplete ? 'ok' : 'unreported') : totals.usageComplete === true ? row('Every Run reported usage', 'Yes') : totals.usageComplete === false ? row('Every Run reported usage', 'No, totals are partial', 'unreported') : row('Every Run reported usage', notReported, 'unreported'),
       uncollected('Model mix'),
     ],
-    lists: crew.length ? [{ title: 'Cost by Role', items: crew.map(member => ({ title: member.role, meta: card.demo ? 'Demo · no spend' : [known(member.costUsd) ? money(member.costUsd) : notReported, known(member.inputTokens) ? `${compactCount(member.inputTokens)} tokens in` : ''].filter(Boolean).join(' · '), tone: 'neutral', glyph: member.writes ? 'code' : 'eye' })) }] : [],
+    lists: roles.length ? [{ title: 'Cost by Role', items: roles.map(member => ({ title: member.role, meta: card.demo ? 'Demo · no spend' : [known(member.costUsd) ? money(member.costUsd) : notReported, known(member.inputTokens) ? `${compactCount(member.inputTokens)} tokens in` : ''].filter(Boolean).join(' · '), tone: 'neutral', glyph: member.writes ? 'code' : 'eye' })) }] : [],
   };
 }
 
 function agent(card) {
   const totals = card.totals || {};
   const live = liveUsage(card);
-  const crew = list(card.crew).filter(member => text(member?.role));
+  const roles = cardRoles(card).filter(member => text(member?.role));
   return {
     rows: [
       reported('Runs', totals.runs, count),
@@ -383,7 +384,7 @@ function agent(card) {
       uncollected('Peak context'),
       uncollected('Active time'),
     ],
-    lists: crew.length ? [{ title: 'Roles', items: crew.map(member => ({ title: `${member.role}${member.writes === true ? ' · writer' : member.writes === false ? ' · reader' : ''}`, meta: known(member.runs) ? plural(member.runs, 'Run') : notReported, tone: 'neutral', glyph: member.writes ? 'code' : 'eye' })) }] : [],
+    lists: roles.length ? [{ title: 'Roles', items: roles.map(member => ({ title: `${member.role}${member.writes === true ? ' · writer' : member.writes === false ? ' · reader' : ''}`, meta: known(member.runs) ? plural(member.runs, 'Run') : notReported, tone: 'neutral', glyph: member.writes ? 'code' : 'eye' })) }] : [],
   };
 }
 
@@ -823,7 +824,7 @@ export function cardView(card, { now = Date.now() } = {}) {
     runTime: runTimeView(data),
     diff,
     pr: prView(all),
-    crew: crewLine(data),
+    roles: rolesLine(data),
     steward: stewardView(data),
     plays: { count: all.length, text: all.length ? plural(all.length, 'play') : 'No plays yet' },
     ids: [id ? `#${id}` : '', text(data.externalRef), repo].filter(Boolean),

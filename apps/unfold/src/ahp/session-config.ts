@@ -1,5 +1,5 @@
 import { placements } from '../config.ts';
-import type { AppConfig, Crew, Session, WorkspaceBackend } from '../types.ts';
+import type { AppConfig, Team, Session, WorkspaceBackend } from '../types.ts';
 import { money } from '../../public/core/format.js';
 
 type Json = Record<string, any>;
@@ -11,10 +11,13 @@ const approvalFromMode: Record<string, Approval> = { manual: 'manual', 'allow-al
 const budgetSteps = [1, 2, 5, 10, 25, 50, 100, 250, 500, 1000];
 const placementLabels: Record<WorkspaceBackend, string> = { docker: 'Container', kubernetes: 'Pod', local: 'Local directory' };
 const isolatedPlacements = new Set<WorkspaceBackend>(['docker', 'kubernetes']);
-const configKeys = ['repository', 'crew', 'budgetUsd', 'placement', 'approvalMode', 'title'];
+const configKeys = ['repository', 'team', 'budgetUsd', 'placement', 'approvalMode', 'title'];
+
+/** The configuration key a client older than system ADR-0036 sends for `team`; it is read as `team` and never echoed. */
+export const retiredTeamKey = 'crew';
 
 /** The one model the host advertises, so the composer names what runs instead of a gateway model. */
-export const composerModelId = 'unfold-crew';
+export const composerModelId = 'unfold-team';
 
 /** Thrown when a session configuration names something this workbench does not offer. */
 export class SessionConfigError extends Error {}
@@ -46,8 +49,8 @@ function roleModel(config: AppConfig, model: string | undefined): string | undef
 }
 
 /** One line naming a team's roles in order, with the configured model each role runs on; the demonstration names none, since it calls no model. */
-export function crewDescription(config: AppConfig, crew: Crew): string {
-  const roles = crew.roles.map(role => {
+export function describeTeam(config: AppConfig, team: Team): string {
+  const roles = team.roles.map(role => {
     const model = config.mode === 'demo' ? undefined : roleModel(config, role.model);
     return `${role.name} ${role.mode === 'write' ? 'writes' : 'reviews'}${model ? ` on ${model}` : ''}`;
   });
@@ -81,7 +84,7 @@ export function sessionConfigSchema(config: AppConfig, values: Json = {}, live?:
   const budget = budgetOf(config, values.budgetUsd);
   const properties: Json = {
     repository: { type: 'string', title: 'Repository', description: 'Chosen with the Workspace picker', readOnly: true, enum: config.repositories.map(repo => repo.id), enumLabels: config.repositories.map(repo => repo.name), enumDescriptions: config.repositories.map(repo => repo.description) },
-    crew: { type: 'string', title: 'Team', description: 'The roles that work on this session, in order', enum: config.crews.map(crew => crew.id), enumLabels: config.crews.map(crew => crew.name), enumDescriptions: config.crews.map(crew => crewDescription(config, crew)), default: config.crews[0]?.id },
+    team: { type: 'string', title: 'Team', description: 'The roles that work on this session, in order', enum: config.teams.map(team => team.id), enumLabels: config.teams.map(team => team.name), enumDescriptions: config.teams.map(team => describeTeam(config, team)), default: config.teams[0]?.id },
   };
   const amounts = budgetOptions(config, budget);
   properties.budgetUsd = { type: 'string', title: 'Budget', description: `The most this session may spend on models, up to ${dollars(config.maxBudgetUsd)}`, enum: amounts.map(budgetValue), enumLabels: amounts.map(dollars), default: budgetValue(defaultBudget(config)) };
@@ -96,18 +99,21 @@ export function sessionConfigSchema(config: AppConfig, values: Json = {}, live?:
     default: 'manual', ...(live && automatic && !['completed', 'failed', 'cancelled'].includes(live.status) ? { sessionMutable: true } : {}),
   };
   properties.title = { type: 'string', title: 'Session title' };
-  return { type: 'object', properties, required: ['repository', 'crew', 'budgetUsd'] };
+  return { type: 'object', properties, required: ['repository', 'team', 'budgetUsd'] };
 }
 
 /** Defaults for a new session: the picked repository or the first one, the first team, a 5 US$ budget within the limit, the runtime's default placement and manual approval. */
 export function defaultSessionConfig(config: AppConfig, repository?: string): Json {
   const placement = placements(config).length > 1 ? defaultPlacement(config) : undefined;
-  return { repository: repository ?? config.repositories[0]?.id, crew: config.crews[0]?.id, budgetUsd: budgetValue(defaultBudget(config)), ...(placement ? { placement } : {}), approvalMode: 'manual' };
+  return { repository: repository ?? config.repositories[0]?.id, team: config.teams[0]?.id, budgetUsd: budgetValue(defaultBudget(config)), ...(placement ? { placement } : {}), approvalMode: 'manual' };
 }
 
 function pickKnown(requested: unknown): Json {
   if (!requested || typeof requested !== 'object' || Array.isArray(requested)) return {};
-  return Object.fromEntries(Object.entries(requested as Json).filter(([key, value]) => configKeys.includes(key) && value !== undefined && value !== null));
+  const { [retiredTeamKey]: retired, ...rest } = requested as Json;
+  const known = Object.fromEntries(Object.entries(rest).filter(([key, value]) => configKeys.includes(key) && value !== undefined && value !== null));
+  if (known.team === undefined && retired !== undefined && retired !== null) known.team = retired;
+  return known;
 }
 
 function normalize(config: AppConfig, requested: Json, strict: boolean): Json {
@@ -116,8 +122,8 @@ function normalize(config: AppConfig, requested: Json, strict: boolean): Json {
   const fallback = defaultSessionConfig(config);
   if (config.repositories.some(repo => repo.id === requested.repository)) values.repository = requested.repository;
   else { refuse('Choose a configured repository and team'); values.repository = fallback.repository; }
-  if (config.crews.some(crew => crew.id === requested.crew)) values.crew = requested.crew;
-  else { refuse('Choose a configured repository and team'); values.crew = fallback.crew; }
+  if (config.teams.some(team => team.id === requested.team)) values.team = requested.team;
+  else { refuse('Choose a configured repository and team'); values.team = fallback.team; }
   const budget = requested.budgetUsd === undefined ? defaultBudget(config) : budgetOf(config, requested.budgetUsd);
   if (budget === undefined) refuse(`Choose a budget up to ${dollars(config.maxBudgetUsd)}`);
   values.budgetUsd = budgetValue(budget ?? defaultBudget(config));
@@ -160,7 +166,7 @@ export function approvalOf(values: Json): Approval {
 
 /** A started session's configuration values in the schema's spelling. */
 export function sessionConfigValues(session: Session): Json {
-  return { repository: session.repositoryId, crew: session.crewId, budgetUsd: budgetValue(session.budgetUsd), title: session.title, ...(session.placement ? { placement: session.placement } : {}), approvalMode: approvalModes[session.approval ?? 'manual'] };
+  return { repository: session.repositoryId, team: session.teamId, budgetUsd: budgetValue(session.budgetUsd), title: session.title, ...(session.placement ? { placement: session.placement } : {}), approvalMode: approvalModes[session.approval ?? 'manual'] };
 }
 
 /** A started session's `config` in its state: only `approvalMode` stays changeable, and only while the session runs in a container or pod. */

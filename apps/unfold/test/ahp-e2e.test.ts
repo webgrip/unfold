@@ -26,7 +26,7 @@ async function attached(t: { after: (fn: () => unknown) => void }) {
 async function runTurn(client: Awaited<ReturnType<Awaited<ReturnType<typeof attached>>['open']>>, extra: Json = {}) {
   const session = `ahp-session:/${randomUUID()}`;
   const chat = defaultChatOf(session);
-  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'End to end' }, ...extra });
+  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'End to end' }, ...extra });
   const sessionSnapshot = (await client.rpc('subscribe', { channel: session })).snapshot;
   const chatSnapshot = (await client.rpc('subscribe', { channel: chat })).snapshot;
   client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'e2e-turn', startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } } });
@@ -102,7 +102,7 @@ test('createSession.activeClient makes the creating client active, as a session/
   const clientId = randomUUID();
   const client = await open(clientId);
   const activeClient = { clientId, tools: [{ name: 'open_file', description: 'Open a file in the editor', inputSchema: { type: 'object' } }] };
-  const config = { repository: 'order-service', crew: 'delivery', budgetUsd: 1 };
+  const config = { repository: 'order-service', team: 'delivery', budgetUsd: 1 };
   const refused = `ahp-session:/${randomUUID()}`;
   await assert.rejects(client.rpc('createSession', { channel: refused, provider: 'unfold', config, activeClient: { clientId: 'someone-else', tools: [] } }), (error: any) => error.code === -32602, 'a client may only claim itself');
   assert.ok(!(await client.rpc('listSessions', { channel: 'ahp-root://' })).items.some((item: Json) => item.resource === refused), 'a refused creation creates nothing');
@@ -125,7 +125,7 @@ test('reconnect as the first request on a new connection resumes a client this h
   const clientId = randomUUID();
   const first = await open(clientId);
   const session = `ahp-session:/${randomUUID()}`;
-  await first.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1 } });
+  await first.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1 } });
   await first.until(message => action(message, session, 'session/ready'));
   const lastSeen = first.inbox.filter(message => message.method === 'action').at(-1)!.params.serverSeq;
   first.close();
@@ -168,7 +168,7 @@ test('a reconnect keeps the session spelling decided at initialize, even when it
   const clientId = randomUUID();
   const first = await open(clientId);
   const session = `ahp-session:/${randomUUID()}`;
-  await first.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1 } });
+  await first.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1 } });
   await first.until(message => action(message, session, 'session/ready'));
   first.close();
 
@@ -202,7 +202,7 @@ test('an active client that drops keeps its place for the grace period, keeps it
   const activeClient = { clientId, tools: [] };
   const session = `ahp-session:/${randomUUID()}`;
   const first = await open(clientId);
-  await first.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1 }, activeClient });
+  await first.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1 }, activeClient });
   await first.until(message => action(message, session, 'session/activeClientSet'));
   const watcher = await open(randomUUID());
   await watcher.rpc('subscribe', { channel: session });

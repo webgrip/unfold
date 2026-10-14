@@ -37,7 +37,7 @@ test('every accepted client action is echoed with its origin in server order, an
   const watcher = await attach('second-window');
   const sessionUri = `ahp-session:/${randomUUID()}`;
   const chat = defaultChatOf(sessionUri);
-  await vscode.rpc('createSession', { channel: sessionUri, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Echoes' } });
+  await vscode.rpc('createSession', { channel: sessionUri, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Echoes' } });
   for (const channel of [sessionUri, chat]) await vscode.rpc('subscribe', { channel });
 
   vscode.notify('dispatchAction', { channel: sessionUri, clientSeq: 1, action: { type: 'session/activeClientSet', activeClient: { clientId: 'vscode-window', tools: [] } } });
@@ -153,7 +153,7 @@ test('a confirmed permission is echoed to its sender in server order, and an inp
   await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'asking-window', initialSubscriptions: ['ahp-root://'] });
   const sessionUri = `unfold:/${randomUUID()}`;
   const chat = defaultChatOf(sessionUri);
-  await client.rpc('createSession', { channel: sessionUri, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Asks first' } });
+  await client.rpc('createSession', { channel: sessionUri, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Asks first' } });
   for (const channel of [sessionUri, chat]) await client.rpc('subscribe', { channel });
   client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'asking-turn', startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } } });
   await client.until(echoOf(1));

@@ -85,12 +85,12 @@ function facts(view, facts, h) {
   const condition = view.condition ? `<div><dt>Condition</dt><dd>${e(view.condition.text)}</dd></div>` : '';
   const rarity = view.rarity ? `<div><dt>Rarity</dt><dd>${e(view.rarity.why)}</dd></div>` : '';
   const kpis = view.kpis?.headline?.length ? `<div class="forge-kpis"><dt>Key figures</dt><dd>${view.kpis.headline.map(entry => `<span title="${e(entry.meaning)}">${e(entry.label)} ${clockText(entry.value, entry.working, h)}${entry.detail ? ` (${e(entry.detail)})` : ''}</span>`).join(' · ')}</dd></div>` : '';
-  const crew = facts.rows.some(([label]) => label === 'Roles') ? '' : `<div><dt>Roles</dt><dd>${e(view.crew || 'No agent Runs yet')}</dd></div>`;
+  const roles = facts.rows.some(([label]) => label === 'Roles') ? '' : `<div><dt>Roles</dt><dd>${e(view.roles || 'No agent Runs yet')}</dd></div>`;
   const finish = `<div><dt>Finish</dt><dd>${e(`${view.finish.label}: ${facts.coverage.label.toLowerCase()} · ${facts.pattern.label} foil, ${facts.art.label} art`)}</dd></div>`;
   return `<div class="forge-facts">
     <h3 class="title" data-slot="title">${e(view.title)}</h3>
     <dl>
-      ${kpis}${rows}${crew}${grade}${rarity}${condition}${set}${finish}
+      ${kpis}${rows}${roles}${grade}${rarity}${condition}${set}${finish}
       <div data-slot="steward"><dt>Steward</dt><dd>${e(view.steward.signed ? `${view.steward.name} · ${view.steward.detail || 'signed'}` : `Unsigned · ${view.steward.detail}`)}</dd><span class="sr-only">${e(view.steward.text)}</span></div>
       <div><dt>Ids</dt><dd data-slot="ids">${e(view.ids.join(' · '))}</dd></div>
     </dl>

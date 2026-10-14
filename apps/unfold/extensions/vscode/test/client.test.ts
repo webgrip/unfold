@@ -180,7 +180,7 @@ test('linked demo task import preserves its revision, deduplicates commands and 
   assert.equal(page.tasks.length, 1);
   const task = await client.task('demo-tasks', page.tasks[0].id);
   assert.equal(task.revision, page.tasks[0].revision);
-  const input = { sourceId: task.sourceId, taskId: task.id, revision: task.revision, crewId: 'delivery', runtime: 'demo', budgetUsd: 3 };
+  const input = { sourceId: task.sourceId, taskId: task.id, revision: task.revision, teamId: 'delivery', runtime: 'demo', budgetUsd: 3 };
   const [first, repeated] = await Promise.all([client.importTask(input), client.importTask(input)]);
   assert.equal(first.id, repeated.id);
   assert.equal(first.status, 'queued');
@@ -237,7 +237,7 @@ test('a desktop client links Vikunja through the actual authenticated server and
   assert.equal(task.provider, 'vikunja');
   assert.equal(task.repositoryId, 'order-service');
   assert.match(task.description, /<script>/);
-  const input = { sourceId: task.sourceId, taskId: task.id, revision: task.revision, crewId: 'delivery', runtime: 'opencode', budgetUsd: 3 };
+  const input = { sourceId: task.sourceId, taskId: task.id, revision: task.revision, teamId: 'delivery', runtime: 'opencode', budgetUsd: 3 };
   title = 'Task updated after preview';
   await assert.rejects(client.importTask(input), (error: unknown) => error instanceof ApiError && error.status === 409 && error.code === 'task_changed');
   assert.equal((await client.sessions()).length, 0);
@@ -371,4 +371,25 @@ test('Now, a Work Item and its card come from the workbench, scoped to the signe
   assert.ok(card === undefined || card.workItemId === now.waiting[0].id);
   assert.throws(() => client.workItem('../private'));
   assert.equal(server.app.store.listSessions().length, 0);
+});
+
+test('the extension sends teamId with crewId beside it and reads the Teams of a workbench older than the rename', async t => {
+  const team = { id: 'delivery', name: 'Delivery', description: 'Build then review', roles: [{ name: 'Builder', mode: 'write' }] };
+  const bodies: Record<string, unknown>[] = [];
+  const older = createServer((request, response) => {
+    response.setHeader('Content-Type', 'application/json');
+    if (request.url === '/api/bootstrap') { response.end(JSON.stringify({ user: { id: 'u', name: 'U', role: 'operator' }, mode: 'demo', crews: [team], repositories: [], models: [], runtimes: [], maxBudgetUsd: 25, maxConcurrentSessions: 2 })); return; }
+    let text = '';
+    request.on('data', chunk => { text += chunk; });
+    request.on('end', () => { const body = JSON.parse(text); bodies.push(body); response.statusCode = 201; response.end(JSON.stringify({ id: 's1', crewId: body.crewId })); });
+  });
+  await new Promise<void>(resolve => older.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>(resolve => older.close(() => resolve())));
+  const address = older.address();
+  assert(address && typeof address !== 'string');
+  const client = new UnfoldClient(`http://127.0.0.1:${address.port}`, new MemorySecrets());
+  assert.deepEqual((await client.bootstrap()).teams, [team]);
+  await client.create({ title: 'T', objective: 'O', repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 });
+  await client.importTask({ sourceId: 'engineering', taskId: '1', revision: 'r', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 });
+  assert.deepEqual(bodies.map(body => [body.teamId, body.crewId]), [['delivery', 'delivery'], ['delivery', 'delivery']]);
 });

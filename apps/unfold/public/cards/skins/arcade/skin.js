@@ -25,8 +25,8 @@ function px(text, e, className = '', spoken = true) {
 }
 
 function roleName(view) {
-  if (view.crew === 'No agent Runs yet') return '';
-  return view.crew.split(' · ')[0].replace(/ ×\d+$/, '');
+  if (view.roles === 'No agent Runs yet') return '';
+  return view.roles.split(' · ')[0].replace(/ ×\d+$/, '');
 }
 
 function blinkTarget(view) {
@@ -190,7 +190,7 @@ function marquee(view, h, big, small) {
 
 function panel(view, h) {
   const e = h.escape;
-  const credit = view.crew === 'No agent Runs yet' ? `Team ${view.team || 'unknown'}` : `${view.crew}${view.team ? ` · Team ${view.team}` : ''}`;
+  const credit = view.roles === 'No agent Runs yet' ? `Team ${view.team || 'unknown'}` : `${view.roles}${view.team ? ` · Team ${view.team}` : ''}`;
   return `<div class="ac-panel">${view.finish.level >= 4 ? '<i class="ac-gild" aria-hidden="true"></i>' : ''}
       <span class="ac-stick" aria-hidden="true"></span>
       <span class="ac-btns" aria-hidden="true"><i data-c="cyan"></i><i data-c="amber"></i><i data-c="magenta"></i></span>

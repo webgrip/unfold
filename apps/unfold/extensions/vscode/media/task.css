@@ -155,7 +155,7 @@ footer { flex-wrap: wrap; font-size: 11px; }
 @media (min-width: 720px) {
   .head-card.with-facts { grid-template-columns: minmax(0, 1fr) minmax(0, 300px); column-gap: var(--space-6); }
   .head-card.with-facts .head-facts .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .head-card .crew, .head-card .handoff { grid-column: 1 / -1; }
+  .head-card .roles, .head-card .handoff { grid-column: 1 / -1; }
   .account-grid { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
   .account-arrow { display: block; }
 }
@@ -211,5 +211,5 @@ footer { flex-wrap: wrap; font-size: 11px; }
 .details-fold > summary { cursor: pointer; }
 .details-fold > summary .inline-heading { display: inline; font-size: 13px; }
 .detail-part { margin-top: var(--space-4); }
-.detail-part + .detail-part, .details .crew { padding-top: var(--space-3); border-top: 1px solid var(--border); }
-.details .crew { margin-top: var(--space-4); }
+.detail-part + .detail-part, .details .roles { padding-top: var(--space-3); border-top: 1px solid var(--border); }
+.details .roles { margin-top: var(--space-4); }

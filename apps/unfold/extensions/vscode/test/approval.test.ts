@@ -13,7 +13,7 @@ class MemorySecrets implements Secrets {
 }
 
 function session(overrides: Partial<Session> = {}): Session {
-  return { id: 'session-1', title: 'Fix rounding', objective: 'Fix it', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode', placement: 'docker', approval: 'manual', ownerId: 'u1', ownerName: 'Ryan', status: 'running', budgetUsd: 5, spentUsd: 0, costStatus: 'observed', createdAt: '2026-09-10T10:00:00.000Z', updatedAt: '2026-09-10T10:00:00.000Z', branch: 'unfold/session-1', runs: [], artifacts: [], ...overrides };
+  return { id: 'session-1', title: 'Fix rounding', objective: 'Fix it', repositoryId: 'order-service', teamId: 'delivery', runtime: 'opencode', placement: 'docker', approval: 'manual', ownerId: 'u1', ownerName: 'Ryan', status: 'running', budgetUsd: 5, spentUsd: 0, costStatus: 'observed', createdAt: '2026-09-10T10:00:00.000Z', updatedAt: '2026-09-10T10:00:00.000Z', branch: 'unfold/session-1', runs: [], artifacts: [], ...overrides };
 }
 
 test('the approval route receives the authenticated mutation contract with the chosen mode', async t => {

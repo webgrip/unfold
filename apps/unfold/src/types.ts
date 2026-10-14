@@ -13,8 +13,8 @@ export type RepositoryAccess = { username: string; password: string };
 /** Read-only gateway MCP tools for sessions on one repository: keys are minted into this LiteLLM team with exactly these MCP access groups. */
 export type RepositoryMcp = { litellmTeamId: string; accessGroups: string[] };
 export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg'; access?: RepositoryAccess; mcp?: RepositoryMcp };
-export type CrewRole = { id: string; name: string; mode: 'write' | 'read'; instruction: string; model?: string; maxToolCalls?: number };
-export type Crew = { id: string; name: string; description: string; roles: CrewRole[] };
+export type TeamRole = { id: string; name: string; mode: 'write' | 'read'; instruction: string; model?: string; maxToolCalls?: number };
+export type Team = { id: string; name: string; description: string; roles: TeamRole[] };
 export type RuntimeKind = 'demo' | 'opencode' | 'command';
 export type WorkspaceBackend = 'local' | 'docker' | 'kubernetes';
 export type WorkspaceTransport = 'publish' | 'pull';
@@ -26,7 +26,7 @@ export type ModelUsage = { model: string; group?: string; requests: number; fail
 export type Run = { id: string; sessionId: string; roleId: string; roleName: string; mode: 'write' | 'read'; status: RunStatus; startedAt?: string; finishedAt?: string; summary?: string; verdict?: 'approve' | 'request_changes' | 'inconclusive'; verdictSource?: 'result' | 'transcript'; nativeId?: string; costUsd: number; promptSha?: string };
 export type SessionOutcome = { work: 'change' | 'investigation'; candidate: 'captured' | 'unavailable'; verification: 'not_performed'; review: 'approved' | 'changes_requested' | 'inconclusive' | 'not_required' };
 export type ExecutionBinding = { id: string; workItemId: string; team: string; state: string; revision: number; generation: number; supervision: 'human' | 'background'; expiresAt: string; stopConfirmed: boolean };
-export type Session = { execution?: ExecutionBinding; id: string; title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; approval?: 'manual' | 'auto'; model?: string; ownerId: string; ownerName: string; status: SessionStatus; budgetUsd: number; spentUsd: number; observedUsd?: number; usage?: ModelUsage[]; requests?: GatewayRequest[]; review?: SessionReview; costStatus: 'demo' | 'observed' | 'settled' | 'unknown'; createdAt: string; updatedAt: string; branch: string; trackerUrl?: string; sourceTask?: TaskSnapshot; candidate?: Candidate; outcome?: SessionOutcome; workspace?: Workspace; runs: Run[]; artifacts: Artifact[]; blocker?: string; failure?: ExecutionFailure; workItemClosedAt?: string; previousSessionId?: string };
+export type Session = { execution?: ExecutionBinding; id: string; title: string; objective: string; repositoryId: string; teamId: string; /** @deprecated The same Team as `teamId`, kept in stored and served sessions for one release (system ADR-0036). */ crewId?: string; runtime: RuntimeKind; placement?: WorkspaceBackend; approval?: 'manual' | 'auto'; model?: string; ownerId: string; ownerName: string; status: SessionStatus; budgetUsd: number; spentUsd: number; observedUsd?: number; usage?: ModelUsage[]; requests?: GatewayRequest[]; review?: SessionReview; costStatus: 'demo' | 'observed' | 'settled' | 'unknown'; createdAt: string; updatedAt: string; branch: string; trackerUrl?: string; sourceTask?: TaskSnapshot; candidate?: Candidate; outcome?: SessionOutcome; workspace?: Workspace; runs: Run[]; artifacts: Artifact[]; blocker?: string; failure?: ExecutionFailure; workItemClosedAt?: string; previousSessionId?: string };
 export type Event = { id: number; sessionId: string; type: string; at: string; actor: string; runId?: string; data: Record<string, unknown> };
 export type WorkspaceWaitPhase = 'scheduling' | 'capacity' | 'creating' | 'image_unavailable' | 'container_error' | 'cloning' | 'starting' | 'connecting';
 export type WorkspaceWait = { sessionId: string; phase: WorkspaceWaitPhase; since: string; reason?: string };
@@ -36,7 +36,7 @@ export type ModelConfig = { id: string; name: string; providerId: string; modelI
 export type AppConfig = {
   delivery?: DeliveryConfig;
   mode: 'demo' | 'live'; host: string; port: number; dataDir: string; publicDir: string; baseUrl?: string;
-  repositories: Repository[]; crews: Crew[]; models: ModelConfig[];
+  repositories: Repository[]; teams: Team[]; models: ModelConfig[];
   taskSources?: TaskSourceConfig[];
   execution?: { team: string; heartbeatMs?: number };
   runtime: { kind: RuntimeKind; backend: WorkspaceBackend | 'external'; backends?: WorkspaceBackend[]; endpoint?: string; username?: string; password?: string; binary?: string; image?: string; command?: string[]; timeoutMs: number; agentEnvironment?: string[]; maxToolCalls?: number; briefCheck?: boolean };
@@ -69,7 +69,7 @@ export type InsightEvent = { name: string; at: string; session: string; screen: 
 export type RuntimeEvent = { type: string; data: Record<string, unknown> };
 export type Emit = (event: RuntimeEvent) => void;
 export type Credential = { key: string; alias: string; budgetUsd: number; reference: string };
-export type ExecutionContext = { session: Session; run: Run; repository: Repository; role: CrewRole; workspace: Workspace; model?: ModelConfig; prompt: string; signal: AbortSignal; emit: Emit };
+export type ExecutionContext = { session: Session; run: Run; repository: Repository; role: TeamRole; workspace: Workspace; model?: ModelConfig; prompt: string; signal: AbortSignal; emit: Emit };
 export type ExecutionResult = { summary: string; verdict?: 'approve' | 'request_changes' | 'inconclusive'; artifacts: Artifact[]; costUsd?: number; nativeId?: string };
 export interface AgentRuntime {
   kind: RuntimeKind;

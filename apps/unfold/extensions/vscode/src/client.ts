@@ -45,6 +45,11 @@ function identifier(value: string): string {
   return value;
 }
 
+/** A session request with the retired `crewId` beside `teamId`, so a workbench older than system ADR-0036 still accepts it. */
+export function withRetiredTeamKey<T extends { teamId: string }>(input: T): T & { crewId: string } {
+  return { ...input, crewId: input.teamId };
+}
+
 const editorCredential = /^vle_[A-Za-z0-9_-]{43}$/;
 
 /** The request headers that carry a stored credential: an editor credential as a bearer token, a password sign-in as its session cookie. */
@@ -125,7 +130,11 @@ export class UnfoldClient {
     catch (error) { if (error instanceof ApiError && error.status === 404) return undefined; throw error; }
   }
   ploegDashboard(id?: string): string { return `${this.origin}/#work${id ? `/${workItemId(id)}` : ''}`; }
-  bootstrap(): Promise<Bootstrap> { return this.request('/api/bootstrap'); }
+  async bootstrap(): Promise<Bootstrap> {
+    const data = await this.request<Bootstrap & { crews?: Bootstrap['teams'] }>('/api/bootstrap');
+    const { crews, ...bootstrap } = data;
+    return { ...bootstrap, teams: data.teams ?? crews ?? [] };
+  }
   async login(name: string, password: string): Promise<void> { await this.request('/api/login', 'POST', { name, password }); }
   async authMethods(): Promise<{ local: boolean; oidc: { name: string; issuer: string } | null }> {
     const result = await this.request<{ local?: boolean; oidc?: { name: string; issuer: string } | null }>('/api/auth/methods');
@@ -158,7 +167,7 @@ export class UnfoldClient {
   capture(id: string): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/capture`, 'POST', {}); }
   recover(id: string, action: RecoveryAction): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/${action === 'deliver' ? 'deliver' : 'run-again'}`, 'POST', {}); }
   permissions(id: string): Promise<Permission[]> { return this.request(`/api/sessions/${identifier(id)}/permissions`); }
-  create(input: SessionInput): Promise<Session> { return this.request('/api/sessions', 'POST', input); }
+  create(input: SessionInput): Promise<Session> { return this.request('/api/sessions', 'POST', withRetiredTeamKey(input)); }
   action(id: string, action: 'start' | 'pause' | 'resume' | 'cancel' | 'retry'): Promise<Session> { return this.request(`/api/sessions/${identifier(id)}/${action}`, 'POST', {}); }
   delivery(id: string): Promise<DeliveryView> { return this.request(`/api/sessions/${identifier(id)}/delivery`); }
   publish(id: string, binding: PublicationBinding): Promise<DeliveryView> { return this.request(`/api/sessions/${identifier(id)}/delivery/publish`, 'POST', { candidateId: binding.candidateId, receiptId: binding.receiptId, policySha256: binding.policySha256 }); }
@@ -229,7 +238,7 @@ export class UnfoldClient {
     return this.request(`/api/task-sources/${identifier(sourceId)}/tasks?page=${page}`);
   }
   task(sourceId: string, taskId: string, truncate = false): Promise<TaskPreview> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}${truncate ? '?truncate=1' : ''}`); }
-  importTask(input: TaskImportInput): Promise<Session> { return this.request('/api/task-imports', 'POST', input); }
+  importTask(input: TaskImportInput): Promise<Session> { return this.request('/api/task-imports', 'POST', withRetiredTeamKey(input)); }
   taskPloeg(sourceId: string, taskId: string, fresh = false): Promise<TaskPloegStatus> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}/ploeg${fresh ? '?refresh=1' : ''}`); }
   handoff(sourceId: string, taskId: string, team: string, revision: string): Promise<TaskPloegStatus> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}/handoff`, 'POST', { team: identifier(team), revision }); }
   takeBack(sourceId: string, taskId: string, team: string): Promise<TaskPloegStatus> { return this.request(`/api/task-sources/${identifier(sourceId)}/tasks/${identifier(taskId)}/handoff?team=${encodeURIComponent(identifier(team))}`, 'DELETE'); }

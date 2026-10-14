@@ -89,7 +89,7 @@ const chatActions = (client: { inbox: Json[] }, chat: string) => client.inbox.fi
 test('a failed session ends its turn with a resumable error, and Try Again creates a new session that waits, only when pressed', { timeout: testTimeout(60_000) }, async t => {
   const { server, client } = await attached(t);
   const { store } = server.app;
-  const created = server.app.engine.create({ title: 'Fails', objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const created = server.app.engine.create({ title: 'Fails', objective, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
   const failure = executionFailure('connectivity', 'workspace', 'not_submitted');
   store.saveSession({ ...created, status: 'failed', failure });
   store.appendEvent(created.id, 'session.failed', 'system', { code: failure.category, message: failure.message });
@@ -135,7 +135,7 @@ test('a failed session ends its turn with a resumable error, and Try Again creat
 test('a message typed into a failed session becomes the message choice in its own turn, and Try Again then no longer applies to the failed turn', { timeout: testTimeout(60_000) }, async t => {
   const { server, client } = await attached(t);
   const { store } = server.app;
-  const created = server.app.engine.create({ title: 'Fails', objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const created = server.app.engine.create({ title: 'Fails', objective, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
   const failure = executionFailure('connectivity', 'workspace', 'not_submitted');
   store.saveSession({ ...created, status: 'failed', failure });
   store.appendEvent(created.id, 'session.failed', 'system', { code: failure.category, message: failure.message });
@@ -158,7 +158,7 @@ test('a message typed into a failed session becomes the message choice in its ow
 test('a failure of a tracker task offers no Try Again', { timeout: testTimeout(60_000) }, async t => {
   const { server, client } = await attached(t);
   const { store } = server.app;
-  const created = server.app.engine.create({ title: 'Tracked', objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const created = server.app.engine.create({ title: 'Tracked', objective, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
   store.saveSession({ ...created, status: 'failed', sourceTask: { provider: 'vikunja', id: '1', url: 'https://tracker.example/1', title: 'Tracked' } as never });
   store.appendEvent(created.id, 'session.failed', 'system', { code: 'runtime_failure', message: 'It broke.' });
   const chat = defaultChatOf(`ahp-session:/${created.id}`);
@@ -186,7 +186,7 @@ async function asked(t: { after: (fn: () => unknown) => void }) {
   t.after(() => rm(dataDir, { recursive: true, force: true, maxRetries: 10 }));
   const session = `ahp-session:/${randomUUID()}`;
   const chat = defaultChatOf(session);
-  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Answers' } });
+  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Answers' } });
   for (const channel of [session, chat]) await client.rpc('subscribe', { channel });
   client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'answers-turn', startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } } });
   const requested = await client.until(message => action(message, chat, 'chat/inputRequested'));
@@ -229,7 +229,7 @@ test('declining a question in VS Code becomes a recorded "declined" answer the t
 test('spend arrives as system notifications at each threshold and at the end of a Run, never in usage', { timeout: testTimeout(60_000) }, async t => {
   const { server, client } = await attached(t);
   const { store } = server.app;
-  const created = server.app.engine.create({ title: 'Spending', objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 8 }, operator);
+  const created = server.app.engine.create({ title: 'Spending', objective, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 8 }, operator);
   const [writer] = created.runs;
   store.saveSession({ ...created, status: 'running', costStatus: 'observed' });
   store.appendEvent(created.id, 'run.started', writer.roleId, { role: writer.roleName, mode: 'write' }, writer.id);

@@ -11,8 +11,8 @@ const objectiveWords = { open: 'Pending', merged: 'Taken', settled: 'Held' };
 const objectiveNotes = { open: 'Pending: not merged yet', merged: 'Taken: merged', settled: 'Held: settled, 30 days live' };
 
 function roleName(view) {
-  if (view.crew === 'No agent Runs yet') return '';
-  return view.crew.split(' · ')[0].replace(/ ×\d+$/, '');
+  if (view.roles === 'No agent Runs yet') return '';
+  return view.roles.split(' · ')[0].replace(/ ×\d+$/, '');
 }
 
 function uidOf(view) {
@@ -213,14 +213,14 @@ function remarks(view, h) {
 function signature(view, h) {
   const e = h.escape;
   const steward = view.steward;
-  const crew = view.crew;
+  const roles = view.roles;
   const line = steward.signed
     ? `<span class="pt-ink"><span class="pt-name">${e(steward.name)}</span><svg class="pt-swash" viewBox="0 0 120 12" preserveAspectRatio="none" focusable="false"><path d="M2 8 C 24 2, 36 12, 58 6 S 96 1, 118 5" pathLength="1"/></svg></span>`
     : '<span class="pt-uns">× Unsigned</span>';
   const sealMark = steward.signed ? `<span class="pt-wax" aria-hidden="true"><b>${e(initials(steward.name) || '·')}</b></span>` : '';
   return `<div class="pt-sig${steward.signed ? '' : ' pt-off'}" data-slot="steward">
     <div class="pt-who"><span class="pt-k">Authenticated by · Steward</span><span class="pt-line">${line}${sealMark}</span><small>${e(steward.detail || (steward.signed ? 'Signed' : 'Unsigned'))}</small></div>
-    <div class="pt-crew"><span class="pt-k">Executed by</span><b>${e(crew)}</b></div>
+    <div class="pt-roles"><span class="pt-k">Executed by</span><b>${e(roles)}</b></div>
     <span class="sr-only">${e(steward.text)}</span>
   </div>`;
 }

@@ -141,16 +141,16 @@ function repositories() {
   return `<section class="card settings-card" aria-labelledby="repositories-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="repositories-title">Registered repositories <span class="count">${repos.length}</span></h2><p class="card-subtitle">Sessions and imported tasks work in these repositories only.</p></div></header><ul class="settings-items">${rows || '<li class="settings-item settings-item-empty">None registered.</li>'}</ul></section>`;
 }
 
-function crews() {
-  const list = state.bootstrap.crews || [];
-  const rows = list.map(crew => `<li class="settings-item"><span class="settings-item-icon" aria-hidden="true">${icon('bot')}</span><div class="settings-item-main"><p class="settings-item-title">${escape(crew.name)}</p>${crew.description ? `<p class="settings-item-text">${escape(crew.description)}</p>` : ''}<ul class="settings-item-meta" aria-label="Roles">${crew.roles.map(role => `<li>${chip({ label: role.name, icon: role.mode === 'write' ? 'code' : 'eye', title: role.mode === 'write' ? 'Changes code' : 'Reads only' })}</li>`).join('')}</ul></div></li>`).join('');
-  return `<section class="card settings-card" aria-labelledby="crews-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="crews-title">Teams <span class="count">${list.length}</span></h2><p class="card-subtitle">Reusable Roles for sessions. Their instructions are versioned with the configuration.</p></div></header><ul class="settings-items">${rows || '<li class="settings-item settings-item-empty">None configured.</li>'}</ul></section>`;
+function teams() {
+  const list = state.bootstrap.teams || [];
+  const rows = list.map(team => `<li class="settings-item"><span class="settings-item-icon" aria-hidden="true">${icon('bot')}</span><div class="settings-item-main"><p class="settings-item-title">${escape(team.name)}</p>${team.description ? `<p class="settings-item-text">${escape(team.description)}</p>` : ''}<ul class="settings-item-meta" aria-label="Roles">${team.roles.map(role => `<li>${chip({ label: role.name, icon: role.mode === 'write' ? 'code' : 'eye', title: role.mode === 'write' ? 'Changes code' : 'Reads only' })}</li>`).join('')}</ul></div></li>`).join('');
+  return `<section class="card settings-card" aria-labelledby="teams-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="teams-title">Teams <span class="count">${list.length}</span></h2><p class="card-subtitle">Reusable Roles for sessions. Their instructions are versioned with the configuration.</p></div></header><ul class="settings-items">${rows || '<li class="settings-item settings-item-empty">None configured.</li>'}</ul></section>`;
 }
 
 function renderSystem() {
   const error = failure ? callout({ tone: 'danger', title: 'Could not read the workbench health', body: `<p>${escape(failure)}</p>`, actions: act('data-action="environment-refresh"', { label: 'Try again', icon: 'refresh', size: 'sm' }) }) : '';
   const demo = state.bootstrap.mode === 'demo' ? demoNote() : '';
-  const content = `<div class="settings-page">${error}${demo}<div class="environment-layout"><section class="card settings-card" aria-labelledby="health-title"${loading ? ' aria-busy="true"' : ''}>${checklist()}</section>${facts()}</div>${repositories()}${crews()}</div>`;
+  const content = `<div class="settings-page">${error}${demo}<div class="environment-layout"><section class="card settings-card" aria-labelledby="health-title"${loading ? ' aria-busy="true"' : ''}>${checklist()}</section>${facts()}</div>${repositories()}${teams()}</div>`;
   renderHtml(shell(content, { title: 'Environment', subtitle: 'What this workbench is connected to, and what to set up next.' }));
 }
 

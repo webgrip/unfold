@@ -195,7 +195,7 @@ export function faceFacts(view) {
     condition: condition ? { state: condition.state, label: condition.label, text: condition.text } : null,
     finishLine: view.release?.released ? `${view.release.dayText} · ${view.finish.label}` : view.finish?.label ?? 'Matte',
     rows: [
-      ...(kpis.length ? [] : [['Roles', view.crew || 'No agent Runs yet']]),
+      ...(kpis.length ? [] : [['Roles', view.roles || 'No agent Runs yet']]),
       ['Plays', playLine],
       ['Diff', view.diff?.value ?? 'Not reported'],
       ...(kpis.length ? [] : [['Run time', view.runTime?.value ?? 'Not reported']]),

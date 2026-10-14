@@ -20,7 +20,7 @@ function contractCard() {
     target: { forge: 'forgejo', owner: 'webgrip', repo: 'glide' }, style: { skin: 'unfold-native', theme: null }, state: 'in_review',
     rarity: null, finish: 'matte', grade: null, condition: null,
     steward: { name: 'ryan', source: 'approver' }, roster: [{ name: 'ryan', roles: ['reviewer'] }],
-    crew: [{ role: 'builder', writes: true, runs: 3, costUsd: 0.58, inputTokens: 12100000, outputTokens: 88000 }, { role: 'reviewer', writes: false, runs: 2 }],
+    roles: [{ role: 'builder', writes: true, runs: 3, costUsd: 0.58, inputTokens: 12100000, outputTokens: 88000 }, { role: 'reviewer', writes: false, runs: 2 }],
     plays: [{ number: 57, url: 'https://forge.test/webgrip/glide/pulls/57', state: 'open', shiftId: '113', branch: 'ploeg/138-retry', headSha: 'abc', mergeCommitSha: '', mergedAt: null, mergedBy: '', closedAt: null, additions: 214, deletions: 38, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved', receivedAt: '2026-10-01T10:30:00Z', headSha: 'abc' }] }],
     totals: { costUsd: 0.58, authorizedUsd: 2, costStatus: 'observed', inputTokens: 12100000, outputTokens: 88000, cacheReadInputTokens: 9800000, cacheCreationInputTokens: 120000, turns: 61, toolCalls: 143, usageComplete: true, runs: 5, failedRuns: 1, rounds: 1, shifts: 1, firstRunAt: '2026-10-01T09:00:00Z', lastRunAt: '2026-10-01T09:35:00Z', runSeconds: 2100 },
     events: [{ at: '2026-10-01T10:00:00Z', kind: 'pr_opened', actor: 'team:unfold-core', detail: { number: 57 } }, { at: '2026-10-01T09:00:00Z', kind: 'minted', actor: 'team:unfold-core', detail: {} }, { at: '2026-10-01T10:30:00Z', kind: 'review', actor: 'ryan', detail: { number: 57, state: 'approved' } }],
@@ -40,7 +40,7 @@ test('the front formats every slot in nl-NL from the contract card', () => {
   assert.equal(view.runTime.value, '35 min');
   assert.equal(view.diff.value, '+214 −38 · 6 files');
   assert.deepEqual([view.pr.text, view.pr.state.label, view.pr.ci.label], ['#57', 'Open', 'CI passed']);
-  assert.equal(view.crew, 'builder ×3 · reviewer ×2');
+  assert.equal(view.roles, 'builder ×3 · reviewer ×2');
   assert.deepEqual([view.steward.text, view.steward.detail], ['Signed by ryan', 'Approved the pull request']);
   assert.equal(view.plays.text, '1 play');
   assert.deepEqual(view.ids, ['#138', 'VIK-1612', 'webgrip/glide']);
@@ -76,7 +76,7 @@ test('missing and unknown fields read Not reported or Not collected yet, never a
   assert.equal(view.diff.value, 'No pull request yet');
   assert.equal(view.pr, null);
   assert.equal(view.steward.text, 'Unsigned');
-  assert.equal(view.crew, 'No agent Runs yet');
+  assert.equal(view.roles, 'No agent Runs yet');
   for (const entry of view.tabs.flatMap(group => group.rows)) assert.doesNotMatch(entry.value, /^(?:US\$.)?0(?:,00)?$/, `${entry.label} reads zero`);
   assert.equal(value(view, 'agent', 'Turns').value, notReported);
   const empty = cardView(null);
@@ -107,7 +107,7 @@ test('a demo card says so and shows no spend or usage', () => {
     assert.equal(card.demo, true);
     assert.equal(card.totals.costStatus, 'not_reported');
     for (const key of ['costUsd', 'inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheCreationInputTokens', 'turns', 'toolCalls']) assert.equal(card.totals[key], undefined, `${card.workItemId} ${key}`);
-    assert(card.crew.every(member => member.costUsd === undefined && member.inputTokens === undefined));
+    assert(card.roles.every(member => member.costUsd === undefined && member.inputTokens === undefined));
     assert.equal(card.finish, 'matte');
     if (card.rarity) assert.equal(cardView(card).tabs.find(entry => entry.id === 'rarity').rows.find(entry => entry.label === 'Source').value, 'Demo · illustrative inputs, not rated by Ploeg', `${card.workItemId} says its rarity is a demo`);
     if (card.grade) assert.match(ploegDemo.items.find(item => item.id === card.workItemId).description, /grade and cracks are sample data/, `${card.workItemId} labels its grade and cracks as sample data`);

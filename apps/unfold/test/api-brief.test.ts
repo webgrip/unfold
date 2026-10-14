@@ -76,12 +76,12 @@ test('the gateway screens the brief cheaply, asks the operator when it is not ac
 test('an investigation team completes with the challenger\'s verdict instead of failing, and a runaway role is stopped', async t => {
   const server = await application('live', config => {
     config.runtime = { kind: 'opencode', backend: 'local', timeoutMs: 30_000, maxToolCalls: 5 };
-    config.crews.push({ id: 'investigation', name: 'Investigation', description: 'read only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'look' }, { id: 'challenger', name: 'Challenger', mode: 'read', instruction: 'check' }] });
+    config.teams.push({ id: 'investigation', name: 'Investigation', description: 'read only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'look' }, { id: 'challenger', name: 'Challenger', mode: 'read', instruction: 'check' }] });
   }, new Map<RuntimeKind, AgentRuntime>([['opencode', runtime(['inconclusive', 'inconclusive'])]]));
   t.after(() => server.close());
   server.app.engine.broker = broker;
   const { cookie } = await login(server.url);
-  const created = await request(server.url, '/api/sessions', { method: 'POST', body: createInput({ runtime: 'opencode', crewId: 'investigation' }), cookie, csrf: true });
+  const created = await request(server.url, '/api/sessions', { method: 'POST', body: createInput({ runtime: 'opencode', teamId: 'investigation' }), cookie, csrf: true });
   await request(server.url, `/api/sessions/${created.body.id}/start`, { method: 'POST', body: {}, cookie, csrf: true });
   const done = await sessionUntil(server.url, created.body.id, session => ['completed', 'failed'].includes(session.status), cookie);
   assert.equal(done.status, 'completed', done.blocker);

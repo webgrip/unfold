@@ -12,7 +12,7 @@ import { unavailableCandidate, type Candidate } from './candidates.ts';
 import { reportedVerdict, withoutVerdictBlock } from './runtime/opencode.ts';
 import { SigningKey, attestCandidate, candidatePredicateType, tracePredicateType } from './attestations.ts';
 import { readFileSync } from 'node:fs';
-import type { AgentRuntime, AppConfig, Credential, RepositoryMcp, Run, RuntimeKind, Session, SessionStatus, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest, Crew, SessionOutcome, WorkspaceWait } from './types.ts';
+import type { AgentRuntime, AppConfig, Credential, RepositoryMcp, Run, RuntimeKind, Session, SessionStatus, User, PermissionRequest, ExecutionResult, RuntimeEvent, WorkspaceBackend, ModelUsage, GatewayRequest, Team, SessionOutcome, WorkspaceWait } from './types.ts';
 
 type Broker = {
   mint(session: Session, mcp?: RepositoryMcp): Promise<Credential>;
@@ -27,7 +27,7 @@ type Broker = {
 type Reservation = { reference: string; authorizedUsd: number; revoked: boolean };
 type Active = { controller: AbortController; task: Promise<void> };
 const stillReportingToPloeg = 'The session is still telling Ploeg how its execution ended. Close its Work Item once that is done.';
-export type CreateSessionInput = { title: string; objective: string; repositoryId: string; crewId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; approval?: 'manual' | 'auto'; model?: string; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot; previousSessionId?: string };
+export type CreateSessionInput = { title: string; objective: string; repositoryId: string; teamId: string; runtime: RuntimeKind; placement?: WorkspaceBackend; approval?: 'manual' | 'auto'; model?: string; budgetUsd: number; trackerUrl?: string; sourceTask?: TaskSnapshot; previousSessionId?: string };
 
 export type Provisioning = Omit<WorkspaceWait, 'phase'> & { phase: WorkspaceWait['phase'] | 'preparing' };
 
@@ -62,11 +62,11 @@ const messageFlushMs = 500;
 const messageChunkLimit = 16000;
 const settlementReadMs = 300_000;
 
-function completionOutcome(session: Session, crew: Crew | undefined): SessionOutcome {
+function completionOutcome(session: Session, team: Team | undefined): SessionOutcome {
   const last = session.runs.at(-1);
   const reviewer = last?.mode === 'read' ? last : undefined;
   return {
-    work: crew?.roles.some(role => role.mode === 'write') ? 'change' : 'investigation',
+    work: team?.roles.some(role => role.mode === 'write') ? 'change' : 'investigation',
     candidate: session.candidate?.status === 'ready' ? 'captured' : 'unavailable',
     verification: 'not_performed',
     review: reviewer ? reviewOutcomes[reviewer.verdict ?? 'inconclusive'] : 'not_required',
@@ -126,22 +126,22 @@ export class Engine {
     const objective = this.text(input.objective, 'objective', input.sourceTask ? 110000 : 20000);
     if (!input.sourceTask && (objective.trim().length < 20 || objective.trim().split(/\s+/).length < 4)) throw new EngineError(400, 'objective_too_thin', 'Describe what the team should do and how you will know it is done. A greeting or a few words is not a brief, and the team would spend your budget guessing.');
     const repository = this.config.repositories.find(item => item.id === input.repositoryId);
-    const crew = this.config.crews.find(item => item.id === input.crewId);
-    if (!repository || !crew || !this.runtimes.has(input.runtime)) throw new EngineError(400, 'invalid_configuration', 'Choose a configured repository, team and runtime.');
+    const team = this.config.teams.find(item => item.id === input.teamId);
+    if (!repository || !team || !this.runtimes.has(input.runtime)) throw new EngineError(400, 'invalid_configuration', 'Choose a configured repository, team and runtime.');
     this.interactiveRepository(repository.id, input.sourceTask);
     if ((this.config.mode === 'demo') !== (input.runtime === 'demo')) throw new EngineError(400, 'invalid_runtime', 'The runtime does not match this deployment mode.');
     const placement = this.placement(input.placement);
     const approval = this.approval(input.approval, placement);
     const model = input.model === undefined ? undefined : this.config.models.find(item => item.id === input.model)?.id;
     if (input.model !== undefined && !model) throw new EngineError(400, 'invalid_model', 'Choose a model configured on this workbench.');
-    if (!crew.roles.length || crew.roles.slice(1).some(role => role.mode !== 'read') || !crew.roles.some(role => role.mode === 'read')) throw new EngineError(400, 'invalid_crew', 'A team requires reviewers, optionally preceded by one writer.');
-    if (new Set(crew.roles.map(role => role.id)).size !== crew.roles.length) throw new EngineError(400, 'invalid_crew', 'Team role IDs must be unique.');
+    if (!team.roles.length || team.roles.slice(1).some(role => role.mode !== 'read') || !team.roles.some(role => role.mode === 'read')) throw new EngineError(400, 'invalid_team', 'A team requires reviewers, optionally preceded by one writer.');
+    if (new Set(team.roles.map(role => role.id)).size !== team.roles.length) throw new EngineError(400, 'invalid_team', 'Team role IDs must be unique.');
     const budgetUsd = input.budgetUsd;
     if (typeof budgetUsd !== 'number' || !Number.isFinite(budgetUsd) || budgetUsd < 0 || budgetUsd > this.config.maxBudgetUsd || (input.runtime !== 'demo' && budgetUsd <= 0)) throw new EngineError(400, 'invalid_budget', 'Choose a valid budget within this deployment limit.');
     if (input.trackerUrl && input.trackerUrl !== repository.trackerUrl) throw new EngineError(400, 'invalid_tracker', 'Use the configured repository tracker link.');
     const now = new Date().toISOString();
     const id = randomUUID();
-    const session: Session = { id, title, objective, repositoryId: repository.id, crewId: crew.id, runtime: input.runtime, ...(placement ? { placement } : {}), approval, ...(model ? { model } : {}), ownerId: user.id, ownerName: user.name, status: 'queued', budgetUsd, spentUsd: 0, costStatus: input.runtime === 'demo' ? 'demo' : 'observed', createdAt: now, updatedAt: now, branch: `operator/${id}`, runs: crew.roles.map(role => ({ id: randomUUID(), sessionId: id, roleId: role.id, roleName: role.name, mode: role.mode, status: 'queued', costUsd: 0 })), artifacts: [], ...(repository.trackerUrl ? { trackerUrl: repository.trackerUrl } : {}) };
+    const session: Session = { id, title, objective, repositoryId: repository.id, teamId: team.id, crewId: team.id, runtime: input.runtime, ...(placement ? { placement } : {}), approval, ...(model ? { model } : {}), ownerId: user.id, ownerName: user.name, status: 'queued', budgetUsd, spentUsd: 0, costStatus: input.runtime === 'demo' ? 'demo' : 'observed', createdAt: now, updatedAt: now, branch: `operator/${id}`, runs: team.roles.map(role => ({ id: randomUUID(), sessionId: id, roleId: role.id, roleName: role.name, mode: role.mode, status: 'queued', costUsd: 0 })), artifacts: [], ...(repository.trackerUrl ? { trackerUrl: repository.trackerUrl } : {}) };
     if (input.sourceTask) { session.sourceTask = structuredClone(input.sourceTask); session.trackerUrl = input.sourceTask.url; }
     if (input.previousSessionId) session.previousSessionId = input.previousSessionId;
     this.save(session, 'session.created', user.id, { title, runtime: session.runtime, ...(placement ? { placement } : {}), approval, ...(model ? { model } : {}), budgetUsd, demo: session.runtime === 'demo', ...(input.previousSessionId ? { previousSessionId: input.previousSessionId } : {}), ...(session.sourceTask ? { sourceTask: session.sourceTask, imported: true, automaticStart: false } : {}) });
@@ -194,7 +194,7 @@ export class Engine {
     }
   }
 
-  async importTask(snapshot: TaskSnapshot, input: Pick<CreateSessionInput, 'crewId' | 'runtime' | 'budgetUsd' | 'placement'>, user: User, expectedBinding?: string): Promise<{ session: Session; created: boolean }> {
+  async importTask(snapshot: TaskSnapshot, input: Pick<CreateSessionInput, 'teamId' | 'runtime' | 'budgetUsd' | 'placement'>, user: User, expectedBinding?: string): Promise<{ session: Session; created: boolean }> {
     this.operator(user);
     this.authority?.authorize(user);
     if (snapshot.status !== 'open') throw new EngineError(409, 'task_closed', 'Only an open task can be imported. Refresh its source before continuing.');
@@ -357,8 +357,8 @@ export class Engine {
     if (!['paused', 'interrupted'].includes(session.status)) return `Only a stopped session that has not finished can be ${verb}.`;
     if (this.active.has(session.id) || this.admissions.has(session.id)) return 'The session is still stopping or starting.';
     if (!binding.stopConfirmed || !['paused', 'interrupted'].includes(binding.state)) return 'Ploeg has not confirmed that this execution stopped.';
-    const crew = this.config.crews.find(item => item.id === session.crewId);
-    if (!crew?.roles.some(role => role.mode === 'write')) return 'This team changes nothing, so there is no work to capture.';
+    const team = this.config.teams.find(item => item.id === session.teamId);
+    if (!team?.roles.some(role => role.mode === 'write')) return 'This team changes nothing, so there is no work to capture.';
     if (!session.workspace) return 'The workspace that holds the work is gone.';
     return undefined;
   }
@@ -507,7 +507,7 @@ export class Engine {
   }
 
   private followUp(session: Session, user: User, message: string): Session {
-    const next = this.create({ title: session.title, objective: session.objective, repositoryId: session.repositoryId, crewId: session.crewId, runtime: session.runtime, ...(session.placement ? { placement: session.placement } : {}), ...(session.approval ? { approval: session.approval } : {}), ...(session.model ? { model: session.model } : {}), budgetUsd: session.budgetUsd, previousSessionId: session.id }, user);
+    const next = this.create({ title: session.title, objective: session.objective, repositoryId: session.repositoryId, teamId: session.teamId, runtime: session.runtime, ...(session.placement ? { placement: session.placement } : {}), ...(session.approval ? { approval: session.approval } : {}), ...(session.model ? { model: session.model } : {}), budgetUsd: session.budgetUsd, previousSessionId: session.id }, user);
     this.store.appendEvent(session.id, 'session.run_again', user.id, { sessionId: next.id, message });
     return next;
   }
@@ -571,7 +571,7 @@ export class Engine {
     const finished = this.store.getSession(id)!;
     if (finished.status !== 'exporting') return;
     finished.status = 'completed';
-    finished.outcome = completionOutcome(finished, this.config.crews.find(item => item.id === finished.crewId));
+    finished.outcome = completionOutcome(finished, this.config.teams.find(item => item.id === finished.teamId));
     this.save(finished, 'session.completed', 'system', { message: completionMessage(finished.outcome), merged: false, candidateStatus: finished.candidate?.status ?? 'unavailable', outcome: finished.outcome });
   }
 
@@ -937,8 +937,8 @@ export class Engine {
   private async checkModelPolicy(session: Session): Promise<void> {
     const allowed = this.config.gatewayPolicy?.providers;
     if (!allowed || !this.broker?.providersFor || session.runtime === 'demo') return;
-    const crew = this.config.crews.find(item => item.id === session.crewId);
-    const names = new Set((crew?.roles ?? []).map(role => (this.config.models.find(item => item.id === (session.model ?? role.model)) ?? this.config.models[0])?.modelId).filter((value): value is string => Boolean(value)));
+    const team = this.config.teams.find(item => item.id === session.teamId);
+    const names = new Set((team?.roles ?? []).map(role => (this.config.models.find(item => item.id === (session.model ?? role.model)) ?? this.config.models[0])?.modelId).filter((value): value is string => Boolean(value)));
     for (const name of names) {
       const providers = await this.broker.providersFor(name).catch(() => undefined);
       const outside = (providers ?? []).filter(provider => !allowed.includes(provider));
@@ -1093,13 +1093,13 @@ export class Engine {
       session.workspace = workspace;
       if (session.runtime !== 'demo') session.costStatus = 'observed';
       this.save(session, 'workspace.ready', 'system', { backend: workspace.backend, isolation: workspace.backend === 'kubernetes' ? 'pod' : workspace.backend === 'docker' ? 'container' : 'working-directory' });
-      const crew = this.config.crews.find(item => item.id === session.crewId)!;
+      const team = this.config.teams.find(item => item.id === session.teamId)!;
       for (const scheduled of session.runs) {
         signal.throwIfAborted();
         session = this.store.getSession(id)!;
         const run = session.runs.find(item => item.id === scheduled.id)!;
         if (run.status === 'completed') continue;
-        const role = crew.roles.find(item => item.id === run.roleId)!;
+        const role = team.roles.find(item => item.id === run.roleId)!;
         run.status = 'running'; run.startedAt = new Date().toISOString(); delete run.finishedAt;
         const notes = this.store.events(id).filter(event => event.type === 'message' && event.data.role === 'operator').map(event => String(event.data.text)).join('\n\n');
         const earlier = session.runs.filter(item => item.status === 'completed').map(item => `${item.roleName}: ${item.summary ?? ''}`).join('\n');
@@ -1117,7 +1117,7 @@ export class Engine {
         try { result = await runtime.execute({ session, run, repository, role, workspace, model, prompt, signal, emit: event => { if (!signal.aborted) stream.emit(event); } }); }
         finally { stream.flush(); }
         signal.throwIfAborted();
-        const governed = crew.roles.some(item => item.mode === 'write');
+        const governed = team.roles.some(item => item.mode === 'write');
         this.finishRun(id, run.id, role.id, result, reviewer, governed);
         if (reviewer && governed && result.verdict !== 'approve') throw new EngineError(409, 'review_incomplete', result.verdict === 'request_changes' ? 'The reviewer requested changes. A person must decide the next step.' : 'The reviewer did not return an explicit approval. Review remains incomplete.');
       }
@@ -1213,7 +1213,7 @@ export class Engine {
     if (event.type === 'tool' && typeof data.partId === 'string' && data.partId) {
       const seen = this.toolCalls.get(runId) ?? new Set<string>();
       seen.add(data.partId); this.toolCalls.set(runId, seen);
-      const role = this.config.crews.find(item => item.id === session.crewId)?.roles.find(item => item.id === run.roleId);
+      const role = this.config.teams.find(item => item.id === session.teamId)?.roles.find(item => item.id === run.roleId);
       const limit = role?.maxToolCalls ?? this.config.runtime.maxToolCalls ?? 80;
       if (seen.size > limit && ['running', 'waiting_input'].includes(session.status)) { this.failActive(session, 'runaway', `${run.roleName} made ${seen.size} tool calls; the limit is ${limit}.`, 'run.runaway', { runId, toolCalls: seen.size, limit }); return; }
     }

@@ -45,6 +45,10 @@ Unfold records product events from the browser in its own database ([RFC-0001](.
 
 The server sends the export, never the browser, so the workbench pod needs egress to the collector. [Running Unfold live](../../../docs/operations/live.md) describes what each level sends, and [the dashboard](../../grafana/README.md) reads it back in Grafana.
 
+## Teams
+
+`config.teams` lists the Teams sessions run with, each `{id, name, description, roles}`; leave it unset for Unfold's defaults. `config.crews` is its deprecated name ([system ADR-0036](../../../../../docs/adr/adr-0036-ploeg-and-unfold-use-one-vocabulary-with-named-screen-words.md)): Unfold still reads it, but rename it to `teams`. Setting both with different lists stops Unfold from starting. A later release makes the chart warn about `config.crews`, and the one after that refuses it ([Team keys](../../../docs/contracts/api.md#team-keys)).
+
 ## Feature flags
 
 `featureFlags` is a flagd document of rule changes for the flags this version of Unfold knows. The chart renders it as the ConfigMap `<name>-flags`, mounts it at `/etc/unfold-flags/flags.json` and sets `UNFOLD_FLAGS_FILE`. The ConfigMap is left out of the pod's checksum, so a change applies within about a minute, without a restart: Unfold polls the file every 5 seconds and keeps the last good rules if a change is invalid. Set flags here, not under `config.flags`; the chart refuses both. Examples and the list of flags: [Feature flags](../../../docs/operations/feature-flags.md).
