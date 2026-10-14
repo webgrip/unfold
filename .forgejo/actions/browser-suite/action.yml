@@ -1,0 +1,21 @@
+name: Run Unfold's browser flows
+description: Run every flow in apps/unfold/scripts/browser against the deterministic demo in Chromium; the job's container must be the Playwright image that matches Unfold's playwright version
+runs:
+  using: composite
+  steps:
+    - name: Compare the image's Node with the version Unfold pins
+      shell: bash
+      working-directory: apps/unfold
+      run: |
+        pinned="v$(sed -n 's/^node = "\(.*\)"$/\1/p' mise.toml)"
+        if [ "$(node --version)" != "$pinned" ]; then
+          echo "::warning::The Playwright image runs Node $(node --version); Unfold pins $pinned in apps/unfold/mise.toml."
+        fi
+    - name: Install Unfold's packages
+      shell: bash
+      working-directory: apps/unfold
+      run: npm ci --no-audit --no-fund
+    - name: Run the browser flows
+      shell: bash
+      working-directory: apps/unfold
+      run: npm run test:browser

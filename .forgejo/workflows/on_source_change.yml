@@ -57,6 +57,16 @@ jobs:
       - name: Require the pinned Ploeg commit to be the Ploeg release it names
         run: node scripts/ploeg-pin.mjs --published
 
+  browser-suite:
+    if: github.ref == 'refs/heads/development'
+    runs-on: docker
+    timeout-minutes: 30
+    container:
+      image: harbor.webgrip.dev/mcr/playwright:v1.64.0-noble@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.forgejo/actions/browser-suite
+
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'
     needs: [checks, ploeg-pin]
