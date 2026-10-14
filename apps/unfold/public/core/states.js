@@ -108,6 +108,7 @@ export const failureReasons = table({
   budget: ['The agent reached its token ceiling', 'danger', 'coins', { infra: false, owner: 'the ticket size or the Role’s cap', action: 'Split the ticket or raise the Role’s cap.', cause: 'The ticket is too big for the Role’s token ceiling', retries: false, next: 'Split the ticket or raise the Role’s cap.' }],
   lease_lost: ['The worker stopped responding', 'severe', 'zap', { infra: true, owner: 'the cluster', action: 'It retries automatically.', cause: 'Infrastructure, not the agent', retries: true, next: 'If it keeps happening, check the nodes and the network.' }],
   timeout: ['The Run timed out', 'danger', 'clock', { infra: false, owner: 'the harness configuration', action: 'Split the ticket or raise the timeout.', cause: 'The harness time limit', retries: false, next: 'Split the ticket or raise the timeout.' }],
+  credential_leak: ['The Run leaked a credential', 'danger', 'shield', { infra: false, owner: 'whoever holds the credential', action: 'Rotate the credential, then read the commits the Run pushed before you try again.', cause: 'One of the Run’s credentials appeared in a forge request or a pushed commit', retries: false, next: 'Rotate the credential. The pushed commits stay on the branch: read them before you try again.' }],
   idle: ['The agent went silent', 'danger', 'clock', { infra: false, owner: 'the agent harness', action: 'Read the log tail to see where it stopped.', cause: 'The harness printed nothing and made no model call for its idle timeout', retries: false, next: 'Read its log tail. A hung command or an unanswered prompt is the usual cause. Raising the idle timeout only delays the stop.' }],
 });
 
@@ -314,6 +315,8 @@ const role = detail => (typeof detail?.role === 'string' && detail.role.trim()) 
 const capital = text => text ? text[0].toUpperCase() + text.slice(1) : text;
 const sentence = text => { const value = String(text ?? '').trim(); return value ? value[0].toUpperCase() + value.slice(1) : ''; };
 const isAmount = value => typeof value === 'number' && Number.isFinite(value);
+const pullRequestNumber = number => Number.isInteger(number) && number > 0 ? `Pull request #${number}` : '';
+const epicList = epics => Array.isArray(epics) ? epics.filter(each => typeof each === 'string' && each.trim()).map(each => each.trim()) : null;
 const outcomeEvents = { pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'Reported no change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Reported that it is stuck', failed: 'Run failed' };
 
 /**
@@ -336,6 +339,7 @@ const closeLabels = {
   review_approved: ['An agent reviewer approved', 'success'],
   plan_exhausted: ['Every planned Round ran', 'neutral'],
   review_failed: ['No agent reviewed it: the reviewer kept failing', 'attention'],
+  checks_not_passed: ['The checks did not pass', 'attention'],
   fix_round_cap_reached: ['The fix Rounds ran out', 'attention'],
   budget_exhausted_before_fix_round: ['The budget ran out before a fix Round', 'attention'],
   writing_run_failed_repeatedly: ['The writer kept failing', 'danger'],
@@ -343,6 +347,7 @@ const closeLabels = {
   withdrawn_unassigned: ['The task was unassigned from the Team', 'neutral'],
   withdrawn_closed: ['The task was closed before any Run started', 'neutral'],
   withdrawn_by_operator: ['An operator cancelled it', 'neutral'],
+  withdrawn_session_ended: ['An operator closed it after its Unfold session ended', 'neutral'],
   operator_adopted: ['An Unfold session took it over', 'neutral'],
   operator_completed: ['The Unfold session completed it', 'neutral'],
   operator_cancelled: ['The Unfold session was cancelled', 'neutral'],
@@ -450,6 +455,17 @@ export function auditEvent(entry) {
     case 'work_item.awaiting_review': return event('Ready for your review', 'review', 'pull-request', said);
     case 'work_item.done': return event('Done', 'success', 'check-circle', reason === 'pull request merged' ? 'The pull request was merged' : said);
     case 'work_item.stale': return event('Stopped retrying', 'severe', 'clock', said);
+    case 'work_item.requeued': return event('Queued for a new attempt', 'neutral', 'refresh', [Number.isInteger(detail.from_round) && detail.from_round > 1 ? `From Round ${detail.from_round}` : '', sentence(detail.note)].filter(Boolean).join(' · '));
+    case 'work_item.route_refused': return event('The task could not be routed to a repository', 'attention', 'alert', said);
+    case 'work_item.epics_seen': { const epics = epicList(detail.epics); return event('The task’s epics changed', 'neutral', 'tag', epics === null ? '' : epics.length ? `Now under ${epics.join(', ')}` : 'No longer under an epic'); }
+    case 'pull_request.conflicted': return event('The pull request has a merge conflict', 'attention', 'alert', pullRequestNumber(detail.number));
+    case 'pull_request.mergeable': return event('The merge conflict is resolved', 'success', 'check', pullRequestNumber(detail.number));
+    case 'pull_request.reverted': return event('The merged pull request was reverted', 'attention', 'undo', pullRequestNumber(detail.pr));
+    case 'pull_request_comment.upserted': return event('Comment posted on the pull request', 'neutral', 'send', detail.created === false ? 'Replaced its earlier version' : pullRequestNumber(detail.number));
+    case 'pull_request_comment.deleted': return event('Comment removed from the pull request', 'neutral', 'minus', pullRequestNumber(detail.number));
+    case 'deploy.recorded': return event(typeof detail.environment === 'string' && detail.environment.trim() ? `Deployed to ${detail.environment.trim()}` : 'Deployed', 'success', 'send', typeof detail.repo === 'string' ? detail.repo : '');
+    case 'ask.admitted': return event('Asked a model about this work', 'neutral', 'help-circle', isAmount(detail.budgetUsd) && detail.budgetUsd > 0 ? `Up to ${money(detail.budgetUsd)} from the Ask Allowance` : '');
+    case 'ask.finished': return event('Ask finished', 'neutral', 'check', '');
     case 'created_work_item.accepted': return event('Created follow-up work', 'neutral', 'plus', said);
     case 'created_work_item.rejected': return event('Proposed work was refused by policy', 'neutral', 'x', said);
     case 'follow_up.created': return event('Follow-up created from the forge', 'neutral', 'plus', said);

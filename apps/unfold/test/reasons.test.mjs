@@ -17,6 +17,8 @@ test('every needs-human close reason code gets a chip, a sentence and an action 
     writing_run_killed_repeatedly: 'Cluster kept stopping the writer',
     operator_failed: 'Session failed',
     review_approved: 'Pull request closed',
+    checks_not_passed: 'Checks did not pass',
+    review_failed: 'Reviewer kept failing',
     'budget exhausted: pool 3.00, spent 2.97, reserved 0.10': 'Budget ran out',
     'run stuck: reviewer round 2': 'Agent is stuck',
     'plan removed from configuration': 'Team plan removed',
@@ -136,6 +138,39 @@ test('the detail reason shows the failing writer’s failure reason and recognis
   assert.equal(detailReason(null), null);
 });
 
+test('checks that did not pass say the pull request stays open, how to find the failing check, and point at the writer that opened it', () => {
+  const reason = listReason(item('checks_not_passed'));
+  assert.deepEqual([reason.code, reason.glyph], ['checks_not_passed', 'x-circle']);
+  assert.match(reason.sentence, /checks failed or did not finish on the commit it pushed/);
+  assert.match(reason.sentence, /The pull request stays open\.$/);
+  assert.match(reason.fix, /^Run the Team’s checks on the pull request’s branch/);
+  const detail = detailReason({
+    item: item('checks_not_passed'), shifts: [],
+    runs: [
+      { id: '8', role: 'reviewer', round: 2, writes: false, outcome: 'pr_updated', summary: 'approved' },
+      { id: '7', role: 'implementer', round: 1, writes: true, outcome: 'pr_opened', summary: 'Opened #12', failureReason: null },
+    ],
+    events: [{ id: '9', action: 'work_item.needs_human', detail: { reason: 'the configured checks did not pass on the pushed commit and no fix round can run' } }],
+  });
+  assert.equal(detail.chip, 'Checks did not pass');
+  assert.equal(detail.run.id, '7');
+  assert.equal(detail.headline, 'the configured checks did not pass on the pushed commit and no fix round can run');
+});
+
+test('a reviewer that kept failing names the failed reviewer Run, never the writer', () => {
+  const detail = detailReason({
+    item: item('review_failed'), shifts: [],
+    runs: [
+      { id: '8', role: 'reviewer', round: 2, writes: false, outcome: 'failed', failureReason: 'infra_llm', summary: '' },
+      { id: '7', role: 'implementer', round: 1, writes: true, outcome: 'pr_opened', summary: 'Opened #12' },
+    ],
+    events: [],
+  });
+  assert.deepEqual([detail.code, detail.chip, detail.glyph], ['review_failed', 'Reviewer kept failing', 'eye-off']);
+  assert.equal(detail.run.id, '8');
+  assert.equal(detail.run.failure.label, 'The model gateway failed');
+});
+
 test('the demo’s free-text escalation keeps the list’s chip and shows the stuck reviewer as its evidence', () => {
   const reason = detailReason(ploegDemo.details['101']);
   assert.equal(reason.chip, 'Needs a decision');
@@ -179,6 +214,7 @@ test('a Shift close reason reads in a few plain words, never as a raw code', () 
   assert.equal(closeReasonLabel('plan_exhausted'), 'Every planned Round ran');
   assert.equal(closeReasonLabel('review_approved'), 'An agent reviewer approved');
   assert.equal(closeReasonLabel('review_failed'), 'No agent reviewed it: the reviewer kept failing');
+  assert.equal(closeReasonLabel('checks_not_passed'), 'The checks did not pass');
   assert.equal(closeReasonLabel('fix_round_cap_reached'), 'The fix Rounds ran out');
   assert.equal(closeReasonLabel('writing_run_killed_repeatedly'), 'The cluster kept stopping the writer');
   assert.equal(closeReasonLabel('budget exhausted: pool 0.04, spent 0.00, reserved 0.00'), `The US$${space}0,04 budget ran out`);
@@ -191,6 +227,7 @@ test('a Shift close reason reads in a few plain words, never as a raw code', () 
   assert.equal(closeReasonLabel('Illustrative escalation.'), 'Ploeg recorded: “Illustrative escalation.”');
   assert.equal(withdrawnReason('withdrawn_unassigned'), 'The task was unassigned from the Team.');
   assert.equal(withdrawnReason('withdrawn_by_operator'), 'An operator cancelled it.');
+  assert.equal(withdrawnReason('withdrawn_session_ended'), 'An operator closed it after its Unfold session ended.');
   assert.equal(withdrawnReason('plan_exhausted'), null);
   assert.equal(withdrawnReason(undefined), null);
 });

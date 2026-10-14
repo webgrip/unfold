@@ -319,9 +319,8 @@
         },
         {
           "value": "credential_leak",
-          "label": "Credential leak",
-          "mcp": "credential_leak",
-          "gap": "states.js has no entry, so the screen shows the humanized key."
+          "label": "The Run leaked a credential",
+          "mcp": "credential_leak"
         }
       ]
     },
@@ -357,9 +356,8 @@
           "value": "review_failed",
           "ploegSource": "pkg/shiftengine/reviewloop.go",
           "label": "No agent reviewed it: the reviewer kept failing",
-          "chip": "Unrecognised: review_failed",
-          "mcp": "review_failed",
-          "gap": "reasons.js does not know it: if it ever ends in needs_human, the chip reads \"Unrecognised: review_failed\"."
+          "chip": "Reviewer kept failing",
+          "mcp": "review_failed"
         },
         {
           "value": "fix_round_cap_reached",
@@ -378,10 +376,9 @@
         {
           "value": "checks_not_passed",
           "ploegSource": "pkg/shiftengine/reviewloop.go",
-          "label": "Ploeg recorded: “checks_not_passed”",
-          "chip": "Unrecognised: checks_not_passed",
-          "mcp": "checks_not_passed",
-          "gap": "states.js and reasons.js do not know it: the Shift row quotes the raw code and the Needs-you chip reads \"Unrecognised: checks_not_passed\", although Ploeg hands the Work Item to a person."
+          "label": "The checks did not pass",
+          "chip": "Checks did not pass",
+          "mcp": "checks_not_passed"
         },
         {
           "value": "writing_run_failed_repeatedly",
@@ -421,10 +418,9 @@
         {
           "value": "withdrawn_session_ended",
           "ploegSource": "pkg/store/withdraw.go",
-          "label": "Ploeg recorded: “withdrawn_session_ended”",
+          "label": "An operator closed it after its Unfold session ended",
           "chip": null,
-          "mcp": "withdrawn_session_ended",
-          "gap": "states.js does not know it: the Shift row quotes the raw code."
+          "mcp": "withdrawn_session_ended"
         },
         {
           "value": "operator_adopted",
@@ -971,77 +967,66 @@
         },
         {
           "value": "work_item.requeued",
-          "label": "Work item: requeued",
-          "mcp": "not exposed",
-          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+          "label": "Queued for a new attempt",
+          "mcp": "not exposed"
         },
         {
           "value": "work_item.route_refused",
-          "label": "Work item: route refused",
-          "mcp": "not exposed",
-          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+          "label": "The task could not be routed to a repository",
+          "mcp": "not exposed"
         },
         {
           "value": "work_item.epics_seen",
-          "label": "Work item: epics seen",
-          "mcp": "not exposed",
-          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+          "label": "The task’s epics changed",
+          "mcp": "not exposed"
         },
         {
           "value": "pull_request.mergeable",
           "ploegTerm": "Forge Event",
-          "label": "Pull request: mergeable",
-          "mcp": "not exposed",
-          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+          "label": "The merge conflict is resolved",
+          "mcp": "not exposed"
         },
         {
           "value": "pull_request.conflicted",
           "ploegTerm": "Forge Event",
-          "label": "Pull request: conflicted",
-          "mcp": "not exposed",
-          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+          "label": "The pull request has a merge conflict",
+          "mcp": "not exposed"
         },
         {
           "value": "pull_request.reverted",
           "ploegTerm": "Forge Event",
-          "label": "Pull request: reverted",
-          "mcp": "not exposed",
-          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+          "label": "The merged pull request was reverted",
+          "mcp": "not exposed"
         },
         {
           "value": "pull_request_comment.upserted",
           "ploegTerm": "Forge Event",
-          "label": "Pull request comment: upserted",
-          "mcp": "not exposed",
-          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+          "label": "Comment posted on the pull request",
+          "mcp": "not exposed"
         },
         {
           "value": "pull_request_comment.deleted",
           "ploegTerm": "Forge Event",
-          "label": "Pull request comment: deleted",
-          "mcp": "not exposed",
-          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+          "label": "Comment removed from the pull request",
+          "mcp": "not exposed"
         },
         {
           "value": "deploy.recorded",
           "ploegTerm": "Forge Event",
-          "label": "Deploy: recorded",
-          "mcp": "not exposed",
-          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+          "label": "Deployed",
+          "mcp": "not exposed"
         },
         {
           "value": "ask.admitted",
           "ploegTerm": "Ask",
-          "label": "Ask: admitted",
-          "mcp": "not exposed",
-          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+          "label": "Asked a model about this work",
+          "mcp": "not exposed"
         },
         {
           "value": "ask.finished",
           "ploegTerm": "Ask",
-          "label": "Ask: finished",
-          "mcp": "not exposed",
-          "gap": "states.js has no wording for it, so the screen shows the humanized action."
+          "label": "Ask finished",
+          "mcp": "not exposed"
         }
       ]
     }
