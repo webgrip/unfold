@@ -116,7 +116,7 @@ export type CardJson = {
   workItemId: string; title: string; externalRef?: string; url?: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: CardStyle;
   state: string; rarity: CardRarity | null; finish: 'matte'; grade: CardGrade | null; condition: { state: string; cracks: CardCrack[] } | null;
   steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[];
-  crew: { role: string; writes: boolean; runs: number; costUsd?: number; inputTokens?: number; outputTokens?: number }[];
+  roles: { role: string; writes: boolean; runs: number; costUsd?: number; inputTokens?: number; outputTokens?: number }[];
   plays: CardPlay[]; totals: CardTotals; events: { at: string; kind: string; actor?: string; detail: Record<string, string | number | boolean> }[];
   deployments: CardDeployment[]; release: { at: string; source: string; environment: string } | null;
   live: { runningRuns: number; observedAt: string; runSeconds: number; costUsd?: number; inputTokens?: number; outputTokens?: number; usageComplete: boolean } | null;
@@ -204,7 +204,7 @@ class Assembly {
       workItemId: item.id, title: item.title.slice(0, 4096), team: item.team,
       target: item.target && item.target.owner && item.target.repo ? { forge: item.target.forge, owner: item.target.owner, repo: item.target.repo } : null,
       style: ctx.rules.style(item.target && item.target.owner && item.target.repo ? `${item.target.owner}/${item.target.repo}` : null),
-      state: '', rarity: null, finish: 'matte', grade: null, condition: null, steward: null, roster: [], crew: [], plays: [],
+      state: '', rarity: null, finish: 'matte', grade: null, condition: null, steward: null, roster: [], roles: [], plays: [],
       totals: { authorizedUsd: 0, costStatus: 'not_reported', usageComplete: true, runs: 0, failedRuns: 0, rounds: 0, shifts: facts.shifts.length },
       events: [], deployments: [], release: null, live: null, gates: null, demo: false,
     };
@@ -391,19 +391,19 @@ class Assembly {
     return out;
   }
 
-  crew(): CardJson['crew'] {
+  roles(): CardJson['roles'] {
     const order: string[] = [];
-    const by = new Map<string, { crew: CardJson['crew'][number]; cost: number; costs: number; inp: number; inN: number; out: number; outN: number }>();
+    const by = new Map<string, { roles: CardJson['roles'][number]; cost: number; costs: number; inp: number; inN: number; out: number; outN: number }>();
     for (const r of this.started()) {
       const key = `${r.role}\u0000${r.writes}`;
       let a = by.get(key);
-      if (!a) { a = { crew: { role: r.role, writes: r.writes, runs: 0 }, cost: 0, costs: 0, inp: 0, inN: 0, out: 0, outN: 0 }; by.set(key, a); order.push(key); }
-      a.crew.runs++;
+      if (!a) { a = { roles: { role: r.role, writes: r.writes, runs: 0 }, cost: 0, costs: 0, inp: 0, inN: 0, out: 0, outN: 0 }; by.set(key, a); order.push(key); }
+      a.roles.runs++;
       if (r.cost !== null) { a.cost += r.cost; a.costs++; }
       if (r.usage?.inputTokens !== undefined) { a.inp += r.usage.inputTokens; a.inN++; }
       if (r.usage?.outputTokens !== undefined) { a.out += r.usage.outputTokens; a.outN++; }
     }
-    return order.map(key => { const a = by.get(key)!; return { ...a.crew, ...(a.costs > 0 ? { costUsd: a.cost } : {}), ...(a.inN > 0 ? { inputTokens: a.inp } : {}), ...(a.outN > 0 ? { outputTokens: a.out } : {}) }; });
+    return order.map(key => { const a = by.get(key)!; return { ...a.roles, ...(a.costs > 0 ? { costUsd: a.cost } : {}), ...(a.inN > 0 ? { inputTokens: a.inp } : {}), ...(a.outN > 0 ? { outputTokens: a.out } : {}) }; });
   }
 
   roster(): CardJson['roster'] {
@@ -777,7 +777,7 @@ export function assembleCard(facts: WorkItemFacts, ctx: CardContext): CardJson {
   const [pipeline, shape] = summarize(a.plays.map(p => ({ state: p.state ?? '', mergedAt: p.mergedAtUs, timeline: p.timeline ?? null, ci: p.ciTiming ?? null, shape: p.fullShape })));
   if (pipeline) card.pipeline = pipeline;
   if (shape) card.shape = shape;
-  card.crew = a.crew();
+  card.roles = a.roles();
   card.roster = a.roster();
   card.steward = a.steward();
   card.state = cardState(facts.workItem.state, a.plays.map(p => p.state ?? ''));

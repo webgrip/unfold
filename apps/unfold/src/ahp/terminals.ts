@@ -7,7 +7,7 @@ type Json = Record<string, any>;
  * the command, so a command keeps its terminal across reconnects and restarts. `streamed` counts the raw characters its
  * `tool.output` events covered, and `held` is the unfinished last line not yet cleaned and shown.
  */
-export type CrewCommand = { id: string; key: string; runId?: string; commandLine: string; title: string; startedAt: number; finished: boolean; output: string; truncated: boolean; streamed: number; held: string; exitCode?: number; durationMs?: number };
+export type AgentCommand = { id: string; key: string; runId?: string; commandLine: string; title: string; startedAt: number; finished: boolean; output: string; truncated: boolean; streamed: number; held: string; exitCode?: number; durationMs?: number };
 
 /**
  * The bounds of live command output: the characters one `tool.output` event may add, the longest unfinished line held back
@@ -16,7 +16,7 @@ export type CrewCommand = { id: string; key: string; runId?: string; commandLine
 export const liveOutputLimits = Object.freeze({ chunk: 16_384, heldLine: 4096, kept: 64_000, preview: 4000 });
 
 /** What one durable event did to the session's commands: the command a `tool` event belongs to, and the terminal actions to broadcast. */
-export type CommandUpdate = { command?: CrewCommand; content?: Json; actions: Json[] };
+export type CommandUpdate = { command?: AgentCommand; content?: Json; actions: Json[] };
 
 /** The terminal channel of one team command: `ahp-terminal:/<session>/<command>`, the session in its public spelling. */
 export const terminalChannel = (publicId: string, commandId: string) => `ahp-terminal:/${publicId}/${commandId}`;
@@ -94,12 +94,12 @@ export function commandLineOf(data: Json): string | undefined {
 export class CommandLog {
   readonly publicId: string;
   private readonly clean: (text: string) => string;
-  private readonly commands = new Map<string, CrewCommand>();
+  private readonly commands = new Map<string, AgentCommand>();
   private readonly open = new Map<string, string>();
 
   constructor(publicId: string, clean: (text: string) => string) { this.publicId = publicId; this.clean = clean; }
 
-  get(commandId: string): CrewCommand | undefined { return this.commands.get(commandId); }
+  get(commandId: string): AgentCommand | undefined { return this.commands.get(commandId); }
 
   apply(event: Event): CommandUpdate {
     const data = event.data as Json;
@@ -125,7 +125,7 @@ export class CommandLog {
   }
 
   /** The tool result content that points a tool call at its command's terminal, with the outcome once the command finished. */
-  content(command: CrewCommand): Json {
+  content(command: AgentCommand): Json {
     const long = command.output.length > liveOutputLimits.preview;
     const preview = long ? `…${command.output.slice(-liveOutputLimits.preview)}` : command.output;
     const result = command.finished ? { result: { ...(command.exitCode !== undefined ? { exitCode: command.exitCode } : {}), preview, truncated: command.truncated || long } } : {};
@@ -133,7 +133,7 @@ export class CommandLog {
   }
 
   /** The terminal's state as AHP 0.9 defines it: one command part, plain text rather than a pseudoterminal, claimed by the session. */
-  state(command: CrewCommand, claim: { session: string; chat: string }): Json {
+  state(command: AgentCommand, claim: { session: string; chat: string }): Json {
     const part = { type: 'command', commandId: command.id, commandLine: command.commandLine, output: command.output, timestamp: command.startedAt, isComplete: command.finished, ...(command.exitCode !== undefined ? { exitCode: command.exitCode } : {}), ...(command.durationMs !== undefined ? { durationMs: command.durationMs } : {}) };
     const lifecycle = command.finished ? { status: 'exited', ...(command.exitCode !== undefined ? { exitCode: command.exitCode } : {}) } : { status: 'running' };
     return { title: command.title, content: [part], lifecycle, claim: { kind: 'session', session: claim.session, chat: claim.chat }, supportsCommandDetection: true, isPty: false };
@@ -163,25 +163,25 @@ export class CommandLog {
     return { command, actions: text ? this.onTerminal(command, [{ type: 'terminal/data', data: text }]) : [] };
   }
 
-  private release(command: CrewCommand): string {
+  private release(command: AgentCommand): string {
     const text = command.held ? this.keep(command, this.clean(command.held)) : '';
     command.held = '';
     return text;
   }
 
-  private keep(command: CrewCommand, text: string): string {
+  private keep(command: AgentCommand, text: string): string {
     command.output += text;
     if (command.output.length > liveOutputLimits.kept) { command.output = `…${command.output.slice(-liveOutputLimits.kept)}`; command.truncated = true; }
     return text;
   }
 
-  private onTerminal(command: CrewCommand, actions: Json[]): Json[] {
+  private onTerminal(command: AgentCommand, actions: Json[]): Json[] {
     const channel = terminalChannel(this.publicId, command.id);
     for (const action of actions) terminalActionChannels.set(action, channel);
     return actions;
   }
 
-  private finish(command: CrewCommand, data: Json, at: number): Json[] {
+  private finish(command: AgentCommand, data: Json, at: number): Json[] {
     if (!command.streamed) {
       const recorded = typeof data.output === 'string' && data.output ? data.output : typeof data.error === 'string' ? data.error : '';
       command.output = this.clean(recorded);
@@ -192,11 +192,11 @@ export class CommandLog {
     return this.close(command);
   }
 
-  private endOpen(matches: (command: CrewCommand) => boolean): Json[] {
+  private endOpen(matches: (command: AgentCommand) => boolean): Json[] {
     return [...this.open.values()].map(id => this.commands.get(id)!).filter(matches).flatMap(command => this.close(command));
   }
 
-  private close(command: CrewCommand): Json[] {
+  private close(command: AgentCommand): Json[] {
     command.finished = true;
     this.open.delete(command.key);
     const shown = command.streamed ? this.release(command) : command.output;

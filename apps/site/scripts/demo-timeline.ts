@@ -111,7 +111,7 @@ export async function runDemo(): Promise<{
       title: WORK_ITEM.title,
       objective: WORK_ITEM.objective,
       repositoryId: repository.id,
-      crewId: 'delivery',
+      teamId: 'delivery',
       runtime: 'demo',
       budgetUsd: WORK_ITEM.budgetUsd,
     });

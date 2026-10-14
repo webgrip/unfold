@@ -218,12 +218,12 @@ function runtimeField(runtimes, selected) {
 function importForm(task) {
   const draft = state.taskDraft;
   const boot = state.bootstrap;
-  const crew = boot.crews.find(entry => entry.id === draft.crewId) || boot.crews[0];
+  const team = boot.teams.find(entry => entry.id === draft.teamId) || boot.teams[0];
   const placements = boot.placements || [];
   const placement = draft.placement || placements.find(entry => entry.default)?.id || placements[0]?.id;
   const budget = budgetInput({ id: 'task-budget', name: 'budgetUsd', value: draft.budgetUsd, attrs: 'aria-describedby="task-budget-hint"' });
   const fields = [
-    field('task-crew', 'Team', `<select id="task-crew" name="crewId" aria-describedby="task-crew-hint">${options(boot.crews, draft.crewId)}</select>`, escape(crew ? crew.roles.map(role => role.name).join(' and ') : '')),
+    field('task-session-team', 'Team', `<select id="task-session-team" name="teamId" aria-describedby="task-session-team-hint">${options(boot.teams, draft.teamId)}</select>`, escape(team ? team.roles.map(role => role.name).join(' and ') : '')),
     runtimeField(boot.runtimes || [], draft.runtime),
     placements.length > 1 ? field('task-placement', 'Workspace placement', `<select id="task-placement" name="placement">${options(placements, placement)}</select>`) : '',
     field('task-budget', 'Session budget', budget, `At most ${escape(money(boot.maxBudgetUsd))} per session.`),
@@ -465,7 +465,7 @@ async function openTask(id, preserveDraft = false) {
   const fromRow = Boolean(document.activeElement?.closest?.('.tasks-row'));
   requestedId = String(id); previewFailed = false; briefExpanded = false;
   state.taskPreviewLoading = true; state.taskPreviewError = ''; state.taskChanged = preserveDraft;
-  if (!preserveDraft) state.taskDraft = { crewId: state.bootstrap.crews[0]?.id || '', runtime: state.bootstrap.runtimes[0]?.id || '', budgetUsd: amountText(Math.min(5, state.bootstrap.maxBudgetUsd)) };
+  if (!preserveDraft) state.taskDraft = { teamId: state.bootstrap.teams[0]?.id || '', runtime: state.bootstrap.runtimes[0]?.id || '', budgetUsd: amountText(Math.min(5, state.bootstrap.maxBudgetUsd)) };
   remember(requestedId);
   if (!preserveDraft) resetPloeg();
   if (ploegOwned(selectedTaskSource())) loadPloeg(sourceId, requestedId).catch(() => {});
@@ -659,7 +659,7 @@ async function importTask(data) {
   const existingIds = new Set(state.sessions.map(session => session.id));
   if (onTasks()) renderTasks();
   try {
-    const session = await api('/api/task-imports', { method: 'POST', body: JSON.stringify({ sourceId: selected.sourceId, taskId: selected.id, revision: selected.revision, ...(selected.bindingRevision ? { bindingRevision: selected.bindingRevision } : {}), crewId: data.crewId, runtime: data.runtime, ...(data.placement ? { placement: data.placement } : {}), budgetUsd: parseAmount(data.budgetUsd) }) });
+    const session = await api('/api/task-imports', { method: 'POST', body: JSON.stringify({ sourceId: selected.sourceId, taskId: selected.id, revision: selected.revision, ...(selected.bindingRevision ? { bindingRevision: selected.bindingRevision } : {}), teamId: data.teamId, runtime: data.runtime, ...(data.placement ? { placement: data.placement } : {}), budgetUsd: parseAmount(data.budgetUsd) }) });
     state.sessions = [session, ...state.sessions.filter(item => item.id !== session.id)]; state.tab = 'stream';
     location.hash = `session/${session.id}`;
     notify(existingIds.has(session.id) ? 'Opened the existing session for this task. No additional work was started.' : 'Task imported. Read the brief, then start the team when you are ready.');

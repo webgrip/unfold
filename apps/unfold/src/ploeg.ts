@@ -86,7 +86,7 @@ export type RunCardStyle = { skin: string; theme: string | null };
 export type RunCardCheck = { context: string; state: string };
 export type RunCardReview = { reviewer: string; state: string; receivedAt: string | null; headSha: string };
 export type RunCardPlay = { number: number; url: string; state: string; shiftId: string | null; branch: string; headSha: string; mergeCommitSha: string; mergedAt: string | null; mergedBy: string; closedAt: string | null; additions?: number; deletions?: number; changedFiles?: number; ci: { state: string; checks: RunCardCheck[]; headSha: string; capturedAt: string | null } | null; reviews: RunCardReview[]; deployments?: RunCardDeployment[]; timeline?: PloegPlayTimeline | null; ciTiming?: PloegPlayCITiming | null; shape?: PloegPlayShape | null };
-export type RunCardCrew = { role: string; writes: boolean | null; runs?: number; costUsd?: number; inputTokens?: number; outputTokens?: number };
+export type RunCardRole = { role: string; writes: boolean | null; runs?: number; costUsd?: number; inputTokens?: number; outputTokens?: number };
 export type RunCardTotals = { costStatus: 'observed' | 'reserved' | 'not_reported'; usageComplete: boolean | null; firstRunAt: string | null; lastRunAt: string | null } & Partial<Record<'costUsd' | 'authorizedUsd' | 'inputTokens' | 'outputTokens' | 'cacheReadInputTokens' | 'cacheCreationInputTokens' | 'turns' | 'toolCalls' | 'runs' | 'failedRuns' | 'rounds' | 'shifts' | 'runSeconds', number>>;
 export type RunCardEvent = { at: string; kind: string; actor: string; detail: Record<string, string | number | boolean> };
 /** The first deploy of a Work Item's merged plays to one environment. */
@@ -116,7 +116,7 @@ export type RunCardRarityInputs = { reach: { modules: number | null; repos: numb
 /** A card's rarity (Ploeg ADR-0056, proposed): how exceptional its change was, as a challenge score from 0 to 100, predicted before the merge and revealed at release, tiered by percentile in its repository and quarter. */
 export type RunCardRarity = { formula: string; predicted: PloegRarityTier | null; revealed: PloegRarityTier | null; tier: PloegRarityTier; score: number | null; percentile: number | null; cohort: { target: string; quarter: string; size: number } | null; inputs: RunCardRarityInputs | null; revealedAt: string | null };
 /** A Run card: one per Work Item, its pull requests as plays, as Unfold assembles it from Ploeg's delivery facts (root ADR-0030). Facts only; an unknown value is absent or null, never zero. `finish` is always `matte`; the browser derives the finish from `release`. `rarity`, `grade`, `condition`, `gates` and `set` are validated, and a shape the browser cannot read becomes null. `deployments`, `release`, `live`, `gates`, `evolved`, `set`, `flow`, `pipeline` and `shape`, and a play's `timeline`, `ciTiming` and `shape`, are absent when the card has none, and an unreadable one is null. */
-export type RunCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: RunCardStyle; state: string; rarity: RunCardRarity | null; finish: 'matte'; grade: RunCardGrade | null; condition: RunCardCondition | null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; crew: RunCardCrew[]; plays: RunCardPlay[]; totals: RunCardTotals; events: RunCardEvent[]; deployments?: RunCardDeployment[]; release?: RunCardRelease | null; live?: RunCardLive | null; gates?: RunCardGates | null; evolved?: true; set?: RunCardSet | null; flow?: RunCardFlow | null; pipeline?: RunCardPipeline | null; shape?: RunCardShape | null; demo: boolean };
+export type RunCard = { workItemId: string; title: string; externalRef: string; url: string; team: string; target: { forge: string; owner: string; repo: string } | null; style: RunCardStyle; state: string; rarity: RunCardRarity | null; finish: 'matte'; grade: RunCardGrade | null; condition: RunCardCondition | null; steward: { name: string; source: string } | null; roster: { name: string; roles: string[] }[]; roles: RunCardRole[]; /** @deprecated The same list as `roles`, sent for one release (system ADR-0036). */ crew: RunCardRole[]; plays: RunCardPlay[]; totals: RunCardTotals; events: RunCardEvent[]; deployments?: RunCardDeployment[]; release?: RunCardRelease | null; live?: RunCardLive | null; gates?: RunCardGates | null; evolved?: true; set?: RunCardSet | null; flow?: RunCardFlow | null; pipeline?: RunCardPipeline | null; shape?: RunCardShape | null; demo: boolean };
 export type RunCardView = { card: RunCard; demo: boolean; fetchedAt: string };
 /** A Work Item named in an attribution. */
 export type PloegCrackItem = { workItemId: string; title: string; externalRef: string };
@@ -438,7 +438,7 @@ function cardPlay(value: unknown): RunCardPlay {
   const counts = ['additions', 'deletions', 'changedFiles'] as const;
   return { number: data.number, url: absent(data.url) ? '' : link(data.url), state: cardToken(data.state), shiftId: looseId(data.shiftId), branch: cardText(data.branch, 512), headSha: cardText(data.headSha, 64), mergeCommitSha: cardText(data.mergeCommitSha, 64), mergedAt: cardTime(data.mergedAt), mergedBy: cardText(data.mergedBy), closedAt: cardTime(data.closedAt), ...optionalNumbers(data, counts, counts), ci, reviews, ...cardDeployments(data.deployments), ...playKpis(data) };
 }
-function cardCrew(value: unknown): RunCardCrew {
+function cardRole(value: unknown): RunCardRole {
   const data = record(value);
   return { role: field(data.role, 100), writes: absent(data.writes) ? null : boolean(data.writes), ...optionalNumbers(data, ['runs', 'costUsd', 'inputTokens', 'outputTokens'] as const, ['runs', 'inputTokens', 'outputTokens']) };
 }
@@ -635,6 +635,7 @@ export function parseCard(value: unknown): RunCard {
   const steward = stewardData && cardText(stewardData.name) ? { name: cardText(stewardData.name), source: cardToken(stewardData.source) } : null;
   const targetData = absent(data.target) ? null : record(data.target);
   const workItemId = looseId(data.workItemId);
+  const roles = cardList(data.roles ?? data.crew, cardRole, 50);
   if (!workItemId) throw invalid();
   return {
     workItemId,
@@ -648,7 +649,8 @@ export function parseCard(value: unknown): RunCard {
     rarity: cardRarity(data.rarity), finish: 'matte', grade: cardGrade(data.grade), condition: cardCondition(data.condition),
     steward,
     roster: cardList(data.roster, entry => { const person = record(entry); return { name: field(person.name, 256), roles: cardList(person.roles, role => cardToken(role), 10) }; }, 50),
-    crew: cardList(data.crew, cardCrew, 50),
+    roles,
+    crew: roles,
     plays: cardList(data.plays, cardPlay, 100),
     totals: cardTotals(data.totals),
     events: cardList(data.events, cardEvent, 500),

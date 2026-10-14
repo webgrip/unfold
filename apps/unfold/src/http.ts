@@ -99,6 +99,12 @@ function sendAsset(req: IncomingMessage, res: ServerResponse, asset: { mediaType
   res.end(asset.content);
 }
 
+/** The Team a request names: `teamId`, or the retired `crewId` an older client still sends (system ADR-0036). Both at once must agree. */
+function teamInput(data: Record<string, unknown>): string {
+  if (data.teamId !== undefined && data.crewId !== undefined && data.teamId !== data.crewId) fault(400, 'team_conflict', 'teamId and crewId name different Teams. Send teamId only.');
+  return text(data.teamId ?? data.crewId, 'Team', 64);
+}
+
 function placementInput(value: unknown): 'local' | 'docker' | 'kubernetes' | undefined {
   if (value === undefined || value === null || value === '') return undefined;
   if (typeof value !== 'string' || !['local', 'docker', 'kubernetes'].includes(value)) fault(400, 'placement', 'Choose a workspace placement enabled on this workbench.');
@@ -408,7 +414,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           reports: { target: reports.publicTarget(), demo: config.mode === 'demo' },
           repositories: config.repositories.map(({ id, name, description, baseBranch, trackerUrl, executionOwner }) => ({ id, name, description, baseBranch, trackerUrl, executionOwner: executionOwner ?? 'interactive' })),
           taskSources: (config.taskSources ?? []).map(source => ({ ...publicTaskSource(source, config.ploeg), needsLink: !source.token && (source.provider === 'gitlab' || source.provider === 'clickup') ? source.provider : null })),
-          crews: config.crews, models: config.models,
+          teams: config.teams, crews: config.teams, models: config.models,
           runtimes: runtimeKinds.map(id => ({ id, name: id === 'demo' ? 'Demonstration' : id === 'opencode' ? 'OpenCode' : 'Command bridge', available: true })),
           placements: placements(config),
           maxBudgetUsd: config.maxBudgetUsd, maxConcurrentSessions: config.maxConcurrentSessions,
@@ -497,16 +503,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const sourceId = text(data.sourceId, 'Connection', 64);
           const taskId = text(data.taskId, 'Task', 128);
           const revision = text(data.revision, 'Task revision', 128);
-          const crewId = text(data.crewId, 'Team', 64);
+          const teamId = teamInput(data);
           const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
           const source = config.taskSources?.find(item => item.id === sourceId);
           if (!source) fault(404, 'source_not_found', 'Task connection not found.');
           if (!config.execution && (source!.executionOwner !== 'interactive' || config.repositories.find(repo => repo.id === source!.repositoryId)?.executionOwner === 'ploeg')) fault(403, 'ploeg_owned', 'Ploeg owns execution for this task connection. Assign its work through the tracker.');
-          if (!runtimeKinds.includes(runtime) || !config.crews.some(crew => crew.id === crewId)) fault(400, 'unknown_profile', 'Choose a configured team and runtime.');
+          if (!runtimeKinds.includes(runtime) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured team and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
           const snapshot = await getTask(await withUserToken(source!), taskId);
           if (snapshot.revision !== revision) fault(409, 'task_changed', 'The task changed after your preview. Refresh it and review the updated version.');
-          const result = await engine.importTask(snapshot, { crewId, runtime, budgetUsd: data.budgetUsd as number, placement: placementInput(data.placement) }, user, typeof data.bindingRevision === 'string' ? data.bindingRevision : undefined);
+          const result = await engine.importTask(snapshot, { teamId, runtime, budgetUsd: data.budgetUsd as number, placement: placementInput(data.placement) }, user, typeof data.bindingRevision === 'string' ? data.bindingRevision : undefined);
           return json(res, result.created ? 201 : 200, sanitize(publicSession(result.session)));
         }
         if (method === 'GET' && path === '/api/sessions') return json(res, 200, sanitize(store.listSessions().filter(session => session.ownerId === user.id || user.role === 'admin').map(publicSession)));
@@ -515,8 +521,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const data = await body(req);
           const runtime = text(data.runtime, 'Runtime', 32) as RuntimeKind;
           const repositoryId = text(data.repositoryId, 'Repository', 64);
-          const crewId = text(data.crewId, 'Team', 64);
-          if (!runtimeKinds.includes(runtime) || !config.repositories.some(repo => repo.id === repositoryId) || !config.crews.some(crew => crew.id === crewId)) fault(400, 'unknown_profile', 'Choose a configured repository, team and runtime.');
+          const teamId = teamInput(data);
+          if (!runtimeKinds.includes(runtime) || !config.repositories.some(repo => repo.id === repositoryId) || !config.teams.some(team => team.id === teamId)) fault(400, 'unknown_profile', 'Choose a configured repository, team and runtime.');
           if (typeof data.budgetUsd !== 'number' || !Number.isFinite(data.budgetUsd) || data.budgetUsd <= 0 || data.budgetUsd > config.maxBudgetUsd) fault(400, 'budget', `Budget must be greater than zero and at most $${config.maxBudgetUsd}.`);
           const trackerUrl = text(data.trackerUrl, 'Tracker link', 2048, true);
           if (trackerUrl) {
@@ -524,7 +530,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             try { parsed = new URL(trackerUrl); } catch { return fault(400, 'tracker_url', 'Use an HTTP(S) tracker link.'); }
             if (!['http:','https:'].includes(parsed.protocol) || parsed.username || parsed.password) fault(400, 'tracker_url', 'Use an HTTP(S) tracker link without credentials.');
           }
-          const session = engine.create({ approval: data.approval as 'manual' | 'auto' | undefined, model: text(data.model, 'Model', 64, true) || undefined, title: text(data.title, 'Title', 160), objective: text(data.objective, 'Objective', 16000), repositoryId, crewId, runtime, placement: placementInput(data.placement), budgetUsd: data.budgetUsd as number, trackerUrl: trackerUrl || undefined }, user);
+          const session = engine.create({ approval: data.approval as 'manual' | 'auto' | undefined, model: text(data.model, 'Model', 64, true) || undefined, title: text(data.title, 'Title', 160), objective: text(data.objective, 'Objective', 16000), repositoryId, teamId, runtime, placement: placementInput(data.placement), budgetUsd: data.budgetUsd as number, trackerUrl: trackerUrl || undefined }, user);
           return json(res, 201, sanitize(publicSession(session)));
         }
         if (path === '/api/me/card-identity' || path.startsWith('/api/binder') || path.startsWith('/api/packs') || path === '/api/season' || path.startsWith('/api/cards/')) {

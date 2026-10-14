@@ -1370,12 +1370,12 @@ function runTimeFact(detail, view, now) {
   return { label: 'Run time', value: duration(timed.reduce((total, value) => total + value, 0)), detail: detail.runs.some(run => run.state === 'running') ? 'So far' : 'All Runs added up' };
 }
 
-function crewFact(detail, view) {
+function rolesFact(detail, view) {
   const shift = latestShift(detail);
   const round = shift ? `Round ${shift.round}${detail.shifts?.length > 1 ? ` of attempt ${detail.shifts.length}` : ''}` : '';
   const roles = new Map();
   for (const run of detail.runs || []) roles.set(run.role || 'agent', (roles.get(run.role || 'agent') || 0) + 1);
-  const value = view && view.crew !== 'No agent Runs yet' ? view.crew : [...roles].map(([role, total]) => `${role} ×${total}`).join(' · ');
+  const value = view && view.roles !== 'No agent Runs yet' ? view.roles : [...roles].map(([role, total]) => `${role} ×${total}`).join(' · ');
   if (!value) return quiet('Roles', 'No Runs yet', round);
   return { label: 'Roles', value, detail: round, text: true };
 }
@@ -1418,7 +1418,7 @@ export function statusFacts(detail, card, { now = Date.now() } = {}) {
   const tokens = view?.tokens.known ? { label: 'Tokens', value: view.tokens.value, detail: view.tokens.detail } : quiet('Tokens', detail.demo ? 'None' : view ? view.tokens.value : 'Not reported', detail.demo ? 'Demo · no model calls' : '');
   const flow = (view?.kpis.headline || []).filter(entry => flowKeys.has(entry.key)).map(entry => ({ label: entry.label, value: entry.value, detail: [entry.working ? `${entry.working} working` : '', entry.detail].filter(Boolean).join(' · ') }));
   return [
-    { id: 'agents', label: 'Agent work', facts: [spendFact(detail, card, now), tokens, runTimeFact(detail, view, now), crewFact(detail, view)] },
+    { id: 'agents', label: 'Agent work', facts: [spendFact(detail, card, now), tokens, runTimeFact(detail, view, now), rolesFact(detail, view)] },
     { id: 'change', label: 'Change', facts: [pullRequestFact(detail, view), checksFact(detail, view), changeFact(view), approvalFact(view)] },
     ...(flow.length ? [{ id: 'flow', label: 'Flow', facts: flow }] : []),
   ];

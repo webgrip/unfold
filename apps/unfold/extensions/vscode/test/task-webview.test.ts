@@ -24,7 +24,7 @@ const detail = (state: string, extra: Record<string, unknown> = {}) => ({
   item: { id: '42', title: 'Explain the flow', provider: 'vikunja', externalId: '1505', team: 'silver', state, description: '', descriptionMarkdown: 'Brief from Ploeg', attempts: 1, target: { owner: 'webgrip', repo: 'glide' }, url: 'https://vikunja.example/tasks/1505', priority: 3, infraFailures: 0, createdAt: ago(60), updatedAt: ago(1), latestShift: null },
   shifts: [shift()], runs: [run('100')], checkpoints: [], events: [], ...extra,
 });
-const card = (extra: Record<string, unknown> = {}) => ({ workItemId: '42', state: 'in_review', crew: [{ role: 'builder', writes: true, runs: 2, costUsd: 0.32, inputTokens: 12000, outputTokens: 3400 }, { role: '', writes: false, runs: 1 }, { role: 'reviewer', writes: false, runs: 1 }], plays: [], totals: { costStatus: 'observed', usageComplete: true, costUsd: 0.4231, authorizedUsd: 5, runs: 3, failedRuns: 1, rounds: 2, shifts: 1 }, live: null, demo: false, ...extra });
+const card = (extra: Record<string, unknown> = {}) => ({ workItemId: '42', state: 'in_review', roles: [{ role: 'builder', writes: true, runs: 2, costUsd: 0.32, inputTokens: 12000, outputTokens: 3400 }, { role: '', writes: false, runs: 1 }, { role: 'reviewer', writes: false, runs: 1 }], plays: [], totals: { costStatus: 'observed', usageComplete: true, costUsd: 0.4231, authorizedUsd: 5, runs: 3, failedRuns: 1, rounds: 2, shifts: 1 }, live: null, demo: false, ...extra });
 const spaced = (value: string) => value.replace(/\u00a0|\u202f/g, ' ');
 const buttons = (node: StubElement) => node.find('button');
 const button = (node: StubElement, label: string) => buttons(node).find(entry => entry.textContent === label);
@@ -122,12 +122,12 @@ test('cost is the observed total marked unsettled, a live figure so far, or Not 
 });
 
 test('the cost per role table lists named roles from the Run card with nl-NL money and tokens', () => {
-  const table: StubElement = view.crewTable(current({ workItems: [item('leased')] }, {}, { card: card() }));
+  const table: StubElement = view.rolesTable(current({ workItems: [item('leased')] }, {}, { card: card() }));
   const rows = table.find('tbody')[0].find('tr');
   assert.equal(rows.length, 2, 'the role without a name is left out');
   assert.match(spaced(rows[0].textContent), /builderwriter2US\$ 0,3212K3,4K/);
   assert.match(rows[1].textContent, /reviewerreader1Not reportedNot reportedNot reported/);
-  assert.equal(view.crewTable(current({ workItems: [item('leased')] })), null);
+  assert.equal(view.rolesTable(current({ workItems: [item('leased')] })), null);
 });
 
 test('a needs_human item leads with the reason chip, sentence and fix from the shared reasons', () => {

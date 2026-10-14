@@ -24,7 +24,7 @@ async function reviewable(t: { after: (fn: () => unknown) => void }) {
   const id = randomUUID();
   const session = `ahp-session:/${id}`;
   const chat = defaultChatOf(session);
-  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Review' } });
+  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Review' } });
   for (const channel of [session, chat]) await client.rpc('subscribe', { channel });
   client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'review-turn', startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } } });
   await client.until(message => action(message, chat, 'chat/turnComplete') && message.params.action.turnId === 'review-turn');
@@ -157,7 +157,7 @@ test('feedback sent while the team can still read it becomes an instruction nami
   const server = await application();
   t.after(() => server.close());
   const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };
-  const created = server.app.engine.create({ title: 'Paused', objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const created = server.app.engine.create({ title: 'Paused', objective, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
   server.app.store.saveSession({ ...created, status: 'paused' });
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'paused' } });
   const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
@@ -189,8 +189,8 @@ test('the 059675b9 session offers no review and refuses Agent Merge: nothing wai
   const server = await application();
   t.after(() => server.close());
   const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };
-  const created = server.app.engine.create({ title: fixture.session.title, objective: fixture.session.objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
-  const stopped: Session = { ...created, ...fixture.session, placement: undefined, approval: undefined, id: created.id, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', ownerId: created.ownerId, ownerName: created.ownerName, runs: fixture.session.runs.map((run: Json) => ({ ...run, sessionId: created.id })) };
+  const created = server.app.engine.create({ title: fixture.session.title, objective: fixture.session.objective, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const stopped: Session = { ...created, ...fixture.session, placement: undefined, approval: undefined, id: created.id, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', ownerId: created.ownerId, ownerName: created.ownerName, runs: fixture.session.runs.map((run: Json) => ({ ...run, sessionId: created.id })) };
   server.app.store.saveSession(stopped);
   for (const event of fixture.events as Event[]) server.app.store.appendEvent(created.id, event.type, event.actor, event.data, event.runId);
   assert.deepEqual(reviewOperations(stopped, false), []);

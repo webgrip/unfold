@@ -111,7 +111,7 @@ function seal(view, h) {
 function base(view, h) {
   const e = h.escape;
   const condition = view.condition ? `<span class="hr-cond" data-condition="${e(view.condition.state)}" title="${e(view.condition.text)}">${e(view.condition.label)}</span>` : view.gates ? `<span class="hr-cond" title="${e(view.gates.text)}">${e(view.gates.label)}</span>` : '<span class="hr-cond"></span>';
-  const credit = view.crew === 'No agent Runs yet' ? `Team ${view.team || 'unknown'}` : `Illus. ${view.crew}${view.team ? ` · Team ${view.team}` : ''}`;
+  const credit = view.roles === 'No agent Runs yet' ? `Team ${view.team || 'unknown'}` : `Illus. ${view.roles}${view.team ? ` · Team ${view.team}` : ''}`;
   return `<div class="hr-base"><span class="il">${e(credit)}</span>${condition}<span class="hr-ids" data-slot="ids">${e(view.ids.join(' · '))}</span>${view.demo ? '<b class="hr-demo" title="Illustrative record: no model calls, no spend">Demo</b>' : ''}</div>`;
 }
 
@@ -121,7 +121,7 @@ function rootAttributes(view, layout, h) {
 }
 
 function roleLine(view) {
-  const role = view.crew === 'No agent Runs yet' ? '' : view.crew.split(' · ')[0].replace(/ ×\d+$/, '');
+  const role = view.roles === 'No agent Runs yet' ? '' : view.roles.split(' · ')[0].replace(/ ×\d+$/, '');
   const named = role ? role[0].toUpperCase() + role.slice(1) : 'Run card';
   return `${named}${view.rounds ? ` · Round ${view.rounds}` : ''}`;
 }

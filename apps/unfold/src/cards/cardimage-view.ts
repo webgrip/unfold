@@ -10,7 +10,8 @@ export type CardImageCard = {
   grade?: CardImageGrade | null;
   condition?: CardImageCondition | null;
   steward?: { name: string; source: string } | null;
-  crew?: CardImageCrew[] | null;
+  roles?: CardImageRole[] | null;
+  crew?: CardImageRole[] | null;
   plays?: CardImagePlay[] | null;
   totals: CardImageTotals;
   release?: CardImageRelease | null;
@@ -32,7 +33,7 @@ export type CardImageGrade = {
 export type CardImageCondition = { state: string; cracks: { mended: { confirmedAt: string | null } | null }[] | null };
 
 /** One Role's Runs as the card image reads them. */
-export type CardImageCrew = { role: string; runs: number };
+export type CardImageRole = { role: string; runs: number };
 
 /** One pull request of the card as the card image reads it. */
 export type CardImagePlay = {
@@ -146,7 +147,7 @@ export type CardView = {
   condition: string;
   steward: string;
   stewardBy: string;
-  crew: string;
+  roles: string;
   plays: string;
   ids: string[];
   repo: string;
@@ -163,7 +164,7 @@ export function newView(card: CardImageCard, now: string | Date): CardView {
   const v: CardView = {
     title: goTrim(card.title), demo: card.demo === true, state: neutral, cost: newCost(card), diff: '', diffKnown: false, adds: '', dels: '', files: '',
     pr: '', prState: neutral, ci: neutral, ciKnown: false, released: false, days: 0, dayText: '', finish: FinishLadder[0]!, source: '', grade: null,
-    cracks: 0, mended: 0, condition: '', steward: '', stewardBy: '', crew: '', plays: '', ids: [], repo: '',
+    cracks: 0, mended: 0, condition: '', steward: '', stewardBy: '', roles: '', plays: '', ids: [], repo: '',
   };
   if (v.title === '') v.title = `Work Item #${card.workItemId}`;
   v.state = lookup(cardStates, card.state, 'Drafting');
@@ -212,7 +213,7 @@ export function newView(card: CardImageCard, now: string | Date): CardView {
     v.steward = goTrim(card.steward.name);
     v.stewardBy = Object.hasOwn(stewardSources, card.steward.source) ? stewardSources[card.steward.source]! : '';
   }
-  v.crew = crewLine(card.crew ?? []);
+  v.roles = rolesLine(card.roles ?? card.crew ?? []);
   v.plays = plays.length > 0 ? plural(plays.length, 'play') : 'No plays yet';
   if (card.target && card.target.owner !== '' && card.target.repo !== '') v.repo = `${card.target.owner}/${card.target.repo}`;
   for (const id of [prefixed('#', card.workItemId), goTrim(card.externalRef ?? ''), v.repo]) if (id !== '') v.ids.push(id);
@@ -274,9 +275,9 @@ function diffOf(plays: CardImagePlay[]): [boolean, string, string, string] {
   return [true, `+${count(adds)}`, `−${count(dels)}`, counted > 0 ? plural(files, 'file') : ''];
 }
 
-function crewLine(crew: CardImageCrew[]): string {
+function rolesLine(roles: CardImageRole[]): string {
   const parts: string[] = [];
-  for (const m of crew) {
+  for (const m of roles) {
     let role = goTrim(m.role);
     if (role === '') continue;
     if ((m.runs ?? 0) > 0) role += ` ×${m.runs}`;

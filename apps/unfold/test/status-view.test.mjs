@@ -7,9 +7,9 @@ const check = (id, state, summary = `${id} ${state}`) => ({ id, title: id, state
 const report = (states, extra = {}) => ({ overall: 'operational', notes: [], checks: [check('ploeg', states[0]), check('gateway', states[1]), check('workspaces', states[2], states[2] === 'down' ? 'Every machine is busy.' : states[2] === 'ok' ? 'The last workspace started 12 min ago.' : 'Workspace check.')], ...extra });
 
 test('the start line follows the engine order and the team step is ready only while nothing before it is down', () => {
-  assert.deepEqual(startLine(report(['ok', 'ok', 'ok'])).map(step => [step.number, step.id, step.state]), [[1, 'ploeg', 'ok'], [2, 'gateway', 'ok'], [3, 'workspaces', 'ok'], [4, 'crew', 'ready']]);
+  assert.deepEqual(startLine(report(['ok', 'ok', 'ok'])).map(step => [step.number, step.id, step.state]), [[1, 'ploeg', 'ok'], [2, 'gateway', 'ok'], [3, 'workspaces', 'ok'], [4, 'team', 'ready']]);
   const blocked = startLine(report(['ok', 'ok', 'down']));
-  assert.deepEqual(blocked.at(-1), { id: 'crew', name: 'The team works', number: 4, state: 'unreached', summary: 'Waits for step 3.' });
+  assert.deepEqual(blocked.at(-1), { id: 'team', name: 'The team works', number: 4, state: 'unreached', summary: 'Waits for step 3.' });
 });
 
 test('a stopped step answers no, names the step, and says how long a new session would wait and that the wait is free', () => {

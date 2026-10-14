@@ -96,7 +96,7 @@ test('HTTP lifecycle rejects duplicate execution and invalid targets without pro
   t.after(() => server.close());
   for (const invalid of [
     { repositoryId: 'https://attacker.invalid/repo.git' },
-    { crewId: 'unknown-crew' },
+    { teamId: 'unknown-team' },
     { runtime: 'unknown-runtime' },
     { budgetUsd: -1 },
     { budgetUsd: 26 },

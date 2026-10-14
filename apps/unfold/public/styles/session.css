@@ -336,7 +336,7 @@
   overflow-wrap: anywhere;
 }
 
-.session-crew {
+.session-team {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -344,7 +344,7 @@
   padding: var(--space-3) var(--space-4);
 }
 
-.session-crew-heading {
+.session-team-heading {
   display: grid;
   min-width: 6rem;
 }
@@ -1397,7 +1397,7 @@
     grid-column: 1 / -1;
   }
 
-  .session-crew {
+  .session-team {
     padding: var(--space-3);
   }
 

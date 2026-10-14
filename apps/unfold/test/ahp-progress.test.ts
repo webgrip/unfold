@@ -13,8 +13,8 @@ async function stoppedSession(t: { after: (fn: () => unknown) => void }) {
   const server = await application();
   t.after(() => server.close());
   const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };
-  const created = server.app.engine.create({ title: fixture.session.title, objective: fixture.session.objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
-  const session: Session = { ...created, ...fixture.session, placement: undefined, approval: undefined, id: created.id, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', ownerId: created.ownerId, ownerName: created.ownerName, runs: fixture.session.runs.map((run: Json) => ({ ...run, sessionId: created.id })) };
+  const created = server.app.engine.create({ title: fixture.session.title, objective: fixture.session.objective, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const session: Session = { ...created, ...fixture.session, placement: undefined, approval: undefined, id: created.id, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', ownerId: created.ownerId, ownerName: created.ownerName, runs: fixture.session.runs.map((run: Json) => ({ ...run, sessionId: created.id })) };
   server.app.store.saveSession(session);
   for (const event of fixture.events as Event[]) server.app.store.appendEvent(created.id, event.type, event.actor, event.data, event.runId);
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'progress' } });
@@ -131,7 +131,7 @@ test('"Run again with this message" creates a queued session with the same brief
   assert.equal(created.objective, session.objective, 'the brief stays; a follow-up is not a brief');
   assert.deepEqual(server.app.store.events(created.id).filter(event => event.type === 'message' && event.data.role === 'operator').map(event => event.data.text), ['Make the readme sound like a mime instead.']);
   assert.equal(created.budgetUsd, session.budgetUsd, 'the budget defaults from the original');
-  assert.equal(created.crewId, session.crewId);
+  assert.equal(created.teamId, session.teamId);
   assert.equal(created.previousSessionId, id);
   const reply = await client.until(message => action(message, chat, 'chat/responsePart') && message.params.action.turnId === 'mime-turn' && /Created a new session/.test(message.params.action.part.content ?? ''));
   assert.match(reply.params.action.part.content, /and your message as an instruction its team reads/);
@@ -211,7 +211,7 @@ test('a message into a running session is acknowledged for the next Role and mar
   const server = await application();
   t.after(() => server.close());
   const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };
-  const created = server.app.engine.create({ title: 'Acknowledged', objective: 'Round half up in the order totals.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const created = server.app.engine.create({ title: 'Acknowledged', objective: 'Round half up in the order totals.', repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
   const [writer, reader] = created.runs;
   server.app.store.saveSession({ ...created, status: 'running' });
   server.app.store.appendEvent(created.id, 'run.started', writer.roleId, { role: writer.roleName, mode: 'write' }, writer.id);
@@ -245,7 +245,7 @@ test('a message into a queued session names the first Role, which picks it up wh
   const server = await application();
   t.after(() => server.close());
   const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };
-  const created = server.app.engine.create({ title: 'Queued', objective: 'Round half up in the order totals.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const created = server.app.engine.create({ title: 'Queued', objective: 'Round half up in the order totals.', repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'queued' } });
   const client = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
   t.after(() => client.close());

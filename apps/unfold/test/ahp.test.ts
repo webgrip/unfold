@@ -38,13 +38,13 @@ test('the agent host speaks AHP 0.9: initialize, create a session from a chat, s
   assert.deepEqual(await alice.rpc('ping', { channel: 'ahp-root://' }), {});
   const resolved = await alice.rpc('resolveSessionConfig', { channel: 'ahp-root://' });
   assert.ok(resolved.schema.properties.repository.enum.includes('order-service'));
-  assert.equal(resolved.values.crew, 'delivery');
+  assert.equal(resolved.values.team, 'delivery');
 
   const sessionId = randomUUID();
   const sessionUri = `unfold:/${sessionId}`;
   const chatUri = chatChannel(sessionId);
   assert.equal(chatUri, `ahp-chat://default/${Buffer.from(sessionUri).toString('base64url')}`, 'the default chat has the URI VS Code derives from the session');
-  assert.deepEqual(await alice.rpc('createSession', { channel: sessionUri, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Agent host demo' } }), {});
+  assert.deepEqual(await alice.rpc('createSession', { channel: sessionUri, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Agent host demo' } }), {});
   await alice.until(message => action(message, sessionUri, 'session/ready'));
   await alice.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === sessionUri);
   await assert.rejects(alice.rpc('createSession', { channel: sessionUri }), (error: any) => error.code === -32003);
@@ -267,7 +267,7 @@ test('the agent host keeps each user to their own sessions, summaries and reject
   const bob = await attach('bob-ahp');
 
   const sessionUri = `unfold:/${randomUUID()}`;
-  await alice.rpc('createSession', { channel: sessionUri, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Alice private work' } });
+  await alice.rpc('createSession', { channel: sessionUri, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Alice private work' } });
   await alice.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === sessionUri);
   await assert.rejects(bob.rpc('subscribe', { channel: sessionUri }), (error: any) => error.code === -32001, 'another user cannot subscribe to a pending session');
   await assert.rejects(bob.rpc('disposeSession', { channel: sessionUri }), (error: any) => error.code === -32001, 'another user cannot dispose a pending session');
@@ -314,12 +314,13 @@ test('a client that is not VS Code keeps the ahp-session spelling it created a s
   await client.open;
   await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'legacy', initialSubscriptions: ['ahp-root://'] });
   const id = randomUUID();
-  await client.rpc('createSession', { channel: `ahp-session:/${id}`, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Legacy spelling' } });
+  await client.rpc('createSession', { channel: `ahp-session:/${id}`, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Legacy spelling' }, model: { id: 'unfold-crew' } });
   await client.until(message => action(message, `ahp-session:/${id}`, 'session/ready'));
   await client.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === `ahp-session:/${id}`);
   await client.rpc('subscribe', { channel: `ahp-chat:/${id}` });
   client.notify('dispatchAction', { channel: `ahp-chat:/${id}`, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'legacy-turn', startedAt: new Date().toISOString(), message: { text: 'Reproduce the rounding regression and fix it with the tests intact.', origin: { kind: 'user' } } } });
   await client.until(message => action(message, `ahp-chat:/${id}`, 'chat/turnComplete'));
+  assert.deepEqual(server.app.store.listSessions().map(session => [session.teamId, session.crewId]), [['delivery', 'delivery']], 'the retired configuration key crew and composer model unfold-crew still create a session in that Team');
   const listed = await client.rpc('listSessions', { channel: 'ahp-root://' });
   assert.ok(listed.items.some((item: Json) => item.resource === `ahp-session:/${id}`), 'the client-chosen URI survives the first turn');
   assert.ok(!JSON.stringify(client.inbox).includes(`unfold:/${id}`), 'the provider spelling never reaches a client that is not VS Code');
@@ -364,7 +365,7 @@ test('each client sees every session in its own spelling: unfold:/ for a VS Code
   const modernUri = `ahp-session:/${id}`;
   const legacyUri = `unfold:/${id}`;
   const modernChat = defaultChatOf(modernUri);
-  await modern.rpc('createSession', { channel: modernUri, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Spelled per client' } });
+  await modern.rpc('createSession', { channel: modernUri, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Spelled per client' } });
   assert.equal((await modern.until(message => message.method === 'root/sessionAdded')).params.summary.resource, modernUri);
   assert.equal((await legacy.until(message => message.method === 'root/sessionAdded')).params.summary.resource, legacyUri);
   assert.equal((await plain.until(message => message.method === 'root/sessionAdded')).params.summary.resource, modernUri, 'a client that is not VS Code gets the ahp-session spelling without declaring anything');
@@ -422,7 +423,7 @@ test('read and archived marks belong to the person who set them, survive summary
   const aliceElsewhere = await attach('alice-marks', 'operator-password-314159');
   const admin = await attach('admin', 'test-admin-password-314159');
   const bob = await attach('bob-marks', 'operator-password-314159');
-  const session = server.app.engine.create({ title: 'Alice marks this', objective: 'Fix the order rounding regression and provide the actual verification result.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode', budgetUsd: 1 }, { id: 'alice-marks', name: 'alice-marks', role: 'operator' });
+  const session = server.app.engine.create({ title: 'Alice marks this', objective: 'Fix the order rounding regression and provide the actual verification result.', repositoryId: 'order-service', teamId: 'delivery', runtime: 'opencode', budgetUsd: 1 }, { id: 'alice-marks', name: 'alice-marks', role: 'operator' });
   const aliceUri = `ahp-session:/${session.id}`;
   const aliceChat = defaultChatOf(aliceUri);
   const legacyUri = `unfold:/${session.id}`;

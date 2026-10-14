@@ -31,8 +31,8 @@ const reviewRuns = [
   run('103', { round: 2, startedAt: ago(21), finishedAt: ago(15), outcome: 'pr_updated' }),
   run('104', { role: 'reviewer', writes: false, round: 2, startedAt: ago(14), finishedAt: ago(10), outcome: 'no_change_needed', verdict: 'approve', usage: { inputTokens: 16000, outputTokens: 700, costUsd: 0.044 } }),
 ];
-const crew = [{ role: 'engineer', writes: true, runs: 3, costUsd: 0.4282, inputTokens: 82400, outputTokens: 10600 }, { role: '', writes: null, runs: 1 }, { role: 'reviewer', writes: false, runs: 2, costUsd: 0.095, inputTokens: 34000, outputTokens: 1600 }];
-const card = (extra = {}) => ({ workItemId: '42', state: 'in_review', crew, plays: [], totals: { costStatus: 'observed', usageComplete: true, costUsd: 0.5232, authorizedUsd: 5, runs: 5, failedRuns: 1, rounds: 2, shifts: 1 }, live: null, demo: false, ...extra });
+const roles = [{ role: 'engineer', writes: true, runs: 3, costUsd: 0.4282, inputTokens: 82400, outputTokens: 10600 }, { role: '', writes: null, runs: 1 }, { role: 'reviewer', writes: false, runs: 2, costUsd: 0.095, inputTokens: 34000, outputTokens: 1600 }];
+const card = (extra = {}) => ({ workItemId: '42', state: 'in_review', roles, plays: [], totals: { costStatus: 'observed', usageComplete: true, costUsd: 0.5232, authorizedUsd: 5, runs: 5, failedRuns: 1, rounds: 2, shifts: 1 }, live: null, demo: false, ...extra });
 const play = { number: 77, url: 'https://forgejo.example/webgrip/glide/pulls/77', state: 'open', branch: 'unfold/42-one-total', mergedAt: null, additions: 214, deletions: 37, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [] };
 
 const files = { '/task.js': 'task.js', '/task.css': 'task.css', '/session.css': 'session.css', '/tokens.css': 'tokens.css', '/common.js': 'common.js', '/core/states.js': 'core/states.js', '/core/format.js': 'core/format.js', '/core/reasons.js': 'core/reasons.js', '/core/checkout.js': 'core/checkout.js', '/core/progress.js': 'core/progress.js', '/core/terms.js': 'core/terms.js' };
@@ -124,7 +124,7 @@ try {
   await page.getByRole('heading', { name: 'A pull request is waiting for your review.', exact: true }).waitFor();
   await page.getByRole('heading', { name: 'Problem → Solution' }).waitFor();
   await page.getByText('The agent’s own account: verify it against pull request #77.').waitFor();
-  assert.equal(await page.locator('.crew tbody tr').count(), 2, 'the cost per role lists named roles only');
+  assert.equal(await page.locator('.roles tbody tr').count(), 2, 'the cost per role lists named roles only');
   assert.match((await page.locator('.stat', { hasText: 'Cost' }).innerText()).replace(/\s+/g, ' '), /US\$ 0,52 observed, not settled/);
   await page.getByText('Agent review: approve').first().waitFor();
   await page.getByText('Human reviews: Changes requested by ryan').waitFor();

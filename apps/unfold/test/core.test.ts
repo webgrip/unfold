@@ -18,13 +18,13 @@ function configuration(dataDir: string, mode: 'demo' | 'live' = 'demo'): AppConf
   return {
     mode, dataDir, publicDir: '', host: '127.0.0.1', port: 0,
     repositories: [{ id: 'order-service', name: 'Order service', description: 'Fixture', url: 'demo://order-service', baseBranch: 'main', verify: ['node --test test/order.test.js'] }],
-    crews: [{ id: 'build-review', name: 'Build and review', description: 'Two required roles', roles: [{ id: 'writer', name: 'Writer', mode: 'write', instruction: 'Repair the fixture' }, { id: 'reviewer', name: 'Reviewer', mode: 'read', instruction: 'Review the actual patch' }] }],
+    teams: [{ id: 'build-review', name: 'Build and review', description: 'Two required roles', roles: [{ id: 'writer', name: 'Writer', mode: 'write', instruction: 'Repair the fixture' }, { id: 'reviewer', name: 'Reviewer', mode: 'read', instruction: 'Review the actual patch' }] }],
     models: [], runtime: { kind: mode === 'demo' ? 'demo' : 'opencode', backend: 'local', timeoutMs: 30000 },
     auth: { secureCookies: false, sessionHours: 1, bootstrapName: 'admin' }, maxConcurrentSessions: 2, maxBudgetUsd: 10,
   };
 }
 
-function input(runtime: RuntimeKind = 'demo') { return { title: 'Repair rounding', objective: 'Fix the reported rounding example and show independent verification.', repositoryId: 'order-service', crewId: 'build-review', runtime, budgetUsd: 2 }; }
+function input(runtime: RuntimeKind = 'demo') { return { title: 'Repair rounding', objective: 'Fix the reported rounding example and show independent verification.', repositoryId: 'order-service', teamId: 'build-review', runtime, budgetUsd: 2 }; }
 
 async function fixture(t: test.TestContext, mode: 'demo' | 'live' = 'demo') {
   const directory = await mkdtemp(join(tmpdir(), 'unfold-core-'));
@@ -140,12 +140,12 @@ test('a writer whose candidate export failed completes without claiming a captur
 
 test('a read-only investigation completes on any reviewer verdict and says which verdict it got', async t => {
   const { store, config } = await fixture(t);
-  config.crews.push({ id: 'investigation', name: 'Investigation', description: 'Read only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate' }, { id: 'challenger', name: 'Challenger', mode: 'read', instruction: 'Challenge the findings' }] });
+  config.teams.push({ id: 'investigation', name: 'Investigation', description: 'Read only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate' }, { id: 'challenger', name: 'Challenger', mode: 'read', instruction: 'Challenge the findings' }] });
   const expected = { inconclusive: ['inconclusive', 'The reviewer was inconclusive.'], approve: ['approved', 'The reviewer explicitly approved.'] } as const;
   for (const [verdict, [review, sentence]] of Object.entries(expected)) {
     const runtime = new ControlledRuntime(); runtime.verdict = verdict as ExecutionResult['verdict'];
     const engine = new Engine(store, config, { demo: runtime });
-    const session = engine.create({ ...input(), crewId: 'investigation' }, owner);
+    const session = engine.create({ ...input(), teamId: 'investigation' }, owner);
     await engine.start(session.id, owner);
     await until(() => ['completed', 'failed'].includes(store.getSession(session.id)?.status ?? ''));
     const final = store.getSession(session.id)!;

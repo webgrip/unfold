@@ -22,7 +22,7 @@ export function configuration(dataDir: string, mode: 'demo' | 'live' = 'demo'): 
     dataDir,
     publicDir: join(repositoryRoot, 'public'),
     repositories: [{ id: 'order-service', name: 'Order service', description: 'Order rounding verification fixture', url: 'demo://order-service', baseBranch: 'main', verify: ['node', '--test', 'test/order.test.js'] }],
-    crews: [{ id: 'delivery', name: 'Delivery team', description: 'One implementation followed by independent review', roles: [
+    teams: [{ id: 'delivery', name: 'Delivery team', description: 'One implementation followed by independent review', roles: [
       { id: 'builder', name: 'Builder', mode: 'write', instruction: 'Fix the order rounding regression and verify the repository.' },
       { id: 'reviewer', name: 'Reviewer', mode: 'read', instruction: 'Review the diff and verify the checks.' },
     ] }],
@@ -89,7 +89,7 @@ export async function login(url: string, name = 'admin', password = 'test-admin-
 }
 
 export function createInput(overrides: Record<string, unknown> = {}) {
-  return { title: 'Correct the order rounding', objective: 'Fix the order rounding regression and provide the actual verification result.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 3, ...overrides };
+  return { title: 'Correct the order rounding', objective: 'Fix the order rounding regression and provide the actual verification result.', repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 3, ...overrides };
 }
 
 export async function createSession(url: string, options: { cookie?: string; overrides?: Record<string, unknown> } = {}): Promise<Session> {

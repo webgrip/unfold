@@ -192,12 +192,12 @@ function qualityRow(view, h) {
 
 function madeBy(view, h) {
   const e = h.escape;
-  const crew = view.crew === 'No agent Runs yet' ? 'No agent Runs yet' : `Made by ${view.crew}`;
-  return `<p class="lt-made">&lt;${e(crew)}${view.team ? ` · Team ${e(view.team)}` : ''}&gt;</p>`;
+  const roles = view.roles === 'No agent Runs yet' ? 'No agent Runs yet' : `Made by ${view.roles}`;
+  return `<p class="lt-made">&lt;${e(roles)}${view.team ? ` · Team ${e(view.team)}` : ''}&gt;</p>`;
 }
 
 function roleLine(view) {
-  const role = view.crew === 'No agent Runs yet' ? '' : view.crew.split(' · ')[0].replace(/ ×\d+$/, '');
+  const role = view.roles === 'No agent Runs yet' ? '' : view.roles.split(' · ')[0].replace(/ ×\d+$/, '');
   const named = role ? `${role[0].toUpperCase()}${role.slice(1)}'s patch` : 'Run card';
   return `${named}${view.rounds ? ` · Round ${view.rounds}` : ''}`;
 }

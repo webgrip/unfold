@@ -114,7 +114,7 @@ test('VS Code sees the gateway server in a session, is refused Add Remote Plugin
   assert.equal((await dispatch('ahp-root://', { type: 'root/configChanged', config: { trustedUris: ['file:///Users/operator/projects'] } })).params.rejectionReason, undefined);
 
   const session = `unfold:/${randomUUID()}`;
-  await vscode.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Gateway tools' } });
+  await vscode.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Gateway tools' } });
   const state = (await vscode.rpc('subscribe', { channel: session })).snapshot.state;
   const id = gatewayCustomizationId(session.slice('unfold:/'.length));
   assert.deepEqual(state.customizations.map((entry: Json) => [entry.type, entry.id, entry.state?.kind]), [['mcpServer', id, 'starting']]);

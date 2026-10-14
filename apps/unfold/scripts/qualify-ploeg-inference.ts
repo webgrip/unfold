@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createApplication } from '../src/main.ts';
-import { defaultCrews } from '../src/config.ts';
+import { defaultTeams } from '../src/config.ts';
 import type { AgentRuntime, AppConfig, Credential, ExecutionContext, ExecutionResult, Session, User } from '../src/types.ts';
 
 const upstream = process.env.PLOEG_QUALIFICATION_URL;
@@ -41,7 +41,7 @@ const directory = await mkdtemp(join(tmpdir(), 'unfold-inference-'));
 const config: AppConfig = {
   mode: 'live', dataDir: directory, publicDir: fileURLToPath(new URL('../public', import.meta.url)), host: '127.0.0.1', port: 0,
   repositories: [{ id: 'order-service', name: 'Order service', description: 'Paid-path fixture; never cloned by the qualification runtime', url: 'https://fixture.invalid/order-service.git', baseBranch: 'main', verify: ['node', '--test'], executionOwner: 'ploeg' }],
-  crews: defaultCrews.filter(crew => crew.id === 'delivery'),
+  teams: defaultTeams.filter(team => team.id === 'delivery'),
   models: [{ id: 'coding', name: 'Qualification coding alias', providerId: 'litellm', modelId: 'qualification-coding' }],
   runtime: { kind: 'opencode', backend: 'local', timeoutMs: 30000, briefCheck: false },
   auth: { secureCookies: false, sessionHours: 1, bootstrapName: 'admin', bootstrapPassword: randomBytes(18).toString('hex') },
@@ -61,7 +61,7 @@ async function until(read: () => boolean | Promise<boolean>, label: string, time
   const end = Date.now() + timeout;
   while (!await read()) { assert.ok(Date.now() < end, `Timed out: ${label}`); await delay(25); }
 }
-const create = (title: string) => app.engine.create({ title, objective: 'Fix the reproducible rounding fixture and prove it with independent executed checks.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode', budgetUsd: 1 } as any, owner);
+const create = (title: string) => app.engine.create({ title, objective: 'Fix the reproducible rounding fixture and prove it with independent executed checks.', repositoryId: 'order-service', teamId: 'delivery', runtime: 'opencode', budgetUsd: 1 } as any, owner);
 
 try {
   assert.equal(app.engine.broker, undefined, 'a governed workbench must not hold a gateway master broker');

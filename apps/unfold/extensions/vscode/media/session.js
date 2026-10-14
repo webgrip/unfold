@@ -6,7 +6,7 @@ const tabs = ['brief', 'changes', 'checks', 'activity', 'gateway'];
 let detail;
 let tab = tabs.includes(saved.tab) ? saved.tab : 'brief';
 let draft = saved.draft || '';
-let activityFilter = saved.activityFilter || 'all';
+let activityFilter = ['all', 'team', 'tools', 'workbench'].includes(saved.activityFilter) ? saved.activityFilter : 'all';
 let connected = true;
 let connectionMessage = '';
 let pending = false;
@@ -146,10 +146,10 @@ function decisionCard(request, session, mutable) {
   return card;
 }
 
-function crewStrip(session) {
+function roleStrip(session) {
   if (!session.runs.length) return element('p', { className: 'empty' }, 'The team is ready. Starting this session creates its remote runs.');
   const total = session.runs.length;
-  return element('ol', { className: 'crew' }, ...session.runs.map((run, index) => {
+  return element('ol', { className: 'role-strip' }, ...session.runs.map((run, index) => {
     const stateText = run.status === 'completed' ? (run.verdict === 'approve' ? 'Explicitly approved' : run.verdict === 'request_changes' ? 'Requested changes' : run.verdict === 'inconclusive' ? 'Inconclusive' : 'Work completed') : run.status === 'running' ? 'Working in the remote workspace' : run.status === 'waiting_input' ? 'Waiting for your decision' : run.status === 'queued' ? 'Waiting for its turn' : run.status === 'failed' ? 'Failed' : readable(run.status);
     const elapsed = run.startedAt ? duration(run.startedAt, run.finishedAt) : '';
     const attention = run.status === 'failed' || run.verdict === 'request_changes';
@@ -253,7 +253,7 @@ function visibleEvents(events) {
 }
 
 function eventCategory(event) {
-  if (['message', 'text', 'assistant.message'].includes(event.type)) return event.data.role === 'operator' || event.actor === 'operator' ? 'operator' : 'crew';
+  if (['message', 'text', 'assistant.message'].includes(event.type)) return event.data.role === 'operator' || event.actor === 'operator' ? 'operator' : 'team';
   if (event.type === 'tool' || event.type === 'tool.updated') return 'tools';
   return 'workbench';
 }
@@ -293,7 +293,7 @@ function systemText(event, session) {
 
 function eventNode(event, session) {
   const category = eventCategory(event);
-  if (category === 'crew' || category === 'operator') {
+  if (category === 'team' || category === 'operator') {
     const role = category === 'operator' ? 'You' : roleFor(session, event.runId) || 'Team';
     return element('article', { className: `message message-${category}` }, element('div', { className: 'avatar', 'aria-hidden': 'true' }, role.slice(0, 1)), element('div', { className: 'message-body' }, element('header', {}, element('strong', {}, role), event.data.applies === 'next_execution' ? element('span', { className: 'tag' }, 'Next execution') : null, element('time', { datetime: event.at }, clock(event.at))), markdown(String(event.data.text ?? event.data.message ?? ''))));
   }
@@ -345,8 +345,8 @@ function briefEvent(event, session) {
 }
 
 function activityTab(session, events) {
-  const filters = [['all', 'All'], ['crew', 'Team'], ['tools', 'Tools'], ['workbench', 'Workbench']];
-  const visible = visibleEvents(events).filter(event => activityFilter === 'all' || eventCategory(event) === activityFilter || (activityFilter === 'crew' && eventCategory(event) === 'operator'));
+  const filters = [['all', 'All'], ['team', 'Team'], ['tools', 'Tools'], ['workbench', 'Workbench']];
+  const visible = visibleEvents(events).filter(event => activityFilter === 'all' || eventCategory(event) === activityFilter || (activityFilter === 'team' && eventCategory(event) === 'operator'));
   const active = ['running', 'exporting', 'waiting_input'].includes(session.status);
   return element('div', { className: 'activity' },
     element('div', { className: 'activity-bar' }, element('div', { className: 'chips', role: 'group', 'aria-label': 'Filter activity' }, ...filters.map(([id, label]) => action(label, 'filter', { className: `chip-button${activityFilter === id ? ' selected' : ''}`, 'data-filter': id, 'aria-pressed': activityFilter === id }))), element('div', { className: 'activity-tools' }, element('label', { className: 'follow' }, element('input', { type: 'checkbox', id: 'follow', checked: follow }), 'Follow newest'), action('Open complete history', 'history', { className: 'quiet' }))),
@@ -539,7 +539,7 @@ function render() {
   const header = element('header', { className: 'session-header' },
     element('div', { className: 'eyebrow' }, element('span', { className: 'brand-mark', 'aria-hidden': 'true' }, brandMark()), 'UNFOLD', element('span', { className: 'remote-label' }, 'WORKBENCH SESSION'), host ? element('span', { className: 'remote-label' }, host) : null, element('span', { className: 'remote-label' }, placementText(session.placement, host).toUpperCase())),
     element('div', { className: 'title-row' }, element('h1', {}, session.title), element('span', { className: `pill status-${session.status}` }, session.status === 'completed' && session.review ? (session.review.decision === 'accepted' ? 'Accepted' : 'Rejected') : statusNames[session.status] || readable(session.status))),
-    element('p', { className: 'subtitle' }, element('span', {}, session.repositoryId), ' / ', element('span', {}, session.crewId), ' · ', session.runtime, session.placement ? ` · ${session.placement}` : '', session.approval === 'auto' ? ' · approves automatically' : '', ' · ', element('code', {}, session.branch)),
+    element('p', { className: 'subtitle' }, element('span', {}, session.repositoryId), ' / ', element('span', {}, session.teamId ?? session.crewId), ' · ', session.runtime, session.placement ? ` · ${session.placement}` : '', session.approval === 'auto' ? ' · approves automatically' : '', ' · ', element('code', {}, session.branch)),
     element('div', { className: `situation situation-${session.status}` }, element('p', { className: 'headline' }, headline), next ? element('p', { className: 'next' }, next) : null),
     element('div', { className: 'toolbar', 'aria-label': 'Session actions' },
       writer && session.status === 'queued' ? action('Start team', 'start', { className: 'primary', disabled: !mutable }) : null,
@@ -565,7 +565,7 @@ function render() {
   const nav = element('div', { className: 'tabs', role: 'tablist', 'aria-label': 'Session information' }, ...tabs.map(value => action('', 'tab', { id: `tab-${value}`, 'data-tab': value, role: 'tab', 'aria-controls': 'tab-content', 'aria-selected': tab === value, tabindex: tab === value ? '0' : '-1', className: tab === value ? 'selected' : '' }, value === 'changes' ? ['Changes', diffs ? element('span', { className: 'count' }, String(diffs)) : null] : value === 'checks' ? ['Checks', checks ? element('span', { className: 'count' }, String(checks)) : null] : value === 'gateway' ? ['Gateway', requestCount ? element('span', { className: 'count' }, String(requestCount)) : null] : value[0].toUpperCase() + value.slice(1))));
   const content = tab === 'brief' ? briefTab(session) : tab === 'changes' ? changesTab(session) : tab === 'checks' ? checksTab(session) : tab === 'gateway' ? gatewayTab(session, gateway, detail.observability) : activityTab(session, events);
   const main = element('div', { className: 'main-column' },
-    element('section', { className: 'crew-section' }, element('div', { className: 'section-heading' }, element('h2', {}, 'Your team'), element('span', {}, `Sequential roles · ${placementText(session.placement, host)}`)), crewStrip(session)),
+    element('section', { className: 'team-section' }, element('div', { className: 'section-heading' }, element('h2', {}, 'Your team'), element('span', {}, `Sequential roles · ${placementText(session.placement, host)}`)), roleStrip(session)),
     nav, element('div', { id: 'tab-content', role: 'tabpanel', 'aria-labelledby': `tab-${tab}`, className: 'tab-content' }, content),
     composer(session, writer));
 

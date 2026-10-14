@@ -10,7 +10,7 @@ export const providerLabels = { gitlab: 'GitLab', clickup: 'ClickUp' };
 /** Names a configured repository, falling back to its id. */
 export function repoName(id) { return state.bootstrap.repositories.find(repo => repo.id === id)?.name || id; }
 /** Names a configured team, falling back to its id. */
-export function crewName(id) { return state.bootstrap.crews.find(crew => crew.id === id)?.name || id; }
+export function teamName(id) { return state.bootstrap.teams.find(team => team.id === id)?.name || id; }
 /** Names a configured runtime, falling back to its id. */
 export function runtimeName(id) { return state.bootstrap.runtimes.find(runtime => runtime.id === id)?.name || id; }
 /** Names a configured workspace placement, falling back to its id. */

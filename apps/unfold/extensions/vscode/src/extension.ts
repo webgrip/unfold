@@ -27,7 +27,7 @@ import type { Approval, Bootstrap, Session, TaskSnapshot, TaskSource, CandidateF
 import { readPublication } from './publication.js';
 
 type SessionRef = string | SessionEntry | undefined;
-type Draft = { repositoryId?: string; crewId?: string; runtime?: string; placement?: string; approval?: Approval; model?: string; title?: string; objective?: string; budgetUsd?: number; autoStart?: boolean };
+type Draft = { repositoryId?: string; teamId?: string; runtime?: string; placement?: string; approval?: Approval; model?: string; title?: string; objective?: string; budgetUsd?: number; autoStart?: boolean };
 
 function settings() { return vscode.workspace.getConfiguration('unfold'); }
 
@@ -600,7 +600,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const draft = { ...(this.drafts.get(key) ?? {}), ...fixed };
     const steps: wizard.Step<Draft>[] = [];
     if (!fixed.repositoryId) steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Repository`, placeholder: 'Choose a registered repository', selected: state.repositoryId, items: bootstrap.repositories.map(repo => ({ label: repo.name, description: `${repo.baseBranch}${repo.executionOwner === 'ploeg' ? ' · Ploeg-owned' : ''}`, detail: repo.description, value: repo.id })) }).then(value => value === wizard.back || value === undefined ? value : { repositoryId: value }));
-    steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Team`, placeholder: 'Choose a reusable team', selected: state.crewId, items: bootstrap.crews.map(crew => ({ label: crew.name, description: crew.roles.map(role => role.name).join(' → '), detail: crew.description, value: crew.id })) }).then(value => value === wizard.back || value === undefined ? value : { crewId: value }));
+    steps.push((state, position) => wizard.pick({ ...position, title: `${label} · Team`, placeholder: 'Choose a reusable team', selected: state.teamId, items: bootstrap.teams.map(team => ({ label: team.name, description: team.roles.map(role => role.name).join(' → '), detail: team.description, value: team.id })) }).then(value => value === wizard.back || value === undefined ? value : { teamId: value }));
     if (!demo && bootstrap.models.length) steps.push(async (state, position) => {
       const routes = await this.current.models().catch(() => []);
       const describe = (modelId: string) => { const route = routes.find(item => item.modelId === modelId); if (!route) return ''; const tiers = route.tiers ? Object.entries(route.tiers).map(([tier, target]) => `${tier.toLowerCase()} → ${target}${routes.find(item => item.modelId === target)?.provider ? ` (${routes.find(item => item.modelId === target)!.provider})` : ''}`).join(' · ') : ''; return route.tiers ? `Router: ${tiers}` : route.provider ? `Served by ${route.provider}` : ''; };
@@ -630,7 +630,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     });
     if (offerApproval) steps.push(async (state, position) => {
       const repository = bootstrap.repositories.find(repo => repo.id === state.repositoryId);
-      const crew = bootstrap.crews.find(item => item.id === state.crewId);
+      const team = bootstrap.teams.find(item => item.id === state.teamId);
       const placement = effectivePlacement(state);
       const placementName = placements.find(item => item.id === placement)?.name ?? placement ?? 'default placement';
       const model = state.model ? bootstrap.models.find(item => item.id === state.model)?.name ?? state.model : 'Team default';
@@ -638,7 +638,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       const summary: Array<vscode.QuickPickItem & { value: 'create' | 'create-start' | 'change' }> = [
         { label: 'Summary', kind: vscode.QuickPickItemKind.Separator, value: 'change' },
         { label: `$(folder) ${repository?.name ?? state.repositoryId}`, description: 'repository', value: 'change' },
-        { label: `$(organization) ${crew?.name ?? state.crewId}`, description: 'team', detail: crew?.roles.map(role => role.name).join(' → '), value: 'change' },
+        { label: `$(organization) ${team?.name ?? state.teamId}`, description: 'team', detail: team?.roles.map(role => role.name).join(' → '), value: 'change' },
         { label: `$(hubot) ${model}`, description: 'model', value: 'change' },
         { label: `$(server) ${placementName}`, description: 'placement', detail: `Runs in ${placementLabel(placement, this.current.origin)}.`, value: 'change' },
         { label: `$(shield) ${automatic ? 'Tool use approved automatically' : 'Every tool use asks you'}`, description: 'approval', value: 'change' },
@@ -683,7 +683,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const placement = draft.placement ?? bootstrap.placements?.find(item => item.default)?.id;
     const automatic = draft.approval === 'auto' && isolatedPlacement(placement);
     this.assertTarget(target, generation);
-    const session = await target.create({ title: draft.title!, objective: draft.objective!, repositoryId: draft.repositoryId!, crewId: draft.crewId!, runtime: draft.runtime!, ...(draft.placement ? { placement: draft.placement } : {}), ...(automatic ? { approval: 'auto' as const } : {}), ...(draft.model ? { model: draft.model } : {}), budgetUsd: draft.budgetUsd! });
+    const session = await target.create({ title: draft.title!, objective: draft.objective!, repositoryId: draft.repositoryId!, teamId: draft.teamId!, runtime: draft.runtime!, ...(draft.placement ? { placement: draft.placement } : {}), ...(automatic ? { approval: 'auto' as const } : {}), ...(draft.model ? { model: draft.model } : {}), budgetUsd: draft.budgetUsd! });
     if (draft.autoStart) await target.action(session.id, 'start').catch(error => { void vscode.window.showWarningMessage(`The session was created but did not start: ${error instanceof Error ? error.message : String(error)}`); });
     this.drafts.delete('create');
     await this.refresh();
@@ -800,11 +800,11 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     if (!eligibility.allowed) { void vscode.window.showInformationMessage(eligibility.reason ?? 'This task cannot start a session.'); return; }
     const draft = await this.engagement(bootstrap, `import:${task.key}`, { repositoryId: task.repositoryId, title: task.title, objective: task.description || task.title }, 'Start a supervised session');
     if (!draft) return;
-    const confirm = await vscode.window.showInformationMessage('Create a session from this task revision?', { modal: true, detail: `${task.title}\n${providerNames[task.provider] ?? task.provider} ${task.identifier ?? `#${task.id}`} → ${task.repositoryId}\n${target.origin}\n${bootstrap.crews.find(crew => crew.id === draft.crewId)?.name} · ${draft.runtime} · $${draft.budgetUsd!.toFixed(2)} authorized\nThe team starts only when you choose Start remote team.` }, 'Create session');
+    const confirm = await vscode.window.showInformationMessage('Create a session from this task revision?', { modal: true, detail: `${task.title}\n${providerNames[task.provider] ?? task.provider} ${task.identifier ?? `#${task.id}`} → ${task.repositoryId}\n${target.origin}\n${bootstrap.teams.find(team => team.id === draft.teamId)?.name} · ${draft.runtime} · $${draft.budgetUsd!.toFixed(2)} authorized\nThe team starts only when you choose Start remote team.` }, 'Create session');
     if (confirm !== 'Create session') return;
     this.assertTarget(target, generation);
     let session: Session;
-    try { session = await target.importTask({ sourceId: task.sourceId, taskId: task.id, revision: task.revision, ...(task.bindingRevision ? { bindingRevision: task.bindingRevision } : {}), crewId: draft.crewId!, runtime: draft.runtime!, ...(draft.placement ? { placement: draft.placement } : {}), budgetUsd: draft.budgetUsd! }); }
+    try { session = await target.importTask({ sourceId: task.sourceId, taskId: task.id, revision: task.revision, ...(task.bindingRevision ? { bindingRevision: task.bindingRevision } : {}), teamId: draft.teamId!, runtime: draft.runtime!, ...(draft.placement ? { placement: draft.placement } : {}), budgetUsd: draft.budgetUsd! }); }
     catch (error) {
       if (!(error instanceof ApiError) || error.status !== 409 || !['task_changed', 'task_binding_changed'].includes(error.code)) throw error;
       const reload = await vscode.window.showWarningMessage(error.message, 'Reload task');

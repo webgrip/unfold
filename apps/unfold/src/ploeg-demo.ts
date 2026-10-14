@@ -389,13 +389,15 @@ function demoCard(item: PloegItem): RunCard {
   const withdrawn = detail.events.find(entry => entry.action === 'work_item.withdrawn');
   if (withdrawn) timeline.push({ minutes: (anchor - Date.parse(withdrawn.at)) / 60_000, kind: 'withdrawn', actor: withdrawn.actor, detail: typeof withdrawn.detail.reason === 'string' ? { reason: withdrawn.detail.reason } : {} });
   const runSeconds = finished.reduce((sum, entry) => sum + (entry.started! - entry.finished!) * 60, 0);
+  const roleRows = roles.map(role => ({ role, writes: started.find(entry => roleOf(entry) === role)!.writes, runs: started.filter(entry => roleOf(entry) === role).length }));
   return {
     workItemId: item.id, title: item.title, externalRef: item.externalId, url: item.url, team: item.team,
     target: item.target ? { forge: item.target.forge, owner: item.target.owner, repo: item.target.repo } : null,
     style: { skin: demoSkins[item.id] ?? 'unfold-native', theme: null }, state, rarity: null, finish: 'matte', grade: demoGrades[item.id] ?? null, condition: demoConditions[item.id] ?? null,
     steward: merged ? { name: merged.mergedBy, source: 'merged_by' } : null,
     roster: demoRoster(item.id, merged ?? null, plays),
-    crew: roles.map(role => ({ role, writes: started.find(entry => roleOf(entry) === role)!.writes, runs: started.filter(entry => roleOf(entry) === role).length })),
+    roles: roleRows,
+    crew: roleRows,
     plays,
     totals: {
       costStatus: 'not_reported', usageComplete: started.length ? false : null,

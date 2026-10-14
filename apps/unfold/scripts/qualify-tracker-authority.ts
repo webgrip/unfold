@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createApplication } from '../src/main.ts';
-import { defaultCrews } from '../src/config.ts';
+import { defaultTeams } from '../src/config.ts';
 import type { AgentRuntime, AppConfig, ExecutionContext, ExecutionResult, Session } from '../src/types.ts';
 
 function required(name: string): string { const value = process.env[name]; if (!value) throw new Error(`Run through the opt-in Ploeg tracker workbench qualification: ${name} is required.`); return value; }
@@ -39,7 +39,7 @@ const runtime: AgentRuntime = {
 const config: AppConfig = {
   mode: 'demo', dataDir: directory, publicDir: fileURLToPath(new URL('../public', import.meta.url)), host: '127.0.0.1', port: 0,
   repositories: [{ id: 'source-repository', name: 'Tracker authority fixture', description: 'Ploeg source binding qualification; no clone or model execution.', url: repositoryUrl, baseBranch: target.baseBranch, verify: [], executionOwner: 'ploeg' }],
-  crews: defaultCrews.filter(crew => crew.id === 'delivery'), models: [], runtime: { kind: 'demo', backend: 'local', timeoutMs: 15000, briefCheck: false },
+  teams: defaultTeams.filter(team => team.id === 'delivery'), models: [], runtime: { kind: 'demo', backend: 'local', timeoutMs: 15000, briefCheck: false },
   auth: { secureCookies: false, sessionHours: 1, bootstrapName: 'admin' }, maxConcurrentSessions: 1, maxBudgetUsd: 1,
   ploeg: { url: upstream, tokenEnv: 'PLOEG_QUALIFICATION_TOKEN', teams: [team] }, execution: { team, heartbeatMs: 1000 },
   taskSources: [{ id: 'tracker-qualification', name: 'Fixture Vikunja · no model calls', provider, baseUrl: trackerUrl, project: scope, repositoryId: 'source-repository', executionOwner: 'ploeg', ploeg: { target } }],
@@ -76,7 +76,7 @@ try {
   assert(before.items.some((item: any) => item.id === workItemId));
   const preview = await request(`task-sources/tracker-qualification/tasks/${taskId}`);
   assert.equal(preview.ploeg.workItemId, workItemId); assert.equal(preview.ploeg.expectedRevision, preview.nativeRevision); assert.notEqual(preview.revision, preview.nativeRevision); assert.equal(preview.ploeg.expectedBaseUrl, trackerUrl); assert.equal(preview.ploeg.expectedScope, scope); assert.deepEqual(preview.ploeg.expectedTarget, target);
-  const input = { sourceId: preview.sourceId, taskId, revision: preview.revision, bindingRevision: preview.bindingRevision, crewId: 'delivery', runtime: 'demo', budgetUsd: 1 };
+  const input = { sourceId: preview.sourceId, taskId, revision: preview.revision, bindingRevision: preview.bindingRevision, teamId: 'delivery', runtime: 'demo', budgetUsd: 1 };
   const stale = await request('task-imports', { ...input, revision: 'stale-preview' }, 409); assert.equal(stale.error.code, 'task_changed'); assert.equal(app.store.listSessions().length, 0);
   const session: Session = await request('task-imports', input, 201);
   const repeated: Session = await request('task-imports', input); assert.equal(repeated.id, session.id); assert.equal(session.status, 'queued'); assert.equal(registrations.length, 0); assert.equal(calls, 0);

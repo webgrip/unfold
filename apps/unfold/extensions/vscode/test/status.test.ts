@@ -5,7 +5,7 @@ import type { Session } from '../src/types.ts';
 
 function session(overrides: Partial<Session> = {}): Session {
   return {
-    id: 's1', title: 'Fix rounding', objective: 'Fix it', repositoryId: 'order-service', crewId: 'delivery', runtime: 'opencode', placement: 'docker',
+    id: 's1', title: 'Fix rounding', objective: 'Fix it', repositoryId: 'order-service', teamId: 'delivery', runtime: 'opencode', placement: 'docker',
     ownerId: 'u1', ownerName: 'Ryan', status: 'completed', budgetUsd: 5, spentUsd: 1, costStatus: 'settled', createdAt: '2026-09-10T10:00:00.000Z', updatedAt: '2026-09-10T10:05:00.000Z', branch: 'unfold/s1',
     runs: [
       { id: 'r1', roleName: 'Engineer', mode: 'write', status: 'completed' },

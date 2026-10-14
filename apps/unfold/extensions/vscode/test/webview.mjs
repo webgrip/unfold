@@ -9,7 +9,7 @@ const server = await application('demo', config => { config.taskSources = [{ id:
 const secrets = { async get() {}, async store() {}, async delete() {} };
 const client = new UnfoldClient(server.url, secrets);
 const task = await client.task('demo-tasks', '1');
-const session = await client.importTask({ sourceId: task.sourceId, taskId: task.id, revision: task.revision, crewId: 'delivery', runtime: 'demo', budgetUsd: 3 });
+const session = await client.importTask({ sourceId: task.sourceId, taskId: task.id, revision: task.revision, teamId: 'delivery', runtime: 'demo', budgetUsd: 3 });
 await client.action(session.id, 'start');
 await sessionUntil(server.url, session.id, value => ['completed', 'failed'].includes(value.status));
 const freshness = () => ({ transport: 'live', observedAt: new Date().toISOString() });

@@ -203,7 +203,7 @@ async function recordTimeline(brief: { title: string; objective: string }, revie
   };
   try {
     const bootstrap = (await call('GET', '/api/bootstrap')).body as any;
-    const created = await call('POST', '/api/sessions', { ...brief, repositoryId: bootstrap.repositories[0].id, crewId: bootstrap.crews[0].id, runtime: 'demo', budgetUsd: Math.min(5, bootstrap.maxBudgetUsd) });
+    const created = await call('POST', '/api/sessions', { ...brief, repositoryId: bootstrap.repositories[0].id, teamId: bootstrap.teams[0].id, runtime: 'demo', budgetUsd: Math.min(5, bootstrap.maxBudgetUsd) });
     assert.equal(created.status, 201, JSON.stringify(created.body));
     sessionId = (created.body as any).id;
     const started = await call('POST', `/api/sessions/${sessionId}/start`, {});

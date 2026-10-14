@@ -122,6 +122,8 @@ export class Store {
   private restoreSession(body: string): Session {
     const session: Session = JSON.parse(body);
     if ((session.costStatus as string) === retiredCostStatus) session.costStatus = 'observed';
+    if (!session.teamId && session.crewId) session.teamId = session.crewId;
+    session.crewId = session.teamId;
     const workspace = this.getSecret<Session['workspace']>(`workspace:${session.id}`);
     if (workspace) session.workspace = workspace;
     return session;

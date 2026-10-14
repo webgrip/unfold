@@ -805,7 +805,7 @@ function liveCard(id: string, team = 'delivery') {
     target: { forge: 'forgejo', owner: 'webgrip', repo: 'glide' }, style: { skin: 'unfold-native', theme: null }, state: 'in_review',
     rarity: 'legendary', finish: 'holo', grade: 9, condition: 'cracked',
     steward: { name: 'ryan', source: 'approver' }, roster: [{ name: 'ryan', roles: ['reviewer'] }],
-    crew: [{ role: 'builder', writes: true, runs: 3, costUsd: 0.58, inputTokens: 12100000, outputTokens: 88000 }],
+    roles: [{ role: 'builder', writes: true, runs: 3, costUsd: 0.58, inputTokens: 12100000, outputTokens: 88000 }],
     plays: [{ number: 57, url: 'https://forge.example.test/webgrip/glide/pulls/57', state: 'open', shiftId: 113, branch: 'ploeg/138', headSha: 'abc', mergedAt: null, closedAt: null, additions: 214, deletions: 38, changedFiles: 6, ci: { state: 'success', checks: [{ context: 'verify', state: 'success' }] }, reviews: [{ reviewer: 'ryan', state: 'approved', receivedAt: '2026-10-01T10:30:00Z', headSha: 'abc' }] }],
     totals: { costUsd: 0.58, authorizedUsd: 2, costStatus: 'observed', inputTokens: 12100000, outputTokens: 88000, usageComplete: false, runs: 3, failedRuns: 1, rounds: 1, shifts: 1, firstRunAt: '2026-10-01T09:00:00Z', lastRunAt: '2026-10-01T09:35:00Z', runSeconds: 2100 },
     events: [{ at: '2026-10-01T09:00:00Z', kind: 'minted', actor: 'team:delivery', detail: { secret: 'private', number: 57 } }],

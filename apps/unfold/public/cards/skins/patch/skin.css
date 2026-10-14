@@ -913,7 +913,7 @@
 
 
 
-.pt-sig .pt-crew {
+.pt-sig .pt-roles {
   display: grid;
   justify-items: end;
   min-inline-size: 0;
@@ -922,7 +922,7 @@
   text-align: end;
 }
 
-.pt-sig .pt-crew b {
+.pt-sig .pt-roles b {
   display: -webkit-box;
   overflow: hidden;
   font: 700 0.56rem/1.25 var(--font-sans);

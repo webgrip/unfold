@@ -40,8 +40,8 @@ async function fixtureSession(t: { after: (fn: () => unknown) => void }, options
   const server = await application();
   t.after(() => server.close());
   const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };
-  const created = server.app.engine.create({ title: fixture.session.title, objective: fixture.session.objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
-  const session: Session = { ...created, ...fixture.session, ...(options.status ? { status: options.status, blocker: undefined } : {}), placement: undefined, approval: undefined, id: created.id, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', ownerId: created.ownerId, ownerName: created.ownerName, runs: fixture.session.runs.map((run: Json) => ({ ...run, sessionId: created.id })) };
+  const created = server.app.engine.create({ title: fixture.session.title, objective: fixture.session.objective, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const session: Session = { ...created, ...fixture.session, ...(options.status ? { status: options.status, blocker: undefined } : {}), placement: undefined, approval: undefined, id: created.id, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', ownerId: created.ownerId, ownerName: created.ownerName, runs: fixture.session.runs.map((run: Json) => ({ ...run, sessionId: created.id })) };
   server.app.store.saveSession(session);
   const events = options.status === 'running' ? (fixture.events as Event[]).filter(event => !/^(execution\.|budget\.)/.test(event.type)) : fixture.events as Event[];
   for (const event of events) server.app.store.appendEvent(created.id, event.type, event.actor, event.data, event.runId);

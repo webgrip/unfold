@@ -19,7 +19,7 @@ function card(extra = {}) {
   return {
     workItemId: '138', title: 'Retry sandbox claims that never become ready', externalRef: 'VIK-1612', url: '', team: 'unfold-core',
     target: { forge: 'forgejo', owner: 'webgrip', repo: 'glide' }, style: { skin: 'holo', theme: null }, state: 'merged',
-    rarity: null, finish: 'matte', grade: null, condition: null, steward: { name: 'ryan', source: 'merged_by' }, roster: [], crew: [{ role: 'builder', writes: true, runs: 3 }],
+    rarity: null, finish: 'matte', grade: null, condition: null, steward: { name: 'ryan', source: 'merged_by' }, roster: [], roles: [{ role: 'builder', writes: true, runs: 3 }],
     plays: [{ number: 57, url: '', state: 'merged', mergedAt: '2026-01-01T09:00:00Z', mergedBy: 'ryan', additions: 214, deletions: 38, changedFiles: 6, ci: { state: 'success', checks: [] }, reviews: [] }],
     totals: { costUsd: 0.58, authorizedUsd: 2, costStatus: 'observed', usageComplete: true, runs: 3, rounds: 1, firstRunAt: null, lastRunAt: null, runSeconds: 2100 },
     events: [], demo: false, ...extra,

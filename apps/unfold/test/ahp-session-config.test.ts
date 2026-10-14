@@ -40,8 +40,8 @@ function approvalLevelsOfVscode1141(schema: Json, creating = true): string[] {
 
 function isolatedConfiguration(): AppConfig {
   const config = configuration('/nonexistent', 'live');
-  config.crews.push({ id: 'investigation', name: 'Investigation team', description: 'Reads only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate.', model: 'reasoning' }] });
-  config.crews[0].roles[0].model = 'coding';
+  config.teams.push({ id: 'investigation', name: 'Investigation team', description: 'Reads only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate.', model: 'reasoning' }] });
+  config.teams[0].roles[0].model = 'coding';
   config.models = [{ id: 'coding', name: 'DeepSeek V4.1 Flash (Fireworks)', providerId: 'litellm', modelId: 'coding' }, { id: 'reasoning', name: 'Claude Opus', providerId: 'litellm', modelId: 'reasoning' }];
   config.runtime = { ...config.runtime, backend: 'docker', backends: ['docker', 'local'] };
   config.execution = { team: 'silver' };
@@ -51,17 +51,17 @@ function isolatedConfiguration(): AppConfig {
 test('the Agents window renders team, budget and placement as pickers, the repository read-only from the Workspace picker, and approvals in its own picker', () => {
   const config = isolatedConfiguration();
   const resolved = resolveSessionConfig(config, { title: 'From the composer', isolation: 'worktree', worktreeBranchPrefix: 'copilot/' }, 'order-service');
-  assert.deepEqual(Object.keys(resolved.values).sort(), ['approvalMode', 'budgetUsd', 'crew', 'placement', 'repository', 'title'], 'VS Code\'s own keys are not echoed back');
+  assert.deepEqual(Object.keys(resolved.values).sort(), ['approvalMode', 'budgetUsd', 'placement', 'repository', 'team', 'title'], 'VS Code\'s own keys are not echoed back');
   assert.deepEqual(chipsOfVscode1141(resolved).map(chip => [chip.key, chip.label, chip.readOnly]), [
     ['repository', 'Order service', true],
-    ['crew', 'Delivery team', false],
+    ['team', 'Delivery team', false],
     ['budgetUsd', money(5), false],
     ['placement', 'Container', false],
   ]);
   assert.deepEqual(approvalLevelsOfVscode1141(resolved.schema), ['default', 'autoApprove'], 'a container placement may approve inside its sandbox');
   assert.equal(resolved.values.approvalMode, 'manual', 'approval defaults to asking');
-  const crew = resolved.schema.properties.crew;
-  assert.deepEqual(crew.enumDescriptions, ['Builder writes on DeepSeek V4.1 Flash (Fireworks), then Reviewer reviews on DeepSeek V4.1 Flash (Fireworks).', 'Analyst reviews on Claude Opus.'], 'each team names the model every role runs on');
+  const team = resolved.schema.properties.team;
+  assert.deepEqual(team.enumDescriptions, ['Builder writes on DeepSeek V4.1 Flash (Fireworks), then Reviewer reviews on DeepSeek V4.1 Flash (Fireworks).', 'Analyst reviews on Claude Opus.'], 'each team names the model every role runs on');
   assert.deepEqual(resolved.schema.properties.budgetUsd.enum, ['1', '2', '5', '10', '25'], 'budgets stop at the deployment limit');
 
   const local = resolveSessionConfig(config, { ...resolved.values, placement: 'local', approvalMode: 'allow-all' }, 'order-service');
@@ -74,27 +74,39 @@ test('the Agents window renders team, budget and placement as pickers, the repos
 });
 
 test('the composer names the team that runs, never a gateway model', () => {
-  assert.deepEqual(composerModel(isolatedConfiguration()), { id: 'unfold-crew', name: 'Ploeg team · silver' });
-  assert.deepEqual(composerModel(configuration('/nonexistent', 'live')), { id: 'unfold-crew', name: 'Unfold team' });
-  assert.deepEqual(composerModel(configuration('/nonexistent', 'demo')), { id: 'unfold-crew', name: 'Demo team · no model calls' });
+  assert.deepEqual(composerModel(isolatedConfiguration()), { id: 'unfold-team', name: 'Ploeg team · silver' });
+  assert.deepEqual(composerModel(configuration('/nonexistent', 'live')), { id: 'unfold-team', name: 'Unfold team' });
+  assert.deepEqual(composerModel(configuration('/nonexistent', 'demo')), { id: 'unfold-team', name: 'Demo team · no model calls' });
+});
+
+test('a client that still sends the retired configuration key crew gets that Team as team, and never sees crew echoed', () => {
+  const config = isolatedConfiguration();
+  const accepted = acceptSessionConfig(config, { crew: 'investigation', budgetUsd: '2' }, 'order-service');
+  assert.equal(accepted.team, 'investigation');
+  assert.equal('crew' in accepted, false);
+  assert.equal(resolveSessionConfig(config, { crew: 'investigation' }, 'order-service').values.team, 'investigation');
+  assert.equal(acceptSessionConfig(config, { team: 'delivery', crew: 'investigation' }, 'order-service').team, 'delivery', 'team wins over the retired key');
+  assert.throws(() => acceptSessionConfig(config, { crew: 'nobody' }, 'order-service'), /configured repository and team/);
+  const session = { repositoryId: 'order-service', teamId: 'delivery', budgetUsd: 2.5, title: 'Running', placement: 'docker', approval: 'manual', status: 'running' } as Session;
+  assert.throws(() => startedConfigChange(session, { crew: 'investigation' }), /team is fixed once the session has started/);
 });
 
 test('a started session keeps its configuration, and only its approval stays changeable while it runs in a container', () => {
   const config = isolatedConfiguration();
-  const session = { repositoryId: 'order-service', crewId: 'delivery', budgetUsd: 2.5, title: 'Running', placement: 'docker', approval: 'manual', status: 'running' } as Session;
+  const session = { repositoryId: 'order-service', teamId: 'delivery', budgetUsd: 2.5, title: 'Running', placement: 'docker', approval: 'manual', status: 'running' } as Session;
   const state = sessionConfigState(config, session);
-  assert.deepEqual(state.values, { repository: 'order-service', crew: 'delivery', budgetUsd: '2.5', title: 'Running', placement: 'docker', approvalMode: 'manual' });
+  assert.deepEqual(state.values, { repository: 'order-service', team: 'delivery', budgetUsd: '2.5', title: 'Running', placement: 'docker', approvalMode: 'manual' });
   assert.deepEqual(chipsOfVscode1141(state, false), [], 'no picker for a fixed value');
   assert.deepEqual(approvalLevelsOfVscode1141(state.schema, false), ['default', 'autoApprove']);
   assert.deepEqual(startedConfigChange(session, { ...state.values, approvalMode: 'allow-all' }), { approval: 'auto' });
   assert.deepEqual(startedConfigChange(session, state.values), {});
-  assert.throws(() => startedConfigChange(session, { crew: 'investigation' }), /crew is fixed once the session has started/);
+  assert.throws(() => startedConfigChange(session, { team: 'investigation' }), /team is fixed once the session has started/);
   assert.deepEqual(approvalLevelsOfVscode1141(sessionConfigState(config, { ...session, status: 'completed' }).schema, false), [], 'a finished session offers no approval change');
   assert.deepEqual(approvalLevelsOfVscode1141(sessionConfigState(config, { ...session, placement: 'local' }).schema, false), []);
 });
 
 test('VS Code\'s new-session flow: the advertised model names the team, a picker change before the first message reaches the session, and the repository stays the picked one', { timeout: testTimeout(60_000) }, async t => {
-  const server = await application('demo', config => { config.crews.push({ id: 'investigation', name: 'Investigation team', description: 'Reads only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate the rounding.' }] }); });
+  const server = await application('demo', config => { config.teams.push({ id: 'investigation', name: 'Investigation team', description: 'Reads only', roles: [{ id: 'analyst', name: 'Analyst', mode: 'read', instruction: 'Investigate the rounding.' }] }); });
   t.after(() => server.close());
   const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'session config' } });
   const vscode = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
@@ -102,39 +114,39 @@ test('VS Code\'s new-session flow: the advertised model names the team, a picker
   await vscode.open;
   const clientId = randomUUID();
   const initialized = await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId, clientInfo: vscodeAgentsWindow, initialSubscriptions: ['ahp-root://'] });
-  assert.deepEqual(initialized.snapshots[0].state.agents[0].models, [{ id: 'unfold-crew', name: 'Demo team · no model calls', provider: 'unfold' }]);
+  assert.deepEqual(initialized.snapshots[0].state.agents[0].models, [{ id: 'unfold-team', name: 'Demo team · no model calls', provider: 'unfold' }]);
 
   const picked = `${repositoriesDirectory}/${encodeURIComponent('Unfold · order-service')}`;
   const resolved = await vscode.rpc('resolveSessionConfig', { channel: 'ahp-root://', provider: 'unfold', workingDirectory: picked });
-  assert.deepEqual(chipsOfVscode1141(resolved).map(chip => [chip.key, chip.label]), [['repository', 'Order service'], ['crew', 'Delivery team'], ['budgetUsd', money(5)]]);
+  assert.deepEqual(chipsOfVscode1141(resolved).map(chip => [chip.key, chip.label]), [['repository', 'Order service'], ['team', 'Delivery team'], ['budgetUsd', money(5)]]);
   assert.deepEqual(approvalLevelsOfVscode1141(resolved.schema), ['default'], 'the demonstration has no sandbox to approve inside');
-  const completions = await vscode.rpc('sessionConfigCompletions', { channel: 'ahp-root://', provider: 'unfold', property: 'crew' });
+  const completions = await vscode.rpc('sessionConfigCompletions', { channel: 'ahp-root://', provider: 'unfold', property: 'team' });
   assert.deepEqual(completions.items.map((item: Json) => item.label), ['Delivery team', 'Investigation team']);
 
   const session = `unfold:/${randomUUID()}`;
   const chat = defaultChatOf(session);
-  await vscode.rpc('createSession', { channel: session, provider: 'unfold', workingDirectories: [picked], config: resolved.values, model: { id: 'unfold-crew' } });
+  await vscode.rpc('createSession', { channel: session, provider: 'unfold', workingDirectories: [picked], config: resolved.values, model: { id: 'unfold-team' } });
   await vscode.rpc('subscribe', { channel: session });
   await vscode.rpc('subscribe', { channel: chat });
-  vscode.notify('dispatchAction', { channel: session, clientSeq: 1, action: { type: 'session/configChanged', config: { ...resolved.values, crew: 'investigation', budgetUsd: '10' } } });
+  vscode.notify('dispatchAction', { channel: session, clientSeq: 1, action: { type: 'session/configChanged', config: { ...resolved.values, team: 'investigation', budgetUsd: '10' } } });
   const changed = await vscode.until(message => action(message, session, 'session/configChanged') && message.params.origin?.clientSeq === 1);
   assert.equal(changed.params.rejectionReason, undefined);
-  assert.equal(changed.params.action.config.crew, 'investigation');
+  assert.equal(changed.params.action.config.team, 'investigation');
   vscode.notify('dispatchAction', { channel: session, clientSeq: 2, action: { type: 'session/configChanged', config: { repository: 'elsewhere' } } });
   const refused = await vscode.until(message => action(message, session, 'session/configChanged') && message.params.origin?.clientSeq === 2);
   assert.match(refused.params.rejectionReason, /Workspace picker/);
   const draft = (await vscode.rpc('subscribe', { channel: session })).snapshot.state.config;
-  assert.deepEqual([draft.values.crew, draft.values.budgetUsd, draft.values.repository], ['investigation', '10', 'order-service']);
+  assert.deepEqual([draft.values.team, draft.values.budgetUsd, draft.values.repository], ['investigation', '10', 'order-service']);
 
   vscode.notify('dispatchAction', { channel: chat, clientSeq: 3, action: { type: 'chat/turnStarted', turnId: randomUUID(), startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } } });
   const started = await vscode.until(message => action(message, chat, 'chat/turnStarted') && message.params.origin?.clientSeq === 3);
   assert.equal(started.params.rejectionReason, undefined);
   assert.equal(started.params.action.message.model, undefined, 'a response is never labelled with a model nobody observed');
   const [created] = server.app.store.listSessions();
-  assert.deepEqual([created.crewId, created.budgetUsd, created.approval], ['investigation', 10, 'manual'], 'the session starts with what the pickers showed');
+  assert.deepEqual([created.teamId, created.budgetUsd, created.approval], ['investigation', 10, 'manual'], 'the session starts with what the pickers showed');
   const live = (await vscode.rpc('subscribe', { channel: session })).snapshot.state.config;
   assert.deepEqual(chipsOfVscode1141(live, false), []);
-  vscode.notify('dispatchAction', { channel: session, clientSeq: 4, action: { type: 'session/configChanged', config: { crew: 'delivery' } } });
+  vscode.notify('dispatchAction', { channel: session, clientSeq: 4, action: { type: 'session/configChanged', config: { team: 'delivery' } } });
   const fixed = await vscode.until(message => action(message, session, 'session/configChanged') && message.params.origin?.clientSeq === 4);
   assert.match(fixed.params.rejectionReason, /fixed once the session has started/);
 });

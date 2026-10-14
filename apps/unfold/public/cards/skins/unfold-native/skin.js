@@ -145,7 +145,7 @@ function front(v, h) {
     ${gatesStrip(v, h)}
     ${kpiStrip(v, h)}
     <div class="main">${ring(v, h)}${tiles(v, h)}</div>
-    <p class="crew"><small>Roles</small><span>${e(v.crew)}</span></p>
+    <p class="roles"><small>Roles</small><span>${e(v.roles)}</span></p>
     <div class="sign${signed ? '' : ' off'}" data-slot="steward">
       <span class="av" aria-hidden="true">${e(initials)}</span>
       <span class="sg">${signed ? `<span class="name">${e(v.steward.name)}</span>` : '<span class="line" aria-hidden="true"></span>'}<small>${signed ? `Steward · ${e(v.steward.detail || 'signed')}` : `Unsigned · ${e(v.steward.detail)}`}</small></span>

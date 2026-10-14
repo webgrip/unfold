@@ -25,7 +25,7 @@ async function finishedThroughAgentHost(t: { after: (fn: () => unknown) => void 
   const id = randomUUID();
   const session = `ahp-session:/${id}`;
   const chat = defaultChatOf(session);
-  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Rendering' } });
+  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Rendering' } });
   for (const channel of [session, chat]) await client.rpc('subscribe', { channel });
   client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'rendering-turn', startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } } });
   await client.until(message => action(message, chat, 'chat/turnComplete') && message.params.action.turnId === 'rendering-turn');
@@ -90,7 +90,7 @@ test('C9: without a captured candidate, a native file diff is served on both sid
   await client.open;
   await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'artifacts' });
   const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };
-  const create = (title: string) => server.app.engine.create({ title, objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const create = (title: string) => server.app.engine.create({ title, objective, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
   const native = create('Native diff');
   native.artifacts = [{ id: randomUUID(), kind: 'diff', name: 'Writer native file diff', content: JSON.stringify([{ file: 'src/order.js', before: 'old\n', after: 'new\n', additions: 1, deletions: 1 }]) }];
   server.app.store.saveSession(native);
@@ -166,7 +166,7 @@ async function asking(t: { after: (fn: () => unknown) => void }) {
   await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'questions', clientInfo: vscodeAgentsWindow, _meta: { 'vscode.ahpSessionUris': true }, initialSubscriptions: ['ahp-root://'] });
   const session = `ahp-session:/${randomUUID()}`;
   const chat = defaultChatOf(session);
-  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Questions' } });
+  await client.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Questions' } });
   for (const channel of [session, chat]) await client.rpc('subscribe', { channel });
   client.notify('dispatchAction', { channel: chat, clientSeq: 1, action: { type: 'chat/turnStarted', turnId: 'question-turn', startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } } });
   return { server, runtime, client, session, chat };
@@ -233,7 +233,7 @@ test('C12: a brief question opens a host turn when none is active, the way VS Co
   await client.open;
   await client.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'brief' });
   const operator = { id: 'demo-operator', name: 'Demo operator', role: 'operator' as const };
-  const session = server.app.engine.create({ title: 'Unclear brief', objective, repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
+  const session = server.app.engine.create({ title: 'Unclear brief', objective, repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 }, operator);
   await server.app.engine.message(session.id, 'Keep the public rounding helper signature unchanged.', operator);
   const chat = defaultChatOf(`ahp-session:/${session.id}`);
   const snapshot = (await client.rpc('subscribe', { channel: chat })).snapshot.state;

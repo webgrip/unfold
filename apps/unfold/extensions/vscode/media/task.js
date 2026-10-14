@@ -306,19 +306,19 @@ export function headFacts(current) {
 }
 
 /** The cost per role table from the Run card's Roles. Null without a card or a named role. */
-export function crewTable(current) {
+export function rolesTable(current) {
   if (progressOf(current)) return null;
   const { card, demo } = subject(current);
-  const crew = (card?.crew || []).filter(member => text(member?.role));
-  if (!crew.length) return null;
+  const roles = (card?.roles || card?.crew || []).filter(member => text(member?.role));
+  if (!roles.length) return null;
   const tokens = value => amount(value) ? compactCount(value) : notReported;
   const cost = value => demo ? 'Demo' : amount(value) ? money(value) : notReported;
-  return element('div', { className: 'crew' },
-    element('h3', { id: 'crew-heading' }, 'Cost per role'),
-    element('div', { className: 'table-scroll', role: 'region', 'aria-labelledby': 'crew-heading', tabindex: '0' },
+  return element('div', { className: 'roles' },
+    element('h3', { id: 'roles-heading' }, 'Cost per role'),
+    element('div', { className: 'table-scroll', role: 'region', 'aria-labelledby': 'roles-heading', tabindex: '0' },
       element('table', { className: 'data-table' },
         element('thead', {}, element('tr', {}, element('th', { scope: 'col' }, 'Role'), element('th', { scope: 'col', className: 'num' }, 'Runs'), element('th', { scope: 'col', className: 'num' }, 'Cost'), element('th', { scope: 'col', className: 'num' }, 'Tokens in'), element('th', { scope: 'col', className: 'num' }, 'Tokens out'))),
-        element('tbody', {}, ...crew.map(member => element('tr', {},
+        element('tbody', {}, ...roles.map(member => element('tr', {},
           element('th', { scope: 'row' }, member.role, member.writes === true ? element('span', { className: 'access' }, 'writer') : member.writes === false ? element('span', { className: 'access' }, 'reader') : null),
           element('td', { className: 'num' }, amount(member.runs) ? count(member.runs) : notReported),
           element('td', { className: `num${!demo && !amount(member.costUsd) ? ' unknown' : ''}` }, cost(member.costUsd)),
@@ -521,7 +521,7 @@ export function roleCostTable(progress) {
   if (!roles.length || progress.demo) return null;
   const tokens = value => value === null ? notReported : compactCount(value);
   const gateway = roles.some(entry => entry.source === 'gateway');
-  return element('div', { className: 'crew step-costs' },
+  return element('div', { className: 'roles step-costs' },
     element('h3', { id: 'role-costs-heading' }, 'Cost per role', element('span', { className: 'access' }, gateway ? 'observed by the gateway, not settled' : 'as each Run reported it')),
     element('div', { className: 'table-scroll', role: 'region', 'aria-labelledby': 'role-costs-heading', tabindex: '0' },
       element('table', { className: 'data-table' },
@@ -610,7 +610,7 @@ export function headCard(current) {
       blocked,
       primary || secondary.length ? element('div', { className: 'actions' }, primary, ...secondary) : null),
     facts ? element('div', { className: 'head-facts' }, facts) : null,
-    crewTable(current),
+    rolesTable(current),
     handoff ? teamPicker(current) : null);
 }
 

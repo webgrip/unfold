@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { defaultCrews } from '../src/config.ts';
+import { defaultTeams } from '../src/config.ts';
 import { SigningKey } from '../src/attestations.ts';
 import { Engine } from '../src/engine.ts';
 import { buildServer } from '../src/http.ts';
@@ -110,7 +110,7 @@ async function main(smoke: boolean) {
     const config: AppConfig = {
       mode: 'demo', dataDir: join(directory, 'unfold'), publicDir: join(root, 'public'), host: '127.0.0.1', port,
       repositories: [{ id: 'order-service', name: 'Order service · local fixture', description: 'Deterministic code repair with real checks. No external repository, model, delivery gate or publication.', url: join(root, 'examples/order-service'), baseBranch: 'main', verify: ['node', '--test'], executionOwner: 'ploeg' }],
-      crews: defaultCrews.filter(crew => crew.id === 'delivery'), models: [],
+      teams: defaultTeams.filter(team => team.id === 'delivery'), models: [],
       runtime: { kind: 'demo', backend: 'local', timeoutMs: 120000, briefCheck: false },
       auth: { secureCookies: false, sessionHours: 1, bootstrapName: 'admin' }, maxConcurrentSessions: 2, maxBudgetUsd: 1,
       ploeg: { url: upstream, tokenEnv: 'UNFOLD_UNIFIED_DEMO_TOKEN', teams: ['delivery'] }, execution: { team: 'delivery', heartbeatMs: 1000 },
@@ -126,7 +126,7 @@ async function main(smoke: boolean) {
       const response = await fetch(`${base}/api/${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { origin: base, 'x-unfold-request': '1', ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000) });
       const result = await response.json(); assert(response.ok, `${path}: HTTP ${response.status} ${JSON.stringify(result)}`); return result;
     }
-    const queued: Session = await request('sessions', { title: 'Local shared execution · no model calls', objective: 'Fix the supplied order-service rounding fixture, run its real checks, and independently review the actual patch. This deterministic demonstration publishes nothing.', repositoryId: 'order-service', crewId: 'delivery', runtime: 'demo', budgetUsd: 1 });
+    const queued: Session = await request('sessions', { title: 'Local shared execution · no model calls', objective: 'Fix the supplied order-service rounding fixture, run its real checks, and independently review the actual patch. This deterministic demonstration publishes nothing.', repositoryId: 'order-service', teamId: 'delivery', runtime: 'demo', budgetUsd: 1 });
     console.log(JSON.stringify({ event: 'unified-demo.ready', url: base, sessionUrl: `${base}/#session/${queued.id}`, ploegUrl: upstream, dataDir: directory, pid: process.pid, database: 'private Unix socket only', storage: 'temporary PostgreSQL and in-memory workbench state', modelCalls: 0, spendUsd: 0, deliveryGate: 'not configured', cleanup: 'Ctrl+C or SIGTERM stops all services and removes the temporary directory' }));
     console.log(`Open ${base}/#session/${queued.id}\nPress Start, then try background supervision, take control, pause and resume.\nThe fixture takes about 30 seconds. Review its actual patch and checks, then open its Ploeg Work Item.\nDelivery approval and publication are not configured. Ctrl+C cleans up all test state.`);
     if (smoke) {

@@ -118,7 +118,7 @@ test('VS Code 1.141 attaches: unfold URIs, the 0.10.0 offer negotiated down to 0
   const id = randomUUID();
   const session = `unfold:/${id}`;
   const chat = defaultChatOf(session);
-  await vscode.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', crew: 'delivery', budgetUsd: 1, title: 'Fix rounding from VS Code 1.141' } });
+  await vscode.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1, title: 'Fix rounding from VS Code 1.141' } });
   await vscode.until(message => message.method === 'root/sessionAdded' && message.params.summary.resource === session);
   assert.equal((await vscode.rpc('subscribe', { channel: session })).snapshot.state.defaultChat, chat);
   await vscode.rpc('subscribe', { channel: chat });
