@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityMarkup, approveDialogMarkup, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sortRuns, usdNl } from '../public/ploeg-activity.js';
+import { activityMarkup, approveDialogMarkup, canDecide, duration, eventDays, eventKind, eventStory, freshRuns, mergeFeed, mergeRuns, newerEvents, overviewMarkup, problemMarkup, proposalCreator, proposedMarkup, rejectDialogMarkup, relativeTime, runFilter, runSpend, runsMarkup, sinceRuns, sortRuns, usdNl } from '../public/ploeg-activity.js';
 import { liveRefresh, track } from '../public/views/ploeg-common.js';
 import { auditActor } from '../public/core/states.js';
 import { state } from '../public/core/state.js';
@@ -433,4 +433,20 @@ test('Insights shows how many Runs hold budget Ploeg cannot release, or why it c
   assert.match(read({ unsettled: null, unsettledError: { code: 'ploeg_unavailable', message: 'no' } }), /<strong class="stat-value" data-quiet>—<\/strong><span class="stat-detail">Could not be loaded<\/span>/);
   assert.match(read({ unsettled: null, unsettledError: { code: 'ploeg_unsupported', message: 'no' } }), /<span class="stat-detail">Not reported by this Ploeg<\/span>/);
   assert.match(read({ unsettled: { count: 0, heldUsd: 0, accounts: [] }, unsettledError: null }, true), /<strong class="stat-value">0<\/strong><span class="stat-detail">Demo · no model calls<\/span>/);
+});
+
+test('a Runs filter with since lists only the Runs that finished after it and says how to see the rest', () => {
+  assert.deepEqual(runFilter({ since: '2026-09-10T08:10:00Z', state: 'running' }), { team: '', state: 'finished', outcome: '', since: '2026-09-10T08:10:00.000Z' }, 'since implies finished Runs');
+  assert.deepEqual(runFilter({ since: 'yesterday' }), { team: '', state: '', outcome: '' }, 'an invalid since is dropped');
+  const runs = [run({ id: '63', finishedAt: '2026-09-10T08:40:00Z' }), run({ id: '62', finishedAt: '2026-09-10T08:05:00Z' }), run({ id: '64', state: 'running', finishedAt: null })];
+  assert.deepEqual(sinceRuns(runs, '2026-09-10T08:10:00.000Z').map(entry => entry.id), ['63']);
+  assert.equal(sinceRuns(runs, '').length, 3);
+  const filter = runFilter({ since: '2026-09-10T08:10:00Z' });
+  const html = runsMarkup({ runs, nextBefore: '62', filter, demo: false }, [], helpers, now);
+  assert.deepEqual([...html.matchAll(/<tr data-run-id="(\d+)"/g)].map(match => match[1]), ['63']);
+  assert.match(html, /<p class="runs-since"><span>Finished Runs since \d\d:\d\d<\/span><a class="button secondary sm" href="#runs\?state=finished">/);
+  assert.match(html, /1 Run of 3 loaded/);
+  const none = runsMarkup({ runs: [runs[1]], nextBefore: '62', filter, demo: false }, [], helpers, now);
+  assert.match(none, /No Run finished since \d\d:\d\d/);
+  assert.match(none, /id="ploeg-runs-older"/, 'an empty since window can still look further back');
 });

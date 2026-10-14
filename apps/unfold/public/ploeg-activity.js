@@ -3,6 +3,8 @@ import { count, dateTime, dayKey, dayLabel, duration as span, money, percent, pl
 import { auditActor, auditEvent, runFailure, runOutcome, runState, tileDetail, unreportedOutcome, verdict as verdictMeta } from './core/states.js';
 import { markdown } from './core/markdown.js';
 import { routingWarning } from './core/reasons.js';
+import { buildHash } from './core/route.js';
+import { sinceLabel } from './now.js';
 
 /** The Insights time windows as `[id, label]`. */
 export const ploegWindows = [['24h', '24 hours'], ['7d', '7 days'], ['30d', '30 days']];
@@ -110,11 +112,26 @@ export function eventDays(events, now = Date.now()) {
   return days;
 }
 
-/** Builds a valid Run filter: Ploeg only accepts an outcome with the finished state or no state. */
+/** Builds a valid Run filter: Ploeg only accepts an outcome with the finished state or no state, and a valid `since` keeps only finished Runs. */
 export function runFilter(filter) {
-  const next = { team: filter.team || '', state: filter.state || '', outcome: filter.outcome || '' };
+  const since = sinceMoment(filter.since);
+  const next = { team: filter.team || '', state: since ? 'finished' : filter.state || '', outcome: filter.outcome || '' };
   if (next.state && next.state !== 'finished') next.outcome = '';
+  if (since) next.since = since;
   return next;
+}
+
+/** The `since` of a Runs filter as an ISO moment, or '' for a missing or invalid one. */
+function sinceMoment(value) {
+  const at = typeof value === 'string' && value ? Date.parse(value) : NaN;
+  return Number.isFinite(at) ? new Date(at).toISOString() : '';
+}
+
+/** The Runs a filter with `since` lists: those that finished after that moment. Without `since`, every Run. */
+export function sinceRuns(runs, since) {
+  const start = since ? Date.parse(since) : NaN;
+  if (!Number.isFinite(start)) return runs || [];
+  return (runs || []).filter(run => Date.parse(run.finishedAt ?? '') > start);
 }
 
 const runRank = { running: 0, pending: 1 };
@@ -425,8 +442,15 @@ export function runsMarkup(view, teams, helpers, now = Date.now()) {
   if (!view.runs) return page('runs', toolbar, runsSkeleton());
   const filtered = Boolean(filter.team || filter.state || filter.outcome);
   const stale = view.error ? staleNotice(view, helpers) : '';
-  if (!view.runs.length) return page('runs', demoNote(view.demo), toolbar, stale, `<div class="card">${empty({ glyph: 'runs', title: filtered ? 'No Runs match these filters' : 'No Runs yet', body: `<p>${filtered ? 'Choose another Team, state or outcome.' : 'Runs appear here once a Team’s worker picks up a Work Item.'}</p>`, actions: filtered ? linkButton('Clear filters', '#runs', helpers, 'x') : '' }, helpers)}</div>`);
-  const runs = sortRuns(view.runs);
+  const sinceLine = filter.since ? sinceNotice(filter, helpers, now) : '';
+  const listed = sinceRuns(view.runs, filter.since);
+  if (!listed.length) {
+    const title = filter.since ? `No Run finished ${sinceLabel(filter.since, now).replace(/^Since/, 'since')}` : filtered ? 'No Runs match these filters' : 'No Runs yet';
+    const body = filter.since ? (view.nextBefore ? 'None of the Runs loaded so far. Load older Runs to look further back.' : 'Show every finished Run to look further back.') : filtered ? 'Choose another Team, state or outcome.' : 'Runs appear here once a Team’s worker picks up a Work Item.';
+    const more = filter.since && view.nextBefore ? olderButton(view, helpers) : '';
+    return page('runs', demoNote(view.demo), toolbar, sinceLine, stale, `<div class="card">${empty({ glyph: 'runs', title, body: `<p>${escape(body)}</p>`, actions: `${more}${filtered ? linkButton('Clear filters', '#runs', helpers, 'x') : ''}` }, helpers)}</div>`);
+  }
+  const runs = sortRuns(listed);
   const active = runs.filter(run => run.state !== 'finished');
   const done = runs.filter(run => run.state === 'finished');
   const grouped = Boolean(active.length && done.length);
@@ -434,9 +458,20 @@ export function runsMarkup(view, teams, helpers, now = Date.now()) {
   const table = `<div class="table-wrap runs-table"${view.demo ? ' data-demo' : ''}><table class="table"><caption class="sr-only">Runs, running first, then newest first</caption>${runHead(view.demo)}${group('Running and waiting', active)}${group('Finished', done)}</table></div>`;
   const cardGroup = (label, total) => grouped ? `<li class="runs-cards-group">${escape(label)} <span class="count">${count(total)}</span></li>` : '';
   const cards = `<ul class="runs-cards" aria-label="Runs, running first">${cardGroup('Running and waiting', active.length)}${active.map(run => runCard(run, view.demo, helpers, now)).join('')}${cardGroup('Finished', done.length)}${done.map(run => runCard(run, view.demo, helpers, now)).join('')}</ul>`;
+  const older = view.nextBefore ? olderButton(view, helpers) : '<span class="meta">No older Runs.</span>';
+  const loaded = filter.since ? `${plural(listed.length, 'Run')} of ${count(view.runs.length)} loaded` : `${plural(view.runs.length, 'Run')} loaded`;
+  return page('runs', demoNote(view.demo), toolbar, sinceLine, stale, `<div class="card flush runs-list">${table}${cards}<footer class="runs-footer">${older}<span class="meta">${loaded}</span></footer></div>`);
+}
+
+function olderButton(view, { icon }) {
   const busy = view.mode === 'older';
-  const older = view.nextBefore ? `<button type="button" class="button secondary" id="ploeg-runs-older" data-action="ploeg-runs-older"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load older</span></button>` : '<span class="meta">No older Runs.</span>';
-  return page('runs', demoNote(view.demo), toolbar, stale, `<div class="card flush runs-list">${table}${cards}<footer class="runs-footer">${older}<span class="meta">${plural(view.runs.length, 'Run')} loaded</span></footer></div>`);
+  return `<button type="button" class="button secondary" id="ploeg-runs-older" data-action="ploeg-runs-older"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load older</span></button>`;
+}
+
+function sinceNotice(filter, helpers, now) {
+  const { escape } = helpers;
+  const rest = buildHash('runs', { ...filter, since: '' });
+  return `<p class="runs-since"><span>Finished Runs ${escape(sinceLabel(filter.since, now).replace(/^Since/, 'since'))}</span>${linkButton('Show every finished Run', `#${rest}`, helpers, 'x')}</p>`;
 }
 
 function briefMarkup(text) {

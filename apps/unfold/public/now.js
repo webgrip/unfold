@@ -510,6 +510,26 @@ function recentRow(run, context) {
   return `<li>${listRow({ href: `#work/${run.workItemId}`, id: `now-row-f-${run.id}`, tone, lead: icon(outcome?.glyph || 'circle-slash'), title: run.workItemTitle || `Work Item ${run.workItemId}`, meta: `${agentReview}${facts}`, trail: format.timeHtml(run.finishedAt, { now: context.now }), data: { nowRow: true, unread: unread || null } })}</li>`;
 }
 
+/**
+ * The `#runs` link for the Runs that finished after `since`, which Recently finished lists only the newest of.
+ * @param {string} since
+ * @returns {string}
+ */
+export function finishedSinceHref(since) {
+  const at = moment(since);
+  return at === null ? '#runs?state=finished' : `#runs?state=finished&since=${encodeURIComponent(new Date(at).toISOString())}`;
+}
+
+function sinceRunsRow(data, runs, context) {
+  if (!context.sinceIso) return '';
+  const counts = digestCounts(data, context.sinceIso);
+  const listed = runs.filter(run => after(run.finishedAt, context.since)).length;
+  if (!counts.finished || (counts.finished <= listed && !counts.finishedCapped)) return '';
+  const hidden = counts.finished - listed;
+  const text = `Show ${hidden > 0 ? `${format.count(hidden)}${counts.finishedCapped ? '+' : ''} more` : 'more'} finished ${sinceLabel(context.sinceIso, context.now).replace(/^Since/, 'since')} in Runs`;
+  return `<li class="now-item now-more-item"><a class="now-more" id="now-recent-since" href="${escape(finishedSinceHref(context.sinceIso))}">${escape(text)}${icon('chevron')}</a></li>`;
+}
+
 function recentCard(view, visible, held, context) {
   const error = view.data.errors?.recent;
   const runs = byFinish(visible.recent).slice(0, recentLimit);
@@ -519,7 +539,7 @@ function recentCard(view, visible, held, context) {
   let body;
   if (error) body = errorState('recent', 'Could not load finished Runs', error);
   else if (!runs.length) body = emptyState({ icon: 'clock', compact: true, title: 'No Run has finished yet', body: 'Finished Runs appear here with their outcome and the agent’s review verdict.' });
-  else body = `<ul class="list now-list">${runs.map(run => recentRow(run, local)).join('')}</ul>`;
+  else body = `<ul class="list now-list">${runs.map(run => recentRow(run, local)).join('')}${sinceRunsRow(view.data, runs, context)}</ul>`;
   return `<section class="card flush now-card now-recent" aria-labelledby="now-recent-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-recent-title">Recently finished</h2></div><div class="card-actions">${button({ id: 'now-recent-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=finished', ariaLabel: 'View all finished Runs' })}</div></header><div class="card-body">${pill}${body}</div></section>`;
 }
 
@@ -682,7 +702,7 @@ export function nowMarkup(input, options = {}, now = Date.now()) {
   const list = value => Array.isArray(value) ? value : [];
   const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: list(input.data.running), active: list(input.data.active), recent: list(input.data.recent) } };
   const since = view.since === undefined ? null : view.since;
-  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), runs: view.data.errors.recent ? [] : view.data.recent, dots: true };
+  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs: view.data.errors.recent ? [] : view.data.recent, dots: true };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
   const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
   return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${waitingCard(view, visible, held, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}${view.asksEnabled === false ? '' : asksCard(view)}</div></div></div>`;

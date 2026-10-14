@@ -73,6 +73,15 @@ export async function run({ page, assert, screenshot }) {
     assert.match(page.url(), /#runs\?state=running$/);
     await page.getByLabel('State', { exact: true }).selectOption('');
     await page.waitForFunction(() => document.querySelectorAll('.runs-table tbody tr[data-run-id]').length === 10);
+    await page.evaluate(() => { location.hash = `#runs?state=finished&since=${encodeURIComponent(new Date(Date.now() - 365 * 86400000).toISOString())}`; });
+    await page.locator('.runs-since').waitFor();
+    assert.match(await page.locator('.runs-since').innerText(), /^Finished Runs since /, 'a since link does not say which Runs it lists');
+    assert.equal(await page.locator('.runs-table tbody tr[data-run-id]:not([data-state="finished"])').count(), 0, 'a since link lists Runs that have not finished');
+    await noOverflow(`Runs since a moment at ${viewport.width}px`);
+    await page.getByRole('link', { name: 'Show every finished Run' }).click();
+    await page.waitForFunction(() => location.hash === '#runs?state=finished' && !document.querySelector('.runs-since'));
+    await page.getByLabel('State', { exact: true }).selectOption('');
+    await page.waitForFunction(() => document.querySelectorAll('.runs-table tbody tr[data-run-id]').length === 10);
     await noOverflow(`Runs at ${viewport.width}px`);
     await screenshot(`ploeg-runs-${viewport.width}`);
     await navigate(page, 'Proposed');

@@ -16,7 +16,7 @@ function renderRuns() {
 }
 
 function query(view, { before, fresh } = {}) {
-  const params = new URLSearchParams(Object.entries(runFilter(view.filter)).filter(([, value]) => value));
+  const params = new URLSearchParams(Object.entries(runFilter(view.filter)).filter(([key, value]) => value && key !== 'since'));
   if (before) params.set('before', before);
   if (fresh) params.set('refresh', '1');
   return params;
@@ -84,7 +84,7 @@ async function poll() {
 }
 
 async function filterRuns(field, element) {
-  state.ploegRuns.filter = runFilter({ ...state.ploegRuns.filter, [field]: element.value });
+  state.ploegRuns.filter = runFilter({ ...state.ploegRuns.filter, [field]: element.value, since: field === 'state' ? '' : state.ploegRuns.filter.since });
   history.replaceState(null, '', `#${buildHash('runs', state.ploegRuns.filter)}`);
   const loading = loadRuns('reset');
   const request = state.ploegRequest;
@@ -96,7 +96,7 @@ async function filterRuns(field, element) {
 
 async function enterRuns({ query: hash = {} } = {}) {
   enterPloegView('runs');
-  state.ploegRuns.filter = runFilter({ team: hash.team, state: Object.hasOwn(runStates, hash.state ?? '') ? hash.state : '', outcome: Object.hasOwn(runOutcomes, hash.outcome ?? '') ? hash.outcome : '' });
+  state.ploegRuns.filter = runFilter({ team: hash.team, state: Object.hasOwn(runStates, hash.state ?? '') ? hash.state : '', outcome: Object.hasOwn(runOutcomes, hash.outcome ?? '') ? hash.outcome : '', since: hash.since });
   if (state.ploegTeams === null) void loadPloegTeams();
   return await loadRuns('reset');
 }
@@ -104,7 +104,7 @@ async function enterRuns({ query: hash = {} } = {}) {
 onPloegReload('runs', () => loadRuns(state.ploegRuns.runs ? 'refresh' : 'reset'));
 live.register('runs', { interval: 30000, refresh: liveRefresh('runs', poll, () => state.ploegRuns.error) });
 
-/** Runs: the Run history across your Teams, running work first, filtered by Team, state and outcome (`#runs?team=&state=&outcome=`). Refreshes every 30 seconds. */
+/** Runs: the Run history across your Teams, running work first, filtered by Team, state and outcome (`#runs?team=&state=&outcome=`); `since` lists only the Runs that finished after that moment. Refreshes every 30 seconds. */
 export default {
   id: 'runs',
   match: hash => hash === 'runs' ? {} : null,

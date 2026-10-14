@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { nowMarkup, digestCounts, digestSection, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, byWaitingSince, awayAfter, reasonGlyph, offersRetry, mayHoldMore, stateTruncated, runPage, groupLimit, subgroupLimit, waitingToRun } from '../public/now.js';
+import { nowMarkup, digestCounts, digestSection, finishedSinceHref, sinceLabel, nextBaseline, visibleNow, shownIds, openTarget, byFinish, byWaitingSince, awayAfter, reasonGlyph, offersRetry, mayHoldMore, stateTruncated, runPage, groupLimit, subgroupLimit, waitingToRun } from '../public/now.js';
 import { listReason } from '../public/core/reasons.js';
 import { icon } from '../public/core/icons.js';
 
@@ -560,4 +560,14 @@ test('a failed active group keeps the running Runs and adds nothing', () => {
   const html = nowMarkup(view({ data }), options, nowAt);
   assert.match(html, /now-row-r-40/);
   assert.doesNotMatch(html, /now-row-q-186/);
+});
+
+test('Recently finished points to the rest of the Runs that finished since the last visit', () => {
+  assert.doesNotMatch(nowMarkup(view(), options, nowAt), /now-recent-since/, 'every Run that finished since is already listed');
+  const finished = id => ({ ...nowData().recent[0], id: String(id), finishedAt: `2026-09-20T09:${String(20 + id).padStart(2, '0')}:00Z` });
+  const eight = { ...nowData(), recent: Array.from({ length: 8 }, (_, index) => finished(index + 1)) };
+  const html = nowMarkup(view({ data: eight }), options, nowAt);
+  assert.match(html, /<a class="now-more" id="now-recent-since" href="#runs\?state=finished&amp;since=2026-09-20T09%3A10%3A00\.000Z">Show 2 more finished since \d\d:\d\d in Runs/);
+  assert.equal(finishedSinceHref('not a moment'), '#runs?state=finished');
+  assert.doesNotMatch(nowMarkup(view({ data: eight, since: null }), options, nowAt), /now-recent-since/, 'a first visit has no since to link');
 });
