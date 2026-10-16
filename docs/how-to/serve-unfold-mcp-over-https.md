@@ -28,15 +28,15 @@ Create one public client (no secret, authorization code with PKCE S256) whose ac
    | Cursor | `http://localhost:8787/callback` |
 
    In Authentik, a regular-expression redirect such as `^http://(localhost|127\.0\.0\.1):[0-9]+/callback$` covers Claude Code's changing port.
-3. A scope `unfold:mcp`. Its mapping adds nothing; it exists so the token's `scope` claim carries it:
+3. A scope `unfold:mcp` whose mapping returns the person's groups, so the access token carries them. Unfold decides the role from them with the same `auth.oidc.roles` map as browser sign-in, refuses a token that entitles no role, and acts at the lower of that role and the stored one:
 
    ```python
-   return {}
+   return {"groups": [group.name for group in request.user.ak_groups.all()]}
    ```
 
-   Also attach `openid`, `email` and `offline_access`, so clients get a refresh token and do not open the browser every time a token expires.
+   If your browser provider puts a role claim (`auth.oidc.roleClaim`) in its tokens instead, return the same claim here. Also attach `openid` and `offline_access`, so clients get a refresh token and do not open the browser every time a token expires.
 4. Access token validity: 10 minutes. Unfold refuses a token that lives longer, unless you raise `UNFOLD_MCP_MAX_TOKEN_LIFETIME`.
-5. Subject mode: the same as Unfold's own browser provider. Unfold finds a person's account by the token's `sub`, under the browser issuer (or `auth.oidc.subjectNamespace`), so both providers must give one person the same subject. Authentik's default, "Based on the User's hashed ID", does. Not verified: that it is identical across two providers of one Authentik. If it is not, Unfold falls back to a verified email (`email_verified: true`) that names a single sign-on account.
+5. Subject mode: exactly the same as Unfold's own browser provider. Unfold finds a person's account by the token's `sub` alone, under the browser issuer (or `auth.oidc.subjectNamespace`), and never by email or name, so both providers must give one person the same subject. Authentik's default, "Based on the User's hashed ID", is meant to. Not verified: that it is identical across two providers of one Authentik; check one person's `sub` in both before you roll out.
 6. Bind the application to the same groups that may sign in to Unfold.
 
 ## 2. Configure the Unfold server
@@ -50,8 +50,9 @@ Set these variables on the existing Unfold Deployment. There are no default doma
 | `UNFOLD_MCP_CLIENT_IDS` | yes | Comma-separated client ids whose tokens are accepted (`aud` and `azp`) |
 | `UNFOLD_MCP_JWKS_URL` | no | The provider's key set; default is the `jwks_uri` of the issuer's discovery document |
 | `UNFOLD_MCP_SCOPE` | no | The scope a token must carry; default `unfold:mcp` |
-| `UNFOLD_MCP_REQUEST_SCOPES` | no | Space-separated scopes clients are told to request, such as `openid email unfold:mcp offline_access`; the required scope is always added |
+| `UNFOLD_MCP_REQUEST_SCOPES` | no | Space-separated scopes clients are told to request, such as `openid unfold:mcp offline_access`; the required scope is always added |
 | `UNFOLD_MCP_MAX_TOKEN_LIFETIME` | no | Longest accepted `exp` minus `iat`, such as `10m`; default `10m`, at most `24h` |
+| `UNFOLD_MCP_SUBJECT_NAMESPACE` | only across origins | The namespace browser accounts were created under. Unfold refuses to start when `UNFOLD_MCP_ISSUER` is on another origin than `auth.oidc.issuer` and this is unset, because subjects from another provider are not the same people |
 
 There is no listen variable: the endpoint shares the Unfold server's port. Unfold refuses to start when an `UNFOLD_MCP_*` variable is set without `UNFOLD_MCP_RESOURCE`, outside live mode, or without `auth.oidc`.
 
@@ -60,7 +61,7 @@ env:
   - {name: UNFOLD_MCP_RESOURCE, value: "https://unfold.example.com/mcp"}
   - {name: UNFOLD_MCP_ISSUER, value: "https://id.example.com/application/o/unfold-mcp/"}
   - {name: UNFOLD_MCP_CLIENT_IDS, value: unfold-mcp}
-  - {name: UNFOLD_MCP_REQUEST_SCOPES, value: "openid email unfold:mcp offline_access"}
+  - {name: UNFOLD_MCP_REQUEST_SCOPES, value: "openid unfold:mcp offline_access"}
 ```
 
 The pod needs egress to the provider's discovery and key URLs. Route `/mcp`, `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/mcp` on Unfold's host to the Service without stripping the `Authorization` header and without authentication at the gateway: Unfold answers the 401 that starts the client's sign-in. claude.ai and ChatGPT connectors cannot use it while the provider is reachable on the LAN and VPN only.
@@ -108,7 +109,9 @@ Cursor, in `~/.cursor/mcp.json`:
 
 * `unfold_ask` spends only after the person confirms. A 2026-07-28 client that declares form elicitation is asked through an `input_required` result, and the confirmation it sends back can be used once, by that person, for that question, within 10 minutes. A 2025 client, such as VS Code 1.142, cannot be asked over stateless HTTP, so it is refused with a link to the Work Item and nothing is spent. Ask it over stdio, or in Unfold.
 * `unfold_digest` without `since` covers the last 24 hours, because the "since your previous digest" mark is kept per machine by the stdio server.
-* Every tool reads with the person's own account and Teams, and reaches what an editor credential reaches: it cannot approve editor sign-ins or manage credentials.
+* Every tool reads with the person's own account and Teams, at the lower of the stored role and the role the token's groups entitle. Its credential reaches only the API calls the tools make; it cannot approve editor sign-ins, manage credentials or reach the agent host.
+* The confirmation key and its replay ledger live in the one Unfold process. A restart, or a second replica, refuses a pending confirmation, so the person is asked again and nothing is spent twice.
+* A message is at most 1 MiB, and receiving it may take at most 15 seconds (the server's `requestTimeout`).
 
 ## Verify
 
@@ -129,6 +132,7 @@ The first answers 401 with `resource_metadata` and `scope`; the second names the
 | 401 `the token has no azp or scope` | The client sent an ID token | Use a client that sends the access token |
 | 401 `the token is meant for another audience` | The client signed in with a client id missing from `UNFOLD_MCP_CLIENT_IDS` | Pass `unfold-mcp` as the client id, or add the id |
 | 403 `insufficient_scope` | The token lacks `unfold:mcp` | Attach the scope to the provider and sign in again |
-| 403 "no Unfold account belongs to this identity" | The person never signed in to Unfold in the browser, or the two providers give different subjects | Sign in to Unfold once; align the subject mode, or include a verified `email` |
+| 403 "no Unfold account belongs to this identity" | The person never signed in to Unfold in the browser, or the two providers give different subjects | Sign in to Unfold in the browser once first, then connect again; if it persists, set both providers to the same subject mode |
+| 403 "holds none of the groups this workbench admits" | The token carries no admitted group or role | Check the `unfold:mcp` mapping returns groups, and that the person is in an admitted group |
 | 503 "signing keys are unavailable" | Unfold cannot reach the provider's key set | Check egress and `UNFOLD_MCP_JWKS_URL` |
 | `unfold_ask` says the client cannot confirm | The client speaks 2025 over HTTP, or declares no form elicitation | Ask over stdio or in Unfold |
