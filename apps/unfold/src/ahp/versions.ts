@@ -63,11 +63,12 @@ const introduced: ReadonlyArray<readonly [string, readonly string[]]> = [
   ['0.8.0', ['session/workingDirectoryReplaced', 'automation/createRequested', 'automation/updateRequested', 'automation/set', 'automation/removed', 'automationRun/lifecycleChanged', 'automationRun/sessionSet', 'automationRun/sessionRemoved', 'automationRun/primarySessionChanged', 'automationRun/cancelRequested']],
   ['0.9.0', ['session/chatsReordered', 'session/mcpServerBackgroundRequested', 'chat/turnResume', 'chat/backgroundWorkSet', 'chat/backgroundWorkRemoved', 'chat/movableChanged', 'chat/changesetsChanged', 'chat/isReadChanged', 'chat/isArchivedChanged']],
   ['0.10.0', ['chat/canvasesChanged', 'canvas/stateChanged']],
+  ['1.1.0', ['chat/configChanged']],
 ];
 const actionIntroducedIn = new Map(introduced.flatMap(([version, types]) => types.map(type => [type, version] as const)));
 
 /**
- * Whether a client that negotiated `negotiated` knows the action type, by the AHP 1.0.0 registry's `ACTION_INTRODUCED_IN`
+ * Whether a client that negotiated `negotiated` knows the action type, by the AHP registry's `ACTION_INTRODUCED_IN` (1.0.0, plus 1.1.0's `chat/configChanged`)
  * and `isActionKnownToVersion`. A type the registry does not list is implementation-defined and known to every version.
  */
 export function isActionKnownToVersion(type: unknown, negotiated: string): boolean {
