@@ -16,6 +16,11 @@ export class OidcError extends Error {
   constructor(status: number, code: string, message: string) { super(message); this.status = status; this.code = code; }
 }
 
+/** The Unfold account id of an identity-provider subject: the same for browser sign-in and `unfold-mcp` over HTTP. */
+export function subjectUserId(namespace: string, subject: string): string {
+  return 'oidc-' + createHash('sha256').update(`${namespace.replace(/\/$/, '')}|${subject}`).digest('hex').slice(0, 32);
+}
+
 function base64url(bytes: Buffer): string { return bytes.toString('base64url'); }
 function decodeSegment(segment: string): any {
   try { return JSON.parse(Buffer.from(segment, 'base64url').toString('utf8')); } catch { throw new OidcError(502, 'oidc_token', 'The identity provider returned an unreadable token.'); }
@@ -157,8 +162,7 @@ export class Oidc {
     if (!role) throw new OidcError(403, 'oidc_not_entitled', `${email ?? subject} signed in, but holds none of the groups this workbench admits.`);
     const preferred = [claims.preferred_username, claims.name, email, subject].find((value): value is string => typeof value === 'string' && value.trim().length > 0)!;
     const name = preferred.trim().slice(0, 100);
-    const namespace = (settings.subjectNamespace ?? settings.issuer).replace(/\/$/, '');
-    const id = 'oidc-' + createHash('sha256').update(`${namespace}|${subject}`).digest('hex').slice(0, 32);
+    const id = subjectUserId(settings.subjectNamespace ?? settings.issuer, subject);
     return { id, name, role, subject, ...(email ? { email } : {}) };
   }
 }

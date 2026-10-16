@@ -1,0 +1,272 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer, type IncomingMessage } from 'node:http';
+import { once } from 'node:events';
+import { createHmac, generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
+import { application } from './api-support.ts';
+import { AccessTokenVerifier, TokenRefused, mcpHttpSettings, type McpHttpSettings } from '../src/mcp-auth.ts';
+import { createMcpHttp } from '../src/mcp-http.ts';
+import { subjectUserId } from '../src/oidc.ts';
+
+const resource = 'https://unfold.example.test/mcp';
+const metadataUrl = 'https://unfold.example.test/.well-known/oauth-protected-resource/mcp';
+const browserIssuer = 'https://sso.example.test/application/o/unfold/';
+
+type Signer = { alg: string; kid?: string; sign(data: Buffer): Buffer };
+
+function rsaSigner(kid = 'rsa-1') {
+  const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  return { publicKey, signer: { alg: 'RS256', kid, sign: (data: Buffer) => sign('sha256', data, privateKey) } as Signer };
+}
+
+function ecSigner(kid = 'ec-1') {
+  const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  return { publicKey, signer: { alg: 'ES256', kid, sign: (data: Buffer) => sign('sha256', data, { key: privateKey, dsaEncoding: 'ieee-p1363' }) } as Signer };
+}
+
+function jwt(signer: Signer, claims: Record<string, unknown>, header: Record<string, unknown> = {}): string {
+  const head = Buffer.from(JSON.stringify({ alg: signer.alg, typ: 'JWT', ...(signer.kid ? { kid: signer.kid } : {}), ...header })).toString('base64url');
+  const body = Buffer.from(JSON.stringify(claims)).toString('base64url');
+  return `${head}.${body}.${signer.sign(Buffer.from(`${head}.${body}`)).toString('base64url')}`;
+}
+
+async function identityProvider(keys: Array<{ publicKey: KeyObject; kid: string }>) {
+  let issuer = '';
+  const fetched = { discovery: 0, jwks: 0 };
+  const server = createServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/application/o/unfold-mcp/.well-known/openid-configuration') { fetched.discovery++; return res.end(JSON.stringify({ issuer, jwks_uri: `${issuer}jwks/` })); }
+    if (req.url === '/application/o/unfold-mcp/jwks/') { fetched.jwks++; return res.end(JSON.stringify({ keys: keys.map(({ publicKey, kid }) => ({ ...(publicKey.export({ format: 'jwk' }) as object), kid, use: 'sig' })) })); }
+    res.statusCode = 404; res.end('{}');
+  });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  issuer = `http://127.0.0.1:${(server.address() as { port: number }).port}/application/o/unfold-mcp/`;
+  return { issuer, fetched, close: () => new Promise<void>(done => server.close(() => done())) };
+}
+
+function settingsFor(issuer: string): McpHttpSettings {
+  return { resource, issuer, clientIds: ['unfold-mcp'], scope: 'unfold:mcp', requestScopes: ['openid', 'unfold:mcp', 'offline_access'], maxLifetimeMs: 600_000 };
+}
+
+function claimsFor(issuer: string, extra: Record<string, unknown> = {}) {
+  const now = Math.floor(Date.now() / 1000);
+  return { iss: issuer, aud: 'unfold-mcp', azp: 'unfold-mcp', sub: 'person-sub', scope: 'openid unfold:mcp offline_access', iat: now, exp: now + 300, email: 'person@example.com', email_verified: true, preferred_username: 'person', ...extra };
+}
+
+const meta = (capabilities: Record<string, unknown> = {}) => ({ 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' }, 'io.modelcontextprotocol/clientCapabilities': capabilities });
+
+async function post(url: string, message: Record<string, any>, options: { token?: string; version?: string | null; headers?: Record<string, string>; method?: string } = {}) {
+  const version = options.version === undefined ? '2026-07-28' : options.version;
+  const modern = version === '2026-07-28';
+  const body = modern && message.method ? { ...message, params: { ...(message.params ?? {}), _meta: message.params?._meta ?? meta() } } : message;
+  const headers: Record<string, string> = {
+    'content-type': 'application/json', accept: 'application/json, text/event-stream',
+    ...(options.token ? { authorization: `Bearer ${options.token}` } : {}),
+    ...(version ? { 'mcp-protocol-version': version } : {}),
+    ...(modern && message.method ? { 'mcp-method': message.method } : {}),
+    ...(modern && message.method === 'tools/call' ? { 'mcp-name': message.params.name } : {}),
+    ...options.headers,
+  };
+  const response = await fetch(`${url}/mcp`, { method: options.method ?? 'POST', headers, ...(options.method && options.method !== 'POST' ? {} : { body: JSON.stringify(body) }) });
+  const text = await response.text();
+  let json: any = null;
+  try { json = text ? JSON.parse(text) : null; } catch {}
+  return { status: response.status, headers: response.headers, json, text };
+}
+
+async function served(t: test.TestContext) {
+  const rsa = rsaSigner();
+  const idp = await identityProvider([{ publicKey: rsa.publicKey, kid: 'rsa-1' }]);
+  const unfold = await application('live', config => {
+    config.baseUrl = undefined;
+    (config.auth as any).oidc = { issuer: browserIssuer, clientId: 'unfold', scopes: ['openid'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: [], operator: ['unfold-operators'], viewer: [] } };
+    config.mcp = settingsFor(idp.issuer);
+  });
+  t.after(async () => { await unfold.close(); await idp.close(); });
+  const person = { id: subjectUserId(browserIssuer, 'person-sub'), name: 'person@example.com', role: 'operator' as const, passwordHash: '' };
+  unfold.app.store.addUser(person);
+  return { unfold, idp, signer: rsa.signer, person, token: (extra: Record<string, unknown> = {}, signer: Signer = rsa.signer) => jwt(signer, claimsFor(idp.issuer, extra)) };
+}
+
+test('the protected resource metadata names the issuer and the exact resource, at both well-known paths', async t => {
+  const { unfold, idp } = await served(t);
+  for (const path of ['/.well-known/oauth-protected-resource', '/.well-known/oauth-protected-resource/mcp']) {
+    const response = await fetch(`${unfold.url}${path}`);
+    assert.equal(response.status, 200, path);
+    assert.equal(response.headers.get('access-control-allow-origin'), '*');
+    assert.deepEqual(await response.json(), { resource, authorization_servers: [idp.issuer], scopes_supported: ['openid', 'unfold:mcp', 'offline_access'], bearer_methods_supported: ['header'], resource_name: 'Unfold' });
+  }
+  assert.equal((await fetch(`${unfold.url}/.well-known/oauth-protected-resource/mcp`, { method: 'OPTIONS' })).status, 204);
+});
+
+test('a request without a token gets 401 with an RFC 6750 challenge that points at the metadata', async t => {
+  const { unfold } = await served(t);
+  const answer = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list' });
+  assert.equal(answer.status, 401);
+  assert.equal(answer.headers.get('www-authenticate'), `Bearer scope="openid unfold:mcp offline_access", resource_metadata="${metadataUrl}"`);
+  const garbage = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, { token: 'not-a-jwt' });
+  assert.equal(garbage.status, 401);
+  assert.match(garbage.headers.get('www-authenticate')!, /^Bearer error="invalid_token", error_description="the token is not a JWT", scope=".*", resource_metadata=".*"$/);
+});
+
+test('tokens for another audience or client, expired, long-lived, symmetric, ID tokens and missing scopes are refused', async t => {
+  const { unfold, idp, token, signer } = await served(t);
+  const now = Math.floor(Date.now() / 1000);
+  const refused = async (value: string, reason: RegExp, status = 401) => {
+    const answer = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, { token: value });
+    assert.equal(answer.status, status, `${reason}: ${answer.text}`);
+    assert.match(answer.headers.get('www-authenticate') ?? '', reason);
+    return answer;
+  };
+  await refused(token({ aud: 'someone-else' }), /error="invalid_token", error_description="the token is meant for another audience"/);
+  await refused(token({ azp: 'other-client' }), /issued to a client this server does not accept/);
+  await refused(token({ iss: idp.issuer.replace(/\/$/, '') }), /issued by another issuer/);
+  await refused(token({ iat: now - 400, exp: now - 61 }), /the token has expired/);
+  await refused(token({ exp: now + 3600 }), /lives longer than 600s/);
+  await refused(token({ iat: undefined }), /the token has no iat/);
+  await refused(token({ sub: '' }), /the token has no sub/);
+  await refused(token({ azp: undefined, scope: undefined }), /an ID token is not an access token/);
+  const hmac = { alg: 'HS256', kid: 'rsa-1', sign: (data: Buffer) => createHmac('sha256', 'shared-secret').update(data).digest() };
+  await refused(jwt(hmac, claimsFor(idp.issuer)), /not signed with an accepted asymmetric algorithm/);
+  await refused(jwt({ ...signer, alg: 'none', sign: () => Buffer.alloc(0) }, claimsFor(idp.issuer)), /not signed with an accepted asymmetric algorithm/);
+  await refused(jwt({ ...signer, kid: 'rsa-1' }, claimsFor(idp.issuer), { alg: 'RS384' }), /signature does not verify/);
+  const scopeless = await refused(token({ scope: 'openid profile' }), /^Bearer error="insufficient_scope", error_description="requires unfold:mcp"/, 403);
+  assert.match(scopeless.json.error.message, /lacks the scope unfold:mcp/);
+  const skewed = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, { token: token({ iat: now - 330, exp: now - 30 }) });
+  assert.equal(skewed.status, 200, 'up to 60 seconds of clock skew is tolerated');
+});
+
+test('a valid token runs the tools as the Unfold account its subject maps to; an unmapped subject gets 403', async t => {
+  const { unfold, token, person } = await served(t);
+  const listed = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, { token: token() });
+  assert.equal(listed.status, 200, listed.text);
+  assert.equal(listed.json.result.resultType, 'complete');
+  assert.deepEqual(listed.json.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_spend', 'unfold_digest', 'unfold_ask']);
+  assert.equal(listed.headers.get('mcp-session-id'), null, 'a stateless server mints no session');
+
+  const sessions = await post(unfold.url, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'unfold_sessions', arguments: {} } }, { token: token() });
+  assert.equal(sessions.status, 200);
+  assert.equal(sessions.json.result.isError, undefined, sessions.text);
+  assert.equal(sessions.json.result.structuredContent.summary, '0 sessions.');
+
+  const stranger = await post(unfold.url, { jsonrpc: '2.0', id: 3, method: 'tools/list' }, { token: token({ sub: 'someone-new', email: 'new@example.com' }) });
+  assert.equal(stranger.status, 403);
+  assert.match(stranger.json.error.message, /^Signed in as new@example\.com, but no Unfold account belongs to this identity/);
+  assert.equal(stranger.headers.get('www-authenticate'), null);
+
+  unfold.app.store.addUser({ id: 'local-mailbox', name: 'local@example.com', role: 'admin', passwordHash: '' });
+  const local = await post(unfold.url, { jsonrpc: '2.0', id: 4, method: 'tools/list' }, { token: token({ sub: 'other-provider-sub', email: 'local@example.com' }) });
+  assert.equal(local.status, 403, 'an email only maps to an account that came from single sign-on');
+  unfold.app.store.addUser({ id: subjectUserId(browserIssuer, 'browser-sub'), name: 'sso@example.com', role: 'viewer', passwordHash: '' });
+  assert.equal((await post(unfold.url, { jsonrpc: '2.0', id: 5, method: 'tools/list' }, { token: token({ sub: 'mcp-sub', email: 'SSO@example.com' }) })).status, 200, 'a verified email maps to the single sign-on account named after it');
+  assert.equal((await post(unfold.url, { jsonrpc: '2.0', id: 6, method: 'tools/list' }, { token: token({ sub: 'mcp-sub', email: 'sso@example.com', email_verified: false }) })).status, 403, 'an unverified email maps to nothing');
+  assert.equal(person.role, 'operator');
+});
+
+test('server/discover and the stateless 2026-07-28 rules: headers must match the body', async t => {
+  const { unfold, token } = await served(t);
+  const discovered = await post(unfold.url, { jsonrpc: '2.0', id: 'd', method: 'server/discover' }, { token: token() });
+  assert.equal(discovered.status, 200, discovered.text);
+  assert.deepEqual(discovered.json.result.supportedVersions, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
+  assert.equal(discovered.json.result._meta['io.modelcontextprotocol/serverInfo'].name, 'unfold-mcp');
+
+  const mismatch = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, { token: token(), headers: { 'mcp-method': 'tools/call' } });
+  assert.equal(mismatch.status, 400);
+  assert.equal(mismatch.json.error.code, -32020);
+  const wrongName = await post(unfold.url, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'unfold_now', arguments: {} } }, { token: token(), headers: { 'mcp-name': 'unfold_ask' } });
+  assert.equal(wrongName.json.error.code, -32020);
+  const encodedName = await post(unfold.url, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'unfold_sessions', arguments: {} } }, { token: token(), headers: { 'mcp-name': `=?base64?${Buffer.from('unfold_sessions').toString('base64')}?=` } });
+  assert.equal(encodedName.status, 200, 'a Base64-encoded Mcp-Name is decoded before it is compared');
+  const unsupported = await post(unfold.url, { jsonrpc: '2.0', id: 4, method: 'tools/list' }, { token: token(), version: '1900-01-01' });
+  assert.equal(unsupported.status, 400);
+  assert.equal(unsupported.json.error.code, -32022);
+  const unknown = await post(unfold.url, { jsonrpc: '2.0', id: 5, method: 'resources/list' }, { token: token() });
+  assert.equal(unknown.status, 404);
+  assert.equal(unknown.json.error.code, -32601);
+  assert.equal((await post(unfold.url, {}, { token: token(), method: 'GET' })).status, 405);
+  assert.equal((await post(unfold.url, { jsonrpc: '2.0', id: 6, method: 'tools/list' }, { token: token(), headers: { origin: 'https://evil.example.test' } })).status, 403);
+});
+
+test('a 2025-11-25 client initializes over HTTP and lists tools without a session', async t => {
+  const { unfold, token } = await served(t);
+  const init = await post(unfold.url, { jsonrpc: '2.0', id: 0, method: 'initialize', params: { protocolVersion: '2025-11-25', capabilities: { elicitation: {} }, clientInfo: { name: 'vscode', version: '1.142' } } }, { token: token(), version: null });
+  assert.equal(init.status, 200, init.text);
+  assert.equal(init.json.result.protocolVersion, '2025-11-25');
+  assert.equal(init.json.result.serverInfo.name, 'unfold-mcp');
+  assert.equal(init.headers.get('mcp-session-id'), null);
+  const initialized = await post(unfold.url, { jsonrpc: '2.0', method: 'notifications/initialized' }, { token: token(), version: '2025-11-25' });
+  assert.equal(initialized.status, 202);
+  const listed = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, { token: token(), version: '2025-11-25' });
+  assert.equal(listed.json.result.tools.length, 7);
+  assert.equal(listed.json.result.resultType, undefined);
+});
+
+test('unfold_ask over HTTP refuses to spend when the client cannot confirm', async t => {
+  const { unfold, token } = await served(t);
+  const call = { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'unfold_ask', arguments: { id: '184', question: 'Is Firefox affected?', use_model: true } } };
+  const legacy = await post(unfold.url, call, { token: token(), version: '2025-11-25' });
+  assert.equal(legacy.json.result.isError, true);
+  assert.match(legacy.json.result.content[0].text, /cannot ask you to confirm a spend, so no model was asked/);
+  const modern = await post(unfold.url, call, { token: token() });
+  assert.equal(modern.json.result.isError, true);
+  assert.match(modern.json.result.content[0].text, /cannot ask you to confirm a spend, so no model was asked/);
+});
+
+test('the tools call Unfold with a short-lived credential of their own, never the caller\'s access token', async t => {
+  const rsa = rsaSigner();
+  const idp = await identityProvider([{ publicKey: rsa.publicKey, kid: 'rsa-1' }]);
+  const seen: string[] = [];
+  const api = createServer((req: IncomingMessage, res) => { seen.push(String(req.headers.authorization)); res.setHeader('content-type', 'application/json'); res.end('[]'); });
+  api.listen(0, '127.0.0.1'); await once(api, 'listening');
+  const revoked: string[] = [];
+  const mcp = createMcpHttp({
+    settings: settingsFor(idp.issuer), subjectNamespace: browserIssuer,
+    findUser: id => id === subjectUserId(browserIssuer, 'person-sub') ? { id, name: 'person@example.com', role: 'viewer' } : undefined,
+    findUserByName: () => undefined,
+    delegate: () => { const token = `vlm_${'x'.repeat(43)}`; return { token, revoke: () => { revoked.push(token); } }; },
+    apiUrl: () => `http://127.0.0.1:${(api.address() as { port: number }).port}`, linkUrl: 'https://unfold.example.test', version: 'test',
+  });
+  const front = createServer((req, res) => { void mcp.handle(req, res, new URL(req.url!, 'http://x').pathname); });
+  front.listen(0, '127.0.0.1'); await once(front, 'listening');
+  t.after(async () => { front.close(); api.close(); await idp.close(); });
+  const access = jwt(rsa.signer, claimsFor(idp.issuer));
+  const answer = await post(`http://127.0.0.1:${(front.address() as { port: number }).port}`, { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'unfold_sessions', arguments: {} } }, { token: access });
+  assert.equal(answer.json.result.structuredContent.summary, '0 sessions.', answer.text);
+  assert.deepEqual(seen, [`Bearer vlm_${'x'.repeat(43)}`]);
+  assert(!seen.some(value => value.includes(access)));
+  assert.deepEqual(revoked, [`vlm_${'x'.repeat(43)}`], 'the credential is revoked when the request ends');
+});
+
+test('the verifier accepts ES256, and refetches keys for an unknown key id at most once per 30 seconds', async t => {
+  const ec = ecSigner('ec-1');
+  const rotated = ecSigner('ec-2');
+  const keys = [{ publicKey: ec.publicKey, kid: 'ec-1' }];
+  const idp = await identityProvider(keys);
+  t.after(() => idp.close());
+  let clock = Date.now();
+  const verifier = new AccessTokenVerifier(settingsFor(idp.issuer), { now: () => clock });
+  const claims = () => claimsFor(idp.issuer, { iat: Math.floor(clock / 1000), exp: Math.floor(clock / 1000) + 300 });
+  assert.equal((await verifier.verify(jwt(ec.signer, claims()))).subject, 'person-sub');
+  assert.deepEqual(idp.fetched, { discovery: 1, jwks: 1 });
+  keys.push({ publicKey: rotated.publicKey, kid: 'ec-2' });
+  await assert.rejects(verifier.verify(jwt(rotated.signer, claims())), (error: unknown) => error instanceof TokenRefused && /key id is not among/.test(error.reason));
+  await assert.rejects(verifier.verify(jwt(rotated.signer, claims())), TokenRefused);
+  assert.equal(idp.fetched.jwks, 1, 'an unknown key id does not refetch within 30 seconds');
+  clock += 31_000;
+  assert.equal((await verifier.verify(jwt(rotated.signer, claims()))).subject, 'person-sub');
+  assert.equal(idp.fetched.jwks, 2);
+  const forged = { alg: 'RS256', kid: 'ec-1', sign: (data: Buffer) => ec.signer.sign(data) };
+  await assert.rejects(verifier.verify(jwt(forged, claims())), /algorithm does not match its signing key/);
+});
+
+test('UNFOLD_MCP_* settings: off without a resource, no default domains, and strict about shape', () => {
+  assert.equal(mcpHttpSettings({}), undefined);
+  assert.throws(() => mcpHttpSettings({ UNFOLD_MCP_ISSUER: 'https://sso.example.test/' }), /UNFOLD_MCP_ISSUER is set, but UNFOLD_MCP_RESOURCE is not/);
+  assert.throws(() => mcpHttpSettings({ UNFOLD_MCP_RESOURCE: resource }), /UNFOLD_MCP_ISSUER is required/);
+  assert.throws(() => mcpHttpSettings({ UNFOLD_MCP_RESOURCE: resource, UNFOLD_MCP_ISSUER: 'https://sso.example.test/' }), /UNFOLD_MCP_CLIENT_IDS/);
+  for (const bad of ['https://unfold.example.test/', 'https://unfold.example.test/api/mcp', 'https://unfold.example.test/mcp/', 'https://unfold.example.test/mcp?x=1']) assert.throws(() => mcpHttpSettings({ UNFOLD_MCP_RESOURCE: bad, UNFOLD_MCP_ISSUER: 'https://sso.example.test/', UNFOLD_MCP_CLIENT_IDS: 'unfold-mcp' }), /UNFOLD_MCP_RESOURCE/, bad);
+  assert.deepEqual(mcpHttpSettings({ UNFOLD_MCP_RESOURCE: resource, UNFOLD_MCP_ISSUER: 'https://sso.example.test/', UNFOLD_MCP_CLIENT_IDS: 'unfold-mcp, unfold-mcp-vscode', UNFOLD_MCP_REQUEST_SCOPES: 'openid offline_access', UNFOLD_MCP_MAX_TOKEN_LIFETIME: '5m' }), { resource, issuer: 'https://sso.example.test/', clientIds: ['unfold-mcp', 'unfold-mcp-vscode'], scope: 'unfold:mcp', requestScopes: ['openid', 'offline_access', 'unfold:mcp'], maxLifetimeMs: 300_000 });
+  assert.throws(() => mcpHttpSettings({ UNFOLD_MCP_RESOURCE: resource, UNFOLD_MCP_ISSUER: 'https://sso.example.test/', UNFOLD_MCP_CLIENT_IDS: 'unfold-mcp', UNFOLD_MCP_MAX_TOKEN_LIFETIME: '2d' }), /at most 24h/);
+  assert.throws(() => mcpHttpSettings({ UNFOLD_MCP_RESOURCE: resource, UNFOLD_MCP_ISSUER: 'https://sso.example.test/', UNFOLD_MCP_CLIENT_IDS: 'unfold-mcp', UNFOLD_MCP_SCOPE: 'two scopes' }), /one scope/);
+});

@@ -1,3 +1,4 @@
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -5,14 +6,31 @@ import type { Readable, Writable } from 'node:stream';
 
 /** Protocol revisions this server answers `initialize` with; the client's own revision wins when it is listed. */
 export const mcpProtocolVersions = ['2025-11-25', '2025-06-18', '2025-03-26'] as const;
+/** Stateless protocol revisions, which carry their version in each request's `_meta` instead of an `initialize` handshake. */
+export const mcpModernProtocolVersions = ['2026-07-28'] as const;
 
-/** What `unfold-mcp` needs to read one Unfold: its base URL and, outside the demo, an editor credential (`vle_…`). */
-export type McpOptions = { url: string; token?: string; version?: string; timeoutMs?: number; fetch?: typeof fetch; stateFile?: string; now?: () => Date };
+const versionKey = 'io.modelcontextprotocol/protocolVersion';
+const capabilitiesKey = 'io.modelcontextprotocol/clientCapabilities';
+const confirmationTtlMs = 600_000;
+
+/** Signs and remembers the spend confirmations `unfold_ask` hands out over the stateless protocol. Share one per process. */
+export type Confirmations = { key: Buffer; used: Map<string, number> };
+
+/** A fresh confirmation ledger with its own signing key; a restart forgets pending confirmations, so nothing is spent. */
+export function confirmationLedger(): Confirmations { return { key: randomBytes(32), used: new Map() }; }
+
+/**
+ * What `unfold-mcp` needs to read one Unfold: its base URL and, outside the demo, an editor credential (`vle_…`).
+ * `apiUrl` is where the API is called when it differs from the URL links point at, and `principal` is who a
+ * spend confirmation is bound to.
+ */
+export type McpOptions = { url: string; apiUrl?: string; token?: string; version?: string; timeoutMs?: number; fetch?: typeof fetch; stateFile?: string; now?: () => Date; principal?: string; confirmations?: Confirmations };
 
 type Reason = { code: string; chip: string; sentence: string; fix: string; requeue: string; action: string; headline?: string | null; variant?: string | null; run?: { id: string; role: string; round: number; text: string } | null };
 type Reasons = { listReason(item: unknown, options?: { demo?: boolean }): Reason | null; detailReason(detail: unknown): Reason | null; routingWarning(item: unknown): { chip: string; sentence: string; fix: string } | null };
 type Json = Record<string, any>;
-type Tool = { name: string; title: string; description: string; inputSchema: Json; outputSchema: Json; readOnly?: false; run(args: Json): Promise<Json> };
+type Call = { modern: boolean; capabilities: Json; inputResponses?: Json; requestState?: unknown };
+type Tool = { name: string; title: string; description: string; inputSchema: Json; outputSchema: Json; readOnly?: false; run(args: Json, call: Call): Promise<Json | InputRequired> };
 /** Sends one request from the server to the client and resolves with the client's result. */
 export type McpOutbound = (method: string, params: Json) => Promise<Json>;
 
@@ -20,6 +38,12 @@ class UnfoldAnswer extends Error {
   readonly status: number;
   readonly code: string;
   constructor(status: number, code: string, message: string) { super(message); this.status = status; this.code = code; }
+}
+
+class InputRequired {
+  readonly inputRequests: Json;
+  readonly requestState: string;
+  constructor(inputRequests: Json, requestState: string) { this.inputRequests = inputRequests; this.requestState = requestState; }
 }
 
 const reasons = await import(new URL('../public/core/reasons.js', import.meta.url).href) as Reasons;
@@ -39,7 +63,11 @@ const workRow = object({
 /** A stdio MCP server over one Unfold's HTTP API. `handle` answers one JSON-RPC message, and returns undefined for a notification. */
 export function createMcpServer(options: McpOptions) {
   const base = options.url.replace(/\/+$/, '');
+  const api = (options.apiUrl ?? options.url).replace(/\/+$/, '');
   const fetcher = options.fetch ?? fetch;
+  const confirmations = options.confirmations ?? confirmationLedger();
+  const principal = options.principal ?? 'stdio';
+  const serverInfo = { name: 'unfold-mcp', title: 'Unfold', version: options.version ?? '0.0.0-dev' };
   const timeoutMs = options.timeoutMs ?? 20_000;
   const link = (id: string) => `${base}/#work/${encodeURIComponent(id)}`;
 
@@ -50,7 +78,7 @@ export function createMcpServer(options: McpOptions) {
     let response: Response;
     try {
       const headers = { accept: 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(payload ? { 'content-type': 'application/json', 'x-unfold-request': '1' } : {}) };
-      response = await fetcher(`${base}${path}`, { method: payload ? 'POST' : 'GET', headers, ...(payload ? { body: JSON.stringify(payload) } : {}), redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
+      response = await fetcher(`${api}${path}`, { method: payload ? 'POST' : 'GET', headers, ...(payload ? { body: JSON.stringify(payload) } : {}), redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
     } catch (error) {
       const name = (error as Error).name;
       throw new Error(name === 'TimeoutError' || name === 'AbortError' ? `Unfold did not answer within ${Math.round(timeoutMs / 1000)} seconds.` : 'Unfold is unreachable at UNFOLD_URL.');
@@ -226,7 +254,7 @@ export function createMcpServer(options: McpOptions) {
       description: 'Ask one question about a Work Item, such as why it stopped or what it cost. A standing question is answered from the Work Item\'s record, free. Any other question needs use_model: true: the person is then asked to confirm, and one model call spends up to the per-Ask Budget from the Team\'s Ask Allowance. Without that confirmation nothing is asked or spent.',
       inputSchema: object({ id: string('Work Item id, or an Unfold link to it'), question: string('One question, under 2000 characters'), use_model: { type: 'boolean', description: 'Ask a model when the record does not answer; the person must confirm the spend' } }, ['id', 'question']),
       outputSchema: object({ summary: { type: 'string' }, asked: { type: 'boolean' }, needsModel: { type: 'boolean' }, source: { type: ['string', 'null'] }, costUsd: { type: ['number', 'null'] }, costStatus: { type: ['string', 'null'], description: 'How sure costUsd is: observed (so far), provisional (not final yet), settled (final), unknown (not known yet), or demo' }, failureCode: { type: ['string', 'null'], description: 'Why there is no answer, such as allowance_used_up, timeout or cut_off; null when answered' }, retryable: { type: 'boolean', description: 'Whether asking the same question again may help' }, link: { type: 'string' }, untrusted: { type: 'object' } }, ['summary', 'asked', 'needsModel', 'source', 'costUsd', 'costStatus', 'failureCode', 'retryable', 'link', 'untrusted']),
-      async run(args) {
+      async run(args, call) {
         const id = workItemId(args.id);
         const question = typeof args.question === 'string' ? args.question.trim() : '';
         if (!question || question.length > 2000) throw new Error('question must be 1 to 2000 characters.');
@@ -247,14 +275,24 @@ export function createMcpServer(options: McpOptions) {
             return { summary: `The record does not answer this. Call again with use_model: true to ask a model; the person must confirm first.${spend}`, asked: false, needsModel: true, source: null, costUsd: null, costStatus: null, failureCode: null, retryable: false, link: page, untrusted: { question } };
           }
         }
-        if (!clientCapabilities.elicitation || !outbound) throw new Error(`This client cannot ask you to confirm a spend, so no model was asked. Ask in Unfold instead: ${page}`);
+        const notConfirmed = { summary: 'Not asked: the spend was not confirmed. Nothing was spent.', asked: false, needsModel: true, source: null, costUsd: null, costStatus: null, failureCode: null, retryable: false, link: page, untrusted: { question } };
+        const requestedSchema = { type: 'object', properties: { confirm: { type: 'boolean', title: 'Spend from the Ask Allowance', description: 'Ask a model and pay from the allowance' } }, required: ['confirm'] };
+        const subject = createHash('sha256').update(JSON.stringify(['unfold_ask', id, question])).digest('base64url');
+        if (call.modern && call.requestState !== undefined) {
+          redeemConfirmation(confirmations, call.requestState, principal, subject, Date.now());
+          const decision = call.inputResponses?.confirm_spend;
+          if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return notConfirmed;
+          return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }));
+        }
+        if (call.modern ? !formElicitation(call.capabilities) : !clientCapabilities.elicitation || !outbound) throw new Error(`This client cannot ask you to confirm a spend, so no model was asked. Ask in Unfold instead: ${page}`);
         const allowance = (await get(`/api/ploeg/work-items/${id}/asks`)).allowance;
         if (!allowance?.asksEnabled) throw new Error(`Asking a model is not enabled for this Work Item's Team. Nothing was asked or spent.`);
         const message = `Ask a model about Work Item ${id}? One answer spends up to ${usd(cents(allowance.askBudgetUsd))} from the Team's Ask Allowance (${usd(cents(allowance.remainingUsd))} left until ${String(allowance.resetAt).slice(0, 10)}). Question: ${clip(question, 300)}`;
+        if (call.modern) return new InputRequired({ confirm_spend: { method: 'elicitation/create', params: { mode: 'form', message, requestedSchema } } }, sealConfirmation(confirmations, principal, subject, Date.now()));
         let decision: Json;
-        try { decision = await outbound('elicitation/create', { message, requestedSchema: { type: 'object', properties: { confirm: { type: 'boolean', title: 'Spend from the Ask Allowance', description: 'Ask a model and pay from the allowance' } }, required: ['confirm'] } }); }
+        try { decision = await outbound!('elicitation/create', { message, requestedSchema }); }
         catch { throw new Error('The confirmation did not come back, so no model was asked and nothing was spent.'); }
-        if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return { summary: 'Not asked: the spend was not confirmed. Nothing was spent.', asked: false, needsModel: true, source: null, costUsd: null, costStatus: null, failureCode: null, retryable: false, link: page, untrusted: { question } };
+        if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return notConfirmed;
         return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }));
       },
     },
@@ -266,30 +304,49 @@ export function createMcpServer(options: McpOptions) {
     const notification = id === undefined;
     if (typeof method !== 'string') return notification ? undefined : failure(id, -32600, 'Missing method.');
     if (notification) return undefined;
+    if (method === 'initialize') {
+      clientCapabilities = params?.capabilities && typeof params.capabilities === 'object' ? params.capabilities : {};
+      const asked = params?.protocolVersion;
+      const protocolVersion = (mcpProtocolVersions as readonly string[]).includes(asked) ? asked : mcpProtocolVersions[0];
+      return result(id, { protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo, instructions });
+    }
+    const meta = params && typeof params === 'object' && params._meta && typeof params._meta === 'object' && !Array.isArray(params._meta) ? params._meta as Json : undefined;
+    const declared = meta?.[versionKey];
+    if (declared === undefined && method !== 'server/discover') return dispatch(id, method, params, { modern: false, capabilities: clientCapabilities });
+    if (typeof declared !== 'string') return failure(id, -32602, `Every request must declare _meta["${versionKey}"].`);
+    if (!(mcpModernProtocolVersions as readonly string[]).includes(declared)) return failure(id, -32022, 'Unsupported protocol version', { supported: [...mcpModernProtocolVersions, ...mcpProtocolVersions], requested: declared });
+    const capabilities = meta![capabilitiesKey];
+    if (!capabilities || typeof capabilities !== 'object' || Array.isArray(capabilities)) return failure(id, -32602, `Every request must declare _meta["${capabilitiesKey}"].`);
+    return dispatch(id, method, params, { modern: true, capabilities });
+  }
+
+  function dispatch(id: unknown, method: string, params: Json | undefined, call: Call): Json | Promise<Json> {
+    const complete = (value: Json) => result(id, call.modern ? { ...value, resultType: 'complete', _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo } } : value);
     switch (method) {
-      case 'initialize': {
-        clientCapabilities = params?.capabilities && typeof params.capabilities === 'object' ? params.capabilities : {};
-        const asked = params?.protocolVersion;
-        const protocolVersion = (mcpProtocolVersions as readonly string[]).includes(asked) ? asked : mcpProtocolVersions[0];
-        return result(id, { protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'unfold-mcp', title: 'Unfold', version: options.version ?? '0.0.0-dev' }, instructions });
-      }
-      case 'ping': return result(id, {});
-      case 'tools/list': return result(id, { tools: tools.map(tool => ({ name: tool.name, title: tool.title, description: tool.description, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema, annotations: tool.readOnly === false ? { title: tool.title, readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true } : { title: tool.title, readOnlyHint: true, idempotentHint: true, openWorldHint: false } })) });
-      case 'tools/call': {
-        const tool = tools.find(entry => entry.name === params?.name);
-        if (!tool) return failure(id, -32602, `Unknown tool ${String(params?.name)}.`);
-        const args = params?.arguments ?? {};
-        if (typeof args !== 'object' || Array.isArray(args)) return failure(id, -32602, 'arguments must be an object.');
-        const unknown = Object.keys(args).filter(key => !(key in tool.inputSchema.properties));
-        if (unknown.length) return result(id, { isError: true, content: [{ type: 'text', text: `Unknown argument ${unknown.join(', ')}.` }] });
-        try {
-          const output = await tool.run(args);
-          return result(id, { structuredContent: output, content: [{ type: 'text', text: JSON.stringify(output) }] });
-        } catch (error) {
-          return result(id, { isError: true, content: [{ type: 'text', text: redact((error as Error).message) }] });
-        }
-      }
+      case 'server/discover':
+        if (!call.modern) return failure(id, -32601, `Method ${method} is not supported.`);
+        return complete({ supportedVersions: [...mcpModernProtocolVersions, ...mcpProtocolVersions], capabilities: { tools: {} }, instructions, ttlMs: 3_600_000, cacheScope: 'public' });
+      case 'ping': return complete({});
+      case 'tools/list': return complete({ tools: tools.map(tool => ({ name: tool.name, title: tool.title, description: tool.description, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema, annotations: tool.readOnly === false ? { title: tool.title, readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true } : { title: tool.title, readOnlyHint: true, idempotentHint: true, openWorldHint: false } })), ...(call.modern ? { ttlMs: 3_600_000, cacheScope: 'public' } : {}) });
+      case 'tools/call': return callTool(id, params, call, complete);
       default: return failure(id, -32601, `Method ${method} is not supported.`);
+    }
+  }
+
+  async function callTool(id: unknown, params: Json | undefined, call: Call, complete: (value: Json) => Json): Promise<Json> {
+    const tool = tools.find(entry => entry.name === params?.name);
+    if (!tool) return failure(id, -32602, `Unknown tool ${String(params?.name)}.`);
+    const args = params?.arguments ?? {};
+    if (typeof args !== 'object' || Array.isArray(args)) return failure(id, -32602, 'arguments must be an object.');
+    const unknown = Object.keys(args).filter(key => !(key in tool.inputSchema.properties));
+    if (unknown.length) return complete({ isError: true, content: [{ type: 'text', text: `Unknown argument ${unknown.join(', ')}.` }] });
+    if (call.modern && params?.inputResponses !== undefined && (!params.inputResponses || typeof params.inputResponses !== 'object' || Array.isArray(params.inputResponses))) return failure(id, -32602, 'inputResponses must be an object.');
+    try {
+      const output = await tool.run(args, call.modern ? { ...call, inputResponses: params?.inputResponses, requestState: params?.requestState } : call);
+      if (output instanceof InputRequired) return result(id, { resultType: 'input_required', inputRequests: output.inputRequests, requestState: output.requestState, _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo } });
+      return complete({ structuredContent: output, content: [{ type: 'text', text: JSON.stringify(output) }] });
+    } catch (error) {
+      return complete({ isError: true, content: [{ type: 'text', text: redact((error as Error).message) }] });
     }
   }
 
@@ -337,7 +394,36 @@ function workItemId(value: unknown): string {
 
 function result(id: unknown, value: Json): Json { return { jsonrpc: '2.0', id, result: value }; }
 
-function failure(id: unknown, code: number, message: string): Json { return { jsonrpc: '2.0', id: id ?? null, error: { code, message } }; }
+function failure(id: unknown, code: number, message: string, data?: Json): Json { return { jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data ? { data } : {}) } }; }
+
+function formElicitation(capabilities: Json): boolean {
+  const elicitation = capabilities?.elicitation;
+  if (!elicitation || typeof elicitation !== 'object' || Array.isArray(elicitation)) return false;
+  return Object.keys(elicitation).length === 0 || Boolean(elicitation.form);
+}
+
+function confirmationMac(ledger: Confirmations, payload: string): Buffer { return createHmac('sha256', ledger.key).update(payload).digest(); }
+
+function sealConfirmation(ledger: Confirmations, principal: string, subject: string, now: number): string {
+  const payload = Buffer.from(JSON.stringify({ p: principal, s: subject, n: randomBytes(16).toString('base64url'), e: now + confirmationTtlMs })).toString('base64url');
+  return `${payload}.${confirmationMac(ledger, payload).toString('base64url')}`;
+}
+
+function redeemConfirmation(ledger: Confirmations, state: unknown, principal: string, subject: string, now: number): void {
+  const refuse = (why: string) => new Error(`${why} Nothing was asked or spent; call unfold_ask again to be asked to confirm.`);
+  const [payload, mac, extra] = typeof state === 'string' && state.length <= 2048 ? state.split('.') : [];
+  if (!payload || !mac || extra !== undefined) throw refuse('The confirmation state is not one this server issued.');
+  const expected = confirmationMac(ledger, payload);
+  const given = Buffer.from(mac, 'base64url');
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) throw refuse('The confirmation state is not one this server issued.');
+  const sealed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { p: string; s: string; n: string; e: number };
+  if (sealed.p !== principal) throw refuse('The confirmation was given to someone else.');
+  if (sealed.s !== subject) throw refuse('The confirmation was for another question.');
+  if (sealed.e <= now) throw refuse('The confirmation expired.');
+  if (ledger.used.has(sealed.n)) throw refuse('This confirmation was already used.');
+  for (const [nonce, expires] of ledger.used) if (expires <= now) ledger.used.delete(nonce);
+  ledger.used.set(sealed.n, sealed.e);
+}
 
 function pick(reason: Reason): Json { return { code: reason.code, chip: reason.chip, sentence: reason.sentence, fix: reason.fix, action: reason.action }; }
 

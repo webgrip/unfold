@@ -19,6 +19,8 @@ export const editorIdleDays = 14;
 /** Every editor credential starts with this prefix, so it is never mistaken for a browser session. */
 export const editorTokenPrefix = 'vle_';
 const editorTokenPattern = /^vle_[A-Za-z0-9_-]{43}$/;
+const delegatedTokenPattern = /^vlm_[A-Za-z0-9_-]{43}$/;
+const maxDelegatedMs = 300_000;
 
 /**
  * The name an editor sign-in and its credential carry: `VS Code`, or `unfold-mcp` when the client says it is that,
@@ -111,8 +113,29 @@ export class Auth {
     const user = this.store.getUser(login.userId);
     return user ? { id: user.id, name: user.name, role: user.role } : undefined;
   }
+  private readonly delegated = new Map<string, { userId: string; expiresAt: number }>();
+
+  /**
+   * Mints a credential that acts as `user` on this process's own API with an editor credential's reach, for at most
+   * `ttlMs`. It lives only in memory and is revoked by `revoke`. `unfold-mcp` over HTTP calls the API with it, so a
+   * caller's access token never travels further than the MCP endpoint.
+   */
+  delegate(user: User, ttlMs: number): { token: string; revoke(): void } {
+    const now = Date.now();
+    for (const [hash, entry] of this.delegated) if (entry.expiresAt <= now) this.delegated.delete(hash);
+    const token = `vlm_${randomBytes(32).toString('base64url')}`;
+    const hash = digest(token);
+    this.delegated.set(hash, { userId: user.id, expiresAt: now + Math.min(Math.max(ttlMs, 1), maxDelegatedMs) });
+    return { token, revoke: () => { this.delegated.delete(hash); } };
+  }
+
   private editorUser(req: IncomingMessage): User | undefined {
     const bearer = this.bearer(req);
+    if (bearer && delegatedTokenPattern.test(bearer)) {
+      const entry = this.delegated.get(digest(bearer));
+      const user = entry && entry.expiresAt > Date.now() ? this.store.getUser(entry.userId) : undefined;
+      return user ? { id: user.id, name: user.name, role: user.role } : undefined;
+    }
     if (!bearer || !editorTokenPattern.test(bearer)) return undefined;
     const credential = this.store.getEditorCredential(digest(bearer));
     const user = credential && this.store.getUser(credential.userId);
