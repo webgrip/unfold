@@ -25,6 +25,7 @@ import { sessionEligibility } from './task-view.js';
 import * as wizard from './wizard.js';
 import type { Approval, Bootstrap, Session, TaskSnapshot, TaskSource, CandidateFormat, Decision, Permission, PublicationBinding } from './types.js';
 import { readPublication } from './publication.js';
+import { mcpInstallUri, mcpJsonEntry, mcpProviderApi, ploegMcpProviderId, ploegMcpServer, provideServersSetting, type RemoteMcpServer } from './mcp-servers.js';
 
 type SessionRef = string | SessionEntry | undefined;
 type Draft = { repositoryId?: string; teamId?: string; runtime?: string; placement?: string; approval?: Approval; model?: string; title?: string; objective?: string; budgetUsd?: number; autoStart?: boolean };
@@ -34,6 +35,7 @@ function settings() { return vscode.workspace.getConfiguration('unfold'); }
 const openAgentsWindowCommand = 'workbench.action.openAgentsWindow';
 const agentsWindowPollMs = 20_000;
 const agentsWindowTroubleshooting = 'https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/operations/live.md#troubleshooting-the-agents-window';
+const ploegMcpHintDismissed = 'unfold.ploegMcp.clientIdHintDismissed';
 
 class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   readonly extensionUri: vscode.Uri;
@@ -71,6 +73,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   private drafts = new Map<string, Draft>();
   private failures = 0;
   private lastSuccess?: Date;
+  private readonly mcpServersChanged = new vscode.EventEmitter<void>();
 
   constructor(context: vscode.ExtensionContext, core: Core) {
     this.context = context;
@@ -110,6 +113,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
         catch (error) { this.configurationError = error as Error; this.offline(error); }
       }
       if (event.affectsConfiguration('unfold.refreshIntervalSeconds')) { clearInterval(this.timer); this.timer = this.poll(); }
+      if (event.affectsConfiguration(`unfold.${provideServersSetting}`)) this.mcpServersChanged.fire();
     }));
     context.subscriptions.push(vscode.window.registerUriHandler({ handleUri: uri => this.perform(() => this.handleUri(uri)) }));
     const register = (name: string, action: (...args: any[]) => Promise<unknown>) => context.subscriptions.push(vscode.commands.registerCommand(`unfold.${name}`, (...args: any[]) => this.perform(() => action(...args))));
@@ -151,8 +155,10 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     register('addBudget', value => this.addBudget(value));
     register('setApproval', value => this.setApprovalCommand(value));
     register('linkedAccounts', () => this.linkedAccounts());
+    register('addPloegMcpServer', () => this.addPloegMcpServer());
     for (const action of ['start', 'pause', 'resume', 'cancel', 'retry'] as const) register(action, value => this.lifecycleCommand(action, value));
     register('review', async value => { const id = await this.choose(value, 'Review which session?'); if (!id) return; const decision = await vscode.window.showQuickPick([{ label: '$(check) Accept', description: 'The outcome is fit to take further', value: 'accepted' as const }, { label: '$(circle-slash) Reject', description: 'Say why so the next attempt can use it', value: 'rejected' as const }], { title: 'Record your review', ignoreFocusOut: true }); if (decision) await this.review(id, decision.value); });
+    this.registerMcpServers(context);
     this.timer = this.poll();
     void this.refresh();
     void this.attachAgentHostOnStart().finally(() => this.watchAgentsWindow());
@@ -174,6 +180,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
 
   private connectionChanged() {
     this.generation++;
+    this.mcpServersChanged.fire();
     this.hideAgentsWindow();
     this.failures = 0;
     this.lastSuccess = undefined;
@@ -188,6 +195,62 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.tasks.update([], 'Connection changed — refresh linked tasks');
     this.ploeg.reset('Connection changed — reconnect to inspect Ploeg');
     this.ploegView.message = undefined;
+  }
+
+  private registerMcpServers(context: vscode.ExtensionContext) {
+    const api = mcpProviderApi<unknown>(vscode as unknown as Parameters<typeof mcpProviderApi>[0]);
+    context.subscriptions.push(this.mcpServersChanged);
+    if (!api) return;
+    context.subscriptions.push(api.register(ploegMcpProviderId, {
+      onDidChangeMcpServerDefinitions: this.mcpServersChanged.event,
+      provideMcpServerDefinitions: async () => {
+        if (!settings().get<boolean>(provideServersSetting, true)) return [];
+        const server = await this.ploegMcp();
+        return server ? [api.http(server.label, server.url)] : [];
+      },
+      resolveMcpServerDefinition: async definition => {
+        if (this.context.globalState.get<boolean>(ploegMcpHintDismissed)) return definition;
+        const server = await this.ploegMcp();
+        if (server) void this.explainPloegMcpClientId(server);
+        return definition;
+      },
+    }));
+  }
+
+  private async ploegMcp(): Promise<RemoteMcpServer | undefined> {
+    if (this.configurationError) return undefined;
+    const target = this.current;
+    if (!(await this.context.secrets.get(target.secretKey))) return undefined;
+    try { return ploegMcpServer(await target.request('/api/mcp-servers')); } catch { return undefined; }
+  }
+
+  private async explainPloegMcpClientId(server: RemoteMcpServer) {
+    const choice = await vscode.window.showInformationMessage(
+      `To sign in to Ploeg, VS Code may say the authorization server does not support Dynamic Client Registration. Choose Copy URIs & Proceed, enter the client ID "${server.oauth.clientId}" and leave the client secret blank.`,
+      'Copy Client ID', 'Add With Client ID Instead', "Don't Show Again");
+    if (choice === 'Copy Client ID') await vscode.env.clipboard.writeText(server.oauth.clientId);
+    if (choice === 'Add With Client ID Instead') await this.addPloegMcpServer();
+    if (choice === "Don't Show Again") await this.context.globalState.update(ploegMcpHintDismissed, true);
+  }
+
+  private async addPloegMcpServer(): Promise<void> {
+    if (this.configurationError) throw this.configurationError;
+    const server = await this.ploegMcp();
+    if (!server) throw new Error(`The workbench at ${this.current.origin} names no Ploeg MCP server, or you are not signed in. Its operator sets UNFOLD_PLOEG_MCP_URL and UNFOLD_PLOEG_MCP_CLIENT_ID.`);
+    const entry = JSON.stringify({ servers: mcpJsonEntry(server) }, null, 2);
+    const choice = await vscode.window.showInformationMessage('Add Ploeg\'s MCP server to your user mcp.json?', {
+      modal: true,
+      detail: `VS Code opens its install view for "ploeg" at ${server.url} with the client ID "${server.oauth.clientId}". Choose Install there. Nothing secret is written: VS Code signs you in through the browser and keeps the token in its own secret storage. Unfold then stops providing the same server (unfold.${provideServersSetting}), so its tools do not appear twice.`,
+    }, 'Open Install View', 'Copy mcp.json Entry');
+    if (choice === 'Open Install View') {
+      await settings().update(provideServersSetting, false, vscode.ConfigurationTarget.Global);
+      await vscode.env.openExternal(vscode.Uri.parse(mcpInstallUri(vscode.env.uriScheme, server)));
+    }
+    if (choice === 'Copy mcp.json Entry') {
+      await vscode.env.clipboard.writeText(entry);
+      const next = await vscode.window.showInformationMessage(`Copied. Paste it into your user mcp.json, or merge its "ploeg" entry into the "servers" you have, then set unfold.${provideServersSetting} to false so the server is not listed twice.`, 'Open User Configuration');
+      if (next) await vscode.commands.executeCommand('workbench.mcp.openUserMcpJson');
+    }
   }
 
   private assertTarget(client: UnfoldClient, generation: number) {

@@ -322,6 +322,11 @@
         "title": "Refresh Work",
         "category": "Unfold",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "unfold.addPloegMcpServer",
+        "title": "Add Ploeg MCP Server to VS Code",
+        "category": "Unfold"
       }
     ],
     "configuration": {
@@ -383,9 +388,21 @@
           "default": true,
           "scope": "application",
           "markdownDescription": "After you sign in, add this workbench to VS Code's Agents window (`chat.remoteAgentHosts` in your user settings) so its sessions appear there. The connection token is stored in that setting in plain text, as VS Code keeps it. Signing out removes the entry. Turn this off to connect only through **Unfold: Connect VS Code Agents Window**."
+        },
+        "unfold.mcp.provideServers": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "Provide the Ploeg MCP server the workbench names (`GET /api/mcp-servers`) to VS Code's chat, by URL only: no token or header is stored. VS Code signs you in through your browser and asks once for the client ID, because the definition an extension provides cannot carry one. Turn this off after **Unfold: Add Ploeg MCP Server to VS Code** added it to your user `mcp.json`, which that command does for you. Needs VS Code 1.101 or later."
         }
       }
     },
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "unfold.ploeg",
+        "label": "Ploeg"
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
