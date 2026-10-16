@@ -1,10 +1,10 @@
 import { createPublicKey, verify as verifySignature, constants, type KeyObject } from 'node:crypto';
 
 /** What `unfold-mcp` over HTTP accepts as an access token, and where its clients learn how to get one. */
-export type McpHttpSettings = { resource: string; issuer: string; jwksUrl?: string; clientIds: string[]; scope: string; requestScopes: string[]; maxLifetimeMs: number };
+export type McpHttpSettings = { resource: string; issuer: string; jwksUrl?: string; clientIds: string[]; scope: string; requestScopes: string[]; maxLifetimeMs: number; subjectNamespace?: string };
 
-/** The verified facts of an access token that an MCP request carries. */
-export type AccessToken = { subject: string; client: string; scopes: string[]; expiresAt: number; email?: string; emailVerified: boolean; username?: string };
+/** The verified facts of an access token that an MCP request carries, with its verified claims for entitlement. */
+export type AccessToken = { subject: string; client: string; scopes: string[]; expiresAt: number; email?: string; username?: string; claims: Record<string, unknown> };
 
 /** Clock skew tolerated on `exp`, `nbf` and `iat`. */
 export const maxLeewayMs = 60_000;
@@ -69,7 +69,9 @@ export function mcpHttpSettings(env: Record<string, string | undefined> = proces
     maxLifetimeMs = match ? Number(match[1]) * { s: 1000, m: 60_000, h: 3_600_000 }[match[2] as 's' | 'm' | 'h'] : NaN;
     if (!(maxLifetimeMs > 0 && maxLifetimeMs <= 86_400_000)) throw new Error('UNFOLD_MCP_MAX_TOKEN_LIFETIME must be a duration such as 10m, at most 24h');
   }
-  return { resource: resource.href, issuer, ...(jwksUrl ? { jwksUrl } : {}), clientIds, scope, requestScopes, maxLifetimeMs };
+  const subjectNamespace = env.UNFOLD_MCP_SUBJECT_NAMESPACE?.trim() || undefined;
+  if (subjectNamespace && subjectNamespace.length > 300) throw new Error('UNFOLD_MCP_SUBJECT_NAMESPACE must be at most 300 characters');
+  return { resource: resource.href, issuer, ...(jwksUrl ? { jwksUrl } : {}), clientIds, scope, requestScopes, maxLifetimeMs, ...(subjectNamespace ? { subjectNamespace: subjectNamespace.replace(/\/$/, '') } : {}) };
 }
 
 /** The well-known path of a resource's protected resource metadata, with the resource's path inserted (RFC 9728 section 3.1). */
@@ -82,9 +84,17 @@ export function resourceMetadata(settings: McpHttpSettings): Record<string, unkn
   return { resource: settings.resource, authorization_servers: [settings.issuer], scopes_supported: settings.requestScopes, bearer_methods_supported: ['header'], resource_name: 'Unfold' };
 }
 
+/** Decodes strict, canonical base64url: no padding, no other alphabet, and no unused trailing bits. */
+export function strictBase64url(value: string): Buffer | undefined {
+  if (!/^[A-Za-z0-9_-]*$/.test(value)) return undefined;
+  const bytes = Buffer.from(value, 'base64url');
+  return bytes.toString('base64url') === value ? bytes : undefined;
+}
+
 function segment(value: string): any {
-  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new TokenRefused('the token is not a JWT');
-  try { return JSON.parse(Buffer.from(value, 'base64url').toString('utf8')); } catch { throw new TokenRefused('the token is not a JWT'); }
+  const bytes = value ? strictBase64url(value) : undefined;
+  if (!bytes) throw new TokenRefused('the token is not a JWT');
+  try { return JSON.parse(bytes.toString('utf8')); } catch { throw new TokenRefused('the token is not a JWT'); }
 }
 
 type Key = { key: KeyObject; kty: string; curve?: string; alg?: string };
@@ -115,11 +125,6 @@ class KeySet {
     const key = this.lookup(kid);
     if (!key) throw new TokenRefused('the token\'s key id is not among the issuer\'s signing keys');
     return key;
-  }
-
-  async ready(): Promise<void> {
-    if (this.keys) return;
-    try { await this.key(undefined); } catch (error) { if (error instanceof KeysUnavailable) throw error; }
   }
 
   private lookup(kid: string | undefined): Key | undefined {
@@ -153,9 +158,14 @@ class KeySet {
   private async json(url: string): Promise<any> {
     const response = await this.fetcher(url, { headers: { accept: 'application/json' }, redirect: 'manual', signal: AbortSignal.timeout(5000) });
     if (response.status !== 200) throw new Error(`${url} answered ${response.status}`);
-    const text = await response.text();
-    if (text.length > maxDocumentBytes) throw new Error(`${url} answered more than 1 MiB`);
-    return JSON.parse(text);
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    if (response.body) for await (const chunk of response.body) {
+      size += chunk.byteLength;
+      if (size > maxDocumentBytes) { await response.body.cancel().catch(() => undefined); throw new Error(`${url} answered more than 1 MiB`); }
+      chunks.push(chunk);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
   }
 }
 
@@ -171,9 +181,6 @@ export class AccessTokenVerifier {
     this.keys = new KeySet(settings.issuer, settings.jwksUrl, options.fetch ?? fetch, this.now);
   }
 
-  /** Resolves when the issuer's keys have been fetched once; rejects with KeysUnavailable while they cannot be. */
-  ready(): Promise<void> { return this.keys.ready(); }
-
   /** Verifies one access token; throws TokenRefused for any token this server must not accept. */
   async verify(token: string): Promise<AccessToken> {
     const parts = token.split('.');
@@ -187,8 +194,8 @@ export class AccessTokenVerifier {
     if (header.kid !== undefined && typeof header.kid !== 'string') throw new TokenRefused('the token\'s key id is not a string');
     const key = await this.keys.key(header.kid);
     if (key.kty !== algorithm.kty || (algorithm.curve && key.curve !== algorithm.curve) || (key.alg && key.alg !== header.alg)) throw new TokenRefused('the token\'s algorithm does not match its signing key');
-    if (!/^[A-Za-z0-9_-]+$/.test(parts[2])) throw new TokenRefused('the token\'s signature does not verify');
-    const signature = Buffer.from(parts[2], 'base64url');
+    const signature = parts[2] ? strictBase64url(parts[2]) : undefined;
+    if (!signature) throw new TokenRefused('the token\'s signature does not verify');
     if (algorithm.size && signature.length !== algorithm.size * 2) throw new TokenRefused('the token\'s signature does not verify');
     const options = algorithm.pss ? { key: key.key, padding: constants.RSA_PKCS1_PSS_PADDING, saltLength: algorithm.pss } : algorithm.size ? { key: key.key, dsaEncoding: 'ieee-p1363' as const } : { key: key.key };
     let valid = false;
@@ -212,7 +219,7 @@ export class AccessTokenVerifier {
     if (!this.settings.clientIds.includes(claims.azp)) throw new TokenRefused('the token was issued to a client this server does not accept');
     const email = typeof claims.email === 'string' && /^[^\s@]{1,200}@[^\s@]{1,200}$/.test(claims.email) ? claims.email.toLowerCase() : undefined;
     const username = typeof claims.preferred_username === 'string' && claims.preferred_username.trim() ? claims.preferred_username.trim().slice(0, 100) : undefined;
-    return { subject: claims.sub, client: claims.azp, scopes: claims.scope.split(/\s+/).filter(Boolean), expiresAt: claims.exp * 1000, ...(email ? { email } : {}), emailVerified: claims.email_verified === true, ...(username ? { username } : {}) };
+    return { subject: claims.sub, client: claims.azp, scopes: claims.scope.split(/\s+/).filter(Boolean), expiresAt: claims.exp * 1000, ...(email ? { email } : {}), ...(username ? { username } : {}), claims };
   }
 }
 

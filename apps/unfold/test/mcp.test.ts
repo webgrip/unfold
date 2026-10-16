@@ -308,6 +308,22 @@ test('unfold_ask over 2026-07-28 spends only after the person confirms through a
   assert.equal(unfold.posted.length, 1);
 });
 
+test('an unfold_ask confirmation expires after 10 minutes and is refused after that, spending nothing', async t => {
+  const unfold = askingUnfold(t);
+  const url = await unfold.ready;
+  let clock = Date.parse('2026-10-16T12:00:00Z');
+  const server = createMcpServer({ url, token: `vle_${'g'.repeat(43)}`, principal: 'user-a', now: () => new Date(clock) });
+  const ask = (id: number, extra: Record<string, unknown> = {}) => server.handle({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'unfold_ask', arguments: { id: '184', question: 'Is Firefox affected?', use_model: true }, _meta: modernMeta({ elicitation: {} }), ...extra } });
+  const accept = { confirm_spend: { action: 'accept', content: { confirm: true } } };
+  const late = (await ask(1))?.result.requestState;
+  clock += 600_001;
+  assert.match((await ask(2, { inputResponses: accept, requestState: late }))?.result.content[0].text, /The confirmation expired\. Nothing was asked or spent/);
+  const timely = (await ask(3))?.result.requestState;
+  clock += 599_000;
+  assert.equal((await ask(4, { inputResponses: accept, requestState: timely }))?.result.structuredContent.asked, true, 'within 10 minutes it still spends once');
+  assert.deepEqual(unfold.posted.map(body => body.askModel), [true]);
+});
+
 test('unfold_digest reports only what changed since the cutoff, and remembers it for next time', async t => {
   const at = (hour: number) => `2026-10-13T${String(hour).padStart(2, '0')}:00:00Z`;
   const item = (id: string, state: string, updated: string, extra: Record<string, unknown> = {}) => ({ id, state, team: 'unfold', title: `Item ${id}`, provider: 'vikunja', externalId: id, url: '', attempts: 1, infraFailures: 0, createdAt: updated, updatedAt: updated, closeReason: state === 'needs_human' ? 'plan_exhausted' : null, latestShift: state === 'needs_human' ? { round: 1, closeReason: 'plan_exhausted', budgetUsd: 1, spentUsd: 0.2, reservedUsd: 0, closedAt: updated } : null, spentUsd: null, pullRequestUrl: '', target: null, ...extra });

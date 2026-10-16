@@ -366,6 +366,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   if (mcp) {
     if (mode !== 'live') throw new Error('UNFOLD_MCP_RESOURCE serves unfold-mcp over HTTP for signed-in people, which needs live mode');
     if (!config.auth.oidc) throw new Error('UNFOLD_MCP_RESOURCE needs auth.oidc: an MCP sign-in maps to the account the same person has from single sign-on');
+    if (!mcp.subjectNamespace && new URL(mcp.issuer).origin !== new URL(config.auth.oidc.issuer).origin) throw new Error('UNFOLD_MCP_ISSUER is on another origin than auth.oidc.issuer, so its subjects may not be the same people; serve both from one identity provider, or set UNFOLD_MCP_SUBJECT_NAMESPACE to the namespace whose subjects match');
     config.mcp = mcp;
   }
   config.runtime.maxToolCalls = number(raw.runtime?.maxToolCalls, 80, 1, 2000, 'runtime.maxToolCalls');

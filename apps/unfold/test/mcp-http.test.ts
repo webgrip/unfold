@@ -6,7 +6,7 @@ import { createHmac, generateKeyPairSync, sign, type KeyObject } from 'node:cryp
 import { application } from './api-support.ts';
 import { AccessTokenVerifier, TokenRefused, mcpHttpSettings, type McpHttpSettings } from '../src/mcp-auth.ts';
 import { createMcpHttp } from '../src/mcp-http.ts';
-import { subjectUserId } from '../src/oidc.ts';
+import { entitledRole, subjectUserId } from '../src/oidc.ts';
 
 const resource = 'https://unfold.example.test/mcp';
 const metadataUrl = 'https://unfold.example.test/.well-known/oauth-protected-resource/mcp';
@@ -30,13 +30,21 @@ function jwt(signer: Signer, claims: Record<string, unknown>, header: Record<str
   return `${head}.${body}.${signer.sign(Buffer.from(`${head}.${body}`)).toString('base64url')}`;
 }
 
-async function identityProvider(keys: Array<{ publicKey: KeyObject; kid: string }>) {
+type PublishedKey = { publicKey: KeyObject; kid?: string; use?: string; alg?: string };
+
+async function identityProvider(keys: PublishedKey[], options: { discoveryIssuer?: string; padKeySet?: number; chunked?: boolean } = {}) {
   let issuer = '';
   const fetched = { discovery: 0, jwks: 0 };
   const server = createServer((req, res) => {
     res.setHeader('content-type', 'application/json');
-    if (req.url === '/application/o/unfold-mcp/.well-known/openid-configuration') { fetched.discovery++; return res.end(JSON.stringify({ issuer, jwks_uri: `${issuer}jwks/` })); }
-    if (req.url === '/application/o/unfold-mcp/jwks/') { fetched.jwks++; return res.end(JSON.stringify({ keys: keys.map(({ publicKey, kid }) => ({ ...(publicKey.export({ format: 'jwk' }) as object), kid, use: 'sig' })) })); }
+    if (req.url === '/application/o/unfold-mcp/.well-known/openid-configuration') { fetched.discovery++; return res.end(JSON.stringify({ issuer: options.discoveryIssuer ?? issuer, jwks_uri: `${issuer}jwks/` })); }
+    if (req.url === '/application/o/unfold-mcp/jwks/' && options.chunked) {
+      fetched.jwks++;
+      const text = JSON.stringify({ keys: [], padding: 'x'.repeat(options.padKeySet ?? 0) });
+      for (let at = 0; at < text.length; at += 65_536) res.write(text.slice(at, at + 65_536));
+      return res.end();
+    }
+    if (req.url === '/application/o/unfold-mcp/jwks/') { fetched.jwks++; return res.end(JSON.stringify({ keys: keys.map(({ publicKey, kid, use, alg }) => ({ ...(publicKey.export({ format: 'jwk' }) as object), ...(kid === undefined ? {} : { kid }), use: use ?? 'sig', ...(alg ? { alg } : {}) })), ...(options.padKeySet ? { padding: 'x'.repeat(options.padKeySet) } : {}) })); }
     res.statusCode = 404; res.end('{}');
   });
   server.listen(0, '127.0.0.1');
@@ -51,7 +59,7 @@ function settingsFor(issuer: string): McpHttpSettings {
 
 function claimsFor(issuer: string, extra: Record<string, unknown> = {}) {
   const now = Math.floor(Date.now() / 1000);
-  return { iss: issuer, aud: 'unfold-mcp', azp: 'unfold-mcp', sub: 'person-sub', scope: 'openid unfold:mcp offline_access', iat: now, exp: now + 300, email: 'person@example.com', email_verified: true, preferred_username: 'person', ...extra };
+  return { iss: issuer, aud: 'unfold-mcp', azp: 'unfold-mcp', sub: 'person-sub', scope: 'openid unfold:mcp offline_access', iat: now, exp: now + 300, email: 'person@example.com', email_verified: true, preferred_username: 'person', groups: ['unfold-operators'], ...extra };
 }
 
 const meta = (capabilities: Record<string, unknown> = {}) => ({ 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' }, 'io.modelcontextprotocol/clientCapabilities': capabilities });
@@ -80,7 +88,7 @@ async function served(t: test.TestContext) {
   const idp = await identityProvider([{ publicKey: rsa.publicKey, kid: 'rsa-1' }]);
   const unfold = await application('live', config => {
     config.baseUrl = undefined;
-    (config.auth as any).oidc = { issuer: browserIssuer, clientId: 'unfold', scopes: ['openid'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: [], operator: ['unfold-operators'], viewer: [] } };
+    (config.auth as any).oidc = { issuer: browserIssuer, clientId: 'unfold', scopes: ['openid'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: ['unfold-admins'], operator: ['unfold-operators'], viewer: ['unfold-viewers'] } };
     config.mcp = settingsFor(idp.issuer);
   });
   t.after(async () => { await unfold.close(); await idp.close(); });
@@ -155,13 +163,14 @@ test('a valid token runs the tools as the Unfold account its subject maps to; an
   assert.match(stranger.json.error.message, /^Signed in as new@example\.com, but no Unfold account belongs to this identity/);
   assert.equal(stranger.headers.get('www-authenticate'), null);
 
-  unfold.app.store.addUser({ id: 'local-mailbox', name: 'local@example.com', role: 'admin', passwordHash: '' });
-  const local = await post(unfold.url, { jsonrpc: '2.0', id: 4, method: 'tools/list' }, { token: token({ sub: 'other-provider-sub', email: 'local@example.com' }) });
-  assert.equal(local.status, 403, 'an email only maps to an account that came from single sign-on');
-  unfold.app.store.addUser({ id: subjectUserId(browserIssuer, 'browser-sub'), name: 'sso@example.com', role: 'viewer', passwordHash: '' });
-  assert.equal((await post(unfold.url, { jsonrpc: '2.0', id: 5, method: 'tools/list' }, { token: token({ sub: 'mcp-sub', email: 'SSO@example.com' }) })).status, 200, 'a verified email maps to the single sign-on account named after it');
-  assert.equal((await post(unfold.url, { jsonrpc: '2.0', id: 6, method: 'tools/list' }, { token: token({ sub: 'mcp-sub', email: 'sso@example.com', email_verified: false }) })).status, 403, 'an unverified email maps to nothing');
-  assert.equal(person.role, 'operator');
+  const borrowed = await post(unfold.url, { jsonrpc: '2.0', id: 4, method: 'tools/list' }, { token: token({ sub: 'unknown-sub', email: person.name, email_verified: true, preferred_username: person.name }) });
+  assert.equal(borrowed.status, 403, 'another account\'s verified email never maps a token whose subject is unknown');
+  assert.match(borrowed.json.error.message, /no Unfold account belongs to this identity/);
+
+  const removed = await post(unfold.url, { jsonrpc: '2.0', id: 5, method: 'tools/list' }, { token: token({ groups: ['team-platform'] }) });
+  assert.equal(removed.status, 403, 'a person removed from every admitted group is refused, whatever the stored account says');
+  assert.match(removed.json.error.message, /holds none of the groups this workbench admits/);
+  assert.equal((await post(unfold.url, { jsonrpc: '2.0', id: 6, method: 'tools/list' }, { token: token({ groups: undefined }) })).status, 403, 'a token without groups is refused');
 });
 
 test('server/discover and the stateless 2026-07-28 rules: headers must match the body', async t => {
@@ -220,11 +229,13 @@ test('the tools call Unfold with a short-lived credential of their own, never th
   const api = createServer((req: IncomingMessage, res) => { seen.push(String(req.headers.authorization)); res.setHeader('content-type', 'application/json'); res.end('[]'); });
   api.listen(0, '127.0.0.1'); await once(api, 'listening');
   const revoked: string[] = [];
+  const actedAs: string[] = [];
+  let stored: 'admin' | 'operator' | 'viewer' = 'operator';
   const mcp = createMcpHttp({
     settings: settingsFor(idp.issuer), subjectNamespace: browserIssuer,
-    findUser: id => id === subjectUserId(browserIssuer, 'person-sub') ? { id, name: 'person@example.com', role: 'viewer' } : undefined,
-    findUserByName: () => undefined,
-    delegate: () => { const token = `vlm_${'x'.repeat(43)}`; return { token, revoke: () => { revoked.push(token); } }; },
+    findUser: id => id === subjectUserId(browserIssuer, 'person-sub') ? { id, name: 'person@example.com', role: stored } : undefined,
+    entitle: claims => entitledRole({ roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: ['unfold-admins'], operator: ['unfold-operators'], viewer: ['unfold-viewers'] } }, claims),
+    delegate: user => { actedAs.push(user.role); const token = `vlm_${'x'.repeat(43)}`; return { token, revoke: () => { revoked.push(token); } }; },
     apiUrl: () => `http://127.0.0.1:${(api.address() as { port: number }).port}`, linkUrl: 'https://unfold.example.test', version: 'test',
   });
   const front = createServer((req, res) => { void mcp.handle(req, res, new URL(req.url!, 'http://x').pathname); });
@@ -236,6 +247,16 @@ test('the tools call Unfold with a short-lived credential of their own, never th
   assert.deepEqual(seen, [`Bearer vlm_${'x'.repeat(43)}`]);
   assert(!seen.some(value => value.includes(access)));
   assert.deepEqual(revoked, [`vlm_${'x'.repeat(43)}`], 'the credential is revoked when the request ends');
+
+  const frontUrl = `http://127.0.0.1:${(front.address() as { port: number }).port}`;
+  const list = { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'unfold_sessions', arguments: {} } };
+  actedAs.length = 0;
+  stored = 'admin';
+  await post(frontUrl, list, { token: jwt(rsa.signer, claimsFor(idp.issuer, { groups: ['unfold-viewers'] })) });
+  stored = 'viewer';
+  await post(frontUrl, list, { token: jwt(rsa.signer, claimsFor(idp.issuer, { groups: ['unfold-admins'] })) });
+  await post(frontUrl, list, { token: jwt(rsa.signer, claimsFor(idp.issuer, { groups: [], unfold_role: 'admin' })) });
+  assert.deepEqual(actedAs, ['viewer', 'viewer', 'viewer'], 'a demotion at the provider applies at once, and a token never raises the stored role');
 });
 
 test('the verifier accepts ES256, and refetches keys for an unknown key id at most once per 30 seconds', async t => {
@@ -269,4 +290,70 @@ test('UNFOLD_MCP_* settings: off without a resource, no default domains, and str
   assert.deepEqual(mcpHttpSettings({ UNFOLD_MCP_RESOURCE: resource, UNFOLD_MCP_ISSUER: 'https://sso.example.test/', UNFOLD_MCP_CLIENT_IDS: 'unfold-mcp, unfold-mcp-vscode', UNFOLD_MCP_REQUEST_SCOPES: 'openid offline_access', UNFOLD_MCP_MAX_TOKEN_LIFETIME: '5m' }), { resource, issuer: 'https://sso.example.test/', clientIds: ['unfold-mcp', 'unfold-mcp-vscode'], scope: 'unfold:mcp', requestScopes: ['openid', 'offline_access', 'unfold:mcp'], maxLifetimeMs: 300_000 });
   assert.throws(() => mcpHttpSettings({ UNFOLD_MCP_RESOURCE: resource, UNFOLD_MCP_ISSUER: 'https://sso.example.test/', UNFOLD_MCP_CLIENT_IDS: 'unfold-mcp', UNFOLD_MCP_MAX_TOKEN_LIFETIME: '2d' }), /at most 24h/);
   assert.throws(() => mcpHttpSettings({ UNFOLD_MCP_RESOURCE: resource, UNFOLD_MCP_ISSUER: 'https://sso.example.test/', UNFOLD_MCP_CLIENT_IDS: 'unfold-mcp', UNFOLD_MCP_SCOPE: 'two scopes' }), /one scope/);
+});
+
+async function refusal(verifier: AccessTokenVerifier, token: string): Promise<string> {
+  try { await verifier.verify(token); } catch (error) { return error instanceof TokenRefused ? error.reason : `${(error as Error).constructor.name}: ${(error as Error).message}`; }
+  return 'accepted';
+}
+
+test('each token rule is pinned on its own: time claims, header, key type, curve, alg, size and use', async t => {
+  const rsa = rsaSigner('rsa-1');
+  const ec384 = (() => { const { publicKey, privateKey } = generateKeyPairSync('ec', { namedCurve: 'P-384' }); return { publicKey, signer: { alg: 'ES256', kid: 'p384', sign: (data: Buffer) => sign('sha256', data, { key: privateKey, dsaEncoding: 'ieee-p1363' }) } as Signer }; })();
+  const small = (() => { const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 1024 }); return { publicKey, signer: { alg: 'RS256', kid: 'small', sign: (data: Buffer) => sign('sha256', data, privateKey) } as Signer }; })();
+  const encryption = rsaSigner('enc');
+  const pinned = rsaSigner('rs512-only');
+  const idp = await identityProvider([
+    { publicKey: rsa.publicKey, kid: 'rsa-1' }, { publicKey: ec384.publicKey, kid: 'p384' }, { publicKey: small.publicKey, kid: 'small' },
+    { publicKey: encryption.publicKey, kid: 'enc', use: 'enc' }, { publicKey: pinned.publicKey, kid: 'rs512-only', alg: 'RS512' },
+  ]);
+  t.after(() => idp.close());
+  const verifier = new AccessTokenVerifier(settingsFor(idp.issuer));
+  const now = Math.floor(Date.now() / 1000);
+  assert.equal(await refusal(verifier, jwt(rsa.signer, claimsFor(idp.issuer))), 'accepted');
+  assert.equal(await refusal(verifier, jwt(rsa.signer, claimsFor(idp.issuer, { iat: now + 120, exp: now + 300 }))), 'the token is not valid yet', 'an iat in the future');
+  assert.equal(await refusal(verifier, jwt(rsa.signer, claimsFor(idp.issuer, { nbf: now + 120 }))), 'the token is not valid yet', 'an nbf in the future');
+  assert.equal(await refusal(verifier, jwt(rsa.signer, claimsFor(idp.issuer, { nbf: now + 30 }))), 'accepted', 'nbf within the skew');
+  assert.equal(await refusal(verifier, jwt(rsa.signer, claimsFor(idp.issuer), { crit: ['exp'] })), 'the token names critical header parameters this server does not understand');
+  assert.equal(await refusal(verifier, jwt(ec384.signer, claimsFor(idp.issuer))), 'the token\'s algorithm does not match its signing key', 'ES256 on a P-384 key');
+  assert.equal(await refusal(verifier, jwt(pinned.signer, claimsFor(idp.issuer))), 'the token\'s algorithm does not match its signing key', 'RS256 on a key published for RS512 only');
+  assert.equal(await refusal(verifier, jwt(small.signer, claimsFor(idp.issuer))), 'the token\'s key id is not among the issuer\'s signing keys', 'a 1024-bit RSA key is never loaded');
+  assert.equal(await refusal(verifier, jwt(encryption.signer, claimsFor(idp.issuer))), 'the token\'s key id is not among the issuer\'s signing keys', 'an encryption key is never a signing key');
+  assert.equal(await refusal(verifier, jwt({ ...rsa.signer, kid: undefined }, claimsFor(idp.issuer))), 'the token\'s key id is not among the issuer\'s signing keys', 'no kid with several keys');
+  const valid = jwt(rsa.signer, claimsFor(idp.issuer));
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const last = valid.at(-1)!;
+  const aliased = `${valid.slice(0, -1)}${alphabet[alphabet.indexOf(last) ^ 1]}`;
+  assert.equal(await refusal(verifier, aliased), 'the token\'s signature does not verify', 'a non-canonical base64url signature that decodes to the same bytes');
+  const [head, body, signature] = valid.split('.');
+  assert.equal(await refusal(verifier, `${head}=.${body}.${signature}`), 'the token is not a JWT', 'padding in a segment');
+});
+
+test('a lone key needs no kid, a foreign discovery issuer loads no keys, and an oversized key set is refused', async t => {
+  const rsa = rsaSigner('only');
+  const lone = await identityProvider([{ publicKey: rsa.publicKey }]);
+  const foreign = await identityProvider([{ publicKey: rsa.publicKey, kid: 'only' }], { discoveryIssuer: 'https://elsewhere.example.test/' });
+  const huge = await identityProvider([{ publicKey: rsa.publicKey, kid: 'only' }], { padKeySet: 1_100_000 });
+  const streamed = await identityProvider([], { padKeySet: 1_100_000, chunked: true });
+  t.after(async () => { await lone.close(); await foreign.close(); await huge.close(); await streamed.close(); });
+  assert.match(await refusal(new AccessTokenVerifier(settingsFor(streamed.issuer)), jwt(rsa.signer, claimsFor(streamed.issuer))), /^KeysUnavailable: .*more than 1 MiB/, 'a key set streamed without a length is cut off at 1 MiB');
+  assert.equal(await refusal(new AccessTokenVerifier(settingsFor(lone.issuer)), jwt({ ...rsa.signer, kid: undefined }, claimsFor(lone.issuer))), 'accepted');
+  assert.match(await refusal(new AccessTokenVerifier(settingsFor(foreign.issuer)), jwt(rsa.signer, claimsFor(foreign.issuer))), /^KeysUnavailable: discovery names issuer "https:\/\/elsewhere/);
+  assert.match(await refusal(new AccessTokenVerifier(settingsFor(huge.issuer)), jwt(rsa.signer, claimsFor(huge.issuer))), /^KeysUnavailable: .*more than 1 MiB/);
+});
+
+test('the endpoint caps a message at 1 MiB, and checks origin and method before looking anyone up', async t => {
+  const { unfold, token } = await served(t);
+  const big = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list', params: { padding: 'x'.repeat(1_100_000) } }, { token: token() });
+  assert.equal(big.status, 413);
+  assert.equal(big.json.error.code, -32600);
+  const payload = Buffer.from(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: meta(), padding: 'x'.repeat(1_100_000) } }));
+  const stream = new ReadableStream({ start(controller) { for (let at = 0; at < payload.length; at += 65_536) controller.enqueue(payload.subarray(at, at + 65_536)); controller.close(); } });
+  const chunked = await fetch(`${unfold.url}/mcp`, { method: 'POST', body: stream, duplex: 'half', headers: { 'content-type': 'application/json', authorization: `Bearer ${token()}`, 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/list' } } as RequestInit);
+  assert.equal(chunked.status, 413, 'a body streamed without a length is cut off at 1 MiB');
+  const stranger = token({ sub: 'unknown-sub' });
+  const foreign = await post(unfold.url, { jsonrpc: '2.0', id: 2, method: 'tools/list' }, { token: stranger, headers: { origin: 'https://evil.example.test' } });
+  assert.equal(foreign.status, 403);
+  assert.equal(foreign.json.error.message, 'This request came from another origin.');
+  assert.equal((await post(unfold.url, {}, { token: stranger, method: 'GET' })).status, 405);
 });

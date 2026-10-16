@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AccessTokenVerifier, KeysUnavailable, TokenRefused, challenge, metadataPath, resourceMetadata, type AccessToken, type McpHttpSettings } from './mcp-auth.ts';
 import { confirmationLedger, createMcpServer, mcpModernProtocolVersions, mcpProtocolVersions } from './mcp.ts';
-import { subjectUserId } from './oidc.ts';
-import type { User } from './types.ts';
+import { lowerRole, subjectUserId } from './oidc.ts';
+import type { User, UserRole } from './types.ts';
 
 /** What the MCP endpoint inside the Unfold server needs from the rest of it. */
 export type McpHttpOptions = {
@@ -10,7 +10,8 @@ export type McpHttpOptions = {
   /** The namespace browser sign-in derives account ids from: `auth.oidc.subjectNamespace`, or its issuer. */
   subjectNamespace: string;
   findUser(id: string): User | undefined;
-  findUserByName(name: string): User | undefined;
+  /** The role verified claims entitle, by the same rule as browser sign-in; undefined when they entitle none. */
+  entitle(claims: Record<string, unknown>): UserRole | undefined;
   delegate(user: User, ttlMs: number): { token: string; revoke(): void };
   /** Where this process's own API answers, such as its loopback address. */
   apiUrl(): string;
@@ -50,7 +51,6 @@ function decodeHeader(value: string): string | undefined {
 }
 
 async function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
-  if (Number(req.headers['content-length'] ?? 0) > maxBodyBytes) return undefined;
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
@@ -75,14 +75,6 @@ export function createMcpHttp(options: McpHttpOptions) {
   const confirmations = confirmationLedger();
   const metadata = resourceMetadata(settings);
 
-  function identify(token: AccessToken): User | undefined {
-    const bySubject = options.findUser(subjectUserId(options.subjectNamespace, token.subject));
-    if (bySubject) return bySubject;
-    if (!token.email || !token.emailVerified) return undefined;
-    const byEmail = options.findUserByName(token.email);
-    return byEmail?.id.startsWith('oidc-') ? byEmail : undefined;
-  }
-
   async function serveEndpoint(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const authorization = /^Bearer\s+([A-Za-z0-9._~+/-]+=*)\s*$/i.exec(header(req, 'authorization') ?? '');
     if (!authorization) return problem(res, 401, 'unauthorized', 'Sign in to use this MCP server.', { 'WWW-Authenticate': challenge(settings) });
@@ -94,15 +86,21 @@ export function createMcpHttp(options: McpHttpOptions) {
       throw error;
     }
     if (!token.scopes.includes(settings.scope)) return problem(res, 403, 'forbidden', `The access token lacks the scope ${settings.scope}; sign in again and grant it.`, { 'WWW-Authenticate': challenge(settings, { code: 'insufficient_scope', description: `requires ${settings.scope}` }) });
-    const user = identify(token);
-    if (!user) {
-      const who = token.email ?? token.username ?? token.subject;
-      console.error(JSON.stringify({ level: 'warn', event: 'mcp.unmapped', client: token.client }));
-      return problem(res, 403, 'forbidden', `Signed in as ${who}, but no Unfold account belongs to this identity. Sign in to Unfold in the browser once with the same account, then connect again.`);
-    }
     const origin = header(req, 'origin');
     if (origin !== undefined && origin !== resource.origin) return problem(res, 403, 'forbidden', 'This request came from another origin.');
     if (req.method !== 'POST') return problem(res, 405, 'method_not_allowed', 'This MCP endpoint is stateless and accepts only POST.', { Allow: 'POST' });
+    const who = token.email ?? token.username ?? token.subject;
+    const account = options.findUser(subjectUserId(options.subjectNamespace, token.subject));
+    if (!account) {
+      console.error(JSON.stringify({ level: 'warn', event: 'mcp.unmapped', client: token.client }));
+      return problem(res, 403, 'forbidden', `Signed in as ${who}, but no Unfold account belongs to this identity. Sign in to Unfold in the browser once with the same account, then connect again.`);
+    }
+    const entitled = options.entitle(token.claims);
+    if (!entitled) {
+      console.error(JSON.stringify({ level: 'warn', event: 'mcp.not_entitled', actor: account.id }));
+      return problem(res, 403, 'forbidden', `Signed in as ${who}, but the token holds none of the groups this workbench admits.`);
+    }
+    const user: User = { ...account, role: lowerRole(account.role, entitled) };
     if (!header(req, 'content-type')?.toLowerCase().startsWith('application/json')) return problem(res, 415, 'unsupported_media_type', 'Send one JSON-RPC message as application/json.');
     const raw = await readBody(req);
     if (!raw) return rpcError(res, 413, null, -32600, 'Message exceeds 1 MiB.');
@@ -138,8 +136,6 @@ export function createMcpHttp(options: McpHttpOptions) {
   return {
     /** Whether a request path is the MCP endpoint or its protected resource metadata. */
     handles(path: string): boolean { return path === endpoint || metadataPaths.has(path); },
-    /** Resolves once the issuer's keys have been fetched; rejects while they cannot be. */
-    ready(): Promise<void> { return verifier.ready(); },
     async handle(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
       if (path !== endpoint) {
         const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS', 'Access-Control-Allow-Headers': 'MCP-Protocol-Version' };

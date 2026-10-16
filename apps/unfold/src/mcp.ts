@@ -2,6 +2,7 @@ import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypt
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { createInterface } from 'node:readline';
+import { strictBase64url } from './mcp-auth.ts';
 import type { Readable, Writable } from 'node:stream';
 
 /** Protocol revisions this server answers `initialize` with; the client's own revision wins when it is listed. */
@@ -13,7 +14,11 @@ const versionKey = 'io.modelcontextprotocol/protocolVersion';
 const capabilitiesKey = 'io.modelcontextprotocol/clientCapabilities';
 const confirmationTtlMs = 600_000;
 
-/** Signs and remembers the spend confirmations `unfold_ask` hands out over the stateless protocol. Share one per process. */
+/**
+ * Signs and remembers the spend confirmations `unfold_ask` hands out over the stateless protocol. It is per process:
+ * another process or a restart refuses a confirmation it did not issue, so a confirmation fails closed and is
+ * never spent twice.
+ */
 export type Confirmations = { key: Buffer; used: Map<string, number> };
 
 /** A fresh confirmation ledger with its own signing key; a restart forgets pending confirmations, so nothing is spent. */
@@ -68,6 +73,7 @@ export function createMcpServer(options: McpOptions) {
   const confirmations = options.confirmations ?? confirmationLedger();
   const principal = options.principal ?? 'stdio';
   const serverInfo = { name: 'unfold-mcp', title: 'Unfold', version: options.version ?? '0.0.0-dev' };
+  const clock = () => (options.now ?? (() => new Date()))().getTime();
   const timeoutMs = options.timeoutMs ?? 20_000;
   const link = (id: string) => `${base}/#work/${encodeURIComponent(id)}`;
 
@@ -279,7 +285,7 @@ export function createMcpServer(options: McpOptions) {
         const requestedSchema = { type: 'object', properties: { confirm: { type: 'boolean', title: 'Spend from the Ask Allowance', description: 'Ask a model and pay from the allowance' } }, required: ['confirm'] };
         const subject = createHash('sha256').update(JSON.stringify(['unfold_ask', id, question])).digest('base64url');
         if (call.modern && call.requestState !== undefined) {
-          redeemConfirmation(confirmations, call.requestState, principal, subject, Date.now());
+          redeemConfirmation(confirmations, call.requestState, principal, subject, clock());
           const decision = call.inputResponses?.confirm_spend;
           if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return notConfirmed;
           return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }));
@@ -288,7 +294,7 @@ export function createMcpServer(options: McpOptions) {
         const allowance = (await get(`/api/ploeg/work-items/${id}/asks`)).allowance;
         if (!allowance?.asksEnabled) throw new Error(`Asking a model is not enabled for this Work Item's Team. Nothing was asked or spent.`);
         const message = `Ask a model about Work Item ${id}? One answer spends up to ${usd(cents(allowance.askBudgetUsd))} from the Team's Ask Allowance (${usd(cents(allowance.remainingUsd))} left until ${String(allowance.resetAt).slice(0, 10)}). Question: ${clip(question, 300)}`;
-        if (call.modern) return new InputRequired({ confirm_spend: { method: 'elicitation/create', params: { mode: 'form', message, requestedSchema } } }, sealConfirmation(confirmations, principal, subject, Date.now()));
+        if (call.modern) return new InputRequired({ confirm_spend: { method: 'elicitation/create', params: { mode: 'form', message, requestedSchema } } }, sealConfirmation(confirmations, principal, subject, clock()));
         let decision: Json;
         try { decision = await outbound!('elicitation/create', { message, requestedSchema }); }
         catch { throw new Error('The confirmation did not come back, so no model was asked and nothing was spent.'); }
@@ -414,8 +420,8 @@ function redeemConfirmation(ledger: Confirmations, state: unknown, principal: st
   const [payload, mac, extra] = typeof state === 'string' && state.length <= 2048 ? state.split('.') : [];
   if (!payload || !mac || extra !== undefined) throw refuse('The confirmation state is not one this server issued.');
   const expected = confirmationMac(ledger, payload);
-  const given = Buffer.from(mac, 'base64url');
-  if (given.length !== expected.length || !timingSafeEqual(given, expected)) throw refuse('The confirmation state is not one this server issued.');
+  const given = strictBase64url(mac);
+  if (!given || !strictBase64url(payload) || given.length !== expected.length || !timingSafeEqual(given, expected)) throw refuse('The confirmation state is not one this server issued.');
   const sealed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { p: string; s: string; n: string; e: number };
   if (sealed.p !== principal) throw refuse('The confirmation was given to someone else.');
   if (sealed.s !== subject) throw refuse('The confirmation was for another question.');
