@@ -142,6 +142,8 @@ const plainDollars = (_key: string, value: unknown) => value && typeof value ===
 export const chatConfigRefusal = 'Unfold sets configuration per session, not per chat: change it on the session channel with session/configChanged, under the same rules as the browser.';
 /** Why the resource writes are refused with `-32009`: the host's files are not the person's workspace, and a Run's workspace changes only through its Team. */
 export const resourceWriteRefusal = 'This host does not let a client write, copy, move, delete or create files: a Run\'s workspace changes only through its Team, and its result is the candidate you review.';
+/** Why `vscode/collectAgentHostDebugLogs` is refused: the host's logs cover every person's sessions, so they stay with the workbench's administrator. */
+export const debugLogsRefusal = 'This host keeps its logs on the workbench, where they cover every person\'s sessions; ask its administrator for them. VS Code exports its own logs without them.';
 const resourceWrites = new Set(['resourceWrite', 'resourceCopy', 'resourceDelete', 'resourceMove', 'resourceMkdir']);
 const codes = { parse: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internal: -32603, sessionNotFound: -32001, providerNotFound: -32002, sessionExists: -32003, turnInProgress: -32004, unsupportedVersion: -32005, authRequired: -32007, notFound: -32008, permissionDenied: -32009, conflict: -32011 };
 
@@ -198,6 +200,8 @@ function answerValues(question: Json | undefined, answer: Json | undefined): str
 }
 
 const statusBits = { idle: 1, error: 2, inProgress: 8, inputNeeded: 24, isRead: 32, isArchived: 64 };
+const activityMask = 31;
+const needingInput = (status: number) => (status & ~activityMask) | statusBits.inputNeeded;
 type ViewFlag = { channel: 'session' | 'chat'; field: 'isRead' | 'isArchived'; bit: number };
 const viewFlags: Record<string, ViewFlag> = {
   'session/isReadChanged': { channel: 'session', field: 'isRead', bit: statusBits.isRead },
@@ -1391,6 +1395,7 @@ export class AgentHost {
       case 'vscode/stopBackgroundWork':
         if (typeof params.chat !== 'string' || typeof params.id !== 'string') throw new RpcError(codes.invalidParams, 'chat and id are required');
         return { stopped: false };
+      case 'vscode/collectAgentHostDebugLogs': throw new RpcError(codes.permissionDenied, debugLogsRefusal);
       case 'vscode/cancelAgentHostDebugLogs':
         if (typeof params.progressToken !== 'string') throw new RpcError(codes.invalidParams, 'progressToken is required');
         return null;
@@ -1517,7 +1522,24 @@ export class AgentHost {
 
   private workItemSpelling(publicId: string, view: Pick<View, 'scheme'>): Spelling { return { session: sessionChannel(publicId, view.scheme), chat: chatChannel(publicId, view.scheme) }; }
 
-  private workItemSummary(entry: WorkItemRecord, view: View): Json { return { ...workItemSummary(entry, this.workItemSpelling(entry.publicId, view), this.viewOf(view, entry.publicId), view.protocolVersion), ...this.workItemProject(entry.item) }; }
+  private workItemSummary(entry: WorkItemRecord, view: View): Json {
+    const summary = { ...workItemSummary(entry, this.workItemSpelling(entry.publicId, view), this.viewOf(view, entry.publicId), view.protocolVersion), ...this.workItemProject(entry.item) };
+    return this.workItemCommands.open(view.user.id, entry.workItemId) ? this.awaitingPerson(summary) : summary;
+  }
+
+  /** A Work Item session or summary while one of the host's questions waits for the person: input needed on the session and its default chat. */
+  private awaitingPerson(state: Json): Json {
+    return { ...state, status: needingInput(state.status), ...(Array.isArray(state.chats) ? { chats: state.chats.map((chat: Json) => chat.resource === state.defaultChat ? { ...chat, status: needingInput(chat.status) } : chat) } : {}) };
+  }
+
+  /** Tells the person's clients a Work Item session's status after one of the host's questions opened or closed. */
+  private announceWorkItemStatus(user: User, publicId: string): void {
+    const entry = this.workItems.remembered(user, publicId);
+    if (!entry) return;
+    const own = (client: Client) => client.user.id === user.id;
+    this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.workItemSummary(entry, viewer); return { channel: rootChannel, session: summary.resource, changes: { status: summary.status, ...catalogOf(summary) } }; }, undefined, own);
+    this.broadcast(sessionChannel(publicId), viewer => { const summary = this.workItemSummary(entry, viewer); return { type: 'session/chatUpdated', chat: chatChannel(publicId, viewer.scheme), changes: { status: summary.chats?.[0]?.status ?? summary.status } }; }, undefined, own);
+  }
 
   /** The person's Work Item sessions for `listSessions`. Whatever Ploeg does, Unfold's own sessions still list. */
   private async workItemSummaries(client: Client): Promise<Json[]> {
@@ -1534,10 +1556,10 @@ export class AgentHost {
     const spelling = this.workItemSpelling(parsed.id, client);
     const flags = this.viewOf(client, parsed.id);
     const open = this.workItemCommands.open(client.user.id, found.entry.workItemId);
-    const state = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling)
-      : parsed.kind === 'session' ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id)), ...this.workItemProject(found.entry.item), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] }
-      : parsed.kind === 'chat' ? withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId), this.workItemCommands.notes(client.user.id, found.entry.workItemId))
-      : undefined;
+    const sessionState = parsed.kind === 'session' && !parsed.run ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id)), ...this.workItemProject(found.entry.item), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] } : undefined;
+    const chatState = parsed.kind === 'chat' && !parsed.run ? withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId), this.workItemCommands.notes(client.user.id, found.entry.workItemId)) : undefined;
+    const waiting = (state: Json) => open ? this.awaitingPerson(state) : state;
+    const state = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling) : sessionState ? waiting(sessionState) : chatState ? waiting(chatState) : undefined;
     if (!state) throw new RpcError(codes.notFound, 'Unknown channel');
     return { resource: channel, state, fromSeq: this.serverSeq };
   }
@@ -1732,6 +1754,7 @@ export class AgentHost {
     this.workItemCommands.claim(prompt, response, answers);
     this.echo(client, channel, { type: 'chat/inputCompleted', requestId: prompt.requestId, response, ...(answers ? { answers } : {}) }, origin, own);
     this.broadcast(sessionChannel(prompt.publicId), { type: 'session/inputNeededRemoved', id: prompt.requestId }, undefined, own);
+    this.announceWorkItemStatus(user, prompt.publicId);
     const outcome = await this.workItemCommands.carry(user, prompt);
     for (const closed of promptClosedActions(prompt)) this.broadcast(chatChannel(prompt.publicId), closed, undefined, own);
     if (outcome.askAgain) { const again = this.workItemCommands.ask(user, entry, prompt.kind); if (again.created) this.publishPromptOpened(user, again.prompt); }
@@ -1743,6 +1766,7 @@ export class AgentHost {
     const own = (viewer: Client) => viewer.user.id === user.id;
     for (const opened of promptOpenActions(prompt, turnOpened)) this.broadcast(chatChannel(prompt.publicId), opened, undefined, own);
     this.broadcast(sessionChannel(prompt.publicId), viewer => ({ type: 'session/inputNeededSet', request: promptInputNeeded(prompt, chatChannel(prompt.publicId, viewer.scheme)) }), undefined, own);
+    this.announceWorkItemStatus(user, prompt.publicId);
   }
 
   /** Tells the person's clients that a question closed without their answer, and why. */
@@ -1751,6 +1775,7 @@ export class AgentHost {
     this.broadcast(chatChannel(prompt.publicId), { type: 'chat/inputCompleted', requestId: prompt.requestId, response: 'cancel' }, undefined, own);
     this.broadcast(sessionChannel(prompt.publicId), { type: 'session/inputNeededRemoved', id: prompt.requestId }, undefined, own);
     for (const closed of promptClosedActions(prompt)) this.broadcast(chatChannel(prompt.publicId), closed, undefined, own);
+    this.announceWorkItemStatus(user, prompt.publicId);
   }
 
   private setActiveClient(client: Client, channel: string, publicId: string, action: Json, origin: Origin): string | undefined {

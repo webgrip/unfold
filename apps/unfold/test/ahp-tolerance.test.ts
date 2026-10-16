@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { application, request } from './api-support.ts';
 import { action, connect, defaultChatOf, vscodeAgentsWindow, type Json } from './ahp-support.ts';
-import { chatConfigRefusal, repositoriesDirectory, resourceWriteRefusal } from '../src/ahp/host.ts';
+import { chatConfigRefusal, debugLogsRefusal, repositoriesDirectory, resourceWriteRefusal } from '../src/ahp/host.ts';
 import { isActionKnownToVersion } from '../src/ahp/versions.ts';
 import { testTimeout } from './timeframes.ts';
 
@@ -83,6 +83,7 @@ test('vscode/stopBackgroundWork and vscode/cancelAgentHostDebugLogs get well-for
   await assert.rejects(client.rpc('vscode/stopBackgroundWork', {}), (error: any) => error.code === -32602);
   assert.equal(await client.rpc('vscode/cancelAgentHostDebugLogs', { progressToken: randomUUID() }), null);
   await assert.rejects(client.rpc('vscode/cancelAgentHostDebugLogs', {}), (error: any) => error.code === -32602);
+  await assert.rejects(client.rpc('vscode/collectAgentHostDebugLogs', { session: `ahp-session:/${randomUUID()}`, progressToken: randomUUID() }), (error: any) => error.code === -32009 && error.message === debugLogsRefusal, 'VS Code then exports its own logs and shows why the host\'s are missing');
 });
 
 test('resource writes, copies, moves, deletes and mkdir are refused with PermissionDenied, which VS Code shows as NoPermissions', async t => {
@@ -97,4 +98,12 @@ test('resource writes, copies, moves, deletes and mkdir are refused with Permiss
   ];
   for (const [method, params] of calls) await assert.rejects(client.rpc(method, { channel: 'ahp-root://', ...params }), (error: any) => error.code === -32009 && error.message === resourceWriteRefusal, method);
   await assert.rejects(client.rpc('resourceUnknown', {}), (error: any) => error.code === -32601, 'an unknown method stays method-not-found');
+});
+
+test('setClientManagedSettingsPermissions, which VS Code 1.142 sends every host, is a notification the host ignores', async t => {
+  const { client, dispatch } = await attached(t);
+  client.notify('setClientManagedSettingsPermissions', { permissions: {} });
+  assert.deepEqual(await client.rpc('ping', {}), {});
+  assert.equal(client.inbox.some(message => message.error), false, 'a notification gets no answer, not even an error');
+  assert.equal((await dispatch('ahp-root://', { type: 'root/configChanged', config: {} })).params.rejectionReason, undefined, 'the connection keeps working');
 });
