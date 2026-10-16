@@ -50,6 +50,8 @@ Start with `unfold`. Add `ploeg` when you want spend and Run history across Team
 
 Follow Ploeg's [Ask Ploeg from an AI client over MCP](../../apps/ploeg/docs/how-to/ask-ploeg-from-an-ai-client.md). It needs a read-only Operator Consumer in the Ploeg chart, and a route to ploegd, for now a port-forward.
 
+Where Ploeg serves `ploeg-mcp` over HTTPS ([Serve Ploeg's MCP tools over HTTPS](../../apps/ploeg/docs/how-to/serve-ploeg-mcp-over-https.md)), connect to its URL and sign in through the browser instead; no token sits on your machine. In VS Code, the Unfold extension provides that server once the Unfold you sign in to names it ([extension README](../../apps/unfold/extensions/vscode/README.md#use-ploegs-tools-in-vs-code-chat)).
+
 ## When it does not work
 
 | Symptom | Cause | Fix |
