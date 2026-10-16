@@ -13,6 +13,7 @@ import { stepDialogMarkup, stepOutcome, stepRequest } from '../core/attribution.
 import { transcriptEntryCap } from '../run-transcript.js';
 import { defaultLogView, logDownloadText } from '../run-log-view.js';
 import { exposed, flagValues, track } from '../core/flags.js';
+import { agentsWindowAvailable, openAgentsWindow } from '../agents-window.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -64,6 +65,7 @@ function model() {
     detailError: state.ploegDetailError || null,
     listHref: `#${listHash()}`,
     canCancel: canCancel(),
+    agentsWindow: agentsWindowAvailable(state.bootstrap),
     cancelBusy: work.cancelBusy,
     cancelResult: work.cancelResult?.id === work.detailId ? work.cancelResult : null,
     briefOpen: work.briefOpen.has(work.detailId),
@@ -1096,6 +1098,7 @@ export default {
     'work-copy-run': copyRunLink,
     'work-copy-ref': copyRef,
     'work-checkout': () => openCheckout(),
+    'work-agents-window': control => openAgentsWindow(control, state.ploegDetail?.item?.title),
     'work-copy-command': copyCommand,
     'work-cancel': () => work.cancelBusy ? null : openCancel(),
     'work-brief': () => toggleBrief(),

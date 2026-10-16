@@ -7,6 +7,7 @@ import { workItemState, runOutcome, runState, verdict as verdictMeta, failureRea
 import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph } from './core/reasons.js';
 import { grafanaTeam, runExplorer } from './core/observability.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
+import { agentsWindowButton } from './agents-window.js';
 import { traceMarkup } from './core/attribution.js';
 import { workStages } from './core/stages.js';
 import { cardView } from './cards/card-model.js';
@@ -579,6 +580,7 @@ function headerMarkup(detail, model, reason) {
   if (grafana) tools.push(ui.button({ label: 'Grafana', icon: 'activity', variant: 'ghost', size: 'sm', href: grafana, external: true, data: { linkOut: 'grafana' } }));
   const checkout = checkoutTarget(detail, model.card);
   if (checkout) tools.push(`<button type="button" class="button ghost sm work-checkout" data-action="work-checkout" title="${escape(`Check out ${checkout.branch}`)}">${icon('branch')}<span class="button-label">Check out branch</span></button>`);
+  if (model.agentsWindow && !detail.demo) tools.push(agentsWindowButton('work-items', item.id));
   if (model.canCancel && canStop(detail)) tools.push(`<button type="button" class="button ghost sm work-cancel" data-action="work-cancel" data-id="${escape(item.id)}"${model.cancelBusy ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.cancelBusy ? '<span class="spinner" aria-hidden="true"></span>' : icon('x-circle')}<span class="button-label">Cancel Work Item</span></button>`);
   return `<header class="work-detail-header"><div class="work-detail-bar"><p class="work-detail-ref overline"><span class="work-detail-kind">Work Item · </span>Team ${escape(item.team)} · ${ref(item)}</p><div class="work-detail-tools">${tools.join('')}</div>${close}</div><h2 class="work-detail-title" id="ploeg-item-title" tabindex="-1">${escape(item.title || `Work Item ${item.id}`)}</h2><div class="work-detail-status">${ui.stateBadge(meta, reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}${warning ? ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }) : ''}</div>${facts.length ? `<p class="work-detail-facts dots">${facts.join('')}</p>` : ''}</header>`;
 }
@@ -1509,7 +1511,7 @@ function demoMarkup(model) {
  * The whole Work page body for `model`: the demo note, the toolbar (Team and lane), a partial-data notice,
  * the list, and the Work Item detail beside it (wide) or instead of it (narrow).
  * `model` = { data, lane, lanePending (the lane waits for the open Work Item's state), team, teams, loading, refreshing,
- * loadingMore, detailId, detail, detailLoading, detailError, listHref, canCancel, cancelBusy, cancelResult, briefOpen,
+ * loadingMore, detailId, detail, detailLoading, detailError, listHref, canCancel, agentsWindow, cancelBusy, cancelResult, briefOpen,
  * sessions, userId, trackerUrl, reviewFacts, demoMode, now, card, trace, traceBusy, traceResult }.
  */
 export function workMarkup(model) {
