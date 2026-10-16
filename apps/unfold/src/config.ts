@@ -189,6 +189,23 @@ export function errorReportSettings(mode: string): AppConfig['errorReports'] {
   return { ...(sentryDsn ? { sentryDsn } : {}), ...(otlpUrl ? { otlpUrl } : {}), environment };
 }
 
+/**
+ * Reads the remote MCP servers the workbench tells editors about. `UNFOLD_PLOEG_MCP_URL` is the exact resource URL of
+ * `ploeg-mcp http`, and `UNFOLD_PLOEG_MCP_CLIENT_ID` the public OAuth client registered for it. Both or neither; there is no default.
+ */
+export function mcpServerSettings(): AppConfig['mcpServers'] {
+  const url = process.env.UNFOLD_PLOEG_MCP_URL || undefined;
+  const clientId = process.env.UNFOLD_PLOEG_MCP_CLIENT_ID || undefined;
+  if (!url && !clientId) return undefined;
+  if (!url || !clientId) throw new Error('UNFOLD_PLOEG_MCP_URL and UNFOLD_PLOEG_MCP_CLIENT_ID must be set together');
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { throw new Error('UNFOLD_PLOEG_MCP_URL must be an absolute URL'); }
+  const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname);
+  if (!(parsed.protocol === 'https:' || (parsed.protocol === 'http:' && loopback)) || parsed.username || parsed.password || parsed.search || parsed.hash) throw new Error('UNFOLD_PLOEG_MCP_URL must be an HTTPS URL without credentials, query or fragment');
+  if (!/^[A-Za-z0-9._:-]{1,200}$/.test(clientId)) throw new Error('UNFOLD_PLOEG_MCP_CLIENT_ID must be an OAuth client id');
+  return { ploeg: { url, clientId } };
+}
+
 /** Reads `UNFOLD_INSIGHT_EVENTS`: product events are recorded unless it is `off`, as ADR-0023's tenant default says. */
 export function productEventsSetting(): boolean {
   const value = process.env.UNFOLD_INSIGHT_EVENTS || 'on';
@@ -330,6 +347,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     observability,
     insight: insightSettings(),
     errorReports: errorReportSettings(mode),
+    mcpServers: mcpServerSettings(),
     productEvents: productEventsSetting(),
     cards,
     cardThemes: cardThemeSettings(raw.cardThemes, mode),

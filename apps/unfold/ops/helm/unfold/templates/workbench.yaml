@@ -110,6 +110,12 @@ spec:
             - name: UNFOLD_ERROR_OTLP_URL
               value: {{ .Values.errorReports.otlpUrl | quote }}
             {{- end }}
+            {{- if or .Values.ploegMcp.url .Values.ploegMcp.clientId }}
+            - name: UNFOLD_PLOEG_MCP_URL
+              value: {{ required "ploegMcp.url is required when ploegMcp.clientId is set" .Values.ploegMcp.url | quote }}
+            - name: UNFOLD_PLOEG_MCP_CLIENT_ID
+              value: {{ required "ploegMcp.clientId is required when ploegMcp.url is set" .Values.ploegMcp.clientId | quote }}
+            {{- end }}
             {{- if .Values.errorReports.environment }}
             - name: UNFOLD_ERROR_ENVIRONMENT
               value: {{ .Values.errorReports.environment | quote }}

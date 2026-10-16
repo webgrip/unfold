@@ -64,6 +64,8 @@ Supply credentials through the deployment's secret mechanism or a short-lived sh
 | `UNFOLD_ERROR_OTLP_URL` | Optional OTLP/HTTP logs URL of an OpenTelemetry collector (ends in `/v1/logs`). Server errors (HTTP 5xx), unhandled rejections, crashes and failed Asks are sent there as log records. See [Error reports](#error-reports) |
 | `UNFOLD_SENTRY_DSN` | Optional Sentry-protocol DSN (`https://<key>@<host>/<project>`) for Sentry, GlitchTip or Bugsink; the same reports as envelopes |
 | `UNFOLD_ERROR_ENVIRONMENT` | Environment name on each report, such as `staging`; defaults to the mode |
+| `UNFOLD_PLOEG_MCP_URL` | Optional exact resource URL of the remote `ploeg-mcp`, the same string as its `PLOEG_MCP_RESOURCE`. HTTPS, except on loopback. No default. See [Ploeg's MCP server in VS Code](#ploegs-mcp-server-in-vs-code) |
+| `UNFOLD_PLOEG_MCP_CLIENT_ID` | The public OAuth client registered for that server, such as `ploeg-mcp`. Set it together with the URL; one without the other stops Unfold from starting |
 
 The insight export forwards product events the browser and VS Code extension post to `POST /api/insight/events` ([RFC-0001](../../../../docs/design/rfc-0001-product-events-and-confusion-signals.md)). The call is server to server, so the browser never contacts the collector and the CSP stays `'self'`.
 
@@ -391,6 +393,12 @@ When the status bar says **not connected**, open the Agents window: it connects 
 2. Open the user `settings.json` and look for the `chat.remoteAgentHosts` entry with your workbench's address. If it is missing, `unfold.agentHost.autoConnect` may be `false`, or the file could not be parsed.
 3. Without a GitHub account, the Agents window asks for GitHub sign-in before it shows anything. VS Code decides that, not Unfold ([sign-in spike](../research/2026-10-10-ahp-sign-in-spike.md)).
 4. A workbench behind a proxy must pass WebSocket upgrades on `/` or `/ahp`.
+
+## Ploeg's MCP server in VS Code
+
+When Ploeg serves `ploeg-mcp` over HTTPS ([Ploeg's guide](../../../ploeg/docs/how-to/serve-ploeg-mcp-over-https.md)), set `UNFOLD_PLOEG_MCP_URL` and `UNFOLD_PLOEG_MCP_CLIENT_ID`, or the chart's `ploegMcp.url` and `ploegMcp.clientId` ([chart README](../../ops/helm/unfold/README.md#the-ploeg-mcp-server-for-editors)). Both are public values, so they belong in plain configuration, not in a Secret. `GET /api/mcp-servers` then names the server to every signed-in person ([API contract](../contracts/api.md#mcp-servers-for-editors)). The VS Code extension provides it to chat by URL, and VS Code signs the person in through the browser ([extension README](../../extensions/vscode/README.md#use-ploegs-tools-in-vs-code-chat)). On the homelab the values would be `https://mcp-ploeg.webgrip.dev/mcp` and `ploeg-mcp`; the desired state for that lives in `webgrip/homelab-cluster`, not here.
+
+The identity provider's client must allow VS Code's redirect URIs, `http://127.0.0.1:33418` and `https://vscode.dev/redirect`. Unfold never sees the person's Ploeg token.
 
 ## Verifying a candidate
 
