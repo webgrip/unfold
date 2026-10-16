@@ -6,6 +6,7 @@ import { hashPassword } from '../src/auth.ts';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { PloegClient, cancelShiftChanged, noteFailures, type PloegItem } from '../src/ploeg.ts';
 import { money } from '../public/core/format.js';
+import { agentHostAuthority } from '../public/core/agents-window.js';
 import { noAgentMessages, noRunMessages, ploegRunToolName, workItemActivity, workItemRefusals } from '../src/ahp/work-items.ts';
 import { workItemCommandText } from '../src/ahp/work-item-commands.ts';
 import { application, login, request } from './api-support.ts';
@@ -806,4 +807,26 @@ test('a Work Item session\'s Changes view claims no file it does not list: its c
     }
   }
   assert.equal(summaries.find(item => item.resource === 'unfold:/wi-205')!.activity, 'Ready for review · PR #42', 'the pull request that holds the change is named');
+});
+
+test('a Work Item session\'s Agents window link goes to the people Ploeg lets open it, in their window\'s spelling', { timeout: testTimeout(20_000) }, async t => {
+  const f = await fixture(t);
+  const op = await login(f.server.url, 'op-1', password);
+  const link = async (id: string, cookie = op.cookie) => request(f.server.url, `/api/agent-host/work-items/${id}/link`, { cookie });
+  const before = await link('205');
+  assert.equal(before.status, 200, before.text);
+  assert.equal(before.body.session, 'ahp-session:/wi-205');
+  assert.equal(before.body.attached, false);
+  assert.equal(before.body.links.stable, `vscode://agents/agent-host-session/ahp-session/wi-205?connectionAuthority=${agentHostAuthority(before.body.address)}`);
+  await f.attach('op-1');
+  const after = await link('205');
+  assert.equal(after.body.attached, true);
+  assert.equal(after.body.session, 'unfold:/wi-205', 'the session URI this person\'s 1.141-style Agents window lists');
+  assert.ok(after.body.links.insiders.startsWith('vscode-insiders://agents/agent-host-session/unfold/wi-205?connectionAuthority='));
+  assert.equal((await link('209')).status, 404, 'another team\'s Work Item has no link for this person');
+  assert.equal((await link('210')).status, 404, 'an operator-owned Work Item is its Unfold session, not a Work Item session');
+  assert.equal((await link('999')).status, 404);
+  assert.equal((await link('wi-205')).status, 404, 'the id is Ploeg\'s Work Item id');
+  const viewer = await login(f.server.url, 'viewer-2', password);
+  assert.equal((await link('205', viewer.cookie)).status, 403, 'a viewer cannot attach an Agents window, so gets no link');
 });
