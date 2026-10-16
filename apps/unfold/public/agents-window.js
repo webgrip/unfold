@@ -18,7 +18,6 @@ export function agentsWindowButton(kind, id, { size = 'sm' } = {}) {
 }
 
 function refusal(kind, error) {
-  if (error?.code === 'not_owner') return { title: 'Only its owner can open this session there', body: 'A session opens in the Agents window of the person who owns it. You can follow it here in the browser.' };
   if (error?.status === 404 && kind === 'work-items') return { title: 'This Work Item has no session in your Agents window', body: 'Ploeg does not show it to you there, or an Unfold session drives it. Open that session instead.' };
   if (error?.status === 404) return { title: 'This session is not in your Agents window', body: 'It may have been removed, or your account cannot see it.' };
   if (error?.status === 403) return { title: 'Your account cannot open the Agents window', body: error.message || 'An operator account connects VS Code.' };

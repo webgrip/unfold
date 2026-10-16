@@ -37,13 +37,15 @@ test('without an attached Agents window the dialog explains it and links to the 
 });
 
 test('a refusal says why and shows no link', () => {
-  const notOwner = agentsWindowDialogMarkup({ kind: 'sessions', error: Object.assign(new Error('Only the owner'), { status: 403, code: 'not_owner' }) });
-  assert.match(notOwner, /Only its owner can open this session there/);
+  const missing = agentsWindowDialogMarkup({ kind: 'sessions', error: Object.assign(new Error('Session not found.'), { status: 404, code: 'not_found' }) });
+  assert.match(missing, /This session is not in your Agents window/);
+  const viewer = agentsWindowDialogMarkup({ kind: 'sessions', error: Object.assign(new Error('Viewers cannot connect an agent host.'), { status: 403, code: 'forbidden' }) });
+  assert.match(viewer, /Your account cannot open the Agents window/);
   const hidden = agentsWindowDialogMarkup({ kind: 'work-items', error: Object.assign(new Error('No'), { status: 404, code: 'not_found' }) });
   assert.match(hidden, /This Work Item has no session in your Agents window/);
   const broken = agentsWindowDialogMarkup({ kind: 'sessions', link: { links: { stable: '', insiders: '' }, attached: true } });
   assert.match(broken, /The link could not be built/);
-  for (const markup of [notOwner, hidden, broken]) assert.doesNotMatch(markup, /agent-host-session/);
+  for (const markup of [missing, viewer, hidden, broken]) assert.doesNotMatch(markup, /agent-host-session/);
   assert.match(agentsWindowDialogMarkup({ kind: 'sessions', loading: true }), /aria-busy="true"/);
 });
 

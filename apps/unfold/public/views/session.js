@@ -721,7 +721,7 @@ function headerActions(session) {
   const evidence = session.artifacts.length > 0 || session.runs.some(run => run.status === 'completed');
   const parts = [];
   if (evidence) parts.push(button({ id: 'session-export', label: 'Export handoff', icon: 'download', variant: 'ghost', action: 'export' }));
-  if (agentsWindowAvailable(state.bootstrap) && state.bootstrap.user.id === session.ownerId) parts.push(agentsWindowButton('sessions', session.id, { size: 'md' }));
+  if (agentsWindowAvailable(state.bootstrap) && (state.bootstrap.user.id === session.ownerId || state.bootstrap.user.role === 'admin')) parts.push(agentsWindowButton('sessions', session.id, { size: 'md' }));
   if (canOperate()) {
     if (!finished) parts.push(button({ id: 'session-cancel', label: 'Cancel', icon: 'stop', variant: 'danger-ghost', action: 'cancel', disabled: state.busy, busy: busy('cancel') }));
     if (['running', 'waiting_input'].includes(session.status)) parts.push(button({ id: 'session-pause', label: 'Pause', icon: 'pause', action: 'pause', disabled: state.busy, busy: busy('pause') }));

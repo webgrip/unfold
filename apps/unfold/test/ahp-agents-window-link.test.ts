@@ -68,19 +68,20 @@ test('the link follows the session spelling the person\'s attached Agents window
   assert.equal((await linked()).session, `ahp-session:/${w.session.id}`);
 });
 
-test('only the owner sees a session\'s link: a peer is not told it exists, an administrator and a viewer are refused', async t => {
+test('a session\'s link goes to whoever the host lists it to: its owner and administrators; a peer is not told it exists and a viewer is refused', async t => {
   const w = await workbench(t);
   const peer = await request(w.server.url, `/api/agent-host/sessions/${w.session.id}/link`, { cookie: w.peer.cookie });
   assert.equal(peer.status, 404, peer.text);
   assert.equal(peer.body.error.code, 'not_found');
   const admin = await request(w.server.url, `/api/agent-host/sessions/${w.session.id}/link`, { cookie: w.admin.cookie });
-  assert.equal(admin.status, 403, admin.text);
-  assert.equal(admin.body.error.code, 'not_owner');
+  assert.equal(admin.status, 200, admin.text);
+  assert.equal(admin.body.session, `ahp-session:/${w.session.id}`, 'an administrator\'s Agents window lists another person\'s session, so the link opens it');
+  assert.equal(admin.body.attached, false, 'the owner\'s attached window is not the administrator\'s');
   const viewer = await request(w.server.url, `/api/agent-host/sessions/${w.session.id}/link`, { cookie: w.viewer.cookie });
   assert.equal(viewer.status, 403, viewer.text);
   assert.equal((await request(w.server.url, '/api/agent-host/sessions/no-such-session/link', { cookie: w.owner.cookie })).status, 404);
   assert.equal((await request(w.server.url, `/api/agent-host/sessions/${w.session.id}/link`)).status, 401, 'an anonymous caller gets nothing');
-  for (const body of [peer.text, admin.text, viewer.text]) assert.ok(!body.includes('agent-host-session'), 'a refusal carries no link');
+  for (const body of [peer.text, viewer.text]) assert.ok(!body.includes('agent-host-session'), 'a refusal carries no link');
 });
 
 test('a Work Item link needs a live Ploeg: without one there is no Work Item session to open', async t => {

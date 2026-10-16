@@ -450,7 +450,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             let target: AgentsWindowTarget | undefined;
             if (kind === 'sessions') {
               target = agentHost!.sessionLinkTarget(user, id);
-              if (!target) { visible(id, user); fault(403, 'not_owner', 'Only the person who owns this session can open it in their Agents window.'); }
+              if (!target) fault(404, 'not_found', 'Session not found.');
             } else {
               try { target = await agentHost!.workItemLinkTarget(user, id); }
               catch (error) { if (error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } }); throw error; }

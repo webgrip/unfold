@@ -461,10 +461,10 @@ export class AgentHost {
     return { session: sessionChannel(publicId, window?.scheme ?? 'ahp-session'), attached: Boolean(window) };
   }
 
-  /** The link target of the person's own Unfold session, by the id the API and the browser use. Undefined unless they own it; an administrator's view of another person's session is not ownership. */
+  /** The link target of an Unfold session, by the id the API and the browser use, for whoever the host lists it to: its owner and administrators. */
   sessionLinkTarget(user: User, sessionId: string): AgentsWindowTarget | undefined {
     const session = this.store.getSession(sessionId);
-    return session && session.ownerId === user.id ? this.linkTarget(user, this.publicId(session.id)) : undefined;
+    return session && this.mayView(user, session.ownerId) ? this.linkTarget(user, this.publicId(session.id)) : undefined;
   }
 
   /** The link target of a Ploeg Work Item's session, for a person Ploeg's team authorization lets open it. Undefined when it hides the Work Item, an Operator Execution owns it, or the host projects no Work Items. */

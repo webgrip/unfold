@@ -563,7 +563,6 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     let view: AgentsWindowLinkView;
     try { view = await target.request<AgentsWindowLinkView>(`/api/agent-host/${subject.kind}/${encodeURIComponent(subject.id)}/link`); }
     catch (error) {
-      if (error instanceof ApiError && error.code === 'not_owner') throw new Error('Only the person who owns this session can open it in their Agents window.');
       if (error instanceof ApiError && error.status === 404) throw new Error(subject.kind === 'work-items' ? 'This Work Item has no session in your Agents window: Ploeg does not show it to you there, or an Unfold session drives it.' : 'This session is not in your Agents window, or your account cannot see it.');
       throw error;
     }
