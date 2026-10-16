@@ -17,7 +17,7 @@ import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome }
 import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor, plainText, providerNames } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
 import { linkedAccounts, type AccountChoice } from './accounts.js';
-import { SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowState, agentsWindowStatusText, attachAgentHost, type AgentsWindowState, type AttachedClient, connectionAddress, detachAgentHost, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
+import { SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowPlan, agentsWindowState, agentsWindowStatusText, agentsWindowSubject, attachAgentHost, type AgentsWindowLinkView, type AgentsWindowState, type AttachedClient, connectionAddress, detachAgentHost, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
 import { TaskPanels, type TaskPanelHost } from './task-panel.js';
 import { checkOutWorkItemBranch } from './checkout.js';
@@ -118,6 +118,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     register('connectAgentHost', () => this.connectAgentHost());
     register('agentsWindowStatus', () => this.agentsWindowStatus());
     register('openAgentsWindow', () => this.openAgentsWindow());
+    register('openInAgentsWindow', value => this.openInAgentsWindow(value));
     register('refresh', () => { this.nowReadAt = 0; return this.refresh(true, true); });
     register('openWorkItem', (value?: WorkItemRef) => this.openWorkItem(value));
     register('openPullRequest', (value?: NowEntry) => this.openPullRequest(value));
@@ -552,6 +553,33 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.watchAgentsWindow(5_000);
     if (!(await vscode.commands.getCommands(true)).includes(openAgentsWindowCommand)) throw new Error('This VS Code has no Agents window. It needs VS Code 1.141 or later.');
     await vscode.commands.executeCommand(openAgentsWindowCommand);
+  }
+
+  async openInAgentsWindow(value?: unknown): Promise<void> {
+    if (this.configurationError) throw this.configurationError;
+    const subject = agentsWindowSubject(value) ?? (value === undefined ? (id => id ? { kind: 'sessions' as const, id } : undefined)(await this.choose(undefined, 'Open which session in the Agents window?')) : undefined);
+    if (!subject) return;
+    const target = this.current;
+    let view: AgentsWindowLinkView;
+    try { view = await target.request<AgentsWindowLinkView>(`/api/agent-host/${subject.kind}/${encodeURIComponent(subject.id)}/link`); }
+    catch (error) {
+      if (error instanceof ApiError && error.code === 'not_owner') throw new Error('Only the person who owns this session can open it in their Agents window.');
+      if (error instanceof ApiError && error.status === 404) throw new Error(subject.kind === 'work-items' ? 'This Work Item has no session in your Agents window: Ploeg does not show it to you there, or an Unfold session drives it.' : 'This session is not in your Agents window, or your account cannot see it.');
+      throw error;
+    }
+    let entries;
+    try { entries = await this.agentHostStore().read(); }
+    catch (error) { if (error instanceof SettingsFileError) { await this.settingsFileProblem(target, error); return; } throw error; }
+    const plan = agentsWindowPlan(view, entries, vscode.env.uriScheme, options => this.core.agentsWindowSessionLink(options));
+    if (plan.kind === 'unusable') throw new Error('The workbench returned a session the Agents window cannot open.');
+    if (plan.kind === 'token-in-address') throw new Error(`Your chat.remoteAgentHosts entry for ${plan.address} has its connection token in the address. A link to it would carry the token, so none is opened. Move the token to the entry's connectionToken, or run Unfold: Connect VS Code Agents Window.`);
+    if (plan.kind === 'connect') {
+      const choice = await vscode.window.showWarningMessage(`This VS Code has not added Unfold at ${new URL(target.origin).host} to its Agents window yet, so a link cannot find the session. Connect it first, then open the session again.`, 'Connect Agents Window');
+      if (choice === 'Connect Agents Window') await this.openAgentsWindow();
+      return;
+    }
+    await vscode.env.openExternal(vscode.Uri.parse(plan.url, true));
+    if (!plan.attached) this.watchAgentsWindow(5_000);
   }
 
   async agentsWindowStatus(): Promise<void> {
