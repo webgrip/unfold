@@ -89,6 +89,11 @@ dir = "apps/unfold"
 run = "npm run test:browser"
 description = "Run Unfold's browser flows against the deterministic demo in Chromium; UNFOLD_BROWSER_FLOWS=name,name runs some"
 
+[tasks.ahp-e2e]
+dir = "apps/unfold"
+run = "npm run ahp:e2e"
+description = "Drive the deterministic demo with Microsoft's AHP client as VS Code 1.142, VS Code 1.141, a plain AHP client and the SDK's multi-host layer; no model calls"
+
 [tasks.demo]
 dir = "apps/unfold"
 run = "npm run demo"

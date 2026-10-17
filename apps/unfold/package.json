@@ -17,6 +17,7 @@
     "user:add": "node scripts/user-add.ts",
     "mcp": "node scripts/mcp.ts",
     "smoke": "node scripts/smoke.mjs",
+    "ahp:e2e": "node test/sdk-e2e/ahp-e2e.mjs",
     "typecheck": "tsc --noEmit",
     "test:browser": "node scripts/browser-check.mjs",
     "replay:record": "node scripts/record-replay.ts",
@@ -37,6 +38,7 @@
   },
   "license": "Apache-2.0",
   "devDependencies": {
+    "@microsoft/agent-host-protocol": "1.0.0",
     "@types/node": "24.19.2",
     "@types/ws": "8.18.2",
     "html-to-image": "1.11.13",
