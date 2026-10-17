@@ -1,0 +1,82 @@
+---
+type: how-to
+audience: [owner, contributor]
+owner: unfold
+last_verified: 2026-10-17
+verified_by: "Read apps/unfold/src/linked-sessions.ts, src/linked-telemetry.ts, src/agent-trace.ts and extensions/claude-code; ran test/linked-sessions.test.ts, test/claude-code-plugin.test.ts and test/linked-sessions-view.test.mjs. Not yet checked against the homelab or a real Claude Code session."
+---
+
+# Link your Claude Code sessions to Work Items
+
+Use this when you work on a Work Item in your own Claude Code and want that session to show up on the Work Item in Unfold. When you finish:
+
+* each session reports its state to Unfold and links to the Work Items it works on;
+* each commit records which lines the agent wrote, as an [Agent Trace](https://agent-trace.dev/) record;
+* the session's page shows its cost estimate, tokens and tools from Claude Code's own telemetry.
+
+Unfold never holds your Claude sign-in. Anthropic does not allow third-party apps to hold one ([terms](https://code.claude.com/docs/en/legal-and-compliance)). Your Unfold editor credential is the only credential involved ([ADR 0047](../../apps/unfold/docs/adrs/0047-people-link-their-own-agent-sessions-through-a-plugin-agent-trace-and-telemetry-never-a-claude-sign-in.md)).
+
+## 1. Get an editor credential
+
+From a checkout of this repository:
+
+```sh
+UNFOLD_URL=https://unfold.example.org npm --prefix apps/unfold run mcp -- login
+```
+
+Open the link it prints, check that the code matches, and approve it. It prints a `vle_…` credential that lasts 30 days. If you already use `unfold-mcp`, reuse its credential.
+
+## 2. Tell Claude Code where Unfold is
+
+Add the address and the credential to the `env` block of `~/.claude/settings.json`:
+
+```json
+{
+  "env": {
+    "UNFOLD_URL": "https://unfold.example.org",
+    "UNFOLD_TOKEN": "vle_…"
+  }
+}
+```
+
+The same file switches on Claude Code's telemetry. The session page reads it back by session id ([monitoring](https://code.claude.com/docs/en/monitoring-usage)). Keep `CLAUDE_CODE_ENABLE_TELEMETRY=1` and the `OTEL_*` exporter settings your observability stack already expects.
+
+## 3. Install the plugin
+
+In Claude Code:
+
+```text
+/plugin marketplace add https://forgejo.webgrip.dev/webgrip/unfold.git
+/plugin install unfold@unfold
+```
+
+To link sessions from the agent as well, register `unfold-mcp` ([Ask Unfold and Ploeg from an AI client](ask-from-an-ai-client.md)). The plugin's skill then calls `unfold_link_session` when you name a Work Item.
+
+## 4. Work as usual
+
+* **Start on a branch that names the ticket**, such as `feat/vik-2051-login`. The session links itself to that ticket's Work Items and takes "VIK-2051 …" as its title.
+* **Link it any other way.** Say "this is Work Item 184" or paste the Unfold link in the session. You can also link it on its page under **Settings › Agent sessions**.
+* **Commits.** The session is asked to end each commit with `Unfold-Session: <its page>`. After each commit the plugin writes an Agent Trace record to `refs/notes/agent-trace` and sends it to Unfold. To share the records on the forge, push them: `git push origin refs/notes/agent-trace`.
+
+The Work Item page lists every linked session in its **Agent sessions** card: state, owner, branch and AI-written lines. Your own sessions also offer `claude --resume <id>` and, under Remote Control, **Open in Claude**.
+
+## What leaves your machine
+
+The plugin sends:
+
+* the session id, title, model and Claude Code version;
+* the repository address without credentials, and the branch;
+* its state: working, waiting for you, idle or ended;
+* commit ids and subjects;
+* the Agent Trace records.
+
+It never sends your prompts, tool output, file contents or your Claude credentials. Telemetry goes wherever your own `OTEL_*` settings send it. Unfold only reads counts from those stores, and only you and administrators see them.
+
+## When it does not work
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| No session appears | `UNFOLD_URL` or `UNFOLD_TOKEN` is missing from the environment Claude Code starts with, or the credential expired | Check `~/.claude/settings.json`, sign in again (step 1), and run one session with `UNFOLD_HOOK_DEBUG=1` to see the hook's errors |
+| The session does not link to the Work Item | The branch names no ticket, or Ploeg has no Work Item for that ticket in your Teams, or you unlinked it before | Link it on the session page or with `unfold_link_session` |
+| A commit shows "no record" | The commit holds no line this session's editing tools wrote, such as a commit you made by hand | Nothing to fix; only agent-written lines are attributed |
+| **No telemetry for this session** | Telemetry is off in your Claude Code settings, or Unfold has no `observability.metricsUrl` or `logsUrl` | Enable telemetry; an operator sets the store URLs ([live operations](../../apps/unfold/docs/operations/live.md)) |

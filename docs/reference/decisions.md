@@ -208,6 +208,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0043](../../apps/unfold/docs/adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md) | Feature flags are flagd rules evaluated in process behind OpenFeature's interface | 2026-10-13 | unknown | — |
 | Unfold | [0044](../../apps/unfold/docs/adrs/0044-sessions-run-in-ploeg-with-a-harness-chosen-per-session-and-interaction-kept.md) | Sessions run in Ploeg, with a Harness chosen per session and interaction kept | 2026-10-13 | unknown | — |
 | Unfold | [0046](../../apps/unfold/docs/adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md) | A running Run's health is computed from its own facts, and a judge only advises | 2026-10-17 | unknown | — |
+| Unfold | [0047](../../apps/unfold/docs/adrs/0047-people-link-their-own-agent-sessions-through-a-plugin-agent-trace-and-telemetry-never-a-claude-sign-in.md) | People link their own agent sessions through a plugin, Agent Trace and telemetry, never a Claude sign-in | 2026-10-17 | unknown | — |
 
 ## Other statuses
 
