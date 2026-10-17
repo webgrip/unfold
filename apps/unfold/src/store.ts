@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import type { Session, Event, PermissionRequest, User } from './types.ts';
 import type { Ask } from './ask/types.ts';
+import type { ActionRecord, ActionTarget } from './action-records.ts';
 import type { IssueState } from './tasks.ts';
 import type { FlagOverride } from './flags.ts';
 import type { RolloutSpec, Segment } from './flag-rollouts.ts';
@@ -76,6 +77,9 @@ export class Store {
       CREATE TABLE IF NOT EXISTS asks (id TEXT PRIMARY KEY, work_item_id TEXT NOT NULL, asker_id TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS asks_work_item ON asks(work_item_id, created_at);
       CREATE INDEX IF NOT EXISTS asks_asker ON asks(asker_id, created_at);
+      CREATE TABLE IF NOT EXISTS action_records (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT NOT NULL, role TEXT NOT NULL, channel TEXT NOT NULL, action TEXT NOT NULL, method TEXT NOT NULL, target_kind TEXT, target_id TEXT, inputs TEXT NOT NULL, confirmation TEXT, status INTEGER NOT NULL, outcome TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS action_records_user ON action_records(user_id, id);
+      CREATE INDEX IF NOT EXISTS action_records_target ON action_records(target_kind, target_id, id);
       CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, status TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, last_error TEXT, url TEXT, filed_at TEXT, issue TEXT);
       CREATE INDEX IF NOT EXISTS reports_due ON reports(status, next_attempt_at);
       CREATE TABLE IF NOT EXISTS report_files (report_id TEXT NOT NULL REFERENCES reports(id), name TEXT NOT NULL, type TEXT NOT NULL, content BLOB NOT NULL, PRIMARY KEY (report_id, name));
@@ -160,6 +164,23 @@ export class Store {
   }
 
   /** At most `limit` Asks about one Work Item, newest first. */
+  /** Records one action a person took (system ADR-0037). */
+  recordAction(record: Omit<ActionRecord, 'id'>): void {
+    this.db.prepare('INSERT INTO action_records(at,user_id,user_name,role,channel,action,method,target_kind,target_id,inputs,confirmation,status,outcome) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(record.at, record.userId, record.userName, record.role, record.channel, record.action, record.method, record.target?.kind ?? null, record.target?.id ?? null, JSON.stringify(record.inputs), record.confirmation, record.status, record.outcome);
+  }
+
+  /** Action records newest first, optionally of one person or about one target, older than `before` (an id), at most `limit`. */
+  actionRecords(filter: { userId?: string; target?: ActionTarget; before?: number; limit: number }): ActionRecord[] {
+    const where: string[] = [];
+    const values: (string | number)[] = [];
+    if (filter.userId) { where.push('user_id=?'); values.push(filter.userId); }
+    if (filter.target) { where.push('target_kind=? AND target_id=?'); values.push(filter.target.kind, filter.target.id); }
+    if (filter.before) { where.push('id<?'); values.push(filter.before); }
+    const rows = this.db.prepare(`SELECT * FROM action_records${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY id DESC LIMIT ?`).all(...values, filter.limit) as Record<string, any>[];
+    return rows.map(row => ({ id: Number(row.id), at: String(row.at), userId: String(row.user_id), userName: String(row.user_name), role: String(row.role), channel: String(row.channel), action: String(row.action), method: String(row.method), target: row.target_kind ? { kind: row.target_kind, id: String(row.target_id) } : null, inputs: JSON.parse(String(row.inputs)), confirmation: row.confirmation ?? null, status: Number(row.status), outcome: row.outcome }));
+  }
+
   asksAbout(workItemId: string, limit: number): Ask[] {
     return (this.db.prepare('SELECT body FROM asks WHERE work_item_id=? ORDER BY created_at DESC, id DESC LIMIT ?').all(workItemId, limit) as { body: string }[]).map(row => restoreAsk(row.body));
   }
