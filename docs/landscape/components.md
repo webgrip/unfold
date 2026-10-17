@@ -10,7 +10,7 @@ Today it is a browser application and a server, with an editor client also prese
 
 ## Ploeg
 
-**The service that authorizes and coordinates admitted agent work.** It records eligibility, execution ownership, budget, activity and stop conditions. Unfold performs the interactive workspace execution in shared mode. Standalone local work must remain usable without this service. A common runner for both paths remains an [open implementation choice](questions.md).
+**The service that authorizes and coordinates admitted agent work.** It records eligibility, execution ownership, budget, activity and stop conditions. Unfold performs the interactive workspace execution in shared mode. A live Unfold refuses to start without this service ([ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md)). A common runner for both paths remains an [open implementation choice](questions.md).
 
 Its unattended workers can claim queued work and run it. Unfold can also ask Ploeg to authorize an execution and then perform that execution itself. These are two current execution paths. Ploeg does not choose business priorities; those remain in the tracker. It does not itself host the language model. See [Ploeg's architecture](../../apps/ploeg/docs/architecture.md) and [operator execution decision](../../apps/ploeg/docs/adrs/0024-operator-work-uses-one-execution-authority.md).
 

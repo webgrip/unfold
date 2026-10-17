@@ -71,7 +71,7 @@ featureFlags:
 
 ## Live mode
 
-Live mode reaches services the chart cannot guess, and none of them has a default. The chart does not check them; Unfold does at startup. With `config.execution` set, it refuses to start without a Ploeg connection and a gateway URL. Set them in values or in the `credentialsSecret` environment:
+Live mode reaches services the chart cannot guess, and none of them has a default. The chart does not check them; Unfold does at startup. In live mode it refuses to start without `config.execution`, a Ploeg connection with `tokenEnv`, and a gateway URL. Set them in values or in the `credentialsSecret` environment:
 
 | Service | Where |
 | --- | --- |

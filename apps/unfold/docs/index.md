@@ -17,7 +17,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 
 ## Operate
 
-- [Live operation](operations/live.md): standalone setup, identity, workspaces and intervention
+- [Live operation](operations/live.md): managed setup, identity, workspaces and intervention
 - [Shared execution setup and recovery](../../../docs/workflows/managed-execution.md)
 - [Task connections](operations/task-connections.md)
 - [Release procedure](operations/release.md)

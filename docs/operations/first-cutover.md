@@ -162,7 +162,7 @@ Follow [managed setup and recovery](../workflows/managed-execution.md) and the [
 | Check | Pass condition |
 | --- | --- |
 | Identity and readiness | The intended user signs in through the real login flow. Registered repository, model, Team and spending limit are correct. Authenticated health passes; public `/healthz` alone does not prove provider access. |
-| Standalone independence | In a separate standalone configuration with no Ploeg connection or execution binding, Unfold completes the bounded fixture with its configured live harness/provider. Never test this by removing authority from a managed session. |
+| Standalone refusal | Standalone live mode is retired. Started with no Ploeg connection or execution binding, a separate live configuration refuses to start and names the settings it needs. Never test this by removing authority from a managed session. |
 | Managed authority | Starting the managed session creates exactly one corresponding Ploeg Work Item/Shift/Run. The repository, actor, team and budget match. |
 | Actual execution | The workspace clones the intended Unfold or fixture revision, the configured model is called, and the recorded verification command really runs. Evidence identifies the candidate and the test output. |
 | Disconnect and resume | Close and reopen the browser while the session runs; the same session and durable events remain. There is no second start or duplicate paid execution. |

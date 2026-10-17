@@ -58,7 +58,7 @@ The following is one `taskSources` entry, placed inside the array in the full co
 | `project` | The configured repository, home List or project identifier for that provider; use a string |
 | `repositoryId` | An existing entry in `repositories`. Operators cannot substitute another checkout during import |
 | `tokenEnv` | Optional name of the server environment variable containing this source's credential. If supplied, it must contain a token when the server starts. Omit only for an API that permits the intended unauthenticated reads. Do not reuse the LiteLLM master or an operator login secret |
-| `executionOwner` | `interactive` for standalone operator sessions, or `ploeg` when Ploeg owns dispatch and execution |
+| `executionOwner` | `ploeg` when Ploeg owns dispatch and execution, which every importable live source needs; `interactive` sources stay readable but import only into the retired standalone mode |
 | `ploeg` | Optional explicit Work Target for shared Vikunja or ClickUp imports; requires shared execution configuration |
 
 Use HTTPS for remote API roots. HTTP is accepted only for loopback development fixtures. The adapters reject redirects and embedded URL credentials. A reverse proxy must expose the provider API directly at the configured root. Network access and DNS resolution occur on the Unfold server.
@@ -129,7 +129,7 @@ The same task may be represented in several systems. This release identifies imp
 
 All authenticated Unfold users share the registered source visibility, including viewers. The server credential's permitted task content is therefore visible to those users. Viewers cannot import or start work. Unfold does not currently reproduce each person's provider permissions or isolate sources by team membership. Use one trusted team per deployment and scope the configured source account accordingly. Session ownership checks continue to apply after import.
 
-An `executionOwner` declaration alone is a local routing rule. Standalone imports require an interactive source and repository. With [shared execution](../../../../docs/workflows/managed-execution.md), Ploeg remains the authority and tracker imports must bind the existing Work Item using the registered target below.
+An `executionOwner` declaration alone is a local routing rule. A live Unfold always runs with [shared execution](../../../../docs/workflows/managed-execution.md), so Ploeg remains the authority and tracker imports must bind the existing Work Item using the registered target below.
 
 The server checks source and repository configuration again before first admission. Existing repository registrations without an ownership declaration retain the interactive default; new task source entries require an explicit declaration. Declare repository ownership too when introducing Ploeg alongside the service.
 
@@ -220,7 +220,6 @@ Or give reports a connection of their own, which is not a task source and never 
 | No tasks on a page | Open/incomplete task state, selected page, and whether the provider returned only excluded pull requests |
 | Task changed during import | Refresh the preview and approve the new content; don't reuse the previous revision |
 | Shared import blocked | Check the explicit source target, singleton API root, configured execution team and current queued/pristine Ploeg item. Unsupported tracker providers remain inspection-only in shared mode |
-| Standalone import blocked | The source and destination repository must belong to the interactive lane |
 | Redirect or unexpected content rejected | Configure the final API root directly and inspect the reverse proxy; login HTML is not an API response |
 | Description too large | Bound the task's actionable scope in the tracker, or create a smaller task. A list shows it truncated; preview and import refuse it rather than truncate it |
 | Hand-off refused with `task_write_forbidden` | The Vikunja token can read but not change the task. Grant it task assignee and comment permissions |
