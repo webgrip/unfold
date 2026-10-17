@@ -23,8 +23,6 @@ for (const [scope, name, variants] of [
 
 const groups = [
   { name: 'unfold', inputs: ['apps/unfold', 'docs', 'apps/ploeg'], gates: ['typecheck', 'test', 'check', 'design:check', 'icons:check', 'license:check'].map(unfold) },
-  { name: 'ahp-sdk', inputs: ['apps/unfold'], gates: ['ahp:e2e'].map(unfold) },
-  { name: 'unfold-extension', inputs: ['apps/unfold'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(unfold) },
   {
     name: 'ploeg',
     inputs: ['apps/ploeg', 'apps/unfold/scripts/unified-demo', '.gitmodules', 'scripts/ploeg-pin.mjs'],
@@ -34,10 +32,11 @@ const groups = [
       gate('apps/ploeg', 'go', ['build', '-o', devNull, resolve(root, 'apps/unfold/scripts/unified-demo/main.go')]),
     ],
   },
-  { name: 'brand', inputs: ['scripts/build-brand.mjs', 'docs/brand', 'apps/site/src/brand', 'apps/site/src/styles/brand.css', 'README.md', 'apps/unfold/public/core/brand.js', 'apps/unfold/public/favicon.svg', 'apps/unfold/public/index.html'], gates: [gate('.', process.execPath, ['scripts/build-brand.mjs', '--check'])] },
   { name: 'site', inputs: ['apps/site', 'apps/unfold/public', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/scripts/record-replay.ts', 'apps/unfold/package.json'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
-  { name: 'site-demo', inputs: ['apps/site', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/package.json'], gates: [gate('apps/site', 'node', ['scripts/demo-timeline.ts', '--check'])] },
-  { name: 'helm', inputs: ['apps/unfold/ops/helm'], gates: helm },
+  { name: 'docs', gates: [gate('.', 'uv', ['run', '--frozen', 'python', 'scripts/docs.py', '--check'])] },
+  { name: 'integration', inputs: ['apps/unfold', 'apps/ploeg', 'scripts/integration.mjs', 'scripts/fake-litellm.mjs'], gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },
+  { name: 'ahp-sdk', inputs: ['apps/unfold'], gates: ['ahp:e2e'].map(unfold) },
+  { name: 'unfold-extension', inputs: ['apps/unfold'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(unfold) },
   {
     name: 'release',
     gates: [
@@ -46,16 +45,19 @@ const groups = [
       gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs', 'scripts/verify-gate.test.mjs', 'scripts/ci-warnings.test.mjs', 'scripts/release-repair.test.mjs', 'scripts/release-floors.test.cjs', 'scripts/ploeg-pin.test.mjs']),
     ],
   },
+  { name: 'site-demo', inputs: ['apps/site', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/package.json'], gates: [gate('apps/site', 'node', ['scripts/demo-timeline.ts', '--check'])] },
   { name: 'openspec', inputs: ['openspec'], gates: [gate('.', 'openspec', ['validate', '--all', '--strict', '--no-interactive'])] },
-  { name: 'integration', gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },
-  { name: 'docs', gates: [gate('.', 'uv', ['run', '--frozen', 'python', 'scripts/docs.py', '--check'])] },
+  { name: 'helm', inputs: ['apps/unfold/ops/helm'], gates: helm },
+  { name: 'brand', inputs: ['scripts/build-brand.mjs', 'docs/brand', 'apps/site/src/brand', 'apps/site/src/styles/brand.css', 'README.md', 'apps/unfold/public/core/brand.js', 'apps/unfold/public/favicon.svg', 'apps/unfold/public/index.html'], gates: [gate('.', process.execPath, ['scripts/build-brand.mjs', '--check'])] },
 ];
 
 const cpus = process.env.UNFOLD_VERIFY_CPUS;
 const parallelism = cpus ? { GOMAXPROCS: cpus, GOFLAGS: `${process.env.GOFLAGS ?? ''} -p=${cpus}`.trim(), UNFOLD_TEST_CONCURRENCY: cpus } : {};
 const locale = process.env.LC_ALL || process.env.LANG ? {} : { LC_ALL: 'C.UTF-8' };
 
-const results = process.env.UNFOLD_VERIFY_RESULTS ? resultCache(process.env.UNFOLD_VERIFY_RESULTS, { reuse: process.env.UNFOLD_VERIFY_REUSE === 'true' }) : undefined;
+const resultsDirectory = process.env.UNFOLD_VERIFY_RESULTS ?? (process.env.CI ? undefined : '~/.cache/unfold-verify');
+const reuseResults = (process.env.UNFOLD_VERIFY_REUSE ?? (process.env.UNFOLD_VERIFY_RESULTS ? 'false' : 'true')) === 'true';
+const results = resultsDirectory ? resultCache(resultsDirectory, { reuse: reuseResults }) : undefined;
 const toolVersions = scope => Object.fromEntries(Object.entries(JSON.parse(execFileSync('mise', ['-C', scope, 'ls', '--current', '--json'], { cwd: root, encoding: 'utf8' }))).map(([tool, installs]) => [tool, installs.map(install => install.version)]));
 const shared = results && {
   paths: ['mise.toml', 'apps/unfold/mise.toml', 'apps/site/mise.toml', 'scripts/verify.mjs', 'scripts/verify-cache.mjs'],
