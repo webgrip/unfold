@@ -22,6 +22,7 @@
     "test:browser": "node scripts/browser-check.mjs",
     "workbench": "node scripts/workbench.mjs",
     "test:workbench": "node scripts/workbench-check.mjs",
+    "workbench:record": "node scripts/workbench-record.mjs",
     "replay:record": "node scripts/record-replay.ts",
     "replay:conformance": "node scripts/replay-conformance.mjs",
     "design:build": "node scripts/build-design.mjs",

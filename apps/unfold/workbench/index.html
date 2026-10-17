@@ -14,6 +14,11 @@
   <nav class="wb-nav" aria-label="Stories">
     <p class="wb-brand">Unfold workbench</p>
     <p class="wb-hint">Components rendered from fixtures, outside the app. Every frame runs the same checks as <code>npm run test:workbench</code>.</p>
+    <div class="wb-modes" role="tablist" aria-label="What to show">
+      <a class="wb-mode" role="tab" href="#app" id="mode-app">Real app</a>
+      <a class="wb-mode" role="tab" href="#" id="mode-stories">Components</a>
+    </div>
+    <div id="apps" class="wb-stories"></div>
     <div id="stories" class="wb-stories"></div>
   </nav>
   <main class="wb-main">
@@ -29,7 +34,7 @@
           <label><input type="checkbox" name="theme" value="light" checked> Light</label>
           <label><input type="checkbox" name="theme" value="dark" checked> Dark</label>
         </fieldset>
-        <label class="wb-field">Scenario <select name="scenario" id="scenario"><option value="">The story’s own</option></select></label>
+        <label class="wb-field" id="scenario-field">Scenario <select name="scenario" id="scenario"><option value="">The story’s own</option></select></label>
       </form>
     </header>
     <p id="summary" class="wb-summary" role="status"></p>

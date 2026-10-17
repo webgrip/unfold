@@ -57,3 +57,7 @@
 .wb-root[data-frame="page"] { padding: var(--space-6) var(--space-4); }
 .lv-story-page { max-width: 90rem; margin: 0 auto; }
 html:has(> .wb-frame) { overflow-y: hidden; }
+.wb-modes { display: flex; gap: var(--space-1); padding: var(--space-1); border: 1px solid var(--border); border-radius: var(--radius-md); }
+.wb-mode { flex: 1; display: grid; place-items: center; min-height: 2rem; border-radius: var(--radius-sm); color: var(--text-muted); text-decoration: none; font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.wb-mode[aria-selected="true"] { background: var(--bg-selected); color: var(--text); }
+.wb-list .wb-link[title] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; line-height: 2rem; }

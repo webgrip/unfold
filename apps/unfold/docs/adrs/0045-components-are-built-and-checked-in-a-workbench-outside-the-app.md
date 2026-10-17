@@ -37,6 +37,7 @@ Chosen option: stories in Component Story Format 3, shown by a workbench of our 
 * Stories live in `public/live/stories/*.stories.js`: a default export with `title`, `render`, `args`, `argTypes` and `decorators`, and one named export per state.
 * `npm run workbench` serves `public/` and `workbench/` with the app's CSP and opens a browser that shows each story at 390, 768 and 1280 px, light and dark, with its check results.
 * `npm run test:workbench` renders every story at those widths and themes and once under reduced motion in headless Chromium and fails on any check failure.
+* The workbench also runs the real app against recorded API answers through the hosted replay shim: the committed demo recording, and live recordings that `npm run workbench:record` keeps on the person's machine. The owner chose this on 2026-10-17 ("let's make this workspace actually true to real"), with live recordings kept local because the repository is mirrored publicly.
 * `node --test` covers the model's invariants and every story's markup.
 
 ### Consequences

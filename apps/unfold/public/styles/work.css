@@ -711,6 +711,10 @@
   margin: calc(var(--space-1) * -1) 0 0;
 }
 
+.timeline-title .work-inline-link {
+  min-height: 1.5rem;
+}
+
 .work-inline-link {
   display: inline-flex;
   align-items: center;
@@ -864,10 +868,11 @@
 }
 
 .work-account-index {
-  padding: 1px var(--space-1-5);
+  padding: 0 var(--space-1-5);
+  border: 1px solid var(--side-solid);
   border-radius: var(--radius-xs);
-  background: var(--side-solid);
-  color: var(--text-on-solid);
+  background: var(--bg-surface);
+  color: var(--side-fg);
   letter-spacing: 0.04em;
 }
 
@@ -914,6 +919,9 @@
 }
 
 .work-account-dev > summary {
+  display: flex;
+  align-items: center;
+  min-height: 1.5rem;
   width: fit-content;
   cursor: pointer;
   font-weight: var(--weight-semibold);
@@ -1096,7 +1104,7 @@
 
 .stream-chart {
   --stream-label: 9rem;
-  --stream-lane: 1.75rem;
+  --stream-lane: 2rem;
   display: grid;
   gap: var(--space-1);
   min-width: 0;

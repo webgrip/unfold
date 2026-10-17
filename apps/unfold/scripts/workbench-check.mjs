@@ -27,22 +27,29 @@ try {
     return list;
   });
   const stories = ids.filter(id => !only || only.test(id));
+  const recordings = process.env.UNFOLD_WORKBENCH_APP === '0' ? [] : await (await fetch(`${workbench.url}/workbench/recordings.json`)).json();
+  const pages = recordings.flatMap(recording => {
+    const picked = recording.name === 'demo' ? recording.workItems.filter((item, index, all) => all.findIndex(other => other.state === item.state) === index) : recording.workItems;
+    return picked.map(item => ({ id: `app:${recording.name}:${item.id}`, url: `/app/${recording.name}/`, hash: `#work/${item.id}` })).filter(entry => !only || only.test(entry.id));
+  });
   const passes = [
     ...stories.flatMap(id => widths.flatMap(width => themes.map(theme => ({ id, width, theme, motion: 'no-preference' })))),
     ...stories.map(id => ({ id, width: widths.at(-1), theme: 'dark', motion: 'reduce' })),
+    ...pages.flatMap(entry => widths.flatMap(width => themes.map(theme => ({ ...entry, width, theme, motion: 'no-preference' })))),
+    ...pages.map(entry => ({ ...entry, width: widths.at(-1), theme: 'dark', motion: 'reduce' })),
   ];
   for (const pass of passes) {
     errors.length = 0;
     await page.emulateMedia({ reducedMotion: pass.motion });
     await page.setViewportSize({ width: pass.width, height: 900 });
-    await page.goto(`${workbench.url}/workbench/frame.html?${new URLSearchParams({ story: pass.id, theme: pass.theme })}`);
+    await page.goto(pass.url ? `${workbench.url}${pass.url}?${new URLSearchParams({ theme: pass.theme })}${pass.hash}` : `${workbench.url}/workbench/frame.html?${new URLSearchParams({ story: pass.id, theme: pass.theme })}`);
     await page.waitForFunction(() => document.body.dataset.ready === 'true');
     const result = await page.evaluate(() => window.__lvChecks);
     for (const error of errors) result.failures.push({ rule: 'console', detail: error, at: '' });
     runs.push({ ...pass, ...result });
     if (screenshots && pass.motion === 'no-preference') {
       await mkdir(screenshots, { recursive: true });
-      await page.screenshot({ path: join(screenshots, `${pass.id}.${pass.width}.${pass.theme}.png`), fullPage: true });
+      await page.screenshot({ path: join(screenshots, `${pass.id.replaceAll(':', '-')}.${pass.width}.${pass.theme}.png`), fullPage: true });
     }
   }
 } finally {
@@ -57,6 +64,7 @@ for (const run of failing) {
   for (const failure of run.failures) process.stdout.write(`  ${failure.rule}: ${failure.detail}${failure.at ? ` (${failure.at})` : ''}\n`);
 }
 if (report) await writeFile(report, JSON.stringify(runs, null, 2));
-const stories = new Set(runs.map(run => run.id)).size;
-process.stdout.write(`${failing.length ? 'FAIL' : 'PASS'}: ${stories} stories × ${widths.length} widths × ${themes.length} themes, plus reduced motion: ${runs.length} frames, ${failing.length} failing, ${warnings} warnings.\n`);
+const stories = new Set(runs.filter(run => !run.url).map(run => run.id)).size;
+const appPages = new Set(runs.filter(run => run.url).map(run => run.id)).size;
+process.stdout.write(`${failing.length ? 'FAIL' : 'PASS'}: ${stories} stories and ${appPages} real app pages × ${widths.length} widths × ${themes.length} themes, plus reduced motion: ${runs.length} frames, ${failing.length} failing, ${warnings} warnings.\n`);
 process.exitCode = failing.length ? 1 : 0;

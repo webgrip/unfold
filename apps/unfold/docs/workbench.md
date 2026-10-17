@@ -13,6 +13,25 @@ The workbench keeps one frame per width and theme loaded and re-renders it in pl
 
 `test:workbench` takes these variables: `UNFOLD_WORKBENCH_STORIES` (a regular expression over story ids, such as `layouts|dial`), `UNFOLD_WORKBENCH_WIDTHS` (`390,1280`), `UNFOLD_SCREENSHOTS` (a folder for full-page screenshots), `UNFOLD_WORKBENCH_REPORT` (a JSON file with every result) and `UNFOLD_CHROMIUM_BIN` (a Chromium binary, as for `test:browser`).
 
+## The real app
+
+The workbench's **Real app** tab runs Unfold itself: the real `index.html` and `app.js`, unchanged, with the hosted replay shim answering its API from a recording. Every frame is the actual Work Item page, checked like a story. Picking another Work Item changes the frame's address in place, so it takes milliseconds.
+
+| Recording | Where it comes from | Kept |
+| --- | --- | --- |
+| `demo` | The deterministic demo, recorded by `npm run replay:record` into `apps/site/replay/replay.json` | In Git |
+| any other name | A live Unfold, recorded by `npm run workbench:record` | Only on your machine, in `workbench/recorded/` (ignored by Git) |
+
+Record live Work Items with your own session:
+
+```sh
+UNFOLD_COOKIE='<cookie name>=<value>' mise exec -- npm run workbench:record -- vik-2049 190
+```
+
+`UNFOLD_URL` defaults to `https://unfold.webgrip.dev`. The recorder opens Unfold in headless Chromium with your cookie, visits Now, Work and each Work Item, opens every disclosure so Run logs and transcripts load, and keeps every JSON `GET` answer. It blocks every other method, so recording never changes anything. Pages Unfold does not visit, such as Sessions, keep the demo's answers. A recording holds real tracker text, logs and your account; it never leaves your machine.
+
+`test:workbench` checks one demo Work Item per state and every local recording at every width and theme. A request the recording cannot answer is a `recording` warning.
+
 ## What it checks
 
 `workbench/checks.js` runs in every frame. A failure breaks `test:workbench`; a warning is listed only.
@@ -23,9 +42,9 @@ The workbench keeps one frame per width and theme loaded and re-renders it in pl
 | `element-overflow` | an element ends past the story's edge outside a scroll box |
 | `clipped-text` | a box hides text without an ellipsis |
 | `broken-word` | an ordinary word (letters only, up to 20) breaks across lines, such as “P ul l re q u e st” in a narrow box; code, paths and URLs may break |
-| `target-size` | a control is smaller than 24 × 24 px (WCAG 2.2 2.5.8); under 44 px tall is a warning |
+| `target-size` | a control is smaller than 24 × 24 px and closer than 12 px from its centre to another target, unless it is a link inside a sentence (WCAG 2.2 2.5.8 with its spacing and inline exceptions); under 44 px tall is a warning |
 | `contrast` | text is below 4.5:1, or 3:1 when large, against what is behind it |
-| `name` | a control has no accessible name, or a graphic is neither labelled nor hidden |
+| `name` | a control has no accessible name, or a graphic is neither labelled (`role="img"`, or `group` around controls) nor hidden |
 | `duplicate-id` | an id appears twice |
 | `motion` | an animation runs under reduced motion |
 | `csp` | the page broke the app's Content Security Policy |

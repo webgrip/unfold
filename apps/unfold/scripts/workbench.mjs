@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { statSync } from 'node:fs';
 import { watch } from 'node:fs';
 import { extname, join, normalize, sep } from 'node:path';
@@ -7,12 +7,38 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const served = ['public', 'workbench'];
+const demoRecording = join(root, '../site/replay/replay.json');
+const recordedDir = join(root, 'workbench/recorded');
+const recordingName = /^[a-z0-9][a-z0-9-]{0,63}$/;
+
+async function recordings() {
+  const local = await readdir(recordedDir).catch(() => []);
+  return [{ name: 'demo', label: 'Deterministic demo (committed)', file: demoRecording }, ...local.filter(file => file.endsWith('.json') && recordingName.test(file.slice(0, -5))).sort().map(file => ({ name: file.slice(0, -5), label: `${file.slice(0, -5)} (recorded, local only)`, file: join(recordedDir, file) }))];
+}
+
+async function workItems(file) {
+  const data = JSON.parse(await readFile(file, 'utf8'));
+  const ids = new Map();
+  for (const [key, recorded] of Object.entries(data.routes ?? {})) {
+    const match = /^GET \/api\/ploeg\/work-items\/([^/?]+)$/.exec(key);
+    if (match && recorded.status === 200) ids.set(match[1], { id: match[1], title: recorded.body?.item?.title ?? match[1], state: recorded.body?.item?.state ?? '' });
+  }
+  return [...ids.values()].sort((a, b) => Number(a.id) - Number(b.id) || a.id.localeCompare(b.id));
+}
+
+async function appPage(response) {
+  const html = (await readFile(join(root, 'public/index.html'), 'utf8')).replace('<script type="module" src="app.js"></script>', '<script type="module" src="replay/replay.js"></script>\n  <script type="module" src="/workbench/app-frame.js"></script>\n  <script type="module" src="app.js"></script>');
+  response.writeHead(200, { 'Content-Type': types['.html'], 'Cache-Control': 'no-cache' });
+  response.end(html);
+}
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
 const policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'";
 
 /**
  * Serves the component workbench on its own, without the Unfold application: `public/` for the components and their
- * styles, `workbench/` for the story browser. Every response carries the application's Content Security Policy, so a
+ * styles, `workbench/` for the story browser, and `/app/<recording>/` for the real app answering its API from a
+ * recording through the replay shim: `demo` is the committed deterministic demo, and every `workbench/recorded/*.json`
+ * is a live recording kept on this machine. Every response carries the application's Content Security Policy, so a
  * component that needs an inline style or script fails here as it would in the app. `/events` tells open pages when a
  * file changed.
  * @param {{ port?: number, host?: string, watchFiles?: boolean }} [options]
@@ -47,7 +73,21 @@ export async function startWorkbench({ port = Number(process.env.UNFOLD_WORKBENC
       request.on('close', () => listeners.delete(response));
       return;
     }
-    const relative = normalize(path.endsWith('/') ? `${path}index.html` : path).replace(/^[/\\]+/, '');
+    if (path === '/workbench/recordings.json') {
+      const list = await recordings();
+      const body = await Promise.all(list.map(async entry => ({ name: entry.name, label: entry.label, workItems: await workItems(entry.file).catch(() => []) })));
+      response.writeHead(200, { 'Content-Type': types['.json'], 'Cache-Control': 'no-store' });
+      response.end(JSON.stringify(body));
+      return;
+    }
+    const app = /^\/app\/([^/]+)\/(.*)$/.exec(path);
+    if (app) {
+      const entry = (await recordings()).find(item => item.name === app[1]);
+      if (!entry) { response.writeHead(404); response.end('No such recording'); return; }
+      if (app[2] === '' || app[2] === 'index.html') { await appPage(response); return; }
+      if (app[2] === 'replay/replay.json') { response.writeHead(200, { 'Content-Type': types['.json'], 'Cache-Control': 'no-store' }); response.end(await readFile(entry.file)); return; }
+    }
+    const relative = app ? normalize(`public/${app[2]}`) : normalize(path.endsWith('/') ? `${path}index.html` : path).replace(/^[/\\]+/, '');
     if (!served.some(folder => relative === folder || relative.startsWith(`${folder}${sep}`)) || relative.split(sep).includes('..')) { response.writeHead(404); response.end('Not found'); return; }
     try {
       const file = join(root, relative);
