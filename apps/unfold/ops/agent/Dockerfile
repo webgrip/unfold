@@ -3,7 +3,7 @@ ARG REGISTRY_DHI=dhi.io
 # renovate: datasource=docker depName=dhi.io/node versioning=docker
 ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.21.0-alpine3.24-dev@sha256:29828201fcab447665e099101c3ee960c2b7e9332198216863bd7b3139b70460
 # renovate: datasource=npm depName=opencode-ai
-ARG OPENCODE_VERSION=1.19.2
+ARG OPENCODE_VERSION=1.19.3
 # renovate: datasource=npm depName=brace-expansion
 ARG NPM_BRACE_EXPANSION_VERSION=5.0.12
 # renovate: datasource=npm depName=undici
