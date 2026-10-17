@@ -235,7 +235,7 @@ test('the official MCP client signs in through Authentik with PKCE and works as 
   assert.ok(alice.signIn.stored?.refresh_token, 'offline_access gives the client a refresh token');
 
   const tools = await alice.client.listTools();
-  assert.deepEqual(tools.tools.map(tool => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_spend', 'unfold_digest', 'unfold_ask']);
+  assert.deepEqual(tools.tools.map(tool => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_spend', 'unfold_digest', 'unfold_ask', 'unfold_hand_off', 'unfold_approve_work', 'unfold_reject_work', 'unfold_stop_work', 'unfold_retry_work', 'unfold_add_note', 'unfold_steer_session']);
   const found = await call(alice, 'unfold_find_work', { team: 'delivery' });
   assert.notEqual(found.isError, true, found.content[0]?.text);
   assert.ok(found.structuredContent.items.length > 0);

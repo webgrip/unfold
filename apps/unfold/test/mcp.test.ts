@@ -48,9 +48,12 @@ test('unfold-mcp tells a client what waits, why, and what to do, from the demo w
   assert.equal(await server.handle({ jsonrpc: '2.0', method: 'notifications/initialized' }), undefined);
 
   const listed = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  assert.deepEqual(listed?.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_linked_sessions', 'unfold_link_session', 'unfold_spend', 'unfold_digest', 'unfold_ask']);
+  assert.deepEqual(listed?.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_linked_sessions', 'unfold_link_session', 'unfold_spend', 'unfold_digest', 'unfold_ask', 'unfold_hand_off', 'unfold_approve_work', 'unfold_reject_work', 'unfold_stop_work', 'unfold_retry_work', 'unfold_add_note', 'unfold_steer_session']);
   for (const tool of listed?.result.tools ?? []) {
-    assert.equal(tool.annotations.readOnlyHint, !['unfold_ask', 'unfold_link_session'].includes(tool.name), tool.name);
+    const acts = tool.name === 'unfold_ask' || tool.name === 'unfold_link_session' || /^unfold_(hand_off|approve_work|reject_work|stop_work|retry_work|add_note|steer_session)$/.test(tool.name);
+    assert.equal(tool.annotations.readOnlyHint, !acts, tool.name);
+    assert.equal(tool.annotations.destructiveHint === true, ['unfold_reject_work', 'unfold_stop_work', 'unfold_steer_session'].includes(tool.name), tool.name);
+    if (acts && !['unfold_ask', 'unfold_link_session'].includes(tool.name)) assert.match(tool.description, /confirm/, tool.name);
     assert.match(tool.name, /^[a-z][a-z0-9_]{0,29}$/);
     assert(tool.outputSchema && tool.title && tool.description.length < 1000, tool.name);
   }
@@ -154,7 +157,7 @@ test('unfold-mcp speaks newline-delimited JSON-RPC on stdio and answers bad line
   assert.deepEqual(lines.map(line => line.id ?? null), [1, null, null, 3]);
   assert.equal(lines[1].error.code, -32700);
   assert.equal(lines[2].error.code, -32600);
-  assert.equal(lines[3].result.tools.length, 9);
+  assert.equal(lines[3].result.tools.length, 16);
 });
 
 test('unfold_spend names the Work Items whose finished Runs still hold budget, and says when it cannot tell', async t => {
@@ -277,7 +280,7 @@ test('unfold-mcp serves 2026-07-28 requests without a handshake: server/discover
 
   const listed = await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: modernMeta() } });
   assert.equal(listed?.result.resultType, 'complete');
-  assert.equal(listed?.result.tools.length, 9);
+  assert.equal(listed?.result.tools.length, 16);
   assert.equal(typeof listed?.result.ttlMs, 'number');
 
   const legacy = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });

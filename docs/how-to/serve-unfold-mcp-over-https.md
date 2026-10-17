@@ -8,7 +8,7 @@ verified_by: "Ran apps/unfold/test/e2e/mcp-over-https.e2e.ts (npm run test:mcp-e
 
 # Serve Unfold's MCP tools over HTTPS with a browser sign-in
 
-**Goal:** people connect Claude Code, VS Code or Cursor to one HTTPS URL, sign in once in the browser, and use Unfold's seven `unfold_*` tools as themselves, with no local checkout, `vle_…` credential or port-forward ([ADR-0032, entry of 2026-10-16](../adr/adr-0032-unfold-also-serves-its-own-read-only-mcp-tools-next-to-ploeg-mcp.md#more-information)). The stdio server in [Ask Unfold and Ploeg from an AI client](ask-from-an-ai-client.md) keeps working unchanged.
+**Goal:** people connect Claude Code, VS Code or Cursor to one HTTPS URL, sign in once in the browser, and use Unfold's `unfold_*` tools as themselves, with no local checkout, `vle_…` credential or port-forward ([ADR-0032, entry of 2026-10-16](../adr/adr-0032-unfold-also-serves-its-own-read-only-mcp-tools-next-to-ploeg-mcp.md#more-information)). The stdio server in [Ask Unfold and Ploeg from an AI client](ask-from-an-ai-client.md) keeps working unchanged.
 
 The Unfold server itself serves the MCP endpoint on its own path, off until you configure it. It is a stateless Streamable HTTP endpoint and an OAuth resource server: it checks the person's access token from Authentik, finds the Unfold account the same person has from single sign-on, and runs every tool as that account. The person's token never goes further than the endpoint. Ploeg's twin is [Serve Ploeg's MCP tools over HTTPS](../../apps/ploeg/docs/how-to/serve-ploeg-mcp-over-https.md).
 
@@ -110,6 +110,7 @@ Cursor, in `~/.cursor/mcp.json`:
 ## What changes over HTTP
 
 * `unfold_ask` spends only after the person confirms. A 2026-07-28 client that declares form elicitation is asked through an `input_required` result, and the confirmation it sends back can be used once, by that person, for that question, within 10 minutes. A 2025 client, such as VS Code 1.142, cannot be asked over stateless HTTP, so it is refused with a link to the Work Item and nothing is spent. Ask it over stdio, or in Unfold.
+* The action tools (`unfold_hand_off`, `unfold_approve_work`, `unfold_reject_work`, `unfold_stop_work`, `unfold_retry_work`, `unfold_add_note`, `unfold_steer_session`) confirm the same way: `input_required` with the exact effect and cost, then one use of the sealed confirmation. They act only if the text the person agreed to is still what the action would do, and a 2025 client over HTTP is refused with a link to the Unfold page ([Act on work from an AI client](ask-from-an-ai-client.md#act-on-work)).
 * `unfold_digest` without `since` covers the last 24 hours, because the "since your previous digest" mark is kept per machine by the stdio server.
 * Every tool reads with the person's own account and Teams, at the lower of the stored role and the role the token's groups entitle. Its credential reaches only the API calls the tools make; it cannot approve editor sign-ins, manage credentials or reach the agent host.
 * Every action is recorded in Unfold's Action Records and at Ploeg with the channel `mcp:<client name and version>` and, for a spend, the hash of the confirmation text the person agreed to ([ADR-0037](../adr/adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md)). A 2025 client over HTTP names no client on its calls and shows as `mcp:unnamed client`.
@@ -153,4 +154,4 @@ Set `UNFOLD_E2E_AUTHENTIK_URL` and `UNFOLD_E2E_AUTHENTIK_TOKEN` to run it agains
 | 403 "no Unfold account belongs to this identity" | The person never signed in to Unfold in the browser, or the two providers give different subjects | Sign in to Unfold in the browser once first, then connect again; if it persists, set both providers to the same subject mode |
 | 403 "holds none of the groups this workbench admits" | The token carries no admitted group or role | Check the `unfold:mcp` mapping returns groups, and that the person is in an admitted group |
 | 503 "signing keys are unavailable" | Unfold cannot reach the provider's key set | Check egress and `UNFOLD_MCP_JWKS_URL` |
-| `unfold_ask` says the client cannot confirm | The client speaks 2025 over HTTP, or declares no form elicitation | Ask over stdio or in Unfold |
+| `unfold_ask` or an action tool says the client cannot confirm | The client speaks 2025 over HTTP, or declares no form elicitation | Use it over stdio, or act in Unfold |
