@@ -171,15 +171,26 @@ export class Store {
       .run(record.at, record.userId, record.userName, record.role, record.channel, record.action, record.method, record.target?.kind ?? null, record.target?.id ?? null, JSON.stringify(record.inputs), record.confirmation, record.status, record.outcome);
   }
 
-  /** Action records newest first, optionally of one person or about one target, older than `before` (an id), at most `limit`. */
-  actionRecords(filter: { userId?: string; target?: ActionTarget; before?: number; limit: number }): ActionRecord[] {
+  /** Action records newest first, optionally of one person, about one target, with one outcome or through one channel, older than `before` (an id), at most `limit`. */
+  actionRecords(filter: { userId?: string; target?: ActionTarget; outcome?: ActionRecord['outcome']; channel?: string; before?: number; limit: number }): ActionRecord[] {
     const where: string[] = [];
     const values: (string | number)[] = [];
     if (filter.userId) { where.push('user_id=?'); values.push(filter.userId); }
     if (filter.target) { where.push('target_kind=? AND target_id=?'); values.push(filter.target.kind, filter.target.id); }
+    if (filter.outcome) { where.push('outcome=?'); values.push(filter.outcome); }
+    if (filter.channel) { where.push('channel=?'); values.push(filter.channel); }
     if (filter.before) { where.push('id<?'); values.push(filter.before); }
     const rows = this.db.prepare(`SELECT * FROM action_records${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY id DESC LIMIT ?`).all(...values, filter.limit) as Record<string, any>[];
     return rows.map(row => ({ id: Number(row.id), at: String(row.at), userId: String(row.user_id), userName: String(row.user_name), role: String(row.role), channel: String(row.channel), action: String(row.action), method: String(row.method), target: row.target_kind ? { kind: row.target_kind, id: String(row.target_id) } : null, inputs: JSON.parse(String(row.inputs)), confirmation: row.confirmation ?? null, status: Number(row.status), outcome: row.outcome }));
+  }
+
+  /** The people and channels in the Action Records, optionally of one person: each person with their latest name and how many actions they took, and each channel, most used first. */
+  actionFacets(userId?: string): { people: { userId: string; userName: string; count: number }[]; channels: { channel: string; count: number }[] } {
+    const scope = userId ? ' WHERE user_id=?' : '';
+    const values = userId ? [userId] : [];
+    const people = this.db.prepare(`SELECT user_id, (SELECT user_name FROM action_records latest WHERE latest.user_id=records.user_id ORDER BY id DESC LIMIT 1) AS user_name, COUNT(*) AS total FROM action_records records${scope} GROUP BY user_id ORDER BY user_name COLLATE NOCASE LIMIT 500`).all(...values) as Record<string, any>[];
+    const channels = this.db.prepare(`SELECT channel, COUNT(*) AS total FROM action_records${scope} GROUP BY channel ORDER BY total DESC, channel LIMIT 100`).all(...values) as Record<string, any>[];
+    return { people: people.map(row => ({ userId: String(row.user_id), userName: String(row.user_name), count: Number(row.total) })), channels: channels.map(row => ({ channel: String(row.channel), count: Number(row.total) })) };
   }
 
   asksAbout(workItemId: string, limit: number): Ask[] {

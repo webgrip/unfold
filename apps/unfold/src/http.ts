@@ -606,6 +606,11 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             throw error;
           }
         }
+        if (path === '/api/actions/filters') {
+          if (method !== 'GET') fault(405, 'method', 'Read the action filters with GET.');
+          const person = user.role === 'admin' ? url.searchParams.get('userId') || undefined : user.id;
+          return json(res, 200, sanitize(store.actionFacets(person)));
+        }
         if (path === '/api/actions') {
           if (method !== 'GET') fault(405, 'method', 'List actions with GET.');
           const workItem = url.searchParams.get('workItemId');
@@ -613,8 +618,11 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const before = Number(url.searchParams.get('before') ?? '');
           const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? '') || 50));
           const target = workItem ? { kind: 'work-item' as const, id: text(workItem, 'Work Item', 40) } : session ? { kind: 'session' as const, id: text(session, 'Session', 80) } : undefined;
+          const outcome = url.searchParams.get('outcome') || undefined;
+          if (outcome && !['done', 'refused', 'failed'].includes(outcome)) fault(400, 'outcome', 'Filter by the outcome done, refused or failed.');
+          const channel = url.searchParams.get('channel') ? text(url.searchParams.get('channel'), 'Channel', 200) : undefined;
           const person = user.role === 'admin' ? url.searchParams.get('userId') || undefined : user.id;
-          const actions = store.actionRecords({ userId: person, target, before: Number.isInteger(before) && before > 0 ? before : undefined, limit: limit + 1 });
+          const actions = store.actionRecords({ userId: person, target, outcome: outcome as 'done' | 'refused' | 'failed' | undefined, channel, before: Number.isInteger(before) && before > 0 ? before : undefined, limit: limit + 1 });
           return json(res, 200, sanitize({ actions: actions.slice(0, limit), nextBefore: actions.length > limit ? actions[limit - 1].id : null }));
         }
         if (path === '/api/asks') {
@@ -821,7 +829,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         return fault(404, 'not_found', 'API route not found.');
       }
-      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt' };
+      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt', '/action-log.js': 'action-log.js' };
       const file = assets[path] ?? (browserModule.test(path) ? path.slice(1) : undefined);
       if (method !== 'GET' || !file) return fault(404, 'not_found', 'Page not found.');
       await staticFiles.serve(req, res, file, Boolean(assets[path]));

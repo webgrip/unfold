@@ -7,6 +7,7 @@ import work from './work.js';
 import proposed from './proposed.js';
 import runs from './runs.js';
 import activity from './activity.js';
+import actions from './actions.js';
 import insights from './insights.js';
 import ploegFeeds from './ploeg-common.js';
 import account from './account.js';
@@ -29,4 +30,4 @@ import labs from './labs.js';
 import { chrome } from '../shell.js';
 
 /** Every view descriptor. The order is the dispatch order for key bindings and page loaders. */
-export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, insights, ploegFeeds, account, system, status, preferences, cardIdentity, editors, labs, editorSignIn, binder, card, packs, season, palette, chrome, dialogs, report, design, designer];
+export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, actions, insights, ploegFeeds, account, system, status, preferences, cardIdentity, editors, labs, editorSignIn, binder, card, packs, season, palette, chrome, dialogs, report, design, designer];

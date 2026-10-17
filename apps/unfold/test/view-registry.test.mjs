@@ -60,7 +60,7 @@ test('every hash routes to at most one view with the params that view expects', 
   const registry = createRegistry(views);
   const cases = [
     ['now', 'now', {}], ['sessions', 'sessions', {}], ['tasks', 'tasks', {}], ['settings/accounts', 'account', {}], ['settings/environment', 'system', {}], ['settings/preferences', 'preferences', {}],
-    ['work', 'work', {}], ['work/105', 'work', { id: '105' }], ['proposed', 'proposed', {}], ['runs', 'runs', {}], ['activity', 'activity', {}], ['insights', 'insights', {}],
+    ['work', 'work', {}], ['work/105', 'work', { id: '105' }], ['proposed', 'proposed', {}], ['runs', 'runs', {}], ['activity', 'activity', {}], ['activity/actions', 'actions', {}], ['activity/other', null], ['insights', 'insights', {}],
     ['session/0f1e', 'session', { id: '0f1e' }], ['compare/a/b', null],
     ['binder', 'binder', {}], ['season', 'season', {}], ['settings/cards', 'card-identity', {}], ['settings/card-designer', 'designer', {}], ['settings/editors', 'editors', {}], ['editor-sign-in/AbC-12_xyz', 'editor-sign-in', { code: 'AbC-12_xyz' }], ['editor-sign-in/short', null], ['editor-sign-in', null], ['packs', 'packs', { page: 'shelf' }], ['packs/odds', 'packs', { page: 'odds' }], ['packs/2026-W40', 'packs', { page: 'pack', id: '2026-W40' }], ['packs/delivery~2026-09-28', 'packs', { page: 'pack', id: 'delivery~2026-09-28' }], ['packs/a/b', null], ['binderx', null],
     ['nowhere', null], ['sessionsx', null], ['ploeg', null], ['ploeg/105', null], ['account', null], ['system', null], ['work/abc', null], ['work/0', null], ['workx', null], ['', null], ['login', null], ['dialogs', null], ['ploeg-feeds', null], ['palette', null], ['chrome', null], ['settings', null],
