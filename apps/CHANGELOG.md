@@ -1,3 +1,47 @@
+## [unfold-v0.4.0-rc.81](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.80...unfold-v0.4.0-rc.81) (2026-10-17)
+
+### Added
+
+* **unfold:** add Open in Agents Window to the extension's Now, Sessions and Ploeg rows ([1a112ed](https://forgejo.webgrip.dev/webgrip/unfold/commit/1a112edf188b26e20ce496514b187072d7d8b565))
+* **unfold:** build Agents window session links for the session's owner ([4c4ed26](https://forgejo.webgrip.dev/webgrip/unfold/commit/4c4ed264df6fab425a53992e3257c63f9500bc2b))
+* **unfold:** name the remote ploeg-mcp to editors in GET /api/mcp-servers ([d17ac81](https://forgejo.webgrip.dev/webgrip/unfold/commit/d17ac81af8d7fb4bf6f58e90bb9df5247e850ad7))
+* **unfold:** offer Open in Agents window on the session and Work Item pages ([8f21e79](https://forgejo.webgrip.dev/webgrip/unfold/commit/8f21e79a815602675f33ccaa3967c8d488cabfa1))
+* **unfold:** provide ploeg-mcp to VS Code chat by URL, without a stored secret ([85f7ff6](https://forgejo.webgrip.dev/webgrip/unfold/commit/85f7ff6584b046db84f0c3ae0060eab049a03840))
+* **unfold:** record unfold-mcp actions as mcp:<client> with the agreed confirmation ([d844d21](https://forgejo.webgrip.dev/webgrip/unfold/commit/d844d21baeac4c62d665bbbcdf2455b5a5cb7dda))
+* **unfold:** record who did what, through which channel, for every action ([e04f090](https://forgejo.webgrip.dev/webgrip/unfold/commit/e04f0907543842c52625bd543bfed39c756030bd))
+* **unfold:** serve unfold-mcp over Streamable HTTP as an OAuth resource server ([0fdc8fd](https://forgejo.webgrip.dev/webgrip/unfold/commit/0fdc8fd7f468b8991351e0eb83611b198afa9f5a))
+* **unfold:** tell signed-in editors apart and sign out unused ones ([5fa2e4d](https://forgejo.webgrip.dev/webgrip/unfold/commit/5fa2e4d52b34272e0a32759d394701d64ea0afb6))
+
+### Fixed
+
+* **unfold:** answer resourceResolve so VS Code 1.142's folder picker reaches the repositories ([1bb90e1](https://forgejo.webgrip.dev/webgrip/unfold/commit/1bb90e180c93ad7acf67cef988493d7af5854c8f))
+* **unfold:** fit the AHP host to VS Code 1.142.0 and tolerate AHP 1.1 ([09c9a1d](https://forgejo.webgrip.dev/webgrip/unfold/commit/09c9a1dce224004e0c75ac14465b3d359f78601e))
+* **unfold:** give a session's Agents window link to whoever the host lists it to ([ddb039e](https://forgejo.webgrip.dev/webgrip/unfold/commit/ddb039ec06a5c928254bd4d8cb233da1e4c80cf6))
+* **unfold:** give every chat an explicit changeset catalogue so VS Code stops showing a stale file count ([fcf640a](https://forgejo.webgrip.dev/webgrip/unfold/commit/fcf640acce43a2f85321528d6cbff97d250d2176))
+* **unfold:** map unfold-mcp tokens by subject only and cap their role and reach ([b687368](https://forgejo.webgrip.dev/webgrip/unfold/commit/b6873688a02f3b3c10abe26d08b51383324ae740))
+* **unfold:** show every refused chat action as a reply VS Code renders ([89c8009](https://forgejo.webgrip.dev/webgrip/unfold/commit/89c8009d4889fa3a5dc8c229fff7c07435f3a25a))
+* **unfold:** show Work Item questions as needing input and refuse host debug logs with a reason ([4be5240](https://forgejo.webgrip.dev/webgrip/unfold/commit/4be52403b7c49339a8bb8edd18874cbd692a8e9f))
+
+### Docs
+
+* **unfold:** align the 1.142 records with [#393](https://forgejo.webgrip.dev/webgrip/unfold/issues/393) and the rebased commits ([7834106](https://forgejo.webgrip.dev/webgrip/unfold/commit/78341061b938ba134dcc78052e60fc4a6c5812de))
+* **unfold:** place the Agents window link entry before the 1.142 negotiation note in ADR 0012 ([6264281](https://forgejo.webgrip.dev/webgrip/unfold/commit/6264281bbd78b0fb23983ada6afa654241522b20))
+* **unfold:** record every integration surface the full VS Code 1.142 crawl found ([6b296c2](https://forgejo.webgrip.dev/webgrip/unfold/commit/6b296c2b96c72697b614701ecf1502fc0c283e09))
+* **unfold:** record how the extension hands out ploeg-mcp, with source evidence ([dc502d5](https://forgejo.webgrip.dev/webgrip/unfold/commit/dc502d5899f86da5cf277be89a0135d1832f4088))
+* **unfold:** record the 1.142.0 replay, Needs attention for choices and AHP 1.1 tolerance ([3ea7700](https://forgejo.webgrip.dev/webgrip/unfold/commit/3ea7700c7f24bf665f1621ccd55d6fb270192cdf))
+* **unfold:** record the Agents window link format and the VIK-1660 routes ([7576064](https://forgejo.webgrip.dev/webgrip/unfold/commit/7576064cd63e540c67244ed2eb9afc076e618c45))
+* **unfold:** record what VS Code 1.142 unblocks for the agent host and MCP ([e3501fe](https://forgejo.webgrip.dev/webgrip/unfold/commit/e3501fe3cf2c98787546ff2754b117161e380e84))
+* **unfold:** record Work Item input-needed and the debug-log refusal ([0a7cdeb](https://forgejo.webgrip.dev/webgrip/unfold/commit/0a7cdeb829301ce9f64a1e187c3673de91cfee22))
+
+### Tests
+
+* **unfold:** let the browser flows pass on a slow machine and say where they are ([6f8bd8a](https://forgejo.webgrip.dev/webgrip/unfold/commit/6f8bd8a8227ca7ca33951467ff9bc593efdb2753))
+* **unfold:** run Microsoft's AHP client against the demo in every verify ([8d9ec37](https://forgejo.webgrip.dev/webgrip/unfold/commit/8d9ec3787ce5d1f361e260feadf73d856bba23f9))
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.9 [skip ci] ([18b5804](https://forgejo.webgrip.dev/webgrip/unfold/commit/18b58042e6a7aa20859edd561f5fc2c535830235))
+
 ## [unfold-v0.4.0-rc.80](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.79...unfold-v0.4.0-rc.80) (2026-10-14)
 
 ### Added
