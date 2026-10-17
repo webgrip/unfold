@@ -79,3 +79,21 @@ test('the editor approval page asks its question in plain language, naming the w
   assert.equal(editorQuestion({ workbench: 'unfold.example' }), 'A VS Code editor is asking to sign in to unfold.example as you.');
   assert.equal(editorQuestion({ workbench: 'unfold.example', label: 'unfold-mcp on laptop' }), 'unfold-mcp on laptop is asking to sign in to unfold.example as you.');
 });
+
+test('a signed-in editor row names every month, says how far away each date is, and shows the inactivity sign-out only when it comes first', async () => {
+  const { editorFacts } = await import('../public/views/editors.js');
+  const text = html => html.replace(/<[^>]+>/g, '');
+  const now = new Date(2026, 9, 17, 12, 0).getTime();
+  const fresh = { createdAt: new Date(2026, 9, 10, 9, 0).toISOString(), lastUsedAt: new Date(2026, 9, 17, 10, 0).toISOString(), expiresAt: new Date(2026, 10, 9, 9, 0).toISOString(), idleExpiresAt: new Date(2026, 9, 31, 10, 0).toISOString() };
+  assert.deepEqual(editorFacts(fresh, now).map(([term, value]) => [term, text(value)]), [
+    ['Approved', '10 Oct 2026 (7 days ago)'],
+    ['Last used', '2 hours ago'],
+    ['Signs out after 14 days unused', '31 Oct 2026 (in 14 days)'],
+    ['Expires', '9 Nov 2026 (in 23 days)'],
+  ]);
+  assert.match(editorFacts(fresh, now)[3][1], /^<time class="num" datetime="2026-11-09T[^"]+" title="09-11-2026 09:00">/);
+  const late = { ...fresh, lastUsedAt: new Date(2026, 10, 1, 9, 0).toISOString(), idleExpiresAt: new Date(2026, 10, 15, 9, 0).toISOString() };
+  assert.deepEqual(editorFacts(late, now).map(([term]) => term), ['Approved', 'Last used', 'Expires']);
+  const unused = { ...fresh, lastUsedAt: undefined, idleExpiresAt: new Date(2026, 9, 24, 9, 0).toISOString() };
+  assert.equal(editorFacts(unused, now)[1][1], 'Not yet');
+});

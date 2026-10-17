@@ -7,6 +7,7 @@ import type { Ask } from './ask/types.ts';
 import type { IssueState } from './tasks.ts';
 import type { FlagOverride } from './flags.ts';
 import type { RolloutSpec, Segment } from './flag-rollouts.ts';
+import { editorIdleDays } from './auth.ts';
 
 export type StoredUser = User & { passwordHash: string };
 /** One change to an administrator flag override. */
@@ -280,17 +281,25 @@ export class Store {
     this.db.prepare('INSERT INTO editor_credentials(id,token_hash,user_id,label,scope,created_at,expires_at,last_used_at) VALUES(?,?,?,?,?,?,?,?)').run(credential.id, credential.tokenHash, credential.userId, credential.label, credential.scope, credential.createdAt, credential.expiresAt, credential.lastUsedAt ?? null);
   }
 
-  /** The unexpired editor credential whose token hashes to `tokenHash`. */
+  /** The live editor credential whose token hashes to `tokenHash`: unexpired, and used (or approved) within `editorIdleDays`. */
   getEditorCredential(tokenHash: string): EditorCredential | undefined {
-    return this.editorCredential(this.db.prepare('SELECT * FROM editor_credentials WHERE token_hash=? AND expires_at>?').get(tokenHash, new Date().toISOString()));
+    return this.editorCredential(this.db.prepare('SELECT * FROM editor_credentials WHERE token_hash=? AND expires_at>? AND COALESCE(last_used_at, created_at)>?').get(tokenHash, ...this.editorCutoffs()));
   }
 
-  /** A person's unexpired editor credentials, newest first. */
+  /** A person's live editor credentials, newest first. */
   editorCredentials(userId: string): EditorCredential[] {
-    return (this.db.prepare('SELECT * FROM editor_credentials WHERE user_id=? AND expires_at>? ORDER BY created_at DESC, id').all(userId, new Date().toISOString())).map(row => this.editorCredential(row)!);
+    return (this.db.prepare('SELECT * FROM editor_credentials WHERE user_id=? AND expires_at>? AND COALESCE(last_used_at, created_at)>? ORDER BY created_at DESC, id').all(userId, ...this.editorCutoffs())).map(row => this.editorCredential(row)!);
   }
 
   touchEditorCredential(id: string, at: string): void { this.db.prepare('UPDATE editor_credentials SET last_used_at=? WHERE id=?').run(at, id); }
+
+  /** Records a use of the editor credential whose token hashes to `tokenHash`; does nothing for any other sign-in. */
+  touchEditorSignIn(tokenHash: string, at: string): void { this.db.prepare('UPDATE editor_credentials SET last_used_at=? WHERE token_hash=?').run(at, tokenHash); }
+
+  private editorCutoffs(): [string, string] {
+    const now = Date.now();
+    return [new Date(now).toISOString(), new Date(now - editorIdleDays * 86_400_000).toISOString()];
+  }
 
   /** Deletes one of a person's editor credentials and returns it, or undefined when that person holds no such credential. */
   deleteEditorCredential(userId: string, id: string): EditorCredential | undefined {
@@ -301,7 +310,7 @@ export class Store {
 
   deleteEditorCredentialByToken(tokenHash: string): void { this.db.prepare('DELETE FROM editor_credentials WHERE token_hash=?').run(tokenHash); }
 
-  /** Whether `tokenHash` identifies a live sign-in: an unexpired browser login or editor credential. */
+  /** Whether `tokenHash` identifies a live sign-in: an unexpired browser login, or an editor credential that is neither expired nor idle. */
   liveSignIn(tokenHash: string): boolean { return Boolean(this.getLogin(tokenHash) ?? this.getEditorCredential(tokenHash)); }
 
   private editorCredential(row: unknown): EditorCredential | undefined {

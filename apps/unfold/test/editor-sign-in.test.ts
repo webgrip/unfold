@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import { Auth, editorCredentialDays, editorLabel } from '../src/auth.ts';
+import { Auth, editorCredentialDays, editorIdleDays, editorLabel } from '../src/auth.ts';
 import { Store } from '../src/store.ts';
 import { configuration } from './api-support.ts';
 import type { User } from '../src/types.ts';
@@ -126,7 +126,6 @@ test('an editor credential expires after its lifetime, is listed without its tok
 test('a sign-in started by unfold-mcp is named after its host on the approval page and on its credential', t => {
   const { auth, tick } = setup(t);
   assert.equal(editorLabel(undefined, undefined), 'VS Code');
-  assert.equal(editorLabel('vscode', 'laptop'), 'VS Code');
   assert.equal(editorLabel('mcp', 'ryan-laptop'), 'unfold-mcp on ryan-laptop');
   for (const host of ['', 'evil host', '<script>', 'a'.repeat(64), 42]) assert.equal(editorLabel('mcp', host), 'unfold-mcp', String(host));
   const started = auth.beginEditor('192.0.2.1', editorLabel('mcp', 'ryan-laptop'));
@@ -137,4 +136,62 @@ test('a sign-in started by unfold-mcp is named after its host on the approval pa
   const ready = auth.collectEditor(started.code, started.secret);
   assert.equal(ready.status, 'ready');
   assert.deepEqual(auth.editorCredentials(person).map(item => item.label), ['unfold-mcp on ryan-laptop']);
+});
+
+test('a VS Code sign-in is named after the machine it names, and falls back to VS Code for an old or invalid client', () => {
+  assert.equal(editorLabel('vscode', 'ryan-laptop'), 'VS Code on ryan-laptop');
+  assert.equal(editorLabel('vscode', 'build.example.internal'), 'VS Code on build.example.internal');
+  assert.equal(editorLabel('vscode', undefined), 'VS Code');
+  assert.equal(editorLabel(undefined, 'ryan-laptop'), 'VS Code', 'an editor that does not say it is VS Code never gets a host on its name');
+  assert.equal(editorLabel('Approve me', 'ryan-laptop'), 'VS Code');
+  for (const host of ['', 'evil host', '<script>', '-leading', 'a'.repeat(64), 42]) assert.equal(editorLabel('vscode', host), 'VS Code', String(host));
+});
+
+test(`an editor credential unused for ${editorIdleDays} days stops working, drops off the list and ends its sign-in`, t => {
+  const { auth, store, tick } = setup(t);
+  const issue = () => {
+    const started = auth.beginEditor('192.0.2.1');
+    auth.claimEditor(started.code, person);
+    auth.decideEditor(started.code, person, 'approved');
+    const ready = auth.collectEditor(started.code, started.secret);
+    assert.equal(ready.status, 'ready');
+    return ready.status === 'ready' ? ready.token : '';
+  };
+  const day = 86_400_000;
+  const idle = issue();
+  const used = issue();
+  const idleSignIn = createHash('sha256').update(idle).digest('hex');
+  const usedSignIn = createHash('sha256').update(used).digest('hex');
+  assert.deepEqual(auth.editorCredentials(person).map(item => item.idleExpiresAt), [new Date(Date.now() + editorIdleDays * day).toISOString(), new Date(Date.now() + editorIdleDays * day).toISOString()]);
+  tick(10 * day);
+  assert.deepEqual(auth.user(withBearer(used)), person);
+  const usedAt = Date.now();
+  assert.equal(auth.editorCredentials(person).find(item => item.lastUsedAt)?.idleExpiresAt, new Date(usedAt + editorIdleDays * day).toISOString());
+  tick(4 * day + 1);
+  assert.equal(store.liveSignIn(idleSignIn), false, 'never used within the window counts from approval');
+  assert.equal(store.getEditorCredential(idleSignIn), undefined);
+  assert.equal(auth.user(withBearer(idle)), undefined);
+  assert.equal(store.liveSignIn(usedSignIn), true);
+  assert.deepEqual(auth.editorCredentials(person).map(item => item.lastUsedAt), [new Date(usedAt).toISOString()]);
+  tick(editorIdleDays * day - 4 * day);
+  assert.equal(store.liveSignIn(usedSignIn), false, 'idle counts from the last use');
+  assert.equal(auth.user(withBearer(used)), undefined);
+  assert.deepEqual(auth.editorCredentials(person), []);
+});
+
+test('using an editor credential keeps it alive, written at most once a minute', t => {
+  const { auth, store, tick } = setup(t);
+  const started = auth.beginEditor('192.0.2.1');
+  auth.claimEditor(started.code, person);
+  auth.decideEditor(started.code, person, 'approved');
+  const ready = auth.collectEditor(started.code, started.secret);
+  if (ready.status !== 'ready') return assert.fail('no credential');
+  const signIn = createHash('sha256').update(ready.token).digest('hex');
+  for (let week = 0; week < 3; week++) { tick(7 * 86_400_000); assert.deepEqual(auth.user(withBearer(ready.token)), person); }
+  const touched = store.getEditorCredential(signIn)!.lastUsedAt;
+  tick(30_000);
+  auth.user(withBearer(ready.token));
+  assert.equal(store.getEditorCredential(signIn)!.lastUsedAt, touched);
+  store.touchEditorSignIn(signIn, new Date(Date.now()).toISOString());
+  assert.notEqual(store.getEditorCredential(signIn)!.lastUsedAt, touched);
 });

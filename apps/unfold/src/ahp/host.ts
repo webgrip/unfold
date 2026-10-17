@@ -387,7 +387,10 @@ export class AgentHost {
     const now = Date.now();
     if (!record.expiresAt || !(Date.parse(record.expiresAt) > now) || (record.signIn && !this.store.liveSignIn(record.signIn))) { this.revoke(key); return undefined; }
     const expiresAt = now + this.lifetimeMs();
-    if (renew && expiresAt - Date.parse(record.expiresAt) >= 60_000) this.store.setSecret(`ahp-token:${key}`, { ...record, expiresAt: new Date(expiresAt).toISOString() });
+    if (renew && expiresAt - Date.parse(record.expiresAt) >= 60_000) {
+      this.store.setSecret(`ahp-token:${key}`, { ...record, expiresAt: new Date(expiresAt).toISOString() });
+      if (record.signIn) this.store.touchEditorSignIn(record.signIn, new Date(now).toISOString());
+    }
     return record;
   }
 
