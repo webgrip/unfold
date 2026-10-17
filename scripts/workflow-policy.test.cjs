@@ -52,6 +52,22 @@ test('the browser flows run every night and on command, never on a push, in the 
   assert.match(job.container.image, new RegExp(`^harbor\\.webgrip\\.dev/mcr/playwright:v${playwright.replace(/\./g, '\\.')}-noble@sha256:[0-9a-f]{64}$`), 'the image carries the Chromium build that Unfold\'s playwright package expects');
 });
 
+test('unfold-mcp\'s end-to-end suite runs every night and on command against an Authentik of the homelab\'s version', () => {
+  const job = workflows['on_nightly.yml'].jobs['mcp-e2e'];
+  assert.equal(job.container.image, workflows['on_nightly.yml'].jobs['browser-suite'].container.image, 'the same Playwright image as the browser flows');
+  assert.ok(job.steps.some(step => step.uses === './.forgejo/actions/mcp-e2e'));
+  const { authentik, 'authentik-worker': worker, postgresql } = job.services;
+  assert.equal(authentik.image, worker.image);
+  assert.deepEqual([authentik.cmd, worker.cmd], [['server'], ['worker']]);
+  assert.deepEqual(authentik.env, worker.env, 'server and worker share one configuration');
+  assert.match(authentik.image, /^harbor\.webgrip\.dev\/ghcr\/goauthentik\/server:\d{4}\.\d+\.\d+@sha256:[0-9a-f]{64}$/);
+  assert.match(postgresql.image, /^harbor\.webgrip\.dev\/dockerhub\/library\/postgres:[^@]+@sha256:[0-9a-f]{64}$/);
+  assert.equal(job.env.UNFOLD_E2E_AUTHENTIK_TOKEN, authentik.env.AUTHENTIK_BOOTSTRAP_TOKEN);
+  const compose = fs.readFileSync(path.join(root, 'apps/unfold/test/e2e/authentik.compose.yaml'), 'utf8');
+  assert.ok(compose.includes(authentik.image.replace('harbor.webgrip.dev/ghcr/', 'ghcr.io/')), 'CI and the local compose file run the same Authentik');
+  assert.ok(!Object.values(workflows['on_source_change.yml'].jobs).some(other => [other.needs ?? []].flat().includes('mcp-e2e')), 'it reports; it gates no release');
+});
+
 test('every job that verifies, documents or demonstrates Unfold checks out the pinned Ploeg submodule', () => {
   const checkout = job => job.steps.find(step => String(step.uses).startsWith('actions/checkout@'));
   for (const [file, name] of [['on_pull_request.yml', 'checks'], ['on_pull_request.yml', 'ploeg-pin'], ['on_pull_request.yml', 'ploeg-docs'], ['on_source_change.yml', 'checks'], ['on_source_change.yml', 'ploeg-pin'], ['on_schedule.yml', 'external-links'], ['on_schedule.yml', 'tutorial-smoke'], ['on_schedule.yml', 'ploeg-ahead'], ['on_docs_change.yml', 'verify-publication']]) {
