@@ -17,9 +17,9 @@ runs:
         path: ~/.local/share/mise/installs
         key: unfold-mise-${{ runner.os }}-${{ hashFiles('mise.toml', 'mise.lock', 'apps/unfold/mise.toml', 'apps/unfold/mise.lock', 'apps/ploeg/mise.toml', 'apps/ploeg/mise.lock', 'apps/site/mise.toml') }}
         restore-keys: unfold-mise-${{ runner.os }}-
-    - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+    - uses: https://github.com/jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
       with:
-        version: 2026.10.7
+        version: 2026.10.11
         cache: false
         github_token: ''
     - run: mise trust apps/unfold/mise.toml && mise trust apps/ploeg/mise.toml && mise trust apps/site/mise.toml

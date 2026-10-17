@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 ARG REGISTRY_DHI=dhi.io
 # renovate: datasource=docker depName=dhi.io/node versioning=docker
-ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.21.0-alpine3.24-dev@sha256:29828201fcab447665e099101c3ee960c2b7e9332198216863bd7b3139b70460
+ARG NODE_DEV_IMAGE=${REGISTRY_DHI}/node:24.22.0-alpine3.24-dev@sha256:7aff626d8cb36fd5a7bc926b6922fb9b40af4cf046f285fa45c1f1712bacd4b1
 # renovate: datasource=docker depName=dhi.io/node versioning=docker
-ARG NODE_RUNTIME_IMAGE=${REGISTRY_DHI}/node:24.21.0-alpine3.24@sha256:732e532a85421f18219acffc899b0c41b2376d8f9ac47cf2d9e1ad35e014a957
+ARG NODE_RUNTIME_IMAGE=${REGISTRY_DHI}/node:24.22.0-alpine3.24@sha256:0b55cdd8c105b9823b26140f07a26c0fc8531fbc2cdbbdfc6e058f24c1762be5
 
 FROM ${NODE_DEV_IMAGE} AS stage
 WORKDIR /app
