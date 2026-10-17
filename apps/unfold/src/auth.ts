@@ -32,6 +32,10 @@ export const delegatedRoutes: ReadonlyArray<readonly [string, RegExp]> = [
   ['GET', new RegExp(`^/api/ploeg/work-items/${workItem}/asks$`)],
   ['POST', new RegExp(`^/api/ploeg/work-items/${workItem}/asks$`)],
   ['GET', /^\/api\/sessions$/],
+  ['GET', /^\/api\/linked-sessions$/],
+  ['GET', /^\/api\/linked-sessions\/[A-Za-z0-9_-]{8,128}$/],
+  ['PUT', new RegExp(`^/api/linked-sessions/[A-Za-z0-9_-]{8,128}/work-items/${workItem}$`)],
+  ['DELETE', new RegExp(`^/api/linked-sessions/[A-Za-z0-9_-]{8,128}/work-items/${workItem}$`)],
 ];
 
 function delegatedRoute(req: IncomingMessage): boolean {

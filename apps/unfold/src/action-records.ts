@@ -26,7 +26,7 @@ export type ActionContext = { via: string; confirmation: string | null };
 /** Holds the {@link ActionContext} of the request being served. */
 export const actionContext = new AsyncLocalStorage<ActionContext>();
 
-const untracked = [/^\/api\/login$/, /^\/api\/auth\//, /^\/api\/insight\//, /^\/api\/ofrep\//];
+const untracked = [/^\/api\/login$/, /^\/api\/auth\//, /^\/api\/insight\//, /^\/api\/ofrep\//, /^\/api\/linked-sessions\/events$/, /^\/api\/linked-sessions\/[^/]+\/traces$/];
 const identifier = /^(?:\d{1,19}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{12,128}|[A-Za-z0-9_-]{20,128})$/;
 const secretKey = /token|secret|password|passphrase|credential|authorization|api[-_]?key|cookie/i;
 const confirmationPattern = /^[A-Za-z0-9_.-]{1,100}:[0-9a-f]{64}$/;
@@ -40,7 +40,7 @@ export function isAction(method: string, path: string): boolean {
 export function describeAction(method: string, path: string): { action: string; target: ActionTarget | null } {
   const parts = path.split('/');
   const template = parts.map((part, index) => index > 1 && identifier.test(part) ? ':id' : part).join('/');
-  const workItem = /^\/api\/ploeg\/work-items\/([^/]+)/.exec(path);
+  const workItem = /^\/api\/ploeg\/work-items\/([^/]+)/.exec(path) ?? /^\/api\/linked-sessions\/[^/]+\/work-items\/([^/]+)/.exec(path);
   const session = /^\/api\/sessions\/([^/]+)/.exec(path);
   const task = /^\/api\/task-sources\/([^/]+)\/tasks\/([^/]+)/.exec(path);
   const target: ActionTarget | null = workItem ? { kind: 'work-item', id: workItem[1] } : session ? { kind: 'session', id: session[1] } : task ? { kind: 'task', id: `${task[1]}:${task[2]}` } : null;

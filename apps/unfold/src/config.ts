@@ -344,6 +344,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     observability = {};
     if (o.grafanaUrl !== undefined) observability.grafanaUrl = configuredUrl(o.grafanaUrl, 'observability.grafanaUrl');
     if (o.logsUrl !== undefined) observability.logsUrl = configuredUrl(o.logsUrl, 'observability.logsUrl');
+    if (o.metricsUrl !== undefined) observability.metricsUrl = configuredUrl(o.metricsUrl, 'observability.metricsUrl');
     if (o.dashboards !== undefined) {
       if (!o.dashboards || typeof o.dashboards !== 'object' || Array.isArray(o.dashboards) || Object.entries(o.dashboards).some(([key, value]) => !/^[a-z0-9-]{1,40}$/.test(key) || typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(value))) throw new Error('observability.dashboards maps short names to Grafana dashboard uids');
       observability.dashboards = o.dashboards;

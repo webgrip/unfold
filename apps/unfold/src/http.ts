@@ -36,6 +36,8 @@ import { clientContext, ofrepBulk, ofrepFlag } from './flag-ofrep.ts';
 import { defaultTenant } from './insight.ts';
 import { createMcpHttp } from './mcp-http.ts';
 import { entitledRole } from './oidc.ts';
+import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
+import { agentTraceMediaType } from './agent-trace.ts';
 import type { AddressInfo } from 'node:net';
 
 const reportRefreshWaitMs = 2500;
@@ -156,6 +158,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const delivery = new DeliveryService(config, store);
   void delivery.reconcileAll().catch(() => undefined);
   const handoff = new TaskHandoff(config, ploeg);
+  const linked = new LinkedSessions(store.db, config, ploeg);
   const status = new StatusBoard(config, store, () => engine.provisioning(), {
     gateway: gatewayProbe(config),
     ploeg: async user => {
@@ -626,6 +629,42 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const person = user.role === 'admin' ? url.searchParams.get('userId') || undefined : user.id;
           const actions = store.actionRecords({ userId: person, target, outcome: outcome as 'done' | 'refused' | 'failed' | undefined, channel, before: Number.isInteger(before) && before > 0 ? before : undefined, limit: limit + 1 });
           return json(res, 200, sanitize({ actions: actions.slice(0, limit), nextBefore: actions.length > limit ? actions[limit - 1].id : null }));
+        }
+        const linkedSession = /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})(?:\/(agent-trace|traces)|\/work-items\/([1-9][0-9]{0,18}))?$/.exec(path);
+        const tracedRevision = /^\/api\/agent-trace\/([0-9a-f]{40}(?:[0-9a-f]{24})?)$/.exec(path);
+        if (path === '/api/linked-sessions' || path === '/api/linked-sessions/events' || linkedSession || tracedRevision) {
+          const base = config.baseUrl ?? `http://${req.headers.host}`;
+          if (path === '/api/linked-sessions/events') {
+            if (method !== 'POST') fault(405, 'method', 'Report a session event with POST.');
+            return json(res, 200, sanitize(await linked.report(user, parseLinkedEvent(await body(req), new Date()), base)));
+          }
+          if (path === '/api/linked-sessions') {
+            if (method !== 'GET') fault(405, 'method', 'List Linked Sessions with GET.');
+            const workItem = url.searchParams.get('workItemId');
+            return json(res, 200, sanitize({ sessions: workItem ? await linked.forWorkItem(user, workItem, base) : linked.mine(user, base, url.searchParams.get('all') === '1') }));
+          }
+          if (tracedRevision) {
+            if (method !== 'GET') fault(405, 'method', 'Read Agent Trace records with GET.');
+            return json(res, 200, sanitize({ records: await linked.tracesFor(user, tracedRevision[1]) }));
+          }
+          const [, id, part, workItem] = linkedSession!;
+          if (workItem) {
+            if (method !== 'PUT' && method !== 'DELETE') fault(405, 'method', 'Link a Work Item with PUT and unlink it with DELETE.');
+            return json(res, 200, sanitize({ session: await linked.setLink(user, id, workItem, method === 'PUT', base) }));
+          }
+          if (part === 'traces') {
+            if (method !== 'POST') fault(405, 'method', 'Send an Agent Trace record with POST.');
+            const stored = linked.addTrace(user, id, await body(req));
+            return json(res, stored.stored ? 201 : 200, stored);
+          }
+          if (method !== 'GET') fault(405, 'method', 'Read a Linked Session with GET.');
+          if (part === 'agent-trace') {
+            const records = await linked.traces(user, id);
+            res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Disposition': `attachment; filename="agent-trace-${id}.jsonl"`, 'X-Agent-Trace-Media-Type': agentTraceMediaType });
+            res.end(records.map(record => JSON.stringify(record)).join('\n') + (records.length ? '\n' : ''));
+            return;
+          }
+          return json(res, 200, sanitize({ session: await linked.view(user, id, base, url.searchParams.get('telemetry') === '1') }));
         }
         if (path === '/api/asks') {
           if (method !== 'GET') fault(405, 'method', 'List your Asks with GET.');

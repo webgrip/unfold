@@ -146,6 +146,19 @@ terms:
       - term: Shift
         note: Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.
     see_also: [Work Item, Shift, Team]
+  - name: Linked Session
+    context: Participation
+    owner: unfold
+    definition: >
+      An agent session a person runs outside Unfold, such as Claude Code on
+      their own machine, that reports to Unfold through its hooks and is linked
+      to Work Items. Unfold never starts, steers or pays for it; it records the
+      session's state, branch and commits, the Agent Trace of what it wrote, and
+      reads its telemetry.
+    not_to_be_confused_with:
+      - term: Session
+        note: Unfold's own record of interaction around work it submits to Ploeg.
+    see_also: [Session, Work Item]
   - name: Step
     context: Participation
     owner: unfold

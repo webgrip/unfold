@@ -1,0 +1,16 @@
+{
+  "name": "unfold",
+  "owner": {
+    "name": "Ryan Grippeling / WebGrip"
+  },
+  "metadata": {
+    "description": "Claude Code plugins for working with Unfold."
+  },
+  "plugins": [
+    {
+      "name": "unfold",
+      "source": "./apps/unfold/extensions/claude-code",
+      "description": "Link your Claude Code sessions to Unfold Work Items, with Agent Trace attribution for their commits."
+    }
+  ]
+}

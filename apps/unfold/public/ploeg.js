@@ -1,4 +1,5 @@
 import { escape, safeUrl } from './core/dom.js';
+import { linkedSessionsMarkup } from './core/linked-sessions.js';
 import { icon } from './core/icons.js';
 import { markdown } from './core/markdown.js';
 import { count as formatCount, money, moneyHtml, plural, duration, dateTime, decimal } from './core/format.js';
@@ -1481,6 +1482,7 @@ export function detailMarkup(recordedDetail, model) {
     deliveryMarkup(detail, model),
     model.trace && model.trace.workItemId === item.id ? traceMarkup(model.trace, { now: model.now, busy: model.traceBusy, result: model.traceResult }) : '',
     sessionsMarkup(detail, model.sessions),
+    linkedSessionsMarkup(detail, model.linkedSessions, { now: model.now, canChange: model.userRole !== undefined }),
     briefMarkup(detail, model),
     contextMarkup(detail, model),
     storyMarkup(detail, model),

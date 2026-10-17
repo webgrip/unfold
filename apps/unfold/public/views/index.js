@@ -27,7 +27,8 @@ import designer from './designer.js';
 import editorSignIn from './editor-sign-in.js';
 import editors from './editors.js';
 import labs from './labs.js';
+import linkedSessions from './linked-sessions.js';
 import { chrome } from '../shell.js';
 
 /** Every view descriptor. The order is the dispatch order for key bindings and page loaders. */
-export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, actions, insights, ploegFeeds, account, system, status, preferences, cardIdentity, editors, labs, editorSignIn, binder, card, packs, season, palette, chrome, dialogs, report, design, designer];
+export const views = [login, session, now, sessions, tasks, work, proposed, runs, activity, actions, insights, ploegFeeds, account, system, status, preferences, cardIdentity, editors, labs, linkedSessions, editorSignIn, binder, card, packs, season, palette, chrome, dialogs, report, design, designer];

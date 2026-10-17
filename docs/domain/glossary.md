@@ -207,6 +207,14 @@ A Run Card's assessment of its change from 1 to 10 in half steps, from four subg
 **Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's approve or request_changes answer in one Round. It is one input a Grade could use, not a Grade.  
 **See also:** [Run Card](#run-card), [Crack](#crack), [Bounce](#bounce), [Finish](#finish)  
 
+## Linked Session
+*Context: Participation · Owner: Unfold*
+
+An agent session a person runs outside Unfold, such as Claude Code on their own machine, that reports to Unfold through its hooks and is linked to Work Items. Unfold never starts, steers or pays for it; it records the session's state, branch and commits, the Agent Trace of what it wrote, and reads its telemetry.
+
+**Not to be confused with** [Session](#session): Unfold's own record of interaction around work it submits to Ploeg.  
+**See also:** [Session](#session), [Work Item](../reference/glossary.md#work-item)  
+
 ## Markup
 *Context: Billing*
 
