@@ -9,9 +9,31 @@ import { join } from 'node:path';
 import { application } from './api-support.ts';
 import { confirmationLedger, createMcpServer, serveStdio } from '../src/mcp.ts';
 
+function conforms(schema: Record<string, any>, value: unknown, at: string): string[] {
+  const types = [schema.type ?? []].flat();
+  const actual = value === null ? 'null' : Array.isArray(value) ? 'array' : Number.isInteger(value) ? 'integer' : typeof value;
+  if (types.length && !types.includes(actual) && !(actual === 'integer' && types.includes('number'))) return [`${at} is ${actual}, not ${types.join(' or ')}`];
+  if (actual === 'array' && schema.items) return (value as unknown[]).flatMap((item, index) => conforms(schema.items, item, `${at}[${index}]`));
+  if (actual !== 'object' || !schema.properties) return [];
+  const record = value as Record<string, unknown>;
+  return [
+    ...(schema.required ?? []).filter((key: string) => !(key in record)).map((key: string) => `${at}.${key} is missing`),
+    ...(schema.additionalProperties === false ? Object.keys(record).filter(key => !(key in schema.properties)).map(key => `${at}.${key} is not in the output schema`) : []),
+    ...Object.entries(record).filter(([key]) => key in schema.properties).flatMap(([key, item]) => conforms(schema.properties[key], item, `${at}.${key}`)),
+  ];
+}
+
+const schemas = new WeakMap<object, Promise<Map<string, Record<string, any>>>>();
+
 async function call(server: ReturnType<typeof createMcpServer>, name: string, args: Record<string, unknown> = {}) {
   const answer = await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } });
   assert(answer && 'result' in answer, JSON.stringify(answer));
+  if (!answer.result.isError && answer.result.structuredContent) {
+    if (!schemas.has(server)) schemas.set(server, Promise.resolve(server.handle({ jsonrpc: '2.0', id: 'schemas', method: 'tools/list' })).then(listed => new Map(listed?.result.tools.map((tool: { name: string; outputSchema: Record<string, any> }) => [tool.name, tool.outputSchema]))));
+    const schema = (await schemas.get(server)!).get(name);
+    assert(schema, `${name} has no output schema`);
+    assert.deepEqual(conforms(schema, answer.result.structuredContent, name), [], 'MCP clients reject structured content that does not match the tool\'s output schema');
+  }
   return answer.result;
 }
 

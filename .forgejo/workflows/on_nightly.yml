@@ -18,3 +18,54 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.forgejo/actions/browser-suite
+
+  mcp-e2e:
+    runs-on: docker
+    timeout-minutes: 30
+    container:
+      image: harbor.webgrip.dev/mcr/playwright:v1.64.0-noble@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f
+    services:
+      postgresql:
+        image: harbor.webgrip.dev/dockerhub/library/postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+        env:
+          POSTGRES_DB: authentik
+          POSTGRES_USER: authentik
+          POSTGRES_PASSWORD: e2e-only-database-password
+      authentik:
+        image: harbor.webgrip.dev/ghcr/goauthentik/server:2026.5.2@sha256:3ddf09bbf69ded6a9634ecd753a01608d477f811e99bb5ffe9fc2ef7ad1c6581
+        cmd: [server]
+        env:
+          AUTHENTIK_POSTGRESQL__HOST: postgresql
+          AUTHENTIK_POSTGRESQL__NAME: authentik
+          AUTHENTIK_POSTGRESQL__USER: authentik
+          AUTHENTIK_POSTGRESQL__PASSWORD: e2e-only-database-password
+          AUTHENTIK_SECRET_KEY: e2e-only-secret-key-${{ github.run_id }}-${{ github.run_attempt }}-of-a-throwaway-instance
+          AUTHENTIK_BOOTSTRAP_TOKEN: e2e-${{ github.run_id }}-${{ github.run_attempt }}-throwaway-bootstrap-token
+          AUTHENTIK_BOOTSTRAP_PASSWORD: e2e-${{ github.run_id }}-${{ github.run_attempt }}-throwaway-password
+          AUTHENTIK_BOOTSTRAP_EMAIL: akadmin@e2e.invalid
+          AUTHENTIK_DISABLE_UPDATE_CHECK: 'true'
+          AUTHENTIK_ERROR_REPORTING__ENABLED: 'false'
+          AUTHENTIK_DISABLE_STARTUP_ANALYTICS: 'true'
+          AUTHENTIK_AVATARS: none
+      authentik-worker:
+        image: harbor.webgrip.dev/ghcr/goauthentik/server:2026.5.2@sha256:3ddf09bbf69ded6a9634ecd753a01608d477f811e99bb5ffe9fc2ef7ad1c6581
+        cmd: [worker]
+        env:
+          AUTHENTIK_POSTGRESQL__HOST: postgresql
+          AUTHENTIK_POSTGRESQL__NAME: authentik
+          AUTHENTIK_POSTGRESQL__USER: authentik
+          AUTHENTIK_POSTGRESQL__PASSWORD: e2e-only-database-password
+          AUTHENTIK_SECRET_KEY: e2e-only-secret-key-${{ github.run_id }}-${{ github.run_attempt }}-of-a-throwaway-instance
+          AUTHENTIK_BOOTSTRAP_TOKEN: e2e-${{ github.run_id }}-${{ github.run_attempt }}-throwaway-bootstrap-token
+          AUTHENTIK_BOOTSTRAP_PASSWORD: e2e-${{ github.run_id }}-${{ github.run_attempt }}-throwaway-password
+          AUTHENTIK_BOOTSTRAP_EMAIL: akadmin@e2e.invalid
+          AUTHENTIK_DISABLE_UPDATE_CHECK: 'true'
+          AUTHENTIK_ERROR_REPORTING__ENABLED: 'false'
+          AUTHENTIK_DISABLE_STARTUP_ANALYTICS: 'true'
+          AUTHENTIK_AVATARS: none
+    env:
+      UNFOLD_E2E_AUTHENTIK_URL: http://authentik:9000
+      UNFOLD_E2E_AUTHENTIK_TOKEN: e2e-${{ github.run_id }}-${{ github.run_attempt }}-throwaway-bootstrap-token
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.forgejo/actions/mcp-e2e
