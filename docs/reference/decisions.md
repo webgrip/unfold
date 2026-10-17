@@ -42,6 +42,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0032](../adr/adr-0032-unfold-also-serves-its-own-read-only-mcp-tools-next-to-ploeg-mcp.md) | Unfold also serves its own read-only MCP tools, next to ploeg-mcp | 2026-10-10 | — |
 | System | [0033](../adr/adr-0033-unfold-plans-non-trivial-changes-as-openspec-changes.md) | Unfold plans non-trivial changes as OpenSpec changes | 2026-10-11 | — |
 | System | [0036](../adr/adr-0036-ploeg-and-unfold-use-one-vocabulary-with-named-screen-words.md) | Ploeg and Unfold use one vocabulary, with named screen words | 2026-10-13 | — |
+| System | [0037](../adr/adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md) | People act on work through either MCP server, and every action names its person, channel and confirmation | 2026-10-17 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
