@@ -14,7 +14,6 @@ A feature flag lets Unfold ship a change switched off, then turn it on without a
 
 | Key | Kind | Default | Labs | Remove by | What it does |
 | --- | --- | --- | --- | --- | --- |
-| `work.flight-profile` | release | off | yes | 2027-01-13 | Draws a Work Item as a flight at the top of its page, in place of the four-stage strip. The plane takes off when an agent picks the work up, and every Run is a waypoint (retries are tick marks, readers that start together fly side by side). Fix rounds and waiting for you are holding patterns, failed checks are a go-around, the pull request lands it and production is the arrival. A stopped Work Item diverts to Needs you. Clicking a waypoint opens its Run. Below it, the value stream's waits and work are drawn to scale |
 | `work.live-view` | release | off | yes | 2027-01-17 | Puts the live view at the top of a Work Item page in place of the four-stage strip and the flight profile: the stages as folds, one sentence on what the agent is doing, and the flight path, where every Run is a hop whose height follows its tool calls, machine failures bounce back, a stalled Run circles and tripwire hits are marked. Below it, the questions people ask, answered from the record. Built and checked in the [component workbench](../workbench.md) |
 
 `npm run check` fails when this table misses a registered flag.
@@ -40,7 +39,7 @@ Everyone, while each person can still opt out under Labs:
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       defaultVariant: "on"
 ```
 
@@ -49,7 +48,7 @@ One Team, keeping each person's Labs choice. `labs-choice` returns `off` or `on`
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       targeting:
         or:
           - $ref: labs-choice
@@ -61,7 +60,7 @@ A fifth of people, chosen by a stable hash of the flag and the person, so each p
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       targeting:
         or:
           - $ref: labs-choice
@@ -73,7 +72,7 @@ Administrators only:
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       targeting:
         if: [{ "==": [{ var: role }, admin] }, "on", null]
 ```
@@ -83,7 +82,7 @@ Switched off for everyone, whatever people chose:
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       state: DISABLED
 ```
 
@@ -116,7 +115,7 @@ Give a flag more than two variants, or the kind `experiment`, and split people b
 * `flag.exposed` the first time a person reaches the flag in a page load;
 * `flag.tracked` whenever code calls `track('event-name', { value })` from `public/core/flags.js`, attributed to every flag the person reached in that page load.
 
-The flag's card under Labs shows, for the last 30 days, the people who saw each variant and the share of them who did each tracked event. No significance test is applied. `work.flight-profile` already tracks `work.run_opened` and `work.run_opened_from_flight`, so turning it on for half the people compares how often each half opens a Run.
+The flag's card under Labs shows, for the last 30 days, the people who saw each variant and the share of them who did each tracked event. No significance test is applied. `work.live-view` already tracks `work.run_opened` and `work.run_opened_from_flight`, so turning it on for half the people compares how often each half opens a Run.
 
 ## Labs and overrides
 

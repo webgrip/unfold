@@ -128,3 +128,12 @@ test('without the followed Run’s transcript nothing claims silence or counts c
   const flat = flightLegs(blind).find(leg => leg.kind === 'attempt').hops[0];
   assert.equal(flat.profile, null, 'the live hop cruises flat');
 });
+
+test('a transcript the demo or Ploeg cannot give says why, instead of asking to load it', () => {
+  const input = scenarios.firstTry.input();
+  const demo = liveModel({ ...input, transcript: [], transcriptKnown: false, transcriptMissing: 'demo' });
+  assert.equal(demo.health.word, 'flying');
+  assert.match(demo.transcriptMissing, /demo records no transcripts/);
+  assert.equal(liveModel({ ...input, transcript: [], transcriptKnown: false }).transcriptMissing, null);
+  assert.equal(liveModel({ ...input, transcriptMissing: 'demo' }).transcriptMissing, null, 'a loaded transcript wins');
+});

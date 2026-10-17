@@ -911,3 +911,8 @@
   .lv-contain-signal { grid-template-columns: 3rem minmax(0, 1fr); }
   .lv-contain-outcome { grid-column: 2; justify-self: start; }
 }
+.lv-fp-hit { position: absolute; inset: 0; z-index: 0; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; cursor: pointer; }
+.lv-fp-hit:hover { background: color-mix(in srgb, var(--lv-fp-tone) 8%, transparent); }
+.lv-fp-hit:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.lv-fp-hop .lv-fp-sky, .lv-fp-hop .lv-fp-runway, .lv-fp-hop .lv-fp-chip { pointer-events: none; }
+.lv-fp-hop { min-width: 1.5rem; }

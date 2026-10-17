@@ -325,7 +325,7 @@ function hopMarkup(hop, key, model) {
       : end === 'pending' ? planeMark('is-taxi')
         : `<span class="${cx('lv-fp-end', grounded(end) ? 'is-ground' : 'is-air', `is-${tone}`)}" aria-hidden="true">${icon(hop.glyph)}${badge}</span>`;
   const chip = `${end === 'live' || end === 'holding' || end === 'pending' ? planeMark(cx('is-chip', suspect ? 'is-suspect' : '')) : `${icon(hop.glyph)}${badge}`}${chipMarks({ marks })}`;
-  return `<li class="${cx('lv-fp-hop', `lv-g${hop.grow}`, `is-${tone}`, `is-${end}`, run.writes ? 'is-writer' : 'is-reader', diverted ? 'is-diverted' : '')}" title="${escape(words)}"><span class="sr-only">${escape(words)}</span><div class="lv-fp-sky">${sky}${markHtml({ marks })}${marker}</div><div class="lv-fp-runway" aria-hidden="true"></div><span class="${cx('lv-fp-chip', `is-${tone}`)}" aria-hidden="true">${chip}</span></li>`;
+  return `<li class="${cx('lv-fp-hop', `lv-g${hop.grow}`, `is-${tone}`, `is-${end}`, run.writes ? 'is-writer' : 'is-reader', diverted ? 'is-diverted' : '')}" title="${escape(words)}"><button type="button" class="lv-fp-hit" data-action="work-run" data-id="${escape(hop.runs?.at(-1)?.id ?? run.id)}" aria-label="${escape(`Open ${words}`)}"></button><div class="lv-fp-sky">${sky}${markHtml({ marks })}${marker}</div><div class="lv-fp-runway" aria-hidden="true"></div><span class="${cx('lv-fp-chip', `is-${tone}`)}" aria-hidden="true">${chip}</span></li>`;
 }
 
 function head(name, note, extra = '') {
@@ -342,7 +342,7 @@ function head(name, note, extra = '') {
  * diverts the hop: its line turns dashed red from that moment. A suspect live Run flies a red-ringed plane. Columns
  * grow with the square root of time, so a long wait does not crowd out the work. Under 34 rem of container width the
  * same list stands up as a vertical flight log. Pure: the same model always gives the same markup, with no inline
- * styles.
+ * styles. Every hop is a button that opens its Run on the Work Item page (`data-action="work-run"`).
  * @param {object} model A `liveModel` result.
  * @param {{ id?: string }} [options] `id` prefixes gradient ids, so two flights of one model can share a page.
  * @returns {string}

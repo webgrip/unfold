@@ -30,27 +30,6 @@
     }
   },
   "flags": {
-    "work.flight-profile": {
-      "state": "ENABLED",
-      "variants": {
-        "on": true,
-        "off": false
-      },
-      "defaultVariant": "off",
-      "targeting": {
-        "$ref": "labs-choice"
-      },
-      "metadata": {
-        "kind": "release",
-        "owner": "Ryan Grippeling",
-        "created": "2026-10-13",
-        "expires": "2027-01-13",
-        "title": "Work Item flight profile",
-        "description": "Draws a Work Item as a flight on its page: it takes off when an agent picks it up, every Run is a waypoint, fix rounds and waiting for you are holding patterns, failed checks are a go-around, the pull request lands it and production is the arrival. Replaces the four-stage strip at the top of the page.",
-        "client": true,
-        "labs": true
-      }
-    },
     "work.live-view": {
       "state": "ENABLED",
       "variants": {

@@ -51,7 +51,7 @@ export function liveSentence(model) {
   if (model.state === 'stale') return { head: 'Stopped retrying.', sub: `Ploeg gave up after ${model.lost.runs + model.lost.agentFailures} failed Runs.`, tone: 'severe' };
   if (!model.running && model.runs.some(run => run.status === 'pending')) return { head: 'Waiting for a worker.', sub: 'The next Run is queued; Ploeg starts it when a machine is free.', tone: 'neutral' };
   if (!model.running) return { head: 'Between Runs.', sub: 'Ploeg starts the next Run when a worker is free.', tone: 'neutral' };
-  if (!model.transcriptKnown) return { head: `${role} is working.`, sub: model.health.word === 'flying' ? 'Open the Run to follow its calls.' : model.health.reason, tone: model.health.tone };
+  if (!model.transcriptKnown) return { head: `${role} is working.`, sub: model.health.word === 'flying' ? model.transcriptMissing ?? 'Open the Run to follow its calls.' : model.health.reason, tone: model.health.tone };
   const head = move ? `${role} · ${move.title}` : `${role} is starting.`;
   const trouble = model.lastTrouble;
   const sub = model.health.word === 'stalled' ? model.health.reason : trouble ? `Ran into trouble at ${clock(trouble.at)}: ${trouble.title.toLowerCase()}.` : model.edits ? `${model.edits} ${model.edits === 1 ? 'file' : 'files'} changed so far.` : 'No file changed yet.';

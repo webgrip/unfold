@@ -184,11 +184,13 @@ function stageStates(item, runs, current) {
  * @param {{ leftUsd: number, totalUsd: number }} [input.allowance] The Team's Ask Allowance.
  * @param {string[]} [input.allowedHosts] Hosts the Run may reach; a call to any other host is a tripwire.
  * @param {{ startedWith: object, current: object }} [input.policy] Proposed: the Run's rules at its start and now.
+ * @param {string|null} [input.transcriptMissing] Why the transcript is unavailable, as Unfold's transcript route says it:
+ *   `demo` or `unsupported`; the view then says why instead of asking to load it.
  * @param {boolean} [input.transcriptKnown] Whether the followed Run's transcript was loaded. Defaults to true when
  * `transcript` has items. When false, call counts, edits and the last call are `null` and a running Run reads `flying`.
  * @returns {object}
  */
-export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null, allowedHosts = [], policy = null, transcriptKnown = transcript.length > 0 }) {
+export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null, allowedHosts = [], policy = null, transcriptKnown = transcript.length > 0, transcriptMissing = null }) {
   const item = detail.item;
   const shifts = [...(detail.shifts ?? [])].sort((a, b) => (toMs(a.openedAt) ?? 0) - (toMs(b.openedAt) ?? 0));
   const runs = [...(detail.runs ?? [])].sort(byStart);
@@ -272,6 +274,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     lease: item.lease ? { expiresAt: toMs(item.lease.expiresAt), renewedAt: toMs(item.lease.renewedAt), secondsLeft: leaseLeft } : null,
     moves,
     transcriptKnown: known,
+    transcriptMissing: known ? null : transcriptMissing === 'demo' ? 'The demo records no transcripts, so its calls are not shown.' : transcriptMissing === 'unsupported' ? 'This Ploeg does not report transcripts, so its calls are not shown.' : null,
     calls: { total: known ? calls.length : null, byKind, lastAt: lastActivity },
     edits: known ? edited.size : null,
     lastTrouble,
