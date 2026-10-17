@@ -1,6 +1,7 @@
 import { randomBytes, randomInt, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import type { AppConfig, User } from './types.ts';
+import type { AppConfig, User, UserRole } from './types.ts';
+import { lowerRole } from './oidc.ts';
 import type { EditorCredential, Store } from './store.ts';
 
 /** How an editor sign-in looks to the person who signed in for it. */
@@ -19,6 +20,25 @@ export const editorIdleDays = 14;
 /** Every editor credential starts with this prefix, so it is never mistaken for a browser session. */
 export const editorTokenPrefix = 'vle_';
 const editorTokenPattern = /^vle_[A-Za-z0-9_-]{43}$/;
+const delegatedTokenPattern = /^vlm_[A-Za-z0-9_-]{43}$/;
+const maxDelegatedMs = 300_000;
+const workItem = '\\d{1,19}';
+/** The only method and path pairs a delegated `unfold-mcp` credential reaches: the API calls its tools make. */
+export const delegatedRoutes: ReadonlyArray<readonly [string, RegExp]> = [
+  ['GET', /^\/api\/ploeg\/now$/],
+  ['GET', /^\/api\/ploeg\/summary$/],
+  ['GET', /^\/api\/ploeg\/work-items$/],
+  ['GET', new RegExp(`^/api/ploeg/work-items/${workItem}$`)],
+  ['GET', new RegExp(`^/api/ploeg/work-items/${workItem}/asks$`)],
+  ['POST', new RegExp(`^/api/ploeg/work-items/${workItem}/asks$`)],
+  ['GET', /^\/api\/sessions$/],
+];
+
+function delegatedRoute(req: IncomingMessage): boolean {
+  let path: string;
+  try { path = new URL(req.url || '/', 'http://localhost').pathname; } catch { return false; }
+  return delegatedRoutes.some(([method, pattern]) => method === req.method && pattern.test(path));
+}
 
 /**
  * The name an editor sign-in and its credential carry: `VS Code`, or `unfold-mcp` when the client says it is that,
@@ -95,10 +115,11 @@ export class Auth {
     const token = this.token(req);
     return token && token.length <= 200 ? digest(token) : undefined;
   }
-  /** Which credential authenticated a request: a browser session or an editor credential. */
-  scope(req: IncomingMessage): 'browser' | 'editor' | undefined {
+  /** Which credential authenticated a request: a browser session, an editor credential, or a credential `unfold-mcp` over HTTP delegated. */
+  scope(req: IncomingMessage): 'browser' | 'editor' | 'mcp' | undefined {
     if (this.config.mode === 'demo') return 'browser';
-    if (this.bearer(req) !== undefined) return this.editorUser(req) ? 'editor' : undefined;
+    const bearer = this.bearer(req);
+    if (bearer !== undefined) return this.editorUser(req) ? delegatedTokenPattern.test(bearer) ? 'mcp' : 'editor' : undefined;
     return this.user(req) ? 'browser' : undefined;
   }
   user(req: IncomingMessage): User | undefined {
@@ -111,8 +132,30 @@ export class Auth {
     const user = this.store.getUser(login.userId);
     return user ? { id: user.id, name: user.name, role: user.role } : undefined;
   }
+  private readonly delegated = new Map<string, { userId: string; role: UserRole; expiresAt: number }>();
+
+  /**
+   * Mints a credential that acts as `user` on this process's own API for at most `ttlMs`, reaching only
+   * `delegatedRoutes` and never more than `user.role` or the account's stored role, whichever is lower. It lives
+   * only in memory and is revoked by `revoke`. `unfold-mcp` over HTTP calls the API with it, so a caller's access
+   * token never travels further than the MCP endpoint.
+   */
+  delegate(user: User, ttlMs: number): { token: string; revoke(): void } {
+    const now = Date.now();
+    for (const [hash, entry] of this.delegated) if (entry.expiresAt <= now) this.delegated.delete(hash);
+    const token = `vlm_${randomBytes(32).toString('base64url')}`;
+    const hash = digest(token);
+    this.delegated.set(hash, { userId: user.id, role: user.role, expiresAt: now + Math.min(Math.max(ttlMs, 1), maxDelegatedMs) });
+    return { token, revoke: () => { this.delegated.delete(hash); } };
+  }
+
   private editorUser(req: IncomingMessage): User | undefined {
     const bearer = this.bearer(req);
+    if (bearer && delegatedTokenPattern.test(bearer)) {
+      const entry = this.delegated.get(digest(bearer));
+      const user = entry && entry.expiresAt > Date.now() && delegatedRoute(req) ? this.store.getUser(entry.userId) : undefined;
+      return user && entry ? { id: user.id, name: user.name, role: lowerRole(user.role, entry.role) } : undefined;
+    }
     if (!bearer || !editorTokenPattern.test(bearer)) return undefined;
     const credential = this.store.getEditorCredential(digest(bearer));
     const user = credential && this.store.getUser(credential.userId);

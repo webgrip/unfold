@@ -33,6 +33,9 @@ import { noErrorReports, type ErrorReports } from './error-reports.ts';
 import { FeatureFlags, loadRegistry, type FlagContext } from './flags.ts';
 import { clientContext, ofrepBulk, ofrepFlag } from './flag-ofrep.ts';
 import { defaultTenant } from './insight.ts';
+import { createMcpHttp } from './mcp-http.ts';
+import { entitledRole } from './oidc.ts';
+import type { AddressInfo } from 'node:net';
 
 const reportRefreshWaitMs = 2500;
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -127,6 +130,11 @@ function text(value: unknown, name: string, max: number, optional = false): stri
   return (value as string).trim();
 }
 
+function loopbackUrl(address: AddressInfo): string {
+  const host = address.address === '::' || address.address === '0.0.0.0' ? '127.0.0.1' : address.family === 'IPv6' ? `[${address.address}]` : address.address;
+  return `http://${host}:${address.port}`;
+}
+
 function mutationGuard(req: IncomingMessage, config: AppConfig): void {
   if (req.headers['x-unfold-request'] !== '1') fault(403, 'csrf', 'The request is missing the application request header.');
   const origin = req.headers.origin;
@@ -208,6 +216,17 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitize(item)])) as T;
     return value;
   }
+  const account = (record: { id: string; name: string; role: User['role'] } | undefined): User | undefined => record ? { id: record.id, name: record.name, role: record.role } : undefined;
+  const mcp = config.mcp && config.auth.oidc ? createMcpHttp({
+    settings: config.mcp,
+    subjectNamespace: config.mcp.subjectNamespace ?? config.auth.oidc.subjectNamespace ?? config.auth.oidc.issuer,
+    findUser: id => account(store.getUser(id)),
+    entitle: claims => entitledRole(config.auth.oidc!, claims),
+    delegate: (user, ttlMs) => auth.delegate(user, ttlMs),
+    apiUrl: () => loopbackUrl(server.address() as AddressInfo),
+    linkUrl: config.baseUrl ?? new URL(config.mcp.resource).origin,
+    version: applicationVersion,
+  }) : undefined;
   function visible(id: string, user: User): Session {
     const session = store.getSession(id);
     if (!session || (session.ownerId !== user.id && user.role !== 'admin')) fault(404, 'not_found', 'Session not found.');
@@ -227,6 +246,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         if (path === '/readyz') store.ping();
         return json(res, 200, { status: 'ok', version: applicationVersion });
       }
+      if (mcp?.handles(path)) return await mcp.handle(req, res, path);
       if (relay && await relay.handle(req, res, url)) return;
       const editorCollect = path.match(/^\/api\/auth\/editor\/([A-Za-z0-9_-]{8,32})$/);
       const ofrep = path.startsWith('/api/ofrep/v1/evaluate/flags');

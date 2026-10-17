@@ -7,7 +7,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { application } from './api-support.ts';
-import { createMcpServer, serveStdio } from '../src/mcp.ts';
+import { confirmationLedger, createMcpServer, serveStdio } from '../src/mcp.ts';
 
 async function call(server: ReturnType<typeof createMcpServer>, name: string, args: Record<string, unknown> = {}) {
   const answer = await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } });
@@ -165,6 +165,7 @@ test('unfold_spend names the Work Items whose finished Runs still hold budget, a
 
 function askingUnfold(t: { after(fn: () => void): void }) {
   const posted: Record<string, unknown>[] = [];
+  const headers: Record<string, unknown>[] = [];
   const fake = createServer(async (req, res) => {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk as Buffer);
@@ -173,6 +174,7 @@ function askingUnfold(t: { after(fn: () => void): void }) {
     assert.equal(req.headers['x-unfold-request'], '1');
     const body = JSON.parse(Buffer.concat(chunks).toString());
     posted.push(body);
+    headers.push({ client: req.headers['x-unfold-client'], confirmation: req.headers['x-unfold-confirmation'] });
     if (body.recordOnly && body.question !== 'What did it cost so far?') { res.statusCode = 409; res.end(JSON.stringify({ error: { code: 'ask_needs_model', message: 'The record does not answer this question.' } })); return; }
     res.statusCode = 201;
     res.end(JSON.stringify(body.askModel
@@ -180,7 +182,7 @@ function askingUnfold(t: { after(fn: () => void): void }) {
       : { question: body.question, answer: 'US$ 0.03 so far.', status: 'answered', source: 'record', costUsd: 0, costStatus: 'settled' }));
   });
   t.after(() => fake.close());
-  return { fake, posted, ready: new Promise<string>(resolve => fake.listen(0, '127.0.0.1', () => { const a = fake.address(); assert(a && typeof a !== 'string'); resolve(`http://127.0.0.1:${a.port}`); })) };
+  return { fake, posted, headers, ready: new Promise<string>(resolve => fake.listen(0, '127.0.0.1', () => { const a = fake.address(); assert(a && typeof a !== 'string'); resolve(`http://127.0.0.1:${a.port}`); })) };
 }
 
 test('unfold_ask answers standing questions free and never spends without a person confirming', async t => {
@@ -222,7 +224,7 @@ test('unfold_ask asks a model only after the person accepts the confirmation ove
       }
     });
     const served = serveStdio(createMcpServer({ url, token: `vle_${'d'.repeat(43)}` }), input, output);
-    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: { elicitation: {} } } })}\n`);
+    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: { elicitation: {} }, clientInfo: { name: 'claude-code', version: '2.1.296' } } })}\n`);
     input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'unfold_ask', arguments: { id: '184', question: 'Is Firefox affected?', use_model: true } } })}\n`);
     while (!replies.some(reply => reply.id === 2)) await new Promise(resolve => setTimeout(resolve, 10));
     input.end();
@@ -231,8 +233,106 @@ test('unfold_ask asks a model only after the person accepts the confirmation ove
     const answer = replies.find(reply => reply.id === 2).result.structuredContent;
     assert.equal(answer.asked, expectAsked, JSON.stringify(decision));
     assert.equal(unfold.posted.some(body => body.askModel === true), expectAsked, 'a model Ask is posted only after an explicit yes');
+    if (expectAsked) {
+      const spent = unfold.headers[unfold.posted.findIndex(body => body.askModel === true)];
+      assert.equal(spent.client, 'claude-code 2.1.296');
+      assert.match(String(spent.confirmation), new RegExp(`^[A-Za-z0-9_-]{16}:${createHash('sha256').update(elicited.params.message).digest('hex')}$`));
+    }
     if (!expectAsked) assert.equal(answer.summary, 'Not asked: the spend was not confirmed. Nothing was spent.');
   }
+});
+
+const modernMeta = (capabilities: Record<string, unknown> = {}) => ({ 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientInfo': { name: 'test', version: '1' }, 'io.modelcontextprotocol/clientCapabilities': capabilities });
+
+test('unfold-mcp serves 2026-07-28 requests without a handshake: server/discover, _meta versions and resultType', async () => {
+  const server = createMcpServer({ url: 'http://127.0.0.1:9', version: 'test' });
+  const discovered = await server.handle({ jsonrpc: '2.0', id: 'd', method: 'server/discover', params: { _meta: modernMeta() } });
+  assert.equal(discovered?.result.resultType, 'complete');
+  assert.deepEqual(discovered?.result.supportedVersions, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
+  assert.deepEqual(discovered?.result.capabilities, { tools: {} });
+  assert.match(discovered?.result.instructions, /Call unfold_now first/);
+  assert.equal(discovered?.result._meta['io.modelcontextprotocol/serverInfo'].name, 'unfold-mcp');
+
+  const listed = await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: modernMeta() } });
+  assert.equal(listed?.result.resultType, 'complete');
+  assert.equal(listed?.result.tools.length, 7);
+  assert.equal(typeof listed?.result.ttlMs, 'number');
+
+  const legacy = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+  assert.equal(legacy?.result.resultType, undefined, 'a 2025 request gets the 2025 result shape');
+
+  const unsupported = await server.handle({ jsonrpc: '2.0', id: 3, method: 'tools/list', params: { _meta: { ...modernMeta(), 'io.modelcontextprotocol/protocolVersion': '1900-01-01' } } });
+  assert.equal(unsupported?.error.code, -32022);
+  assert.deepEqual(unsupported?.error.data, { supported: ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26'], requested: '1900-01-01' });
+  const noCapabilities = await server.handle({ jsonrpc: '2.0', id: 4, method: 'tools/list', params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' } } });
+  assert.equal(noCapabilities?.error.code, -32602);
+  const bareDiscover = await server.handle({ jsonrpc: '2.0', id: 5, method: 'server/discover' });
+  assert.equal(bareDiscover?.error.code, -32602, 'server/discover without _meta is malformed');
+});
+
+test('unfold_ask over 2026-07-28 spends only after the person confirms through an input_required round trip', async t => {
+  const unfold = askingUnfold(t);
+  const url = await unfold.ready;
+  const confirmations = confirmationLedger();
+  const server = createMcpServer({ url, token: `vle_${'f'.repeat(43)}`, principal: 'user-a', confirmations });
+  const ask = (id: number, extra: Record<string, unknown> = {}, capabilities: Record<string, unknown> = { elicitation: {} }, question = 'Is Firefox affected?', on = server) =>
+    on.handle({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'unfold_ask', arguments: { id: '184', question, use_model: true }, _meta: modernMeta(capabilities), ...extra } });
+
+  const withoutElicitation = await ask(1, {}, {});
+  assert.equal(withoutElicitation?.result.isError, true);
+  assert.match(withoutElicitation?.result.content[0].text, /cannot ask you to confirm a spend, so no model was asked/);
+  assert.equal((await ask(2, {}, { elicitation: { url: {} } }))?.result.isError, true, 'URL-only elicitation cannot confirm in a form');
+
+  const pending = (await ask(3))?.result;
+  assert.equal(pending.resultType, 'input_required');
+  assert.equal(pending.inputRequests.confirm_spend.method, 'elicitation/create');
+  assert.equal(pending.inputRequests.confirm_spend.params.mode, 'form');
+  assert.match(pending.inputRequests.confirm_spend.params.message, /^Ask a model about Work Item 184\? One answer spends up to \$0\.02/);
+  assert.equal(typeof pending.requestState, 'string');
+  assert.equal(unfold.posted.length, 0, 'asking for confirmation posts nothing');
+
+  const accept = { confirm_spend: { action: 'accept', content: { confirm: true } } };
+  const tampered = `${pending.requestState.slice(0, -2)}AA`;
+  assert.match((await ask(4, { inputResponses: accept, requestState: tampered }))?.result.content[0].text, /not one this server issued\. Nothing was asked or spent/);
+  const other = createMcpServer({ url, token: `vle_${'f'.repeat(43)}`, principal: 'user-b', confirmations });
+  assert.match((await ask(5, { inputResponses: accept, requestState: pending.requestState }, { elicitation: {} }, 'Is Firefox affected?', other))?.result.content[0].text, /given to someone else/);
+  assert.match((await ask(6, { inputResponses: accept, requestState: pending.requestState }, { elicitation: {} }, 'Is Safari affected?'))?.result.content[0].text, /for another question/);
+  assert.equal(unfold.posted.length, 0);
+
+  const answered = (await ask(7, { inputResponses: accept, requestState: pending.requestState }))?.result;
+  assert.equal(answered.resultType, 'complete');
+  const agreedText = pending.inputRequests.confirm_spend.params.message;
+  const spent = unfold.headers.at(-1)!;
+  assert.equal(spent.client, 'test 1', 'the client named in _meta reaches Unfold');
+  assert.match(String(spent.confirmation), new RegExp(`^[A-Za-z0-9_-]{22}:${createHash('sha256').update(agreedText).digest('hex')}$`), 'the confirmation names the exact text the person agreed to');
+  assert.equal(answered.structuredContent.asked, true, JSON.stringify(answered));
+  assert.deepEqual(unfold.posted.map(body => body.askModel), [true]);
+  const replayed = (await ask(8, { inputResponses: accept, requestState: pending.requestState }))?.result;
+  assert.match(replayed.content[0].text, /already used/);
+  assert.equal(unfold.posted.length, 1, 'a confirmation spends at most once');
+
+  const second = (await ask(9))?.result;
+  const declined = (await ask(10, { inputResponses: { confirm_spend: { action: 'decline' } }, requestState: second.requestState }))?.result;
+  assert.equal(declined.structuredContent.summary, 'Not asked: the spend was not confirmed. Nothing was spent.');
+  assert.equal(unfold.posted.length, 1);
+  assert.match((await ask(11, { inputResponses: accept, requestState: second.requestState }))?.result.content[0].text, /already used/, 'a declined confirmation cannot be accepted later');
+  assert.equal(unfold.posted.length, 1);
+});
+
+test('an unfold_ask confirmation expires after 10 minutes and is refused after that, spending nothing', async t => {
+  const unfold = askingUnfold(t);
+  const url = await unfold.ready;
+  let clock = Date.parse('2026-10-16T12:00:00Z');
+  const server = createMcpServer({ url, token: `vle_${'g'.repeat(43)}`, principal: 'user-a', now: () => new Date(clock) });
+  const ask = (id: number, extra: Record<string, unknown> = {}) => server.handle({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'unfold_ask', arguments: { id: '184', question: 'Is Firefox affected?', use_model: true }, _meta: modernMeta({ elicitation: {} }), ...extra } });
+  const accept = { confirm_spend: { action: 'accept', content: { confirm: true } } };
+  const late = (await ask(1))?.result.requestState;
+  clock += 600_001;
+  assert.match((await ask(2, { inputResponses: accept, requestState: late }))?.result.content[0].text, /The confirmation expired\. Nothing was asked or spent/);
+  const timely = (await ask(3))?.result.requestState;
+  clock += 599_000;
+  assert.equal((await ask(4, { inputResponses: accept, requestState: timely }))?.result.structuredContent.asked, true, 'within 10 minutes it still spends once');
+  assert.deepEqual(unfold.posted.map(body => body.askModel), [true]);
 });
 
 test('unfold_digest reports only what changed since the cutoff, and remembers it for next time', async t => {

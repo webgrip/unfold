@@ -17,6 +17,8 @@ Use this when you want Claude Code, Codex, Cursor or another MCP client to answe
 
 Start with `unfold`. Add `ploeg` when you want spend and Run history across Teams.
 
+The steps below run `unfold` over stdio from a checkout. When your Unfold serves it over HTTPS, connect by URL and sign in in the browser instead: [Serve Unfold's MCP tools over HTTPS](serve-unfold-mcp-over-https.md#3-connect-a-client).
+
 ## Unfold
 
 1. From a checkout of this repository, sign in once. Your Unfold must have single sign-on configured.
@@ -59,4 +61,4 @@ Where Ploeg serves `ploeg-mcp` over HTTPS ([Serve Ploeg's MCP tools over HTTPS](
 | "Unfold refused UNFOLD_TOKEN" | The credential expired after 30 days or was revoked | Run `npm run mcp -- login` again |
 | `login` says Unfold answered 404 | Single sign-on is not configured on this Unfold | Configure OIDC, or use the demo, which needs no token |
 | "Not found, or outside the Teams…" | Your Unfold user is not mapped to that Work Item's Team | Ask an admin to add the Team to your user |
-| The client lists no `unfold` tools | It only speaks the 2026-07-28 revision | Use a client that starts with `initialize` over stdio, such as Claude Code |
+| The client lists no `unfold` tools | It speaks a revision `unfold-mcp` does not list | `unfold-mcp` answers `initialize` for 2025-11-25, 2025-06-18 and 2025-03-26, and per-request `_meta` for 2026-07-28; update the client |

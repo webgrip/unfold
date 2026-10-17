@@ -2,6 +2,7 @@ import { readFileSync, existsSync, mkdirSync, chmodSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppConfig, Repository, Team, Placement, WorkspaceBackend } from './types.ts';
+import { mcpHttpSettings } from './mcp-auth.ts';
 import { validateTaskSources } from './tasks.ts';
 import { reportSettings } from './reports.ts';
 import { sentryTarget } from './error-reports.ts';
@@ -379,6 +380,13 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (oidc.clientSecretEnv && !clientSecret) throw new Error(`auth.oidc.clientSecretEnv names ${oidc.clientSecretEnv}, which is not set`);
     config.auth.oidc = { issuer: configuredUrl(oidc.issuer, 'auth.oidc.issuer'), ...(oidc.subjectNamespace !== undefined ? { subjectNamespace: oidc.subjectNamespace.replace(/\/$/, '') } : {}), clientId: oidc.clientId, ...(clientSecret ? { clientSecret } : {}), scopes, displayName: oidc.displayName ?? 'Authentik', roleClaim: oidc.roleClaim ?? 'unfold_role', groupsClaim: oidc.groupsClaim ?? 'groups', roles: roles as Record<'admin' | 'operator' | 'viewer', string[]> };
   } else delete (config.auth as { oidc?: unknown }).oidc;
+  const mcp = mcpHttpSettings();
+  if (mcp) {
+    if (mode !== 'live') throw new Error('UNFOLD_MCP_RESOURCE serves unfold-mcp over HTTP for signed-in people, which needs live mode');
+    if (!config.auth.oidc) throw new Error('UNFOLD_MCP_RESOURCE needs auth.oidc: an MCP sign-in maps to the account the same person has from single sign-on');
+    if (!mcp.subjectNamespace && new URL(mcp.issuer).origin !== new URL(config.auth.oidc.issuer).origin) throw new Error('UNFOLD_MCP_ISSUER is on another origin than auth.oidc.issuer, so its subjects may not be the same people; serve both from one identity provider, or set UNFOLD_MCP_SUBJECT_NAMESPACE to the namespace whose subjects match');
+    config.mcp = mcp;
+  }
   config.runtime.maxToolCalls = number(raw.runtime?.maxToolCalls, 80, 1, 2000, 'runtime.maxToolCalls');
   if (raw.runtime?.briefCheck !== undefined && typeof raw.runtime.briefCheck !== 'boolean') throw new Error('runtime.briefCheck must be true or false');
   config.runtime.briefCheck = raw.runtime?.briefCheck ?? true;
