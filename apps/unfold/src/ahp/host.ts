@@ -138,6 +138,13 @@ const channelKey = (uri: string) => { if (isAutomationsChannel(uri)) return auto
 
 /** Keeps the dollar signs of every Markdown part a client receives literal, so VS Code's chat typesets no maths. */
 const plainDollars = (_key: string, value: unknown) => value && typeof value === 'object' && (value as Json).kind === 'markdown' && typeof (value as Json).content === 'string' ? { ...(value as Json), content: escapeMathDelimiters((value as Json).content) } : value;
+/** Why `chat/configChanged` (AHP 1.1) is refused: no configuration property is `chatMutable`, because a budget or approval change must pass the browser's authorization. */
+export const chatConfigRefusal = 'Unfold sets configuration per session, not per chat: change it on the session channel with session/configChanged, under the same rules as the browser.';
+/** Why the resource writes are refused with `-32009`: the host's files are not the person's workspace, and a Run's workspace changes only through its Team. */
+export const resourceWriteRefusal = 'This host does not let a client write, copy, move, delete or create files: a Run\'s workspace changes only through its Team, and its result is the candidate you review.';
+/** Why `vscode/collectAgentHostDebugLogs` is refused: the host's logs cover every person's sessions, so they stay with the workbench's administrator. */
+export const debugLogsRefusal = 'This host keeps its logs on the workbench, where they cover every person\'s sessions; ask its administrator for them. VS Code exports its own logs without them.';
+const resourceWrites = new Set(['resourceWrite', 'resourceCopy', 'resourceDelete', 'resourceMove', 'resourceMkdir']);
 const codes = { parse: -32700, invalidRequest: -32600, methodNotFound: -32601, invalidParams: -32602, internal: -32603, sessionNotFound: -32001, providerNotFound: -32002, sessionExists: -32003, turnInProgress: -32004, unsupportedVersion: -32005, authRequired: -32007, notFound: -32008, permissionDenied: -32009, conflict: -32011 };
 
 class RpcError extends Error { code: number; data?: unknown; constructor(code: number, message: string, data?: unknown) { super(message); this.code = code; this.data = data; } }
@@ -193,6 +200,8 @@ function answerValues(question: Json | undefined, answer: Json | undefined): str
 }
 
 const statusBits = { idle: 1, error: 2, inProgress: 8, inputNeeded: 24, isRead: 32, isArchived: 64 };
+const activityMask = 31;
+const needingInput = (status: number) => (status & ~activityMask) | statusBits.inputNeeded;
 type ViewFlag = { channel: 'session' | 'chat'; field: 'isRead' | 'isArchived'; bit: number };
 const viewFlags: Record<string, ViewFlag> = {
   'session/isReadChanged': { channel: 'session', field: 'isRead', bit: statusBits.isRead },
@@ -230,6 +239,7 @@ const digest = (token: string) => createHash('sha256').update(token).digest('hex
 /** The identifier of a connection token: the SHA-256 digest the workbench stores instead of the token. */
 export const agentHostTokenId = digest;
 const fingerprintActivity = (fingerprint: string): string | undefined => JSON.parse(fingerprint)[1] ?? undefined;
+const fingerprintChoice = (fingerprint: string): string | undefined => JSON.parse(fingerprint)[8] ?? undefined;
 
 /**
  * The files a runtime's diff artifact describes. A native file diff carries each file's `before` and `after` text; a
@@ -455,7 +465,10 @@ export class AgentHost {
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
 
-  private send(client: Client, message: Json): void { if (message.method !== 'action' || isActionKnownToVersion(message.params?.action?.type, client.protocolVersion)) client.connection.send(JSON.stringify(message, plainDollars)); }
+  private send(client: Client, message: Json): void {
+    const ownEnvelope = message.method === 'action' && client.clientId !== undefined && message.params?.origin?.clientId === client.clientId;
+    if (message.method !== 'action' || ownEnvelope || isActionKnownToVersion(message.params?.action?.type, client.protocolVersion)) client.connection.send(JSON.stringify(message, plainDollars));
+  }
 
   private notify(channelFilter: string, method: string, params: Json | ((client: Client) => Json), ownerId?: string, audience?: (client: Client) => boolean): void {
     for (const client of this.clients) if (client.initialized && client.subscriptions.has(channelFilter) && (ownerId === undefined || this.mayView(client.user, ownerId)) && (!audience || audience(client))) this.send(client, { jsonrpc: '2.0', method, params: typeof params === 'function' ? params(client) : params });
@@ -559,7 +572,7 @@ export class AgentHost {
   summary(session: Session, view: View): Json {
     const repository = this.config.repositories.find(repo => repo.id === session.repositoryId);
     return {
-      resource: this.sessionUri(session, view), provider, title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).session, activity: activity(session),
+      resource: this.sessionUri(session, view), provider, title: session.title, status: this.activityBits(session) | this.viewOf(view, this.publicId(session.id)).session, activity: activity(session),
       createdAt: session.createdAt, modifiedAt: session.updatedAt,
       ...this.project(repository, session.repositoryId),
       ...(session.candidate?.status === 'ready' ? { changes: { files: session.candidate.fileCount } } : {}),
@@ -571,8 +584,20 @@ export class AgentHost {
   private openRequests(session: Session): PermissionRequest[] { return this.store.permissions(session.id).filter(request => !request.resolved); }
 
   private inputNeeded(session: Session, view: View): Json[] {
-    return this.openRequests(session).map(request => this.inputRequest(session, request, view));
+    const choice = this.waitingChoice(session);
+    return [...this.openRequests(session).map(request => this.inputRequest(session, request, view)), ...(choice ? [this.choiceInput(session, choice, view)] : [])];
   }
+
+  private choiceInput(session: Session, choice: Json, view: View): Json { return { id: String(choice.choiceId), chat: this.chatUri(session, view), kind: 'chatInput', request: choiceRequest(choice) }; }
+
+  /** The choice the host holds open in a session's chat, while it holds that chat's projection. */
+  private waitingChoice(session: Session): Json | undefined {
+    const projection = this.projections.get(session.id);
+    return projection ? this.openChoice(projection) : undefined;
+  }
+
+  /** A session's activity bits: input needed while a permission, a question or a host choice waits for the person, otherwise its state's. */
+  private activityBits(session: Session): number { return this.waitingChoice(session) ? statusBits.inputNeeded : sessionStatus(session); }
 
   private inputRequest(session: Session, request: PermissionRequest, view: View): Json {
     const projection = this.projection(session);
@@ -636,7 +661,7 @@ export class AgentHost {
   }
 
   chatSummary(session: Session, view: View): Json {
-    return { resource: this.chatUri(session, view), title: session.title, status: sessionStatus(session) | this.viewOf(view, this.publicId(session.id)).chat, activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: session.status === 'completed' && !this.reviewOperations(session).length && !this.chatAsks.covers(session) ? 'read-only' : 'full' };
+    return { resource: this.chatUri(session, view), title: session.title, status: this.activityBits(session) | this.viewOf(view, this.publicId(session.id)).chat, activity: activity(session), modifiedAt: session.updatedAt, origin: { kind: 'user' }, interactivity: session.status === 'completed' && !this.reviewOperations(session).length && !this.chatAsks.covers(session) ? 'read-only' : 'full' };
   }
 
   chatState(session: Session, view: View): Json {
@@ -1111,7 +1136,7 @@ export class AgentHost {
         if (previous === fingerprint && !cleared.length) continue;
         this.summaries.set(id, fingerprint);
         if (previous === undefined) continue;
-        const status = sessionStatus(session);
+        const status = this.activityBits(session);
         const current = activity(session);
         if (fingerprintActivity(previous) !== current) {
           this.broadcast(channel, { type: 'session/activityChanged', activity: current });
@@ -1123,6 +1148,10 @@ export class AgentHost {
         this.broadcast(chat, { type: 'chat/changesetsChanged', changesets });
         for (const request of this.openRequests(session)) this.broadcast(channel, viewer => ({ type: 'session/inputNeededSet', request: this.inputRequest(session, request, viewer) }));
         for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(channel, { type: 'session/inputNeededRemoved', id: request.id });
+        const choice = this.waitingChoice(session);
+        if (choice) this.broadcast(channel, viewer => ({ type: 'session/inputNeededSet', request: this.choiceInput(session, choice, viewer) }));
+        const closedChoice = fingerprintChoice(previous);
+        if (closedChoice && closedChoice !== choice?.choiceId) this.broadcast(channel, { type: 'session/inputNeededRemoved', id: closedChoice });
         this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, changes: summary.changes, ...catalogOf(summary) } }; }, session.ownerId);
         if (changesets.length) { await this.loadCandidate(session); if (this.closed) return; const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations ?? [] }); }
       }
@@ -1276,7 +1305,7 @@ export class AgentHost {
   }
 
   private fingerprint(session: Session): string {
-    return JSON.stringify([sessionStatus(session), activity(session), session.title, session.candidate?.status, this.openRequests(session).map(item => item.id), session.artifacts.length, session.review?.decision, closedToMessages(session)]);
+    return JSON.stringify([sessionStatus(session), activity(session), session.title, session.candidate?.status, this.openRequests(session).map(item => item.id), session.artifacts.length, session.review?.decision, closedToMessages(session), this.waitingChoice(session)?.choiceId ?? null]);
   }
 
   private async subscribe(client: Client, channel: string): Promise<Json> {
@@ -1305,7 +1334,7 @@ export class AgentHost {
     this.knownClients.remember(clientId, { userId: user.id, scheme, protocolVersion, ...(clientInfo ? { clientInfo } : {}) });
   }
 
-  private async request(client: Client, method: string, params: Json): Promise<Json> {
+  private async request(client: Client, method: string, params: Json): Promise<Json | null> {
     if (method === 'ping') return {};
     if (method === 'initialize') {
       let negotiated: string | undefined;
@@ -1363,7 +1392,17 @@ export class AgentHost {
       }
       case 'authenticate': return {};
       case 'getNetworkDiagnosticsInfo': return { version: applicationVersion, os: process.platform, arch: process.arch, proxySettings: {}, proxyEnv: {}, endpoints: [] };
-      default: logUnanswered(method); throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
+      case 'vscode/stopBackgroundWork':
+        if (typeof params.chat !== 'string' || typeof params.id !== 'string') throw new RpcError(codes.invalidParams, 'chat and id are required');
+        return { stopped: false };
+      case 'vscode/collectAgentHostDebugLogs': throw new RpcError(codes.permissionDenied, debugLogsRefusal);
+      case 'vscode/cancelAgentHostDebugLogs':
+        if (typeof params.progressToken !== 'string') throw new RpcError(codes.invalidParams, 'progressToken is required');
+        return null;
+      default:
+        if (resourceWrites.has(method)) throw new RpcError(codes.permissionDenied, resourceWriteRefusal);
+        logUnanswered(method);
+        throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
     }
   }
 
@@ -1458,7 +1497,7 @@ export class AgentHost {
   private setViewFlag(client: Client, channel: string, kind: ChannelKind, pending: PendingSession | undefined, action: Json, origin: Origin, flag: ViewFlag): string | undefined {
     const session = pending ? undefined : this.sessionFor(client.user, channel);
     if (!pending && !session) return 'Session not found';
-    return this.setFlag(client, channel, kind, { publicId: session ? this.publicId(session.id) : pending!.id, activityBits: session ? sessionStatus(session) : statusBits.idle, summary: viewer => session ? this.summary(session, viewer) : this.pendingSummary(pending!, viewer) }, action, origin, flag);
+    return this.setFlag(client, channel, kind, { publicId: session ? this.publicId(session.id) : pending!.id, activityBits: session ? this.activityBits(session) : statusBits.idle, summary: viewer => session ? this.summary(session, viewer) : this.pendingSummary(pending!, viewer) }, action, origin, flag);
   }
 
   /** Sets a person's own read or archive flag on a session, which no other person sees. */
@@ -1483,7 +1522,24 @@ export class AgentHost {
 
   private workItemSpelling(publicId: string, view: Pick<View, 'scheme'>): Spelling { return { session: sessionChannel(publicId, view.scheme), chat: chatChannel(publicId, view.scheme) }; }
 
-  private workItemSummary(entry: WorkItemRecord, view: View): Json { return { ...workItemSummary(entry, this.workItemSpelling(entry.publicId, view), this.viewOf(view, entry.publicId), view.protocolVersion), ...this.workItemProject(entry.item) }; }
+  private workItemSummary(entry: WorkItemRecord, view: View): Json {
+    const summary = { ...workItemSummary(entry, this.workItemSpelling(entry.publicId, view), this.viewOf(view, entry.publicId), view.protocolVersion), ...this.workItemProject(entry.item) };
+    return this.workItemCommands.open(view.user.id, entry.workItemId) ? this.awaitingPerson(summary) : summary;
+  }
+
+  /** A Work Item session or summary while one of the host's questions waits for the person: input needed on the session and its default chat. */
+  private awaitingPerson(state: Json): Json {
+    return { ...state, status: needingInput(state.status), ...(Array.isArray(state.chats) ? { chats: state.chats.map((chat: Json) => chat.resource === state.defaultChat ? { ...chat, status: needingInput(chat.status) } : chat) } : {}) };
+  }
+
+  /** Tells the person's clients a Work Item session's status after one of the host's questions opened or closed. */
+  private announceWorkItemStatus(user: User, publicId: string): void {
+    const entry = this.workItems.remembered(user, publicId);
+    if (!entry) return;
+    const own = (client: Client) => client.user.id === user.id;
+    this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.workItemSummary(entry, viewer); return { channel: rootChannel, session: summary.resource, changes: { status: summary.status, ...catalogOf(summary) } }; }, undefined, own);
+    this.broadcast(sessionChannel(publicId), viewer => { const summary = this.workItemSummary(entry, viewer); return { type: 'session/chatUpdated', chat: chatChannel(publicId, viewer.scheme), changes: { status: summary.chats?.[0]?.status ?? summary.status } }; }, undefined, own);
+  }
 
   /** The person's Work Item sessions for `listSessions`. Whatever Ploeg does, Unfold's own sessions still list. */
   private async workItemSummaries(client: Client): Promise<Json[]> {
@@ -1500,10 +1556,10 @@ export class AgentHost {
     const spelling = this.workItemSpelling(parsed.id, client);
     const flags = this.viewOf(client, parsed.id);
     const open = this.workItemCommands.open(client.user.id, found.entry.workItemId);
-    const state = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling)
-      : parsed.kind === 'session' ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id)), ...this.workItemProject(found.entry.item), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] }
-      : parsed.kind === 'chat' ? withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId), this.workItemCommands.notes(client.user.id, found.entry.workItemId))
-      : undefined;
+    const sessionState = parsed.kind === 'session' && !parsed.run ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id)), ...this.workItemProject(found.entry.item), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] } : undefined;
+    const chatState = parsed.kind === 'chat' && !parsed.run ? withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId), this.workItemCommands.notes(client.user.id, found.entry.workItemId)) : undefined;
+    const waiting = (state: Json) => open ? this.awaitingPerson(state) : state;
+    const state = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling) : sessionState ? waiting(sessionState) : chatState ? waiting(chatState) : undefined;
     if (!state) throw new RpcError(codes.notFound, 'Unknown channel');
     return { resource: channel, state, fromSeq: this.serverSeq };
   }
@@ -1698,6 +1754,7 @@ export class AgentHost {
     this.workItemCommands.claim(prompt, response, answers);
     this.echo(client, channel, { type: 'chat/inputCompleted', requestId: prompt.requestId, response, ...(answers ? { answers } : {}) }, origin, own);
     this.broadcast(sessionChannel(prompt.publicId), { type: 'session/inputNeededRemoved', id: prompt.requestId }, undefined, own);
+    this.announceWorkItemStatus(user, prompt.publicId);
     const outcome = await this.workItemCommands.carry(user, prompt);
     for (const closed of promptClosedActions(prompt)) this.broadcast(chatChannel(prompt.publicId), closed, undefined, own);
     if (outcome.askAgain) { const again = this.workItemCommands.ask(user, entry, prompt.kind); if (again.created) this.publishPromptOpened(user, again.prompt); }
@@ -1709,6 +1766,7 @@ export class AgentHost {
     const own = (viewer: Client) => viewer.user.id === user.id;
     for (const opened of promptOpenActions(prompt, turnOpened)) this.broadcast(chatChannel(prompt.publicId), opened, undefined, own);
     this.broadcast(sessionChannel(prompt.publicId), viewer => ({ type: 'session/inputNeededSet', request: promptInputNeeded(prompt, chatChannel(prompt.publicId, viewer.scheme)) }), undefined, own);
+    this.announceWorkItemStatus(user, prompt.publicId);
   }
 
   /** Tells the person's clients that a question closed without their answer, and why. */
@@ -1717,6 +1775,7 @@ export class AgentHost {
     this.broadcast(chatChannel(prompt.publicId), { type: 'chat/inputCompleted', requestId: prompt.requestId, response: 'cancel' }, undefined, own);
     this.broadcast(sessionChannel(prompt.publicId), { type: 'session/inputNeededRemoved', id: prompt.requestId }, undefined, own);
     for (const closed of promptClosedActions(prompt)) this.broadcast(chatChannel(prompt.publicId), closed, undefined, own);
+    this.announceWorkItemStatus(user, prompt.publicId);
   }
 
   private setActiveClient(client: Client, channel: string, publicId: string, action: Json, origin: Origin): string | undefined {
@@ -2181,7 +2240,8 @@ export class AgentHost {
     if (method === 'unsubscribe') { if (typeof params.channel === 'string') client.subscriptions.delete(params.channel); return; }
     if (method !== 'dispatchAction') return;
     const channel = String(params.channel ?? '');
-    const action = (params.action ?? {}) as Json;
+    const dispatched = (params.action ?? {}) as Json;
+    const action = ['chat/pendingMessageSet', 'chat/pendingMessageRemoved'].includes(dispatched.type) && dispatched.kind === undefined ? { ...dispatched, kind: 'queued' } : dispatched;
     const origin = { clientId: client.clientId ?? client.id, clientSeq: Number(params.clientSeq) || 0 };
     const reject = (reason: string) => { this.reject(client, channel, action, origin, reason); this.showRefusal(client, channel, action, reason); };
     try {
@@ -2198,6 +2258,7 @@ export class AgentHost {
       const parsed = parseChannel(channel);
       if (!parsed) { reject('Unknown channel'); return; }
       if (parsed.run) { reject('A Run\'s chat is read-only; send messages in the session\'s chat'); return; }
+      if (action.type === 'chat/configChanged') { reject(chatConfigRefusal); return; }
       if (isWorkItemSession(parsed.id)) { const refused = await this.dispatchToWorkItem(client, channel, parsed.kind, parsed.id, action, origin); if (refused) reject(refused); return; }
       const pending = parsed.kind !== 'changeset' ? this.pending.get(parsed.id) : undefined;
       if (pending && !this.mayView(client.user, pending.user.id)) { reject('Session not found'); return; }

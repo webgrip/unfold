@@ -476,6 +476,30 @@ test('Stop on a running Work Item only asks whether to withdraw it, and nothing 
   assert.equal(f.state.writes.length, 0, 'keeping it running calls nothing');
 });
 
+test('while the host asks about a Work Item, its session and chat need input, which VS Code 1.142 shows as "Needs attention"', { timeout: testTimeout(20_000) }, async t => {
+  const f = await commanding(t);
+  const session = 'unfold:/wi-202';
+  const chat = defaultChatOf(session);
+  assert.notEqual((await f.client.rpc('subscribe', { channel: session })).snapshot.state.status & 24, 24, 'running work needs nobody');
+  await f.client.rpc('subscribe', { channel: chat });
+  const mark = f.client.inbox.length;
+  await f.answered(f.dispatch(chat, { type: 'chat/turnCancelled', turnId: 'wi-202-round-1-1' }));
+  const question = (await f.requested(chat)).params.action.request;
+  const summary = await f.client.until(message => message.method === 'root/sessionSummaryChanged' && message.params.session === session && f.client.inbox.indexOf(message) >= mark);
+  assert.equal(summary.params.changes.status & 24, 24);
+  assert.equal((await f.client.until(message => action(message, session, 'session/chatUpdated') && f.client.inbox.indexOf(message) >= mark)).params.action.changes.status & 24, 24);
+  const asked = (await f.client.rpc('subscribe', { channel: session })).snapshot.state;
+  assert.equal(asked.status & 24, 24);
+  assert.equal(asked.chats[0].status & 24, 24);
+  assert.equal((await f.client.rpc('subscribe', { channel: chat })).snapshot.state.status & 24, 24);
+  assert.equal((await f.listed(f.client)).find(item => item.resource === session)!.status & 24, 24);
+
+  const answered = f.client.inbox.length;
+  f.dispatch(chat, { type: 'chat/inputCompleted', requestId: question.id, response: 'cancel' });
+  const cleared = await f.client.until(message => message.method === 'root/sessionSummaryChanged' && message.params.session === session && f.client.inbox.indexOf(message) >= answered);
+  assert.notEqual(cleared.params.changes.status & 24, 24, 'answering clears it');
+});
+
 test('confirming Stop withdraws the Work Item once, as the person, with a command recorded first', { timeout: testTimeout(20_000) }, async t => {
   const f = await commanding(t);
   const chat = defaultChatOf('unfold:/wi-202');
