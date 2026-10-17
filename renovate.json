@@ -114,10 +114,11 @@
       "semanticCommitScope": "actions"
     },
     {
-      "description": "The agent image and the mise pin must move together: one OpenCode version is what the workbench, the probe and the image share.",
+      "description": "The agent image and the mise pin must move together: one OpenCode version is what the workbench, the probe and the image share. The npm package names no repository, so Renovate cannot find its release notes by itself; naming the source puts them in the pull request, where the person merging and the Run that explains the update (Ploeg ADR-0106) read them.",
       "matchPackageNames": [
         "opencode-ai"
       ],
+      "sourceUrl": "https://github.com/anomalyco/opencode",
       "groupName": "opencode",
       "semanticCommitType": "fix",
       "semanticCommitScope": "agent"
