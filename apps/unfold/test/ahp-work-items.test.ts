@@ -1073,6 +1073,9 @@ test('every client action on a Run\'s pod-log terminal is refused as read-only, 
   op.notify('dispatchAction', { channel: terminal, clientSeq: 1, action: { type: 'terminal/input', data: 'rm -rf /\r' } });
   const refused = await op.until(message => action(message, terminal, 'terminal/input'));
   assert.equal(refused.params.rejectionReason, readOnlyTerminal);
+  const unwatched = 'ahp-terminal:/wi-209/1';
+  op.notify('dispatchAction', { channel: unwatched, clientSeq: 3, action: { type: 'terminal/input', data: 'ls\r' } });
+  assert.equal((await op.until(message => action(message, unwatched, 'terminal/input'))).params.rejectionReason, 'Terminal not found', 'a terminal the person does not watch is not confirmed to exist');
   op.notify('dispatchAction', { channel, clientSeq: 2, action: { type: 'chat/turnStarted', turnId: 'mine-1', message: { text: 'go faster', origin: { kind: 'user' } } } });
   const reply = await op.until(message => action(message, channel, 'chat/responsePart'));
   assert.match(reply.params.action.part.content, /read-only/);

@@ -2305,7 +2305,7 @@ export class AgentHost {
       if (parseAnnotationsChannel(channel)) { const refused = this.review.dispatchAnnotation(client, channel, action, origin); if (refused) reject(refused); return; }
       if (isAutomationsChannel(channel)) { reject(this.automations.refuse(action)); return; }
       const terminal = parseTerminalChannel(channel);
-      if (terminal) { reject(isWorkItemSession(terminal.sessionId) || this.sessionFor(client.user, sessionChannel(terminal.sessionId)) ? readOnlyTerminal : 'Terminal not found'); return; }
+      if (terminal) { reject((isWorkItemSession(terminal.sessionId) ? client.subscriptions.has(channel) : this.sessionFor(client.user, sessionChannel(terminal.sessionId))) ? readOnlyTerminal : 'Terminal not found'); return; }
       if (client.terminals?.has(channel)) { reject(noClientShell); return; }
       const parsed = parseChannel(channel);
       if (!parsed) { reject('Unknown channel'); return; }
