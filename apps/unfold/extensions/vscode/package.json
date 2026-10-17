@@ -745,7 +745,7 @@
           {
             "id": "agentsWindow",
             "title": "Use Unfold from the Agents window",
-            "description": "Signing in adds Unfold to VS Code's Agents window. There, choose New, then Workspace ▾ → Unfold · <repository> to start a session; your sessions are grouped the same way.\n[Open the Agents window](command:unfold.openAgentsWindow)",
+            "description": "Signing in adds Unfold to VS Code's Agents window. There, choose New, then Workspace ▾ → Folders (Unfold) → <repository> to start a session; your sessions are grouped the same way.\n[Open the Agents window](command:unfold.openAgentsWindow)",
             "media": {
               "markdown": "media/walkthrough/agents-window.md"
             },
