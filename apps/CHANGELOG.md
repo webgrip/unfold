@@ -1,3 +1,13 @@
+## [unfold-v0.4.0-rc.84](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.83...unfold-v0.4.0-rc.84) (2026-10-17)
+
+### Performance
+
+* **verify:** cut the CPU that verification spends and skip unchanged gates locally ([8029a38](https://forgejo.webgrip.dev/webgrip/unfold/commit/8029a3878ccd059941d7ef9020357cf201503c51))
+
+### Build
+
+* **ploeg:** update ploeg ( v0.2.0-rc.24 ➔ v0.2.0-rc.25 ) ([bba8c20](https://forgejo.webgrip.dev/webgrip/unfold/commit/bba8c207a4171acab7da8007b6f4a70bb85b6a94))
+
 ## [unfold-v0.4.0-rc.83](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.82...unfold-v0.4.0-rc.83) (2026-10-17)
 
 ### Added
