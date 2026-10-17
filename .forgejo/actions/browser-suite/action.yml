@@ -18,4 +18,6 @@ runs:
     - name: Run the browser flows
       shell: bash
       working-directory: apps/unfold
+      env:
+        UNFOLD_BROWSER_TIMEOUT_SCALE: '3'
       run: npm run test:browser

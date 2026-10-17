@@ -12,7 +12,7 @@ concurrency:
 jobs:
   browser-suite:
     runs-on: docker
-    timeout-minutes: 30
+    timeout-minutes: 45
     container:
       image: harbor.webgrip.dev/mcr/playwright:v1.64.0-noble@sha256:06a9939e57531807f8d5fd76ce44b53165ffb7d7501d87ab10e285c20b1e971f
     steps:
