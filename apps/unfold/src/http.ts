@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { actionContext, channelOf, confirmationOf, describeAction, isAction, outcomeOf, recordedInputs } from './action-records.ts';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
 import { Auth, editorCredentialDays, editorLabel, type EditorRequestView } from './auth.ts';
 import type { Engine } from './engine.ts';
@@ -52,7 +53,15 @@ function json(res: ServerResponse, status: number, value: unknown): void {
   res.end(JSON.stringify(value));
 }
 
+const parsedBodies = new WeakMap<IncomingMessage, Record<string, unknown>>();
+
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const parsed = await readBody(req);
+  parsedBodies.set(req, parsed);
+  return parsed;
+}
+
+async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   if (!req.headers['content-type']?.startsWith('application/json')) fault(415, 'content_type', 'Use application/json.');
   const chunks: Buffer[] = [];
   let size = 0;
@@ -203,7 +212,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     if (!session || (session.ownerId !== user.id && user.role !== 'admin')) fault(404, 'not_found', 'Session not found.');
     return session as Session;
   }
-  const server = createServer(async (req, res) => {
+  const handle = async (req: IncomingMessage, res: ServerResponse) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -560,6 +569,17 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             throw error;
           }
         }
+        if (path === '/api/actions') {
+          if (method !== 'GET') fault(405, 'method', 'List actions with GET.');
+          const workItem = url.searchParams.get('workItemId');
+          const session = url.searchParams.get('sessionId');
+          const before = Number(url.searchParams.get('before') ?? '');
+          const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? '') || 50));
+          const target = workItem ? { kind: 'work-item' as const, id: text(workItem, 'Work Item', 40) } : session ? { kind: 'session' as const, id: text(session, 'Session', 80) } : undefined;
+          const person = user.role === 'admin' ? url.searchParams.get('userId') || undefined : user.id;
+          const actions = store.actionRecords({ userId: person, target, before: Number.isInteger(before) && before > 0 ? before : undefined, limit: limit + 1 });
+          return json(res, 200, sanitize({ actions: actions.slice(0, limit), nextBefore: actions.length > limit ? actions[limit - 1].id : null }));
+        }
         if (path === '/api/asks') {
           if (method !== 'GET') fault(405, 'method', 'List your Asks with GET.');
           return json(res, 200, sanitize(await asks.mine(user)));
@@ -780,6 +800,24 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       }
       json(res, status, sanitize({ error: { code, message } }));
     }
+  };
+  const server = createServer((req, res) => {
+    const method = req.method || 'GET';
+    const requested = new URL(req.url || '/', 'http://localhost');
+    const path = requested.pathname;
+    if (!isAction(method, path)) { void handle(req, res); return; }
+    const scope = auth.scope(req);
+    const signIn = scope === 'editor' ? auth.signIn(req) : undefined;
+    const channel = channelOf(scope, signIn ? store.getEditorCredential(signIn)?.label : undefined, req.headers['x-unfold-client']);
+    const confirmation = confirmationOf(req.headers['x-unfold-confirmation']);
+    res.once('finish', () => {
+      const user = auth.user(req);
+      if (!user || res.statusCode === 401) return;
+      const { action, target } = describeAction(method, path);
+      try { store.recordAction({ at: new Date().toISOString(), userId: user.id, userName: user.name, role: user.role, channel, action, method, target, inputs: recordedInputs({ ...(parsedBodies.get(req) ?? {}), ...(requested.search ? { query: Object.fromEntries(requested.searchParams) } : {}) }) as Record<string, unknown>, confirmation, status: res.statusCode, outcome: outcomeOf(res.statusCode) }); }
+      catch (error) { console.error(JSON.stringify({ level: 'error', event: 'action_record.failed', action, message: String((error as Error).message).slice(0, 300) })); }
+    });
+    void actionContext.run({ via: channel, confirmation }, () => handle(req, res));
   });
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
