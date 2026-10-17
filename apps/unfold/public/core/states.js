@@ -461,6 +461,8 @@ export function auditEvent(entry) {
     case 'pull_request.conflicted': return event('The pull request has a merge conflict', 'attention', 'alert', pullRequestNumber(detail.number));
     case 'pull_request.mergeable': return event('The merge conflict is resolved', 'success', 'check', pullRequestNumber(detail.number));
     case 'pull_request.reverted': return event('The merged pull request was reverted', 'attention', 'undo', pullRequestNumber(detail.pr));
+    case 'pull_request.closed_for_leak': return event('The pull request was closed after a credential leak', 'severe', 'circle-slash', pullRequestNumber(detail.pull_request));
+    case 'pull_request.leak_close_failed': return event('The pull request could not be closed after a credential leak', 'attention', 'alert', [pullRequestNumber(detail.pull_request), sentence(detail.error)].filter(Boolean).join(' · '));
     case 'pull_request_comment.upserted': return event('Comment posted on the pull request', 'neutral', 'send', detail.created === false ? 'Replaced its earlier version' : pullRequestNumber(detail.number));
     case 'pull_request_comment.deleted': return event('Comment removed from the pull request', 'neutral', 'minus', pullRequestNumber(detail.number));
     case 'deploy.recorded': return event(typeof detail.environment === 'string' && detail.environment.trim() ? `Deployed to ${detail.environment.trim()}` : 'Deployed', 'success', 'send', typeof detail.repo === 'string' ? detail.repo : '');
