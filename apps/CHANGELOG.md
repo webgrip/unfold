@@ -1,3 +1,29 @@
+## [unfold-v0.4.0-rc.82](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.81...unfold-v0.4.0-rc.82) (2026-10-17)
+
+### Added
+
+* **unfold:** refuse to start in live mode without Ploeg execution ([ac6a166](https://forgejo.webgrip.dev/webgrip/unfold/commit/ac6a1667939d59c0a2d2a73766df7f4e15c13327))
+* **unfold:** show a running Run's transcript and pod logs in the Agents window ([cdeebec](https://forgejo.webgrip.dev/webgrip/unfold/commit/cdeebec686b7a1ac3b4bd5ea5fdeb90ae169f6f7))
+* **unfold:** show who did what on each Work Item and on an Activity page ([499f7fd](https://forgejo.webgrip.dev/webgrip/unfold/commit/499f7fd40a96a4434e52c8c54f07c2bc04e659bd))
+
+### Fixed
+
+* **agent:** update opencode ( 1.19.0 ➔ 1.19.2 ) ([d54b7cb](https://forgejo.webgrip.dev/webgrip/unfold/commit/d54b7cbf84e66e2666408ccfeb4990a1cb5794d6))
+* **unfold:** answer Terminal not found for a Run's pod-log terminal the person does not watch ([e22db33](https://forgejo.webgrip.dev/webgrip/unfold/commit/e22db33c54508d22036609cc8d398c4d53a81d21))
+* **unfold:** classify LiteLLM gateway errors by their body, not their status ([7e01e44](https://forgejo.webgrip.dev/webgrip/unfold/commit/7e01e4439489aeecb1a26f8396107cfb17ef55f1))
+* **unfold:** declare unfold_get_work's routingWarning in its output schema ([93f759b](https://forgejo.webgrip.dev/webgrip/unfold/commit/93f759b982747b58626952ef4c2378f02ed41b0d))
+* **unfold:** let the task-source example start live under Ploeg ([f685bff](https://forgejo.webgrip.dev/webgrip/unfold/commit/f685bff4d6df7bfbb623cb2a8ddec4036c33e1bb))
+* **unfold:** word the Ploeg values Unfold showed raw ([514ab3b](https://forgejo.webgrip.dev/webgrip/unfold/commit/514ab3bf337508ae13d3be074569a1db89b73bf9))
+
+### Docs
+
+* **adr:** record the Run card rules Unfold computes in Unfold ADR 0045 ([f546191](https://forgejo.webgrip.dev/webgrip/unfold/commit/f546191743847af28ff9f6726c13a856cd3630f7))
+* **unfold:** record the live Run transcript and pod-log terminal in the agent-host contract ([d55cf18](https://forgejo.webgrip.dev/webgrip/unfold/commit/d55cf18206b2859b65344ce6b2a7a33546335e4e))
+
+### Tests
+
+* **unfold:** drive unfold-mcp over HTTPS end to end through a real Authentik ([8ad67f8](https://forgejo.webgrip.dev/webgrip/unfold/commit/8ad67f85895cf15ebb444685a804b693f01ac65d))
+
 ## [unfold-v0.4.0-rc.81](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.80...unfold-v0.4.0-rc.81) (2026-10-17)
 
 ### Added
