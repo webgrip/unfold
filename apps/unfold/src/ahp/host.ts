@@ -26,6 +26,7 @@ import { catalogOf, isActionKnownToVersion, negotiateProtocolVersion, oldestBase
 import { ChatAsks, askMarkdown, commandCompletions, messageIntent, type ChatAskEntry, type ChatAskService } from './asks.ts';
 import { candidateEdits, carryRuns, parseRunChannel, runChatChannel, runChatState, runChats, runFinished, runMessage, runRoute, runStarted, runTool, runTranscripts, stopRuns, toolActions, type RunTranscripts, type Spelling } from './runs.ts';
 import { WorkItemSessions, isWorkItemSession, workItemChatState, workItemIdOf, workItemRefusal, workItemRefusals, workItemRunChatState, workItemSessionState, workItemStatus, workItemSummary, type RoutedAction, type WorkItemRecord } from './work-items.ts';
+import { RunLive, type LiveAction } from './run-live.ts';
 import { WorkItemCommands, openShiftOf, promptClosedActions, promptInputNeeded, promptOpenActions, restartable, takesNotes, withPrompts, workItemCommandText, type WorkItemPrompt } from './work-item-commands.ts';
 import { PloegError } from '../ploeg.ts';
 import { refusalPlacement, refusalReply } from './refusals.ts';
@@ -297,6 +298,8 @@ export class AgentHost {
   readonly workItems: WorkItemSessions;
   /** The confirmed commands a person gives those Work Items. */
   readonly workItemCommands: WorkItemCommands;
+  /** What Ploeg records of a watched running Run: its transcript and pod logs. */
+  readonly runLive: RunLive;
 
   private readonly redact: (text: string) => string;
   private delivery?: DeliveryService;
@@ -340,6 +343,10 @@ export class AgentHost {
       transcript: (entry, actions) => this.publishWorkItemTranscript(entry, actions),
     });
     this.workItemCommands = new WorkItemCommands(store, this.workItems.client, config.maxBudgetUsd);
+    this.runLive = new RunLive(this.workItems.client, {
+      watchers: (publicId, toolCallId, terminal) => [...new Map([...this.clients].filter(client => client.initialized && [...client.subscriptions].some(channel => channel === terminal || (parseChannel(channel)?.id === publicId && parseChannel(channel)?.run === toolCallId))).map(client => [client.user.id, client.user])).values()],
+      publish: (publicId, toolCallId, terminal, team, actions) => this.publishRunLive(publicId, toolCallId, terminal, team, actions),
+    }, this.redact);
   }
 
   /** Connects the Ask service, so a person can ask about a session's Work Item from its chat without reaching the team (system ADR-0031). */
@@ -487,7 +494,7 @@ export class AgentHost {
   /** Whether a dropped active client is inside its grace period, waiting to reconnect; the signal a caller waits on instead of the wall clock. */
   isDeparting(clientId: string): boolean { return this.departing.has(clientId); }
 
-  close(): void { this.closed = true; this.stopPolling(); clearInterval(this.sweeper); this.automations.close(); this.workItems.close(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
+  close(): void { this.closed = true; this.stopPolling(); clearInterval(this.sweeper); this.automations.close(); this.workItems.close(); this.runLive.close(); for (const timer of this.departing.values()) clearTimeout(timer); this.departing.clear(); for (const client of this.clients) client.connection.close(1001, 'Server shutting down'); this.clients.clear(); }
 
   private startPolling(): void { if (!this.timer) this.timer = setInterval(() => void this.poll(), pollMs); }
   private stopPolling(): void { if (this.timer) { clearInterval(this.timer); this.timer = undefined; } }
@@ -1343,6 +1350,8 @@ export class AgentHost {
       return snapshot;
     }
     if (isAutomationsChannel(channel)) { const state = await this.automations.snapshot(client.user); client.subscriptions.add(channel); return { resource: channel, state, fromSeq: this.serverSeq }; }
+    const terminal = parseTerminalChannel(channel);
+    if (terminal && isWorkItemSession(terminal.sessionId)) { const snapshot = await this.podLogsSnapshot(client, channel, terminal); client.subscriptions.add(channel); return snapshot; }
     const parsed = parseChannel(channel);
     if (parsed && isWorkItemSession(parsed.id)) { const snapshot = await this.workItemSnapshot(client, channel, parsed); client.subscriptions.add(channel); return snapshot; }
     const loading = parsed ? this.sessionFor(client.user, channel) : undefined;
@@ -1586,7 +1595,8 @@ export class AgentHost {
     const sessionState = parsed.kind === 'session' && !parsed.run ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id)), ...this.workItemProject(found.entry.item), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] } : undefined;
     const chatState = parsed.kind === 'chat' && !parsed.run ? withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId), this.workItemCommands.notes(client.user.id, found.entry.workItemId)) : undefined;
     const waiting = (state: Json) => open ? this.awaitingPerson(state) : state;
-    const state = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling) : sessionState ? waiting(sessionState) : chatState ? waiting(chatState) : undefined;
+    const runChat = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling) : undefined;
+    const state = parsed.run ? runChat && await this.runLive.chat(client.user, found.detail, parsed.run, runChat) : sessionState ? waiting(sessionState) : chatState ? waiting(chatState) : undefined;
     if (!state) throw new RpcError(codes.notFound, 'Unknown channel');
     return { resource: channel, state, fromSeq: this.serverSeq };
   }
@@ -1614,6 +1624,21 @@ export class AgentHost {
       const channel = item.to === 'chat' ? chatChannel(entry.publicId) : item.to === 'session' ? sessionChannel(entry.publicId) : runChatChannel(sessionChannel(entry.publicId), item.to.run);
       this.broadcast(channel, client => routed(client)[index].action, undefined, allowed);
     });
+  }
+
+  private async podLogsSnapshot(client: Client, channel: string, terminal: { sessionId: string; commandId: string }): Promise<Json> {
+    const workItemId = workItemIdOf(terminal.sessionId);
+    let found: Awaited<ReturnType<WorkItemSessions['session']>>;
+    try { found = workItemId ? await this.workItems.session(client.user, workItemId) : undefined; } catch { found = undefined; }
+    const state = found && await this.runLive.terminal(client.user, found.detail, terminal.commandId, this.workItemSpelling(terminal.sessionId, client));
+    if (!state) throw new RpcError(codes.notFound, 'Terminal not found');
+    return { resource: channel, state, fromSeq: this.serverSeq };
+  }
+
+  private publishRunLive(publicId: string, toolCallId: string, terminal: string, team: string, actions: LiveAction[]): void {
+    const allowed = (client: Client) => this.workItems.allows(client.user, team);
+    const chat = runChatChannel(sessionChannel(publicId), toolCallId);
+    for (const item of actions) this.broadcast(item.to === 'terminal' ? terminal : chat, item.action, undefined, allowed);
   }
 
   /**
@@ -2280,7 +2305,7 @@ export class AgentHost {
       if (parseAnnotationsChannel(channel)) { const refused = this.review.dispatchAnnotation(client, channel, action, origin); if (refused) reject(refused); return; }
       if (isAutomationsChannel(channel)) { reject(this.automations.refuse(action)); return; }
       const terminal = parseTerminalChannel(channel);
-      if (terminal) { reject(this.sessionFor(client.user, sessionChannel(terminal.sessionId)) ? readOnlyTerminal : 'Terminal not found'); return; }
+      if (terminal) { reject(isWorkItemSession(terminal.sessionId) || this.sessionFor(client.user, sessionChannel(terminal.sessionId)) ? readOnlyTerminal : 'Terminal not found'); return; }
       if (client.terminals?.has(channel)) { reject(noClientShell); return; }
       const parsed = parseChannel(channel);
       if (!parsed) { reject('Unknown channel'); return; }
