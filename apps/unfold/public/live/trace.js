@@ -75,20 +75,22 @@ export function traceLanes(model, { selectedCall = null, scope = 'shift' } = {})
       rows.push(`<rect class="${cx('lv-bar', `is-${tone}`)}" x="${r(x1)}" y="${y + 3}" width="${r(x2 - x1)}" height="${laneH - 6}" rx="3"><title>${escape(move.title)} · ${move.calls.length} calls · ${escape(span(move.seconds))}</title></rect>`);
     });
     y += laneH + gap;
-    for (const lane of callLanes) {
-      const members = calls.filter(call => lane.kinds.includes(call.kind));
-      rows.push(laneLabel(lane.label, y - 2, ''));
-      rows.push(`<text class="lv-label lv-label-mono" x="${gutter - 10}" y="${y + 15}" text-anchor="end">${members.length}</text>`);
-      rows.push(`<rect class="lv-lane" x="${gutter}" y="${y}" width="${width}" height="${laneH - 6}" rx="4"></rect>`);
-      if (!members.length && lane.id === 'edit') rows.push(`<text class="lv-label" x="${gutter + 10}" y="${y + 14}">no file changed${model.running ? ' yet' : ''}</text>`);
-      for (const call of members) {
-        if (call.at === null) continue;
-        const cxv = x(call.at);
-        const tone = call.failed ? 'failed' : call.interrupting ? 'trouble' : lane.id;
-        rows.push(`<rect class="${cx('lv-tick', `is-${tone}`, call.id === selectedCall ? 'is-selected' : '')}" x="${r(cxv - 1.5)}" y="${y + 3}" width="3" height="${laneH - 12}" rx="1"><title>${escape(clock(call.at))} · ${escape(call.title)}</title></rect>`);
-      }
-      y += laneH - 6 + gap;
+    const laneOf = call => callLanes.find(lane => lane.kinds.includes(call.kind))?.id ?? 'other';
+    rows.push(laneLabel('Calls', y - 2, `${model.edits} ${model.edits === 1 ? 'file' : 'files'} changed`));
+    rows.push(`<text class="lv-label lv-label-mono" x="${gutter - 10}" y="${y + 15}" text-anchor="end">${calls.length}</text>`);
+    rows.push(`<rect class="lv-lane" x="${gutter}" y="${y}" width="${width}" height="${laneH - 4}" rx="4"></rect>`);
+    for (const call of calls) {
+      if (call.at === null) continue;
+      const tone = call.failed ? 'failed' : call.interrupting ? 'trouble' : laneOf(call);
+      rows.push(`<rect class="${cx('lv-tick', `is-${tone}`, call.id === selectedCall ? 'is-selected' : '')}" x="${r(x(call.at) - 1.5)}" y="${y + 3}" width="3" height="${laneH - 10}" rx="1"><title>${escape(clock(call.at))} · ${escape(call.title)}</title></rect>`);
     }
+    y += laneH + gap + 14;
+    let keyX = gutter;
+    for (const lane of callLanes) {
+      rows.push(`<rect class="lv-tick is-${lane.id}" x="${keyX}" y="${y - 18}" width="3" height="10" rx="1"></rect><text class="lv-label" x="${keyX + 8}" y="${y - 9}">${escape(lane.label)}</text>`);
+      keyX += 80;
+    }
+    rows.push(`<rect class="lv-tick is-failed" x="${keyX}" y="${y - 18}" width="3" height="10" rx="1"></rect><text class="lv-label" x="${keyX + 8}" y="${y - 9}">Failed</text>`);
   }
   if (!rows.length) return `<p class="lv-empty">No Run yet, so there is nothing to trace.</p>`;
   const label = `Trace: ${model.attempts.length} attempts, ${model.runs.length} Runs${followed ? `; Run ${followed.n} made ${calls.length} calls in ${model.moves.length} moves` : ''}.`;
@@ -98,19 +100,20 @@ export function traceLanes(model, { selectedCall = null, scope = 'shift' } = {})
 const kindWords = { execute: 'shell', read: 'read', search: 'search', fetch: 'fetch', edit: 'edit', delete: 'delete', move: 'move', think: 'think', other: 'call' };
 
 /**
- * The followed Run's moves as a list of native disclosures: each move with its time, calls and duration, open when it
- * is live or ran into trouble, and inside it every call with its command, status and the thought that led to it.
+ * The followed Run's newest moves as a list of native disclosures: each move with its time, calls and duration, open
+ * when it is live or is the latest to run into trouble, and inside it every call with its command, status and the thought that led to it.
  * @param {object} model A `liveModel` result.
  * @param {{ selectedCall?: string, limit?: number }} [options] `limit` keeps the newest moves.
  * @returns {string}
  */
-export function moveList(model, { selectedCall = null, limit = 50 } = {}) {
+export function moveList(model, { selectedCall = null, limit = 6 } = {}) {
   if (!model.moves.length) return `<p class="lv-empty">${model.running ? 'The Run has not made a tool call yet.' : 'No transcript for this Work Item.'}</p>`;
   const moves = model.moves.slice(-limit);
   const hidden = model.moves.length - moves.length;
+  const lastTrouble = [...moves].reverse().find(move => move.trouble);
   const items = moves.map(move => {
-    const open = move.live || move.trouble || move.calls.some(call => call.id === selectedCall);
-    const calls = move.calls.map(call => `<li class="${cx('lv-call', call.failed ? 'is-failed' : call.interrupting ? 'is-trouble' : '', call.id === selectedCall ? 'is-selected' : '')}"><span class="lv-call-time">${escape(clock(call.at))}</span><span class="lv-call-body"><span class="lv-call-title">${escape(call.title)} <span class="lv-call-kind">${escape(kindWords[call.kind] ?? call.kind)}</span>${call.failed ? ' <span class="lv-call-state">failed</span>' : ''}</span>${call.input ? `<code class="lv-call-input">${escape(call.input)}</code>` : ''}${call.thought ? `<span class="lv-call-thought">${escape(call.thought)}</span>` : ''}</span></li>`).join('');
+    const open = move.live || move === lastTrouble || move.calls.some(call => call.id === selectedCall);
+    const calls = move.calls.map(call => `<li class="${cx('lv-call', call.failed ? 'is-failed' : call.interrupting ? 'is-trouble' : '', call.id === selectedCall ? 'is-selected' : '')}"><span class="lv-call-time">${escape(clock(call.at))}</span><span class="lv-call-body"><span class="lv-call-title">${escape(call.title)} <span class="lv-call-kind">${escape(kindWords[call.kind] ?? call.kind)}</span>${call.failed ? ' <span class="lv-call-state">failed</span>' : ''}</span>${call.input ? `<code class="lv-call-input" title="${escape(call.input)}">${escape(call.input)}</code>` : ''}${call.thought ? `<span class="lv-call-thought">${escape(call.thought)}</span>` : ''}</span></li>`).join('');
     const meta = `${move.calls.length} ${move.calls.length === 1 ? 'call' : 'calls'} · ${move.live ? 'now' : span(move.seconds)}`;
     return `<li class="${cx('lv-move', move.live ? 'is-live' : '', move.trouble ? 'is-trouble' : '')}"><details${open ? ' open' : ''}><summary class="lv-move-head"><span class="lv-move-time">${escape(clock(move.at))}</span><span class="lv-move-title">${escape(move.title)}</span><span class="lv-move-meta">${escape(meta)}</span></summary><ol class="lv-calls">${calls}</ol></details></li>`;
   }).join('');

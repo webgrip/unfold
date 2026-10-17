@@ -64,7 +64,7 @@ function name(element) {
  * Runs every constraint check against the rendered story under `root`. Every story frame runs it after it renders,
  * and `npm run test:workbench` reads the result back from each frame. A failure breaks the check run; a warning is
  * listed but passes. The rules: `page-overflow` the page scrolls sideways; `element-overflow` an element sticks out
- * of the story outside a scroll box; `clipped-text` a box cuts text off without an ellipsis; `target-size` a control
+ * of the story outside a scroll box; `clipped-text` a box cuts text off without an ellipsis; `broken-word` an ordinary word breaks across lines; `target-size` a control
  * is under 24 × 24 px (WCAG 2.2 2.5.8), or under 44 px as a warning; `contrast` text below 4.5:1 (3:1 when large);
  * `name` a control or graphic without an accessible name; `duplicate-id`; `motion` an animation runs under reduced
  * motion; `csp` the page broke its Content Security Policy.
@@ -110,6 +110,21 @@ export function runChecks(root, { cspViolations = [] } = {}) {
     const large = size >= 24 || (size >= 18.66 && Number(style.fontWeight) >= 700);
     const needed = large ? 3 : 4.5;
     if (ratio < needed) add(failures, 'contrast', element, `${ratio.toFixed(2)}:1, needs ${needed}:1 for “${element.textContent.trim().slice(0, 40)}”`);
+  }
+  const word = /^[\p{L}][\p{L}'’]{1,19}[.,:;!?…)]*$/u;
+  for (const element of texts) {
+    if (element.closest('svg, code, pre, kbd')) continue;
+    for (const node of element.childNodes) {
+      if (node.nodeType !== 3) continue;
+      for (const match of node.textContent.matchAll(/\S+/g)) {
+        if (!word.test(match[0])) continue;
+        const range = document.createRange();
+        range.setStart(node, match.index);
+        range.setEnd(node, match.index + match[0].length);
+        const lines = new Set([...range.getClientRects()].filter(rect => rect.width > 0).map(rect => Math.round(rect.top)));
+        if (lines.size > 1) { add(failures, 'broken-word', element, `“${match[0]}” breaks across ${lines.size} lines`); break; }
+      }
+    }
   }
   const ids = new Map();
   for (const element of root.querySelectorAll('[id]')) ids.set(element.id, (ids.get(element.id) ?? 0) + 1);

@@ -22,6 +22,7 @@ The workbench keeps one frame per width and theme loaded and re-renders it in pl
 | `page-overflow` | the page scrolls sideways |
 | `element-overflow` | an element ends past the story's edge outside a scroll box |
 | `clipped-text` | a box hides text without an ellipsis |
+| `broken-word` | an ordinary word (letters only, up to 20) breaks across lines, such as “P ul l re q u e st” in a narrow box; code, paths and URLs may break |
 | `target-size` | a control is smaller than 24 × 24 px (WCAG 2.2 2.5.8); under 44 px tall is a warning |
 | `contrast` | text is below 4.5:1, or 3:1 when large, against what is behind it |
 | `name` | a control has no accessible name, or a graphic is neither labelled nor hidden |

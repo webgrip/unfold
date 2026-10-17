@@ -52,7 +52,8 @@
 .wb-caption[data-state="fail"] { color: var(--danger-fg); font-weight: var(--weight-bold); }
 .wb-iframe { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-canvas); }
 .wb-pre { font-family: var(--font-mono); font-size: var(--text-xs); max-height: 30rem; overflow: auto; background: var(--bg-sunken); padding: var(--space-3); border-radius: var(--radius-md); }
-.wb-frame { margin: 0; background: var(--bg-canvas); color: var(--text); }
+.wb-frame { margin: 0; overflow-y: hidden; background: var(--bg-canvas); color: var(--text); }
 .wb-root { padding: var(--space-4); }
 .wb-root[data-frame="page"] { padding: var(--space-6) var(--space-4); }
 .lv-story-page { max-width: 90rem; margin: 0 auto; }
+html:has(> .wb-frame) { overflow-y: hidden; }

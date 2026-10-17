@@ -1,4 +1,5 @@
 import { failureReason } from '../core/states.js';
+import { guardSignals, policyDrift } from './guard.js';
 
 /**
  * The stages every Work Item moves through, in order. The fold strip and the flight path draw one mark per stage.
@@ -83,7 +84,7 @@ export function movesOf(items = [], { now, live }) {
     if (!move || (!move.named && lastAt !== null && at !== null && at - lastAt > healthRules.moveGap * 1000)) open(item.title || 'Tool call', at, false);
     const failed = item.status === 'failed';
     const interrupting = interrupt.test(String(item.input ?? '').trim()) || interrupt.test(item.title ?? '');
-    move.calls.push({ id: item.id ?? item.key, at, title: item.title || 'Tool call', kind: item.toolKind || 'other', status: item.status ?? null, input: item.input ?? '', paths: item.paths ?? [], failed, interrupting, thought });
+    move.calls.push({ id: item.id ?? item.key, at, title: item.title || 'Tool call', kind: item.toolKind || 'other', status: item.status ?? null, input: item.input ?? '', output: (item.outputs ?? []).join('\n').slice(0, 8000), paths: item.paths ?? [], failed, interrupting, thought });
     move.kinds[item.toolKind || 'other'] = (move.kinds[item.toolKind || 'other'] ?? 0) + 1;
     if (failed) move.failed += 1;
     if (failed || interrupting) move.trouble = true;
@@ -100,7 +101,9 @@ export function movesOf(items = [], { now, live }) {
   return moves;
 }
 
-function healthOf({ running, lastActivity, calls, now, leaseLeft }) {
+function healthOf({ running, lastActivity, calls, now, leaseLeft, guard }) {
+  const high = guard.signals.filter(signal => signal.severity === 'high');
+  if (high.length || guard.drift?.length) return { word: 'suspect', tone: 'danger', reason: high.length ? `${high.length} ${high.length === 1 ? 'call' : 'calls'} crossed a tripwire: ${[...new Set(high.map(signal => signal.label.toLowerCase()))].join('; ')}.` : 'Its rules changed since the Run started.' };
   if (!running) return { word: 'idle', tone: 'neutral', reason: 'No Run is working right now.' };
   if (leaseLeft !== null && leaseLeft <= 0) return { word: 'stalled', tone: 'danger', reason: 'The worker’s lease ran out before it was renewed.' };
   if (lastActivity !== null && (now - lastActivity) / 1000 >= healthRules.stalledAfter) return { word: 'stalled', tone: 'danger', reason: `No tool call for ${Math.floor((now - lastActivity) / 60000)} min.` };
@@ -147,9 +150,11 @@ function stageStates(item, runs, current) {
  * @param {string} [input.ticketCreatedAt] When the tracker task was created, when it is older than the Work Item.
  * @param {{ text: string, source: string }} [input.estimate] A forecast for the pull request, shown only when given.
  * @param {{ leftUsd: number, totalUsd: number }} [input.allowance] The Team's Ask Allowance.
+ * @param {string[]} [input.allowedHosts] Hosts the Run may reach; a call to any other host is a tripwire.
+ * @param {{ startedWith: object, current: object }} [input.policy] Proposed: the Run's rules at its start and now.
  * @returns {object}
  */
-export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null }) {
+export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null, allowedHosts = [], policy = null }) {
   const item = detail.item;
   const shifts = [...(detail.shifts ?? [])].sort((a, b) => (toMs(a.openedAt) ?? 0) - (toMs(b.openedAt) ?? 0));
   const runs = [...(detail.runs ?? [])].sort(byStart);
@@ -196,7 +201,9 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
   const origin = toMs(ticketCreatedAt) ?? toMs(item.createdAt);
   const leaseLeft = item.lease?.expiresAt ? Math.round((toMs(item.lease.expiresAt) - now) / 1000) : null;
   const lastActivity = calls.length ? calls.at(-1).at : followed?.startedAt ?? null;
-  const health = healthOf({ running: Boolean(running), lastActivity, calls, now, leaseLeft });
+  const signals = guardSignals(calls, { allowedHosts });
+  const guard = { signals, drift: policyDrift(policy), allowedHosts, high: signals.filter(signal => signal.severity === 'high').length, source: signals.find(signal => signal.rule === 'injection') ?? null };
+  const health = healthOf({ running: Boolean(running), lastActivity, calls, now, leaseLeft, guard });
   const stageList = stageStates(item, runs, running);
   const roleWork = allRuns.filter(run => !run.machine);
   const roles = [...new Set(roleWork.map(run => run.role))].map(role => ({ role, runs: roleWork.filter(run => run.role === role).length }));
@@ -231,6 +238,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     edits: edited.size,
     lastTrouble,
     health,
+    guard,
     estimate: estimate && typeof estimate.text === 'string' && estimate.text ? estimate : null,
     allowance: allowance && isAmount(allowance.leftUsd) ? allowance : null,
     window: { start: windowStart, end: windowEnd },
