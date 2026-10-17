@@ -162,16 +162,21 @@ Each failed or refused Ask stores a `failureCode`, says why in plain words on th
 | `ploeg_unavailable` | Ploeg could not be reached or failed | yes | error |
 | `no_model` | The Team has no model for Asks | no | error |
 | `gateway_unreachable` | The model gateway could not be reached | yes | error |
-| `key_rejected` | The gateway refused the Ask's key (HTTP 401 or 403) | no | error |
+| `key_rejected` | The gateway refused the Ask's key: unknown, expired or blocked | no | error |
 | `budget_exceeded` | Answering needed more than the per-Ask Budget | yes | warning |
-| `rate_limited` | The provider is busy (HTTP 429) | yes | warning |
-| `provider_error` | The provider failed (any other HTTP error) | yes | error |
+| `spend_limit_reached` | A wider gateway spending limit, such as the Team's, is used up | no | error |
+| `model_unavailable` | The gateway does not offer the Team's Ask model to the key, or the model does not exist | no | error |
+| `too_long` | The record and the question are more than the model's context window | no | warning |
+| `rate_limited` | The gateway or the provider is busy | yes | warning |
+| `provider_error` | The provider failed, refused the gateway's credential, or its own quota is used up; also any error Unfold does not recognise | yes | error |
 | `bad_response` | The gateway's reply could not be read | yes | error |
 | `timeout` | No answer within 60 seconds | yes | warning |
 | `cut_off` | The model spent all 1,500 output tokens reasoning and wrote nothing | yes | warning |
 | `filtered` | The provider withheld the answer under its content rules | no | warning |
 | `empty` | The model returned an empty answer | yes | warning |
 | `interrupted` | Unfold restarted while answering; set the next time the Asks are listed, two minutes after the question | yes | warning |
+
+Unfold reads the gateway's error from LiteLLM's error body first, its `type` and its wording, and from the HTTP status only when the body says nothing. A spent LiteLLM budget is therefore `budget_exceeded` or `spend_limit_reached` whichever status LiteLLM gives it: 429 up to LiteLLM 1.103, 422 from 1.104, and 400 or 402 elsewhere. The message names whose budget it was; only the Ask's own key is `budget_exceeded`. The art generator under [Card themes](#card-themes-and-generated-art) uses the same reading for its error message.
 
 The call asks for `reasoning_effort: low`, since an answer is at most 120 words; a gateway that refuses that parameter is asked once more without it. An answer the model stopped at its length limit is kept and marked `cutOff`. Costs show as Ploeg reports them: an amount with "not final yet" while Ploeg can still correct it (a day after the Ask), "Cost not known yet" before the gateway has recorded anything, and "Nothing charged" for an Ask refused before any model call.
 

@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { AgentRuntime, AppConfig, Artifact, Credential, ExecutionContext, ExecutionResult, PermissionRequest, Repository, Session, Workspace, WorkspaceWait } from '../types.ts';
 import { WorkspaceManager } from './workspace.ts';
 import { RuntimeFailure, classifyFailure, transportFailure, type PromptAcceptance } from '../failures.ts';
+import { gatewayError } from '../gateway-errors.ts';
 
 export interface RuntimeWorkspaces {
   prepare(session: Session, repository: Repository, credential: Credential | undefined, signal: AbortSignal): Promise<Workspace>;
@@ -313,7 +314,7 @@ export class OpenCodeRuntime implements AgentRuntime {
     const name = error && typeof error === 'object' && 'name' in error ? error.name : undefined;
     const message = error && typeof error === 'object' && 'message' in error ? String(error.message ?? '') : '';
     const gateway = ['APIError', 'APICallError', 'ProviderAuthError', 'ModelNotFoundError'].includes(String(name));
-    const exhausted = /budget has been exceeded|BudgetExceeded|ExceededBudget/i.test(message);
+    const exhausted = gatewayError(0, `${String(name ?? '')}: ${message}`).kind === 'budget_exceeded';
     return new RuntimeFailure(exhausted ? 'budget_exhausted' : gateway ? 'gateway_rejected' : 'harness_rejected', 'execution', 'accepted', undefined, message ? `${String(name ?? 'error')}: ${message.slice(0, 300)}` : undefined);
   }
 
