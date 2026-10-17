@@ -249,10 +249,16 @@ Each item below is conditional. Any one of the listed triggers reopens it.
 | T10 | Skills over MCP | — | Claude Code or VS Code appears under Skills in the client matrix |
 | T11 | AHP sign-in | — | VS Code resolves a protected resource on a non-GitHub, non-Microsoft authorization server ([spike](2026-10-10-ahp-sign-in-spike.md)) |
 | T12 | A Run's live commands as AHP background work (`chat/backgroundWorkSet`) | [RFC-0006](../../../../docs/design/rfc-0006-live-command-output.md) phase 2; Ploeg ADR-0090 accepted | Ploeg ADR-0090 is accepted; added 2026-10-16 from [the 1.142 dossier](2026-10-16-vscode-1-142-fit.md) |
-| T13 | A Work Item canvas beside the chat | VIK-1922 | AHP's canvas registry ([#528](https://github.com/microsoft/agent-host-protocol/pull/528)) merges with host-provided canvases |
+| T13 | A Work Item canvas beside the chat | VIK-1922 | VS Code sets `supportsCanvasPresentation` for remote agent hosts, or implements `listSessionCanvases` on its remote client; reworded 2026-10-17 because VS Code renders canvases only from the local Copilot host ([surfaces dossier](2026-10-17-vscode-1-142-integration-surfaces.md)) |
 | T14 | The pull request and delivery evidence as AHP session artifacts | VIK-1922 | Session artifacts ([#508](https://github.com/microsoft/agent-host-protocol/pull/508)) merge and VS Code renders them |
 | T15 | Previewing a Run's running app through the AHP TCP channel | A security review and an ADR on worker network policy | The TCP channel is released and VS Code uses it for remote hosts |
 | T16 | AHP windowed delivery for live output | T12 | RFC-0006 measures a need for a push channel, or AHP releases `channel/frame` and `channel/credit` |
+| T17 | A repository-declared Unfold Agent Plugin | The plugin of [the surfaces dossier](2026-10-17-vscode-1-142-integration-surfaces.md#recommendations), recommendation 1 | VS Code 1.143 ships [#336858](https://github.com/microsoft/vscode/issues/336858) and `.claude/settings.json` installs it in all three harnesses |
+| T18 | The OAuth client id inside the plugin | T17 | Agent Plugins adds OAuth configuration to `mcp.json` |
+| T19 | A Ploeg-budgeted language-model provider in the extension | An owner decision on routing people's own agents through Ploeg's gateway | The owner asks for it, or an agency asks for one bill across Runs and its people's own agents |
+| T20 | Ploeg prices in VS Code's model picker | — | AHP adds a cost field to `UsageInfo`, or VS Code renders `SessionModelInfo._meta.pricing` |
+| T21 | Ploeg's reviewer as a tool-call risk judge | — | VS Code renders `ToolCallRiskAssessment` from a remote host |
+| T22 | Unfold as a remote-delegation target | VIK-1922 | `chat.remoteSessions.tools.enabled` defaults on and `create_remote_session` accepts a third-party host |
 
 Rejected shapes, so they are not argued again:
 
