@@ -28,6 +28,16 @@ The observable conditions a Result must satisfy to answer the requested work. Th
 
 **See also:** [Work Item](../reference/glossary.md#work-item), [Result](#result), [Review](#review), [Acceptance](#acceptance), [Client Profile](#client-profile)  
 
+## Access Role
+*Context: Participation*
+
+A named set of permissions a person holds in a Tenant, a Client or a project. The built-in Access Roles are Account owner (billing, budgets, the kill switch and everything an Admin may do), Admin (identity, Teams, sources, secrets and policies, no billing), Lead (start policy, review routing and budgets within the Agency's cap for their projects, accepting learnings), Developer (starts work, reviews and accepts, steers, takes over), Product owner (makes work Ready, prioritises, signs off, never accepts code) and Viewer (reads), plus the Client membership of system ADR-0017. An Agency may compose its own Access Roles from the same permissions. Decided by the owner on VIK-2011; replaces system ADR-0017's viewer, member and admin and the code's admin, operator and viewer; not implemented yet.
+
+**Do not use:** operator, member, pilot  
+**Not to be confused with** [Role](../reference/glossary.md#role): Ploeg's specialist function inside a Team, such as builder or reviewer.  
+**Not to be confused with** [Operator Consumer](../reference/glossary.md#operator-consumer): A service identity, never a person.  
+**See also:** [Tenant](../reference/glossary.md#tenant), [Client](../reference/glossary.md#client), [Agency](#agency)  
+
 ## Agency
 *Context: Offering*
 
@@ -441,6 +451,15 @@ The product, its application and the monorepo that holds them. In the Unfold app
 
 **Examples:** Current state: Unfold's own engine still executes delegated Steps until the system ADR-0002 migration is complete.  
 **See also:** [Ploeg](#ploeg), [Session](#session), [Step](#step)  
+
+## User Journey
+*Context: Participation*
+
+One person's path from a trigger to an outcome they care about, across every tool they touch, such as deciding on an agent pull request. The ten User Journeys Unfold must support are ranked on the users-and-journeys concept page; every screen serves one of them.
+
+**Do not use:** flow, journey (for a Work Item's path through Ploeg)  
+**Not to be confused with** [Work Item](../reference/glossary.md#work-item): The paths a Work Item takes through Ploeg are the system journeys page, not User Journeys.  
+**See also:** [Access Role](#access-role), [Agency](#agency)  
 
 ## Work Item Brief
 *Context: Participation*
