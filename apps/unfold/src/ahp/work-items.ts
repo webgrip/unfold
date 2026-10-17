@@ -375,6 +375,9 @@ export class WorkItemSessions {
   /** The Work Item session as the viewer last saw it, for their read and archive flags. */
   remembered(user: User, publicId: string): WorkItemRecord | undefined { return this.seen.get(user.id)?.get(publicId)?.entry; }
 
+  /** The detail of a Work Item as Ploeg last answered it to anyone, without asking Ploeg again. */
+  kept(workItemId: string): PloegDetail | undefined { return this.details.get(workItemId); }
+
   /** One Work Item session the viewer may open, with the detail its chat is built from. Undefined when Ploeg's team authorization hides it or an Operator Execution owns it. */
   async session(user: User, workItemId: string): Promise<{ entry: WorkItemRecord; detail: PloegDetail } | undefined> {
     if (!this.available) return undefined;

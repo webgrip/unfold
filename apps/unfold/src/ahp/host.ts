@@ -28,6 +28,7 @@ import { candidateEdits, carryRuns, parseRunChannel, runChatChannel, runChatStat
 import { WorkItemSessions, isWorkItemSession, workItemChatState, workItemIdOf, workItemRefusal, workItemRefusals, workItemRunChatState, workItemSessionState, workItemStatus, workItemSummary, type RoutedAction, type WorkItemRecord } from './work-items.ts';
 import { WorkItemCommands, openShiftOf, promptClosedActions, promptInputNeeded, promptOpenActions, restartable, takesNotes, withPrompts, workItemCommandText, type WorkItemPrompt } from './work-item-commands.ts';
 import { PloegError } from '../ploeg.ts';
+import { refusalPlacement, refusalReply } from './refusals.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
@@ -442,6 +443,25 @@ export class AgentHost {
     const serverSeq = ++this.serverSeq;
     this.send(sender, { jsonrpc: '2.0', method: 'action', params: { channel, action, serverSeq, origin, rejectionReason } });
     for (const client of this.clients) if (client !== sender && client.initialized && client.user.id === sender.user.id) { const subscribed = this.subscribedAs(client, channel); if (subscribed) this.send(client, { jsonrpc: '2.0', method: 'action', params: { channel: subscribed, action, serverSeq, origin, rejectionReason } }); }
+  }
+
+  /** Shows a refused chat action's reason in its chat to the person who sent it, for a client that does not show `rejectionReason`. */
+  private showRefusal(sender: Client, channel: string, action: Json, reason: string): void {
+    const placement = refusalPlacement(action.type);
+    const parsed = placement ? parseChannel(channel) : undefined;
+    if (parsed?.kind !== 'chat' || (parsed.run && placement !== 'ownTurn')) return;
+    const own = (viewer: Client) => viewer.user.id === sender.user.id;
+    for (const reply of refusalReply(action, reason, parsed.run ? undefined : this.openTurnIn(sender, channel, parsed.id), randomUUID)) this.broadcast(channel, reply, undefined, own);
+  }
+
+  /** The turn still open in a session's default chat as this viewer sees it, read from what the host already holds. */
+  private openTurnIn(viewer: Client, channel: string, publicId: string): string | undefined {
+    if (!isWorkItemSession(publicId)) { const session = this.sessionFor(viewer.user, channel); return session ? this.projection(session).activeTurn?.id : undefined; }
+    const entry = this.workItems.remembered(viewer.user, publicId);
+    const detail = entry ? this.workItems.kept(entry.workItemId) : undefined;
+    if (!entry || !detail) return undefined;
+    const chat = workItemChatState(entry, detail, this.workItemSpelling(publicId, viewer), this.viewOf(viewer, publicId));
+    return withPrompts(chat, this.workItemCommands.prompts(viewer.user.id, entry.workItemId), this.workItemCommands.notes(viewer.user.id, entry.workItemId)).activeTurn?.id;
   }
 
   private broadcast(channel: string, action: Json | ((client: Client) => Json), origin?: Origin, audience?: (client: Client) => boolean): void {
@@ -2127,7 +2147,7 @@ export class AgentHost {
     const channel = String(params.channel ?? '');
     const action = (params.action ?? {}) as Json;
     const origin = { clientId: client.clientId ?? client.id, clientSeq: Number(params.clientSeq) || 0 };
-    const reject = (reason: string) => this.reject(client, channel, action, origin, reason);
+    const reject = (reason: string) => { this.reject(client, channel, action, origin, reason); this.showRefusal(client, channel, action, reason); };
     try {
       if (channel === rootChannel) {
         const refusal = action.type === 'root/configChanged' ? rootConfigRefusal(action.config) : `Unsupported action ${String(action.type)}`;

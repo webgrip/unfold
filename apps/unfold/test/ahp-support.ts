@@ -101,5 +101,10 @@ export function reduceChat(state: Json, action: Json): Json {
   }
 }
 
+/** A chat as a client sees it after its snapshot: every action the host confirmed on the chat since, applied with {@link reduceChat}; refused actions change nothing. */
+export function chatAsSeen(snapshot: Json, inbox: readonly Json[], chat: string, from = 0): Json {
+  return inbox.slice(from).filter(message => message.method === 'action' && message.params.channel === chat && !message.params.rejectionReason).reduce((state, message) => reduceChat(state, message.params.action), snapshot);
+}
+
 /** The `clientInfo` VS Code 1.141 and main send from the Agents window (`agentHostClientInfo.ts`); the editor window sends `vscode-editor-window`. */
 export const vscodeAgentsWindow = { name: 'vscode-agents-window', title: 'VS Code Agents Window' };

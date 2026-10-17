@@ -9,7 +9,7 @@ import { money } from '../public/core/format.js';
 import { noAgentMessages, noRunMessages, ploegRunToolName, workItemActivity, workItemRefusals } from '../src/ahp/work-items.ts';
 import { workItemCommandText } from '../src/ahp/work-item-commands.ts';
 import { application, login, request } from './api-support.ts';
-import { action, connect, defaultChatOf, type Json } from './ahp-support.ts';
+import { action, chatAsSeen, connect, defaultChatOf, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
 
 const password = 'work-items-password-161803';
@@ -698,4 +698,92 @@ test('a Ploeg that takes no cancel body still withdraws on a confirmed Stop, ung
   f.dispatch(chat, { type: 'chat/inputCompleted', requestId: question.id, response: 'accept', answers: picked('withdraw') });
   await f.replied(chat, /^Withdrew #202\./);
   assert.deepEqual(f.state.writes.map(write => write.body === '' ? '' : Object.keys(JSON.parse(write.body)).sort().join()), ['commandId,expectedShiftId', '']);
+});
+
+async function refusing(t: TestContext, who: 'op-1' | 'viewer-2', workItemId: string) {
+  const f = await commanding(t, who);
+  const chat = defaultChatOf(`unfold:/wi-${workItemId}`);
+  const snapshot = (await f.client.rpc('subscribe', { channel: chat })).snapshot.state;
+  const from = f.client.inbox.length;
+  const before = structuredClone(f.state.details.get(workItemId));
+  const seen = () => chatAsSeen(snapshot, f.client.inbox, chat, from);
+  const turnEnded = (turnId?: string) => f.client.until(message => action(message, chat, 'chat/turnComplete') && f.client.inbox.indexOf(message) >= from && (turnId === undefined || message.params.action.turnId === turnId));
+  const untouched = async () => { await settled(f.client); assert.equal(f.state.writes.length, 0, 'Ploeg is not called'); assert.deepEqual(f.state.details.get(workItemId), before, 'the Work Item is unchanged'); };
+  return { ...f, chat, snapshot, from, seen, turnEnded, untouched };
+}
+
+const replyOf = (turn: Json | undefined) => turn?.responseParts.filter((part: Json) => part.kind === 'markdown').map((part: Json) => part.content);
+
+test('a refused message on a Work Item ends in a finished turn that says why, and still carries the rejectionReason', { timeout: testTimeout(20_000) }, async t => {
+  const f = await refusing(t, 'op-1', '208');
+  const sent = f.dispatch(f.chat, { type: 'chat/turnStarted', turnId: 'note-1', message: { text: 'note: test, ignore', origin: { kind: 'user' } } });
+  assert.equal((await f.answered(sent)).params.rejectionReason, workItemCommandText.withdrawn);
+  await f.turnEnded('note-1');
+  const turn = f.seen().turns.find((entry: Json) => entry.id === 'note-1');
+  assert.equal(turn?.state, 'complete', 'the person\'s message is not left waiting');
+  assert.equal(turn.message.text, 'note: test, ignore');
+  assert.deepEqual(replyOf(turn), [workItemCommandText.withdrawn]);
+  assert.equal(f.seen().activeTurn, undefined);
+  await f.untouched();
+});
+
+test('a refused queued message on a Work Item says why in the Round still running, or in a finished turn of its own when none runs', { timeout: testTimeout(20_000) }, async t => {
+  const running = await refusing(t, 'viewer-2', '202');
+  const queued = running.dispatch(running.chat, { type: 'chat/pendingMessageSet', kind: 'queued', id: 'p1', message: { text: 'Hurry up.', origin: { kind: 'user' } } });
+  assert.equal((await running.answered(queued)).params.rejectionReason, workItemCommandText.viewer('delivery'));
+  await running.replied(running.chat, /^Only an operator/);
+  const round = running.seen().activeTurn;
+  assert.equal(round?.id, 'wi-202-round-1-1', 'the Round keeps running');
+  assert.deepEqual(replyOf(round)?.slice(-1), [workItemCommandText.viewer('delivery')]);
+  assert.equal(running.seen().queuedMessages, undefined, 'nothing waits in the queue');
+  await running.untouched();
+
+  const idle = await refusing(t, 'op-1', '208');
+  const steering = idle.dispatch(idle.chat, { type: 'chat/pendingMessageSet', kind: 'steering', id: 'p2', message: { text: 'Try once more.', origin: { kind: 'user' } } });
+  assert.equal((await idle.answered(steering)).params.rejectionReason, workItemCommandText.withdrawn);
+  await idle.turnEnded();
+  const turn = idle.seen().turns.at(-1);
+  assert.equal(turn.state, 'complete');
+  assert.equal(turn.message.text, 'Try once more.');
+  assert.deepEqual(replyOf(turn), [workItemCommandText.withdrawn]);
+  await idle.untouched();
+});
+
+test('a refused Stop on a Work Item says why in the Round it tried to stop, or in a finished turn when nothing runs', { timeout: testTimeout(20_000) }, async t => {
+  const running = await refusing(t, 'viewer-2', '202');
+  const stop = running.dispatch(running.chat, { type: 'chat/turnCancelled', turnId: 'wi-202-round-1-1' });
+  assert.equal((await running.answered(stop)).params.rejectionReason, workItemCommandText.viewer('delivery'));
+  await running.replied(running.chat, /^Only an operator/);
+  const round = running.seen().activeTurn;
+  assert.equal(round?.id, 'wi-202-round-1-1');
+  assert.deepEqual(replyOf(round)?.slice(-1), [workItemCommandText.viewer('delivery')]);
+  await running.untouched();
+
+  const ended = await refusing(t, 'op-1', '208');
+  const late = ended.dispatch(ended.chat, { type: 'chat/turnCancelled', turnId: 'wi-208-round-1-1' });
+  assert.equal((await ended.answered(late)).params.rejectionReason, workItemCommandText.ended('208'));
+  await ended.turnEnded();
+  const turn = ended.seen().turns.at(-1);
+  assert.deepEqual([turn.state, turn.message.text, turn.message.origin.kind], ['complete', 'Stop', 'systemNotification']);
+  assert.deepEqual(replyOf(turn), [workItemCommandText.ended('208')]);
+  await ended.untouched();
+});
+
+test('a refused answer on a Work Item says why in a finished turn', { timeout: testTimeout(20_000) }, async t => {
+  const f = await refusing(t, 'op-1', '208');
+  const answer = f.dispatch(f.chat, { type: 'chat/inputCompleted', requestId: 'wi-208-requeue-gone', response: 'accept', answers: picked('restart') });
+  assert.equal((await f.answered(answer)).params.rejectionReason, 'Unknown question');
+  await f.turnEnded();
+  const turn = f.seen().turns.at(-1);
+  assert.deepEqual([turn.state, turn.message.text], ['complete', 'Your answer']);
+  assert.deepEqual(replyOf(turn), ['Unknown question']);
+  await f.untouched();
+});
+
+test('a refused Try Again keeps only its rejectionReason, which VS Code 1.142 reports as the failed request it resumes', { timeout: testTimeout(20_000) }, async t => {
+  const f = await refusing(t, 'op-1', '208');
+  const resume = f.dispatch(f.chat, { type: 'chat/turnResume', turnId: 'wi-208-round-1-1' });
+  assert.equal((await f.answered(resume)).params.rejectionReason, workItemCommandText.withdrawn);
+  await f.untouched();
+  assert.deepEqual(f.seen(), f.snapshot, 'no second reply next to the one VS Code shows');
 });
