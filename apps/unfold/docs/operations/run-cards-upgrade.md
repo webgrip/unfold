@@ -33,7 +33,7 @@ Steps 3 and 7 are history: they ran once, on Unfold v0.4.0-rc.52 or v0.4.0-rc.53
    * **Where to see it.** The Status page shows the result under Ploeg, in **Details**, for example "Run cards: Imported 12 cracks, 40 frozen rarities, 9 card comments and 75 play shapes from Ploeg." The log line is `cards.imported`. Later releases keep showing the recorded result, and show nothing when no import was recorded.
    * **If it fails.** The line says why, the log has `cards.import_failed`, and Unfold retries every five minutes from the page where it stopped. Running it again never duplicates a row.
    * **Until it finishes.** Unfold refuses crack steps with "Unfold is still importing the cracks Ploeg recorded", so no attribution lands in both places.
-4. **Check a few cards.** Open the Work Item page of a card with a crack and one with a revealed rarity. They show the same grade, rarity and condition as before.
+4. **Check a few cards.** Open the Work Item page of a card with a crack and one with a revealed rarity. They show the same grade, rarity and condition as before. Rarity is off by default: to see it, turn on **Run card rarity** for yourself under Settings › Labs first.
 5. **Turn Ploeg's card switch off.** Set this in Ploeg's configuration file and restart `ploegd`:
 
    ```yaml
@@ -69,7 +69,8 @@ Every Unfold setting is optional and defaults to what Ploeg did without one.
 
 * **Repository keys** are `owner/name` and compare without case.
 * **Board ids** are the tracker's project id, the same id Ploeg resolved for the project and sends as `workItem.externalScope`.
-* **Flow figures and rarity** can be turned off with `cards.rules.flow: false` and `cards.rules.rarity: false`.
+* **Flow figures** can be turned off with `cards.rules.flow: false`.
+* **Rarity** is off by default. Leave `cards.rules.rarity` unset and turn on the `cards.rarity` feature flag for the people who should see it ([feature flags](feature-flags.md)), set it to `true` to show rarity to everyone, or to `false` to stop computing it. Rarities frozen before stay in the store either way.
 
 Example:
 

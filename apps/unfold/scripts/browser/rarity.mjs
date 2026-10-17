@@ -1,8 +1,9 @@
 /**
- * Run card rarity (Unfold ADR 0034) in the demo: every tier, predicted and revealed, on Unfold Native, each DOM skin pack
+ * Run card rarity (Unfold ADR 0034) in the demo: hidden while the `cards.rarity` flag is off by default, then, turned on
+ * under Settings › Labs, every tier, predicted and revealed, on Unfold Native, each DOM skin pack
  * and the forge, under the CSP with the mark, the frame ring and the Rarity tab; the reveal ceremony at full size for a
  * legendary card and at the revealed tier, without a loss cue, for a reveal below its prediction; the still glow under
- * reduced motion; and the binder's rarity filter and rarest-first sort.
+ * reduced motion; and the binder's rarity filter and rarest-first sort. Default hides it again.
  */
 export async function run({ page, app, assert, screenshot }) {
   const base = `http://127.0.0.1:${app.server.address().port}`;
@@ -34,6 +35,17 @@ export async function run({ page, app, assert, screenshot }) {
   };
   await page.setViewportSize({ width: 1440, height: 1040 });
   await page.emulateMedia({ reducedMotion: 'no-preference' });
+  const choose = async (name, shown) => {
+    await page.goto(`${base}/#settings/labs`);
+    const row = page.locator('.labs-row', { has: page.getByRole('group', { name: 'Run card rarity: your choice' }) });
+    await row.getByRole('button', { name, exact: true }).click();
+    await row.locator('.labs-now', { hasText: shown }).waitFor();
+  };
+
+  const hidden = await open('118');
+  assert.equal(await hidden.getAttribute('data-rarity'), null, '#118 shows no rarity while the cards.rarity flag is off by default');
+  assert.equal(await hidden.locator('.gc-front .uc-rarity').count(), 0, '#118 prints no rarity mark while the flag is off');
+  await choose('On', 'On for you');
 
   for (const [id, skin, tier, state] of cards) {
     const card = await open(id);
@@ -127,4 +139,7 @@ export async function run({ page, app, assert, screenshot }) {
   assert(await page.locator('.binder-slot').evaluateAll(slots => slots.length > 0 && slots.every(slot => slot.querySelector('.binder-rarity')?.dataset.rarity === 'epic')), 'the filter keeps one tier');
   await filter.selectOption('');
   await page.locator('#binder-sort').selectOption('recent');
+
+  await choose('Default', 'Off for you');
+  assert.equal(await (await open('118')).getAttribute('data-rarity'), null, 'Default hides the rarity again');
 }

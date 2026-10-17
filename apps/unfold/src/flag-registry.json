@@ -25,6 +25,22 @@
         "client": true,
         "labs": true
       }
+    },
+    "cards.rarity": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": { "$ref": "labs-choice" },
+      "metadata": {
+        "kind": "release",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-17",
+        "expires": "2027-01-17",
+        "title": "Run card rarity",
+        "description": "Shows each Run card's rarity: how exceptional its change was, predicted once a Run starts and revealed at release, as a tier from common to legendary with its mark, frame ring, reveal and Rarity tab, and the binder's rarity filter and sort. Applies only while the deployment leaves cards.rules.rarity unset. Rarity is cosmetic: no grade, pull or Ploeg decision reads it.",
+        "client": false,
+        "labs": true
+      }
     }
   }
 }

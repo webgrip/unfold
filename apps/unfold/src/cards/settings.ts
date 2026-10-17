@@ -10,7 +10,12 @@ export type CardRepositorySettings = { style?: { skin: string; theme?: string };
 export type CardBoardSettings = { statusKinds?: Kinds; gates?: Statuses };
 /** One Team's card rules: referees, hotfix labels, the pull request comment and working hours. */
 export type CardTeamSettings = { referees?: string[]; hotfixLabels?: string[]; pullRequestComment?: boolean; workingHours?: Hours };
-/** The card rules Unfold owns (root ADR-0030). Every setting is optional and takes Ploeg's old default. */
+/**
+ * The card rules Unfold owns (root ADR-0030). Every setting is optional and takes Ploeg's old default. `rarity` decides
+ * whether people see rarity: `true` shows it to everyone and `false` turns it off, so Unfold neither computes nor shows
+ * it. Left unset, Unfold still computes and freezes rarity and the `cards.rarity` feature flag, off by default, decides
+ * per person whether it shows (Unfold ADR 0045).
+ */
 export type CardRuleSettings = { bots?: string[]; flow?: boolean; rarity?: boolean; repositories?: Record<string, CardRepositorySettings>; boards?: Record<string, CardBoardSettings>; teams?: Record<string, CardTeamSettings> };
 
 const repoKey = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
@@ -113,6 +118,11 @@ export function validateCardRules(raw: unknown): CardRuleSettings {
 
 /** The resolved rules with the board gate maps Unfold uses for display, and the referees of each Team. */
 export type ResolvedCardRules = CardRules & { referees(team: string): string[]; pullRequestComment(team: string): boolean; gates(provider: string, scope: string): GateMap | null; bots: string[] };
+
+/** Whether one person sees rarity on cards: `cards.rules.rarity` decides when it is set, otherwise the `cards.rarity` flag does. */
+export async function rarityShown(setting: boolean | undefined, flag: () => Promise<boolean>): Promise<boolean> {
+  return setting ?? await flag();
+}
 
 /** Compiles validated settings into the rules card assembly reads, filling every gap with Ploeg's old default. */
 export function resolveCardRules(settings: CardRuleSettings): ResolvedCardRules {

@@ -80,9 +80,9 @@ A person's private collection of the Run Cards they hold a copy of. Only its own
 ## Bounce
 *Context: Cards*
 
-A Work Item moving from a later Gate back to an earlier one, with a reason: defect, requirement, misunderstood, environment or unknown. Only defect and unknown Bounces count against the Grade. A requirement change marks the card Evolved and leaves no Crack. Unfold reads the reason from a bounce:<reason> label or comment; a board without Gates has no Bounces (Unfold ADR 0045).
+A Work Item moving from a later Gate back to an earlier one, with a reason: defect, requirement, misunderstood, environment or unknown. Only defect and unknown Bounces count against the Grade. A requirement Bounce out of acceptance or done marks the card Evolved and leaves no Crack. The reason arrives resolved with each Gate move in Ploeg's delivery facts; a move without one counts as unknown, and a board without Gates has no Bounces (Unfold ADR 0045).
 
-**Examples:** A tester moves the ticket from In test back to In progress with the label bounce:defect; the fix becomes the card's next Play.  
+**Examples:** A tester moves the ticket from In test back to In progress with the label bounce:defect, which Ploeg records as the reason; the fix becomes the card's next Play.  
 **See also:** [Gate](#gate), [Play](#play), [Grade](#grade), [Crack](#crack)  
 
 ## Budget
@@ -195,7 +195,7 @@ The visual layer a Run Card earns by staying live in production: matte, then foi
 ## Gate
 *Context: Cards*
 
-A point in a board's workflow that a Work Item passes after review, such as development, test, acceptance and production. Each board maps its tracker statuses to Gates in Unfold's cards.rules setting (boards.<provider:scope>.gates), and Unfold derives a card's Gate history from the status moves in Ploeg's delivery facts (Unfold ADR 0045).
+A point in a board's workflow that a Work Item passes after review, such as development, test, acceptance and production. Ploeg's delivery facts carry each Gate move already resolved (gateTransitions), and Unfold walks a card's Gate history from them. Unfold's cards.rules setting (boards.<provider:scope>.gates) only places a status move that Ploeg sent without a Gate in the flow figures (Unfold ADR 0045).
 
 **See also:** [Bounce](#bounce), [Run Card](#run-card), [Acceptance](#acceptance)  
 
@@ -301,7 +301,7 @@ A Work Item's Size and the Agency's price for it, drafted by Refinement and appr
 ## Rarity
 *Context: Cards*
 
-How exceptional a Run Card's change was, its challenge, kept apart from how well it was done (Grade) and how long it has lasted (Finish). Cosmetic only, and off unless cards.rules.rarity turns it on. Unfold scores reach, sensitive ground, novelty and damped size under a versioned formula, predicts a tier at mint and reveals one at release, as percentile tiers per repository and quarter (common, uncommon, rare, epic, legendary), and freezes the revealed tier in its card store (system ADR-0030). Nothing Ploeg authorizes, budgets or merges depends on it.
+How exceptional a Run Card's change was, its challenge, kept apart from how well it was done (Grade) and how long it has lasted (Finish). Cosmetic only, and off by default (owner decision 2026-10-17): it shows when cards.rules.rarity is true, or, while that setting is unset, to a person whose cards.rarity feature flag is on. Unfold scores reach, sensitive ground, novelty and damped size under a versioned formula, predicts a tier at mint and reveals one at release, as percentile tiers per repository and quarter (common, uncommon, rare, epic, legendary), and freezes the revealed tier in its card store (system ADR-0030), also while rarity is hidden, so turning it on shows the frozen tiers (Unfold ADR 0045). Nothing Ploeg authorizes, budgets or merges depends on it.
 
 **See also:** [Run Card](#run-card), [Grade](#grade), [Finish](#finish), [Pack](#pack)  
 
@@ -356,7 +356,7 @@ An assessment of a Result against its Acceptance Conditions and supporting Evide
 ## Roster
 *Context: Cards*
 
-The humans who acted on a Run Card's change, each with their roles. Built roles: merger and reviewer. Proposed: developer, QA, PO and acceptor, each holding a copy of the card that shares its fate, so a Crack shows on every copy and a Mend names the mender on every copy. The built roles are recorded in Unfold ADR 0045.
+The humans who acted on a Run Card's change, each with their roles. Built roles: merger, reviewer, qa (moved the Work Item out of the test Gate), acceptor (out of acceptance) and cosigner (mended a Crack on someone else's card). Proposed: developer and PO copies, each holding a copy of the card that shares its fate, so a Crack shows on every copy and a Mend names the mender on every copy. The built roles are recorded in Unfold ADR 0045.
 
 **See also:** [Run Card](#run-card), [Steward](#steward), [Binder](#binder)  
 

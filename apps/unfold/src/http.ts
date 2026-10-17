@@ -17,6 +17,7 @@ import { readFileSync } from 'node:fs';
 import { StatusBoard, gatewayProbe } from './status.ts';
 import { CardService, importStatusLine } from './cards/service.ts';
 import { CardStore } from './cards/card-store.ts';
+import { rarityShown } from './cards/settings.ts';
 import { PloegClient, PloegError, contextInput, contextUploadLimit, type PloegDecision } from './ploeg.ts';
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
@@ -187,6 +188,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     const choices = store.flagChoices(user.id);
     return { targetingKey: user.id, userId: user.id, role: user.role, tenantId: defaultTenant, mode: config.mode, teams: config.ploeg?.userTeams?.[user.id] ?? [], labs: Object.keys(choices).filter(key => choices[key]), labsOff: Object.keys(choices).filter(key => !choices[key]) };
   };
+  ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
     const choices = store.flagChoices(user.id);

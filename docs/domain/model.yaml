@@ -582,30 +582,34 @@ terms:
     context: Cards
     definition: >
       The humans who acted on a Run Card's change, each with their roles.
-      Built roles: merger and reviewer. Proposed: developer, QA, PO and
-      acceptor, each holding a copy of the card that shares its fate, so a
-      Crack shows on every copy and a Mend names the mender on every copy.
-      The built roles are recorded in Unfold ADR 0045.
+      Built roles: merger, reviewer, qa (moved the Work Item out of the test
+      Gate), acceptor (out of acceptance) and cosigner (mended a Crack on
+      someone else's card). Proposed: developer and PO copies, each holding a
+      copy of the card that shares its fate, so a Crack shows on every copy
+      and a Mend names the mender on every copy. The built roles are recorded
+      in Unfold ADR 0045.
     see_also: [Run Card, Steward, Binder]
   - name: Gate
     context: Cards
     definition: >
       A point in a board's workflow that a Work Item passes after review, such as development, test,
-      acceptance and production. Each board maps its tracker statuses to Gates
-      in Unfold's cards.rules setting (boards.<provider:scope>.gates), and
-      Unfold derives a card's Gate history from the status moves in Ploeg's
-      delivery facts (Unfold ADR 0045).
+      acceptance and production. Ploeg's delivery facts carry each Gate move
+      already resolved (gateTransitions), and Unfold walks a card's Gate
+      history from them. Unfold's cards.rules setting
+      (boards.<provider:scope>.gates) only places a status move that Ploeg sent
+      without a Gate in the flow figures (Unfold ADR 0045).
     see_also: [Bounce, Run Card, Acceptance]
   - name: Bounce
     context: Cards
     definition: >
       A Work Item moving from a later Gate back to an earlier one, with a
       reason: defect, requirement, misunderstood, environment or unknown. Only
-      defect and unknown Bounces count against the Grade. A requirement change
-      marks the card Evolved and leaves no Crack. Unfold reads the reason from
-      a bounce:<reason> label or comment; a board without Gates has no Bounces
-      (Unfold ADR 0045).
-    examples: ["A tester moves the ticket from In test back to In progress with the label bounce:defect; the fix becomes the card's next Play."]
+      defect and unknown Bounces count against the Grade. A requirement Bounce
+      out of acceptance or done marks the card Evolved and leaves no Crack.
+      The reason arrives resolved with each Gate move in Ploeg's delivery
+      facts; a move without one counts as unknown, and a board without Gates
+      has no Bounces (Unfold ADR 0045).
+    examples: ["A tester moves the ticket from In test back to In progress with the label bounce:defect, which Ploeg records as the reason; the fix becomes the card's next Play."]
     see_also: [Gate, Play, Grade, Crack]
   - name: Crack
     context: Cards
@@ -657,13 +661,16 @@ terms:
     definition: >
       How exceptional a Run Card's change was, its challenge, kept apart from
       how well it was done (Grade) and how long it has lasted (Finish).
-      Cosmetic only, and off unless cards.rules.rarity turns it on. Unfold
+      Cosmetic only, and off by default (owner decision 2026-10-17): it shows
+      when cards.rules.rarity is true, or, while that setting is unset, to a
+      person whose cards.rarity feature flag is on. Unfold
       scores reach, sensitive ground, novelty and damped size under a
       versioned formula, predicts a tier at mint and reveals one at release,
       as percentile tiers per repository and quarter (common, uncommon, rare,
       epic, legendary), and freezes the revealed tier in its card store
-      (system ADR-0030). Nothing Ploeg authorizes, budgets or merges depends
-      on it.
+      (system ADR-0030), also while rarity is hidden, so turning it on shows
+      the frozen tiers (Unfold ADR 0045). Nothing Ploeg authorizes, budgets or
+      merges depends on it.
     see_also: [Run Card, Grade, Finish, Pack]
   - name: Set Card
     context: Cards
