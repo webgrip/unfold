@@ -20,6 +20,7 @@
     "ahp:e2e": "node test/sdk-e2e/ahp-e2e.mjs",
     "typecheck": "tsc --noEmit",
     "test:browser": "node scripts/browser-check.mjs",
+    "test:mcp-e2e": "node --test --test-concurrency=1 --test-timeout=180000 --test-force-exit test/e2e/*.e2e.ts",
     "replay:record": "node scripts/record-replay.ts",
     "replay:conformance": "node scripts/replay-conformance.mjs",
     "design:build": "node scripts/build-design.mjs",
@@ -39,6 +40,8 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@microsoft/agent-host-protocol": "1.0.0",
+    "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/conformance": "0.1.16",
     "@types/node": "24.19.2",
     "@types/ws": "8.18.2",
     "html-to-image": "1.11.13",
