@@ -821,6 +821,13 @@ export class PloegClient {
   private factsProbe: { until: number; supported: boolean } | null = null;
   private notesRoute: boolean | undefined;
   private cancelGuard: boolean | undefined;
+  private rarityShown: (user: User) => Promise<boolean>;
+  /** Decides per person whether the cards they read keep their rarity; a card read without it carries `rarity: null` (Unfold ADR 0045). */
+  useRarity(shown: (user: User) => Promise<boolean>): void { this.rarityShown = shown; }
+  private async withRarity(user: User, cards: RunCard[]): Promise<RunCard[]> {
+    if (cards.length && !(await this.rarityShown(user))) for (const card of cards) card.rarity = null;
+    return cards;
+  }
   /** Lets Unfold's own card domain (root ADR-0030) serve every card and crack route outside the demo. */
   useCards(service: CardService): void { this.cardService = service; }
   private async cards(fresh = false): Promise<CardService> {
@@ -868,7 +875,7 @@ export class PloegClient {
     const pr = record(comment.pullRequest);
     return { pullRequest: { id: identifier(pr.id), forge: field(pr.forge, 64), owner: field(pr.owner, 256), repo: field(pr.repo, 256), number: numeric(pr.number, true) }, commentId: comment.commentId === null || comment.commentId === undefined ? null : numeric(comment.commentId, true), imageUrl: comment.imageUrl === null || comment.imageUrl === undefined ? null : field(comment.imageUrl, 4096), created: comment.created === true };
   }
-  constructor(config: AppConfig) { this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); }
+  constructor(config: AppConfig) { this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); const setting = config.cards?.rules?.rarity; this.rarityShown = async () => setting === true; }
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
@@ -1019,11 +1026,11 @@ export class PloegClient {
     if (this.demo) {
       const card = ploegDemo.cards[id];
       if (!card || card.workItemId !== id || !this.allowed(user, card.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
-      return { card: structuredClone(card), demo: true, fetchedAt: new Date().toISOString() };
+      return { card: (await this.withRarity(user, [structuredClone(card)]))[0], demo: true, fetchedAt: new Date().toISOString() };
     }
     const owned = parseCard(await (await this.cards(fresh)).card(id, fresh));
     if (owned.workItemId !== id || !this.allowed(user, owned.team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
-    return { card: owned, demo: false, fetchedAt: new Date().toISOString() };
+    return { card: (await this.withRarity(user, [owned]))[0], demo: false, fetchedAt: new Date().toISOString() };
   }
   /** Lists the cards whose roster or steward names any of `logins`, newest activity first, across the caller's teams. The demo lists the demo cards. Without Ploeg's delivery facts it refuses with 503 `cards_facts_unavailable`. */
   async memberCards(user: User, logins: string[], fresh = false): Promise<RunCardList> {
@@ -1031,17 +1038,17 @@ export class PloegClient {
     const wanted = new Set(logins.map(login => login.toLowerCase()));
     const holds = (card: RunCard) => card.roster.some(person => wanted.has(person.name.toLowerCase())) || Boolean(card.steward && wanted.has(card.steward.name.toLowerCase()));
     if (!wanted.size) return { cards: [], source: { kind: this.demo ? 'demo' : 'list', scanned: 0, truncated: false } };
-    if (this.demo) return { cards: Object.values(ploegDemo.cards).filter(card => this.allowed(user, card.team) && holds(card)).map(card => structuredClone(card)), source: { kind: 'demo', scanned: 0, truncated: false } };
+    if (this.demo) return { cards: await this.withRarity(user, Object.values(ploegDemo.cards).filter(card => this.allowed(user, card.team) && holds(card)).map(card => structuredClone(card))), source: { kind: 'demo', scanned: 0, truncated: false } };
     const owned = await (await this.cards(fresh)).memberCards([...wanted], fresh);
-    return { cards: owned.cards.map(card => parseCard(card)).filter(card => this.allowed(user, card.team) && holds(card)), source: { kind: 'list', scanned: owned.scanned, truncated: owned.truncated } };
+    return { cards: await this.withRarity(user, owned.cards.map(card => parseCard(card)).filter(card => this.allowed(user, card.team) && holds(card))), source: { kind: 'list', scanned: owned.scanned, truncated: owned.truncated } };
   }
   /** Lists one Team's cards for its team page; the demo lists the demo cards. Without Ploeg's delivery facts it refuses with 503 `cards_facts_unavailable`. */
   async teamCards(user: User, team: string, since: string | undefined, fresh = false): Promise<RunCardList> {
     this.authorize(user);
     if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg team not found.');
-    if (this.demo) return { cards: Object.values(ploegDemo.cards).filter(card => card.team === team).map(card => structuredClone(card)), source: { kind: 'demo', scanned: 0, truncated: false } };
+    if (this.demo) return { cards: await this.withRarity(user, Object.values(ploegDemo.cards).filter(card => card.team === team).map(card => structuredClone(card))), source: { kind: 'demo', scanned: 0, truncated: false } };
     const owned = await (await this.cards(fresh)).teamCards(team, since, fresh);
-    return { cards: owned.cards.map(card => parseCard(card)).filter(card => card.team === team), source: { kind: 'list', scanned: owned.scanned, truncated: owned.truncated } };
+    return { cards: await this.withRarity(user, owned.cards.map(card => parseCard(card)).filter(card => card.team === team)), source: { kind: 'list', scanned: owned.scanned, truncated: owned.truncated } };
   }
   /** Reads per-team counts and spend for a window, scoped to the caller's teams. */
   async summary(user: User, window: string, fresh = false): Promise<PloegSummary> {

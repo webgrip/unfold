@@ -98,7 +98,7 @@ The rules below are the ones the code applies. A change to any of them needs a n
 * **Predicted and revealed.** A card is predicted once a Run started, and a predicted score adds 10 when the card is in a set. At release the score is revealed, tiered and frozen once in Unfold's store ([`assemble.ts`](../../src/cards/assemble.ts) `rarity`, `rarityRecord`). A frozen tier never changes.
 * **Tiers.** Each cohort is one repository and one UTC quarter. Below 30 cards, fixed thresholds apply: legendary 85, epic 70, rare 55, uncommon 35. From 30 cards, percentiles apply: above 99, 95, 85 and 60.
 * **Set.** An epic's card whose set is complete shows as legendary.
-* **Switch.** `cards.rules.rarity: false` turns rarity off. Leaving it unset turns rarity on ([`settings.ts`](../../src/cards/settings.ts) `resolveCardRules`).
+* **Switch.** Rarity is off by default (owner decision 2026-10-17, see the update below). `cards.rules.rarity: true` shows it to everyone. `cards.rules.rarity: false` turns it off, and Unfold neither computes nor freezes it. Left unset, Unfold computes and freezes rarity, and the `cards.rarity` feature flag, off by default, decides per person whether a card shows it ([`settings.ts`](../../src/cards/settings.ts) `rarityShown`, [`ploeg.ts`](../../src/ploeg.ts) `useRarity`).
 
 Rarity is cosmetic: no grade, pull or Ploeg decision reads it.
 
@@ -143,5 +143,20 @@ Rarity is cosmetic: no grade, pull or Ploeg decision reads it.
 * Differences from the Ploeg ADRs:
   * Ploeg ADR-0050 said a later formula is computed only for cards read after it ships. Unfold grades every card under the current formula when it is read.
   * Ploeg ADR-0052 had Ploeg propose crack candidates. Unfold now proposes them.
-* Open question for the owner: the [Run Cards](../../../../docs/concepts/run-cards.md) concept page and the glossary say rarity is off unless `cards.rules.rarity` turns it on. `resolveCardRules` turns it on unless the setting is `false`. `defaultCardRules`, which the tests use, has it off. This ADR records the code. Which behaviour is intended is still open.
-* 2026-10-14: accepted by the owner, and recorded from `apps/unfold/src/cards/` on `development`.
+* 2026-10-14: accepted by the owner, and recorded from `apps/unfold/src/cards/` on `development`. It left one question open: the concept page and the glossary said rarity is off unless `cards.rules.rarity` turns it on, while `resolveCardRules` turned it on unless the setting was `false`.
+
+## Update 2026-10-17: rarity is off by default, behind a feature flag
+
+The owner decided on 2026-10-17 that Run card rarity is off by default and behind a feature flag. That answers the open question above. How a card's rarity is shown now:
+
+| `cards.rules.rarity` | `cards.rarity` flag | Computed and frozen | Shown |
+| --- | --- | --- | --- |
+| unset (the default) | off (the default) | yes | no |
+| unset | on for a person | yes | to that person |
+| `true` | any | yes | to everyone |
+| `false` | any | no | to nobody |
+
+* **Configuration decides when it is set; otherwise the flag decides.** A deployment that wrote `true` or `false` keeps the behaviour it chose. A deployment that wrote nothing, such as the homelab, stops showing rarity until someone turns the flag on. The flag is a release flag in [`flag-registry.json`](../../src/flag-registry.json), offered in Labs and to be removed by 2027-01-17. An administrator can roll it out, override it or let people opt in ([ADR 0043](0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md)).
+* **Hidden is not deleted.** While rarity is hidden, Unfold still predicts it and freezes the revealed tier at release, as before. Every card a person reads (the card route, the binder, packs and Team pages) has `rarity: null` until the flag is on for them. Turning the flag on shows the tiers frozen while it was off. A tier frozen before this change stays in the store.
+* **Evaluated on the server.** `PloegClient` drops the rarity before a card leaves the server, so a person whose flag is off never receives it. The pull request comment already showed no rarity.
+* **Confirmation.** [`test/cards-service.test.ts`](../../test/cards-service.test.ts) pins the four rows above against the card route and the store. The `rarity` browser flow checks the demo hides rarity by default, shows every tier once the flag is turned on under Labs, and hides it again on Default.

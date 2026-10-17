@@ -151,6 +151,14 @@ At most 30 reports a minute leave. Each send waits at most three seconds and nev
 
 Before a report leaves, configured secrets, the DSN itself, URL credentials, `sk-` keys and bearer, basic and token values are replaced by `[redacted]`, and the user id is replaced by the first 16 hex digits of its SHA-256. Reports carry the release `unfold@<version>`, the host name and the environment.
 
+**Finding reports in VictoriaLogs.** When the collector forwards OTLP logs to VictoriaLogs on a Loki-protocol path, as Grafana Alloy's `loki.write` does, the record's `event.name` (`unfold.error`) and the resource's `service.name` (`unfold`) land as the stream fields `event_name` and `service_name`, with underscores. The other attributes keep their dots under `attributes.`: `attributes.exception.*` and `attributes.unfold.*`, such as `attributes.exception.message` and `attributes.unfold.fingerprint`. This LogsQL query lists every report:
+
+```logsql
+service_name:unfold event_name:"unfold.error"
+```
+
+Add `| stats by (attributes.unfold.fingerprint) count()` to group them.
+
 ### Why an Ask has no answer
 
 Each failed or refused Ask stores a `failureCode`, says why in plain words on the Work Item page, in the VS Code chat and through `unfold_ask`, and offers **Ask again** when another try may help. Every failure is logged as `ask.failed` or `ask.refused`.

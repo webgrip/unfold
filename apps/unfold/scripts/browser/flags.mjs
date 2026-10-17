@@ -31,8 +31,9 @@ export async function run({ app, page, assert, screenshot }) {
 
   await page.setViewportSize({ width: 1440, height: 1040 });
   await page.goto(`${origin}/#settings/labs`);
-  await page.getByRole('group', { name: 'Work Item flight profile: your choice' }).getByRole('button', { name: 'Default' }).click();
-  await page.getByText(/Off for you · The default/).waitFor();
+  const flightRow = page.locator('.labs-row', { has: page.getByRole('group', { name: 'Work Item flight profile: your choice' }) });
+  await flightRow.getByRole('button', { name: 'Default' }).click();
+  await flightRow.getByText(/Off for you · The default/).waitFor();
   await page.goto(`${origin}/#work/102?lane=leased`);
   await page.locator('.work-stages').waitFor();
   assert.equal(await page.locator('figure.flight').count(), 0, 'the flight profile still shows after choosing Default');
