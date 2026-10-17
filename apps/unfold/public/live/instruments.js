@@ -26,7 +26,7 @@ export function instruments(model, { layout = 'tiles' } = {}) {
     tile({ key: 'tokens', label: 'Tokens', value: model.tokens.in === null ? tokens(null) : `${tokens(model.tokens.in)} in`, detail: model.tokens.out === null ? '' : `${tokens(model.tokens.out)} out${model.tokens.unreportedRuns ? ` · ${model.tokens.unreportedRuns} ${model.tokens.unreportedRuns === 1 ? 'Run' : 'Runs'} not reported` : ''}` }),
     lost.runs || lost.agentFailures
       ? tile({ key: 'lost', label: 'Lost', value: `${lost.runs + lost.agentFailures} of ${model.runs.length}`, detail: lost.runs && !lost.agentFailures ? 'Machines, not the agent' : lost.agentFailures && !lost.runs ? 'The agent failed' : `${lost.runs} machine · ${lost.agentFailures} agent`, tone: lost.agentFailures ? 'danger' : 'attention' })
-      : tile({ key: 'edits', label: 'Files changed', value: String(model.edits), detail: `${model.calls.total} tool ${model.calls.total === 1 ? 'call' : 'calls'}` }),
+      : tile({ key: 'edits', label: 'Files changed', value: model.edits === null ? 'Not loaded' : String(model.edits), detail: model.calls.total === null ? 'Open the Run to load its calls' : `${model.calls.total} tool ${model.calls.total === 1 ? 'call' : 'calls'}` }),
   ];
   return `<dl class="${cx('lv-instruments', `lv-instruments-${layout}`)}">${tiles.join('')}</dl>`;
 }

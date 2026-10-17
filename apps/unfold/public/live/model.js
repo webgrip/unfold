@@ -20,8 +20,22 @@ export const stages = Object.freeze([
  * `stalledAfter` is the silence in seconds before a running Run reads as stalled; `troubleWindow` is how far back
  * failed or interrupted calls count; `troubleCalls` is how many of them make a Run struggle; `moveGap` is the pause in
  * seconds that starts a new move when the transcript reports no stage.
+ *
+ * The first rule that matches sets the word: `suspect` when a call crossed a high tripwire or the Run's rules changed,
+ * then `suspect` when the latest judge verdict is `abort`; `idle` when no Run works (`struggling` if the latest verdict
+ * is `off_course`); `stalled` when the lease ran out; `struggling` when the latest verdict is `off_course`; `flying`
+ * when the followed Run's transcript is not loaded, so silence is never claimed; `stalled` after `stalledAfter`
+ * seconds without a call; `struggling` after `troubleCalls` failed or interrupted calls; otherwise `steady`. Judge
+ * verdicts are proposed: Ploeg has no judge model yet.
  */
 export const healthRules = Object.freeze({ stalledAfter: 300, troubleWindow: 600, troubleCalls: 2, moveGap: 120 });
+
+/**
+ * The verdicts a judge model can give a running Run, worst last. Proposed: Ploeg runs no judge model mid-Run yet; a
+ * `run.judgement` event with detail `{ runId, verdict, reason, judge }` is the shape it would report.
+ * @type {ReadonlyArray<string>}
+ */
+export const judgeVerdicts = Object.freeze(['on_course', 'drifting', 'off_course', 'abort']);
 
 const toMs = value => { const at = Date.parse(value ?? ''); return Number.isFinite(at) ? at : null; };
 const isAmount = value => typeof value === 'number' && Number.isFinite(value);
@@ -101,15 +115,33 @@ export function movesOf(items = [], { now, live }) {
   return moves;
 }
 
-function healthOf({ running, lastActivity, calls, now, leaseLeft, guard }) {
+function healthOf({ running, lastActivity, calls, now, leaseLeft, guard, judgement, known }) {
   const high = guard.signals.filter(signal => signal.severity === 'high');
   if (high.length || guard.drift?.length) return { word: 'suspect', tone: 'danger', reason: high.length ? `${high.length} ${high.length === 1 ? 'call' : 'calls'} crossed a tripwire: ${[...new Set(high.map(signal => signal.label.toLowerCase()))].join('; ')}.` : 'Its rules changed since the Run started.' };
-  if (!running) return { word: 'idle', tone: 'neutral', reason: 'No Run is working right now.' };
+  const judged = judgement ? `A judge model (proposed) said ${judgement.verdict.replace('_', ' ')}.${judgement.reason ? ` ${judgement.reason}` : ''}` : '';
+  if (judgement?.verdict === 'abort') return { word: 'suspect', tone: 'danger', reason: judged };
+  const offCourse = judgement?.verdict === 'off_course' ? { word: 'struggling', tone: 'attention', reason: judged } : null;
+  if (!running) return offCourse ?? { word: 'idle', tone: 'neutral', reason: 'No Run is working right now.' };
   if (leaseLeft !== null && leaseLeft <= 0) return { word: 'stalled', tone: 'danger', reason: 'The worker’s lease ran out before it was renewed.' };
+  if (offCourse) return offCourse;
+  if (!known) return { word: 'flying', tone: 'live', reason: 'Its calls are not loaded yet.' };
   if (lastActivity !== null && (now - lastActivity) / 1000 >= healthRules.stalledAfter) return { word: 'stalled', tone: 'danger', reason: `No tool call for ${Math.floor((now - lastActivity) / 60000)} min.` };
   const recent = calls.filter(call => call.at !== null && (now - call.at) / 1000 <= healthRules.troubleWindow && (call.failed || call.interrupting));
   if (recent.length >= healthRules.troubleCalls) return { word: 'struggling', tone: 'attention', reason: `${recent.length} failed or interrupted calls in the last ${healthRules.troubleWindow / 60} min.` };
   return { word: 'steady', tone: 'success', reason: 'Calls keep coming and none failed recently.' };
+}
+
+/**
+ * The judge verdicts in a Work Item's events, oldest first. Proposed: Ploeg reports no `run.judgement` events yet, so
+ * every entry carries `proposed: true`. Unknown verdicts are dropped.
+ * @param {object[]} events Ploeg audit events, `{ at, action, detail }`.
+ * @returns {{ at: number|null, runId: string, verdict: string, reason: string, judge: string, proposed: true }[]}
+ */
+export function judgementsOf(events = []) {
+  return events
+    .filter(entry => entry?.action === 'run.judgement' && judgeVerdicts.includes(entry.detail?.verdict))
+    .map(entry => ({ at: toMs(entry.at), runId: String(entry.detail.runId ?? ''), verdict: entry.detail.verdict, reason: typeof entry.detail.reason === 'string' ? entry.detail.reason.trim() : '', judge: typeof entry.detail.judge === 'string' && entry.detail.judge ? entry.detail.judge : 'Judge model', proposed: true }))
+    .sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
 }
 
 function stageStates(item, runs, current) {
@@ -152,9 +184,11 @@ function stageStates(item, runs, current) {
  * @param {{ leftUsd: number, totalUsd: number }} [input.allowance] The Team's Ask Allowance.
  * @param {string[]} [input.allowedHosts] Hosts the Run may reach; a call to any other host is a tripwire.
  * @param {{ startedWith: object, current: object }} [input.policy] Proposed: the Run's rules at its start and now.
+ * @param {boolean} [input.transcriptKnown] Whether the followed Run's transcript was loaded. Defaults to true when
+ * `transcript` has items. When false, call counts, edits and the last call are `null` and a running Run reads `flying`.
  * @returns {object}
  */
-export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null, allowedHosts = [], policy = null }) {
+export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null, allowedHosts = [], policy = null, transcriptKnown = transcript.length > 0 }) {
   const item = detail.item;
   const shifts = [...(detail.shifts ?? [])].sort((a, b) => (toMs(a.openedAt) ?? 0) - (toMs(b.openedAt) ?? 0));
   const runs = [...(detail.runs ?? [])].sort(byStart);
@@ -200,10 +234,13 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
   const firstStart = allRuns.reduce((min, run) => run.startedAt !== null && (min === null || run.startedAt < min) ? run.startedAt : min, null);
   const origin = toMs(ticketCreatedAt) ?? toMs(item.createdAt);
   const leaseLeft = item.lease?.expiresAt ? Math.round((toMs(item.lease.expiresAt) - now) / 1000) : null;
-  const lastActivity = calls.length ? calls.at(-1).at : followed?.startedAt ?? null;
+  const known = transcriptKnown === true;
+  const lastActivity = !known ? null : calls.length ? calls.at(-1).at : followed?.startedAt ?? null;
   const signals = guardSignals(calls, { allowedHosts });
   const guard = { signals, drift: policyDrift(policy), allowedHosts, high: signals.filter(signal => signal.severity === 'high').length, source: signals.find(signal => signal.rule === 'injection') ?? null };
-  const health = healthOf({ running: Boolean(running), lastActivity, calls, now, leaseLeft, guard });
+  const judgements = judgementsOf(detail.events);
+  const judgement = judgements.findLast(entry => !running || entry.runId === running.id) ?? null;
+  const health = healthOf({ running: Boolean(running), lastActivity, calls, now, leaseLeft, guard, judgement, known });
   const stageList = stageStates(item, runs, running);
   const roleWork = allRuns.filter(run => !run.machine);
   const roles = [...new Set(roleWork.map(run => run.role))].map(role => ({ role, runs: roleWork.filter(run => run.role === role).length }));
@@ -234,11 +271,13 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     time: { agent: agentSeconds, useful: agentSeconds - lostSeconds, lost: lostSeconds, waiting: origin !== null && firstStart !== null ? Math.max(0, (firstStart - origin) / 1000) : origin !== null && !allRuns.length ? Math.max(0, (now - origin) / 1000) : null, waitingFrom: toMs(ticketCreatedAt) !== null ? 'ticket' : 'work item', lead: origin !== null ? Math.max(0, (now - origin) / 1000) : null, run: running?.seconds ?? null },
     lease: item.lease ? { expiresAt: toMs(item.lease.expiresAt), renewedAt: toMs(item.lease.renewedAt), secondsLeft: leaseLeft } : null,
     moves,
-    calls: { total: calls.length, byKind, lastAt: lastActivity },
-    edits: edited.size,
+    transcriptKnown: known,
+    calls: { total: known ? calls.length : null, byKind, lastAt: lastActivity },
+    edits: known ? edited.size : null,
     lastTrouble,
     health,
     guard,
+    judgements,
     estimate: estimate && typeof estimate.text === 'string' && estimate.text ? estimate : null,
     allowance: allowance && isAmount(allowance.leftUsd) ? allowance : null,
     window: { start: windowStart, end: windowEnd },

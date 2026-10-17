@@ -5,6 +5,7 @@ export default meta({ title: 'Live/Pages', frame: 'page', render: ({ scenario, l
 
 export const Cockpit = {};
 export const CockpitReadyForReview = { args: { scenario: 'review' } };
+export const CockpitHijacked = { args: { scenario: 'hijacked' } };
 export const CockpitStress = { args: { scenario: 'stress' } };
 export const Instrument = { args: { layout: 'instrument' } };
 export const InstrumentStalled = { args: { layout: 'instrument', scenario: 'stalled' } };

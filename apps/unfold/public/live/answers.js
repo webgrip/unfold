@@ -11,8 +11,9 @@ export function standingAnswers(model) {
   if (model.running || model.moves.length) {
     const changed = model.edits ? `changed ${model.edits} ${model.edits === 1 ? 'file' : 'files'}` : 'changed no file yet';
     const trouble = model.lastTrouble ? ` ${span(model.lastTrouble.seconds)} went to “${model.lastTrouble.title}” at ${clock(model.lastTrouble.at)}.` : '';
-    const health = model.health.word === 'steady' ? '' : ` It reads as ${model.health.word}: ${model.health.reason}`;
-    list.push({ id: 'progress', question: 'Is it getting anywhere?', answer: `It made ${model.calls.total} tool ${model.calls.total === 1 ? 'call' : 'calls'} and ${changed}.${trouble}${health}`, source: 'record' });
+    const health = ['steady', 'flying'].includes(model.health.word) ? '' : ` It reads as ${model.health.word}: ${model.health.reason}`;
+    const made = model.calls.total === null ? 'Its transcript is not loaded, so Unfold does not count its calls or changed files here.' : `It made ${model.calls.total} tool ${model.calls.total === 1 ? 'call' : 'calls'} and ${changed}.`;
+    list.push({ id: 'progress', question: 'Is it getting anywhere?', answer: `${made}${trouble}${health}`, source: 'record' });
   }
   if (model.lost.runs || model.lost.agentFailures) {
     const machine = model.lost.runs ? `${model.lost.runs} ${model.lost.runs === 1 ? 'Run was' : 'Runs were'} ended by the machine, not the agent.` : '';

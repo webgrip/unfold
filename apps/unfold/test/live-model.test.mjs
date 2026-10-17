@@ -4,6 +4,8 @@ import { healthRules, liveModel, movesOf } from '../public/live/model.js';
 import { standingAnswers } from '../public/live/answers.js';
 import { instruments } from '../public/live/instruments.js';
 import { fixtureNow, scenarios } from '../public/live/fixtures.js';
+import { liveSentence } from '../public/live/parts.js';
+import { flightLegs } from '../public/live/flight-path.js';
 
 const model = (name, change = input => input) => liveModel(change(scenarios[name].input()));
 
@@ -88,4 +90,41 @@ test('an estimate appears only when the caller passes one', () => {
 
 test('the model is deterministic for the same input and moment', () => {
   for (const name of Object.keys(scenarios)) assert.deepEqual(model(name), model(name), name);
+});
+
+test('proposed judge verdicts come from run.judgement events and steer the health word by its published order', () => {
+  const hijacked = model('hijacked');
+  assert.deepEqual(hijacked.judgements.map(entry => [entry.runId, entry.verdict, entry.proposed]), [['1', 'drifting', true], ['1', 'off_course', true]]);
+  assert.equal(hijacked.health.word, 'suspect', 'a high tripwire outranks the judge');
+  assert.match(hijacked.health.reason, /crossed a tripwire/);
+  assert.equal(model('judgeDrifting').health.word, 'steady', 'drifting then on course leaves a steady Run steady');
+  const abort = model('judgeAbort');
+  assert.deepEqual([abort.health.word, abort.health.tone], ['suspect', 'danger']);
+  assert.match(abort.health.reason, /^A judge model \(proposed\) said abort\. It deleted/);
+  const event = (verdict, at = -1) => ({ id: verdict, at: new Date(fixtureNow + at * 60000).toISOString(), action: 'run.judgement', detail: { runId: '1', verdict, reason: 'Left the brief.', judge: 'judge' } });
+  const offCourse = model('firstTry', input => ({ ...input, detail: { ...input.detail, events: [event('off_course')] } }));
+  assert.deepEqual([offCourse.health.word, offCourse.health.reason], ['struggling', 'A judge model (proposed) said off course. Left the brief.']);
+  const later = model('firstTry', input => ({ ...input, detail: { ...input.detail, events: [event('off_course', -2), event('on_course', -1)] } }));
+  assert.equal(later.health.word, 'steady', 'only the latest verdict counts');
+  const stalled = model('stalled', input => ({ ...input, detail: { ...input.detail, events: [event('off_course')] } }));
+  assert.equal(stalled.health.word, 'struggling', 'an off-course verdict outranks silence');
+  const unknown = model('firstTry', input => ({ ...input, detail: { ...input.detail, events: [event('maybe'), { action: 'work_item.queued', detail: {} }] } }));
+  assert.deepEqual(unknown.judgements, []);
+});
+
+test('without the followed Run’s transcript nothing claims silence or counts calls', () => {
+  const blind = model('firstTry', input => ({ ...input, transcript: [] }));
+  assert.equal(blind.transcriptKnown, false);
+  assert.deepEqual(blind.health, { word: 'flying', tone: 'live', reason: 'Its calls are not loaded yet.' });
+  assert.deepEqual([blind.calls.total, blind.calls.lastAt, blind.edits], [null, null, null]);
+  const late = model('firstTry', input => ({ ...input, transcript: [], now: fixtureNow + 3600000 }));
+  assert.equal(late.health.word, 'stalled', 'the lease still speaks: it expired');
+  const sentence = liveSentence(blind);
+  assert.deepEqual([sentence.head, sentence.sub], ['Builder is working.', 'Open the Run to follow its calls.']);
+  assert.match(standingAnswers(blind).find(answer => answer.id === 'progress').answer, /transcript is not loaded/);
+  assert.doesNotMatch(instruments(blind), /null|0 tool calls/);
+  const known = model('firstTry', input => ({ ...input, transcript: [], transcriptKnown: true }));
+  assert.deepEqual([known.transcriptKnown, known.calls.total, known.health.word], [true, 0, 'stalled']);
+  const flat = flightLegs(blind).find(leg => leg.kind === 'attempt').hops[0];
+  assert.equal(flat.profile, null, 'the live hop cruises flat');
 });

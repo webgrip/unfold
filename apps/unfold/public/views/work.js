@@ -12,7 +12,7 @@ import { enterPloegView, openPloegDialog } from './ploeg-common.js';
 import { stepDialogMarkup, stepOutcome, stepRequest } from '../core/attribution.js';
 import { transcriptEntryCap } from '../run-transcript.js';
 import { defaultLogView, logDownloadText } from '../run-log-view.js';
-import { exposed, flagValues, track } from '../core/flags.js';
+import { enabled, exposed, flagValues, track } from '../core/flags.js';
 import { agentsWindowAvailable, openAgentsWindow } from '../agents-window.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
@@ -134,6 +134,7 @@ function renderWork() {
   const transcriptScroll = new Map([...document.querySelectorAll('#app [data-run-transcript]')].map(element => [element.dataset.runTranscript, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
   renderHtml(shell(workMarkup(current), shellOptions(current)));
   if (current.detail) exposed('work.flight-profile', { screen: 'work', workItemId: current.detail.item.id });
+  if (current.detail) exposed('work.live-view', { screen: 'work', workItemId: current.detail.item.id });
   revealFlight(skyLeft);
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
   for (const element of document.querySelectorAll('#app [data-run-log]')) { const kept = logScroll.get(element.dataset.runLog); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
@@ -697,6 +698,13 @@ function openTranscriptPanels() {
   return [...document.querySelectorAll('#app details[id^="work-run-transcript-"][open]')].filter(element => element.closest('details.work-run')?.open !== false).map(element => transcriptPanel.exec(element.id)?.[1]).filter(Boolean);
 }
 
+function followedTranscripts() {
+  const open = openTranscriptPanels();
+  if (!enabled('work.live-view')) return open;
+  const running = [...(state.ploegDetail?.runs || [])].reverse().find(run => run.state === 'running');
+  return running && !open.includes(String(running.id)) ? [...open, String(running.id)] : open;
+}
+
 function transcriptIsLive(runId) {
   const entry = work.transcripts?.id === work.detailId ? work.transcripts.runs.get(runId) : null;
   if (entry?.data) return entry.data.available === true && (entry.data.complete !== true || entry.data.hasMore === true);
@@ -705,7 +713,7 @@ function transcriptIsLive(runId) {
 
 function loadUnreadTranscripts() {
   if (!visible() || !work.detailId) return;
-  for (const runId of openTranscriptPanels()) if (!(work.transcripts?.id === work.detailId && work.transcripts.runs.has(runId))) void loadRunTranscript(runId);
+  for (const runId of followedTranscripts()) if (!(work.transcripts?.id === work.detailId && work.transcripts.runs.has(runId))) void loadRunTranscript(runId);
 }
 
 function loadOpenedTranscripts(event) {
@@ -715,7 +723,7 @@ function loadOpenedTranscripts(event) {
 
 async function pollRunTranscripts() {
   if (!visible() || !work.detailId) return false;
-  const running = openTranscriptPanels().filter(transcriptIsLive);
+  const running = followedTranscripts().filter(transcriptIsLive);
   if (!running.length) return false;
   await Promise.all(running.map(runId => loadRunTranscript(runId)));
   return true;

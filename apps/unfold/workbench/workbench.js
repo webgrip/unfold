@@ -68,7 +68,9 @@ async function indexApps() {
 }
 
 function showApp(id) {
-  const [, recording, item] = id.split(':');
+  const [, base, item] = id.split(':');
+  const flags = chosen('flag');
+  const recording = flags.length ? `${base}~${flags.join(',')}` : base;
   document.querySelector('#story-title').textContent = `Real app · ${recording} · Work Item ${item}`;
   document.querySelector('#model').textContent = 'The real Work Item page, answered from the recording by the replay shim. Missing answers show as recording warnings.';
   for (const frame of frames.values()) frame.cell.remove();
@@ -103,6 +105,7 @@ function show() {
   appsNav.hidden = !app;
   document.querySelector('#stories').hidden = app;
   document.querySelector('#scenario-field').hidden = app;
+  document.querySelector('#flags-field').hidden = !app;
   for (const link of document.querySelectorAll('.wb-link')) link.toggleAttribute('aria-current', link.dataset.story === hash);
   if (app) {
     const first = recordings[0];

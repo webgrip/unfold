@@ -38,7 +38,8 @@ const policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src
  * Serves the component workbench on its own, without the Unfold application: `public/` for the components and their
  * styles, `workbench/` for the story browser, and `/app/<recording>/` for the real app answering its API from a
  * recording through the replay shim: `demo` is the committed deterministic demo, and every `workbench/recorded/*.json`
- * is a live recording kept on this machine. Every response carries the application's Content Security Policy, so a
+ * is a live recording kept on this machine. `/app/<recording>~<flag>,<flag>/` turns those boolean flags on in the
+ * recorded bootstrap, so a frame shows a Labs view. Every response carries the application's Content Security Policy, so a
  * component that needs an inline style or script fails here as it would in the app. `/events` tells open pages when a
  * file changed.
  * @param {{ port?: number, host?: string, watchFiles?: boolean }} [options]
@@ -82,10 +83,19 @@ export async function startWorkbench({ port = Number(process.env.UNFOLD_WORKBENC
     }
     const app = /^\/app\/([^/]+)\/(.*)$/.exec(path);
     if (app) {
-      const entry = (await recordings()).find(item => item.name === app[1]);
+      const [name, flagList = ''] = app[1].split('~');
+      const flags = flagList.split(',').filter(flag => /^[a-z0-9][a-z0-9.-]{0,63}$/.test(flag));
+      const entry = (await recordings()).find(item => item.name === name);
       if (!entry) { response.writeHead(404); response.end('No such recording'); return; }
       if (app[2] === '' || app[2] === 'index.html') { await appPage(response); return; }
-      if (app[2] === 'replay/replay.json') { response.writeHead(200, { 'Content-Type': types['.json'], 'Cache-Control': 'no-store' }); response.end(await readFile(entry.file)); return; }
+      if (app[2] === 'replay/replay.json') {
+        const data = JSON.parse(await readFile(entry.file, 'utf8'));
+        const bootstrap = data.routes?.['GET /api/bootstrap'];
+        if (bootstrap?.body && flags.length) bootstrap.body.flags = { ...(bootstrap.body.flags ?? {}), ...Object.fromEntries(flags.map(flag => [flag, true])) };
+        response.writeHead(200, { 'Content-Type': types['.json'], 'Cache-Control': 'no-store' });
+        response.end(JSON.stringify(data));
+        return;
+      }
     }
     const relative = app ? normalize(`public/${app[2]}`) : normalize(path.endsWith('/') ? `${path}index.html` : path).replace(/^[/\\]+/, '');
     if (!served.some(folder => relative === folder || relative.startsWith(`${folder}${sep}`)) || relative.split(sep).includes('..')) { response.writeHead(404); response.end('Not found'); return; }

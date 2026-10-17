@@ -2951,3 +2951,8 @@ button.stream-bar:hover {
   block-size: 10px;
   border-radius: 2px;
 }
+
+.work-live {
+  padding: var(--space-4);
+  gap: var(--space-4);
+}

@@ -16,3 +16,6 @@ export const NeedsYouOutOfBudget = { args: { scenario: 'overBudget' } };
 export const StoppedRetrying = { args: { scenario: 'staleMachines' } };
 export const Withdrawn = { args: { scenario: 'withdrawn' } };
 export const Stress = { args: { scenario: 'stress' } };
+export const Hijacked = { args: { scenario: 'hijacked' } };
+export const JudgeDrifting = { args: { scenario: 'judgeDrifting' } };
+export const JudgeAbort = { args: { scenario: 'judgeAbort' } };

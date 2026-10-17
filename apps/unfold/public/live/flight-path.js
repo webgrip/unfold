@@ -45,7 +45,7 @@ const grounded = end => ['machine', 'stuck', 'failed', 'budget', 'timeout', 'can
 const grow = minutes => Math.max(1, Math.min(12, Math.round(1 + Math.sqrt(Math.max(0, minutes)) * 1.6)));
 
 function profile(model, run) {
-  if (!model.followed || model.followed.id !== run.id || run.startedAt === null) return null;
+  if (model.transcriptKnown === false || !model.followed || model.followed.id !== run.id || run.startedAt === null) return null;
   const end = run.finishedAt ?? model.now;
   const calls = model.moves.flatMap(move => move.calls).filter(call => call.at !== null && call.at >= run.startedAt && call.at <= end);
   if (!calls.length) return null;
@@ -96,7 +96,7 @@ function smooth(points) {
  * @returns {{ line: string, area: string, trouble: string }}
  */
 export function hopGeometry({ from, end, profile: levels, count = 1 }) {
-  if (end === 'pending') return { line: `M0 ${ground} L100 ${ground}`, area: '', trouble: '' };
+  if (end === 'pending') return { line: `M0 ${ground} L100 ${ground}`, area: '', trouble: '', points: [[0, ground], [100, ground]] };
   if (count > 1) {
     const bounces = Math.min(count, 8);
     const width = 100 / bounces;
@@ -105,7 +105,7 @@ export function hopGeometry({ from, end, profile: levels, count = 1 }) {
       const x = index * width;
       return `${index ? '' : `M0 ${ground} `}C${r(x + width * 0.2)} ${top}, ${r(x + width * 0.8)} ${top}, ${r(x + width)} ${ground}`;
     }).join(' ');
-    return { line, area: `${line} L0 ${ground} Z`, trouble: '' };
+    return { line, area: `${line} L0 ${ground} Z`, trouble: '', points: [] };
   }
   const points = [[0, from === 'ground' ? ground : cruise]];
   const climb = from === 'ground' ? 22 : 0;
@@ -126,7 +126,75 @@ export function hopGeometry({ from, end, profile: levels, count = 1 }) {
     const step6 = r(width / steps.length / 6);
     return `M${r(x0)} ${r(altitude(step.level))} l${step6} -8 l${step6} 14 l${step6} -14 l${step6} 14 l${step6} -14 l${step6} 8`;
   }).join(' ').trim() : '';
-  return { line, area, trouble };
+  return { line, area, trouble, points };
+}
+
+/**
+ * The height of a hop's line at `x`, read off its points by straight interpolation; close enough to the smooth curve
+ * for a mark to meet the line.
+ * @param {number[][]} points `hopGeometry().points`.
+ * @param {number} x 0 to 100.
+ * @returns {number}
+ */
+export function heightAt(points, x) {
+  if (!points.length) return cruise;
+  if (x <= points[0][0]) return points[0][1];
+  for (let index = 1; index < points.length; index += 1) {
+    const [x0, y0] = points[index - 1];
+    const [x1, y1] = points[index];
+    if (x <= x1) return x1 === x0 ? y1 : y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+  }
+  return points.at(-1)[1];
+}
+
+const verdictWords = Object.freeze({ on_course: 'on course', drifting: 'drifting', off_course: 'off course', abort: 'abort' });
+const labelBins = 5;
+const verdictRank = Object.freeze({ on_course: 0, drifting: 1, off_course: 2, abort: 3 });
+
+/** Where a moment falls on a hop: one of `bins` columns, so marks sit on fixed CSS positions instead of inline styles. */
+export const markBins = bins;
+
+/**
+ * The marks drawn on one hop: tripwire hits from the followed Run's transcript, grouped by column, and judge
+ * verdicts for the Run (proposed). Each mark sits in one of `markBins` columns across the hop's 100-wide box, at the
+ * same place the activity profile puts the call. The worst verdict is `labelled`: on its own row when the hop has no
+ * tripwire marks, and otherwise only when its word fits on `side` without covering another verdict. `divertedAt` is the column of the first `off_course` or `abort`.
+ * @param {object} model A `liveModel` result.
+ * @param {{ run: object, from: string, end: string, count: number }} hop
+ * @returns {{ wires: object[], calls: object[], divertedAt: number|null }}
+ */
+export function hopMarks(model, hop) {
+  const none = { wires: [], calls: [], divertedAt: null };
+  const { run } = hop;
+  if (hop.count > 1 || hop.end === 'pending' || run.startedAt === null) return none;
+  const end = run.finishedAt ?? model.now;
+  const climb = hop.from === 'ground' ? 22 : 0;
+  const fall = grounded(hop.end) ? 24 : 0;
+  const binOf = at => {
+    const share = Math.max(0, Math.min(1, (at - run.startedAt) / Math.max(1, end - run.startedAt)));
+    return Math.max(0, Math.min(bins - 1, Math.floor((climb + (100 - climb - fall) * share) / 100 * bins)));
+  };
+  const inside = at => at !== null && at >= run.startedAt && at <= end;
+  const followed = model.followed?.id === run.id;
+  const grouped = new Map();
+  for (const signal of followed ? model.guard.signals.filter(each => inside(each.at)) : []) {
+    const bin = binOf(signal.at);
+    if (!grouped.has(bin)) grouped.set(bin, []);
+    grouped.get(bin).push(signal);
+  }
+  const wires = [...grouped.entries()].sort((a, b) => a[0] - b[0]).map(([bin, signals]) => ({ bin, signals, severity: signals.some(each => each.severity === 'high') ? 'high' : 'medium' }));
+  const own = (model.judgements ?? []).filter(each => each.runId === run.id && inside(each.at));
+  const worst = own.reduce((best, each) => !best || verdictRank[each.verdict] >= verdictRank[best.verdict] ? each : best, null);
+  const placed = own.map(each => ({ bin: binOf(each.at), verdict: each.verdict, judgement: each }));
+  const room = (bin, step) => !placed.some(other => other.judgement !== worst && Math.sign(other.bin - bin) === step && Math.abs(other.bin - bin) < labelBins) && bin + step * (labelBins - 1) >= 0 && bin + step * (labelBins - 1) <= bins - 1;
+  const calls = placed.map(call => {
+    if (call.judgement !== worst) return { ...call, labelled: false, side: null };
+    const order = call.bin < bins / 2 ? [1, -1] : [-1, 1];
+    const step = wires.length ? order.find(each => room(call.bin, each)) : order[0];
+    return { ...call, labelled: step !== undefined, side: step === undefined ? null : step === 1 ? 'start' : 'end' };
+  });
+  const turn = own.find(each => each.verdict === 'off_course' || each.verdict === 'abort');
+  return { wires, calls, divertedAt: turn ? binOf(turn.at) : null };
 }
 
 /**
@@ -146,6 +214,8 @@ export function flightLegs(model) {
     const singles = attempt.runs.map(run => {
       const end = ending(run, model);
       const hop = { run, runs: [run], count: 1, end, from, grow: grow(run.seconds / 60), profile: profile(model, run), ...hopEndings[end] };
+      hop.marks = hopMarks(model, hop);
+      if (hop.marks.wires.length || hop.marks.calls.length) hop.grow = Math.min(12, hop.grow + 2 + hop.marks.wires.length);
       from = grounded(end) ? 'ground' : 'air';
       return hop;
     });
@@ -153,7 +223,7 @@ export function flightLegs(model) {
     for (const hop of singles) {
       const previous = hops.at(-1);
       const same = previous && previous.end === hop.end && grounded(hop.end) && hop.end !== 'pending';
-      if (same) { previous.runs.push(hop.run); previous.count += 1; previous.grow = Math.min(12, previous.grow + hop.grow); }
+      if (same) { previous.runs.push(hop.run); previous.count += 1; previous.grow = Math.min(12, previous.grow + hop.grow); previous.marks = { wires: [], calls: [], divertedAt: null }; }
       else hops.push({ ...hop, runs: [hop.run] });
     }
     for (let index = hops.length - 1; index >= 0; index -= 1) {
@@ -171,7 +241,8 @@ export function flightLegs(model) {
   const pr = model.stages.find(stage => stage.id === 'pr')?.status === 'done';
   const stopped = { needs_human: ['attention', 'Needs you', 'flag'], stale: ['severe', 'Stopped retrying', 'circle-slash'], withdrawn: ['neutral', 'Withdrawn', 'circle-slash'] }[model.state];
   const lastFailure = [...model.runs].reverse().find(run => run.failure || run.status === 'cancelled');
-  if (stopped) legs.push({ kind: 'stop', tone: stopped[0], label: stopped[1], glyph: stopped[2], note: lastFailure?.failure?.label ?? (model.state === 'withdrawn' ? 'Its Runs are kept' : '') });
+  const aborted = (model.judgements ?? []).at(-1)?.verdict === 'abort';
+  if (stopped) legs.push({ kind: 'stop', tone: stopped[0], label: stopped[1], glyph: stopped[2], note: aborted ? 'A judge called abort (proposed)' : lastFailure?.failure?.label ?? (model.state === 'withdrawn' ? 'Its Runs are kept' : '') });
   else if (!model.running && (model.state === 'awaiting_review' || model.state === 'done' || pr)) legs.push({ kind: 'approach', mode: 'landed', note: '' });
   else if (!queued) legs.push({ kind: 'approach', mode: model.running ? 'forecast' : 'taxi', note: model.estimate ? model.estimate.text : 'no estimate' });
   for (const stage of model.stages.filter(entry => ['pr', 'review', 'merge', 'production'].includes(entry.id))) {
@@ -185,21 +256,76 @@ function planeMark(extra = '') {
   return `<span class="${cx('lv-fp-plane', extra)}" aria-hidden="true"><svg viewBox="4 4 56 56" class="lv-fp-plane-svg" aria-hidden="true"><path class="lv-plane-ink" d="${faviconPaths.ink}"></path><path class="lv-plane-fold" d="${faviconPaths.fold}"></path></svg></span>`;
 }
 
-function hopMarkup(hop, key) {
+const binX = bin => (bin + 0.5) * 100 / bins;
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+function wireWords(signals) {
+  const blocked = signals.filter(each => each.blocked).length;
+  return `${plural(signals.length, 'tripwire hit', 'tripwire hits')} at ${clock(signals[0].at)}: ${[...new Set(signals.map(each => each.label.toLowerCase()))].join('; ')}${blocked ? `, ${blocked} blocked` : ''}. Derived from the transcript.`;
+}
+
+function callWords(judgement) {
+  return `Judge model (proposed) at ${clock(judgement.at)}: ${verdictWords[judgement.verdict]}.${judgement.reason ? ` ${judgement.reason}` : ''}`;
+}
+
+function markWords(model, hop) {
+  const { wires, calls } = hop.marks ?? { wires: [], calls: [] };
+  const signals = wires.flatMap(wire => wire.signals);
+  const parts = [];
+  if (signals.length) parts.push(`${plural(signals.length, 'call', 'calls')} crossed a tripwire${signals.some(each => each.blocked) ? `, ${signals.filter(each => each.blocked).length} blocked` : ''}.`);
+  for (const call of calls) parts.push(callWords(call.judgement));
+  if (hop.end === 'live' && model.health.word === 'suspect') parts.push(`Possible hijack: ${model.health.reason}`);
+  return parts.join(' ');
+}
+
+function markSvg(hop, points) {
+  const { wires, calls } = hop.marks;
+  return [
+    ...calls.map(call => `<path class="${cx('lv-fp-call-line', `is-${call.verdict}`)}" d="M${r(binX(call.bin))} 8 V${r(heightAt(points, binX(call.bin)))}"></path>`),
+    ...wires.map(wire => `<path class="${cx('lv-fp-wire-line', `is-${wire.severity}`)}" d="M${r(binX(wire.bin))} ${r(heightAt(points, binX(wire.bin)))} V8"></path>`),
+  ].join('');
+}
+
+function markHtml(hop) {
+  const { wires, calls } = hop.marks;
+  return [
+    ...wires.map(wire => `<span class="${cx('lv-fp-wire', `is-${wire.severity}`, `lv-fp-at-${wire.bin}`)}" title="${escape(wireWords(wire.signals))}" aria-hidden="true">${icon('alert')}${wire.signals.length > 1 ? `<span class="lv-fp-wire-n">${wire.signals.length}</span>` : ''}</span>`),
+    ...calls.map(call => `<span class="${cx('lv-fp-call', `is-${call.verdict}`, `lv-fp-at-${call.bin}`, call.labelled ? '' : 'lv-fp-call-quiet', call.side === 'end' ? 'lv-fp-call-end' : '')}" title="${escape(callWords(call.judgement))}" aria-hidden="true">${icon('eye')}${call.labelled ? `<span class="lv-fp-call-word">${escape(verdictWords[call.verdict])}</span>` : ''}</span>`),
+  ].join('');
+}
+
+function chipMarks(hop) {
+  const { wires, calls } = hop.marks ?? { wires: [], calls: [] };
+  const signals = wires.flatMap(wire => wire.signals);
+  const worst = calls.reduce((best, call) => !best || verdictRank[call.verdict] >= verdictRank[best.verdict] ? call : best, null);
+  return `${signals.length ? `<span class="${cx('lv-fp-wire-chip', signals.some(each => each.severity === 'high') ? 'is-high' : 'is-medium')}">${icon('alert')}${signals.length}</span>` : ''}${worst ? `<span class="${cx('lv-fp-call-chip', `is-${worst.verdict}`)}">${icon('eye')}${escape(verdictWords[worst.verdict])}</span>` : ''}`;
+}
+
+function hopMarkup(hop, key, model) {
   const { run, end, tone } = hop;
-  const { line, area, trouble } = hopGeometry(hop);
+  const { line, area, trouble, points } = hopGeometry(hop);
   const gradient = `${key}-g`;
-  const sky = `<svg class="lv-fp-sky-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${gradient}" x1="0" y1="0" x2="0" y2="1"><stop class="lv-fp-stop" offset="0"></stop><stop class="lv-fp-stop-end" offset="1"></stop></linearGradient></defs>${area ? `<path class="lv-fp-area" d="${area}" fill="url(#${gradient})"></path>` : ''}<path class="lv-fp-line" d="${line}"></path>${trouble ? `<path class="lv-fp-trouble" d="${trouble}"></path>` : ''}</svg>`;
-  const words = hop.count > 1
+  const marks = hop.marks ?? { wires: [], calls: [], divertedAt: null };
+  const diverted = marks.divertedAt !== null;
+  const split = diverted ? binX(marks.divertedAt) : null;
+  const clips = diverted ? `<clipPath id="${key}-before"><rect x="-10" y="-10" width="${r(split + 10)}" height="120"></rect></clipPath><clipPath id="${key}-after"><rect x="${r(split)}" y="-10" width="${r(110 - split)}" height="120"></rect></clipPath>` : '';
+  const lines = diverted
+    ? `<path class="lv-fp-line" d="${line}" clip-path="url(#${key}-before)"></path><path class="lv-fp-line lv-fp-line-diverted" d="${line}" clip-path="url(#${key}-after)"></path>`
+    : `<path class="lv-fp-line" d="${line}"></path>`;
+  const sky = `<svg class="lv-fp-sky-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${gradient}" x1="0" y1="0" x2="0" y2="1"><stop class="lv-fp-grad" offset="0"></stop><stop class="lv-fp-grad-end" offset="1"></stop></linearGradient>${clips}</defs>${area ? `<path class="lv-fp-area" d="${area}" fill="url(#${gradient})"></path>` : ''}${markSvg({ marks }, points)}${lines}${trouble ? `<path class="lv-fp-trouble" d="${trouble}"></path>` : ''}</svg>`;
+  const base = hop.count > 1
     ? `Runs ${hop.runs[0].n} to ${hop.runs.at(-1).n}, ${hop.count} in a row ${hop.words}${run.failure ? `: ${run.failure.label}` : ''}, ${span(hop.runs.reduce((sum, each) => sum + each.seconds, 0))} in all.`
     : `Run ${run.n}, ${run.role}, ${span(run.seconds)}${run.state === 'running' ? ' so far' : ''}, ${hop.words}${run.failure ? `: ${run.failure.label}` : ''}.`;
+  const extra = markWords(model, { ...hop, marks });
+  const words = extra ? `${base} ${extra}` : base;
+  const suspect = end === 'live' && model.health.word === 'suspect';
   const badge = hop.count > 1 ? `<span class="lv-fp-count">${hop.count}×</span>` : '';
-  const marker = end === 'live' ? planeMark('is-live')
+  const marker = end === 'live' ? planeMark(cx('is-live', suspect ? 'is-suspect' : ''))
     : end === 'holding' ? `<span class="lv-fp-hold" aria-hidden="true"><svg viewBox="0 0 60 30" class="lv-fp-hold-svg" aria-hidden="true"><rect x="3" y="3" width="54" height="24" rx="12"></rect></svg>${planeMark('is-holding')}</span>`
       : end === 'pending' ? planeMark('is-taxi')
         : `<span class="${cx('lv-fp-end', grounded(end) ? 'is-ground' : 'is-air', `is-${tone}`)}" aria-hidden="true">${icon(hop.glyph)}${badge}</span>`;
-  const chip = end === 'live' || end === 'holding' || end === 'pending' ? planeMark('is-chip') : `${icon(hop.glyph)}${badge}`;
-  return `<li class="${cx('lv-fp-hop', `lv-g${hop.grow}`, `is-${tone}`, `is-${end}`, run.writes ? 'is-writer' : 'is-reader')}" title="${escape(words)}"><span class="sr-only">${escape(words)}</span><div class="lv-fp-sky">${sky}${marker}</div><div class="lv-fp-runway" aria-hidden="true"></div><span class="${cx('lv-fp-chip', `is-${tone}`)}" aria-hidden="true">${chip}</span></li>`;
+  const chip = `${end === 'live' || end === 'holding' || end === 'pending' ? planeMark(cx('is-chip', suspect ? 'is-suspect' : '')) : `${icon(hop.glyph)}${badge}`}${chipMarks({ marks })}`;
+  return `<li class="${cx('lv-fp-hop', `lv-g${hop.grow}`, `is-${tone}`, `is-${end}`, run.writes ? 'is-writer' : 'is-reader', diverted ? 'is-diverted' : '')}" title="${escape(words)}"><span class="sr-only">${escape(words)}</span><div class="lv-fp-sky">${sky}${markHtml({ marks })}${marker}</div><div class="lv-fp-runway" aria-hidden="true"></div><span class="${cx('lv-fp-chip', `is-${tone}`)}" aria-hidden="true">${chip}</span></li>`;
 }
 
 function head(name, note, extra = '') {
@@ -210,7 +336,10 @@ function head(name, note, extra = '') {
  * The flight path: one column per leg on a shared runway. The ask and the wait sit on the ground; each attempt takes
  * off and every Run is a hop whose altitude follows its activity; a machine-ended Run drops back with a neutral bolt,
  * an agent failure with a red mark, a stalled Run circles in a holding pattern, and the plane flies at the head of the
- * live Run. Ahead are the stations, with your review in the brand red. A stopped Work Item ends in a flag. Columns
+ * live Run. Ahead are the stations, with your review in the brand red. A stopped Work Item ends in a flag. A call that
+ * crossed a tripwire (derived from the transcript) stands on its hop as a line up to a warning mark; a judge verdict
+ * (proposed: Ploeg has no judge model yet) is a call sign above the hop, and an `off_course` or `abort` verdict
+ * diverts the hop: its line turns dashed red from that moment. A suspect live Run flies a red-ringed plane. Columns
  * grow with the square root of time, so a long wait does not crowd out the work. Under 34 rem of container width the
  * same list stands up as a vertical flight log. Pure: the same model always gives the same markup, with no inline
  * styles.
@@ -222,7 +351,7 @@ export function flightPath(model, { id = `lv-flight-${model.id}` } = {}) {
   const legs = flightLegs(model).map((leg, index) => {
     if (leg.kind === 'gate') return `<li class="lv-fp-leg lv-fp-gate lv-g2">${head(escape(leg.label), leg.note)}<div class="lv-fp-sky"></div><div class="lv-fp-runway is-apron" aria-hidden="true"><span class="lv-fp-gate-mark"></span></div></li>`;
     if (leg.kind === 'wait') return `<li class="${cx('lv-fp-leg', 'lv-fp-wait', 'lv-g3', leg.parked ? 'is-parked' : '')}">${head(escape(leg.label), leg.note)}<div class="lv-fp-sky">${leg.parked ? planeMark('is-parked') : ''}</div><div class="lv-fp-runway is-taxiway" aria-hidden="true"><span class="lv-fp-break">≈</span></div></li>`;
-    if (leg.kind === 'attempt') return `<li class="${cx('lv-fp-leg', 'lv-fp-attempt', `lv-g${leg.grow}`, `is-${leg.tone}`)}">${head(`${escape(leg.head)}${leg.time ? ` <span class="lv-fp-time">${escape(leg.time)}</span>` : ''}`, leg.note)}<ol class="lv-fp-hops">${leg.hops.map((hop, hopIndex) => hopMarkup(hop, `${id}-${index}-${hopIndex}`)).join('')}</ol></li>`;
+    if (leg.kind === 'attempt') return `<li class="${cx('lv-fp-leg', 'lv-fp-attempt', `lv-g${leg.grow}`, `is-${leg.tone}`)}">${head(`${escape(leg.head)}${leg.time ? ` <span class="lv-fp-time">${escape(leg.time)}</span>` : ''}`, leg.note)}<ol class="lv-fp-hops">${leg.hops.map((hop, hopIndex) => hopMarkup(hop, `${id}-${index}-${hopIndex}`, model)).join('')}</ol></li>`;
     if (leg.kind === 'stop') return `<li class="${cx('lv-fp-leg', 'lv-fp-stop', 'lv-g6', `lv-tone-${leg.tone}`)}">${head(escape(leg.label), leg.note)}<div class="lv-fp-sky"><span class="lv-fp-flag" aria-hidden="true">${icon(leg.glyph)}</span></div><div class="lv-fp-runway is-closed" aria-hidden="true"></div></li>`;
     if (leg.kind === 'approach') {
       const descent = leg.mode === 'taxi' ? `M0 ${ground} L100 ${ground}` : `M0 ${cruise} C${leg.mode === 'landed' ? 40 : 45} ${cruise}, 55 ${ground}, 100 ${ground}`;

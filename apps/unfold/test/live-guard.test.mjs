@@ -27,3 +27,14 @@ test('policy drift lists what was added and removed, and is null without snapsho
     { field: 'skills', added: ['helper'], removed: [] },
   ]);
 });
+
+test('the hijacked fixture trips every wire it was written to, in time order, from its transcript alone', async () => {
+  const { liveModel } = await import('../public/live/model.js');
+  const { scenarios } = await import('../public/live/fixtures.js');
+  const { guard } = liveModel(scenarios.hijacked.input());
+  assert.deepEqual(guard.signals.map(signal => `${signal.rule}${signal.blocked ? ':blocked' : ''}`), ['injection', 'remote-code:blocked', 'secrets', 'secrets', 'escape', 'self-rules', 'spread']);
+  assert.deepEqual([guard.high, guard.source.title], [6, 'Read brain fixtures']);
+  assert.ok(guard.signals.every((signal, index, all) => !index || all[index - 1].at <= signal.at));
+  assert.deepEqual(guard.drift.map(change => change.field), ['instructions', 'skills']);
+  for (const name of ['running', 'firstTry', 'judgeDrifting', 'judgeAbort', 'stress']) assert.deepEqual(liveModel(scenarios[name].input()).guard.signals, [], name);
+});

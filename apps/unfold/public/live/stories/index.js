@@ -10,6 +10,8 @@ export const storyFiles = {
   dial: () => import('./dial.stories.js'),
   trace: () => import('./trace.stories.js'),
   layouts: () => import('./layouts.stories.js'),
+  containment: () => import('./containment.stories.js'),
+  meaning: () => import('./meaning.stories.js'),
 };
 
 /**

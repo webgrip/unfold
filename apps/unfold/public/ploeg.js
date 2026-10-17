@@ -14,6 +14,13 @@ import { cardView } from './cards/card-model.js';
 import { deliveryStages, stageTime } from './core/delivery-track.js';
 import { streamChart, streamLanes, streamStats } from './core/value-stream.js';
 import { flightMarkup, flightPlan } from './core/flight-profile.js';
+import { foldTranscript } from './run-transcript.js';
+import { liveModel } from './live/model.js';
+import { flightPath } from './live/flight-path.js';
+import { foldStrip } from './live/fold-strip.js';
+import { answers } from './live/answers.js';
+import { nowLine } from './live/layouts.js';
+import { containmentPanel, needsContainment } from './live/containment.js';
 import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
 import { runTranscriptMarkup } from './run-transcript.js';
@@ -1449,6 +1456,19 @@ export function flightProfileMarkup(detail, model) {
   return flightMarkup(plan, { stats: lanes.length ? streamStats(lanes, { stream, now: model.now }) : null });
 }
 
+/**
+ * The live view at the head of a Work Item page while the `work.live-view` flag is on: the fold strip, the live
+ * sentence and the flight path, from the detail and the running Run's transcript when its panel has loaded it, then
+ * the questions answered from the record.
+ */
+export function liveViewMarkup(detail, model) {
+  const running = [...(detail.runs || [])].reverse().find(run => run.state === 'running');
+  const entry = running ? model.runTranscripts?.get?.(String(running.id)) : null;
+  const transcript = entry?.entries?.length ? foldTranscript(entry.entries).items : [];
+  const live = liveModel({ detail, transcript, transcriptKnown: Boolean(entry?.entries?.length), transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
+  return `<section class="card work-live lv" aria-label="Live view">${foldStrip(live)}${nowLine(live)}${needsContainment(live) ? containmentPanel(live) : ''}${flightPath(live, { id: `work-live-flight-${detail.item.id}` })}${answers(live, { layout: 'chips', ask: false })}</section>`;
+}
+
 /** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
 export function detailMarkup(recordedDetail, model) {
   const detail = reconcileDetail(recordedDetail, model.sessions);
@@ -1470,7 +1490,7 @@ export function detailMarkup(recordedDetail, model) {
   else decision = statusBox(detail, model);
   const parts = [
     headerMarkup(detail, model, reason),
-    model.flags?.['work.flight-profile'] === true ? flightProfileMarkup(detail, model) : stagesMarkup(detail, model),
+    model.flags?.['work.live-view'] === true ? liveViewMarkup(detail, model) : model.flags?.['work.flight-profile'] === true ? flightProfileMarkup(detail, model) : stagesMarkup(detail, model),
     model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : '',
     cancelResultMarkup(model),
     status,

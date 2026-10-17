@@ -1,5 +1,6 @@
 import { button } from '../core/ui.js';
 import { answers } from './answers.js';
+import { containmentPanel } from './containment.js';
 import { shiftDial } from './dial.js';
 import { flightPath } from './flight-path.js';
 import { foldStrip } from './fold-strip.js';
@@ -37,7 +38,8 @@ function facts(model) {
 
 /**
  * Direction F, the cockpit: the flight path with its instruments, the trace of the selected attempt opening right
- * under it, and the standing answers beside it.
+ * under it, and the standing answers beside it. The containment panel sits above the flight when a tripwire, a rules
+ * change or a judge verdict gives a reason to look.
  * @param {object} model A `liveModel` result.
  * @param {{ selectedCall?: string }} [options]
  * @returns {string}
@@ -47,18 +49,19 @@ export function cockpit(model, { selectedCall = null } = {}) {
   const trace = followed && model.moves.length
     ? `<section class="lv-panel lv-panel-attached" aria-labelledby="lv-cockpit-trace-${escape(model.id)}"><h2 class="lv-overline lv-overline-live" id="lv-cockpit-trace-${escape(model.id)}">Inside attempt ${followed.attempt} · Run ${followed.n} · ${escape(clock(followed.startedAt))} → ${followed.state === 'running' ? 'now' : escape(clock(followed.finishedAt))}</h2>${traceLanes(model, { selectedCall, scope: 'run' })}${moveList(model, { selectedCall })}</section>`
     : '';
-  return `<article class="lv lv-cockpit" data-live="cockpit">${header(model)}<div class="lv-cols"><div class="lv-main"><section class="${cx('lv-panel', trace ? 'lv-panel-top' : '')}" aria-label="Flight">${nowLine(model)}${instruments(model, { layout: 'strip' })}${flightPath(model)}</section>${trace}</div><aside class="lv-side lv-panel">${answers(model, { layout: 'list' })}${facts(model)}</aside></div></article>`;
+  return `<article class="lv lv-cockpit" data-live="cockpit">${header(model)}<div class="lv-cols"><div class="lv-main">${containmentPanel(model)}<section class="${cx('lv-panel', trace ? 'lv-panel-top' : '')}" aria-label="Flight">${nowLine(model)}${instruments(model, { layout: 'strip' })}${flightPath(model)}</section>${trace}</div><aside class="lv-side lv-panel">${answers(model, { layout: 'list' })}${facts(model)}</aside></div></article>`;
 }
 
 /**
  * Direction G, the instrument: the Shift dial and its figures in a side column, the fold strip on top, the standing
- * answers as questions to open, and the whole Shift's trace with the moves below.
+ * answers as questions to open, and the whole Shift's trace with the moves below. The containment panel leads the
+ * main column when there is a reason to look.
  * @param {object} model A `liveModel` result.
  * @param {{ selectedCall?: string }} [options]
  * @returns {string}
  */
 export function instrumentPanel(model, { selectedCall = null } = {}) {
-  return `<article class="lv lv-instrument" data-live="instrument"><div class="lv-cols lv-cols-reverse"><aside class="lv-side">${header(model)}${shiftDial(model)}${instruments(model, { layout: 'list' })}${facts(model)}</aside><div class="lv-main">${foldStrip(model)}<section class="lv-panel">${nowLine(model)}${answers(model, { layout: 'chips', ask: false })}</section><section class="lv-panel" aria-label="Trace"><h2 class="lv-overline">Trace · whole Shift</h2>${traceLanes(model, { selectedCall })}${moveList(model, { selectedCall })}</section></div></div></article>`;
+  return `<article class="lv lv-instrument" data-live="instrument"><div class="lv-cols lv-cols-reverse"><aside class="lv-side">${header(model)}${shiftDial(model)}${instruments(model, { layout: 'list' })}${facts(model)}</aside><div class="lv-main">${containmentPanel(model)}${foldStrip(model)}<section class="lv-panel">${nowLine(model)}${answers(model, { layout: 'chips', ask: false })}</section><section class="lv-panel" aria-label="Trace"><h2 class="lv-overline">Trace · whole Shift</h2>${traceLanes(model, { selectedCall })}${moveList(model, { selectedCall })}</section></div></div></article>`;
 }
 
 /**
