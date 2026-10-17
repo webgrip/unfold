@@ -17,6 +17,7 @@ import { flightMarkup, flightPlan } from './core/flight-profile.js';
 import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
 import { runTranscriptMarkup } from './run-transcript.js';
+import { workActionsMarkup } from './action-log.js';
 import { defaultLogView, logViewerMarkup } from './run-log-view.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
@@ -1449,7 +1450,7 @@ export function flightProfileMarkup(detail, model) {
   return flightMarkup(plan, { stats: lanes.length ? streamStats(lanes, { stream, now: model.now }) : null });
 }
 
-/** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
+/** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, who did what, activity, technical details and, on phones, the action bar. */
 export function detailMarkup(recordedDetail, model) {
   const detail = reconcileDetail(recordedDetail, model.sessions);
   const reason = detailReason(detail);
@@ -1483,6 +1484,7 @@ export function detailMarkup(recordedDetail, model) {
     briefMarkup(detail, model),
     contextMarkup(detail, model),
     storyMarkup(detail, model),
+    workActionsMarkup(detail, model),
     eventsMarkup(detail, model),
     technicalMarkup(detail),
     primary ? `<div class="work-sticky-actions" role="group" aria-label="Next step">${primary}</div>` : '',

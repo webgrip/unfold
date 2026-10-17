@@ -1,4 +1,5 @@
 import { activityMarkup, eventGroups, eventKind, mergeFeed, newerEvents } from '../ploeg-activity.js';
+import { activitySwitch } from '../action-log.js';
 import { state } from '../core/state.js';
 import { api } from '../core/api.js';
 import { announce, renderHtml } from '../core/dom.js';
@@ -13,7 +14,7 @@ const kinds = eventGroups.map(([id]) => id);
 function renderActivity() {
   const feed = state.ploegFeed;
   const actions = refreshButton({ busy: feed.mode === 'reset' || feed.mode === 'refresh', shown: Boolean(feed.events) || !feed.error });
-  renderHtml(shell(activityMarkup(feed, state.ploegTeams || [], ploegHelpers(), Date.now(), state.bootstrap.user), { title: 'Activity', subtitle: 'What Ploeg recorded across your Teams, newest first.', actions }));
+  renderHtml(shell(activitySwitch('events') + activityMarkup(feed, state.ploegTeams || [], ploegHelpers(), Date.now(), state.bootstrap.user), { title: 'Activity', subtitle: 'What Ploeg recorded across your Teams, newest first.', actions }));
 }
 
 function eventsQuery(feed, { before, fresh } = {}) {

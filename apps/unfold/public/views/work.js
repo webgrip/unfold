@@ -14,6 +14,7 @@ import { transcriptEntryCap } from '../run-transcript.js';
 import { defaultLogView, logDownloadText } from '../run-log-view.js';
 import { exposed, flagValues, track } from '../core/flags.js';
 import { agentsWindowAvailable, openAgentsWindow } from '../agents-window.js';
+import { actionsCsv, actionsJson, engineRows, newestFirst, recordRow } from '../action-log.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -26,7 +27,7 @@ const logPanel = /^work-run-logs-([1-9][0-9]{0,19})$/;
 const transcriptInterval = 4000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, flightRevealed: null };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, flightRevealed: null };
 
 onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, flightRevealed: null }));
 
@@ -94,6 +95,8 @@ function model() {
     askDraft: work.askDraft,
     runLogs: work.logs?.id === work.detailId ? work.logs.runs : null,
     runTranscripts: work.transcripts?.id === work.detailId ? work.transcripts.runs : null,
+    actions: work.actions?.id === work.detailId ? work.actions.data : null,
+    userRole: state.bootstrap?.user?.role,
   };
 }
 
@@ -498,11 +501,40 @@ async function submitContext(data, form) {
   }
 }
 
+async function loadActions(id) {
+  const request = ++work.actionsRequest;
+  let data;
+  try {
+    const result = await api(`/api/actions?${new URLSearchParams({ workItemId: id, limit: '100' })}`);
+    data = { records: result.actions, nextBefore: result.nextBefore ?? null, error: '' };
+  } catch (error) {
+    if (work.actions?.id === id && work.actions.data && !work.actions.data.error) return;
+    data = { records: [], nextBefore: null, error: error.message || 'Unfold could not list the actions.' };
+  }
+  if (request !== work.actionsRequest || work.detailId !== id) return;
+  const next = signature(data);
+  if (work.actions?.id === id && work.actions.signature === next) return;
+  work.actions = { id, data, signature: next };
+  if (visible() && !state.ploegDetailLoading) renderWork();
+}
+
+function exportActions(button) {
+  const detail = state.ploegDetail;
+  if (!detail || detail.item.id !== work.detailId) return;
+  const rows = newestFirst([...(work.actions?.id === detail.item.id ? work.actions.data.records : []).map(recordRow), ...engineRows(detail.events, detail.item.id)]);
+  if (!rows.length) return;
+  const name = `work-item-${detail.item.id}-who-did-what`;
+  if (button.dataset.format === 'json') download(`${name}.json`, actionsJson(rows, { scope: `Work Item ${detail.item.id}` }), 'application/json');
+  else download(`${name}.csv`, actionsCsv(rows), 'text/csv');
+  announce(`Downloaded ${plural(rows.length, 'action')}`);
+}
+
 async function loadDetail(id, { fresh = false, quiet = false } = {}) {
   void loadCard(id, { fresh });
   void loadStream(id, { fresh });
   void loadContext(id, { fresh });
   void loadAsks(id);
+  void loadActions(id);
   void loadTrace(id, { fresh });
   const request = ++work.detailRequest;
   let changed = !quiet;
@@ -1116,6 +1148,8 @@ export default {
     'work-ask-open': () => openAsk(),
     'work-ask-model': askModelAnyway,
     'work-ask-again': askAgain,
+    'work-actions-retry': () => { if (work.detailId) { work.actions = null; renderWork(); void loadActions(work.detailId); } },
+    'work-actions-export': exportActions,
     'trace-propose': openPropose,
     'trace-evolved': openEvolved,
     'trace-confirm': openCrackStep('confirm'),

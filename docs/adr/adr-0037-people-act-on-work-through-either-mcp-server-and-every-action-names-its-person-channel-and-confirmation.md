@@ -48,3 +48,4 @@ Unfold tests assert an Action Record with person, channel, confirmation and resu
 
 * Owner's words, 2026-10-17: Ploeg "should be open. It's the core of this all. Unfold is the UI layer that also adds some integrations"; auditability is "super important"; people get "true freedom" to "assign, approve, retry, cancel and steer work".
 * Amends ADR-0011 and ADR-0032: both servers now act, under this rule.
+* 2026-10-17 — Activity views built: each Work Item page shows **Who did what**, its Action Records merged with the Ploeg audit events that name their person (marked as from Ploeg), and `#activity/actions` lists a person's actions across Work Items and sessions with outcome and channel filters, a person picker for administrators and paging; both download what is listed as CSV or JSON with the redacted inputs ([browser UI](../../apps/unfold/docs/browser-ui.md), VIK-2062).
