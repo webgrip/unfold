@@ -105,6 +105,8 @@ type Json = Record<string, any>;
 type Client = { id: string; clientId?: string; scheme: SessionScheme; protocolVersion: string; connection: WebSocketConnection; user: User; token: string; checkedAt: number; connectedAt: string; clientInfo?: { name?: string; version?: string }; subscriptions: Set<string>; initialized: boolean; activeSessions?: number; terminals?: Map<string, unknown> };
 /** One initialized connection as its owner sees it in `GET /api/agent-host`. */
 export type AttachedClient = { name?: string; version?: string; protocolVersion: string; connectedAt: string; tokenId: string };
+/** The session a link into the person's Agents window names, in that window's spelling, and whether an Agents window of theirs is attached now. */
+export type AgentsWindowTarget = { session: string; attached: boolean };
 type View = Pick<Client, 'user' | 'scheme' | 'protocolVersion'>;
 type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
@@ -455,6 +457,31 @@ export class AgentHost {
     return [...this.clients].filter(client => client.initialized && client.user.id === user.id)
       .map(client => ({ ...client.clientInfo, protocolVersion: client.protocolVersion, connectedAt: client.connectedAt, tokenId: client.token }))
       .sort((a, b) => a.connectedAt.localeCompare(b.connectedAt));
+  }
+
+  /** The person's newest attached Agents window, whose session spelling a link to their sessions uses. */
+  private agentsWindowOf(user: User): Client | undefined {
+    return [...this.clients].filter(client => client.initialized && client.user.id === user.id && client.clientInfo?.name === 'vscode-agents-window')
+      .sort((a, b) => b.connectedAt.localeCompare(a.connectedAt))[0];
+  }
+
+  /** What a link opening session `publicId` in the person's Agents window names: the session URI in their Agents window's spelling, `ahp-session` when none is attached, and whether one is. */
+  private linkTarget(user: User, publicId: string): AgentsWindowTarget {
+    const window = this.agentsWindowOf(user);
+    return { session: sessionChannel(publicId, window?.scheme ?? 'ahp-session'), attached: Boolean(window) };
+  }
+
+  /** The link target of an Unfold session, by the id the API and the browser use, for whoever the host lists it to: its owner and administrators. */
+  sessionLinkTarget(user: User, sessionId: string): AgentsWindowTarget | undefined {
+    const session = this.store.getSession(sessionId);
+    return session && this.mayView(user, session.ownerId) ? this.linkTarget(user, this.publicId(session.id)) : undefined;
+  }
+
+  /** The link target of a Ploeg Work Item's session, for a person Ploeg's team authorization lets open it. Undefined when it hides the Work Item, an Operator Execution owns it, or the host projects no Work Items. */
+  async workItemLinkTarget(user: User, workItemId: string): Promise<AgentsWindowTarget | undefined> {
+    if (!/^[1-9][0-9]{0,19}$/.test(workItemId)) return undefined;
+    const found = await this.workItems.session(user, workItemId);
+    return found ? this.linkTarget(user, found.entry.publicId) : undefined;
   }
 
   /** Whether a dropped active client is inside its grace period, waiting to reconnect; the signal a caller waits on instead of the wall clock. */

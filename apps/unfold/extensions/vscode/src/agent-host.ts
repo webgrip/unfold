@@ -346,3 +346,42 @@ export function agentsWindowStatusText(state: AgentsWindowState, host: string): 
   if (state.status === 'connected') return { text: 'Unfold · Agents window $(check)', tooltip: `The Agents window is attached to Unfold at ${host}${state.client.version ? ` (VS Code ${state.client.version})` : ''}.` };
   return { text: '$(debug-disconnect) Unfold · Agents window not connected', tooltip: `No Agents window is attached to Unfold at ${host} with this editor's token. Click to troubleshoot.` };
 }
+
+/** What the Agents window link endpoints serve: the session URI in the person's Agents window spelling, whether one of theirs is attached, and the host address. */
+export type AgentsWindowLinkView = { session: string; attached: boolean; address: string };
+
+/** What an Agents window link opens: a session (`sessions`) or a Ploeg Work Item's session (`work-items`), by the id the workbench API uses. */
+export type AgentsWindowSubject = { kind: 'sessions' | 'work-items'; id: string };
+
+const subjectId = (value: unknown) => typeof value === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(value) ? value : undefined;
+
+/** The subject of a command argument: a session id, a Sessions or Now row for a session, or a Now or Ploeg row for a Work Item or its Run. */
+export function agentsWindowSubject(value: unknown): AgentsWindowSubject | undefined {
+  if (typeof value === 'string') { const id = subjectId(value); return id ? { kind: 'sessions', id } : undefined; }
+  const entry = value as { kind?: string; session?: { id?: unknown }; row?: { session?: { id?: unknown } }; item?: { id?: unknown }; run?: { workItemId?: unknown } } | undefined;
+  const sessionId = subjectId(entry?.row?.session?.id ?? entry?.session?.id);
+  if (sessionId && (entry?.kind === 'session' || entry?.kind === undefined)) return { kind: 'sessions', id: sessionId };
+  const workItemId = subjectId(entry?.kind === 'item' ? entry.item?.id : entry?.kind === 'run' ? entry.run?.workItemId : undefined);
+  return workItemId ? { kind: 'work-items', id: workItemId } : undefined;
+}
+
+export type AgentsWindowPlan =
+  | { kind: 'open'; url: string; attached: boolean }
+  | { kind: 'connect' }
+  | { kind: 'token-in-address'; address: string }
+  | { kind: 'unusable' };
+
+/**
+ * What opening a session in the Agents window does from this editor. VS Code derives the connection authority from the
+ * address as the `chat.remoteAgentHosts` entry spells it, so the link names the person's own entry for this host; without
+ * one there is no host to name and the person connects first. An entry whose address carries its token (`?tkn=`) would put
+ * the token into the authority and so into the link, so it opens nothing until the token moves to `connectionToken`. `build` is the shared link builder
+ * (`public/core/agents-window.js`), `protocol` this editor's `vscode.env.uriScheme`.
+ */
+export function agentsWindowPlan(view: AgentsWindowLinkView, entries: readonly AgentHostEntry[] | undefined, protocol: string, build: (options: { protocol: string; session: string; address: string }) => string): AgentsWindowPlan {
+  const entry = agentHostEntry(entries, view.address);
+  if (!entry?.address) return { kind: 'connect' };
+  if (/[?&#]tkn=/i.test(entry.address)) return { kind: 'token-in-address', address: agentHostAddressKey(entry.address) ?? '' };
+  const url = build({ protocol, session: view.session, address: entry.address });
+  return url ? { kind: 'open', url, attached: view.attached } : { kind: 'unusable' };
+}

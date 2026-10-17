@@ -99,6 +99,12 @@
         "icon": "$(remote)"
       },
       {
+        "command": "unfold.openInAgentsWindow",
+        "title": "Open in Agents Window",
+        "category": "Unfold",
+        "icon": "$(remote)"
+      },
+      {
         "command": "unfold.refresh",
         "title": "Refresh",
         "category": "Unfold",
@@ -503,6 +509,10 @@
         {
           "command": "unfold.checkoutBranch",
           "when": "false"
+        },
+        {
+          "command": "unfold.openInAgentsWindow",
+          "when": "unfold.connected"
         }
       ],
       "view/title": [
@@ -684,6 +694,11 @@
           "group": "links@3"
         },
         {
+          "command": "unfold.openInAgentsWindow",
+          "when": "view == unfold.sessions && viewItem =~ /^session:/",
+          "group": "links@4"
+        },
+        {
           "command": "unfold.openTaskLink",
           "when": "view == unfold.sessions && viewItem == task:linked",
           "group": "inline"
@@ -729,9 +744,19 @@
           "group": "navigation@3"
         },
         {
+          "command": "unfold.openInAgentsWindow",
+          "when": "view == unfold.now && viewItem =~ /^now:(item|run|session)/",
+          "group": "navigation@4"
+        },
+        {
           "command": "unfold.checkoutBranch",
           "when": "view == unfold.ploeg && viewItem == ploeg:item",
           "group": "navigation@1"
+        },
+        {
+          "command": "unfold.openInAgentsWindow",
+          "when": "view == unfold.ploeg && viewItem == ploeg:item",
+          "group": "navigation@2"
         }
       ],
       "editor/context": [
@@ -762,7 +787,7 @@
           {
             "id": "agentsWindow",
             "title": "Use Unfold from the Agents window",
-            "description": "Signing in adds Unfold to VS Code's Agents window. There, choose New, then Workspace ▾ → Folders (Unfold) → <repository> to start a session; your sessions are grouped the same way.\n[Open the Agents window](command:unfold.openAgentsWindow)",
+            "description": "Signing in adds Unfold to VS Code's Agents window. There, choose New, then Workspace ▾ → Folders (Unfold) → <repository> to start a session; your sessions are grouped the same way. To jump to one session or Work Item, use Open in Agents Window on its row in the Now or Sessions view.\n[Open the Agents window](command:unfold.openAgentsWindow)",
             "media": {
               "markdown": "media/walkthrough/agents-window.md"
             },

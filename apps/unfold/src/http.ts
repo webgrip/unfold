@@ -9,7 +9,8 @@ import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
 import type { WorkerRelay } from './runtime/relay.ts';
 import type { AgentHost } from './ahp/host.ts';
-import { agentHostTokenId, protocolBaselines as agentHostProtocolVersions, protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
+import { agentHostTokenId, type AgentsWindowTarget, protocolBaselines as agentHostProtocolVersions, protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
+import { agentHostAuthority, agentsWindowSessionLinks } from '../public/core/agents-window.js';
 import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
@@ -416,7 +417,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           return json(res, 200, await adminFlags(user));
         }
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
-          user, mode: config.mode, sharedExecution: Boolean(config.execution), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], deliveryPublisher: Boolean(config.delivery?.publisher), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
+          user, mode: config.mode, sharedExecution: Boolean(config.execution), agentHost: Boolean(agentHost), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], deliveryPublisher: Boolean(config.delivery?.publisher), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
           gatewayPolicy: config.gatewayPolicy ?? null,
           observability: config.observability ?? null,
           insight: { events: config.productEvents !== false && user.role !== 'viewer' },
@@ -436,12 +437,27 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: applicationVersion, runtimes: runtimeKinds, litellm: Boolean(config.litellm), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined, workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend, workspaceBackends: placements(config).map(item => item.id) });
         if (method === 'GET' && path === '/api/mcp-servers') return json(res, 200, { servers: config.mcpServers?.ploeg ? [{ id: 'ploeg', label: 'Ploeg', type: 'http', url: config.mcpServers.ploeg.url, oauth: { clientId: config.mcpServers.ploeg.clientId } }] : [] });
         const agentHostToken = path.match(/^\/api\/agent-host\/tokens\/([0-9a-f]{64})$/);
-        if (path === '/api/agent-host' || path === '/api/agent-host/tokens' || agentHostToken) {
+        const agentsWindowLink = path.match(/^\/api\/agent-host\/(sessions|work-items)\/([^/]{1,100})\/link$/);
+        if (path === '/api/agent-host' || path === '/api/agent-host/tokens' || agentHostToken || agentsWindowLink) {
           if (!agentHost) fault(404, 'agent_host_disabled', 'The agent host is not enabled on this workbench.');
           const address = (config.baseUrl ?? `http://${config.host}:${config.port}`).replace(/^http/, 'ws');
           if (method === 'GET' && path === '/api/agent-host') {
             const attached = agentHost!.attachedClients(user);
-            return json(res, 200, { protocolVersion: agentHostProtocolVersion, protocolVersions: agentHostProtocolVersions, address, provider: 'unfold', clients: attached.length, attached, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
+            return json(res, 200, { protocolVersion: agentHostProtocolVersion, protocolVersions: agentHostProtocolVersions, address, connectionAuthority: agentHostAuthority(address), provider: 'unfold', clients: attached.length, attached, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
+          }
+          if (method === 'GET' && agentsWindowLink) {
+            if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host, so they have no Agents window to open.');
+            const [, kind, id] = agentsWindowLink;
+            let target: AgentsWindowTarget | undefined;
+            if (kind === 'sessions') {
+              target = agentHost!.sessionLinkTarget(user, id);
+              if (!target) fault(404, 'not_found', 'Session not found.');
+            } else {
+              try { target = await agentHost!.workItemLinkTarget(user, id); }
+              catch (error) { if (error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } }); throw error; }
+              if (!target) fault(404, 'not_found', 'No Work Item session of yours has this id.');
+            }
+            return json(res, 200, { ...target!, address, connectionAuthority: agentHostAuthority(address), links: agentsWindowSessionLinks({ session: target!.session, address }) });
           }
           if (method === 'POST' && path === '/api/agent-host/tokens') {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host.');
@@ -785,7 +801,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         return fault(404, 'not_found', 'API route not found.');
       }
-      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/delivery.js': 'delivery.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt' };
+      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt' };
       const file = assets[path] ?? (browserModule.test(path) ? path.slice(1) : undefined);
       if (method !== 'GET' || !file) return fault(404, 'not_found', 'Page not found.');
       await staticFiles.serve(req, res, file, Boolean(assets[path]));
