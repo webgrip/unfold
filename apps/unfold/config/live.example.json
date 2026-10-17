@@ -41,7 +41,7 @@
     "baseUrl": "https://gateway.internal.example/v1"
   },
   "docker": {
-    "image": "unfold-agent:1.19.0",
+    "image": "unfold-agent:1.19.2",
     "cpus": 2,
     "memoryMb": 4096,
     "pidsLimit": 512
