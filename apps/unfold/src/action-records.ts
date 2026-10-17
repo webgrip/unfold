@@ -57,10 +57,14 @@ export function recordedInputs(value: unknown, depth = 0): unknown {
   return '[omitted]';
 }
 
-/** The channel a request came through: `browser`, or the editor credential's name, with the client the caller names in `X-Unfold-Client`. */
-export function channelOf(scope: 'browser' | 'editor' | undefined, credentialLabel: string | undefined, client: unknown): string {
-  const base = scope === 'editor' ? credentialLabel || 'editor' : 'browser';
+/**
+ * The channel a request came through: `browser`, the editor credential's name with the client the caller names in
+ * `X-Unfold-Client`, or `mcp:<client name and version>` for `unfold-mcp` served over HTTP.
+ */
+export function channelOf(scope: 'browser' | 'editor' | 'mcp' | undefined, credentialLabel: string | undefined, client: unknown): string {
   const named = typeof client === 'string' ? client.replace(/[^ -~]/g, '').trim().slice(0, 80) : '';
+  if (scope === 'mcp') return `mcp:${named || 'unnamed client'}`;
+  const base = scope === 'editor' ? credentialLabel || 'editor' : 'browser';
   return named ? `${base} (${named})` : base;
 }
 

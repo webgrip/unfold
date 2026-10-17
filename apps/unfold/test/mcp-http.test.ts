@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage } from 'node:http';
 import { once } from 'node:events';
-import { createHmac, generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
+import { createHash, createHmac, generateKeyPairSync, randomBytes, sign, type KeyObject } from 'node:crypto';
+import { ploegDemo } from '../src/ploeg-demo.ts';
 import { application } from './api-support.ts';
 import { AccessTokenVerifier, TokenRefused, mcpHttpSettings, type McpHttpSettings } from '../src/mcp-auth.ts';
 import { createMcpHttp } from '../src/mcp-http.ts';
@@ -356,4 +357,66 @@ test('the endpoint caps a message at 1 MiB, and checks origin and method before 
   assert.equal(foreign.status, 403);
   assert.equal(foreign.json.error.message, 'This request came from another origin.');
   assert.equal((await post(unfold.url, {}, { token: stranger, method: 'GET' })).status, 405);
+});
+
+test('an ask through unfold-mcp over HTTPS is recorded as mcp:<client> with the confirmation the person agreed to; a decline records nothing', async t => {
+  const rsa = rsaSigner();
+  const idp = await identityProvider([{ publicKey: rsa.publicKey, kid: 'rsa-1' }]);
+  t.after(() => idp.close());
+  const env = `UNFOLD_MCP_PLOEG_${randomBytes(6).toString('hex').toUpperCase()}`;
+  process.env[env] = randomBytes(24).toString('hex');
+  t.after(() => { delete process.env[env]; });
+  const allowance = { purpose: 'ask', scopeKind: 'team', scopeId: 'delivery', periodStart: '2026-10-01T00:00:00Z', resetAt: '2026-11-01T00:00:00Z', limitUsd: 2, settledUsd: 0, heldUsd: 0, remainingUsd: 1.97, askCount: 0, askBudgetUsd: 0.02, asksEnabled: true };
+  const admitted: { via: unknown; confirmation: unknown }[] = [];
+  const listen = async (handler: Parameters<typeof createServer>[1]) => { const server = createServer(handler); server.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => new Promise<void>(done => server.close(() => done()))); return `http://127.0.0.1:${(server.address() as { port: number }).port}`; };
+  const ploegUrl = await listen(async (req, res) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(chunk as Buffer);
+    const data = chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : undefined;
+    const url = new URL(req.url!, 'http://fixture.invalid');
+    const send = (status: number, payload: object) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...payload }));
+    const ask = (askId: string) => ({ askId, runId: '900', workItemId: '101', team: 'delivery', actor: 'x', askedBy: 'x', state: 'finished', budgetUsd: 0.02, questionSha256: 'a'.repeat(64), createdAt: '2026-10-16T10:00:00Z', expiresAt: '2026-10-16T10:02:00Z', finishedAt: null, spend: { costStatus: 'settled', usd: 0.0012, keyState: 'reconciled' } });
+    if (url.pathname.endsWith('/teams')) return send(200, { teams: ploegDemo.teams });
+    if (url.pathname.endsWith('/operator/allowances')) return send(200, { allowance });
+    if (/\/work-items\/101\/asks$/.test(url.pathname) && req.method === 'POST') {
+      admitted.push({ via: req.headers['x-ploeg-via'], confirmation: req.headers['x-ploeg-confirmation'] });
+      return send(201, { created: true, ask: { ...ask(data.askId), state: 'open' }, credential: { key: 'sk-ask-capped', alias: 'ask-1', models: ['glm-5.3-flash'], budgetUsd: 0.02, expiresAt: '2026-10-16T10:02:00Z' }, allowance });
+    }
+    const one = /\/work-items\/101\/asks\/([^/]+)(\/finish)?$/.exec(url.pathname);
+    if (one) return send(200, { ask: ask(decodeURIComponent(one[1])) });
+    const detail = ploegDemo.details[url.pathname.split('/').at(-1)!];
+    return detail ? send(200, detail) : send(404, { error: { code: 'not_found', message: 'no' } });
+  });
+  const gatewayUrl = await listen((_req, res) => { res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ choices: [{ message: { content: 'Firefox is not affected.' } }] })); });
+  const personId = subjectUserId(browserIssuer, 'person-sub');
+  const unfold = await application('live', config => {
+    config.baseUrl = undefined;
+    (config.auth as any).oidc = { issuer: browserIssuer, clientId: 'unfold', scopes: ['openid'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: ['unfold-admins'], operator: ['unfold-operators'], viewer: ['unfold-viewers'] } };
+    config.mcp = settingsFor(idp.issuer);
+    config.ploeg = { url: ploegUrl, tokenEnv: env, userTeams: { [personId]: ['delivery'] } };
+    config.litellm = { baseUrl: gatewayUrl, adminUrl: gatewayUrl, masterKey: 'sk-master-never-used', models: ['coding'], ttl: '1h' };
+  });
+  t.after(() => unfold.close());
+  unfold.app.store.addUser({ id: personId, name: 'person@example.com', role: 'operator', passwordHash: '' });
+  const access = jwt(rsa.signer, claimsFor(idp.issuer));
+  const clientMeta = { ...meta({ elicitation: {} }), 'io.modelcontextprotocol/clientInfo': { name: 'Claude Code', version: '2.1.296' } };
+  const ask = (id: number, extra: Record<string, unknown> = {}) => post(unfold.url, { jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'unfold_ask', arguments: { id: '101', question: 'Is Firefox affected?', use_model: true }, _meta: clientMeta, ...extra } }, { token: access });
+  const records = () => unfold.app.store.actionRecords({ userId: personId, limit: 50 });
+
+  const declinedState = (await ask(1)).json.result.requestState;
+  const declined = await ask(2, { inputResponses: { confirm_spend: { action: 'decline' } }, requestState: declinedState });
+  assert.equal(declined.json.result.structuredContent.asked, false, declined.text);
+  assert.deepEqual(records(), [], 'a declined confirmation records no action at all');
+  assert.equal(admitted.length, 0);
+
+  const pending = (await ask(3)).json.result;
+  assert.equal(pending.resultType, 'input_required');
+  const agreed = `:${createHash('sha256').update(pending.inputRequests.confirm_spend.params.message).digest('hex')}`;
+  const answered = await ask(4, { inputResponses: { confirm_spend: { action: 'accept', content: { confirm: true } } }, requestState: pending.requestState });
+  assert.equal(answered.json.result.structuredContent.asked, true, answered.text);
+  const [record] = records();
+  assert.equal(records().length, 1);
+  assert.deepEqual({ action: record.action, channel: record.channel, outcome: record.outcome, user: record.userId, target: record.target }, { action: 'POST /api/ploeg/work-items/:id/asks', channel: 'mcp:Claude Code 2.1.296', outcome: 'done', user: personId, target: { kind: 'work-item', id: '101' } });
+  assert.ok(record.confirmation?.endsWith(agreed), `the record carries the hash of the exact text agreed to: ${record.confirmation}`);
+  assert.deepEqual(admitted, [{ via: 'mcp:Claude Code 2.1.296', confirmation: record.confirmation }], 'Ploeg receives the same channel and confirmation');
 });

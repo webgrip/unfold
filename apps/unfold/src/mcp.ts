@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -34,7 +35,7 @@ export type McpOptions = { url: string; apiUrl?: string; token?: string; version
 type Reason = { code: string; chip: string; sentence: string; fix: string; requeue: string; action: string; headline?: string | null; variant?: string | null; run?: { id: string; role: string; round: number; text: string } | null };
 type Reasons = { listReason(item: unknown, options?: { demo?: boolean }): Reason | null; detailReason(detail: unknown): Reason | null; routingWarning(item: unknown): { chip: string; sentence: string; fix: string } | null };
 type Json = Record<string, any>;
-type Call = { modern: boolean; capabilities: Json; inputResponses?: Json; requestState?: unknown };
+type Call = { modern: boolean; capabilities: Json; client?: string; inputResponses?: Json; requestState?: unknown };
 type Tool = { name: string; title: string; description: string; inputSchema: Json; outputSchema: Json; readOnly?: false; run(args: Json, call: Call): Promise<Json | InputRequired> };
 /** Sends one request from the server to the client and resolves with the client's result. */
 export type McpOutbound = (method: string, params: Json) => Promise<Json>;
@@ -78,12 +79,15 @@ export function createMcpServer(options: McpOptions) {
   const link = (id: string) => `${base}/#work/${encodeURIComponent(id)}`;
 
   let clientCapabilities: Json = {};
+  let initializedClient: string | undefined;
+  const calling = new AsyncLocalStorage<Call>();
   let outbound: McpOutbound | undefined;
 
-  async function get(path: string, payload?: Json): Promise<any> {
+  async function get(path: string, payload?: Json, confirmation?: string): Promise<any> {
     let response: Response;
     try {
-      const headers = { accept: 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(payload ? { 'content-type': 'application/json', 'x-unfold-request': '1' } : {}) };
+      const client = calling.getStore()?.client;
+      const headers = { accept: 'application/json', ...(options.token ? { authorization: `Bearer ${options.token}` } : {}), ...(payload ? { 'content-type': 'application/json', 'x-unfold-request': '1' } : {}), ...(client ? { 'x-unfold-client': client } : {}), ...(confirmation ? { 'x-unfold-confirmation': confirmation } : {}) };
       response = await fetcher(`${api}${path}`, { method: payload ? 'POST' : 'GET', headers, ...(payload ? { body: JSON.stringify(payload) } : {}), redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) });
     } catch (error) {
       const name = (error as Error).name;
@@ -285,21 +289,21 @@ export function createMcpServer(options: McpOptions) {
         const requestedSchema = { type: 'object', properties: { confirm: { type: 'boolean', title: 'Spend from the Ask Allowance', description: 'Ask a model and pay from the allowance' } }, required: ['confirm'] };
         const subject = createHash('sha256').update(JSON.stringify(['unfold_ask', id, question])).digest('base64url');
         if (call.modern && call.requestState !== undefined) {
-          redeemConfirmation(confirmations, call.requestState, principal, subject, clock());
+          const agreed = redeemConfirmation(confirmations, call.requestState, principal, subject, clock());
           const decision = call.inputResponses?.confirm_spend;
           if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return notConfirmed;
-          return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }));
+          return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }, agreed));
         }
         if (call.modern ? !formElicitation(call.capabilities) : !clientCapabilities.elicitation || !outbound) throw new Error(`This client cannot ask you to confirm a spend, so no model was asked. Ask in Unfold instead: ${page}`);
         const allowance = (await get(`/api/ploeg/work-items/${id}/asks`)).allowance;
         if (!allowance?.asksEnabled) throw new Error(`Asking a model is not enabled for this Work Item's Team. Nothing was asked or spent.`);
         const message = `Ask a model about Work Item ${id}? One answer spends up to ${usd(cents(allowance.askBudgetUsd))} from the Team's Ask Allowance (${usd(cents(allowance.remainingUsd))} left until ${String(allowance.resetAt).slice(0, 10)}). Question: ${clip(question, 300)}`;
-        if (call.modern) return new InputRequired({ confirm_spend: { method: 'elicitation/create', params: { mode: 'form', message, requestedSchema } } }, sealConfirmation(confirmations, principal, subject, clock()));
+        if (call.modern) return new InputRequired({ confirm_spend: { method: 'elicitation/create', params: { mode: 'form', message, requestedSchema } } }, sealConfirmation(confirmations, principal, subject, message, clock()));
         let decision: Json;
         try { decision = await outbound!('elicitation/create', { message, requestedSchema }); }
         catch { throw new Error('The confirmation did not come back, so no model was asked and nothing was spent.'); }
         if (decision?.action !== 'accept' || decision?.content?.confirm !== true) return notConfirmed;
-        return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }));
+        return answered(await get(`/api/ploeg/work-items/${id}/asks`, { question, askModel: true }, `${randomBytes(12).toString('base64url')}:${createHash('sha256').update(message).digest('hex')}`));
       },
     },
   ];
@@ -312,18 +316,20 @@ export function createMcpServer(options: McpOptions) {
     if (notification) return undefined;
     if (method === 'initialize') {
       clientCapabilities = params?.capabilities && typeof params.capabilities === 'object' ? params.capabilities : {};
+      initializedClient = clientName(params?.clientInfo);
       const asked = params?.protocolVersion;
       const protocolVersion = (mcpProtocolVersions as readonly string[]).includes(asked) ? asked : mcpProtocolVersions[0];
       return result(id, { protocolVersion, capabilities: { tools: { listChanged: false } }, serverInfo, instructions });
     }
     const meta = params && typeof params === 'object' && params._meta && typeof params._meta === 'object' && !Array.isArray(params._meta) ? params._meta as Json : undefined;
     const declared = meta?.[versionKey];
-    if (declared === undefined && method !== 'server/discover') return dispatch(id, method, params, { modern: false, capabilities: clientCapabilities });
+    if (declared === undefined && method !== 'server/discover') return dispatch(id, method, params, { modern: false, capabilities: clientCapabilities, ...(initializedClient ? { client: initializedClient } : {}) });
     if (typeof declared !== 'string') return failure(id, -32602, `Every request must declare _meta["${versionKey}"].`);
     if (!(mcpModernProtocolVersions as readonly string[]).includes(declared)) return failure(id, -32022, 'Unsupported protocol version', { supported: [...mcpModernProtocolVersions, ...mcpProtocolVersions], requested: declared });
     const capabilities = meta![capabilitiesKey];
     if (!capabilities || typeof capabilities !== 'object' || Array.isArray(capabilities)) return failure(id, -32602, `Every request must declare _meta["${capabilitiesKey}"].`);
-    return dispatch(id, method, params, { modern: true, capabilities });
+    const client = clientName(meta!['io.modelcontextprotocol/clientInfo']);
+    return dispatch(id, method, params, { modern: true, capabilities, ...(client ? { client } : {}) });
   }
 
   function dispatch(id: unknown, method: string, params: Json | undefined, call: Call): Json | Promise<Json> {
@@ -348,7 +354,7 @@ export function createMcpServer(options: McpOptions) {
     if (unknown.length) return complete({ isError: true, content: [{ type: 'text', text: `Unknown argument ${unknown.join(', ')}.` }] });
     if (call.modern && params?.inputResponses !== undefined && (!params.inputResponses || typeof params.inputResponses !== 'object' || Array.isArray(params.inputResponses))) return failure(id, -32602, 'inputResponses must be an object.');
     try {
-      const output = await tool.run(args, call.modern ? { ...call, inputResponses: params?.inputResponses, requestState: params?.requestState } : call);
+      const output = await calling.run(call, () => tool.run(args, call.modern ? { ...call, inputResponses: params?.inputResponses, requestState: params?.requestState } : call));
       if (output instanceof InputRequired) return result(id, { resultType: 'input_required', inputRequests: output.inputRequests, requestState: output.requestState, _meta: { 'io.modelcontextprotocol/serverInfo': serverInfo } });
       return complete({ structuredContent: output, content: [{ type: 'text', text: JSON.stringify(output) }] });
     } catch (error) {
@@ -410,25 +416,33 @@ function formElicitation(capabilities: Json): boolean {
 
 function confirmationMac(ledger: Confirmations, payload: string): Buffer { return createHmac('sha256', ledger.key).update(payload).digest(); }
 
-function sealConfirmation(ledger: Confirmations, principal: string, subject: string, now: number): string {
-  const payload = Buffer.from(JSON.stringify({ p: principal, s: subject, n: randomBytes(16).toString('base64url'), e: now + confirmationTtlMs })).toString('base64url');
+function clientName(info: unknown): string | undefined {
+  if (!info || typeof info !== 'object') return undefined;
+  const { name, version } = info as Json;
+  const text = [name, version].filter(part => typeof part === 'string').join(' ').replace(/[^ -~]/g, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  return text || undefined;
+}
+
+function sealConfirmation(ledger: Confirmations, principal: string, subject: string, agreed: string, now: number): string {
+  const payload = Buffer.from(JSON.stringify({ p: principal, s: subject, h: createHash('sha256').update(agreed).digest('hex'), n: randomBytes(16).toString('base64url'), e: now + confirmationTtlMs })).toString('base64url');
   return `${payload}.${confirmationMac(ledger, payload).toString('base64url')}`;
 }
 
-function redeemConfirmation(ledger: Confirmations, state: unknown, principal: string, subject: string, now: number): void {
+function redeemConfirmation(ledger: Confirmations, state: unknown, principal: string, subject: string, now: number): string {
   const refuse = (why: string) => new Error(`${why} Nothing was asked or spent; call unfold_ask again to be asked to confirm.`);
   const [payload, mac, extra] = typeof state === 'string' && state.length <= 2048 ? state.split('.') : [];
   if (!payload || !mac || extra !== undefined) throw refuse('The confirmation state is not one this server issued.');
   const expected = confirmationMac(ledger, payload);
   const given = strictBase64url(mac);
   if (!given || !strictBase64url(payload) || given.length !== expected.length || !timingSafeEqual(given, expected)) throw refuse('The confirmation state is not one this server issued.');
-  const sealed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { p: string; s: string; n: string; e: number };
+  const sealed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as { p: string; s: string; h: string; n: string; e: number };
   if (sealed.p !== principal) throw refuse('The confirmation was given to someone else.');
   if (sealed.s !== subject) throw refuse('The confirmation was for another question.');
   if (sealed.e <= now) throw refuse('The confirmation expired.');
   if (ledger.used.has(sealed.n)) throw refuse('This confirmation was already used.');
   for (const [nonce, expires] of ledger.used) if (expires <= now) ledger.used.delete(nonce);
   ledger.used.set(sealed.n, sealed.e);
+  return `${sealed.n}:${sealed.h}`;
 }
 
 function pick(reason: Reason): Json { return { code: reason.code, chip: reason.chip, sentence: reason.sentence, fix: reason.fix, action: reason.action }; }

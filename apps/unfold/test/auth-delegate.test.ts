@@ -30,7 +30,7 @@ test('a delegated credential reaches only the routes the MCP tools call', async 
     assert.equal(auth.user(request(token, method, url)), undefined, `${method} ${url} is outside the allowlist`);
     assert.equal(auth.scope(request(token, method, url)), undefined);
   }
-  assert.equal(auth.scope(request(token, 'GET', '/api/sessions')), 'editor', 'it never counts as a browser sign-in');
+  assert.equal(auth.scope(request(token, 'GET', '/api/sessions')), 'mcp', 'it is its own channel, never a browser sign-in');
 });
 
 test('a delegated credential acts at the lower of its role and the stored role, and ends at expiry or revocation', async t => {

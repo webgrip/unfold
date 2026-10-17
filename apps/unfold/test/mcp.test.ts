@@ -165,6 +165,7 @@ test('unfold_spend names the Work Items whose finished Runs still hold budget, a
 
 function askingUnfold(t: { after(fn: () => void): void }) {
   const posted: Record<string, unknown>[] = [];
+  const headers: Record<string, unknown>[] = [];
   const fake = createServer(async (req, res) => {
     const chunks: Buffer[] = [];
     for await (const chunk of req) chunks.push(chunk as Buffer);
@@ -173,6 +174,7 @@ function askingUnfold(t: { after(fn: () => void): void }) {
     assert.equal(req.headers['x-unfold-request'], '1');
     const body = JSON.parse(Buffer.concat(chunks).toString());
     posted.push(body);
+    headers.push({ client: req.headers['x-unfold-client'], confirmation: req.headers['x-unfold-confirmation'] });
     if (body.recordOnly && body.question !== 'What did it cost so far?') { res.statusCode = 409; res.end(JSON.stringify({ error: { code: 'ask_needs_model', message: 'The record does not answer this question.' } })); return; }
     res.statusCode = 201;
     res.end(JSON.stringify(body.askModel
@@ -180,7 +182,7 @@ function askingUnfold(t: { after(fn: () => void): void }) {
       : { question: body.question, answer: 'US$ 0.03 so far.', status: 'answered', source: 'record', costUsd: 0, costStatus: 'settled' }));
   });
   t.after(() => fake.close());
-  return { fake, posted, ready: new Promise<string>(resolve => fake.listen(0, '127.0.0.1', () => { const a = fake.address(); assert(a && typeof a !== 'string'); resolve(`http://127.0.0.1:${a.port}`); })) };
+  return { fake, posted, headers, ready: new Promise<string>(resolve => fake.listen(0, '127.0.0.1', () => { const a = fake.address(); assert(a && typeof a !== 'string'); resolve(`http://127.0.0.1:${a.port}`); })) };
 }
 
 test('unfold_ask answers standing questions free and never spends without a person confirming', async t => {
@@ -222,7 +224,7 @@ test('unfold_ask asks a model only after the person accepts the confirmation ove
       }
     });
     const served = serveStdio(createMcpServer({ url, token: `vle_${'d'.repeat(43)}` }), input, output);
-    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: { elicitation: {} } } })}\n`);
+    input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: { elicitation: {} }, clientInfo: { name: 'claude-code', version: '2.1.296' } } })}\n`);
     input.write(`${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'unfold_ask', arguments: { id: '184', question: 'Is Firefox affected?', use_model: true } } })}\n`);
     while (!replies.some(reply => reply.id === 2)) await new Promise(resolve => setTimeout(resolve, 10));
     input.end();
@@ -231,6 +233,11 @@ test('unfold_ask asks a model only after the person accepts the confirmation ove
     const answer = replies.find(reply => reply.id === 2).result.structuredContent;
     assert.equal(answer.asked, expectAsked, JSON.stringify(decision));
     assert.equal(unfold.posted.some(body => body.askModel === true), expectAsked, 'a model Ask is posted only after an explicit yes');
+    if (expectAsked) {
+      const spent = unfold.headers[unfold.posted.findIndex(body => body.askModel === true)];
+      assert.equal(spent.client, 'claude-code 2.1.296');
+      assert.match(String(spent.confirmation), new RegExp(`^[A-Za-z0-9_-]{16}:${createHash('sha256').update(elicited.params.message).digest('hex')}$`));
+    }
     if (!expectAsked) assert.equal(answer.summary, 'Not asked: the spend was not confirmed. Nothing was spent.');
   }
 });
@@ -294,6 +301,10 @@ test('unfold_ask over 2026-07-28 spends only after the person confirms through a
 
   const answered = (await ask(7, { inputResponses: accept, requestState: pending.requestState }))?.result;
   assert.equal(answered.resultType, 'complete');
+  const agreedText = pending.inputRequests.confirm_spend.params.message;
+  const spent = unfold.headers.at(-1)!;
+  assert.equal(spent.client, 'test 1', 'the client named in _meta reaches Unfold');
+  assert.match(String(spent.confirmation), new RegExp(`^[A-Za-z0-9_-]{22}:${createHash('sha256').update(agreedText).digest('hex')}$`), 'the confirmation names the exact text the person agreed to');
   assert.equal(answered.structuredContent.asked, true, JSON.stringify(answered));
   assert.deepEqual(unfold.posted.map(body => body.askModel), [true]);
   const replayed = (await ask(8, { inputResponses: accept, requestState: pending.requestState }))?.result;

@@ -115,10 +115,11 @@ export class Auth {
     const token = this.token(req);
     return token && token.length <= 200 ? digest(token) : undefined;
   }
-  /** Which credential authenticated a request: a browser session or an editor credential. */
-  scope(req: IncomingMessage): 'browser' | 'editor' | undefined {
+  /** Which credential authenticated a request: a browser session, an editor credential, or a credential `unfold-mcp` over HTTP delegated. */
+  scope(req: IncomingMessage): 'browser' | 'editor' | 'mcp' | undefined {
     if (this.config.mode === 'demo') return 'browser';
-    if (this.bearer(req) !== undefined) return this.editorUser(req) ? 'editor' : undefined;
+    const bearer = this.bearer(req);
+    if (bearer !== undefined) return this.editorUser(req) ? delegatedTokenPattern.test(bearer) ? 'mcp' : 'editor' : undefined;
     return this.user(req) ? 'browser' : undefined;
   }
   user(req: IncomingMessage): User | undefined {

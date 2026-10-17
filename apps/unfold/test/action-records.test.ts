@@ -26,6 +26,8 @@ test('recorded inputs drop secrets and clip long text, and channel and confirmat
   assert.equal(channelOf('browser', undefined, undefined), 'browser');
   assert.equal(channelOf('editor', 'unfold-mcp on ryan-pc-mint', 'Claude Code 2.1.296'), 'unfold-mcp on ryan-pc-mint (Claude Code 2.1.296)');
   assert.equal(channelOf('editor', undefined, 'x\u0000\u001by'), 'editor (xy)');
+  assert.equal(channelOf('mcp', undefined, 'Claude Code 2.1.296'), 'mcp:Claude Code 2.1.296');
+  assert.equal(channelOf('mcp', 'ignored', undefined), 'mcp:unnamed client');
   const confirmation = `c-1:${createHash('sha256').update('Approve 106?').digest('hex')}`;
   assert.equal(confirmationOf(confirmation), confirmation);
   assert.equal(confirmationOf('anything at all'), null);
