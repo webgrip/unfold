@@ -32,10 +32,14 @@ test('live mode with Ploeg execution starts, and demo mode never needs Ploeg', (
 
 test('the supplied live examples configure Ploeg execution', async t => {
   const dataDir = await mkdtemp(join(tmpdir(), 'unfold-live-example-'));
-  const previous = process.env.UNFOLD_DATA_DIR;
-  process.env.UNFOLD_DATA_DIR = dataDir;
-  t.after(async () => { if (previous === undefined) delete process.env.UNFOLD_DATA_DIR; else process.env.UNFOLD_DATA_DIR = previous; await rm(dataDir, { recursive: true, force: true }); });
-  for (const file of ['config/live.example.json', 'ops/local/config.live.example.json', 'config/unified.example.json']) {
+  const settings: Record<string, string> = { UNFOLD_DATA_DIR: dataDir, ...Object.fromEntries(['FORGEJO', 'GITHUB', 'GITLAB', 'CLICKUP', 'VIKUNJA'].map(provider => [`UNFOLD_TASK_${provider}_TOKEN`, 'example-task-token'])) };
+  const previous = Object.fromEntries(Object.keys(settings).map(name => [name, process.env[name]]));
+  Object.assign(process.env, settings);
+  t.after(async () => {
+    for (const [name, value] of Object.entries(previous)) if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    await rm(dataDir, { recursive: true, force: true });
+  });
+  for (const file of ['config/live.example.json', 'ops/local/config.live.example.json', 'config/unified.example.json', 'config/task-sources.example.json']) {
     const config = loadConfig(['--config', join(repositoryRoot, file)]);
     assert.equal(config.mode, 'live', file);
     assert.doesNotThrow(() => requirePloegExecution(config), file);
@@ -54,7 +58,7 @@ test('the server process refuses to start live without Ploeg execution before it
     runtime: { kind: 'opencode', backend: 'local', timeoutMs: 60000 },
   }));
   const env: NodeJS.ProcessEnv = { ...process.env, UNFOLD_ADMIN_PASSWORD: 'a-long-enough-password', UNFOLD_PORT: '0' };
-  for (const name of ['UNFOLD_MODE', 'UNFOLD_CONFIG', 'UNFOLD_DATA_DIR']) delete env[name];
+  for (const name of Object.keys(env)) if (name.startsWith('UNFOLD_') && !['UNFOLD_ADMIN_PASSWORD', 'UNFOLD_PORT'].includes(name)) delete env[name];
   const child = spawn(process.execPath, ['src/main.ts', '--config', file], { cwd: repositoryRoot, env, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = '';
   child.stdout.on('data', chunk => { output += chunk; });
