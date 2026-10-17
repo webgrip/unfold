@@ -44,10 +44,11 @@ export const defaultChatOf = (sessionUri: string) => `ahp-chat://default/${Buffe
 const renderedChangeKinds = new Set(['branch', 'uncommitted', 'session', 'turn', 'agent-merge']);
 
 /**
- * The changesets VS Code 1.141 and main show for a chat: `resolveChatChangesetCatalogue` over the chat's and the
- * session's catalogue, then `createChangesets`, which instantiates only the kinds it knows and drops the rest.
+ * VS Code's `resolveChatChangesetCatalogue` (1.142.0 `changesetUri.ts:142`) over the chat's and the session's catalogue.
+ * Undefined means the client still waits for a catalogue: VS Code 1.142's Changes view then keeps showing the last
+ * session's file count over an empty list.
  */
-export function vscodeChangesets(chat: Json, session: Json): Json[] {
+export function vscodeChangesetCatalogue(chat: Json, session: Json): Json[] | undefined {
   const chatChangesets: Json[] | undefined = chat.changesets;
   const sessionChangesets: Json[] | undefined = session.changesets;
   let resolved: Json[] | undefined;
@@ -63,7 +64,15 @@ export function vscodeChangesets(chat: Json, session: Json): Json[] {
       resolved.splice(turn < 0 ? resolved.length : turn, 0, sessionEntry);
     }
   }
-  return (resolved ?? []).filter(changeset => renderedChangeKinds.has(changeset.changeKind));
+  return resolved;
+}
+
+/**
+ * The changesets VS Code 1.141 and main show for a chat: {@link vscodeChangesetCatalogue}, then `createChangesets`,
+ * which instantiates only the kinds it knows and drops the rest.
+ */
+export function vscodeChangesets(chat: Json, session: Json): Json[] {
+  return (vscodeChangesetCatalogue(chat, session) ?? []).filter(changeset => renderedChangeKinds.has(changeset.changeKind));
 }
 
 /**

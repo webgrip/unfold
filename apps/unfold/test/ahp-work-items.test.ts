@@ -9,7 +9,7 @@ import { money } from '../public/core/format.js';
 import { noAgentMessages, noRunMessages, ploegRunToolName, workItemActivity, workItemRefusals } from '../src/ahp/work-items.ts';
 import { workItemCommandText } from '../src/ahp/work-item-commands.ts';
 import { application, login, request } from './api-support.ts';
-import { action, chatAsSeen, connect, defaultChatOf, type Json } from './ahp-support.ts';
+import { action, chatAsSeen, connect, defaultChatOf, vscodeChangesetCatalogue, vscodeChangesets, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
 
 const password = 'work-items-password-161803';
@@ -247,7 +247,7 @@ test('a Work Item\'s chat is one turn per Round with each Run a ploeg_run subage
   const session = (await op.rpc('subscribe', { channel: 'unfold:/wi-205' })).snapshot.state;
   assert.equal(session.defaultChat, defaultChatOf('unfold:/wi-205'));
   assert.deepEqual(session.inputNeeded, []);
-  assert.equal(session.changesets, undefined);
+  assert.deepEqual(session.changesets, []);
   assert.equal(session.chats.length, 3, 'the default chat and one read-only chat per Run');
   const chat = (await op.rpc('subscribe', { channel: session.defaultChat })).snapshot.state;
   assert.equal(chat.activeTurn, undefined);
@@ -786,4 +786,24 @@ test('a refused Try Again keeps only its rejectionReason, which VS Code 1.142 re
   assert.equal((await f.answered(resume)).params.rejectionReason, workItemCommandText.withdrawn);
   await f.untouched();
   assert.deepEqual(f.seen(), f.snapshot, 'no second reply next to the one VS Code shows');
+});
+
+test('a Work Item session\'s Changes view claims no file it does not list: its catalogue is empty, in the session, its chat and each Run\'s chat', { timeout: testTimeout(20_000) }, async t => {
+  const f = await fixture(t);
+  const op = await f.attach('op-1');
+  const summaries = workItemsOf(await f.listed(op));
+  for (const id of ['202', '205']) {
+    const resource = `unfold:/wi-${id}`;
+    const summary = summaries.find(item => item.resource === resource)!;
+    const session = (await op.rpc('subscribe', { channel: resource })).snapshot.state;
+    for (const listed of session.chats as Json[]) {
+      const chat = (await op.rpc('subscribe', { channel: listed.resource })).snapshot.state;
+      const shown: Json[] = vscodeChangesets(chat, session);
+      const listedFiles = shown.flatMap(changeset => changeset.files ?? []).length;
+      assert.equal(listedFiles, summary.changes?.files ?? 0, 'the count it shows equals the files it lists');
+      assert.deepEqual(shown, [], `#${id} ${listed.title}: no file is counted or listed`);
+      assert.deepEqual(vscodeChangesetCatalogue(chat, session), [], `#${id} ${listed.title}: VS Code gets a catalogue, so it stops waiting for one and shows no earlier session's count`);
+    }
+  }
+  assert.equal(summaries.find(item => item.resource === 'unfold:/wi-205')!.activity, 'Ready for review · PR #42', 'the pull request that holds the change is named');
 });

@@ -576,8 +576,8 @@ export class AgentHost {
     return { toolCallId: request.id, toolName: 'permission', displayName: request.title, status: 'pending-confirmation', invocationMessage: request.detail || request.title, confirmationTitle: request.title, options: [{ id: 'once', label: 'Allow once', kind: 'approve' }, { id: 'always', label: 'Always allow', kind: 'approve' }, { id: 'reject', label: 'Reject', kind: 'deny' }] };
   }
 
-  private changesets(session: Session): Json[] | undefined {
-    if (session.candidate?.status !== 'ready' && session.status !== 'exporting' && !this.artifactFiles(session).length) return undefined;
+  private changesets(session: Session): Json[] {
+    if (session.candidate?.status !== 'ready' && session.status !== 'exporting' && !this.artifactFiles(session).length) return [];
     const repository = this.config.repositories.find(repo => repo.id === session.repositoryId);
     return [{ label: 'Candidate', uriTemplate: this.changesetUri(session), description: repository ? `Changes against ${repository.baseBranch} of ${repository.name}` : 'Reviewable change', changeKind: 'session', capabilities: { review: {} } }];
   }
@@ -589,7 +589,7 @@ export class AgentHost {
       chats: [this.chatSummary(session, view), ...runChats(this.projection(session).runs, this.spelling(session, view))], defaultChat: this.chatUri(session, view),
       config: this.review.withConfigValues(session, sessionConfigState(this.config, session)),
       customizations: this.customizationsOf(session, this.publicId(session.id)),
-      ...(changesets ? { changesets } : {}),
+      changesets,
       ...this.review.annotationsSummary(session, this.sessionUri(session, view)),
       inputNeeded: this.inputNeeded(session, view),
     };
@@ -620,7 +620,7 @@ export class AgentHost {
   chatState(session: Session, view: View): Json {
     const projection = this.projection(session);
     const changesets = this.changesets(session);
-    return { ...this.chatSummary(session, view), turns: projection.turns.slice(-maxTurnsInSnapshot), ...(projection.activeTurn ? { activeTurn: projection.activeTurn } : {}), ...(changesets ? { changesets } : {}) };
+    return { ...this.chatSummary(session, view), turns: projection.turns.slice(-maxTurnsInSnapshot), ...(projection.activeTurn ? { activeTurn: projection.activeTurn } : {}), changesets };
   }
 
   private candidateKey(session: Session): string | undefined {
@@ -1102,7 +1102,7 @@ export class AgentHost {
         for (const request of this.openRequests(session)) this.broadcast(channel, viewer => ({ type: 'session/inputNeededSet', request: this.inputRequest(session, request, viewer) }));
         for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(channel, { type: 'session/inputNeededRemoved', id: request.id });
         this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, changes: summary.changes, ...catalogOf(summary) } }; }, session.ownerId);
-        if (changesets) { await this.loadCandidate(session); if (this.closed) return; const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations ?? [] }); }
+        if (changesets.length) { await this.loadCandidate(session); if (this.closed) return; const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations ?? [] }); }
       }
       this.announceActiveSessions();
     } finally { this.polling = false; }

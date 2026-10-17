@@ -186,7 +186,7 @@ function turnOf(round: Round, index: number, spelling: Spelling, item: PloegItem
 export function workItemChatState(entry: WorkItemRecord, detail: PloegDetail, spelling: Spelling, flags: ViewFlags): Json {
   const turns = rounds(detail).map((round, index) => ({ round, turn: turnOf(round, index, spelling, detail.item) }));
   const active = turns.find(({ round }) => round.open);
-  return { ...workItemChatSummary(entry, spelling, flags), turns: turns.filter(({ round }) => !round.open).map(({ turn }) => turn), ...(active ? { activeTurn: active.turn } : {}) };
+  return { ...workItemChatSummary(entry, spelling, flags), turns: turns.filter(({ round }) => !round.open).map(({ turn }) => turn), ...(active ? { activeTurn: active.turn } : {}), changesets: [] };
 }
 
 const runActivity = (run: PloegRun) => run.state === 'running' ? `${roleName(run.role)} is working` : run.state === 'pending' ? 'Waiting to start' : null;
@@ -215,15 +215,18 @@ export function workItemRunChatState(detail: PloegDetail, toolCallId: string, sp
   const run = detail.runs.find(entry => runToolCallId(entry) === toolCallId);
   if (!run) return undefined;
   const turn = runTurn(run, detail.item.updatedAt);
-  return { ...runChatSummary(run, spelling, detail.item.updatedAt), ...(run.state === 'finished' ? { turns: [turn] } : { turns: [], activeTurn: turn }) };
+  return { ...runChatSummary(run, spelling, detail.item.updatedAt), ...(run.state === 'finished' ? { turns: [turn] } : { turns: [], activeTurn: turn }), changesets: [] };
 }
 
-/** A Work Item session as a client subscribes to it: read-only, without changesets, configuration or input requests of its own. */
+/**
+ * A Work Item session as a client subscribes to it: read-only, without configuration or input requests of its own, and with an
+ * empty changeset catalogue. Its change lives in its pull request, which Ploeg's detail names but does not list the files of.
+ */
 export function workItemSessionState(entry: WorkItemRecord, detail: PloegDetail, spelling: Spelling, flags: ViewFlags, protocolVersion: string, activeClients: Json[]): Json {
   return {
     ...workItemSummary(entry, spelling, flags, protocolVersion), lifecycle: 'ready', activeClients,
     chats: [workItemChatSummary(entry, spelling, flags), ...[...detail.runs].sort(byId).map(run => runChatSummary(run, spelling, detail.item.updatedAt))], defaultChat: spelling.chat,
-    config: { schema: { type: 'object', properties: {} }, values: {} }, customizations: [], inputNeeded: [],
+    config: { schema: { type: 'object', properties: {} }, values: {} }, customizations: [], inputNeeded: [], changesets: [],
   };
 }
 
