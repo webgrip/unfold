@@ -1,0 +1,60 @@
+# Component workbench
+
+The workbench shows Unfold's browser components on their own, rendered from fixtures, with every state at phone, tablet and desktop width in both themes. The same stories feed the unit tests and a browser check that fails on layout, contrast, target-size, naming, motion and Content Security Policy problems. [ADR 0045](adrs/0045-components-are-built-and-checked-in-a-workbench-outside-the-app.md) records why it is not Storybook.
+
+## Run it
+
+```sh
+mise exec -- npm run workbench        # serves http://127.0.0.1:7745/workbench/
+mise exec -- npm run test:workbench   # every story × 390/768/1280 px × light/dark, plus reduced motion
+```
+
+The workbench reloads when a file under `public/` or `workbench/` changes. Each frame's caption shows its check result; hover it for the details. `UNFOLD_WORKBENCH_PORT` changes the port.
+
+`test:workbench` takes these variables: `UNFOLD_WORKBENCH_STORIES` (a regular expression over story ids, such as `layouts|dial`), `UNFOLD_WORKBENCH_WIDTHS` (`390,1280`), `UNFOLD_SCREENSHOTS` (a folder for full-page screenshots), `UNFOLD_WORKBENCH_REPORT` (a JSON file with every result) and `UNFOLD_CHROMIUM_BIN` (a Chromium binary, as for `test:browser`).
+
+## What it checks
+
+`workbench/checks.js` runs in every frame. A failure breaks `test:workbench`; a warning is listed only.
+
+| Rule | Fails when |
+| --- | --- |
+| `page-overflow` | the page scrolls sideways |
+| `element-overflow` | an element ends past the story's edge outside a scroll box |
+| `clipped-text` | a box hides text without an ellipsis |
+| `target-size` | a control is smaller than 24 × 24 px (WCAG 2.2 2.5.8); under 44 px tall is a warning |
+| `contrast` | text is below 4.5:1, or 3:1 when large, against what is behind it |
+| `name` | a control has no accessible name, or a graphic is neither labelled nor hidden |
+| `duplicate-id` | an id appears twice |
+| `motion` | an animation runs under reduced motion |
+| `csp` | the page broke the app's Content Security Policy |
+| `console` | the page logged an error (only in `test:workbench`) |
+
+`test/live-stories.test.mjs` checks every story's markup without a browser: no inline styles or handlers, no leaked `undefined` or `NaN`, money in nl-NL, labelled or hidden SVG, typed buttons and unique ids.
+
+## The live Work Item components
+
+`public/live/` holds the components for following a running Work Item, from the designs of 17 October 2026:
+
+| Module | Draws |
+| --- | --- |
+| `model.js` | `liveModel()`: one view model from a Ploeg detail and the followed Run's folded transcript. Its invariants are tested: one spend figure, machine-ended Runs counted as lost and not as Role work, agent time = useful + lost, attempts and Runs numbered from 1, no estimate unless one is passed |
+| `flight-path.js` | the flight: ask, wait, each attempt with its Runs, the plane, the stations ahead; a list of stages under 34 rem |
+| `instruments.js` | spend against what the attempt holds, time, tokens, what was lost |
+| `trace.js` | lanes on one time axis per attempt, move and call kind; the moves as disclosures |
+| `answers.js` | the questions people ask, answered from the record with their source |
+| `dial.js` | the Shift dial |
+| `fold-strip.js` | the stages as folds, full or row-sized |
+| `layouts.js` | the cockpit, instrument and fleet pages |
+
+`fixtures.js` holds the scenarios: VIK-2049 as it ran, first try, stalled, close to budget, ready for review, needs you, landed, queued, usage not reported, and a stress case with 40 Runs and 240 calls.
+
+These components are not wired into the Work Item page yet.
+
+## Add a component
+
+1. Write a pure function that takes a view model and returns HTML. Use classes from a stylesheet under `public/styles/`, never a `style` attribute, and SVG presentation attributes for geometry.
+2. Add a `*.stories.js` file under the component's `stories/` folder: `export default meta({ title, render })` and one named export per state, then list the file in `stories/index.js`.
+3. Run `npm run workbench`, then `npm run test:workbench` and `npm test`.
+
+A story file is Component Story Format 3, so Storybook's HTML renderer can load it as it is.
