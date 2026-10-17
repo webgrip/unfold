@@ -1,0 +1,120 @@
+import { state, disconnect, onForget } from '../core/state.js';
+import { api } from '../core/api.js';
+import { escape, renderHtml, notify } from '../core/dom.js';
+import { callout, card, emptyState, skeleton, stateBadge } from '../core/ui.js';
+import { harnessName, linkedSessionPage, linkedStates, linkedStatusLine, attributionLine } from '../core/linked-sessions.js';
+import { icon } from '../core/icons.js';
+import { shell } from '../shell.js';
+
+const sessionPath = /^linked-session\/([A-Za-z0-9_-]{8,128})$/;
+const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {} };
+onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {} }));
+
+/** The event other views listen for after a Linked Session gained or lost a Work Item here. */
+export const linkedChangedEvent = 'unfold:linked-sessions-changed';
+
+/** The steps that connect a person's Claude Code to this workbench, with the workbench address filled in. */
+export function setupSteps(origin) {
+  const settings = JSON.stringify({ env: { UNFOLD_URL: origin, UNFOLD_TOKEN: 'vle_…' } }, null, 2);
+  return `<ol class="linked-setup-steps">
+    <li><p>Sign in a client for Claude Code and copy the token it prints:</p><pre class="mono" data-private><code>UNFOLD_URL=${escape(origin)} npm --prefix apps/unfold run mcp -- login</code></pre></li>
+    <li><p>Put the address and token in <code>~/.claude/settings.json</code>, beside the telemetry settings you already have:</p><pre class="mono" data-private><code>${escape(settings)}</code></pre></li>
+    <li><p>In Claude Code, add the Unfold marketplace and install the plugin:</p><pre class="mono" data-private><code>/plugin marketplace add https://forgejo.webgrip.dev/webgrip/unfold.git
+/plugin install unfold@unfold</code></pre></li>
+    <li><p>Start a session. It appears below and links itself to the Work Item its branch names, such as <code>feat/vik-2051-login</code>. Ask it to link to another Work Item at any time.</p></li>
+  </ol>`;
+}
+
+function listRows(sessions, now) {
+  return sessions.map(session => `<li class="linked-session-row"><div class="linked-session-text"><p class="linked-session-title"><a class="work-inline-link" href="#linked-session/${escape(encodeURIComponent(session.id))}">${escape(session.title || (session.branch ? `On ${session.branch}` : `${harnessName(session.harness)} session`))}${icon('arrow')}</a> ${stateBadge(linkedStates[session.state] ?? linkedStates.idle)}</p><p class="meta">${escape(linkedStatusLine(session, now))}</p><ul class="linked-session-facts"><li>${escape(session.workItems.length ? `Work Items ${session.workItems.map(entry => entry.id).join(', ')}` : 'Not linked to a Work Item')}</li><li>${escape(attributionLine(session))}</li></ul></div></li>`).join('');
+}
+
+function settingsContent() {
+  const now = Date.now();
+  const setup = card({ id: 'linked-setup', title: 'Connect Claude Code', subtitle: 'Your own Claude Code sessions report here and link to Work Items. Unfold never holds your Claude sign-in.', icon: 'terminal', body: setupSteps(location.origin) });
+  let list;
+  if (view.error && !view.sessions) list = callout({ tone: 'danger', title: 'Could not read your agent sessions', body: `<p>${escape(view.error)}</p>` });
+  else if (!view.sessions) list = skeleton({ rows: 3 });
+  else if (!view.sessions.length) list = emptyState({ icon: 'bot', title: 'No sessions have reported yet', body: 'Once the plugin is installed, each Claude Code session you start shows up here within a second.', compact: true });
+  else list = `<ul class="linked-session-list">${listRows(view.sessions, now)}</ul>`;
+  const note = `<p class="settings-footnote">${icon('lock')}<span>The plugin sends the session id, title, repository, branch, model, state and commit ids. Prompts, files and your Claude credentials never leave your machine through it.</span></p>`;
+  return `<div class="settings-page">${setup}${card({ id: 'linked-mine', title: 'Your agent sessions', subtitle: 'Newest report first.', body: list })}${note}</div>`;
+}
+
+function sessionContent() {
+  if (view.error && !view.session) return callout({ tone: 'danger', title: 'Could not read this agent session', body: `<p>${escape(view.error)}</p>` });
+  if (!view.session) return `<div class="card">${skeleton({ rows: 6, variant: 'text' })}</div>`;
+  return linkedSessionPage(view.session, { workItems: view.titles });
+}
+
+function renderLinked() {
+  if (view.mode === 'settings') return renderHtml(shell(settingsContent(), { title: 'Agent sessions', subtitle: 'Connect Claude Code, and see the sessions of yours that report to Unfold.' }));
+  const title = view.session ? (view.session.title || `${harnessName(view.session.harness)} session`) : 'Agent session';
+  renderHtml(shell(sessionContent(), { title, subtitle: 'An agent session that runs outside Unfold and reports to it.' }));
+}
+
+async function loadSession(id) {
+  const request = ++view.request;
+  try {
+    const { session } = await api(`/api/linked-sessions/${encodeURIComponent(id)}?telemetry=1`);
+    if (request !== view.request) return;
+    view.session = session; view.error = '';
+    renderLinked();
+    const titles = await Promise.all(session.workItems.slice(0, 10).map(entry => api(`/api/ploeg/work-items/${encodeURIComponent(entry.id)}`).then(detail => [entry.id, detail.item.title], () => [entry.id, ''])));
+    if (request !== view.request) return;
+    view.titles = Object.fromEntries(titles.filter(([, title]) => title));
+  } catch (error) { if (request === view.request) view.error = error.message; }
+  if (request === view.request && state.view === 'linked-sessions') renderLinked();
+}
+
+async function enterLinked(params) {
+  disconnect(); state.session = null; state.view = 'linked-sessions';
+  view.mode = params.id ? 'session' : 'settings';
+  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {};
+  renderLinked();
+  if (view.mode === 'session') return loadSession(view.id);
+  const request = ++view.request;
+  try { const { sessions } = await api('/api/linked-sessions'); if (request === view.request) view.sessions = sessions; }
+  catch (error) { if (request === view.request) view.error = error.message; }
+  if (request === view.request && state.view === 'linked-sessions') renderLinked();
+}
+
+async function changeLink(id, workItem, linked) {
+  const { session } = await api(`/api/linked-sessions/${encodeURIComponent(id)}/work-items/${encodeURIComponent(workItem)}`, { method: linked ? 'PUT' : 'DELETE', body: '{}' });
+  window.dispatchEvent(new CustomEvent(linkedChangedEvent, { detail: { id, workItem } }));
+  if (state.view === 'linked-sessions' && view.session?.id === id) { view.session = { ...session, telemetry: view.session.telemetry }; renderLinked(); }
+  return session;
+}
+
+async function unlink(element) {
+  element.disabled = true;
+  await changeLink(element.dataset.id, element.dataset.workItem, false);
+  notify(`Unlinked from Work Item ${element.dataset.workItem}. Its branch will not link it again.`);
+}
+
+async function link(data, form) {
+  const workItem = String(data.workItem ?? '').trim().replace(/^#/, '');
+  if (!/^[1-9][0-9]{0,18}$/.test(workItem)) throw new Error('Enter a Work Item id, such as 184.');
+  await changeLink(form.dataset.id, workItem, true);
+  notify(`Linked to Work Item ${workItem}.`);
+  void loadSession(form.dataset.id);
+}
+
+async function copy(element) {
+  try { await navigator.clipboard.writeText(element.dataset.text); notify('Copied. Paste it into a terminal on the machine that ran the session.'); }
+  catch { notify('The browser did not allow copying. Select the command instead.', true); }
+}
+
+/**
+ * Agent sessions: `#settings/agent-sessions` connects Claude Code and lists the person's Linked Sessions, and
+ * `#linked-session/<id>` shows one with its Work Items, telemetry, commits and the command that resumes it.
+ */
+export default {
+  id: 'linked-sessions',
+  match: hash => hash === 'settings/agent-sessions' ? {} : (sessionPath.exec(hash) ? { id: sessionPath.exec(hash)[1] } : null),
+  enter: enterLinked,
+  render: renderLinked,
+  actions: { 'linked-session-unlink': unlink, 'linked-session-copy': copy },
+  forms: { 'linked-session-link': link },
+};
+

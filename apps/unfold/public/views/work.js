@@ -15,6 +15,7 @@ import { defaultLogView, logDownloadText } from '../run-log-view.js';
 import { exposed, flagValues, track } from '../core/flags.js';
 import { agentsWindowAvailable, openAgentsWindow } from '../agents-window.js';
 import { actionsCsv, actionsJson, engineRows, newestFirst, recordRow } from '../action-log.js';
+import { linkedChangedEvent } from './linked-sessions.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -27,9 +28,9 @@ const logPanel = /^work-run-logs-([1-9][0-9]{0,19})$/;
 const transcriptInterval = 4000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, flightRevealed: null };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, flightRevealed: null };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, flightRevealed: null }));
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, flightRevealed: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
@@ -71,6 +72,7 @@ function model() {
     cancelResult: work.cancelResult?.id === work.detailId ? work.cancelResult : null,
     briefOpen: work.briefOpen.has(work.detailId),
     sessions: state.sessions,
+    linkedSessions: work.linked?.id === work.detailId ? work.linked.data : null,
     userId: state.bootstrap?.user?.id,
     trackerUrl: state.ploeg?.trackerUrl,
     reviewFacts: Object.fromEntries(work.reviewFacts),
@@ -372,6 +374,20 @@ async function loadContext(id, { fresh = false } = {}) {
   if (visible() && !state.ploegDetailLoading) renderWork();
 }
 
+async function loadLinked(id) {
+  const request = ++work.linkedRequest;
+  let data;
+  try { data = { sessions: (await api(`/api/linked-sessions?workItemId=${encodeURIComponent(id)}`)).sessions, error: '' }; }
+  catch (error) { if (work.linked?.id === id && work.linked.data && !work.linked.data.error) return; data = { sessions: [], error: error.message || 'Unfold could not list the agent sessions.' }; }
+  if (request !== work.linkedRequest || work.detailId !== id) return;
+  const next = signature(data);
+  if (work.linked?.id === id && work.linked.signature === next) return;
+  work.linked = { id, data, signature: next };
+  if (visible() && !state.ploegDetailLoading) renderWork();
+}
+
+if (globalThis.window) window.addEventListener(linkedChangedEvent, event => { if (work.detailId && String(event.detail?.workItem) === String(work.detailId)) void loadLinked(work.detailId); });
+
 async function loadAsks(id) {
   const request = ++work.askRequest;
   let data;
@@ -536,6 +552,7 @@ async function loadDetail(id, { fresh = false, quiet = false } = {}) {
   void loadAsks(id);
   void loadActions(id);
   void loadTrace(id, { fresh });
+  void loadLinked(id);
   const request = ++work.detailRequest;
   let changed = !quiet;
   if (!quiet) { state.ploegDetailLoading = true; state.ploegDetailError = ''; if (state.ploegDetail?.item.id !== id) state.ploegDetail = null; renderWork(); }
