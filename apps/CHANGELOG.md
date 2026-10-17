@@ -1,3 +1,26 @@
+## [unfold-v0.4.0-rc.83](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.82...unfold-v0.4.0-rc.83) (2026-10-17)
+
+### Added
+
+* **unfold:** act on work from unfold-mcp after the person confirms ([4ec75cc](https://forgejo.webgrip.dev/webgrip/unfold/commit/4ec75cc762d9fd83cbff4ac5c538e56c1db84fcb))
+* **unfold:** add a Claude Code plugin that reports sessions and writes Agent Trace per commit ([e132b71](https://forgejo.webgrip.dev/webgrip/unfold/commit/e132b71ff14b6f6e71d836b312bd22468efac8f1))
+* **unfold:** link people's own agent sessions to Work Items, with Agent Trace and telemetry ([7d7d1ef](https://forgejo.webgrip.dev/webgrip/unfold/commit/7d7d1ef271cff219a09698902e4a60f0a9bf6493))
+* **unfold:** turn Run card rarity off by default behind the cards.rarity flag ([4ad778f](https://forgejo.webgrip.dev/webgrip/unfold/commit/4ad778f538aa410349b6166899c83628368e39be))
+* **unfold:** word the pull request closures Ploeg records after a credential leak ([4611d80](https://forgejo.webgrip.dev/webgrip/unfold/commit/4611d8090130a609fdc1ab0b6e69ce05e62705da))
+* **unfold:** word the pull request closures Ploeg records after a credential leak ([33d8aa2](https://forgejo.webgrip.dev/webgrip/unfold/commit/33d8aa20152a2df299e58aa306b2cc046307ad62))
+* **unfold:** word the shared_budget_spent failure Ploeg rc.24 records ([4727f8c](https://forgejo.webgrip.dev/webgrip/unfold/commit/4727f8c82cea6dc678f2130c576a2377acb60a0f)), references [ploeg-hq#155](https://forgejo.webgrip.dev/ploeg-hq/issues/155)
+
+### Docs
+
+* **unfold:** propose Run health on the Run card (RFC-0007, ADR 0046) ([1995676](https://forgejo.webgrip.dev/webgrip/unfold/commit/1995676035737ee624b76616e959a9a12ec5c704))
+* **unfold:** record Linked Sessions in ADR 0047, the contract and a how-to ([92fcf6f](https://forgejo.webgrip.dev/webgrip/unfold/commit/92fcf6f797179afe4cf7ce8472c3eb746301c5e8))
+
+### Build
+
+* **ploeg:** pin Ploeg 0.2.0-rc.23 ([bf9124b](https://forgejo.webgrip.dev/webgrip/unfold/commit/bf9124baedab62b44eef12d7b4d7d4c3a7de34cd)), closes [#144](https://forgejo.webgrip.dev/webgrip/unfold/issues/144) [#152](https://forgejo.webgrip.dev/webgrip/unfold/issues/152), references [#151](https://forgejo.webgrip.dev/webgrip/unfold/issues/151) [#147](https://forgejo.webgrip.dev/webgrip/unfold/issues/147) [#150](https://forgejo.webgrip.dev/webgrip/unfold/issues/150)
+* **ploeg:** pin Ploeg 0.2.0-rc.24 ([6384090](https://forgejo.webgrip.dev/webgrip/unfold/commit/6384090c0cf6ad696a571dce0816a0ad900ba373)), references [#155](https://forgejo.webgrip.dev/webgrip/unfold/issues/155) [#142](https://forgejo.webgrip.dev/webgrip/unfold/issues/142) [#156](https://forgejo.webgrip.dev/webgrip/unfold/issues/156) [#153](https://forgejo.webgrip.dev/webgrip/unfold/issues/153)
+* **ploeg:** pin Ploeg v0.2.0-rc.23 ([3717181](https://forgejo.webgrip.dev/webgrip/unfold/commit/371718120f6796d1ae777f0bac2757cee2346861)), references [#152](https://forgejo.webgrip.dev/webgrip/unfold/issues/152)
+
 ## [unfold-v0.4.0-rc.82](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.81...unfold-v0.4.0-rc.82) (2026-10-17)
 
 ### Added
