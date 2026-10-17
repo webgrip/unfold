@@ -6,7 +6,7 @@ import { application, createSession, login, request } from './api-support.ts';
 import { executionFailure } from '../src/failures.ts';
 import { activity, chatChannel, diffEntries, parseChannel } from '../src/ahp/host.ts';
 import { settle, testTimeout, waitFor } from './timeframes.ts';
-import { action, closed, connect, defaultChatOf, vscodeAgentsWindow, type Json } from './ahp-support.ts';
+import { action, chatAsSeen, closed, connect, defaultChatOf, vscodeAgentsWindow, type Json } from './ahp-support.ts';
 
 test('the agent host speaks AHP 0.9: initialize, create a session from a chat, stream the team, share state with a second client and expose the candidate as a changeset', { timeout: testTimeout(60_000) }, async t => {
   const server = await application();
@@ -520,4 +520,47 @@ test('a failed session tells VS Code why it failed, in the session and chat summ
   assert.equal(summary.activity, `Failed: ${failed.failure!.message}`);
   const state = (await vscode.rpc('subscribe', { channel: summary.resource })).snapshot.state;
   assert.equal(state.chats[0].activity, summary.activity, 'VS Code 1.141 shows a chat\'s activity whatever its status');
+});
+
+test('every chat action the host refuses on an Unfold session ends in a reply the person sees, and reaches no engine', { timeout: testTimeout(60_000) }, async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const created = await createSession(server.url);
+  const store = server.app.store;
+  store.saveSession({ ...store.getSession(created.id)!, status: 'completed' });
+  const engine = server.app.engine as unknown as Record<string, (...args: unknown[]) => unknown>;
+  const called: string[] = [];
+  for (const name of ['message', 'start', 'resume', 'pause']) { const original = engine[name].bind(engine); engine[name] = (...args: unknown[]) => { called.push(name); return original(...args); }; }
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'refusals' } });
+  const vscode = connect(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`);
+  t.after(() => vscode.close());
+  await vscode.open;
+  await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: 'refused-reader', clientInfo: vscodeAgentsWindow, initialSubscriptions: [] });
+  const [summary] = (await vscode.rpc('listSessions', { channel: 'ahp-root://' })).items;
+  const chat = defaultChatOf(summary.resource);
+  const snapshot = (await vscode.rpc('subscribe', { channel: chat })).snapshot.state;
+  const from = vscode.inbox.length;
+  const completed = 'The session has completed; start a new session';
+  const waitsForReview = 'This candidate waits for your review. Accept it, request changes or reject it from the Changes view, or comment on its files and submit the comments.';
+  const refusals: Array<[Json, string, string]> = [
+    [{ type: 'chat/turnStarted', turnId: 'refused-1', message: { text: '/steer use the other rounding mode', origin: { kind: 'user' } } }, waitsForReview, '/steer use the other rounding mode'],
+    [{ type: 'chat/pendingMessageSet', kind: 'queued', id: 'p1', message: { text: '/steer and keep the tests', origin: { kind: 'user' } } }, completed, '/steer and keep the tests'],
+    [{ type: 'chat/toolCallConfirmed', toolCallId: 'gone', approved: true }, 'Unknown permission request', 'Your approval'],
+    [{ type: 'chat/inputCompleted', requestId: 'gone', response: 'accept' }, 'Unknown question', 'Your answer'],
+  ];
+  let clientSeq = 0;
+  for (const [refused, reason, opening] of refusals) {
+    clientSeq += 1;
+    vscode.notify('dispatchAction', { channel: chat, clientSeq, action: refused });
+    const answered = await vscode.until(message => message.method === 'action' && message.params.origin?.clientSeq === clientSeq);
+    assert.equal(answered.params.rejectionReason, reason, `${refused.type} still carries its rejectionReason`);
+    const turnEnded = await vscode.until(message => action(message, chat, 'chat/turnComplete') && vscode.inbox.indexOf(message) > vscode.inbox.indexOf(answered));
+    const turn = chatAsSeen(snapshot, vscode.inbox, chat, from).turns.find((entry: Json) => entry.id === turnEnded.params.action.turnId);
+    assert.equal(turn?.state, 'complete', `${refused.type} leaves no message waiting`);
+    assert.equal(turn.message.text, opening);
+    assert.deepEqual(turn.responseParts.map((part: Json) => part.content), [reason]);
+  }
+  assert.ok(chatAsSeen(snapshot, vscode.inbox, chat, from).turns.some((entry: Json) => entry.id === 'refused-1'), 'a refused message keeps the turn id VS Code waits on');
+  assert.deepEqual(called, [], 'no refused action reaches the engine');
+  assert.equal(store.getSession(created.id)!.status, 'completed', 'and the session is unchanged');
 });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { application, request } from './api-support.ts';
 import { action, connect, defaultChatOf, vscodeAgentsWindow, type AgentHostClient, type Json } from './ahp-support.ts';
-import { repositoriesDirectory, repositoryWorkspaceNames } from '../src/ahp/host.ts';
+import { repositoriesDirectory, repositoryFolderNames, repositoryWorkspaceNames } from '../src/ahp/host.ts';
 import { testTimeout } from './timeframes.ts';
 
 const read = 32;
@@ -160,15 +160,17 @@ test('the agent declares no protected resource, so VS Code 1.141 does not gate U
   assert.equal(resolveAgentAuthRequirementOfVscode1141({ ...agent, protectedResources: undefined }), 'github', 'without the field VS Code would ask for Copilot');
 });
 
-test('repositories are named Unfold · <repository> after their forge path, with the id only when two share a name', () => {
+test('repository folders are named after their forge path and projects Unfold · <folder>, with the id only when two share a name', () => {
   const repository = (id: string, url: string) => ({ id, name: id, description: '', url, baseBranch: 'main', verify: [] });
-  const names = repositoryWorkspaceNames([
+  const repositories = [
     repository('unfold', 'https://forgejo.webgrip.dev/webgrip/unfold.git'),
     repository('api', 'ssh://git@forge.example/team/service/'),
     repository('web', 'https://forge.example/team/service'),
     repository('order-service', '/srv/fixtures/order-service/'),
-  ]);
-  assert.deepEqual([...names.values()], ['Unfold · unfold', 'Unfold · service (api)', 'Unfold · service (web)', 'Unfold · order-service']);
+    repository('twente-dev', 'https://forgejo.webgrip.dev/webgrip/twente.dev.git'),
+  ];
+  assert.deepEqual([...repositoryFolderNames(repositories).values()], ['unfold', 'service (api)', 'service (web)', 'order-service', 'twente.dev']);
+  assert.deepEqual([...repositoryWorkspaceNames(repositories).values()], ['Unfold · unfold', 'Unfold · service (api)', 'Unfold · service (web)', 'Unfold · order-service', 'Unfold · twente.dev']);
 });
 
 test('the Agents window\'s workspace picker offers each repository, and picking one starts the session on it under a clear label', async t => {
@@ -180,7 +182,7 @@ test('the Agents window\'s workspace picker offers each repository, and picking 
   const initialized = await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: randomUUID(), clientInfo: vscodeAgentsWindow, initialSubscriptions: ['ahp-root://'] });
   assert.equal(initialized.defaultDirectory, repositoriesDirectory, 'VS Code lists this folder in the Workspace picker');
   const listed = await vscode.rpc('resourceList', { channel: 'ahp-root://', uri: repositoriesDirectory });
-  assert.deepEqual(listed.entries, [{ name: 'Unfold · order-service', type: 'directory' }]);
+  assert.deepEqual(listed.entries, [{ name: 'order-service', type: 'directory' }]);
   assert.deepEqual((await vscode.rpc('resourceList', { channel: 'ahp-root://', uri: 'file:///' })).entries, [{ name: 'unfold-repositories', type: 'directory' }]);
   await assert.rejects(vscode.rpc('resourceList', { channel: 'ahp-root://', uri: 'file:///etc' }), (error: any) => error.code === -32008, 'the host filesystem is not browsable');
 
@@ -194,4 +196,49 @@ test('the Agents window\'s workspace picker offers each repository, and picking 
   assert.equal(project.displayName, 'Unfold · order-service');
   assert.equal(`${project.displayName} [Unfold]`, 'Unfold · order-service [Unfold]', 'VS Code 1.141 labels the session group `<project> [<host entry name>]`');
   assert.equal(added.params.summary.workingDirectories, undefined, 'no host path is exposed');
+});
+
+test('VS Code 1.142\'s folder picker browses to a repository through resourceResolve and resourceList, and starts the session in it', async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const logged: string[] = [];
+  const log = t.mock.method(console, 'error', (line: unknown) => { logged.push(String(line)); });
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'VS Code 1.142 folder picker' } });
+  const vscode = client(`${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`, t);
+  await vscode.open;
+  const initialized = await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['0.9.0'], clientId: randomUUID(), clientInfo: vscodeAgentsWindow, initialSubscriptions: ['ahp-root://'] });
+  const root = 'ahp-root://';
+  const stat = (uri: string) => vscode.rpc('resourceResolve', { channel: root, uri });
+  const list = async (uri: string) => (await vscode.rpc('resourceList', { channel: root, uri })).entries as Json[];
+
+  assert.deepEqual(await stat(initialized.defaultDirectory), { uri: repositoriesDirectory, type: 'directory' }, 'the picker opens on the default directory only once it resolves');
+  assert.deepEqual(await list('file:///'), [{ name: 'unfold-repositories', type: 'directory' }]);
+  assert.deepEqual(await stat('file:///'), { uri: 'file:///', type: 'directory' });
+  assert.deepEqual(await stat('file:///unfold-repositories/'), { uri: 'file:///unfold-repositories/', type: 'directory' }, 'a typed trailing slash resolves');
+  const folders = await list('file:///unfold-repositories/');
+  assert.deepEqual(folders, [{ name: 'order-service', type: 'directory' }], 'a folder name a person can type');
+  const picked = `${repositoriesDirectory}/${folders[0].name}`;
+  assert.deepEqual(await stat(picked), { uri: picked, type: 'directory' });
+  assert.deepEqual(await list(picked), []);
+  const legacy = `${repositoriesDirectory}/${encodeURIComponent('Unfold · order-service')}`;
+  assert.deepEqual(await stat(legacy), { uri: legacy, type: 'directory' }, 'a working directory picked under the earlier name still resolves');
+  for (const missing of ['file:///unfold-repositories/unfold-repositories', 'file:///etc', 'file:///unfold-repositories/../etc', 'vscode-agent-host://x/file/-/unfold-repositories']) {
+    await assert.rejects(stat(missing), (error: any) => error.code === -32008, `${missing} does not exist`);
+    await assert.rejects(list(missing), (error: any) => error.code === -32008, `${missing} is not listed`);
+  }
+
+  const session = `ahp-session:/${randomUUID()}`;
+  assert.deepEqual(await vscode.rpc('createSession', { channel: session, provider: 'unfold', workingDirectories: [picked], config: { title: 'Picked in the folder dialog' } }), {});
+  const added = await vscode.until(message => message.method === 'root/sessionAdded' && message.params.summary.title === 'Picked in the folder dialog');
+  assert.equal(added.params.summary.project.displayName, 'Unfold · order-service', 'the picked folder decides the repository');
+  const legacySession = `ahp-session:/${randomUUID()}`;
+  await vscode.rpc('createSession', { channel: legacySession, provider: 'unfold', workingDirectories: [legacy], config: { title: 'Picked under the earlier name' } });
+  assert.equal((await vscode.until(message => message.method === 'root/sessionAdded' && message.params.summary.title === 'Picked under the earlier name')).params.summary.project.displayName, 'Unfold · order-service');
+
+  await assert.rejects(vscode.rpc('resourceMkdir', { channel: root, uri: picked }), (error: any) => error.code === -32601);
+  log.mock.restore();
+  const unanswered = logged.map(line => { try { return JSON.parse(line); } catch { return undefined; } }).filter(entry => entry?.event === 'agent_host.unanswered_request');
+  assert.ok(unanswered.some(entry => entry.method === 'resourceResolve' && entry.path === '/etc'), 'a path the host cannot answer is logged');
+  assert.ok(unanswered.some(entry => entry.method === 'resourceMkdir' && entry.path === undefined), 'an unknown method is logged by name');
+  assert.ok(!unanswered.some(entry => JSON.stringify(entry).includes(issued.body.token)), 'no token is logged');
 });

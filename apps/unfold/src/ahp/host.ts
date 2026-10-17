@@ -28,6 +28,7 @@ import { candidateEdits, carryRuns, parseRunChannel, runChatChannel, runChatStat
 import { WorkItemSessions, isWorkItemSession, workItemChatState, workItemIdOf, workItemRefusal, workItemRefusals, workItemRunChatState, workItemSessionState, workItemStatus, workItemSummary, type RoutedAction, type WorkItemRecord } from './work-items.ts';
 import { WorkItemCommands, openShiftOf, promptClosedActions, promptInputNeeded, promptOpenActions, restartable, takesNotes, withPrompts, workItemCommandText, type WorkItemPrompt } from './work-item-commands.ts';
 import { PloegError } from '../ploeg.ts';
+import { refusalPlacement, refusalReply } from './refusals.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
@@ -36,6 +37,17 @@ const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(
 const pollMs = 300;
 const maxTurnsInSnapshot = 200;
 const maxKnownClients = 1000;
+
+/** The decoded path of a `file:` URI the folder picker names, without a trailing slash; undefined for any other URI. */
+function pickerPath(uri: unknown): string | undefined {
+  try { const url = new URL(String(uri)); return url.protocol === 'file:' ? decodeURIComponent(url.pathname).replace(/(.)\/+$/, '$1') : undefined; } catch { return undefined; }
+}
+
+/** Logs a request the host cannot answer, by its method and path only, so a client's next unexpected request shows in the pod logs. */
+function logUnanswered(method: string, uri?: unknown): void {
+  const path = uri === undefined ? undefined : pickerPath(uri) ?? String(uri).split(/[?#]/)[0].slice(0, 300);
+  console.error(JSON.stringify({ level: 'warn', event: 'agent_host.unanswered_request', method: method.slice(0, 80), ...(path !== undefined ? { path } : {}) }));
+}
 
 /** The directory the host names as `defaultDirectory`: a virtual folder whose subfolders are the configured repositories, so the Agents window's workspace picker offers them. */
 export const repositoriesDirectory = 'file:///unfold-repositories';
@@ -49,15 +61,23 @@ const repositorySlug = (repository: Repository): string => {
 };
 
 /**
- * What VS Code shows for a repository, as the session's project and as a folder in the workspace picker: `Unfold · <repository>`,
- * named after the forge path's last segment and followed by the id when two repositories share it. VS Code appends the host
- * entry's name in brackets.
+ * The folder each repository is under {@link repositoriesDirectory}, as the folder picker lists it: the forge path's last
+ * segment, followed by the id when two repositories share it, so a person can type it. VS Code labels a picked folder
+ * `<folder> [<host entry name>]`.
  */
-export function repositoryWorkspaceNames(repositories: readonly Repository[]): Map<string, string> {
+export function repositoryFolderNames(repositories: readonly Repository[]): Map<string, string> {
   const slugs = repositories.map(repository => [repository.id, repositorySlug(repository).replace(/[\\/]/g, '-')] as const);
   const counts = new Map<string, number>();
   for (const [, slug] of slugs) counts.set(slug.toLowerCase(), (counts.get(slug.toLowerCase()) ?? 0) + 1);
-  return new Map(slugs.map(([id, slug]) => [id, `Unfold · ${slug}${(counts.get(slug.toLowerCase()) ?? 0) > 1 ? ` (${id})` : ''}`]));
+  return new Map(slugs.map(([id, slug]) => [id, `${slug}${(counts.get(slug.toLowerCase()) ?? 0) > 1 ? ` (${id})` : ''}`]));
+}
+
+/**
+ * What VS Code shows for a repository as the session's project: `Unfold · <folder>`. Until 2026-10-17 it was also the
+ * folder's name, so a working directory picked then still names the repository this way.
+ */
+export function repositoryWorkspaceNames(repositories: readonly Repository[]): Map<string, string> {
+  return new Map([...repositoryFolderNames(repositories)].map(([id, folder]) => [id, `Unfold · ${folder}`]));
 }
 
 /** The `initialize` and `InitializeResult` `_meta` key by which VS Code declares it addresses sessions as `ahp-session:/<id>`. */
@@ -300,7 +320,7 @@ export class AgentHost {
     this.automations = new TrackerAutomations(config, {
       watchers: () => [...new Map([...this.clients].filter(client => client.initialized && [...client.subscriptions].some(isAutomationsChannel)).map(client => [client.user.id, client.user])).values()],
       publish: (userId, action) => this.broadcast(automationsChannel, action, undefined, client => client.user.id === userId),
-      workspaceFolder: repositoryId => { const name = repositoryWorkspaceNames(this.config.repositories).get(repositoryId); return name ? `${repositoriesDirectory}/${encodeURIComponent(name)}` : undefined; },
+      workspaceFolder: repositoryId => { const name = repositoryFolderNames(this.config.repositories).get(repositoryId); return name ? `${repositoriesDirectory}/${encodeURIComponent(name)}` : undefined; },
     });
     this.workItems = new WorkItemSessions(config, {
       viewers: () => [...new Map([...this.clients].filter(client => client.initialized).map(client => [client.user.id, client.user])).values()],
@@ -447,6 +467,25 @@ export class AgentHost {
     for (const client of this.clients) if (client !== sender && client.initialized && client.user.id === sender.user.id) { const subscribed = this.subscribedAs(client, channel); if (subscribed) this.send(client, { jsonrpc: '2.0', method: 'action', params: { channel: subscribed, action, serverSeq, origin, rejectionReason } }); }
   }
 
+  /** Shows a refused chat action's reason in its chat to the person who sent it, for a client that does not show `rejectionReason`. */
+  private showRefusal(sender: Client, channel: string, action: Json, reason: string): void {
+    const placement = refusalPlacement(action.type);
+    const parsed = placement ? parseChannel(channel) : undefined;
+    if (parsed?.kind !== 'chat' || (parsed.run && placement !== 'ownTurn')) return;
+    const own = (viewer: Client) => viewer.user.id === sender.user.id;
+    for (const reply of refusalReply(action, reason, parsed.run ? undefined : this.openTurnIn(sender, channel, parsed.id), randomUUID)) this.broadcast(channel, reply, undefined, own);
+  }
+
+  /** The turn still open in a session's default chat as this viewer sees it, read from what the host already holds. */
+  private openTurnIn(viewer: Client, channel: string, publicId: string): string | undefined {
+    if (!isWorkItemSession(publicId)) { const session = this.sessionFor(viewer.user, channel); return session ? this.projection(session).activeTurn?.id : undefined; }
+    const entry = this.workItems.remembered(viewer.user, publicId);
+    const detail = entry ? this.workItems.kept(entry.workItemId) : undefined;
+    if (!entry || !detail) return undefined;
+    const chat = workItemChatState(entry, detail, this.workItemSpelling(publicId, viewer), this.viewOf(viewer, publicId));
+    return withPrompts(chat, this.workItemCommands.prompts(viewer.user.id, entry.workItemId), this.workItemCommands.notes(viewer.user.id, entry.workItemId)).activeTurn?.id;
+  }
+
   private broadcast(channel: string, action: Json | ((client: Client) => Json), origin?: Origin, audience?: (client: Client) => boolean): void {
     const serverSeq = ++this.serverSeq;
     for (const client of this.clients) {
@@ -559,8 +598,8 @@ export class AgentHost {
     return { toolCallId: request.id, toolName: 'permission', displayName: request.title, status: 'pending-confirmation', invocationMessage: request.detail || request.title, confirmationTitle: request.title, options: [{ id: 'once', label: 'Allow once', kind: 'approve' }, { id: 'always', label: 'Always allow', kind: 'approve' }, { id: 'reject', label: 'Reject', kind: 'deny' }] };
   }
 
-  private changesets(session: Session): Json[] | undefined {
-    if (session.candidate?.status !== 'ready' && session.status !== 'exporting' && !this.artifactFiles(session).length) return undefined;
+  private changesets(session: Session): Json[] {
+    if (session.candidate?.status !== 'ready' && session.status !== 'exporting' && !this.artifactFiles(session).length) return [];
     const repository = this.config.repositories.find(repo => repo.id === session.repositoryId);
     return [{ label: 'Candidate', uriTemplate: this.changesetUri(session), description: repository ? `Changes against ${repository.baseBranch} of ${repository.name}` : 'Reviewable change', changeKind: 'session', capabilities: { review: {} } }];
   }
@@ -572,7 +611,7 @@ export class AgentHost {
       chats: [this.chatSummary(session, view), ...runChats(this.projection(session).runs, this.spelling(session, view))], defaultChat: this.chatUri(session, view),
       config: this.review.withConfigValues(session, sessionConfigState(this.config, session)),
       customizations: this.customizationsOf(session, this.publicId(session.id)),
-      ...(changesets ? { changesets } : {}),
+      changesets,
       ...this.review.annotationsSummary(session, this.sessionUri(session, view)),
       inputNeeded: this.inputNeeded(session, view),
     };
@@ -603,7 +642,7 @@ export class AgentHost {
   chatState(session: Session, view: View): Json {
     const projection = this.projection(session);
     const changesets = this.changesets(session);
-    return { ...this.chatSummary(session, view), turns: projection.turns.slice(-maxTurnsInSnapshot), ...(projection.activeTurn ? { activeTurn: projection.activeTurn } : {}), ...(changesets ? { changesets } : {}) };
+    return { ...this.chatSummary(session, view), turns: projection.turns.slice(-maxTurnsInSnapshot), ...(projection.activeTurn ? { activeTurn: projection.activeTurn } : {}), changesets };
   }
 
   private candidateKey(session: Session): string | undefined {
@@ -1085,7 +1124,7 @@ export class AgentHost {
         for (const request of this.openRequests(session)) this.broadcast(channel, viewer => ({ type: 'session/inputNeededSet', request: this.inputRequest(session, request, viewer) }));
         for (const request of this.store.permissions(id).filter(item => item.resolved)) this.broadcast(channel, { type: 'session/inputNeededRemoved', id: request.id });
         this.notify(rootChannel, 'root/sessionSummaryChanged', viewer => { const summary = this.summary(session, viewer); return { channel: rootChannel, session: summary.resource, changes: { title: summary.title, status: summary.status, activity: summary.activity ?? null, modifiedAt: summary.modifiedAt, changes: summary.changes, ...catalogOf(summary) } }; }, session.ownerId);
-        if (changesets) { await this.loadCandidate(session); if (this.closed) return; const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations ?? [] }); }
+        if (changesets.length) { await this.loadCandidate(session); if (this.closed) return; const changeset = this.changesetState(session); this.broadcast(this.changesetUri(session), { type: 'changeset/contentChanged', files: changeset.files, operations: changeset.operations ?? [] }); }
       }
       this.announceActiveSessions();
     } finally { this.polling = false; }
@@ -1193,26 +1232,39 @@ export class AgentHost {
   }
 
   private repositoryDirectories(): Json[] {
-    return [...repositoryWorkspaceNames(this.config.repositories).values()].map(name => ({ name, type: 'directory' }));
+    return [...repositoryFolderNames(this.config.repositories).values()].map(name => ({ name, type: 'directory' }));
   }
 
   private repositoryFromPickedFolder(directory: unknown): string | undefined {
-    if (typeof directory !== 'string') return undefined;
-    let path: string;
-    try { const url = new URL(directory); if (url.protocol !== 'file:') return undefined; path = decodeURIComponent(url.pathname).replace(/\/+$/, ''); } catch { return undefined; }
+    const path = pickerPath(directory);
     const prefix = `${new URL(repositoriesDirectory).pathname}/`;
-    if (!path.startsWith(prefix)) return undefined;
+    if (!path?.startsWith(prefix)) return undefined;
     const name = path.slice(prefix.length);
-    return [...repositoryWorkspaceNames(this.config.repositories)].find(([, workspace]) => workspace === name)?.[0];
+    const named = (names: Map<string, string>) => [...names].find(([, folder]) => folder === name)?.[0];
+    return named(repositoryFolderNames(this.config.repositories)) ?? named(repositoryWorkspaceNames(this.config.repositories));
+  }
+
+  /** What the folder picker finds at a path: the root, the repositories folder, one repository's folder, or nothing. */
+  private pickerFolder(uri: unknown): 'root' | 'repositories' | 'repository' | undefined {
+    const path = pickerPath(uri);
+    if (path === '/') return 'root';
+    if (path === new URL(repositoriesDirectory).pathname) return 'repositories';
+    return this.repositoryFromPickedFolder(uri) ? 'repository' : undefined;
   }
 
   private listDirectory(uri: unknown): Json {
-    let path: string | undefined;
-    try { const url = new URL(String(uri)); if (url.protocol === 'file:') path = decodeURIComponent(url.pathname).replace(/(.)\/+$/, '$1'); } catch {}
-    if (path === new URL(repositoriesDirectory).pathname) return { entries: this.repositoryDirectories() };
-    if (path === '/') return { entries: [{ name: new URL(repositoriesDirectory).pathname.slice(1), type: 'directory' }] };
-    if (path !== undefined && this.repositoryFromPickedFolder(`file://${path}`)) return { entries: [] };
+    const folder = this.pickerFolder(uri);
+    if (folder === 'root') return { entries: [{ name: new URL(repositoriesDirectory).pathname.slice(1), type: 'directory' }] };
+    if (folder === 'repositories') return { entries: this.repositoryDirectories() };
+    if (folder === 'repository') return { entries: [] };
+    logUnanswered('resourceList', uri);
     throw new RpcError(codes.notFound, 'This host lists only its repositories');
+  }
+
+  private resolveResource(uri: unknown): Json {
+    if (this.pickerFolder(uri)) return { uri: String(uri), type: 'directory' };
+    logUnanswered('resourceResolve', uri);
+    throw new RpcError(codes.notFound, 'This host has only its repositories\' folders');
   }
 
   private pendingChat(pending: PendingSession, view: View): Json {
@@ -1285,6 +1337,7 @@ export class AgentHost {
       case 'listSessions': return { items: [...this.visible(client.user).map(session => this.summary(session, client)), ...await this.workItemSummaries(client)] };
       case 'resolveSessionConfig': return resolveSessionConfig(this.config, params.config, this.repositoryFromPickedFolder(params.workingDirectory));
       case 'resourceList': return this.listDirectory(params.uri);
+      case 'resourceResolve': return this.resolveResource(params.uri);
       case 'sessionConfigCompletions': return sessionConfigCompletions(resolveSessionConfig(this.config, params.config, this.repositoryFromPickedFolder(params.workingDirectory)).schema, String(params.property));
       case 'createSession': return this.createSession(client, params);
       case 'createChat': return this.createChat(client, params);
@@ -1310,7 +1363,7 @@ export class AgentHost {
       }
       case 'authenticate': return {};
       case 'getNetworkDiagnosticsInfo': return { version: applicationVersion, os: process.platform, arch: process.arch, proxySettings: {}, proxyEnv: {}, endpoints: [] };
-      default: throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
+      default: logUnanswered(method); throw new RpcError(codes.methodNotFound, `Method not found: ${method}`);
     }
   }
 
@@ -2130,7 +2183,7 @@ export class AgentHost {
     const channel = String(params.channel ?? '');
     const action = (params.action ?? {}) as Json;
     const origin = { clientId: client.clientId ?? client.id, clientSeq: Number(params.clientSeq) || 0 };
-    const reject = (reason: string) => this.reject(client, channel, action, origin, reason);
+    const reject = (reason: string) => { this.reject(client, channel, action, origin, reason); this.showRefusal(client, channel, action, reason); };
     try {
       if (channel === rootChannel) {
         const refusal = action.type === 'root/configChanged' ? rootConfigRefusal(action.config) : `Unsupported action ${String(action.type)}`;

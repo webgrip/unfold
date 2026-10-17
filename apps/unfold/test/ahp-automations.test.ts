@@ -82,7 +82,7 @@ test('a person sees one automation per board Ploeg runs and team of theirs with 
   assert.deepEqual(silver.definition.message.origin, { kind: 'automation' });
   assert.match(silver.definition.message.text, /assigned to silver become Work Items for Ploeg team silver/);
   assert.match(silver.definition.message.text, /nothing here starts work/);
-  assert.deepEqual(silver.definition.session, { provider: 'unfold', workingDirectories: ['file:///unfold-repositories/Unfold%20%C2%B7%20order-service'] }, 'VS Code projects an automation only with a provider or a folder');
+  assert.deepEqual(silver.definition.session, { provider: 'unfold', workingDirectories: ['file:///unfold-repositories/order-service'] }, 'VS Code projects an automation only with a provider or a folder');
   assert.deepEqual(silver.definition.triggers, [{ id: 'tracker-assignment', kind: 'event', type: 'unfold.tracker-assignment', title: 'Tracker assignment', description: 'Ploeg queues a Work Item when its tracker user is assigned to a task on this board.', events: [{ id: 'task.assignee.created', title: 'Assigned to silver' }], config: { source: 'board', team: 'silver', assignee: 'silver' } }]);
   assert.ok(!silver.definition.triggers.some((trigger: Json) => trigger.kind === 'schedule'), 'no schedule: VS Code shows the route as manual');
   assert.equal(snapshot.state._meta['dev.webgrip.unfold'].readOnly, true);
