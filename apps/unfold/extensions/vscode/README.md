@@ -45,6 +45,18 @@ After you sign in, Unfold appears in VS Code's Agents window on its own, within 
 
 The entry carries a personal connection token in plain text, because that is where VS Code reads it. The extension keeps a copy in SecretStorage and reuses it while the workbench accepts it. Set `unfold.agentHost.autoConnect` to `false` to connect only through the command. If `settings.json` cannot be parsed or written, nothing changes and **Copy address** offers the manual route: in the Agents window, run **Sessions: Add Remote Agent Host…** and paste the copied `wss://…?tkn=…` address. The [operations guide](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/docs/operations/live.md#attaching-vs-code-as-an-agent-host-client) has the details.
 
+## Use Ploeg's tools in VS Code chat
+
+When the workbench names a remote Ploeg MCP server, the extension provides it to VS Code's chat as **Ploeg** (VS Code 1.101 or later). The definition holds only the server's URL: no token, no header, nothing secret on disk. When chat first uses a Ploeg tool, VS Code opens your browser to sign in at the workbench's identity provider and keeps the token in its own secret storage, with a refresh token from 1.142 on.
+
+VS Code asks for a client ID the first time. An extension's server definition has no field for one, and the identity provider does not register clients on the fly, so VS Code says the authorization server "does not support automatic client registration". Choose **Copy URIs & Proceed**, enter the client ID the extension shows you (on the homelab, `ploeg-mcp`) and leave the client secret blank. VS Code remembers it for that server.
+
+To skip that question, run **Unfold: Add Ploeg MCP Server to VS Code**. It opens VS Code's own install view for a user `mcp.json` entry with the URL and `oauth.clientId`, and turns off the extension's copy so the tools do not appear twice. **Copy mcp.json Entry** copies the same entry for an editor without that install view. `unfold.mcp.provideServers` turns the provider off.
+
+The extension does not provide `unfold-mcp`, the server for Unfold's own reasons and sessions. It runs on your machine with your `UNFOLD_TOKEN` in its environment, and VS Code writes an extension's server environment to disk in plain text when it passes servers to agent-host harnesses. Add it yourself as [the guide](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/how-to/ask-from-an-ai-client.md#unfold) shows, until `unfold-mcp` also runs remotely behind a browser sign-in.
+
+Not verified against a desktop VS Code: the sign-in through the provider and the client ID question, the install view keeping `oauth.clientId`, and whether the Copilot, Claude and Codex harnesses in the Agents window can sign in to a forwarded Ploeg server. VS Code 1.142 forwards the URL to them but drops the client ID.
+
 ## See what waits on you
 
 The Unfold sidebar opens on **Now**, the same list as the browser's Now page:

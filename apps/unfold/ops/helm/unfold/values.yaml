@@ -38,6 +38,9 @@ errorReports:
   sentry:
     existingSecret: ""
     secretKey: sentry-dsn
+ploegMcp:
+  url: ""
+  clientId: ""
 mode: demo
 baseUrl: ""
 credentialsSecret: unfold-credentials

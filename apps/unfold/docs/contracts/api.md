@@ -271,6 +271,14 @@ Delivery applies only to a shared Ploeg execution on a repository with a configu
 | `POST /api/sessions/:id/delivery/approve` | `{candidateId, receiptId, policySha256}` exactly; records the candidate-bound approval in Ploeg. Approval alone never publishes |
 | `POST /api/sessions/:id/delivery/publish` | `{candidateId, receiptId, policySha256}` exactly, as displayed; a missing identity is 400 `publication_binding_required`. Approves when missing, reserves the publication in Ploeg, pushes the canonical commit and opens one pull request, then reports it published. Serialized per session and resumable. Refusals include `publication_disabled`, `publication_refused`, `publication_recovery_required` (a replayed reservation without local authorization, never pushed) and `publication_unknown` (a different commit on the branch or an unverifiable pull request, which is closed; a human decides) |
 
+## MCP servers for editors
+
+| Method and path | Behavior |
+| --- | --- |
+| `GET /api/mcp-servers` | `{servers}`: the remote MCP servers people may add to their own editor, as `{id, label, type: "http", url, oauth: {clientId}}`. Today at most one, `id` `ploeg`, from `UNFOLD_PLOEG_MCP_URL` and `UNFOLD_PLOEG_MCP_CLIENT_ID`; with neither set, `servers` is empty. It needs a signed-in identity like every other route, and any role may read it. An entry never carries headers, a token or a secret: `url` is the server's exact resource URL and `clientId` is the public OAuth client its sign-in uses |
+
+The VS Code extension provides this server to VS Code's chat by URL ([extension README](../../extensions/vscode/README.md#use-ploegs-tools-in-vs-code-chat)). `unfold-mcp` is not listed: it runs over stdio with the person's `UNFOLD_TOKEN`, and an editor that receives it from an extension writes that token to disk in plain text ([ADR-0011, 2026-10-16](../../../../docs/adr/adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md#more-information)).
+
 ## Agent host
 
 | Method and path | Behavior |

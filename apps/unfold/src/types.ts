@@ -53,6 +53,7 @@ export type AppConfig = {
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; traceQuery?: string; logsQuery?: string };
   insight?: InsightConfig;
   errorReports?: ErrorReportConfig;
+  mcpServers?: McpServersConfig;
   productEvents?: boolean;
   /** The deployment's feature flag rules (ADR 0043): an inline flagd document and an optional watched flagd file. */
   flags?: FlagSettings;
@@ -63,6 +64,8 @@ export type AppConfig = {
 export type ReportTarget = { source: TaskSourceConfig; project: string; acknowledgement?: string };
 /** Where errors and notable failures are reported: a Sentry-protocol DSN, an OTLP/HTTP logs URL, or both, and the environment name reports carry. */
 export type ErrorReportConfig = { sentryDsn?: string; otlpUrl?: string; environment: string };
+/** Remote MCP servers people connect their own editor to: each an exact URL and the public OAuth client their sign-in uses. Never a token. */
+export type McpServersConfig = { ploeg?: { url: string; clientId: string } };
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
 /** One product event the browser or VS Code extension posted, after the catalogue checked it. */
 export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean> };
