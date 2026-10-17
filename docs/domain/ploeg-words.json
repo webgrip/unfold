@@ -321,6 +321,11 @@
           "value": "credential_leak",
           "label": "The Run leaked a credential",
           "mcp": "credential_leak"
+        },
+        {
+          "value": "shared_budget_spent",
+          "label": "A shared model budget is spent",
+          "mcp": "shared_budget_spent"
         }
       ]
     },

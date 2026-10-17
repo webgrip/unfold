@@ -112,6 +112,7 @@ MCP: passes the Ploeg value through as `failureReason` in unfold_get_work, `""` 
 | `timeout` | The Run timed out | same |  |
 | `idle` | The agent went silent | same |  |
 | `credential_leak` | The Run leaked a credential | same |  |
+| `shared_budget_spent` | A shared model budget is spent | same |  |
 
 ## Shift close reason
 
