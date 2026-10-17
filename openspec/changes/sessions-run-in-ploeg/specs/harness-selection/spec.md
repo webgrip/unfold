@@ -1,18 +1,5 @@
 # Harness selection
 
-All behaviour below is proposed. The shape of a Team's Harness offer and of
-the admission fields is owned by Ploeg's operator API contract as extended by
-the ploeg-hq changes `record-harness-per-run` (per Role `harness`, `model` and
-`observedHarness`), `select-harness-per-run` (allowlist, default and
-qualification per Role, a Harness on the admission) and `interactive-runs`
-(`interactive` per Harness). The models each Role's policy lists and the
-model on the admission come from `select-harness-per-run`, with Ploeg ADR-0103, which narrows Ploeg
-ADR-0039. The per-Run record is owned by Ploeg's Run shapes
-(Ploeg ADR-0091, extended by `record-harness-per-run` with `harnessVersion` and
-`harnessAgent`). This spec references them and does not restate them. The owner
-decided on 2026-10-13 that a person chooses the model per session from the
-Team's list (design R1).
-
 ## ADDED Requirements
 
 ### Requirement: The picker offers only what Ploeg allows for the Team
