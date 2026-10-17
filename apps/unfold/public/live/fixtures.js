@@ -138,6 +138,40 @@ export const scenarios = {
       run('4', '175', -119, -110, { role: 'reviewer', writes: false, verdict: 'approve', round: 4, costStatus: 'settled', usage: { inputTokens: 520000, outputTokens: 8100, costUsd: 0.04 } }),
     ] }, now: fixtureNow, allowance }),
   },
+  fixRound: {
+    label: 'Fix round after a review',
+    description: 'The builder opened a pull request, the reviewer asked for changes, and the builder is fixing it.',
+    input: () => ({ detail: { ...empty, item: item({ createdAt: at(-62), lease: { renewedAt: at(-1), expiresAt: at(14) } }), shifts: [shift('177', -58)], runs: [
+      run('1', '177', -57, -36, { outcome: 'pr_opened', costStatus: 'settled', usage: { inputTokens: 2100000, outputTokens: 38000, costUsd: 0.19 } }),
+      run('2', '177', -35, -27, { role: 'reviewer', writes: false, round: 2, verdict: 'request_changes', costStatus: 'settled', usage: { inputTokens: 520000, outputTokens: 8000, costUsd: 0.04 } }),
+      run('3', '177', -6.2, null, { round: 3, costStatus: 'observed', usage: { inputTokens: 240000, outputTokens: 6100, costUsd: 0.03 } }),
+    ] }, transcript: steady(), now: fixtureNow, allowance }),
+  },
+  timeoutRetry: {
+    label: 'Timed out, waiting for a worker',
+    description: 'The first Run hit its time limit; the next Run waits for a machine.',
+    input: () => ({ detail: { ...empty, item: item({ createdAt: at(-75), lease: { renewedAt: at(-1), expiresAt: at(14) } }), shifts: [shift('178', -70)], runs: [
+      run('1', '178', -69, -9, { failureReason: 'timeout', outcome: 'failed', costStatus: 'settled', usage: { inputTokens: 5200000, outputTokens: 90000, costUsd: 0.48 } }),
+      { ...run('2', '178', -2, null), state: 'pending', startedAt: null },
+    ] }, now: fixtureNow, allowance }),
+  },
+  overBudget: {
+    label: 'Out of budget',
+    description: 'The writer reached its token ceiling; Ploeg stopped and asks a person.',
+    input: () => ({ detail: { ...empty, item: item({ state: 'needs_human', createdAt: at(-80) }), shifts: [shift('179', -76, { closedAt: at(-12), closeReason: 'budget' })], runs: [
+      run('1', '179', -75, -12, { failureReason: 'budget', outcome: 'failed', costStatus: 'settled', usage: { inputTokens: 10900000, outputTokens: 180000, costUsd: 1.02 } }),
+    ] }, now: fixtureNow, allowance }),
+  },
+  staleMachines: {
+    label: 'Stopped retrying after machine failures',
+    description: 'Ten Runs in a row were ended by the machine; Ploeg gave up.',
+    input: () => ({ detail: { ...empty, item: item({ state: 'stale', createdAt: at(-130), infraFailures: 10 }), shifts: [shift('183', -125, { closedAt: at(-30), closeReason: 'infra cap' })], runs: Array.from({ length: 10 }, (_, index) => run(String(index + 1), '183', -124 + index * 9, -124 + index * 9 + 2 + (index % 3), { failureReason: index % 4 === 3 ? 'lease_lost' : 'infra_node', outcome: 'failed', costStatus: 'observed', usage: { costUsd: 0 } })) }, now: fixtureNow, allowance }),
+  },
+  withdrawn: {
+    label: 'Withdrawn mid-Run',
+    description: 'Someone cancelled the Work Item while the builder worked.',
+    input: () => ({ detail: { ...empty, item: item({ state: 'withdrawn', createdAt: at(-40) }), shifts: [shift('184', -35, { closedAt: at(-20), closeReason: 'withdrawn' })], runs: [run('1', '184', -34, -20, { outcome: 'cancelled', costStatus: 'settled', usage: { inputTokens: 900000, outputTokens: 14000, costUsd: 0.09 } })] }, now: fixtureNow, allowance }),
+  },
   queued: {
     label: 'Queued, no Run yet',
     description: 'Ploeg has the Work Item but no worker picked it up.',

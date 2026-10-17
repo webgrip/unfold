@@ -9,7 +9,7 @@ mise exec -- npm run workbench        # serves http://127.0.0.1:7745/workbench/
 mise exec -- npm run test:workbench   # every story × 390/768/1280 px × light/dark, plus reduced motion
 ```
 
-The workbench reloads when a file under `public/` or `workbench/` changes. Each frame's caption shows its check result; hover it for the details. `UNFOLD_WORKBENCH_PORT` changes the port.
+The workbench keeps one frame per width and theme loaded and re-renders it in place when you pick another story, so a switch takes milliseconds and makes no requests. It reloads when the content of a file under `public/` or `workbench/` changes; reading a file does not count. Each frame's caption shows its check result; hover it for the details. `UNFOLD_WORKBENCH_PORT` changes the port.
 
 `test:workbench` takes these variables: `UNFOLD_WORKBENCH_STORIES` (a regular expression over story ids, such as `layouts|dial`), `UNFOLD_WORKBENCH_WIDTHS` (`390,1280`), `UNFOLD_SCREENSHOTS` (a folder for full-page screenshots), `UNFOLD_WORKBENCH_REPORT` (a JSON file with every result) and `UNFOLD_CHROMIUM_BIN` (a Chromium binary, as for `test:browser`).
 
@@ -39,7 +39,7 @@ The workbench reloads when a file under `public/` or `workbench/` changes. Each 
 | Module | Draws |
 | --- | --- |
 | `model.js` | `liveModel()`: one view model from a Ploeg detail and the followed Run's folded transcript. Its invariants are tested: one spend figure, machine-ended Runs counted as lost and not as Role work, agent time = useful + lost, attempts and Runs numbered from 1, no estimate unless one is passed |
-| `flight-path.js` | the flight: ask, wait, each attempt with its Runs, the plane, the stations ahead; a list of stages under 34 rem |
+| `flight-path.js` | the flight: one column per leg on a shared runway. Each Run is a hop whose altitude follows its calls per minute; a machine-ended Run drops back with a neutral bolt, an agent failure with a red mark, three or more in a row bounce as one burst with a count, a stalled Run circles in a holding pattern, a waiting Run taxis, and a stopped Work Item ends in a flag. Under 34 rem it stands up as a vertical flight log. `flightLegs()` returns the same as data for tests |
 | `instruments.js` | spend against what the attempt holds, time, tokens, what was lost |
 | `trace.js` | lanes on one time axis per attempt, move and call kind; the moves as disclosures |
 | `answers.js` | the questions people ask, answered from the record with their source |
@@ -47,7 +47,7 @@ The workbench reloads when a file under `public/` or `workbench/` changes. Each 
 | `fold-strip.js` | the stages as folds, full or row-sized |
 | `layouts.js` | the cockpit, instrument and fleet pages |
 
-`fixtures.js` holds the scenarios: VIK-2049 as it ran, first try, stalled, close to budget, ready for review, needs you, landed, queued, usage not reported, and a stress case with 40 Runs and 240 calls.
+`fixtures.js` holds the scenarios: VIK-2049 as it ran, first try, stalled, close to budget, a fix round after review, timed out and waiting for a worker, ready for review, needs you after agent failures, out of budget, stopped retrying after ten machine failures, withdrawn mid-Run, landed, queued, usage not reported, and a stress case with 40 Runs and 240 calls.
 
 These components are not wired into the Work Item page yet.
 

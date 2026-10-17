@@ -47,7 +47,9 @@ export function liveSentence(model) {
     return { head: 'Stopped. It needs you.', sub: failure ? `Last failure: ${failure.label}.` : 'Ploeg stopped and asks a person to decide.', tone: 'attention' };
   }
   if (model.state === 'done') return { head: 'Landed.', sub: `${usd(model.spend.usd)} over ${model.runs.length} Runs.`, tone: 'success' };
-  if (model.state === 'stale' || model.state === 'withdrawn') return { head: 'Stopped.', sub: 'Ploeg stopped retrying this Work Item.', tone: 'severe' };
+  if (model.state === 'withdrawn') return { head: 'Withdrawn.', sub: 'Someone stopped this Work Item; its Runs are kept.', tone: 'neutral' };
+  if (model.state === 'stale') return { head: 'Stopped retrying.', sub: `Ploeg gave up after ${model.lost.runs + model.lost.agentFailures} failed Runs.`, tone: 'severe' };
+  if (!model.running && model.runs.some(run => run.status === 'pending')) return { head: 'Waiting for a worker.', sub: 'The next Run is queued; Ploeg starts it when a machine is free.', tone: 'neutral' };
   if (!model.running) return { head: 'Between Runs.', sub: 'Ploeg starts the next Run when a worker is free.', tone: 'neutral' };
   const head = move ? `${role} · ${move.title}` : `${role} is starting.`;
   const trouble = model.lastTrouble;

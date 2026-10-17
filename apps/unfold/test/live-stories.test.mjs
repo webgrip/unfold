@@ -37,7 +37,7 @@ test('every story renders markup the app’s Content Security Policy and screen 
 
 test('the scenario control re-renders a story from another fixture', () => {
   const { module } = all.find(entry => entry.file === 'flight-path');
-  const queued = renderStory(module, 'Running', { scenario: 'queued' }).html;
+  const queued = renderStory(module, 'Struggling', { scenario: 'queued' }).html;
   assert.match(queued, /data-state="queued"/);
-  assert.match(queued, /waiting for a worker/);
+  assert.match(queued, /At the gate/);
 });

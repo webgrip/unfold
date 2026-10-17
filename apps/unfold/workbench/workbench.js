@@ -6,9 +6,9 @@ const stage = document.querySelector('#stage');
 const controls = document.querySelector('#controls');
 const summary = document.querySelector('#summary');
 const scenario = document.querySelector('#scenario');
-const results = new Map();
 const files = {};
-let current = null;
+const frames = new Map();
+let wanted = null;
 
 const element = (tag, attrs = {}, text = '') => { const node = document.createElement(tag); for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value); if (text) node.textContent = text; return node; };
 
@@ -23,8 +23,7 @@ async function index() {
     const list = element('ul', { class: 'wb-list' });
     for (const name of storyNames(module)) {
       const item = element('li');
-      const link = element('a', { href: `#${file}--${name}`, class: 'wb-link', 'data-story': `${file}--${name}` }, name.replace(/([a-z])([A-Z])/g, '$1 $2'));
-      item.append(link);
+      item.append(element('a', { href: `#${file}--${name}`, class: 'wb-link', 'data-story': `${file}--${name}` }, name.replace(/([a-z])([A-Z])/g, '$1 $2')));
       list.append(item);
     }
     group.append(list);
@@ -32,55 +31,71 @@ async function index() {
   }
 }
 
-function chosen(name) { return [...controls.querySelectorAll(`input[name="${name}"]:checked`)].map(input => input.value); }
+const chosen = name => [...controls.querySelectorAll(`input[name="${name}"]:checked`)].map(input => input.value);
+
+function send(frame) {
+  if (!frame.ready || !wanted) return;
+  frame.result = null;
+  frame.caption.dataset.state = 'busy';
+  frame.caption.textContent = `${frame.width} px · ${frame.theme} · rendering`;
+  frame.iframe.contentWindow.postMessage({ type: 'lv-render', story: wanted.id, theme: frame.theme, args: wanted.args }, location.origin);
+}
+
+function tally() {
+  const done = [...frames.values()].filter(frame => frame.result);
+  const failing = done.reduce((sum, frame) => sum + frame.result.failures.length, 0);
+  summary.textContent = done.length < frames.size ? `Checking ${done.length} of ${frames.size} frames…` : `${done.length} frames checked · ${failing ? `${failing} failures (hover a caption)` : 'no failures'}`;
+}
 
 function show() {
-  const id = location.hash.slice(1) || `${Object.keys(storyFiles)[0]}--${storyNames(files[Object.keys(storyFiles)[0]])[0]}`;
+  const first = Object.keys(storyFiles)[0];
+  const id = location.hash.slice(1) || `${first}--${storyNames(files[first])[0]}`;
   const [file, name] = id.split('--');
   if (!files[file]) return;
-  current = id;
-  for (const link of nav.querySelectorAll('.wb-link')) link.toggleAttribute('aria-current', link.dataset.story === id);
   const args = scenario.value ? { scenario: scenario.value } : {};
   const story = renderStory(files[file], name, args);
+  wanted = { id, args };
+  for (const link of nav.querySelectorAll('.wb-link')) link.toggleAttribute('aria-current', link.dataset.story === id);
   document.querySelector('#story-title').textContent = story.title;
   document.querySelector('#model').textContent = JSON.stringify(modelOf(story.args.scenario), null, 2);
-  stage.replaceChildren();
-  results.clear();
-  for (const theme of chosen('theme')) {
-    for (const width of chosen('width')) {
-      const key = `${theme}-${width}`;
+  const keys = chosen('theme').flatMap(theme => chosen('width').map(width => `${theme}-${width}`));
+  for (const [key, frame] of frames) if (!keys.includes(key)) { frame.cell.remove(); frames.delete(key); }
+  for (const key of keys) {
+    let frame = frames.get(key);
+    if (!frame) {
+      const [theme, width] = key.split('-');
       const cell = element('figure', { class: 'wb-cell' });
-      const caption = element('figcaption', { class: 'wb-caption' }, `${width} px · ${theme}`);
-      const query = new URLSearchParams({ story: id, theme, key, ...(scenario.value ? { args: JSON.stringify(args) } : {}) });
-      const frame = element('iframe', { src: `frame.html?${query}`, width: String(width), height: '320', title: `${story.title} at ${width} px, ${theme}`, 'data-key': key, class: 'wb-iframe' });
-      cell.append(caption, frame);
-      stage.append(cell);
+      const caption = element('figcaption', { class: 'wb-caption' }, `${width} px · ${theme} · loading`);
+      const iframe = element('iframe', { src: `frame.html?${new URLSearchParams({ key, theme })}`, width, height: '160', title: `Story at ${width} px, ${theme}`, class: 'wb-iframe' });
+      cell.append(caption, iframe);
+      frame = { key, theme, width, cell, caption, iframe, ready: false, result: null };
+      frames.set(key, frame);
     }
+    if (!frame.cell.isConnected) stage.append(frame.cell);
+    send(frame);
   }
-  summary.textContent = 'Checking…';
+  tally();
 }
 
 window.addEventListener('message', event => {
-  if (event.origin !== location.origin || event.data?.type !== 'lv-frame') return;
-  const frame = stage.querySelector(`iframe[data-key="${CSS.escape(event.data.key)}"]`);
+  if (event.origin !== location.origin) return;
+  const frame = frames.get(event.data?.key);
   if (!frame) return;
-  frame.setAttribute('height', String(Math.max(120, event.data.height)));
-  if (!event.data.result) return;
-  results.set(event.data.key, event.data.result);
-  const caption = frame.previousElementSibling;
-  const { failures, warnings } = event.data.result;
-  caption.dataset.state = failures.length ? 'fail' : warnings.length ? 'warn' : 'pass';
-  caption.textContent = `${event.data.key.replace('-', ' · ')} px · ${failures.length ? `${failures.length} failing` : 'passes'}${warnings.length ? ` · ${warnings.length} warnings` : ''}`;
-  caption.title = [...failures, ...warnings].map(entry => `${entry.rule}: ${entry.detail} ${entry.at}`).join('\n');
-  const all = [...results.values()];
-  const failing = all.reduce((sum, result) => sum + result.failures.length, 0);
-  summary.textContent = `${all.length} frames checked · ${failing ? `${failing} failures (hover a caption)` : 'no failures'}`;
+  if (event.data.type === 'lv-ready') { frame.ready = true; send(frame); return; }
+  if (event.data.type !== 'lv-frame') return;
+  if (event.data.height) frame.iframe.setAttribute('height', String(Math.max(80, event.data.height)));
+  if (!event.data.result || event.data.story !== wanted?.id) return;
+  frame.result = event.data.result;
+  const { failures, warnings } = frame.result;
+  frame.caption.dataset.state = failures.length ? 'fail' : warnings.length ? 'warn' : 'pass';
+  frame.caption.textContent = `${frame.width} px · ${frame.theme} · ${failures.length ? `${failures.length} failing` : 'passes'}${warnings.length ? ` · ${warnings.length} warnings` : ''}`;
+  frame.caption.title = [...failures, ...warnings].map(entry => `${entry.rule}: ${entry.detail} ${entry.at}`).join('\n');
+  tally();
 });
 
 controls.addEventListener('change', show);
 window.addEventListener('hashchange', show);
-const events = new EventSource('/events');
-events.addEventListener('change', () => location.reload());
+new EventSource('/events').addEventListener('change', () => location.reload());
 
 await index();
 show();

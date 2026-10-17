@@ -1,115 +1,234 @@
-import { clock, cx, escape, flightSummary, plane, r, span } from './parts.js';
+import { icon } from '../core/icons.js';
+import { faviconPaths } from '../core/brand.js';
+import { clock, cx, escape, flightSummary, r, span } from './parts.js';
 
-const W = 1000;
-const ground = 176;
-const cruise = 84;
-const air = { from: 190, to: 650 };
-const stations = [['pr', 'Pull request', 735], ['review', 'You', 820], ['merge', 'Merge', 895], ['production', 'Production', 962]];
-const bins = 24;
+const ground = 96;
+const cruise = 30;
+const bins = 14;
+const maxGrow = 40;
 
-function attemptSpans(model) {
-  const list = model.attempts.filter(attempt => attempt.runs.length);
-  if (!list.length) return [];
-  const width = air.to - air.from;
-  const gap = 18;
-  const durations = list.map(attempt => {
-    const start = attempt.runs[0].startedAt ?? attempt.openedAt ?? model.now;
-    const end = Math.max(...attempt.runs.map(run => run.finishedAt ?? (run.state === 'running' ? model.now : run.startedAt ?? start)));
-    return { attempt, start, end: Math.max(end, start + 1000) };
-  });
-  const minimum = Math.min(110, (width - gap * (list.length - 1)) / list.length);
-  const total = durations.reduce((sum, entry) => sum + (entry.end - entry.start), 0);
-  const free = width - gap * (list.length - 1) - minimum * list.length;
-  let x = air.from;
-  return durations.map(entry => {
-    const w = minimum + (total ? free * (entry.end - entry.start) / total : free / list.length);
-    const out = { ...entry, x, w };
-    x += w + gap;
-    return out;
-  });
+/** How each way a Run can end is drawn: its glyph, tone and words. Machine endings are neutral: not the agent's fault. */
+export const hopEndings = Object.freeze({
+  machine: Object.freeze({ glyph: 'zap', tone: 'machine', words: 'ended by the machine' }),
+  stuck: Object.freeze({ glyph: 'pause-circle', tone: 'stuck', words: 'stopped answering' }),
+  failed: Object.freeze({ glyph: 'x', tone: 'failed', words: 'failed' }),
+  budget: Object.freeze({ glyph: 'coins', tone: 'failed', words: 'ran out of budget' }),
+  timeout: Object.freeze({ glyph: 'clock', tone: 'failed', words: 'ran out of time' }),
+  cancelled: Object.freeze({ glyph: 'circle-slash', tone: 'neutral', words: 'cancelled' }),
+  pr: Object.freeze({ glyph: 'pull-request', tone: 'done', words: 'opened or updated the pull request' }),
+  approve: Object.freeze({ glyph: 'check', tone: 'success', words: 'approved' }),
+  changes: Object.freeze({ glyph: 'refresh', tone: 'attention', words: 'asked for changes' }),
+  done: Object.freeze({ glyph: 'check', tone: 'done', words: 'finished' }),
+  pending: Object.freeze({ glyph: 'clock', tone: 'neutral', words: 'waiting for a worker' }),
+  live: Object.freeze({ glyph: null, tone: 'live', words: 'working now' }),
+  holding: Object.freeze({ glyph: null, tone: 'stuck', words: 'holding: no call for a while' }),
+});
+
+function ending(run, model) {
+  if (run.state === 'running') return model.health.word === 'stalled' ? 'holding' : 'live';
+  if (run.status === 'pending') return 'pending';
+  if (run.status === 'cancelled') return 'cancelled';
+  if (run.status === 'stuck') return run.machine ? 'machine' : 'stuck';
+  if (run.status === 'failed') {
+    if (run.machine) return 'machine';
+    if (run.failure?.key === 'budget') return 'budget';
+    if (run.failure?.key === 'timeout' || run.failure?.key === 'idle') return 'timeout';
+    return 'failed';
+  }
+  if (!run.writes && run.verdict === 'approve') return 'approve';
+  if (!run.writes && run.verdict === 'request_changes') return 'changes';
+  if (run.outcome === 'pr_opened' || run.outcome === 'pr_updated') return 'pr';
+  return 'done';
 }
 
-function runMark(run, x) {
-  const y = cruise;
-  const title = `<title>Run ${run.n} · ${escape(run.role)} · ${escape(run.failure?.label ?? run.status)} · ${escape(span(run.seconds))}</title>`;
-  if (run.status === 'stuck') return `<g class="lv-mark lv-mark-stuck">${title}<circle cx="${r(x)}" cy="${y + 15}" r="6"></circle><line x1="${r(x)}" y1="${y + 11}" x2="${r(x)}" y2="${y + 16}"></line></g>`;
-  if (run.status === 'failed') return `<g class="${cx('lv-mark', run.machine ? 'lv-mark-machine' : 'lv-mark-failed')}">${title}<path d="M${r(x - 4.5)} ${y + 10.5} l9 9 m0 -9 l-9 9"></path></g>`;
-  if (run.status === 'done') return `<g class="lv-mark lv-mark-done">${title}<circle cx="${r(x)}" cy="${y}" r="4.5"></circle></g>`;
-  return '';
-}
+const grounded = end => ['machine', 'stuck', 'failed', 'budget', 'timeout', 'cancelled', 'pending'].includes(end);
+const grow = minutes => Math.max(1, Math.min(12, Math.round(1 + Math.sqrt(Math.max(0, minutes)) * 1.6)));
 
-function activity(model, from, to, x, w) {
-  const calls = model.moves.flatMap(move => move.calls).filter(call => call.at !== null && call.at >= from && call.at <= to);
-  if (!calls.length) return '';
+function profile(model, run) {
+  if (!model.followed || model.followed.id !== run.id || run.startedAt === null) return null;
+  const end = run.finishedAt ?? model.now;
+  const calls = model.moves.flatMap(move => move.calls).filter(call => call.at !== null && call.at >= run.startedAt && call.at <= end);
+  if (!calls.length) return null;
   const counts = Array.from({ length: bins }, () => ({ n: 0, trouble: false }));
   for (const call of calls) {
-    const bin = Math.min(bins - 1, Math.floor((call.at - from) / Math.max(1, to - from) * bins));
+    const bin = Math.min(bins - 1, Math.floor((call.at - run.startedAt) / Math.max(1, end - run.startedAt) * bins));
     counts[bin].n += 1;
     if (call.failed || call.interrupting) counts[bin].trouble = true;
   }
-  const max = Math.max(...counts.map(bin => bin.n));
-  const step = w / bins;
-  return `<g class="lv-activity" aria-hidden="true">${counts.map((bin, index) => bin.n ? `<line class="${bin.trouble ? 'lv-activity-trouble' : ''}" x1="${r(x + step * (index + 0.5))}" y1="${cruise - 5}" x2="${r(x + step * (index + 0.5))}" y2="${r(cruise - 5 - 4 - bin.n / max * 22)}"></line>` : '').join('')}</g>`;
+  const rolled = counts.map((_, index) => (counts[Math.max(0, index - 1)].n + counts[index].n * 2 + counts[Math.min(bins - 1, index + 1)].n) / 4);
+  const max = Math.max(...rolled);
+  return counts.map((bin, index) => ({ level: 0.25 + 0.75 * rolled[index] / max, trouble: bin.trouble }));
+}
+
+function smooth(points) {
+  if (points.length < 2) return '';
+  const n = points.length;
+  const slopes = points.slice(0, -1).map((point, index) => (points[index + 1][1] - point[1]) / Math.max(1e-6, points[index + 1][0] - point[0]));
+  const tangents = points.map((_, index) => {
+    if (index === 0) return slopes[0];
+    if (index === n - 1) return slopes[n - 2];
+    const [left, right] = [slopes[index - 1], slopes[index]];
+    return left * right <= 0 ? 0 : (left + right) / 2;
+  });
+  for (let index = 0; index < n - 1; index += 1) {
+    if (slopes[index] === 0) { tangents[index] = 0; tangents[index + 1] = 0; continue; }
+    const a = tangents[index] / slopes[index];
+    const b = tangents[index + 1] / slopes[index];
+    const h = Math.hypot(a, b);
+    if (h > 3) { tangents[index] = 3 * a / h * slopes[index]; tangents[index + 1] = 3 * b / h * slopes[index]; }
+  }
+  let d = `M${r(points[0][0])} ${r(points[0][1])}`;
+  for (let index = 0; index < n - 1; index += 1) {
+    const [x0, y0] = points[index];
+    const [x1, y1] = points[index + 1];
+    const third = (x1 - x0) / 3;
+    d += ` C${r(x0 + third)} ${r(y0 + tangents[index] * third)} ${r(x1 - third)} ${r(y1 - tangents[index + 1] * third)} ${r(x1)} ${r(y1)}`;
+  }
+  return d;
 }
 
 /**
- * The flight path: the ask on the ground, the wait, each attempt in the air with its Runs as marks, the current Run as
- * the brand plane, and the stations ahead (pull request, your review, merge, production). Under 560 px of container
- * width the path gives way to a list of the same stages. Pure: the same model always gives the same markup.
+ * The geometry of one hop in a 100 × 100 box that stretches to its column: a climb when it starts on the ground,
+ * a cruise whose altitude follows the Run's calls per minute when its transcript is known, and an end in the air, a
+ * drop to the ground, or a taxi along it. Trouble bins become a separate jagged path.
+ * Several Runs that ended the same way in a row (`count` > 1) draw as one hop of short bounces.
+ * @param {{ from: 'ground'|'air', end: string, profile: { level: number, trouble: boolean }[]|null, count?: number }} hop
+ * @returns {{ line: string, area: string, trouble: string }}
+ */
+export function hopGeometry({ from, end, profile: levels, count = 1 }) {
+  if (end === 'pending') return { line: `M0 ${ground} L100 ${ground}`, area: '', trouble: '' };
+  if (count > 1) {
+    const bounces = Math.min(count, 8);
+    const width = 100 / bounces;
+    const top = cruise + 32 * 0.8;
+    const line = Array.from({ length: bounces }, (_, index) => {
+      const x = index * width;
+      return `${index ? '' : `M0 ${ground} `}C${r(x + width * 0.2)} ${top}, ${r(x + width * 0.8)} ${top}, ${r(x + width)} ${ground}`;
+    }).join(' ');
+    return { line, area: `${line} L0 ${ground} Z`, trouble: '' };
+  }
+  const points = [[0, from === 'ground' ? ground : cruise]];
+  const climb = from === 'ground' ? 22 : 0;
+  const fall = grounded(end) ? 24 : 0;
+  const altitude = level => cruise + (1 - level) * 32;
+  const resting = fall ? 0.2 : 1;
+  if (climb) points.push([climb, altitude(levels?.[0]?.level ?? resting)]);
+  const width = 100 - climb - fall;
+  const steps = levels ?? [{ level: resting, trouble: false }, { level: resting, trouble: false }];
+  points.push(...steps.map((step, index) => [climb + width * (index + 0.5) / steps.length, altitude(step.level)]));
+  if (fall) points.push([100, ground]);
+  else points.push([100, cruise]);
+  const line = smooth(points);
+  const area = `${line} L100 ${ground} L0 ${ground} Z`;
+  const trouble = levels ? steps.map((step, index) => {
+    if (!step.trouble) return '';
+    const x0 = climb + width * index / steps.length;
+    const step6 = r(width / steps.length / 6);
+    return `M${r(x0)} ${r(altitude(step.level))} l${step6} -8 l${step6} 14 l${step6} -14 l${step6} 14 l${step6} -14 l${step6} 8`;
+  }).join(' ').trim() : '';
+  return { line, area, trouble };
+}
+
+/**
+ * The flight as data: the gate, the wait, each attempt with its hops (one per Run), how it approaches the stations,
+ * and the stations themselves. Pure, so tests can pin how each state is drawn without a browser.
  * @param {object} model A `liveModel` result.
- * @param {{ selectedAttempt?: number, id?: string }} [options] `selectedAttempt` boxes that attempt, as when its trace is open below.
+ * @returns {object[]}
+ */
+export function flightLegs(model) {
+  const legs = [];
+  const queued = !model.runs.length;
+  legs.push({ kind: 'gate', id: 'ask', label: 'Ask', note: model.time.lead !== null ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(model.now - model.time.lead * 1000) : '' });
+  legs.push({ kind: 'wait', label: queued ? 'At the gate' : 'Waited', note: model.time.waiting !== null ? span(model.time.waiting) : '', parked: queued && ['queued', 'ingested', 'leased'].includes(model.state) });
+  for (const attempt of model.attempts) {
+    if (!attempt.runs.length) continue;
+    let from = 'ground';
+    const singles = attempt.runs.map(run => {
+      const end = ending(run, model);
+      const hop = { run, runs: [run], count: 1, end, from, grow: grow(run.seconds / 60), profile: profile(model, run), ...hopEndings[end] };
+      from = grounded(end) ? 'ground' : 'air';
+      return hop;
+    });
+    const hops = [];
+    for (const hop of singles) {
+      const previous = hops.at(-1);
+      const same = previous && previous.end === hop.end && grounded(hop.end) && hop.end !== 'pending';
+      if (same) { previous.runs.push(hop.run); previous.count += 1; previous.grow = Math.min(12, previous.grow + hop.grow); }
+      else hops.push({ ...hop, runs: [hop.run] });
+    }
+    for (let index = hops.length - 1; index >= 0; index -= 1) {
+      if (hops[index].count < 3 && hops[index].count > 1) hops.splice(index, 1, ...hops[index].runs.map(run => singles.find(single => single.run === run)));
+    }
+    const lost = attempt.runs.filter(run => run.machine).length;
+    const failed = attempt.runs.filter(run => ['failed', 'stuck'].includes(run.status) && !run.machine).length;
+    const live = attempt.runs.some(run => run.state === 'running');
+    const first = attempt.runs[0].startedAt;
+    const last = Math.max(...attempt.runs.map(run => run.finishedAt ?? (run.state === 'running' ? model.now : run.startedAt ?? 0)));
+    const words = [`${attempt.runs.length} ${attempt.runs.length === 1 ? 'Run' : 'Runs'}`, lost ? `${lost} lost to machines` : '', failed ? `${failed} failed` : ''].filter(Boolean).join(' · ');
+    const waiting = attempt.runs.some(run => run.status === 'pending');
+    legs.push({ kind: 'attempt', n: attempt.n, live: live || waiting, hops, grow: Math.min(maxGrow, hops.reduce((sum, hop) => sum + hop.grow, 0)), head: `Attempt ${attempt.n}`, note: words, time: first !== null ? `${clock(first)}–${live ? 'now' : clock(last)}` : '', tone: live || waiting ? 'live' : lost === attempt.runs.length ? 'machine' : failed ? 'failed' : 'done' });
+  }
+  const pr = model.stages.find(stage => stage.id === 'pr')?.status === 'done';
+  const stopped = { needs_human: ['attention', 'Needs you', 'flag'], stale: ['severe', 'Stopped retrying', 'circle-slash'], withdrawn: ['neutral', 'Withdrawn', 'circle-slash'] }[model.state];
+  const lastFailure = [...model.runs].reverse().find(run => run.failure || run.status === 'cancelled');
+  if (stopped) legs.push({ kind: 'stop', tone: stopped[0], label: stopped[1], glyph: stopped[2], note: lastFailure?.failure?.label ?? (model.state === 'withdrawn' ? 'Its Runs are kept' : '') });
+  else if (!model.running && (model.state === 'awaiting_review' || model.state === 'done' || pr)) legs.push({ kind: 'approach', mode: 'landed', note: '' });
+  else if (!queued) legs.push({ kind: 'approach', mode: model.running ? 'forecast' : 'taxi', note: model.estimate ? model.estimate.text : 'no estimate' });
+  for (const stage of model.stages.filter(entry => ['pr', 'review', 'merge', 'production'].includes(entry.id))) {
+    const parked = (model.state === 'awaiting_review' && stage.id === 'review') || (model.state === 'done' && stage.id === 'merge');
+    legs.push({ kind: 'station', id: stage.id, label: stage.id === 'review' ? 'You' : stage.label, status: stopped && stage.status !== 'done' ? 'blocked' : stage.status, you: stage.you, parked, note: stage.id === 'pr' && model.pullRequest?.number ? `#${model.pullRequest.number}` : '' });
+  }
+  return legs;
+}
+
+function planeMark(extra = '') {
+  return `<span class="${cx('lv-fp-plane', extra)}" aria-hidden="true"><svg viewBox="4 4 56 56" class="lv-fp-plane-svg" aria-hidden="true"><path class="lv-plane-ink" d="${faviconPaths.ink}"></path><path class="lv-plane-fold" d="${faviconPaths.fold}"></path></svg></span>`;
+}
+
+function hopMarkup(hop, key) {
+  const { run, end, tone } = hop;
+  const { line, area, trouble } = hopGeometry(hop);
+  const gradient = `${key}-g`;
+  const sky = `<svg class="lv-fp-sky-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${gradient}" x1="0" y1="0" x2="0" y2="1"><stop class="lv-fp-stop" offset="0"></stop><stop class="lv-fp-stop-end" offset="1"></stop></linearGradient></defs>${area ? `<path class="lv-fp-area" d="${area}" fill="url(#${gradient})"></path>` : ''}<path class="lv-fp-line" d="${line}"></path>${trouble ? `<path class="lv-fp-trouble" d="${trouble}"></path>` : ''}</svg>`;
+  const words = hop.count > 1
+    ? `Runs ${hop.runs[0].n} to ${hop.runs.at(-1).n}, ${hop.count} in a row ${hop.words}${run.failure ? `: ${run.failure.label}` : ''}, ${span(hop.runs.reduce((sum, each) => sum + each.seconds, 0))} in all.`
+    : `Run ${run.n}, ${run.role}, ${span(run.seconds)}${run.state === 'running' ? ' so far' : ''}, ${hop.words}${run.failure ? `: ${run.failure.label}` : ''}.`;
+  const badge = hop.count > 1 ? `<span class="lv-fp-count">${hop.count}×</span>` : '';
+  const marker = end === 'live' ? planeMark('is-live')
+    : end === 'holding' ? `<span class="lv-fp-hold" aria-hidden="true"><svg viewBox="0 0 60 30" class="lv-fp-hold-svg" aria-hidden="true"><rect x="3" y="3" width="54" height="24" rx="12"></rect></svg>${planeMark('is-holding')}</span>`
+      : end === 'pending' ? planeMark('is-taxi')
+        : `<span class="${cx('lv-fp-end', grounded(end) ? 'is-ground' : 'is-air', `is-${tone}`)}" aria-hidden="true">${icon(hop.glyph)}${badge}</span>`;
+  const chip = end === 'live' || end === 'holding' || end === 'pending' ? planeMark('is-chip') : `${icon(hop.glyph)}${badge}`;
+  return `<li class="${cx('lv-fp-hop', `lv-g${hop.grow}`, `is-${tone}`, `is-${end}`, run.writes ? 'is-writer' : 'is-reader')}" title="${escape(words)}"><span class="sr-only">${escape(words)}</span><div class="lv-fp-sky">${sky}${marker}</div><div class="lv-fp-runway" aria-hidden="true"></div><span class="${cx('lv-fp-chip', `is-${tone}`)}" aria-hidden="true">${chip}</span></li>`;
+}
+
+function head(name, note, extra = '') {
+  return `<div class="lv-fp-head"><span class="lv-fp-name">${name}</span>${extra}<span class="lv-fp-note">${escape(note)}</span></div>`;
+}
+
+/**
+ * The flight path: one column per leg on a shared runway. The ask and the wait sit on the ground; each attempt takes
+ * off and every Run is a hop whose altitude follows its activity; a machine-ended Run drops back with a neutral bolt,
+ * an agent failure with a red mark, a stalled Run circles in a holding pattern, and the plane flies at the head of the
+ * live Run. Ahead are the stations, with your review in the brand red. A stopped Work Item ends in a flag. Columns
+ * grow with the square root of time, so a long wait does not crowd out the work. Under 34 rem of container width the
+ * same list stands up as a vertical flight log. Pure: the same model always gives the same markup, with no inline
+ * styles.
+ * @param {object} model A `liveModel` result.
+ * @param {{ id?: string }} [options] `id` prefixes gradient ids, so two flights of one model can share a page.
  * @returns {string}
  */
-export function flightPath(model, { selectedAttempt = null, id = `lv-flight-${model.id}` } = {}) {
-  const spans = attemptSpans(model);
-  const flying = model.running !== null;
-  const reachedPr = model.stages.find(stage => stage.id === 'pr')?.status === 'done';
-  const landed = model.state === 'done';
-  const out = [];
-  out.push(`<line class="lv-ground" x1="16" y1="${ground}" x2="${W - 16}" y2="${ground}"></line>`);
-  out.push(`<rect class="lv-ask" x="28" y="${ground - 12}" width="24" height="12" rx="2"></rect><text class="lv-label lv-label-strong" x="40" y="${ground + 18}" text-anchor="middle">Ask</text>`);
-  if (model.time.waiting !== null) out.push(`<line class="lv-wait" x1="60" y1="${ground}" x2="${spans.length ? 120 : air.to}" y2="${ground}"></line><text class="lv-label" x="${spans.length ? 62 : 300}" y="${ground + 18}" text-anchor="${spans.length ? 'start' : 'middle'}">waited ${escape(span(model.time.waiting))}</text>`);
-  if (!spans.length) {
-    out.push(`<g transform="translate(${spans.length ? 120 : 330} ${ground - 14})">${plane(26)}</g><text class="lv-label" x="330" y="${ground - 34}" text-anchor="middle">${model.state === 'queued' || model.state === 'ingested' ? 'at the gate, waiting for a worker' : 'no Run yet'}</text>`);
-  } else {
-    out.push(`<path class="lv-climb" d="M120 ${ground} L${air.from} ${cruise}"></path><text class="lv-label" x="${air.from}" y="${cruise + 34}">took off ${escape(clock(spans[0].start))}</text>`);
-  }
-  spans.forEach(({ attempt, start, end, x, w }, index) => {
-    const live = attempt.runs.some(run => run.state === 'running');
-    const allLost = attempt.runs.every(run => run.status === 'failed' || run.status === 'stuck');
-    const tone = live ? 'lv-air-live' : allLost ? 'lv-air-lost' : 'lv-air-done';
-    const selected = selectedAttempt === attempt.n || (selectedAttempt === null && live);
-    if (selected) out.push(`<rect class="lv-selected" x="${r(x - 6)}" y="${cruise - 42}" width="${r(w + 12)}" height="66" rx="8"></rect>`);
-    if (index) out.push(`<line class="lv-divider" x1="${r(x - 9)}" y1="28" x2="${r(x - 9)}" y2="${ground}"></line>`);
-    out.push(`<line class="${tone}" x1="${r(x)}" y1="${cruise}" x2="${r(live ? x + w - 18 : x + w)}" y2="${cruise}"></line>`);
-    const failed = attempt.runs.filter(run => run.status === 'failed' || run.status === 'stuck');
-    const name = live ? `Attempt ${attempt.n} · ${attempt.runs.at(-1).role} · ${span(attempt.runs.at(-1).seconds)}` : allLost ? `Attempt ${attempt.n} · ${attempt.lost === failed.length ? 'machines failed' : 'failed'}` : `Attempt ${attempt.n}`;
-    out.push(`<text class="${cx('lv-label', 'lv-label-strong', allLost && !live && attempt.lost < failed.length ? 'lv-label-danger' : '')}" x="${r(x)}" y="${cruise - 48}">${escape(name)}</text>`);
-    if (failed.length && !live) out.push(`<text class="lv-label" x="${r(x)}" y="${cruise - 34}">${failed.length} of ${attempt.runs.length} lost${attempt.lost ? ' · not the agent' : ''}</text>`);
-    const scale = time => x + (w - (live ? 18 : 0)) * Math.min(1, Math.max(0, (time - start) / Math.max(1, end - start)));
-    for (const run of attempt.runs) if (run.state !== 'running') out.push(runMark(run, scale(run.finishedAt ?? run.startedAt ?? start)));
-    if (live) {
-      out.push(activity(model, start, end, x, w - 18));
-      out.push(`<g transform="translate(${r(x + w)} ${cruise})"><circle class="lv-plane-ring" r="17"></circle>${plane(24)}</g>`);
+export function flightPath(model, { id = `lv-flight-${model.id}` } = {}) {
+  const legs = flightLegs(model).map((leg, index) => {
+    if (leg.kind === 'gate') return `<li class="lv-fp-leg lv-fp-gate lv-g2">${head(escape(leg.label), leg.note)}<div class="lv-fp-sky"></div><div class="lv-fp-runway is-apron" aria-hidden="true"><span class="lv-fp-gate-mark"></span></div></li>`;
+    if (leg.kind === 'wait') return `<li class="${cx('lv-fp-leg', 'lv-fp-wait', 'lv-g3', leg.parked ? 'is-parked' : '')}">${head(escape(leg.label), leg.note)}<div class="lv-fp-sky">${leg.parked ? planeMark('is-parked') : ''}</div><div class="lv-fp-runway is-taxiway" aria-hidden="true"><span class="lv-fp-break">≈</span></div></li>`;
+    if (leg.kind === 'attempt') return `<li class="${cx('lv-fp-leg', 'lv-fp-attempt', `lv-g${leg.grow}`, `is-${leg.tone}`)}">${head(`${escape(leg.head)}${leg.time ? ` <span class="lv-fp-time">${escape(leg.time)}</span>` : ''}`, leg.note)}<ol class="lv-fp-hops">${leg.hops.map((hop, hopIndex) => hopMarkup(hop, `${id}-${index}-${hopIndex}`)).join('')}</ol></li>`;
+    if (leg.kind === 'stop') return `<li class="${cx('lv-fp-leg', 'lv-fp-stop', 'lv-g6', `lv-tone-${leg.tone}`)}">${head(escape(leg.label), leg.note)}<div class="lv-fp-sky"><span class="lv-fp-flag" aria-hidden="true">${icon(leg.glyph)}</span></div><div class="lv-fp-runway is-closed" aria-hidden="true"></div></li>`;
+    if (leg.kind === 'approach') {
+      const descent = leg.mode === 'taxi' ? `M0 ${ground} L100 ${ground}` : `M0 ${cruise} C${leg.mode === 'landed' ? 40 : 45} ${cruise}, 55 ${ground}, 100 ${ground}`;
+      return `<li class="${cx('lv-fp-leg', 'lv-fp-approach', 'lv-g4', `is-${leg.mode}`)}">${head(leg.mode === 'landed' ? 'Landed' : 'Approach', leg.mode === 'landed' ? '' : leg.note)}<div class="lv-fp-sky"><svg class="lv-fp-sky-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path class="lv-fp-descent" d="${descent}"></path></svg></div><div class="lv-fp-runway" aria-hidden="true"></div></li>`;
     }
-  });
-  const last = spans.at(-1);
-  const exitX = last ? last.x + last.w + 18 : 120;
-  if (last && (flying || !reachedPr) && !landed && model.state !== 'awaiting_review') {
-    out.push(`<path class="lv-forecast" d="M${r(exitX)} ${cruise} C ${r(exitX + 40)} ${cruise}, ${r(stations[0][2] - 50)} ${ground}, ${stations[0][2]} ${ground}"></path>`);
-    out.push(`<text class="lv-label" x="${r((exitX + stations[0][2]) / 2)}" y="${cruise + 46}" text-anchor="middle">${model.estimate ? escape(`forecast · ${model.estimate.text}`) : 'forecast · no estimate yet'}</text>`);
-  } else if (last && (reachedPr || landed)) {
-    out.push(`<path class="lv-landing" d="M${r(exitX)} ${cruise} C ${r(exitX + 40)} ${cruise}, ${r(stations[0][2] - 50)} ${ground}, ${stations[0][2]} ${ground}"></path>`);
-  }
-  for (const [key, label, x] of stations) {
-    const stage = model.stages.find(entry => entry.id === key);
-    const state = stage?.status ?? 'next';
-    const shape = key === 'production' ? `<rect x="${x - 8}" y="${ground - 8}" width="16" height="16" rx="3"></rect>` : `<circle cx="${x}" cy="${ground}" r="6"></circle>`;
-    out.push(`<g class="${cx('lv-station', `lv-station-${state}`, stage?.you ? 'lv-station-you' : '')}">${shape}${state === 'current' ? `<circle class="lv-station-ring" cx="${x}" cy="${ground}" r="11"></circle>` : ''}<text class="${cx('lv-label', stage?.you ? 'lv-label-you' : '')}" x="${x}" y="${ground + 22}" text-anchor="middle">${escape(label)}</text></g>`);
-  }
-  if (landed) out.push(`<g transform="translate(${stations.at(-1)[2]} ${ground - 22})">${plane(22)}</g>`);
-  if (model.state === 'awaiting_review') out.push(`<g transform="translate(${stations[1][2]} ${ground - 24})">${plane(22)}</g>`);
-  const summary = flightSummary(model);
-  const compact = model.stages.map(stage => `<li class="${cx('lv-flight-step', `is-${stage.status}`, stage.you ? 'is-you' : '')}"><span class="lv-flight-dot" aria-hidden="true"></span><span>${escape(stage.label)}</span></li>`).join('');
-  return `<figure class="lv-flight" id="${escape(id)}" data-state="${escape(model.state)}"><svg class="lv-flight-svg" viewBox="0 0 ${W} 214" role="img" aria-label="${escape(summary)}">${out.join('')}</svg><ol class="lv-flight-compact" aria-label="Stages">${compact}</ol></figure>`;
+    return `<li class="${cx('lv-fp-leg', 'lv-fp-station', 'lv-g4', `is-${leg.status}`, leg.you ? 'is-you' : '')}">${head(escape(leg.label), leg.note)}<div class="lv-fp-sky">${leg.parked ? planeMark('is-parked') : ''}</div><div class="lv-fp-runway" aria-hidden="true"><span class="lv-fp-gate-mark"></span></div></li>`;
+  }).join('');
+  return `<figure class="lv-fp" id="${escape(id)}" data-state="${escape(model.state)}"><figcaption class="sr-only">${escape(flightSummary(model))}</figcaption><ol class="lv-fp-track">${legs}</ol></figure>`;
 }

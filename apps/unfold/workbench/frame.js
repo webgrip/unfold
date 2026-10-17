@@ -2,35 +2,56 @@ import { renderStory, storyFiles } from '../public/live/stories/index.js';
 import { runChecks } from './checks.js';
 
 const params = new URLSearchParams(location.search);
-const [file, name] = (params.get('story') ?? '').split('--');
-const theme = params.get('theme');
+const key = params.get('key');
+const root = document.querySelector('#root');
 const violations = [];
+const modules = new Map();
+let fontsReady = null;
+let current = 0;
 document.addEventListener('securitypolicyviolation', event => violations.push(`${event.violatedDirective} blocked ${event.blockedURI || 'inline content'}`));
-if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
 
-function report(result) {
-  window.__lvChecks = result;
-  document.body.dataset.ready = 'true';
-  if (parent !== window) parent.postMessage({ type: 'lv-frame', key: params.get('key'), height: document.documentElement.scrollHeight, result }, location.origin);
+const send = message => { if (parent !== window) parent.postMessage({ key, ...message }, location.origin); };
+const height = () => Math.ceil(root.getBoundingClientRect().height);
+
+async function load(file) {
+  if (!Object.hasOwn(storyFiles, file)) throw new Error(`No story file ${file}`);
+  if (!modules.has(file)) modules.set(file, storyFiles[file]());
+  return modules.get(file);
 }
 
-async function main() {
-  const root = document.querySelector('#root');
+async function render({ story = '', theme = null, args = {} }) {
+  const turn = ++current;
+  const [file, name] = story.split('--');
+  if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+  let result;
   try {
-    if (!Object.hasOwn(storyFiles, file)) throw new Error(`No story file ${file}`);
-    const overrides = params.get('args') ? JSON.parse(params.get('args')) : {};
-    const story = renderStory(await storyFiles[file](), name, overrides);
-    document.title = story.title;
-    root.innerHTML = story.html;
-    root.dataset.frame = story.parameters.frame ?? 'panel';
-    await document.fonts.ready;
+    const rendered = renderStory(await load(file), name, args);
+    if (turn !== current) return;
+    document.title = rendered.title;
+    root.dataset.frame = rendered.parameters.frame ?? 'panel';
+    root.innerHTML = rendered.html;
+    send({ type: 'lv-frame', story, height: height() });
+    fontsReady ??= document.fonts.ready;
+    await fontsReady;
     await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
-    report({ story: `${file}--${name}`, ...runChecks(root, { cspViolations: violations }) });
-    new ResizeObserver(() => parent !== window && parent.postMessage({ type: 'lv-frame', key: params.get('key'), height: document.documentElement.scrollHeight }, location.origin)).observe(document.body);
+    if (turn !== current) return;
+    violations.length = 0;
+    result = { story, ...runChecks(root, { cspViolations: violations }) };
   } catch (error) {
     root.textContent = `The story did not render: ${error.message}`;
-    report({ story: `${file}--${name}`, failures: [{ rule: 'render', detail: error.message, at: '' }], warnings: [] });
+    result = { story, failures: [{ rule: 'render', detail: error.message, at: '' }], warnings: [] };
   }
+  window.__lvChecks = result;
+  document.body.dataset.ready = 'true';
+  send({ type: 'lv-frame', story, height: height(), result });
 }
 
-main();
+new ResizeObserver(() => send({ type: 'lv-frame', height: height() })).observe(root);
+window.addEventListener('message', event => {
+  if (event.origin !== location.origin || event.data?.type !== 'lv-render') return;
+  document.body.dataset.ready = 'false';
+  render(event.data);
+});
+
+if (params.get('story')) render({ story: params.get('story'), theme: params.get('theme'), args: params.get('args') ? JSON.parse(params.get('args')) : {} });
+else send({ type: 'lv-ready' });

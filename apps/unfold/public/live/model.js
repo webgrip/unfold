@@ -32,6 +32,7 @@ const providers = { vikunja: 'Vikunja', github: 'GitHub', forgejo: 'Forgejo', gi
 function runStatus(run) {
   if (run.state === 'pending') return 'pending';
   if (run.state === 'running') return 'running';
+  if (run.outcome === 'cancelled') return 'cancelled';
   if (run.outcome === 'stuck' || run.failureReason === 'lease_lost') return 'stuck';
   if (run.outcome === 'failed' || run.failureReason) return 'failed';
   return 'done';

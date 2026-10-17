@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
+import { statSync } from 'node:fs';
 import { watch } from 'node:fs';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +20,21 @@ const policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src
  */
 export async function startWorkbench({ port = Number(process.env.UNFOLD_WORKBENCH_PORT ?? 7745), host = '127.0.0.1', watchFiles = true } = {}) {
   const listeners = new Set();
-  const watchers = watchFiles ? served.map(folder => watch(join(root, folder), { recursive: true }, () => { for (const response of listeners) response.write('event: change\ndata: {}\n\n'); })) : [];
+  const seen = new Map();
+  let pending = null;
+  const changed = (folder, name) => {
+    if (!name) return;
+    const file = join(root, folder, name);
+    let stamp = 'gone';
+    try { const info = statSync(file); stamp = `${info.size}:${info.mtimeMs}`; } catch {}
+    if (seen.get(file) === stamp) return;
+    const known = seen.has(file);
+    seen.set(file, stamp);
+    if (!known && stamp !== 'gone' && Date.now() - statSync(file).mtimeMs > 2000) return;
+    clearTimeout(pending);
+    pending = setTimeout(() => { for (const response of listeners) response.write('event: change\ndata: {}\n\n'); }, 120);
+  };
+  const watchers = watchFiles ? served.map(folder => watch(join(root, folder), { recursive: true }, (event, name) => changed(folder, name))) : [];
   const server = createServer(async (request, response) => {
     const path = decodeURIComponent(new URL(request.url, 'http://workbench').pathname);
     response.setHeader('Content-Security-Policy', policy);
@@ -36,8 +51,12 @@ export async function startWorkbench({ port = Number(process.env.UNFOLD_WORKBENC
     if (!served.some(folder => relative === folder || relative.startsWith(`${folder}${sep}`)) || relative.split(sep).includes('..')) { response.writeHead(404); response.end('Not found'); return; }
     try {
       const file = join(root, relative);
-      if (!(await stat(file)).isFile()) throw new Error('not a file');
-      response.writeHead(200, { 'Content-Type': types[extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-store' });
+      const info = await stat(file);
+      if (!info.isFile()) throw new Error('not a file');
+      const tag = `"${info.size.toString(36)}-${Math.floor(info.mtimeMs).toString(36)}"`;
+      const headers = { 'Content-Type': types[extname(file)] ?? 'application/octet-stream', 'Cache-Control': 'no-cache', ETag: tag };
+      if (request.headers['if-none-match'] === tag) { response.writeHead(304, headers); response.end(); return; }
+      response.writeHead(200, headers);
       response.end(await readFile(file));
     } catch {
       response.writeHead(404);
@@ -48,7 +67,7 @@ export async function startWorkbench({ port = Number(process.env.UNFOLD_WORKBENC
   const address = server.address();
   return {
     url: `http://${host}:${address.port}`,
-    close: () => new Promise(done => { for (const watcher of watchers) watcher.close(); for (const response of listeners) response.end(); server.closeAllConnections(); server.close(() => done()); }),
+    close: () => new Promise(done => { clearTimeout(pending); for (const watcher of watchers) watcher.close(); for (const response of listeners) response.end(); server.closeAllConnections(); server.close(() => done()); }),
   };
 }
 
