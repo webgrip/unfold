@@ -172,7 +172,7 @@ export function createMcpServer(options: McpOptions) {
       name: 'unfold_get_work', title: 'Why a Work Item waits',
       description: 'One Work Item as its Unfold page shows it: the reason it waits and the fix, Ploeg\'s own words, the Run that explains it, its Shifts\' budget and spend, its Runs and its pull request. id is the Work Item id, as in an Unfold link ending #work/184.',
       inputSchema: object({ id: string('Work Item id, or an Unfold link to it') }, ['id']),
-      outputSchema: object({ summary: { type: 'string' }, item: workRow, reason: { type: ['object', 'null'] }, ploegSaid: { type: ['string', 'null'] }, shifts: { type: 'array', items: { type: 'object' } }, runs: { type: 'array', items: { type: 'object' } }, untrusted: { type: 'object' } }, ['summary', 'item', 'reason', 'ploegSaid', 'shifts', 'runs', 'untrusted']),
+      outputSchema: object({ summary: { type: 'string' }, item: workRow, reason: { type: ['object', 'null'] }, ploegSaid: { type: ['string', 'null'] }, routingWarning: { type: ['object', 'null'], description: 'Why Ploeg may not route this Work Item as it stands, with the fix; null when nothing is wrong' }, shifts: { type: 'array', items: { type: 'object' } }, runs: { type: 'array', items: { type: 'object' } }, untrusted: { type: 'object' } }, ['summary', 'item', 'reason', 'ploegSaid', 'routingWarning', 'shifts', 'runs', 'untrusted']),
       async run(args) {
         const id = workItemId(args.id);
         const detail = await get(`/api/ploeg/work-items/${id}`);
