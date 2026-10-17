@@ -1,3 +1,5 @@
+import { defaultTimeout } from './timeouts.mjs';
+
 /** The Vouwvlieger's motion at desktop, tablet and three phone sizes: the loading flight lands before the loading screen lifts and never widens the page, the brand link pops on hover (sidebar) or tap (phone drawer), the sign-in lockup pops, and reduced motion keeps every mark still. */
 const viewports = [
   { name: 'desktop', width: 1440, height: 1040, phone: false },
@@ -24,7 +26,7 @@ async function expectPop(page, selector, assert, label) {
 async function context(browser, viewport, options = {}) {
   const ctx = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, hasTouch: viewport.phone, isMobile: viewport.phone, deviceScaleFactor: viewport.phone ? 3 : 1, ...options });
   const page = await ctx.newPage();
-  page.setDefaultTimeout(10000);
+  page.setDefaultTimeout(defaultTimeout);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error' && !/\b(401|409|503)\b/.test(message.text())) errors.push(message.text()); });

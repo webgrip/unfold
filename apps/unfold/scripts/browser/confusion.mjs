@@ -18,7 +18,16 @@ export async function run({ page, app, assert }) {
     for (let tries = 0; tries < 20 && posted.length === before; tries++) await page.waitForTimeout(50);
   };
   const named = (name, element) => posted.filter(event => event.name === name && (element === undefined || event.props?.element === element));
-  const route = async (target, title) => { await page.evaluate(next => { location.hash = next; }, target); await page.waitForFunction(([next, heading]) => location.hash.split('?')[0] === `#${next}` && document.getElementById('page-title')?.textContent.trim() === heading, [target, title]); };
+  const route = async (target, title) => {
+    await page.evaluate(next => { location.hash = next; }, target);
+    try {
+      await page.waitForFunction(([next, heading]) => location.hash.split('?')[0] === `#${next}` && document.getElementById('page-title')?.textContent.trim() === heading, [target, title]);
+    } catch (error) {
+      const where = await page.evaluate(() => ({ hash: location.hash, title: document.getElementById('page-title')?.textContent.trim() ?? null, dialog: document.querySelector('dialog[open]')?.id ?? null, busy: document.querySelector('[aria-busy="true"]') !== null }));
+      error.message = `${error.message}\nWanted #${target} titled ${title}; the page is at ${JSON.stringify(where)}`;
+      throw error;
+    }
+  };
 
   await page.goto(`${base}/#now`);
   await page.waitForFunction(() => document.getElementById('page-title'));
