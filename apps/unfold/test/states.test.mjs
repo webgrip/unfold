@@ -190,6 +190,31 @@ test('audit events read in plain words from their action and kept detail, and un
   assert.equal(auditEvent(null).label, 'Event');
 });
 
+test('requeues, routing, epics, pull request, comment, deploy and Ask events read in plain words with their detail', () => {
+  const read = (action, detail = {}) => { const { label, detail: line } = auditEvent({ action, detail }); return [label, line]; };
+  assert.deepEqual(read('work_item.requeued', { from_round: 2, note: 'retry with the new brief' }), ['Queued for a new attempt', 'From Round 2 · Retry with the new brief']);
+  assert.deepEqual(read('work_item.requeued', { from_round: 1 }), ['Queued for a new attempt', '']);
+  assert.deepEqual(read('work_item.route_refused', { reason: 'the task has no repo/ label' }), ['The task could not be routed to a repository', 'The task has no repo/ label']);
+  assert.deepEqual(read('work_item.epics_seen', { epics: ['12', '40'] }), ['The task’s epics changed', 'Now under 12, 40']);
+  assert.deepEqual(read('work_item.epics_seen', { epics: [] }), ['The task’s epics changed', 'No longer under an epic']);
+  assert.deepEqual(read('pull_request.conflicted', { number: 7 }), ['The pull request has a merge conflict', 'Pull request #7']);
+  assert.equal(auditEvent({ action: 'pull_request.conflicted' }).tone, 'attention');
+  assert.deepEqual(read('pull_request.mergeable', { number: 7 }), ['The merge conflict is resolved', 'Pull request #7']);
+  assert.deepEqual(read('pull_request.reverted', { pr: 7 }), ['The merged pull request was reverted', 'Pull request #7']);
+  assert.deepEqual(read('pull_request_comment.upserted', { number: 7, created: true }), ['Comment posted on the pull request', 'Pull request #7']);
+  assert.deepEqual(read('pull_request_comment.upserted', { number: 7, created: false }), ['Comment posted on the pull request', 'Replaced its earlier version']);
+  assert.deepEqual(read('pull_request_comment.deleted', { number: 7 }), ['Comment removed from the pull request', 'Pull request #7']);
+  assert.deepEqual(read('deploy.recorded', { environment: 'production', repo: 'webgrip/glide' }), ['Deployed to production', 'webgrip/glide']);
+  assert.deepEqual(read('ask.admitted', { budgetUsd: 0.02 }), ['Asked a model about this work', 'Up to US$\u00a00,02 from the Ask Allowance']);
+  assert.deepEqual(read('ask.finished'), ['Ask finished', '']);
+});
+
+test('a Run that leaked a credential says to rotate it and read the pushed commits', () => {
+  const meta = failureReason('credential_leak');
+  assert.deepEqual([meta.label, meta.tone, meta.infra, meta.retries], ['The Run leaked a credential', 'danger', false, false]);
+  assert.match(failureNote('credential_leak', { live: false }), /^Cause: one of the Run’s credentials appeared in a forge request or a pushed commit\. Rotate the credential\./);
+});
+
 test('actors are named in plain words, and the signed-in operator reads as You', () => {
   assert.equal(actorName('team:delivery'), 'Agent · delivery');
   assert.equal(actorName('ploegd:shift-engine'), 'Ploeg');
