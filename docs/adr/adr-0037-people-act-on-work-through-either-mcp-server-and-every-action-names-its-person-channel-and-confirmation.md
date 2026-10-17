@@ -27,7 +27,7 @@ decision-makers: Ryan Grippeling
 
 Chosen option: "Both servers act, under one attribution and confirmation rule", because Ploeg must be operable on its own and Unfold adds its reasons, links and integrations on top.
 
-* **Ploeg** records every operator action with its Operator Consumer, person, channel and confirmation, and `ploeg-mcp` acts over HTTP as the verified person ([Ploeg ADR-0106](https://github.com/ploeg-hq/ploeg/blob/development/docs/adrs/0106-every-operator-action-names-its-person-and-channel-and-an-mcp-action-needs-the-persons-confirmation.md)).
+* **Ploeg** records every operator action with its Operator Consumer, person, channel and confirmation, and `ploeg-mcp` acts over HTTP as the verified person ([Ploeg ADR-0108](https://github.com/ploeg-hq/ploeg/blob/development/docs/adrs/0108-every-operator-action-names-its-person-and-channel-and-an-mcp-action-needs-the-persons-confirmation.md)).
 * **Unfold** records every action it takes or forwards, whatever the channel, in one Action Record: the person, the channel (`browser`, the editor credential's name such as `unfold-mcp on ryan-pc-mint`, or `mcp:<client name and version>`), the action and its target and inputs, the confirmation, the result, and the matching Ploeg audit id. It passes the channel and confirmation on to Ploeg.
 * **First slice of actions**, on both servers: assign (hand a task to a Team), approve and reject a proposal, retry, stop, and steer (a note for the next Run, or a message, pause or resume for an attended session).
 * **Every action that changes state asks the person first**, through an MCP elicitation stating the exact effect and any cost; a declined or unanswered confirmation changes nothing, and a client without elicitation is refused with a link to the page where the person can act. The browser keeps its own buttons and records `browser` as the channel.
@@ -38,7 +38,7 @@ Chosen option: "Both servers act, under one attribution and confirmation rule", 
 * Good, because every change to work is traceable to a person, a channel and the text they agreed to, in Unfold and in Ploeg.
 * Good, because people can act from whichever client they use, including without Unfold.
 * Bad, because two MCP servers offer overlapping actions, so their wording and confirmation text must stay aligned.
-* Bad, because an elicitation is shown by the person's client; a client that renders it without the person seeing it would weaken the confirmation (recorded as a re-evaluation trigger in Ploeg ADR-0106, [ploeg-hq #146](https://github.com/ploeg-hq/ploeg/pull/146)).
+* Bad, because an elicitation is shown by the person's client; a client that renders it without the person seeing it would weaken the confirmation (recorded as a re-evaluation trigger in Ploeg ADR-0108, [ploeg-hq #146](https://github.com/ploeg-hq/ploeg/pull/146)).
 
 ### Confirmation
 
