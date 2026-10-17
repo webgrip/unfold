@@ -999,6 +999,16 @@
           "mcp": "not exposed"
         },
         {
+          "value": "pull_request.closed_for_leak",
+          "label": "The pull request was closed after a credential leak",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "pull_request.leak_close_failed",
+          "label": "The pull request could not be closed after a credential leak",
+          "mcp": "not exposed"
+        },
+        {
           "value": "pull_request_comment.upserted",
           "ploegTerm": "Forge Event",
           "label": "Comment posted on the pull request",

@@ -269,6 +269,8 @@ MCP: not exposed; unfold_get_work quotes the reason of the latest `work_item.<st
 | `pull_request.mergeable` | [Forge Event](glossary.md#forge-event) | The merge conflict is resolved | not exposed |  |
 | `pull_request.conflicted` | [Forge Event](glossary.md#forge-event) | The pull request has a merge conflict | not exposed |  |
 | `pull_request.reverted` | [Forge Event](glossary.md#forge-event) | The merged pull request was reverted | not exposed |  |
+| `pull_request.closed_for_leak` | [Work Item](glossary.md#work-item) | The pull request was closed after a credential leak | not exposed |  |
+| `pull_request.leak_close_failed` | [Work Item](glossary.md#work-item) | The pull request could not be closed after a credential leak | not exposed |  |
 | `pull_request_comment.upserted` | [Forge Event](glossary.md#forge-event) | Comment posted on the pull request | not exposed |  |
 | `pull_request_comment.deleted` | [Forge Event](glossary.md#forge-event) | Comment removed from the pull request | not exposed |  |
 | `deploy.recorded` | [Forge Event](glossary.md#forge-event) | Deployed | not exposed |  |
