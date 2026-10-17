@@ -71,6 +71,8 @@ export type PloegContextAdded = { context: PloegContextItem; created: boolean; d
 export const contextUploadLimit = 20 * 1024 * 1024;
 /** What the deterministic demo answers an upload: it keeps nothing and says so. */
 export const demoContextRefusal = 'The demo does not store context files.';
+/** What the deterministic demo answers a note: it stores nothing and says so. */
+export const demoNoteRefusal = 'Illustrative demo: Ploeg stored no note and no Run will read it.';
 /** What a requeue asks of Ploeg (Ploeg ADR-0044): the command id a retry reuses, the state the person saw, and an optional note and pool. Ploeg restarts from Round 1. */
 export type PloegRequeueCommand = { commandId: string; expectedState: PloegState; note?: string; poolUsd?: number };
 /** Ploeg's answer to a requeue: the new state and pool, and whether it replayed an earlier command with the same id. */
@@ -877,6 +879,8 @@ export class PloegClient {
   }
   constructor(config: AppConfig) { this.config = config.ploeg; this.taskSources = config.taskSources ?? []; this.observability = config.observability; this.demo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true); const setting = config.cards?.rules?.rarity; this.rarityShown = async () => setting === true; }
   private allowed(user: User, team: string): boolean { return (!this.config?.teams || this.config.teams.includes(team)) && (user.role === 'admin' || this.config?.userTeams?.[user.id]?.includes(team) === true); }
+  /** Whether this client answers from the deterministic demo instead of a Ploeg. */
+  get isDemo(): boolean { return this.demo; }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
   private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; requeue?: boolean; note?: string; cancel?: string; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {

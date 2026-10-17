@@ -31,11 +31,16 @@ export const delegatedRoutes: ReadonlyArray<readonly [string, RegExp]> = [
   ['GET', new RegExp(`^/api/ploeg/work-items/${workItem}$`)],
   ['GET', new RegExp(`^/api/ploeg/work-items/${workItem}/asks$`)],
   ['POST', new RegExp(`^/api/ploeg/work-items/${workItem}/asks$`)],
+  ['POST', new RegExp(`^/api/ploeg/work-items/${workItem}/(?:approve|reject|cancel|requeue|notes)$`)],
   ['GET', /^\/api\/sessions$/],
   ['GET', /^\/api\/linked-sessions$/],
   ['GET', /^\/api\/linked-sessions\/[A-Za-z0-9_-]{8,128}$/],
   ['PUT', new RegExp(`^/api/linked-sessions/[A-Za-z0-9_-]{8,128}/work-items/${workItem}$`)],
   ['DELETE', new RegExp(`^/api/linked-sessions/[A-Za-z0-9_-]{8,128}/work-items/${workItem}$`)],
+  ['GET', /^\/api\/sessions\/[a-zA-Z0-9_-]{1,128}$/],
+  ['POST', /^\/api\/sessions\/[a-zA-Z0-9_-]{1,128}\/(?:messages|pause|resume|cancel)$/],
+  ['GET', /^\/api\/task-sources\/[a-z0-9-]{1,64}\/tasks\/[a-zA-Z0-9_-]{1,128}(?:\/ploeg)?$/],
+  ['POST', /^\/api\/task-sources\/[a-z0-9-]{1,64}\/tasks\/[a-zA-Z0-9_-]{1,128}\/handoff$/],
 ];
 
 function delegatedRoute(req: IncomingMessage): boolean {

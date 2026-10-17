@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { actionContext, channelOf, confirmationOf, describeAction, isAction, outcomeOf, recordedInputs } from './action-records.ts';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
@@ -18,7 +19,7 @@ import { StatusBoard, gatewayProbe } from './status.ts';
 import { CardService, importStatusLine } from './cards/service.ts';
 import { CardStore } from './cards/card-store.ts';
 import { rarityShown } from './cards/settings.ts';
-import { PloegClient, PloegError, contextInput, contextUploadLimit, type PloegDecision } from './ploeg.ts';
+import { PloegClient, PloegError, contextInput, contextUploadLimit, demoNoteRefusal, type PloegDecision, type PloegState } from './ploeg.ts';
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
@@ -676,6 +677,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const crackStep = /^\/api\/ploeg\/work-items\/([^/]+)\/cracks\/([^/]+)\/(confirm|dispute|resolve)$/.exec(path);
           const context = /^\/api\/ploeg\/work-items\/([^/]+)\/context$/.exec(path);
           const asked = /^\/api\/ploeg\/work-items\/([^/]+)\/asks$/.exec(path);
+          const restart = /^\/api\/ploeg\/work-items\/([^/]+)\/(requeue|notes)$/.exec(path);
           if (asked) {
             try {
               if (method === 'GET') return json(res, 200, sanitize(await asks.about(user, asked[1])));
@@ -688,10 +690,24 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               throw error;
             }
           }
-          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep || context))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions, context files and crack attributions.');
+          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep || context || restart))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions, restarts, notes, context files and crack attributions.');
+          if (method === 'GET' && restart) fault(405, 'method', 'Restart or leave a note with POST.');
           try {
-            if (method === 'POST' && (decision || attribution || crackStep || context)) {
+            if (method === 'POST' && (decision || attribution || crackStep || context || restart)) {
               if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot change Ploeg work.');
+              if (restart) {
+                const data = await body(req);
+                const commandId = data.commandId === undefined ? randomUUID() : text(data.commandId, 'Command id', 128);
+                if (restart[2] === 'requeue') {
+                  const expectedState = text(data.expectedState, 'Expected state', 32);
+                  if (!['needs_human', 'stale'].includes(expectedState)) fault(400, 'ploeg_requeue', 'Ploeg restarts only a Work Item that needs you or went stale.');
+                  return json(res, 200, sanitize(await ploeg.requeue(user, restart[1], { commandId, expectedState: expectedState as PloegState, ...(typeof data.note === 'string' && data.note.trim() ? { note: data.note } : {}) })));
+                }
+                const note = text(data.text, 'Note', 4096);
+                if (ploeg.isDemo && await ploeg.detail(user, restart[1], true)) return json(res, 200, { workItemId: restart[1], noteId: null, commandId, shiftId: null, replayed: false, demo: true, message: demoNoteRefusal });
+                const expectedShiftId = data.expectedShiftId === undefined || data.expectedShiftId === null ? undefined : String(data.expectedShiftId);
+                return json(res, 201, sanitize({ ...await ploeg.note(user, restart[1], { commandId, text: note, ...(expectedShiftId !== undefined ? { expectedShiftId } : {}) }), demo: false }));
+              }
               if (context) {
                 const input = contextInput(url.searchParams.get('name'), url.searchParams.get('note') ?? undefined);
                 const added = await ploeg.addContext(user, context[1], input.name, input.note, await upload(req, contextUploadLimit, 'context_too_large'));
