@@ -136,6 +136,33 @@ export function date(value) {
   return `${part.day}-${part.month}-${part.year}`;
 }
 
+/**
+ * Formats a date with its month named, so day and month never swap: `9 Nov 2026` (day, English month, year) in nl-NL,
+ * or the browser's medium date style. Empty for a missing or invalid value.
+ */
+export function namedDate(value) {
+  const moment = toDate(value);
+  if (!moment) return '';
+  if (!locale) return formatter('date', { dateStyle: 'medium' }).format(moment);
+  return `${moment.getDate()} ${new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(moment)} ${moment.getFullYear()}`;
+}
+
+/**
+ * Says in words how far a moment is from `now`: "just now", "5 minutes ago", "2 hours ago", "yesterday", "in 23 days".
+ * Empty for a missing or invalid value.
+ */
+export function relativeWords(value, now = Date.now()) {
+  const moment = toDate(value);
+  if (!moment) return '';
+  const seconds = (moment.getTime() - now) / 1000;
+  const span = Math.abs(seconds);
+  if (span < 45) return 'just now';
+  const words = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+  if (span < 3570) return words.format(Math.round(seconds / 60), 'minute');
+  if (span < 84600) return words.format(Math.round(seconds / 3600), 'hour');
+  return words.format(Math.round(seconds / 86400), 'day');
+}
+
 /** Formats a wall-clock time as `21:30`, or `21:30:05` with `seconds`; empty for a missing or invalid value. */
 export function time(value, { seconds = false } = {}) {
   const moment = toDate(value);

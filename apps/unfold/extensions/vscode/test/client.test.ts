@@ -5,7 +5,8 @@ import { UnfoldClient, ApiError, normalizeServerUrl, type Secrets } from '../src
 import { application, createInput, request, sessionUntil } from '../../../test/api-support.ts';
 import { signInForEditor, workbench } from '../../../test/oidc-support.ts';
 import { browserLogin } from '../src/browser-login.ts';
-import { hashPassword } from '../../../src/auth.ts';
+import { editorLabel, hashPassword } from '../../../src/auth.ts';
+import { hostname } from 'node:os';
 import { deadlineAfter, testTimeout } from '../../../test/timeframes.ts';
 import type { SessionInput } from '../src/types.ts';
 
@@ -91,13 +92,13 @@ test('live login stores only the opaque session cookie, restores it, clears expi
   assert.equal(secrets.values.size, 0);
 });
 
-test('the extension signs in through the browser end to end: it shows the code, waits for approval and keeps a revocable editor credential', { timeout: testTimeout(30_000) }, async t => {
+test('the extension signs in through the browser end to end, named after its machine: it shows the code, waits for approval and keeps a revocable editor credential', { timeout: testTimeout(30_000) }, async t => {
   const { server, idp } = await workbench(t);
   const secrets = new MemorySecrets();
   const client = new UnfoldClient(server.url, secrets);
   const shown: string[] = [];
   let browserCookie = '';
-  let approvalPage: { userCode?: string; workbench?: string } = {};
+  let approvalPage: { userCode?: string; workbench?: string; label?: string } = {};
   const user = await browserLogin(client, {
     showCode: code => { shown.push(code); },
     open: async url => {
@@ -114,6 +115,7 @@ test('the extension signs in through the browser end to end: it shows the code, 
   assert.equal(shown.length, 1);
   assert.equal(approvalPage.userCode, shown[0]);
   assert.equal(approvalPage.workbench, new URL(server.url).host);
+  assert.equal(approvalPage.label, editorLabel('vscode', hostname().split('.')[0]), 'the sign-in names the machine VS Code runs on');
   const stored = secrets.values.get(client.secretKey)!;
   assert.match(stored, /^vle_[A-Za-z0-9_-]{43}$/);
   assert.equal((await client.bootstrap()).user.name, 'person@example.com');

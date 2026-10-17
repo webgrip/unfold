@@ -14,17 +14,21 @@ const editorSecretFailures = 5;
 const userCodeAlphabet = 'BCDFGHJKLMNPQRSTVWXZ';
 /** Editor credentials last this many days from approval and are never renewed. */
 export const editorCredentialDays = 30;
+/** An editor credential left unused for this many days stops working, as if it had expired. */
+export const editorIdleDays = 14;
 /** Every editor credential starts with this prefix, so it is never mistaken for a browser session. */
 export const editorTokenPrefix = 'vle_';
 const editorTokenPattern = /^vle_[A-Za-z0-9_-]{43}$/;
 
 /**
- * The name an editor sign-in and its credential carry: `VS Code` unless the client says it is `unfold-mcp`, which is
- * named after the host it runs on. Unfold builds the name, so a client cannot put its own text on the approval page.
+ * The name an editor sign-in and its credential carry: `VS Code`, or `unfold-mcp` when the client says it is that,
+ * followed by ` on <host>` when the client names a valid host. Unfold builds the name, so a client cannot put its own
+ * text on the approval page.
  */
 export function editorLabel(client: unknown, host: unknown): string {
-  if (client !== 'mcp') return 'VS Code';
-  return typeof host === 'string' && /^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(host) ? `unfold-mcp on ${host}` : 'unfold-mcp';
+  const name = client === 'mcp' ? 'unfold-mcp' : 'VS Code';
+  if (client !== 'mcp' && client !== 'vscode') return name;
+  return typeof host === 'string' && /^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(host) ? `${name} on ${host}` : name;
 }
 
 export function hashPassword(password: string): string {
@@ -207,9 +211,9 @@ export class Auth {
     return { status: 'ready', user, token, expiresAt };
   }
 
-  /** A person's live editor credentials, without their token hashes. */
-  editorCredentials(user: User): Array<Omit<EditorCredential, 'tokenHash' | 'userId'>> {
-    return this.store.editorCredentials(user.id).map(({ id, label, scope, createdAt, expiresAt, lastUsedAt }) => ({ id, label, scope, createdAt, expiresAt, ...(lastUsedAt ? { lastUsedAt } : {}) }));
+  /** A person's live editor credentials, without their token hashes, each with the moment it signs out if it stays unused. */
+  editorCredentials(user: User): Array<Omit<EditorCredential, 'tokenHash' | 'userId'> & { idleExpiresAt: string }> {
+    return this.store.editorCredentials(user.id).map(({ id, label, scope, createdAt, expiresAt, lastUsedAt }) => ({ id, label, scope, createdAt, expiresAt, ...(lastUsedAt ? { lastUsedAt } : {}), idleExpiresAt: new Date(Date.parse(lastUsedAt ?? createdAt) + editorIdleDays * 86_400_000).toISOString() }));
   }
 
   /** Revokes one of a person's editor credentials and returns the sign-in it identified. */
