@@ -11,6 +11,12 @@ export async function run({ page, app, assert, screenshot }) {
   const article = () => page.evaluate(() => { const forge = document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('.forge'); return forge ? { ...forge.dataset } : null; });
   const inShadow = (selector, read) => page.evaluate(([selector, read]) => { const node = document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector(selector); return node ? node[read] ?? node.getAttribute(read) : null; }, [selector, read]);
   const announced = () => inShadow('[data-world-announce]', 'textContent');
+  const announcedAfter = async action => {
+    await page.evaluate(() => { document.querySelector('unfold-card.card-page-card').shadowRoot.querySelector('[data-world-announce]').textContent = ''; });
+    await action();
+    await page.waitForFunction(() => document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('[data-world-announce]')?.textContent);
+    return announced();
+  };
   const description = () => inShadow('[data-world-description]', 'textContent');
   const stored = () => page.evaluate(async () => (await (await fetch('/api/cards/117/world')).json()).world);
   const open = async () => {
@@ -67,17 +73,12 @@ export async function run({ page, app, assert, screenshot }) {
   await page.waitForFunction(() => document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('.forge')?.dataset.worldFlat === 'false');
   assert.equal(await announced(), 'The art is 3D again.', 'F brings the depth back');
 
-  await page.keyboard.press('ArrowRight');
-  assert.match(await announced(), /^(Tree|Crystal|Lantern|Windmill), 1 of 6$/, 'the arrow keys walk the things in the world');
-  await page.keyboard.press('Enter');
-  assert.match(await announced(), /^The (tree shakes|crystal chimes|lantern|windmill’s sails)/, 'Enter touches the focused thing');
+  assert.match(await announcedAfter(() => page.keyboard.press('ArrowRight')), /^(Tree|Crystal|Lantern|Windmill), 1 of 6$/, 'the arrow keys walk the things in the world');
+  assert.match(await announcedAfter(() => page.keyboard.press('Enter')), /^The (tree shakes|crystal chimes|lantern|windmill’s sails)/, 'Enter touches the focused thing');
 
   const target = await sweep('pointer');
   assert(target, 'hovering a thing in the art shows the pointer cursor');
-  await page.evaluate(() => { document.querySelector('unfold-card.card-page-card').shadowRoot.querySelector('[data-world-announce]').textContent = ''; });
-  await page.mouse.click(target.x, target.y);
-  await page.waitForFunction(() => document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('[data-world-announce]')?.textContent);
-  assert.match(await announced(), /^The (tree|crystal|lantern|windmill|lighthouse)/, 'a click on a thing plays its reaction');
+  assert.match(await announcedAfter(() => page.mouse.click(target.x, target.y)), /^The (tree|crystal|lantern|windmill|lighthouse)/, 'a click on a thing plays its reaction');
   await screenshot('work-card-forge-world-click');
 
   await card().getByRole('button', { name: 'Decorate' }).click();
@@ -91,16 +92,13 @@ export async function run({ page, app, assert, screenshot }) {
   assert.equal(await inShadow('.forge', 'data-world-tool'), 'crystal');
   const ground = await sweep('copy');
   assert(ground, 'with a thing chosen, the ground in the art shows the copy cursor');
-  await page.mouse.click(ground.x, ground.y);
-  const placed = /^Placed a crystal\.$/.test(await announced() ?? '');
-  assert(placed, `a click on the ground places the chosen thing: ${await announced()}`);
+  assert.equal(await announcedAfter(() => page.mouse.click(ground.x, ground.y)), 'Placed a crystal.', 'a click on the ground places the chosen thing');
   await page.waitForFunction(() => /^Saved · 7 placed · only you see it$/.test(document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('[data-decor-status]')?.textContent ?? ''), null, { timeout: 10000 });
   await screenshot('work-card-forge-world-placed');
   await panel.locator('[data-decor-tool="erase"]').click();
   await card().locator('[data-forge-stage]').focus();
-  await page.keyboard.press('ArrowRight');
-  await page.keyboard.press('Enter');
-  assert.match(await announced(), /^Removed the (tree|crystal|lantern|windmill)\.$/, 'the eraser removes the focused thing by keyboard');
+  await announcedAfter(() => page.keyboard.press('ArrowRight'));
+  assert.match(await announcedAfter(() => page.keyboard.press('Enter')), /^Removed the (tree|crystal|lantern|windmill)\.$/, 'the eraser removes the focused thing by keyboard');
   await page.waitForFunction(() => /^Saved · 6 placed/.test(document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('[data-decor-status]')?.textContent ?? ''), null, { timeout: 10000 });
   await panel.locator('[data-decor-field="weather"]').selectOption('snow');
   await page.waitForFunction(() => /^Saved/.test(document.querySelector('unfold-card.card-page-card')?.shadowRoot?.querySelector('[data-decor-status]')?.textContent ?? ''), null, { timeout: 10000 });

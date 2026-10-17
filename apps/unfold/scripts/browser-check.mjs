@@ -7,6 +7,7 @@ import { chromium } from 'playwright';
 import { createApplication } from '../src/main.ts';
 import { loadConfig } from '../src/config.ts';
 import { startFakeArtModel } from './browser/fake-art-model.mjs';
+import { defaultTimeout } from './browser/timeouts.mjs';
 
 const flows = [
   ['now', 'the Now page: waiting groups with reason chips, the digest with counts that jump to their rows and Mark as caught up, stat links, the running meter, keyboard row navigation and o at desktop/mobile widths'],
@@ -57,7 +58,7 @@ try {
   await Promise.all([new Promise(done => app.server.listen(0, '127.0.0.1', done)), new Promise(done => live.server.listen(0, '127.0.0.1', done))]);
   browser = await chromium.launch({ headless: true, ...(process.env.UNFOLD_CHROMIUM_BIN ? { executablePath: process.env.UNFOLD_CHROMIUM_BIN, args: ['--no-sandbox', '--no-zygote', '--single-process', '--disable-dev-shm-usage', '--disable-gpu'] } : {}) });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1040 } });
-  page.setDefaultTimeout(10000);
+  page.setDefaultTimeout(defaultTimeout);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const refusedOnPurpose = message => /\b400\b/.test(message.text()) && String(message.location()?.url ?? '').includes('/api/card-assets?purpose=symbol');
@@ -65,8 +66,11 @@ try {
   const screenshot = async name => { if (screenshots) { await mkdir(screenshots, { recursive: true }); await page.screenshot({ path: join(screenshots, `${name}.png`), fullPage: true }); } };
   for (const [name] of selected) {
     const { run } = await import(`./browser/${name}.mjs`);
+    const started = performance.now();
+    process.stderr.write(`${name}: started\n`);
     try { await run({ page, app, live, password, assert, screenshot, artModel }); }
     catch (error) { error.message = `[${name} flow] ${error.message}`; throw error; }
+    process.stderr.write(`${name}: passed in ${((performance.now() - started) / 1000).toFixed(1)} s\n`);
   }
   assert.deepEqual(errors, [], 'Browser script or CSP errors occurred');
   process.stdout.write(`PASS: Chromium ${browser.version()}; ${selected.map(([, covers]) => covers).join(', ')}, navigation. No inference requests: generated art comes from a local fake model.\n`);
