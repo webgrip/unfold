@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { actorName, auditActor, auditEvent, displayState, tileDetail, unreportedOutcome, checkpointPhase, checkpointPhases, failureNote, failureReason, failureReasons, runFailure, runFailureText, runOutcome, runOutcomes, runState, runStates, sessionNeedsYou, sessionStatus, sessionStatuses, stateMeta, tones, verdict, verdicts, workItemState, workItemStates } from '../public/core/states.js';
+import { money } from '../public/core/format.js';
 import { stateBadge } from '../public/core/ui.js';
 import { labels, statusLabel } from '../public/core/lookup.js';
 import { icons } from '../public/core/icons.js';
@@ -150,6 +151,28 @@ test('other agent_error Runs and other failures keep their table wording', () =>
   assert.equal(runFailure({ failureReason: 'lease_lost', summary: 'acp agent stopped responding' }), failureReason('lease_lost'));
   assert.equal(runFailure({ failureReason: null, summary: 'acp idle watchdog stopped the agent: x' }), null);
   assert.equal(runFailure({ failureReason: 'agent_error', summary: 'it said acp idle watchdog stopped the agent' }), failureReason('agent_error'), 'only a summary that starts with the watchdog wording counts');
+});
+
+test('a Run the gateway stopped at its own key budget reads as a spent allowance, with the raw output kept', () => {
+  const stuckReason = 'last agent message: Error: Conversation run failed: litellm.BadRequestError: Litellm_proxyException - Budget has been exceeded! Key=ploeg-102a5e92369d (sk-...60nw) Current cost: 2.041772616, Max budget: 2.0\nConversation logs are stored at: /mnt/x | stderr: agent.py:579 in prompt';
+  for (const failureReason of ['agent_error', 'budget']) {
+    const run = { failureReason, summary: 'acp agent exited before answering the prompt', stuckReason };
+    const meta = runFailure(run);
+    assert.equal(meta.label, 'The Run spent its model allowance');
+    assert.equal(meta.key, 'budget');
+    assert.equal(meta.foldOutput, true);
+    assert.equal(failureNote(meta), 'Cause: the Run used up the model allowance Ploeg authorized for it. Split the ticket or raise the Role’s per-Run allowance, then retry the Work Item.');
+    assert.deepEqual(runFailureText(run), { reason: `It spent ${money(2.041772616)} of the ${money(2)} Ploeg authorized for it, so the model gateway refused its next call and the agent stopped.`, output: stuckReason, outputLabel: 'What the harness printed' });
+  }
+  assert.equal(runFailureText({ failureReason: 'agent_error', stuckReason: 'ExceededBudget: Key over 1d budget' }).reason, 'It spent the model allowance Ploeg authorized for it, so the model gateway refused its next call and the agent stopped.');
+});
+
+test('a Run the gateway stopped at a shared budget reads as a spent shared budget', () => {
+  const run = { failureReason: 'agent_error', stuckReason: 'litellm.BadRequestError: Budget has been exceeded! Team=delivery Current cost: 50.1, Max budget: 50.0' };
+  assert.equal(runFailure(run).key, 'shared_budget_spent');
+  assert.equal(runFailure(run).label, failureReason('shared_budget_spent').label);
+  assert.equal(runFailureText(run).output, run.stuckReason);
+  assert.match(runFailureText(run).reason, /shared LiteLLM budget is spent/);
 });
 
 test('checkpoint phases read as what the Run did', () => {

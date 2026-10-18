@@ -565,6 +565,17 @@ test('a Run an ACP watchdog stopped says the agent stopped responding and labels
   assert.doesNotMatch(other, /The agent stopped responding|Last lines it printed/);
 });
 
+test('a Run that spent its model allowance says so plainly and folds what the harness printed', () => {
+  const spent = detail();
+  spent.runs[0] = { ...spent.runs[0], outcome: 'failed', verdict: '', findings: '', failureReason: 'agent_error', summary: 'acp agent exited before answering the prompt', stuckReason: 'last agent message: Litellm_proxyException - Budget has been exceeded! Key=ploeg-1 Current cost: 2.04, Max budget: 2.0 | stderr: agent.py:579 in prompt' };
+  const html = detailMarkup(spent, model({ detailId: '50' }));
+  assert.match(html, /The Run spent its model allowance/);
+  assert.match(html, /so the model gateway refused its next call/);
+  assert.match(html, /<details class="disclosure plain"><summary><span class="disclosure-summary">What the harness printed<\/span>/);
+  assert.match(html, /Budget has been exceeded! Key=ploeg-1/);
+  assert.doesNotMatch(html, /The agent harness failed|exited with an error|Read its log tail/);
+});
+
 test('untrusted text from the tracker, agents and Ploeg stays inert everywhere on the page', () => {
   const hostile = detail();
   const attack = '<img src=x onerror=alert(1)>';
