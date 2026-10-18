@@ -191,7 +191,8 @@
       },
       "prBodyNotes": [
         "**This pull request merges itself once every check is green, `ploeg-docs` included,** and the merge cuts the next Unfold candidate. It moves the engine Unfold runs on, so a red check holds it for a person.\n\nWhen `ploeg-docs` fails, its log names the problem ([CI and release workflows](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/operations/ci.md#the-ploeg-pin-pull-request)):\n\n- **A stale page** (`Stale generated domain view`, `Stale combined glossary`, a stale decision register, `Stale landscape`): run `mise run domain`, `mise run docs-decisions` and `mise run landscape` on this branch and push. Renovate's runner cannot rebuild the landscape explorer, so a Ploeg release that changes the glossary always needs `mise run landscape`.\n- **A term clash** (`Combined glossary conflicts`, and `ploeg-glossary-conflicts.txt` in this pull request): the new Ploeg release defines a term Unfold's model also defines. Ploeg owns a term when Ploeg stores it or its API names it; otherwise Unfold owns it. When Ploeg owns it, add the term to the Ploeg `imports` entry in `docs/domain/model.yaml`, delete Unfold's copy, and move any Unfold-only clauses into an Unfold term that links to it, as [#339](https://forgejo.webgrip.dev/webgrip/unfold/pulls/339) did for Tenant and Client. Then run `mise run domain`, delete `ploeg-glossary-conflicts.txt` and push to this branch."
-      ]
+      ],
+      "platformAutomerge": true
     },
     {
       "description": "These pins replace the copies npm bundles in the agent image, and the patch script accepts only the bundled major. Raise the bound when npm bundles a newer major.",
