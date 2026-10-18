@@ -1,3 +1,13 @@
+## [unfold-v0.4.0-rc.91](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.90...unfold-v0.4.0-rc.91) (2026-10-18)
+
+### Added
+
+* **unfold:** run pod-provisioner workspaces under a RuntimeClass such as Kata ([f6f8a9f](https://forgejo.webgrip.dev/webgrip/unfold/commit/f6f8a9f57363b5e775b5e346075475c8378293b1))
+
+### Fixed
+
+* **unfold:** a pull request whose CI did not pass is not ready for review ([fb269d0](https://forgejo.webgrip.dev/webgrip/unfold/commit/fb269d0cdecf75d4d647521c371f262dc6eaf52f)), references [#N](https://forgejo.webgrip.dev/webgrip/unfold/issues/N)
+
 ## [unfold-v0.4.0-rc.90](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.89...unfold-v0.4.0-rc.90) (2026-10-18)
 
 ### Added
