@@ -79,7 +79,7 @@ Live mode reaches services the chart cannot guess, and none of them has a defaul
 | Model gateway | `config.litellm.baseUrl`, or `LITELLM_BASE_URL` in `credentialsSecret` |
 | Forge repositories | `config.repositories[].url` |
 | Tracker | `config.taskSources[]` |
-| Workspace network | `workspaceEgress`, which must allow the gateway and the forge |
+| Workspace network | `workspaceEgress`, which must allow the gateway and the forge; `workspaceGitRewrites` sends git to the forge's in-cluster address, so no ingress gateway needs opening |
 
 Start from [values.live.example.yaml](values.live.example.yaml). [Running Unfold live](../../../docs/operations/live.md#kubernetes) explains each setting and the credentials Secret.
 

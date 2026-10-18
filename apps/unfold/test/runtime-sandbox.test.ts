@@ -167,6 +167,7 @@ test('a warm-pool claim hands the bound pod its session over the relay, clones t
   t.after(() => relayServer.close());
   const relayBase = `http://127.0.0.1:${port}/api/relay`;
   const config = configuration(`http://127.0.0.1:${port}`, 'unfold-warm');
+  config.kubernetes!.gitRewrites = [{ url: 'http://forge-http.forge.svc.cluster.local:3000/', insteadOf: 'https://forge.example/' }];
   const worker = fakeWorker(relayBase, { pool: { token: 'pool-token-for-test', pod: 'unfold-warm-abc12' } });
   t.after(() => worker.stop());
   const objects = new Map<string, any>();
@@ -184,6 +185,7 @@ test('a warm-pool claim hands the bound pod its session over the relay, clones t
   assert.equal(worker.state.env.LITELLM_API_KEY, 'sk-session');
   assert.equal(worker.state.env.REPOSITORY_URL, repository.url);
   assert.equal(worker.state.env.WORK_BRANCH, session.branch);
+  assert.deepEqual([worker.state.env.GIT_CONFIG_COUNT, worker.state.env.GIT_CONFIG_KEY_0, worker.state.env.GIT_CONFIG_VALUE_0], ['1', 'url.http://forge-http.forge.svc.cluster.local:3000/.insteadOf', 'https://forge.example/']);
   assert.equal(JSON.stringify([...objects.values()]).includes('sk-session'), false, 'the session key travels over the relay, never in a Kubernetes object');
   assert.ok(worker.state.requests.some(line => line.startsWith('POST /__unfold/exec')));
   assert.deepEqual(worker.state.running[0].slice(0, 2), ['opencode', 'serve']);

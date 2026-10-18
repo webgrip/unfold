@@ -55,6 +55,12 @@ workspaceCpuRequest: ""
 workspaceMemoryRequest: ""
 workspaceImagePullSecrets: []
 workspaceGitSecretName: ""
+# Git URL prefixes the clone and agent containers fetch from another address,
+# such as the forge's in-cluster Service in place of its public host, so
+# workspaceEgress needs no route to an ingress gateway. Each entry is
+# {url, insteadOf}, both HTTP(S) prefixes ending in /. Repository URLs keep
+# their public form.
+workspaceGitRewrites: []
 workspaceAgentSecrets: []
 workspaceUserNamespaces: false
 # RuntimeClass for agent and export pods under the pod provisioner, such as kata

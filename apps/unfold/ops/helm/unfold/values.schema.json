@@ -35,6 +35,7 @@
     "workspaceEgress": { "type": "array", "items": { "type": "object" } },
     "workspaceImagePullSecrets": { "type": "array", "items": { "type": "string" } },
     "workspaceGitSecretName": { "type": "string" },
+    "workspaceGitRewrites": { "type": "array", "maxItems": 16, "items": { "type": "object", "additionalProperties": false, "required": ["url", "insteadOf"], "properties": { "url": { "type": "string", "pattern": "^https?://[^\\s@?#]+/$" }, "insteadOf": { "type": "string", "pattern": "^https?://[^\\s@?#]+/$" } } } },
     "workspaceTransport": { "enum": ["publish", "pull"] },
     "workspaceRelayUrl": { "type": "string" },
     "workspaceProvisioner": { "enum": ["pod", "sandbox"] },
