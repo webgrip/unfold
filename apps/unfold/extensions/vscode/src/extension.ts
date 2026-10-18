@@ -17,7 +17,7 @@ import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome }
 import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor, plainText, providerNames } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
 import { linkedAccounts, type AccountChoice } from './accounts.js';
-import { SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowPlan, agentsWindowState, agentsWindowStatusText, agentsWindowSubject, attachAgentHost, type AgentsWindowLinkView, type AgentsWindowState, type AttachedClient, connectionAddress, detachAgentHost, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
+import { SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowPlan, agentsWindowState, agentsWindowStatusText, agentsWindowSubject, attachAgentHost, type AgentsWindowLinkView, type AgentsWindowState, type AttachedClient, connectionAddress, detachAgentHost, editorWindowOf, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
 import { TaskPanels, type TaskPanelHost } from './task-panel.js';
 import { checkOutWorkItemBranch } from './checkout.js';
@@ -116,6 +116,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       if (event.affectsConfiguration(`unfold.${provideServersSetting}`)) this.mcpServersChanged.fire();
     }));
     context.subscriptions.push(vscode.window.registerUriHandler({ handleUri: uri => this.perform(() => this.handleUri(uri)) }));
+    context.subscriptions.push(vscode.window.onDidChangeWindowState(state => { if (state.focused && this.cachedBootstrap) void this.registerEditorWindow(); }));
     const register = (name: string, action: (...args: any[]) => Promise<unknown>) => context.subscriptions.push(vscode.commands.registerCommand(`unfold.${name}`, (...args: any[]) => this.perform(() => action(...args))));
     register('connect', () => this.connect());
     register('signOut', () => this.signOut());
@@ -497,6 +498,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const address = await this.agentHostAddress(target);
     const issued = await this.context.secrets.get(this.agentHostKey(target));
     if (issued) await this.retireAgentHostToken(target, issued);
+    await target.request('/api/agent-host/editor-window', 'DELETE').catch(() => undefined);
     try { await target.logout(); }
     finally {
       if (address) await this.forgetAgentHost(target, address).catch(() => undefined);
@@ -561,11 +563,22 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const target = this.current;
     try { await this.attachAgentHostTo(target, settings().get('agentHost.autoConnect', true) ? 'always' : 'present'); this.watchAgentsWindow(5_000); }
     catch (error) { if (error instanceof SettingsFileError) void this.perform(() => this.settingsFileProblem(target, error)); }
+    await this.registerEditorWindow(target);
+  }
+
+  private async registerEditorWindow(target = this.current): Promise<void> {
+    if (this.configurationError || this.cachedBootstrap?.user.role === 'viewer') return;
+    try {
+      const external = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://webgrip.unfold/`));
+      const window = editorWindowOf(external.toString(true));
+      if (window) await target.request('/api/agent-host/editor-window', 'PUT', window);
+    } catch {}
   }
 
   private async attachAgentHostOnStart(): Promise<void> {
     if (!settings().get('agentHost.autoConnect', true) || this.configurationError) return;
     await this.attachAgentHostTo(this.current, 'missing').catch(() => undefined);
+    await this.registerEditorWindow();
   }
 
   private async settingsFileProblem(target: UnfoldClient, error: SettingsFileError): Promise<void> {
@@ -854,6 +867,8 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       return;
     }
     if (link.kind === 'checkout') { await this.checkoutBranch(link.workItem, { confirm: true }); return; }
+    if (link.kind === 'work-item') { await this.openWorkItem({ id: link.id, title: `Work Item ${link.id}` }); return; }
+    if (link.kind === 'session') { await this.open(link.id); return; }
     try { await this.bootstrap(); }
     catch (error) {
       if (!(error instanceof ApiError) || error.status !== 401) throw error;
