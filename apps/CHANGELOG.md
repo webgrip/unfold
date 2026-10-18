@@ -1,3 +1,9 @@
+## [unfold-v0.4.0-rc.92](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.91...unfold-v0.4.0-rc.92) (2026-10-18)
+
+### Added
+
+* **unfold:** five Work Item layouts behind the work.layouts Labs flag ([2dc8f1b](https://forgejo.webgrip.dev/webgrip/unfold/commit/2dc8f1bac75b067fb4b8f3e397ddf480d69e9360))
+
 ## [unfold-v0.4.0-rc.91](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.90...unfold-v0.4.0-rc.91) (2026-10-18)
 
 ### Added
