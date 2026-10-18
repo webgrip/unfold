@@ -51,6 +51,27 @@
         "labs": true
       }
     },
+    "work.run-health": {
+      "state": "ENABLED",
+      "variants": {
+        "on": true,
+        "off": false
+      },
+      "defaultVariant": "off",
+      "targeting": {
+        "$ref": "labs-choice"
+      },
+      "metadata": {
+        "kind": "release",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-18",
+        "expires": "2027-01-18",
+        "title": "Run health on running Runs",
+        "description": "Shows a health badge (On track, Watch, Off track, Not judged yet, Not known) and one reason line on each running Run, from deterministic signals per RFC-0007; the judge stays a separate Team setting.",
+        "client": true,
+        "labs": true
+      }
+    },
     "cards.rarity": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },

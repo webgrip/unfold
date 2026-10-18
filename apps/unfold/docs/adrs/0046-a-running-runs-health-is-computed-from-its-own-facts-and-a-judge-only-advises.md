@@ -33,8 +33,11 @@ How does Unfold tell a person, while a Run runs, whether it is on track, and wha
 Chosen option: "Signals computed in the browser, plus a judge model as a Ploeg Ask behind a Team flag that is off by default", because it answers the question for free from facts Unfold already polls, keeps every model call under Ploeg's allowance, and lets the judge's precision be measured before anyone relies on it. The owner chose this on 2026-10-17.
 
 * **One health per running Run:** On track, Watch, Off track, Not judged yet or Not known, as a badge next to the Run's state badge, with one reason line naming the numbers it used. It is shown only while the Run runs.
-* **Signals are deterministic.** Quiet (time since the newest transcript entry against the idle limit), Pace (plan progress against the share of the prompt limit used), Time, Budget (observed spend against the authorized budget, only when cost is observed or provisional) and Repeat (the same tool-call input repeated). The worst signal wins. The thresholds are the named constants in RFC-0007 and live with the other state rules in `public/core/states.js`; changing one is a reviewed change with a test.
-* **Unknown is named.** A Run without limits, cost or transcript shows the signals it can judge and says which it cannot. It never shows On track for lack of evidence.
+* **Signals are deterministic.** Tripwire (the Run's calls against Unfold's tripwires: a medium hit is Watch, a high one Off track), Quiet (time since the newest transcript entry against the idle limit), Pace (plan progress against the share of the prompt limit used), Time, Budget (observed spend against the authorized budget, only when cost is observed or provisional) and Repeat (the same tool-call input repeated). The worst signal wins. The thresholds are the named constants in RFC-0007, `healthThresholds` in `public/core/run-health.js`; changing one is a reviewed change with a test. A Run is On track only when at least one progress signal (Quiet, Time or Pace) was judged; with nothing off and no progress signal judged it reads Not known, so a Ploeg that does not serve the Run's limits yet never shows On track.
+* **Behind Labs first.** The badge on Run rows is behind the `work.run-health` Labs flag and the live view behind `work.live-view`, both off by default, until the owner turns them on for everyone.
+* **One result, two places.** The badge on a running Run's row and the live Work Item view (`work.live-view`) read the same `runHealth` result from `public/core/run-health.js`.
+* **The machine is not the agent.** Runs a machine ended count in their attempt, never in the running Run's health.
+* **Unknown is named.** Not loaded yet, no transcript from the harness, and the demo's missing transcripts are said as three different facts. A Run without limits, cost or transcript shows the signals it can judge and says which it cannot. It never shows On track for lack of evidence.
 * **The judge is an Ask and only advises.** When the Team's `cards.health.judge` flag is on, Unfold asks a model, through a Ploeg Ask, for a verdict in a fixed shape (`health`, a reason of at most 160 characters, transcript evidence). It may raise the badge, never lower it, and it never stops, requeues, steers or grades a Run. Its line carries an AI label and a "this was wrong" control. It runs on a plan change, on a signal turning to Watch, and otherwise at most every 10 minutes, at most 9 times per Run.
 * **Ploeg supplies the limits.** The Run's prompt and idle limits and the time the prompt started come from Ploeg on the operator API Run, as Ploeg ADR-0091's record of a Run's configuration. Until Ploeg serves them, the time-based signals show Not known.
 
@@ -48,6 +51,8 @@ Chosen option: "Signals computed in the browser, plus a judge model as a Ploeg A
 * Bad, because the time-based signals depend on a Ploeg change; until it ships, only Budget and Repeat are judged.
 
 ### Confirmation
+
+* `npm run test:workbench` renders the badge and the live view from fixtures, including Run 305 at 09:17 (Watch) and 09:19 (Off track), at three widths, both themes and reduced motion, and the meaning ledger's test fails on any state or mark it does not explain.
 
 * `test/run-health.test.mjs` covers every row of RFC-0007's state table with fixtures, including the Run 305 timeline: Watch from 09:11 (pace), Off track before 09:19 (quiet).
 * The browser flow checks the badge on a running demo Run at 320 px and the widest layout, in light and dark, with no CSP violation.
@@ -76,6 +81,8 @@ Chosen option: "Signals computed in the browser, plus a judge model as a Ploeg A
 * Bad, because acting changes what a Run does, which is Ploeg's decision and needs its own ADR and the evidence this one collects first.
 
 ## More Information
+
+* 2026-10-18: revised at the owner's request with what building the live view taught ([RFC-0007 revision](../../../../docs/design/rfc-0007-run-health.md#revision-2026-10-18-what-the-live-view-taught)): the Tripwire signal, one result for the Run row and the live view, machine failures excluded, missing transcripts named, and no judge that stops a Run. It is still proposed.
 
 * [RFC-0007: Run health on the Run card](../../../../docs/design/rfc-0007-run-health.md): evidence, job stories, wording, signals, state matrix, measures and plan.
 * Owner request and choice: 2026-10-17. No paid test runs: owner, 2026-10-13; the judge is off by default for that reason.

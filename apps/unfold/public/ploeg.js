@@ -15,7 +15,9 @@ import { cardView } from './cards/card-model.js';
 import { deliveryStages, stageTime } from './core/delivery-track.js';
 import { streamChart, streamLanes } from './core/value-stream.js';
 import { foldTranscript } from './run-transcript.js';
-import { liveModel } from './live/model.js';
+import { liveModel, movesOf } from './live/model.js';
+import { guardSignals } from './live/guard.js';
+import { runHealth, runHealthMarkup, runHealthReason } from './core/run-health.js';
 import { flightPath } from './live/flight-path.js';
 import { foldStrip } from './live/fold-strip.js';
 import { answers } from './live/answers.js';
@@ -953,11 +955,33 @@ export function runLogsMarkup(run, entry) {
   return ui.disclosure({ summary: 'Pod logs', id: `work-run-logs-${run.id}`, body: `<div class="work-run-logs" data-run-logs="${escape(run.id)}">${runLogsBody(run, entry)}</div>` });
 }
 
-function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts }) {
+/**
+ * The health of a running Run from what the page holds: its transcript as the Run panel or the live view loaded it,
+ * its plan, its tripwires and, when Ploeg sends them, its limits. Null for a Run that is not running. The Run rows and
+ * the live view both call this, so they always show the same health.
+ * @param {object} run A Ploeg Run.
+ * @param {Map<string, object>|null|undefined} transcripts The page's transcript state per Run id.
+ * @param {number} now Milliseconds since the epoch.
+ * @returns {ReturnType<typeof runHealth>}
+ */
+export function runningHealth(run, transcripts, now) {
+  if (run?.state !== 'running') return null;
+  const entry = transcripts?.get?.(String(run.id));
+  const folded = entry?.entries?.length ? foldTranscript(entry.entries, { known: entry.trimmed ? null : 0 }) : null;
+  const state = folded ? 'loaded' : entry?.data?.available === false ? (entry.data.reason === 'demo' ? 'demo' : 'unsupported') : 'loading';
+  const items = folded?.items ?? [];
+  const tripwires = folded ? guardSignals(movesOf(items, { now, live: true }).flatMap(move => move.calls)) : [];
+  const asOf = folded && entry.error && typeof entry.readAt === 'number' ? { asOf: entry.readAt } : {};
+  const transcript = !folded && !entry?.data && entry?.error ? null : { state, items, ...asOf };
+  return runHealth({ run, transcript, plan: folded?.plan ?? null, now, limits: run.limits ?? null, judge: null, tripwires });
+}
+
+function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts, health }) {
   const failure = runFailure(run);
   const retriedAs = failure?.retries ? attempts?.get(String(run.id))?.next : null;
   const parts = [];
   const repeated = run.stuckReason && overlaps(run.summary, run.stuckReason);
+  if (health) parts.push(runHealthReason(health));
   if (run.summary && !repeated) parts.push(`<p class="work-run-summary">${escape(run.summary)}</p>`);
   if (run.stuckReason || failure) {
     const tone = run.outcome === 'stuck' ? 'attention' : failure?.tone || 'danger';
@@ -1000,14 +1024,15 @@ function runRow(run, context, { round }) {
   const when = run.finishedAt || run.startedAt;
   const failure = runFailure(run);
   const attempt = attemptLabel(context.attempts?.get(String(run.id)));
+  const health = context.showHealth ? runningHealth(run, context.transcripts, context.now) : null;
   const role = `${round ? `<span class="work-run-round">${escape(round)} · </span>` : ''}${run.writes ? 'writer' : 'reader'}${attempt ? ` · ${escape(attempt)}` : ''}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}`;
-  return `<details class="work-run" id="work-run-${escape(run.id)}" data-tone="${result.tone}"><summary><span class="work-run-lead" aria-hidden="true">${lead}</span><span class="work-run-name"><strong>${escape(run.role || 'Agent')}</strong><span class="meta">${role}</span></span>${ui.badge({ tone: result.tone, label: result.label, title: result.title, size: 'sm' })}<span class="work-run-numbers meta">${time !== null ? `<span class="num">${escape(duration(time))}</span>` : ''}${cost ? `<span class="num">${escape(cost)}</span>` : ''}${when ? ui.timeAgo(when) : ''}</span>${icon('chevron-down', 'work-run-chevron')}</summary><div class="work-run-body">${runBody(run, context)}</div></details>`;
+  return `<details class="work-run" id="work-run-${escape(run.id)}" data-tone="${result.tone}"><summary><span class="work-run-lead" aria-hidden="true">${lead}</span><span class="work-run-name"><strong>${escape(run.role || 'Agent')}</strong><span class="meta">${role}</span></span>${health ? `<span class="work-run-badges">${ui.badge({ tone: result.tone, label: result.label, title: result.title, size: 'sm' })}${runHealthMarkup(health)}</span>` : ui.badge({ tone: result.tone, label: result.label, title: result.title, size: 'sm' })}<span class="work-run-numbers meta">${time !== null ? `<span class="num">${escape(duration(time))}</span>` : ''}${cost ? `<span class="num">${escape(cost)}</span>` : ''}${when ? ui.timeAgo(when) : ''}</span>${icon('chevron-down', 'work-run-chevron')}</summary><div class="work-run-body">${runBody(run, { ...context, health })}</div></details>`;
 }
 
 function runsMarkup(detail, model) {
   const shift = latestShift(detail);
   const groups = runGroups(detail.runs, shift?.id);
-  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts };
+  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, showHealth: model.flags?.['work.run-health'] === true };
   const render = (list, continued) => list.map(group => `${group.label && !continued.has(group.key) ? `<p class="work-run-group">${escape(group.label)}</p>` : ''}${group.runs.map(run => runRow(run, context, { round: group.label })).join('')}`).join('');
   const shown = [];
   const rest = [];
@@ -1453,8 +1478,10 @@ export function statusMarkup(detail, model, { reason = null, plan = null } = {})
 export function liveViewMarkup(detail, model) {
   const running = [...(detail.runs || [])].reverse().find(run => run.state === 'running');
   const entry = running ? model.runTranscripts?.get?.(String(running.id)) : null;
-  const transcript = entry?.entries?.length ? foldTranscript(entry.entries).items : [];
-  const live = liveModel({ detail, transcript, transcriptKnown: Boolean(entry?.entries?.length), transcriptMissing: entry?.data?.available === false ? entry.data.reason ?? null : null, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
+  const folded = entry?.entries?.length ? foldTranscript(entry.entries, { known: entry.trimmed ? null : 0 }) : null;
+  const transcript = folded?.items ?? [];
+  const now = model.now ?? Date.now();
+  const live = liveModel({ detail, transcript, plan: folded?.plan ?? null, health: running ? runningHealth(running, model.runTranscripts, now) : null, transcriptKnown: Boolean(entry?.entries?.length), transcriptMissing: entry?.data?.available === false ? entry.data.reason ?? null : null, transcriptRunId: running ? String(running.id) : undefined, now });
   return `<section class="card work-live lv" aria-label="Live view">${foldStrip(live)}${nowLine(live)}${needsContainment(live) ? containmentPanel(live) : ''}${flightPath(live, { id: `work-live-flight-${detail.item.id}` })}${answers(live, { layout: 'chips', ask: false })}</section>`;
 }
 

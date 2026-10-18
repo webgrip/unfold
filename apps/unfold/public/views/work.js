@@ -138,6 +138,7 @@ function renderWork() {
   const transcriptScroll = new Map([...document.querySelectorAll('#app [data-run-transcript]')].map(element => [element.dataset.runTranscript, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
   renderHtml(shell(workMarkup(current), shellOptions(current)));
   if (current.detail) exposed('work.live-view', { screen: 'work', workItemId: current.detail.item.id });
+  if (current.detail) exposed('work.run-health', { screen: 'work', workItemId: current.detail.item.id });
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
   for (const element of document.querySelectorAll('#app [data-run-log]')) { const kept = logScroll.get(element.dataset.runLog); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
   for (const element of document.querySelectorAll('#app [data-run-transcript]')) { const kept = transcriptScroll.get(element.dataset.runTranscript); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
@@ -730,6 +731,7 @@ async function loadRunTranscript(runId) {
       entry.after = data.nextAfter;
       entry.data = data;
       entry.error = null;
+      entry.readAt = Date.now();
       if (!data.available || !data.hasMore) break;
     }
   } catch (error) {

@@ -761,3 +761,29 @@ test('each Run shows what the agent did above its Pod logs', () => {
   assert.ok(transcript > 0 && transcript < html.indexOf('id="work-run-logs-14"'));
   assert.match(html, /data-run-transcript="14"[^]*<p>Done\.<\/p>/);
 });
+
+test('a running Run’s row shows its health badge and reason only behind work.run-health, and the live view shows the same health', async () => {
+  const { liveViewMarkup, runningHealth } = await import('../public/ploeg.js');
+  const base = detail();
+  const running = { ...base.runs[1], id: '15', state: 'running', finishedAt: null, outcome: null, startedAt: '2026-09-20T10:00:00Z', costStatus: 'observed', usage: { costUsd: 0.95 }, authorizedUsd: 1 };
+  const live = { ...base, item: { ...base.item, state: 'leased' }, runs: [running, ...base.runs] };
+  const entries = [{ seq: 1, kind: 'tool_call', at: '2026-09-20T10:13:00Z', toolCallId: 't1', title: 'Run tests', toolKind: 'execute', status: 'completed', input: 'npm test' }];
+  const runTranscripts = new Map([['15', { data: { available: true, complete: false }, entries, trimmed: false }]]);
+  const now = Date.parse('2026-09-20T10:14:00Z');
+  const off = detailMarkup(live, model({ detailId: '50', now, runTranscripts }));
+  assert.doesNotMatch(off, /run-health/);
+  const on = detailMarkup(live, model({ detailId: '50', now, runTranscripts, flags: { 'work.run-health': true } }));
+  assert.equal((on.match(/class="badge sm run-health /g) ?? []).length, 1, 'only the running Run has a health');
+  assert.match(on, /<span class="work-run-badges"><span class="badge sm" data-tone="[^"]+"[^>]*>.*?Running<\/span><span class="badge sm run-health is-off_track" data-tone="danger"/);
+  assert.match(on, /class="run-health-reason" data-tone="danger">US\$\s?0,95 of US\$\s?1,00 spent \(95 %\); the budget runs out first<\/p>/);
+  const health = runningHealth(running, runTranscripts, now);
+  assert.equal(health.health, 'off_track');
+  assert.equal(runningHealth(base.runs[0], runTranscripts, now), null);
+  const view = liveViewMarkup(live, model({ detailId: '50', now, runTranscripts }));
+  assert.match(view, /Off track: US\$\s?0,95 of US\$\s?1,00 spent/, 'the live view says the same health without the run-health flag');
+  const demo = runningHealth(running, new Map([['15', { data: { available: false, reason: 'demo' }, entries: [] }]]), now);
+  assert.equal(demo.transcript, 'demo');
+  const failing = runningHealth(running, new Map([['15', { data: { available: true }, entries, error: { message: 'offline' }, readAt: now - 120000 }]]), now);
+  assert.deepEqual(failing.stale, { asOf: now - 120000 });
+  assert.equal(runningHealth(running, new Map([['15', { data: null, entries: [], error: { message: 'offline' } }]]), now).transcript, 'none', 'a first read that failed is no transcript, not one still loading');
+});

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { healthRules, liveModel, movesOf } from '../public/live/model.js';
+import { liveModel, moveRules, movesOf } from '../public/live/model.js';
+import { healthThresholds } from '../public/core/run-health.js';
 import { standingAnswers } from '../public/live/answers.js';
 import { instruments } from '../public/live/instruments.js';
 import { fixtureNow, scenarios } from '../public/live/fixtures.js';
@@ -44,31 +45,28 @@ test('agent time is useful time plus time lost to machines, for every scenario',
   }
 });
 
-test('the health word follows its published thresholds', () => {
-  const quietSince = live => (fixtureNow - live.calls.lastAt) / 1000;
-  const steady = model('firstTry');
-  assert.equal(steady.health.word, 'steady');
-  const justBefore = model('firstTry', input => ({ ...input, now: steady.calls.lastAt + (healthRules.stalledAfter - 1) * 1000 }));
-  const atLimit = model('firstTry', input => ({ ...input, now: steady.calls.lastAt + healthRules.stalledAfter * 1000 }));
-  assert.equal(justBefore.health.word, 'steady');
-  assert.equal(atLimit.health.word, 'stalled');
-  assert.ok(quietSince(model('stalled')) >= healthRules.stalledAfter);
-  assert.equal(model('stalled').health.word, 'stalled');
-  assert.equal(model('running').health.word, 'struggling', 'a failed call and an interrupt in ten minutes');
-  const expired = model('firstTry', input => { input.detail.item.lease.expiresAt = new Date(fixtureNow - 1000).toISOString(); return input; });
-  assert.deepEqual([expired.health.word, expired.health.reason], ['stalled', 'The worker’s lease ran out before it was renewed.']);
-  assert.equal(model('landed').health.word, 'idle');
+test('the running Run’s health comes from runHealth, and no Run working means no health', () => {
+  const running = model('running');
+  assert.equal(running.health.health, 'not_known', 'nothing is off, machine-ended Runs do not count, and without limits its progress cannot be judged, so it is never On track');
+  assert.deepEqual(running.health.signals.filter(signal => signal.state === 'unknown').map(signal => signal.id).sort(), ['pace', 'quiet', 'time']);
+  assert.match(running.health.reason, /^Nothing is off, but its progress cannot be judged: Ploeg did not report this Run’s limits/);
+  assert.equal(model('stalled').health.health, 'watch', 'seven quiet minutes of a ten-minute idle stop');
+  assert.ok((fixtureNow - model('stalled').calls.lastAt) / 1000 >= healthThresholds.quietWatch * 600);
+  assert.equal(model('nearBudget').health.health, 'off_track');
+  for (const name of ['landed', 'review', 'queued', 'timeoutRetry', 'needsYou']) assert.equal(model(name).health, null, name);
+  const given = { health: 'watch', label: 'Watch', tone: 'attention', glyph: 'eye', reason: 'Given.', deciding: 'quiet', signals: [], judge: null, transcript: 'loaded', stale: null };
+  assert.equal(model('firstTry', input => ({ ...input, health: given })).health, given, 'a page that computed the health passes it through');
 });
 
 test('moves start at a stage, or after a pause without one, and remember trouble', () => {
   const at = seconds => new Date(fixtureNow + seconds * 1000).toISOString();
   const call = (seconds, extra = {}) => ({ type: 'tool', id: `c${seconds}`, at: at(seconds), title: 'Run', toolKind: 'execute', status: 'completed', input: 'ls', paths: [], ...extra });
   const moves = movesOf([
-    call(0), call(30), call(30 + healthRules.moveGap + 1, { input: 'C-c' }),
+    call(0), call(30), call(30 + moveRules.moveGap + 1, { input: 'C-c' }),
     { type: 'stage', at: at(400), text: 'Write the change' }, call(401, { toolKind: 'edit', status: 'failed' }),
   ], { now: fixtureNow + 500000, live: true });
   assert.deepEqual(moves.map(move => [move.title, move.calls.length, move.trouble, move.live]), [['Run', 2, false, false], ['Run', 1, true, false], ['Write the change', 1, true, true]]);
-  assert.deepEqual(moves.map(move => Math.round(move.seconds)), [30 + healthRules.moveGap + 1, 400 - 30 - healthRules.moveGap - 1, 100]);
+  assert.deepEqual(moves.map(move => Math.round(move.seconds)), [30 + moveRules.moveGap + 1, 400 - 30 - moveRules.moveGap - 1, 100]);
 });
 
 test('the stages say where the Work Item stands and who acts', () => {
@@ -92,39 +90,36 @@ test('the model is deterministic for the same input and moment', () => {
   for (const name of Object.keys(scenarios)) assert.deepEqual(model(name), model(name), name);
 });
 
-test('proposed judge verdicts come from run.judgement events and steer the health word by its published order', () => {
+test('proposed AI judge verdicts are Ask answers of one shape that only raise the health', () => {
   const hijacked = model('hijacked');
-  assert.deepEqual(hijacked.judgements.map(entry => [entry.runId, entry.verdict, entry.proposed]), [['1', 'drifting', true], ['1', 'off_course', true]]);
-  assert.equal(hijacked.health.word, 'suspect', 'a high tripwire outranks the judge');
-  assert.match(hijacked.health.reason, /crossed a tripwire/);
-  assert.equal(model('judgeDrifting').health.word, 'steady', 'drifting then on course leaves a steady Run steady');
-  const abort = model('judgeAbort');
-  assert.deepEqual([abort.health.word, abort.health.tone], ['suspect', 'danger']);
-  assert.match(abort.health.reason, /^A judge model \(proposed\) said abort\. It deleted/);
-  const event = (verdict, at = -1) => ({ id: verdict, at: new Date(fixtureNow + at * 60000).toISOString(), action: 'run.judgement', detail: { runId: '1', verdict, reason: 'Left the brief.', judge: 'judge' } });
-  const offCourse = model('firstTry', input => ({ ...input, detail: { ...input.detail, events: [event('off_course')] } }));
-  assert.deepEqual([offCourse.health.word, offCourse.health.reason], ['struggling', 'A judge model (proposed) said off course. Left the brief.']);
-  const later = model('firstTry', input => ({ ...input, detail: { ...input.detail, events: [event('off_course', -2), event('on_course', -1)] } }));
-  assert.equal(later.health.word, 'steady', 'only the latest verdict counts');
-  const stalled = model('stalled', input => ({ ...input, detail: { ...input.detail, events: [event('off_course')] } }));
-  assert.equal(stalled.health.word, 'struggling', 'an off-course verdict outranks silence');
-  const unknown = model('firstTry', input => ({ ...input, detail: { ...input.detail, events: [event('maybe'), { action: 'work_item.queued', detail: {} }] } }));
-  assert.deepEqual(unknown.judgements, []);
+  assert.deepEqual(hijacked.judgements.map(entry => [entry.runId, entry.health, entry.evidence.length]), [['1', 'watch', 2], ['1', 'off_track', 4]]);
+  assert.deepEqual([hijacked.health.health, hijacked.health.deciding, hijacked.health.judge.raised], ['off_track', 'tripwire', false], 'a high tripwire already says off track');
+  assert.match(hijacked.health.reason, /^Tripwire at \d\d:\d\d: /);
+  const watch = model('judgeDrifting');
+  assert.deepEqual([watch.health.health, watch.health.judge.raised], ['watch', true]);
+  const raised = model('judgeRaises');
+  assert.deepEqual([raised.health.health, raised.health.label, raised.health.judge.raised, raised.running?.state], ['off_track', 'Off track', true, 'running'], 'the Run keeps running');
+  const verdict = (health, minutes = -1, extra = {}) => ({ at: new Date(fixtureNow + minutes * 60000).toISOString(), runId: '1', health, reason: 'Left the brief.', evidence: [3], ...extra });
+  const later = model('firstTry', input => ({ ...input, judgements: [verdict('off_track', -2), verdict('on_track', -1)] }));
+  assert.equal(later.health.health, 'on_track', 'only the latest verdict counts');
+  const lowered = model('nearBudget', input => ({ ...input, judgements: [verdict('on_track')] }));
+  assert.deepEqual([lowered.health.health, lowered.health.judge.health, lowered.health.judge.raised], ['off_track', 'on_track', false], 'a judge never lowers');
+  const malformed = model('firstTry', input => ({ ...input, judgements: [verdict('abort'), verdict('off_track', -1, { reason: 'x'.repeat(161) }), verdict('watch', -1, { evidence: 'seq 3' }), verdict('watch', -1, { stop: true })] }));
+  assert.deepEqual([malformed.judgements, malformed.health.judge, malformed.health.health], [[], null, 'on_track']);
 });
 
 test('without the followed Run’s transcript nothing claims silence or counts calls', () => {
   const blind = model('firstTry', input => ({ ...input, transcript: [] }));
   assert.equal(blind.transcriptKnown, false);
-  assert.deepEqual(blind.health, { word: 'flying', tone: 'live', reason: 'Its calls are not loaded yet.' });
+  assert.equal(blind.health.transcript, 'loading');
+  assert.deepEqual(blind.health.signals.filter(signal => signal.state !== 'unknown').map(signal => signal.id), ['time', 'budget'], 'only the budget and the time it has run can be judged');
   assert.deepEqual([blind.calls.total, blind.calls.lastAt, blind.edits], [null, null, null]);
-  const late = model('firstTry', input => ({ ...input, transcript: [], now: fixtureNow + 3600000 }));
-  assert.equal(late.health.word, 'stalled', 'the lease still speaks: it expired');
   const sentence = liveSentence(blind);
-  assert.deepEqual([sentence.head, sentence.sub], ['Builder is working.', 'Open the Run to follow its calls.']);
-  assert.match(standingAnswers(blind).find(answer => answer.id === 'progress').answer, /transcript is not loaded/);
+  assert.deepEqual([sentence.head, sentence.sub], ['Builder is working.', 'Loading its calls…']);
+  assert.match(standingAnswers(blind).find(answer => answer.id === 'progress').answer, /Loading its calls/);
   assert.doesNotMatch(instruments(blind), /null|0 tool calls/);
   const known = model('firstTry', input => ({ ...input, transcript: [], transcriptKnown: true }));
-  assert.deepEqual([known.transcriptKnown, known.calls.total, known.health.word], [true, 0, 'stalled']);
+  assert.deepEqual([known.transcriptKnown, known.calls.total, known.health.transcript], [true, 0, 'loaded']);
   const flat = flightLegs(blind).find(leg => leg.kind === 'attempt').hops[0];
   assert.equal(flat.profile, null, 'the live hop cruises flat');
 });
@@ -132,8 +127,11 @@ test('without the followed Run’s transcript nothing claims silence or counts c
 test('a transcript the demo or Ploeg cannot give says why, instead of asking to load it', () => {
   const input = scenarios.firstTry.input();
   const demo = liveModel({ ...input, transcript: [], transcriptKnown: false, transcriptMissing: 'demo' });
-  assert.equal(demo.health.word, 'flying');
+  assert.equal(demo.health.transcript, 'demo');
+  assert.match(demo.health.reason, /demo data$/);
   assert.match(demo.transcriptMissing, /demo records no transcripts/);
-  assert.equal(liveModel({ ...input, transcript: [], transcriptKnown: false }).transcriptMissing, null);
+  assert.match(liveModel({ ...input, transcript: [], transcriptKnown: false, transcriptMissing: 'unsupported' }).transcriptMissing, /does not report transcripts/);
+  assert.equal(liveModel({ ...input, transcript: [], transcriptKnown: false }).transcriptMissing, 'Loading its calls…');
   assert.equal(liveModel({ ...input, transcriptMissing: 'demo' }).transcriptMissing, null, 'a loaded transcript wins');
+  assert.equal(liveModel({ ...scenarios.landed.input(), transcriptKnown: false }).transcriptMissing, null, 'nothing loads when no Run works');
 });
