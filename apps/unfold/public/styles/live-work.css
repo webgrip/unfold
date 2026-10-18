@@ -179,7 +179,7 @@ a.lv-origin:hover { background: var(--bg-hover); color: var(--text); }
 .lv-tl-entry.is-mine > .lv-tl-mark { background: var(--accent-solid); color: var(--accent-on-solid); }
 .lv-tl-entry.is-run > .lv-tl-mark { border-radius: var(--radius-md); }
 .lv-tl-entry.is-run.is-live > .lv-tl-mark { background: var(--live-solid); color: var(--vouw); }
-.lv-tl-entry.is-admit > .lv-tl-mark { background: transparent; border: 1.5px dashed var(--border-control); }
+.lv-tl-entry.is-admit > .lv-tl-mark, .lv-tl-entry.is-unstarted > .lv-tl-mark { background: transparent; border: 1.5px dashed var(--border-control); }
 
 .lv-tl-body {
   min-width: 0;
@@ -192,7 +192,7 @@ a.lv-origin:hover { background: var(--bg-hover); color: var(--text); }
   background: var(--bg-surface);
 }
 
-.lv-tl-entry.is-admit > .lv-tl-body, .lv-tl-entry.is-linked > .lv-tl-body { background: transparent; border-style: dashed; }
+.lv-tl-entry.is-admit > .lv-tl-body, .lv-tl-entry.is-unstarted > .lv-tl-body, .lv-tl-entry.is-linked > .lv-tl-body { background: transparent; border-style: dashed; }
 .lv-tl-entry.is-run > .lv-tl-body { padding: 0; overflow: hidden; border-radius: var(--radius-lg); }
 .lv-tl-entry.is-run.is-live > .lv-tl-body { border: 2px solid var(--live-solid); }
 .lv-tl-entry.is-run.is-machine > .lv-tl-body { border-style: dashed; }

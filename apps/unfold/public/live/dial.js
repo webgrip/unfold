@@ -18,7 +18,7 @@ function arc(radius, from, to) {
 
 /**
  * The Shift dial: the outer ring is the Shift from its first Run to now, one arc per Run coloured by how it ended; the
- * inner ring is this attempt's spend against what Ploeg holds; the centre names the working Role, its time and, while
+ * inner ring is this attempt's spend against its budget; the centre names the working Role, its time and, while
  * a Run works, its health.
  * @param {object} model A `liveModel` result.
  * @returns {string}
@@ -38,7 +38,9 @@ export function shiftDial(model) {
   const live = model.runs.find(run => run.state === 'running');
   const [px, py] = live ? point(outer, 1 - 0.0001) : [0, 0];
   const centre = model.running ? span(model.running.seconds) : model.state === 'done' ? 'Landed' : model.state === 'awaiting_review' ? 'Review' : model.state === 'needs_human' ? 'Stopped' : 'Waiting';
-  const role = model.running?.role ?? (model.state === 'awaiting_review' ? 'Pull request open' : model.runs.at(-1)?.role ?? 'No Run yet');
-  const label = `${role}, ${centre}; ${model.runs.length} Runs, ${model.lost.runs} lost to machines; ${share !== null ? `${Math.round(share * 100)}% of this attempt's hold spent` : 'no hold reported'}${model.health ? `; health ${model.health.label}` : ''}.`;
-  return `<figure class="lv-dial"><svg class="lv-dial-svg" viewBox="0 0 300 300" role="img" aria-label="${escape(label)}"><circle class="lv-dial-track" cx="${C}" cy="${C}" r="${outer}"></circle>${arcs}<circle class="lv-dial-track lv-dial-track-inner" cx="${C}" cy="${C}" r="${inner}"></circle>${budget}${live ? `<g transform="translate(${r(px)} ${r(py)})"><circle class="lv-plane-ring" r="15"></circle>${plane(20)}</g>` : ''}<text class="lv-dial-role" x="${C}" y="${C - 26}" text-anchor="middle">${escape(role.toUpperCase())}</text><text class="lv-dial-value" x="${C}" y="${C + 14}" text-anchor="middle">${escape(centre)}</text>${model.health ? `<text class="${cx('lv-dial-health', `lv-tone-${model.health.tone}`)}" x="${C}" y="${C + 42}" text-anchor="middle">${escape(model.health.label)}</text>` : ''}</svg><figcaption class="lv-dial-legend"><span class="lv-key is-machine">machine</span><span class="lv-key is-failed">agent failed</span><span class="lv-key is-live">running</span><span class="lv-key is-spend">${escape(model.spend.attemptUsd === null ? 'no cost reported' : `${usd(model.spend.attemptUsd)} of ${usd(model.spend.heldUsd)}`)}</span></figcaption></figure>`;
+  const role = model.running?.role ?? (model.state === 'awaiting_review' ? 'Pull request open' : model.runs.find(run => run.status === 'pending')?.role ?? model.runs.at(-1)?.role ?? 'No Run yet');
+  const tones = new Set(model.runs.map(run => run.state === 'running' ? 'live' : run.machine ? 'machine' : run.status === 'failed' ? 'failed' : ''));
+  const keys = [['machine', 'machine'], ['failed', 'agent failed'], ['live', 'running']].filter(([tone]) => tones.has(tone)).map(([tone, words]) => `<span class="lv-key is-${tone}">${words}</span>`).join('');
+  const label = `${role}, ${centre}; ${model.runs.length} Runs, ${model.lost.runs} lost to machines; ${share !== null ? `${Math.round(share * 100)}% of this attempt's budget spent` : 'no budget reported'}${model.health ? `; health ${model.health.label}` : ''}.`;
+  return `<figure class="lv-dial"><svg class="lv-dial-svg" viewBox="0 0 300 300" role="img" aria-label="${escape(label)}"><circle class="lv-dial-track" cx="${C}" cy="${C}" r="${outer}"></circle>${arcs}<circle class="lv-dial-track lv-dial-track-inner" cx="${C}" cy="${C}" r="${inner}"></circle>${budget}${live ? `<g transform="translate(${r(px)} ${r(py)})"><circle class="lv-plane-ring" r="15"></circle>${plane(20)}</g>` : ''}<text class="lv-dial-role" x="${C}" y="${C - 26}" text-anchor="middle">${escape(role.toUpperCase())}</text><text class="lv-dial-value" x="${C}" y="${C + 14}" text-anchor="middle">${escape(centre)}</text>${model.health ? `<text class="${cx('lv-dial-health', `lv-tone-${model.health.tone}`)}" x="${C}" y="${C + 42}" text-anchor="middle">${escape(model.health.label)}</text>` : ''}</svg><figcaption class="lv-dial-legend">${keys}<span class="lv-key is-spend">${escape(model.spend.attemptUsd === null ? 'no cost reported' : `${usd(model.spend.attemptUsd)} of ${usd(model.spend.budgetUsd)}`)}</span></figcaption></figure>`;
 }

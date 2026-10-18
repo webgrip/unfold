@@ -32,7 +32,7 @@ const providers = { vikunja: 'Vikunja', github: 'GitHub', forgejo: 'Forgejo', gi
 function runStatus(run) {
   if (run.state === 'pending') return 'pending';
   if (run.state === 'running') return 'running';
-  if (run.outcome === 'cancelled') return 'cancelled';
+  if (run.outcome === 'cancelled' || (!run.startedAt && !run.outcome && !run.failureReason)) return 'cancelled';
   if (run.outcome === 'stuck' || run.failureReason === 'lease_lost') return 'stuck';
   if (run.outcome === 'failed' || run.failureReason) return 'failed';
   return 'done';
@@ -125,8 +125,9 @@ function stageStates(item, runs, current) {
   const state = item.state;
   const hasRun = runs.length > 0;
   const pr = Boolean(item.pullRequest?.url) || runs.some(run => ['pr_opened', 'pr_updated'].includes(run.outcome));
+  const writing = runs.some(run => run.writes === true && ['pending', 'running'].includes(run.state));
   let at = 'wait';
-  if (state === 'leased' || (hasRun && ['queued', 'ingested'].includes(state))) at = 'build';
+  if (state === 'leased' || (hasRun && ['queued', 'ingested'].includes(state))) at = pr && !writing ? 'pr' : 'build';
   if (state === 'awaiting_review') at = 'review';
   if (state === 'needs_human') at = pr ? 'review' : hasRun ? 'build' : 'wait';
   if (state === 'done') at = 'production';
@@ -148,9 +149,10 @@ function stageStates(item, runs, current) {
  * what Ploeg did not report stays `null` and an estimate exists only when the caller passes one.
  *
  * Invariants the components rely on: `spend.usd` is the one spend figure, summed from reported Run costs, and
- * `spend.attemptUsd` is the part of it the latest attempt spent against `spend.heldUsd`; Runs a
+ * `spend.attemptUsd` is the part of it the latest attempt spent against its budget, `spend.budgetUsd`; Runs a
  * machine ended count in `lost` and never as Role work; `time.agent = time.useful + time.lost`; attempts are numbered
- * from 1 in the order Ploeg opened them, and Runs are numbered from 1 inside each attempt; `health` is the running
+ * from 1 in the order Ploeg opened them, an attempt that closed before any of its Runs started is not one of them but
+ * an entry of `unstarted`, and Runs are numbered from 1 inside each attempt; `health` is the running
  * Run's badge, the words its Run row shows (`healthMeta`), and null when no Run is working.
  * @param {object} input
  * @param {object} input.detail A Ploeg Work Item detail: `{ item, shifts, runs, checkpoints, events }`.
@@ -187,8 +189,15 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(run);
   }
-  const attempts = [...groups.entries()].filter(([, members]) => members.length || shifts.length).map(([key, members], index) => {
+  const unstarted = [];
+  const attempts = [...groups.entries()].filter(([, members]) => members.length || shifts.length).flatMap(([key, members]) => {
     const shift = shifts.find(entry => entry.id === key) ?? null;
+    if (shift?.closedAt && !members.some(run => run.startedAt)) {
+      unstarted.push({ id: key, openedAt: toMs(shift.openedAt), closedAt: toMs(shift.closedAt), closeReason: shift.closeReason || '', budgetUsd: isAmount(shift.budgetUsd) ? shift.budgetUsd : null });
+      return [];
+    }
+    return [[key, members, shift]];
+  }).map(([key, members, shift], index) => {
     const list = members.map((run, position) => {
       const failure = runFailure(run);
       const cost = isAmount(run.usage?.costUsd) ? run.usage.costUsd : null;
@@ -197,6 +206,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
         machine: failure?.infra === true, startedAt: toMs(run.startedAt), finishedAt: run.state === 'running' ? null : toMs(run.finishedAt), seconds: runSeconds(run, now),
         costUsd: cost, costStatus: run.costStatus ?? 'unknown', tokensIn: isAmount(run.usage?.inputTokens) ? run.usage.inputTokens : null, tokensOut: isAmount(run.usage?.outputTokens) ? run.usage.outputTokens : null,
         authorizedUsd: isAmount(run.authorizedUsd) ? run.authorizedUsd : null, outcome: run.outcome, verdict: run.verdict || null,
+        said: String(run.solution || run.summary || '').split(/\n\s*\n/)[0].trim(),
       };
     });
     return { n: index + 1, id: key, openedAt: toMs(shift?.openedAt) ?? list[0]?.startedAt ?? null, closedAt: toMs(shift?.closedAt), closeReason: shift?.closeReason || '', budgetUsd: isAmount(shift?.budgetUsd) ? shift.budgetUsd : null, runs: list, lost: list.filter(run => run.machine).length };
@@ -213,7 +223,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
   const spendUsd = rounded(reported.reduce((sum, run) => sum + run.costUsd, 0));
   const latest = attempts.at(-1) ?? null;
   const attemptUsd = rounded((latest?.runs ?? []).reduce((sum, run) => sum + (run.costUsd ?? 0), 0));
-  const heldUsd = latest?.budgetUsd ?? running?.authorizedUsd ?? null;
+  const budgetUsd = latest?.budgetUsd ?? running?.authorizedUsd ?? null;
   const settled = reported.length > 0 && reported.every(run => run.costStatus === 'settled');
   const tokensIn = allRuns.reduce((sum, run) => sum + (run.tokensIn ?? 0), 0);
   const tokensOut = allRuns.reduce((sum, run) => sum + (run.tokensOut ?? 0), 0);
@@ -261,12 +271,13 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     stages: stageList,
     stage: stageList.find(stage => stage.status === 'current')?.id ?? (item.state === 'done' ? 'production' : 'wait'),
     attempts,
+    unstarted,
     runs: allRuns,
     running,
     followed,
     roles,
     lost: { runs: allRuns.filter(run => run.machine).length, agentFailures: allRuns.filter(run => run.failure && !run.machine).length, seconds: lostSeconds },
-    spend: { usd: reported.length ? spendUsd : null, attemptUsd: reported.length ? attemptUsd : null, status: !reported.length ? 'none' : settled ? 'settled' : 'observed', heldUsd, share: heldUsd ? Math.min(1, attemptUsd / heldUsd) : null, over: heldUsd !== null && attemptUsd > heldUsd, unreportedRuns: allRuns.length - reported.length },
+    spend: { usd: reported.length ? spendUsd : null, attemptUsd: reported.length ? attemptUsd : null, status: !reported.length ? 'none' : settled ? 'settled' : 'observed', budgetUsd, share: budgetUsd ? Math.min(1, attemptUsd / budgetUsd) : null, over: budgetUsd !== null && attemptUsd > budgetUsd, unreportedRuns: allRuns.length - reported.length },
     tokens: { in: tokenRuns ? tokensIn : null, out: tokenRuns ? tokensOut : null, unreportedRuns: allRuns.length - tokenRuns },
     time: { agent: agentSeconds, useful: agentSeconds - lostSeconds, lost: lostSeconds, waiting: origin !== null && firstStart !== null ? Math.max(0, (firstStart - origin) / 1000) : origin !== null && !allRuns.length ? Math.max(0, (now - origin) / 1000) : null, waitingFrom: toMs(ticketCreatedAt) !== null ? 'ticket' : 'work item', lead: origin !== null ? Math.max(0, (now - origin) / 1000) : null, run: running?.seconds ?? null },
     lease: item.lease ? { expiresAt: toMs(item.lease.expiresAt), renewedAt: toMs(item.lease.renewedAt), secondsLeft: leaseLeft } : null,

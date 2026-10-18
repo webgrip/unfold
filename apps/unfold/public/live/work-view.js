@@ -1,3 +1,4 @@
+import { closeReasonLabel } from '../core/states.js';
 import { liveSentence } from './parts.js';
 
 const providers = Object.freeze({ vikunja: 'Vikunja', github: 'GitHub', forgejo: 'Forgejo', gitlab: 'GitLab', jira: 'Jira', linear: 'Linear', clickup: 'ClickUp', demo: 'Demo tracker', manual: 'Manual' });
@@ -50,7 +51,7 @@ function conditionsOf(brief, proofs) {
 
 function runEntry(run) {
   const ending = run.state === 'running' ? 'live' : run.machine ? 'machine' : run.status === 'failed' || run.status === 'stuck' ? 'failed' : run.status === 'cancelled' ? 'cancelled' : run.status === 'pending' ? 'pending' : 'done';
-  return { kind: 'run', move: null, at: run.startedAt, end: run.finishedAt, id: run.id, n: run.n, attempt: run.attempt, role: run.role, writes: run.writes, ending, seconds: run.seconds, costUsd: run.costUsd, tokensIn: run.tokensIn, failure: run.failure?.label ?? '', verdict: run.verdict };
+  return { kind: 'run', move: null, at: run.startedAt, end: run.finishedAt, id: run.id, n: run.n, attempt: run.attempt, role: run.role, writes: run.writes, ending, seconds: run.seconds, costUsd: run.costUsd, tokensIn: run.tokensIn, failure: run.failure?.label ?? '', verdict: run.verdict, said: run.said ?? '' };
 }
 
 function burstsOf(entries) {
@@ -69,6 +70,7 @@ function entriesOf(live, { detail, brief, asks, context, linked, messages, origi
   const created = toMs(detail.item.createdAt);
   list.push({ kind: 'brief', at: created, who: from.by || 'The tracker', text: brief.text, conditions: brief.conditions.length });
   for (const attempt of live.attempts) list.push({ kind: 'admit', at: attempt.openedAt, attempt: attempt.n, budgetUsd: attempt.budgetUsd });
+  for (const attempt of live.unstarted ?? []) list.push({ kind: 'unstarted', at: attempt.openedAt, end: attempt.closedAt, reason: attempt.closeReason ? closeReasonLabel(attempt.closeReason) : '', withdrawn: attempt.closeReason.startsWith('withdrawn') });
   const move = live.moves.findLast(each => each.live) ?? null;
   for (const run of live.runs) if (run.startedAt !== null) list.push({ ...runEntry(run), move: run.state === 'running' && move ? { title: move.title, calls: move.calls.length } : null });
   for (const file of context?.items ?? []) list.push({ kind: 'context', at: toMs(file.addedAt), who: file.addedBy || 'Someone', name: file.name, note: file.note || '', steering: file.phase === 'while_steering' });
@@ -84,11 +86,14 @@ function entriesOf(live, { detail, brief, asks, context, linked, messages, origi
   const firstRun = live.runs.find(run => run.startedAt !== null)?.startedAt ?? null;
   const withFolds = [];
   let busyUntil = null;
+  let previous = null;
   for (const entry of ordered) {
     if (busyUntil !== null && (entry.at - busyUntil) / 1000 >= foldGapSeconds) {
       const waiting = firstRun === null || entry.at <= firstRun;
-      withFolds.push({ kind: 'fold', at: busyUntil, seconds: Math.round((entry.at - busyUntil) / 1000), reason: waiting ? 'Waiting for a worker' : 'Between Runs' });
+      const reason = previous?.kind === 'unstarted' ? previous.withdrawn ? 'Off the Team’s queue until it was handed back' : 'Until Ploeg opened the next attempt' : waiting ? 'Waiting for a worker' : 'Between Runs';
+      withFolds.push({ kind: 'fold', at: busyUntil, seconds: Math.round((entry.at - busyUntil) / 1000), reason });
     }
+    previous = entry;
     const until = entry.kind === 'run' && entry.ending === 'live' ? live.now : entry.end ?? entry.at;
     busyUntil = Math.max(busyUntil ?? until, until);
     withFolds.push(entry);
@@ -131,11 +136,11 @@ function tapeOf(live, asks) {
   const segments = live.runs.filter(run => run.costUsd !== null && run.costUsd > 0).map(run => ({ kind: run.state === 'running' ? 'live' : run.machine ? 'lost' : 'run', usd: run.costUsd, label: `${run.role} · Run ${run.n}${run.machine ? ' · lost to a machine' : ''}` }));
   const asked = (asks?.items ?? []).reduce((sum, ask) => sum + (isAmount(ask.costUsd) ? ask.costUsd : 0), 0);
   if (asked > 0) segments.push({ kind: 'ask', usd: asked, label: 'Asks' });
-  const held = live.running && live.spend.heldUsd !== null && live.spend.attemptUsd !== null ? Math.max(0, live.spend.heldUsd - live.spend.attemptUsd) : 0;
+  const held = live.running && live.spend.budgetUsd !== null && live.spend.attemptUsd !== null ? Math.max(0, live.spend.budgetUsd - live.spend.attemptUsd) : 0;
   if (held > 0) segments.push({ kind: 'held', usd: held, label: 'Held for the running Run' });
   const total = segments.filter(segment => segment.kind !== 'held').reduce((sum, segment) => sum + segment.usd, 0);
-  const scale = Math.max(total + held, live.spend.heldUsd ?? 0, 0.01);
-  return { segments, totalUsd: segments.length ? total : null, heldUsd: held || null, budgetUsd: live.spend.heldUsd, scaleUsd: scale };
+  const scale = Math.max(total + held, live.spend.budgetUsd ?? 0, 0.01);
+  return { segments, totalUsd: segments.length ? total : null, heldUsd: held || null, budgetUsd: live.spend.budgetUsd, scaleUsd: scale };
 }
 
 function presenceOf(live, linked, viewer) {

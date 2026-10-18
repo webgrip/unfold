@@ -309,6 +309,21 @@ export const scenarios = {
       { ...run('2', '178', -2, null), state: 'pending', startedAt: null },
     ] }, now: fixtureNow, allowance }),
   },
+  agentReview: {
+    label: 'Pull request open, agent review queued',
+    description: 'Unassigned twice before a Run started, then the builder opened a pull request; the reviewers wait for a machine.',
+    input: () => ({ detail: { ...empty, item: item({ createdAt: at(-75), pullRequest: { url: 'https://forgejo.example/webgrip/homelab-cluster/pulls/817', number: 817, mergeState: 'unknown', baseBranch: 'main', headSha: '085b714', checkedAt: at(-1) } }), shifts: [
+      shift('225', -75, { budgetUsd: 9.2, reservedUsd: 0, closedAt: at(-39), closeReason: 'withdrawn_unassigned' }),
+      shift('227', -17, { budgetUsd: 9.2, reservedUsd: 0, closedAt: at(-13), closeReason: 'withdrawn_unassigned' }),
+      shift('228', -9, { budgetUsd: 9.2, reservedUsd: 2, round: 2 }),
+    ], runs: [
+      { ...run('373', '225', -39, -39, { summary: 'cancelled: work item withdrawn (withdrawn_unassigned)' }), startedAt: null },
+      { ...run('375', '227', -13, -13, { summary: 'cancelled: work item withdrawn (withdrawn_unassigned)' }), startedAt: null },
+      run('376', '228', -8.8, -1.5, { outcome: 'pr_opened', costStatus: 'observed', usage: { costUsd: 0.04 }, summary: 'acp run opened a PR', solution: 'The telemetry guide now says when Ploeg passes the telemetry setting to each harness.\n\n### For developers\n- One line added.' }),
+      { ...run('377', '228', -1.5, null, { role: 'reviewer', writes: false, round: 2 }), state: 'pending', startedAt: null },
+      { ...run('378', '228', -1.5, null, { role: 'shadow-reviewer', writes: false, round: 2 }), state: 'pending', startedAt: null },
+    ] }, now: fixtureNow, allowance }),
+  },
   overBudget: {
     label: 'Out of budget',
     description: 'The writer reached its token ceiling; Ploeg stopped and asks a person.',

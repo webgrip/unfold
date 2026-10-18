@@ -49,7 +49,11 @@ export function liveSentence(model) {
   if (model.state === 'done') return { head: 'Landed.', sub: `${usd(model.spend.usd)} over ${model.runs.length} Runs.`, tone: 'success' };
   if (model.state === 'withdrawn') return { head: 'Withdrawn.', sub: 'Someone stopped this Work Item; its Runs are kept.', tone: 'neutral' };
   if (model.state === 'stale') return { head: 'Stopped retrying.', sub: `Ploeg gave up after ${model.lost.runs + model.lost.agentFailures} failed Runs.`, tone: 'severe' };
-  if (!model.running && model.runs.some(run => run.status === 'pending')) return { head: 'Waiting for a worker.', sub: 'The next Run is queued; Ploeg starts it when a machine is free.', tone: 'neutral' };
+  const queued = [...new Set(model.runs.filter(run => run.status === 'pending').map(run => run.role))];
+  if (!model.running && queued.length) {
+    const pr = model.stage === 'pr' && model.pullRequest ? `Pull request${model.pullRequest.number ? ` #${model.pullRequest.number}` : ''} is open. ` : '';
+    return { head: 'Waiting for a worker.', sub: `${pr}${queued.join(' and ')} ${queued.length === 1 ? 'is' : 'are'} queued; Ploeg starts ${queued.length === 1 ? 'it' : 'them'} when a machine is free.`, tone: 'neutral' };
+  }
   if (!model.running) return { head: 'Between Runs.', sub: 'Ploeg starts the next Run when a worker is free.', tone: 'neutral' };
   const warning = healthWarning(model.health);
   const tone = healthTone(model.health);

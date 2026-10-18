@@ -2,6 +2,11 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { briefOf, foldGapSeconds, workView } from '../public/live/work-view.js';
 import { workInputOf } from '../public/live/work-fixtures.js';
+import { scenarios } from '../public/live/fixtures.js';
+import { liveModel } from '../public/live/model.js';
+import { liveSentence } from '../public/live/parts.js';
+import { standingAnswers } from '../public/live/answers.js';
+import { flightLegs } from '../public/live/flight-path.js';
 import { intentBar, decisionDock, acceptanceLedger, timeline } from '../public/live/work-parts.js';
 import { workPage } from '../public/live/pages.js';
 
@@ -109,4 +114,21 @@ test('a Run that went off track and came back shows the judge’s history on its
   assert.doesNotMatch(html, /lv-containment/);
   assert.match(html, /Sent to the running Builder/);
   assert.match(workPage(workView(workInputOf('rogue'))), /lv-containment/, 'a Run that is off track now still raises the alarm');
+});
+
+test('an open pull request with queued reviewers sits at the pull request, and attempts that never started a Run are not numbered', () => {
+  const input = scenarios.agentReview.input();
+  const live = liveModel(input);
+  assert.deepEqual(live.stages.map(stage => [stage.id, stage.status]), [['ask', 'done'], ['wait', 'done'], ['build', 'done'], ['pr', 'current'], ['review', 'next'], ['merge', 'next'], ['production', 'next']]);
+  assert.deepEqual(live.attempts.map(attempt => attempt.n), [1]);
+  assert.equal(live.unstarted.length, 2);
+  assert.equal(live.spend.budgetUsd, 9.2);
+  assert.match(liveSentence(live).sub, /^Pull request #817 is open\. Reviewer and Shadow-reviewer are queued/);
+  assert.match(standingAnswers(live).find(answer => answer.id === 'review').answer, /^After the agents\./);
+  assert.deepEqual(flightLegs(live).filter(leg => leg.kind === 'attempt').map(leg => leg.head), ['Attempt 1']);
+  assert.equal(flightLegs(live).find(leg => leg.kind === 'approach').mode, 'landed');
+  const entries = workView({ live, detail: input.detail }).entries;
+  assert.deepEqual(entries.filter(entry => entry.kind === 'unstarted').map(entry => entry.reason), ['The task was unassigned from the Team', 'The task was unassigned from the Team']);
+  assert.ok(entries.filter(entry => entry.kind === 'fold').every(fold => fold.reason !== 'Waiting for a worker'));
+  assert.equal(entries.find(entry => entry.kind === 'run').said, 'The telemetry guide now says when Ploeg passes the telemetry setting to each harness.');
 });
