@@ -38,7 +38,7 @@ export function managedConfig(config: AppConfig, repository?: Pick<Repository, '
   return {
     provider: providers, enabled_providers: Object.keys(providers),
     ...(first ? { model: `${first.providerId}/${first.modelId}`, small_model: `${first.providerId}/${first.modelId}` } : {}),
-    share: 'disabled', autoupdate: false, permission: { '*': 'ask', external_directory: 'deny' },
+    share: 'disabled', autoupdate: false, permission: { '*': 'ask', read: 'allow', list: 'allow', glob: 'allow', grep: 'allow', external_directory: 'deny' },
     ...(gateway ? { mcp: { litellm: { type: 'remote', url: gatewayMcpUrl(gateway), headers: { 'x-litellm-api-key': 'Bearer {env:LITELLM_API_KEY}' }, oauth: false, enabled: true } } } : {}),
   };
 }

@@ -343,7 +343,7 @@ test('managed agent configuration adds the gateway MCP server only for a reposit
   assert.deepEqual(scoped.mcp, { litellm: { type: 'remote', url: 'https://gateway.example/mcp', headers: { 'x-litellm-api-key': 'Bearer {env:LITELLM_API_KEY}' }, oauth: false, enabled: true } });
   const { mcp: _, ...rest } = scoped;
   assert.deepEqual(rest, plain);
-  assert.deepEqual(scoped.permission, { '*': 'ask', external_directory: 'deny' });
+  assert.deepEqual(scoped.permission, { '*': 'ask', read: 'allow', list: 'allow', glob: 'allow', grep: 'allow', external_directory: 'deny' });
   assert.equal(JSON.stringify(scoped).includes('MASTER-NEVER-AGENT'), false);
   assert.equal(JSON.stringify(scoped).includes('agents-orders'), false);
   config.litellm!.baseUrl = 'https://gateway.example/litellm/v1/';
