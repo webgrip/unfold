@@ -139,6 +139,16 @@ export function fleetModel({ now, summary = null, at = Date.now() } = {}) {
 }
 
 /**
+ * Whether the fleet has clear skies: at least one Team, and nothing at the gate, in the air, holding or on approach.
+ * @param {object} model A `fleetModel` result.
+ * @returns {boolean}
+ */
+export function clearSkies(model) {
+  const { holding, approach, air, gate, teams } = model.totals;
+  return Boolean(teams) && !holding && !approach && !air && !gate;
+}
+
+/**
  * One sentence over the whole fleet, the board's headline: what holds, what is on approach and what flies.
  * @param {object} model A `fleetModel` result.
  * @returns {string}
@@ -153,10 +163,12 @@ export function fleetHeadline(model) {
     gate ? `${gate} at the gate` : '',
   ].filter(Boolean);
   const fleet = flying === teams ? `${plural(teams, 'Team')} flying` : `${flying} of ${plural(teams, 'Team')} flying`;
-  if (!parts.length) return `Clear skies. ${fleet}, nothing waits.`;
+  if (clearSkies(model)) return `Clear skies. ${fleet}, nothing waits.`;
   const joined = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts.at(-1)}`;
   return `${joined[0].toUpperCase()}${joined.slice(1)}. ${fleet}.`;
 }
+
+const cruise = () => `<svg class="fb-cruise" viewBox="0 0 168 64" aria-hidden="true" focusable="false"><g class="fb-cruise-air"><path class="fb-cruise-trail" d="M4 50 C 44 50, 76 34, 118 32"></path><g transform="translate(140 30)"><g class="fb-cruise-plane">${plane(44, 'fb-mark')}</g></g></g></svg>`;
 
 const markSvg = className => `<svg class="${className}" viewBox="-16 -16 32 32" aria-hidden="true" focusable="false">${plane(28, 'fb-mark')}</svg>`;
 
@@ -265,5 +277,5 @@ export function fleetBoard(model) {
   const missing = model.missing.length ? `<p class="fb-missing" role="status">Ploeg could not list ${escape(model.missing.map(group => missingWords[group] ?? group).join(', '))}. Counts that depend on it may be short.</p>` : '';
   const waits = model.totals.holding + model.totals.approach;
   const desk = waits ? `<button type="button" class="button secondary sm fb-desk" data-action="now-mode" data-id="desk">${escape(`${plural(waits, 'Work Item')} ${waits === 1 ? 'waits' : 'wait'} on you · Open the desk`)}</button>` : '';
-  return `<article class="fb" data-live="fleet-board"><header class="fb-head"><div class="fb-head-text"><p class="fb-overline">Fleet</p><p class="fb-headline">${escape(fleetHeadline(model))}</p></div>${desk}</header>${model.demo ? demoNote() : ''}${missing}${totalsMarkup(model)}${airspace(model)}<div class="fb-boards">${flightBoard(model.departures, { kind: 'departures' })}${flightBoard(model.arrivals, { kind: 'arrivals' })}</div></article>`;
+  return `<article class="fb" data-live="fleet-board"><header class="fb-head"><div class="fb-head-text"><p class="fb-overline">Fleet</p><p class="fb-headline">${escape(fleetHeadline(model))}</p></div>${clearSkies(model) ? cruise() : ''}${desk}</header>${model.demo ? demoNote() : ''}${missing}${totalsMarkup(model)}${airspace(model)}<div class="fb-boards">${flightBoard(model.departures, { kind: 'departures' })}${flightBoard(model.arrivals, { kind: 'arrivals' })}</div></article>`;
 }
