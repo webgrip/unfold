@@ -15,7 +15,7 @@ function context(events: RuntimeEvent[], signal = new AbortController().signal):
   return executionFixture({ runtime: 'opencode', role: { id: 'reviewer', name: 'Reviewer', mode: 'read', instruction: 'Review the evidence' }, workspace: { ...workspace }, verify: ['npm', 'test'], prompt: 'Review the change', emit: event => { events.push(event); }, signal });
 }
 
-function wire(options: { failPrompt?: boolean; waiting?: boolean; incomplete?: boolean; toolCommand?: string } = {}) {
+function wire(options: { failPrompt?: boolean; waiting?: boolean; incomplete?: boolean; toolCommand?: string; failPermissionList?: number; agentError?: { name: string; message: string } } = {}) {
   const calls: Array<{ path: string; method: string; body: any }> = [];
   let submitted = false;
   let permission = options.waiting ?? false;
@@ -37,8 +37,10 @@ function wire(options: { failPrompt?: boolean; waiting?: boolean; incomplete?: b
     }
     if (url.pathname === '/permission/perm_one/reply') { permission = false; return json(true); }
     if (url.pathname === '/session/status') return json(permission ? { ses_native: { type: 'busy' } } : {});
+    if (url.pathname === '/permission' && submitted && options.failPermissionList) return new Response('secret-opencode-body', { status: options.failPermissionList });
     if (url.pathname === '/permission') return json(submitted && permission ? [{ id: 'perm_one', sessionID: 'ses_native', permission: 'read', patterns: ['README.md'], always: ['README.md'], metadata: {} }] : []);
     if (url.pathname === '/question' || url.pathname.endsWith('/children')) return json([]);
+    if (url.pathname.endsWith('/message') && submitted && options.agentError) return json([{ info: { id: 'msg_failed', role: 'assistant', sessionID: 'ses_native', parentID: 'msg_user', time: { created: 1 }, error: options.agentError }, parts: [] }]);
     if (url.pathname.endsWith('/message')) return json(submitted && !permission ? [{ info: { id: 'msg_answer', role: 'assistant', sessionID: 'ses_native', parentID: 'msg_user', time: { created: 1, completed: 2 }, finish: options.incomplete ? 'tool-calls' : 'stop', cost: 0.02, tokens: { input: 10, output: 20 } }, parts: [{ type: 'text', text: '```json\n{"verdict":"approve","summary":"Inspected the supplied evidence"}\n```' }, ...(options.toolCommand ? [{ type: 'tool', tool: 'bash', state: { status: 'completed', input: { command: options.toolCommand }, output: 'Actual verification output' } }] : [])] }] : []);
     if (url.pathname.endsWith('/diff')) return json([{ file: 'README.md', before: 'before', after: 'after', additions: 1, deletions: 1 }]);
     if (url.pathname.endsWith('/abort')) return json(true);
@@ -82,6 +84,16 @@ test('OpenCode never retries an ambiguous paid prompt and excludes raw error bod
   await assert.rejects(runtime.execute(context([])), error => error instanceof RuntimeFailure && error.category === 'prompt_acceptance_unknown' && error.promptAcceptance === 'unknown' && !JSON.stringify(error).includes('secret-provider-error'));
   assert.equal(fake.calls.filter(call => call.path.endsWith('/prompt_async')).length, 1);
   assert.equal(fake.calls.some(call => call.path.endsWith('/abort')), true);
+});
+
+test('a call that fails during a turn names itself in the failure, without the response body', async () => {
+  const runtime = new OpenCodeRuntime(config, manager, wire({ failPermissionList: 502 }).fetcher);
+  await assert.rejects(runtime.execute(context([])), error => error instanceof RuntimeFailure && error.category === 'harness_rejected' && error.stage === 'execution' && error.promptAcceptance === 'accepted' && error.httpStatus === 502 && error.detail === 'GET /permission answered HTTP 502' && !JSON.stringify(error).includes('secret-opencode-body'));
+});
+
+test('an error OpenCode reports on the assistant message is kept in the failure', async () => {
+  const runtime = new OpenCodeRuntime(config, manager, wire({ agentError: { name: 'UnknownError', message: 'tool grep failed' } }).fetcher);
+  await assert.rejects(runtime.execute(context([])), error => error instanceof RuntimeFailure && error.category === 'harness_rejected' && error.promptAcceptance === 'accepted' && error.detail === 'UnknownError: tool grep failed');
 });
 
 test('OpenCode interruption aborts native run and does not turn cancellation into retry', async () => {
