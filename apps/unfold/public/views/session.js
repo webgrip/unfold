@@ -50,7 +50,7 @@ const workItemOf = session => { const id = String(session?.execution?.workItemId
 /** The Work Item page that shows `session` in place of its own page, or null while the session has no Work Item or the one page is off. */
 export function onePageFor(session) {
   const id = workItemOf(session);
-  return id && enabled('work.layouts') ? `work/${id}` : null;
+  return id && enabled('work.unified') ? `work/${id}` : null;
 }
 
 function renderSession() {

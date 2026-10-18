@@ -1626,7 +1626,7 @@ export function liveViewMarkup(detail, model) {
 }
 
 /**
- * The Work Item on its one page, the `work.layouts` Labs flag: one view of the Work Item, the session that started it,
+ * The Work Item on its one page, the `work.unified` Labs flag: one view of the Work Item, the session that started it,
  * its Asks, context and linked sessions, drawn by `workPage`. Every Run in the log opens in place to the same body as
  * on the current page, with what the agent did and its pod logs. `model.session` carries the session's own parts.
  */
@@ -1653,7 +1653,7 @@ export function detailMarkup(recordedDetail, model) {
     plan = reviewPlan(detail, model.card);
     primary = plan.primary;
   }
-  if (model.flags?.['work.layouts'] === true) return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${onePageMarkup(detail, model, { primary, decision: `${reason ? needsYouBox(detail, model, reason, plan) : item.state === 'awaiting_review' ? reviewBox(detail, model, plan) : ''}${disagreementsMarkup(detail)}${findingsMarkup(detail)}`, account: accountMarkup(detail) })}</article>`;
+  if (model.flags?.['work.unified'] === true) return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${onePageMarkup(detail, model, { primary, decision: `${reason ? needsYouBox(detail, model, reason, plan) : item.state === 'awaiting_review' ? reviewBox(detail, model, plan) : ''}${disagreementsMarkup(detail)}${findingsMarkup(detail)}`, account: accountMarkup(detail) })}</article>`;
   const status = statusMarkup(detail, model, { reason, plan });
   let decision;
   if (reason) decision = needsYouBox(detail, model, reason, plan);

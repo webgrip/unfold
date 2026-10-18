@@ -30,7 +30,7 @@ UNFOLD_COOKIE='<cookie name>=<value>' mise exec -- npm run workbench:record -- v
 
 `UNFOLD_URL` defaults to `https://unfold.webgrip.dev`. The recorder opens Unfold in headless Chromium with your cookie, visits Now, Work and each Work Item, opens every disclosure so Run logs and transcripts load, and keeps every JSON `GET` answer. It blocks every other method, so recording never changes anything. Pages Unfold does not visit, such as Sessions, keep the demo's answers. A recording holds real tracker text, logs and your account; it never leaves your machine.
 
-`test:workbench` checks one demo Work Item per state and every local recording at every width and theme, once as shipped, once with the `work.live-view` Labs flag on and once with `work.layouts` (One Work Item page) on. In the workbench, the **Labs** boxes turn flags on for the frames; the server does it by adding them to the recorded bootstrap (`/app/<recording>~<flag>,<flag>/`). A request the recording cannot answer is a `recording` warning.
+`test:workbench` checks one demo Work Item per state and every local recording at every width and theme, once as shipped, once with the `work.live-view` Labs flag on and once with `work.unified` (Unified Work Item page) on. In the workbench, the **Labs** boxes turn flags on for the frames; the server does it by adding them to the recorded bootstrap (`/app/<recording>~<flag>,<flag>/`). A request the recording cannot answer is a `recording` warning.
 
 ## What it checks
 
