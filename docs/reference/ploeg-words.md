@@ -130,6 +130,8 @@ MCP: unfold_get_work passes `closeReason` through on each Shift; unfold_now and 
 | `fix_round_cap_reached` | The fix Rounds ran out | Reviewer still wants changes | same |  |
 | `budget_exhausted_before_fix_round` | The budget ran out before a fix Round | Budget ran out | same |  |
 | `checks_not_passed` | The checks did not pass | Checks did not pass | same |  |
+| `ci_not_finished` | CI was still running when Ploeg stopped waiting | CI did not finish | same |  |
+| `ci_not_passed` | CI failed for a reason the writer cannot fix | CI did not pass | same |  |
 | `writing_run_failed_repeatedly` | The writer kept failing | Writer kept failing | same |  |
 | `writing_run_killed_repeatedly` | The cluster kept stopping the writer | Cluster kept stopping the writer | same |  |
 | `withdrawn_unassigned` | The task was unassigned from the Team | — | same |  |
