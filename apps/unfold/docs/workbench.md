@@ -63,6 +63,7 @@ UNFOLD_COOKIE='<cookie name>=<value>' mise exec -- npm run workbench:record -- v
 | `instruments.js` | spend against what the attempt holds, time, tokens, what was lost |
 | `trace.js` | lanes on one time axis per attempt, move and call kind; the moves as disclosures |
 | `answers.js` | the questions people ask, answered from the record with their source |
+| `landing.js` | `landingEstimate()`: when the running writing Run should open its pull request, from the median time the Team's last finished Runs of that Role took to open one; the slowest tenth once it runs long, and no landing time past them all or with fewer than three |
 | `dial.js` | the Shift dial |
 | `fold-strip.js` | the stages as folds, full or row-sized |
 | `layouts.js` | the cockpit, instrument and fleet pages |
