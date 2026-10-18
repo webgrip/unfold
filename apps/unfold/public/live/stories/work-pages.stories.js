@@ -1,34 +1,27 @@
-import { workLayouts, workPage } from '../pages.js';
+import { workPage } from '../pages.js';
 import { workViewOf } from '../work-fixtures.js';
 import { meta } from './shared.js';
 
+const runBody = id => `<p class="work-run-summary">What Run ${id} did, its transcript and its pod logs open here in the app.</p>`;
+const session = { decision: '', actions: '<button type="button" class="button secondary sm">Pause</button>', evidence: '<section class="card flush session-evidence"><p class="card-body">Activity, gateway calls, changes, checks and the hand-off of the session.</p></section>', evidenceLabel: 'Evidence', side: '<section class="card"><p class="card-body">Budget, repository hand-off, tool approval and details of the session.</p></section>' };
+
 export default meta({
-  title: 'Live/Work pages',
+  title: 'Live/Work Item page',
   frame: 'page',
-  render: ({ scenario, layout, origin }) => workPage(layout, workViewOf(scenario, { origin: origin === 'scenario' ? undefined : origin })),
-  args: { layout: 'unified', origin: 'scenario' },
-  argTypes: { layout: { control: 'inline-radio', options: workLayouts.map(entry => entry.id) }, origin: { control: 'inline-radio', options: ['scenario', 'unfold', 'tracker'] } },
+  render: ({ scenario, origin, tab }) => workPage(workViewOf(scenario, { origin: origin === 'scenario' ? undefined : origin }), { runDetail: runBody, ...(origin === 'unfold' ? { session } : {}), ...(tab === 'default' ? {} : { tab }) }),
+  args: { origin: 'scenario', tab: 'default' },
+  argTypes: { origin: { control: 'inline-radio', options: ['scenario', 'unfold', 'tracker'] }, tab: { control: 'inline-radio', options: ['default', 'log', 'brief', 'trace', 'evidence'] } },
 });
 
-export const Unified = {};
-export const UnifiedNeedsYou = { args: { scenario: 'needsYou' } };
-export const UnifiedReadyForReview = { args: { scenario: 'review', origin: 'tracker' } };
-export const UnifiedQueued = { args: { scenario: 'queued' } };
-export const UnifiedLanded = { args: { scenario: 'landed' } };
-export const UnifiedHijacked = { args: { scenario: 'hijacked' } };
-export const UnifiedStress = { args: { scenario: 'stress' } };
-export const UnifiedOffTrackThenBack = { args: { scenario: 'driftRecovered' } };
-export const UnifiedRogue = { args: { scenario: 'rogue' } };
-export const UnifiedContextUnblocks = { args: { scenario: 'contextUnblocks' } };
-export const UnifiedReviewLoop = { args: { scenario: 'reviewLoop' } };
-export const Thread = { args: { layout: 'thread' } };
-export const ThreadNeedsYou = { args: { layout: 'thread', scenario: 'needsYou' } };
-export const ThreadFromTracker = { args: { layout: 'thread', scenario: 'review', origin: 'tracker' } };
-export const Cockpit = { args: { layout: 'cockpit' } };
-export const CockpitHijacked = { args: { layout: 'cockpit', scenario: 'hijacked' } };
-export const Desk = { args: { layout: 'desk' } };
-export const DeskQueued = { args: { layout: 'desk', scenario: 'queued' } };
-export const Logbook = { args: { layout: 'logbook' } };
-export const LogbookStress = { args: { layout: 'logbook', scenario: 'stress' } };
-export const Proof = { args: { layout: 'proof' } };
-export const ProofReadyForReview = { args: { layout: 'proof', scenario: 'review' } };
+export const Running = {};
+export const NeedsYou = { args: { scenario: 'needsYou' } };
+export const ReadyForReview = { args: { scenario: 'review', origin: 'tracker' } };
+export const Queued = { args: { scenario: 'queued' } };
+export const Landed = { args: { scenario: 'landed' } };
+export const Hijacked = { args: { scenario: 'hijacked' } };
+export const Stress = { args: { scenario: 'stress' } };
+export const OffTrackThenBack = { args: { scenario: 'driftRecovered' } };
+export const Rogue = { args: { scenario: 'rogue' } };
+export const ContextUnblocks = { args: { scenario: 'contextUnblocks' } };
+export const ReviewLoop = { args: { scenario: 'reviewLoop' } };
+export const StartedInUnfold = { args: { origin: 'unfold', tab: 'evidence' } };

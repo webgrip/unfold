@@ -63,6 +63,13 @@ Agent Host Protocol: Microsoft's JSON-RPC protocol that lets VS Code's Agent Hos
 **Also known as:** Agent Host Protocol  
 **See also:** [Unfold](#unfold), [Harness](../reference/glossary.md#harness)  
 
+## Attempt
+*Context: Participation · Owner: Unfold*
+
+Unfold's word on screen for a Shift: one Team's engagement with one Work Item, with the budget held for it, its Rounds and its Runs. Starting a stopped Work Item again opens a new Attempt; the earlier ones stay on its page. Unfold says Shift only where it speaks Ploeg's contract.
+
+**See also:** [Shift](../reference/glossary.md#shift), [Run](../reference/glossary.md#run), [Work Item](../reference/glossary.md#work-item)  
+
 ## Attention Path
 *Context: Work*
 
@@ -107,7 +114,7 @@ The reviewable change Unfold captures from a Session's Workspace when its Team s
 
 A conversation one person has with Unfold itself in the Agents window, under the agent named Unfold beside Unfold teams. Each message is admitted by Ploeg against a Team's chat allowance and answered with that Team's Ask model, which may read Unfold through its MCP tools and act only after the person confirms each change. Unfold keeps the conversation; no Team reads it. Proposed (Unfold ADR 0049).
 
-**Not to be confused with** [Session](#session): A Session submits work to a Team; a Chat starts Team work only through a confirmed hand-off.  
+**Not to be confused with** [Session](#session): Starting a Work Item in Unfold submits work to a Team; a Chat starts Team work only through a confirmed hand-off.  
 **Not to be confused with** [Ask](../reference/glossary.md#ask): An Ask is one question about one Work Item, paid from the Ask Allowance.  
 **See also:** [Session](#session), [Ask](../reference/glossary.md#ask), [Team](../reference/glossary.md#team)  
 
@@ -221,7 +228,7 @@ A Run Card's assessment of its change from 1 to 10 in half steps, from four subg
 
 An agent session a person runs outside Unfold, such as Claude Code on their own machine, that reports to Unfold through its hooks and is linked to Work Items. Unfold never starts, steers or pays for it; it records the session's state, branch and commits, the Agent Trace of what it wrote, and reads its telemetry.
 
-**Not to be confused with** [Session](#session): Unfold's own record of interaction around work it submits to Ploeg.  
+**Not to be confused with** [Session](#session): Unfold's internal record of a Work Item started in Unfold, shown only as that Work Item.  
 **See also:** [Session](#session), [Work Item](../reference/glossary.md#work-item)  
 
 ## Markup
@@ -365,7 +372,7 @@ The refund of a Delivery Fee when an accepted change is reverted within 14 days 
 ## Review
 *Context: Work*
 
-An assessment of a Result against its Acceptance Conditions and supporting Evidence. A favorable assessment is distinct from releasing software to production.
+An assessment of a Result against its Acceptance Conditions and supporting Evidence. For a Work Item that changes code it is a person's review of the pull request, wherever the Work Item came from. A favorable assessment is distinct from releasing software to production.
 
 **Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's approve or request_changes answer. It is Evidence for a Review, not acceptance.  
 **See also:** [Result](#result), [Acceptance Conditions](#acceptance-conditions), [Evidence](#evidence), [Verdict](../reference/glossary.md#verdict)  
@@ -390,10 +397,11 @@ The record of one Work Item's change and its life in production: who carried it,
 ## Session
 *Context: Participation · Owner: Unfold*
 
-Unfold's continuing record of a person's interaction around work: instructions, questions, actions and results. Closing a browser does not erase it. A started session is linked to one Ploeg Work Item, Shift and Run.
+Unfold's internal record of a Work Item a person started in Unfold: its brief, the person's instructions, their answers to the agents' questions and permission requests, and the Candidate its Workspace produced. One Session belongs to one Work Item and spans all of that Work Item's Attempts and Runs. People never meet it as a thing of its own: it shows on its Work Item's page, whose origin reads "Started in Unfold".
 
-**Not to be confused with** [Shift](../reference/glossary.md#shift): Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.  
-**See also:** [Work Item](../reference/glossary.md#work-item), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team)  
+**Not to be confused with** [Shift](../reference/glossary.md#shift): Ploeg's whole attempt on a Work Item, which Unfold calls an Attempt; Ploeg avoids "session" for it.  
+**Not to be confused with** [Linked Session](#linked-session): An agent session a person runs outside Unfold; the only thing Unfold's screens call a session.  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Attempt](#attempt), [Team](../reference/glossary.md#team)  
 
 ## Set Card
 *Context: Cards*

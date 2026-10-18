@@ -61,8 +61,8 @@
         "owner": "Ryan Grippeling",
         "created": "2026-10-18",
         "expires": "2027-01-18",
-        "title": "Work Item layouts",
-        "description": "Adds a layout switch to the Work Item page with five ways to show one Work Item and the session that started it as one thing: Thread (a conversation of the brief, your messages and every Run), Night cockpit (the flight on a dark ground), Desk (views you switch between), Logbook (a vertical log with the spend tape beside it) and Proof (the brief as a document with its acceptance conditions). Each has the intent bar, which steers, asks or adds context and says who reads it before you send. Your choice is kept in this browser. Acceptance proof is not reported by Ploeg yet, so conditions say so.",
+        "title": "One Work Item page",
+        "description": "One page for a Work Item and the session that started it. Where it stands and what waits on you first, the flight on a dark ground, then a log of everything that happened with clock times and the spend tape, where every Run opens in place to what the agent did and its pod logs. A Work Item started in Unfold also carries its session there: its questions and permission requests, Pause, Resume and Cancel, its evidence (activity, gateway calls, changes, checks and hand-off) and budget. A session link opens its Work Item; the pull request is the one review. The intent bar steers, asks or adds context and says who reads it before you send. Acceptance proof is not reported by Ploeg yet, so conditions say so.",
         "client": true,
         "labs": true
       }
