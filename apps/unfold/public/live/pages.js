@@ -15,7 +15,8 @@ function headerActions(view, extras) {
   if (extras.actions !== undefined) return `${extras.actions}${own}`;
   const list = [];
   if (view.live.branch) list.push(button({ label: 'Check out', icon: 'branch', size: 'sm', action: 'work-checkout' }));
-  if (!own.includes('data-action="cancel"') && ['leased', 'queued', 'ingested', 'needs_human'].includes(view.live.state)) list.push(button({ label: 'Cancel Work Item', variant: 'danger-ghost', size: 'sm', action: 'work-cancel' }));
+  const cancel = extras.cancel !== undefined ? extras.cancel : ['leased', 'active', 'queued', 'ingested'].includes(view.live.state) ? {} : null;
+  if (cancel && !own.includes('data-action="cancel"')) list.push(button({ label: 'Cancel Work Item', variant: 'danger-ghost', size: 'sm', action: 'work-cancel', data: { id: view.live.id ?? view.id }, busy: Boolean(cancel.busy) }));
   return `${list.join('')}${own}`;
 }
 
@@ -60,6 +61,7 @@ export const workTabs = Object.freeze(['log', 'brief', 'trace', 'evidence']);
  * @param {object} [extras]
  * @param {string} [extras.primary] The app's next-step button.
  * @param {string} [extras.actions] Header actions that replace the defaults.
+ * @param {{ busy?: boolean } | null} [extras.cancel] Whether Cancel would stop anything; null hides the button.
  * @param {string} [extras.decision] The app's own decision box.
  * @param {string} [extras.account] The writer's problem and solution.
  * @param {'log'|'brief'|'trace'|'evidence'} [extras.tab] The view that opens.

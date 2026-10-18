@@ -732,6 +732,10 @@ test('Cancel shows only when Ploeg would stop something', () => {
   const queued = structuredClone(stoppedItem);
   queued.item.state = 'queued';
   assert.equal(canStop(queued), true);
+  const unified = extra => model({ detailId: '50', flags: { 'work.unified': true }, ...extra });
+  assert.doesNotMatch(detailMarkup(stoppedItem, unified()), /work-cancel/, 'the unified page offers no no-op Cancel on a stopped item either');
+  assert.match(detailMarkup(open, unified()), /data-action="work-cancel" data-id="50"/);
+  assert.doesNotMatch(detailMarkup(open, unified({ canCancel: false })), /work-cancel/, 'viewers get no Cancel button on the unified page');
 });
 
 test('the Context card lists attached files, flags steering uploads and says which Run a new file reaches', () => {
