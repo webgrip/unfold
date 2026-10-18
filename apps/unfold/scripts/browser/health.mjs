@@ -8,7 +8,9 @@ export async function run({ app, page, assert, screenshot }) {
     await row.waitFor();
     const badge = row.locator(':scope > summary .work-run-health-badge .badge');
     await badge.waitFor();
-    assert.equal((await badge.innerText()).trim(), 'On track', 'the running demo Run shows its health word');
+    assert.equal(await badge.evaluate(element => [...element.childNodes].filter(node => node.nodeType === Node.TEXT_NODE).map(node => node.textContent).join('').trim()), 'On track', 'the running demo Run shows its health word');
+    assert.equal((await badge.textContent()).trim(), 'Health: On track', 'a screen reader hears Health: before the word');
+    assert.equal(await badge.locator('.sr-only').evaluate(element => getComputedStyle(element).clip !== 'auto' || getComputedStyle(element).clipPath !== 'none'), true, 'the Health: prefix is not shown');
     assert.equal(await badge.locator('svg.icon').count(), 1, 'the health badge has a glyph, never colour alone');
     assert.match(await badge.getAttribute('title'), /^Health: On track · \d+ of 90 min · demo data$/);
     if (!await row.evaluate(element => element.open)) await row.locator(':scope > summary').click();

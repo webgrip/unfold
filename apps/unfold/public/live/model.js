@@ -1,5 +1,6 @@
 import { failureReason } from '../core/states.js';
-import { guardSignals, policyDrift } from './guard.js';
+import { combineHealth, healthMeta, runHealth } from '../core/run-health.js';
+import { guardSignals, policyDrift } from '../core/guard.js';
 
 /**
  * The stages every Work Item moves through, in order. The fold strip and the flight path draw one mark per stage.
@@ -16,26 +17,9 @@ export const stages = Object.freeze([
 ]);
 
 /**
- * The rules behind the health word, so a page can show why it says what it says and a test can pin each threshold.
- * `stalledAfter` is the silence in seconds before a running Run reads as stalled; `troubleWindow` is how far back
- * failed or interrupted calls count; `troubleCalls` is how many of them make a Run struggle; `moveGap` is the pause in
- * seconds that starts a new move when the transcript reports no stage.
- *
- * The first rule that matches sets the word: `suspect` when a call crossed a high tripwire or the Run's rules changed,
- * then `suspect` when the latest judge verdict is `abort`; `idle` when no Run works (`struggling` if the latest verdict
- * is `off_course`); `stalled` when the lease ran out; `struggling` when the latest verdict is `off_course`; `flying`
- * when the followed Run's transcript is not loaded, so silence is never claimed; `stalled` after `stalledAfter`
- * seconds without a call; `struggling` after `troubleCalls` failed or interrupted calls; otherwise `steady`. Judge
- * verdicts are proposed: Ploeg has no judge model yet.
+ * The pause in seconds that starts a new move when the transcript reports no stage.
  */
-export const healthRules = Object.freeze({ stalledAfter: 300, troubleWindow: 600, troubleCalls: 2, moveGap: 120 });
-
-/**
- * The verdicts a judge model can give a running Run, worst last. Proposed: Ploeg runs no judge model mid-Run yet; a
- * `run.judgement` event with detail `{ runId, verdict, reason, judge }` is the shape it would report.
- * @type {ReadonlyArray<string>}
- */
-export const judgeVerdicts = Object.freeze(['on_course', 'drifting', 'off_course', 'abort']);
+export const moveRules = Object.freeze({ moveGap: 120 });
 
 const toMs = value => { const at = Date.parse(value ?? ''); return Number.isFinite(at) ? at : null; };
 const isAmount = value => typeof value === 'number' && Number.isFinite(value);
@@ -75,7 +59,7 @@ function attemptOf(run, shifts) {
 
 /**
  * Groups a Run's folded transcript into moves: a stage entry starts a named move, and without one a pause longer than
- * `healthRules.moveGap` does. Each move keeps its calls, how long it took, which kinds of call it made, and whether it
+ * `moveRules.moveGap` does. Each move keeps its calls, how long it took, which kinds of call it made, and whether it
  * ran into trouble (a failed call, or a call that interrupts or kills something).
  * @param {object[]} items Folded transcript items, as `foldTranscript` returns them.
  * @param {{ now: number, live: boolean }} options
@@ -95,7 +79,7 @@ export function movesOf(items = [], { now, live }) {
     }
     if (item.type === 'thought') { thought = item.text?.replace(/^\*\*[^*]+\*\*:?\s*/, '').trim() ?? ''; continue; }
     if (item.type !== 'tool') continue;
-    if (!move || (!move.named && lastAt !== null && at !== null && at - lastAt > healthRules.moveGap * 1000)) open(item.title || 'Tool call', at, false);
+    if (!move || (!move.named && lastAt !== null && at !== null && at - lastAt > moveRules.moveGap * 1000)) open(item.title || 'Tool call', at, false);
     const failed = item.status === 'failed';
     const interrupting = interrupt.test(String(item.input ?? '').trim()) || interrupt.test(item.title ?? '');
     move.calls.push({ id: item.id ?? item.key, at, title: item.title || 'Tool call', kind: item.toolKind || 'other', status: item.status ?? null, input: item.input ?? '', output: (item.outputs ?? []).join('\n').slice(0, 8000), paths: item.paths ?? [], failed, interrupting, thought });
@@ -115,33 +99,18 @@ export function movesOf(items = [], { now, live }) {
   return moves;
 }
 
-function healthOf({ running, lastActivity, calls, now, leaseLeft, guard, judgement, known }) {
-  const high = guard.signals.filter(signal => signal.severity === 'high');
-  if (high.length || guard.drift?.length) return { word: 'suspect', tone: 'danger', reason: high.length ? `${high.length} ${high.length === 1 ? 'call' : 'calls'} crossed a tripwire: ${[...new Set(high.map(signal => signal.label.toLowerCase()))].join('; ')}.` : 'Its rules changed since the Run started.' };
-  const judged = judgement ? `A judge model (proposed) said ${judgement.verdict.replace('_', ' ')}.${judgement.reason ? ` ${judgement.reason}` : ''}` : '';
-  if (judgement?.verdict === 'abort') return { word: 'suspect', tone: 'danger', reason: judged };
-  const offCourse = judgement?.verdict === 'off_course' ? { word: 'struggling', tone: 'attention', reason: judged } : null;
-  if (!running) return offCourse ?? { word: 'idle', tone: 'neutral', reason: 'No Run is working right now.' };
-  if (leaseLeft !== null && leaseLeft <= 0) return { word: 'stalled', tone: 'danger', reason: 'The worker’s lease ran out before it was renewed.' };
-  if (offCourse) return offCourse;
-  if (!known) return { word: 'flying', tone: 'live', reason: 'Its calls are not loaded yet.' };
-  if (lastActivity !== null && (now - lastActivity) / 1000 >= healthRules.stalledAfter) return { word: 'stalled', tone: 'danger', reason: `No tool call for ${Math.floor((now - lastActivity) / 60000)} min.` };
-  const recent = calls.filter(call => call.at !== null && (now - call.at) / 1000 <= healthRules.troubleWindow && (call.failed || call.interrupting));
-  if (recent.length >= healthRules.troubleCalls) return { word: 'struggling', tone: 'attention', reason: `${recent.length} failed or interrupted calls in the last ${healthRules.troubleWindow / 60} min.` };
-  return { word: 'steady', tone: 'success', reason: 'Calls keep coming and none failed recently.' };
+const verdicts = new Set(['on_track', 'watch', 'off_track']);
+
+function judgementOf(value) {
+  if (!value || typeof value !== 'object' || !verdicts.has(value.health) || typeof value.reason !== 'string' || !value.reason.trim()) return null;
+  if (!Array.isArray(value.evidence) || !value.evidence.every(seq => Number.isSafeInteger(seq))) return null;
+  return { ...value, runId: String(value.runId ?? ''), at: toMs(value.at), reason: value.reason.trim(), model: typeof value.model === 'string' && value.model ? value.model : 'Judge model' };
 }
 
-/**
- * The judge verdicts in a Work Item's events, oldest first. Proposed: Ploeg reports no `run.judgement` events yet, so
- * every entry carries `proposed: true`. Unknown verdicts are dropped.
- * @param {object[]} events Ploeg audit events, `{ at, action, detail }`.
- * @returns {{ at: number|null, runId: string, verdict: string, reason: string, judge: string, proposed: true }[]}
- */
-export function judgementsOf(events = []) {
-  return events
-    .filter(entry => entry?.action === 'run.judgement' && judgeVerdicts.includes(entry.detail?.verdict))
-    .map(entry => ({ at: toMs(entry.at), runId: String(entry.detail.runId ?? ''), verdict: entry.detail.verdict, reason: typeof entry.detail.reason === 'string' ? entry.detail.reason.trim() : '', judge: typeof entry.detail.judge === 'string' && entry.detail.judge ? entry.detail.judge : 'Judge model', proposed: true }))
-    .sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+function healthOf(result, judge, { stale = false, demo = false } = {}) {
+  const combined = combineHealth({ health: result.health ?? 'unknown' }, judge);
+  const meta = healthMeta(combined.health);
+  return { health: combined.health, label: meta.label, tone: meta.tone, glyph: meta.glyph, source: combined.source, signalsHealth: result.health ?? 'unknown', reason: result.reason ?? '', deciding: result.deciding ?? null, signals: result.signals ?? [], judge: judge ?? null, stale: stale === true, demo: demo === true };
 }
 
 function stageStates(item, runs, current) {
@@ -173,10 +142,12 @@ function stageStates(item, runs, current) {
  * Invariants the components rely on: `spend.usd` is the one spend figure, summed from reported Run costs, and
  * `spend.attemptUsd` is the part of it the latest attempt spent against `spend.heldUsd`; Runs a
  * machine ended count in `lost` and never as Role work; `time.agent = time.useful + time.lost`; attempts are numbered
- * from 1 in the order Ploeg opened them, and Runs are numbered from 1 inside each attempt.
+ * from 1 in the order Ploeg opened them, and Runs are numbered from 1 inside each attempt; `health` is the running
+ * Run's badge, the words its Run row shows (`healthMeta`), and null when no Run is working.
  * @param {object} input
  * @param {object} input.detail A Ploeg Work Item detail: `{ item, shifts, runs, checkpoints, events }`.
  * @param {object[]} [input.transcript] The followed Run's folded transcript items.
+ * @param {object[]} [input.entries] The followed Run's raw transcript entries, which `runHealth` reads.
  * @param {string} [input.transcriptRunId] Which Run the transcript belongs to; defaults to the running Run.
  * @param {number} input.now Milliseconds since the epoch.
  * @param {string} [input.ticketCreatedAt] When the tracker task was created, when it is older than the Work Item.
@@ -184,13 +155,19 @@ function stageStates(item, runs, current) {
  * @param {{ leftUsd: number, totalUsd: number }} [input.allowance] The Team's Ask Allowance.
  * @param {string[]} [input.allowedHosts] Hosts the Run may reach; a call to any other host is a tripwire.
  * @param {{ startedWith: object, current: object }} [input.policy] Proposed: the Run's rules at its start and now.
- * @param {string|null} [input.transcriptMissing] Why the transcript is unavailable, as Unfold's transcript route says it:
- *   `demo` or `unsupported`; the view then says why instead of asking to load it.
+ * @param {string|null} [input.transcriptMissing] Why the transcript is unavailable: `demo` or `unsupported`, as Unfold's
+ *   transcript route says it, or `failed` when it could not be read; the view then says why instead of waiting for it.
  * @param {boolean} [input.transcriptKnown] Whether the followed Run's transcript was loaded. Defaults to true when
- * `transcript` has items. When false, call counts, edits and the last call are `null` and a running Run reads `flying`.
+ * `transcript` has items. When false, call counts, edits and the last call are `null`.
+ * @param {object[]} [input.judgements] AI judge verdicts as Unfold's shadow judge stores them (`RunJudgement`: `{ id,
+ *   runId, at, health, reason, evidence, model, … }`). A verdict without a known health, a reason or whole-number
+ *   evidence is dropped.
+ * @param {{ data?: object }|null} [input.health] The running Run's entry from Unfold's health route, the same entry its
+ *   Run row shows, so the two never disagree. Without one, the health is computed here with `runHealth` from `entries`
+ *   and raised by the newest of `judgements` the way the server does.
  * @returns {object}
  */
-export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null, allowedHosts = [], policy = null, transcriptKnown = transcript.length > 0, transcriptMissing = null }) {
+export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null, allowedHosts = null, policy = null, transcriptKnown = transcript.length > 0, transcriptMissing = null, entries = [], judgements: verdicts = [], health: given = null }) {
   const item = detail.item;
   const shifts = [...(detail.shifts ?? [])].sort((a, b) => (toMs(a.openedAt) ?? 0) - (toMs(b.openedAt) ?? 0));
   const runs = [...(detail.runs ?? [])].sort(byStart);
@@ -240,9 +217,20 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
   const lastActivity = !known ? null : calls.length ? calls.at(-1).at : followed?.startedAt ?? null;
   const signals = guardSignals(calls, { allowedHosts });
   const guard = { signals, drift: policyDrift(policy), allowedHosts, high: signals.filter(signal => signal.severity === 'high').length, source: signals.find(signal => signal.rule === 'injection') ?? null };
-  const judgements = judgementsOf(detail.events);
-  const judgement = judgements.findLast(entry => !running || entry.runId === running.id) ?? null;
-  const health = healthOf({ running: Boolean(running), lastActivity, calls, now, leaseLeft, guard, judgement, known });
+  const served = given?.data?.health ? given.data : null;
+  const history = served && Array.isArray(served.history) ? served.history : null;
+  const judgements = (history ?? verdicts ?? []).map(judgementOf).filter(Boolean).sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+  const transcriptState = known ? 'loaded' : ['demo', 'unsupported', 'failed'].includes(transcriptMissing) ? transcriptMissing : 'loading';
+  const ownTranscript = Boolean(running && followed && followed.id === running.id);
+  const runningRun = running ? runs.find(run => String(run.id) === running.id) : null;
+  const latestJudge = running ? (served ? served.judge ?? null : judgements.findLast(entry => entry.runId === running.id) ?? null) : null;
+  const health = !running ? null : served ? healthOf(served, latestJudge, { stale: served.stale, demo: served.demo }) : healthOf(runHealth({
+    run: runningRun,
+    entries: ownTranscript ? entries : [],
+    now,
+    transcriptState: ownTranscript ? transcriptState : 'loading',
+    allowedHosts,
+  }), latestJudge);
   const stageList = stageStates(item, runs, running);
   const roleWork = allRuns.filter(run => !run.machine);
   const roles = [...new Set(roleWork.map(run => run.role))].map(role => ({ role, runs: roleWork.filter(run => run.role === role).length }));
@@ -274,7 +262,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     lease: item.lease ? { expiresAt: toMs(item.lease.expiresAt), renewedAt: toMs(item.lease.renewedAt), secondsLeft: leaseLeft } : null,
     moves,
     transcriptKnown: known,
-    transcriptMissing: known ? null : transcriptMissing === 'demo' ? 'The demo records no transcripts, so its calls are not shown.' : transcriptMissing === 'unsupported' ? 'This Ploeg does not report transcripts, so its calls are not shown.' : null,
+    transcriptMissing: known ? null : transcriptState === 'demo' ? 'The demo records no transcripts, so its calls are not shown.' : transcriptState === 'unsupported' ? 'This Ploeg does not report transcripts, so its calls are not shown.' : transcriptState === 'failed' ? 'Its calls could not be read.' : running ? 'Loading its calls…' : null,
     calls: { total: known ? calls.length : null, byKind, lastAt: lastActivity },
     edits: known ? edited.size : null,
     lastTrouble,

@@ -27,3 +27,18 @@ export function meta({ title, render, frame = 'panel', scenario = 'running', arg
     parameters: { layout: frame === 'page' ? 'fullscreen' : 'padded', frame },
   };
 }
+
+/**
+ * The running Run's health of a model as the entry Unfold's health route gives the Run row, so a story can draw the
+ * Run row's badge and health section from a fixture. Null when no Run is running.
+ * @param {object} model A `liveModel` result.
+ * @param {{ staleMinutes?: number, judgeState?: string }} [options] `staleMinutes` marks the health as read that long ago.
+ * @returns {{ data: object } | null}
+ */
+export function healthEntry(model, { staleMinutes = 0, judgeState = 'idle' } = {}) {
+  const health = model.health;
+  if (!health) return null;
+  const judge = health.judge ? { ...health.judge, at: new Date(health.judge.at ?? model.now).toISOString() } : null;
+  const asOf = new Date(model.now - staleMinutes * 60000).toISOString();
+  return { data: { health: health.signalsHealth, combined: { health: health.health, source: health.source }, reason: health.reason, deciding: health.deciding, signals: health.signals, judge, judgeState, demo: health.demo, stale: staleMinutes > 0 || health.stale, asOf } };
+}

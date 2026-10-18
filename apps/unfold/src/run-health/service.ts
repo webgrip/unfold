@@ -4,6 +4,7 @@ import { PloegError } from '../ploeg.ts';
 import type { RunTranscript, TranscriptEntry } from '../run-transcript.ts';
 import type { Store } from '../store.ts';
 import { combineHealth, latestPlan, runHealth } from '../../public/core/run-health.js';
+import { guardSignals, transcriptCalls } from '../../public/core/guard.js';
 import { judgeLimits, type JudgeState, type RunJudge, type RunJudgement } from './judge.ts';
 
 /** The Ploeg reads Run health needs. Both refuse a Work Item outside the caller's Teams. */
@@ -25,18 +26,20 @@ export type RunHealthOptions = {
 };
 
 type Result = { health: string | null; signals: HealthSignal[]; deciding: string | null; reason: string; stale?: boolean };
-type Tail = { cursor: number; entries: TranscriptEntry[]; plan: TranscriptEntry | null; calls: Map<string, TranscriptEntry>; available: boolean; reading: Promise<boolean> | null; last: Result | null; lastAt: string; reported: string | null; signals: Record<string, string>; planKey: string; judgedPlanKey: string; judgedAt: number; attempts: number | null; state: JudgeState; judging: Promise<void> | null };
+type Tripwire = { id: string; severity: string; label: string; at: number | null };
+type Tail = { cursor: number; entries: TranscriptEntry[]; plan: TranscriptEntry | null; calls: Map<string, TranscriptEntry>; tripwires: Map<string, Tripwire>; available: boolean; reason: 'demo' | 'unsupported'; reading: Promise<boolean> | null; last: Result | null; lastAt: string; reported: string | null; signals: Record<string, string>; planKey: string; judgedPlanKey: string; judgedAt: number; attempts: number | null; state: JudgeState; judging: Promise<void> | null };
 
 const tailEntries = judgeLimits.windowEntries;
 const tailCalls = 20;
 const pagesPerRead = 10;
 const trackedRuns = 200;
 const historyLimit = 20;
+const tripwireLimit = 50;
 
 /**
  * Computes the health of a running Run on Unfold's server (RFC-0007, Unfold ADR 0046), so every viewer sees one answer
  * and the judge does not depend on a browser. It keeps, per Run, a small tail of the transcript read incrementally from
- * Ploeg. With the Team's `cards.health.judge` flag on, a non-viewer's read may start one shadow judgement: on a plan
+ * Ploeg, and every guard.js tripwire hit it saw (up to 50), so a hit still counts once its entries left the tail. With the Team's `cards.health.judge` flag on, a non-viewer's read may start one shadow judgement: on a plan
  * change, on a signal turning to Watch, otherwise at most every 10 minutes, at most 9 per Run, one at a time, never in
  * the demo and never for a Run that is not running. A judgement only records and shows.
  */
@@ -53,7 +56,7 @@ export class RunHealthService {
   private tail(runId: string): Tail {
     let tail = this.tails.get(runId);
     if (!tail) {
-      tail = { cursor: 0, entries: [], plan: null, calls: new Map(), available: true, reading: null, last: null, lastAt: '', reported: null, signals: {}, planKey: '', judgedPlanKey: '', judgedAt: 0, attempts: null, state: 'idle', judging: null };
+      tail = { cursor: 0, entries: [], plan: null, calls: new Map(), tripwires: new Map(), available: true, reason: 'unsupported', reading: null, last: null, lastAt: '', reported: null, signals: {}, planKey: '', judgedPlanKey: '', judgedAt: 0, attempts: null, state: 'idle', judging: null };
       this.tails.set(runId, tail);
       if (this.tails.size > trackedRuns) for (const [id, entry] of this.tails) { if (!entry.judging && id !== runId) { this.tails.delete(id); break; } }
     }
@@ -61,6 +64,10 @@ export class RunHealthService {
   }
 
   private absorb(tail: Tail, entries: TranscriptEntry[]): void {
+    const ids = new Set(entries.map(entry => entry.toolCallId).filter(Boolean));
+    for (const hit of guardSignals(transcriptCalls([...[...tail.calls.values()].filter(call => ids.has(call.toolCallId)), ...entries])) as Tripwire[]) {
+      if (!tail.tripwires.has(hit.id) && tail.tripwires.size < tripwireLimit) tail.tripwires.set(hit.id, { id: hit.id, severity: hit.severity, label: hit.label, at: hit.at });
+    }
     for (const entry of entries) {
       tail.entries.push(entry);
       if (entry.kind === 'plan') tail.plan = entry;
@@ -79,7 +86,7 @@ export class RunHealthService {
         for (let page = 0; page < pagesPerRead; page += 1) {
           const read = await this.workItems.runTranscript(user, workItemId, runId, String(tail.cursor), false);
           tail.available = read.available;
-          if (!read.available) return true;
+          if (!read.available) { tail.reason = read.reason === 'demo' ? 'demo' : 'unsupported'; return true; }
           this.absorb(tail, read.entries);
           tail.cursor = Math.max(tail.cursor, read.nextAfter);
           if (!read.hasMore) break;
@@ -114,7 +121,7 @@ export class RunHealthService {
     const fresh = await this.read(user, workItemId, runId, tail);
     const entries = this.entries(tail);
     const stale = !fresh && tail.last !== null;
-    const result = (stale ? runHealth({ run, now, stale: tail.last }) : runHealth({ run, entries, now, transcriptAvailable: fresh && tail.available })) as Result;
+    const result = (stale ? runHealth({ run, now, stale: tail.last }) : runHealth({ run, entries, now, transcriptState: !fresh ? 'failed' : tail.available ? 'loaded' : tail.reason, tripwires: [...tail.tripwires.values()] })) as Result;
     if (!stale) this.remember(user, workItemId, runId, tail, result, now);
     const judgeState = await this.consider(user, detail, run, tail, result, entries, stale, demo);
     const view = { ...base, judge: this.store.runJudgements(runId, 1)[0] ?? null, judgements: this.store.countRunJudgements(runId) };

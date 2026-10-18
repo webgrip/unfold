@@ -7,19 +7,22 @@ import { scenarios } from '../public/live/fixtures.js';
 
 const model = (name, change = input => input) => liveModel(change(scenarios[name].input()));
 
-test('the panel tells the hijack in order: what it read, what it tried, which rules changed and what the judge said', () => {
+test('the panel tells the hijack in order: what it read, what it tried, which rules changed and what the AI judge said', () => {
   const live = model('hijacked');
   const html = containmentPanel(live);
   assert.match(containmentHeadline(live), /^Possible prompt injection at \d\d:\d\d$/);
-  const order = ['What it read', 'What it tried next', 'Rules that changed', 'What the judge said'].map(title => html.indexOf(title));
+  const order = ['What it read', 'What it tried next', 'Rules that changed', 'What the AI judge said'].map(title => html.indexOf(title));
   assert.ok(order.every((at, index) => at > 0 && (!index || at > order[index - 1])), String(order));
   assert.equal((html.match(/class="lv-contain-signal /g) ?? []).length, 6, 'every signal but the source');
   assert.equal((html.match(/class="lv-contain-signal is-high is-blocked"/g) ?? []).length, 1);
   assert.match(html, /<span class="lv-contain-outcome">Not blocked<\/span>/);
   assert.match(html, /class="lv-contain-drift"/);
   assert.match(html, /Ploeg does not report rule snapshots yet/);
-  assert.match(html, /Ploeg has no judge model yet/);
-  assert.equal((html.match(/<span class="lv-contain-proposed">Proposed<\/span>/g) ?? []).length, 5, 'two proposed sections and three proposed actions');
+  assert.match(html, /only when the Team’s cards\.health\.judge flag is on/);
+  assert.match(html, /never stops the Run/);
+  assert.match(html, /<span class="lv-contain-verdict">AI · off track<\/span>/);
+  assert.doesNotMatch(html, /abort/i);
+  assert.equal((html.match(/<span class="lv-contain-proposed">Proposed<\/span>/g) ?? []).length, 4, 'the rules section and three actions are proposed; the AI judge is built');
 });
 
 test('transcript text is inert and the proposed actions carry no handler', () => {
@@ -40,8 +43,9 @@ test('the panel shows for drift alone or an adverse judge, and stays away from a
   assert.equal(containmentHeadline(drift), 'Its rules changed after it started');
   assert.match(containmentPanel(drift), /lv-contain-added/);
   assert.doesNotMatch(containmentPanel(drift), /What it read|What it tried next/);
-  assert.match(containmentHeadline(model('judgeAbort')), /^A judge model says abort at/);
-  assert.match(containmentHeadline(model('judgeDrifting')), /^A judge model says drifting at/);
+  assert.match(containmentHeadline(model('judgeRaises')), /^The AI judge says off track at/);
+  assert.match(containmentHeadline(model('judgeDrifting')), /^The AI judge says watch at/);
+  assert.match(containmentPanel(model('judgeRaises')), /lv-contain-lede">Off track: AI judge \(advisory\): It deleted the brain eval tests/);
   for (const name of ['running', 'firstTry', 'review', 'landed', 'stress']) {
     assert.equal(needsContainment(model(name)), false, name);
     assert.equal(containmentPanel(model(name)), '', name);

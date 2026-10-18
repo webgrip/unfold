@@ -10,8 +10,10 @@ import { shiftDial } from '../public/live/dial.js';
 import { moveList, traceLanes } from '../public/live/trace.js';
 import { instruments } from '../public/live/instruments.js';
 import { answers } from '../public/live/answers.js';
+import { runHealthBadge, runHealthMarkup } from '../public/ploeg.js';
+import { healthEntry } from '../public/live/stories/shared.js';
 
-const components = ['flight', 'folds', 'dial', 'trace', 'instruments', 'answers', 'containment'];
+const components = ['flight', 'folds', 'dial', 'trace', 'instruments', 'answers', 'containment', 'health'];
 const containmentUrl = new URL('../public/live/containment.js', import.meta.url);
 const containment = await access(containmentUrl).then(() => import(containmentUrl.href), () => null);
 
@@ -24,6 +26,7 @@ function renders(model) {
     instruments: ['tiles', 'strip', 'list'].map(layout => instruments(model, { layout })),
     answers: [answers(model), answers(model, { layout: 'chips' })],
     containment: [],
+    health: [healthEntry(model), healthEntry(model, { staleMinutes: 2 })].filter(Boolean).flatMap(entry => [runHealthBadge({ state: 'running' }, entry, model.now), runHealthMarkup({ id: model.running.id, state: 'running' }, entry, { now: model.now })]),
   };
   if (containment) for (const draw of Object.values(containment)) if (typeof draw === 'function') { try { const html = draw(model); if (typeof html === 'string' && /lv-contain/.test(html)) out.containment.push(html); } catch { } }
   return out;
@@ -47,7 +50,7 @@ test('every ledger entry says what it looks like, what it means, where it comes 
     assert.ok(!ids.has(entry.id), `duplicate id ${entry.id}`);
     ids.add(entry.id);
     assert.ok(components.includes(entry.component), entry.id);
-    assert.ok(entry.classes.length > 0 && entry.classes.every(name => /^(lv|is)-[\w-]+\*?$/.test(name)), entry.id);
+    assert.ok(entry.classes.length > 0 && entry.classes.every(name => /^(lv-|is-|work-run-health|work-run-judge)[\w-]*\*?$/.test(name)), entry.id);
     for (const field of ['looksLike', 'means', 'source']) assert.ok(typeof entry[field] === 'string' && entry[field].trim().length > 3, `${entry.id}.${field}`);
     assert.ok(['real', 'derived', 'proposed'].includes(entry.status), entry.id);
     if (entry.status === 'proposed') assert.match(entry.source, /^Proposed: Ploeg would have to (emit|report) \S/, `${entry.id}: a proposed source names what Ploeg would have to report`);

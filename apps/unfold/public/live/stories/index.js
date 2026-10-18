@@ -12,6 +12,7 @@ export const storyFiles = {
   layouts: () => import('./layouts.stories.js'),
   containment: () => import('./containment.stories.js'),
   meaning: () => import('./meaning.stories.js'),
+  'run-health': () => import('./run-health.stories.js'),
 };
 
 /**
