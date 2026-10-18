@@ -127,6 +127,13 @@ spec:
                   name: {{ .Values.delivery.publisher.existingSecret }}
                   key: {{ .Values.delivery.publisher.secretKey }}
             {{- end }}
+            {{- if and .Values.decider.enabled .Values.decider.existingSecret }}
+            - name: {{ .Values.decider.keyEnv }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.decider.existingSecret }}
+                  key: {{ .Values.decider.secretKey }}
+            {{- end }}
             {{- if .Values.featureFlags }}
             - name: UNFOLD_FLAGS_FILE
               value: /etc/unfold-flags/flags.json

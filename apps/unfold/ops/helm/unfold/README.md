@@ -42,6 +42,9 @@ Unfold records product events from the browser in its own database ([RFC-0001](.
 | `errorReports.sentry.existingSecret` | `""` | Secret holding a Sentry-protocol DSN; sets `UNFOLD_SENTRY_DSN` for Sentry, GlitchTip or Bugsink. |
 | `errorReports.sentry.secretKey` | `sentry-dsn` | Key in that Secret. |
 | `errorReports.environment` | `""` | `UNFOLD_ERROR_ENVIRONMENT`, the environment reports carry, such as `staging`; empty uses the mode. Either destination, both or neither; failures are always logged. |
+| `decider.enabled` | `false` | Adds `config.decider` for the tripwire (RFC-0008, [live operation](../../../docs/operations/live.md#decider-tripwire)). Live mode only; the `runs.tripwire` flag then turns screening on per Team. |
+| `decider.baseUrl`, `model`, `name`, `requestsPerMinute` | `""`, `hetzner-qwen3-8-27b`, `Hetzner Qwen`, `8` | The OpenAI-compatible gateway URL (required when enabled), the model, the name each hit shows, and the most screens a minute. |
+| `decider.keyEnv`, `existingSecret`, `secretKey` | `UNFOLD_DECIDER_KEY`, `""`, `key` | Unfold's own zero-budget virtual key. With `existingSecret` set, that Secret's key becomes `keyEnv` in the workbench container only; empty, `keyEnv` comes from `credentialsSecret`. Never the LiteLLM master key. |
 
 The server sends the export, never the browser, so the workbench pod needs egress to the collector.
 
@@ -111,4 +114,4 @@ In the verifier namespace the chart renders:
 - a NetworkPolicy selecting `dev.webgrip.unfold/network: none` with `policyTypes: [Ingress, Egress]` and no rules, which the verifier checks for before each verification and probes from inside each pod;
 - a Role bound to the workbench service account: `pods` get, create and delete; `pods/attach` and `pods/exec` get and create (the WebSocket upgrade is a GET; newer API servers authorize it as create); `networkpolicies` list. It has no `pods/log`, Secret or list-pods access.
 
-The chart refuses to render when `workspaceAgentSecrets` lists `credentialsSecret` or `delivery.publisher.existingSecret`.
+The chart refuses to render when `workspaceAgentSecrets` lists `credentialsSecret`, `delivery.publisher.existingSecret` or `decider.existingSecret`.
