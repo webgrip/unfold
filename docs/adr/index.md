@@ -51,3 +51,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0035](adr-0035-interactive-sessions-reach-tenant-knowledge-only-through-unfold-mcp.md) | Interactive sessions reach Tenant knowledge only through unfold-mcp | proposed | 2026-10-11 |
 | [ADR-0036](adr-0036-ploeg-and-unfold-use-one-vocabulary-with-named-screen-words.md) | Ploeg and Unfold use one vocabulary, with named screen words | accepted | 2026-10-13 |
 | [ADR-0037](adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md) | People act on work through either MCP server, and every action names its person, channel and confirmation | accepted | 2026-10-17 |
+| [ADR-0038](adr-0038-report-a-problem-becomes-its-own-component-that-any-application-embeds.md) | Report a problem becomes its own component that any application embeds | accepted | 2026-10-18 |
