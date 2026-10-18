@@ -1,3 +1,13 @@
+## [unfold-v0.4.0-rc.94](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.93...unfold-v0.4.0-rc.94) (2026-10-18)
+
+### Added
+
+* **unfold:** people answer questions and leave notes, and see reviewer disagreements ([6cbc792](https://forgejo.webgrip.dev/webgrip/unfold/commit/6cbc7922c9162d8eef3c9e741d063215d28c7057)), references [ploeg-hq/ploeg#180](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/180)
+
+### Fixed
+
+* **unfold:** drop the agent image's OpenVEX statements for fixed zlib and http-cache-semantics ([de7d023](https://forgejo.webgrip.dev/webgrip/unfold/commit/de7d023be6629612b4595239a977ac9e26ec4546))
+
 ## [unfold-v0.4.0-rc.93](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.92...unfold-v0.4.0-rc.93) (2026-10-18)
 
 ### Added
