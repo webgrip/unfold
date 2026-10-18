@@ -22,7 +22,7 @@ Since managed execution, every session someone starts in Unfold runs in Ploeg as
 
 ## Considered Options
 
-* **One Work Item page, the `work.layouts` Labs flag: the unified layout grows the session's parts and the Run bodies, and a session link opens its Work Item**
+* **Unified Work Item page, the `work.unified` Labs flag: the unified layout grows the session's parts and the Run bodies, and a session link opens its Work Item**
 * Keep two pages and link them better
 * Keep six layouts and add logs to each
 

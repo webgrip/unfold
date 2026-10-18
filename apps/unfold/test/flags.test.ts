@@ -237,5 +237,5 @@ test('mutually exclusive Labs flags name each other, and the registry refuses a 
   assert.throws(() => checkRegistry({ flags: { 'work.a': flag({ excludes: ['work.b'] }), 'work.b': flag({ labs: false, excludes: ['work.a'] }) } }), /both must be Labs flags/);
   assert.throws(() => checkRegistry({ flags: { 'work.a': flag({ excludes: 'work.b' }) } }), /must list flag keys/);
   const shipped = loadRegistry();
-  assert.deepEqual([shipped.flags['work.layouts'].metadata.excludes, shipped.flags['work.live-view'].metadata.excludes], [['work.live-view'], ['work.layouts']]);
+  assert.deepEqual([shipped.flags['work.unified'].metadata.excludes, shipped.flags['work.live-view'].metadata.excludes], [['work.live-view'], ['work.unified']]);
 });
