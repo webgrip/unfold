@@ -1,6 +1,6 @@
 # RFC-0009: Judging a Run by the kind of work it does
 
-> Status: **Proposed** 2026-10-18; owner answered the open questions the same day (see [Owner decisions](#owner-decisions)); steps 0 and 1 built on branch `feat/run-activity` (see [Plan](#plan)) · Owner request (2026-10-18, on the Work Item page of [Work Item 242](https://unfold.webgrip.dev/#work/242)): "I feel like we could categorize work being done here, and get different kinds of decision / judge on progress, configurable etc via the best way we can think of, let's properly design this to be a coherent thing, something that REALLY makes sense" · Builds on: [RFC-0007](rfc-0007-run-health.md) and [Unfold ADR 0046](../../apps/unfold/docs/adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md) (Run health), [RFC-0008](rfc-0008-decision-models.md) and [ADR-0042](../adr/adr-0042-a-self-hosted-decider-reads-what-agents-do-and-starts-as-a-shadow-tripwire.md) (the decider and the tripwire), [Unfold ADR 0043](../../apps/unfold/docs/adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md) (flags), Ploeg ADR-0082 (Asks), ADR-0096 (a shadow reader never acts), ADR-0123 (premise check)
+> Status: **Proposed** 2026-10-18; owner answered the open questions the same day (see [Owner decisions](#owner-decisions)); steps 0 and 1 merged (#480); step 3 and the rules of step 2 built on branch `feat/work-kind` (see [Plan](#plan)) · Owner request (2026-10-18, on the Work Item page of [Work Item 242](https://unfold.webgrip.dev/#work/242)): "I feel like we could categorize work being done here, and get different kinds of decision / judge on progress, configurable etc via the best way we can think of, let's properly design this to be a coherent thing, something that REALLY makes sense" · Builds on: [RFC-0007](rfc-0007-run-health.md) and [Unfold ADR 0046](../../apps/unfold/docs/adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md) (Run health), [RFC-0008](rfc-0008-decision-models.md) and [ADR-0042](../adr/adr-0042-a-self-hosted-decider-reads-what-agents-do-and-starts-as-a-shadow-tripwire.md) (the decider and the tripwire), [Unfold ADR 0043](../../apps/unfold/docs/adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md) (flags), Ploeg ADR-0082 (Asks), ADR-0096 (a shadow reader never acts), ADR-0123 (premise check)
 >
 > **TL;DR.** Today Unfold asks one question of every running Run, "on track?", with one set of thresholds, whatever the work is and whatever the agent is doing. That is why a Run that has read code for 16 minutes without changing a file gets an "AI · on track". This RFC splits the question into three that each have a cheap, checkable answer: **what kind of work is this** (the Work Kind, set once per Run), **what is the agent doing now** (the Activity of each tool call, from the command it ran), and **is that what this kind of work should look like at this point** (Expectations per Work Kind, learned from the Team's own finished Runs). Every judgement Unfold makes, from the free signals to the tripwire and the judge model, becomes an entry in one **check registry** with the same fields: what it asks, when, who answers, what shape the answer has and what it may do. Teams configure which checks run and how much authority each has, and a check earns more authority only from measured precision. Everything stays free: rules first, the free decider second, the judge model only when something cheaper tripped.
 
@@ -97,11 +97,11 @@ With Expectations, Run health gains five signals beside RFC-0007's six, computed
 
 | Signal | Watch when | Off track when |
 | --- | --- | --- |
-| **Overstay** | the current Activity is past its p90 | past twice its p90 |
+| **Overstay** | reading (Orient, Explore, Wait, Other) without a Change, Verify, Ship or Setup for longer than the kind's `readMinutes` | twice that |
 | **First change** | no Change past the Work Kind's p90 | past twice its p90 |
 | **Order** | Ship without a Verify after the last Change | a push without a Verify |
-| **Churn** | Change and Verify cycles past p90 | past twice p90 |
-| **Out of role** | a Change in a Review Run, or a write to a ticket's protected area | the same, twice |
+| **Churn** | more Change-then-Verify cycles than the kind's `cycles` | twice that |
+| **Out of role** | a Change in a Review Run (a write to a ticket's protected area: proposed) | two Changes |
 
 For Run 381 at 19:43 that gives: Kind Change (Size S, files named), Activity Explore for about 14 minutes, **First change: Watch**, with the reason "Exploring 14 min, no change yet; small changes on bronze usually start changing by min N". N is whatever step 0 measures.
 
@@ -169,7 +169,7 @@ judgement:
         dependency: { labels: [dependencies], authors: [renovate] }
         spike: { labels: [spike] }
       expectations:
-        change: { firstChange: { p90Minutes: 12 } }   # pins one number; the rest are learned
+        feature: { firstChangeMinutes: 12 }   # pins one number; the rest stay default until learned
       checks:
         already_done: { authority: needs_you }   # owner decision 2026-10-18
         off_brief: { authority: record }
@@ -240,8 +240,8 @@ No paid model is called; no check falls back to one.
 
    Two well-ended Runs are far below the 5 per Work Kind that learning needs, so step 3 starts from configured defaults, and the script runs again once each Work Kind has 5.
 1. **Activity (built 2026-10-18, not released).** The pure classifier `public/core/activity.js` and its fixtures, Activity lanes and Activity moves on the trace, the Activity chip on each move, and the one-line summary ("Explore 29 min · Orient 19 s · no change yet · 127 calls"). Free, and needs no flag beyond the page's existing ones.
-2. **Work Kind.** Rules, the chip, the correction; the decider question for what the rules leave open.
-3. **Expectations.** Learned numbers and the five new signals in `run-health.js`.
+2. **Work Kind.** Rules, the chip, the correction; the decider question for what the rules leave open. **Rules and the chip built 2026-10-18, not released** (`public/core/work-kind.js`): Role, Round, a conventional title prefix, then title keywords; with none, Feature "(default)". Ploeg serves no tracker labels, so the label rules wait for them. The decider guess and the correction are still proposed.
+3. **Expectations.** Learned numbers and the five new signals in `run-health.js`. **Built 2026-10-18 with configured defaults, not released** (`public/core/expectations.js`): the server tallies each call's Activity as it reads the transcript, so the signals see the whole Run and not only the tail it keeps, and a Team pins numbers in `judgement.teams.<team>.expectations.<kind>` (`readMinutes`, `firstChangeMinutes`, `cycles`, `verifyBeforeShip`). Learned numbers wait for 5 finished Runs per Work Kind.
 4. **The check registry.** Health signals, tripwire and judge as entries, the `judgement` configuration, the `checks.<key>` flags, the read-only config page.
 5. **New decider and judge checks.** `already_done`, `off_brief`, `explain_overstay`; the timer judge retires once `explain_overstay` has a week of answers.
 6. **Authority.** `needs_you` per check on the owner's promotion; `stop` after RFC-0008's Ploeg amendment.

@@ -1,4 +1,5 @@
 import { escape } from '../core/dom.js';
+import { activityMeta } from '../core/activity.js';
 import { faviconPaths } from '../core/brand.js';
 import { compactCount, duration, money, notReported, time } from '../core/format.js';
 
@@ -58,9 +59,11 @@ export function liveSentence(model) {
   const warning = healthWarning(model.health);
   const tone = healthTone(model.health);
   if (!model.transcriptKnown) return { head: `${role} is working.`, sub: warning ?? model.transcriptMissing ?? 'Open the Run to follow its calls.', tone };
-  const head = move ? `${role} · ${move.title}` : `${role} is starting.`;
+  const doing = move?.activity ? `${activityMeta(move.activity).label}: ` : '';
+  const kind = model.work?.label ? ` · ${model.work.label}` : '';
+  const head = move ? `${role}${kind} · ${doing}${move.title}` : `${role}${kind} is starting.`;
   const trouble = model.lastTrouble;
-  const sub = warning ?? (trouble ? `Ran into trouble at ${clock(trouble.at)}: ${trouble.title.toLowerCase()}.` : model.edits ? `${model.edits} ${model.edits === 1 ? 'file' : 'files'} changed so far.` : 'No file changed yet.');
+  const sub = warning ?? (trouble ? `Ran into trouble at ${clock(trouble.at)}: ${trouble.title.toLowerCase()}.` : model.edits ? `${model.edits} ${model.edits === 1 ? 'file' : 'files'} changed so far.` : model.activity?.calls?.change ? 'Files changed through the shell; the count is not known.' : 'No file changed yet.');
   return { head, sub, tone };
 }
 

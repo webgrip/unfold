@@ -56,6 +56,8 @@ export type AppConfig = {
   cards?: { backfillPeriods: number; teams: Record<string, { lengthDays: number; anchor: string }>; publishPullRequestComment?: boolean; rules?: CardRuleSettings };
   /** The Run health judge's gateway models, in order of preference (RFC-0007). */
   runHealth?: { judgeModels: string[] };
+  /** What each Team pinned of the Work Kind expectations Run health judges against (RFC-0009), by Team and Work Kind. */
+  judgement?: { teams: Record<string, { expectations: Record<string, { readMinutes?: number; firstChangeMinutes?: number; cycles?: number; verifyBeforeShip?: boolean }> }> };
   /** The decider the tripwire asks (RFC-0008): an OpenAI-compatible gateway, Unfold's own key named by `keyEnv`, and a cap on requests per minute. Absent, the tripwire is off. */
   decider?: { baseUrl: string; keyEnv: string; model: string; name: string; requestsPerMinute: number };
   cardThemes?: { directory?: string; assetQuotaMb: number; ai?: { baseUrl: string; model: string; keyEnv: string; maxTokens: number; timeoutMs: number; requestsPerHour: number } };

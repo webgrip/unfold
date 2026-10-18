@@ -234,6 +234,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     judge: runJudge,
     judgeEnabled: (user, team) => flags.getBooleanValue('cards.health.judge', false, { ...flagContext(user), team }),
     record: recordWork,
+    expectations: team => config.judgement?.teams[team]?.expectations ?? null,
   });
   const tripwireEnabled = (team: string) => flags.getBooleanValue('runs.tripwire', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team });
   const decider = config.decider ? new ChatDecider({ baseUrl: config.decider.baseUrl, model: config.decider.model, name: config.decider.name, key: () => process.env[config.decider!.keyEnv] }) : undefined;

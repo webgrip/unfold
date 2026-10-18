@@ -26,8 +26,8 @@ export const repeatOffTrack = 5;
 /** Tripwire: a guard.js tripwire of this severity in the Run's calls makes it Watch or Off track. */
 export const tripwireHealth = Object.freeze({ medium: 'watch', high: 'off_track' });
 
-/** The signals, in the order a reason lists them; on a tie of the worst health the first one decides. */
-export const healthSignals = Object.freeze(['tripwire', 'quiet', 'pace', 'time', 'budget', 'repeat']);
+/** The signals, in the order a reason lists them; on a tie of the worst health the first one decides. The five after `time` judge a Run against its Work Kind's expectations (RFC-0009) and appear only when Unfold knows its Activities. */
+export const healthSignals = Object.freeze(['tripwire', 'quiet', 'pace', 'time', 'out_of_role', 'order', 'first_change', 'overstay', 'churn', 'budget', 'repeat']);
 
 /** How each health reads: a label, an existing tone, a glyph and an example of its reason line. Never colour alone. */
 export const healthStates = Object.freeze(Object.fromEntries(Object.entries({
@@ -159,6 +159,46 @@ function tripwireSignal(entries, state, tripwires, allowedHosts, now) {
   return signal('tripwire', tripwireHealth[worst.severity], `Tripwire${ago}: ${worst.label.toLowerCase()}${more ? ` (and ${more} more)` : ''}`);
 }
 
+const pinnedWord = (work, setting) => work.expectations.pinned?.includes(setting) ? 'set for this Team' : 'default';
+
+function expectationSignals(work, now) {
+  if (!work?.tally || !work.expectations) return [];
+  const { tally, expectations: expect, label } = work;
+  const out = [];
+  const since = from => from === null ? 0 : Math.max(0, (now - from) / 1000);
+  if (!expect.changes) {
+    const changed = tally.calls.change;
+    out.push(changed >= 2 ? signal('out_of_role', 'off_track', `This ${label} Run changed files ${changed} times; a review changes none`) : changed === 1 ? signal('out_of_role', 'watch', `This ${label} Run changed a file; a review changes none`) : signal('out_of_role', 'on_track', 'changed nothing, as a review should'));
+  }
+  if (expect.verifyBeforeShip && tally.unverifiedShip) {
+    const ship = tally.unverifiedShip;
+    out.push(signal('order', ship.push ? 'off_track' : 'watch', `${capital(ship.rule)} after its last change with no test run in between`));
+  } else if (expect.verifyBeforeShip && tally.firstChangeAt !== null) out.push(signal('order', 'on_track', 'tested after its last change before shipping'));
+  if (expect.firstChangeMinutes) {
+    const limit = expect.firstChangeMinutes * 60;
+    const waited = since(tally.firstAt);
+    const word = pinnedWord(work, 'firstChangeMinutes');
+    if (tally.firstChangeAt !== null) out.push(signal('first_change', 'on_track', `first change after ${minutes((tally.firstChangeAt - tally.firstAt) / 1000)} min`));
+    else if (waited >= 2 * limit) out.push(signal('first_change', 'off_track', `No file changed after ${minutes(waited)} min; ${label} work usually changes one by ${minutes(limit)} min (${word})`));
+    else if (waited >= limit) out.push(signal('first_change', 'watch', `No file changed after ${minutes(waited)} min; ${label} work usually changes one by ${minutes(limit)} min (${word})`));
+    else out.push(signal('first_change', 'on_track', `no change yet, expected by ${minutes(limit)} min`));
+  }
+  if (expect.readMinutes && tally.readingSince !== null) {
+    const limit = expect.readMinutes * 60;
+    const read = since(tally.readingSince);
+    const word = pinnedWord(work, 'readMinutes');
+    const said = `Reading for ${minutes(read)} min without changing, testing or shipping; ${label} work usually moves on within ${minutes(limit)} min (${word})`;
+    out.push(read >= 2 * limit ? signal('overstay', 'off_track', said) : read >= limit ? signal('overstay', 'watch', said) : signal('overstay', 'on_track', `reading for ${minutes(read)} min`));
+  } else if (expect.readMinutes) out.push(signal('overstay', 'on_track', `${activityWord(tally.last)} now`));
+  if (expect.cycles) {
+    const said = `${tally.cycles} change-and-test rounds; ${label} work usually needs at most ${expect.cycles} (${pinnedWord(work, 'cycles')})`;
+    out.push(tally.cycles >= 2 * expect.cycles ? signal('churn', 'off_track', said) : tally.cycles > expect.cycles ? signal('churn', 'watch', said) : signal('churn', 'on_track', `${tally.cycles} change-and-test ${tally.cycles === 1 ? 'round' : 'rounds'}`));
+  }
+  return out;
+}
+
+const activityWord = key => ({ change: 'changing files', verify: 'testing', ship: 'shipping', setup: 'setting up' })[key] ?? 'working';
+
 function onTrackReason(signals) {
   const judged = key => signals.find(entry => entry.key === key && entry.judged);
   return [judged('pace') ?? judged('time'), judged('budget'), judged('quiet')].filter(Boolean).map(entry => entry.reason).join(' · ');
@@ -174,12 +214,14 @@ function onTrackReason(signals) {
  * tripwires in the transcript's calls (egress is checked only against an `allowedHosts` list), or `tripwires` when the caller kept
  * the hits of entries it no longer holds. `transcriptState` says whether the transcript was read (`loaded`), is
  * `loading`, is missing because of the `demo` or a Ploeg that does not report one (`unsupported`), or could not be
- * read (`failed`); the older `transcriptAvailable` false means `unsupported`. `stale` is the earlier result when the
+ * read (`failed`); the older `transcriptAvailable` false means `unsupported`. `work` is the Run's Work Kind, its
+ * expectations and the tally of its calls' Activities (RFC-0009): with a loaded transcript it adds the Out of role,
+ * Order, First change, Overstay and Churn signals that apply to that kind, none of which can make a Run On track alone. `stale` is the earlier result when the
  * facts could not be read again: it comes back unchanged, marked stale, and is never re-judged. A Run that is not
  * running has no health (null): its state badge or outcome speaks instead.
- * @param {{ run: object, entries?: object[], now: number, transcriptState?: 'loaded'|'loading'|'demo'|'unsupported'|'failed', transcriptAvailable?: boolean, stale?: object|null, tripwires?: object[]|null, allowedHosts?: string[] }} input
+ * @param {{ run: object, entries?: object[], now: number, transcriptState?: 'loaded'|'loading'|'demo'|'unsupported'|'failed', transcriptAvailable?: boolean, stale?: object|null, tripwires?: object[]|null, allowedHosts?: string[], work?: { kind: string, label: string, expectations: object, tally: object } | null }} input
  */
-export function runHealth({ run, entries = [], now, transcriptState, transcriptAvailable, stale = null, tripwires = null, allowedHosts = null }) {
+export function runHealth({ run, entries = [], now, transcriptState, transcriptAvailable, stale = null, tripwires = null, allowedHosts = null, work = null }) {
   if (stale) return { ...stale, stale: true };
   if (run?.state !== 'running') return { health: null, signals: [], deciding: null, reason: '' };
   const state = Object.hasOwn(transcriptStates, transcriptState) ? transcriptState : transcriptAvailable === false ? 'unsupported' : 'loaded';
@@ -187,7 +229,7 @@ export function runHealth({ run, entries = [], now, transcriptState, transcriptA
   const started = limits?.startedAt ?? time(run?.startedAt);
   const elapsed = started === null ? 0 : Math.max(0, (now - started) / 1000);
   const plan = state === 'loaded' ? latestPlan(entries) : null;
-  const signals = [tripwireSignal(entries, state, tripwires, allowedHosts, now), quietSignal(entries, limits, now, state), paceSignal(plan, limits, elapsed, state), timeSignal(plan, limits, elapsed), budgetSignal(run), repeatSignal(entries, state)];
+  const signals = [tripwireSignal(entries, state, tripwires, allowedHosts, now), quietSignal(entries, limits, now, state), paceSignal(plan, limits, elapsed, state), timeSignal(plan, limits, elapsed), ...(state === 'loaded' ? expectationSignals(work, now) : []), budgetSignal(run), repeatSignal(entries, state)];
   const judged = signals.filter(entry => entry.judged);
   const worst = judged.reduce((current, entry) => !current || rank[entry.health] > rank[current.health] ? entry : current, null);
   const startup = started !== null && elapsed < startupSeconds && !plan?.length;

@@ -5,6 +5,8 @@ import type { RunTranscript, TranscriptEntry } from '../run-transcript.ts';
 import type { Store } from '../store.ts';
 import { combineHealth, latestPlan, runHealth } from '../../public/core/run-health.js';
 import { guardSignals, transcriptCalls } from '../../public/core/guard.js';
+import { activityOf, activityTally, tallyCall } from '../../public/core/activity.js';
+import { runWork } from '../../public/core/expectations.js';
 import { judgeLimits, type JudgeState, type RunJudge, type RunJudgement } from './judge.ts';
 
 /** The Ploeg reads Run health needs. Both refuse a Work Item outside the caller's Teams. */
@@ -16,18 +18,22 @@ export interface RunHealthWorkItems {
 /** One signal's verdict, as `runHealth` computes it. */
 export type HealthSignal = { key: string; health: string; reason: string; judged: boolean };
 /** What the health route answers for one Run. `health` is null for a Run that is not running; `combined` is the badge, the signals raised by the judge. */
-export type RunHealthView = { runId: string; state: PloegRun['state']; health: string | null; signals: HealthSignal[]; deciding: string | null; reason: string; combined: { health: string; source: 'signals' | 'judge' } | null; judge: RunJudgement | null; judgeState: JudgeState; judgements: number; history: RunJudgement[]; stale: boolean; asOf: string; demo: boolean };
+/** A Run's Work Kind as the rules set it, with why, and the expectations it was judged against (RFC-0009). */
+export type RunWorkView = { kind: string; family: string; label: string; source: string; rule: string; expectations: { readMinutes: number | null; firstChangeMinutes: number | null; cycles: number | null; verifyBeforeShip: boolean; changes: boolean; pinned: string[] } };
+export type RunHealthView = { runId: string; state: PloegRun['state']; health: string | null; signals: HealthSignal[]; deciding: string | null; reason: string; combined: { health: string; source: 'signals' | 'judge' } | null; judge: RunJudgement | null; judgeState: JudgeState; judgements: number; history: RunJudgement[]; stale: boolean; asOf: string; demo: boolean; work: RunWorkView | null };
 export type RunHealthOptions = {
   demo: boolean;
   judge?: RunJudge;
   judgeEnabled: (user: User, team: string) => Promise<boolean>;
   record?: (user: User, name: string, workItemId: string, props: Record<string, string | number | boolean>) => void;
+  expectations?: (team: string) => Record<string, Record<string, unknown>> | null;
   now?: () => Date;
 };
 
 type Result = { health: string | null; signals: HealthSignal[]; deciding: string | null; reason: string; stale?: boolean };
 type Tripwire = { id: string; severity: string; label: string; at: number | null };
-type Tail = { cursor: number; entries: TranscriptEntry[]; plan: TranscriptEntry | null; calls: Map<string, TranscriptEntry>; tripwires: Map<string, Tripwire>; available: boolean; reason: 'demo' | 'unsupported'; reading: Promise<boolean> | null; last: Result | null; lastAt: string; reported: string | null; signals: Record<string, string>; planKey: string; judgedPlanKey: string; judgedAt: number; attempts: number | null; state: JudgeState; judging: Promise<void> | null };
+type Tally = ReturnType<typeof activityTally>;
+type Tail = { tally: Tally; placed: Set<string>; cursor: number; entries: TranscriptEntry[]; plan: TranscriptEntry | null; calls: Map<string, TranscriptEntry>; tripwires: Map<string, Tripwire>; available: boolean; reason: 'demo' | 'unsupported'; reading: Promise<boolean> | null; last: Result | null; lastAt: string; reported: string | null; signals: Record<string, string>; planKey: string; judgedPlanKey: string; judgedAt: number; attempts: number | null; state: JudgeState; judging: Promise<void> | null };
 
 const tailEntries = judgeLimits.windowEntries;
 const tailCalls = 20;
@@ -56,7 +62,7 @@ export class RunHealthService {
   private tail(runId: string): Tail {
     let tail = this.tails.get(runId);
     if (!tail) {
-      tail = { cursor: 0, entries: [], plan: null, calls: new Map(), tripwires: new Map(), available: true, reason: 'unsupported', reading: null, last: null, lastAt: '', reported: null, signals: {}, planKey: '', judgedPlanKey: '', judgedAt: 0, attempts: null, state: 'idle', judging: null };
+      tail = { tally: activityTally(), placed: new Set(), cursor: 0, entries: [], plan: null, calls: new Map(), tripwires: new Map(), available: true, reason: 'unsupported', reading: null, last: null, lastAt: '', reported: null, signals: {}, planKey: '', judgedPlanKey: '', judgedAt: 0, attempts: null, state: 'idle', judging: null };
       this.tails.set(runId, tail);
       if (this.tails.size > trackedRuns) for (const [id, entry] of this.tails) { if (!entry.judging && id !== runId) { this.tails.delete(id); break; } }
     }
@@ -73,6 +79,12 @@ export class RunHealthService {
       if (entry.kind === 'plan') tail.plan = entry;
       if (entry.kind === 'tool_call' && entry.toolCallId) {
         const known = tail.calls.get(entry.toolCallId);
+        const input = known?.input || entry.input || '';
+        if (!tail.placed.has(entry.toolCallId) && (input || (entry.toolKind && entry.toolKind !== 'execute'))) {
+          tail.placed.add(entry.toolCallId);
+          const at = Date.parse(entry.at);
+          tallyCall(tail.tally, { ...activityOf({ kind: entry.toolKind ?? 'other', input, title: entry.title ?? '', paths: entry.paths ?? [] }), at: Number.isFinite(at) ? at : null });
+        }
         tail.calls.set(entry.toolCallId, known ? { ...known, at: entry.at, status: entry.status ?? known.status, input: known.input || entry.input } : entry);
         while (tail.calls.size > tailCalls) tail.calls.delete(tail.calls.keys().next().value!);
       }
@@ -115,17 +127,19 @@ export class RunHealthService {
     const base = { runId, state: run.state, judge: history[0] ?? null, judgements: this.store.countRunJudgements(runId), history, demo };
     if (run.state !== 'running') {
       this.tails.delete(runId);
-      return { ...base, health: null, signals: [], deciding: null, reason: '', combined: null, judgeState: 'off', stale: false, asOf: new Date(now).toISOString() };
+      return { ...base, health: null, signals: [], deciding: null, reason: '', combined: null, judgeState: 'off', stale: false, asOf: new Date(now).toISOString(), work: null };
     }
     const tail = this.tail(runId);
     const fresh = await this.read(user, workItemId, runId, tail);
     const entries = this.entries(tail);
     const stale = !fresh && tail.last !== null;
-    const result = (stale ? runHealth({ run, now, stale: tail.last }) : runHealth({ run, entries, now, transcriptState: !fresh ? 'failed' : tail.available ? 'loaded' : tail.reason, tripwires: [...tail.tripwires.values()] })) as Result;
+    const work = runWork(detail.item, run, tail.tally, this.options.expectations?.(run.team) ?? null);
+    const result = (stale ? runHealth({ run, now, stale: tail.last }) : runHealth({ run, entries, now, transcriptState: !fresh ? 'failed' : tail.available ? 'loaded' : tail.reason, tripwires: [...tail.tripwires.values()], work })) as Result;
     if (!stale) this.remember(user, workItemId, runId, tail, result, now);
     const judgeState = await this.consider(user, detail, run, tail, result, entries, stale, demo);
     const view = { ...base, judge: this.store.runJudgements(runId, 1)[0] ?? null, judgements: this.store.countRunJudgements(runId) };
-    return { ...view, health: result.health, signals: result.signals, deciding: result.deciding, reason: result.reason, combined: combineHealth({ health: result.health ?? 'unknown' }, view.judge), judgeState, stale, asOf: tail.lastAt };
+    const { tally: _tally, ...workView } = work;
+    return { ...view, health: result.health, signals: result.signals, deciding: result.deciding, reason: result.reason, combined: combineHealth({ health: result.health ?? 'unknown' }, view.judge), judgeState, stale, asOf: tail.lastAt, work: workView as RunWorkView };
   }
 
   private remember(user: User, workItemId: string, runId: string, tail: Tail, result: Result, now: number): void {

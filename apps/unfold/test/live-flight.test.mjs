@@ -85,7 +85,7 @@ test('AI judge verdicts are advisory call signs; the worst is labelled, an off-t
   assert.deepEqual([watch.marks.calls.map(call => `${call.verdict}${call.labelled ? '*' : ''}`), watch.marks.divertedAt], [['on_track', 'watch*'], null]);
   assert.doesNotMatch(markup('judgeDrifting'), /is-diverted|is-suspect/);
   assert.match(markup('judgeDrifting'), /class="lv-fp-plane is-live is-watch"/);
-  assert.doesNotMatch(markup('running'), /lv-fp-wire|lv-fp-call|is-diverted|is-suspect|is-watch|is-off_track/, 'a clean flight draws no marks');
+  assert.doesNotMatch(markup('firstTry'), /lv-fp-wire|lv-fp-call|is-diverted|is-suspect|is-watch|is-off_track/, 'a clean flight draws no marks');
 });
 
 test('Run 305 holds once a command has been quiet for half the idle stop, and its plane rings by health', () => {
