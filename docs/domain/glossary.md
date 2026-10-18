@@ -496,6 +496,14 @@ One person's path from a trigger to an outcome they care about, across every too
 **Not to be confused with** [Work Item](../reference/glossary.md#work-item): The paths a Work Item takes through Ploeg are the system journeys page, not User Journeys.  
 **See also:** [Access Role](#access-role), [Agency](#agency)  
 
+## Walkthrough
+*Context: Work*
+
+The steps a writing Run reports for a person to check its change without reading code: each says what to do and what they should see, with a screenshot the agent took while walking the same step. When the change shows nowhere, the Walkthrough says so in plain words instead. Proposed in ploeg-hq pull request 185 and Unfold ADR 0054; not implemented yet.
+
+**Not to be confused with** [Evidence](#evidence): What a Review rests on, such as the diff and CI. A Walkthrough is the agent's own account and helps a person check; it proves nothing alone.  
+**See also:** [Review](#review), [Result](#result), [Evidence](#evidence)  
+
 ## Work Item Brief
 *Context: Participation*
 
