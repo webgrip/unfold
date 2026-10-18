@@ -35,7 +35,9 @@ function head(view, extras, { level = 1, size = 'lg' } = {}) {
 }
 
 function contain(view) {
-  return needsContainment(view.live) ? containmentPanel(view.live) : '';
+  const live = view.live;
+  const current = Boolean(live.guard?.signals.length || live.guard?.drift?.length) || ['watch', 'off_track'].includes(live.health?.health);
+  return needsContainment(live) && current ? containmentPanel(live) : '';
 }
 
 /**
@@ -121,27 +123,22 @@ export function proofPage(view, extras = {}, render = text => `<p>${escape(text)
   return `<article class="lv lv-page lv-proof" data-live="proof" aria-labelledby="lv-page-title-${escape(view.id)}"><nav class="lv-proof-rail" aria-label="Where this Work Item stands">${foldStrip(view.live)}${instruments(view.live, { layout: 'list' })}</nav><div class="lv-proof-sheet">${head(view, extras)}${nowLine(view.live)}${contain(view)}<section class="lv-proof-brief" aria-label="Brief"><h2 class="lv-overline">Brief</h2><div class="lv-proof-prose prose" data-private>${view.brief.text ? render(view.brief.text) : '<p>No brief was written.</p>'}</div></section><section aria-label="Acceptance"><h2 class="lv-overline">Acceptance</h2>${acceptanceLedger(view)}</section><section aria-label="Delivery"><h2 class="lv-overline">Delivery</h2>${delivery}</section></div><aside class="lv-proof-margin" aria-label="Margin">${decisionDock(view, { ...extras, quiet: true })}<h2 class="lv-overline">Margin</h2>${margin(view)}${intentBar(view, { id: `lv-proof-intent-${view.id}` })}</aside></article>`;
 }
 
-function hero(view, extras) {
-  const live = view.live;
+function decisionBand(view, extras) {
   if (extras.decision) return `<div class="lv-unified-decision">${extras.decision}</div>`;
-  if (view.decisions.length) return decisionDock(view, extras);
-  const inside = live.followed && live.moves.length ? `<details class="lv-unified-inside"><summary class="lv-unified-inside-sum">Inside ${escape(live.followed.role)} · Run ${live.followed.n}: ${live.moves.length} ${live.moves.length === 1 ? 'move' : 'moves'}, ${live.calls.total ?? 0} calls</summary>${traceLanes(live, { scope: 'run', selectedCall: extras.selectedCall ?? null })}${moveList(live, { selectedCall: extras.selectedCall ?? null })}</details>` : '';
-  if (live.running) return `<section class="lv-panel lv-unified-hero" aria-label="In flight">${nowLine(live)}${flightPath(live, { id: `lv-unified-flight-${view.id}` })}${instruments(live, { layout: 'strip' })}${inside}</section>`;
-  return `<section class="lv-panel lv-unified-hero" aria-label="Where it stands">${nowLine(live)}${instruments(live, { layout: 'strip' })}</section>`;
+  return view.decisions.length ? decisionDock(view, extras) : '';
 }
 
-function flightRecord(view) {
+function flightDeck(view, extras) {
   const live = view.live;
-  if (live.running && !view.decisions.length) return '';
-  if (!live.runs.length) return '';
-  return `<details class="lv-panel lv-unified-flight"${live.state === 'done' ? ' open' : ''}><summary class="lv-unified-inside-sum">How it went · ${live.attempts.length} ${live.attempts.length === 1 ? 'attempt' : 'attempts'}, ${live.runs.length} ${live.runs.length === 1 ? 'Run' : 'Runs'}${live.spend.usd !== null ? `, ${escape(usd(live.spend.usd))}` : ''}</summary>${flightPath(live, { id: `lv-unified-record-${view.id}` })}</details>`;
+  const inside = live.followed && live.moves.length ? `<details class="lv-unified-inside"${live.running ? ' open' : ''}><summary class="lv-unified-inside-sum">Inside ${escape(live.followed.role)} · Run ${live.followed.n}: ${live.moves.length} ${live.moves.length === 1 ? 'move' : 'moves'}, ${live.calls.total ?? 0} calls</summary>${traceLanes(live, { scope: 'run', selectedCall: extras.selectedCall ?? null })}${moveList(live, { selectedCall: extras.selectedCall ?? null })}</details>` : '';
+  return `<section class="lv-panel lv-unified-deck" aria-label="Flight">${nowLine(live)}${flightPath(live, { id: `lv-unified-flight-${view.id}` })}${instruments(live, { layout: 'strip' })}${inside}</section>`;
 }
 
 /**
  * The unified Work Item page: what a person needs first, then the detail. The fold strip says where the Work Item
- * stands; the band under it answers the one question that state raises: the app's own decision box when it waits
- * on you (a stop with its reason and fix, or the review with its checks), the flight path and instruments while it
- * flies, or the live sentence otherwise. Below it, three views switched without script: the conversation of the
+ * stands; under it the app's own decision box when it waits on you (a stop with its reason and fix, or the review
+ * with its checks), then the flight deck on the dark ground in every state: the live sentence, the flight path, the
+ * instrument strip and, open while a Run works, what that Run is doing. The Shift dial leads the side column. Below it, three views switched without script: the conversation of the
  * brief, every Run, context, Asks and steering; the brief with its acceptance conditions and their proof; and the
  * trace of the whole Shift. Beside them the standing answers, the spend tape and the Roles with the lease. The intent
  * bar stays under the views.
@@ -163,7 +160,7 @@ export function unifiedPage(view, extras = {}, render = text => `<p>${escape(tex
     `<div class="${cx('lv-desk-panel', 'is-brief')}">${extras.account ?? ''}<section class="lv-proof-brief" aria-label="Brief"><div class="lv-proof-prose prose" data-private>${view.brief.text ? render(view.brief.text) : '<p>No brief was written.</p>'}</div></section><section aria-label="Acceptance"><h2 class="lv-overline">Acceptance</h2>${acceptanceLedger(view)}</section></div>`,
     `<div class="${cx('lv-desk-panel', 'is-trace')}">${live.runs.length ? `${traceLanes(live)}${moveList(live)}` : '<p class="lv-proof-empty">No Run has started yet.</p>'}</div>`,
   ].join('');
-  return `<article class="lv lv-page lv-desk lv-unified" data-live="unified" aria-labelledby="lv-page-title-${escape(view.id)}">${head(view, extras)}${foldStrip(live)}${contain(view)}${hero(view, extras)}<div class="lv-page-cols"><div class="lv-page-main"><section class="lv-panel lv-desk-main" aria-label="Work Item views"><fieldset class="lv-desk-tabs"><legend class="sr-only">Show</legend>${switches}</fieldset>${panels}</section>${intentBar(view, { id: `lv-unified-intent-${view.id}` })}</div><aside class="lv-page-side" aria-label="At a glance"><section class="lv-panel">${answers(live, { layout: 'list', ask: false })}</section><section class="lv-panel" aria-label="Spend"><h2 class="lv-overline">Spend</h2>${spendTape(view)}</section><section class="lv-panel" aria-label="Roles"><h2 class="lv-overline">Roles</h2>${roleRoster(view)}${leaseBaton(view)}${presenceStack(view, { names: true })}</section></aside></div>${flightRecord(view)}</article>`;
+  return `<article class="lv lv-page lv-desk lv-unified" data-live="unified" aria-labelledby="lv-page-title-${escape(view.id)}">${head(view, extras)}${foldStrip(live)}${contain(view)}${decisionBand(view, extras)}${flightDeck(view, extras)}<div class="lv-page-cols"><div class="lv-page-main"><section class="lv-panel lv-desk-main" aria-label="Work Item views"><fieldset class="lv-desk-tabs"><legend class="sr-only">Show</legend>${switches}</fieldset>${panels}</section>${intentBar(view, { id: `lv-unified-intent-${view.id}` })}</div><aside class="lv-page-side" aria-label="At a glance">${live.runs.length ? `<section class="lv-panel lv-unified-dial" aria-label="Shift">${shiftDial(live)}</section>` : ''}<section class="lv-panel">${answers(live, { layout: 'list', ask: false })}</section><section class="lv-panel" aria-label="Spend"><h2 class="lv-overline">Spend</h2>${spendTape(view)}</section><section class="lv-panel" aria-label="Roles"><h2 class="lv-overline">Roles</h2>${roleRoster(view)}${leaseBaton(view)}${presenceStack(view, { names: true })}</section></aside></div></article>`;
 }
 
 const pages = { unified: unifiedPage, thread: threadPage, cockpit: cockpitPage, desk: deskPage, logbook: logbookPage, proof: proofPage };

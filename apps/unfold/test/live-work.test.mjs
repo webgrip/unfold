@@ -28,9 +28,11 @@ test('the timeline folds quiet stretches, groups Runs a machine ended in a row a
 test('a steering message names the first Run that started after it, or none', () => {
   const view = workView(workInputOf('running'));
   const steer = view.entries.find(entry => entry.kind === 'steer');
-  assert.ok(steer.readBy && steer.readBy.at >= steer.at);
+  assert.ok((steer.readBy && steer.readBy.at >= steer.at) || steer.flying);
   const late = workView({ ...workInputOf('running'), messages: [{ at: new Date(view.live.now - 1000).toISOString(), text: 'later', by: 'Ryan' }] });
-  assert.equal(late.entries.find(entry => entry.kind === 'steer').readBy, null);
+  const lateSteer = late.entries.find(entry => entry.kind === 'steer');
+  assert.equal(lateSteer.readBy, null);
+  assert.equal(lateSteer.flying.role, 'Builder', 'a message sent while a Run works goes to that Run');
 });
 
 test('steering opens only for a Work Item started in Unfold that is still open, and the intent bar says why not', () => {
@@ -75,4 +77,13 @@ test('every layout renders every scenario with one level-one heading, the intent
     }
   }
   assert.match(timeline(workView(workInputOf('queued'))), /lv-tl/);
+});
+
+test('a Run that went off track and came back shows the judge’s history on its flight, not a containment alarm', () => {
+  const recovered = workView(workInputOf('driftRecovered'));
+  assert.equal(recovered.live.health.health, 'on_track');
+  const html = workPage('unified', recovered);
+  assert.doesNotMatch(html, /lv-containment/);
+  assert.match(html, /Sent to the running Builder/);
+  assert.match(workPage('unified', workView(workInputOf('rogue'))), /lv-containment/, 'a Run that is off track now still raises the alarm');
 });
