@@ -1,3 +1,9 @@
+## [unfold-v0.4.0-rc.88](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.87...unfold-v0.4.0-rc.88) (2026-10-18)
+
+### Fixed
+
+* **unfold:** send a failed session's Work Item to its session, not a tracker ([c246b46](https://forgejo.webgrip.dev/webgrip/unfold/commit/c246b46ce73c007372cf1f4e0e8fafbb8c4009d1))
+
 ## [unfold-v0.4.0-rc.87](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.86...unfold-v0.4.0-rc.87) (2026-10-18)
 
 ### Fixed
