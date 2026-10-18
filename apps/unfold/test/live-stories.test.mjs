@@ -9,15 +9,21 @@ for (const [file, load] of Object.entries(storyFiles)) {
   for (const name of storyNames(module)) all.push({ file, name, module });
 }
 
-test('every story file is a Component Story Format module with a scenario control', async () => {
+test('every story file is a Component Story Format module; live components take a scenario control', async () => {
   for (const [file, load] of Object.entries(storyFiles)) {
     const module = await load();
-    assert.match(module.default.title, /^Live\//, file);
+    assert.match(module.default.title, /^(Live|Controls)\//, file);
     assert.equal(typeof module.default.render, 'function', file);
-    assert.deepEqual(module.default.argTypes.scenario.options, scenarioNames, file);
+    if (module.default.title.startsWith('Live/')) assert.deepEqual(module.default.argTypes.scenario.options, scenarioNames, file);
     assert.ok(storyNames(module).length > 0, file);
   }
-  for (const { file, name, module } of all) assert.ok(scenarioNames.includes({ ...module.default.args, ...module[name].args }.scenario), `${file}--${name}`);
+  for (const { file, name, module } of all) if (module.default.title.startsWith('Live/')) assert.ok(scenarioNames.includes({ ...module.default.args, ...module[name].args }.scenario), `${file}--${name}`);
+});
+
+test('a story’s play function is handed to the workbench', () => {
+  const { module } = all.find(entry => entry.file === 'time-picker');
+  assert.equal(typeof renderStory(module, 'PicksATypedSpan').play, 'function');
+  assert.equal(renderStory(module, 'Open').play, null);
 });
 
 test('every story renders markup the app’s Content Security Policy and screen readers accept', () => {

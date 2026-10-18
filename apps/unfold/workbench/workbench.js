@@ -22,7 +22,7 @@ async function index() {
     const module = await load();
     files[file] = module;
     const group = element('section', { class: 'wb-group' });
-    group.append(element('h2', { class: 'wb-group-title' }, module.default.title.replace(/^Live\//, '')));
+    group.append(element('h2', { class: 'wb-group-title' }, module.default.title.replace(/^(Live|Controls)\//, '')));
     const list = element('ul', { class: 'wb-list' });
     for (const name of storyNames(module)) {
       const item = element('li');
@@ -124,7 +124,7 @@ function show() {
   wanted = { id, args };
   for (const link of nav.querySelectorAll('.wb-link')) link.toggleAttribute('aria-current', link.dataset.story === id);
   document.querySelector('#story-title').textContent = story.title;
-  document.querySelector('#model').textContent = JSON.stringify(modelOf(story.args.scenario), null, 2);
+  document.querySelector('#model').textContent = JSON.stringify(story.args.scenario ? modelOf(story.args.scenario) : story.args, null, 2);
   const keys = chosen('theme').flatMap(theme => chosen('width').map(width => `${theme}-${width}`));
   for (const [key, frame] of frames) if (!keys.includes(key)) { frame.cell.remove(); frames.delete(key); }
   for (const key of keys) {
