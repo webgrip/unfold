@@ -10,6 +10,9 @@ import { live } from '../core/live.js';
 import { prefs } from '../core/prefs.js';
 import { applyNowCounts } from '../core/counts.js';
 import { taskSources } from '../core/lookup.js';
+import { enabled, exposed, track } from '../core/flags.js';
+import { segmented } from '../core/ui.js';
+import { fleetBoard, fleetModel } from '../live/fleet.js';
 
 const baselineKey = 'unfold.nowSince';
 const view = Object.assign(state.now, { summary: { data: null, error: null }, summaryRequest: 0, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false, keepFocus: false });
@@ -62,13 +65,37 @@ function restoreFocus(keep) {
   (visible(refresh) ? refresh : document.getElementById('page-title'))?.focus({ preventScroll: true });
 }
 
+function fleetShown() {
+  if (!enabled('now.fleet')) return false;
+  exposed('now.fleet', { screen: 'now' });
+  return prefs.get('nowView') === 'fleet';
+}
+
+function modeSwitch(fleet) {
+  if (!enabled('now.fleet')) return '';
+  return `<span class="now-mode">${segmented({ label: 'Show Now as', action: 'now-mode', items: [{ id: 'desk', label: 'Desk', selected: !fleet }, { id: 'fleet', label: 'Fleet', selected: fleet }] })}</span>`;
+}
+
 function renderNow() {
   if (view.since === undefined) arrive();
   const handOver = state.bootstrap?.user?.role !== 'viewer' && taskSources().some(source => source.executionOwner === 'ploeg');
-  const content = nowMarkup(view, { grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), handOver });
+  const fleet = fleetShown();
+  const content = fleet && view.data
+    ? fleetBoard(fleetModel({ now: view.data, summary: view.summary.data, at: Date.now() }))
+    : nowMarkup(view, { grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), handOver });
+  const subtitle = fleet ? 'Every Team you can read, from the gate to landed.' : 'What waits on you, what runs and what finished, across your Teams.';
   const keep = focusedTarget();
-  renderHtml(shell(content, { title: 'Now', subtitle: 'What waits on you, what runs and what finished, across your Teams.', actions: refreshButton() }));
+  renderHtml(shell(content, { title: 'Now', subtitle, actions: `${modeSwitch(fleet)}${refreshButton()}` }));
   restoreFocus(keep);
+}
+
+function switchMode(element) {
+  const mode = element.dataset.id;
+  if (!prefs.set('nowView', mode)) return;
+  track(`now.view_${mode}`);
+  renderNow();
+  announce(mode === 'fleet' ? 'Showing the fleet' : 'Showing the desk');
+  document.querySelector(`[data-action="now-mode"][data-id="${mode}"]`)?.focus({ preventScroll: true });
 }
 
 async function loadSummary(fresh) {
@@ -230,6 +257,7 @@ export default {
     'now-show-new': showNew,
     'now-caught-up': caughtUp,
     'now-digest-jump': jumpToDigest,
+    'now-mode': switchMode,
   },
   keys: [nowKeys],
 };

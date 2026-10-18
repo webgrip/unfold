@@ -8,3 +8,4 @@ export { traceLanes, moveList, callLanes } from './trace.js';
 export { containmentPanel, containmentHeadline, needsContainment } from './containment.js';
 export { cockpit, instrumentPanel, fleet, fleetRow, nowLine } from './layouts.js';
 export { liveSentence, flightSummary } from './parts.js';
+export { fleetModel, fleetBoard, airspace, flightBoard, fleetHeadline, fleetStages } from './fleet.js';
