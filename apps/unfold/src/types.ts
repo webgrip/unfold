@@ -52,6 +52,8 @@ export type AppConfig = {
   links?: { gitlab?: { baseUrl: string; clientId?: string; scopes: string[] }; clickup?: { clientId?: string; clientSecret?: string; apiUrl: string; appUrl: string } };
   gatewayPolicy?: { providers?: string[]; regions?: string[] };
   cards?: { backfillPeriods: number; teams: Record<string, { lengthDays: number; anchor: string }>; publishPullRequestComment?: boolean; rules?: CardRuleSettings };
+  /** The Run health judge's gateway models, in order of preference (RFC-0007). */
+  runHealth?: { judgeModels: string[] };
   cardThemes?: { directory?: string; assetQuotaMb: number; ai?: { baseUrl: string; model: string; keyEnv: string; maxTokens: number; timeoutMs: number; requestsPerHour: number } };
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; metricsUrl?: string; traceQuery?: string; logsQuery?: string };
   insight?: InsightConfig;

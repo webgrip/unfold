@@ -208,7 +208,7 @@ const shifts = new Map(shiftSpecs.map(spec => {
 const items: PloegItem[] = itemSpecs.map(({ created, updated, ...spec }) => ({ provider: 'demo', description: illustrative, revision: 'illustrative-v1', team: 'delivery', priority: 1, attempts: 0, infraFailures: 0, nextEligibleAt: null, target: orders, lease: null, url: '', ...spec, createdAt: ago(created), updatedAt: ago(updated), latestShift: shifts.get(spec.id) ?? null }));
 const find = (id: string) => items.find(item => item.id === id)!;
 
-type RunSpec = { id: string; item: string; role: string; round: number; writes: boolean; started: number | null; finished: number | null; outcome?: string; verdict?: string; failure?: string; summary?: string; stuck?: string; findings?: string; problem?: string; solution?: string; links?: string[] };
+type RunSpec = { id: string; item: string; role: string; round: number; writes: boolean; started: number | null; finished: number | null; outcome?: string; verdict?: string; failure?: string; summary?: string; stuck?: string; findings?: string; problem?: string; solution?: string; links?: string[]; limits?: [number, number] };
 const legacy = { role: '', round: 0, writes: true };
 const killed = Array.from({ length: 10 }, (_, attempt): RunSpec => {
   const created = 1319 - attempt * 12;
@@ -238,7 +238,7 @@ const runSpecs: RunSpec[] = [
   { id: '48', item: '110', role: 'analyst', round: 1, writes: false, started: null, finished: 197, summary: 'cancelled: shift closed (budget exhausted: pool 0.04, spent 0.00, reserved 0.00)' },
   { id: '49', item: '103', ...legacy, started: 175, finished: 150, outcome: 'failed', failure: 'lease_lost', summary: 'lease expired' },
   { id: '50', item: '105', role: 'implementer', round: 1, writes: true, started: 90, finished: 55, outcome: 'pr_opened', summary: 'Illustrative writer handoff for the rounding change.', problem: 'Order totals with a half cent round differently on the invoice and in the cart, so a customer can be charged one cent more than shown.', solution: '- One rounding rule, half away from zero, now serves the cart and the invoice.\n- AGENTS.md documents the rule, as the Work Item asks.\n- A test covers half-cent totals.\n\nThis is illustrative content, not a result of an executed Run.', links: [pull(5)] },
-  { id: '51', item: '102', role: 'implementer', round: 1, writes: true, started: 18, finished: null },
+  { id: '51', item: '102', role: 'implementer', round: 1, writes: true, started: 18, finished: null, limits: [5400, 600] },
   { id: '52', item: '103', ...legacy, started: 58, finished: 2, outcome: 'failed', failure: 'lease_lost', summary: 'lease expired' },
   { id: '53', item: '105', role: 'reviewer', round: 2, writes: false, started: 40, finished: 26, outcome: 'no_change_needed', summary: 'Illustrative review of the rounding change.', findings: 'Sample finding: the change edits AGENTS.md to document the rounding rule, as the Work Item asks. An instruction-file change needs a human decision, so this review gives no verdict. This is illustrative content, not a result of an executed review.' },
   { id: '54', item: '104', role: 'analyst', round: 1, writes: false, started: null, finished: null },
@@ -248,7 +248,7 @@ const runState = (spec: RunSpec): PloegRun['state'] => spec.finished !== null ? 
 const runDetail = (spec: RunSpec): PloegRun => {
   const item = find(spec.item);
   const state = runState(spec);
-  return { id: spec.id, workItemId: spec.item, shiftId: spec.role ? shifts.get(spec.item)?.id ?? null : null, team: item.team, role: spec.role, round: spec.round, writes: spec.writes, state, startedAt: spec.started === null ? null : ago(spec.started), finishedAt: spec.finished === null ? null : ago(spec.finished), expiresAt: state === 'running' ? ago(-9) : null, outcome: spec.outcome ?? null, summary: spec.summary ?? '', stuckReason: spec.stuck ?? '', links: spec.links ?? [], findings: spec.findings ?? '', verdict: spec.verdict ?? '', problem: spec.problem ?? '', solution: spec.solution ?? '', failureReason: spec.failure ?? null, authorizedUsd: 0, usage: null, costStatus: 'unknown', keyAlias: null };
+  return { id: spec.id, workItemId: spec.item, shiftId: spec.role ? shifts.get(spec.item)?.id ?? null : null, team: item.team, role: spec.role, round: spec.round, writes: spec.writes, state, startedAt: spec.started === null ? null : ago(spec.started), finishedAt: spec.finished === null ? null : ago(spec.finished), expiresAt: state === 'running' ? ago(-9) : null, outcome: spec.outcome ?? null, summary: spec.summary ?? '', stuckReason: spec.stuck ?? '', links: spec.links ?? [], findings: spec.findings ?? '', verdict: spec.verdict ?? '', problem: spec.problem ?? '', solution: spec.solution ?? '', failureReason: spec.failure ?? null, authorizedUsd: 0, usage: null, costStatus: 'unknown', keyAlias: null, ...(spec.limits && spec.started !== null ? { limits: { promptSeconds: spec.limits[0], idleSeconds: spec.limits[1], promptStartedAt: ago(spec.started) } } : {}) };
 };
 const runRow = (spec: RunSpec): PloegRunRow => {
   const item = find(spec.item);

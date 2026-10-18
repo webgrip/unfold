@@ -100,6 +100,12 @@ export function gatewayFailure(status: number, text: string): AskFailureCode {
   }
 }
 
+/** Text a model or a person wrote, made safe to store and show: terminal escapes and control characters dropped, URL credentials, `sk-` keys and `secrets` redacted, trimmed and cut at `max`. */
+export function cleanText(value: string, max: number, secrets: readonly string[]): string {
+  const text = value.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').replace(/[^\P{C}\n\t]/gu, '').replace(/:\/\/[^\s/@]+@/g, '://[redacted]@').replace(/\bsk-[\w-]+/g, '[redacted]');
+  return withoutKnownSecrets(text, secrets).trim().slice(0, max);
+}
+
 const sourced = (ask: Ask): Ask => ({ ...ask, source: ask.source ?? (ask.demo ? 'record' : 'model'), intent: ask.intent ?? null });
 
 const resetDate = (iso: string) => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(iso));
@@ -119,10 +125,7 @@ export class AskService {
     this.store = store; this.workItems = workItems; this.authority = authority; this.options = options;
   }
 
-  private clean(value: string, max: number): string {
-    const text = value.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').replace(/[^\P{C}\n\t]/gu, '').replace(/:\/\/[^\s/@]+@/g, '://[redacted]@').replace(/\bsk-[\w-]+/g, '[redacted]');
-    return withoutKnownSecrets(text, this.options.secrets).trim().slice(0, max);
-  }
+  private clean(value: string, max: number): string { return cleanText(value, max, this.options.secrets); }
   private clock(): Date { return this.options.now?.() ?? new Date(); }
   private now(): string { return this.clock().toISOString(); }
 

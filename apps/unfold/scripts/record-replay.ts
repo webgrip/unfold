@@ -158,6 +158,7 @@ async function recordViews() {
         const base = `/api/ploeg/work-items/${encodeURIComponent(id)}`;
         for (const path of [base, `${base}/card`, `${base}/cracks`, `${base}/crack-candidates`, `${base}/value-stream`, `${base}/context`, `${base}/asks`, `/api/actions?${query({ workItemId: id, limit: '100' })}`]) await get(path);
         if (routes.get(replayKey('GET', `${base}/card`))!.status === 200) await get(`/api/cards/${encodeURIComponent(id)}/seen`);
+        for (const run of ((routes.get(replayKey('GET', base))?.body as any)?.runs ?? []).filter((run: any) => run?.state === 'running')) await get(`${base}/runs/${encodeURIComponent(String(run.id))}/health`);
       }
     }
     await get('/api/asks');

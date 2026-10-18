@@ -64,3 +64,19 @@ test('a Run reads every Cost Status Ploeg reports, and a Shift reads its Hold fr
   delete shift.reservedUsd;
   assert.equal(detail({ schemaVersion: '1.0', ...sample }).shifts[0].reservedUsd, 0.5);
 });
+
+test('a Run reads the limits Ploeg reports defensively: an offset start time passes, an unusable limit is dropped, and an older Ploeg sends none', () => {
+  const sample = structuredClone((ploegDemo.details as any)['102']) as any;
+  const running = sample.runs.find((run: any) => run.state === 'running');
+  const read = () => detail({ schemaVersion: '1.0', ...sample }).runs.find(run => run.id === running.id)!;
+  running.limits = { promptSeconds: 5400, idleSeconds: 600, promptStartedAt: '2026-10-17T10:34:05+02:00' };
+  assert.deepEqual(read().limits, { promptSeconds: 5400, idleSeconds: 600, promptStartedAt: '2026-10-17T10:34:05+02:00' });
+  running.limits = { promptSeconds: -1, idleSeconds: 'ten', promptStartedAt: '2026-10-17T08:34:05Z', extra: true };
+  assert.deepEqual(read().limits, { promptStartedAt: '2026-10-17T08:34:05Z' });
+  running.limits = { promptSeconds: 5400, promptStartedAt: 'soon' };
+  assert.equal('limits' in read(), false);
+  running.limits = null;
+  assert.equal('limits' in read(), false);
+  delete running.limits;
+  assert.equal('limits' in read(), false);
+});

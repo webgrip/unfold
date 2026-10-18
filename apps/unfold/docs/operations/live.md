@@ -190,6 +190,21 @@ Unfold reads the gateway's error from LiteLLM's error body first, its `type` and
 
 The call asks for `reasoning_effort: low`, since an answer is at most 120 words; a gateway that refuses that parameter is asked once more without it. An answer the model stopped at its length limit is kept and marked `cutOff`. Costs show as Ploeg reports them: an amount with "not final yet" while Ploeg can still correct it (a day after the Ask), "Cost not known yet" before the gateway has recorded anything, and "Nothing charged" for an Ask refused before any model call.
 
+## Run health and its judge
+
+While a Run runs, its row on the Work Item page shows a health badge (On track, Watch, Off track, Not judged yet or Not known) with a reason line that names its numbers ([RFC-0007](../../../../docs/design/rfc-0007-run-health.md), [ADR 0046](../adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md)). Unfold's server computes it from the Run, its limits, the tail of its transcript and the time, so every viewer sees one answer. The time-based signals need a Ploeg that serves each Run's `limits` (ploeg-hq/ploeg#160); with an older Ploeg they say Not known and Budget and Repeat still judge.
+
+A shadow judge can add a model's verdict. It is off until the `cards.health.judge` flag is on for the Run's Team ([feature flags](feature-flags.md)), and it needs a connected Ploeg and the gateway (`LITELLM_BASE_URL`). Each judgement is a Ploeg Ask paid from the Team's Ask Allowance and never counted as delivery spend. It runs on a plan change, when a signal turns to Watch, and otherwise at most every 10 minutes, at most 9 times per Run, one at a time, and only from the read of a person who is not a viewer. Its verdict can raise the badge, never lower it, and it never stops, requeues, steers or grades a Run.
+
+```json
+"runHealth": { "judgeModels": ["hetzner-qwen3-8-27b", "hetzner-qwen3-6-35b-a3b"] }
+```
+
+* `judgeModels` lists the gateway models the judge may use, in order. The default is Hetzner's free, EU-hosted experimental inference through LiteLLM, which does not store content. Hetzner says that service is not for production; the judge accepts that because it only advises, and a missing verdict leaves the signals. The judge uses the first listed model the Ask's key may call. When Ploeg offers none of them, the Ask is finished unused, the judge shows "Judge off" and logs `run_judge.model_not_offered`: it never falls back to a paid model.
+* A verdict is kept only when it is one JSON object with `health`, a `reason` of at most 160 characters and at most 5 transcript `evidence` seqs from the window it read; anything else is discarded and logged as `run_judge.discarded`. A gateway that refuses `response_format` is asked once more without it.
+* A spent Ask Allowance pauses the judge ("Judge paused: this month's allowance is spent") without counting an attempt. A failed or timed-out judgement shows nothing; the signals still answer.
+* Health changes are recorded as the product event `run.health.changed` (old and new health, the deciding signal and the Run id, never transcript text), and the "This was wrong" control as `run.health.judge_wrong`.
+
 ## Card themes and generated art
 
 Run card themes are proposed ([ADR 0031](../adrs/0031-card-themes-a-card-designer-and-generated-art.md), [contract](../contracts/card-themes.md)). Administrators make them in **Settings › Card designer** and Unfold keeps them in its store. A Work Target picks one in Ploeg's configuration with `cardStyle: { skin, theme }`; Unfold never edits that file. Two optional settings:
