@@ -386,6 +386,20 @@
           "mcp": "checks_not_passed"
         },
         {
+          "value": "ci_not_finished",
+          "ploegSource": "pkg/shiftengine/reviewloop.go",
+          "label": "CI was still running when Ploeg stopped waiting",
+          "chip": "CI did not finish",
+          "mcp": "ci_not_finished"
+        },
+        {
+          "value": "ci_not_passed",
+          "ploegSource": "pkg/shiftengine/reviewloop.go",
+          "label": "CI failed for a reason the writer cannot fix",
+          "chip": "CI did not pass",
+          "mcp": "ci_not_passed"
+        },
+        {
           "value": "writing_run_failed_repeatedly",
           "ploegSource": "pkg/shiftengine/failedwriter.go",
           "label": "The writer kept failing",

@@ -17,6 +17,8 @@ test('every needs-human close reason code gets a chip, a sentence and an action 
     writing_run_killed_repeatedly: 'Cluster kept stopping the writer',
     review_approved: 'Pull request closed',
     checks_not_passed: 'Checks did not pass',
+    ci_not_finished: 'CI did not finish',
+    ci_not_passed: 'CI did not pass',
     review_failed: 'Reviewer kept failing',
     'budget exhausted: pool 3.00, spent 2.97, reserved 0.10': 'Budget ran out',
     'run stuck: reviewer round 2': 'Agent is stuck',

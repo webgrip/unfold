@@ -349,6 +349,8 @@ const closeLabels = {
   question_for_person: ['An agent asked a person a question', 'attention'],
   review_failed: ['No agent reviewed it: the reviewer kept failing', 'attention'],
   checks_not_passed: ['The checks did not pass', 'attention'],
+  ci_not_finished: ['CI was still running when Ploeg stopped waiting', 'attention'],
+  ci_not_passed: ['CI failed for a reason the writer cannot fix', 'attention'],
   fix_round_cap_reached: ['The fix Rounds ran out', 'attention'],
   budget_exhausted_before_fix_round: ['The budget ran out before a fix Round', 'attention'],
   writing_run_failed_repeatedly: ['The writer kept failing', 'danger'],

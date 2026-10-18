@@ -67,6 +67,16 @@ const copy = {
     sentence: 'The writer opened the pull request, but the Team’s checks failed or did not finish on the commit it pushed, and no fix Round could run. The pull request stays open.',
     fix: 'Run the Team’s checks on the pull request’s branch to see which one fails. Fix the branch by hand, or fix a flaky check in the Team’s configuration.',
   },
+  ci_not_finished: {
+    chip: 'CI did not finish',
+    sentence: 'The pull request’s CI was still running on its last commit when the repository’s wait ran out, so Ploeg did not mark it ready for review. The pull request stays open.',
+    fix: 'Let CI finish on the pull request. If it often takes this long, raise ci.waitTimeout for the repository in Ploeg’s configuration.',
+  },
+  ci_not_passed: {
+    chip: 'CI did not pass',
+    sentence: 'CI on the pull request did not pass, but every failing check was cancelled or also fails on the base branch, so Ploeg re-ran it once and sent nothing back to the writer. The pull request stays open.',
+    fix: 'Open the failing checks the reason names. Fix the base branch or the CI runner, then re-run CI on the pull request.',
+  },
   review_failed: {
     chip: 'Reviewer kept failing',
     sentence: 'The agent reviewer failed on every try, so no agent reviewed this work, and Ploeg did not mark it ready for review.',
@@ -178,7 +188,7 @@ const number = value => typeof value === 'number' && Number.isFinite(value);
 
 const held = (spent, reserved) => number(spent) && number(reserved) && reserved > 0 && reserved >= spent;
 
-const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'checks_not_passed', 'review_failed', 'budget_exhausted_before_fix_round', 'writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
+const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'checks_not_passed', 'ci_not_finished', 'ci_not_passed', 'review_failed', 'budget_exhausted_before_fix_round', 'writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
 
 const sessionCodes = new Set(['operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
 
@@ -235,6 +245,8 @@ const reasonGlyphs = Object.freeze({
   budget_exhausted_before_fix_round: 'coins',
   budget_held: 'lock',
   checks_not_passed: 'x-circle',
+  ci_not_finished: 'clock',
+  ci_not_passed: 'x-circle',
   review_failed: 'eye-off',
   writing_run_failed_repeatedly: 'x-circle',
   writing_run_killed_repeatedly: 'zap',
@@ -367,7 +379,7 @@ function relevantRun(detail, reason, closeReason) {
     return acting.find(run => run.outcome === 'stuck' && (!role || run.role === role) && (round === null || run.round === round)) || acting.find(run => run.outcome === 'stuck') || null;
   }
   if (['writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'stale_attempts', 'stale_infrastructure', 'budget_held'].includes(reason.code)) return runs.find(run => run.writes && (run.outcome === 'failed' || run.failureReason)) || runs.find(run => run.outcome === 'failed' || run.failureReason) || null;
-  if (reason.code === 'checks_not_passed') return runs.find(run => run.writes && (run.outcome === 'pr_opened' || run.outcome === 'pr_updated')) || null;
+  if (['checks_not_passed', 'ci_not_finished', 'ci_not_passed'].includes(reason.code)) return runs.find(run => run.writes && (run.outcome === 'pr_opened' || run.outcome === 'pr_updated')) || null;
   if (reason.code === 'review_failed') return runs.find(run => !run.writes && !run.shadow && (run.outcome === 'failed' || run.failureReason)) || null;
   if (reason.code === 'unknown') return runs.find(run => run.outcome === 'stuck') || null;
   return null;
