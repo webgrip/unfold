@@ -34,7 +34,7 @@ test('event entry points preserve validation and keep application publication ou
   const verification = read('.forgejo/actions/verify/action.yml');
   assert.ok(verification.runs.steps.some(verifyStep));
   assert.doesNotMatch(JSON.stringify(pr), /secrets\./);
-  assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'git submodule update --init --recursive && python3 scripts/docs.py --check --stage-only');
+  assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'python3 scripts/ploeg-contract.py fetch && python3 scripts/docs.py --check --stage-only');
 });
 
 test('the browser flows run every night and on command, never on a push, in the Playwright image of Unfold\'s playwright version', () => {
@@ -68,16 +68,26 @@ test('unfold-mcp\'s end-to-end suite runs every night and on command against an 
   assert.ok(!Object.values(workflows['on_source_change.yml'].jobs).some(other => [other.needs ?? []].flat().includes('mcp-e2e')), 'it reports; it gates no release');
 });
 
-test('every job that verifies, documents or demonstrates Unfold checks out the pinned Ploeg submodule', () => {
-  const checkout = job => job.steps.find(step => String(step.uses).startsWith('actions/checkout@'));
-  for (const [file, name] of [['on_pull_request.yml', 'checks'], ['on_pull_request.yml', 'ploeg-pin'], ['on_pull_request.yml', 'ploeg-docs'], ['on_source_change.yml', 'checks'], ['on_source_change.yml', 'ploeg-pin'], ['on_schedule.yml', 'external-links'], ['on_schedule.yml', 'tutorial-smoke'], ['on_schedule.yml', 'ploeg-ahead'], ['on_docs_change.yml', 'verify-publication']]) {
-    assert.equal(checkout(workflows[file].jobs[name]).with?.submodules, 'recursive', `${file}: ${name}`);
+test('every job that reads Ploeg\'s contract unpacks the pinned bundle first, and no job checks out Ploeg\'s source', () => {
+  assert.ok(!fs.existsSync(path.join(root, '.gitmodules')), 'Unfold depends on a released Ploeg, not a submodule (system ADR-0039)');
+  for (const [file, workflow] of Object.entries(workflows)) {
+    for (const [name, job] of Object.entries(workflow.jobs)) {
+      for (const step of job.steps ?? []) assert.equal(step.with?.submodules, undefined, `${file}: ${name} checks out submodules`);
+    }
+  }
+  const fetchesFirst = (job, reads) => {
+    const fetch = job.steps.findIndex(step => /scripts\/ploeg-contract\.py fetch(-unpinned)?\b/.test(step.run ?? ''));
+    const read = job.steps.findIndex(step => reads.test(step.run ?? ''));
+    return fetch >= 0 && fetch < read;
+  };
+  for (const [file, name, reads] of [['on_pull_request.yml', 'ploeg-pin', /ploeg-contract\.py check/], ['on_source_change.yml', 'ploeg-pin', /ploeg-contract\.py check/], ['on_pull_request.yml', 'ploeg-docs', /docs\.py --domain-check/], ['on_schedule.yml', 'external-links', /docs-links-external/], ['on_schedule.yml', 'ploeg-ahead', /renovate-ploeg-docs\.sh/], ['on_docs_change.yml', 'verify-publication', /docs\.py --stage-only/]]) {
+    assert.ok(fetchesFirst(workflows[file].jobs[name], reads), `${file}: ${name}`);
   }
   for (const name of ['generate-documentation', 'deploy-docs-site']) {
-    assert.match(workflows['on_docs_change.yml'].jobs[name].with['prepare-command'], /^git submodule update --init --recursive && /, name);
+    assert.match(workflows['on_docs_change.yml'].jobs[name].with['prepare-command'], /^python3 scripts\/ploeg-contract\.py fetch && /, name);
   }
   const mise = fs.readFileSync(path.join(root, 'mise.toml'), 'utf8');
-  assert.match(mise, /\[tasks\.setup\]\nrun = \[\n  "git submodule sync --recursive",\n  "git submodule update --init --recursive",/);
+  assert.match(mise, /\[tasks\.setup\]\nrun = \[\n  "python3 scripts\/ploeg-contract\.py fetch",/);
 });
 
 test('every pull request checks the Ploeg-derived pages on their own, and a weekly run checks the Ploeg to come', () => {
@@ -92,10 +102,10 @@ test('every pull request checks the Ploeg-derived pages on their own, and a week
   assert.doesNotMatch(JSON.stringify(ahead), /secrets\.|permissions|continue-on-error/);
 });
 
-test('a pull request and a release need the pinned Ploeg commit on Ploeg main', () => {
+test('a pull request and a release need the pinned Ploeg to be a published release', () => {
   for (const workflow of [workflows['on_pull_request.yml'], source]) {
     const steps = workflow.jobs['ploeg-pin'].steps;
-    assert.equal(steps.at(-1).run, 'node scripts/ploeg-pin.mjs --published');
+    assert.equal(steps.at(-1).run, 'mise exec -- uv run --no-project python scripts/ploeg-contract.py check --published');
     assert.doesNotMatch(JSON.stringify(workflow.jobs['ploeg-pin']), /secrets\.|permissions/);
   }
   assert.ok(source.jobs.release.needs.includes('ploeg-pin'));
@@ -124,7 +134,7 @@ test('only an enabled development push can version Unfold, after the checks and 
 test('warnings from setup and verification turn their own job red without gating a release', () => {
   const verification = read('.forgejo/actions/verify/action.yml');
   const captured = verification.runs.steps.filter(step => / 2>&1 \| tee (-a )?"\$\{RUNNER_TEMP:-\/tmp\}\/unfold-output\//.test(step.run ?? ''));
-  assert.deepEqual(captured.map(step => step.run.match(/mise (.+?) 2>&1/)[1]), ['-C apps/unfold install', '-C apps/ploeg install', '-C apps/site install', 'run setup', 'run verify']);
+  assert.deepEqual(captured.map(step => step.run.match(/mise (.+?) 2>&1/)[1]), ['-C apps/unfold install', '-C apps/site install', 'run setup', 'run verify']);
   for (const step of captured) assert.match(step.run, /^set -o pipefail; /, 'a captured step still fails when its command fails');
   const collect = verification.runs.steps.at(-1);
   assert.equal(collect.id, 'warnings');
@@ -432,7 +442,7 @@ test('the tutorial smoke job runs weekly, only runs the deterministic demo and n
   const job = workflows['on_schedule.yml'].jobs['tutorial-smoke'];
   assert.deepEqual(job.steps.map(step => step.uses), [source.jobs.checks.steps[0].uses, './.forgejo/actions/tutorial-smoke']);
   const action = read('.forgejo/actions/tutorial-smoke/action.yml');
-  assert.deepEqual(action.runs.steps.filter(step => step.run).map(step => step.run), ['bash scripts/tutorial-smoke.sh --check', 'mise trust apps/unfold/mise.toml && mise trust apps/ploeg/mise.toml && bash scripts/tutorial-smoke.sh']);
+  assert.deepEqual(action.runs.steps.filter(step => step.run).map(step => step.run), ['bash scripts/tutorial-smoke.sh --check', 'mise trust apps/unfold/mise.toml && bash scripts/tutorial-smoke.sh']);
   assert.equal(action.runs.steps.at(-1).if, "steps.prerequisites.outputs.ready == 'true'");
   assert.doesNotMatch(JSON.stringify(action) + JSON.stringify(job), /secrets\.|UNFOLD_RELEASES_ENABLED|permissions/);
   for (const workflow of ['on_pull_request.yml', 'on_source_change.yml']) assert.ok(!('tutorial-smoke' in workflows[workflow].jobs), workflow);

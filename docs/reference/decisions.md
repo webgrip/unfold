@@ -31,7 +31,6 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0013](../adr/adr-0013-the-product-is-named-unfold.md) | The product is named Unfold, and Ploeg and Vloer are its parts | 2026-10-01 | — |
 | System | [0016](../adr/adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | 2026-10-02 | — |
 | System | [0017](../adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) | A Tenant sits above Teams and bounds what users, sources and budgets can reach | 2026-10-04 | — |
-| System | [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) | Unfold pins Ploeg from its own repository and releases only its application | 2026-10-03 | — |
 | System | [0020](../adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) | Unfold is the application, and the name Vloer is retired | 2026-10-04 | — |
 | System | [0022](../adr/adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md) | People give a Work Item context files, at the start and while steering | 2026-10-04 | — |
 | System | [0023](../adr/adr-0023-unfold-measures-happiness-and-confusion-with-first-party-events-surveys-and-bug-reports.md) | Unfold measures happiness and confusion with first-party events, surveys and bug reports | 2026-10-05 | — |
@@ -44,6 +43,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0036](../adr/adr-0036-ploeg-and-unfold-use-one-vocabulary-with-named-screen-words.md) | Ploeg and Unfold use one vocabulary, with named screen words | 2026-10-13 | — |
 | System | [0037](../adr/adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md) | People act on work through either MCP server, and every action names its person, channel and confirmation | 2026-10-17 | — |
 | System | [0038](../adr/adr-0038-report-a-problem-becomes-its-own-component-that-any-application-embeds.md) | Report a problem becomes its own component that any application embeds | 2026-10-18 | — |
+| System | [0039](../adr/adr-0039-unfold-depends-on-a-released-ploeg-through-its-contract-bundle-and-go-module.md) | Unfold depends on a released Ploeg through its contract bundle and Go module | 2026-10-18 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
@@ -219,6 +219,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Scope | ADR | Title | Status | Date | Superseded by |
 | --- | --- | --- | --- | --- | --- |
 | System | [0004](../adr/adr-0004-unfold-releases-one-version.md) | Unfold releases its application and Ploeg under one version | superseded by ADR-0019 | 2026-10-03 | System [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) |
+| System | [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) | Unfold pins Ploeg from its own repository and releases only its application | superseded by ADR-0039 | 2026-10-18 | System [0039](../adr/adr-0039-unfold-depends-on-a-released-ploeg-through-its-contract-bundle-and-go-module.md) |
 | System | [0028](../adr/adr-0028-unfold-owns-the-run-card-and-collects-its-inputs-itself.md) | Unfold owns the Run card and collects its inputs itself | superseded by ADR-0030 | 2026-10-10 | System [0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md) |
 | System | [0029](../adr/adr-0029-unfold-collects-run-card-data-in-a-separate-go-service.md) | Unfold collects Run card data in a separate Go service | superseded by ADR-0030 | 2026-10-10 | System [0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md) |
 | Ploeg | [0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) | A Run card is assembled per Work Item from stored facts | rejected | 2026-10-10 | — |

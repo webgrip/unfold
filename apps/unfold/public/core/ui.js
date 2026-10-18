@@ -123,14 +123,15 @@ export function iconButton({ icon: glyph, label, action, data, href, external, v
  * @param {'neutral'|'live'|'attention'|'review'|'success'|'danger'|'severe'|'accent'} [options.tone]
  * @param {string} [options.glyph] Glyph name; omit for a text-only badge.
  * @param {string} options.label
+ * @param {string} [options.lead] Words a screen reader hears before the label, not shown, such as "Health: ".
  * @param {string} [options.title] Tooltip.
  * @param {'sm'|'md'} [options.size]
  * @param {'solid'|'outline'|'plain'} [options.style]
  * @returns {string}
  */
-export function badge({ tone, glyph, label = '', title, size, style } = {}) {
+export function badge({ tone, glyph, label = '', lead = '', title, size, style } = {}) {
   const classes = ['badge', size === 'sm' ? 'sm' : '', ['solid', 'outline', 'plain'].includes(style) ? style : ''].filter(Boolean).join(' ');
-  return `<span class="${classes}" data-tone="${toneOf(tone)}"${attr('title', title)}>${glyph ? icon(glyph) : ''}${escape(label)}</span>`;
+  return `<span class="${classes}" data-tone="${toneOf(tone)}"${attr('title', title)}>${glyph ? icon(glyph) : ''}${lead ? `<span class="sr-only">${escape(lead)}</span>` : ''}${escape(label)}</span>`;
 }
 
 /**

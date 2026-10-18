@@ -66,10 +66,11 @@ Computed by Unfold's server, plus the Run's limits, from the Run and a tail of i
 | **Time** | Elapsed against the prompt limit | ≥ 75 % used | ≥ 90 % used and the plan's last step is not in progress |
 | **Budget** | Observed spend against the authorized budget, only when `costStatus` is `observed` or `provisional` | ≥ 70 % | ≥ 90 % |
 | **Repeat** | The same tool-call input three times in the last ten tool calls | three repeats | five repeats |
+| **Tripwire** | The guard.js tripwires (`apps/unfold/public/core/guard.js`) the Run's tool calls crossed, kept by the server once seen; never makes a Run On track on its own | a medium tripwire | a high tripwire |
 
 The worst signal wins; the reason line shows that signal's numbers and, in a tooltip, all of them. Thresholds live in one place, as named constants in `public/core/run-health.js`, each with a test, so changing one is a reviewed change ([Unfold ADR 0045](../../apps/unfold/docs/adrs/0045-unfold-records-the-run-card-rules-it-computes.md): a rule the card computes has a record).
 
-How the built code reads three cases the table leaves open: Repeat alone never says On track (a Run whose only judged signal is Repeat, finding nothing, is Not known); a Run with no plan yet is Not judged yet in its first 5 minutes unless a signal is already Off track; and with no transcript entry yet, Quiet counts from the time the prompt started.
+How the built code reads three cases the table leaves open: only a progress signal (Quiet, Time or Pace) can make a Run On track; Budget, Repeat and Tripwire finding nothing are not evidence of progress, so a Run without limits reads Not known, with every fact it could not judge named once (revised 2026-10-18 from "a judged time or money signal", because until Ploeg serves limits that rule showed every cheap Run as On track); a Run with no plan yet is Not judged yet in its first 5 minutes unless a signal is already Off track; and with no transcript entry yet, Quiet counts from the time the prompt started.
 
 Two things the signals deliberately do not try: they do not read what the agent says (that is the judge's job), and they do not score quality (the Run card's grade does that, after review).
 
@@ -110,7 +111,8 @@ The signals cannot answer "is it still working on the ticket?". Run 305 was on t
 | Pending, not started | none | The state badge says Pending |
 | Running, first 5 min, no plan | Not judged yet | Avoids an early false Watch |
 | Running, plan and limits known | On track / Watch / Off track | The common case |
-| Running, Ploeg sent no `limits` | worst of Budget and Repeat, else Not known | Older Ploeg |
+| Running, Ploeg sent no `limits` | worst of Budget, Repeat and Tripwire, else Not known | Older Ploeg, and every Ploeg until it serves `limits` |
+| Running, transcript still loading, from a harness without one, from the demo, or failing to read | the signals that need no transcript; the others name which of the four it is | Unfold never reads a missing transcript as quiet |
 | Running, transcript unavailable (Claude Code harness, ADR-0090) | Time and Budget only; Quiet, Pace and Repeat say "no transcript" | `run.transcript.available` is false |
 | Running, transcript poll failing | last health, greyed, "health as of 2 min ago" | Never a fresh verdict on stale data |
 | Running, cost unknown | Budget not judged | Never treat unknown spend as zero |

@@ -3,7 +3,7 @@ import { meta, modelOf } from './shared.js';
 
 export default meta({ title: 'Live/Flight path', render: ({ scenario }) => flightPath(modelOf(scenario)) });
 
-export const Struggling = {};
+export const Recovering = {};
 export const Steady = { args: { scenario: 'firstTry' } };
 export const Holding = { args: { scenario: 'stalled' } };
 export const FixRound = { args: { scenario: 'fixRound' } };
@@ -17,5 +17,7 @@ export const StoppedRetrying = { args: { scenario: 'staleMachines' } };
 export const Withdrawn = { args: { scenario: 'withdrawn' } };
 export const Stress = { args: { scenario: 'stress' } };
 export const Hijacked = { args: { scenario: 'hijacked' } };
-export const JudgeDrifting = { args: { scenario: 'judgeDrifting' } };
-export const JudgeAbort = { args: { scenario: 'judgeAbort' } };
+export const JudgeWatch = { args: { scenario: 'judgeDrifting' } };
+export const JudgeRaises = { args: { scenario: 'judgeRaises' } };
+export const Run305Watch = { args: { scenario: 'run305Watch' } };
+export const Run305OffTrack = { args: { scenario: 'run305OffTrack' } };

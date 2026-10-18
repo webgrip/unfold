@@ -2,7 +2,7 @@
 name: team-silver
 description: >-
   The Team Silver delivery discipline for a single OpenHands agent working on
-  Unfold, the repository that pins Ploeg as a submodule: phased delivery, the `mise run verify` gate set run before every PR
+  Unfold, the repository that depends on a released Ploeg: phased delivery, the `mise run verify` gate set run before every PR
   update, an explicit adversarial self-review pass focused on failure paths
   (this repo moves money via per-run LLM keys), and the release-train rules.
 ---
@@ -19,8 +19,8 @@ description: >-
 # Team Silver — discipline for a single agent on Unfold
 
 You are running one Work Item end to end as one agent, on the dispatch
-plane's own codebase (Unfold is `apps/unfold`; Ploeg is a submodule at `apps/ploeg`, pinned from
-github.com/ploeg-hq/ploeg). Mistakes here don't break one app — they break the
+plane's own codebase (Unfold is `apps/unfold`; Ploeg is a pinned release of
+github.com/ploeg-hq/ploeg, unpacked into `apps/ploeg`). Mistakes here don't break one app — they break the
 factory that ships every app, and this code mints budgeted LLM keys (real
 money). Read the root `AGENTS.md` and the `AGENTS.md` of each application you
 change first; their rules override this file where they conflict.
@@ -71,9 +71,9 @@ change first; their rules override this file where they conflict.
 
 ## Hard rules
 
-- Never touch `main`, the release workflows, or files inside the
-  `apps/ploeg` submodule. A Ploeg change lands in github.com/ploeg-hq/ploeg
-  first; here you only move the pin.
+- Never touch `main`, the release workflows, or files inside
+  `apps/ploeg`, the unpacked Ploeg release. A Ploeg change lands in github.com/ploeg-hq/ploeg
+  first; Renovate brings the release here.
 - Never print or log secret values (master keys, minted keys, tokens).
 - If the task needs more than the ticket's budget or scope allows, stop and
   report `stuck` with the reason — a truthful stuck beats a sloppy PR.

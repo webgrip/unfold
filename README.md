@@ -20,11 +20,11 @@ Unfold runs managed work only through Ploeg ([ADR-0002](docs/adr/adr-0002-ploeg-
 You need [mise](https://mise.jdx.dev/). It installs every other tool at the pinned version.
 
 ```sh
-git clone --recurse-submodules https://forgejo.webgrip.dev/webgrip/unfold.git
+git clone https://forgejo.webgrip.dev/webgrip/unfold.git
 cd unfold
 mise trust
 mise install
-mise run setup          # submodule, per-app tools, npm, pnpm and uv dependencies
+mise run setup          # Ploeg's contract bundle, per-app tools, npm, pnpm and uv dependencies
 mise run verify         # every gate; run it before you deliver
 mise run demo-unified   # Ploeg, Unfold and PostgreSQL; deterministic, no model calls
 ```
@@ -45,14 +45,14 @@ Run every tool through `mise exec -- <command>`, not from your `PATH`.
 
 Live-provider tests stay opt-in. The demos say they are deterministic and never invent model calls or spend.
 
-## Working with the Ploeg submodule
+## Working with the released Ploeg
 
-`apps/ploeg` is a Git submodule pointing at one tested commit of [ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg). This repository holds no copy of Ploeg's source ([ADR-0019](docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md)).
+Unfold depends on one release of [ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) ([ADR-0039](docs/adr/adr-0039-unfold-depends-on-a-released-ploeg-through-its-contract-bundle-and-go-module.md)). [apps/unfold/ploeg-release.json](apps/unfold/ploeg-release.json) pins Ploeg's contract bundle on GHCR by version and digest, and [apps/unfold/scripts/unified-demo/go.mod](apps/unfold/scripts/unified-demo/go.mod) pins its Go module at the same version. This repository holds no copy of Ploeg's source.
 
-- **Empty `apps/ploeg`?** Run `mise run setup` or `git submodule update --init --recursive`. If the submodule is missing, `verify` and the docs build fail.
-- **Changing Ploeg:** land the change in `ploeg-hq/ploeg` first and let it release there. Then move the pin here in its own commit with the `ploeg` scope, for example `build(ploeg): pin ploeg-hq/ploeg v0.2.0`. A `ploeg`-scoped commit never releases Unfold.
+- **Empty `apps/ploeg`?** Run `mise run ploeg-contract` (part of `mise run setup`). It unpacks the pinned bundle after checking its digests. Without it, `verify` and the docs build fail. A leftover checkout of the old submodule is refused; delete it with `rm -rf apps/ploeg`.
+- **Changing Ploeg:** land the change in `ploeg-hq/ploeg` and let it release. Renovate then opens one `fix(ploeg)` pull request that moves both pins, merges it when every check is green and so cuts the next Unfold candidate. To move by hand, run `mise run ploeg-pin 0.x.y-rc.N`.
 - **An Unfold change that needs the new Ploeg** goes in a separate commit with its own scope.
-- **The pin check:** [scripts/ploeg-pin.mjs](scripts/ploeg-pin.mjs) runs in `verify` and fails on vendored source, the wrong repository, or a modified checkout. In CI it also requires the pinned commit to be on Ploeg's `main`.
+- **The pin check:** [scripts/ploeg-contract.py](scripts/ploeg-contract.py) `check` runs in `verify` and fails when the bundle and the Go module name different releases or `apps/ploeg` holds another bundle. In CI it also requires the registry tag to still be the pinned digest.
 
 Before you change behavior that crosses Ploeg and Unfold, read [managed execution](docs/workflows/managed-execution.md).
 
@@ -60,7 +60,7 @@ Before you change behavior that crosses Ploeg and Unfold, read [managed executio
 
 | Location | Contents |
 | --- | --- |
-| [apps/ploeg](apps/ploeg/) | Pinned Ploeg submodule: Go controller and worker, schemas, Helm chart |
+| `apps/ploeg` | Ploeg's unpacked contract bundle, ignored by Git: schemas, domain model, ADRs and docs of the pinned release |
 | [apps/unfold](apps/unfold/) | TypeScript front end, VS Code extension, Helm chart |
 | [apps/site](apps/site/) | Static marketing site in English and Dutch; not deployed, not released |
 | [docs](docs/index.md) | System explanation, how-to guides, glossary, decisions |

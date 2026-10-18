@@ -22,19 +22,20 @@ for (const [scope, name, variants] of [
 }
 
 const groups = [
-  { name: 'unfold', inputs: ['apps/unfold', 'docs', 'apps/ploeg'], gates: ['typecheck', 'test', 'check', 'design:check', 'icons:check', 'license:check'].map(unfold) },
+  { name: 'unfold', inputs: ['apps/unfold', 'docs'], gates: ['typecheck', 'test', 'check', 'design:check', 'icons:check', 'license:check'].map(unfold) },
   {
     name: 'ploeg',
-    inputs: ['apps/ploeg', 'apps/unfold/scripts/unified-demo', '.gitmodules', 'scripts/ploeg-pin.mjs'],
+    inputs: ['apps/unfold/ploeg-release.json', 'apps/unfold/scripts/unified-demo', 'scripts/ploeg-contract.py', 'scripts/ploeg-contract.test.py'],
     gates: [
-      gate('.', process.execPath, ['scripts/ploeg-pin.mjs']),
-      gate('apps/ploeg', 'bash', ['scripts/verify.sh']),
-      gate('apps/ploeg', 'go', ['build', '-o', devNull, resolve(root, 'apps/unfold/scripts/unified-demo/main.go')]),
+      gate('.', 'python3', ['scripts/ploeg-contract.py', 'check']),
+      gate('.', 'python3', ['scripts/ploeg-contract.test.py']),
+      gate('apps/unfold/scripts/unified-demo', 'go', ['vet', '.']),
+      gate('apps/unfold/scripts/unified-demo', 'go', ['build', '-o', devNull, '.']),
     ],
   },
   { name: 'site', inputs: ['apps/site', 'apps/unfold/public', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/scripts/record-replay.ts', 'apps/unfold/package.json'], gates: ['format:check', 'lint', 'typecheck', 'test', 'build'].map(site) },
   { name: 'docs', gates: [gate('.', 'uv', ['run', '--frozen', 'python', 'scripts/docs.py', '--check'])] },
-  { name: 'integration', inputs: ['apps/unfold', 'apps/ploeg', 'scripts/integration.mjs', 'scripts/fake-litellm.mjs'], gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },
+  { name: 'integration', inputs: ['apps/unfold', 'scripts/integration.mjs', 'scripts/fake-litellm.mjs'], gates: [gate('.', process.execPath, ['scripts/integration.mjs'])] },
   { name: 'ahp-sdk', inputs: ['apps/unfold'], gates: ['ahp:e2e'].map(unfold) },
   { name: 'unfold-extension', inputs: ['apps/unfold'], gates: ['extension:build', 'extension:test', 'extension:package', 'extension:verify'].map(unfold) },
   {
@@ -42,7 +43,7 @@ const groups = [
     gates: [
       gate('.', 'python3', ['scripts/verify-import.py']),
       gate('.', 'uv', ['run', '--frozen', 'python', '-m', 'unittest', 'discover', '-s', 'scripts', '-p', 'test_release*.py']),
-      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs', 'scripts/verify-gate.test.mjs', 'scripts/ci-warnings.test.mjs', 'scripts/release-repair.test.mjs', 'scripts/release-floors.test.cjs', 'scripts/ploeg-pin.test.mjs']),
+      gate('.', process.execPath, ['--test', 'scripts/fake-litellm.test.mjs', 'scripts/eval/eval.test.mjs', 'scripts/verify-cache.test.mjs', 'scripts/verify-gate.test.mjs', 'scripts/ci-warnings.test.mjs', 'scripts/release-repair.test.mjs', 'scripts/release-floors.test.cjs']),
     ],
   },
   { name: 'site-demo', inputs: ['apps/site', 'apps/unfold/src', 'apps/unfold/examples', 'apps/unfold/package.json'], gates: [gate('apps/site', 'node', ['scripts/demo-timeline.ts', '--check'])] },
@@ -61,7 +62,7 @@ const results = resultsDirectory ? resultCache(resultsDirectory, { reuse: reuseR
 const toolVersions = scope => Object.fromEntries(Object.entries(JSON.parse(execFileSync('mise', ['-C', scope, 'ls', '--current', '--json'], { cwd: root, encoding: 'utf8' }))).map(([tool, installs]) => [tool, installs.map(install => install.version)]));
 const shared = results && {
   paths: ['mise.toml', 'apps/unfold/mise.toml', 'apps/site/mise.toml', 'scripts/verify.mjs', 'scripts/verify-cache.mjs'],
-  tools: Object.fromEntries(['.', 'apps/unfold', 'apps/ploeg', 'apps/site'].map(scope => [scope, toolVersions(scope)])),
+  tools: Object.fromEntries(['.', 'apps/unfold', 'apps/site'].map(scope => [scope, toolVersions(scope)])),
   env: { GOFLAGS: process.env.GOFLAGS ?? '', UNFOLD_TEST_TIMEOUT_SCALE: process.env.UNFOLD_TEST_TIMEOUT_SCALE ?? '' },
 };
 if (shared) for (const group of groups) for (const step of group.gates) {

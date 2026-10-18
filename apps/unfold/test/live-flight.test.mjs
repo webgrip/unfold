@@ -62,29 +62,38 @@ test('tripwire hits stand on the hop at the time of the call, grouped by column,
   assert.match(html, /7 calls crossed a tripwire, 1 blocked\./);
 });
 
-test('judge verdicts are proposed call signs; the worst is labelled and an off-course or abort verdict diverts the hop', () => {
+test('AI judge verdicts are advisory call signs; the worst is labelled, an off-track verdict marks the hop and nothing stops the Run', () => {
   const hijacked = hopOf('hijacked');
-  assert.deepEqual(hijacked.marks.calls.map(call => [call.bin, call.verdict, call.labelled]), [[7, 'drifting', false], [12, 'off_course', true]]);
+  assert.deepEqual(hijacked.marks.calls.map(call => [call.bin, call.verdict, call.labelled]), [[7, 'watch', false], [12, 'off_track', true]]);
   assert.deepEqual([hijacked.marks.divertedAt, hijacked.marks.calls[1].side], [12, 'end']);
   const html = markup('hijacked');
   assert.match(html, /class="lv-fp-hop [^"]*is-live[^"]* is-diverted"/);
   assert.match(html, /lv-fp-line lv-fp-line-diverted" d="[^"]+" clip-path="url\(#lv-flight-191-2-0-after\)"/);
-  assert.match(html, /class="lv-fp-call is-off_course lv-fp-at-12 lv-fp-call-end" title="Judge model \(proposed\) at [^"]*: off course\./);
-  assert.match(html, /<span class="lv-fp-call-word">off course<\/span>/);
-  assert.match(html, /class="lv-fp-plane is-live is-suspect"/);
+  assert.match(html, /class="lv-fp-call is-off_track lv-fp-at-12 lv-fp-call-end" title="AI judge \(advisory\) at [^"]*: off track\./);
+  assert.match(html, /<span class="lv-fp-call-word">AI · off track<\/span>/);
+  assert.match(html, /class="lv-fp-plane is-live is-suspect"/, 'a high tripwire decided the health');
   assert.match(html, /Possible hijack: /);
-  assert.match(html, /<span class="lv-fp-wire-chip is-high">.*?7<\/span><span class="lv-fp-call-chip is-off_course">.*?off course<\/span>/, 'the phone log keeps the counts');
-  const crowded = flightLegs(liveModel({ ...scenarios.hijacked.input(), detail: { ...scenarios.hijacked.input().detail, events: scenarios.hijacked.input().detail.events.map(event => event.id === 'j1' ? { ...event, at: new Date(Date.parse(event.at) + 4.4 * 60000).toISOString() } : event) } })).find(leg => leg.kind === 'attempt').hops[0];
+  assert.match(html, /<span class="lv-fp-wire-chip is-high">.*?7<\/span><span class="lv-fp-call-chip is-off_track">.*?AI · off track<\/span>/, 'the phone log keeps the counts');
+  const input = scenarios.hijacked.input();
+  const crowded = flightLegs(liveModel({ ...input, judgements: input.judgements.map((entry, index) => index === 0 ? { ...entry, at: new Date(Date.parse(entry.at) + 4.4 * 60000).toISOString() } : entry) })).find(leg => leg.kind === 'attempt').hops[0];
   assert.deepEqual(crowded.marks.calls.map(call => call.labelled), [false, false], 'among tripwire marks, a word that would cover another verdict is left off; its title and the phone chip still say it');
-  assert.deepEqual(hopOf('judgeAbort').marks.calls.map(call => call.labelled), [false, true], 'without tripwire marks the word gets its own row');
-  const drifting = hopOf('judgeDrifting');
-  assert.deepEqual([drifting.marks.calls.map(call => `${call.verdict}${call.labelled ? '*' : ''}`), drifting.marks.divertedAt], [['drifting*', 'on_course'], null]);
+  const raised = hopOf('judgeRaises');
+  assert.deepEqual([raised.end, raised.marks.calls.map(call => call.labelled), raised.marks.divertedAt], ['live', [false, true], 6], 'without tripwire marks the word gets its own row, and the Run keeps flying');
+  assert.match(markup('judgeRaises'), /class="lv-fp-plane is-live is-off_track"/, 'an Off track the judge raised rings red without the hijack halo');
+  assert.deepEqual(after(legs('judgeRaises')), ['forecast']);
+  const watch = hopOf('judgeDrifting');
+  assert.deepEqual([watch.marks.calls.map(call => `${call.verdict}${call.labelled ? '*' : ''}`), watch.marks.divertedAt], [['on_track', 'watch*'], null]);
   assert.doesNotMatch(markup('judgeDrifting'), /is-diverted|is-suspect/);
-  const abort = legs('judgeAbort');
-  assert.deepEqual([attempts(abort), after(abort)], [[['cancelled']], ['stop:Needs you']]);
-  assert.equal(abort.find(leg => leg.kind === 'stop').note, 'A judge called abort (proposed)');
-  assert.equal(abort.find(leg => leg.kind === 'attempt').hops[0].marks.divertedAt, 10);
-  assert.doesNotMatch(markup('running'), /lv-fp-wire|lv-fp-call|is-diverted|is-suspect/, 'a clean flight draws no marks');
+  assert.match(markup('judgeDrifting'), /class="lv-fp-plane is-live is-watch"/);
+  assert.doesNotMatch(markup('running'), /lv-fp-wire|lv-fp-call|is-diverted|is-suspect|is-watch|is-off_track/, 'a clean flight draws no marks');
+});
+
+test('Run 305 holds once a command has been quiet for half the idle stop, and its plane rings by health', () => {
+  const watch = legs('run305Watch');
+  const off = legs('run305OffTrack');
+  assert.deepEqual([attempts(watch), attempts(off)], [[['holding']], [['holding']]]);
+  assert.match(markup('run305Watch'), /class="lv-fp-plane is-holding is-watch"/);
+  assert.match(markup('run305OffTrack'), /class="lv-fp-plane is-holding is-off_track"/);
 });
 
 test('a hop’s height is read off its points so a mark meets its line', () => {

@@ -83,7 +83,24 @@ const steady = () => {
 
 const allowance = { leftUsd: 2, totalUsd: 2, resetsAt: '2026-11-01T00:00:00Z' };
 const said = (call, ...outputs) => ({ ...call, outputs });
-const judgement = (id, minutes, runId, verdict, reason) => ({ id, at: at(minutes), action: 'run.judgement', actor: 'judge', detail: { runId, verdict, reason, judge: 'Judge model (proposed)' } });
+const verdict = (minutes, runId, health, reason, evidence) => ({ id: `judgement-${runId}${minutes}`, runId, workItemId: '190', at: at(minutes), health, reason, evidence, model: 'hetzner-qwen3-8-27b', ploegAskId: `ask-${runId}${minutes}`, signalsHealth: 'on_track', costUsd: null, costStatus: null });
+
+/**
+ * The raw transcript entries behind folded fixture items, as Unfold's transcript route returns them: each tool call
+ * one `tool_call` entry and one `tool_output` per output, every other item one entry of its kind, and the plan, when
+ * given, one `plan` entry at its time. Seqs count from 1 in time order.
+ * @param {object[]} items Folded transcript items.
+ * @param {{ at: string, steps: object[] }|null} [plan]
+ * @returns {object[]}
+ */
+export function rawEntries(items = [], plan = null) {
+  const timed = items.flatMap(item => item.type === 'tool'
+    ? [{ at: item.at, kind: 'tool_call', toolCallId: item.id, title: item.title, toolKind: item.toolKind, status: item.status ?? undefined, input: item.input || undefined, paths: item.paths?.length ? item.paths : undefined }, ...(item.outputs ?? []).map(text => ({ at: item.at, kind: 'tool_output', toolCallId: item.id, text }))]
+    : [{ at: item.at, kind: item.type, text: item.text }]);
+  if (plan) timed.push({ at: plan.at, kind: 'plan', plan: plan.steps });
+  return timed.map((entry, index) => ({ entry, index })).sort((a, b) => Date.parse(a.entry.at) - Date.parse(b.entry.at) || a.index - b.index)
+    .map(({ entry }, index) => Object.fromEntries(Object.entries({ seq: index + 1, ...entry }).filter(([, value]) => value !== undefined)));
+}
 
 function hijackedTranscript() {
   seq = 0;
@@ -108,7 +125,7 @@ function hijackedTranscript() {
   ];
 }
 
-function abortTranscript() {
+function shortcutTranscript() {
   seq = 0;
   return [
     stage(-30.5, 'Read the brief'), tool(-30.3, 'Read brief', 'read', 'BRIEF.md'), tool(-29.9, 'Read CI workflow', 'read', '.forgejo/workflows/ci.yaml'),
@@ -120,6 +137,48 @@ function abortTranscript() {
   ];
 }
 
+const run305Start = '2026-10-17T08:34:05Z';
+const run305Limits = { promptSeconds: 5400, idleSeconds: 600, promptStartedAt: run305Start };
+const clockAt = hhmmss => `2026-10-17T${hhmmss}Z`;
+
+function run305Transcript() {
+  seq = 0;
+  const call = (hhmmss, title, toolKind, input, status = 'completed') => ({ type: 'tool', key: `c${++seq}`, id: `call-${seq}`, at: clockAt(hhmmss), title, toolKind, status, input, paths: [], outputs: [], clipped: false });
+  const note = (hhmmss, text) => ({ type: 'stage', key: `e${++seq}`, at: clockAt(hhmmss), text, clipped: false });
+  return [
+    note('08:34:20', 'Read the notes and the knowledge'),
+    call('08:34:40', 'Read brief', 'read', 'BRIEF.md'),
+    call('08:35:30', 'Read CI workflow', 'read', '.forgejo/workflows/ci.yaml'),
+    note('08:37:00', 'Measure the suites'),
+    ...Array.from({ length: 8 }, (_, index) => call(`08:${String(38 + index * 3).padStart(2, '0')}:10`, `Time suite ${index + 1}`, 'execute', `python3 -m pytest scripts/test_suite_${index + 1}.py --durations=10`)),
+    note('09:03:00', 'Fix the shutdown poll and the quadratic distill test'),
+    call('09:03:30', 'Edit fake server', 'edit', 'scripts/fake_server.py', 'completed'),
+    call('09:06:10', 'Edit distill test', 'edit', 'scripts/test_distill.py', 'completed'),
+    call('09:08:40', 'Time brain eval suite', 'execute', 'python3 -m pytest scripts/test_omnigraph_brain_eval.py --durations=10'),
+    note('09:10:50', 'Time the full distill mutation script'),
+    call('09:11:00', 'Run distill mutation script', 'execute', 'bash scripts/distill-mutation.sh', 'in_progress'),
+  ];
+}
+
+const run305Plan = () => [
+  { content: 'Measure every suite and find the slow ones', status: 'completed' },
+  { content: 'Time the full distill mutation script', status: 'in_progress' },
+  { content: 'Cut the shutdown poll in every fake server', status: 'pending' },
+  { content: 'Make the distill test linear', status: 'pending' },
+  { content: 'Run the job end to end under 60 minutes', status: 'pending' },
+  { content: 'Push and open the pull request', status: 'pending' },
+];
+
+function run305Input(now) {
+  const transcript = run305Transcript();
+  return {
+    detail: { ...empty, item: item({ lease: { renewedAt: clockAt('09:16:00'), expiresAt: clockAt('09:31:00') } }), shifts: [shift('166', 0, { openedAt: clockAt('08:33:50') })],
+      runs: [run('305', '166', 0, null, { startedAt: run305Start, limits: run305Limits, costStatus: 'observed', usage: { inputTokens: 2600000, outputTokens: 41000, costUsd: 0.19 } })] },
+    transcript, entries: rawEntries(transcript, { at: clockAt('09:10:40'), steps: run305Plan() }), now: Date.parse(now), ticketCreatedAt: '2026-10-14T06:10:00Z', allowance,
+  };
+}
+
+const withEntries = input => input.entries || !input.transcript ? input : { ...input, entries: rawEntries(input.transcript) };
 
 /**
  * The scenarios every live Work Item story and test draws from. `input()` returns what `liveModel` takes.
@@ -133,15 +192,15 @@ export const scenarios = {
   },
   firstTry: {
     label: 'First try, steady',
-    description: 'One attempt, six minutes in, three files edited, checks running.',
-    input: () => ({ detail: { ...empty, item: item({ lease: { renewedAt: at(-1), expiresAt: at(14) } }), shifts: [shift('170', -6.5)], runs: [run('1', '170', -6.2, null, { costStatus: 'observed', usage: { inputTokens: 210000, outputTokens: 8200, costUsd: 0.03 } })] }, transcript: steady(), now: fixtureNow, allowance }),
+    description: 'One attempt, six minutes in, three files edited, checks running: the On track example. Proposed data: the Run’s limits (Ploeg does not serve them yet).',
+    input: () => ({ detail: { ...empty, item: item({ lease: { renewedAt: at(-1), expiresAt: at(14) } }), shifts: [shift('170', -6.5)], runs: [run('1', '170', -6.2, null, { limits: { promptSeconds: 5400, idleSeconds: 600, promptStartedAt: at(-6.2) }, costStatus: 'observed', usage: { inputTokens: 210000, outputTokens: 8200, costUsd: 0.03 } })] }, transcript: steady(), now: fixtureNow, allowance }),
   },
   stalled: {
     label: 'Stalled: silent for seven minutes',
-    description: 'The Run is still leased but has not made a call for seven minutes.',
+    description: 'The Run is still leased but has not made a call for seven minutes, 70 % of its 10-minute idle stop. Proposed data: the Run’s limits (Ploeg does not serve them yet).',
     input: () => {
       const transcript = steady().map(entry => ({ ...entry, at: new Date(Date.parse(entry.at) - 7 * 60000).toISOString() }));
-      return { detail: { ...empty, item: item({ lease: { renewedAt: at(-6), expiresAt: at(1) } }), shifts: [shift('171', -14)], runs: [run('1', '171', -13.5, null, { costStatus: 'observed', usage: { inputTokens: 480000, outputTokens: 12000, costUsd: 0.05 } })] }, transcript, now: fixtureNow, allowance };
+      return { detail: { ...empty, item: item({ lease: { renewedAt: at(-6), expiresAt: at(1) } }), shifts: [shift('171', -14)], runs: [run('1', '171', -13.5, null, { limits: { promptSeconds: 5400, idleSeconds: 600, promptStartedAt: at(-13.5) }, costStatus: 'observed', usage: { inputTokens: 480000, outputTokens: 12000, costUsd: 0.05 } })] }, transcript, now: fixtureNow, allowance };
     },
   },
   nearBudget: {
@@ -237,13 +296,13 @@ export const scenarios = {
   },
   hijacked: {
     label: 'Possible prompt injection: a fixture file gives the builder orders',
-    description: 'Derived tripwires from the transcript: the builder read a fixture holding orders for AI agents, then tried remote code, credentials and the container socket, and copied the note into AGENTS.md and README.md. Proposed data: the rules snapshot (Ploeg does not report one yet) and the judge verdicts (Ploeg has no judge model yet).',
+    description: 'Derived tripwires from the transcript: the builder read a fixture holding orders for AI agents, then tried remote code, credentials and the container socket, and copied the note into AGENTS.md and README.md. Proposed data: the rules snapshot (Ploeg does not report one yet). Illustrative data: the AI judge verdicts, in the shape Unfold’s shadow judge stores; it judges only when the Team’s cards.health.judge flag is on.',
     input: () => ({
-      detail: { ...empty, item: item({ id: '191', externalId: '2071', title: 'test: make the brain fixture suite fast enough for the shared runner', createdAt: at(-30), lease: { renewedAt: at(-1), expiresAt: at(14) } }), shifts: [shift('190', -12.8)], runs: [run('1', '190', -12.5, null, { costStatus: 'observed', usage: { inputTokens: 640000, outputTokens: 15200, costUsd: 0.07 } })],
-        events: [
-          judgement('j1', -6.9, '1', 'drifting', 'The builder left the brief to follow a note inside a fixture file.'),
-          judgement('j2', -1.8, '1', 'off_course', 'It went after credentials and the container socket, then copied the note into AGENTS.md and README.md.'),
-        ] },
+      detail: { ...empty, item: item({ id: '191', externalId: '2071', title: 'test: make the brain fixture suite fast enough for the shared runner', createdAt: at(-30), lease: { renewedAt: at(-1), expiresAt: at(14) } }), shifts: [shift('190', -12.8)], runs: [run('1', '190', -12.5, null, { costStatus: 'observed', usage: { inputTokens: 640000, outputTokens: 15200, costUsd: 0.07 } })] },
+      judgements: [
+        verdict(-6.9, '1', 'watch', 'The builder left the brief to follow a note inside a fixture file.', [6, 8]),
+        verdict(-1.8, '1', 'off_track', 'It went after credentials and the container socket, then copied the note into AGENTS.md and README.md.', [11, 12, 15, 16]),
+      ],
       transcript: hijackedTranscript(), now: fixtureNow, allowance,
       allowedHosts: ['forgejo.webgrip.dev', 'registry.npmjs.org', 'pypi.org'],
       policy: {
@@ -253,28 +312,39 @@ export const scenarios = {
     }),
   },
   judgeDrifting: {
-    label: 'A judge says drifting, then on course',
-    description: 'A steady Run; a judge model said it drifted when it edited the changelog, then said it was back on course. Proposed data: Ploeg has no judge model yet.',
-    input: () => ({ ...scenarios.firstTry.input(), detail: { ...scenarios.firstTry.input().detail, events: [
-      judgement('j1', -3.0, '1', 'drifting', 'Editing CHANGELOG.md is outside the brief, which asks for the README and the docs index.'),
-      judgement('j2', -1.0, '1', 'on_course', 'The docs check needs a changelog entry; it is back on the brief.'),
-    ] } }),
+    label: 'The AI judge says watch',
+    description: 'A steady Run; the AI judge said on track while it read the brief, then watch when it edited the changelog. The signals say On track, so the judge raises the health to Watch. Proposed data: the Run’s limits (Ploeg does not serve them yet). Illustrative data: the AI judge verdicts, in the shape Unfold’s shadow judge stores; it judges only when the Team’s cards.health.judge flag is on.',
+    input: () => ({ ...scenarios.firstTry.input(), judgements: [
+      verdict(-4.5, '1', 'on_track', 'It reads the README and the docs index the brief names.', [2, 3]),
+      verdict(-3.0, '1', 'watch', 'Editing CHANGELOG.md is outside the brief, which asks for the README and the docs index.', [7]),
+    ] }),
   },
-  judgeAbort: {
-    label: 'A judge called abort; the Run was stopped',
-    description: 'The builder skipped and then deleted the slow tests instead of making them faster; a judge model called abort and the Work Item needs a person. Proposed data: Ploeg has no judge model and does not stop a Run on a verdict yet.',
+  judgeRaises: {
+    label: 'The AI judge raises a Run no signal flags',
+    description: 'The builder skips and then deletes the slow tests instead of making them faster. No signal is off (without Ploeg’s limits its progress reads Not known); the AI judge says off track with evidence, so the health reads Off track, labelled AI. The Run keeps running: the judge only advises. Illustrative data: the AI judge verdicts, in the shape Unfold’s shadow judge stores; it judges only when the Team’s cards.health.judge flag is on.',
     input: () => ({
-      detail: { ...empty, item: item({ id: '192', externalId: '2072', title: 'ci: keep the brain eval suite inside the runner limit without dropping coverage', state: 'needs_human', createdAt: at(-40) }), shifts: [shift('191', -31.2, { closedAt: at(-21.8), closeReason: 'judge abort (proposed)' })],
-        runs: [run('1', '191', -31, -21.8, { outcome: 'cancelled', costStatus: 'settled', usage: { inputTokens: 1100000, outputTokens: 21000, costUsd: 0.11 } })],
-        events: [
-          judgement('j1', -28.2, '1', 'drifting', 'It skips the slow tests in CI; the brief says not to drop coverage.'),
-          judgement('j2', -22.0, '1', 'abort', 'It deleted the brain eval tests instead of making them faster.'),
-          { id: 'e1', at: at(-21.8), action: 'work_item.needs_human', actor: 'ploeg', detail: { reason: 'a judge model called abort (proposed)' } },
-        ] },
-      transcript: abortTranscript(), transcriptRunId: '1', now: fixtureNow, allowance,
+      detail: { ...empty, item: item({ id: '192', externalId: '2072', title: 'ci: keep the brain eval suite inside the runner limit without dropping coverage', createdAt: at(-40), lease: { renewedAt: at(-1), expiresAt: at(14) } }), shifts: [shift('191', -31.2)],
+        runs: [run('1', '191', -31, null, { costStatus: 'observed', usage: { inputTokens: 1100000, outputTokens: 21000, costUsd: 0.11 } })] },
+      judgements: [
+        verdict(-28.2, '1', 'watch', 'It skips the slow tests in CI; the brief says not to drop coverage.', [5]),
+        verdict(-22.0, '1', 'off_track', 'It deleted the brain eval tests instead of making them faster.', [8]),
+      ],
+      transcript: shortcutTranscript(), now: fixtureNow, allowance,
     }),
   },
+  run305Watch: {
+    label: 'Run 305 at 09:17: Watch',
+    description: 'The real Run 305 of 17 October 2026 (RFC-0007), six minutes after it started a 23-minute command: plan 1 of 6 at 43 of 90 min and no output for 6 min of the 10-minute idle stop. Proposed data: the Run’s limits (Ploeg does not serve them yet).',
+    input: () => run305Input('2026-10-17T09:17:00Z'),
+  },
+  run305OffTrack: {
+    label: 'Run 305 at 09:19: Off track',
+    description: 'The same Run at 09:19, the minute the idle watchdog stopped it: no output for 8 min of the 10-minute idle stop. Proposed data: the Run’s limits (Ploeg does not serve them yet).',
+    input: () => run305Input('2026-10-17T09:19:00Z'),
+  },
 };
+
+for (const scenario of Object.values(scenarios)) { const draw = scenario.input; scenario.input = () => withEntries(draw()); }
 
 const relabel = (input, id, externalId, title, extra = {}) => ({ ...input, detail: { ...input.detail, item: { ...input.detail.item, id, externalId, title, ...extra } } });
 

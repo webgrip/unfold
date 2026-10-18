@@ -978,7 +978,7 @@ export function runHealthBadge(run, entry, now = Date.now()) {
   const meta = healthMeta(combined.health);
   const age = healthAge(entry, now);
   const title = [`Health: ${meta.label}${combined.source === 'judge' ? ', raised by the AI judge' : ''}`, data.reason, age ? `health as of ${age} min ago` : '', data.demo ? 'demo data' : ''].filter(Boolean).join(' · ');
-  return `<span class="work-run-health-badge"${age ? ' data-stale' : ''}>${ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.label, title, size: 'sm' })}</span>`;
+  return `<span class="work-run-health-badge"${age ? ' data-stale' : ''}>${ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.label, lead: 'Health: ', title, size: 'sm' })}</span>`;
 }
 
 /**
@@ -1512,13 +1512,17 @@ export function statusMarkup(detail, model, { reason = null, plan = null } = {})
 /**
  * The live view at the head of a Work Item page while the `work.live-view` flag is on: the fold strip, the live
  * sentence and the flight path, from the detail and the running Run's transcript when its panel has loaded it, then
- * the questions answered from the record.
+ * the questions answered from the record. Its health is the running Run's entry from Unfold's health route, the one
+ * the Run row's badge shows, so the two never disagree.
  */
 export function liveViewMarkup(detail, model) {
   const running = [...(detail.runs || [])].reverse().find(run => run.state === 'running');
   const entry = running ? model.runTranscripts?.get?.(String(running.id)) : null;
-  const transcript = entry?.entries?.length ? foldTranscript(entry.entries).items : [];
-  const live = liveModel({ detail, transcript, transcriptKnown: Boolean(entry?.entries?.length), transcriptMissing: entry?.data?.available === false ? entry.data.reason ?? null : null, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
+  const entries = entry?.entries ?? [];
+  const transcript = entries.length ? foldTranscript(entries, { known: entry.trimmed ? null : 0 }).items : [];
+  const missing = entry?.data?.available === false ? (entry.data.reason === 'demo' ? 'demo' : 'unsupported') : !entries.length && entry?.error ? 'failed' : null;
+  const health = running ? model.runHealth?.get?.(String(running.id)) ?? null : null;
+  const live = liveModel({ detail, transcript, entries, health, transcriptKnown: entries.length > 0, transcriptMissing: missing, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
   return `<section class="card work-live lv" aria-label="Live view">${foldStrip(live)}${nowLine(live)}${needsContainment(live) ? containmentPanel(live) : ''}${flightPath(live, { id: `work-live-flight-${detail.item.id}` })}${answers(live, { layout: 'chips', ask: false })}</section>`;
 }
 
