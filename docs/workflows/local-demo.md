@@ -12,7 +12,7 @@ verified_by: "Read apps/unfold/scripts/unified-demo.ts (prerequisite commands, r
 
 ## Start
 
-Unfold pins Ploeg as a submodule at `apps/ploeg`, so one Unfold revision names both applications, including the [shared execution contract](../../apps/unfold/docs/contracts/ploeg-execution.md). `mise run setup` checks out the pinned commit; in an existing clone, run `git submodule update --init --recursive`. Use a regular macOS or Linux user with Node 24 through mise, Go 1.26 or later, Git and PostgreSQL 17 or later (`initdb` and `postgres`) on PATH. Go may fetch the dependencies already declared by Ploeg when its cache is cold. The launcher does not install software or start a system PostgreSQL service.
+Unfold pins one Ploeg release, so one Unfold revision names both applications, including the [shared execution contract](../../apps/unfold/docs/contracts/ploeg-execution.md). The launcher builds Ploeg's HTTP helper against the Ploeg Go module that `apps/unfold/scripts/unified-demo/go.mod` pins. Use a regular macOS or Linux user with Node 24 through mise, Go 1.26 or later, Git and PostgreSQL 17 or later (`initdb` and `postgres`) on PATH. Go fetches the pinned Ploeg module and its dependencies when its cache is cold. The launcher does not install software or start a system PostgreSQL service.
 
 From the Unfold root:
 
@@ -26,7 +26,6 @@ Optional environment settings:
 
 | Setting | Purpose |
 | --- | --- |
-| `PLOEG_PATH` | Absolute path to the matching Ploeg checkout; defaults to the pinned submodule at Unfold’s `apps/ploeg`. |
 | `PG_BIN` | Directory containing PostgreSQL binaries, if they are not on PATH. |
 | `UNFOLD_DEMO_PORT` | A fixed workbench port; otherwise an available port is chosen. |
 

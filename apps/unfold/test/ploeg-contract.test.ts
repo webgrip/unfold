@@ -18,7 +18,7 @@ const unfold = resolve(import.meta.dirname, '..');
 const ploeg = resolve(repository, 'apps/ploeg');
 const contracts = resolve(ploeg, 'docs/contracts');
 const table = 'docs/domain/ploeg-words.json';
-assert(statSync(contracts, { throwIfNoEntry: false })?.isDirectory(), 'apps/ploeg is not checked out; run git submodule update --init --recursive');
+assert(statSync(contracts, { throwIfNoEntry: false })?.isDirectory(), 'apps/ploeg holds no Ploeg contract bundle; run mise run ploeg-contract');
 
 const words = readTable(repository) as { sets: ValueSet[]; screenWords: { term: string; word: string; note: string }[] };
 const sets = Object.fromEntries(words.sets.map(set => [set.id, set]));

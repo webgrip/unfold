@@ -465,7 +465,7 @@ The part of a Work Item's price charged for every attempt: model tokens and comp
 ## Unfold
 *Context: System · Owner: Unfold*
 
-The product, its application and the monorepo that holds them. In the Unfold application, in the browser and the VS Code extension, people define work, follow it, steer agents and review evidence; Ploeg, pinned into the monorepo as a submodule, admits and runs every Run. Without Ploeg the application runs only a deterministic demo that makes no model calls.
+The product, its application and the monorepo that holds them. In the Unfold application, in the browser and the VS Code extension, people define work, follow it, steer agents and review evidence; Ploeg, a released dependency the monorepo pins, admits and runs every Run. Without Ploeg the application runs only a deterministic demo that makes no model calls.
 
 **Examples:** Current state: Unfold's own engine still executes delegated Steps until the system ADR-0002 migration is complete.  
 **See also:** [Ploeg](#ploeg), [Session](#session), [Step](#step)  

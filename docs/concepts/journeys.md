@@ -88,7 +88,7 @@ sequenceDiagram
     Flux->>Flux: OCIRepository + HelmRelease upgrade in namespace ploeg
 ```
 
-1. **Validate.** A push to `development` runs [`on_source_change.yml`](../../.forgejo/workflows/on_source_change.yml): Unfold's gates, Ploeg's own gates at the pinned commit, the check that the pin is on Ploeg's `main`, and the release policy.
+1. **Validate.** A push to `development` runs [`on_source_change.yml`](../../.forgejo/workflows/on_source_change.yml): Unfold's gates, the contract tests and managed qualification against the pinned Ploeg release, the check that the pin is a published Ploeg release, and the release policy.
 2. **Version.** When `UNFOLD_RELEASES_ENABLED` is `true`, semantic-release reads the commits under `apps/`, tags `unfold-v0.x.y-rc.N` and creates the Forgejo release. `fix:` and `feat:` commits cut a release; `docs:` and `chore:` do not. Only zero-major release candidates are allowed ([ADR-0028](../../apps/ploeg/docs/adrs/0028-automatic-releases-stay-zero-major-candidates.md)).
 3. **Build, gate, sign.** The published release triggers [`on_release_published.yml`](../../.forgejo/workflows/on_release_published.yml). Each image is built once in Harbor, held to its application's CVE budget with grype and OpenVEX statements, then signed and attested with cosign. Unfold's Helm chart is published to Harbor.
 4. **Distribute.** [`publish_release.py`](../../scripts/publish_release.py) copies the signed images and charts to Forgejo and GHCR, verifies digests, creates a draft GitHub release, attaches the assets and then publishes it without marking it latest. GitHub receives the source through a push mirror ([Source and artifacts](../operations/artifacts.md)).

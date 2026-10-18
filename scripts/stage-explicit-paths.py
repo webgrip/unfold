@@ -3,23 +3,12 @@ import os
 import re
 import shlex
 import sys
-from pathlib import Path
 
 REASON = (
     'Blocked: {command!r} stages the whole tree. Several sessions share this checkout, so a '
     'whole-tree add or commit absorbs other sessions\' uncommitted work under your message. '
     'Stage explicit paths instead: git add <file> ..., then git commit without -a.'
 )
-PLOEG_REASON = (
-    'Blocked: {command!r} moves or changes apps/ploeg. That checkout is the pinned Ploeg release '
-    '(ADR-0019) and every session in this checkout shares it, so a branch or pull there drifts the pin. '
-    'Change Ploeg in its own worktree outside this checkout: '
-    'git -C apps/ploeg worktree add ../../../ploeg-<topic> -b <branch> origin/development. '
-    'To move the pin, check out a release tag: git -C apps/ploeg checkout v0.x.y-rc.N.'
-)
-PLOEG = Path(__file__).resolve().parent.parent / 'apps/ploeg'
-RELEASE_TAG = re.compile(r'^v0\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$')
-MOVES_CHECKOUT = {'checkout', 'switch', 'pull', 'merge', 'rebase', 'commit', 'reset', 'cherry-pick', 'revert', 'am', 'restore', 'stash'}
 HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1[^\n]*\n")
 SEPARATORS = {'&&', '||', ';', '|', '&', '\n', '(', ')'}
 GIT_OPTIONS_WITH_VALUE = {'-C', '-c', '--git-dir', '--work-tree', '--namespace', '--exec-path', '--config-env'}
@@ -76,27 +65,6 @@ def git_subcommand(words):
     return subcommand, arguments
 
 
-def inside_ploeg(directory):
-    path = Path(os.path.realpath(directory))
-    return path == PLOEG or PLOEG in path.parents
-
-
-def checks_out_a_release(subcommand, arguments):
-    targets = [argument for argument in arguments if not argument.startswith('-')]
-    return subcommand in {'checkout', 'switch'} and len(targets) == 1 and bool(RELEASE_TAG.match(targets[0]))
-
-
-def moves_ploeg(parsed, cwd):
-    for words in parsed:
-        if words[0] == 'cd' and len(words) == 2 and words[1] != '-':
-            cwd = os.path.join(cwd, os.path.expanduser(words[1]))
-            continue
-        subcommand, arguments, directory = git_invocation(words, cwd)
-        if subcommand in MOVES_CHECKOUT and inside_ploeg(directory) and not checks_out_a_release(subcommand, arguments):
-            return True
-    return False
-
-
 def stages_whole_tree(arguments):
     options_done = False
     for argument in arguments:
@@ -137,7 +105,7 @@ def denial(command, cwd):
             return REASON
         if subcommand == 'commit' and commits_all(arguments):
             return REASON
-    return PLOEG_REASON if moves_ploeg(parsed, cwd) else None
+    return None
 
 
 def main():
