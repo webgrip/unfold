@@ -13,6 +13,7 @@ export const storyFiles = {
   containment: () => import('./containment.stories.js'),
   meaning: () => import('./meaning.stories.js'),
   'run-health': () => import('./run-health.stories.js'),
+  'fleet-board': () => import('./fleet-board.stories.js'),
 };
 
 /**
