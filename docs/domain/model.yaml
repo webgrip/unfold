@@ -159,6 +159,22 @@ terms:
       - term: Session
         note: Unfold's own record of interaction around work it submits to Ploeg.
     see_also: [Session, Work Item]
+  - name: Chat
+    context: Participation
+    owner: unfold
+    definition: >
+      A conversation one person has with Unfold itself in the Agents window,
+      under the agent named Unfold beside Unfold teams. Each message is
+      admitted by Ploeg against a Team's chat allowance and answered with that
+      Team's Ask model, which may read Unfold through its MCP tools and act
+      only after the person confirms each change. Unfold keeps the
+      conversation; no Team reads it. Proposed (Unfold ADR 0049).
+    not_to_be_confused_with:
+      - term: Session
+        note: A Session submits work to a Team; a Chat starts Team work only through a confirmed hand-off.
+      - term: Ask
+        note: An Ask is one question about one Work Item, paid from the Ask Allowance.
+    see_also: [Session, Ask, Team]
   - name: Step
     context: Participation
     owner: unfold

@@ -37,7 +37,7 @@ type Reason = { code: string; chip: string; sentence: string; fix: string; reque
 type Reasons = { listReason(item: unknown, options?: { demo?: boolean }): Reason | null; detailReason(detail: unknown): Reason | null; routingWarning(item: unknown): { chip: string; sentence: string; fix: string } | null };
 type Json = Record<string, any>;
 type Call = { modern: boolean; capabilities: Json; client?: string; inputResponses?: Json; requestState?: unknown };
-type Tool = { name: string; title: string; description: string; inputSchema: Json; outputSchema: Json; readOnly?: false; destructive?: true; run(args: Json, call: Call): Promise<Json | InputRequired> };
+type Tool = { name: string; title: string; description: string; inputSchema: Json; outputSchema: Json; readOnly?: false; destructive?: true; confirms?: true; run(args: Json, call: Call): Promise<Json | InputRequired> };
 type Planned = { message: string; perform(confirmation: string, nonce: string): Promise<Json> };
 /** Sends one request from the server to the client and resolves with the client's result. */
 export type McpOutbound = (method: string, params: Json) => Promise<Json>;
@@ -244,10 +244,10 @@ export function createMcpServer(options: McpOptions) {
         const teams = (data.teams ?? []).map((team: Json) => ({ team: String(team.team), settledUsd: cents(team.spend?.settledUsd), heldUsd: held(team.spend), reservedUsd: held(team.spend), needsHuman: Number(team.workItems?.needsHuman ?? 0), runsFinished: Number(team.runs?.finished ?? 0), runsFailed: Number(team.runs?.failed ?? 0), runsStuck: Number(team.runs?.stuck ?? 0) }));
         const settledUsd = cents(data.totals?.spend?.settledUsd);
         const heldUsd = held(data.totals?.spend);
-        const stuckHolds = data.unsettled ? (data.unsettled.accounts ?? []).map((entry: Json) => ({ workItemId: String(entry.workItemId), runId: String(entry.runId), team: String(entry.team), keyState: String(entry.accountState), heldUsd: cents(entry.heldUsd), since: entry.since, link: link(String(entry.workItemId)) })) : null;
+        const stuckHolds = data.unsettled ? (data.unsettled.accounts ?? []).map((entry: Json) => ({ workItemId: entry.workItemId === null || entry.workItemId === undefined ? null : String(entry.workItemId), runId: String(entry.runId), team: String(entry.team), keyState: String(entry.accountState), heldUsd: cents(entry.heldUsd), since: entry.since, link: entry.workItemId === null || entry.workItemId === undefined ? '' : link(String(entry.workItemId)) })) : null;
         const stuckHoldsError = data.unsettled ? null : String(data.unsettledError?.message ?? 'Unfold could not list the Runs whose hold Ploeg cannot release.');
         const stuckUsd = stuckHolds ? cents(stuckHolds.reduce((sum: number, entry: Json) => sum + entry.heldUsd, 0)) : 0;
-        const stuck = stuckHolds === null ? ` Stuck holds unknown: ${stuckHoldsError}` : stuckHolds.length ? ` ${stuckHolds.length} finished Runs still hold ${usd(stuckUsd)}: ${stuckHolds.map((entry: Json) => `Work Item ${entry.workItemId}`).join(', ')}.` : ' No budget is stuck.';
+        const stuck = stuckHolds === null ? ` Stuck holds unknown: ${stuckHoldsError}` : stuckHolds.length ? ` ${stuckHolds.length} finished Runs still hold ${usd(stuckUsd)}: ${stuckHolds.map((entry: Json) => entry.workItemId === null ? `Run ${entry.runId}` : `Work Item ${entry.workItemId}`).join(', ')}.` : ' No budget is stuck.';
         const summary = demo ? 'This is the illustrative demo: nothing ran and nothing was spent.' : `${usd(settledUsd)} settled and ${usd(heldUsd)} held in ${data.window ?? window}.${stuck}`;
         return { summary, demo, window: String(data.window ?? window), settledUsd, heldUsd, reservedUsd: heldUsd, teams, stuckHolds, stuckHoldsError };
       },
@@ -275,7 +275,7 @@ export function createMcpServer(options: McpOptions) {
         const sessions = sessionList.filter(session => changed(session.updatedAt)).slice(0, 15).map(session => ({ id: String(session.id), status: String(session.status ?? ''), updatedAt: session.updatedAt ?? null, link: `${base}/#session/${encodeURIComponent(String(session.id))}`, untrusted: { title: clip(session.title ?? session.objective ?? session.task?.title, 300) } }));
         const refused = ((now.refused ?? []) as Json[]).filter(task => changed(task.refusedAt)).slice(0, 15).map(task => ({ tracker: `${task.provider}:${task.externalId}`, team: String(task.team ?? ''), code: String(task.code ?? ''), reason: clip(task.reason, 500), taskUrl: String(task.url ?? ''), untrusted: { title: clip(task.title, 300) } }));
         const stuck = summary.unsettled ? (summary.unsettled.accounts ?? []) as Json[] : null;
-        const spend = { window: String(summary.window ?? window), settledUsd: cents(summary.totals?.spend?.settledUsd), heldUsd: held(summary.totals?.spend), stuckHolds: stuck === null ? null : stuck.map(entry => ({ workItemId: String(entry.workItemId), heldUsd: cents(entry.heldUsd), keyState: String(entry.accountState), link: link(String(entry.workItemId)) })) };
+        const spend = { window: String(summary.window ?? window), settledUsd: cents(summary.totals?.spend?.settledUsd), heldUsd: held(summary.totals?.spend), stuckHolds: stuck === null ? null : stuck.map(entry => ({ workItemId: entry.workItemId === null || entry.workItemId === undefined ? null : String(entry.workItemId), heldUsd: cents(entry.heldUsd), keyState: String(entry.accountState), link: entry.workItemId === null || entry.workItemId === undefined ? '' : link(String(entry.workItemId)) })) };
         if (args.remember !== false) await rememberDigest(until);
         const parts = [
           needsYou.length ? `${needsYou.length} started needing you (${needsYou.map(item => `${item.id}: ${item.reason?.chip ?? item.state}`).join('; ')})` : '',
@@ -291,7 +291,7 @@ export function createMcpServer(options: McpOptions) {
       },
     },
     {
-      name: 'unfold_ask', title: 'Ask about a Work Item', readOnly: false,
+      name: 'unfold_ask', title: 'Ask about a Work Item', readOnly: false, confirms: true,
       description: 'Ask one question about a Work Item, such as why it stopped or what it cost. A standing question is answered from the Work Item\'s record, free. Any other question needs use_model: true: the person is then asked to confirm, and one model call spends up to the per-Ask Budget from the Team\'s Ask Allowance. Without that confirmation nothing is asked or spent.',
       inputSchema: object({ id: string('Work Item id, or an Unfold link to it'), question: string('One question, under 2000 characters'), use_model: { type: 'boolean', description: 'Ask a model when the record does not answer; the person must confirm the spend' } }, ['id', 'question']),
       outputSchema: object({ summary: { type: 'string' }, asked: { type: 'boolean' }, needsModel: { type: 'boolean' }, source: { type: ['string', 'null'] }, costUsd: { type: ['number', 'null'] }, costStatus: { type: ['string', 'null'], description: 'How sure costUsd is: observed (so far), provisional (not final yet), settled (final), unknown (not known yet), or demo' }, failureCode: { type: ['string', 'null'], description: 'Why there is no answer, such as allowance_used_up, timeout or cut_off; null when answered' }, retryable: { type: 'boolean', description: 'Whether asking the same question again may help' }, link: { type: 'string' }, untrusted: { type: 'object' } }, ['summary', 'asked', 'needsModel', 'source', 'costUsd', 'costStatus', 'failureCode', 'retryable', 'link', 'untrusted']),
@@ -345,7 +345,7 @@ export function createMcpServer(options: McpOptions) {
     const settle = (id: string, demo: boolean, said: string, result: Json): Json => ({ summary: demo ? `${said} This is the illustrative demo: nothing real changed.` : said, done: true, demo, link: link(id), result });
     const plain = (state: unknown) => String(state ?? '').replaceAll('_', ' ');
     const workAction = (name: string, title: string, description: string, extra: Json, required: string[], destructive: boolean, plan: (id: string, args: Json, item: Json, detail: Json, demo: boolean) => Planned, check: (args: Json) => unknown[] = () => []): Tool => ({
-      name, title, readOnly: false, ...(destructive ? { destructive: true as const } : {}), description,
+      name, title, readOnly: false, confirms: true, ...(destructive ? { destructive: true as const } : {}), description,
       inputSchema: object({ ...workId, ...extra }, ['id', ...required]), outputSchema: actionOutput,
       async run(args, call) {
         const id = workItemId(args.id);
@@ -367,7 +367,7 @@ export function createMcpServer(options: McpOptions) {
     const demoSays = (demo: boolean) => demo ? 'Illustrative demo: nothing real changes. ' : '';
     return [
       {
-        name: 'unfold_hand_off', title: 'Hand a task to a Team', readOnly: false,
+        name: 'unfold_hand_off', title: 'Hand a task to a Team', readOnly: false, confirms: true,
         description: 'Hand an open tracker task to a Ploeg Team: Unfold assigns the Team\'s tracker user and comments on the task, and Ploeg picks it up. Asks the person to confirm first; nothing changes without that. source and task are as Unfold\'s Tasks page names them.',
         inputSchema: object({ source: string('Task connection id, such as board'), task: string('Task id in that connection'), team: string('Ploeg Team id') }, ['source', 'task', 'team']),
         outputSchema: actionOutput,
@@ -446,7 +446,7 @@ export function createMcpServer(options: McpOptions) {
           } };
         }, args => [boundedText(args, 'text', true)]),
       {
-        name: 'unfold_steer_session', title: 'Steer a session', readOnly: false, destructive: true,
+        name: 'unfold_steer_session', title: 'Steer a session', readOnly: false, destructive: true, confirms: true,
         description: 'Steer one of your workbench sessions: send its agent a message, or pause, resume or cancel it. Asks the person to confirm first, naming what it may spend; nothing changes without that. id is the session id from unfold_sessions.',
         inputSchema: object({ id: string('Session id, as unfold_sessions lists it'), action: string('message, pause, resume or cancel', { enum: ['message', 'pause', 'resume', 'cancel'] }), text: string('The message, for action message; at most 16000 characters') }, ['id', 'action']),
         outputSchema: actionOutput,
@@ -562,7 +562,11 @@ export function createMcpServer(options: McpOptions) {
     }
   }
 
-  return { handle, tools: tools.map(tool => tool.name), connect(send: McpOutbound) { outbound = send; } };
+  return {
+    handle, tools: tools.map(tool => tool.name), connect(send: McpOutbound) { outbound = send; },
+    /** Whether a tool asks the person to confirm through elicitation before it changes anything, so its first call only plans. */
+    confirmsFirst(name: string): boolean { return tools.find(tool => tool.name === name)?.confirms === true; },
+  };
 }
 
 /** Serves `server` over newline-delimited JSON-RPC: requests from `input`, answers to `output`. Resolves when `input` ends. */
