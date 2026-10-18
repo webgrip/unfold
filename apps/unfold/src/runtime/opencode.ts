@@ -44,6 +44,11 @@ function preview(value: unknown, limit: number): string {
 
 function tail(text: string, limit: number): string { return text.length > limit ? '…' + text.slice(-limit) : text; }
 
+function unreadablePermissionList(error: unknown): undefined {
+  if (error instanceof RuntimeFailure && error.httpStatus === 400) return undefined;
+  throw error;
+}
+
 export function withoutVerdictBlock(text: string): string {
   try { const whole = JSON.parse(text); if (whole && typeof whole === 'object' && 'verdict' in whole) return typeof whole.summary === 'string' && whole.summary ? whole.summary : text; } catch {}
   let summary = '';
@@ -279,7 +284,7 @@ export class OpenCodeRuntime implements AgentRuntime {
           observed = await Promise.all([
             this.request(workspace, '/session/status', 'GET', undefined, operation),
             this.request(workspace, `${base}/message`, 'GET', undefined, operation),
-            this.request(workspace, '/permission', 'GET', undefined, operation),
+            this.request(workspace, '/permission', 'GET', undefined, operation).catch(unreadablePermissionList),
             this.request(workspace, '/question', 'GET', undefined, operation),
             this.request(workspace, `${base}/children`, 'GET', undefined, operation),
           ]);
@@ -293,10 +298,12 @@ export class OpenCodeRuntime implements AgentRuntime {
           continue;
         }
         const [statuses, messages, permissions, questions, children] = observed;
-        if (!Array.isArray(permissions) || !Array.isArray(questions)) throw new Error('OpenCode returned an invalid pending-request list');
+        if ((permissions !== undefined && !Array.isArray(permissions)) || !Array.isArray(questions)) throw new Error('OpenCode returned an invalid pending-request list');
         for (const child of Array.isArray(children) ? children : []) if (typeof child.id === 'string') sessions.add(child.id);
-        const activeRequests = new Set([...permissions, ...questions].filter(p => sessions.has(p.sessionID)).map(p => p.id));
-        for (const id of pending) if (!activeRequests.has(id)) { pending.delete(id); emit({ type: 'permission.resolved', data: { nativeId: id } }); }
+        if (permissions) {
+          const activeRequests = new Set([...permissions, ...questions].filter(p => sessions.has(p.sessionID)).map(p => p.id));
+          for (const id of pending) if (!activeRequests.has(id)) { pending.delete(id); emit({ type: 'permission.resolved', data: { nativeId: id } }); }
+        }
         for (const p of Array.isArray(permissions) ? permissions : []) receive({ type: 'permission.asked', properties: p });
         for (const p of Array.isArray(questions) ? questions : []) receive({ type: 'question.asked', properties: p });
         if (!Array.isArray(messages)) throw new Error('OpenCode returned an invalid message list');

@@ -91,6 +91,48 @@ test('a call that fails during a turn names itself in the failure, without the r
   await assert.rejects(runtime.execute(context([])), error => error instanceof RuntimeFailure && error.category === 'harness_rejected' && error.stage === 'execution' && error.promptAcceptance === 'accepted' && error.httpStatus === 500 && error.detail === 'GET /permission answered HTTP 500' && !JSON.stringify(error).includes('secret-opencode-body'));
 });
 
+test('a pending permission OpenCode cannot list arrives through the event stream and the turn finishes after the reply', async () => {
+  const events: RuntimeEvent[] = [];
+  const asked = { id: 'perm_one', sessionID: 'ses_native', permission: 'grep', patterns: ['Run the unit tests'], always: ['*'], metadata: { pattern: 'Run the unit tests' } };
+  let waiting = true;
+  let streamed = false;
+  let listRefused: () => void = () => {};
+  const refused = new Promise<void>(resolve => { listRefused = resolve; });
+  const calls: string[] = [];
+  const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } });
+  const fetcher = (async (input: URL | RequestInfo, init?: RequestInit) => {
+    const url = new URL(String(input));
+    calls.push(`${init?.method ?? 'GET'} ${url.pathname}`);
+    if (url.pathname === '/event') {
+      const frames = streamed ? '' : `data: ${JSON.stringify({ id: 'evt_asked', type: 'permission.asked', properties: asked })}\n\n`;
+      streamed = true;
+      return new Response(frames, { headers: { 'Content-Type': 'text/event-stream' } });
+    }
+    if (url.pathname === '/session') return json({ id: 'ses_native' });
+    if (url.pathname.endsWith('/prompt_async')) return new Response(null, { status: 204 });
+    if (url.pathname === '/permission/perm_one/reply') { waiting = false; return json(true); }
+    if (url.pathname === '/permission' && waiting) listRefused();
+    if (url.pathname === '/permission') return waiting ? new Response('{"name":"BadRequest","data":{"message":"Expected JSON value, got undefined"}}', { status: 400 }) : json([]);
+    if (url.pathname === '/session/status') return json(waiting ? { ses_native: { type: 'busy' } } : {});
+    if (url.pathname === '/question' || url.pathname.endsWith('/children')) return json([]);
+    if (url.pathname === '/session/ses_native/message') return json(waiting || !calls.includes('POST /session/ses_native/prompt_async') ? [] : [{ info: { id: 'msg_answer', role: 'assistant', sessionID: 'ses_native', parentID: 'msg_user', time: { created: 1, completed: 2 }, finish: 'stop', cost: 0.01, tokens: { input: 1, output: 1 } }, parts: [{ type: 'text', text: '```json\n{"verdict":"approve","summary":"Found the line"}\n```' }] }]);
+    if (url.pathname.endsWith('/diff')) return json([]);
+    if (url.pathname.endsWith('/abort')) return json(true);
+    throw new Error(`Unexpected wire request ${url.pathname}`);
+  }) as typeof fetch;
+  const runtime = new OpenCodeRuntime(config, manager, fetcher);
+  const ctx = context(events);
+  ctx.emit = event => {
+    events.push(event);
+    if (event.type === 'permission') void refused.then(() => runtime.respond(ctx.workspace, { ...event.data, id: 'local', sessionId: 'session', runId: 'run' } as any, { decision: 'once' }));
+  };
+  const result = await runtime.execute(ctx);
+  assert.equal(result.verdict, 'approve');
+  assert.equal(events.some(event => event.type === 'permission' && event.data.nativeId === 'perm_one'), true);
+  assert.equal(calls.includes('POST /permission/perm_one/reply'), true);
+  assert.ok(calls.indexOf('GET /permission') < calls.indexOf('POST /permission/perm_one/reply'));
+});
+
 test('an error OpenCode reports on the assistant message is kept in the failure', async () => {
   const runtime = new OpenCodeRuntime(config, manager, wire({ agentError: { name: 'UnknownError', message: 'tool grep failed' } }).fetcher);
   await assert.rejects(runtime.execute(context([])), error => error instanceof RuntimeFailure && error.category === 'harness_rejected' && error.promptAcceptance === 'accepted' && error.detail === 'UnknownError: tool grep failed');
