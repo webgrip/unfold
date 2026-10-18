@@ -137,6 +137,18 @@ terms:
       - term: Verdict
         note: A reviewing Run's approve or request_changes answer. It is Evidence for a Review, not acceptance.
     see_also: [Result, Acceptance Conditions, Evidence, Verdict]
+  - name: Walkthrough
+    context: Work
+    definition: >
+      The steps a writing Run reports for a person to check its change without
+      reading code: each says what to do and what they should see, with a
+      screenshot the agent took while walking the same step. When the change
+      shows nowhere, the Walkthrough says so in plain words instead. Proposed
+      in ploeg-hq pull request 185 and Unfold ADR 0054; not implemented yet.
+    not_to_be_confused_with:
+      - term: Evidence
+        note: What a Review rests on, such as the diff and CI. A Walkthrough is the agent's own account and helps a person check; it proves nothing alone.
+    see_also: [Review, Result, Evidence]
   - name: Session
     context: Participation
     owner: unfold
