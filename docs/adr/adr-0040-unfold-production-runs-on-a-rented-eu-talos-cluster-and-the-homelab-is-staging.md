@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-18
 decision-makers: Ryan Grippeling
 ---
@@ -40,7 +40,7 @@ Chosen option: "Rent one production cluster now, with the homelab as staging", b
 * **Site.** The marketing site stays on Cloudflare ([ADR-0012](adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md)).
 * **Gate.** Building starts only after the P0 items of the remediation epic (VIK-1714) have merged.
 
-Not implemented yet.
+Not implemented yet: the repository and its infrastructure code exist (`webgrip/unfold-cluster`), no server is created.
 
 ### Consequences
 
@@ -79,3 +79,4 @@ Not implemented yet.
 * 2026-10-17 — The owner waived booting a throwaway node to test gVisor; the first node boot runs that test instead.
 * 2026-10-18 — The owner raised the cap to €185 for a bare-metal Kata worker, dedicated the cloud worker to Unfold, put CI on the bare-metal worker under Kata, and chose the static seal, the GitHub mirror and the three-item secrets floor.
 * 2026-10-18 — Proposed.
+* 2026-10-18 — Accepted by the owner. `webgrip/unfold-cluster` now holds the OpenTofu, Talos inventory and workflow for this cluster.
