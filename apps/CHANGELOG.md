@@ -1,3 +1,29 @@
+## [unfold-v0.4.0-rc.86](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.85...unfold-v0.4.0-rc.86) (2026-10-18)
+
+### Added
+
+* **unfold:** chat with Unfold in the Agents window, reading and acting on confirm ([b36b1d9](https://forgejo.webgrip.dev/webgrip/unfold/commit/b36b1d98fae9347e89214e8ed0eb30a5f4500213))
+* **unfold:** open a session's Work Item panel in VS Code from the Agents window ([bb06737](https://forgejo.webgrip.dev/webgrip/unfold/commit/bb06737fd5860154cb5fc9ccd6bbb2219008fe0e))
+* **unfold:** run health per RFC-0007, revised with what the live view taught ([eb85770](https://forgejo.webgrip.dev/webgrip/unfold/commit/eb85770286213abc1ede0f038c977b352680d798))
+* **unfold:** show a running Run's health and record a shadow judge's verdict ([446083e](https://forgejo.webgrip.dev/webgrip/unfold/commit/446083e7916a6cb160a973fb88dd0a29182568fa)), references [ploeg-hq/ploeg#160](https://forgejo.webgrip.dev/ploeg-hq/ploeg/issues/160)
+
+### Fixed
+
+* **ploeg:** pin the contract bundle digest GHCR actually published for 0.2.0-rc.26 ([b6942c2](https://forgejo.webgrip.dev/webgrip/unfold/commit/b6942c2cbb91ca8826267f1fb70e5758142da11a))
+* **unfold:** keep the judge's answer from being spent on thinking ([c5db909](https://forgejo.webgrip.dev/webgrip/unfold/commit/c5db9092d3e58dcae72c4ccb1adb68ed958966f5))
+* **unfold:** keep the Work Item header inside a phone screen and name each browser error's flow and URL ([20715bb](https://forgejo.webgrip.dev/webgrip/unfold/commit/20715bb6f99dadda4d62fa218285259d00db9102))
+* **unfold:** let the hosted replay show a running demo Run's health ([7a1a7a5](https://forgejo.webgrip.dev/webgrip/unfold/commit/7a1a7a533493589e4f4e979347a71771366bb06f))
+* **unfold:** show why the Agents window's first message was refused ([afd65e1](https://forgejo.webgrip.dev/webgrip/unfold/commit/afd65e107b5ad1d77036f0d1ce1c8553194137e1))
+
+### Docs
+
+* **unfold:** record server-side Run health and the free shadow judge ([99ee6ae](https://forgejo.webgrip.dev/webgrip/unfold/commit/99ee6ae177e5821c214565e35446b6645b9db564))
+
+### Build
+
+* **ploeg:** depend on a released Ploeg instead of the submodule ([21aafda](https://forgejo.webgrip.dev/webgrip/unfold/commit/21aafda6c0899bddbe5658444009f5a540484e1d))
+* **ploeg:** update ploeg ( v0.2.0-rc.25 ➔ v0.2.0-rc.26 ) ([69776ab](https://forgejo.webgrip.dev/webgrip/unfold/commit/69776ab6f9451af51b7f79f4d7bec31255f53482))
+
 ## [unfold-v0.4.0-rc.85](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.84...unfold-v0.4.0-rc.85) (2026-10-18)
 
 ### Added
