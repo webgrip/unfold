@@ -158,40 +158,12 @@
       "enabled": false
     },
     {
-      "description": "One Ploeg release arrives as one pull request on renovate/ploeg (system ADR-0039): the contract bundle pin in apps/unfold/ploeg-release.json and the Go module github.com/ploeg-hq/ploeg that the unified demo helper and the managed qualification build against. Release candidates count as patches, so the group's own name keeps them out of the preset's all-non-major group (#343). The commit is a fix scoped ploeg, so a green Ploeg bump merges itself and cuts the next Unfold candidate (homelab ADR-0069, layer 4). Renovate refreshes the digest of the bundle with its version, tidies go.sum, and regenerates the combined glossary and the decision register from the new bundle, and the landscape explorer where its runner has a browser; when the new Ploeg model clashes with Unfold's, it commits what it could regenerate plus ploeg-glossary-conflicts.txt, and the ploeg-docs check stays red, which holds the automerge until a person resolves it. A release is already reviewed and gated by Ploeg's CI, so there is no soak.",
+      "description": "Ploeg's release workflow opens the Ploeg pull request by running scripts/consume-ploeg-release.sh (ADR-0041), so Renovate leaves the contract bundle pin and the Go module alone: two writers on one pin would race. The weekly ploeg-behind check fails when the pin falls behind Ploeg's newest release.",
       "matchPackageNames": [
         "ghcr.io/ploeg-hq/ploeg-contract",
         "github.com/ploeg-hq/ploeg"
       ],
-      "groupName": "Ploeg",
-      "groupSlug": "ploeg",
-      "automerge": true,
-      "dependencyDashboardApproval": false,
-      "minimumReleaseAge": null,
-      "ignoreUnstable": false,
-      "postUpdateOptions": [
-        "gomodTidy"
-      ],
-      "semanticCommitType": "fix",
-      "semanticCommitScope": "ploeg",
-      "commitMessageTopic": "Ploeg",
-      "postUpgradeTasks": {
-        "commands": [
-          "./scripts/renovate-ploeg-docs.sh"
-        ],
-        "fileFilters": [
-          "docs/domain/**",
-          "docs/reference/glossary.md",
-          "docs/reference/decisions.md",
-          "docs/landscape/explorer.html",
-          "docs/landscape/generated-sources.json",
-          "ploeg-glossary-conflicts.txt"
-        ],
-        "executionMode": "branch"
-      },
-      "prBodyNotes": [
-        "**This pull request merges itself once every check is green, `ploeg-docs` included,** and the merge cuts the next Unfold candidate. It moves the engine Unfold runs on, so a red check holds it for a person.\n\nWhen `ploeg-docs` fails, its log names the problem ([CI and release workflows](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/operations/ci.md#the-ploeg-pin-pull-request)):\n\n- **A stale page** (`Stale generated domain view`, `Stale combined glossary`, a stale decision register, `Stale landscape`): run `mise run domain`, `mise run docs-decisions` and `mise run landscape` on this branch and push. Renovate's runner cannot rebuild the landscape explorer, so a Ploeg release that changes the glossary always needs `mise run landscape`.\n- **A term clash** (`Combined glossary conflicts`, and `ploeg-glossary-conflicts.txt` in this pull request): the new Ploeg release defines a term Unfold's model also defines. Ploeg owns a term when Ploeg stores it or its API names it; otherwise Unfold owns it. When Ploeg owns it, add the term to the Ploeg `imports` entry in `docs/domain/model.yaml`, delete Unfold's copy, and move any Unfold-only clauses into an Unfold term that links to it, as [#339](https://forgejo.webgrip.dev/webgrip/unfold/pulls/339) did for Tenant and Client. Then run `mise run domain`, delete `ploeg-glossary-conflicts.txt` and push to this branch."
-      ]
+      "enabled": false
     },
     {
       "description": "These pins replace the copies npm bundles in the agent image, and the patch script accepts only the bundled major. Raise the bound when npm bundles a newer major.",
