@@ -283,6 +283,7 @@ function waitingActions(entry, context, reason) {
   if (pr) primary = button({ id: `now-pr-${entry.id}`, label: failedCi ? 'Failing checks' : 'Pull request', icon: failedCi ? 'x-circle' : 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: failedCi ? `Open the pull request for “${title}” to see why CI did not pass (opens in a new tab)` : `Open the pull request for “${title}” (opens in a new tab)` });
   if (entry.state === 'needs_human' && entry.question?.text) primary = button({ id: `now-answer-${entry.id}`, label: 'Answer', icon: 'send', size: 'sm', href: `#work/${encodeURIComponent(entry.id)}`, ariaLabel: `Answer the question on “${title}”` });
   if (entry.state === 'proposed') primary = button({ id: `now-decide-${entry.id}`, label: 'Approve or reject', icon: 'arrow', size: 'sm', href: `#proposed?id=${encodeURIComponent(entry.id)}`, ariaLabel: `Approve or reject “${title}” on Proposed` });
+  if (context.retryHere && entry.state === 'needs_human' && !entry.question?.text && reason?.requeue) primary = button({ id: `now-retry-item-${entry.id}`, label: 'Try again', icon: 'refresh', size: 'sm', action: 'loop-retry', data: { id: entry.id }, ariaLabel: `Try “${title}” again` });
   const links = [];
   const tracker = safeUrl(entry.url);
   if (tracker) links.push(linkIcon(`now-tracker-${entry.id}`, tracker, 'external', `Open “${title}” in the tracker`));
@@ -291,8 +292,13 @@ function waitingActions(entry, context, reason) {
   return `<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary" data-insight="now.row.primary">${primary}</span><span class="now-action-links" data-insight="now.row.link">${links.join('')}</span></div>`;
 }
 
+function retryHere(reason, context) {
+  if (!context.retryHere || !reason?.requeue) return reason;
+  return { ...reason, requeue: 'Then press Try again.', action: `${reason.fix} Then press Try again.` };
+}
+
 function waitingRow(entry, context, grouped = false) {
-  const reason = listReason(entry, { demo: context.demo });
+  const reason = retryHere(listReason(entry, { demo: context.demo }), context);
   const warning = routingWarning(entry);
   const meta = workItemState(entry.state);
   const target = openTarget(entry);
@@ -729,4 +735,71 @@ export function nowMarkup(input, options = {}, now = Date.now()) {
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
   const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
   return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${waitingCard(view, visible, held, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}${view.asksEnabled === false ? '' : asksCard(view)}</div></div></div>`;
+}
+
+const loopGroups = {
+  review: { ...groups[0], hint: 'Agents finished these. Only you can accept: merge it, or ask for changes on the forge.' },
+  proposed: groups[2],
+  needs: { ...groups[1], hint: 'Ploeg stopped. Each says why; fix the cause, then Try again here.' },
+};
+
+function dayLine(view) {
+  const data = view.data;
+  const summary = view.summary?.data;
+  const waiting = data.errors?.waiting ? null : data.waiting;
+  const decide = waiting ? waiting.filter(entry => ['review', 'proposed'].includes(waitingGroup(entry))).length : null;
+  const stuck = waiting ? waiting.filter(entry => waitingGroup(entry) === 'needs').length + (data.errors?.refused ? 0 : data.refused.length) : null;
+  const moving = data.errors?.running ? null : data.running.length + (waitingToRun(data)?.length ?? 0);
+  const demo = Boolean(data.demo || summary?.demo);
+  const settled = summary?.totals?.spend?.settledUsd;
+  const reserved = summary?.totals?.spend?.reservedUsd;
+  const part = (value, text, tone) => `<li class="loop-day-part"${tone && value ? ` data-tone="${tone}"` : ''}><strong class="num">${value === null ? '—' : escape(format.count(value))}</strong> ${escape(text)}</li>`;
+  const spend = demo ? '<li class="loop-day-part">no spend in the demo</li>'
+    : amount(settled) ? `<li class="loop-day-part"><strong class="num">${escape(format.money(settled))}</strong> spent in 24 h${amount(reserved) && reserved > 0 ? ` · ${escape(format.money(reserved))} held` : ''}</li>`
+    : '<li class="loop-day-part">spend not known yet</li>';
+  return `<ul class="loop-day" aria-label="Today">${part(decide, 'to decide', 'review')}${part(stuck, 'stuck', 'attention')}${part(moving, 'moving', 'live')}${spend}</ul>`;
+}
+
+function laneCard(id, title, hint, total, tone, body) {
+  return `<section class="card flush now-card loop-lane loop-${id}" aria-labelledby="loop-${id}-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-${id}-title">${escape(title)}${total ? count(total, { tone }) : ''}</h2><p class="loop-hint">${escape(hint)}</p></div></header><div class="card-body">${body}</div></section>`;
+}
+
+/**
+ * Renders Now as the loop, under the `now.loop` Labs flag: one line for the day, then the lanes in the order a person
+ * works them. Decide holds the pull requests and proposals only a person can accept; Unstick holds what Ploeg stopped
+ * on and the tasks it refused; Start lists Ready tasks to hand off (`options.start`, markup from `start.js`). In flight,
+ * with the hand-offs made from here (`options.handed`), and what finished sit beside them. `options.hideQueued` names
+ * `provider:externalId` keys whose queued row the hand-off list already shows. A stopped Work Item that only needs a
+ * new attempt offers Try again in its row instead of sending you to the tracker; `options.retryHere` false leaves that
+ * out, as for a viewer. Loading and failure match the desk.
+ * @param {object} input `state.now`, as for `nowMarkup`.
+ * @param {{ start?: string, handed?: string, hideQueued?: Set<string>, retryHere?: boolean, grafanaUrl?: string, singleKeys?: boolean }} [options]
+ * @param {number} [now]
+ * @returns {string}
+ */
+export function loopMarkup(input, options = {}, now = Date.now()) {
+  if (!input?.data) return nowMarkup(input, options, now);
+  const list = value => Array.isArray(value) ? value : [];
+  const hide = options.hideQueued || new Set();
+  const active = list(input.data.active).filter(entry => !(entry.state === 'queued' && hide.has(`${entry.provider}:${entry.externalId}`)));
+  const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: list(input.data.running), active, recent: list(input.data.recent) } };
+  const since = view.since === undefined ? null : view.since;
+  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs: view.data.errors.recent ? [] : view.data.recent, dots: true, retryHere: options.retryHere !== false };
+  const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
+  const error = view.data.errors.waiting;
+  const rows = byWaitingSince(visible.waiting);
+  const local = { ...context, stale: error ? 0 : staleCount(view), refused: refusedMarkup(view.data, context), truncated: new Set(waitingStates.filter(state => stateTruncated(view.data, state))) };
+  const pill = held.waiting ? showNew('waiting', format.plural(held.waiting, 'new Work Item')) : '';
+  const of = group => rows.filter(entry => waitingGroup(entry) === group);
+  const decideRows = [...of('review'), ...of('proposed')];
+  const decide = error ? errorState('waiting', 'Could not load what waits on you', error)
+    : decideRows.length ? `${pill}${['review', 'proposed'].filter(group => of(group).length).map(group => groupMarkup(loopGroups[group], of(group), local)).join('')}`
+    : `${pill}<p class="now-group-empty">Nothing to decide. Every pull request and proposal has your answer.</p>`;
+  const unstickTotal = of('needs').length + view.data.refused.length;
+  const unstick = error ? '' : of('needs').length || local.refused || local.stale ? groupMarkup(loopGroups.needs, of('needs'), local) : '<p class="now-group-empty">Nothing is stuck.</p>';
+  const keys = context.singleKeys ? `<p class="now-keys loop-keys" aria-hidden="true">${kbd(['j', 'k'])}<span>move</span>${kbd('o')}<span>open PR or tracker</span>${kbd('h')}<span>hand off</span>${kbd('!')}<span>something in the way</span></p>` : '';
+  const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
+  const lanes = `${laneCard('decide', 'Decide', 'First: what only you can finish.', decideRows.length, 'review', decide)}${error ? '' : laneCard('unstick', 'Unstick', 'Then: what Ploeg could not finish alone.', unstickTotal, 'attention', unstick)}${options.start || ''}`;
+  const rail = `${options.handed ? `<section class="card flush now-card loop-handed" aria-labelledby="loop-handed-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-handed-title">Just handed over</h2></div></header><div class="card-body">${options.handed}</div></section>` : ''}${runningCard(view, { ...context, handOver: false })}${recentCard(view, visible, held, context)}${view.asksEnabled === false ? '' : asksCard(view)}`;
+  return `<div class="now now-loop"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}<div class="loop-top">${dayLine(view)}${keys}</div><div class="now-columns"><div class="now-main loop-lanes">${lanes}</div><div class="now-rail">${rail}</div></div></div>`;
 }

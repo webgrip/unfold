@@ -16,6 +16,7 @@ import { deliveryStages, stageTime } from './core/delivery-track.js';
 import { streamChart, streamLanes } from './core/value-stream.js';
 import { foldTranscript } from './run-transcript.js';
 import { liveModel } from './live/model.js';
+import { landingEstimate } from './live/landing.js';
 import { flightPath } from './live/flight-path.js';
 import { foldStrip } from './live/fold-strip.js';
 import { answers } from './live/answers.js';
@@ -1607,7 +1608,8 @@ export function statusMarkup(detail, model, { reason = null, plan = null } = {})
  * sentence and the flight path, from the detail and the running Run's transcript when its panel has loaded it, then
  * the questions answered from the record. Its health is the running Run's entry from Unfold's health route, the one
  * the Run row's badge shows, so the two never disagree; its decider tripwire hits are the running Run's hits from
- * Unfold's tripwire route, the ones its Run body lists.
+ * Unfold's tripwire route, the ones its Run body lists. Its estimate is `landingEstimate` over the Team's earlier
+ * Runs that opened a pull request, `model.landingHistory`.
  */
 function liveOf(detail, model) {
   const running = [...(detail.runs || [])].reverse().find(run => run.state === 'running');
@@ -1617,7 +1619,8 @@ function liveOf(detail, model) {
   const missing = entry?.data?.available === false ? (entry.data.reason === 'demo' ? 'demo' : 'unsupported') : !entries.length && entry?.error ? 'failed' : null;
   const health = running ? model.runHealth?.get?.(String(running.id)) ?? null : null;
   const tripwire = running ? (model.tripwire?.data?.hits ?? []).filter(hit => String(hit.runId) === String(running.id)) : [];
-  return liveModel({ detail, transcript, entries, health, tripwire, transcriptKnown: entries.length > 0, transcriptMissing: missing, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
+  const estimate = model.landingHistory ? landingEstimate({ history: model.landingHistory, run: running, now: model.now ?? Date.now() }) : null;
+  return liveModel({ detail, transcript, entries, health, tripwire, estimate, transcriptKnown: entries.length > 0, transcriptMissing: missing, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
 }
 
 export function liveViewMarkup(detail, model) {

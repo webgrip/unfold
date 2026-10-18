@@ -258,7 +258,7 @@ export function flightLegs(model) {
   const lastFailure = [...model.runs].reverse().find(run => run.failure || run.status === 'cancelled');
   if (stopped) legs.push({ kind: 'stop', tone: stopped[0], label: stopped[1], glyph: stopped[2], note: lastFailure?.failure?.label ?? (model.state === 'withdrawn' ? 'Its Runs are kept' : '') });
   else if (!model.running && (model.state === 'awaiting_review' || model.state === 'done' || pr)) legs.push({ kind: 'approach', mode: 'landed', note: '' });
-  else if (!queued) legs.push({ kind: 'approach', mode: model.running ? 'forecast' : 'taxi', note: model.estimate ? model.estimate.text : 'no estimate' });
+  else if (!queued) legs.push({ kind: 'approach', mode: model.running ? 'forecast' : 'taxi', note: model.estimate ? model.estimate.note || model.estimate.text : 'no estimate' });
   for (const stage of model.stages.filter(entry => ['pr', 'review', 'merge', 'production'].includes(entry.id))) {
     const parked = (model.state === 'awaiting_review' && stage.id === 'review') || (model.state === 'done' && stage.id === 'merge');
     legs.push({ kind: 'station', id: stage.id, label: stage.id === 'review' ? 'You' : stage.label, status: stopped && stage.status !== 'done' ? 'blocked' : stage.status, you: stage.you, parked, note: stage.id === 'pr' && model.pullRequest?.number ? `#${model.pullRequest.number}` : '' });

@@ -58,6 +58,10 @@ ClickUp is only registered when `PLOEG_CLICKUP_SECRET` or `PLOEG_CLICKUP_TOKEN` 
 1. Write the ticket title and description as the full brief. They are the only ticket text the agent receives ([prompt.go](../../apps/ploeg/pkg/taskprompt/prompt.go)).
 2. Assign it to a username from step 2. Ploeg stores the Work Item, opens a Shift and creates one pending Run per Role in the first Round ([engine.go](../../apps/ploeg/pkg/shiftengine/engine.go)). KEDA sees the pending Run and starts a worker pod.
 
+## Hand it off from Now
+
+With **The loop on Now** turned on under Settings › Labs, Now ends in a **Start** lane: the open tasks of every board Ploeg runs that no Team holds yet, ready ones first. Press `h` on one, or click it, to open the hand-off sheet. It shows what Unfold reads from the task (a ready or not-ready label, a brief, acceptance conditions), each Team you may use with its Roles, queue and last 7 days, and what handing it over does: Unfold assigns the Team's tracker user and leaves a comment, exactly as in step 2. The hand-off then shows under **Just handed over** with **Take back** until a worker starts it. When four agent pull requests already wait for you, the lane says to decide first, but still lets you hand off.
+
 ## Watch progress and spend
 
 - **ploegd log:** `work item queued`, `target resolved`, `shift opened`, `round opened`, `shift closed`, `work item withdrawn`.

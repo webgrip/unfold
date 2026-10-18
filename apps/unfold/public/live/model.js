@@ -146,7 +146,7 @@ function stageStates(item, runs, current) {
 /**
  * Derives everything the live Work Item components draw from one Ploeg detail and, when a Run is being followed, its
  * folded transcript. It is pure: the same input and `now` always give the same model, and it never invents a number;
- * what Ploeg did not report stays `null` and an estimate exists only when the caller passes one.
+ * what Ploeg did not report stays `null` and an estimate exists only when the caller passes one (`landingEstimate`).
  *
  * Invariants the components rely on: `spend.usd` is the one spend figure, summed from reported Run costs, and
  * `spend.attemptUsd` is the part of it the latest attempt spent against its budget, `spend.budgetUsd`; Runs a
@@ -161,7 +161,8 @@ function stageStates(item, runs, current) {
  * @param {string} [input.transcriptRunId] Which Run the transcript belongs to; defaults to the running Run.
  * @param {number} input.now Milliseconds since the epoch.
  * @param {string} [input.ticketCreatedAt] When the tracker task was created, when it is older than the Work Item.
- * @param {{ text: string, source: string }} [input.estimate] A forecast for the pull request, shown only when given.
+ * @param {{ text: string, note?: string, source: string }} [input.estimate] A forecast for the pull request, shown only when
+ *   given: `text` answers when to review, `note` is the short form on the flight path.
  * @param {{ leftUsd: number, totalUsd: number }} [input.allowance] The Team's Ask Allowance.
  * @param {string[]} [input.allowedHosts] Hosts the Run may reach; a call to any other host is a tripwire.
  * @param {{ startedWith: object, current: object }} [input.policy] Proposed: the Run's rules at its start and now.
