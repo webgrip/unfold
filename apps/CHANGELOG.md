@@ -1,3 +1,13 @@
+## [unfold-v0.4.0-rc.90](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.89...unfold-v0.4.0-rc.90) (2026-10-18)
+
+### Added
+
+* **unfold:** start an Unfold session in the Agents window with one click ([fe01c8b](https://forgejo.webgrip.dev/webgrip/unfold/commit/fe01c8bba233be59c00bdb378506af6c947da89a))
+
+### Fixed
+
+* **ploeg:** update Ploeg to 0.2.0-rc.30 ([e60941c](https://forgejo.webgrip.dev/webgrip/unfold/commit/e60941c50148ed1a59157555f18f31e65c54187b))
+
 ## [unfold-v0.4.0-rc.89](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.88...unfold-v0.4.0-rc.89) (2026-10-18)
 
 ### Added
