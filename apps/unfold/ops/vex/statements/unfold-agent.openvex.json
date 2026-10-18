@@ -2,7 +2,7 @@
   "@context": "https://openvex.dev/ns/v0.2.0",
   "@id": "https://openvex.dev/docs/public/vex-ba968dad9b7223d6897593985bacd7fadb2501dde3d6f4733eeb558124a53c34",
   "author": "ryan@webgrip.nl",
-  "version": 2,
+  "version": 3,
   "statements": [
     {
       "vulnerability": {
@@ -45,7 +45,21 @@
       "justification": "vulnerable_code_cannot_be_controlled_by_adversary",
       "impact_statement": "The flaw lets a client with a large max-stale read another user's security-zeroed entry from a SHARED HTTP cache. In this image the only copy is npm's bundled dependency (/usr/lib/node_modules/npm/node_modules/http-cache-semantics 4.2.0, sole copy at build on 2026-10-03), which backs npm's private client download cache for the single node user of one session's container; no process serves that cache to other users, and the requests in it are npm's own. check-http-cache-semantics.mjs fails the build if another copy appears. No fixed release exists (affected through 4.2.0); remove this statement once npm bundles a fixed version.",
       "timestamp": "2026-10-03T10:32:57Z"
+    },
+    {
+      "vulnerability": {
+        "name": "CVE-2026-77214"
+      },
+      "products": [
+        {
+          "@id": "pkg:oci/unfold-agent"
+        }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_in_execute_path",
+      "impact_statement": "The over-read needs an application that passes XML_ParseBuffer a length larger than the buffer XML_GetBuffer returned. In this image the only program that loaded libexpat was git-http-push (git's WebDAV push for dumb HTTP remotes; agents push over smart HTTP), and the build deletes it (scan of all ELF files at digest sha256:031d71bb8919e0b887776d430439a44ed0efabd1704bebc739854b7037cfd110 on 2026-10-18). check-expat-users.mjs fails the build if any ELF file names libexpat.so.1 again. The libexpat package stays because apk's git depends on it. dhi.io's Alpine 3.24 repository (built 2026-10-17) has no libexpat 2.9.0-r0 with the fix yet; remove this statement once the base carries it.",
+      "timestamp": "2026-10-18T07:45:05Z"
     }
   ],
-  "timestamp": "2026-10-03T10:32:57Z"
+  "timestamp": "2026-10-18T07:45:05Z"
 }
