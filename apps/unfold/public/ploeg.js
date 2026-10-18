@@ -1577,9 +1577,9 @@ export function layoutSwitchMarkup(layout) {
  * The Work Item in one of the `work.layouts` layouts: one view of the Work Item, its session, its Asks, context and
  * linked sessions, drawn by `workPage`. The decision dock carries the page's own next-step button.
  */
-export function layoutMarkup(detail, model, layout, { primary = '' } = {}) {
-  const view = workView({ live: liveOf(detail, model), detail, asks: model.asksEnabled === false ? null : model.asks, context: model.context, linked: model.linkedSessions, sessions: model.sessions, viewer: model.userName || 'You' });
-  return workPage(layout, view, { primary }, text => markdown(text, { baseLevel: 3 }));
+export function layoutMarkup(detail, model, layout, { primary = '', decision, account } = {}) {
+  const view = workView({ live: liveOf(detail, model), detail, asks: model.asksEnabled === false ? null : model.asks, context: model.context, linked: model.linkedSessions, sessions: model.sessions, viewer: model.userName || 'You', canOperate: model.canAddContext !== false });
+  return workPage(layout, view, { primary, ...(decision ? { decision } : {}), ...(account ? { account } : {}) }, text => markdown(text, { baseLevel: 3 }));
 }
 
 /** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, who did what, activity, technical details and, on phones, the action bar. */
@@ -1597,7 +1597,7 @@ export function detailMarkup(recordedDetail, model) {
     primary = plan.primary;
   }
   const layout = model.flags?.['work.layouts'] === true ? model.workLayout || 'current' : null;
-  if (layout && layout !== 'current') return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${layoutSwitchMarkup(layout)}${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${layoutMarkup(detail, model, layout, { primary })}</article>`;
+  if (layout && layout !== 'current') return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${layoutSwitchMarkup(layout)}${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${layoutMarkup(detail, model, layout, { primary, decision: layout === 'unified' ? (reason ? needsYouBox(detail, model, reason, plan) : item.state === 'awaiting_review' ? reviewBox(detail, model, plan) : '') : '', account: layout === 'unified' ? accountMarkup(detail) : '' })}</article>`;
   const status = statusMarkup(detail, model, { reason, plan });
   let decision;
   if (reason) decision = needsYouBox(detail, model, reason, plan);

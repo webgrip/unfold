@@ -161,9 +161,10 @@ function presenceOf(live, linked, viewer) {
  * @param {{ condition: number, label: string, state: 'proven'|'claimed'|'running', note?: string }[]} [input.proofs]
  *   Proof for each acceptance condition. Proposed: Ploeg does not report it yet, so the app passes none.
  * @param {string} [input.viewer] The signed-in person's name.
+ * @param {boolean} [input.canOperate] Whether the signed-in person may steer and add context; a viewer only reads and asks.
  * @returns {object}
  */
-export function workView({ live, detail, asks = null, context = null, linked = null, sessions = [], messages = [], proofs = [], viewer = 'You' }) {
+export function workView({ live, detail, asks = null, context = null, linked = null, sessions = [], messages = [], proofs = [], viewer = 'You', canOperate = true }) {
   const session = (sessions ?? []).find(each => String(each.execution?.workItemId ?? '') === String(detail.item.id)) ?? null;
   const from = origin(detail, session);
   const brief = briefOf(detail.item.descriptionMarkdown ?? detail.item.description ?? session?.objective ?? '');
@@ -184,8 +185,9 @@ export function workView({ live, detail, asks = null, context = null, linked = n
     tape: tapeOf(live, asks),
     presence: presenceOf(live, linked, viewer),
     allowance: asks?.allowance ?? null,
-    canSteer: Boolean(session) && !closed,
-    steerReason: closed ? 'This Work Item is closed.' : session ? '' : `Steering reaches Work Items started in Unfold. This one came ${from.kind === 'tracker' ? 'from a tracker task' : 'from other work'}; add context instead, and the next Run reads it.`,
+    canSteer: Boolean(session) && !closed && canOperate,
+    canAddContext: !closed && canOperate,
+    steerReason: closed ? 'This Work Item is closed.' : !canOperate ? 'Your role reads this Work Item; a developer steers it.' : session ? '' : `Steering reaches Work Items started in Unfold. This one came ${from.kind === 'tracker' ? 'from a tracker task' : 'from other work'}; add context instead, and the next Run reads it.`,
     canAsk: Boolean(asks) && !asks.error,
     closed,
   };
