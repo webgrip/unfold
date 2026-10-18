@@ -184,7 +184,7 @@ def main():
 
     section("Runs")
     for r in s["runs"]:
-        print(f"- {r['role']}: {r['status']} (started {r['startedAt']}, finished {r.get('finishedAt') or '—'}) verdict={r.get('verdict') or '—'}")
+        print(f"- {r['role']}: {r['status']} (started {r.get('startedAt') or '—'}, finished {r.get('finishedAt') or '—'}) verdict={r.get('verdict') or '—'}")
     if s["lastMessages"]:
         tail = "".join(json.loads(m["data"]).get("text", "") for m in reversed(s["lastMessages"]) if m["data"].startswith("{") and m["data"].endswith("}"))
         print(f"last streamed text before the stop: {tail!r}")
