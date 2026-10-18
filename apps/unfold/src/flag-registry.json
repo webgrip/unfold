@@ -85,6 +85,22 @@
         "labs": true
       }
     },
+    "now.loop": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": { "$ref": "labs-choice" },
+      "metadata": {
+        "kind": "release",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-18",
+        "expires": "2027-01-18",
+        "title": "The loop on Now",
+        "description": "Lays Now out in the order you work it: one line for the day, then Decide (pull requests and proposals only you can accept), Unstick (what Ploeg stopped on and the tasks it refused) and Start (the open tasks of every board Ploeg runs, ready ones first, with the review room left). Pressing h on a task opens the hand-off sheet: whether the brief is ready, each Team with its Roles, queue and last 7 days, what handing it over does, and one button. A hand-off made there shows under Just handed over with Take back until a worker starts it. In flight and Recently finished stay beside the lanes. The Fleet board wins while both are on.",
+        "client": true,
+        "labs": true
+      }
+    },
     "cards.rarity": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },
