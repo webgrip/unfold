@@ -65,7 +65,7 @@ Not verified against a desktop VS Code: the sign-in through the provider and the
 
 The Unfold sidebar opens on **Now**, the same list as the browser's Now page:
 
-1. **Ready for your review**: Work Items whose pull request waits on a person, with the pull request number. The inline icon opens the pull request.
+1. **Ready for your review**: Work Items whose pull request waits on a person, with the pull request number. The inline icon opens the pull request. A pull request whose CI is still running says **CI running**; one whose CI did not pass is not ready for review and is listed under **Needs you** as **CI did not pass**, and its Work Item panel leads with the checks that did not pass.
 2. **Needs you**: Work Items Ploeg stopped on, each led by its reason ("Budget ran out", "Agent is stuck", …), plus sessions that wait for your answer, stopped or failed. A Work Item that a session drives appears once, as the session.
 3. **Proposed**: follow-up work an agent proposed, which runs only after a person approves it.
 4. **Running**: each running session with the Role that works, its elapsed time and spend so far, and each other running Run with its Role, Round, elapsed time and the gateway's cost so far, which is not settled spend.

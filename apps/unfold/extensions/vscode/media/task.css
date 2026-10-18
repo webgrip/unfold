@@ -27,6 +27,7 @@
 .head-state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
 .head-card .headline { font-size: 15px; line-height: 1.4; margin: 0; }
 .head-card .next { margin: var(--space-1) 0 0; color: var(--muted); }
+.head-card .failing-checks { margin: var(--space-2) 0 0; padding-left: 1.2em; color: var(--tone-danger); }
 .head-card .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-4); }
 .demo-tag { font-size: 11px; padding: 1px 8px; }
 .reason { margin-top: var(--space-3); }

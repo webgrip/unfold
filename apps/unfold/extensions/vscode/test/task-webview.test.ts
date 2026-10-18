@@ -89,6 +89,38 @@ test('the primary action follows the state: review the pull request, else open t
   assert.equal(view.primaryAction(current({}, { status: 'closed' })), null);
 });
 
+test('a pull request whose CI did not pass is not ready for review: the head says so, lists the checks and leads with them', () => {
+  const pr = 'https://forgejo.example/webgrip/homelab-cluster/pulls/784';
+  const play = (ci: unknown) => ({ number: 784, url: pr, state: 'open', branch: 'agent/vik-2200', mergedAt: null, ci, reviews: [] });
+  const work = (ci: unknown) => ({ kind: 'work', workItemId: '42', detail: detail('awaiting_review'), card: card({ plays: [play(ci)] }), host: 'unfold.example', loadedAt: now });
+  const cancelled = { state: 'failure', checks: [{ context: 'e2e / flux-local', state: 'failure' }, { context: 'e2e / kubeconform', state: 'failure' }, { context: 'lint', state: 'success' }], headSha: 'abc', capturedAt: now };
+  const red = work(cancelled);
+  const situation = view.ploegSituation(red);
+  assert.equal(situation.headline, 'CI did not pass on pull request #784, so it is not ready for review.');
+  assert.equal(situation.meta.label, 'CI failed');
+  assert.equal(situation.meta.tone, 'danger');
+  assert.deepEqual(situation.failing, ['e2e / flux-local', 'e2e / kubeconform']);
+  const head: StubElement = view.headCard(red);
+  assert.match(head.className, /tone-danger/);
+  assert.deepEqual(head.withClass('failing-checks')[0]?.find('li').map(entry => entry.textContent), ['e2e / flux-local', 'e2e / kubeconform']);
+  assert.doesNotMatch(head.textContent, /waiting for your review/);
+  const primary: StubElement = view.primaryAction(red);
+  assert.equal(primary.textContent, 'See why CI did not pass ↗ #784');
+  assert.equal(primary.dataset.openUrl, pr);
+  assert.ok(!buttons(head).some(entry => entry.textContent.startsWith('Review pull request')), 'review is no longer offered as the next step');
+
+  const running = view.ploegSituation(work({ state: 'pending', checks: [{ context: 'e2e / flux-local', state: 'pending' }], headSha: 'abc', capturedAt: now }));
+  assert.equal(running.headline, 'CI is still running on pull request #784. Review waits until it passes.');
+  assert.equal(running.meta.label, 'CI running');
+  assert.equal(view.primaryAction(work({ state: 'pending', checks: [], headSha: 'abc', capturedAt: now })).textContent, 'Follow CI on the pull request ↗ #784');
+
+  for (const ci of [{ state: 'success', checks: [], headSha: 'abc', capturedAt: now }, null]) {
+    const ready = work(ci);
+    assert.equal(view.ploegSituation(ready).headline, 'A pull request is waiting for your review.', 'passed or unreported CI keeps the review');
+    assert.equal(view.primaryAction(ready).textContent, 'Review pull request ↗ #784');
+  }
+});
+
 test('take back is offered only while the item is still queued', () => {
   assert.ok(button(view.headCard(current({ workItems: [item('queued')], assignedTeams: ['silver'] })), 'Take back from silver'));
   assert.ok(!buttons(view.headCard(current({ workItems: [item('leased')], assignedTeams: ['silver'] }))).some(entry => entry.textContent.startsWith('Take back')));

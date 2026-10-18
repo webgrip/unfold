@@ -160,6 +160,27 @@ test('unfold-mcp speaks newline-delimited JSON-RPC on stdio and answers bad line
   assert.equal(lines[3].result.tools.length, 16);
 });
 
+test('unfold_now counts a pull request whose CI did not pass as needing a decision, with the CI reason, not as awaiting review', async t => {
+  const review = (id: string, ci: unknown) => ({ id, state: 'awaiting_review', team: 'unfold', title: `Item ${id}`, provider: 'vikunja', externalId: id, url: '', attempts: 1, infraFailures: 0, createdAt: '2026-10-18T08:00:00Z', updatedAt: '2026-10-18T08:00:00Z', closeReason: null, latestShift: null, spentUsd: null, pullRequestUrl: `https://forgejo.example/webgrip/homelab-cluster/pulls/${id}`, ci });
+  const fake = createServer((req, res) => {
+    res.setHeader('content-type', 'application/json');
+    if (req.url === '/api/ploeg/now') return res.end(JSON.stringify({ demo: false, teams: ['unfold'], waiting: [review('784', { state: 'failure', checks: [{ context: 'e2e / flux-local', state: 'failure' }] }), review('785', { state: 'pending', checks: [] }), review('786', { state: 'success', checks: [] }), review('787', null)], active: [], refused: [], running: [], recent: [], truncatedStates: [], errors: {} }));
+    res.statusCode = 404; res.end('{}');
+  });
+  await new Promise<void>(resolve => fake.listen(0, '127.0.0.1', resolve));
+  t.after(() => fake.close());
+  const address = fake.address();
+  assert(address && typeof address !== 'string');
+  const now = (await call(createMcpServer({ url: `http://127.0.0.1:${address.port}`, token: `vle_${'b'.repeat(43)}` }), 'unfold_now')).structuredContent;
+  assert.match(now.summary, /^1 need a decision, 3 await review, 0 proposed;/);
+  const reasons = Object.fromEntries(now.waiting.map((row: { id: string; reason: { code: string; sentence: string } }) => [row.id, row.reason]));
+  assert.equal(reasons['784'].code, 'ci_failed');
+  assert.equal(reasons['784'].sentence, 'CI did not pass on pull request #784, so it is not ready for review. Not passing: e2e / flux-local.');
+  assert.equal(reasons['785'].code, 'ci_running');
+  assert.equal(reasons['786'].code, 'awaiting_review', 'passed CI keeps the review');
+  assert.equal(reasons['787'].code, 'awaiting_review', 'unreported CI keeps the review');
+});
+
 test('unfold_spend names the Work Items whose finished Runs still hold budget, and says when it cannot tell', async t => {
   let unsettled: unknown = { count: 1, heldUsd: 0.25, accounts: [{ runId: '264', workItemId: '184', team: 'unfold', accountState: 'blocked', heldUsd: 0.25, since: '2026-10-10T20:01:39Z' }] };
   let unsettledError: unknown = null;

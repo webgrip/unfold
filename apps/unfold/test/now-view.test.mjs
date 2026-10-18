@@ -48,6 +48,24 @@ test('the Now page lists waiting work in the order Review, Needs you, Proposed, 
   assert.match(html, /href="#work\/103"[^>]*data-now-row/, 'a finished Run opens its Work Item');
 });
 
+test('a pull request whose CI did not pass is listed under Needs you, not Ready for your review; running CI stays in review', () => {
+  const ci = state => ({ state, checks: [{ context: 'e2e / flux-local', state }, { context: 'lint', state: 'success' }] });
+  const review = (id, extra) => ({ ...nowData().waiting[0], id, state: 'awaiting_review', title: `Change ${id}`, closeReason: null, latestShift: null, pullRequestUrl: `https://forge.test/acme/shop/pulls/${id}`, ...extra });
+  const data = { ...nowData(), waiting: [review('784', { ci: ci('failure') }), review('785', { ci: ci('pending') }), review('786', { ci: ci('success') }), review('787', {})] };
+  const html = nowMarkup(view({ data }), options, nowAt);
+  const needs = html.slice(html.indexOf('data-group="needs"'), html.indexOf('data-group="proposed"'));
+  const ready = html.slice(html.indexOf('data-group="review"'), html.indexOf('data-group="needs"'));
+  assert.match(needs, /id="now-row-w-784"/);
+  assert.match(needs, /<span>CI did not pass<\/span>/);
+  assert.match(needs, /title="CI did not pass on pull request #784, so it is not ready for review\. Not passing: e2e \/ flux-local\./);
+  assert.match(needs, /id="now-pr-784"[\s\S]*?Failing checks/);
+  assert.doesNotMatch(ready, /now-row-w-784/);
+  for (const id of ['785', '786', '787']) assert.match(ready, new RegExp(`id="now-row-w-${id}"`), `${id} stays ready for review`);
+  assert.match(ready, /<span>CI running<\/span>/);
+  const counts = digestCounts(data, '2026-09-19T00:00:00Z');
+  assert.deepEqual([counts.review, counts.needsYou], [3, 1]);
+});
+
 test('a waiting row says why it waits and what to do, in words every pointer can read', () => {
   const html = nowMarkup(view(), options, nowAt);
   assert.match(html, /Every Round ran/, 'plan_exhausted in needs_human says what happened, without hedging');

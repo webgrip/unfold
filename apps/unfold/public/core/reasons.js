@@ -1,5 +1,5 @@
 import { money, plural } from './format.js';
-import { failureReason, parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason } from './states.js';
+import { ciState, failureReason, parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason } from './states.js';
 
 export { parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason };
 
@@ -16,8 +16,9 @@ export { parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason 
  * @property {string} requeue
  * @property {string} action
  * @property {string} trackerUrl
- * @property {'attention' | 'severe'} tone
+ * @property {'attention' | 'severe' | 'danger' | 'live'} tone
  * @property {string} glyph
+ * @property {string} [lead]
  */
 
 /**
@@ -140,6 +141,16 @@ const copy = {
     sentence: 'Ploeg stopped this Work Item without a reason Unfold recognises.',
     fix: 'Open the Work Item and read its history.',
   },
+  ci_failed: {
+    chip: 'CI did not pass',
+    sentence: 'CI did not pass on the pull request, so it is not ready for review.',
+    fix: 'Open the pull request’s checks. Run them again if they were cancelled, or fix the branch, before anyone reviews it.',
+  },
+  ci_running: {
+    chip: 'CI running',
+    sentence: 'CI is still running on the pull request. Review waits until it passes.',
+    fix: 'Wait for CI to pass, then review the pull request.',
+  },
   recorded: {
     chip: 'Needs a decision',
     sentence: 'Ploeg stopped this Work Item and asked a person to decide.',
@@ -259,18 +270,68 @@ function build(code, item, text = '', demo = false) {
  * returns null. An unresolved repository is never the reason; see `routingWarning`. A free-text close reason
  * keeps the code `unknown` and reads "Needs a decision", with Ploeg's text in the sentence. A snake_case code this
  * version does not know gets the code `unrecognised` and the chip "Unrecognised: <code>". With `demo`, a budget
- * sentence names the budget but no spend, because the demo spends nothing.
+ * sentence names the budget but no spend, because the demo spends nothing. An `awaiting_review` Work Item gets
+ * its `reviewHold`, so a pull request whose CI did not pass or still runs says so.
  * @param {object | null | undefined} item
  * @param {{ demo?: boolean }} [options]
  * @returns {Reason | null}
  */
 export function listReason(item, { demo = false } = {}) {
+  if (item?.state === 'awaiting_review') return reviewHold(item);
   if (!item || !['needs_human', 'stale'].includes(item.state)) return null;
   if (item.state === 'stale') return build(number(item.infraFailures) && item.infraFailures >= 10 ? 'stale_infrastructure' : 'stale_attempts', item);
   const closeReason = item.latestShift?.closeReason ?? item.closeReason ?? '';
   if (item.latestShift && !item.latestShift.closedAt && !item.closeReason) return build('unknown', item);
   const { code, text } = classify(closeReason);
   return build(code, item, text, demo);
+}
+
+const ciHolds = Object.freeze({ failure: 'ci_failed', error: 'ci_failed', pending: 'ci_running' });
+const pullNumber = item => {
+  if (number(item.pullRequest?.number)) return item.pullRequest.number;
+  const match = /\/(?:pulls?|merge_requests)\/(\d+)\/?$/.exec(String(item.pullRequestUrl || item.pullRequest?.url || ''));
+  return match ? Number(match[1]) : null;
+};
+
+/**
+ * The names of the checks that failed or errored in a pull request's CI, as Ploeg captured it on the head commit.
+ * @param {{ checks?: { context?: string, state?: string }[] } | null | undefined} ci
+ * @returns {string[]}
+ */
+export function failingChecks(ci) {
+  return (Array.isArray(ci?.checks) ? ci.checks : []).filter(check => check?.state === 'failure' || check?.state === 'error').map(check => String(check.context ?? '').trim()).filter(Boolean);
+}
+
+/**
+ * Why a pull request Ploeg handed over for review is not ready for a person yet, from the `ci` it carries: `ci_failed`
+ * when CI did not pass on its head commit (failure or error), `ci_running` while it still runs. Null for any other
+ * state, when CI passed, and when the forge reported no CI, so a missing report never invents a blocker. `lead`
+ * says it in one sentence; `sentence` adds the checks that did not pass.
+ * @param {{ state?: string, ci?: { state?: string, checks?: { context?: string, state?: string }[] } | null, pullRequest?: { number?: number | null, url?: string } | null, pullRequestUrl?: string, url?: string } | null | undefined} item
+ * @returns {Reason | null}
+ */
+export function reviewHold(item) {
+  const code = item?.state === 'awaiting_review' ? ciHolds[item.ci?.state] : undefined;
+  if (!code) return null;
+  const pull = pullNumber(item);
+  const subject = pull ? `pull request #${pull}` : 'the pull request';
+  const failing = failingChecks(item.ci);
+  const lead = code === 'ci_failed' ? `CI did not pass on ${subject}, so it is not ready for review.` : `CI is still running on ${subject}. Review waits until it passes.`;
+  const sentence = failing.length ? `${lead} Not passing: ${failing.join(', ')}.` : lead;
+  const fix = copy[code].fix;
+  return { code, chip: copy[code].chip, lead, sentence, fix, requeue: '', action: fix, trackerUrl: typeof item.url === 'string' ? item.url : '', tone: code === 'ci_failed' ? 'danger' : 'live', glyph: ciState(item.ci.state).glyph };
+}
+
+/**
+ * Which Now group a waiting Work Item belongs to. A pull request whose CI did not pass needs you, not a review;
+ * one whose CI still runs stays ready for review. Every state other than `awaiting_review` and `proposed` needs you.
+ * @param {{ state?: string, ci?: { state?: string } | null }} item
+ * @returns {'review' | 'needs' | 'proposed'}
+ */
+export function waitingGroup(item) {
+  if (item?.state === 'proposed') return 'proposed';
+  if (item?.state === 'awaiting_review') return reviewHold(item)?.code === 'ci_failed' ? 'needs' : 'review';
+  return 'needs';
 }
 
 /**

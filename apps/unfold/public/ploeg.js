@@ -5,7 +5,7 @@ import { markdown } from './core/markdown.js';
 import { count as formatCount, money, moneyHtml, plural, duration, dateTime, decimal } from './core/format.js';
 import * as ui from './core/ui.js';
 import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, runFailure, runFailureText, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason, costStatuses, costStatusWord } from './core/states.js';
-import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph, sessionReason } from './core/reasons.js';
+import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph, sessionReason, reviewHold, failingChecks } from './core/reasons.js';
 import { grafanaTeam, runExplorer } from './core/observability.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
 import { agentsWindowButton } from './agents-window.js';
@@ -733,14 +733,23 @@ function check(tone, glyph, title, detailText, short = '') {
   return { tone, short: short || title, html: `<li class="work-check" data-tone="${tone}"><span class="work-check-icon" aria-hidden="true">${icon(glyph)}</span><div class="work-check-main"><p class="work-check-title">${title}</p>${detailText ? `<p class="meta">${detailText}</p>` : ''}</div></li>` };
 }
 
-function reviewPlan(detail) {
+function reviewedPlay(card, review) {
+  const plays = (Array.isArray(card?.plays) ? card.plays : []).filter(play => amount(play?.number)).sort((a, b) => b.number - a.number);
+  return plays.find(play => review.pullRequestNumber && String(play.number) === String(review.pullRequestNumber)) || plays.find(play => play.state === 'open') || plays[0] || null;
+}
+
+function reviewPlan(detail, card) {
   const review = ploegReview(detail);
-  const pr = safeUrl(review.pullRequestUrl);
-  const label = `Open pull request${review.pullRequestNumber ? ` #${review.pullRequestNumber}` : ''}`;
-  const primary = pr ? linkButton({ href: pr, label, glyph: 'pull-request', variant: 'primary', linkOut: 'pr' }) : '';
+  const play = reviewedPlay(card, review);
+  const hold = reviewHold({ state: 'awaiting_review', ci: play?.ci, pullRequest: { number: play?.number ?? (Number(review.pullRequestNumber) || null) }, url: detail.item.url });
+  const failing = hold?.code === 'ci_failed' ? failingChecks(play.ci) : [];
+  const pr = safeUrl(review.pullRequestUrl) || safeUrl(play?.url);
+  const number = review.pullRequestNumber ? ` #${review.pullRequestNumber}` : '';
+  const label = hold?.code === 'ci_failed' ? 'See why CI did not pass' : hold ? `Follow CI on pull request${number}` : `Open pull request${number}`;
+  const primary = pr ? linkButton({ href: pr, label, glyph: hold?.code === 'ci_failed' ? 'x-circle' : 'pull-request', variant: 'primary', linkOut: 'pr' }) : '';
   const reader = review.findings.at(-1)?.runId || review.lastReader?.id;
   const findings = reader ? runJump({ id: reader }, review.findings.length ? 'Read the findings' : 'Show the review').replace('button ghost xs', 'button ghost') : '';
-  return { review, primary, findings, actions: [primary, findings].filter(Boolean) };
+  return { review, hold, failing, primary, findings, actions: [primary, findings].filter(Boolean) };
 }
 
 /** One muted line for the neutral checks, e.g. "2 not reported: CI, tracker link", so warnings and successes stay visible. */
@@ -757,9 +766,11 @@ function neutralChecksLine(entries) {
  */
 function reviewBox(detail, model, plan) {
   const item = detail.item;
-  const { review } = plan;
+  const { review, hold, failing } = plan;
   const spent = review.spend;
   const checks = [];
+  if (hold?.code === 'ci_failed') checks.push(check('danger', 'x-circle', escape(hold.lead), failing.length ? `Not passing: ${failing.map(name => `<code>${escape(name)}</code>`).join(' ')}. ${escape(hold.fix)}` : escape(hold.fix), 'CI'));
+  if (hold?.code === 'ci_running') checks.push(check('attention', 'clock', escape(hold.lead), escape(hold.fix), 'CI'));
   const merge = mergeStateView(item);
   const mergeCheck = merge.key === 'unreported' ? null : check(merge.tone, merge.glyph, escape(merge.title), escape(merge.detail), 'merge state');
   if (mergeCheck) checks.push(mergeCheck);
@@ -792,7 +803,8 @@ function reviewBox(detail, model, plan) {
   const truncated = review.truncated ? '<p class="meta">Ploeg capped this history. Earlier records may be missing.</p>' : '';
   const actions = plan.findings ? `<div class="work-decision-actions">${plan.findings}</div>` : '';
   const body = `<div class="work-decision-part"><h4 class="overline">Before you merge</h4><ul class="work-checklist">${visible.map(entry => entry.html).join('')}</ul>${mergeNote}${fold}${truncated}${actions}</div><div class="work-decision-part">${forge}</div>`;
-  return ui.card({ id: 'work-decision', region: true, title: 'Ready for your review', icon: 'pull-request', tone: 'review', level: 3, body });
+  const blocked = hold?.code === 'ci_failed';
+  return ui.card({ id: 'work-decision', region: true, title: blocked ? 'Not ready for review' : 'Ready for your review', icon: blocked ? 'x-circle' : 'pull-request', tone: blocked ? 'danger' : 'review', level: 3, body });
 }
 
 function statusBox(detail, model) {
@@ -1425,6 +1437,7 @@ function statusHeadline(detail, reason, plan) {
   const item = detail.item;
   const state = workItemState(displayState(item, detail.events));
   if (reason) return `${state.heading || state.label} · ${reason.chip}`;
+  if (item.state === 'awaiting_review' && plan?.hold) return plan.hold.lead;
   if (item.state === 'awaiting_review' && plan) {
     const { review } = plan;
     const verdict = review.verdict === null ? null : verdictMeta(review.verdict);
@@ -1555,7 +1568,7 @@ export function detailMarkup(recordedDetail, model) {
     plan = decisionPlan(detail, model, reason);
     primary = plan.primary;
   } else if (item.state === 'awaiting_review') {
-    plan = reviewPlan(detail);
+    plan = reviewPlan(detail, model.card);
     primary = plan.primary;
   }
   const status = statusMarkup(detail, model, { reason, plan });
