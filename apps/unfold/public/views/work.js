@@ -34,9 +34,9 @@ const transcriptInterval = 4000;
 const healthInterval = 30_000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null };
+const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null };
 
-onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null }));
+onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
@@ -110,6 +110,7 @@ function model() {
     runTranscripts: work.transcripts?.id === work.detailId ? work.transcripts.runs : null,
     runHealth: work.health?.id === work.detailId ? work.health.runs : null,
     tripwire: work.tripwire?.id === work.detailId ? work.tripwire : null,
+    landingHistory: work.landing?.team === state.ploegDetail?.item?.team ? work.landing.runs : null,
     actions: work.actions?.id === work.detailId ? work.actions.data : null,
     userRole: state.bootstrap?.user?.role,
   };
@@ -158,6 +159,7 @@ function renderWork() {
   loadUnreadTranscripts();
   loadUnreadHealth();
   loadUnreadTripwire();
+  loadLandingHistory();
   const list = $('.work-list-pane .work-list');
   if (list && listTop) list.scrollTop = listTop;
   if (target && (!document.activeElement || document.activeElement === document.body)) (document.querySelector(target) || (target.includes('ploeg-refresh') ? $('[data-action="ploeg-refresh"][data-id="toolbar"]') : null))?.focus({ preventScroll: true });
@@ -945,6 +947,21 @@ async function loadTripwire() {
 function loadUnreadTripwire() {
   if (!visible() || !work.detailId || String(state.ploegDetail?.item?.id) !== String(work.detailId)) return;
   if (work.tripwire?.id !== work.detailId) void loadTripwire();
+}
+
+const landingAge = 10 * 60 * 1000;
+
+function loadLandingHistory() {
+  const team = String(state.ploegDetail?.item?.id) === String(work.detailId) ? state.ploegDetail?.item?.team : '';
+  if (!visible() || !team || !state.ploegDetail.runs?.some(run => run.state === 'running' && run.writes)) return;
+  if (work.landing?.team === team && (work.landing.busy || Date.now() - work.landing.at < landingAge)) return;
+  const entry = { team, runs: work.landing?.team === team ? work.landing.runs : null, at: Date.now(), busy: true };
+  work.landing = entry;
+  void api(`/api/ploeg/runs?${new URLSearchParams({ team, state: 'finished', outcome: 'pr_opened' })}`).then(page => {
+    if (work.landing !== entry) return;
+    entry.runs = page.runs || [];
+    if (visible()) renderWork();
+  }, () => {}).finally(() => { entry.busy = false; });
 }
 
 async function pollTripwire() {
