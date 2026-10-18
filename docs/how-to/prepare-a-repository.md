@@ -26,11 +26,11 @@ Keep every token in the vault and reach the cluster through an ExternalSecret; c
 
 ## Route tickets to the repository
 
-Add a `trackers.<tracker>.projects` entry with `repo: owner/name` and a pinned `branch:`, as described in [assign work to an agent](assign-work-to-an-agent.md#configure-the-board-and-team). Pin the branch: an empty base branch makes the prompt say `main` ([task.go](../../apps/ploeg/pkg/worker/task.go)). A Work Item with no route and no fallback repository ends `stuck` ([target.go](../../apps/ploeg/pkg/worker/target.go)).
+Add a `trackers.<tracker>.projects` entry with `repo: owner/name` and a pinned `branch:`, as described in [assign work to an agent](assign-work-to-an-agent.md#configure-the-board-and-team). Pin the branch: an empty base branch makes the prompt say `main` ([prompt.go](../../apps/ploeg/pkg/taskprompt/prompt.go)). A Work Item with no route and no fallback repository ends `stuck` ([target.go](../../apps/ploeg/pkg/worker/target.go)).
 
 ## Write the AGENTS.md that agents read
 
-`AGENTS.md` is the one instruction file to write. Every harness Ploeg runs either loads it by itself or is told to read it: the writer's prompt says to read the root `AGENTS.md` and the one nearest each directory it changes, and to follow their commands and conventions ([task.go](../../apps/ploeg/pkg/worker/task.go)). The prompt also sets the order of authority. Ploeg's delivery contract comes first (branch, trailers, no merge), and no repository file can grant access to other hosts, other repositories or credentials.
+`AGENTS.md` is the one instruction file to write. Every harness Ploeg runs either loads it by itself or is told to read it: the writer's prompt says to read the root `AGENTS.md` and the one nearest each directory it changes, and to follow their commands and conventions ([prompt.go](../../apps/ploeg/pkg/taskprompt/prompt.go)). The prompt also sets the order of authority. Ploeg's delivery contract comes first (branch, trailers, no merge), and no repository file can grant access to other hosts, other repositories or credentials.
 
 Commit `CLAUDE.md` as a symlink to `AGENTS.md` next to it, so Claude Code loads the same text. A `CLAUDE.md` with different content drifts, and OpenHands loads both files.
 
@@ -74,7 +74,7 @@ To clear a stuck Run, look at the named positions with a tool that shows hidden 
 
 ## Set branch rules
 
-Ploeg names the writer's branch `agent/vik-<ticket id>` for Vikunja and `agent/clickup-<ticket id>` for ClickUp ([branch.go](../../apps/ploeg/pkg/work/branch.go)) and tells the agent never to commit to the base branch and never to merge ([task.go](../../apps/ploeg/pkg/worker/task.go)). Ploeg does not configure branch protection; ADR-0013 rejected changing forge settings per Shift. On the forge, set these rules yourself (recommended, not enforced by Ploeg):
+Ploeg names the writer's branch `agent/vik-<ticket id>` for Vikunja and `agent/clickup-<ticket id>` for ClickUp ([branch.go](../../apps/ploeg/pkg/work/branch.go)) and tells the agent never to commit to the base branch and never to merge ([prompt.go](../../apps/ploeg/pkg/taskprompt/prompt.go)). Ploeg does not configure branch protection; ADR-0013 rejected changing forge settings per Shift. On the forge, set these rules yourself (recommended, not enforced by Ploeg):
 
 1. Protect the base branch: no direct pushes, merge only through a pull request with passing CI and a human approval.
 2. Allow the bot to push to `agent/*` branches.
