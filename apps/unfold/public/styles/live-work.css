@@ -53,6 +53,7 @@
   overflow-wrap: anywhere;
 }
 
+.lv-page-title:focus { outline: none; }
 .lv-page-head.is-md .lv-page-title { font-size: var(--text-2xl); line-height: var(--leading-2xl); }
 .lv-page-head.is-sm .lv-page-title { font-size: var(--text-xl); line-height: var(--leading-xl); }
 
@@ -146,6 +147,7 @@ a.lv-origin:hover { background: var(--bg-hover); color: var(--text); }
 .lv-presence-detail { font-size: var(--text-xs); color: var(--text-subtle); }
 
 .lv-tl {
+  container: lv-tl / inline-size;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -302,7 +304,7 @@ a.lv-origin:hover { background: var(--bg-hover); color: var(--text); }
 .lv-tl-stub-link { margin-top: auto; padding-top: var(--space-2); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
 
 .lv-tl-entry.is-fold { grid-template-columns: minmax(0, 1fr); padding-left: calc(2.25rem + var(--space-3)); }
-.lv-tl-fold-sum { display: flex; align-items: center; gap: var(--space-3); cursor: pointer; font-size: var(--text-sm); color: var(--text-subtle); list-style: none; }
+.lv-tl-fold-sum { display: flex; align-items: center; min-height: 1.75rem; gap: var(--space-3); cursor: pointer; font-size: var(--text-sm); color: var(--text-subtle); list-style: none; }
 .lv-tl-fold-sum::-webkit-details-marker { display: none; }
 .lv-tl-fold-sum strong { color: var(--text); }
 
@@ -570,6 +572,7 @@ a.lv-origin:hover { background: var(--bg-hover); color: var(--text); }
 .lv-desk-tab:has(.lv-desk-radio:checked) { border-bottom-color: var(--text); color: var(--text); }
 .lv-desk-tab:has(.lv-desk-radio:focus-visible) { outline: var(--focus-ring-width) solid var(--focus-ring); outline-offset: var(--focus-ring-inset); }
 .lv-desk-panel { display: none; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.lv-desk:has(.lv-desk-radio.is-brief:checked) .lv-desk-panel.is-brief,
 .lv-desk:has(.lv-desk-radio.is-overview:checked) .lv-desk-panel.is-overview,
 .lv-desk:has(.lv-desk-radio.is-talk:checked) .lv-desk-panel.is-talk,
 .lv-desk:has(.lv-desk-radio.is-trace:checked) .lv-desk-panel.is-trace,
@@ -630,3 +633,23 @@ a.lv-origin:hover { background: var(--bg-hover); color: var(--text); }
 .work-layout-switch-label .icon { width: 0.875rem; height: 0.875rem; }
 .work-layout-switch-means { margin: 0; flex: 1 1 100%; font-size: var(--text-xs); color: var(--text-subtle); }
 .work-detail-layout { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+
+.lv-unified .lv-page-main .lv-desk-main { flex: none; }
+.lv-unified-hero { gap: var(--space-3); }
+.lv-unified-decision { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
+.lv-unified-inside { border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); }
+.lv-unified-inside[open] { display: flex; flex-direction: column; gap: var(--space-3); }
+.lv-unified-inside-sum { cursor: pointer; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-muted); }
+.lv-unified-flight { gap: var(--space-3); }
+.lv-unified .lv-presence.is-named { padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+
+@container lv-tl (max-width: 34rem) {
+  .lv-tl-ticket { grid-template-columns: minmax(0, 1fr); }
+  .lv-tl-stub { border-left: 0; border-top: 2px dashed var(--border); }
+}
+
+@container lv-page (max-width: 60rem) {
+  .lv-page .lv-folds-full .lv-fold:not(.is-current) { justify-content: center; padding: 0; }
+  .lv-page .lv-folds-full .lv-fold:not(.is-current) .lv-fold-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .lv-page .lv-folds-full .lv-fold.is-current { flex-grow: 4; }
+}
