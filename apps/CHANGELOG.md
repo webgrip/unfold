@@ -1,3 +1,10 @@
+## [unfold-v0.4.0-rc.87](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.86...unfold-v0.4.0-rc.87) (2026-10-18)
+
+### Fixed
+
+* **ploeg:** update ploeg ([507c4ce](https://forgejo.webgrip.dev/webgrip/unfold/commit/507c4ce50470bf161d3eefef105fb12db28a46b7))
+* **unfold:** drop git-http-push from the agent image and record CVE-2026-77214 as not affected ([e73cf68](https://forgejo.webgrip.dev/webgrip/unfold/commit/e73cf68ac523a9917e3d6eeb20baa9dcb6bd9be0))
+
 ## [unfold-v0.4.0-rc.86](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.85...unfold-v0.4.0-rc.86) (2026-10-18)
 
 ### Added
