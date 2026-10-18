@@ -113,7 +113,7 @@ type Origin = { clientId: string; clientSeq: number };
 type ChannelKind = 'session' | 'chat' | 'changeset';
 type TokenRecord = { userId: string; name: string; role: User['role']; label: string; createdAt: string; expiresAt?: string; signIn?: string };
 type Projection = { finalStop?: number; turns: Json[]; activeTurn?: Json; parts: Map<string, string>; toolCalls: Map<string, { turnId: string; toolCallId: string }>; openTools: Map<string, string>; cursor: number; turnCounter: number; permissionTurn?: string; origins: Map<string, Origin>; answers: Map<string, Json>; choices: Map<string, Json>; holding?: string; startedRuns: Set<string>; finishedRuns: Set<string>; workingRun?: string; queuedInstructions: number; terminals: CommandLog; runs: RunTranscripts };
-type PendingSession = { id: string; uri: string; config: Json; user: User; createdAt: string; starting?: boolean };
+type PendingSession = { id: string; uri: string; config: Json; user: User; createdAt: string; starting?: boolean; refusedTurns?: Json[] };
 type CandidateView = { files: CandidateFile[]; counts: Map<string, { added: number; removed: number }> };
 
 /** A session's channel in a client's spelling. VS Code 1.141 names it by the provider; VS Code 1.142 by `ahp-session`. */
@@ -1259,7 +1259,7 @@ export class AgentHost {
     const pending = this.pending.get(parsed.id);
     if (pending && !this.mayView(client.user, pending.user.id)) throw new RpcError(codes.sessionNotFound, 'Session not found');
     if (pending && parsed.kind === 'session') return { resource: channel, state: this.pendingState(pending, client), fromSeq: this.serverSeq };
-    if (pending && parsed.kind === 'chat') return { resource: channel, state: { ...this.pendingChat(pending, client), turns: [] }, fromSeq: this.serverSeq };
+    if (pending && parsed.kind === 'chat') return { resource: channel, state: { ...this.pendingChat(pending, client), turns: pending.refusedTurns ?? [] }, fromSeq: this.serverSeq };
     if (pending) throw new RpcError(codes.notFound, 'Unknown channel');
     const session = this.sessionFor(client.user, channel);
     if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
@@ -1509,8 +1509,8 @@ export class AgentHost {
       session = this.engine.create({ title: String(pending.config.title ?? text.split('\n')[0]).slice(0, 160) || 'Agent host session', objective: text, repositoryId: String(pending.config.repository), teamId: String(pending.config.team), runtime: this.config.mode === 'demo' ? 'demo' : this.config.runtime.kind, placement: pending.config.placement as WorkspaceBackend | undefined, approval: approvalOf(pending.config), budgetUsd: Number(pending.config.budgetUsd) }, pending.user);
     } catch (error) {
       pending.starting = false;
-      this.broadcast(pending.uri, { type: 'session/creationFailed', error: { errorType: (error as Json)?.code ?? 'create_failed', message: (error as Error)?.message ?? 'Could not create the session' } });
-      return (error as Error)?.message ?? 'Could not create the session';
+      this.refuseFirstMessage(pending, message, origin, requestedTurnId, { errorType: (error as Json)?.code ?? 'create_failed', message: (error as Error)?.message ?? 'Could not create the session' });
+      return undefined;
     }
     const turnId = typeof requestedTurnId === 'string' && clientTurnId.test(requestedTurnId) ? requestedTurnId : undefined;
     this.store.transaction(() => {
@@ -1528,6 +1528,19 @@ export class AgentHost {
     try { await this.engine.start(session.id, pending.user); }
     catch (error) { this.broadcast(pending.uri, { type: 'session/creationFailed', error: { errorType: (error as Json)?.code ?? 'start_failed', message: (error as Error)?.message ?? 'Could not start the session' } }); }
     return undefined;
+  }
+
+  /** Answers a first message the workbench would not start a session from with a turn that ends in the reason; the session stays open. */
+  private refuseFirstMessage(pending: PendingSession, message: Json, origin: Origin, requestedTurnId: unknown, error: Json): void {
+    const refused = pending.refusedTurns ??= [];
+    const turnId = typeof requestedTurnId === 'string' && clientTurnId.test(requestedTurnId) ? requestedTurnId : `${pending.id}-refused-${refused.length + 1}`;
+    const startedAt = new Date().toISOString();
+    const turnMessage = { ...message, text: String(message.text ?? ''), origin: message.origin ?? { kind: 'user' } };
+    const part = { kind: 'error', error };
+    refused.push({ id: turnId, startedAt, duration: 0, message: turnMessage, responseParts: [part], state: 'error' });
+    const chat = chatChannel(pending.id);
+    this.broadcast(chat, { type: 'chat/turnStarted', turnId, startedAt, message: turnMessage }, origin);
+    this.broadcast(chat, { type: 'chat/error', turnId, duration: 0, part });
   }
 
   private setViewFlag(client: Client, channel: string, kind: ChannelKind, pending: PendingSession | undefined, action: Json, origin: Origin, flag: ViewFlag): string | undefined {

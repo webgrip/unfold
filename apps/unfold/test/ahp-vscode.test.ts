@@ -106,6 +106,34 @@ test('VS Code main (1.142) attaches: ahp-session URIs, read and archive marks th
   assert.ok(!(conversation + JSON.stringify(reconnecting.inbox) + JSON.stringify(again)).includes(`unfold:/${session.slice('ahp-session:/'.length)}`), 'the provider spelling never reaches a client that declared ahp-session URIs');
 });
 
+test('a first message the workbench refuses ends its turn with the reason, and the session stays open for a better message', { timeout: testTimeout(60_000) }, async t => {
+  const server = await application();
+  t.after(() => server.close());
+  const issued = await request(server.url, '/api/agent-host/tokens', { method: 'POST', body: { label: 'VS Code 1.142' } });
+  const address = `${server.url.replace(/^http/, 'ws')}/?tkn=${issued.body.token}`;
+  const clientId = randomUUID();
+  const vscode = client(address, t);
+  await vscode.open;
+  await vscode.rpc('initialize', { channel: 'ahp-root://', protocolVersions: ['1.0.0', '0.10.0', '0.9.0'], clientId, clientInfo: vscodeAgentsWindow, _meta: { 'vscode.ahpSessionUris': true }, initialSubscriptions: ['ahp-root://'] });
+  const session = `ahp-session:/${randomUUID()}`;
+  const chat = defaultChatOf(session);
+  await vscode.rpc('createSession', { channel: session, provider: 'unfold', config: { repository: 'order-service', team: 'delivery', budgetUsd: 1 }, activeClient: { clientId, tools: [] } });
+  await vscode.rpc('subscribe', { channel: session });
+  await vscode.rpc('subscribe', { channel: chat });
+
+  const thin = 'request_thin';
+  await accepted(vscode.dispatch(chat, { type: 'chat/turnStarted', turnId: thin, startedAt: new Date().toISOString(), message: { text: 'test', origin: { kind: 'user' } } }), chat, 'chat/turnStarted');
+  const refused = await vscode.until(message => action(message, chat, 'chat/error') && message.params.action.turnId === thin);
+  assert.equal(refused.params.action.part.error.errorType, 'objective_too_thin');
+  assert.ok(!vscode.inbox.some(message => action(message, session, 'session/creationFailed')), 'VS Code drops session/creationFailed without showing it');
+  const reopened = (await vscode.rpc('subscribe', { channel: chat })).snapshot.state;
+  assert.deepEqual(reopened.turns.map((turn: Json) => [turn.id, turn.state, turn.responseParts[0].error.errorType]), [[thin, 'error', 'objective_too_thin']]);
+
+  const turnId = 'request_brief';
+  await accepted(vscode.dispatch(chat, { type: 'chat/turnStarted', turnId, startedAt: new Date().toISOString(), message: { text: objective, origin: { kind: 'user' } } }), chat, 'chat/turnStarted');
+  await vscode.until(message => action(message, chat, 'chat/turnComplete') && message.params.action.turnId === turnId);
+});
+
 /** VS Code 1.142.0's `isNativeAgentHost` (`agentHostSessionUrisMeta.ts`): `_meta['vscode.agentHost']`, or a non-empty `hostBuild.version` in the root state's `_meta`. */
 function isNativeAgentHostOfVscode1142(result: Json): boolean {
   if (result._meta?.['vscode.agentHost'] === true) return true;
