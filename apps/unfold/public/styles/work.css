@@ -396,6 +396,7 @@
 
 .work-detail-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
@@ -425,7 +426,9 @@
 
 .work-detail-tools {
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: var(--space-1);
   margin-inline-start: auto;

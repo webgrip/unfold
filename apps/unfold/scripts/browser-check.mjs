@@ -61,11 +61,13 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1040 } });
   page.setDefaultTimeout(defaultTimeout);
   const errors = [];
-  page.on('pageerror', error => errors.push(error.message));
+  let flow = '';
+  page.on('pageerror', error => errors.push(`[${flow}] ${error.message}`));
   const refusedOnPurpose = message => /\b400\b/.test(message.text()) && String(message.location()?.url ?? '').includes('/api/card-assets?purpose=symbol');
-  page.on('console', message => { if (message.type() === 'error' && !/\b(401|409|503)\b/.test(message.text()) && !refusedOnPurpose(message)) errors.push(message.text()); });
+  page.on('console', message => { if (message.type() === 'error' && !/\b(401|409|503)\b/.test(message.text()) && !refusedOnPurpose(message)) errors.push(`[${flow}] ${message.text()} ${message.location()?.url ?? ''}`.trim()); });
   const screenshot = async name => { if (screenshots) { await mkdir(screenshots, { recursive: true }); await page.screenshot({ path: join(screenshots, `${name}.png`), fullPage: true }); } };
   for (const [name] of selected) {
+    flow = name;
     const { run } = await import(`./browser/${name}.mjs`);
     const started = performance.now();
     process.stderr.write(`${name}: started\n`);
