@@ -51,7 +51,8 @@ export function judgePrompt(input: JudgeInput, window: { lines: string[] }): str
   return `<work_item>\nTitle: ${oneLine(input.title)}\n${clip(input.description.trim(), judgeLimits.description)}\n</work_item>\n\n<plan>\n${plan}\n</plan>\n\n<transcript>\n${window.lines.join('\n') || 'No entries.'}\n</transcript>\n\n<signals>\n${signals}\n</signals>`;
 }
 
-function jsonObject(text: string): unknown {
+/** The first JSON value in a model's reply: the whole reply, a fenced block, or the first balanced object after leading text, with any `<think>` block removed. `undefined` when none parses. */
+export function replyObject(text: string): unknown {
   const body = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
   const fenced = /```(?:json)?\s*([\s\S]*?)```/i.exec(body);
   const candidates = [body, fenced?.[1]?.trim() ?? ''];
@@ -75,7 +76,7 @@ function jsonObject(text: string): unknown {
  * (1 to 160 characters) and `evidence` (at most 5 whole seqs, each in `seqs`). Anything else is an `error` naming the first check it failed.
  */
 export function parseVerdict(text: string, seqs: ReadonlySet<number>): { health: JudgeHealth; reason: string; evidence: number[] } | { error: string } {
-  const value = jsonObject(text);
+  const value = replyObject(text);
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { error: 'no_json_object' };
   const data = value as Record<string, unknown>;
   if (Object.keys(data).some(key => !['health', 'reason', 'evidence'].includes(key))) return { error: 'unexpected_field' };

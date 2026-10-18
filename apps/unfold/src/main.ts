@@ -38,7 +38,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const engine = new Engine(store, config, runtimes, broker, links);
   engine.recover();
   const agentHost = new AgentHost(config, store, engine);
-  const { server, cards, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config), errors);
+  const { server, cards, tripwire, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config), errors);
   server.on('upgrade', (req, socket, head) => { if (!agentHost.handleUpgrade(req, socket, head)) socket.destroy(); });
   let closed = false;
   const cardTimers: NodeJS.Timeout[] = [];
@@ -60,7 +60,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
     store.close();
     await errors.flush();
   }
-  return { server, store, engine, agentHost, reports, errors, close, startCardSweeps };
+  return { server, store, engine, agentHost, reports, errors, tripwire, close, startCardSweeps };
 }
 
 async function main() {
@@ -73,6 +73,7 @@ async function main() {
     throw new Error('Set UNFOLD_ADMIN_PASSWORD to a password of at least 12 characters for the first launch, or create an account with npm run user:add.');
   }
   app.startCardSweeps();
+  app.tripwire.start();
   app.server.listen(config.port, config.host, () => {
     const address = app.server.address();
     const port = typeof address === 'object' && address ? address.port : config.port;

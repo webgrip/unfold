@@ -36,6 +36,9 @@ import { ChatService, type ChatAuthority } from './chat/service.ts';
 import { mcpToolbox } from './chat/tools.ts';
 import { RunHealthService } from './run-health/service.ts';
 import { RunJudge, defaultJudgeModels } from './run-health/judge.ts';
+import { ChatDecider } from './decider/decider.ts';
+import { TripwireReader } from './tripwire/reader.ts';
+import { TripwireService } from './tripwire/service.ts';
 import { noErrorReports, type ErrorReports } from './error-reports.ts';
 import { FeatureFlags, loadRegistry, type FlagContext } from './flags.ts';
 import { clientContext, ofrepBulk, ofrepFlag } from './flag-ofrep.ts';
@@ -222,15 +225,21 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     return { targetingKey: user.id, userId: user.id, role: user.role, tenantId: defaultTenant, mode: config.mode, teams: config.ploeg?.userTeams?.[user.id] ?? [], labs: Object.keys(choices).filter(key => choices[key]), labsOff: Object.keys(choices).filter(key => !choices[key]) };
   };
   const runJudge = askAuthority && config.litellm?.baseUrl ? new RunJudge(askAuthority, { gatewayUrl: config.litellm.baseUrl, models: config.runHealth?.judgeModels ?? defaultJudgeModels, secrets }) : undefined;
+  const recordWork = (user: User, name: string, workItemId: string, props: Record<string, string | number | boolean>) => {
+    if (config.productEvents === false) return;
+    try { insight.ingest([{ name, at: new Date().toISOString(), session: '', screen: 'work', ...(/^\d{1,15}$/.test(workItemId) ? { workItemId: Number(workItemId) } : {}), props }], user); } catch { return; }
+  };
   const runHealth = new RunHealthService(store, ploeg, {
     demo: askDemo,
     judge: runJudge,
     judgeEnabled: (user, team) => flags.getBooleanValue('cards.health.judge', false, { ...flagContext(user), team }),
-    record: (user, name, workItemId, props) => {
-      if (config.productEvents === false) return;
-      try { insight.ingest([{ name, at: new Date().toISOString(), session: '', screen: 'work', ...(/^\d{1,15}$/.test(workItemId) ? { workItemId: Number(workItemId) } : {}), props }], user); } catch { return; }
-    },
+    record: recordWork,
   });
+  const tripwireEnabled = (team: string) => flags.getBooleanValue('runs.tripwire', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team });
+  const decider = config.decider ? new ChatDecider({ baseUrl: config.decider.baseUrl, model: config.decider.model, name: config.decider.name, key: () => process.env[config.decider!.keyEnv] }) : undefined;
+  const tripwireConnected = Boolean(config.ploeg) && !ploeg.isDemo;
+  const tripwire = new TripwireReader(store, ploeg, { decider: tripwireConnected ? decider : undefined, enabled: tripwireEnabled, demo: askDemo, requestsPerMinute: config.decider?.requestsPerMinute ?? 8, secrets });
+  const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: tripwireEnabled, record: recordWork });
   ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
@@ -728,6 +737,19 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const answered = /^\/api\/ploeg\/work-items\/([^/]+)\/questions\/([^/]+)\/answer$/.exec(path);
           const health = /^\/api\/ploeg\/work-items\/([^/]+)\/runs\/([^/]+)\/health$/.exec(path);
           const wrong = /^\/api\/ploeg\/work-items\/([^/]+)\/runs\/([^/]+)\/health\/judgements\/([A-Za-z0-9-]{1,64})\/wrong$/.exec(path);
+          const tripwireRead = /^\/api\/ploeg\/work-items\/([^/]+)\/tripwire$/.exec(path);
+          const tripwireVerdict = /^\/api\/ploeg\/work-items\/([^/]+)\/tripwire\/([A-Za-z0-9_-]{1,160})\/verdict$/.exec(path);
+          if (tripwireRead || tripwireVerdict) {
+            try {
+              if (tripwireRead) { if (method !== 'GET') fault(405, 'method', 'Read tripwire hits with GET.'); return json(res, 200, sanitize(await tripwireHits.view(user, tripwireRead[1]))); }
+              if (method !== 'POST') fault(405, 'method', 'Mark a tripwire hit with POST.');
+              const data = await body(req);
+              return json(res, 200, await tripwireHits.verdict(user, tripwireVerdict![1], tripwireVerdict![2], data.verdict));
+            } catch (error) {
+              if (error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } });
+              throw error;
+            }
+          }
           if (health || wrong) {
             try {
               if (health) { if (method !== 'GET') fault(405, 'method', 'Read Run health with GET.'); return json(res, 200, sanitize(await runHealth.health(user, health[1], health[2]))); }
@@ -989,5 +1011,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   });
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;
-  return { server, cards, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); }, reports };
+  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); tripwire.stop(); }, reports };
 }
