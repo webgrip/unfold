@@ -9,6 +9,11 @@ export async function run({ page, app, assert, screenshot }) {
   const origin = `http://127.0.0.1:${app.server.address().port}`;
   const detail = route => route.fulfill({ json: { ...fixture.ploeg, demo: false } });
   const card = route => route.fulfill({ json: { card: fixture.card } });
+  const health = route => {
+    const runId = new URL(route.request().url()).pathname.split('/').at(-2);
+    const reason = 'no activity for 41 min';
+    route.fulfill({ json: { runId, state: 'running', health: 'off_track', signals: [{ key: 'quiet', health: 'off_track', reason, judged: true }], deciding: 'quiet', reason, combined: { health: 'off_track', source: 'signals' }, judge: null, judgeState: 'off', judgements: 0, history: [], stale: false, asOf: new Date().toISOString(), demo: false } });
+  };
   const sessions = async route => {
     if (route.request().method() !== 'GET') return route.continue();
     const response = await route.fetch();
@@ -17,6 +22,7 @@ export async function run({ page, app, assert, screenshot }) {
   await page.route(`**/api/ploeg/work-items/${id}`, detail);
   await page.route(`**/api/ploeg/work-items/${id}?*`, detail);
   await page.route(`**/api/ploeg/work-items/${id}/card`, card);
+  await page.route(`**/api/ploeg/work-items/${id}/runs/*/health`, health);
   await page.route('**/api/sessions', sessions);
   try {
     for (const width of [1440, 390]) {
@@ -43,6 +49,7 @@ export async function run({ page, app, assert, screenshot }) {
     await page.unroute(`**/api/ploeg/work-items/${id}`, detail);
     await page.unroute(`**/api/ploeg/work-items/${id}?*`, detail);
     await page.unroute(`**/api/ploeg/work-items/${id}/card`, card);
+    await page.unroute(`**/api/ploeg/work-items/${id}/runs/*/health`, health);
     await page.unroute('**/api/sessions', sessions);
     await page.setViewportSize({ width: 1440, height: 1040 });
   }
