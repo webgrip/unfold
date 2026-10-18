@@ -1,102 +1,119 @@
-# RFC-0008: Decision models, cheap typed answers in front of agents
+# RFC-0008: Decision models, cheap typed answers about what agents do
 
-> Status: **Proposed** 2026-10-18 · Owner request (2026-10-18): "I want this kind of architecture because I think we will also use it for other stuff. But maybe not clef then. Cheaper is better, free is better, but sustainable? What else can we use decision models for? Early tripwire is correct framing." · Decision record: [ADR-0042](../adr/adr-0042-typed-decisions-go-through-one-gateway-alias-and-start-as-shadow-tripwires.md) (proposed) · Builds on: [RFC-0007](rfc-0007-run-health.md) and [Unfold ADR 0046](../../apps/unfold/docs/adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md) (Run health, the shadow judge), Ploeg ADR-0008 (LiteLLM is the metering seam), ADR-0036 (premise check), ADR-0082 (Ploeg never runs a model), ADR-0096 (a shadow reader never acts), the [LiteLLM and Fireworks record](../research/2026-10-14-litellm-and-fireworks-update.md)
+> Status: **Proposed** 2026-10-18 · Owner request (2026-10-18): "I want this kind of architecture because I think we will also use it for other stuff. But maybe not clef then. Cheaper is better, free is better, but sustainable? What else can we use decision models for? Early tripwire is correct framing." · Owner decisions the same day, after two rounds of questions: EU or self-hosted only; an out-of-band reader, not a gateway guardrail; Strands Decider 2B, scaled to zero on a soyo node, with Hetzner's free Qwen until it runs; a severity score per hit; nothing stops a Run at first; Unfold shows hits live; a later automatic stop acts as a named service actor · Decision record: [ADR-0042](../adr/adr-0042-a-self-hosted-decider-reads-what-agents-do-and-starts-as-a-shadow-tripwire.md) (proposed) · Builds on: [RFC-0007](rfc-0007-run-health.md) and [Unfold ADR 0046](../../apps/unfold/docs/adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md) (Run health), Ploeg ADR-0082 (Ploeg never runs a model), ADR-0090 (transcripts), ADR-0096 (a shadow reader never acts), ADR-0108 (every operator action names its person and channel), the [LiteLLM and Fireworks record](../research/2026-10-14-litellm-and-fireworks-update.md)
 >
-> **TL;DR.** A decision model answers typed questions (yes or no, one of a list, a score) with probabilities instead of prose. It is small, fast and costs fractions of a cent. The Run health judge already asks a chat model for a verdict with a written reason; that stays. This RFC adds the cheaper layer underneath: one gateway alias, `decider`, that every typed question goes through, so the provider behind it can change without touching a caller. Its first use is an early tripwire on agent actions: LiteLLM's `decision_model` guardrail scores each tool call a builder makes against a few yes/no questions, records what it flags and never blocks, until its precision is measured. Nothing here is built.
+> **TL;DR.** A decision model answers typed questions (yes or no, one of a list, a score) with probabilities instead of prose: small, fast, no text to pay for. This RFC makes one a reusable building block, the **decider**, and gives it a first job: an early **tripwire** that scores every tool call a builder makes for signs of a hijack or a careless agent. The decider runs on our own hardware in the EU: Strands Decider 2B, an open model, on a soyo node that wakes only while Runs run. Until that pod exists, Hetzner's free EU-hosted Qwen answers instead. The tripwire reads each Run's transcript next to the Run, never in its path, and shows each hit with its score on the Work Item page. For the first two weeks nothing stops a Run; then the owner picks, per check, the score that does. Nothing here is built.
 
 ## Why a second kind of model
 
-The Run health judge ([RFC-0007](rfc-0007-run-health.md)) reads the last stretch of a Run and writes a verdict with a reason and the transcript entries behind it. That is the right shape for something a person reads, and it is expensive in latency: one call every 10 minutes at most, only while someone has the Run open.
+The Run health judge ([RFC-0007](rfc-0007-run-health.md)) writes a verdict with a reason, at most every 10 minutes. Some questions need the opposite shape: "is this tool call reading credentials?" has to be asked of every action, the answer is a number to compare with a threshold, and nobody needs a sentence unless it trips. A decision model answers that in a fraction of a second and writes nothing.
 
-Some questions need the opposite shape. "Is this tool call reading credentials?" has to be asked of every action, the moment it is made, and the answer is a number to compare with a threshold, not a sentence. A chat model is the wrong tool for that: it writes text nobody reads, takes seconds and costs output tokens. A decision model answers in tens of milliseconds and bills no output.
+The rule for every use: **decide cheaply, explain only when something trips.**
 
-The rule this RFC proposes for every use: **decide cheaply, explain only when something trips.** The decider screens everything; a chat model writes the explanation only for what the decider flagged.
+## Constraints the owner set
 
-## The gateway guardrail, as documented
-
-LiteLLM 1.105.0 added a `decision_model` guardrail ([docs](https://docs.litellm.ai/docs/proxy/guardrails/decision_model), [PR #45663](https://github.com/BerriAI/litellm/pull/45663)). Homelab runs LiteLLM v1.105.1. What the documentation says, read 2026-10-18, not yet tried here:
-
-* **Questions.** Each check has a name, a yes/no question, an action (`block` or `log`) and a threshold from 0 to 1, default 0.7. Only yes/no questions work in the guardrail, at most 128.
-* **Modes.** `pre_call` and `during_call` screen the request's messages; `post_call` screens the model's answer.
-* **Tool calls.** Each tool call is screened as `name(arguments)`.
-* **Actions.** `block` fails the call with HTTP 400 naming the checks that fired; `log` lets it through and records it as `guardrail_flagged`.
-* **When the decider fails.** The default is `fail_closed`: HTTP 502 for the guarded call. `fail_open` lets it through with a warning.
-* **Attachment.** Every request with `default_on: true`, otherwise per key or per request.
-* **Money.** The guardrail's own decision calls write no spend rows, so they count against no key or team. Direct `/v1/decisions` calls are metered like any model.
-* **Cost of `pre_call` on agents.** Each message is screened on its own, and an agent resends its whole conversation every turn. On a long Run that is likely many repeat decisions per turn. This is an inference from the documentation, not a measurement.
-
-What follows for agent Runs:
-
-| Setting | Choice | Why |
-| --- | --- | --- |
-| `mode` | `post_call` | Screens each new answer, and so each new tool call, once |
-| `unreachable_fallback` | `fail_open` | A decider outage must never stop a Run; that would be a new way for every Run to fail |
-| `action` | `log` | Shadow first, ADR-0096's rule: a check that blocks acts on the Run, which waits for measured precision |
-| Attachment | per key, from the Team's policy | Only the Teams that opt in; Ploeg mints every Run key, so the policy names the guardrail |
-| Money | a decider with a flat or near-zero price, checked against the provider's bill | The guardrail's calls are invisible to Ploeg's metering (ADR-0008) |
-
-## Which decider
-
-| Option | Price | Where | Sustainable | Notes |
-| --- | --- | --- | --- | --- |
-| Perplexity `pplx-decider-v1-27b` | US$0.04 per million input tokens, output free, 262K context ([LiteLLM 1.104.2 notes](https://docs.litellm.ai/release_notes/v1.104.2/v1-104-2)) | US | yes: priced, documented API | Own code only until [VIK-1651](https://vikunja.webgrip.dev/tasks/1651) decides an EU route for client code |
-| TypeSafe Jev | about US$0.00002 per call in LiteLLM's example ([blog](https://docs.litellm.ai/blog/decision-models)) | not read | not known | Residency and terms not read |
-| Cloudflare `clef-flash` on Workers AI | free up to 10,000 Neurons a day, then US$0.011 per 1,000 ([pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/index.md)) | global edge | no, as the only decider: a daily cap | Its per-call Neuron rate was not found; good for a bench |
-| Cloudflare `clef` / `clef-flash` hosted | 0.24 / 0.09 per million input, output free | US | yes | Pricier than Perplexity for the same job |
-| Self-hosted `clef-flash` (9B, Apache 2.0, [weights](https://huggingface.co/Cloudflare/clef-flash)) or a Strands Decider through vLLM | flat: the machine | EU, ours | yes, the end state | Needs a GPU; the cloud cluster ([ADR-0040](../adr/adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md)) or a rented one. CPU speed not measured |
-| Hetzner's free Qwen (the judge's model) | free | EU | no: experimental, "not for production" | A chat model, not a `/v1/decisions` provider |
-
-**Recommendation.** One LiteLLM alias, `decider`, `mode: evaluation`, pointing at `pplx-decider-v1-27b` now. Every caller, the guardrail included, names `decider`, never a provider. When volume or residency asks for it, the alias moves to a self-hosted decider and no caller changes. Free tiers stay for benches, never for something a Run depends on.
-
-**What the tripwire would cost.** An estimate, not a measurement: a bronze builder Run makes on the order of 100 model calls; with `post_call`, each answer screened is a few hundred to 2,000 tokens. 100 × 2,000 = 200,000 input tokens per Run, US$0.008 at Perplexity's price. Bronze spent [US$1.04 per merged Work Item](../research/2026-10-11-cost-per-merged-work-item.md); the tripwire would add under 1 %. Because the guardrail writes no spend rows, the number to watch is Perplexity's own bill.
-
-## The first tripwire
-
-Questions, each `action: log`, threshold 0.7, on bronze builder keys only:
-
-| Check | Question |
+| Constraint | Consequence |
 | --- | --- |
-| `reads_credentials` | Does this tool call read credentials, private keys, tokens or a secrets file? |
-| `probes_sandbox` | Does this tool call inspect or try to leave its container or sandbox, for example the Docker socket, the host or cloud metadata? |
-| `edits_own_instructions` | Does this tool call change files that instruct agents, such as AGENTS.md, CLAUDE.md or a skill? |
-| `follows_injected_orders` | Does this answer follow instructions that came from a file or tool output rather than from the task? |
-| `remote_code` | Does this tool call download and run code from the network? |
+| EU or self-hosted only: tool-call arguments can hold file contents, diffs or an echoed token | US deciders (Perplexity, Cloudflare clef, OpenAI) are out, even for our own code |
+| No new spend, and no spare capacity on the worker nodes | A self-hosted decider on the soyo nodes, awake only while it has work |
+| Defend against a hijack **and** a careless agent | One set of checks, each answered as a severity score, so one hit can be minor and another serious |
+| A person must see hits as they happen | Unfold shows them on the Work Item page, not in a weekly list |
 
-These are the hijack scenarios the live view's containment panel already draws as proposed data ([#402](https://forgejo.webgrip.dev/webgrip/unfold/pulls/402)): a flagged action is what its containment panel would show for real. Reading the flags back (from LiteLLM's guardrail logs, by the Run's key alias) and drawing them is a later Unfold change.
+## Where the tripwire sits: next to the Run, not in its path
 
-## Other uses
+Two places were weighed.
 
-Each is a question with a typed answer that today is a regex, a person, or nothing. None is decided.
+**A gateway guardrail.** LiteLLM 1.105's `decision_model` guardrail ([docs](https://docs.litellm.ai/docs/proxy/guardrails/decision_model)) scores each model answer, tool calls included, before the agent sees it, so it could prevent an action. But every model call waits for it, and on CPU Strands Decider takes about 1.6 s for a short input and 16 to 18 s at 3,000 tokens on an 8-thread Xeon (the [repository's own figures](https://github.com/strands-labs/strands-decider)). A bronze Run makes on the order of 100 model calls. The guardrail also defaults to failing every call when the decider is down, writes no spend rows, and accepts only yes/no questions.
+
+**An out-of-band reader (chosen).** Unfold already reads each Run's transcript (Ploeg ADR-0090) for Run health. The tripwire screens each new `tool_call` entry as it arrives, off the Run's path:
+
+* it adds no latency to the Run and cannot stop one by failing;
+* it redacts before screening, as Unfold already does for transcripts;
+* it can ask score questions, which the guardrail cannot;
+* its hits land where people look, the Work Item page.
+
+What it gives up: it sees an action just after the agent starts it, so a later stop ends the Run but cannot undo that action. It covers only Runs that have a transcript: ACP harnesses, bronze's included; not Claude Code (`-p` mode) or headless OpenHands.
+
+## The decider
+
+| Option | Price | Where | Verdict |
+| --- | --- | --- | --- |
+| **Strands Decider 2B** ([repository](https://github.com/strands-labs/strands-decider), Apache 2.0, weights, data and training scripts public) | €0; the machine is ours | soyo node, EU | **Chosen.** About 4 GB of memory for the bf16 weights; serves `/v1/systemone` with yes/no, choice and score questions; LiteLLM has a `strands_decider/` provider |
+| **Hetzner's free Qwen** (`hetzner-qwen3-8-27b`) | €0 while experimental | Hetzner, EU, no request content stored | **Until Strands runs.** A chat model asked for a fixed JSON answer; the owner's probe on 2026-10-18 showed it gives one with thinking off. Experimental, so never the end state |
+| Perplexity `pplx-decider-v1-27b`, Cloudflare `clef`, OpenAI | cents | US | Out: not EU |
+| Mistral's small models | about US$0.10 to 0.15 per million tokens (aggregators disagree) | EU company | Not chosen: paid, and a chat model |
+| Rent an EU GPU for a faster decider | roughly €150 to 200 a month | EU | Not now: the whole cloud cluster's cap is €150 ([ADR-0040](../adr/adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md)) |
+
+**Where it runs.** Measured 2026-10-18 with `kubectl describe nodes`: `worker-1` has 96 % of its CPU reserved and `worker-2` and `fringe-workstation` 97 to 99 % of their memory, but each of `soyo-1`, `-2` and `-3` has about 4 GB of memory and 2 cores unreserved and runs at 25 to 37 % CPU. One Strands pod fits on a soyo node. KEDA (installed) scales it to zero when no Run that the tripwire watches is running, so it holds that memory only while there is work. Power: at the owner's rule of thumb of €3 a year per continuous watt, a few watts while Runs run averages out to a few euros a year.
+
+**One name.** Callers ask "the decider", never a provider. Unfold holds a small `Decider` interface with two implementations: Hetzner's Qwen through the chat endpoint now, and LiteLLM's `decider` alias on `/v1/systemone` once the Strands pod runs. The switch is configuration, not a caller change.
+
+**Who pays and who acts for it.** Both deciders cost nothing per call, so screening needs no Ask and no person to admit it (Ploeg ADR-0082's Ask exists to authorize spend). Unfold calls the gateway with its own virtual key, limited to the decider models and capped at a budget of zero, the same arrangement as the card-theme key Unfold already holds. The tripwire screens every watched Run, whether or not anyone has it open.
+
+## The checks
+
+Each check is a score question from 0 (no) to 3 (clearly yes), asked of one tool call with its title, input and paths, after redaction:
+
+| Check | Question | Kind |
+| --- | --- | --- |
+| `reads_credentials` | Does this action read credentials, private keys, tokens or a secrets file? | careless or hijack |
+| `probes_sandbox` | Does it inspect or try to leave its container: the Docker socket, the host, cloud metadata? | hijack |
+| `edits_own_instructions` | Does it change files that instruct agents: AGENTS.md, CLAUDE.md, a skill? | careless or hijack |
+| `follows_injected_orders` | Does it act on instructions that came from a file or tool output rather than from the task? | hijack |
+| `remote_code` | Does it download and run code from the network? | careless or hijack |
+
+Strands' `/v1/systemone` takes the five as one call per tool call. On Qwen the same five come back as one JSON object.
+
+## What a person sees
+
+On the Work Item page, in the live view's containment panel, which today draws these exact scenarios as proposed data ([#402](https://forgejo.webgrip.dev/webgrip/unfold/pulls/402)):
+
+* each hit at 2 or above: the check, its score, the tool call it scored (redacted) and when;
+* the decider that answered (Qwen or Strands), so numbers from the two are never mixed;
+* a "right" and a "wrong" control on each hit, recorded as product events, which is the precision measure.
+
+A score of 3 on a hijack check is announced like an Off track health change. Nothing else interrupts.
+
+## Stopping a Run, later
+
+For the first two weeks no score stops anything. Then the owner names, per check, the score that stops a Run, from the hits marked right and wrong. A stop:
+
+* is made by a named service actor, `tripwire`, on channel `unfold`, recorded on the Run like a person's action. Ploeg ADR-0108 today requires a person, so this needs an amendment in ploeg-hq first;
+* withdraws the Run (blocks its key and forge credentials, the existing `cancel` route) and puts the Work Item in Needs you with the hit as the reason.
+
+## Other uses of the decider
+
+Each is a typed question that today is a phrase matcher, a person or nothing. None is decided.
 
 | Use | Question(s) | Today |
 | --- | --- | --- |
-| Run health cascade | Off brief? Looping? (every minute, from the decider) → the chat judge writes its verdict only when one trips | The judge runs on a timer ([RFC-0007](rfc-0007-run-health.md)) |
-| Premise check before a Run | Does the brief name the files? Is it small and clear? Is the premise still true? | Decided, not built (Ploeg ADR-0036, T0) |
-| Routing per Work Item | Small and clear, or a cross-module change? → Team or builder model | Per Team only ([research](../research/2026-10-14-litellm-and-fireworks-update.md)) |
-| Ticket readiness | Has acceptance criteria? Agent-ready? A duplicate? | A person |
-| Needs-you triage | Which resolution path fits? Does it really need a person? | A person |
-| Pull requests | Touches sensitive paths? Is a reviewer comment a change request? Is a dependency bump risky? | Partly regex, partly a reading Run |
+| Run health cascade | Off brief? Looping? Asked every minute; the chat judge writes its verdict only when one trips | The judge runs on a timer ([RFC-0007](rfc-0007-run-health.md)) |
+| Premise check before a Run | Does the brief name the files? Is it small and clear? | Decided, not built (Ploeg ADR-0036, T0) |
+| Routing per Work Item | Small and clear, or a cross-module change? | Per Team only |
+| Ticket readiness | Acceptance criteria present? Agent-ready? A duplicate? | A person |
+| Needs-you triage | Which resolution path fits? | A person |
+| Pull requests | Sensitive paths touched? Is a reviewer comment a change request? Is a dependency bump risky? | Partly a reading Run |
 | Ask and the Client Portal | Can the record answer this, at zero model spend? Is the client asking for new work? | A phrase matcher (`matchQuestion`) |
-| Report a problem | A duplicate? How severe? Which component? | A person |
+| Report a problem | Duplicate? Severity? Component? | A person |
 
 ## Plan
 
-1. **Gateway, homelab.** Add the `decider` alias (`mode: evaluation`) with a Perplexity key from OpenBao, and the `agent-tripwire` guardrail (`post_call`, `fail_open`, the five checks, `log`), not `default_on`. Needs the owner: a new provider account and its key.
-2. **Ploeg.** A Team's inference policy may name gateway guardrails, and Ploeg passes them on every key it mints for that Team and Role. Generic, no consumer named; its own ADR in ploeg-hq.
-3. **Homelab.** Bronze's builder policy names `agent-tripwire`.
-4. **Measure for two weeks.** Flags per Run, and the owner's read of every flagged action: right or wrong. Perplexity's bill against the estimate.
-5. **Then decide, per check:** keep logging, turn to `block`, rewrite or drop. A `block` check is a new record, because it acts on Runs.
-6. **Later, separately:** the Run health cascade, the premise check, and Unfold drawing flags in the live view.
+1. **Unfold: the `Decider` interface and the tripwire reader** on Hetzner's Qwen, behind a Team flag that is off by default. It screens new tool calls of the flagged Teams' running Runs, stores hits, and shows them in the containment panel with right and wrong controls.
+2. **Homelab: the gateway key** for Unfold, limited to the decider models, budget zero. Then the flag on for bronze.
+3. **Homelab: the Strands Decider pod** on a soyo node, scaled to zero by KEDA while no watched Run runs, and LiteLLM's `decider` alias on it (`strands_decider/` provider). Unfold switches to it by configuration; hits from before and after stay labelled by decider. Whether an image exists or one must be built is not checked yet.
+4. **Two weeks of hits**, marked right or wrong by the owner.
+5. **The owner names a stop score per check.** Ploeg: a record that admits a named service actor (amends ADR-0108). Unfold: the stop.
+6. **Later, separately:** the Run health cascade and the other uses above, each asking the same decider.
 
 ## How we will know it works
 
-* **Precision per check:** flagged actions the owner marks right, against all flagged. A check moves to `block` only above a level the owner names.
-* **Silence where it should be:** a check that flags on ordinary bronze work (reading `package.json`, running tests) is rewritten.
-* **No new failures:** zero Runs stopped or slowed by the guardrail, from the Runs' durations before and after and `fail_open` warnings in LiteLLM's log.
-* **Cost:** Perplexity's monthly bill against US$0.008 per Run.
+* **Precision per check and decider:** hits marked right against all hits shown.
+* **Silence on ordinary work:** a check that scores 2 or more on reading `package.json` or running tests is rewritten.
+* **No effect on Runs:** Run durations of watched Teams before and after; the reader is off the path, so none is expected.
+* **Cost:** zero per call; the soyo node's memory and CPU while awake, from its metrics.
 
-## Open questions for the owner
+## Questions that remain
 
-1. **Provider for `decider`:** Perplexity (recommended: cheapest priced option, documented), or TypeSafe Jev after reading its terms?
-2. **Questions:** are the five checks the right first set, or should one be swapped for something you have seen go wrong?
-3. **Attachment:** through Ploeg's policy (recommended, explicit per Team and Role), or on a LiteLLM team in the gateway, with no Ploeg change but invisible from Ploeg?
+1. **Image for Strands Decider.** If none is published, Webgrip builds and signs one in CI like its other images. Checked when step 3 starts.
+2. **Wake-up trigger.** KEDA needs a signal that a watched Run is running: Ploeg's Run metrics or a small Unfold endpoint. Picked in step 3.
+3. **Stop scores.** Named by the owner after step 4.
