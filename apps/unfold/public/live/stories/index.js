@@ -14,6 +14,8 @@ export const storyFiles = {
   meaning: () => import('./meaning.stories.js'),
   'run-health': () => import('./run-health.stories.js'),
   'fleet-board': () => import('./fleet-board.stories.js'),
+  'work-kit': () => import('./work-kit.stories.js'),
+  'work-pages': () => import('./work-pages.stories.js'),
 };
 
 /**
