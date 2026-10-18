@@ -1486,6 +1486,47 @@ button.stream-bar:hover {
   overflow-wrap: anywhere;
 }
 
+.work-run-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.work-run-health-badge[data-stale] .badge {
+  filter: grayscale(1);
+}
+
+.work-run-health {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.work-run-health > p {
+  max-width: var(--prose-max);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.work-run-health-line,
+.work-run-judge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.work-run-health-line > svg.icon {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  color: var(--tone-fg);
+}
+
+.work-run-health[data-stale] .work-run-health-line {
+  color: var(--text-subtle);
+  filter: grayscale(1);
+}
+
 .work-findings {
   display: grid;
   gap: var(--space-2);
@@ -1778,7 +1819,7 @@ button.stream-bar:hover {
     grid-area: name;
   }
 
-  .work-run > summary > .badge {
+  .work-run > summary > :is(.badge, .work-run-badges) {
     grid-area: badge;
     justify-self: start;
   }

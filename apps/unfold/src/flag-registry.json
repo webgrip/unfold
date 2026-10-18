@@ -41,6 +41,20 @@
         "client": false,
         "labs": true
       }
+    },
+    "cards.health.judge": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-18",
+        "title": "Run health judge",
+        "description": "Lets a model judge whether a running Run is still working on its Work Item, as a Ploeg Ask paid from the Team's Ask Allowance, on Hetzner's free EU-hosted inference only. Shadow only: the verdict can raise a Run's health badge, never lower it, and never stops, requeues, steers or grades a Run. Evaluated per Team: the context carries the Run's team.",
+        "client": false,
+        "labs": false
+      }
     }
   }
 }

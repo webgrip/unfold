@@ -10,6 +10,7 @@ import { validatePloeg } from './ploeg.ts';
 import { validateCardRules } from './cards/settings.ts';
 import { validateDeliveryConfig } from './delivery-config.ts';
 import { flagSettings, loadRegistry } from './flags.ts';
+import { defaultJudgeModels } from './run-health/judge.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultTeams: Team[] = [
@@ -116,6 +117,21 @@ export function validateCards(raw: unknown, mode: AppConfig['mode']): NonNullabl
     }
   }
   return { backfillPeriods, teams, ...(data.publishPullRequestComment === true ? { publishPullRequestComment: true } : {}), ...(data.rules !== undefined ? { rules } : {}) };
+}
+
+/**
+ * Checks the `runHealth` block (RFC-0007): `judgeModels`, the gateway models the shadow judge may use, in order of
+ * preference. It defaults to Hetzner's free EU-hosted inference; the judge never falls back to a model not listed here.
+ */
+export function runHealthSettings(raw: unknown): NonNullable<AppConfig['runHealth']> {
+  if (raw === undefined) return { judgeModels: [...defaultJudgeModels] };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('runHealth must be an object');
+  const value = raw as Record<string, unknown>;
+  for (const key of Object.keys(value)) if (key !== 'judgeModels') throw new Error(`runHealth.${key} is not a setting`);
+  if (value.judgeModels === undefined) return { judgeModels: [...defaultJudgeModels] };
+  const models = value.judgeModels;
+  if (!Array.isArray(models) || !models.length || models.length > 8 || models.some(model => typeof model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:/@-]{0,127}$/.test(model)) || new Set(models).size !== models.length) throw new Error('runHealth.judgeModels must list 1 to 8 distinct gateway model names');
+  return { judgeModels: models as string[] };
 }
 
 /**
@@ -371,6 +387,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     productEvents: productEventsSetting(),
     cards,
     cardThemes: cardThemeSettings(raw.cardThemes, mode),
+    runHealth: runHealthSettings(raw.runHealth),
     flags: flagSettings(raw.flags, loadRegistry()),
     litellm: litellmBase && (adminKey || raw.execution) ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
   };

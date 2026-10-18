@@ -31,6 +31,8 @@ import { InsightService, maxEventPayloadBytes, parseInsightEvents } from './insi
 import { ReportError, ReportService, parseReport } from './reports.ts';
 import { knownSecrets, withoutKnownSecrets } from './redaction.ts';
 import { AskService, type AskAuthority } from './ask/service.ts';
+import { RunHealthService } from './run-health/service.ts';
+import { RunJudge, defaultJudgeModels } from './run-health/judge.ts';
 import { noErrorReports, type ErrorReports } from './error-reports.ts';
 import { FeatureFlags, loadRegistry, type FlagContext } from './flags.ts';
 import { clientContext, ofrepBulk, ofrepFlag } from './flag-ofrep.ts';
@@ -192,6 +194,16 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     const choices = store.flagChoices(user.id);
     return { targetingKey: user.id, userId: user.id, role: user.role, tenantId: defaultTenant, mode: config.mode, teams: config.ploeg?.userTeams?.[user.id] ?? [], labs: Object.keys(choices).filter(key => choices[key]), labsOff: Object.keys(choices).filter(key => !choices[key]) };
   };
+  const runJudge = askAuthority && config.litellm?.baseUrl ? new RunJudge(askAuthority, { gatewayUrl: config.litellm.baseUrl, models: config.runHealth?.judgeModels ?? defaultJudgeModels, secrets }) : undefined;
+  const runHealth = new RunHealthService(store, ploeg, {
+    demo: askDemo,
+    judge: runJudge,
+    judgeEnabled: (user, team) => flags.getBooleanValue('cards.health.judge', false, { ...flagContext(user), team }),
+    record: (user, name, workItemId, props) => {
+      if (config.productEvents === false) return;
+      try { insight.ingest([{ name, at: new Date().toISOString(), session: '', screen: 'work', ...(/^\d{1,15}$/.test(workItemId) ? { workItemId: Number(workItemId) } : {}), props }], user); } catch { return; }
+    },
+  });
   ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
@@ -678,6 +690,18 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const context = /^\/api\/ploeg\/work-items\/([^/]+)\/context$/.exec(path);
           const asked = /^\/api\/ploeg\/work-items\/([^/]+)\/asks$/.exec(path);
           const restart = /^\/api\/ploeg\/work-items\/([^/]+)\/(requeue|notes)$/.exec(path);
+          const health = /^\/api\/ploeg\/work-items\/([^/]+)\/runs\/([^/]+)\/health$/.exec(path);
+          const wrong = /^\/api\/ploeg\/work-items\/([^/]+)\/runs\/([^/]+)\/health\/judgements\/([A-Za-z0-9-]{1,64})\/wrong$/.exec(path);
+          if (health || wrong) {
+            try {
+              if (health) { if (method !== 'GET') fault(405, 'method', 'Read Run health with GET.'); return json(res, 200, sanitize(await runHealth.health(user, health[1], health[2]))); }
+              if (method !== 'POST') fault(405, 'method', 'Report a wrong judgement with POST.');
+              return json(res, 202, await runHealth.wrong(user, wrong![1], wrong![2], wrong![3]));
+            } catch (error) {
+              if (error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } });
+              throw error;
+            }
+          }
           if (asked) {
             try {
               if (method === 'GET') return json(res, 200, sanitize(await asks.about(user, asked[1])));

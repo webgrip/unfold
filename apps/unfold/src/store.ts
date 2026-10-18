@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import type { Session, Event, PermissionRequest, User } from './types.ts';
 import type { Ask } from './ask/types.ts';
+import type { RunJudgement } from './run-health/judge.ts';
 import type { ActionRecord, ActionTarget } from './action-records.ts';
 import type { IssueState } from './tasks.ts';
 import type { FlagOverride } from './flags.ts';
@@ -78,6 +79,8 @@ export class Store {
       CREATE TABLE IF NOT EXISTS asks (id TEXT PRIMARY KEY, work_item_id TEXT NOT NULL, asker_id TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS asks_work_item ON asks(work_item_id, created_at);
       CREATE INDEX IF NOT EXISTS asks_asker ON asks(asker_id, created_at);
+      CREATE TABLE IF NOT EXISTS run_judgements (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, work_item_id TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS run_judgements_run ON run_judgements(run_id, at);
       CREATE TABLE IF NOT EXISTS action_records (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT NOT NULL, role TEXT NOT NULL, channel TEXT NOT NULL, action TEXT NOT NULL, method TEXT NOT NULL, target_kind TEXT, target_id TEXT, inputs TEXT NOT NULL, confirmation TEXT, status INTEGER NOT NULL, outcome TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS action_records_user ON action_records(user_id, id);
       CREATE INDEX IF NOT EXISTS action_records_target ON action_records(target_kind, target_id, id);
@@ -195,6 +198,28 @@ export class Store {
 
   asksAbout(workItemId: string, limit: number): Ask[] {
     return (this.db.prepare('SELECT body FROM asks WHERE work_item_id=? ORDER BY created_at DESC, id DESC LIMIT ?').all(workItemId, limit) as { body: string }[]).map(row => restoreAsk(row.body));
+  }
+
+  /** Stores one judge verdict on a running Run (RFC-0007). Verdicts live apart from Session events, so none can become an instruction to an agent. */
+  saveRunJudgement(judgement: RunJudgement): void {
+    this.db.prepare('INSERT INTO run_judgements(id,run_id,work_item_id,at,body) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body')
+      .run(judgement.id, judgement.runId, judgement.workItemId, judgement.at, JSON.stringify(judgement));
+  }
+
+  /** At most `limit` judge verdicts on one Run, newest first. */
+  runJudgements(runId: string, limit = 20): RunJudgement[] {
+    return (this.db.prepare('SELECT body FROM run_judgements WHERE run_id=? ORDER BY at DESC, id DESC LIMIT ?').all(runId, limit) as { body: string }[]).map(row => JSON.parse(row.body) as RunJudgement);
+  }
+
+  /** How many judge verdicts one Run has. */
+  countRunJudgements(runId: string): number {
+    return Number((this.db.prepare('SELECT COUNT(*) AS count FROM run_judgements WHERE run_id=?').get(runId) as { count: number }).count);
+  }
+
+  /** One judge verdict by id. */
+  getRunJudgement(id: string): RunJudgement | undefined {
+    const row = this.db.prepare('SELECT body FROM run_judgements WHERE id=?').get(id) as { body: string } | undefined;
+    return row ? JSON.parse(row.body) as RunJudgement : undefined;
   }
 
   /** At most `limit` Asks one person asked, newest first. */
