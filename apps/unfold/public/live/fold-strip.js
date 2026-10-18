@@ -17,6 +17,7 @@ function note(model, stage) {
     const parts = [attempt ? `attempt ${attempt.n}` : '', model.running ? span(model.running.seconds) : '', model.lost.runs ? `${model.lost.runs} lost` : ''].filter(Boolean);
     return parts.join(' · ');
   }
+  if (stage.id === 'pr' && stage.status === 'current') return [model.pullRequest?.number ? `#${model.pullRequest.number}` : '', model.runs.some(run => !run.writes && ['pending', 'running'].includes(run.state)) ? 'agent review' : ''].filter(Boolean).join(' · ');
   if (stage.id === 'pr' && model.pullRequest?.number) return `#${model.pullRequest.number}`;
   return '';
 }

@@ -247,11 +247,13 @@ export function flightLegs(model) {
     const live = attempt.runs.some(run => run.state === 'running');
     const first = attempt.runs[0].startedAt;
     const last = Math.max(...attempt.runs.map(run => run.finishedAt ?? (run.state === 'running' ? model.now : run.startedAt ?? 0)));
-    const words = [`${attempt.runs.length} ${attempt.runs.length === 1 ? 'Run' : 'Runs'}`, lost ? `${lost} lost to machines` : '', failed ? `${failed} failed` : ''].filter(Boolean).join(' · ');
+    const queued = attempt.runs.filter(run => run.status === 'pending').length;
+    const started = attempt.runs.length - queued;
+    const words = [started ? `${started} ${started === 1 ? 'Run' : 'Runs'}` : '', queued ? `${queued} queued` : '', lost ? `${lost} lost to machines` : '', failed ? `${failed} failed` : ''].filter(Boolean).join(' · ');
     const waiting = attempt.runs.some(run => run.status === 'pending');
     legs.push({ kind: 'attempt', n: attempt.n, live: live || waiting, hops, grow: Math.min(maxGrow, hops.reduce((sum, hop) => sum + hop.grow, 0)), head: `Attempt ${attempt.n}`, note: words, time: first !== null ? `${clock(first)}–${live ? 'now' : clock(last)}` : '', tone: live || waiting ? 'live' : lost === attempt.runs.length ? 'machine' : failed ? 'failed' : 'done' });
   }
-  const pr = model.stages.find(stage => stage.id === 'pr')?.status === 'done';
+  const pr = ['done', 'current'].includes(model.stages.find(stage => stage.id === 'pr')?.status);
   const stopped = { needs_human: ['attention', 'Needs you', 'flag'], stale: ['severe', 'Stopped retrying', 'circle-slash'], withdrawn: ['neutral', 'Withdrawn', 'circle-slash'] }[model.state];
   const lastFailure = [...model.runs].reverse().find(run => run.failure || run.status === 'cancelled');
   if (stopped) legs.push({ kind: 'stop', tone: stopped[0], label: stopped[1], glyph: stopped[2], note: lastFailure?.failure?.label ?? (model.state === 'withdrawn' ? 'Its Runs are kept' : '') });

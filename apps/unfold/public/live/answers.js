@@ -23,13 +23,16 @@ export function standingAnswers(model) {
     const lostUsd = model.runs.filter(run => run.failure).reduce((sum, run) => sum + (run.costUsd ?? 0), 0);
     list.push({ id: 'failures', question: model.running ? 'Why did the earlier Runs fail?' : 'Why did it fail?', answer: `${machine}${agent} Those Runs cost ${usd(lostUsd)}.`.trim(), source: 'record' });
   }
+  const reviewers = [...new Set(model.runs.filter(run => !run.writes && ['pending', 'running'].includes(run.state)).map(run => run.role))];
   const review = model.state === 'awaiting_review'
     ? { answer: 'Now. The pull request is open and waits for you.', source: 'record' }
+    : model.pullRequest && model.stage === 'pr' && reviewers.length
+      ? { answer: `After the agents. The pull request is open; ${reviewers.join(' and ')} ${reviewers.length === 1 ? 'reviews' : 'review'} it first, and you get a notice when it waits for you.`, source: 'record' }
     : model.state === 'done' ? { answer: 'It is merged; there is nothing left to review.', source: 'record' }
       : model.estimate ? { answer: `${model.estimate.text}. You get a notice when the pull request opens.`, source: 'estimate' }
         : { answer: 'Unfold has no estimate for this Team yet. You get a notice when the pull request opens; nothing is needed before then.', source: 'none' };
   list.push({ id: 'review', question: 'When do I review?', ...review });
-  const held = model.spend.heldUsd !== null ? ` Ploeg holds ${usd(model.spend.heldUsd)} for this attempt.` : '';
+  const held = model.spend.budgetUsd !== null ? ` The attempt’s budget is ${usd(model.spend.budgetUsd)}.` : '';
   list.push({ id: 'cost', question: 'What does it cost?', answer: model.spend.usd === null ? `No Run reported a cost yet.${held}` : `${usd(model.spend.usd)} so far${model.spend.status === 'settled' ? ', settled' : ', settles when the Run ends'}.${held}`, source: 'record' });
   return list;
 }

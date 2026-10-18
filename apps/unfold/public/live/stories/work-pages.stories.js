@@ -24,4 +24,5 @@ export const OffTrackThenBack = { args: { scenario: 'driftRecovered' } };
 export const Rogue = { args: { scenario: 'rogue' } };
 export const ContextUnblocks = { args: { scenario: 'contextUnblocks' } };
 export const ReviewLoop = { args: { scenario: 'reviewLoop' } };
+export const AgentReviewQueued = { args: { scenario: 'agentReview', origin: 'tracker' } };
 export const StartedInUnfold = { args: { origin: 'unfold', tab: 'evidence' } };

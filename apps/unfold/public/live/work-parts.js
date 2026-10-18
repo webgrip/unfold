@@ -66,14 +66,16 @@ function runOpening(entry, ticket, runDetail) {
 
 function entryBody(entry, view, runDetail = null) {
   if (entry.kind === 'brief') return `${entryHead(entry, who(entry, view), view.origin.kind === 'unfold' ? 'wrote the brief' : 'filed the task', entry.conditions ? chip(`${entry.conditions} acceptance ${entry.conditions === 1 ? 'condition' : 'conditions'}`) : '')}${entry.text ? `<p class="lv-tl-text" data-private>${escape(entry.text.split('\n').find(line => line.trim() && !line.trim().startsWith('#')) ?? '')}</p>` : '<p class="lv-tl-text lv-tl-quiet">No brief was written.</p>'}`;
-  if (entry.kind === 'admit') return `${entryHead(entry, 'Ploeg', `started attempt ${entry.attempt}`)}<p class="lv-tl-text lv-tl-quiet">${escape(entry.budgetUsd === null ? 'No budget reported for this attempt.' : `${usd(entry.budgetUsd)} held for this attempt.`)}</p>`;
+  if (entry.kind === 'admit') return `${entryHead(entry, 'Ploeg', `started attempt ${entry.attempt}`)}<p class="lv-tl-text lv-tl-quiet">${escape(entry.budgetUsd === null ? 'No budget reported for this attempt.' : `Budget for this attempt: ${usd(entry.budgetUsd)}.`)}</p>`;
+  if (entry.kind === 'unstarted') return `${entryHead(entry, 'Ploeg', 'opened an attempt', chip('closed before a Run started'))}<p class="lv-tl-text lv-tl-quiet">${escape(`${entry.reason || 'It closed'}${entry.end ? ` at ${clock(entry.end)}` : ''}. Nothing ran and nothing was spent, so it does not count as an attempt.`)}</p>`;
   if (entry.kind === 'run') {
     const tone = entry.ending === 'live' ? 'live' : entry.ending === 'failed' ? 'danger' : entry.ending === 'done' ? 'success' : '';
     const words = entry.ending === 'failed' && entry.failure ? entry.failure : entry.verdict === 'approve' ? 'Approved' : entry.verdict === 'request_changes' ? 'Asked for changes' : endingWords[entry.ending];
     const runs = entry.count > 1 ? `${entry.count} Runs in a row, Runs ${entry.firstN}–${entry.n}` : `Run ${entry.n}`;
     const machine = entry.ending === 'machine' ? `<p class="lv-tl-text lv-tl-quiet">${entry.count > 1 ? 'Machines ended these Runs, not the agent; they do not count against the agent.' : 'The machine ended this Run, not the agent; it does not count against the agent.'}</p>` : '';
     const now = entry.move ? `<p class="lv-tl-move"><span class="lv-tl-move-dot" aria-hidden="true"></span><span>${escape(entry.move.title)}</span><span class="lv-tl-detail">${escape(`${entry.move.calls} ${entry.move.calls === 1 ? 'call' : 'calls'} so far`)}</span></p>` : '';
-    const ticket = `<div class="lv-tl-ticket"><div class="lv-tl-ticket-main">${entryHead(entry, entry.role, `attempt ${entry.attempt} · ${runs}`, chip(words, tone))}${machine}${now}</div>${runStub(entry, { opens: Boolean(runDetail) })}</div>`;
+    const said = entry.said && entry.ending !== 'live' ? `<p class="lv-tl-text" data-private>${escape(entry.said)}</p>` : '';
+    const ticket = `<div class="lv-tl-ticket"><div class="lv-tl-ticket-main">${entryHead(entry, entry.role, `attempt ${entry.attempt} · ${runs}`, chip(words, tone))}${said}${machine}${now}</div>${runStub(entry, { opens: Boolean(runDetail) })}</div>`;
     return runDetail ? runOpening(entry, ticket, runDetail) : ticket;
   }
   if (entry.kind === 'context') return `${entryHead(entry, who(entry, view), 'added context', entry.steering ? chip('reaches the next Run', 'attention') : '')}<p class="lv-tl-files"><span class="lv-tl-file">${icon('file')}${escape(entry.name)}</span></p>${entry.note ? `<p class="lv-tl-text" data-private>${escape(entry.note)}</p>` : ''}`;
@@ -90,7 +92,7 @@ function entryBody(entry, view, runDetail = null) {
   return '';
 }
 
-const markWords = { brief: 'B', admit: 'P', context: '+', ask: '?', steer: '›', linked: '⇄' };
+const markWords = { brief: 'B', admit: 'P', unstarted: 'P', context: '+', ask: '?', steer: '›', linked: '⇄' };
 
 function mark(entry, view) {
   if (entry.kind === 'run') return escape(entry.role.slice(0, 1).toUpperCase());
@@ -218,7 +220,7 @@ export function leaseBaton(view) {
  */
 export function spendTape(view) {
   const tape = view.tape;
-  if (!tape.segments.length) return `<div class="lv-tape is-empty"><p class="lv-tape-empty">No Run has reported a cost yet${tape.budgetUsd !== null ? `; ${escape(usd(tape.budgetUsd))} is held` : ''}.</p></div>`;
+  if (!tape.segments.length) return `<div class="lv-tape is-empty"><p class="lv-tape-empty">No Run has reported a cost yet${tape.budgetUsd !== null ? `; the attempt’s budget is ${escape(usd(tape.budgetUsd))}` : ''}.</p></div>`;
   let x = 0;
   const bars = tape.segments.map(segment => {
     const width = Math.max(0.6, segment.usd / tape.scaleUsd * 100);
@@ -226,9 +228,9 @@ export function spendTape(view) {
     x += width;
     return bar;
   }).join('');
-  const label = `Spend tape: ${tape.segments.map(segment => `${segment.label} ${usd(segment.usd)}`).join(', ')}${tape.budgetUsd !== null ? `, of ${usd(tape.budgetUsd)} held` : ''}.`;
+  const label = `Spend tape: ${tape.segments.map(segment => `${segment.label} ${usd(segment.usd)}`).join(', ')}${tape.budgetUsd !== null ? `, of a ${usd(tape.budgetUsd)} budget` : ''}.`;
   const keys = tape.segments.map(segment => `<li class="${cx('lv-tape-key', `is-${segment.kind}`)}">${escape(segment.label)} · ${escape(usd(segment.usd))}</li>`).join('');
-  return `<figure class="lv-tape"><figcaption class="lv-tape-head"><span class="lv-tape-total">${escape(usd(tape.totalUsd))}</span><span class="lv-tape-of">${escape(tape.budgetUsd !== null ? `of ${usd(tape.budgetUsd)} held` : 'no hold reported')}</span></figcaption><svg class="lv-tape-svg" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="${escape(label)}"><rect class="lv-tape-track" x="0" y="0" width="100" height="10"></rect>${bars}</svg><ul class="lv-tape-keys">${keys}</ul></figure>`;
+  return `<figure class="lv-tape"><figcaption class="lv-tape-head"><span class="lv-tape-total">${escape(usd(tape.totalUsd))}</span><span class="lv-tape-of">${escape(tape.budgetUsd !== null ? `of a ${usd(tape.budgetUsd)} budget` : 'no budget reported')}</span></figcaption><svg class="lv-tape-svg" viewBox="0 0 100 10" preserveAspectRatio="none" role="img" aria-label="${escape(label)}"><rect class="lv-tape-track" x="0" y="0" width="100" height="10"></rect>${bars}</svg><ul class="lv-tape-keys">${keys}</ul></figure>`;
 }
 
 /**

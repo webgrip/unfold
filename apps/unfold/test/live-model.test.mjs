@@ -22,7 +22,7 @@ test('VIK-2049 reads as two attempts: six Runs lost to machines, then one builde
 
 test('spend is one figure: the total, the latest attempt’s share of it and what that attempt holds', () => {
   const live = model('running');
-  assert.deepEqual([live.spend.usd, live.spend.attemptUsd, live.spend.heldUsd, live.spend.share, live.spend.over, live.spend.status], [0.08, 0.08, 1, 0.08, false, 'observed']);
+  assert.deepEqual([live.spend.usd, live.spend.attemptUsd, live.spend.budgetUsd, live.spend.share, live.spend.over, live.spend.status], [0.08, 0.08, 1, 0.08, false, 'observed']);
   const landed = model('landed');
   assert.equal(landed.spend.usd, 0.38, 'sums are rounded, never 0.37999…');
   assert.equal(landed.spend.status, 'settled');

@@ -11,7 +11,7 @@ function tile({ key, label, value, detail = '', tone = '', extra = '' }) {
 }
 
 /**
- * The instrument tiles: spend against what this attempt holds, time in the air, tokens, and what was lost. Each tile
+ * The instrument tiles: spend against the attempt's budget, time in the air, tokens, and what was lost. Each tile
  * says `Not reported` for a figure Ploeg did not report and never shows it as zero.
  * @param {object} model A `liveModel` result.
  * @param {{ layout?: 'tiles'|'strip'|'list' }} [options] `strip` is one row inside a header, `list` a definition list for a side column.
@@ -19,10 +19,13 @@ function tile({ key, label, value, detail = '', tone = '', extra = '' }) {
  */
 export function instruments(model, { layout = 'tiles' } = {}) {
   const { spend, time, lost } = model;
-  const held = spend.heldUsd !== null ? `of ${usd(spend.heldUsd)} held for this attempt` : 'no hold reported';
+  const held = spend.budgetUsd !== null ? `of the attempt’s ${usd(spend.budgetUsd)} budget` : 'no budget reported';
+  const started = model.runs.filter(run => run.status !== 'pending').length;
+  const queued = model.runs.length - started;
+  const runWords = `${started} ${started === 1 ? 'Run' : 'Runs'}${queued ? ` · ${queued} queued` : ''}`;
   const tiles = [
     tile({ key: 'spend', label: 'Spend', value: usd(spend.usd), detail: spend.usd === null ? 'No Run reported a cost yet' : spend.usd !== spend.attemptUsd ? `${usd(spend.attemptUsd)} ${held}` : held, tone: spend.over ? 'danger' : spend.share !== null && spend.share >= 0.8 ? 'attention' : '', extra: gauge(spend.share, spend.over) }),
-    tile({ key: 'time', label: model.running ? 'Airborne' : 'Agent time', value: model.running ? span(time.run) : span(time.agent), detail: lost.seconds ? `${span(time.agent)} in all · ${span(lost.seconds)} on machines that failed` : model.running ? `${span(time.agent)} in all` : `${model.runs.length} ${model.runs.length === 1 ? 'Run' : 'Runs'}` }),
+    tile({ key: 'time', label: model.running ? 'Airborne' : 'Agent time', value: model.running ? span(time.run) : span(time.agent), detail: lost.seconds ? `${span(time.agent)} in all · ${span(lost.seconds)} on machines that failed` : model.running ? `${span(time.agent)} in all` : runWords }),
     tile({ key: 'tokens', label: 'Tokens', value: model.tokens.in === null ? tokens(null) : `${tokens(model.tokens.in)} in`, detail: model.tokens.out === null ? '' : `${tokens(model.tokens.out)} out${model.tokens.unreportedRuns ? ` · ${model.tokens.unreportedRuns} ${model.tokens.unreportedRuns === 1 ? 'Run' : 'Runs'} not reported` : ''}` }),
     lost.runs || lost.agentFailures
       ? tile({ key: 'lost', label: 'Lost', value: `${lost.runs + lost.agentFailures} of ${model.runs.length}`, detail: lost.runs && !lost.agentFailures ? 'Machines, not the agent' : lost.agentFailures && !lost.runs ? 'The agent failed' : `${lost.runs} machine · ${lost.agentFailures} agent`, tone: lost.agentFailures ? 'danger' : 'attention' })
