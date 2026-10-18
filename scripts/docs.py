@@ -27,10 +27,12 @@ parser.add_argument('--domain-check', action='store_true', help='check only the 
 parser.add_argument('--without-landscape', action='store_true', help='with --domain-check, skip the landscape explorer: rebuilding it needs a browser, and the weekly ploeg-ahead check looks only for what a person must decide')
 args = parser.parse_args()
 ploeg = root / 'apps/ploeg'
-if not (ploeg / 'docs').is_dir():
-    raise SystemExit('apps/ploeg is the pinned Ploeg submodule and it is not checked out; run git submodule update --init --recursive')
-ploeg_pin = subprocess.check_output(['git', 'rev-parse', ':apps/ploeg'], cwd=root, text=True).strip()
+if not (ploeg / 'ploeg-contract.json').is_file():
+    raise SystemExit('apps/ploeg holds no Ploeg contract bundle; run mise run ploeg-contract')
+ploeg_pin = json.loads((ploeg / 'ploeg-contract.json').read_text())['commit']
 ploeg_source_url = f'https://github.com/ploeg-hq/ploeg/blob/{ploeg_pin}/'
+ploeg_files = set((ploeg / 'files.txt').read_text().splitlines())
+ploeg_directories = {str(Path(name).parent) for name in ploeg_files}
 domain_models = ['docs/domain']
 glossary_models = ['docs/domain', 'apps/ploeg/docs/domain']
 glossary = 'docs/reference/glossary.md'
@@ -148,6 +150,13 @@ def pinned_url(destination, fragment):
     return ploeg_source_url + quote(destination.relative_to(ploeg).as_posix()) + (f'#{fragment}' if fragment else '')
 
 
+def released_in_ploeg(destination):
+    if not destination.is_relative_to(ploeg):
+        return False
+    relative = destination.relative_to(ploeg).as_posix()
+    return relative in ploeg_files or any(directory == relative or directory.startswith(relative + '/') for directory in ploeg_directories)
+
+
 def check_anchor(destination, fragment, source, target):
     if not pinned(source) and missing_anchor(destination, fragment):
         anchor_failures.append(f'{source.relative_to(root)}: {target}')
@@ -178,6 +187,8 @@ def target_url(target, source):
     if not destination.is_relative_to(root):
         return target
     checked += 1
+    if not destination.exists() and released_in_ploeg(destination):
+        return pinned_url(destination, parts.fragment)
     if not destination.exists():
         if not pinned(source):
             failures.append(f'{source.relative_to(root)}: {target}')

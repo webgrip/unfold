@@ -7,7 +7,7 @@ context: |
   ## Product
 
   Unfold turns Work Items into pull requests that are ready for human review.
-  Ploeg (apps/ploeg, a pinned submodule from github.com/ploeg-hq/ploeg)
+  Ploeg (github.com/ploeg-hq/ploeg, a pinned release unpacked into apps/ploeg)
   authorizes, budgets and executes every Run; the Unfold application
   (apps/unfold) is where people define, follow and review that work; apps/site
   is the marketing site with its own release train.

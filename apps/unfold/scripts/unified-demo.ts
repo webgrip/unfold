@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { mkdtemp, mkdir, readdir, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import { defaultTeams } from '../src/config.ts';
@@ -22,7 +22,7 @@ class EphemeralDemoEngine extends Engine {
 const root = fileURLToPath(new URL('../', import.meta.url));
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
-  console.log('Usage: mise exec -- node scripts/unified-demo.ts [--smoke]\nRequires the pinned Ploeg submodule in ../ploeg (git submodule update --init), Go 1.26+, PostgreSQL 17+ binaries and Git.\nPLOEG_PATH overrides that checkout. PG_BIN overrides the PostgreSQL binary directory.\nUNFOLD_DEMO_PORT selects the loopback workbench port (default: an available port).\nCtrl+C stops both applications and PostgreSQL, then removes temporary data.');
+  console.log('Usage: mise exec -- node scripts/unified-demo.ts [--smoke]\nBuilds the Ploeg HTTP helper against the released Ploeg module that scripts/unified-demo/go.mod pins. Requires Go 1.26+, PostgreSQL 17+ binaries and Git.\nPG_BIN overrides the PostgreSQL binary directory.\nUNFOLD_DEMO_PORT selects the loopback workbench port (default: an available port).\nCtrl+C stops both applications and PostgreSQL, then removes temporary data.');
 } else {
   if (args.some(arg => arg !== '--smoke')) throw new Error('Unknown option; use --help.');
   await main(args.includes('--smoke'));
@@ -30,8 +30,8 @@ if (args.includes('--help')) {
 
 async function main(smoke: boolean) {
   if (process.platform === 'win32' || process.getuid?.() === 0) throw new Error('Run as a regular macOS or Linux user; PostgreSQL cannot run as root.');
-  const ploegPath = resolve(process.env.PLOEG_PATH || join(root, '../ploeg'));
-  assert.ok((await stat(join(ploegPath, 'go.mod'))).isFile(), 'PLOEG_PATH must point to the matching Ploeg checkout; run git submodule update --init for the pinned one.');
+  const helperModule = join(root, 'scripts/unified-demo');
+  assert.ok((await stat(join(helperModule, 'go.mod'))).isFile(), 'scripts/unified-demo/go.mod pins the released Ploeg module the helper builds against.');
   const port = Number(process.env.UNFOLD_DEMO_PORT || 0);
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('UNFOLD_DEMO_PORT must be an integer between 0 and 65535.');
   const binary = (name: string) => process.env.PG_BIN ? join(process.env.PG_BIN, name) : name;
@@ -83,11 +83,11 @@ async function main(smoke: boolean) {
   try {
     console.log('LOCAL DEMONSTRATION: real Ploeg authority and PostgreSQL; deterministic fixture runtime; no model calls or spend.');
     await command('git', ['--version']);
-    await command('go', ['version'], ploegPath);
+    await command('go', ['version'], helperModule);
     await command(binary('postgres'), ['--version']);
-    console.log('Building the Ploeg HTTP helper from the pinned checkout…');
+    console.log('Building the Ploeg HTTP helper against the pinned Ploeg release…');
     const helper = join(directory, 'ploeg-demo');
-    await command('go', ['build', '-o', helper, join(root, 'scripts/unified-demo/main.go')], ploegPath);
+    await command('go', ['build', '-o', helper, '.'], helperModule);
     await mkdir(socketDir, { mode: 0o700 });
     await command(binary('initdb'), ['-D', databaseDir, '-U', 'ploeg_demo', '--auth-local=trust', '--auth-host=reject', '--no-instructions']);
     const postgres = child(binary('postgres'), ['-D', databaseDir, '-k', socketDir, '-h', '', '-p', '5432'], root);

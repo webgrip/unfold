@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { startFakeLiteLLM } from './fake-litellm.mjs';
@@ -22,10 +22,13 @@ function run(command, args, options, timeoutSeconds = 240) {
   });
 }
 
+const goModule = resolve(root, 'apps/unfold/scripts/unified-demo');
+const ploegModule = execFileSync('go', ['list', '-m', '-f', '{{.Dir}}', 'github.com/ploeg-hq/ploeg'], { cwd: goModule, encoding: 'utf8' }).trim();
+const ploegPackage = path => resolve(ploegModule, path);
 const gateway = await startFakeLiteLLM();
 const checks = [
   { name: 'standalone', cwd: 'apps/unfold', command: process.execPath, args: ['--test', 'test/api-workflow.test.ts', 'test/api-process.test.ts'] },
-  { name: 'managed', cwd: 'apps/ploeg/pkg/httpapi', build: { command: 'go', args: ['test', '-c', '-o', resolve(output, 'httpapi.test'), '.'] }, command: resolve(output, 'httpapi.test'), args: ['-test.run', '^TestOperatorWorkbench(Inference)?Qualification$', '-test.count=1', '-test.v'], env: { PLOEG_QUALIFICATION_LITELLM_URL: gateway.url, PLOEG_QUALIFICATION_LITELLM_MASTER_KEY: gateway.masterKey } },
+  { name: 'managed', cwd: ploegPackage('pkg/httpapi'), build: { command: 'go', args: ['test', '-c', '-o', resolve(output, 'httpapi.test'), 'github.com/ploeg-hq/ploeg/pkg/httpapi'], cwd: goModule }, command: resolve(output, 'httpapi.test'), args: ['-test.run', '^TestOperatorWorkbench(Inference)?Qualification$', '-test.count=1', '-test.v'], env: { PLOEG_QUALIFICATION_LITELLM_URL: gateway.url, PLOEG_QUALIFICATION_LITELLM_MASTER_KEY: gateway.masterKey } },
 ];
 const results = [];
 try {
@@ -33,7 +36,7 @@ try {
     console.log(`Qualifying ${check.name} execution`);
     const options = { cwd: resolve(root, check.cwd), env: { ...process.env, PLOEG_WORKBENCH_PATH: resolve(root, 'apps/unfold'), ...check.env } };
     if (check.build) {
-      const built = await run(check.build.command, check.build.args, options, 900);
+      const built = await run(check.build.command, check.build.args, { ...options, cwd: check.build.cwd ?? options.cwd }, 900);
       if (built.error || built.status !== 0) throw new Error(`${check.name} build failed: ${built.error ? `${built.error.message}\n` : ''}${built.log}`);
     }
     const result = await run(check.command, check.args, options);

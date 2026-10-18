@@ -19,7 +19,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-          submodules: recursive
       - id: verify
         uses: ./.forgejo/actions/verify
 
@@ -46,16 +45,16 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: recursive
       - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           version: 2026.10.7
-          install_args: node
+          install_args: uv
           cache: false
           github_token: ''
-      - name: Require the pinned Ploeg commit to be the Ploeg release it names
-        run: node scripts/ploeg-pin.mjs --published
+      - name: Unpack the pinned Ploeg contract bundle, verifying its digest
+        run: mise exec -- uv run --no-project python scripts/ploeg-contract.py fetch
+      - name: Require the pin to be a published Ploeg release whose bundle and Go module agree
+        run: mise exec -- uv run --no-project python scripts/ploeg-contract.py check --published
 
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/development' && vars.UNFOLD_RELEASES_ENABLED == 'true'

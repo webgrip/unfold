@@ -6,3 +6,5 @@ __pycache__/
 .claude/settings.local.json
 CLAUDE.local.md
 .agents/skills/source-command-*/
+/apps/ploeg/
+/apps/.ploeg-contract-*/

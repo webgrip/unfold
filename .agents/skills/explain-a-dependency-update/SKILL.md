@@ -22,7 +22,7 @@ Renovate opens the pull request; a person merges it. Your explanation stands bet
 | `mermaid`, `marked` | `apps/unfold/scripts/build-landscape.mjs` | The landscape explorer is generated from them; a bump without `mise run landscape` fails `ploeg-docs` with `Stale landscape` |
 | `harbor.webgrip.dev/webgrip/*` toolchain images, BuildKit, SBOM scanner, Playwright image | `mise.toml`, `scripts/docs-site.sh`, `.forgejo/workflows/*.yml` | The CI toolchain; the browser suite runs on the Playwright image |
 | Workflow actions (`actions/checkout`, `mise-action`) | `.forgejo/workflows/*.yml` | Forgejo Actions, not GitHub Actions: read `.forgejo/AGENTS.md` before judging a workflow change |
-| The Ploeg submodule | `.gitmodules`, `apps/ploeg` | The engine Unfold runs on. Its pull request never merges itself and regenerates the glossary and decision register; a term clash leaves `ploeg-glossary-conflicts.txt` |
+| Ploeg | `apps/unfold/ploeg-release.json`, `apps/unfold/scripts/unified-demo/go.mod` and `go.sum` | The engine Unfold runs on: its contract bundle and Go module at one release. Its `fix(ploeg)` pull request regenerates the glossary and decision register and merges itself when green, which cuts an Unfold candidate; a term clash leaves `ploeg-glossary-conflicts.txt` and holds it |
 
 ## What to check before saying it is safe
 
