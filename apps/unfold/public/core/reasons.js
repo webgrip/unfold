@@ -6,7 +6,8 @@ export { parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason 
 /**
  * Why a Work Item waits on a person, and what to do about it. `chip` is the short label, `sentence` explains it,
  * `fix` says what to change and `requeue` names the only way to start again today: assigning the task to the
- * Team again in its tracker (`trackerUrl` when known). `action` joins `fix` and `requeue`.
+ * Team again in its tracker (`trackerUrl` when known). `requeue` is empty for a reason about the Unfold session that
+ * drives the Work Item, because that session's own page starts it again. `action` joins `fix` and `requeue`.
  * @typedef {object} Reason
  * @property {string} code
  * @property {string} chip
@@ -97,7 +98,7 @@ const copy = {
   operator_failed: {
     chip: 'Session failed',
     sentence: 'The interactive Unfold session that drove this Work Item failed.',
-    fix: 'Open the linked session and read its failure notice.',
+    fix: 'Open the session and read why it failed. There you can try it again, start it over as a new session, or close this Work Item.',
   },
   stale_infrastructure: {
     chip: 'Infrastructure kept failing',
@@ -161,6 +162,13 @@ const number = value => typeof value === 'number' && Number.isFinite(value);
 const held = (spent, reserved) => number(spent) && number(reserved) && reserved > 0 && reserved >= spent;
 
 const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'checks_not_passed', 'review_failed', 'budget_exhausted_before_fix_round', 'writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
+
+const sessionCodes = new Set(['operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
+
+/** Whether the reason is about the Unfold session that drives the Work Item, so the next step happens on that session's page. */
+export function sessionReason(reason) {
+  return sessionCodes.has(reason?.code);
+}
 
 const reasonCode = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/;
 
@@ -231,14 +239,14 @@ export function reasonGlyph(reason) {
 
 function build(code, item, text = '', demo = false) {
   const entry = copy[code === 'unknown' && text ? 'recorded' : code];
-  const requeue = `Then assign the task to the Team again in ${trackerOf(item.provider)}.`;
+  const requeue = sessionCodes.has(code) ? '' : `Then assign the task to the Team again in ${trackerOf(item.provider)}.`;
   return {
     code,
     chip: code === 'unrecognised' ? `Unrecognised: ${text}` : entry.chip,
     sentence: sentenceFor(code, text, item, demo),
     fix: entry.fix,
     requeue,
-    action: `${entry.fix} ${requeue}`,
+    action: requeue ? `${entry.fix} ${requeue}` : entry.fix,
     trackerUrl: typeof item.url === 'string' ? item.url : '',
     tone: code.startsWith('stale_') ? 'severe' : 'attention',
     glyph: reasonGlyphs[code] || 'alert',

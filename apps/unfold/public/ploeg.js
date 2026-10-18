@@ -5,7 +5,7 @@ import { markdown } from './core/markdown.js';
 import { count as formatCount, money, moneyHtml, plural, duration, dateTime, decimal } from './core/format.js';
 import * as ui from './core/ui.js';
 import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, runFailure, runFailureText, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason, costStatuses, costStatusWord } from './core/states.js';
-import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph } from './core/reasons.js';
+import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph, sessionReason } from './core/reasons.js';
 import { grafanaTeam, runExplorer } from './core/observability.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
 import { agentsWindowButton } from './agents-window.js';
@@ -552,15 +552,20 @@ function linkButton({ href, label, glyph, variant = 'secondary', linkOut, size }
   return ui.button({ label, icon: glyph, variant, size, href, external: true, data: linkOut ? { linkOut } : {} });
 }
 
+/** The tracker task's address, never for a Work Item registered in an Unfold session, whose address is its repository. */
+function taskLink(item) {
+  return item.provider === 'manual' ? '' : safeUrl(item.url);
+}
+
 function trackerTarget(item, model) {
-  const task = safeUrl(item.url);
+  const task = taskLink(item);
   const root = task ? '' : safeUrl(model.trackerUrl);
   const name = trackerName(item.provider);
   return { href: task || root, label: task || !root ? `Open the task in ${name || 'its tracker'}` : `Open ${name || 'the tracker'}` };
 }
 
 function ref(item) {
-  const task = safeUrl(item.url);
+  const task = taskLink(item);
   const text = escape(workItemRef(item));
   return task ? `<a class="work-inline-link" href="${escape(task)}" target="_blank" rel="noopener noreferrer" data-link-out="tracker" title="${escape(`Open the task in ${trackerName(item.provider) || 'its tracker'}`)}">${text}${icon('external')}${newTab}</a>` : `<span>${text}</span>`;
 }
@@ -656,6 +661,7 @@ const reasonLinks = {
  */
 export function decisionPlan(detail, model, reason) {
   const item = detail.item;
+  if (sessionReason(reason)) return sessionPlan(detail, model, reason);
   const warning = routingWarning(item);
   const pr = safeUrl(prLink(detail));
   const prNumber = pullRequestPath.exec(pr)?.[1] || '';
@@ -694,6 +700,18 @@ export function decisionPlan(detail, model, reason) {
     if (key) trackerEntry.actions.splice(1, 0, ui.button({ label: `Copy ${key}`, icon: 'copy', variant: 'secondary', action: 'work-copy-ref', data: { value: key } }));
   }
   return { entries, primary: primary?.html || '' };
+}
+
+/** The session that drives this Work Item, newest first, from the sessions Unfold runs for the person. */
+function drivingSession(detail, sessions) {
+  return (sessions || []).filter(session => String(session.execution?.workItemId ?? '') === String(detail.item.id)).sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))[0] || null;
+}
+
+/** The one step of a reason about the driving Unfold session: open that session, whose page starts it again or closes the Work Item. */
+function sessionPlan(detail, model, reason) {
+  const session = drivingSession(detail, model.sessions);
+  const html = ui.button({ label: session ? 'Open the session' : 'Open Sessions', icon: 'sessions', variant: 'primary', href: session ? `#session/${encodeURIComponent(session.id)}` : '#sessions' });
+  return { entries: [{ text: escape(reason.fix), actions: [html] }], primary: html };
 }
 
 function needsYouBox(detail, model, reason, plan) {
@@ -761,7 +779,7 @@ function reviewBox(detail, model, plan) {
   if (!ci || ci === 'unknown') checks.push(check('neutral', 'circle-dashed', 'CI checks: not reported', 'The forge sent no CI state. Check them on the pull request.', 'CI'));
   const files = review.instructionFiles;
   if (files.length) checks.push(check('attention', 'alert', files.length === 1 ? 'Findings name an instruction file' : 'Findings name instruction files', `${files.map(name => `<code>${escape(name)}</code>`).join(' ')} ${files.length === 1 ? 'is' : 'are'} named in the findings. Check ${files.length === 1 ? 'it' : 'them'} in the diff before you merge.`));
-  checks.push(safeUrl(item.url) ? check('success', 'check-circle', `Linked to its ${escape(trackerName(item.provider) || 'tracker')} task`, '') : check('neutral', 'circle-dashed', 'No tracker link reported', '', 'tracker link'));
+  checks.push(taskLink(item) ? check('success', 'check-circle', `Linked to its ${escape(trackerName(item.provider) || 'tracker')} task`, '') : check('neutral', 'circle-dashed', 'No tracker link reported', '', 'tracker link'));
   const rest = checks.filter(entry => entry !== mergeCheck);
   const reviewed = entry => ['agent verdict', 'agent review'].includes(entry.short);
   const visible = [...(mergeCheck ? [mergeCheck] : []), ...rest.filter(entry => entry.tone === 'danger' || entry.tone === 'attention'), ...rest.filter(entry => entry.tone === 'neutral' && reviewed(entry)), ...rest.filter(entry => entry.tone === 'success')];
