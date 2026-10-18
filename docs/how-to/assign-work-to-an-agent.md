@@ -55,7 +55,7 @@ ClickUp is only registered when `PLOEG_CLICKUP_SECRET` or `PLOEG_CLICKUP_TOKEN` 
 
 ## Assign the ticket
 
-1. Write the ticket title and description as the full brief. They are the only ticket text the agent receives ([task.go](../../apps/ploeg/pkg/worker/task.go)).
+1. Write the ticket title and description as the full brief. They are the only ticket text the agent receives ([prompt.go](../../apps/ploeg/pkg/taskprompt/prompt.go)).
 2. Assign it to a username from step 2. Ploeg stores the Work Item, opens a Shift and creates one pending Run per Role in the first Round ([engine.go](../../apps/ploeg/pkg/shiftengine/engine.go)). KEDA sees the pending Run and starts a worker pod.
 
 ## Watch progress and spend
