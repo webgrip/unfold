@@ -184,5 +184,16 @@ class Checkout(unittest.TestCase):
         self.assertEqual(self.registry.client().versions(), ['0.1.9', '0.2.0-rc.9', '0.2.0-rc.10', '0.2.0', '0.2.1-rc.1'])
 
 
+    def test_behind_names_a_newer_release_and_passes_on_the_newest(self):
+        pinned = self.registry.publish('0.2.0-rc.27', bundle('0.2.0-rc.27'))
+        self.pin('0.2.0-rc.27', pinned)
+        self.assertIsNone(contract.behind(self.root, self.registry.client()))
+        self.registry.tags['0.2.0-rc.9'] = 'sha256:' + '0' * 64
+        self.assertIsNone(contract.behind(self.root, self.registry.client()), 'rc.9 sorts below rc.27')
+        self.registry.publish('0.2.0-rc.28', bundle('0.2.0-rc.28'))
+        self.assertRegex(contract.behind(self.root, self.registry.client()), r'pins Ploeg 0\.2\.0-rc\.27, but 0\.2\.0-rc\.28 is the newest release')
+        self.registry.tags['0.2.0'] = 'sha256:' + '0' * 64
+        self.assertRegex(contract.behind(self.root, self.registry.client()), r'but 0\.2\.0 is the newest release')
+
 if __name__ == '__main__':
     unittest.main()

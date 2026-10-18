@@ -89,5 +89,6 @@ Chosen option: "Ploeg's contract bundle from GHCR and its Go module, both pinned
 * Technical story: [RFC: One delivery contract for every project](https://forgejo.webgrip.dev/webgrip/homelab-cluster/src/branch/main/docs/techdocs/docs/rfc/rfc-unfold-release-train.md), phase P3.
 * 2026-10-17 — The owner chose decision D2 of that RFC: Unfold depends on a released Ploeg, not the `apps/ploeg` submodule.
 * 2026-10-18 — Accepted. Ploeg publishes the bundle from [ploeg-hq/ploeg#163](https://github.com/ploeg-hq/ploeg/pull/163) on.
+* 2026-10-18 — Amended by [ADR-0041](adr-0041-a-ploeg-release-opens-unfolds-pin-pull-request-by-running-unfolds-recipe.md): Ploeg's release opens the pin pull request by running `scripts/consume-ploeg-release.sh`, and Renovate no longer moves either pin.
 * Supersedes [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md). Its release identities, the retired Ploeg floor and Unfold's refusal to publish Ploeg stay.
 * Supported by [ADR-0027](adr-0027-unfold-checks-its-ploeg-client-against-ploegs-published-schemas.md), whose schema checks now read the bundle.

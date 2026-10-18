@@ -208,6 +208,17 @@ def problems(root, registry=None):
     return found
 
 
+def behind(root, registry):
+    pinned, _ = read_pin(root)
+    published = registry.versions()
+    if not published:
+        raise ContractError(f'{registry.reference} lists no release')
+    newest = published[-1]
+    if version_key(pinned) < version_key(newest):
+        return f'{PIN} pins Ploeg {pinned}, but {newest} is the newest release; the pull request Ploeg\'s release opened for it has not merged (docs/operations/ci.md#the-ploeg-pin-pull-request)'
+    return None
+
+
 def pin(root, registry, version):
     if not VERSION.match(version):
         raise ContractError(f'{version} is not a Ploeg release version such as 0.2.0 or 0.2.0-rc.1')
@@ -230,6 +241,7 @@ def main(argv=None):
     unpinned.add_argument('version', help='a release version, or "latest"')
     unpinned.add_argument('--archive', type=Path, help='a bundle built by Ploeg\'s scripts/contract-bundle.sh build')
     commands.add_parser('latest', help='print the newest published release')
+    commands.add_parser('behind', help='fail when a newer release is published than the one pinned; the weekly ploeg-behind check')
     args = parser.parse_args(argv)
     registry = Registry()
     try:
@@ -258,6 +270,11 @@ def main(argv=None):
             print(f'Unpinned Ploeg contract {version} ({digest}) in {UNPACKED}')
         elif args.command == 'latest':
             print(registry.versions()[-1])
+        elif args.command == 'behind':
+            lag = behind(ROOT, registry)
+            if lag:
+                sys.exit(f'Ploeg contract: {lag}')
+            print(f'Ploeg {read_pin(ROOT)[0]} is the newest release')
     except ContractError as error:
         sys.exit(f'Ploeg contract: {error}')
 
