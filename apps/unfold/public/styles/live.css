@@ -579,11 +579,26 @@
 .lv-bar.is-machine { fill: color-mix(in oklch, var(--lv-machine) 28%, transparent); stroke: var(--lv-machine); }
 .lv-bar.is-failed { fill: color-mix(in oklch, var(--lv-failed) 28%, transparent); stroke: var(--lv-failed); }
 .lv-bar.is-stuck, .lv-bar.is-trouble { fill: color-mix(in oklch, var(--lv-stuck) 28%, transparent); stroke: var(--lv-stuck); }
-.lv-tick.is-execute { fill: var(--lv-live); }
-.lv-tick.is-read { fill: var(--success-fg); }
-.lv-tick.is-edit { fill: var(--review-fg); }
-.lv-tick.is-other { fill: var(--text-subtle); }
+.lv-tick.is-act-orient, .lv-move-act.is-act-orient { --lv-act: var(--neutral-fg); }
+.lv-tick.is-act-explore, .lv-move-act.is-act-explore { --lv-act: var(--lv-live); }
+.lv-tick.is-act-change, .lv-move-act.is-act-change { --lv-act: var(--review-fg); }
+.lv-tick.is-act-verify, .lv-move-act.is-act-verify { --lv-act: var(--success-fg); }
+.lv-tick.is-act-ship, .lv-move-act.is-act-ship { --lv-act: var(--accent-fg); }
+.lv-tick.is-act-setup, .lv-move-act.is-act-setup { --lv-act: var(--severe-fg); }
+.lv-tick.is-act-wait, .lv-move-act.is-act-wait, .lv-tick.is-act-other, .lv-move-act.is-act-other { --lv-act: var(--text-subtle); }
+.lv-tick[class*="is-act-"] { fill: var(--lv-act); }
+.lv-bar[class*="is-act-"] { --lv-act: var(--text-subtle); fill: color-mix(in oklch, var(--lv-act) 26%, transparent); stroke: var(--lv-act); }
+.lv-bar.is-act-orient { --lv-act: var(--neutral-fg); }
+.lv-bar.is-act-explore { --lv-act: var(--lv-live); }
+.lv-bar.is-act-change { --lv-act: var(--review-fg); }
+.lv-bar.is-act-verify { --lv-act: var(--success-fg); }
+.lv-bar.is-act-ship { --lv-act: var(--accent-fg); }
+.lv-bar.is-act-setup { --lv-act: var(--severe-fg); }
+.lv-bar.is-live[class*="is-act-"] { stroke-width: 2; }
 .lv-tick.is-failed { fill: var(--lv-failed); }
+.lv-tick-mark { stroke: var(--bg-surface); stroke-width: 1; }
+.lv-tick-mark.is-failed { fill: var(--lv-failed); }
+.lv-tick-mark.is-trouble { fill: var(--lv-stuck); }
 .lv-tick.is-trouble { fill: var(--lv-stuck); }
 .lv-tick.is-selected { stroke: var(--text); stroke-width: 2; }
 
@@ -596,6 +611,7 @@
 }
 
 .lv-move { border-top: 1px solid var(--border-subtle); }
+.lv-move-act { display: inline-block; margin-right: var(--space-1); padding: 0 var(--space-1); border: 1px solid var(--lv-act); border-radius: var(--radius-sm); color: var(--text); font-size: var(--text-xs); }
 .lv-moves-hidden { padding: var(--space-2) 0; font-size: var(--text-xs); color: var(--text-subtle); }
 
 .lv-move-head {

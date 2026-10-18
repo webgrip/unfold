@@ -2,6 +2,7 @@ import { failureReason } from '../core/states.js';
 import { combineHealth, healthMeta, runHealth } from '../core/run-health.js';
 import { guardSignals, policyDrift } from '../core/guard.js';
 import { tripwireChecks, tripwireHitScore, tripwireMaxScore } from '../core/tripwire.js';
+import { activityOf, activityTime, moveActivities } from '../core/activity.js';
 
 /**
  * The stages every Work Item moves through, in order. The fold strip and the flight path draw one mark per stage.
@@ -59,9 +60,11 @@ function attemptOf(run, shifts) {
 }
 
 /**
- * Groups a Run's folded transcript into moves: a stage entry starts a named move, and without one a pause longer than
- * `moveRules.moveGap` does. Each move keeps its calls, how long it took, which kinds of call it made, and whether it
- * ran into trouble (a failed call, or a call that interrupts or kills something).
+ * Groups a Run's folded transcript into moves: a stage entry starts a named move, a change of Activity starts the next
+ * one (a short interruption stays in its move, `activityRules`), and without either a pause longer than
+ * `moveRules.moveGap` does. Each call carries its Activity and the rule that placed it (RFC-0009); each move keeps its
+ * calls, its Activity, how long it took, which kinds of call it made, and whether it ran into trouble (a failed call,
+ * or a call that interrupts or kills something).
  * @param {object[]} items Folded transcript items, as `foldTranscript` returns them.
  * @param {{ now: number, live: boolean }} options
  * @returns {object[]}
@@ -71,7 +74,10 @@ export function movesOf(items = [], { now, live }) {
   let move = null;
   let lastAt = null;
   let thought = '';
-  const open = (title, at, named) => { move = { title, named, at, endAt: at, seconds: 0, calls: [], kinds: {}, trouble: false, failed: 0, thought: '', live: false }; moves.push(move); };
+  const tools = items.filter(item => item.type === 'tool').map(item => ({ item, at: toMs(item.at), ...activityOf({ kind: item.toolKind || 'other', input: item.input ?? '', title: item.title ?? '', paths: item.paths ?? [] }) }));
+  const moveActivity = new Map(moveActivities(tools).map((activity, index) => [tools[index].item, activity]));
+  const placed = new Map(tools.map(tool => [tool.item, tool]));
+  const open = (title, at, named) => { move = { title, named, at, endAt: at, seconds: 0, calls: [], kinds: {}, activity: null, trouble: false, failed: 0, thought: '', live: false }; moves.push(move); };
   for (const item of items) {
     const at = toMs(item.at);
     if (item.type === 'stage' || item.type === 'message') {
@@ -80,10 +86,13 @@ export function movesOf(items = [], { now, live }) {
     }
     if (item.type === 'thought') { thought = item.text?.replace(/^\*\*[^*]+\*\*:?\s*/, '').trim() ?? ''; continue; }
     if (item.type !== 'tool') continue;
-    if (!move || (!move.named && lastAt !== null && at !== null && at - lastAt > moveRules.moveGap * 1000)) open(item.title || 'Tool call', at, false);
+    const { activity, rule } = placed.get(item);
+    const grouped = moveActivity.get(item);
+    if (!move || (!move.named && lastAt !== null && at !== null && at - lastAt > moveRules.moveGap * 1000) || (move.calls.length && move.activity !== grouped)) open(item.title || 'Tool call', at, false);
+    if (!move.calls.length) move.activity = grouped;
     const failed = item.status === 'failed';
     const interrupting = interrupt.test(String(item.input ?? '').trim()) || interrupt.test(item.title ?? '');
-    move.calls.push({ id: item.id ?? item.key, at, title: item.title || 'Tool call', kind: item.toolKind || 'other', status: item.status ?? null, input: item.input ?? '', output: (item.outputs ?? []).join('\n').slice(0, 8000), paths: item.paths ?? [], failed, interrupting, thought });
+    move.calls.push({ id: item.id ?? item.key, at, title: item.title || 'Tool call', kind: item.toolKind || 'other', activity, rule, status: item.status ?? null, input: item.input ?? '', output: (item.outputs ?? []).join('\n').slice(0, 8000), paths: item.paths ?? [], failed, interrupting, thought });
     move.kinds[item.toolKind || 'other'] = (move.kinds[item.toolKind || 'other'] ?? 0) + 1;
     if (failed) move.failed += 1;
     if (failed || interrupting) move.trouble = true;
@@ -218,6 +227,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
   const moves = movesOf(transcript, { now, live: Boolean(followed && followed.state === 'running') });
   const calls = moves.flatMap(move => move.calls);
   const byKind = calls.reduce((total, call) => ({ ...total, [call.kind]: (total[call.kind] ?? 0) + 1 }), {});
+  const split = activityTime(calls, followed ? followed.finishedAt ?? now : null);
   const edited = new Set(calls.filter(call => call.kind === 'edit' || call.kind === 'delete' || call.kind === 'move').flatMap(call => call.paths.length ? call.paths : [call.title]));
   const reported = allRuns.filter(run => run.costUsd !== null);
   const rounded = value => Math.round(value * 1e6) / 1e6;
@@ -286,6 +296,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     transcriptKnown: known,
     transcriptMissing: known ? null : transcriptState === 'demo' ? 'The demo records no transcripts, so its calls are not shown.' : transcriptState === 'unsupported' ? 'This Ploeg does not report transcripts, so its calls are not shown.' : transcriptState === 'failed' ? 'Its calls could not be read.' : running ? 'Loading its calls…' : null,
     calls: { total: known ? calls.length : null, byKind, lastAt: lastActivity },
+    activity: known && calls.length ? { ...split, current: followed?.state === 'running' ? moves.findLast(entry => entry.calls.length)?.activity ?? null : null } : null,
     edits: known ? edited.size : null,
     lastTrouble,
     health,
