@@ -32,17 +32,24 @@ function git(cwd, args, input) {
   try { return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8', timeout: 2000, maxBuffer: 16 * 1024 * 1024, stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'ignore'], ...(input === undefined ? {} : { input }) }).trim(); } catch { return ''; }
 }
 
-function harnessVersion(transcriptPath) {
-  if (!transcriptPath) return '';
+function transcriptFacts(transcriptPath) {
+  if (!transcriptPath) return { version: '', model: '' };
   let fd;
   try {
     fd = openSync(transcriptPath, 'r');
     const size = fstatSync(fd).size;
-    const length = Math.min(size, 65_536);
+    const length = Math.min(size, 262_144);
     const buffer = Buffer.alloc(length);
     readSync(fd, buffer, 0, length, size - length);
-    return [...buffer.toString('utf8').matchAll(/"version":"(\d+\.\d+\.\d+[\w.-]*)"/g)].at(-1)?.[1] ?? '';
-  } catch { return ''; } finally { if (fd !== undefined) closeSync(fd); }
+    const text = buffer.toString('utf8');
+    return { version: [...text.matchAll(/"version":"(\d+\.\d+\.\d+[\w.-]*)"/g)].at(-1)?.[1] ?? '', model: [...text.matchAll(/"model":"(claude-[\w.[\]-]{1,80})"/g)].at(-1)?.[1] ?? '' };
+  } catch { return { version: '', model: '' }; } finally { if (fd !== undefined) closeSync(fd); }
+}
+
+function learn(input, state) {
+  const facts = transcriptFacts(input.transcript_path);
+  state.harnessVersion = facts.version || state.harnessVersion || '';
+  state.model = String(input.model ?? '') || state.model || facts.model || '';
 }
 
 async function post(path, body) {
@@ -75,6 +82,7 @@ async function report(input, state, event, extra = {}) {
 }
 
 async function commits(input, state) {
+  learn(input, state);
   const cwd = input.cwd ?? process.cwd();
   const repo = repository(cwd);
   if (!repo?.head || repo.head === state.head) return;
@@ -102,8 +110,7 @@ async function handle(input) {
   const output = {};
   switch (input.hook_event_name) {
     case 'SessionStart': {
-      state.model = String(input.model ?? state.model ?? '');
-      state.harnessVersion = harnessVersion(input.transcript_path) || state.harnessVersion;
+      learn(input, state);
       const { answer, repo } = await report(input, state, 'start', input.session_title ? { title: input.session_title } : {});
       if (repo?.head && !state.head) state.head = repo.head;
       const hookSpecificOutput = { hookEventName: 'SessionStart', additionalContext: String(answer.context ?? '') };
@@ -113,7 +120,7 @@ async function handle(input) {
     }
     case 'UserPromptSubmit': await report(input, state, 'prompt'); break;
     case 'Notification': if (waitingKinds.has(input.notification_type)) await report(input, state, 'waiting', { waitingFor: input.notification_type }); break;
-    case 'Stop': await commits(input, state); await report(input, state, 'idle'); break;
+    case 'Stop': learn(input, state); await commits(input, state); await report(input, state, 'idle'); break;
     case 'SessionEnd': await commits(input, state); await report(input, state, 'end'); break;
     case 'PostToolUse': {
       if (editingTools.has(input.tool_name)) {

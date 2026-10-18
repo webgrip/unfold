@@ -120,6 +120,7 @@ test('the hook reports a session, names it after its Work Item, and sends an Age
   gitIn('add', 'src/login.ts');
   gitIn('commit', '-q', '-m', 'feat: login\n\nUnfold-Session: http://unfold.test/#linked-session/plugin-session-1');
   const head = gitIn('rev-parse', 'HEAD');
+  await writeFile(join(dir, 'missing.jsonl'), `${JSON.stringify({ type: 'user', version: '2.1.302', sessionId: 'plugin-session-1' })}\n${JSON.stringify({ type: 'assistant', version: '2.1.302', message: { model: 'claude-haiku-5-5', role: 'assistant' } })}\n`);
   await runHook({ ...base, hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -m "feat: login"' }, tool_response: { stdout: '' } }, env);
 
   const commit = unfold.received.find(entry => entry.body.event === 'commit');
@@ -128,6 +129,9 @@ test('the hook reports a session, names it after its Work Item, and sends an Age
   assert.ok(traced, 'the commit’s Agent Trace record reaches Unfold');
   const record = parseAgentTrace(traced!.body);
   assert.equal(record.vcs?.revision, head);
+  assert.equal(record.tool?.version, '2.1.302', 'a session started with an empty transcript learns its version when it commits');
+  assert.equal(record.files[0].conversations[0].contributor?.model_id, 'anthropic/claude-opus-5-5', 'the model SessionStart reported wins over the transcript');
+  assert.equal(commit?.body.harnessVersion, '2.1.302');
   assert.deepEqual(record.files.map(file => [file.path, file.conversations[0].ranges.map(range => [range.start_line, range.end_line])]), [['src/login.ts', [[1, 3]]]]);
   assert.equal(record.files[0].conversations[0].url, 'http://unfold.test/#linked-session/plugin-session-1');
   assert.equal(JSON.parse(gitIn('notes', '--ref=agent-trace', 'show', head)).id, record.id);
