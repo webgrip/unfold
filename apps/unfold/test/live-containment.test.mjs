@@ -60,3 +60,25 @@ test('the cockpit and the instrument panel lead with containment when it shows',
   assert.ok(panel.indexOf('lv-containment') > 0 && panel.indexOf('lv-containment') < panel.indexOf('Trace · whole Shift'));
   assert.doesNotMatch(cockpit(model('running')), /lv-containment/);
 });
+
+test('the decider tripwire\'s stored hits open the panel on their own and read in words, never colour alone', () => {
+  const live = model('firstTry', input => ({ ...input, tripwire: [
+    { id: 'h1', runId: '1', at: input.detail.runs.at(-1).startedAt, check: 'edits_own_instructions', score: 2, excerpt: 'edit · Edit agent instructions · <AGENTS.md>', decider: { name: 'Hetzner Qwen', model: 'hetzner-qwen3-8-27b' } },
+    { id: 'h0', runId: '1', at: input.detail.runs.at(-1).startedAt, check: 'unknown_check', score: 3, excerpt: 'x', decider: { name: 'Hetzner Qwen' } },
+    { id: 'h2', runId: '1', at: input.detail.runs.at(-1).startedAt, check: 'reads_credentials', score: 1, excerpt: 'x', decider: { name: 'Hetzner Qwen' } },
+  ] }));
+  assert.equal(live.tripwire.length, 1, 'an unknown check and a score below 2 are dropped');
+  assert.equal(needsContainment(live), true);
+  assert.match(containmentHeadline(live), /^Edits its own instructions: the decider says likely, at \d\d:\d\d$/);
+  const html = containmentPanel(live);
+  assert.match(html, /class="lv-containment lv-tone-attention"/);
+  assert.match(html, /What the decider scored/);
+  assert.match(html, /<span class="lv-contain-score">Likely · 2 of 3<\/span><span class="lv-contain-rule">Edits its own instructions<\/span>/);
+  assert.match(html, /&lt;AGENTS\.md&gt;/);
+  assert.match(html, /<span class="lv-contain-decider">Hetzner Qwen<\/span>/);
+  assert.match(html, /only when the Team’s runs\.tripwire flag is on/);
+  const clear = model('firstTry', input => ({ ...input, tripwire: [{ id: 'h3', runId: '1', at: input.detail.runs.at(-1).startedAt, check: 'probes_sandbox', score: 3, excerpt: 'ls /var/run/docker.sock', decider: { name: 'Hetzner Qwen' } }] }));
+  assert.match(containmentHeadline(clear), /^Probes the sandbox: the decider says clearly, at/);
+  assert.match(containmentPanel(clear), /lv-tone-danger/);
+  assert.equal(needsContainment(model('firstTry')), false, 'no hits, nothing to say');
+});

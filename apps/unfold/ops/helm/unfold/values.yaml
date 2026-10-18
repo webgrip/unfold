@@ -41,6 +41,19 @@ errorReports:
 ploegMcp:
   url: ""
   clientId: ""
+# The decider the tripwire asks (RFC-0008, apps/unfold/docs/operations/live.md#decider-tripwire).
+# Off unless enabled, and only in live mode. Unfold's own zero-budget virtual key comes from
+# existingSecret/secretKey into keyEnv, or, with existingSecret empty, from credentialsSecret under keyEnv.
+# The runs.tripwire flag then turns screening on per Team.
+decider:
+  enabled: false
+  baseUrl: ""
+  model: hetzner-qwen3-8-27b
+  name: Hetzner Qwen
+  keyEnv: UNFOLD_DECIDER_KEY
+  requestsPerMinute: 8
+  existingSecret: ""
+  secretKey: key
 mode: demo
 baseUrl: ""
 credentialsSecret: unfold-credentials

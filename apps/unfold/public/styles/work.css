@@ -1538,6 +1538,57 @@ button.stream-bar:hover {
   filter: grayscale(1);
 }
 
+.work-run-tripwire {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.work-run-tripwire > h4,
+.work-run-tripwire > p {
+  max-width: var(--prose-max);
+  margin: 0;
+}
+
+.work-run-tripwire-hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.work-run-tripwire-hit {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) 0 var(--space-2) var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+  box-shadow: inset 2px 0 0 var(--tone-fg);
+  min-width: 0;
+}
+
+.work-run-tripwire-head,
+.work-run-tripwire-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+}
+
+.work-run-tripwire-excerpt {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: var(--leading-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.work-run-tripwire-controls {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
 .work-findings {
   display: grid;
   gap: var(--space-2);

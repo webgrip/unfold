@@ -1,4 +1,5 @@
 import { clock, cx, escape, healthWarning } from './parts.js';
+import { tripwireCheckLabel, tripwireMaxScore, tripwireScoreMeta } from '../core/tripwire.js';
 
 const verdictWords = Object.freeze({ on_track: 'on track', watch: 'watch', off_track: 'off track' });
 const fieldWords = Object.freeze({ instructions: 'Instructions', skills: 'Skills', tools: 'Tools', hosts: 'Hosts' });
@@ -17,13 +18,13 @@ export const containmentActions = Object.freeze([
 const adverse = judgement => judgement.health !== 'on_track';
 
 /**
- * Whether the containment panel has anything to say: a tripwire hit, a change in the Run's rules, or an AI judge
- * verdict other than on track.
+ * Whether the containment panel has anything to say: a tripwire hit, a decider tripwire hit, a change in the Run's
+ * rules, or an AI judge verdict other than on track.
  * @param {object} model A `liveModel` result.
  * @returns {boolean}
  */
 export function needsContainment(model) {
-  return Boolean(model.guard?.signals.length || model.guard?.drift?.length || (model.judgements ?? []).some(adverse));
+  return Boolean(model.guard?.signals.length || model.tripwire?.length || model.guard?.drift?.length || (model.judgements ?? []).some(adverse));
 }
 
 /**
@@ -35,10 +36,14 @@ export function containmentHeadline(model) {
   const { signals = [], drift = null, source = null } = model.guard ?? {};
   const high = signals.find(signal => signal.severity === 'high');
   const judged = (model.judgements ?? []).filter(adverse).at(-1);
+  const scored = model.tripwire ?? [];
+  const clear = scored.filter(hit => hit.score >= tripwireMaxScore).at(-1);
   if (source) return `Possible prompt injection at ${clock(source.at)}`;
   if (high) return `Possible break-out attempt at ${clock(high.at)}`;
+  if (clear) return `${tripwireCheckLabel(clear.check)}: the decider says clearly, at ${clock(clear.at)}`;
   if (drift?.length) return 'Its rules changed after it started';
   if (judged) return `The AI judge says ${verdictWords[judged.health]} at ${clock(judged.at)}`;
+  if (scored.length) return `${tripwireCheckLabel(scored.at(-1).check)}: the decider says likely, at ${clock(scored.at(-1).at)}`;
   return `A call crossed a tripwire at ${clock(signals[0]?.at)}`;
 }
 
@@ -76,6 +81,17 @@ function driftBlock(model) {
   return block('Rules that changed', `<dl class="lv-contain-drift">${rows}</dl><p class="lv-contain-note">Ploeg does not report rule snapshots yet; this compares the snapshot at the Run’s start with the one now.</p>`, { proposed: true });
 }
 
+function scoredBlock(model) {
+  const hits = model.tripwire ?? [];
+  if (!hits.length) return '';
+  const demo = hits.some(hit => hit.demo);
+  const rows = hits.map(hit => {
+    const score = tripwireScoreMeta(hit.score);
+    return `<li class="${cx('lv-contain-hit', `is-score-${hit.score}`)}"><span class="lv-contain-time">${escape(clock(hit.at))}</span><span class="lv-contain-what"><span class="lv-contain-score">${escape(score.word)} · ${escape(score.label)}</span><span class="lv-contain-rule">${escape(tripwireCheckLabel(hit.check))}</span><code class="lv-contain-code">${escape(hit.excerpt)}</code><span class="lv-contain-decider">${escape(hit.demo ? 'Demo, never screened' : hit.decider)}</span></span></li>`;
+  }).join('');
+  return block('What the decider scored', `<ol class="lv-contain-hits">${rows}</ol><p class="lv-contain-note">${demo ? 'Demo: an illustrative hit. No decider runs in the demo.' : 'The decider tripwire scores each tool call only when the Team’s runs.tripwire flag is on. It only reads: it never stops the Run.'}</p>`);
+}
+
 function judgeBlock(model) {
   const list = model.judgements ?? [];
   if (!list.length) return '';
@@ -84,9 +100,10 @@ function judgeBlock(model) {
 }
 
 /**
- * The containment panel: shown when a Run crossed a tripwire, its rules changed, or the AI judge said watch or off
- * track. It says what the Run read, what it tried next and whether each try was blocked (derived from the
- * transcript), which rules changed (proposed) and what the AI judge said, and offers proposed
+ * The containment panel: shown when a Run crossed a tripwire, the decider tripwire scored one of its tool calls 2 or
+ * more, its rules changed, or the AI judge said watch or off track. It says what the Run read, what it tried next and
+ * whether each try was blocked (derived from the transcript), what the decider scored (stored by Unfold), which rules
+ * changed (proposed) and what the AI judge said, and offers proposed
  * actions as buttons that do nothing yet. Transcript text is rendered as inert text. Empty when there is nothing to say.
  * @param {object} model A `liveModel` result.
  * @param {{ level?: number }} [options] The heading level of the headline.
@@ -95,8 +112,8 @@ function judgeBlock(model) {
 export function containmentPanel(model, { level = 2 } = {}) {
   if (!needsContainment(model)) return '';
   const id = `lv-contain-${escape(model.id)}`;
-  const tone = model.guard.high || model.guard.drift?.length || (model.judgements ?? []).some(entry => entry.health === 'off_track') ? 'danger' : 'attention';
+  const tone = model.guard.high || model.guard.drift?.length || (model.judgements ?? []).some(entry => entry.health === 'off_track') || (model.tripwire ?? []).some(hit => hit.score >= tripwireMaxScore) ? 'danger' : 'attention';
   const lede = healthWarning(model.health) ?? 'Nothing here stops the Run on its own.';
   const actions = containmentActions.map(action => `<button type="button" class="button secondary lv-contain-action" title="${escape(`Proposed: ${action.means}`)}" aria-describedby="${id}-proposed"><span class="button-label">${escape(action.label)}</span> ${proposedTag}</button>`).join('');
-  return `<section class="${cx('lv-containment', `lv-tone-${tone}`)}" aria-labelledby="${id}-title"><header class="lv-contain-head"><p class="lv-overline">Containment</p><h${level} class="lv-contain-title" id="${id}-title">${escape(containmentHeadline(model))}</h${level}><p class="lv-contain-lede">${escape(lede)}</p></header><div class="lv-contain-grid">${readBlock(model)}${triedBlock(model)}${driftBlock(model)}${judgeBlock(model)}</div><div class="lv-contain-actions">${actions}<p class="lv-contain-note" id="${id}-proposed">Proposed: Ploeg cannot quarantine a Run, revoke its key or record a false alarm yet, so these buttons do nothing.</p></div></section>`;
+  return `<section class="${cx('lv-containment', `lv-tone-${tone}`)}" aria-labelledby="${id}-title"><header class="lv-contain-head"><p class="lv-overline">Containment</p><h${level} class="lv-contain-title" id="${id}-title">${escape(containmentHeadline(model))}</h${level}><p class="lv-contain-lede">${escape(lede)}</p></header><div class="lv-contain-grid">${readBlock(model)}${triedBlock(model)}${scoredBlock(model)}${driftBlock(model)}${judgeBlock(model)}</div><div class="lv-contain-actions">${actions}<p class="lv-contain-note" id="${id}-proposed">Proposed: Ploeg cannot quarantine a Run, revoke its key or record a false alarm yet, so these buttons do nothing.</p></div></section>`;
 }

@@ -205,6 +205,21 @@ A shadow judge can add a model's verdict. It is off until the `cards.health.judg
 * A spent Ask Allowance pauses the judge ("Judge paused: this month's allowance is spent") without counting an attempt. A failed or timed-out judgement shows nothing; the signals still answer.
 * Health changes are recorded as the product event `run.health.changed` (old and new health, the deciding signal and the Run id, never transcript text), and the "This was wrong" control as `run.health.judge_wrong`.
 
+## Decider tripwire
+
+The tripwire screens every new tool call of a running Run with a decider, a model asked for scores instead of prose ([RFC-0008](../../../../docs/design/rfc-0008-decision-models.md), [ADR-0042](../../../../docs/adr/adr-0042-a-self-hosted-decider-reads-what-agents-do-and-starts-as-a-shadow-tripwire.md), both proposed). Built on branch `feat/tripwire-reader`, not released. It is off until a `decider` block is configured and the `runs.tripwire` flag is on for the Run's Team ([feature flags](feature-flags.md)); it needs a connected Ploeg.
+
+```json
+"decider": { "baseUrl": "https://litellm.example/v1", "keyEnv": "UNFOLD_DECIDER_KEY", "model": "hetzner-qwen3-8-27b", "name": "Hetzner Qwen", "requestsPerMinute": 8 }
+```
+
+* `baseUrl` is the gateway's OpenAI-compatible base URL. `keyEnv` (default `UNFOLD_DECIDER_KEY`, must start with `UNFOLD_`, so it never reaches an agent workspace) holds Unfold's own LiteLLM virtual key, limited to the decider models with a budget of zero. Unfold refuses to start when the variable is unset or holds the master key, and never sends the master key. `model` defaults to Hetzner's free EU-hosted `hetzner-qwen3-8-27b`; `name` (default "Hetzner Qwen") is what each hit shows, so scores from two deciders are never mixed. The demo ignores the block. In the chart, set the `decider` values instead ([chart](../../ops/helm/unfold/README.md)).
+* Every 15 seconds the server lists Ploeg's running Runs with the operator credential and, for each Run whose Team has the flag on, reads its transcript after the last seq it handled. These reads are for no person, like the fleet poller's; a person who opens the hits is authorized as for the Work Item. A tool call is screened once, on its first entry with an input or paths (or its final entry), as its title, kind, input and paths after redaction. All five checks (`reads_credentials`, `probes_sandbox`, `edits_own_instructions`, `follows_injected_orders`, `remote_code`) go in one call at temperature 0 with a strict JSON schema and thinking off, retried once without both when the gateway refuses them. An answer that is not exactly the five whole scores from 0 to 3 is discarded.
+* One screen at a time, at most `requestsPerMinute` a minute (default 8; Hetzner allows 10 requests a minute per key). Calls over the cap wait for the next minute; a Run that finishes before they are screened keeps them unscreened. Each Run's cursor is stored with its hits, so a restart never screens a call twice.
+* Every check scoring 2 or more is stored in `tripwire_hits` with the Run, Work Item, Team, seq, time, check, score, decider name and model, and an excerpt of at most 300 characters. A decider failure is a missed screen, counted on the Run and logged as `tripwire.screen_missed`; a Run without a transcript (Claude Code, headless OpenHands, an older Ploeg) is skipped and counted.
+* What it never does: stop, cancel, withdraw, steer, requeue or note a Run, or slow one down. It only reads Ploeg. A later stop needs a service actor Ploeg does not admit yet (RFC-0008, step 5).
+* Hits show in the Run's Tripwire list and, while the Run runs, in the live view's containment panel. Right and Wrong record the person's verdict and the product event `run.tripwire.verdict` (Run, hit, check, score, verdict and decider, never the excerpt). A score of 3 on `probes_sandbox`, `follows_injected_orders` or `remote_code` is announced to screen readers once.
+
 ## Card themes and generated art
 
 Run card themes are proposed ([ADR 0031](../adrs/0031-card-themes-a-card-designer-and-generated-art.md), [contract](../contracts/card-themes.md)). Administrators make them in **Settings › Card designer** and Unfold keeps them in its store. A Work Target picks one in Ploeg's configuration with `cardStyle: { skin, theme }`; Unfold never edits that file. Two optional settings:

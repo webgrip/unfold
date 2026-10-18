@@ -29,6 +29,7 @@ import { runTranscriptMarkup } from './run-transcript.js';
 import { workActionsMarkup } from './action-log.js';
 import { defaultLogView, logViewerMarkup } from './run-log-view.js';
 import { healthMeta } from './core/run-health.js';
+import { tripwireCheckLabel, tripwireScoreMeta } from './core/tripwire.js';
 import { resumeOffer, waitingQuestion, waitingQuestions } from './core/blackboard.js';
 import { questionMarkup, disagreementsMarkup, findingAnswersMarkup, findingsMarkup, noteAction } from './blackboard-view.js';
 
@@ -1067,7 +1068,39 @@ export function runHealthMarkup(run, entry, { now = Date.now() } = {}) {
   return `<section class="work-run-health" aria-label="Run health"${age ? ' data-stale' : ''}>${parts.join('')}</section>`;
 }
 
-function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts, health, detail: detailOf = null }) {
+const tripwireVerdictWords = Object.freeze({ right: 'You marked this hit right.', wrong: 'You marked this hit wrong.' });
+
+/**
+ * The Tripwire list in a Run's body (RFC-0008): each hit on this Run, newest first, with its check in words, its score
+ * as a glyph, a word and "2 of 3" or "3 of 3", when, the redacted action it scored, the decider that answered, and
+ * Right and Wrong controls. Shown while the tripwire screens the Team's Runs or when the Run has hits; '' otherwise.
+ * @param {object} run A Ploeg Run.
+ * @param {{ data?: object, marked?: Map<string, string> }|undefined} entry The Work Item's entry from Unfold's tripwire route.
+ * @returns {string}
+ */
+export function runTripwireMarkup(run, entry) {
+  const data = entry?.data;
+  if (!data) return '';
+  const id = String(run.id);
+  const hits = (data.hits || []).filter(hit => String(hit.runId) === id);
+  if (!hits.length && data.status !== 'active') return '';
+  const counts = (data.runs || []).find(state => String(state.runId) === id);
+  const lines = [];
+  if (data.demo) lines.push('Demo: illustrative hits. No decider runs in the demo.');
+  else if (counts?.transcript === 'unavailable') lines.push('This Run has no transcript, so the tripwire cannot screen it.');
+  else if (counts) lines.push(`${plural(counts.screened, 'tool call')} screened${counts.missed ? `, ${plural(counts.missed, 'screen')} missed` : ''}${data.decider ? ` by ${data.decider.name}` : ''}.`);
+  else if (data.status === 'active') lines.push(run.state === 'running' ? 'No tool call screened yet.' : 'The tripwire did not screen this Run.');
+  const rows = hits.map(hit => {
+    const score = tripwireScoreMeta(hit.score);
+    const marked = entry.marked?.get(hit.id) ?? hit.verdict;
+    const controls = marked ? `<span class="meta">${escape(tripwireVerdictWords[marked] ?? '')}</span>` : hit.demo ? '' : `${ui.button({ label: 'Right', variant: 'ghost', size: 'xs', action: 'work-tripwire-verdict', data: { id: hit.id, verdict: 'right' }, title: 'This hit points at something worth stopping' })}${ui.button({ label: 'Wrong', variant: 'ghost', size: 'xs', action: 'work-tripwire-verdict', data: { id: hit.id, verdict: 'wrong' }, title: 'This hit points at ordinary work' })}`;
+    const decider = hit.demo ? 'Demo, never screened' : `${hit.decider.name} (${hit.decider.model})`;
+    return `<li class="work-run-tripwire-hit" data-tone="${score.tone}"><p class="work-run-tripwire-head">${ui.badge({ tone: score.tone, glyph: score.glyph, label: `${score.word} · ${score.label}`, lead: 'Score: ', size: 'sm' })}<strong>${escape(tripwireCheckLabel(hit.check))}</strong>${ui.timeAt(hit.at)}</p><code class="work-run-tripwire-excerpt" data-private>${escape(hit.excerpt)}</code><p class="work-run-tripwire-foot"><span class="meta">Scored by ${escape(decider)}</span><span class="work-run-tripwire-controls">${controls}</span></p></li>`;
+  }).join('');
+  return `<section class="work-run-tripwire" aria-label="Tripwire"><h4 class="overline">Tripwire</h4>${lines.map(line => `<p class="meta">${escape(line)}</p>`).join('')}${rows ? `<ol class="work-run-tripwire-hits">${rows}</ol>` : ''}<p class="meta">A hit is a reason to look, not proof. The tripwire only reads: it never stops, steers or notes the Run.</p></section>`;
+}
+
+function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts, health, tripwire, detail: detailOf = null }) {
   const failure = runFailure(run);
   const retriedAs = failure?.retries ? attempts?.get(String(run.id))?.next : null;
   const parts = [];
@@ -1086,6 +1119,8 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts
   if (run.shadow) parts.push(`<p class="meta work-run-shadow">${icon('eye')}<span>${escape('A shadow reviewer: Ploeg records its verdict and findings and never acts on them. It opens no fix Round and posts nothing on the pull request.')}</span></p>`);
   const healthSection = runHealthMarkup(run, health?.get(String(run.id)), { now });
   if (healthSection) parts.push(healthSection);
+  const tripwireSection = runTripwireMarkup(run, tripwire);
+  if (tripwireSection) parts.push(tripwireSection);
   const answers = run.writes ? findingAnswersMarkup(run, detailOf) : '';
   if (answers) parts.push(answers);
   if (run.findings?.trim()) parts.push(`<div class="work-findings"><h4 class="overline">Findings</h4><div data-private class="prose">${markdown(run.findings, { baseLevel: 5 })}</div></div>`);
@@ -1128,7 +1163,7 @@ function runRow(run, context, { round }) {
 function runsMarkup(detail, model) {
   const shift = latestShift(detail);
   const groups = runGroups(detail.runs, shift?.id);
-  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), detail, attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, health: model.runHealth };
+  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), detail, attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, health: model.runHealth, tripwire: model.tripwire };
   const render = (list, continued) => list.map(group => `${group.label && !continued.has(group.key) ? `<p class="work-run-group">${escape(group.label)}</p>` : ''}${group.runs.map(run => runRow(run, context, { round: group.label })).join('')}`).join('');
   const shown = [];
   const rest = [];
@@ -1571,7 +1606,8 @@ export function statusMarkup(detail, model, { reason = null, plan = null } = {})
  * The live view at the head of a Work Item page while the `work.live-view` flag is on: the fold strip, the live
  * sentence and the flight path, from the detail and the running Run's transcript when its panel has loaded it, then
  * the questions answered from the record. Its health is the running Run's entry from Unfold's health route, the one
- * the Run row's badge shows, so the two never disagree.
+ * the Run row's badge shows, so the two never disagree; its decider tripwire hits are the running Run's hits from
+ * Unfold's tripwire route, the ones its Run body lists.
  */
 function liveOf(detail, model) {
   const running = [...(detail.runs || [])].reverse().find(run => run.state === 'running');
@@ -1580,7 +1616,8 @@ function liveOf(detail, model) {
   const transcript = entries.length ? foldTranscript(entries, { known: entry.trimmed ? null : 0 }).items : [];
   const missing = entry?.data?.available === false ? (entry.data.reason === 'demo' ? 'demo' : 'unsupported') : !entries.length && entry?.error ? 'failed' : null;
   const health = running ? model.runHealth?.get?.(String(running.id)) ?? null : null;
-  return liveModel({ detail, transcript, entries, health, transcriptKnown: entries.length > 0, transcriptMissing: missing, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
+  const tripwire = running ? (model.tripwire?.data?.hits ?? []).filter(hit => String(hit.runId) === String(running.id)) : [];
+  return liveModel({ detail, transcript, entries, health, tripwire, transcriptKnown: entries.length > 0, transcriptMissing: missing, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
 }
 
 export function liveViewMarkup(detail, model) {

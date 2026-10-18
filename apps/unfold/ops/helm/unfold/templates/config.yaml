@@ -43,6 +43,13 @@
 {{- end -}}
 {{- $_ := set $cfg "delivery" $delivery -}}
 {{- end -}}
+{{- $dc := .Values.decider -}}
+{{- if $dc.enabled -}}
+{{- if hasKey .Values.config "decider" -}}{{- fail "Set the decider through the decider values, not config.decider" -}}{{- end -}}
+{{- if ne .Values.mode "live" -}}{{- fail "decider.enabled requires mode live: the demo never calls a model" -}}{{- end -}}
+{{- if and $dc.existingSecret (has $dc.existingSecret (default (list) .Values.workspaceAgentSecrets)) -}}{{- fail "workspaceAgentSecrets must not list decider.existingSecret: it holds the decider key" -}}{{- end -}}
+{{- $_ := set $cfg "decider" (dict "baseUrl" (required "decider.baseUrl is required when decider.enabled is true" $dc.baseUrl) "keyEnv" $dc.keyEnv "model" $dc.model "name" $dc.name "requestsPerMinute" (int $dc.requestsPerMinute)) -}}
+{{- end }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
