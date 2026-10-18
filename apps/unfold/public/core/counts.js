@@ -2,6 +2,7 @@ import { state } from './state.js';
 import { api } from './api.js';
 import { live } from './live.js';
 import { sessionNeedsYou } from './states.js';
+import { waitingGroup } from './reasons.js';
 
 const listeners = new Set();
 
@@ -10,16 +11,16 @@ export const unknownCounts = Object.freeze({ waiting: null, review: null, needsY
 
 /**
  * Derives the navigation counts from a `GET /api/ploeg/now` response: what waits on you in total and per state,
- * and the Runs running now. A group that failed to load (`errors.waiting`, `errors.running`) counts as unknown.
+ * and the Runs running now. A pull request whose CI did not pass counts as needing you, not as ready for review. A group that failed to load (`errors.waiting`, `errors.running`) counts as unknown.
  */
 export function countsFromNow(data) {
   const waiting = !data?.errors?.waiting && Array.isArray(data?.waiting) ? data.waiting : null;
-  const inState = name => waiting ? waiting.filter(entry => entry.state === name).length : null;
+  const inGroup = (name, states) => waiting ? waiting.filter(entry => states.includes(entry.state) && waitingGroup(entry) === name).length : null;
   return {
     waiting: waiting ? waiting.length : null,
-    review: inState('awaiting_review'),
-    needsYou: inState('needs_human'),
-    proposed: inState('proposed'),
+    review: inGroup('review', ['awaiting_review']),
+    needsYou: inGroup('needs', ['awaiting_review', 'needs_human']),
+    proposed: inGroup('proposed', ['proposed']),
     running: !data?.errors?.running && Array.isArray(data?.running) ? data.running.length : null,
   };
 }

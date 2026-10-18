@@ -284,6 +284,30 @@ test('with delivery facts, the status panel reads tokens, the diff, checks, appr
   assert.doesNotMatch(box, /CI checks: not reported/, 'the review box does not contradict the reported CI state');
 });
 
+test('a ready-for-review item whose CI did not pass says it is not ready, lists the checks and leads with them, not the review', () => {
+  const play = ci => ({ number: 9, state: 'open', url: 'https://forge.test/acme/shop/pulls/9', branch: 'agent/50', ci, reviews: [] });
+  const cancelled = { state: 'failure', checks: [{ context: 'e2e / flux-local', state: 'failure' }, { context: 'e2e / kubeconform', state: 'failure' }], headSha: 'abc', capturedAt: '2026-10-11T12:00:00Z' };
+  const html = detailMarkup(detail(), model({ detailId: '50', lane: 'awaiting_review', card: { workItemId: '50', plays: [play(cancelled)] } }));
+  assert.match(html, /<h3 class="work-status-headline" id="work-status-headline">CI did not pass on pull request #9, so it is not ready for review\.<\/h3>/);
+  assert.match(html, /<div class="work-status-actions"><a class="button primary" href="https:\/\/forge.test\/acme\/shop\/pulls\/9"[^>]*data-link-out="pr">[^]*?See why CI did not pass[^]*?<\/a><\/div>/);
+  assert.doesNotMatch(html, />Open pull request #9</, 'review is not offered as the next step');
+  const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));
+  assert.match(box, /Not ready for review/);
+  assert.doesNotMatch(box, /Ready for your review/);
+  const titles = [...box.matchAll(/<li class="work-check" data-tone="(\w+)">[^]*?<p class="work-check-title">([^<]*)/g)].map(match => [match[1], match[2]]);
+  assert.deepEqual(titles[0], ['danger', 'CI did not pass on pull request #9, so it is not ready for review.'], 'the CI result comes first');
+  assert.match(box, /Not passing: <code>e2e \/ flux-local<\/code> <code>e2e \/ kubeconform<\/code>\./);
+
+  const running = detailMarkup(detail(), model({ detailId: '50', lane: 'awaiting_review', card: { workItemId: '50', plays: [play({ state: 'pending', checks: [], headSha: 'abc', capturedAt: '2026-10-11T12:00:00Z' })] } }));
+  assert.match(running, /id="work-status-headline">CI is still running on pull request #9\. Review waits until it passes\.<\/h3>/);
+  assert.match(running, />Follow CI on pull request #9</);
+  assert.match(running, /Ready for your review/);
+
+  const passed = detailMarkup(detail(), model({ detailId: '50', lane: 'awaiting_review', card: { workItemId: '50', plays: [play({ state: 'success', checks: [], headSha: 'abc', capturedAt: '2026-10-11T12:00:00Z' })] } }));
+  assert.match(passed, /id="work-status-headline">Ready for your review · Agent approved PR #9 after 2 Rounds<\/h3>/, 'passed CI keeps the review');
+  assert.match(passed, />Open pull request #9</);
+});
+
 test('a needs-you item explains why with Ploeg’s own words, the evidence Runs and what to do in the tracker', () => {
   const html = detailMarkup(demoDetail('109'), model({ detailId: '109' }));
   assert.match(html, /Why this needs you/);

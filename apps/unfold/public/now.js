@@ -2,7 +2,7 @@ import { escape, safeUrl } from './core/dom.js';
 import { icon } from './core/icons.js';
 import * as format from './core/format.js';
 import { runOutcome, verdict as verdictMeta, runFailure, workItemState, tileDetail, unreportedOutcome } from './core/states.js';
-import { listReason, reasonGlyph, routingWarning, needsYouBlocks } from './core/reasons.js';
+import { listReason, reasonGlyph, routingWarning, needsYouBlocks, waitingGroup } from './core/reasons.js';
 import { workItemRef, reasonBand, mergeStateView } from './ploeg.js';
 import { grafanaTeam } from './core/observability.js';
 import { badge, button, callout, count, disclosure, emptyState, iconButton, kbd, listRow, meter, skeleton, stat, demoNote, ploegUnconfigured } from './core/ui.js';
@@ -134,10 +134,10 @@ export function digestCounts(data, since) {
   const start = moment(since);
   const waiting = !data?.errors?.waiting && Array.isArray(data?.waiting) ? data.waiting : null;
   const recent = !data?.errors?.recent && Array.isArray(data?.recent) ? data.recent : null;
-  const fresh = (state, field = 'updatedAt') => waiting ? waiting.filter(entry => entry.state === state && after(entry[field], start)).length : null;
+  const fresh = (group, field = 'updatedAt') => waiting ? waiting.filter(entry => ['awaiting_review', 'needs_human', 'proposed'].includes(entry.state) && waitingGroup(entry) === group && after(entry[field], start)).length : null;
   const finished = recent ? recent.filter(run => after(run.finishedAt, start)).length : null;
   const finishedCapped = Boolean(recent?.length) && finished === recent.length && mayHoldMore(data, 'recent');
-  return { review: fresh('awaiting_review'), needsYou: fresh('needs_human'), proposed: fresh('proposed', 'createdAt'), finished, finishedCapped };
+  return { review: fresh('review'), needsYou: fresh('needs'), proposed: fresh('proposed', 'createdAt'), finished, finishedCapped };
 }
 
 /** The ids on screen: every waiting Work Item and finished Run of `data`. */
@@ -258,7 +258,8 @@ function waitingActions(entry, context, reason) {
   const title = entry.title || `Work Item ${entry.id}`;
   let primary = '';
   const pr = entry.state === 'awaiting_review' ? safeUrl(entry.pullRequestUrl) : null;
-  if (pr) primary = button({ id: `now-pr-${entry.id}`, label: 'Pull request', icon: 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: `Open the pull request for “${title}” (opens in a new tab)` });
+  const failedCi = reason?.code === 'ci_failed';
+  if (pr) primary = button({ id: `now-pr-${entry.id}`, label: failedCi ? 'Failing checks' : 'Pull request', icon: failedCi ? 'x-circle' : 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: failedCi ? `Open the pull request for “${title}” to see why CI did not pass (opens in a new tab)` : `Open the pull request for “${title}” (opens in a new tab)` });
   if (entry.state === 'proposed') primary = button({ id: `now-decide-${entry.id}`, label: 'Approve or reject', icon: 'arrow', size: 'sm', href: `#proposed?id=${encodeURIComponent(entry.id)}`, ariaLabel: `Approve or reject “${title}” on Proposed` });
   const links = [];
   const tracker = safeUrl(entry.url);
@@ -432,7 +433,7 @@ function waitingCard(view, visible, held, context) {
   if (error) body = `${errorState('waiting', 'Could not load what waits on you', error)}${refused}`;
   else if (!rows.length && !held.waiting && refused) body = groupMarkup(groups.find(group => group.id === 'needs'), [], local);
   else if (!rows.length && !held.waiting) body = `${allClear(view, context.now)}${stale ? `<ul class="list now-list now-after-clear">${staleRow(stale)}</ul>` : ''}`;
-  else body = groups.map(group => groupMarkup(group, rows.filter(entry => entry.state === group.state || (group.id === 'needs' && !['awaiting_review', 'proposed'].includes(entry.state))), local)).join('');
+  else body = groups.map(group => groupMarkup(group, rows.filter(entry => waitingGroup(entry) === group.id), local)).join('');
   return `<section class="card flush now-card now-waiting" aria-labelledby="now-waiting-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-waiting-title">Waiting on you${total ? (capped ? count(`${format.count(total)}+`, { tone: 'attention', label: `More than ${format.count(total)}` }) : count(total, { tone: 'attention' })) : ''}</h2></div>${hints ? `<div class="card-actions">${hints}</div>` : ''}</header><div class="card-body">${pill}${body}</div></section>`;
 }
 
@@ -604,8 +605,8 @@ function statsMarkup(view) {
   const summaryError = view.summary?.error || null;
   const waiting = data.errors?.waiting ? null : data.waiting;
   const running = data.errors?.running ? null : data.running;
-  const inState = state => waiting.filter(entry => entry.state === state).length;
-  const breakdown = waiting ? [[inState('awaiting_review'), 'to review'], [inState('needs_human'), 'need you'], [inState('proposed'), 'proposed']].filter(([n]) => n).map(([n, text]) => `${format.count(n)} ${n === 1 && text === 'need you' ? 'needs you' : text}`) : [];
+  const inGroup = group => waiting.filter(entry => waitingGroup(entry) === group).length;
+  const breakdown = waiting ? [[inGroup('review'), 'to review'], [inGroup('needs'), 'need you'], [inGroup('proposed'), 'proposed']].filter(([n]) => n).map(([n, text]) => `${format.count(n)} ${n === 1 && text === 'need you' ? 'needs you' : text}`) : [];
   const unreported = summaryError ? (summaryError.code === 'ploeg_unsupported' ? 'Not reported by this Ploeg' : 'Could not be loaded') : summary ? '' : 'Loading…';
   const queued = summary?.totals?.workItems?.queued;
   const pending = summary?.totals?.runs?.pending;

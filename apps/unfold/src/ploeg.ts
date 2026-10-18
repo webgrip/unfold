@@ -50,7 +50,10 @@ export type PloegEventsPage = { demo: boolean; events: PloegActivityEvent[]; nex
 export type PloegProposedItem = PloegPresentedItem & { sourceTitle: string };
 export type PloegProposedPage = { demo: boolean; items: PloegProposedItem[]; truncated: boolean; fetchedAt: string };
 export type PloegNowShift = Pick<PloegShift, 'round' | 'closeReason' | 'budgetUsd' | 'spentUsd' | 'reservedUsd' | 'closedAt'>;
-export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | 'url' | 'createdAt' | 'updatedAt' | 'provider' | 'externalId' | 'priority' | 'attempts' | 'infraFailures' | 'target' | 'pullRequest'> & { closeReason: string | null; latestShift: PloegNowShift | null; spentUsd: number | null; pullRequestUrl: string } & Partial<Pick<PloegProposedItem, 'sourceWorkItemId' | 'sourceTitle' | 'createdKind' | 'ready'>>;
+/** The combined CI status Ploeg last captured on a pull request's head commit, and each check's state. */
+export type PloegNowCI = { state: string; checks: { context: string; state: string }[] };
+/** A waiting or active Work Item on Now. `ci` is the CI on its pull request's head, read for the first awaiting_review rows only; absent when not read, null when the forge reported none. */
+export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | 'url' | 'createdAt' | 'updatedAt' | 'provider' | 'externalId' | 'priority' | 'attempts' | 'infraFailures' | 'target' | 'pullRequest'> & { closeReason: string | null; latestShift: PloegNowShift | null; spentUsd: number | null; pullRequestUrl: string; ci?: PloegNowCI | null } & Partial<Pick<PloegProposedItem, 'sourceWorkItemId' | 'sourceTitle' | 'createdKind' | 'ready'>>;
 /** Why Ploeg's routing refused a tracker task (Ploeg ADR-0038). `unclassified` is a refusal Ploeg recorded before it named codes, or a code this Unfold does not know; its `reason` explains it. */
 export type PloegRefusalCode = 'label_missing' | 'label_not_allowed' | 'label_unregistered' | 'multiple_labels' | 'labels_unread' | 'no_board_rule' | 'target_not_ready' | 'unclassified';
 /** A tracker task Ploeg could not start because routing refused it. It is not a Work Item: none exists. `board` names the task source whose provider and project match the task, or is empty; `link` says whether `url` is the task itself, the tracker's root or absent. */
@@ -60,6 +63,7 @@ export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]
 export type PloegNowTruncatedState = 'awaiting_review' | 'needs_human' | 'proposed' | 'leased' | 'queued';
 /** How many Work Items Now reads per team and state before it marks that state truncated. */
 export const nowStateCap = 200;
+const reviewRowsRead = 10;
 export type PloegDecision = 'approve' | 'reject' | 'cancel';
 export type PloegDecisionResult = { workItemId: string; team: string; state: string; demo: boolean };
 /** When a person attached a context file: before the Work Item's first Shift, or while a Shift was open (steering). */
@@ -322,6 +326,11 @@ export function pullRequestUrl(data: PloegDetail): string {
   const ordered = data.runs.slice().sort((a, b) => a.round - b.round || (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
   for (const run of ordered.reverse()) for (const link of run.links.slice().reverse()) if (pullRequestPath.test(link)) return link;
   return '';
+}
+function demoReviewPlay(row: PloegNowItem): { url: string; ci: PloegNowCI | null } {
+  const plays = (ploegDemo.cards[row.id]?.plays ?? []).slice().sort((a, b) => b.number - a.number);
+  const play = plays.find(entry => entry.state === 'open') ?? plays[0];
+  return { url: play?.url ?? '', ci: play?.ci ? { state: play.ci.state, checks: play.ci.checks.map(check => ({ ...check })) } : null };
 }
 function nowItem(entry: PloegItem & Partial<Pick<PloegProposedItem, 'sourceTitle'>>): PloegNowItem {
   const shift = entry.latestShift;
@@ -1269,7 +1278,11 @@ export class PloegClient {
     const proposed = await this.proposed(user, fresh);
     const order: Record<string, number> = { awaiting_review: 0, needs_human: 1, proposed: 2 };
     const rows = [...reads.flatMap(read => read.items), ...proposed.items].map(nowItem);
-    await Promise.all(rows.filter(row => row.state === 'awaiting_review').slice(0, 10).map(async row => { row.pullRequestUrl = row.pullRequest?.url || await this.reviewUrl(user, row.id, fresh); }));
+    await Promise.all(rows.filter(row => row.state === 'awaiting_review').slice(0, reviewRowsRead).map(async row => {
+      const play = await this.reviewPlay(row, fresh);
+      row.ci = play.ci;
+      row.pullRequestUrl = row.pullRequest?.url || play.url || await this.reviewUrl(user, row.id, fresh);
+    }));
     const truncated: PloegNowTruncatedState[] = [...states.filter(state => reads.some(read => read.state === state && read.truncated)), ...(proposed.truncated ? ['proposed' as const] : [])];
     return { rows: rows.sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9) || a.createdAt.localeCompare(b.createdAt) || (BigInt(a.id) < BigInt(b.id) ? -1 : 1)), truncated };
   }
@@ -1283,6 +1296,18 @@ export class PloegClient {
       after = result.nextCursor;
     }
     return { items: items.slice(0, nowStateCap), truncated: true };
+  }
+  private async reviewPlay(row: PloegNowItem, fresh: boolean): Promise<{ url: string; ci: PloegNowCI | null }> {
+    if (this.demo) return demoReviewPlay(row);
+    if (!(await this.factsSupported())) return { url: '', ci: null };
+    let facts: WorkItemFacts;
+    try { facts = await this.workItemFacts(row.id, fresh); } catch { return { url: '', ci: null }; }
+    const pulls = facts.pullRequests.slice().sort((a, b) => b.number - a.number);
+    const pull = pulls.find(entry => row.pullRequest?.number ? entry.number === row.pullRequest.number : entry.state === 'open') ?? pulls[0];
+    if (!pull) return { url: '', ci: null };
+    const status = pull.commitStatus;
+    const current = status && (!pull.headSha || !status.headSha || status.headSha === pull.headSha);
+    return { url: pull.url, ci: current ? { state: status.state, checks: status.checks.map(check => ({ context: check.context, state: check.state })) } : null };
   }
   private async reviewUrl(user: User, id: string, fresh: boolean): Promise<string> {
     try { return pullRequestUrl(await this.detail(user, id, fresh)); } catch { return ''; }

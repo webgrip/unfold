@@ -47,6 +47,32 @@ test('the Now projection carries a Work Item’s pull request merge state from t
   assert(!paths.some(path => /\/work-items\/105(\?|$)/.test(path)), `no detail read for item 105: ${paths.join(' ')}`);
 });
 
+test('the Now projection carries the CI on a review row’s pull request head from its delivery facts, one read per row and no detail read', async t => {
+  const { client, paths } = await ploegWith(t, { 105: conflicted });
+  const facts: string[] = [];
+  const pull = (commitStatus: unknown, headSha = 'abc123') => ({ number: 5, url: conflicted.url, state: 'open', headSha, commitStatus });
+  let served: unknown[] = [];
+  Object.assign(client, {
+    factsSupported: async () => true,
+    workItemFacts: async (id: string) => { facts.push(id); return { pullRequests: served }; },
+  });
+  const cancelled = { state: 'failure', checks: [{ context: 'e2e / flux-local', state: 'failure' }], headSha: 'abc123', capturedAt: '2026-10-18T08:00:00Z' };
+  served = [pull(cancelled)];
+  const red = (await client.now(admin)).waiting.find(entry => entry.id === '105');
+  assert.deepEqual(red?.ci, { state: 'failure', checks: [{ context: 'e2e / flux-local', state: 'failure' }] });
+  assert.equal(red?.pullRequestUrl, conflicted.url);
+  assert.deepEqual(facts, ['105'], 'one facts read for the review row');
+  assert(!paths.some(path => /\/work-items\/105(\?|$)/.test(path)), `no detail read for item 105: ${paths.join(' ')}`);
+  served = [pull(cancelled, 'def456')];
+  assert.equal((await client.now(admin)).waiting.find(entry => entry.id === '105')?.ci, null, 'CI captured on an older head is not the head’s CI');
+  served = [pull(null)];
+  assert.equal((await client.now(admin)).waiting.find(entry => entry.id === '105')?.ci, null, 'no CI reported stays unreported');
+  Object.assign(client, { workItemFacts: async () => { throw new Error('facts unavailable'); } });
+  const unread = (await client.now(admin)).waiting.find(entry => entry.id === '105');
+  assert.equal(unread?.ci, null, 'unreadable facts never invent a blocker');
+  assert.equal(unread?.pullRequestUrl, conflicted.url);
+});
+
 test('the parsed pull request tells a Ploeg that reported no merge state apart from one that has not checked yet', async t => {
   const { client } = await ploegWith(t, {
     105: { url: conflicted.url, agentVerdict: '', agentVerdictRound: null, humanChangesRequested: false, repairFollowUps: 0 },

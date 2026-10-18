@@ -34,7 +34,7 @@ export function confirmationLedger(): Confirmations { return { key: randomBytes(
 export type McpOptions = { url: string; apiUrl?: string; token?: string; version?: string; timeoutMs?: number; fetch?: typeof fetch; stateFile?: string; now?: () => Date; principal?: string; role?: string; confirmations?: Confirmations };
 
 type Reason = { code: string; chip: string; sentence: string; fix: string; requeue: string; action: string; headline?: string | null; variant?: string | null; run?: { id: string; role: string; round: number; text: string } | null };
-type Reasons = { listReason(item: unknown, options?: { demo?: boolean }): Reason | null; detailReason(detail: unknown): Reason | null; routingWarning(item: unknown): { chip: string; sentence: string; fix: string } | null };
+type Reasons = { listReason(item: unknown, options?: { demo?: boolean }): Reason | null; detailReason(detail: unknown): Reason | null; routingWarning(item: unknown): { chip: string; sentence: string; fix: string } | null; waitingGroup(item: unknown): 'review' | 'needs' | 'proposed' };
 type Json = Record<string, any>;
 type Call = { modern: boolean; capabilities: Json; client?: string; inputResponses?: Json; requestState?: unknown };
 type Tool = { name: string; title: string; description: string; inputSchema: Json; outputSchema: Json; readOnly?: false; destructive?: true; confirms?: true; run(args: Json, call: Call): Promise<Json | InputRequired> };
@@ -153,8 +153,9 @@ export function createMcpServer(options: McpOptions) {
         const waiting = (now.waiting ?? []).map((item: Json) => row(item, demo));
         const running = (now.running ?? []).slice(0, 25).map((run: Json) => ({ id: String(run.id), workItemId: String(run.workItemId), team: String(run.team ?? ''), role: String(run.role ?? ''), round: Number(run.round ?? 0), state: String(run.state ?? ''), startedAt: run.startedAt ?? null, link: link(String(run.workItemId)), untrusted: { title: clip(run.workItemTitle, 300) } }));
         const refused = (now.refused ?? []).slice(0, 25).map((task: Json) => ({ tracker: `${task.provider}:${task.externalId}`, team: String(task.team ?? ''), code: String(task.code ?? ''), reason: clip(task.reason, 500), allowedLabels: task.allowedLabels ?? [], taskUrl: String(task.url ?? ''), untrusted: { title: clip(task.title, 300) } }));
-        const needs = waiting.filter((item: Json) => item.state !== 'awaiting_review' && item.state !== 'proposed').length;
-        const summary = `${needs} need a decision, ${waiting.filter((item: Json) => item.state === 'awaiting_review').length} await review, ${waiting.filter((item: Json) => item.state === 'proposed').length} proposed; ${running.length} Runs running; ${refused.length} tasks refused.${demo ? ' This is the illustrative demo: nothing ran and nothing was spent.' : ''}`;
+        const groups = ((now.waiting ?? []) as Json[]).map(item => reasons.waitingGroup(item));
+        const inGroup = (group: string) => groups.filter(entry => entry === group).length;
+        const summary = `${inGroup('needs')} need a decision, ${inGroup('review')} await review, ${inGroup('proposed')} proposed; ${running.length} Runs running; ${refused.length} tasks refused.${demo ? ' This is the illustrative demo: nothing ran and nothing was spent.' : ''}`;
         return { summary, demo, teams: (now.teams ?? []).map(String), waiting, running, refused, truncated: now.truncatedStates ?? [], errors: now.errors ?? {} };
       },
     },
@@ -267,8 +268,8 @@ export function createMcpServer(options: McpOptions) {
         const changed = (value: unknown) => { const time = Date.parse(String(value ?? '')); return Number.isFinite(time) && time > since.getTime(); };
         const counts = nowPage.digestCounts(now, since.toISOString());
         const waiting = (now.waiting ?? []) as Json[];
-        const needsYou = waiting.filter(item => item.state === 'needs_human' && changed(item.updatedAt)).map(item => row(item, demo));
-        const readyForReview = waiting.filter(item => item.state === 'awaiting_review' && changed(item.updatedAt)).map(item => row(item, demo));
+        const needsYou = waiting.filter(item => item.state !== 'proposed' && reasons.waitingGroup(item) === 'needs' && changed(item.updatedAt)).map(item => row(item, demo));
+        const readyForReview = waiting.filter(item => item.state === 'awaiting_review' && reasons.waitingGroup(item) === 'review' && changed(item.updatedAt)).map(item => row(item, demo));
         const proposed = waiting.filter(item => item.state === 'proposed' && changed(item.createdAt)).map(item => row(item, demo));
         const finishedRuns = ((now.recent ?? []) as Json[]).filter(run => changed(run.finishedAt)).slice(0, 25).map(run => ({ id: String(run.id), workItemId: String(run.workItemId), team: String(run.team ?? ''), role: String(run.role ?? ''), outcome: String(run.outcome ?? ''), verdict: String(run.verdict ?? ''), failureReason: String(run.failureReason ?? ''), finishedAt: run.finishedAt, costUsd: typeof run.settledUsd === 'number' ? cents(run.settledUsd) : typeof run.observedUsd === 'number' ? cents(run.observedUsd) : null, link: link(String(run.workItemId)), untrusted: { title: clip(run.workItemTitle, 300) } }));
         const sessionList = list === null ? [] : (Array.isArray(list) ? list : list.sessions ?? []) as Json[];

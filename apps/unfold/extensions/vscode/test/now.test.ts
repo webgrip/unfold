@@ -22,6 +22,26 @@ test('Now groups waiting work as the browser does: review, then needs you (stopp
   assert.equal(nowGroup(item('leased')), undefined);
 });
 
+test('a pull request whose CI did not pass needs you, not a review; running, passed and unreported CI stay in review', () => {
+  const ci = (state: string) => ({ state, checks: [{ context: 'e2e / flux-local', state }] });
+  const pr = 'https://forgejo.example/webgrip/homelab-cluster/pulls/784';
+  for (const state of ['failure', 'error']) assert.equal(nowGroup(item('awaiting_review', { ci: ci(state) })), 'needs', state);
+  assert.equal(nowGroup(item('awaiting_review', { ci: ci('pending') })), 'review');
+  assert.equal(nowGroup(item('awaiting_review', { ci: ci('success') })), 'review');
+  assert.equal(nowGroup(item('awaiting_review', { ci: null })), 'review');
+  const red = describeItem(core, item('awaiting_review', { pullRequestUrl: pr, ci: ci('failure') }), false);
+  assert.match(red.description, /^CI did not pass · PR #784/);
+  assert.equal(red.heading, 'Not ready for review · CI did not pass');
+  assert.ok(red.lines.includes('CI did not pass on pull request #784, so it is not ready for review. Not passing: e2e / flux-local.'), red.lines.join('\n'));
+  const running = describeItem(core, item('awaiting_review', { pullRequestUrl: pr, ci: ci('pending') }), false);
+  assert.match(running.description, /^CI running · PR #784/);
+  assert.equal(running.heading, 'Ready for review · CI running');
+  assert.equal(describeItem(core, item('awaiting_review', { pullRequestUrl: pr, ci: ci('success') }), false).heading, 'Ready for review');
+  const summary = statusSummary(core, now([item('awaiting_review', { ci: ci('failure') }), item('awaiting_review', { id: '43', ci: ci('success') })]), []);
+  assert.match(summary.tooltip, /^1 ready for your review · 1 needs you/);
+  assert.equal(summary.warning, true);
+});
+
 test('the badge counts what waits on a person, each once: review, needs you and sessions that need you, not proposals', () => {
   const value = now([item('awaiting_review'), item('needs_human', { id: '43' }), item('proposed', { id: '44' }), item('needs_human', { id: '184' })]);
   const rows = sessionRows(core, [fixture.session as Session, { ...(fixture.session as Session), id: 'ask', execution: undefined, status: 'waiting_input', blocker: undefined }]);

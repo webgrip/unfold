@@ -59,9 +59,11 @@ export function pullRequestNumber(url: string | undefined): string | undefined {
   return /\/(?:pulls?|merge_requests)\/(\d+)\/?$/.exec(url ?? '')?.[1];
 }
 
-/** Which Now group a waiting Work Item belongs to. Stopped retrying is a Needs you item, as in the browser. */
-export function nowGroup(item: Pick<PloegNowItem, 'state'>): NowGroup | undefined {
-  if (item.state === 'awaiting_review') return 'review';
+const ciDidNotPass = new Set(['failure', 'error']);
+
+/** Which Now group a waiting Work Item belongs to. Stopped retrying is a Needs you item, as in the browser, and so is a pull request whose CI did not pass: it is not ready for review. */
+export function nowGroup(item: Pick<PloegNowItem, 'state' | 'ci'>): NowGroup | undefined {
+  if (item.state === 'awaiting_review') return item.ci && ciDidNotPass.has(item.ci.state) ? 'needs' : 'review';
   if (item.state === 'needs_human' || item.state === 'stale') return 'needs';
   if (item.state === 'proposed') return 'proposed';
   return undefined;
@@ -90,7 +92,8 @@ export function describeItem(core: Core, item: PloegNowItem, demo: boolean): { l
   const description = [reason?.chip, pr ? `PR #${pr}` : '', item.state === 'proposed' && item.sourceTitle ? `from ${item.sourceTitle}` : '', item.team, demo ? 'illustration' : '', core.relative(item.updatedAt)].filter(Boolean).join(' · ');
   const settled = demo ? 'demo fixture, no model calls or spend' : `settled ${core.money(item.spentUsd ?? undefined)}`;
   const lines = [label, reason ? reason.sentence : meta.description ?? '', reason ? reason.action : '', `Team ${item.team} · ${item.attempts === 1 ? '1 attempt' : `${item.attempts} attempts`} · ${settled} · updated ${core.relative(item.updatedAt)}`].filter(Boolean);
-  return { label, description, heading: reason ? `${meta.label} · ${reason.chip}` : meta.label, lines, accessible: `${label}, ${meta.label}${reason ? `, ${reason.chip}` : ''}, team ${item.team}` };
+  const state = reason?.code === 'ci_failed' ? 'Not ready for review' : meta.label;
+  return { label, description, heading: reason ? `${state} · ${reason.chip}` : state, lines, accessible: `${label}, ${state}${reason ? `, ${reason.chip}` : ''}, team ${item.team}` };
 }
 
 /** The words of one running Run row. Cost is the gateway's reading so far, never settled spend, and a demo shows none. */

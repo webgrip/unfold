@@ -14,6 +14,9 @@ const now = (extra = {}) => ({
 
 test('the navigation counts come from the Now aggregate, and a failed group counts as unknown, never zero', () => {
   assert.deepEqual(countsFromNow(now()), { waiting: 4, review: 1, needsYou: 2, proposed: 1, running: 1 });
+  const red = { id: '9', state: 'awaiting_review', ci: { state: 'error', checks: [] } };
+  const green = { id: '10', state: 'awaiting_review', ci: { state: 'success', checks: [] } };
+  assert.deepEqual(countsFromNow(now({ waiting: [red, green] })), { waiting: 2, review: 1, needsYou: 1, proposed: 0, running: 1 }, 'CI that did not pass needs you, not a review');
   assert.deepEqual(countsFromNow(now({ waiting: [], running: [] })), { waiting: 0, review: 0, needsYou: 0, proposed: 0, running: 0 });
   assert.deepEqual(countsFromNow(now({ errors: { waiting: 'Ploeg could not be read.' } })), { waiting: null, review: null, needsYou: null, proposed: null, running: 1 });
   assert.deepEqual(countsFromNow(now({ errors: { running: 'no' } })).running, null);

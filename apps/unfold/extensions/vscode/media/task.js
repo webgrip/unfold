@@ -1,6 +1,6 @@
 import { closeReasonLabel, displayState, failureReason, humanReview, ciState, playState, runOutcome, runState, unreportedOutcome, verdict, withdrawnReason, workItemState } from './core/states.js';
 import { compactCount, count, date, duration, money, notReported, plural, relative, time } from './core/format.js';
-import { detailReason } from './core/reasons.js';
+import { detailReason, failingChecks, reviewHold } from './core/reasons.js';
 import { checkoutTarget } from './core/checkout.js';
 import { changedFiles, changeText, elapsedClock, ploegRunActive, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
@@ -123,7 +123,23 @@ function latestVerdict(detail) {
   return readers.length ? verdict(readers.at(-1).verdict) : null;
 }
 
-function stateSituation(item, detail, { taskOpen = null } = {}) {
+/** The pull request on the Run card the panel reviews: the one at the review link, else the newest open one; null without one. */
+export function reviewPlay(current) {
+  const { card } = subject(current);
+  const plays = (card?.plays || []).filter(play => play && amount(play.number)).sort((a, b) => b.number - a.number);
+  const url = pullRequestUrl(current);
+  return plays.find(play => url && safeHttps(play.url) === url) || plays.find(play => play.state === 'open') || null;
+}
+
+function heldReview(item, detail, play) {
+  const hold = reviewHold({ state: 'awaiting_review', ci: play?.ci, pullRequest: { number: play?.number ?? null }, url: item.url });
+  if (!hold) return null;
+  const meta = { ...ciState(play.ci.state), key: 'awaiting_review' };
+  const failing = hold.code === 'ci_failed' ? failingChecks(play.ci) : [];
+  return { meta, headline: hold.lead, next: hold.fix, hold, failing, verdict: latestVerdict(detail) };
+}
+
+function stateSituation(item, detail, { taskOpen = null, play = null } = {}) {
   const key = detail ? displayState(detail.item, detail.events) : item.state;
   const meta = workItemState(key);
   const who = item.team ? `team ${item.team}` : 'its Team';
@@ -140,6 +156,8 @@ function stateSituation(item, detail, { taskOpen = null } = {}) {
       return { meta, headline: `${Who} is working on it.`, next: [`Attempt ${item.attempts || 1}.`, line, 'Nothing is needed from you now.'].filter(Boolean).join(' ') };
     }
     case 'awaiting_review': {
+      const held = heldReview(item, detail, play);
+      if (held) return held;
       const agent = latestVerdict(detail);
       return { meta, headline: 'A pull request is waiting for your review.', next: 'Ploeg finished its work. Review and merge it on the forge, or request changes there; Unfold does not merge.', verdict: agent };
     }
@@ -171,13 +189,13 @@ export function ploegSituation(current) {
   if (isWork(current)) {
     const { item, detail } = subject(current);
     if (!item) return { meta: plain('Not loaded'), headline: 'The Work Item could not be loaded.', next: '' };
-    return stateSituation(item, detail);
+    return stateSituation(item, detail, { play: reviewPlay(current) });
   }
   const status = current.status;
   const task = current.task;
   if (!status.available) return { meta: plain('Status unavailable'), headline: status.message || 'Ploeg status is unavailable.', next: '' };
   const { item, detail } = subject(current);
-  if (item && !settled.includes(item.state)) return stateSituation(item, detail, { taskOpen: task.status === 'open' });
+  if (item && !settled.includes(item.state)) return stateSituation(item, detail, { taskOpen: task.status === 'open', play: reviewPlay(current) });
   if (status.assignedTeams.length) return { meta: plain('Waiting for Ploeg'), headline: `Assigned to ${status.assignedTeams.join(', ')}. Waiting for Ploeg to queue it…`, next: 'Ploeg normally queues an assigned task within seconds. If this stays, check the board webhook and routing in Ploeg.' };
   if (item) return stateSituation(item, detail, { taskOpen: task.status === 'open' });
   if (task.status !== 'open') return { meta: plain('Closed'), headline: 'This task is closed in the tracker.', next: 'Reopen it there before handing it to Ploeg.' };
@@ -218,7 +236,8 @@ export function primaryAction(current) {
   const url = pullRequestUrl(current);
   if (situation.meta.key === 'awaiting_review' && url) {
     const number = pullRequestNumber(url);
-    return element('button', { type: 'button', className: 'primary', 'data-open-url': url, title: url }, 'Review pull request ↗', number ? element('span', { className: 'sr-only' }, ` #${number}`) : null);
+    const label = situation.hold?.code === 'ci_failed' ? 'See why CI did not pass ↗' : situation.hold ? 'Follow CI on the pull request ↗' : 'Review pull request ↗';
+    return element('button', { type: 'button', className: 'primary', 'data-open-url': url, title: url }, label, number ? element('span', { className: 'sr-only' }, ` #${number}`) : null);
   }
   if (item?.id) return action('Open in browser ↗', 'open-ploeg', { className: 'primary', 'data-id': item.id, title: 'Open this Work Item in the Unfold workbench in your browser' });
   return null;
@@ -605,6 +624,7 @@ export function headCard(current) {
         demo ? element('span', { className: 'tag demo-tag' }, 'Demo · no model calls or spend') : null),
       element('h2', { id: 'head-heading', className: 'headline' }, situation.headline),
       situation.next ? element('p', { className: 'next' }, situation.next) : null,
+      situation.failing?.length ? element('ul', { className: 'failing-checks', 'aria-label': 'Checks that did not pass' }, ...situation.failing.map(name => element('li', {}, name))) : null,
       situation.verdict ? element('p', { className: 'muted small' }, 'Agent review is evidence, not a human review.') : null,
       reason ? reasonBlock(reason) : null,
       blocked,

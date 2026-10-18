@@ -123,7 +123,8 @@ export class NowTree implements vscode.TreeDataProvider<NowEntry>, vscode.Dispos
   }
 
   private itemRow(item: PloegNowItem, demo: boolean): vscode.TreeItem {
-    const meta = this.core.workItemState(item.state);
+    const held = item.state === 'awaiting_review' && this.core.listReason(item, { demo }) ? this.core.ciState(item.ci?.state) : null;
+    const meta = held ?? this.core.workItemState(item.state);
     const text = describeItem(this.core, item, demo);
     const row = new vscode.TreeItem(text.label);
     row.id = `now:item:${item.id}`;
