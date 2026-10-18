@@ -1,3 +1,9 @@
+## [unfold-v0.4.0-rc.89](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.88...unfold-v0.4.0-rc.89) (2026-10-18)
+
+### Added
+
+* **unfold:** show the whole fleet on Now behind the now.fleet Labs flag ([f874dc9](https://forgejo.webgrip.dev/webgrip/unfold/commit/f874dc9753085a4d9738a2a897d457b5ac881683))
+
 ## [unfold-v0.4.0-rc.88](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.87...unfold-v0.4.0-rc.88) (2026-10-18)
 
 ### Fixed
