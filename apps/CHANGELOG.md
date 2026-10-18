@@ -1,3 +1,43 @@
+## [unfold-v0.4.0-rc.96](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.95...unfold-v0.4.0-rc.96) (2026-10-18)
+
+### Added
+
+* **unfold:** add the decider and the shadow tripwire reader ([037cab5](https://forgejo.webgrip.dev/webgrip/unfold/commit/037cab55269af8740f86df12dcb8e99eb3485cd7))
+* **unfold:** call the one page the Unified Work Item page, flag work.unified ([4bdc89c](https://forgejo.webgrip.dev/webgrip/unfold/commit/4bdc89cdd851455993847fd92c75e18a7e8d4d28)), references [#456](https://forgejo.webgrip.dev/webgrip/unfold/issues/456)
+* **unfold:** float a paper plane over the fleet board under clear skies ([c108bda](https://forgejo.webgrip.dev/webgrip/unfold/commit/c108bda1da0717728f0bbc536fc7ccec6f553ddb))
+* **unfold:** Labs flags that exclude each other, starting with the live view and the one page ([6dbec5c](https://forgejo.webgrip.dev/webgrip/unfold/commit/6dbec5c004256662c77a7d4d75c1c2e182d0648a))
+* **unfold:** one page for a Work Item and the session that started it ([f976a62](https://forgejo.webgrip.dev/webgrip/unfold/commit/f976a626d535e35075f0fa0f20497d08411efad2))
+* **unfold:** pass the decider through the chart and record the tripwire in the replay ([02831a5](https://forgejo.webgrip.dev/webgrip/unfold/commit/02831a507d6c4039130254859cfd0088afb52a67))
+* **unfold:** pick a time range on Runs and Activity ([f340ddd](https://forgejo.webgrip.dev/webgrip/unfold/commit/f340dddb5b34cf0297eac9d7f5cc6cc573192f67))
+* **unfold:** show decider tripwire hits on the Run and in the live view ([4e8099e](https://forgejo.webgrip.dev/webgrip/unfold/commit/4e8099e36a0f6b13e636acbcfea0b03658fd41bf))
+
+### Fixed
+
+* **ploeg:** move the Go module to 0.2.0-rc.36 to match the pinned contract bundle ([ac15fde](https://forgejo.webgrip.dev/webgrip/unfold/commit/ac15fde4cd2892ecfaeb0c007d46522a7503c92e)), references [#460](https://forgejo.webgrip.dev/webgrip/unfold/issues/460)
+* **ploeg:** update ploeg ([31525c0](https://forgejo.webgrip.dev/webgrip/unfold/commit/31525c0eb8ba98aeeb71a2553f5fb040bb5b645f))
+* **ploeg:** update ploeg ([4e825cb](https://forgejo.webgrip.dev/webgrip/unfold/commit/4e825cbda7f0a03e73719fd35cf8789de3f36d41))
+* **ploeg:** update Ploeg to 0.2.0-rc.39 ([de05a54](https://forgejo.webgrip.dev/webgrip/unfold/commit/de05a540fc6408c5bffefacc7e1c26fc688b8d57))
+* **ploeg:** update Ploeg to 0.2.0-rc.40 ([dd71418](https://forgejo.webgrip.dev/webgrip/unfold/commit/dd714189c81013ade18795f6c0b9ff950f86195d))
+* **ploeg:** update Ploeg to 0.2.0-rc.40 ([a26dbee](https://forgejo.webgrip.dev/webgrip/unfold/commit/a26dbeec5016f3efd2462e553c2e0f43b6d050ff))
+* **unfold:** keep an OpenCode turn alive when its permission list cannot be read ([a9ffc29](https://forgejo.webgrip.dev/webgrip/unfold/commit/a9ffc291ea5aab4aba4386ad04e122c3649d8a80))
+* **unfold:** read a Linked Session's token and cost totals with max_over_time ([8b13f22](https://forgejo.webgrip.dev/webgrip/unfold/commit/8b13f22924bfe4b41e33ad606476762c72cd729d))
+* **unfold:** show an open pull request awaiting agent review as such on the Unified page ([4ab5856](https://forgejo.webgrip.dev/webgrip/unfold/commit/4ab5856ef8d49b10f44155774254107a0665fd7a)), references [#2238](https://forgejo.webgrip.dev/webgrip/unfold/issues/2238) [#817](https://forgejo.webgrip.dev/webgrip/unfold/issues/817)
+* **unfold:** word Ploeg's two CI close reasons ([75eb483](https://forgejo.webgrip.dev/webgrip/unfold/commit/75eb48350174b4e164169fddff543c7df4a63fab)), references [#464](https://forgejo.webgrip.dev/webgrip/unfold/issues/464)
+
+### Performance
+
+* **unfold:** let the tripwire reader skip writes for Runs with nothing new ([0bfb0f5](https://forgejo.webgrip.dev/webgrip/unfold/commit/0bfb0f55716ae1f2d0aa9065eb92a9ca613d0816))
+
+### Docs
+
+* **domain:** people see Work Items, a Shift is an Attempt, one Review ([14aac64](https://forgejo.webgrip.dev/webgrip/unfold/commit/14aac6467b20828bdfc7359489a7f82805fd1ccb))
+* **unfold:** document the decider tripwire and mark RFC-0008 step 1 built ([2e8e1e1](https://forgejo.webgrip.dev/webgrip/unfold/commit/2e8e1e1df68d4d37e90131296c6426d42e5a46af))
+* **unfold:** propose a review walkthrough a non-technical person can follow ([ba3699e](https://forgejo.webgrip.dev/webgrip/unfold/commit/ba3699e284d1672966121d2e5c867cf1fc18a77f)), references [#185](https://forgejo.webgrip.dev/webgrip/unfold/issues/185)
+
+### Tests
+
+* **unfold:** cover the decider, the tripwire reader and its routes ([b47750f](https://forgejo.webgrip.dev/webgrip/unfold/commit/b47750fffceb987e5fa398fb132e14be5bb62415))
+
 ## [unfold-v0.4.0-rc.95](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.94...unfold-v0.4.0-rc.95) (2026-10-18)
 
 ### Added
