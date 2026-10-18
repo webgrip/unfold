@@ -76,6 +76,12 @@ export function repositoryFolderNames(repositories: readonly Repository[]): Map<
   return new Map(slugs.map(([id, slug]) => [id, `${slug}${(counts.get(slug.toLowerCase()) ?? 0) > 1 ? ` (${id})` : ''}`]));
 }
 
+/** Each repository's folder on this host as the Agents window's folder picker lists it, by repository id: the path a client puts after the host's connection authority to start a session there. */
+export function repositoryFolderPaths(repositories: readonly Repository[]): Map<string, string> {
+  const base = new URL(repositoriesDirectory).pathname;
+  return new Map([...repositoryFolderNames(repositories)].map(([id, name]) => [id, `${base}/${name}`]));
+}
+
 /**
  * What VS Code shows for a repository as the session's project: `Unfold · <folder>`. Until 2026-10-17 it was also the
  * folder's name, so a working directory picked then still names the repository this way.

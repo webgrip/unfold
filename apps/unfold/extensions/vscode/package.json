@@ -99,6 +99,12 @@
         "icon": "$(remote)"
       },
       {
+        "command": "unfold.startInAgentsWindow",
+        "title": "Start a Session in the Agents Window",
+        "category": "Unfold",
+        "icon": "$(unfold-mark)"
+      },
+      {
         "command": "unfold.openInAgentsWindow",
         "title": "Open in Agents Window",
         "category": "Unfold",
@@ -335,6 +341,15 @@
         "category": "Unfold"
       }
     ],
+    "icons": {
+      "unfold-mark": {
+        "description": "The Unfold mark.",
+        "default": {
+          "fontPath": "media/unfold-icons.woff",
+          "fontCharacter": "\\E000"
+        }
+      }
+    },
     "configuration": {
       "title": "Unfold",
       "properties": {
@@ -516,6 +531,16 @@
         }
       ],
       "view/title": [
+        {
+          "command": "unfold.startInAgentsWindow",
+          "when": "view == unfold.now && unfold.connected",
+          "group": "navigation@0"
+        },
+        {
+          "command": "unfold.startInAgentsWindow",
+          "when": "view == unfold.sessions && unfold.connected",
+          "group": "navigation@0"
+        },
         {
           "command": "unfold.refresh",
           "when": "view == unfold.now",
@@ -787,11 +812,12 @@
           {
             "id": "agentsWindow",
             "title": "Use Unfold from the Agents window",
-            "description": "Signing in adds Unfold to VS Code's Agents window. There, choose New, then Workspace ▾ → Folders (Unfold) → <repository> to start a session; your sessions are grouped the same way. To jump to one session or Work Item, use Open in Agents Window on its row in the Now or Sessions view.\n[Open the Agents window](command:unfold.openAgentsWindow)",
+            "description": "Signing in adds Unfold to VS Code's Agents window. Start a session there with the Unfold button at the top of the Now or Sessions view, or with Start an Unfold session in the status bar: pick a repository and the Agents window opens a new session on it. To jump to one session or Work Item, use Open in Agents Window on its row in the Now or Sessions view.\n[Start an Unfold session](command:unfold.startInAgentsWindow)",
             "media": {
               "markdown": "media/walkthrough/agents-window.md"
             },
             "completionEvents": [
+              "onCommand:unfold.startInAgentsWindow",
               "onCommand:unfold.openAgentsWindow",
               "onCommand:unfold.connectAgentHost"
             ]
