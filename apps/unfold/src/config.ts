@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, mkdirSync, chmodSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AppConfig, Repository, Team, Placement, WorkspaceBackend } from './types.ts';
+import type { AppConfig, GitRewrite, Repository, Team, Placement, WorkspaceBackend } from './types.ts';
 import { mcpHttpSettings } from './mcp-auth.ts';
 import { validateTaskSources } from './tasks.ts';
 import { reportSettings } from './reports.ts';
@@ -34,6 +34,16 @@ function configuredUrl(value: string, name: string): string {
   const parsed = new URL(value);
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error(`${name} must be an HTTP(S) URL without embedded credentials`);
   return value.replace(/\/$/, '');
+}
+
+function gitRewrites(value: unknown): GitRewrite[] {
+  if (!Array.isArray(value) || value.length > 16) throw new Error('kubernetes.gitRewrites must list at most 16 { url, insteadOf } entries');
+  return value.map((entry, index) => {
+    const { url, insteadOf, ...rest } = (entry ?? {}) as Record<string, unknown>;
+    const prefix = (item: unknown) => { if (typeof item !== 'string' || !item.endsWith('/')) return false; try { const parsed = new URL(item); return ['http:', 'https:'].includes(parsed.protocol) && !parsed.username && !parsed.password && !parsed.search && !parsed.hash; } catch { return false; } };
+    if (Object.keys(rest).length || !prefix(url) || !prefix(insteadOf) || url === insteadOf) throw new Error(`kubernetes.gitRewrites[${index}] needs url and insteadOf, two different HTTP(S) URL prefixes ending in / without credentials`);
+    return { url: url as string, insteadOf: insteadOf as string };
+  });
 }
 
 const backendOrder: WorkspaceBackend[] = ['docker', 'kubernetes', 'local'];
@@ -310,6 +320,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (raw.kubernetes.userNamespaces !== undefined && typeof raw.kubernetes.userNamespaces !== 'boolean') throw new Error('kubernetes.userNamespaces must be true or false');
     if (raw.kubernetes.userNamespaces && raw.kubernetes.provisioner === 'sandbox') throw new Error('kubernetes.userNamespaces cannot be combined with the sandbox provisioner; a Kata guest kernel already remaps the workload');
     if (!['pod', 'sandbox'].includes(raw.kubernetes.provisioner)) throw new Error('kubernetes.provisioner must be pod or sandbox');
+    if (raw.kubernetes.gitRewrites !== undefined) raw.kubernetes.gitRewrites = gitRewrites(raw.kubernetes.gitRewrites);
     if (raw.kubernetes.runtimeClassName !== undefined && (typeof raw.kubernetes.runtimeClassName !== 'string' || !/^[A-Za-z0-9_.-]{1,253}$/.test(raw.kubernetes.runtimeClassName))) throw new Error('kubernetes.runtimeClassName must be a RuntimeClass name');
     if (raw.kubernetes.runtimeClassName && raw.kubernetes.provisioner === 'sandbox') throw new Error('kubernetes.runtimeClassName applies to the pod provisioner; the sandbox provisioner takes kubernetes.sandbox.runtimeClassName');
     if (raw.kubernetes.runtimeClassName && raw.kubernetes.userNamespaces) throw new Error('kubernetes.runtimeClassName cannot be combined with kubernetes.userNamespaces; a sandboxed runtime such as Kata already remaps the workload in its guest kernel');

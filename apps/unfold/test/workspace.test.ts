@@ -8,6 +8,7 @@ import { once } from 'node:events';
 import { RuntimeFailure, classifyFailure } from '../src/failures.ts';
 import { WorkspaceManager, isolatedEnvironment, managedConfig } from '../src/runtime/workspace.ts';
 import { KubernetesWorkspaces, workspaceManifests, candidateExportManifest, podWait } from '../src/runtime/kubernetes.ts';
+import { gitRewriteVariables } from '../src/runtime/git-access.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
 import { deadlineAfter, scaledTimeout, testTimeout } from './timeframes.ts';
 
@@ -301,6 +302,34 @@ test('a RuntimeClass puts both the writer and the export pod under it, and is op
   config.kubernetes = { ...config.kubernetes!, runtimeClassName: 'kata' };
   assert.equal(workspaceManifests(config, session, repository, credential, { username: 'opencode', password: 'p' }, managedConfig(config)).find(item => item.kind === 'Pod')!.spec.runtimeClassName, 'kata');
   assert.equal(candidateExportManifest(config, exported, repository).spec.runtimeClassName, 'kata');
+});
+
+test('git rewrites reach the clone and agent containers of the writer pod, and are absent by default', () => {
+  const config = configuration();
+  const rewrite = { url: 'http://forge-http.forge.svc.cluster.local:3000/', insteadOf: 'https://forge.example/' };
+  const containers = () => { const pod = workspaceManifests(config, session, repository, credential, { username: 'opencode', password: 'p' }, managedConfig(config)).find(item => item.kind === 'Pod')!; return [pod.spec.initContainers[0], pod.spec.containers[0]]; };
+  for (const container of containers()) assert.equal(container.env.some((e: any) => e.name.startsWith('GIT_CONFIG_')), false);
+  config.kubernetes = { ...config.kubernetes!, gitRewrites: [rewrite] };
+  for (const container of containers()) {
+    const env = Object.fromEntries(container.env.filter((e: any) => e.name.startsWith('GIT_CONFIG_')).map((e: any) => [e.name, e.value]));
+    assert.deepEqual(env, { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: `url.${rewrite.url}.insteadOf`, GIT_CONFIG_VALUE_0: rewrite.insteadOf });
+  }
+  assert.equal(containers()[0].env.find((e: any) => e.name === 'REPOSITORY_URL').value, repository.url);
+});
+
+test('git follows a configured rewrite even with global and system configuration switched off', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'unfold-git-rewrite-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const origin = join(root, 'origin.git');
+  execFileSync('git', ['init', '--quiet', '--bare', '--initial-branch', 'main', origin]);
+  const seed = join(root, 'seed');
+  execFileSync('git', ['init', '--quiet', '--initial-branch', 'main', seed]);
+  execFileSync('git', ['-C', seed, '-c', 'user.name=t', '-c', 'user.email=t@localhost', 'commit', '--quiet', '--allow-empty', '-m', 'seed']);
+  execFileSync('git', ['-C', seed, 'push', '--quiet', origin, 'main']);
+  const env = { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: root, GIT_TERMINAL_PROMPT: '0', GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1',
+    ...Object.fromEntries(gitRewriteVariables([{ url: `file://${root}/`, insteadOf: 'https://forge.example/' }]).map(({ name, value }) => [name, value])) };
+  const listed = execFileSync('git', ['ls-remote', 'https://forge.example/origin.git', 'refs/heads/main'], { env, encoding: 'utf8' });
+  assert.match(listed, /^[a-f0-9]{40}\trefs\/heads\/main\n$/);
 });
 
 const gatewayTools = { litellmTeamId: 'agents-orders', accessGroups: ['observability-read-orders'] };

@@ -11,6 +11,8 @@ export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | '
 export type UserRole = 'admin' | 'operator' | 'viewer';
 export type User = { id: string; name: string; role: UserRole };
 export type RepositoryAccess = { username: string; password: string };
+/** A git URL prefix fetched from another address: `insteadOf` is what repository URLs say, `url` is where git goes. */
+export type GitRewrite = { url: string; insteadOf: string };
 /** Read-only gateway MCP tools for sessions on one repository: keys are minted into this LiteLLM team with exactly these MCP access groups. */
 export type RepositoryMcp = { litellmTeamId: string; accessGroups: string[] };
 export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg'; access?: RepositoryAccess; mcp?: RepositoryMcp };
@@ -43,7 +45,7 @@ export type AppConfig = {
   runtime: { kind: RuntimeKind; backend: WorkspaceBackend | 'external'; backends?: WorkspaceBackend[]; endpoint?: string; username?: string; password?: string; binary?: string; image?: string; command?: string[]; timeoutMs: number; agentEnvironment?: string[]; maxToolCalls?: number; briefCheck?: boolean; reconnectGraceMs?: number };
   docker?: { image: string; socketPath?: string; network?: string; cpus?: number; memoryMb?: number; pidsLimit?: number; gatewayUrl?: string; provisionTimeoutMs?: number; user?: string; transport?: WorkspaceTransport; relayUrl?: string };
   litellm?: { baseUrl: string; adminUrl: string; masterKey: string; models: string[]; ttl: string; settlementDelayMs?: number };
-  kubernetes?: { namespace: string; image: string; storageClass?: string; storageSize: string; cpu: string; memory: string; cpuRequest?: string; memoryRequest?: string; apiUrl?: string; tokenFile?: string; caFile?: string; pullPolicy?: string; ingressFrom?: Record<string, unknown>[]; egress?: Record<string, unknown>[]; gitSecretName?: string; agentSecrets?: string[]; imagePullSecrets?: string[]; provisionTimeoutMs?: number; transport?: WorkspaceTransport; relayUrl?: string; provisioner?: 'pod' | 'sandbox'; userNamespaces?: boolean; runtimeClassName?: string; sandbox?: { runtimeClassName?: string; warmPool?: string; poolTokenEnv?: string } };
+  kubernetes?: { namespace: string; image: string; storageClass?: string; storageSize: string; cpu: string; memory: string; cpuRequest?: string; memoryRequest?: string; apiUrl?: string; tokenFile?: string; caFile?: string; pullPolicy?: string; ingressFrom?: Record<string, unknown>[]; egress?: Record<string, unknown>[]; gitSecretName?: string; gitRewrites?: GitRewrite[]; agentSecrets?: string[]; imagePullSecrets?: string[]; provisionTimeoutMs?: number; transport?: WorkspaceTransport; relayUrl?: string; provisioner?: 'pod' | 'sandbox'; userNamespaces?: boolean; runtimeClassName?: string; sandbox?: { runtimeClassName?: string; warmPool?: string; poolTokenEnv?: string } };
   auth: { secureCookies: boolean; sessionHours: number; bootstrapPassword?: string; bootstrapName: string; oidc?: { issuer: string; subjectNamespace?: string; clientId: string; clientSecret?: string; scopes: string[]; displayName: string; roleClaim: string; groupsClaim: string; roles: Record<UserRole, string[]> } };
   /** `unfold-mcp` served over Streamable HTTP on its own path, from `UNFOLD_MCP_*`; off when absent. */
   mcp?: McpHttpSettings;

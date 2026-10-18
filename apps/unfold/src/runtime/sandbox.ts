@@ -5,6 +5,7 @@ import type { AppConfig, Credential, Repository, Session, Workspace } from '../t
 import { KubernetesClient, captureInPlace, cloneProgram, workspaceManifests, workspaceName } from './kubernetes.ts';
 import { WorkerRelay, relayEndpoint } from './relay.ts';
 import { agentEnvironment, relayServeCommand } from './docker.ts';
+import { gitRewriteVariables } from './git-access.ts';
 
 type KubernetesObject = Record<string, any>;
 type BasicCredentials = { username: string; password: string };
@@ -96,7 +97,7 @@ export class SandboxWorkspaces {
         if (!pod) throw new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, `No warm sandbox was bound to ${name} in time`);
         this.pods.set(session.id, pod);
         const env = Object.fromEntries(agentEnvironment(this.config, credential, basic, managed, process.env).map(entry => entry.split(/=(.*)/s).slice(0, 2)));
-        this.relay.assign(pod, { sessionId: session.id, token: relay.token, env: { ...env, REPOSITORY_URL: repository.url, BASE_BRANCH: repository.baseBranch, WORK_BRANCH: session.branch, UNFOLD_RELAY_TARGET: 'http://127.0.0.1:4096' } });
+        this.relay.assign(pod, { sessionId: session.id, token: relay.token, env: { ...env, ...Object.fromEntries(gitRewriteVariables(k.gitRewrites).map(({ name, value }) => [name, value])), REPOSITORY_URL: repository.url, BASE_BRANCH: repository.baseBranch, WORK_BRANCH: session.branch, UNFOLD_RELAY_TARGET: 'http://127.0.0.1:4096' } });
         await this.relay.waitForWorker(session.id, signal, Math.max(1000, deadline - Date.now()));
         const transport = this.relay.fetcher(session.id);
         const control = async (path: string, body: unknown, timeoutMs: number) => { const response = await transport(`http://workspace${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) }); if (!response.ok) throw new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, `Warm sandbox control ${path} returned HTTP ${response.status}`); return response.json() as Promise<any>; };
