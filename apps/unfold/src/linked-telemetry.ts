@@ -28,13 +28,18 @@ type Observability = AppConfig['observability'];
 /** A PromQL or LogsQL string literal for `value`. */
 export function quoted(value: string): string { return JSON.stringify(value); }
 
-/** The PromQL queries that sum one session's counters over `range`, such as `86400s`. */
+/**
+ * The PromQL queries for one session's totals over `range`, such as `86400s`: the highest value each of its cumulative
+ * counters reached, summed over its series (model, query source). Claude Code may export a short session's counter
+ * once, which `increase()` reads as almost nothing; a counter that restarted when a session was resumed counts only its
+ * larger part.
+ */
 export function metricQueries(sessionId: string, range: string): { cost: string; tokens: string; active: string } {
   const session = `session_id=${quoted(sessionId)}`;
   return {
-    cost: `sum(increase(claude_code_cost_usage_USD_total{${session}}[${range}]))`,
-    tokens: `sum by (type) (increase(claude_code_token_usage_tokens_total{${session}}[${range}]))`,
-    active: `sum(increase(claude_code_active_time_seconds_total{${session}}[${range}]))`,
+    cost: `sum(max_over_time(claude_code_cost_usage_USD_total{${session}}[${range}]))`,
+    tokens: `sum by (type) (max_over_time(claude_code_token_usage_tokens_total{${session}}[${range}]))`,
+    active: `sum(max_over_time(claude_code_active_time_seconds_total{${session}}[${range}]))`,
   };
 }
 

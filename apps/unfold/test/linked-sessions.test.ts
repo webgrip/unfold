@@ -160,7 +160,7 @@ test('a session keeps the Agent Trace of its commits, counts AI lines on the com
 });
 
 test('telemetry is read by session id from the metrics and log stores, never reads prompt text, and says what it could not read', async () => {
-  assert.equal(metricQueries('s"1', '600s').cost, 'sum(increase(claude_code_cost_usage_USD_total{session_id="s\\"1"}[600s]))');
+  assert.equal(metricQueries('s"1', '600s').cost, 'sum(max_over_time(claude_code_cost_usage_USD_total{session_id="s\\"1"}[600s]))');
   assert.match(logQueries('abc').events, /^\{service_name="claude-code"\} attributes\.session\.id:="abc" \| stats by \(event_name\) count\(\) hits$/);
   assert.doesNotMatch(Object.values(logQueries('abc')).join(' '), /prompt\b(?!s)|body|user\.email/);
   const seen: string[] = [];
