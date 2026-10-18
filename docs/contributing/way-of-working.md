@@ -3,7 +3,7 @@ type: explanation
 audience: [contributor, agent]
 owner: unfold
 last_verified: 2026-10-11
-verified_by: "Read against AGENTS.md, apps/*/AGENTS.md, .forgejo/workflows/on_pull_request.yml, scripts/verify.mjs, scripts/stage-explicit-paths.py, apps/.releaserc.cjs, the last 50 closed pull requests on Forgejo and Ploeg's writer and reviewer prompts in pkg/worker/task.go of the pinned Ploeg release. Branch rule for development read from the Forgejo settings on 2026-10-11."
+verified_by: "Read against AGENTS.md, apps/*/AGENTS.md, .forgejo/workflows/on_pull_request.yml, scripts/verify.mjs, scripts/stage-explicit-paths.py, apps/.releaserc.cjs, the last 50 closed pull requests on Forgejo and Ploeg's writer and reviewer prompts in pkg/taskprompt/prompt.go of the pinned Ploeg release. Branch rule for development read from the Forgejo settings on 2026-10-11."
 ---
 
 # How work on Unfold is done
