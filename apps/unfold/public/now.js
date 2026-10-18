@@ -652,7 +652,7 @@ function unsettledBanner(view, now) {
   if (!summary || summary.demo || view.data.demo || !unsettled || !(unsettled.count > 0)) return '';
   const accounts = Array.isArray(unsettled.accounts) ? unsettled.accounts : [];
   const runs = unsettled.count === 1 ? '1 Run holds' : `${format.count(unsettled.count)} Runs hold`;
-  const rows = accounts.map(entry => `<li class="now-unsettled-run"><a href="#work/${escape(entry.workItemId)}">Work Item ${escape(entry.workItemId)}</a> <span class="subtle">Run ${escape(entry.runId)} · ${escape(entry.team)} · key ${escape(entry.accountState)} · ${escape(format.money(entry.heldUsd))} held since ${format.timeHtml(entry.since, { now })}</span></li>`).join('');
+  const rows = accounts.map(entry => `<li class="now-unsettled-run">${entry.workItemId === null || entry.workItemId === undefined ? `Run ${escape(entry.runId)} outside any Work Item` : `<a href="#work/${escape(entry.workItemId)}">Work Item ${escape(entry.workItemId)}</a>`} <span class="subtle">Run ${escape(entry.runId)} · ${escape(entry.team)} · key ${escape(entry.accountState)} · ${escape(format.money(entry.heldUsd))} held since ${format.timeHtml(entry.since, { now })}</span></li>`).join('');
   const list = disclosure({ summary: unsettled.count === 1 ? 'Show the Run' : `Show the ${format.count(unsettled.count)} Runs`, body: `<ul class="now-unsettled-runs">${rows}</ul>` });
   const blocked = accounts.length > 0 && accounts.every(entry => entry.accountState === 'blocked');
   const cause = blocked

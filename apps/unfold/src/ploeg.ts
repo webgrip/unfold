@@ -38,7 +38,8 @@ export type PloegWorkCounts = Record<'queued' | 'leased' | 'awaitingReview' | 'n
 export type PloegRunCounts = Record<'pending' | 'running' | 'finished' | 'failed' | 'stuck', number>;
 export type PloegSpend = { settledUsd: number; reservedUsd: number };
 export type PloegTeamSummary = { team: string; workItems: PloegWorkCounts; runs: PloegRunCounts; spend: PloegSpend; lastActivityAt: string | null };
-export type PloegUnsettledAccount = { runId: string; workItemId: string; team: string; accountState: 'minting' | 'issued' | 'unknown' | 'blocked'; heldUsd: number; since: string };
+/** A Run whose hold Ploeg cannot release; `workItemId` is null for a Run outside any Work Item, such as a chat message (Ploeg ADR-0115). */
+export type PloegUnsettledAccount = { runId: string; workItemId: string | null; team: string; accountState: 'minting' | 'issued' | 'unknown' | 'blocked'; heldUsd: number; since: string };
 /** Finished Runs whose budget hold Ploeg cannot release, oldest first, with their count and held total summed from exactly these rows. */
 export type PloegUnsettled = { count: number; heldUsd: number; accounts: PloegUnsettledAccount[] };
 export type PloegSummary = { demo: boolean; window: PloegWindow; generatedAt: string; teams: PloegTeamSummary[]; totals: { workItems: PloegWorkCounts; runs: PloegRunCounts; spend: PloegSpend }; unsettled: PloegUnsettled | null; unsettledError: { code: string; message: string } | null; fetchedAt: string };
@@ -158,6 +159,18 @@ export class AskAllowanceUsedUp extends PloegError {
 }
 /** A Team's Ask Allowance for the current month, as Ploeg reports it. */
 export type PloegAskAllowance = { limitUsd: number; settledUsd: number; heldUsd: number; remainingUsd: number; resetAt: string; askCount: number; askBudgetUsd: number; asksEnabled: boolean };
+/** Ploeg refused a chat message because the scope's chat allowance cannot cover it (Ploeg ADR-0115, Unfold ADR 0049, proposed). `resetAt` is when the next period opens. */
+export class ChatAllowanceUsedUp extends PloegError {
+  readonly resetAt: string;
+  readonly allowance: PloegChatAllowance | null;
+  constructor(resetAt: string, allowance: PloegChatAllowance | null = null) { super(402, 'allowance_exhausted', 'Chat allowance used up.'); this.name = 'ChatAllowanceUsedUp'; this.resetAt = resetAt; this.allowance = allowance; }
+}
+/** A scope's chat allowance for the current period, as Ploeg reports it with `purpose: "chat"`. */
+export type PloegChatAllowance = { scopeKind: string; scopeId: string; periodStart: string; resetAt: string; limitUsd: number; settledUsd: number; heldUsd: number; remainingUsd: number; chatCount: number; chatBudgetUsd: number; chatsEnabled: boolean };
+/** An admitted chat message: Ploeg's chat record, its key capped at `budgetUsd`, the models it may call, and the allowance after admission. `key` is shown once. */
+export type PloegChatGrant = { chatId: string; runId: string; team: string; budgetUsd: number; key: string; models: string[]; expiresAt: string; allowance: PloegChatAllowance | null };
+/** A chat message's state and spend as Ploeg last read it. */
+export type PloegChatRecord = { chatId: string; state: 'open' | 'finished' | 'expired'; costStatus: PloegCostStatus; usd: number | null };
 /** An admitted Ask's key and allowance. `key` is shown once; Unfold calls its own gateway with it. */
 export type PloegAskGrant = { askId: string; key: string; models: string[]; expiresAt: string; allowance: PloegAskAllowance | null };
 /** How sure a cost figure from Ploeg is (system ADR-0036): still moving, settled once but correctable, final, or not known. */
@@ -286,7 +299,7 @@ function unsettledAccount(value: unknown): PloegUnsettledAccount {
   const data = record(value);
   const state = oneOf(data.accountState, unsettledStates);
   if (!state) throw invalid();
-  return { runId: identifier(data.runId), workItemId: identifier(data.workItemId), team: field(data.team, 100), accountState: state, heldUsd: numeric(data.heldUsd), since: timestamp(data.since) };
+  return { runId: identifier(data.runId), workItemId: data.workItemId === null || data.workItemId === undefined ? null : identifier(data.workItemId), team: field(data.team, 100), accountState: state, heldUsd: numeric(data.heldUsd), since: timestamp(data.since) };
 }
 /** Sums unsettled accounts into the count and held total a caller sees. */
 export function unsettledTotals(accounts: PloegUnsettledAccount[]): PloegUnsettled {
@@ -384,6 +397,34 @@ async function askRefusal(response: Response): Promise<PloegError | null> {
   try { data = Number(response.headers.get('content-length') ?? 0) <= 65_536 ? await response.json() : null; } catch { data = null; }
   if (response.status === 402) { const resetAt = data?.allowance?.resetAt; return new AskAllowanceUsedUp(typeof resetAt === 'string' && !Number.isNaN(Date.parse(resetAt)) ? resetAt : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1)).toISOString()); }
   const [code, message] = data?.error?.code === 'credential_unresolved' ? ['ask_unavailable', 'Ploeg could not issue a key for this Ask. Try again in a minute.'] : askFailures[response.status];
+  return new PloegError(response.status, code, message);
+}
+
+const chatFailures: Record<number, Record<string, [string, string]>> = {
+  400: { '': ['chat_message', 'Ploeg refused the message. Keep it under 4,000 characters.'] },
+  403: { '': ['ploeg_decision_forbidden', 'Unfold’s Ploeg credential cannot admit chat messages. An administrator must grant it execute permission.'] },
+  404: { '': ['ploeg_not_found', 'Ploeg does not know this Team, or it is outside the Teams you may use.'] },
+  409: { inference_policy: ['chat_unconfigured', 'Chat is not set up for this Team yet: Ploeg has no model policy for its chat.'], chat_conflict: ['chat_conflict', 'Ploeg already holds a different message under this chat id.'], '': ['chat_conflict', 'Ploeg did not admit the message.'] },
+  503: { block_unconfirmed: ['chat_block_unconfirmed', 'Ploeg could not confirm that the chat message\'s key is blocked.'], '': ['chat_unavailable', 'Ploeg cannot admit chat messages right now: its model gateway is not available.'] },
+};
+
+function chatAllowance(value: unknown): PloegChatAllowance {
+  const data = record(value);
+  return { scopeKind: field(data.scopeKind ?? 'team', 64), scopeId: field(data.scopeId ?? '', 128), periodStart: field(data.periodStart ?? '', 64), resetAt: timestamp(data.resetAt), limitUsd: numeric(data.limitUsd), settledUsd: numeric(data.settledUsd), heldUsd: numeric(data.heldUsd), remainingUsd: typeof data.remainingUsd === 'number' && Number.isFinite(data.remainingUsd) ? data.remainingUsd : 0, chatCount: typeof data.chatCount === 'number' ? numeric(data.chatCount, true) : 0, chatBudgetUsd: typeof data.chatBudgetUsd === 'number' ? numeric(data.chatBudgetUsd) : 0, chatsEnabled: data.chatsEnabled !== false };
+}
+
+async function chatRefusal(response: Response): Promise<PloegError | null> {
+  if (response.status !== 402 && !chatFailures[response.status]) return null;
+  let data: any;
+  try { data = Number(response.headers.get('content-length') ?? 0) <= 65_536 ? await response.json() : null; } catch { data = null; }
+  if (response.status === 402) {
+    let allowance: PloegChatAllowance | null = null;
+    try { allowance = data?.allowance ? chatAllowance(data.allowance) : null; } catch { allowance = null; }
+    const resetAt = allowance?.resetAt ?? (typeof data?.allowance?.resetAt === 'string' && !Number.isNaN(Date.parse(data.allowance.resetAt)) ? data.allowance.resetAt : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1)).toISOString());
+    return new ChatAllowanceUsedUp(resetAt, allowance);
+  }
+  const byCode = chatFailures[response.status];
+  const [code, message] = byCode[String(data?.error?.code ?? '')] ?? byCode[''];
   return new PloegError(response.status, code, message);
 }
 
@@ -893,7 +934,7 @@ export class PloegClient {
   get isDemo(): boolean { return this.demo; }
   private connected(user: User): void { if (!this.config && !this.demo) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.'); this.authorize(user); }
   private authorize(user: User): void { if (user.role !== 'admin' && !this.config?.userTeams?.[user.id]?.length) throw new PloegError(403, 'ploeg_scope', 'Your account has no Ploeg team access. Ask an administrator to grant it.'); }
-  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; requeue?: boolean; note?: string; cancel?: string; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {
+  private async request(path: string, fresh = false, options: { added?: boolean; actor?: string; body?: unknown; raw?: Uint8Array; versions?: unknown[]; context?: boolean; comment?: boolean; ask?: boolean; chat?: boolean; requeue?: boolean; note?: string; cancel?: string; method?: 'PUT' | 'DELETE'; answer?: { status: number } } = {}): Promise<unknown> {
     const token = this.config?.tokenEnv ? process.env[this.config.tokenEnv] : undefined;
     if (!token || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw new PloegError(503, 'ploeg_credential', 'The Ploeg operator credential is unavailable. An administrator must check the connection.');
     if (token !== this.cachedToken) { this.cache.clear(); this.cachedToken = token; }
@@ -905,7 +946,7 @@ export class PloegClient {
       const response = await fetch(`${this.config!.url}/api/v1/operator/${path}`, { method: options.method ?? (post ? 'POST' : 'GET'), headers, ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}), ...(options.raw !== undefined ? { body: new Uint8Array(options.raw) } : {}), signal: AbortSignal.timeout(options.raw !== undefined ? 60_000 : options.comment ? 45_000 : 5000), redirect: 'manual' });
       if (post) this.cache.clear();
       if (!response.ok) {
-        const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : options.ask ? await askRefusal(response) : options.requeue ? await requeueRefusal(response) : options.note !== undefined ? await noteRefusal(response, options.note) : options.cancel !== undefined ? await cancelRefusal(response, options.cancel) : null;
+        const refusal = options.context ? await contextRefusal(response, token) : options.comment ? await commentRefusal(response, token) : options.ask ? await askRefusal(response) : options.chat ? await chatRefusal(response) : options.requeue ? await requeueRefusal(response) : options.note !== undefined ? await noteRefusal(response, options.note) : options.cancel !== undefined ? await cancelRefusal(response, options.cancel) : null;
         await response.body?.cancel().catch(() => undefined);
         if (refusal) throw refusal;
         if (options.added && (response.status === 404 || (response.status === 400 && /^(?:events|work-items)\?/.test(path)))) throw unsupported();
@@ -1527,6 +1568,41 @@ export class PloegClient {
     if (this.demo) return null;
     if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg work item not found in your authorized teams.');
     return askAllowance(envelope(await this.request(`allowances?team=${encodeURIComponent(team)}`)).allowance);
+  }
+  /** Admits one chat message for a Team the caller may use, as the caller (Unfold ADR 0049, proposed). Throws {@link ChatAllowanceUsedUp} when the Team's chat allowance is used up. The demo admits nothing. */
+  async admitChat(user: User, team: string, chatId: string, message: string): Promise<PloegChatGrant> {
+    this.connected(user);
+    if (this.demo) throw new PloegError(409, 'ploeg_demo', 'The demo answers chat without Ploeg.');
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(user.id)) throw new PloegError(403, 'ploeg_actor', 'Your account identity cannot be recorded by Ploeg. Ask an administrator.');
+    if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg does not know this Team, or it is outside the Teams you may use.');
+    const data = envelope(await this.request(`teams/${encodeURIComponent(team)}/chats`, true, { actor: user.id, body: { chatId, message }, chat: true }));
+    const chat = record(data.chat);
+    if (chat.chatId !== chatId || chat.team !== team) throw invalid();
+    if (data.credential === null) throw new PloegError(409, 'chat_replayed', 'Ploeg already issued a key for this chat message.');
+    const credential = record(data.credential);
+    const models = Array.isArray(credential.models) ? credential.models.map(model => field(model, 200)) : [];
+    return { chatId, runId: field(chat.runId ?? '', 128), team, budgetUsd: numeric(credential.budgetUsd ?? chat.budgetUsd), key: field(credential.key, 4096), models, expiresAt: field(credential.expiresAt, 64), allowance: data.allowance ? chatAllowance(data.allowance) : null };
+  }
+  /** Finishes a chat message so Ploeg blocks its key. Safe to call again. */
+  async finishChat(user: User, team: string, chatId: string): Promise<void> {
+    if (this.demo) return;
+    envelope(await this.request(`teams/${encodeURIComponent(team)}/chats/${encodeURIComponent(chatId)}/finish`, true, { actor: user.id, chat: true }));
+  }
+  /** Reads one chat message's state and spend from Ploeg. */
+  async chatRecord(user: User, team: string, chatId: string): Promise<PloegChatRecord> {
+    this.authorize(user);
+    const chat = record(envelope(await this.request(`teams/${encodeURIComponent(team)}/chats/${encodeURIComponent(chatId)}`, true)).chat);
+    const spend = record(chat.spend ?? {});
+    const state = (askStates as string[]).includes(String(chat.state)) ? chat.state as PloegChatRecord['state'] : 'finished';
+    const costStatus = (askCostStatuses as string[]).includes(String(spend.costStatus)) ? spend.costStatus as PloegCostStatus : 'unknown';
+    return { chatId: field(chat.chatId, 128), state, costStatus, usd: spend.usd === null || spend.usd === undefined ? null : numeric(spend.usd) };
+  }
+  /** A Team's chat allowance for this period, or null in the demo. */
+  async chatAllowance(user: User, team: string): Promise<PloegChatAllowance | null> {
+    this.connected(user);
+    if (this.demo) return null;
+    if (!this.allowed(user, team)) throw new PloegError(404, 'ploeg_not_found', 'Ploeg does not know this Team, or it is outside the Teams you may use.');
+    return chatAllowance(envelope(await this.request(`allowances?team=${encodeURIComponent(team)}&purpose=chat`)).allowance);
   }
   private remember(id: string, title: string): void {
     if (!title) return;

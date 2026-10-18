@@ -502,6 +502,11 @@ test('the summary carries the Runs whose hold Ploeg cannot release, scoped and s
   assert.equal(stuck.body.unsettled.accounts[0].accountState, 'blocked');
   assert.equal(stuck.body.unsettled.heldUsd, 0.25);
 
+  unsettled = res => reply(res, 200, { generatedAt: '2026-10-18T10:00:00Z', accounts: [{ ...unsettledAccount('301', '184', 'delivery', 0.05, '2026-10-18T08:00:00Z'), workItemId: null }], totals: { count: 1, heldUsd: 0.05 } });
+  const chatHold = await request(server.url, '/api/ploeg/summary?window=24h&refresh=1', reader);
+  assert.equal(chatHold.body.unsettledError, null, 'a Run outside any Work Item, such as a chat message (Ploeg ADR-0115), is a valid row');
+  assert.equal(chatHold.body.unsettled.accounts[0].workItemId, null);
+
   unsettled = res => { res.writeHead(503).end(); return true; };
   const failed = await request(server.url, '/api/ploeg/summary?window=7d&refresh=1', reader);
   assert.equal(failed.status, 200, 'a failed unsettled read never fails the summary');
