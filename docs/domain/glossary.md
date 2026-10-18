@@ -109,15 +109,6 @@ The reviewable change Unfold captures from a Session's Workspace when its Team s
 **Not to be confused with** [Result](#result): What a Work Item delivers with its Evidence; a Candidate is one piece of that Evidence.  
 **See also:** [Session](#session), [Workspace](#workspace), [Evidence](#evidence), [Review](#review)  
 
-## Chat
-*Context: Participation · Owner: Unfold*
-
-A conversation one person has with Unfold itself in the Agents window, under the agent named Unfold beside Unfold teams. Each message is admitted by Ploeg against a Team's chat allowance and answered with that Team's Ask model, which may read Unfold through its MCP tools and act only after the person confirms each change. Unfold keeps the conversation; no Team reads it. Proposed (Unfold ADR 0049).
-
-**Not to be confused with** [Session](#session): Starting a Work Item in Unfold submits work to a Team; a Chat starts Team work only through a confirmed hand-off.  
-**Not to be confused with** [Ask](../reference/glossary.md#ask): An Ask is one question about one Work Item, paid from the Ask Allowance.  
-**See also:** [Session](#session), [Ask](../reference/glossary.md#ask), [Team](../reference/glossary.md#team)  
-
 ## Client Portal
 *Context: Offering · Owner: Unfold*
 
@@ -487,6 +478,15 @@ The product, its application and the monorepo that holds them. In the Unfold app
 **Examples:** Current state: Unfold's own engine still executes delegated Steps until the system ADR-0002 migration is complete.  
 **See also:** [Ploeg](#ploeg), [Session](#session), [Step](#step)  
 
+## Unfold Chat
+*Context: Participation · Owner: Unfold*
+
+A conversation one person has with Unfold itself in the Agents window, under the agent named Unfold beside Unfold teams. Each message is one Chat that Ploeg admits against a Team's Chat Allowance, answered with that Team's Ask model, which may read Unfold through its MCP tools and act only after the person confirms each change. Unfold keeps the conversation; no Team reads it. Proposed (Unfold ADR 0049).
+
+**Not to be confused with** [Session](#session): Starting a Work Item in Unfold submits work to a Team; an Unfold Chat starts Team work only through a confirmed hand-off.  
+**Not to be confused with** [Ask](../reference/glossary.md#ask): An Ask is one question about one Work Item, paid from the Ask Allowance.  
+**See also:** [Chat](../reference/glossary.md#chat), [Session](#session), [Ask](../reference/glossary.md#ask), [Team](../reference/glossary.md#team)  
+
 ## User Journey
 *Context: Participation*
 
@@ -568,7 +568,7 @@ Agency names the business that uses Unfold, so "the Agency edition" would mean t
 
 ## Terms owned by other models
 
-This model uses these terms with their owners' meaning: [Admission](../reference/glossary.md#admission), [Ask](../reference/glossary.md#ask), [Authority](../reference/glossary.md#authority), [Client](../reference/glossary.md#client), [Follow-Up](../reference/glossary.md#follow-up), [Harness](../reference/glossary.md#harness), [Lease](../reference/glossary.md#lease), [Outcome](../reference/glossary.md#outcome), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team), [Tenant](../reference/glossary.md#tenant), [Tracker Item](../reference/glossary.md#tracker-item), [Verdict](../reference/glossary.md#verdict), [Work Item](../reference/glossary.md#work-item), [Work Target](../reference/glossary.md#work-target).
+This model uses these terms with their owners' meaning: [Admission](../reference/glossary.md#admission), [Ask](../reference/glossary.md#ask), [Authority](../reference/glossary.md#authority), [Chat](../reference/glossary.md#chat), [Client](../reference/glossary.md#client), [Follow-Up](../reference/glossary.md#follow-up), [Harness](../reference/glossary.md#harness), [Lease](../reference/glossary.md#lease), [Outcome](../reference/glossary.md#outcome), [Role](../reference/glossary.md#role), [Run](../reference/glossary.md#run), [Shift](../reference/glossary.md#shift), [Team](../reference/glossary.md#team), [Tenant](../reference/glossary.md#tenant), [Tracker Item](../reference/glossary.md#tracker-item), [Verdict](../reference/glossary.md#verdict), [Work Item](../reference/glossary.md#work-item), [Work Target](../reference/glossary.md#work-target).
 
 ## Decisions cited
 

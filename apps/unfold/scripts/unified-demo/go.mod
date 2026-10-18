@@ -2,7 +2,7 @@ module forgejo.webgrip.dev/webgrip/unfold/unified-demo
 
 go 1.26.0
 
-require github.com/ploeg-hq/ploeg v0.2.0-rc.36
+require github.com/ploeg-hq/ploeg v0.2.0-rc.39
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect

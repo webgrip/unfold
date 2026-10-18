@@ -25,7 +25,7 @@ references:
     note: A Work Item with a Quote is the billing unit; the Delivery Fee is charged on Acceptance.
 imports:
   - model: ../../apps/ploeg/docs/domain/model.yaml
-    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Work Target, Tracker Item, Follow-Up, Admission, Authority, Ask, Tenant, Client]
+    terms: [Run, Shift, Lease, Team, Role, Outcome, Verdict, Harness, Work Item, Work Target, Tracker Item, Follow-Up, Admission, Authority, Ask, Tenant, Client, Chat]
 contexts:
   - name: System
     description: The applications that make up Unfold and how they divide the work.
@@ -187,22 +187,22 @@ terms:
       - term: Session
         note: Unfold's internal record of a Work Item started in Unfold, shown only as that Work Item.
     see_also: [Session, Work Item]
-  - name: Chat
+  - name: Unfold Chat
     context: Participation
     owner: unfold
     definition: >
       A conversation one person has with Unfold itself in the Agents window,
-      under the agent named Unfold beside Unfold teams. Each message is
-      admitted by Ploeg against a Team's chat allowance and answered with that
+      under the agent named Unfold beside Unfold teams. Each message is one
+      Chat that Ploeg admits against a Team's Chat Allowance, answered with that
       Team's Ask model, which may read Unfold through its MCP tools and act
       only after the person confirms each change. Unfold keeps the
       conversation; no Team reads it. Proposed (Unfold ADR 0049).
     not_to_be_confused_with:
       - term: Session
-        note: Starting a Work Item in Unfold submits work to a Team; a Chat starts Team work only through a confirmed hand-off.
+        note: Starting a Work Item in Unfold submits work to a Team; an Unfold Chat starts Team work only through a confirmed hand-off.
       - term: Ask
         note: An Ask is one question about one Work Item, paid from the Ask Allowance.
-    see_also: [Session, Ask, Team]
+    see_also: [Chat, Session, Ask, Team]
   - name: Step
     context: Participation
     owner: unfold
