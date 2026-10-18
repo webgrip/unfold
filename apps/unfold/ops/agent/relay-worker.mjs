@@ -20,6 +20,8 @@ const execGroups = new Set();
 const configuredGrace = Number(process.env.UNFOLD_RELAY_STOP_GRACE_MS);
 const stopGraceMs = Number.isFinite(configuredGrace) && configuredGrace >= 0 ? configuredGrace : 10_000;
 const killWaitMs = 5_000;
+const configuredRefusalGrace = Number(process.env.UNFOLD_RELAY_REFUSAL_GRACE_MS);
+const refusalGraceMs = Number.isFinite(configuredRefusalGrace) && configuredRefusalGrace >= 0 ? configuredRefusalGrace : 120_000;
 const sleep = milliseconds => new Promise(done => setTimeout(done, milliseconds));
 
 const stop = async () => {
@@ -159,20 +161,36 @@ async function relay(request) {
   } finally { inFlight.delete(request.id); }
 }
 
+async function refusal(response) {
+  const body = await response.json().catch(() => undefined);
+  return body?.error?.code === 'revoked' ? 'revoked' : 'refused';
+}
+
 async function poll() {
   let failures = 0;
+  let refusedSince;
+  let lastReason;
   while (!stopping) {
     try {
       const response = await fetch(`${relayUrl}/requests?wait=25000`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(40_000) });
-      if (response.status === 401 || response.status === 404) { log(`relay refused the worker (HTTP ${response.status}); stopping`); void stop(); return; }
+      if (response.status === 401 || response.status === 404) {
+        if (await refusal(response) === 'revoked') { log('relay revoked the worker (HTTP 401); stopping'); void stop(); return; }
+        refusedSince ??= Date.now();
+        if (Date.now() - refusedSince >= refusalGraceMs) { log(`relay refused the worker (HTTP ${response.status}) for ${Math.round((Date.now() - refusedSince) / 1000)} s; stopping`); void stop(); return; }
+        throw new Error(`HTTP ${response.status}`);
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const batch = await response.json();
       failures = 0;
+      refusedSince = undefined;
+      lastReason = undefined;
       for (const id of batch.cancelled ?? []) inFlight.get(id)?.abort();
       for (const request of batch.requests ?? []) void relay(request);
     } catch (error) {
       failures++;
-      if (failures === 1 || failures % 10 === 0) log(`poll failed (${failures}): ${error?.cause?.code ?? error?.name ?? 'error'}`);
+      const reason = error?.cause?.code ?? (/^HTTP \d+$/.test(error?.message ?? '') ? error.message : error?.name) ?? 'error';
+      if (failures === 1 || failures % 10 === 0 || reason !== lastReason) log(`poll failed (${failures}): ${reason}`);
+      lastReason = reason;
       await new Promise(done => setTimeout(done, Math.min(10_000, 500 * failures)));
     }
   }

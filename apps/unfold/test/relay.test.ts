@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { spawn, type ChildProcess } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { WorkerRelay } from '../src/runtime/relay.ts';
+import { WorkerRelay, memoryCredentials, type WorkerCredentials } from '../src/runtime/relay.ts';
 import { captureInPlace } from '../src/runtime/kubernetes.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
 import { scaledTimeout, settle, testTimeout, waitFor } from './timeframes.ts';
@@ -232,4 +233,65 @@ test('in-place capture refuses to export when the worker cannot confirm the harn
   assert.equal(candidate.status, 'unavailable');
   assert.equal((candidate as { reason?: string }).reason, 'stop_unconfirmed');
   assert.deepEqual(paths, ['/__unfold/stop-child'], 'no export program may start after an unconfirmed stop');
+});
+
+async function relayServing(credentials: WorkerCredentials) {
+  const relay = new WorkerRelay(credentials);
+  const server = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
+  const port = await listen(server);
+  const poll = async (workspaceId: string, token: string) => {
+    const response = await fetch(`http://127.0.0.1:${port}/api/relay/${workspaceId}/requests?wait=0`, { headers: { authorization: `Bearer ${token}` } });
+    return { status: response.status, code: response.ok ? undefined : (await response.json()).error.code };
+  };
+  return { relay, port, poll, close: () => new Promise<void>(done => { server.closeAllConnections(); server.close(() => done()); }) };
+}
+
+test('a restarted relay accepts a running worker with the credential it holds, and the store keeps only its digest', { timeout: testTimeout(20_000) }, async t => {
+  const credentials = memoryCredentials();
+  const first = await relayServing(credentials);
+  const token = first.relay.register('ws-restart');
+  assert.equal((await first.poll('ws-restart', token)).status, 200);
+  await first.close();
+  assert.equal(JSON.stringify(credentials.read('ws-restart')).includes(token), false, 'the store holds a digest, never the token');
+  const restarted = await relayServing(credentials);
+  t.after(() => restarted.close());
+  assert.equal(restarted.relay.connected('ws-restart'), false, 'no worker counts as connected before it polls again');
+  assert.deepEqual(await restarted.poll('ws-restart', 'a-guessed-token'), { status: 401, code: 'unauthorized' });
+  assert.deepEqual(await restarted.poll('ws-restart', token), { status: 200, code: undefined });
+  assert.equal(restarted.relay.connected('ws-restart'), true);
+});
+
+test('a revoked workspace credential is refused as revoked, also after a restart, and a new registration retires the old token', { timeout: testTimeout(20_000) }, async t => {
+  const credentials = memoryCredentials();
+  const first = await relayServing(credentials);
+  const old = first.relay.register('ws-revoked');
+  const renewed = first.relay.register('ws-revoked');
+  assert.deepEqual(await first.poll('ws-revoked', old), { status: 401, code: 'unauthorized' }, 'registering again retires the earlier token');
+  assert.equal((await first.poll('ws-revoked', renewed)).status, 200);
+  first.relay.unregister('ws-revoked');
+  assert.deepEqual(await first.poll('ws-revoked', renewed), { status: 401, code: 'revoked' });
+  await first.close();
+  const restarted = await relayServing(credentials);
+  t.after(() => restarted.close());
+  assert.deepEqual(await restarted.poll('ws-revoked', renewed), { status: 401, code: 'revoked' }, 'a restart never revives a revoked credential');
+  assert.deepEqual(await restarted.poll('ws-never', renewed), { status: 401, code: 'unauthorized' });
+});
+
+test('a worker rides out refusals for its grace period and stops at once when its credential is revoked', { timeout: testTimeout(30_000) }, async t => {
+  const credentials = memoryCredentials();
+  const serving = await relayServing(credentials);
+  t.after(() => serving.close());
+  const token = 'a-token-the-relay-learns-only-later';
+  const worker = spawn(process.execPath, [workerScript], { env: { PATH: process.env.PATH ?? '', UNFOLD_RELAY_URL: `http://127.0.0.1:${serving.port}/api/relay/ws-grace`, UNFOLD_RELAY_TOKEN: token, UNFOLD_RELAY_TARGET: 'http://127.0.0.1:9', UNFOLD_RELAY_REFUSAL_GRACE_MS: '60000' }, stdio: ['ignore', 'ignore', 'pipe'] });
+  t.after(() => worker.kill('SIGKILL'));
+  let logs = '';
+  worker.stderr!.on('data', chunk => { logs += chunk; });
+  const exited = new Promise<number | null>(resolve => worker.on('exit', code => resolve(code)));
+  await waitFor(() => /poll failed \(1\): HTTP 401/.test(logs), undefined, { reason: 'the worker must report the refused poll', withinMs: 10_000 });
+  assert.equal(worker.exitCode, null, 'a refusal within the grace period does not stop the worker');
+  credentials.write('ws-grace', { digest: createHash('sha256').update(token).digest('hex') });
+  await waitFor(() => serving.relay.connected('ws-grace'), undefined, { reason: 'the worker must be accepted once the relay knows its credential', withinMs: 15_000 });
+  serving.relay.unregister('ws-grace');
+  assert.equal(await exited, 0);
+  assert.match(logs, /relay revoked the worker \(HTTP 401\); stopping/);
 });

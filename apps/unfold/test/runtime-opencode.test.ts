@@ -182,3 +182,50 @@ test('the report drops the verdict block, the transcript keeps every part, and t
   assert.ok(result.artifacts.some(artifact => artifact.kind === 'transcript' && artifact.content.includes('# Reviewer transcript')));
   assert.equal(result.summary.includes('"verdict"'), false);
 });
+
+function continuingWire(messages: unknown[]) {
+  const calls: string[] = [];
+  const fetcher = (async (input: URL | RequestInfo, init?: RequestInit) => {
+    const url = new URL(String(input));
+    calls.push(`${init?.method ?? 'GET'} ${url.pathname}`);
+    const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } });
+    if (url.pathname === '/event') return new Response(new ReadableStream({ start(controller) { controller.close(); } }), { headers: { 'Content-Type': 'text/event-stream' } });
+    if (url.pathname === '/session/status') return json({});
+    if (url.pathname === '/permission' || url.pathname === '/question' || url.pathname.endsWith('/children') || url.pathname.endsWith('/diff')) return json([]);
+    if (url.pathname === '/session/ses_native/message') return json(messages);
+    if (url.pathname.endsWith('/abort')) return json(true);
+    throw new Error(`Unexpected wire request ${url.pathname}`);
+  }) as typeof fetch;
+  return { fetcher, calls };
+}
+
+const answeredBeforeRestart = { info: { id: 'msg_before', role: 'assistant', sessionID: 'ses_native', time: { created: 1, completed: 2 }, finish: 'stop', cost: 0.5 }, parts: [{ type: 'text', text: 'An answer to an earlier prompt' }] };
+const latestPrompt = { info: { id: 'msg_prompt', role: 'user', sessionID: 'ses_native', time: { created: 3 } }, parts: [{ type: 'text', text: 'Review the change' }] };
+const answeredAfterRestart = { info: { id: 'msg_after', role: 'assistant', sessionID: 'ses_native', parentID: 'msg_prompt', time: { created: 4, completed: 5 }, finish: 'stop', cost: 0.03 }, parts: [{ type: 'text', text: '```json\n{"verdict":"approve","summary":"Finished while the workbench restarted"}\n```' }] };
+
+test('a continuing turn observes the accepted prompt to its answer and never prompts again', async () => {
+  const events: RuntimeEvent[] = [];
+  const fake = continuingWire([answeredBeforeRestart, latestPrompt, answeredAfterRestart]);
+  const runtime = new OpenCodeRuntime(config, manager, fake.fetcher);
+  const turn = context(events);
+  turn.run.nativeId = 'ses_native';
+  const result = await runtime.execute({ ...turn, continuing: true });
+  assert.equal(result.summary, 'Finished while the workbench restarted');
+  assert.equal(result.costUsd, 0.03, 'an answer from before the latest prompt is not this turn\'s');
+  assert.equal(fake.calls.some(call => call.endsWith('/prompt_async') || call === 'POST /session'), false);
+  assert.equal(events.some(event => event.type === 'native.session' && event.data.prompted === true), false);
+});
+
+test('a continuing turn without a native session or an accepted prompt is refused instead of guessed', async () => {
+  const runtime = new OpenCodeRuntime(config, manager, continuingWire([answeredBeforeRestart]).fetcher);
+  const unprompted = context([]);
+  unprompted.run.nativeId = 'ses_native';
+  await assert.rejects(runtime.execute({ ...unprompted, continuing: true }), (error: RuntimeFailure) => error.category === 'harness_rejected');
+  await assert.rejects(runtime.execute({ ...context([]), continuing: true }), (error: RuntimeFailure) => error.category === 'harness_rejected');
+});
+
+test('a new turn records that its prompt was accepted, so a restart knows it may continue it', async () => {
+  const events: RuntimeEvent[] = [];
+  await new OpenCodeRuntime(config, manager, wire().fetcher).execute(context(events));
+  assert.deepEqual(events.filter(event => event.type === 'native.session').map(event => event.data), [{ nativeId: 'ses_native' }, { nativeId: 'ses_native', prompted: true }]);
+});

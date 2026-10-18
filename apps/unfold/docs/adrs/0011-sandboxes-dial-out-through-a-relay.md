@@ -17,3 +17,7 @@ The same channel carries control requests under a reserved prefix: stop the chil
 The workbench is the only thing that must be reachable, and it already is. Docker Desktop's `host.docker.internal` reaches a workbench bound to loopback on macOS, which the probe confirmed; Linux needs a reachable bind address. The relay adds one hop and a poll interval of at most a few hundred milliseconds when idle; streaming responses are unbuffered. Tokens live in memory with the workspace and are revoked on disposal. A worker that dies is visible as a stale poll; the workbench refuses to consider a workspace ready until its worker has polled.
 
 Reconsider the transport when the estate has an inbound path that carries identity without stripping headers, such as WebSocket port-forward under the operator's identity, or when pod certificates in Kubernetes 1.37 make mutual TLS between pod and workbench cheaper than bearer tokens.
+
+## Update, 2026-10-18
+
+Worker tokens no longer live only in memory. The relay keeps each token's SHA-256 digest in the store and a `revoked` marker once the workspace is released, so a restarted workbench accepts a running worker and keeps refusing a released one ([ADR 0051](0051-a-running-session-survives-a-workbench-restart.md)).

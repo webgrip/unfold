@@ -427,6 +427,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     config.mcp = mcp;
   }
   config.runtime.maxToolCalls = number(raw.runtime?.maxToolCalls, 80, 1, 2000, 'runtime.maxToolCalls');
+  config.runtime.reconnectGraceMs = number(raw.runtime?.reconnectGraceMs, 300_000, 1000, 900_000, 'runtime.reconnectGraceMs');
   if (raw.runtime?.briefCheck !== undefined && typeof raw.runtime.briefCheck !== 'boolean') throw new Error('runtime.briefCheck must be true or false');
   config.runtime.briefCheck = raw.runtime?.briefCheck ?? true;
   if (!existsSync(config.publicDir)) throw new Error('Browser application directory is missing');
