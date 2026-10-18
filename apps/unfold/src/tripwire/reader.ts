@@ -121,6 +121,7 @@ export class TripwireReader {
         if (state.transcript !== 'unavailable') this.save({ ...state, transcript: 'unavailable' }, seen, []);
         return true;
       }
+      const known = state.transcript === 'available' ? state.cursor : -1;
       state.transcript = 'available';
       for (const entry of [...read.entries].sort((a, b) => a.seq - b.seq)) {
         if (entry.seq <= state.cursor) continue;
@@ -132,7 +133,7 @@ export class TripwireReader {
         this.save(state, seen, hits);
       }
       state.cursor = Math.max(state.cursor, read.nextAfter);
-      this.save(state, seen, []);
+      if (state.cursor !== known) this.save(state, seen, []);
       if (!read.hasMore) break;
     }
     return true;
