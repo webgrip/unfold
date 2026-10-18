@@ -38,6 +38,7 @@ export const shortcuts = [
   { id: 'previous', keys: ['k'], label: 'Previous row', group: 'Lists', single: true, where: 'Now, Work and Tasks' },
   { id: 'open', keys: ['Enter'], label: 'Open the focused row', group: 'Lists' },
   { id: 'open-link', keys: ['o'], label: 'Open the pull request or task', group: 'Lists', single: true, where: 'Now and Work' },
+  { id: 'hand-off', keys: ['h'], label: 'Hand the task to a Team', group: 'Lists', single: true, where: 'Tasks and the loop on Now' },
   { id: 'new-session', keys: ['n'], label: 'New session', group: 'Sessions', single: true, where: 'Sessions' },
   { id: 'time-back', keys: ['t', '←'], label: 'Move the time range back by half', group: 'Time range', single: true, where: 'Runs and Activity' },
   { id: 'time-forward', keys: ['t', '→'], label: 'Move the time range forward by half', group: 'Time range', single: true, where: 'Runs and Activity' },
