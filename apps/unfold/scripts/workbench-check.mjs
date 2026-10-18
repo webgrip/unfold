@@ -30,7 +30,7 @@ try {
   const recordings = process.env.UNFOLD_WORKBENCH_APP === '0' ? [] : await (await fetch(`${workbench.url}/workbench/recordings.json`)).json();
   const pages = recordings.flatMap(recording => {
     const picked = recording.name === 'demo' ? recording.workItems.filter((item, index, all) => all.findIndex(other => other.state === item.state) === index) : recording.workItems;
-    return picked.flatMap(item => ['', '~work.live-view'].map(flags => ({ id: `app:${recording.name}${flags}:${item.id}`, url: `/app/${recording.name}${flags}/`, hash: `#work/${item.id}` }))).filter(entry => !only || only.test(entry.id));
+    return picked.flatMap(item => ['', '~work.live-view', '~work.layouts'].map(flags => ({ id: `app:${recording.name}${flags}:${item.id}`, url: `/app/${recording.name}${flags}/`, hash: `#work/${item.id}` }))).filter(entry => !only || only.test(entry.id));
   });
   const passes = [
     ...stories.flatMap(id => widths.flatMap(width => themes.map(theme => ({ id, width, theme, motion: 'no-preference' })))),

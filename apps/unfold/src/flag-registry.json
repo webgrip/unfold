@@ -46,9 +46,10 @@
         "created": "2026-10-17",
         "expires": "2027-01-17",
         "title": "Live Work Item view",
-        "description": "Puts the live view at the top of a Work Item page: the stages as folds, one sentence on what the agent is doing, and the flight path where every Run is a hop whose height follows its tool calls, machine failures bounce back, a stalled Run holds and tripwires and a judge's verdicts are marked. Below it, questions answered from the record. Takes the place of the four-stage strip and the flight profile.",
+        "description": "Puts the live view at the top of a Work Item page: the stages as folds, one sentence on what the agent is doing, and the flight path where every Run is a hop whose height follows its tool calls, machine failures bounce back, a stalled Run holds and tripwires and a judge's verdicts are marked. Below it, questions answered from the record. Takes the place of the four-stage strip and the flight profile. It cannot be on together with One Work Item page, which replaces the whole page: turning one on turns the other off.",
         "client": true,
-        "labs": true
+        "labs": true,
+        "excludes": ["work.layouts"]
       }
     },
     "work.layouts": {
@@ -62,9 +63,10 @@
         "created": "2026-10-18",
         "expires": "2027-01-18",
         "title": "One Work Item page",
-        "description": "One page for a Work Item and the session that started it. Where it stands and what waits on you first, the flight on a dark ground, then a log of everything that happened with clock times and the spend tape, where every Run opens in place to what the agent did and its pod logs. A Work Item started in Unfold also carries its session there: its questions and permission requests, Pause, Resume and Cancel, its evidence (activity, gateway calls, changes, checks and hand-off) and budget. A session link opens its Work Item; the pull request is the one review. The intent bar steers, asks or adds context and says who reads it before you send. Acceptance proof is not reported by Ploeg yet, so conditions say so.",
+        "description": "One page for a Work Item and the session that started it. Where it stands and what waits on you first, the flight on a dark ground, then a log of everything that happened with clock times and the spend tape, where every Run opens in place to what the agent did and its pod logs. A Work Item started in Unfold also carries its session there: its questions and permission requests, Pause, Resume and Cancel, its evidence (activity, gateway calls, changes, checks and hand-off) and budget. A session link opens its Work Item; the pull request is the one review. The intent bar steers, asks or adds context and says who reads it before you send. Acceptance proof is not reported by Ploeg yet, so conditions say so. It cannot be on together with Live Work Item view, which it replaces: turning one on turns the other off.",
         "client": true,
-        "labs": true
+        "labs": true,
+        "excludes": ["work.live-view"]
       }
     },
     "now.fleet": {

@@ -246,7 +246,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     const choices = store.flagChoices(user.id);
     return {
       values: await flags.clientValues(context),
-      labs: (await flags.labs(context)).map(({ key, metadata, evaluation }) => ({ key, title: metadata.title, description: metadata.description, kind: metadata.kind, expires: metadata.expires ?? null, value: evaluation.value, variant: evaluation.variant ?? null, reason: evaluation.reason, choice: Object.hasOwn(choices, key) ? (choices[key] ? 'on' : 'off') : 'default' })),
+      labs: (await flags.labs(context)).map(({ key, metadata, evaluation }) => ({ key, title: metadata.title, description: metadata.description, kind: metadata.kind, expires: metadata.expires ?? null, value: evaluation.value, variant: evaluation.variant ?? null, reason: evaluation.reason, choice: Object.hasOwn(choices, key) ? (choices[key] ? 'on' : 'off') : 'default', excludes: metadata.excludes ?? [] })),
     };
   };
   const experimentDays = 30;
@@ -459,8 +459,13 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (!flags.provider.registry.flags[key]?.metadata.labs) fault(404, 'flag_not_found', 'This flag is not offered in Labs.');
           const data = await body(req);
           if (!['on', 'off', 'default'].includes(String(data.choice))) fault(400, 'flag_choice', 'Choose on, off or default.');
-          store.setFlagChoice(user.id, key, data.choice === 'default' ? null : data.choice === 'on', new Date().toISOString());
+          const at = new Date().toISOString();
+          store.setFlagChoice(user.id, key, data.choice === 'default' ? null : data.choice === 'on', at);
           console.log(JSON.stringify({ level: 'info', event: 'flag.choice', actor: user.id, 'feature_flag.key': key, choice: data.choice }));
+          if (data.choice === 'on') for (const other of flags.provider.registry.flags[key].metadata.excludes ?? []) {
+            store.setFlagChoice(user.id, other, false, at);
+            console.log(JSON.stringify({ level: 'info', event: 'flag.choice', actor: user.id, 'feature_flag.key': other, choice: 'off', excludedBy: key }));
+          }
           return json(res, 200, await labsView(user));
         }
         const flagOverride = path.match(/^\/api\/admin\/flags\/([a-z][a-z0-9.-]{2,100})\/override$/);

@@ -56,7 +56,9 @@ function labsRow(entry) {
   ] });
   const now = `${valueText(entry.value)} for you · ${why(entry)}`;
   const expiry = entry.expires ? ` Planned to become permanent or be removed by ${entry.expires}.` : '';
-  return `<div class="settings-row labs-row"><div class="settings-row-text"><p class="settings-row-label">${escape(entry.title)} ${badge({ label: kindWords[entry.kind] || entry.kind, size: 'sm', tone: entry.kind === 'experiment' ? 'review' : 'neutral' })}</p><p class="settings-row-hint">${escape(entry.description)}${escape(expiry)}</p><p class="meta labs-now"><span class="num">${escape(now)}</span></p></div><div class="settings-row-controls">${choice}</div></div>`;
+  const others = (entry.excludes ?? []).map(key => view.labs?.labs?.find(other => other.key === key)?.title ?? key);
+  const exclusive = others.length ? ` Turning it on turns off ${others.join(' and ')}.` : '';
+  return `<div class="settings-row labs-row"><div class="settings-row-text"><p class="settings-row-label">${escape(entry.title)} ${badge({ label: kindWords[entry.kind] || entry.kind, size: 'sm', tone: entry.kind === 'experiment' ? 'review' : 'neutral' })}</p><p class="settings-row-hint">${escape(entry.description)}${escape(expiry)}${escape(exclusive)}</p><p class="meta labs-now"><span class="num">${escape(now)}</span></p></div><div class="settings-row-controls">${choice}</div></div>`;
 }
 
 function labsCard() {
