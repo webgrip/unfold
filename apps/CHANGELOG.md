@@ -1,3 +1,10 @@
+## [unfold-v0.4.0-rc.93](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.92...unfold-v0.4.0-rc.93) (2026-10-18)
+
+### Added
+
+* **unfold:** a unified Work Item page that opens with what the state needs ([66a4136](https://forgejo.webgrip.dev/webgrip/unfold/commit/66a4136d5b3762bb980bdc15d7eeb91904256658))
+* **unfold:** the cockpit's flight deck on the unified page, and runs that go wrong and recover ([052891f](https://forgejo.webgrip.dev/webgrip/unfold/commit/052891f74efcf1cc5e0de7b981e979c4d9c46096))
+
 ## [unfold-v0.4.0-rc.92](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.91...unfold-v0.4.0-rc.92) (2026-10-18)
 
 ### Added
