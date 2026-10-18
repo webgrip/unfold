@@ -12,7 +12,7 @@ import { enterPloegView, openPloegDialog } from './ploeg-common.js';
 import { stepDialogMarkup, stepOutcome, stepRequest } from '../core/attribution.js';
 import { transcriptEntryCap } from '../run-transcript.js';
 import { defaultLogView, logDownloadText } from '../run-log-view.js';
-import { exposed, flagValues, track } from '../core/flags.js';
+import { enabled, exposed, flagValues, track } from '../core/flags.js';
 import { agentsWindowAvailable, openAgentsWindow } from '../agents-window.js';
 import { actionsCsv, actionsJson, engineRows, newestFirst, recordRow } from '../action-log.js';
 import { linkedChangedEvent } from './linked-sessions.js';
@@ -29,9 +29,9 @@ const transcriptInterval = 4000;
 const healthInterval = 30_000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, flightRevealed: null };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, flightRevealed: null }));
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
@@ -136,12 +136,10 @@ function renderWork() {
   const listTop = scroller ? scroller.scrollTop : 0;
   const target = focusTarget();
   const current = model();
-  const skyLeft = $('#app .flight-sky')?.scrollLeft ?? null;
   const logScroll = new Map([...document.querySelectorAll('#app [data-run-log]')].map(element => [element.dataset.runLog, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
   const transcriptScroll = new Map([...document.querySelectorAll('#app [data-run-transcript]')].map(element => [element.dataset.runTranscript, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
   renderHtml(shell(workMarkup(current), shellOptions(current)));
-  if (current.detail) exposed('work.flight-profile', { screen: 'work', workItemId: current.detail.item.id });
-  revealFlight(skyLeft);
+  if (current.detail) exposed('work.live-view', { screen: 'work', workItemId: current.detail.item.id });
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
   for (const element of document.querySelectorAll('#app [data-run-log]')) { const kept = logScroll.get(element.dataset.runLog); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
   for (const element of document.querySelectorAll('#app [data-run-transcript]')) { const kept = transcriptScroll.get(element.dataset.runTranscript); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
@@ -749,6 +747,13 @@ function openTranscriptPanels() {
   return [...document.querySelectorAll('#app details[id^="work-run-transcript-"][open]')].filter(element => element.closest('details.work-run')?.open !== false).map(element => transcriptPanel.exec(element.id)?.[1]).filter(Boolean);
 }
 
+function followedTranscripts() {
+  const open = openTranscriptPanels();
+  if (!enabled('work.live-view')) return open;
+  const running = [...(state.ploegDetail?.runs || [])].reverse().find(run => run.state === 'running');
+  return running && !open.includes(String(running.id)) ? [...open, String(running.id)] : open;
+}
+
 function transcriptIsLive(runId) {
   const entry = work.transcripts?.id === work.detailId ? work.transcripts.runs.get(runId) : null;
   if (entry?.data) return entry.data.available === true && (entry.data.complete !== true || entry.data.hasMore === true);
@@ -757,7 +762,7 @@ function transcriptIsLive(runId) {
 
 function loadUnreadTranscripts() {
   if (!visible() || !work.detailId) return;
-  for (const runId of openTranscriptPanels()) if (!(work.transcripts?.id === work.detailId && work.transcripts.runs.has(runId))) void loadRunTranscript(runId);
+  for (const runId of followedTranscripts()) if (!(work.transcripts?.id === work.detailId && work.transcripts.runs.has(runId))) void loadRunTranscript(runId);
 }
 
 function loadOpenedTranscripts(event) {
@@ -767,7 +772,7 @@ function loadOpenedTranscripts(event) {
 
 async function pollRunTranscripts() {
   if (!visible() || !work.detailId) return false;
-  const running = openTranscriptPanels().filter(transcriptIsLive);
+  const running = followedTranscripts().filter(transcriptIsLive);
   if (!running.length) return false;
   await Promise.all(running.map(runId => loadRunTranscript(runId)));
   return true;
@@ -1125,22 +1130,10 @@ function motion() {
   return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 }
 
-function revealFlight(previousLeft) {
-  const sky = $('#app .flight-sky');
-  if (!sky || sky.scrollWidth <= sky.clientWidth) return;
-  if (work.flightRevealed === work.detailId) { if (previousLeft !== null) sky.scrollLeft = previousLeft; return; }
-  const mark = sky.querySelector('[data-current]');
-  if (!mark) return;
-  work.flightRevealed = work.detailId;
-  const box = mark.getBoundingClientRect();
-  const frame = sky.getBoundingClientRect();
-  sky.scrollLeft += box.left - frame.left - frame.width * 0.6;
-}
-
 function jumpToRun(button) {
   const run = document.getElementById(`work-run-${button.dataset.id}`);
   if (!run) return;
-  track(button.closest('.flight') ? 'work.run_opened_from_flight' : 'work.run_opened');
+  track(button.closest('.lv-fp') ? 'work.run_opened_from_flight' : 'work.run_opened');
   const more = run.closest('details:not(.work-run)');
   if (more) more.open = true;
   run.open = true;

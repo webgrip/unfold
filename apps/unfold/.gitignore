@@ -20,3 +20,4 @@ __pycache__/
 .venv/
 .DS_Store
 *.local.sh
+workbench/recorded/

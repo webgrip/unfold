@@ -711,6 +711,10 @@
   margin: calc(var(--space-1) * -1) 0 0;
 }
 
+.timeline-title .work-inline-link {
+  min-height: 1.5rem;
+}
+
 .work-inline-link {
   display: inline-flex;
   align-items: center;
@@ -864,10 +868,11 @@
 }
 
 .work-account-index {
-  padding: 1px var(--space-1-5);
+  padding: 0 var(--space-1-5);
+  border: 1px solid var(--side-solid);
   border-radius: var(--radius-xs);
-  background: var(--side-solid);
-  color: var(--text-on-solid);
+  background: var(--bg-surface);
+  color: var(--side-fg);
   letter-spacing: 0.04em;
 }
 
@@ -914,6 +919,9 @@
 }
 
 .work-account-dev > summary {
+  display: flex;
+  align-items: center;
+  min-height: 1.5rem;
   width: fit-content;
   cursor: pointer;
   font-weight: var(--weight-semibold);
@@ -1096,7 +1104,7 @@
 
 .stream-chart {
   --stream-label: 9rem;
-  --stream-lane: 1.75rem;
+  --stream-lane: 2rem;
   display: grid;
   gap: var(--space-1);
   min-width: 0;
@@ -2722,267 +2730,9 @@ button.stream-bar:hover {
   color: var(--live-fg);
 }
 
-.flight {
-  display: grid;
-  gap: var(--space-2);
-  margin: 0;
-  padding: var(--space-3) 0 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--bg-surface);
-  overflow: hidden;
-}
-
-.flight-caption {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1) var(--space-3);
-  padding: 0 var(--space-4);
-}
-
-.flight-phase {
-  font-weight: var(--weight-bold);
-  font-size: var(--text-md);
-}
-
-.flight[data-phase="holding"] .flight-phase,
-.flight[data-phase="diverted"] .flight-phase {
-  color: var(--accent-fg);
-}
-
-.flight[data-phase="air"] .flight-phase {
-  color: var(--live-fg);
-}
-
-.flight-sentence {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.flight-sky {
-  overflow-x: auto;
-  background: var(--bg-canvas);
-  border-block: 1px solid var(--border-subtle);
-}
-
-.flight-svg {
-  display: block;
-  max-width: none;
-  overflow: visible;
-}
-
-.flight-level {
-  stroke: var(--border);
-  stroke-width: 1;
-  stroke-dasharray: 2 5;
-}
-
-.flight-ground {
-  stroke: var(--border-strong);
-  stroke-width: 2;
-}
-
-.flight-axis {
-  fill: var(--text-subtle);
-  font: var(--weight-semibold) 9.5px var(--font-sans);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.flight-runway {
-  stroke: var(--text);
-  stroke-width: 7;
-}
-
-.flight-runway-centre {
-  stroke: var(--bg-canvas);
-  stroke-width: 1.5;
-  stroke-dasharray: 8 7;
-}
-
-.flight-light {
-  fill: var(--border-strong);
-}
-
-.flight-light[data-lit] {
-  fill: var(--brand-fold);
-}
-
-.flight-path {
-  fill: none;
-  stroke-width: 3;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.flight-path[data-segment="done"] { stroke: var(--text); }
-.flight-path[data-segment="live"] { stroke: var(--live-solid); stroke-dasharray: 2 8; animation: flight-flow 0.9s linear infinite; }
-.flight-path[data-segment="you"] { stroke: var(--brand-fold); stroke-dasharray: 2 8; animation: flight-flow 1.4s linear infinite; }
-.flight-path[data-segment="failed"] { stroke: var(--danger-solid); stroke-dasharray: 6 5; }
-.flight-path[data-segment="ahead"] { stroke: var(--border-strong); stroke-width: 2; stroke-dasharray: 5 6; }
-
-.flight-loop {
-  fill: none;
-  stroke: var(--attention-solid);
-  stroke-width: 2;
-}
-
-.flight-holding {
-  fill: none;
-  stroke: var(--brand-fold);
-  stroke-width: 2;
-  stroke-dasharray: 4 5;
-}
-
-.flight-attempt {
-  stroke: var(--border-strong);
-  stroke-width: 1.5;
-  stroke-dasharray: 3 3;
-}
-
-@keyframes flight-flow {
-  to { stroke-dashoffset: -20; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .flight-path[data-segment="live"],
-  .flight-path[data-segment="you"] { animation: none; }
-}
-
-.flight-dot { stroke-width: 2.5; }
-.flight-node[data-status="done"] .flight-dot { fill: var(--text); stroke: var(--text); }
-.flight-node[data-status="running"] .flight-dot { fill: var(--live-bg); stroke: var(--live-solid); }
-.flight-node[data-status="failed"] .flight-dot { fill: var(--danger-solid); stroke: var(--danger-solid); }
-.flight-node[data-status="you"] .flight-dot { fill: var(--brand-fold); stroke: var(--brand-fold); }
-.flight-node[data-status="ahead"] .flight-dot { fill: var(--bg-canvas); stroke: var(--border-strong); stroke-dasharray: 3 3; }
-
-.flight-halo {
-  fill: var(--bg-canvas);
-  stroke: var(--brand-fold);
-  stroke-width: 2;
-}
-
-.flight-tick,
-.flight-cross {
-  fill: none;
-  stroke: var(--bg-canvas);
-  stroke-width: 1.8;
-  stroke-linecap: round;
-}
-
-.flight-mark-sheet { fill: var(--text); }
-.flight-mark-fold { fill: var(--brand-fold); }
-
-.flight-role {
-  fill: var(--text);
-  font: var(--weight-bold) 11.5px var(--font-sans);
-}
-
-.flight-node[data-status="ahead"] .flight-role { fill: var(--text-subtle); }
-.flight-node[data-status="you"] .flight-role { fill: var(--accent-fg); }
-.flight-node[data-status="failed"] .flight-role { fill: var(--danger-fg); }
-
-.flight-meta {
-  fill: var(--text-muted);
-  font: var(--weight-medium) 10.5px var(--font-sans);
-}
-
-.flight-chip {
-  font: var(--weight-bold) 10px var(--font-sans);
-  fill: var(--text-subtle);
-}
-
-.flight-chip[data-tone="success"] { fill: var(--success-fg); }
-.flight-chip[data-tone="attention"] { fill: var(--attention-fg); }
-.flight-chip[data-tone="danger"] { fill: var(--danger-fg); }
-
-.flight-note {
-  fill: var(--text-muted);
-  font: var(--weight-semibold) 10.5px var(--font-sans);
-}
-
-.flight-note[data-tone="attention"] { fill: var(--attention-fg); }
-.flight-note[data-tone="danger"] { fill: var(--danger-fg); }
-.flight-note[data-tone="you"] { fill: var(--accent-fg); }
-
-.flight-try[data-try="failed"] { fill: var(--danger-solid); }
-.flight-try[data-try="running"] { fill: var(--live-solid); }
-.flight-try[data-try="done"] { fill: var(--text); }
-.flight-try[data-try="left"] { fill: none; stroke: var(--border-strong); }
-
-.flight-airport rect { fill: var(--text); }
-.flight-airport[data-status="ahead"] rect { fill: none; stroke: var(--border-strong); stroke-width: 2; stroke-dasharray: 3 3; }
-.flight-airport[data-type="divert"][data-status="you"] rect { fill: var(--brand-fold); }
-.flight-airport[data-type="divert"][data-status="failed"] rect { fill: var(--neutral-solid); }
-
-.flight-airport-name {
-  fill: var(--text);
-  font: var(--weight-wordmark) 11.5px var(--font-sans);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.flight-hit {
-  display: block;
-  inline-size: 100%;
-  block-size: 100%;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  cursor: pointer;
-}
-
-.flight-hit:hover {
-  background: var(--bg-hover);
-}
-
-.flight-hit:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring);
-  outline-offset: var(--focus-ring-inset);
-}
-
-.flight-ribbon {
-  display: grid;
-  gap: var(--space-1);
-  padding: 0 var(--space-4) var(--space-3);
-}
-
-.flight-ribbon-bar {
-  display: block;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background: var(--bg-sunken);
-}
-
-.flight-ribbon-part[data-part="gate"], .flight-ribbon-swatch[data-part="gate"] { fill: var(--border-strong); background: var(--border-strong); }
-.flight-ribbon-part[data-part="agents"], .flight-ribbon-swatch[data-part="agents"] { fill: var(--text); background: var(--text); }
-.flight-ribbon-part[data-part="ci"], .flight-ribbon-swatch[data-part="ci"] { fill: var(--live-solid); background: var(--live-solid); }
-.flight-ribbon-part[data-part="review"], .flight-ribbon-swatch[data-part="review"] { fill: var(--brand-fold); background: var(--brand-fold); }
-.flight-ribbon-part[data-part="deploy"], .flight-ribbon-swatch[data-part="deploy"] { fill: var(--success-solid); background: var(--success-solid); }
-
-.flight-ribbon-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-}
-
-.flight-ribbon-legend li {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.flight-ribbon-swatch {
-  inline-size: 10px;
-  block-size: 10px;
-  border-radius: 2px;
+.work-live {
+  padding: var(--space-4);
+  gap: var(--space-4);
 }
 
 .linked-session-list,

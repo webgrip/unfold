@@ -14,7 +14,7 @@ A feature flag lets Unfold ship a change switched off, then turn it on without a
 
 | Key | Kind | Default | Labs | Remove by | What it does |
 | --- | --- | --- | --- | --- | --- |
-| `work.flight-profile` | release | off | yes | 2027-01-13 | Draws a Work Item as a flight at the top of its page, in place of the four-stage strip. The plane takes off when an agent picks the work up, and every Run is a waypoint (retries are tick marks, readers that start together fly side by side). Fix rounds and waiting for you are holding patterns, failed checks are a go-around, the pull request lands it and production is the arrival. A stopped Work Item diverts to Needs you. Clicking a waypoint opens its Run. Below it, the value stream's waits and work are drawn to scale |
+| `work.live-view` | release | off | yes | 2027-01-17 | Puts the live view at the top of a Work Item page in place of the four-stage strip and the flight profile: the stages as folds, one sentence on what the agent is doing, and the flight path, where every Run is a hop whose height follows its tool calls, machine failures bounce back, a stalled Run circles and tripwire hits are marked. Below it, the questions people ask, answered from the record. Built and checked in the [component workbench](../workbench.md) |
 | `cards.rarity` | release | off | yes | 2027-01-17 | Shows each Run card's rarity: its tier from common to legendary, predicted once a Run starts and revealed at release, with the mark, frame ring, reveal and Rarity tab, and the binder's rarity filter and sort. Applies only while the deployment leaves `cards.rules.rarity` unset: `true` shows rarity to everyone and `false` turns it off whatever the flag says. Unfold still freezes revealed tiers while the flag is off, so turning it on shows them ([Unfold ADR 0045](../adrs/0045-unfold-records-the-run-card-rules-it-computes.md#update-2026-10-17-rarity-is-off-by-default-behind-a-feature-flag)). Evaluated on the server: a person whose flag is off never receives a card's rarity |
 | `cards.health.judge` | permission | off | no | — | Lets a model judge, while a Run runs, whether it is still working on its Work Item ([RFC-0007](../../../../docs/design/rfc-0007-run-health.md), [ADR 0046](../adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md)). Each judgement is a Ploeg Ask paid from the Team's Ask Allowance, on the models `runHealth.judgeModels` lists (Hetzner's free EU-hosted inference by default) and never another. Shadow only: the verdict can raise the Run's health badge, never lower it, and it never stops, requeues, steers or grades a Run. Evaluated on the server with the Run's `team` in the context, so target it per Team, for example `"targeting": {"if": [{"in": [{"var": "team"}, ["bronze"]]}, "on", null]}`. A viewer's read never starts a judgement, and the demo never judges |
 
@@ -41,7 +41,7 @@ Everyone, while each person can still opt out under Labs:
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       defaultVariant: "on"
 ```
 
@@ -50,7 +50,7 @@ One Team, keeping each person's Labs choice. `labs-choice` returns `off` or `on`
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       targeting:
         or:
           - $ref: labs-choice
@@ -62,7 +62,7 @@ A fifth of people, chosen by a stable hash of the flag and the person, so each p
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       targeting:
         or:
           - $ref: labs-choice
@@ -74,7 +74,7 @@ Administrators only:
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       targeting:
         if: [{ "==": [{ var: role }, admin] }, "on", null]
 ```
@@ -84,7 +84,7 @@ Switched off for everyone, whatever people chose:
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       state: DISABLED
 ```
 
@@ -117,7 +117,7 @@ Give a flag more than two variants, or the kind `experiment`, and split people b
 * `flag.exposed` the first time a person reaches the flag in a page load;
 * `flag.tracked` whenever code calls `track('event-name', { value })` from `public/core/flags.js`, attributed to every flag the person reached in that page load.
 
-The flag's card under Labs shows, for the last 30 days, the people who saw each variant and the share of them who did each tracked event. No significance test is applied. `work.flight-profile` already tracks `work.run_opened` and `work.run_opened_from_flight`, so turning it on for half the people compares how often each half opens a Run.
+The flag's card under Labs shows, for the last 30 days, the people who saw each variant and the share of them who did each tracked event. No significance test is applied. `work.live-view` already tracks `work.run_opened` and `work.run_opened_from_flight`, so turning it on for half the people compares how often each half opens a Run.
 
 ## Labs and overrides
 

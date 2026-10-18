@@ -19,8 +19,8 @@ test('the rollout editor reads a percentage split, a scheduled rule and a ramp, 
   assert.equal(rollout.rules[1].window.start, new Date('2026-11-01T09:00').toISOString());
   assert.deepEqual({ from: rollout.rules[2].serve.from, to: rollout.rules[2].serve.to, kind: rollout.rules[2].serve.kind }, { from: 0, to: 10000, kind: 'ramp' });
   assert.equal(rolloutFrom({ defaultVariant: 'on', disabled: 'on' }, 0, ['on']).state, 'DISABLED');
-  const prerequisite = rolloutFrom({ defaultVariant: 'off', 'r0.audience': 'prerequisite', 'r0.target': 'work.flight-profile=on', 'r0.serve': 'variant', 'r0.variant': 'on' }, 1, ['on', 'off']);
-  assert.deepEqual(prerequisite.rules[0].audience, { prerequisite: { flag: 'work.flight-profile', variants: ['on'] } });
+  const prerequisite = rolloutFrom({ defaultVariant: 'off', 'r0.audience': 'prerequisite', 'r0.target': 'work.live-view=on', 'r0.serve': 'variant', 'r0.variant': 'on' }, 1, ['on', 'off']);
+  assert.deepEqual(prerequisite.rules[0].audience, { prerequisite: { flag: 'work.live-view', variants: ['on'] } });
 });
 
 test('a rule reads in words, and values read as On, Off or themselves', () => {

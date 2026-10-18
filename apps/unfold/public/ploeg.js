@@ -13,8 +13,14 @@ import { traceMarkup } from './core/attribution.js';
 import { workStages } from './core/stages.js';
 import { cardView } from './cards/card-model.js';
 import { deliveryStages, stageTime } from './core/delivery-track.js';
-import { streamChart, streamLanes, streamStats } from './core/value-stream.js';
-import { flightMarkup, flightPlan } from './core/flight-profile.js';
+import { streamChart, streamLanes } from './core/value-stream.js';
+import { foldTranscript } from './run-transcript.js';
+import { liveModel } from './live/model.js';
+import { flightPath } from './live/flight-path.js';
+import { foldStrip } from './live/fold-strip.js';
+import { answers } from './live/answers.js';
+import { nowLine } from './live/layouts.js';
+import { containmentPanel, needsContainment } from './live/containment.js';
 import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
 import { runTranscriptMarkup } from './run-transcript.js';
@@ -1504,15 +1510,16 @@ export function statusMarkup(detail, model, { reason = null, plan = null } = {})
 }
 
 /**
- * The head of a Work Item page while the `work.flight-profile` flag is on: the Work Item as a flight, from its
- * Shifts, Runs, Run card and session, with the value stream's waits and work to scale below it.
+ * The live view at the head of a Work Item page while the `work.live-view` flag is on: the fold strip, the live
+ * sentence and the flight path, from the detail and the running Run's transcript when its panel has loaded it, then
+ * the questions answered from the record.
  */
-export function flightProfileMarkup(detail, model) {
-  const card = model.card && String(model.card.workItemId) === detail.item.id ? model.card : null;
-  const plan = flightPlan({ detail, card, sessions: model.sessions, now: model.now, publisher: Boolean(model.publisher) });
-  const stream = model.stream && String(model.stream.workItemId ?? detail.item.id) === detail.item.id ? model.stream : null;
-  const lanes = stream ? streamLanes({ stream, shifts: detail.shifts || [], runs: detail.runs || [], runTone: runResult }) : [];
-  return flightMarkup(plan, { stats: lanes.length ? streamStats(lanes, { stream, now: model.now }) : null });
+export function liveViewMarkup(detail, model) {
+  const running = [...(detail.runs || [])].reverse().find(run => run.state === 'running');
+  const entry = running ? model.runTranscripts?.get?.(String(running.id)) : null;
+  const transcript = entry?.entries?.length ? foldTranscript(entry.entries).items : [];
+  const live = liveModel({ detail, transcript, transcriptKnown: Boolean(entry?.entries?.length), transcriptMissing: entry?.data?.available === false ? entry.data.reason ?? null : null, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
+  return `<section class="card work-live lv" aria-label="Live view">${foldStrip(live)}${nowLine(live)}${needsContainment(live) ? containmentPanel(live) : ''}${flightPath(live, { id: `work-live-flight-${detail.item.id}` })}${answers(live, { layout: 'chips', ask: false })}</section>`;
 }
 
 /** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, who did what, activity, technical details and, on phones, the action bar. */
@@ -1533,10 +1540,11 @@ export function detailMarkup(recordedDetail, model) {
   let decision;
   if (reason) decision = needsYouBox(detail, model, reason, plan);
   else if (item.state === 'awaiting_review') decision = reviewBox(detail, model, plan);
+  else if (model.flags?.['work.live-view'] === true && item.state === 'leased') decision = '';
   else decision = statusBox(detail, model);
   const parts = [
     headerMarkup(detail, model, reason),
-    model.flags?.['work.flight-profile'] === true ? flightProfileMarkup(detail, model) : stagesMarkup(detail, model),
+    model.flags?.['work.live-view'] === true ? liveViewMarkup(detail, model) : stagesMarkup(detail, model),
     model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : '',
     cancelResultMarkup(model),
     status,
