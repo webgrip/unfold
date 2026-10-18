@@ -310,6 +310,9 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (raw.kubernetes.userNamespaces !== undefined && typeof raw.kubernetes.userNamespaces !== 'boolean') throw new Error('kubernetes.userNamespaces must be true or false');
     if (raw.kubernetes.userNamespaces && raw.kubernetes.provisioner === 'sandbox') throw new Error('kubernetes.userNamespaces cannot be combined with the sandbox provisioner; a Kata guest kernel already remaps the workload');
     if (!['pod', 'sandbox'].includes(raw.kubernetes.provisioner)) throw new Error('kubernetes.provisioner must be pod or sandbox');
+    if (raw.kubernetes.runtimeClassName !== undefined && (typeof raw.kubernetes.runtimeClassName !== 'string' || !/^[A-Za-z0-9_.-]{1,253}$/.test(raw.kubernetes.runtimeClassName))) throw new Error('kubernetes.runtimeClassName must be a RuntimeClass name');
+    if (raw.kubernetes.runtimeClassName && raw.kubernetes.provisioner === 'sandbox') throw new Error('kubernetes.runtimeClassName applies to the pod provisioner; the sandbox provisioner takes kubernetes.sandbox.runtimeClassName');
+    if (raw.kubernetes.runtimeClassName && raw.kubernetes.userNamespaces) throw new Error('kubernetes.runtimeClassName cannot be combined with kubernetes.userNamespaces; a sandboxed runtime such as Kata already remaps the workload in its guest kernel');
     if (raw.kubernetes.provisioner === 'sandbox') {
       if (raw.kubernetes.transport !== 'pull') throw new Error('kubernetes.provisioner sandbox requires kubernetes.transport pull');
       const sandbox = raw.kubernetes.sandbox ?? {};

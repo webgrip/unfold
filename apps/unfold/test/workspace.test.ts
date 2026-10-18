@@ -294,6 +294,15 @@ test('user namespaces are opt-in and remap both the writer and the export pod', 
   assert.equal(candidateExportManifest(config, { ...session, workspace: { id: session.id, backend: 'kubernetes', directory: '/workspace/repository', metadata: { baseSha: 'a'.repeat(40) } } }, repository).spec.hostUsers, false);
 });
 
+test('a RuntimeClass puts both the writer and the export pod under it, and is opt-in', () => {
+  const config = configuration();
+  const exported = { ...session, workspace: { id: session.id, backend: 'kubernetes' as const, directory: '/workspace/repository', metadata: { baseSha: 'a'.repeat(40) } } };
+  assert.equal(workspaceManifests(config, session, repository, credential, { username: 'opencode', password: 'p' }, managedConfig(config)).find(item => item.kind === 'Pod')!.spec.runtimeClassName, undefined);
+  config.kubernetes = { ...config.kubernetes!, runtimeClassName: 'kata' };
+  assert.equal(workspaceManifests(config, session, repository, credential, { username: 'opencode', password: 'p' }, managedConfig(config)).find(item => item.kind === 'Pod')!.spec.runtimeClassName, 'kata');
+  assert.equal(candidateExportManifest(config, exported, repository).spec.runtimeClassName, 'kata');
+});
+
 const gatewayTools = { litellmTeamId: 'agents-orders', accessGroups: ['observability-read-orders'] };
 
 test('managed agent configuration adds the gateway MCP server only for a repository that opts in', () => {
