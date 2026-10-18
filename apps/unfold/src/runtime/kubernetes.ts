@@ -277,6 +277,13 @@ export async function captureInPlace(relay: WorkerRelay, config: AppConfig, sess
   finally { await control('/__unfold/stop-child', undefined, 30_000).catch(() => {}); }
 }
 
+function secretCredentials(secret: KubernetesObject | undefined): BasicCredentials | undefined {
+  const read = (key: string) => typeof secret?.data?.[key] === 'string' ? Buffer.from(secret.data[key], 'base64').toString('utf8') : undefined;
+  const username = read('OPENCODE_SERVER_USERNAME');
+  const password = read('OPENCODE_SERVER_PASSWORD');
+  return username && password ? { username, password } : undefined;
+}
+
 export class KubernetesWorkspaces {
   readonly config: AppConfig;
   readonly kube: KubernetesConfig;
@@ -407,6 +414,22 @@ export class KubernetesWorkspaces {
       const patch = await read('/patch', 128 * 1024 * 1024);
       return await persistRemoteCandidate(this.config.dataDir, session.id, manifest, bundle, patch);
     } catch { return unavailableCandidate('capture_failed'); }
+  }
+
+  /**
+   * Takes back a pull-transport workspace that kept working while the workbench restarted. Its OpenCode credentials
+   * come from the workspace's own Secret, and its worker must reconnect to the relay with the credential it holds.
+   */
+  async reattach(workspace: Workspace, signal: AbortSignal, withinMs: number): Promise<boolean> {
+    if (workspace.metadata?.transport !== 'pull' || this.kube.transport !== 'pull') return false;
+    const name = workspaceName(workspace.id);
+    const pod = await this.client.request(this.path('Pod', name), 'GET', undefined, true);
+    if (!pod || pod.metadata?.deletionTimestamp || ['Failed', 'Succeeded'].includes(pod.status?.phase)) return false;
+    const basic = secretCredentials(await this.client.request(this.path('Secret', name), 'GET', undefined, true));
+    if (!basic) return false;
+    await this.relay.waitForWorker(workspace.id, signal, withinMs);
+    this.passwords.set(workspace.id, basic);
+    return true;
   }
 
   async dispose(workspace: Workspace): Promise<void> {

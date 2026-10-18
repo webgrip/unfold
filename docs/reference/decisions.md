@@ -222,6 +222,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0047](../../apps/unfold/docs/adrs/0047-people-link-their-own-agent-sessions-through-a-plugin-agent-trace-and-telemetry-never-a-claude-sign-in.md) | People link their own agent sessions through a plugin, Agent Trace and telemetry, never a Claude sign-in | 2026-10-17 | unknown | — |
 | Unfold | [0048](../../apps/unfold/docs/adrs/0048-components-are-built-and-checked-in-a-workbench-outside-the-app.md) | Components are built and checked in a workbench outside the app | 2026-10-17 | unknown | — |
 | Unfold | [0049](../../apps/unfold/docs/adrs/0049-the-agents-window-has-an-unfold-chat-that-reads-and-acts-on-confirm.md) | The Agents window has an Unfold chat that reads, and acts only after you confirm | 2026-10-18 | unknown | — |
+| Unfold | [0051](../../apps/unfold/docs/adrs/0051-a-running-session-survives-a-workbench-restart.md) | A running session survives a workbench restart | 2026-10-18 | unknown | — |
 
 ## Other statuses
 

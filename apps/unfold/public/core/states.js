@@ -179,6 +179,7 @@ const workspacePhases = Object.freeze({
   cloning: 'Cloning the repository',
   starting: 'Starting OpenCode',
   connecting: 'Connecting to the workspace',
+  reconnecting: 'Reconnecting to the workspace after a restart',
 });
 const workspaceProblems = new Set(['capacity', 'image_unavailable', 'container_error']);
 

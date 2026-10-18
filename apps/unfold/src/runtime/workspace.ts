@@ -245,6 +245,20 @@ export class WorkspaceManager {
 
   async interrupt(_workspace: Workspace): Promise<void> {}
 
+  reattachable(workspace: Workspace): boolean {
+    return workspace.backend === 'kubernetes' && workspace.metadata?.transport === 'pull' && this.kubernetes instanceof KubernetesWorkspaces;
+  }
+
+  async reattach(workspace: Workspace, signal: AbortSignal, withinMs: number): Promise<boolean> {
+    return this.reattachable(workspace) && this.kubernetes instanceof KubernetesWorkspaces ? this.kubernetes.reattach(workspace, signal, withinMs) : false;
+  }
+
+  async revokeWorker(workspace: Workspace): Promise<void> {
+    if (workspace.metadata?.transport !== 'pull') return;
+    if (this.kubernetes instanceof KubernetesWorkspaces) this.kubernetes.tokens.delete(workspace.id);
+    this.relay.unregister(workspace.id);
+  }
+
   async dispose(workspace: Workspace): Promise<void> {
     const state = this.internal.get(workspace.id);
     if (state?.process) await this.stop(state.process);

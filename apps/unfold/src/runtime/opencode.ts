@@ -3,7 +3,7 @@ import { unavailableCandidate, type Candidate } from '../candidates.ts';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { AgentRuntime, AppConfig, Artifact, Credential, ExecutionContext, ExecutionResult, PermissionRequest, Repository, Session, Workspace, WorkspaceWait } from '../types.ts';
 import { WorkspaceManager } from './workspace.ts';
-import { RuntimeFailure, classifyFailure, transportFailure, type PromptAcceptance } from '../failures.ts';
+import { RuntimeFailure, classifyFailure, leftWorkingForRestart, transportFailure, type PromptAcceptance } from '../failures.ts';
 import { gatewayError } from '../gateway-errors.ts';
 
 export interface RuntimeWorkspaces {
@@ -14,6 +14,23 @@ export interface RuntimeWorkspaces {
   dispose(workspace: Workspace): Promise<void>;
   captureCandidate?(session: Session, repository: Repository): Promise<Candidate>;
   transport?(workspace: Workspace): typeof fetch | undefined;
+  reattachable?(workspace: Workspace): boolean;
+  reattach?(workspace: Workspace, signal: AbortSignal, withinMs: number): Promise<boolean>;
+  revokeWorker?(workspace: Workspace): Promise<void>;
+}
+
+const maxObservationHiccups = 5;
+
+/** A failure reading a turn's state that a second read can cure: the connection or relay dropped, a read timed out, or the worker could not reach OpenCode for a moment. */
+function transient(error: unknown): boolean {
+  if (!(error instanceof RuntimeFailure)) return false;
+  return error.category === 'connectivity' || error.category === 'timeout' || [502, 503, 504].includes(error.httpStatus ?? 0);
+}
+
+/** The messages a continuing turn already accounted for: everything up to and including the latest prompt. */
+export function throughLatestPrompt(messages: WireMessage[]): WireMessage[] | undefined {
+  const latest = messages.findLastIndex(message => message.info?.role === 'user');
+  return latest < 0 ? undefined : messages.slice(0, latest + 1);
 }
 
 type WireRecord = Record<string, any>;
@@ -175,6 +192,7 @@ export class OpenCodeRuntime implements AgentRuntime {
     let nativeId = context.run.nativeId;
     let baseline: WireMessage[];
     try {
+      if (context.continuing && !nativeId) throw new RuntimeFailure('harness_rejected', 'runtime');
       if (!nativeId) {
         const auto = context.session.approval === 'auto';
         const permission = context.role.mode === 'read'
@@ -187,8 +205,11 @@ export class OpenCodeRuntime implements AgentRuntime {
       if (typeof nativeId !== 'string') throw new RuntimeFailure('harness_rejected', 'runtime');
       workspace.nativeSessionId = nativeId;
       emit({ type: 'native.session', data: { nativeId } });
-      baseline = await this.request(workspace, `/session/${encodeURIComponent(nativeId)}/message`, 'GET', undefined, operation);
-      if (!Array.isArray(baseline)) throw new RuntimeFailure('harness_rejected', 'runtime');
+      const listed = await this.request(workspace, `/session/${encodeURIComponent(nativeId)}/message`, 'GET', undefined, operation);
+      if (!Array.isArray(listed)) throw new RuntimeFailure('harness_rejected', 'runtime');
+      const accounted = context.continuing ? throughLatestPrompt(listed) : listed;
+      if (!accounted) throw new RuntimeFailure('harness_rejected', 'runtime');
+      baseline = accounted;
     } catch (error) {
       if (signal.aborted) throw new DOMException('Agent turn cancelled', 'AbortError');
       if (timeout.aborted) throw new RuntimeFailure('timeout', 'runtime');
@@ -241,20 +262,37 @@ export class OpenCodeRuntime implements AgentRuntime {
     const prompt = context.prompt + (context.role.mode === 'read'
       ? '\nInspect the repository and the verification evidence supplied in the task. Shell execution and edits are unavailable in this read role; do not claim to have run tests. Finish with a fenced JSON object containing summary and verdict (approve, request_changes, or inconclusive). Approve only what the available evidence supports.'
       : `\nThe configured verification command is this exact argv array: ${JSON.stringify(context.repository.verify)}. Run it when authorized and report its actual result.`);
+    let unreadable: unknown;
     try {
-      promptAcceptance = 'unknown';
-      await this.request(workspace, `${base}/prompt_async`, 'POST', { model: { providerID: model.providerId, modelID: model.modelId }, agent: 'build', parts: [{ type: 'text', text: prompt }] }, operation);
+      if (!context.continuing) {
+        promptAcceptance = 'unknown';
+        await this.request(workspace, `${base}/prompt_async`, 'POST', { model: { providerID: model.providerId, modelID: model.modelId }, agent: 'build', parts: [{ type: 'text', text: prompt }] }, operation);
+      }
       promptAcceptance = 'accepted';
+      if (!context.continuing) emit({ type: 'native.session', data: { nativeId, prompted: true } });
+      let hiccups = 0;
       while (true) {
         operation.throwIfAborted();
         if (failure) throw failure;
-        const [statuses, messages, permissions, questions, children] = await Promise.all([
-          this.request(workspace, '/session/status', 'GET', undefined, operation),
-          this.request(workspace, `${base}/message`, 'GET', undefined, operation),
-          this.request(workspace, '/permission', 'GET', undefined, operation),
-          this.request(workspace, '/question', 'GET', undefined, operation),
-          this.request(workspace, `${base}/children`, 'GET', undefined, operation),
-        ]);
+        let observed: any[];
+        try {
+          observed = await Promise.all([
+            this.request(workspace, '/session/status', 'GET', undefined, operation),
+            this.request(workspace, `${base}/message`, 'GET', undefined, operation),
+            this.request(workspace, '/permission', 'GET', undefined, operation),
+            this.request(workspace, '/question', 'GET', undefined, operation),
+            this.request(workspace, `${base}/children`, 'GET', undefined, operation),
+          ]);
+          hiccups = 0;
+          unreadable = undefined;
+        } catch (error) {
+          if (operation.aborted || !transient(error) || ++hiccups > maxObservationHiccups) throw error;
+          unreadable = error;
+          console.error(JSON.stringify({ level: 'warn', event: 'runtime.observation_retried', session: context.session.id, run: context.run.id, attempt: hiccups, category: (error as RuntimeFailure).category, status: (error as RuntimeFailure).httpStatus ?? null, message: 'Reading the turn\'s state from the workspace failed; reading it again.' }));
+          await delay(1000 * hiccups, undefined, { signal: operation }).catch(() => {});
+          continue;
+        }
+        const [statuses, messages, permissions, questions, children] = observed;
         if (!Array.isArray(permissions) || !Array.isArray(questions)) throw new Error('OpenCode returned an invalid pending-request list');
         for (const child of Array.isArray(children) ? children : []) if (typeof child.id === 'string') sessions.add(child.id);
         const activeRequests = new Set([...permissions, ...questions].filter(p => sessions.has(p.sessionID)).map(p => p.id));
@@ -297,16 +335,17 @@ export class OpenCodeRuntime implements AgentRuntime {
         await delay(750, undefined, { signal: operation });
       }
     } catch (error) {
-      await this.interrupt(workspace).catch(() => {});
+      if (!leftWorkingForRestart(signal)) await this.interrupt(workspace).catch(() => {});
       if (signal.aborted) throw new DOMException('Agent turn cancelled', 'AbortError');
       if (promptAcceptance === 'unknown') {
         const status = error instanceof RuntimeFailure ? error.httpStatus : undefined;
         if (status && status >= 400 && status < 500 && status !== 408) throw new RuntimeFailure('harness_rejected', 'prompt', 'rejected');
         throw new RuntimeFailure('prompt_acceptance_unknown', 'prompt', 'unknown');
       }
-      if (timeout.aborted) throw new RuntimeFailure('timeout', 'execution', promptAcceptance);
-      const failure = classifyFailure(error, 'execution', promptAcceptance);
-      throw new RuntimeFailure(failure.category, 'execution', promptAcceptance, error instanceof RuntimeFailure ? error.httpStatus : undefined, failure.detail);
+      const cause = timeout.aborted && unreadable ? unreadable : error;
+      if (timeout.aborted && !unreadable) throw new RuntimeFailure('timeout', 'execution', promptAcceptance);
+      const failure = classifyFailure(cause, 'execution', promptAcceptance);
+      throw new RuntimeFailure(failure.category, 'execution', promptAcceptance, cause instanceof RuntimeFailure ? cause.httpStatus : undefined, failure.detail);
     } finally { completion.abort(); await watching; }
   }
 
@@ -339,6 +378,12 @@ export class OpenCodeRuntime implements AgentRuntime {
     }
     if (workspace.nativeSessionId) await this.request(workspace, `/session/${encodeURIComponent(workspace.nativeSessionId)}/abort`, 'POST');
   }
+
+  reattachable(workspace: Workspace): boolean { return this.workspaces.reattachable?.(workspace) ?? false; }
+
+  async reattach(workspace: Workspace, signal: AbortSignal, withinMs: number): Promise<boolean> { return this.workspaces.reattach ? this.workspaces.reattach(workspace, signal, withinMs) : false; }
+
+  async revokeWorker(workspace: Workspace): Promise<void> { await this.workspaces.revokeWorker?.(workspace); }
 
   captureCandidate(session: Session, repository: Repository): Promise<Candidate> { return this.workspaces.captureCandidate?.(session, repository) ?? Promise.resolve(unavailableCandidate('unsupported_workspace')); }
 

@@ -1,16 +1,41 @@
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { RuntimeFailure } from '../failures.ts';
 
 type PendingRequest = { id: string; method: string; path: string; headers: Record<string, string>; body?: string; signal?: AbortSignal; deliver(response: Response): void; fail(error: Error): void; cancelled: boolean; picked: boolean; abortIncoming?: () => void };
-type Registration = { token: Buffer; queue: PendingRequest[]; inFlight: Map<string, PendingRequest>; waiters: Set<(value: void) => void>; lastSeen: number; cancelled: Set<string> };
+type Registration = { digest: Buffer; queue: PendingRequest[]; inFlight: Map<string, PendingRequest>; waiters: Set<(value: void) => void>; lastSeen: number; cancelled: Set<string> };
 
 const maxRequestBody = 16 * 1024 * 1024;
 const maxPollMs = 25_000;
 const pickupTimeoutMs = 30_000;
 
 export function relayEndpoint(workspaceId: string): string { return `relay://${workspaceId}`; }
+
+/** What a relay remembers about one workspace's worker credential: the SHA-256 digest of its token, and whether that credential was revoked. */
+export type WorkerCredential = { digest: string; revoked?: true };
+
+/**
+ * Where a relay keeps its worker credentials. A store-backed one lets a restarted workbench accept the worker of a
+ * running workspace with the token it already holds, and keeps refusing a revoked one; it never holds a token itself.
+ */
+export interface WorkerCredentials {
+  read(workspaceId: string): WorkerCredential | undefined;
+  write(workspaceId: string, credential: WorkerCredential): void;
+}
+
+/** Worker credentials that last as long as this process. */
+export function memoryCredentials(): WorkerCredentials {
+  const credentials = new Map<string, WorkerCredential>();
+  return { read: id => credentials.get(id), write: (id, credential) => { credentials.set(id, credential); } };
+}
+
+/** Worker credentials kept in the store's encrypted internal state, so they survive a workbench restart. */
+export function storedCredentials(store: { getSecret<T>(id: string): T | undefined; setSecret(id: string, value: unknown): void }): WorkerCredentials {
+  return { read: id => store.getSecret<WorkerCredential>(`relay:${id}`), write: (id, credential) => store.setSecret(`relay:${id}`, credential) };
+}
+
+const digestOf = (token: string): Buffer => createHash('sha256').update(token).digest();
 
 type Assignment = { sessionId: string; token: string; env: Record<string, string> };
 
@@ -19,7 +44,14 @@ export class WorkerRelay {
   private readonly assignments = new Map<string, Assignment>();
   private readonly poolWaiters = new Map<string, Set<() => void>>();
   private poolToken?: Buffer;
+  private readonly credentials: WorkerCredentials;
+  private readonly uploads = new WeakSet<IncomingMessage>();
+  private closed = false;
   readonly basePath = '/api/relay/';
+
+  private readonly uploadIdleMs: number;
+
+  constructor(credentials: WorkerCredentials = memoryCredentials(), uploadIdleMs = 60_000) { this.credentials = credentials; this.uploadIdleMs = uploadIdleMs; }
 
   configurePool(token: string | undefined): void { this.poolToken = token ? Buffer.from(token) : undefined; }
 
@@ -33,16 +65,70 @@ export class WorkerRelay {
   register(workspaceId: string): string {
     this.unregister(workspaceId);
     const token = randomBytes(32).toString('base64url');
-    this.registrations.set(workspaceId, { token: Buffer.from(token), queue: [], inFlight: new Map(), waiters: new Set(), lastSeen: 0, cancelled: new Set() });
+    const digest = digestOf(token);
+    this.credentials.write(workspaceId, { digest: digest.toString('hex') });
+    this.registrations.set(workspaceId, this.emptyRegistration(digest));
     return token;
   }
 
+  private emptyRegistration(digest: Buffer): Registration {
+    return { digest, queue: [], inFlight: new Map(), waiters: new Set(), lastSeen: 0, cancelled: new Set() };
+  }
+
+  private stored(workspaceId: string): WorkerCredential | undefined {
+    const stored = this.credentials.read(workspaceId);
+    return typeof stored?.digest === 'string' && /^[a-f0-9]{64}$/.test(stored.digest) ? stored : undefined;
+  }
+
+  private registered(workspaceId: string): Registration | undefined {
+    const known = this.registrations.get(workspaceId);
+    if (known) return known;
+    const stored = this.stored(workspaceId);
+    if (!stored || stored.revoked) return undefined;
+    const restored = this.emptyRegistration(Buffer.from(stored.digest, 'hex'));
+    this.registrations.set(workspaceId, restored);
+    return restored;
+  }
+
+  /**
+   * The registration a worker's request authenticates to: the one in memory, or one rebuilt from the store when the
+   * presented token matches the stored digest. `revoked` only when the token matches a revoked credential, so a caller
+   * without the token learns nothing about the workspace, and a refused request leaves nothing behind.
+   */
+  private authenticate(workspaceId: string, req: IncomingMessage): Registration | 'revoked' | undefined {
+    const header = req.headers.authorization ?? '';
+    if (!header.startsWith('Bearer ')) return undefined;
+    const presented = digestOf(header.slice(7));
+    const known = this.registrations.get(workspaceId);
+    if (known) return timingSafeEqual(presented, known.digest) ? known : undefined;
+    const stored = this.stored(workspaceId);
+    if (!stored || !timingSafeEqual(presented, Buffer.from(stored.digest, 'hex'))) return undefined;
+    if (stored.revoked) return 'revoked';
+    return this.registered(workspaceId);
+  }
+
+  /** Revokes the workspace's worker credential, here and in its store, and fails every request still waiting for that worker. */
   unregister(workspaceId: string): void {
+    const stored = this.stored(workspaceId);
+    if (stored && !stored.revoked) this.credentials.write(workspaceId, { digest: stored.digest, revoked: true });
     const registration = this.registrations.get(workspaceId);
     if (!registration) return;
     for (const pending of [...registration.queue, ...registration.inFlight.values()]) pending.fail(new RuntimeFailure('connectivity', 'runtime', 'unknown', undefined, 'The workspace relay was closed'));
     for (const wake of registration.waiters) wake();
     this.registrations.delete(workspaceId);
+  }
+
+  /** Whether this request is an authorized worker streaming a relayed response, whose body lasts as long as the response it carries. */
+  streamingUpload(req: IncomingMessage): boolean { return this.uploads.has(req); }
+
+  /**
+   * Stops serving workers: every waiting poll is answered at once and every later relay request gets 503 with its
+   * connection closed, so a stopping workbench is not held open by workers that poll again on kept-alive connections.
+   */
+  close(): void {
+    this.closed = true;
+    for (const registration of this.registrations.values()) for (const wake of registration.waiters) wake();
+    for (const waiters of this.poolWaiters.values()) for (const wake of waiters) wake();
   }
 
   connected(workspaceId: string, withinMs = 2 * maxPollMs): boolean {
@@ -62,7 +148,7 @@ export class WorkerRelay {
 
   fetcher(workspaceId: string): typeof fetch {
     return async (input, init = {}) => {
-      const registration = this.registrations.get(workspaceId);
+      const registration = this.registered(workspaceId);
       if (!registration) throw new RuntimeFailure('connectivity', 'runtime', 'not_submitted', undefined, 'The workspace relay is not registered');
       const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
       const headers: Record<string, string> = {};
@@ -100,14 +186,6 @@ export class WorkerRelay {
     };
   }
 
-  private authorized(registration: Registration | undefined, req: IncomingMessage): registration is Registration {
-    if (!registration) return false;
-    const header = req.headers.authorization ?? '';
-    if (!header.startsWith('Bearer ')) return false;
-    const presented = Buffer.from(header.slice(7));
-    return presented.length === registration.token.length && timingSafeEqual(presented, registration.token);
-  }
-
   private poolAuthorized(req: IncomingMessage): boolean {
     if (!this.poolToken) return false;
     const header = req.headers.authorization ?? '';
@@ -119,6 +197,7 @@ export class WorkerRelay {
   async handle(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean> {
     if (!url.pathname.startsWith(this.basePath)) return false;
     const json = (status: number, value: unknown) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(value)); };
+    if (this.closed) { res.writeHead(503, { 'content-type': 'application/json', 'cache-control': 'no-store', connection: 'close' }); res.end(JSON.stringify({ error: { code: 'stopping', message: 'The workbench is stopping.' } })); return true; }
     if (url.pathname === `${this.basePath}pool/claim` && req.method === 'GET') {
       if (!this.poolAuthorized(req)) { json(401, { error: { code: 'unauthorized', message: 'Pool token rejected.' } }); return true; }
       const pod = url.searchParams.get('pod') ?? '';
@@ -143,8 +222,11 @@ export class WorkerRelay {
     }
     const match = url.pathname.slice(this.basePath.length).match(/^([a-zA-Z0-9_-]{1,80})\/(requests|responses\/([a-zA-Z0-9_-]{1,32}))$/);
     if (!match) { json(404, { error: { code: 'not_found', message: 'Relay route not found.' } }); return true; }
-    const registration = this.registrations.get(match[1]);
-    if (!this.authorized(registration, req)) { json(401, { error: { code: 'unauthorized', message: 'Relay token rejected.' } }); return true; }
+    const registration = this.authenticate(match[1], req);
+    if (!registration || registration === 'revoked') {
+      json(401, { error: registration === 'revoked' ? { code: 'revoked', message: 'This workspace was released; its worker must stop.' } : { code: 'unauthorized', message: 'Relay token rejected.' } });
+      return true;
+    }
     registration.lastSeen = Date.now();
     if (match[2] === 'requests' && req.method === 'GET') {
       const wait = Math.min(maxPollMs, Math.max(0, Number(url.searchParams.get('wait') ?? maxPollMs) || 0));
@@ -174,7 +256,14 @@ export class WorkerRelay {
       try { headers = JSON.parse(String(req.headers['x-relay-headers'] ?? '{}')); } catch {}
       if (!Number.isInteger(status) || status < 200 || status > 599) { pending.fail(new RuntimeFailure('harness_rejected', 'runtime', 'unknown', undefined, 'The worker relayed an invalid status')); json(400, { error: { code: 'invalid_status', message: 'x-relay-status must be an HTTP status code.' } }); return true; }
       if (pending.cancelled) { req.resume(); json(200, { ok: true, cancelled: true }); return true; }
-      pending.abortIncoming = () => req.destroy();
+      let consumerCancelled = false;
+      pending.abortIncoming = () => { consumerCancelled = true; req.destroy(); };
+      this.uploads.add(req);
+      req.setTimeout(this.uploadIdleMs, () => req.destroy());
+      req.on('close', () => {
+        if (req.complete || consumerCancelled) return;
+        console.error(JSON.stringify({ level: 'warn', event: 'relay.response_interrupted', session: match[1], request: match[3], method: pending.method, path: pending.path.split('?')[0], status, message: 'The worker\'s relayed response ended before its body was complete.' }));
+      });
       const stream = Readable.toWeb(req) as ReadableStream<Uint8Array>;
       const safeHeaders = new Headers();
       for (const [key, value] of Object.entries(headers)) if (typeof value === 'string' && !/^(content-length|transfer-encoding|connection)$/i.test(key)) safeHeaders.set(key, value);
