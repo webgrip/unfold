@@ -17,7 +17,7 @@ export type JudgeOutcome = { state: JudgeState; judgement: RunJudgement | null; 
 export type JudgeOptions = { gatewayUrl: string; models: readonly string[]; secrets: readonly string[]; fetch?: typeof fetch; now?: () => Date; log?: (line: string) => void };
 
 /** The judge's bounds: verdicts per Run, minutes between unprompted judgements, the transcript window and the reply's limits. */
-export const judgeLimits = Object.freeze({ perRun: 9, intervalMs: 600_000, windowEntries: 40, windowBytes: 8192, entryText: 600, description: 4000, reason: 160, evidence: 5, outputTokens: 400, timeoutMs: 60_000 });
+export const judgeLimits = Object.freeze({ perRun: 9, intervalMs: 600_000, windowEntries: 40, windowBytes: 8192, entryText: 600, description: 4000, reason: 160, evidence: 5, outputTokens: 1500, timeoutMs: 60_000 });
 /** Hetzner's free, EU-hosted experimental inference through the gateway. The judge never falls back to another model. */
 export const defaultJudgeModels: readonly string[] = Object.freeze(['hetzner-qwen3-8-27b', 'hetzner-qwen3-6-35b-a3b']);
 const healths: readonly JudgeHealth[] = ['on_track', 'watch', 'off_track'];
@@ -138,11 +138,11 @@ export class RunJudge {
     const messages = [{ role: 'system', content: instructions }, { role: 'user', content: prompt }];
     const call = async (structured: boolean) => (this.options.fetch ?? fetch)(`${base}/chat/completions`, {
       method: 'POST', headers: { authorization: `Bearer ${key}`, 'content-type': 'application/json' }, signal: AbortSignal.timeout(judgeLimits.timeoutMs),
-      body: JSON.stringify({ model, temperature: 0, max_tokens: judgeLimits.outputTokens, messages, ...(structured ? { response_format: { type: 'json_schema', json_schema: { name: 'run_health', strict: true, schema } } } : {}) }),
+      body: JSON.stringify({ model, temperature: 0, max_tokens: judgeLimits.outputTokens, messages, ...(structured ? { response_format: { type: 'json_schema', json_schema: { name: 'run_health', strict: true, schema } }, chat_template_kwargs: { enable_thinking: false } } : {}) }),
     });
     let response = await call(true);
     let text = await response.text().catch(() => '');
-    if (response.status === 400 && /response_format|json_schema/i.test(text)) { response = await call(false); text = await response.text().catch(() => ''); }
+    if (response.status === 400 && /response_format|json_schema|chat_template_kwargs|enable_thinking/i.test(text)) { response = await call(false); text = await response.text().catch(() => ''); }
     if (!response.ok) throw new Error(`gateway ${response.status}: ${gatewayFailure(response.status, text)}`);
     const content = (JSON.parse(text) as { choices?: { message?: { content?: unknown } }[] })?.choices?.[0]?.message?.content;
     if (typeof content !== 'string') throw new Error('gateway reply without content');

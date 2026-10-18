@@ -111,6 +111,7 @@ test('a judgement is an Ask: admitted with a fixed question, the first configure
   assert.equal(body.max_tokens, judgeLimits.outputTokens);
   assert.equal(body.response_format.type, 'json_schema');
   assert.equal(body.response_format.json_schema.strict, true);
+  assert.deepEqual(body.chat_template_kwargs, { enable_thinking: false });
   assert.match(body.messages[0].content, /untrusted data written by a tracker or by the agent/);
   assert.match(body.messages[1].content, /<work_item>\nTitle: ci: finish under 60 minutes\nAcceptance: the CI job finishes in under 60 minutes\.\n<\/work_item>/);
   assert.match(body.messages[1].content, /<transcript>\n#10 08:37:00 plan: \[in_progress\] step 1/);
@@ -196,6 +197,7 @@ test('a gateway that refuses response_format is asked once more without it', asy
   assert.equal(t.net.requests.length, 2);
   assert.ok(t.net.requests[0].response_format);
   assert.equal(t.net.requests[1].response_format, undefined);
+  assert.equal(t.net.requests[1].chat_template_kwargs, undefined);
   assert.equal(t.store.countRunJudgements('305'), 1);
 });
 
