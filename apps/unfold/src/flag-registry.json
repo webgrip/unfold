@@ -51,27 +51,6 @@
         "labs": true
       }
     },
-    "work.run-health": {
-      "state": "ENABLED",
-      "variants": {
-        "on": true,
-        "off": false
-      },
-      "defaultVariant": "off",
-      "targeting": {
-        "$ref": "labs-choice"
-      },
-      "metadata": {
-        "kind": "release",
-        "owner": "Ryan Grippeling",
-        "created": "2026-10-18",
-        "expires": "2027-01-18",
-        "title": "Run health on running Runs",
-        "description": "Shows a health badge (On track, Watch, Off track, Not judged yet, Not known) and one reason line on each running Run, from deterministic signals per RFC-0007; the judge stays a separate Team setting.",
-        "client": true,
-        "labs": true
-      }
-    },
     "cards.rarity": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },
@@ -86,6 +65,20 @@
         "description": "Shows each Run card's rarity: how exceptional its change was, predicted once a Run starts and revealed at release, as a tier from common to legendary with its mark, frame ring, reveal and Rarity tab, and the binder's rarity filter and sort. Applies only while the deployment leaves cards.rules.rarity unset. Rarity is cosmetic: no grade, pull or Ploeg decision reads it.",
         "client": false,
         "labs": true
+      }
+    },
+    "cards.health.judge": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-18",
+        "title": "Run health judge",
+        "description": "Lets a model judge whether a running Run is still working on its Work Item, as a Ploeg Ask paid from the Team's Ask Allowance, on Hetzner's free EU-hosted inference only. Shadow only: the verdict can raise a Run's health badge, never lower it, and never stops, requeues, steers or grades a Run. Evaluated per Team: the context carries the Run's team.",
+        "client": false,
+        "labs": false
       }
     }
   }

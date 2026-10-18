@@ -62,14 +62,14 @@ test('tripwire hits stand on the hop at the time of the call, grouped by column,
   assert.match(html, /7 calls crossed a tripwire, 1 blocked\./);
 });
 
-test('AI judge verdicts are proposed call signs; the worst is labelled, an off-track verdict marks the hop and nothing stops the Run', () => {
+test('AI judge verdicts are advisory call signs; the worst is labelled, an off-track verdict marks the hop and nothing stops the Run', () => {
   const hijacked = hopOf('hijacked');
   assert.deepEqual(hijacked.marks.calls.map(call => [call.bin, call.verdict, call.labelled]), [[7, 'watch', false], [12, 'off_track', true]]);
   assert.deepEqual([hijacked.marks.divertedAt, hijacked.marks.calls[1].side], [12, 'end']);
   const html = markup('hijacked');
   assert.match(html, /class="lv-fp-hop [^"]*is-live[^"]* is-diverted"/);
   assert.match(html, /lv-fp-line lv-fp-line-diverted" d="[^"]+" clip-path="url\(#lv-flight-191-2-0-after\)"/);
-  assert.match(html, /class="lv-fp-call is-off_track lv-fp-at-12 lv-fp-call-end" title="AI judge \(proposed, advisory\) at [^"]*: off track\./);
+  assert.match(html, /class="lv-fp-call is-off_track lv-fp-at-12 lv-fp-call-end" title="AI judge \(advisory\) at [^"]*: off track\./);
   assert.match(html, /<span class="lv-fp-call-word">AI · off track<\/span>/);
   assert.match(html, /class="lv-fp-plane is-live is-suspect"/, 'a high tripwire decided the health');
   assert.match(html, /Possible hijack: /);

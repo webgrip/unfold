@@ -63,12 +63,12 @@ export function liveSentence(model) {
 /**
  * The sentence a Watch or Off track health puts in front of a person: the AI judge's reason when it raised the
  * health, otherwise the signals' reason. Null for any other health, or when no Run is working.
- * @param {object|null} health A `runHealth` result.
+ * @param {object|null} health A `liveModel` health.
  * @returns {string|null}
  */
 export function healthWarning(health) {
   if (!health || !['watch', 'off_track'].includes(health.health)) return null;
-  const line = health.judge?.raised ? `AI judge (advisory): ${health.judge.reason}` : health.reason;
+  const line = health.source === 'judge' && health.judge ? `AI judge (advisory): ${health.judge.reason}` : health.reason;
   return `${health.label}: ${line}${/[.!?…]$/.test(line) ? '' : '.'}`;
 }
 

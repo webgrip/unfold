@@ -34,7 +34,7 @@ export const recordedRoutes = Object.freeze([
   '/api/task-sources', `/api/task-sources/${id}/tasks`, `/api/task-sources/${id}/tasks/${id}`,
   '/api/ploeg', '/api/ploeg/teams', '/api/ploeg/summary', '/api/ploeg/runs', '/api/ploeg/events', '/api/ploeg/proposed', '/api/ploeg/now',
   '/api/ploeg/work-items', `/api/ploeg/work-items/${id}`, `/api/ploeg/work-items/${id}/card`, `/api/ploeg/work-items/${id}/cracks`, `/api/ploeg/work-items/${id}/crack-candidates`, `/api/ploeg/work-items/${id}/value-stream`,
-  `/api/ploeg/work-items/${id}/context`, `/api/ploeg/work-items/${id}/asks`, '/api/asks', '/api/actions', '/api/actions/filters',
+  `/api/ploeg/work-items/${id}/context`, `/api/ploeg/work-items/${id}/asks`, `/api/ploeg/work-items/${id}/runs/${id}/health`, '/api/asks', '/api/actions', '/api/actions/filters',
 ].map(path => ({ method: 'GET', path })));
 
 /** Requests answered from the recorded session timeline or acknowledged without being kept. */
@@ -67,7 +67,7 @@ export const refusedRoutes = Object.freeze([
   { method: '*', path: `/api/card-themes/${id}` }, { method: 'POST', path: '/api/card-assets' }, { method: 'GET', path: `/api/card-assets/${id}` }, { method: 'POST', path: '/api/card-art/generate' },
   { method: 'POST', path: '/api/status/notes' }, { method: 'POST', path: `/api/status/notes/${id}/resolve` },
   { method: 'POST', path: '/api/task-imports' }, { method: '*', path: `/api/task-sources/${id}/tasks/${id}/${id}` },
-  { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/logs` }, { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/transcript` },
+  { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/logs` }, { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/transcript` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/runs/${id}/health/judgements/${id}/wrong` },
   { method: 'POST', path: `/api/ploeg/work-items/${id}/${id}` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/cracks/${id}/${id}` },
   { method: 'GET', path: `/api/sessions/${id}/delivery` }, { method: '*', path: `/api/sessions/${id}/${id}` }, { method: '*', path: `/api/sessions/${id}/${id}/${id}` },
 ]);

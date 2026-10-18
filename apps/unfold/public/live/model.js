@@ -1,6 +1,6 @@
 import { failureReason } from '../core/states.js';
-import { judgeVerdict, runHealth } from '../core/run-health.js';
-import { guardSignals, policyDrift } from './guard.js';
+import { combineHealth, healthMeta, runHealth } from '../core/run-health.js';
+import { guardSignals, policyDrift } from '../core/guard.js';
 
 /**
  * The stages every Work Item moves through, in order. The fold strip and the flight path draw one mark per stage.
@@ -99,6 +99,20 @@ export function movesOf(items = [], { now, live }) {
   return moves;
 }
 
+const verdicts = new Set(['on_track', 'watch', 'off_track']);
+
+function judgementOf(value) {
+  if (!value || typeof value !== 'object' || !verdicts.has(value.health) || typeof value.reason !== 'string' || !value.reason.trim()) return null;
+  if (!Array.isArray(value.evidence) || !value.evidence.every(seq => Number.isSafeInteger(seq))) return null;
+  return { ...value, runId: String(value.runId ?? ''), at: toMs(value.at), reason: value.reason.trim(), model: typeof value.model === 'string' && value.model ? value.model : 'Judge model' };
+}
+
+function healthOf(result, judge, { stale = false, demo = false } = {}) {
+  const combined = combineHealth({ health: result.health ?? 'unknown' }, judge);
+  const meta = healthMeta(combined.health);
+  return { health: combined.health, label: meta.label, tone: meta.tone, glyph: meta.glyph, source: combined.source, signalsHealth: result.health ?? 'unknown', reason: result.reason ?? '', deciding: result.deciding ?? null, signals: result.signals ?? [], judge: judge ?? null, stale: stale === true, demo: demo === true };
+}
+
 function stageStates(item, runs, current) {
   const state = item.state;
   const hasRun = runs.length > 0;
@@ -129,10 +143,11 @@ function stageStates(item, runs, current) {
  * `spend.attemptUsd` is the part of it the latest attempt spent against `spend.heldUsd`; Runs a
  * machine ended count in `lost` and never as Role work; `time.agent = time.useful + time.lost`; attempts are numbered
  * from 1 in the order Ploeg opened them, and Runs are numbered from 1 inside each attempt; `health` is the running
- * Run's `runHealth` result and null when no Run is working.
+ * Run's badge, the words its Run row shows (`healthMeta`), and null when no Run is working.
  * @param {object} input
  * @param {object} input.detail A Ploeg Work Item detail: `{ item, shifts, runs, checkpoints, events }`.
  * @param {object[]} [input.transcript] The followed Run's folded transcript items.
+ * @param {object[]} [input.entries] The followed Run's raw transcript entries, which `runHealth` reads.
  * @param {string} [input.transcriptRunId] Which Run the transcript belongs to; defaults to the running Run.
  * @param {number} input.now Milliseconds since the epoch.
  * @param {string} [input.ticketCreatedAt] When the tracker task was created, when it is older than the Work Item.
@@ -140,18 +155,19 @@ function stageStates(item, runs, current) {
  * @param {{ leftUsd: number, totalUsd: number }} [input.allowance] The Team's Ask Allowance.
  * @param {string[]} [input.allowedHosts] Hosts the Run may reach; a call to any other host is a tripwire.
  * @param {{ startedWith: object, current: object }} [input.policy] Proposed: the Run's rules at its start and now.
- * @param {string|null} [input.transcriptMissing] Why the transcript is unavailable, as Unfold's transcript route says it:
- *   `demo` or `unsupported`; the view then says why instead of asking to load it.
+ * @param {string|null} [input.transcriptMissing] Why the transcript is unavailable: `demo` or `unsupported`, as Unfold's
+ *   transcript route says it, or `failed` when it could not be read; the view then says why instead of waiting for it.
  * @param {boolean} [input.transcriptKnown] Whether the followed Run's transcript was loaded. Defaults to true when
  * `transcript` has items. When false, call counts, edits and the last call are `null`.
- * @param {object[]|null} [input.plan] The followed Run's latest plan, as `foldTranscript` returns it.
- * @param {object[]} [input.judgements] Proposed: judge verdicts from Asks, each `{ health, reason, evidence, model, at,
- *   runId }`; Unfold runs no judge Ask yet. A verdict of any other shape is dropped.
- * @param {object|null} [input.health] The running Run's `runHealth` result, when the page already computed it, so the
- *   Run row and the live view show the same health. Computed here when left out.
+ * @param {object[]} [input.judgements] AI judge verdicts as Unfold's shadow judge stores them (`RunJudgement`: `{ id,
+ *   runId, at, health, reason, evidence, model, … }`). A verdict without a known health, a reason or whole-number
+ *   evidence is dropped.
+ * @param {{ data?: object }|null} [input.health] The running Run's entry from Unfold's health route, the same entry its
+ *   Run row shows, so the two never disagree. Without one, the health is computed here with `runHealth` from `entries`
+ *   and raised by the newest of `judgements` the way the server does.
  * @returns {object}
  */
-export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null, allowedHosts = [], policy = null, transcriptKnown = transcript.length > 0, transcriptMissing = null, plan = null, judgements: verdicts = [], health: given }) {
+export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null, allowedHosts = null, policy = null, transcriptKnown = transcript.length > 0, transcriptMissing = null, entries = [], judgements: verdicts = [], health: given = null }) {
   const item = detail.item;
   const shifts = [...(detail.shifts ?? [])].sort((a, b) => (toMs(a.openedAt) ?? 0) - (toMs(b.openedAt) ?? 0));
   const runs = [...(detail.runs ?? [])].sort(byStart);
@@ -201,17 +217,20 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
   const lastActivity = !known ? null : calls.length ? calls.at(-1).at : followed?.startedAt ?? null;
   const signals = guardSignals(calls, { allowedHosts });
   const guard = { signals, drift: policyDrift(policy), allowedHosts, high: signals.filter(signal => signal.severity === 'high').length, source: signals.find(signal => signal.rule === 'injection') ?? null };
-  const judgements = (verdicts ?? []).map(judgeVerdict).filter(Boolean).sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
-  const transcriptState = known ? 'loaded' : ['demo', 'unsupported'].includes(transcriptMissing) ? transcriptMissing : 'loading';
+  const served = given?.data?.health ? given.data : null;
+  const history = served && Array.isArray(served.history) ? served.history : null;
+  const judgements = (history ?? verdicts ?? []).map(judgementOf).filter(Boolean).sort((a, b) => (a.at ?? 0) - (b.at ?? 0));
+  const transcriptState = known ? 'loaded' : ['demo', 'unsupported', 'failed'].includes(transcriptMissing) ? transcriptMissing : 'loading';
   const ownTranscript = Boolean(running && followed && followed.id === running.id);
-  const health = given !== undefined ? given ?? null : running ? runHealth({
-    run: runs.find(run => String(run.id) === running.id),
-    transcript: ownTranscript ? { state: transcriptState, items: transcript } : null,
-    plan: ownTranscript ? plan : null,
+  const runningRun = running ? runs.find(run => String(run.id) === running.id) : null;
+  const latestJudge = running ? (served ? served.judge ?? null : judgements.findLast(entry => entry.runId === running.id) ?? null) : null;
+  const health = !running ? null : served ? healthOf(served, latestJudge, { stale: served.stale, demo: served.demo }) : healthOf(runHealth({
+    run: runningRun,
+    entries: ownTranscript ? entries : [],
     now,
-    judge: judgements.findLast(entry => entry.runId === running.id) ?? null,
-    tripwires: ownTranscript ? signals : [],
-  }) : null;
+    transcriptState: ownTranscript ? transcriptState : 'loading',
+    allowedHosts,
+  }), latestJudge);
   const stageList = stageStates(item, runs, running);
   const roleWork = allRuns.filter(run => !run.machine);
   const roles = [...new Set(roleWork.map(run => run.role))].map(role => ({ role, runs: roleWork.filter(run => run.role === role).length }));
@@ -243,7 +262,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     lease: item.lease ? { expiresAt: toMs(item.lease.expiresAt), renewedAt: toMs(item.lease.renewedAt), secondsLeft: leaseLeft } : null,
     moves,
     transcriptKnown: known,
-    transcriptMissing: known ? null : (health?.transcript ?? transcriptState) === 'demo' ? 'The demo records no transcripts, so its calls are not shown.' : (health?.transcript ?? transcriptState) === 'unsupported' ? 'This Ploeg does not report transcripts, so its calls are not shown.' : health?.transcript === 'none' ? 'Its calls are not loaded.' : running ? 'Loading its calls…' : null,
+    transcriptMissing: known ? null : transcriptState === 'demo' ? 'The demo records no transcripts, so its calls are not shown.' : transcriptState === 'unsupported' ? 'This Ploeg does not report transcripts, so its calls are not shown.' : transcriptState === 'failed' ? 'Its calls could not be read.' : running ? 'Loading its calls…' : null,
     calls: { total: known ? calls.length : null, byKind, lastAt: lastActivity },
     edits: known ? edited.size : null,
     lastTrouble,

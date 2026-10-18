@@ -1,287 +1,218 @@
-import { escape } from './dom.js';
-import { icon } from './icons.js';
-import { money, time as clock } from './format.js';
+import { money } from './format.js';
+import { guardSignals, transcriptCalls } from './guard.js';
 
-/**
- * The five healths a running Run can have, with the word, tone and glyph every surface shows. A badge always carries
- * the glyph and the word, never colour alone.
- * @type {Readonly<Record<'on_track'|'watch'|'off_track'|'not_judged'|'not_known', Readonly<{ label: string, tone: string, glyph: string }>>>}
- */
-export const healthStates = Object.freeze({
-  on_track: Object.freeze({ label: 'On track', tone: 'success', glyph: 'check' }),
-  watch: Object.freeze({ label: 'Watch', tone: 'attention', glyph: 'eye' }),
-  off_track: Object.freeze({ label: 'Off track', tone: 'danger', glyph: 'alert' }),
-  not_judged: Object.freeze({ label: 'Not judged yet', tone: 'neutral', glyph: 'minus' }),
-  not_known: Object.freeze({ label: 'Not known', tone: 'neutral', glyph: 'help-circle' }),
-});
+/** A Run is not judged in its first five minutes while it has no plan. */
+export const startupSeconds = 300;
+/** Quiet: time since the newest transcript entry, as a share of the idle limit. */
+export const quietWatch = 0.5;
+export const quietOffTrack = 0.8;
+/** Pace: judged only after this share of the prompt limit, then Watch on any projected overrun. */
+export const paceWatchAfter = 0.25;
+/** Pace: Off track after this share of the prompt limit when the projection overruns by at least `paceOffTrackOverrun`. */
+export const paceOffTrackAfter = 0.5;
+export const paceOffTrackOverrun = 0.25;
+/** Time: elapsed as a share of the prompt limit. */
+export const timeWatch = 0.75;
+export const timeOffTrack = 0.9;
+/** Budget: observed spend as a share of the authorized budget, read only for these cost statuses. */
+export const budgetWatch = 0.7;
+export const budgetOffTrack = 0.9;
+export const budgetStatuses = Object.freeze(['observed', 'provisional']);
+/** Repeat: the same tool-call input this many times in the last `repeatWindow` tool calls. */
+export const repeatWindow = 10;
+export const repeatWatch = 3;
+export const repeatOffTrack = 5;
 
-/**
- * The thresholds of RFC-0007's signal table, as named constants. Shares are of the Run's limit or budget.
- * Quiet: watch at `quietWatch`, off track at `quietOff` of the idle limit. Pace: watch when the projection overruns
- * the prompt limit at all once `paceWatchAfter` of it is used, off track when it overruns by `paceOffOverrun` or more
- * once `paceOffAfter` is used. Time: watch at `timeWatch`, off track at `timeOff` when the plan's last step is not in
- * progress. Budget: watch at `budgetWatch`, off track at `budgetOff`, judged only for observed or provisional cost.
- * Repeat: the same tool-call input `repeatWatch` times in the last `repeatWindow` calls is watch, `repeatOff` times is
- * off track. `notJudgedFor` is how many seconds a Run without a plan reads Not judged yet. `judgeReasonMax` caps the
- * judge's reason.
- */
-export const healthThresholds = Object.freeze({
-  quietWatch: 0.5,
-  quietOff: 0.8,
-  paceWatchAfter: 0.25,
-  paceOffAfter: 0.5,
-  paceOffOverrun: 1.25,
-  timeWatch: 0.75,
-  timeOff: 0.9,
-  budgetWatch: 0.7,
-  budgetOff: 0.9,
-  repeatWindow: 10,
-  repeatWatch: 3,
-  repeatOff: 5,
-  notJudgedFor: 300,
-  judgeReasonMax: 160,
-});
+/** Tripwire: a guard.js tripwire of this severity in the Run's calls makes it Watch or Off track. */
+export const tripwireHealth = Object.freeze({ medium: 'watch', high: 'off_track' });
 
-/**
- * The signals in the order that breaks a tie: when two signals are equally bad, the earlier one gives the reason.
- * `tripwire` is a guard.js tripwire the Run's calls crossed: medium is watch, high is off track.
- * @type {ReadonlyArray<{ id: string, label: string }>}
- */
-export const healthSignals = Object.freeze([
-  Object.freeze({ id: 'tripwire', label: 'Tripwires' }),
-  Object.freeze({ id: 'quiet', label: 'Quiet' }),
-  Object.freeze({ id: 'time', label: 'Time' }),
-  Object.freeze({ id: 'budget', label: 'Budget' }),
-  Object.freeze({ id: 'pace', label: 'Pace' }),
-  Object.freeze({ id: 'repeat', label: 'Repeat' }),
-]);
+/** The signals, in the order a reason lists them; on a tie of the worst health the first one decides. */
+export const healthSignals = Object.freeze(['tripwire', 'quiet', 'pace', 'time', 'budget', 'repeat']);
 
-/** The signals that show progress; without at least one of them judged, a Run is never On track. */
-const progressSignals = ['quiet', 'time', 'pace'];
-const signalRank = { unknown: -1, ok: 0, watch: 1, off_track: 2 };
-const healthRank = { not_judged: -1, not_known: -1, on_track: 0, watch: 1, off_track: 2 };
-const judgeHealths = ['on_track', 'watch', 'off_track'];
-const judgeKeys = new Set(['health', 'reason', 'evidence', 'model', 'at', 'runId']);
-const toMs = value => { if (typeof value === 'number' && Number.isFinite(value)) return value; const at = Date.parse(value ?? ''); return Number.isFinite(at) ? at : null; };
-const isAmount = value => typeof value === 'number' && Number.isFinite(value);
+/** How each health reads: a label, an existing tone, a glyph and an example of its reason line. Never colour alone. */
+export const healthStates = Object.freeze(Object.fromEntries(Object.entries({
+  on_track: ['On track', 'success', 'check', 'Plan 3 of 6 at 38 of 90 min · US$0.31 of US$1.00 · last activity 20 s ago'],
+  watch: ['Watch', 'attention', 'eye', 'A command has had no output for 6 min; the idle stop is at 10 min'],
+  off_track: ['Off track', 'danger', 'alert', 'Plan 1 of 6 at 70 of 90 min: at this pace the time limit comes first'],
+  not_yet: ['Not judged yet', 'neutral', 'minus', 'Starting: health is shown once the agent has a plan or 5 min have passed'],
+  unknown: ['Not known', 'neutral', 'help-circle', 'Ploeg did not report this Run\'s limits'],
+}).map(([key, [label, tone, glyph, example]]) => [key, Object.freeze({ key, label, tone, glyph, example })])));
+
+/** The meta of a health key; anything else reads as Not known. */
+export function healthMeta(key) { return healthStates[key] ?? healthStates.unknown; }
+
+const rank = { on_track: 0, watch: 1, off_track: 2 };
+const startedText = 'Starting: health is shown once the agent has a plan or 5 min have passed';
+const noLimits = 'Ploeg did not report this Run\'s limits';
+/** Why a transcript-dependent signal could not be judged, per transcript state. `loaded` judges them. */
+export const transcriptStates = Object.freeze({ loaded: '', loading: 'Its transcript is still loading', demo: 'The demo records no transcripts', unsupported: 'This Ploeg does not report transcripts', failed: 'Its transcript could not be read' });
+/** The signals that show progress: a Run is On track only when at least one of them was judged. */
+export const progressSignals = Object.freeze(['quiet', 'time', 'pace']);
 const capital = text => text ? text[0].toUpperCase() + text.slice(1) : '';
-const lower = text => text ? text[0].toLowerCase() + text.slice(1) : '';
-const minutes = seconds => seconds < 60 ? `${Math.max(0, Math.round(seconds))} s` : `${Math.floor(seconds / 60)} min`;
-const percent = share => `${Math.round(share * 100)} %`;
-const noLimits = 'Ploeg did not report this Run’s limits';
-const transcriptWords = { loading: 'Its transcript is still loading', demo: 'The demo records no transcripts', unsupported: 'No transcript: this Ploeg does not record one', none: 'No transcript was read' };
+const minutes = seconds => Math.round(seconds / 60);
+const since = seconds => seconds < 60 ? `${Math.max(0, Math.round(seconds))} s` : `${minutes(seconds)} min`;
+const time = value => { const parsed = typeof value === 'string' ? Date.parse(value) : Number.NaN; return Number.isFinite(parsed) ? parsed : null; };
+const positive = value => typeof value === 'number' && Number.isFinite(value) && value > 0;
+const signal = (key, health, reason) => ({ key, health, reason, judged: health !== 'unknown' });
 
-/**
- * Checks a judge verdict against the one shape it may have: `health` is `on_track`, `watch` or `off_track`, `reason` is
- * text of at most `healthThresholds.judgeReasonMax` characters, and `evidence` lists transcript seq numbers. Unfold
- * adds `model`, `at` and `runId`. Anything else, or any other key, discards the verdict.
- * @param {unknown} value
- * @returns {{ health: string, reason: string, evidence: number[], model: string, at: number|null, runId: string|null }|null}
- */
-export function judgeVerdict(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  if (Object.keys(value).some(key => !judgeKeys.has(key))) return null;
-  if (!judgeHealths.includes(value.health)) return null;
-  const reason = typeof value.reason === 'string' ? value.reason.trim() : '';
-  if (!reason || reason.length > healthThresholds.judgeReasonMax) return null;
-  if (!Array.isArray(value.evidence) || !value.evidence.every(seq => Number.isInteger(seq) && seq >= 0)) return null;
-  return { health: value.health, reason, evidence: [...value.evidence], model: typeof value.model === 'string' && value.model.trim() ? value.model.trim() : 'Judge model', at: toMs(value.at), runId: value.runId === undefined || value.runId === null ? null : String(value.runId) };
+/** The Run's limits when Ploeg reported usable ones: prompt and idle seconds and when the prompt started. */
+export function runLimits(run) {
+  const limits = run?.limits;
+  const started = time(limits?.promptStartedAt);
+  if (!limits || started === null) return null;
+  return { promptSeconds: positive(limits.promptSeconds) ? limits.promptSeconds : null, idleSeconds: positive(limits.idleSeconds) ? limits.idleSeconds : null, startedAt: started };
 }
 
-function limitsOf(limits, run) {
-  if (!limits || typeof limits !== 'object') return null;
-  const { promptSeconds, idleSeconds } = limits;
-  if (!isAmount(promptSeconds) || promptSeconds <= 0 || !isAmount(idleSeconds) || idleSeconds <= 0) return null;
-  const startedAt = toMs(limits.promptStartedAt) ?? toMs(run.startedAt);
-  return startedAt === null ? null : { promptSeconds, idleSeconds, startedAt };
+/** The newest plan in transcript entries, as its steps, or null when the agent has none yet. */
+export function latestPlan(entries) {
+  for (let index = (entries ?? []).length - 1; index >= 0; index -= 1) if (entries[index]?.kind === 'plan' && Array.isArray(entries[index].plan)) return entries[index].plan;
+  return null;
 }
 
-const signal = (id, state, reason, numbers = {}) => ({ id, state, reason, numbers });
-
-function tripwireSignal(tripwires, transcriptReason) {
-  if (transcriptReason) return signal('tripwire', 'unknown', transcriptReason);
-  const list = (tripwires ?? []).filter(each => each && (each.severity === 'high' || each.severity === 'medium'));
-  if (!list.length) return signal('tripwire', 'ok', 'No tripwire crossed', { high: 0, medium: 0 });
-  const high = list.filter(each => each.severity === 'high');
-  const worst = (high.length ? high : list).reduce((latest, each) => (toMs(each.at) ?? 0) >= (toMs(latest.at) ?? 0) ? each : latest);
-  const more = list.length - 1;
-  const at = toMs(worst.at);
-  return signal('tripwire', high.length ? 'off_track' : 'watch', `Tripwire${at === null ? '' : ` at ${clock(at)}`}: ${lower(worst.label ?? 'a call crossed a tripwire')}${more ? ` (and ${more} more)` : ''}`, { high: high.length, medium: list.length - high.length });
-}
-
-function quietSignal({ items, limits, transcriptReason, now, newest, running }) {
-  if (!limits) return signal('quiet', 'unknown', noLimits);
-  if (transcriptReason) return signal('quiet', 'unknown', transcriptReason);
-  const last = newest ?? limits.startedAt;
-  const quiet = Math.max(0, (now - last) / 1000);
-  const share = quiet / limits.idleSeconds;
-  const numbers = { quietSeconds: Math.round(quiet), idleSeconds: limits.idleSeconds, share };
-  if (share < healthThresholds.quietWatch) return signal('quiet', 'ok', `last activity ${minutes(quiet)} ago`, numbers);
-  const what = running ? 'A command has had no output' : 'Nothing new reached the transcript';
-  return signal('quiet', share >= healthThresholds.quietOff ? 'off_track' : 'watch', `${what} for ${minutes(quiet)}; the idle stop is at ${minutes(limits.idleSeconds)}`, numbers);
+/** The last `repeatWindow` distinct tool calls in seq order, each with its first non-empty input. */
+export function recentToolCalls(entries) {
+  const calls = new Map();
+  for (const entry of entries ?? []) {
+    if (entry?.kind !== 'tool_call' || !entry.toolCallId) continue;
+    const call = calls.get(entry.toolCallId) ?? { id: entry.toolCallId, seq: entry.seq, input: '' };
+    if (!call.input && typeof entry.input === 'string' && entry.input.trim()) call.input = entry.input.trim();
+    calls.set(entry.toolCallId, call);
+  }
+  return [...calls.values()].sort((a, b) => a.seq - b.seq).slice(-repeatWindow);
 }
 
 function planProgress(plan) {
-  if (!Array.isArray(plan) || !plan.length) return null;
-  const done = plan.filter(step => step?.status === 'completed').length;
-  const half = plan.filter(step => step?.status === 'in_progress').length;
-  return { done, total: plan.length, progress: (done + half / 2) / plan.length, lastInProgress: plan.at(-1)?.status === 'in_progress' };
+  const done = plan.filter(step => step.status === 'completed').length;
+  const working = plan.filter(step => step.status === 'in_progress').length;
+  return { total: plan.length, done, progress: plan.length ? (done + working / 2) / plan.length : 0, lastWorking: plan.at(-1)?.status === 'in_progress' || plan.at(-1)?.status === 'completed' };
 }
 
-function timeSignal({ limits, elapsed, steps }) {
-  if (!limits) return signal('time', 'unknown', noLimits);
-  const share = elapsed / limits.promptSeconds;
-  const numbers = { elapsedSeconds: Math.round(elapsed), promptSeconds: limits.promptSeconds, share };
-  const used = `${minutes(elapsed)} of ${minutes(limits.promptSeconds)} used`;
-  if (share >= healthThresholds.timeOff && !steps?.lastInProgress) return signal('time', 'off_track', `${capital(used)}; the plan’s last step is not in progress`, numbers);
-  if (share >= healthThresholds.timeWatch) return signal('time', 'watch', `${capital(used)}; the time limit is near`, numbers);
-  return signal('time', 'ok', used, numbers);
+function quietSignal(entries, limits, now, state) {
+  if (state !== 'loaded') return signal('quiet', 'unknown', transcriptStates[state]);
+  if (!limits?.idleSeconds) return signal('quiet', 'unknown', noLimits);
+  const newest = (entries ?? []).reduce((latest, entry) => Math.max(latest, time(entry?.at) ?? 0), limits.startedAt);
+  const quiet = Math.max(0, (now - newest) / 1000);
+  const share = quiet / limits.idleSeconds;
+  const last = (entries ?? []).at(-1);
+  const waiting = last?.kind === 'tool_call' && (last.status === 'in_progress' || last.status === 'pending');
+  const said = `${waiting ? 'A command has had no output' : 'Nothing new'} for ${since(quiet)}; the idle stop is at ${since(limits.idleSeconds)}`;
+  if (share >= quietOffTrack) return signal('quiet', 'off_track', said);
+  if (share >= quietWatch) return signal('quiet', 'watch', said);
+  return signal('quiet', 'on_track', `last activity ${since(quiet)} ago`);
+}
+
+function paceSignal(plan, limits, elapsed, state) {
+  if (state !== 'loaded') return signal('pace', 'unknown', transcriptStates[state]);
+  if (!limits?.promptSeconds) return signal('pace', 'unknown', noLimits);
+  if (!plan?.length) return signal('pace', 'unknown', 'no plan yet');
+  const { total, done, progress } = planProgress(plan);
+  const used = elapsed / limits.promptSeconds;
+  const overrun = progress > 0 ? used / progress - 1 : Number.POSITIVE_INFINITY;
+  const head = `Plan ${done} of ${total} at ${minutes(elapsed)} of ${minutes(limits.promptSeconds)} min`;
+  if (progress >= 1) return signal('pace', 'on_track', head);
+  if (used >= paceOffTrackAfter && overrun >= paceOffTrackOverrun) return signal('pace', 'off_track', `${head}: at this pace the time limit comes first`);
+  if (used >= paceWatchAfter && overrun > 0) return signal('pace', 'watch', `${head}: at this pace it runs past the time limit`);
+  return signal('pace', 'on_track', head);
+}
+
+function timeSignal(plan, limits, elapsed) {
+  if (!limits?.promptSeconds) return signal('time', 'unknown', noLimits);
+  const used = elapsed / limits.promptSeconds;
+  const said = `${minutes(elapsed)} of ${minutes(limits.promptSeconds)} min used`;
+  const finishing = plan?.length ? planProgress(plan).lastWorking : false;
+  if (used >= timeOffTrack && !finishing) return signal('time', 'off_track', `${said} and the plan's last step has not started`);
+  if (used >= timeWatch) return signal('time', 'watch', said);
+  return signal('time', 'on_track', `${minutes(elapsed)} of ${minutes(limits.promptSeconds)} min`);
 }
 
 function budgetSignal(run) {
-  const cost = run.usage?.costUsd;
-  const authorized = run.authorizedUsd;
-  if (!['observed', 'provisional'].includes(run.costStatus) || !isAmount(cost)) return signal('budget', 'unknown', 'Its cost is not reported yet');
-  if (!isAmount(authorized) || authorized <= 0) return signal('budget', 'unknown', 'Its authorized budget is not reported');
-  const share = cost / authorized;
-  const numbers = { costUsd: cost, authorizedUsd: authorized, share };
-  const spent = `${money(cost)} of ${money(authorized)}`;
-  if (share >= healthThresholds.budgetOff) return signal('budget', 'off_track', `${spent} spent (${percent(share)}); the budget runs out first`, numbers);
-  if (share >= healthThresholds.budgetWatch) return signal('budget', 'watch', `${spent} spent (${percent(share)})`, numbers);
-  return signal('budget', 'ok', spent, numbers);
+  const spent = run?.usage?.costUsd;
+  if (!budgetStatuses.includes(run?.costStatus) || typeof spent !== 'number' || !Number.isFinite(spent)) return signal('budget', 'unknown', 'Its cost is not reported yet');
+  if (!positive(run.authorizedUsd)) return signal('budget', 'unknown', 'No authorized budget was reported');
+  const share = spent / run.authorizedUsd;
+  const said = `${money(spent)} of ${money(run.authorizedUsd)}`;
+  if (share >= budgetOffTrack) return signal('budget', 'off_track', `${said} authorized spent (${Math.round(share * 100)} %)`);
+  if (share >= budgetWatch) return signal('budget', 'watch', `${said} authorized spent (${Math.round(share * 100)} %)`);
+  return signal('budget', 'on_track', said);
 }
 
-function paceSignal({ limits, transcriptReason, steps, elapsed }) {
-  if (!limits) return signal('pace', 'unknown', noLimits);
-  if (transcriptReason) return signal('pace', 'unknown', transcriptReason);
-  if (!steps) return signal('pace', 'unknown', 'The agent has no plan yet');
-  const used = elapsed / limits.promptSeconds;
-  const overrun = steps.progress > 0 ? used / steps.progress : Infinity;
-  const numbers = { done: steps.done, total: steps.total, progress: steps.progress, used, overrun: Number.isFinite(overrun) ? overrun : null };
-  const where = `Plan ${steps.done} of ${steps.total} at ${minutes(elapsed)} of ${minutes(limits.promptSeconds)}`;
-  const why = Number.isFinite(overrun) ? `${where}: at this pace it needs about ${minutes(limits.promptSeconds * overrun)}` : `${where}: no step has started`;
-  if (used >= healthThresholds.paceOffAfter && overrun >= healthThresholds.paceOffOverrun) return signal('pace', 'off_track', why, numbers);
-  if (used >= healthThresholds.paceWatchAfter && overrun > 1) return signal('pace', 'watch', why, numbers);
-  return signal('pace', 'ok', where, numbers);
-}
-
-function repeatSignal(items, transcriptReason) {
-  if (transcriptReason) return signal('repeat', 'unknown', transcriptReason);
-  const recent = items.filter(item => item.type === 'tool').slice(-healthThresholds.repeatWindow);
+function repeatSignal(entries, state) {
+  if (state !== 'loaded') return signal('repeat', 'unknown', transcriptStates[state]);
   const counts = new Map();
-  for (const call of recent) {
-    const input = String(call.input ?? '').trim();
-    if (input) counts.set(input, (counts.get(input) ?? 0) + 1);
-  }
+  for (const call of recentToolCalls(entries)) if (call.input) counts.set(call.input, (counts.get(call.input) ?? 0) + 1);
   const most = Math.max(0, ...counts.values());
-  const numbers = { repeats: most, window: healthThresholds.repeatWindow };
-  const why = `The same call ran ${most} times in the last ${recent.length} calls`;
-  if (most >= healthThresholds.repeatOff) return signal('repeat', 'off_track', why, numbers);
-  if (most >= healthThresholds.repeatWatch) return signal('repeat', 'watch', why, numbers);
-  return signal('repeat', 'ok', 'No call repeats', numbers);
+  const said = `The same command ran ${most} times in the last ${repeatWindow} tool calls`;
+  if (most >= repeatOffTrack) return signal('repeat', 'off_track', said);
+  if (most >= repeatWatch) return signal('repeat', 'watch', said);
+  return signal('repeat', 'on_track', 'no repeated commands');
 }
 
-function onTrackReason(signals, byId, lastActivity) {
-  const pace = byId.pace.state === 'ok' ? byId.pace.reason : byId.time.state === 'ok' ? capital(byId.time.reason) : '';
-  const quiet = byId.quiet.state === 'ok' ? byId.quiet.reason : lastActivity === null ? '' : `last activity ${minutes(lastActivity)} ago`;
-  const facts = [pace, byId.budget.state === 'ok' ? byId.budget.reason : '', quiet].filter(Boolean);
-  const unknown = [...new Set(signals.filter(each => each.state === 'unknown').map(each => each.reason))];
-  return capital([...facts, ...unknown].join(' · ')) || 'No signal is off';
+function tripwireSignal(entries, state, tripwires, allowedHosts, now) {
+  if (state !== 'loaded') return signal('tripwire', 'unknown', transcriptStates[state]);
+  const hits = (tripwires ?? guardSignals(transcriptCalls(entries), { allowedHosts })).filter(hit => Object.hasOwn(tripwireHealth, hit?.severity));
+  if (!hits.length) return signal('tripwire', 'on_track', 'no tripwire crossed');
+  const high = hits.filter(hit => hit.severity === 'high');
+  const worst = (high.length ? high : hits).reduce((latest, hit) => (time(hit.at) ?? hit.at ?? 0) >= (time(latest.at) ?? latest.at ?? 0) ? hit : latest);
+  const hitAt = time(worst.at) ?? (Number.isFinite(worst.at) ? worst.at : null);
+  const ago = hitAt !== null && Number.isFinite(now) ? ` ${since(Math.max(0, (now - hitAt) / 1000))} ago` : '';
+  const more = hits.length - 1;
+  return signal('tripwire', tripwireHealth[worst.severity], `Tripwire${ago}: ${worst.label.toLowerCase()}${more ? ` (and ${more} more)` : ''}`);
+}
+
+function onTrackReason(signals) {
+  const judged = key => signals.find(entry => entry.key === key && entry.judged);
+  return [judged('pace') ?? judged('time'), judged('budget'), judged('quiet')].filter(Boolean).map(entry => entry.reason).join(' · ');
 }
 
 /**
- * The health of one running Run, from its own facts: the worst of the signals (tripwires, quiet, time, budget, pace,
- * repeat), then raised, never lowered, by a judge verdict. Only a running Run has a health; any other Run gives null,
- * so a Run a machine ended never counts against the one that runs. A Run without a plan in its first
- * `healthThresholds.notJudgedFor` seconds is Not judged yet unless a tripwire fired; a Run whose signals could all not
- * be judged is Not known. The judge only advises: it never stops, steers or grades a Run, a demo never has one, and
- * `{ refused: 'allowance' }` pauses it.
- * @param {object} input
- * @param {object} input.run The Ploeg Run: `state`, `startedAt`, `authorizedUsd`, `costStatus`, `usage.costUsd` and, when Ploeg sends it, `limits`.
- * @param {{ state: 'loaded'|'loading'|'demo'|'unsupported', items?: object[], asOf?: number }|null} [input.transcript] Folded items; `asOf` is set when the latest read failed and names the last good one.
- * @param {{ content: string, status: string }[]|null} [input.plan] The Run's latest plan.
- * @param {number} input.now Milliseconds since the epoch.
- * @param {{ promptSeconds: number, idleSeconds: number, promptStartedAt: string }|null} [input.limits] Proposed: Ploeg does not serve limits yet. Defaults to `run.limits`.
- * @param {object|null} [input.judge] The latest judge verdict for this Run, `{ refused: 'allowance' }`, or null when the judge is off.
- * @param {{ severity: 'high'|'medium', label: string, at: number|string }[]} [input.tripwires] The guard.js signals of this Run's calls.
- * @returns {{ health: string, label: string, tone: string, glyph: string, reason: string, deciding: string|null, signals: { id: string, state: 'ok'|'watch'|'off_track'|'unknown', reason: string, numbers: object }[], judge: { health: string, reason: string, evidence: number[], model: string, raised: boolean }|null, transcript: 'loaded'|'loading'|'demo'|'unsupported'|'none', stale: { asOf: number }|null }|null}
+ * The health of one Run at `now` (ms): On track, Watch, Off track, Not judged yet or Not known, with each signal's
+ * verdict and the reason line of the deciding one. The worst judged signal wins. A Run is On track only when at least
+ * one progress signal (`progressSignals`: Quiet, Time or Pace) was judged; Budget, Repeat and Tripwire alone can make
+ * it Watch or Off track but never On track. Not known lists every distinct reason a signal could not be judged, once,
+ * after "Nothing is off, but its progress cannot be judged: " when every judged signal was on track. In its first five
+ * minutes without a plan a Run is Not judged yet unless a signal is already Off track. Tripwire reads the guard.js
+ * tripwires in the transcript's calls (egress is checked only against an `allowedHosts` list), or `tripwires` when the caller kept
+ * the hits of entries it no longer holds. `transcriptState` says whether the transcript was read (`loaded`), is
+ * `loading`, is missing because of the `demo` or a Ploeg that does not report one (`unsupported`), or could not be
+ * read (`failed`); the older `transcriptAvailable` false means `unsupported`. `stale` is the earlier result when the
+ * facts could not be read again: it comes back unchanged, marked stale, and is never re-judged. A Run that is not
+ * running has no health (null): its state badge or outcome speaks instead.
+ * @param {{ run: object, entries?: object[], now: number, transcriptState?: 'loaded'|'loading'|'demo'|'unsupported'|'failed', transcriptAvailable?: boolean, stale?: object|null, tripwires?: object[]|null, allowedHosts?: string[] }} input
  */
-export function runHealth({ run, transcript = null, plan = null, now, limits, judge = null, tripwires = [] }) {
-  if (!run || run.state !== 'running') return null;
-  const state = ['loaded', 'loading', 'demo', 'unsupported'].includes(transcript?.state) ? transcript.state : 'none';
-  const asOf = state === 'loaded' && isAmount(transcript.asOf) && transcript.asOf < now ? transcript.asOf : null;
-  const at = asOf ?? now;
-  const items = state === 'loaded' ? (transcript.items ?? []).filter(item => toMs(item.at) === null || toMs(item.at) <= at) : [];
-  const transcriptReason = state === 'loaded' ? null : transcriptWords[state];
-  const known = limitsOf(limits === undefined ? run.limits : limits, run);
-  const started = toMs(run.startedAt) ?? at;
-  const elapsed = Math.max(0, (at - (known?.startedAt ?? started)) / 1000);
-  const steps = state === 'loaded' ? planProgress(plan) : null;
-  const newestItem = items.reduce((latest, item) => toMs(item.at) !== null && (!latest || toMs(item.at) >= toMs(latest.at)) ? item : latest, null);
-  const waiting = newestItem?.type === 'tool' && !['completed', 'failed'].includes(newestItem.status);
-  const signals = [
-    tripwireSignal(tripwires, transcriptReason),
-    quietSignal({ items, limits: known, transcriptReason, now: at, newest: newestItem ? toMs(newestItem.at) : null, running: waiting }),
-    timeSignal({ limits: known, elapsed, steps }),
-    budgetSignal(run),
-    paceSignal({ limits: known, transcriptReason, steps, elapsed }),
-    repeatSignal(items, transcriptReason),
-  ];
-  const byId = Object.fromEntries(signals.map(each => [each.id, each]));
-  const worst = signals.reduce((best, each) => signalRank[each.state] > signalRank[best.state] ? each : best, signals[0]);
-  const early = (at - started) / 1000 < healthThresholds.notJudgedFor && !steps && byId.tripwire.state !== 'off_track' && byId.tripwire.state !== 'watch';
-  let health;
-  let reason;
-  let deciding = null;
-  if (early) { health = 'not_judged'; reason = `Starting: health is shown once the agent has a plan or ${minutes(healthThresholds.notJudgedFor)} have passed`; }
-  else if (worst.state === 'unknown') { health = 'not_known'; reason = [...new Set(signals.map(each => each.reason))].join('; '); }
-  else if (worst.state === 'ok' && !progressSignals.some(id => byId[id].state === 'ok')) { health = 'not_known'; reason = `Nothing is off, but its progress cannot be judged: ${[...new Set(progressSignals.map(id => byId[id].reason))].join('; ')}`; }
-  else if (worst.state === 'ok') { health = 'on_track'; reason = onTrackReason(signals, byId, state === 'loaded' ? Math.max(0, (at - (newestItem ? toMs(newestItem.at) : known?.startedAt ?? started)) / 1000) : null); }
-  else { health = worst.state; reason = worst.reason; deciding = worst.id; }
-  let verdict = null;
-  if (state !== 'demo' && judge && judge.refused === 'allowance') reason = `${reason} · judge paused: this month’s allowance is spent`;
-  else if (state !== 'demo') {
-    const checked = judgeVerdict(judge);
-    if (checked && (checked.runId === null || checked.runId === String(run.id ?? ''))) {
-      const raised = checked.health !== 'on_track' && healthRank[checked.health] > healthRank[health];
-      verdict = { health: checked.health, reason: checked.reason, evidence: checked.evidence, model: checked.model, raised };
-      if (raised) health = checked.health;
-    }
+export function runHealth({ run, entries = [], now, transcriptState, transcriptAvailable, stale = null, tripwires = null, allowedHosts = null }) {
+  if (stale) return { ...stale, stale: true };
+  if (run?.state !== 'running') return { health: null, signals: [], deciding: null, reason: '' };
+  const state = Object.hasOwn(transcriptStates, transcriptState) ? transcriptState : transcriptAvailable === false ? 'unsupported' : 'loaded';
+  const limits = runLimits(run);
+  const started = limits?.startedAt ?? time(run?.startedAt);
+  const elapsed = started === null ? 0 : Math.max(0, (now - started) / 1000);
+  const plan = state === 'loaded' ? latestPlan(entries) : null;
+  const signals = [tripwireSignal(entries, state, tripwires, allowedHosts, now), quietSignal(entries, limits, now, state), paceSignal(plan, limits, elapsed, state), timeSignal(plan, limits, elapsed), budgetSignal(run), repeatSignal(entries, state)];
+  const judged = signals.filter(entry => entry.judged);
+  const worst = judged.reduce((current, entry) => !current || rank[entry.health] > rank[current.health] ? entry : current, null);
+  const startup = started !== null && elapsed < startupSeconds && !plan?.length;
+  if (startup && worst?.health !== 'off_track') return { health: 'not_yet', signals, deciding: null, reason: startedText };
+  const progress = judged.some(entry => progressSignals.includes(entry.key));
+  if (!worst || (worst.health === 'on_track' && !progress)) {
+    const missing = [...new Set(signals.filter(entry => !entry.judged).map(entry => capital(entry.reason)))].join('; ');
+    const reason = worst ? `Nothing is off, but its progress cannot be judged: ${missing || 'no progress signal was judged'}` : missing;
+    return { health: 'unknown', signals, deciding: null, reason };
   }
-  if (asOf !== null) reason = `${reason} · health as of ${minutes((now - asOf) / 1000)} ago`;
-  if (state === 'demo') reason = `${reason} · demo data`;
-  return { health, ...healthStates[health], reason, deciding, signals, judge: verdict, transcript: state, stale: asOf === null ? null : { asOf } };
+  if (worst.health === 'on_track') return { health: 'on_track', signals, deciding: null, reason: onTrackReason(signals) };
+  return { health: worst.health, signals, deciding: worst.key, reason: capital(worst.reason) };
 }
 
 /**
- * The health badge for a Run row: glyph and word in the health's tone, with an AI mark when a judge raised it. Empty
- * for a Run that has no health.
- * @param {ReturnType<typeof runHealth>} health
- * @returns {string}
+ * The badge a person sees: the signals' health, raised but never lowered by a judge verdict. A judge never turns Not
+ * known or Not judged yet into On track. `source` says which of the two decided.
+ * @param {{ health: string }} signals
+ * @param {{ health: string } | null} [judge]
+ * @returns {{ health: string, source: 'signals' | 'judge' }}
  */
-export function runHealthMarkup(health) {
-  if (!health) return '';
-  const raised = health.judge?.raised === true;
-  const title = raised ? `${health.reason} · AI judge: ${health.judge.reason}` : health.reason;
-  const ai = raised ? '<span class="run-health-ai" aria-hidden="true">AI</span><span class="sr-only">, raised by an AI judge</span>' : '';
-  return `<span class="badge sm run-health is-${health.health}${health.stale ? ' is-stale' : ''}" data-tone="${health.tone}" title="${escape(title)}">${icon(health.glyph)}<span class="sr-only">Health: </span>${escape(health.label)}${ai}</span>`;
-}
-
-const stateWords = { ok: 'OK', watch: 'Watch', off_track: 'Off track', unknown: 'Not judged' };
-
-/**
- * The reason line under a running Run: the numbers behind its health, the judge's line labelled AI when there is one,
- * and every signal in a disclosure. Empty for a Run that has no health.
- * @param {ReturnType<typeof runHealth>} health
- * @returns {string}
- */
-export function runHealthReason(health) {
-  if (!health) return '';
-  const judge = health.judge;
-  const judgeLine = judge ? `<span class="run-health-judge" data-tone="${healthStates[judge.health].tone}" title="${escape(judge.model)}"><span class="run-health-ai" aria-hidden="true">AI</span><span class="sr-only">AI judge, advisory: </span>${escape(judge.raised ? `Judge raised this to ${healthStates[judge.health].label.toLowerCase()}` : `Judge said ${healthStates[judge.health].label.toLowerCase()}; it never lowers the signals`)}: ${escape(judge.reason)}${judge.evidence.length ? ` (entries ${escape(judge.evidence.join(', '))})` : ''}</span>` : '';
-  const rows = health.signals.map(each => {
-    const name = healthSignals.find(entry => entry.id === each.id)?.label ?? each.id;
-    return `<li class="run-health-signal is-${each.id}" data-state="${each.state}"><span class="run-health-signal-name">${escape(name)}</span> <span class="run-health-signal-state">${stateWords[each.state]}</span> <span class="run-health-signal-reason">${escape(each.reason)}</span></li>`;
-  }).join('');
-  return `<div class="run-health-detail"><p class="run-health-reason${health.stale ? ' is-stale' : ''}" data-tone="${health.tone}">${escape(health.reason)}${judgeLine}</p><details class="run-health-signals"><summary>How the health is judged</summary><ul class="run-health-signal-list">${rows}</ul></details></div>`;
+export function combineHealth(signals, judge) {
+  const base = signals?.health ?? 'unknown';
+  const verdict = judge?.health;
+  if (!Object.hasOwn(rank, verdict) || verdict === 'on_track') return { health: base, source: 'signals' };
+  const baseRank = Object.hasOwn(rank, base) ? rank[base] : -1;
+  return rank[verdict] > baseRank ? { health: verdict, source: 'judge' } : { health: base, source: 'signals' };
 }

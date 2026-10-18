@@ -1,6 +1,6 @@
 # RFC-0007: Run health on the Run card
 
-> Status: **Proposed** 2026-10-17, revised 2026-10-18 with what the live Work Item view taught ([below](#revision-2026-10-18-what-the-live-view-taught)) · Owner request (2026-10-17): "Are we on track or losing it? I want that clear on the page itself. Are we in the pipe, 5 by 5, or veering off track?" Owner choice the same day: deterministic signals now, a judge model behind a switch that is off by default · Decision record: [Unfold ADR 0046](../../apps/unfold/docs/adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md) (proposed) · Builds on: [Unfold ADR 0045](../../apps/unfold/docs/adrs/0045-unfold-records-the-run-card-rules-it-computes.md) (Run card rules), Ploeg ADR-0082 (Asks), ADR-0090 (transcripts), ADR-0091 (Run configuration), ADR-0096 (a shadow reader never acts)
+> Status: **Proposed** 2026-10-17; steps 2 and 3 built 2026-10-18 on branch `feat/run-judge`, not released (see [Plan](#plan)) · Owner request (2026-10-17): "Are we on track or losing it? I want that clear on the page itself. Are we in the pipe, 5 by 5, or veering off track?" Owner choice the same day: deterministic signals now, a judge model behind a switch that is off by default. Owner decisions 2026-10-18: Unfold's server computes health, the judge is shadow only and runs on Hetzner's free EU-hosted inference with no paid fallback · Decision record: [Unfold ADR 0046](../../apps/unfold/docs/adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md) (proposed) · Builds on: [Unfold ADR 0045](../../apps/unfold/docs/adrs/0045-unfold-records-the-run-card-rules-it-computes.md) (Run card rules), Ploeg ADR-0082 (Asks), ADR-0090 (transcripts), ADR-0091 (Run configuration), ADR-0096 (a shadow reader never acts)
 >
 > **TL;DR.** While a Run runs, its card shows a clock, an authorized budget and a plan checklist, but no answer to the one question a person has: will this end in a pull request? Today that answer takes reading the transcript and doing arithmetic the card could do. This RFC adds one health badge to the running Run's card, with a one-line reason: **On track**, **Watch** or **Off track**. Four free signals drive it: time against the Run's limit, quiet time against the idle stop, budget used, and repeated commands. A judge model can add a fifth, "is it still working on the ticket?", as an Ask, behind a Team setting that is off by default. The judge only advises: it never stops, steers or grades a Run. Unfold needs one new fact from Ploeg, each Run's time limits.
 
@@ -57,7 +57,7 @@ Rules that come from the product UX floor, not from taste:
 
 ## The signals
 
-Computed in the browser from facts the card already polls every 4 seconds, plus the Run's limits. Free, deterministic and testable with fixtures.
+Computed by Unfold's server, plus the Run's limits, from the Run and a tail of its transcript the server reads incrementally from Ploeg; the browser polls the result every 30 seconds while a Run runs. One shared pure function ([`public/core/run-health.js`](../../apps/unfold/public/core/run-health.js)) does the arithmetic, so every viewer sees one answer and the judge's triggers do not depend on an open browser (owner decision 2026-10-18; it was "in the browser" when this RFC was written). Free, deterministic and testable with fixtures.
 
 | Signal | Input | Watch when | Off track when |
 | --- | --- | --- | --- |
@@ -66,9 +66,11 @@ Computed in the browser from facts the card already polls every 4 seconds, plus 
 | **Time** | Elapsed against the prompt limit | ≥ 75 % used | ≥ 90 % used and the plan's last step is not in progress |
 | **Budget** | Observed spend against the authorized budget, only when `costStatus` is `observed` or `provisional` | ≥ 70 % | ≥ 90 % |
 | **Repeat** | The same tool-call input three times in the last ten tool calls | three repeats | five repeats |
-| **Tripwire** | The Run's tool calls against Unfold's tripwires (`public/live/guard.js`): orders aimed at agents in tool output, spreading them into the repository, remote code, credential reads, sandbox probes, hosts outside the brief, edits to the agent's own instructions | any medium hit | any high hit; the containment panel opens below the flight |
+| **Tripwire** | The guard.js tripwires (`apps/unfold/public/core/guard.js`) the Run's tool calls crossed, kept by the server once seen; never makes a Run On track on its own | a medium tripwire | a high tripwire |
 
-The worst signal wins; the reason line shows that signal's numbers and, in a tooltip, all of them. Thresholds live in one place, `healthThresholds` in `public/core/run-health.js`, and each is a named constant with a test, so changing one is a reviewed change ([Unfold ADR 0045](../../apps/unfold/docs/adrs/0045-unfold-records-the-run-card-rules-it-computes.md): a rule the card computes has a record).
+The worst signal wins; the reason line shows that signal's numbers and, in a tooltip, all of them. Thresholds live in one place, as named constants in `public/core/run-health.js`, each with a test, so changing one is a reviewed change ([Unfold ADR 0045](../../apps/unfold/docs/adrs/0045-unfold-records-the-run-card-rules-it-computes.md): a rule the card computes has a record).
+
+How the built code reads three cases the table leaves open: only a progress signal (Quiet, Time or Pace) can make a Run On track; Budget, Repeat and Tripwire finding nothing are not evidence of progress, so a Run without limits reads Not known, with every fact it could not judge named once (revised 2026-10-18 from "a judged time or money signal", because until Ploeg serves limits that rule showed every cheap Run as On track); a Run with no plan yet is Not judged yet in its first 5 minutes unless a signal is already Off track; and with no transcript entry yet, Quiet counts from the time the prompt started.
 
 Two things the signals deliberately do not try: they do not read what the agent says (that is the judge's job), and they do not score quality (the Run card's grade does that, after review).
 
@@ -86,15 +88,17 @@ on the operator API's Run, set by the worker when the prompt starts. A Run from 
 
 The signals cannot answer "is it still working on the ticket?". Run 305 was on the ticket the whole time; a Run that rewrites an unrelated module while every number looks fine is not. A model can read the ticket's acceptance conditions, the plan and the last stretch of transcript and say which.
 
-**How it runs.** As a Ploeg Ask (ADR-0082): a read-only Run with no Shift, paid from the Team's periodic allowance, with a capped key Ploeg returns to Unfold. Unfold makes the call and finishes the Ask; Ploeg keeps no question. No new path to a model is added, and the judge's spend is never counted as the Work Item's delivery spend.
+**How it runs.** As a Ploeg Ask (ADR-0082): a read-only Run with no Shift, paid from the Team's periodic allowance, with a capped key Ploeg returns to Unfold. Unfold makes the call and finishes the Ask; Ploeg keeps no question. No new path to a model is added, and the judge's spend is never counted as the Work Item's delivery spend. Unfold's server starts a judgement from a health read by a person who is not a viewer; it is shadow only, recording and showing its verdict.
+
+**Which model.** Hetzner's free, EU-hosted experimental inference through the gateway, which stores no content: `runHealth.judgeModels`, by default `hetzner-qwen3-8-27b` then `hetzner-qwen3-6-35b-a3b`. The judge calls the first of them the Ask's key may use. When Ploeg offers none, the Ask is finished unused and the judge shows "Judge off"; it never falls back to a paid model. Hetzner says that service is not for production. That is acceptable because the judge only advises: a missing verdict leaves the signals (owner decision 2026-10-18).
 
 **What it reads.** The Work Item's title and acceptance conditions, the current plan, the last 40 transcript entries cut to 8 KB, and the signals above. Everything but the signals is untrusted text written by a tracker or an agent, and the prompt says so.
 
 **What it may say.** Only a fixed shape: `{"health": "on_track" | "watch" | "off_track", "reason": "<= 160 characters", "evidence": [<transcript seq>, …]}`. Anything else is discarded. Unfold escapes the reason, shows the evidence as links to those transcript entries, and labels the line as the judge's.
 
-**When it runs.** When the plan changes, when a signal turns to Watch, and otherwise at most every 10 minutes per Run; never after the Run finishes. At most 9 judgements per Run.
+**When it runs.** When the plan changes, when a signal turns to Watch, and otherwise at most every 10 minutes per Run; never after the Run finishes, never in the demo, and one at a time per Run. At most 9 judgements per Run; an Ask refused because the allowance is spent does not count.
 
-**What it costs.** One judgement is one small model call: the Ask spike measured about US$0.0002 per Ask on the Team's Ask model; the per-Ask cap is US$0.02. A 90-minute Run with 9 judgements costs well under US$0.02, inside the Team's monthly Ask allowance (default US$2). The switch is a Team setting (`cards.health.judge`, a flagd flag per [Unfold ADR 0043](../../apps/unfold/docs/adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md)), off by default, so nothing is spent until the owner turns it on.
+**What it costs.** One judgement is one small model call on a free model, so the model cost is expected to be nothing; the Ask still counts against the Team's allowance like any other, with the per-Ask cap of US$0.02 (the Ask spike measured about US$0.0002 per Ask on a paid Ask model). A 90-minute Run with 9 judgements stays well under US$0.02 even on a paid model. The switch is a Team setting (`cards.health.judge`, a flagd flag per [Unfold ADR 0043](../../apps/unfold/docs/adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md)), off by default, so nothing is spent until the owner turns it on.
 
 **What it may not do.** The judge advises. It never stops, requeues, steers or grades a Run, and it never lowers a signal: when the signals say Off track and the judge says On track, the badge stays Off track and shows both. This is ADR-0096's rule for the shadow reader, applied here. The badge combines as: worst of the signals, then raised (never lowered) by the judge.
 
@@ -107,36 +111,21 @@ The signals cannot answer "is it still working on the ticket?". Run 305 was on t
 | Pending, not started | none | The state badge says Pending |
 | Running, first 5 min, no plan | Not judged yet | Avoids an early false Watch |
 | Running, plan and limits known | On track / Watch / Off track | The common case |
-| Running, Ploeg sent no `limits` | worst of Budget and Repeat, else Not known | Older Ploeg |
-| Running, transcript not loaded yet | the signals that need no transcript; the others say "loading its calls" | The page fetches the running Run's transcript itself; it never asks a person to open the Run first |
-| Running, transcript unavailable (Claude Code harness, ADR-0090) | Time and Budget only; Quiet, Pace, Repeat and Tripwire say "no transcript" | `run.transcript.available` is false |
+| Running, Ploeg sent no `limits` | worst of Budget, Repeat and Tripwire, else Not known | Older Ploeg, and every Ploeg until it serves `limits` |
+| Running, transcript still loading, from a harness without one, from the demo, or failing to read | the signals that need no transcript; the others name which of the four it is | Unfold never reads a missing transcript as quiet |
+| Running, transcript unavailable (Claude Code harness, ADR-0090) | Time and Budget only; Quiet, Pace and Repeat say "no transcript" | `run.transcript.available` is false |
 | Running, transcript poll failing | last health, greyed, "health as of 2 min ago" | Never a fresh verdict on stale data |
 | Running, cost unknown | Budget not judged | Never treat unknown spend as zero |
 | Judge on, Ask refused (allowance spent) | signals only, reason line says "judge paused: this month's allowance is spent" | |
 | Judge on, judge failed or timed out | signals only, no judge line | Failure is quiet; signals still work |
 | Finished | none; a "Health over time" strip in the Run's body | J5 |
-| Earlier Runs ended by the machine | not counted | Infrastructure failures are not the agent's; the attempt shows them, the running Run's health does not |
-| Demo mode | computed from demo data, labelled as demo; Quiet, Pace, Repeat and Tripwire say "the demo records no transcripts" | A demo never invents a judge call or a transcript |
+| Demo mode | computed from demo data, labelled as demo | A demo never invents a judge call |
 
-Every one of these is a fixture-driven unit test in `test/run-health.test.mjs`, and `npm run test:workbench` checks the badge and the live view at 390, 768 and 1280 px, in light and dark and under reduced motion, on the demo and on local recordings.
-
-## Revision 2026-10-18: what the live view taught
-
-On 2026-10-17 the owner and Claude designed and built a live view of a running Work Item (Unfold PR #402) around this same Work Item 190. Building it against the real page in the component workbench ([Unfold ADR 0048](../../apps/unfold/docs/adrs/0048-components-are-built-and-checked-in-a-workbench-outside-the-app.md)) taught seven things, and the owner asked on 2026-10-18 to apply them here:
-
-1. **Name why calls are missing.** "Not loaded yet", "no transcript from this harness" and "the demo records no transcripts" are three different facts. Reading a Run as quiet because its transcript was not fetched yet is a false alarm the first build made; the page now fetches the running Run's transcript itself.
-2. **The machine is not the agent.** Run 305's Work Item lost six Runs to machines before Run 305 started. Those count in the attempt, never in the running Run's health.
-3. **Containment is health.** A Run that reads injected orders, goes after credentials or edits its own instructions is off track whatever its pace. The Tripwire signal joins the table; a high hit is Off track, with the containment panel naming each call.
-4. **One function, two places.** The badge on the Run's row and the live view read the same `runHealth` result, so the page cannot say two things about one Run.
-5. **The judge stays an Ask.** A first sketch had a judge that could abort a Run through a new Ploeg event. That is dropped: the judge advises, may only raise the badge, and never stops anything.
-6. **Never On track for lack of evidence.** Without Ploeg's limits the progress signals (Quiet, Time, Pace) cannot be judged; then a Run with nothing off reads **Not known**, with the reason naming what could not be judged. A Run is On track only when at least one progress signal was judged.
-7. **Every mark means something.** Each state, signal and mark has an entry in the meaning ledger (`public/live/meaning.js`) saying what it means, where its data comes from and whether that is real, derived or proposed; a test fails on any mark the ledger does not explain.
-
-Run 305's two moments are fixtures in the workbench: Watch at 09:17 (quiet 6 of 10 min, pace overrun) and Off track at 09:19 (quiet 8 of 10 min), both with the proposed `limits`.
+Every one of these is a fixture-driven unit test: the signal rows in `test/run-health.test.mjs`, the judge rows in `test/run-health-judge.test.ts` and `test/run-health-view.test.mjs`. The `health` browser flow checks the badge on a running demo Run at 1440 px in light and at 320 px in dark. At 320 px it checks the Run's row only: the top bar's avatar already runs past a 320 px viewport, which this RFC does not change.
 
 ## Options considered
 
-**(a) Signals in the browser, judge as an Ask, off by default (recommended, chosen by the owner).** Free by default, testable, no new service, and the judge's cost and trust are measured before anyone leans on it.
+**(a) Signals in the browser, judge as an Ask, off by default (recommended, chosen by the owner; amended 2026-10-18 to compute the signals on Unfold's server).** Free by default, testable, no new service, and the judge's cost and trust are measured before anyone leans on it.
 
 **(b) Signals only.** Cheapest, but cannot tell "slow and on task" from "fast and off task". It stays the fallback when the judge is off.
 
@@ -151,13 +140,13 @@ Run 305's two moments are fixtures in the workbench: Watch at 09:17 (quiet 6 of 
 * **Judge precision:** "this was wrong" clicks against judgements shown, and the judge's verdicts against Run outcomes, per model.
 * **Cost:** judge spend per Team per month against its allowance.
 
-Each comes from product events Unfold already records ([RFC-0001](rfc-0001-product-events-and-confusion-signals.md)) plus one new event, `run.health.changed`, with the old and new health, the deciding signal and the Run id; never transcript text.
+Each comes from product events Unfold already records ([RFC-0001](rfc-0001-product-events-and-confusion-signals.md)) plus two new server-side events: `run.health.changed`, with the old and new health, the deciding signal and the Run id (never transcript text), and `run.health.judge_wrong` for the "this was wrong" control. Both are built.
 
 ## Plan
 
 1. **Ploeg:** record and serve `limits` on the operator API Run (ploeg-hq change and ADR, extends ADR-0091).
-2. **Unfold, signals:** `runHealth({ run, transcript, plan, now, limits, judge, tripwires })` in `public/core/run-health.js`, the badge and reason line on each running Run's row behind the `work.run-health` Labs flag, the same result in the live view (`work.live-view`), fixtures, tests, workbench stories and `run.health.changed`. Works without step 1, showing Not known for the time-based signals.
-3. **Unfold, judge:** the Ask call, the verdict shape and its validation, the AI line, the Team flag off by default.
+2. **Unfold, signals (built 2026-10-18, not released):** `runHealth` in `public/core/run-health.js`, run by the server behind `GET /api/ploeg/work-items/:id/runs/:run/health`, the badge and reason line in `runRow`/`runBody`, fixtures and tests, `run.health.changed`. Works without step 1, showing Not known for the time-based signals; Unfold reads `limits` when a Ploeg serves them (ploeg-hq/ploeg#160).
+3. **Unfold, judge (built 2026-10-18, not released):** the Ask call on Hetzner's free models with no paid fallback, the verdict shape and its validation, the AI line with "This was wrong", the `cards.health.judge` flag off by default, verdicts stored in Unfold.
 4. **Later, separately:** the "Health over time" strip (J5), and a Needs-you entry for Runs that are Off track (J4).
 
 ## Open questions for the owner

@@ -1494,6 +1494,47 @@ button.stream-bar:hover {
   overflow-wrap: anywhere;
 }
 
+.work-run-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.work-run-health-badge[data-stale] .badge {
+  filter: grayscale(1);
+}
+
+.work-run-health {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.work-run-health > p {
+  max-width: var(--prose-max);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.work-run-health-line,
+.work-run-judge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.work-run-health-line > svg.icon {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  color: var(--tone-fg);
+}
+
+.work-run-health[data-stale] .work-run-health-line {
+  color: var(--text-subtle);
+  filter: grayscale(1);
+}
+
 .work-findings {
   display: grid;
   gap: var(--space-2);
@@ -1786,7 +1827,7 @@ button.stream-bar:hover {
     grid-area: name;
   }
 
-  .work-run > summary > .badge {
+  .work-run > summary > :is(.badge, .work-run-badges) {
     grid-area: badge;
     justify-self: start;
   }
@@ -2763,110 +2804,4 @@ button.stream-bar:hover {
   gap: var(--space-3);
   margin: 0;
   padding-left: 1.4em;
-}
-
-.work-run-badges {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1-5);
-  min-width: 0;
-}
-
-.run-health-ai {
-  margin-inline-start: var(--space-1);
-  padding: 0 var(--space-1);
-  border: 1px solid currentColor;
-  border-radius: var(--radius-sm);
-  font-size: var(--text-2xs);
-  font-weight: var(--weight-semibold);
-  line-height: 1.2;
-}
-
-.badge.run-health.is-stale {
-  border-style: dashed;
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.badge.run-health.is-stale > svg.icon {
-  color: var(--text-muted);
-}
-
-.run-health-detail {
-  display: grid;
-  gap: var(--space-1);
-  margin-block-end: var(--space-3);
-  padding-inline-start: var(--space-3);
-  border-inline-start: 2px solid var(--tone-border);
-}
-
-.run-health-detail:has(> .run-health-reason[data-tone="success"]) {
-  --tone-border: var(--success-fg);
-}
-
-.run-health-detail:has(> .run-health-reason[data-tone="attention"]) {
-  --tone-border: var(--attention-fg);
-}
-
-.run-health-detail:has(> .run-health-reason[data-tone="danger"]) {
-  --tone-border: var(--danger-fg);
-}
-
-.run-health-reason {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.run-health-reason.is-stale {
-  color: var(--text-muted);
-}
-
-.run-health-judge {
-  display: block;
-  margin-top: var(--space-1);
-  color: var(--text-muted);
-}
-
-.run-health-judge > .run-health-ai {
-  margin-inline: 0 var(--space-1);
-}
-
-.run-health-signals > summary {
-  cursor: pointer;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.run-health-signal-list {
-  display: grid;
-  gap: var(--space-1);
-  margin: var(--space-2) 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--text-sm);
-}
-
-.run-health-signal-name {
-  font-weight: var(--weight-semibold);
-}
-
-.run-health-signal-reason {
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
-}
-
-.run-health-signal[data-state="watch"] .run-health-signal-state {
-  color: var(--attention-fg);
-}
-
-.run-health-signal[data-state="off_track"] .run-health-signal-state {
-  color: var(--danger-fg);
-}
-
-@container work-detail (max-width: 34rem) {
-  .work-run > summary > .work-run-badges {
-    grid-area: badge;
-    justify-self: start;
-  }
 }

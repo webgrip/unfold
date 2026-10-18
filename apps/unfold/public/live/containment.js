@@ -80,13 +80,13 @@ function judgeBlock(model) {
   const list = model.judgements ?? [];
   if (!list.length) return '';
   const rows = list.map(entry => `<li class="${cx('lv-contain-judgement', `is-${entry.health}`)}"><span class="lv-contain-time">${escape(clock(entry.at))}</span><span class="lv-contain-what"><span class="lv-contain-verdict">AI · ${escape(verdictWords[entry.health])}</span><span class="lv-contain-text">${escape(entry.reason)}${entry.evidence.length ? ` (entries ${escape(entry.evidence.join(', '))})` : ''}</span></span></li>`).join('');
-  return block('What the AI judge said', `<ol class="lv-contain-judgements">${rows}</ol><p class="lv-contain-note">Unfold runs no judge Ask yet; these verdicts show what one would return. The judge only advises: it can raise the Run’s health, never lower it, and never stops the Run.</p>`, { proposed: true });
+  return block('What the AI judge said', `<ol class="lv-contain-judgements">${rows}</ol><p class="lv-contain-note">The AI judge reads the Run only when the Team’s cards.health.judge flag is on. It only advises: it can raise the Run’s health, never lower it, and never stops the Run.</p>`);
 }
 
 /**
  * The containment panel: shown when a Run crossed a tripwire, its rules changed, or the AI judge said watch or off
  * track. It says what the Run read, what it tried next and whether each try was blocked (derived from the
- * transcript), which rules changed and what the judge said (both proposed), and offers proposed
+ * transcript), which rules changed (proposed) and what the AI judge said, and offers proposed
  * actions as buttons that do nothing yet. Transcript text is rendered as inert text. Empty when there is nothing to say.
  * @param {object} model A `liveModel` result.
  * @param {{ level?: number }} [options] The heading level of the headline.

@@ -25,7 +25,7 @@ export const hopEndings = Object.freeze({
 });
 
 function ending(run, model) {
-  if (run.state === 'running') return ['watch', 'off_track'].includes(model.health?.signals.find(signal => signal.id === 'quiet')?.state) ? 'holding' : 'live';
+  if (run.state === 'running') return ['watch', 'off_track'].includes(model.health?.signals.find(signal => signal.key === 'quiet')?.health) ? 'holding' : 'live';
   if (run.status === 'pending') return 'pending';
   if (run.status === 'cancelled') return 'cancelled';
   if (run.status === 'stuck') return run.machine ? 'machine' : 'stuck';
@@ -169,7 +169,7 @@ export const markBins = bins;
 
 /**
  * The marks drawn on one hop: tripwire hits from the followed Run's transcript, grouped by column, and AI judge
- * verdicts for the Run (proposed: Unfold runs no judge Ask yet). A verdict only advises: it never moves the Run. Each mark sits in one of `markBins` columns across the hop's 100-wide box, at the
+ * verdicts for the Run from Unfold's shadow judge. A verdict only advises: it never moves the Run. Each mark sits in one of `markBins` columns across the hop's 100-wide box, at the
  * same place the activity profile puts the call. The worst verdict is `labelled`: on its own row when the hop has no
  * tripwire marks, and otherwise only when its word fits on `side` without covering another verdict. `divertedAt` is the column of the first `off_track` verdict.
  * @param {object} model A `liveModel` result.
@@ -277,7 +277,7 @@ function wireWords(signals) {
 }
 
 function callWords(judgement) {
-  return `AI judge (proposed, advisory) at ${clock(judgement.at)}: ${verdictWords[judgement.health]}. ${judgement.reason}`;
+  return `AI judge (advisory) at ${clock(judgement.at)}: ${verdictWords[judgement.health]}. ${judgement.reason}`;
 }
 
 function markWords(model, hop) {
@@ -287,7 +287,7 @@ function markWords(model, hop) {
   if (signals.length) parts.push(`${plural(signals.length, 'call', 'calls')} crossed a tripwire${signals.some(each => each.blocked) ? `, ${signals.filter(each => each.blocked).length} blocked` : ''}.`);
   for (const call of calls) parts.push(callWords(call.judgement));
   const ring = planeRing(model);
-  if ((hop.end === 'live' || hop.end === 'holding') && ring) parts.push(ring === 'is-suspect' ? `Possible hijack: ${model.health.reason}.` : `Health ${model.health.label.toLowerCase()}: ${model.health.judge?.raised ? `AI judge: ${model.health.judge.reason}` : model.health.reason}.`);
+  if ((hop.end === 'live' || hop.end === 'holding') && ring) parts.push(ring === 'is-suspect' ? `Possible hijack: ${model.health.reason}.` : `Health ${model.health.label.toLowerCase()}: ${model.health.source === 'judge' && model.health.judge ? `AI judge: ${model.health.judge.reason}` : model.health.reason}.`);
   return parts.join(' ');
 }
 
@@ -351,7 +351,7 @@ function head(name, note, extra = '') {
  * an agent failure with a red mark, a Run gone quiet circles in a holding pattern, and the plane flies at the head of the
  * live Run. Ahead are the stations, with your review in the brand red. A stopped Work Item ends in a flag. A call that
  * crossed a tripwire (derived from the transcript) stands on its hop as a line up to a warning mark; an AI judge
- * verdict (proposed: Unfold runs no judge Ask yet) is a call sign above the hop, and an `off_track` verdict marks the
+ * verdict is a call sign above the hop, and an `off_track` verdict marks the
  * hop: its line turns dashed red from that moment, while the Run keeps flying. The live plane's ring follows the
  * Run's health (`planeRing`): red with a halo when a high tripwire decided it. Columns
  * grow with the square root of time, so a long wait does not crowd out the work. Under 34 rem of container width the

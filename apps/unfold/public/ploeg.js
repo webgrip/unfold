@@ -15,9 +15,7 @@ import { cardView } from './cards/card-model.js';
 import { deliveryStages, stageTime } from './core/delivery-track.js';
 import { streamChart, streamLanes } from './core/value-stream.js';
 import { foldTranscript } from './run-transcript.js';
-import { liveModel, movesOf } from './live/model.js';
-import { guardSignals } from './live/guard.js';
-import { runHealth, runHealthMarkup, runHealthReason } from './core/run-health.js';
+import { liveModel } from './live/model.js';
 import { flightPath } from './live/flight-path.js';
 import { foldStrip } from './live/fold-strip.js';
 import { answers } from './live/answers.js';
@@ -28,6 +26,7 @@ import { effortText, termTitle, trackerReference } from './core/terms.js';
 import { runTranscriptMarkup } from './run-transcript.js';
 import { workActionsMarkup } from './action-log.js';
 import { defaultLogView, logViewerMarkup } from './run-log-view.js';
+import { healthMeta } from './core/run-health.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -955,25 +954,63 @@ export function runLogsMarkup(run, entry) {
   return ui.disclosure({ summary: 'Pod logs', id: `work-run-logs-${run.id}`, body: `<div class="work-run-logs" data-run-logs="${escape(run.id)}">${runLogsBody(run, entry)}</div>` });
 }
 
+const signalNames = Object.freeze({ quiet: 'Quiet', pace: 'Pace', time: 'Time', budget: 'Budget', repeat: 'Repeat' });
+
+/** Whole minutes since a Run's health was last computed, when it is shown from an older read (`entry.error`, or Ploeg's transcript unreadable); otherwise 0. */
+export function healthAge(entry, now = Date.now()) {
+  if (!entry?.data || (!entry.error && !entry.data.stale)) return 0;
+  const asOf = Date.parse(entry.data.asOf || '') || entry.at || now;
+  return Math.max(1, Math.round((now - asOf) / 60_000));
+}
+
 /**
- * The health of a running Run from what the page holds: its transcript as the Run panel or the live view loaded it,
- * its plan, its tripwires and, when Ploeg sends them, its limits. Null for a Run that is not running. The Run rows and
- * the live view both call this, so they always show the same health.
- * @param {object} run A Ploeg Run.
- * @param {Map<string, object>|null|undefined} transcripts The page's transcript state per Run id.
- * @param {number} now Milliseconds since the epoch.
- * @returns {ReturnType<typeof runHealth>}
+ * The health badge of a running Run, next to its state badge: the signals' health raised by the judge, with a glyph and
+ * a word, and the reason in its title. '' for a Run that is not running or whose health is not read yet.
+ * @param {{ state: string }} run
+ * @param {{ data?: object, error?: object, at?: number } | undefined} entry
+ * @param {number} [now]
+ * @returns {string}
  */
-export function runningHealth(run, transcripts, now) {
-  if (run?.state !== 'running') return null;
-  const entry = transcripts?.get?.(String(run.id));
-  const folded = entry?.entries?.length ? foldTranscript(entry.entries, { known: entry.trimmed ? null : 0 }) : null;
-  const state = folded ? 'loaded' : entry?.data?.available === false ? (entry.data.reason === 'demo' ? 'demo' : 'unsupported') : 'loading';
-  const items = folded?.items ?? [];
-  const tripwires = folded ? guardSignals(movesOf(items, { now, live: true }).flatMap(move => move.calls)) : [];
-  const asOf = folded && entry.error && typeof entry.readAt === 'number' ? { asOf: entry.readAt } : {};
-  const transcript = !folded && !entry?.data && entry?.error ? null : { state, items, ...asOf };
-  return runHealth({ run, transcript, plan: folded?.plan ?? null, now, limits: run.limits ?? null, judge: null, tripwires });
+export function runHealthBadge(run, entry, now = Date.now()) {
+  const data = entry?.data;
+  if (run.state !== 'running' || !data?.health) return '';
+  const combined = data.combined ?? { health: data.health, source: 'signals' };
+  const meta = healthMeta(combined.health);
+  const age = healthAge(entry, now);
+  const title = [`Health: ${meta.label}${combined.source === 'judge' ? ', raised by the AI judge' : ''}`, data.reason, age ? `health as of ${age} min ago` : '', data.demo ? 'demo data' : ''].filter(Boolean).join(' · ');
+  return `<span class="work-run-health-badge"${age ? ' data-stale' : ''}>${ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.label, lead: 'Health: ', title, size: 'sm' })}</span>`;
+}
+
+/**
+ * The health section in a running Run's body: the signals' reason line with every signal in its title, the AI judge's
+ * latest verdict with its model, evidence and a "This was wrong" control, the rule that combined them, and the judge's
+ * pause. '' for a Run that is not running or whose health is not read yet.
+ * @param {{ id: string|number, state: string }} run
+ * @param {{ data?: object, error?: object, at?: number, wrong?: Set<string> } | undefined} entry
+ * @param {{ now?: number }} [options]
+ * @returns {string}
+ */
+export function runHealthMarkup(run, entry, { now = Date.now() } = {}) {
+  const data = entry?.data;
+  if (run.state !== 'running' || !data?.health) return '';
+  const signals = healthMeta(data.health);
+  const age = healthAge(entry, now);
+  const every = (data.signals || []).map(signal => `${signalNames[signal.key] ?? signal.key}: ${healthMeta(signal.health).label}, ${signal.reason}`).join('\n');
+  const parts = [`<p class="work-run-health-line" data-tone="${signals.tone}"${every ? ` title="${escape(every)}"` : ''}>${icon(signals.glyph)}<span><strong>Signals: ${escape(signals.label)}</strong> · ${escape(data.reason)}</span></p>`];
+  if (age) parts.push(`<p class="meta work-run-health-age">Health as of ${age} min ago: it could not be read again.</p>`);
+  const judge = data.judge;
+  if (judge) {
+    const verdict = healthMeta(judge.health);
+    const evidence = (judge.evidence || []).length ? ` · evidence ${judge.evidence.map(seq => `<span class="mono" title="Transcript entry ${escape(seq)}">#${escape(seq)}</span>`).join(', ')}` : '';
+    const control = entry.wrong?.has(judge.id) ? '<span class="meta">Recorded as wrong. Thank you.</span>' : ui.button({ label: 'This was wrong', variant: 'ghost', size: 'xs', action: 'work-run-judge-wrong', data: { id: judge.id, run: run.id } });
+    parts.push(`<p class="work-run-judge" data-tone="${verdict.tone}"><span class="badge sm" data-tone="neutral" role="img" aria-label="AI judgement" title="Judged by ${escape(judge.model)}">${icon('spark')}AI</span><span><strong>${escape(verdict.label)}</strong> · ${escape(judge.reason)}${evidence}</span>${control}</p>`);
+    const combined = healthMeta(data.combined?.health ?? data.health);
+    parts.push(`<p class="meta work-run-health-rule">Badge: ${escape(combined.label)}, the worst of the signals (${escape(signals.label)}) raised but never lowered by the AI judge (${escape(verdict.label)}). The judge only advises.</p>`);
+  }
+  if (data.judgeState === 'paused_allowance') parts.push('<p class="meta">Judge paused: this month\'s allowance is spent.</p>');
+  if (data.judgeState === 'model_not_offered') parts.push('<p class="meta">Judge off: Ploeg offers none of the judge\'s free models to this Team.</p>');
+  if (data.demo) parts.push('<p class="meta">Demo: health computed from illustrative data. No judge runs in the demo.</p>');
+  return `<section class="work-run-health" aria-label="Run health"${age ? ' data-stale' : ''}>${parts.join('')}</section>`;
 }
 
 function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts, health }) {
@@ -981,7 +1018,6 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts
   const retriedAs = failure?.retries ? attempts?.get(String(run.id))?.next : null;
   const parts = [];
   const repeated = run.stuckReason && overlaps(run.summary, run.stuckReason);
-  if (health) parts.push(runHealthReason(health));
   if (run.summary && !repeated) parts.push(`<p class="work-run-summary">${escape(run.summary)}</p>`);
   if (run.stuckReason || failure) {
     const tone = run.outcome === 'stuck' ? 'attention' : failure?.tone || 'danger';
@@ -993,6 +1029,8 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts
     const body = `${reasonText}${outputText}${note ? `<p>${escape(note)}</p>` : ''}`;
     parts.push(ui.callout({ tone, title, body }));
   }
+  const healthSection = runHealthMarkup(run, health?.get(String(run.id)), { now });
+  if (healthSection) parts.push(healthSection);
   if (run.findings?.trim()) parts.push(`<div class="work-findings"><h4 class="overline">Findings</h4><div data-private class="prose">${markdown(run.findings, { baseLevel: 5 })}</div></div>`);
   const links = runLinks(run);
   if (links) parts.push(links);
@@ -1024,15 +1062,16 @@ function runRow(run, context, { round }) {
   const when = run.finishedAt || run.startedAt;
   const failure = runFailure(run);
   const attempt = attemptLabel(context.attempts?.get(String(run.id)));
-  const health = context.showHealth ? runningHealth(run, context.transcripts, context.now) : null;
+  const stateBadge = ui.badge({ tone: result.tone, label: result.label, title: result.title, size: 'sm' });
+  const healthBadge = runHealthBadge(run, context.health?.get(String(run.id)), context.now);
   const role = `${round ? `<span class="work-run-round">${escape(round)} · </span>` : ''}${run.writes ? 'writer' : 'reader'}${attempt ? ` · ${escape(attempt)}` : ''}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}`;
-  return `<details class="work-run" id="work-run-${escape(run.id)}" data-tone="${result.tone}"><summary><span class="work-run-lead" aria-hidden="true">${lead}</span><span class="work-run-name"><strong>${escape(run.role || 'Agent')}</strong><span class="meta">${role}</span></span>${health ? `<span class="work-run-badges">${ui.badge({ tone: result.tone, label: result.label, title: result.title, size: 'sm' })}${runHealthMarkup(health)}</span>` : ui.badge({ tone: result.tone, label: result.label, title: result.title, size: 'sm' })}<span class="work-run-numbers meta">${time !== null ? `<span class="num">${escape(duration(time))}</span>` : ''}${cost ? `<span class="num">${escape(cost)}</span>` : ''}${when ? ui.timeAgo(when) : ''}</span>${icon('chevron-down', 'work-run-chevron')}</summary><div class="work-run-body">${runBody(run, { ...context, health })}</div></details>`;
+  return `<details class="work-run" id="work-run-${escape(run.id)}" data-tone="${result.tone}"><summary><span class="work-run-lead" aria-hidden="true">${lead}</span><span class="work-run-name"><strong>${escape(run.role || 'Agent')}</strong><span class="meta">${role}</span></span>${healthBadge ? `<span class="work-run-badges">${stateBadge}${healthBadge}</span>` : stateBadge}<span class="work-run-numbers meta">${time !== null ? `<span class="num">${escape(duration(time))}</span>` : ''}${cost ? `<span class="num">${escape(cost)}</span>` : ''}${when ? ui.timeAgo(when) : ''}</span>${icon('chevron-down', 'work-run-chevron')}</summary><div class="work-run-body">${runBody(run, context)}</div></details>`;
 }
 
 function runsMarkup(detail, model) {
   const shift = latestShift(detail);
   const groups = runGroups(detail.runs, shift?.id);
-  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, showHealth: model.flags?.['work.run-health'] === true };
+  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, health: model.runHealth };
   const render = (list, continued) => list.map(group => `${group.label && !continued.has(group.key) ? `<p class="work-run-group">${escape(group.label)}</p>` : ''}${group.runs.map(run => runRow(run, context, { round: group.label })).join('')}`).join('');
   const shown = [];
   const rest = [];
@@ -1473,15 +1512,17 @@ export function statusMarkup(detail, model, { reason = null, plan = null } = {})
 /**
  * The live view at the head of a Work Item page while the `work.live-view` flag is on: the fold strip, the live
  * sentence and the flight path, from the detail and the running Run's transcript when its panel has loaded it, then
- * the questions answered from the record.
+ * the questions answered from the record. Its health is the running Run's entry from Unfold's health route, the one
+ * the Run row's badge shows, so the two never disagree.
  */
 export function liveViewMarkup(detail, model) {
   const running = [...(detail.runs || [])].reverse().find(run => run.state === 'running');
   const entry = running ? model.runTranscripts?.get?.(String(running.id)) : null;
-  const folded = entry?.entries?.length ? foldTranscript(entry.entries, { known: entry.trimmed ? null : 0 }) : null;
-  const transcript = folded?.items ?? [];
-  const now = model.now ?? Date.now();
-  const live = liveModel({ detail, transcript, plan: folded?.plan ?? null, health: running ? runningHealth(running, model.runTranscripts, now) : null, transcriptKnown: Boolean(entry?.entries?.length), transcriptMissing: entry?.data?.available === false ? entry.data.reason ?? null : null, transcriptRunId: running ? String(running.id) : undefined, now });
+  const entries = entry?.entries ?? [];
+  const transcript = entries.length ? foldTranscript(entries, { known: entry.trimmed ? null : 0 }).items : [];
+  const missing = entry?.data?.available === false ? (entry.data.reason === 'demo' ? 'demo' : 'unsupported') : !entries.length && entry?.error ? 'failed' : null;
+  const health = running ? model.runHealth?.get?.(String(running.id)) ?? null : null;
+  const live = liveModel({ detail, transcript, entries, health, transcriptKnown: entries.length > 0, transcriptMissing: missing, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
   return `<section class="card work-live lv" aria-label="Live view">${foldStrip(live)}${nowLine(live)}${needsContainment(live) ? containmentPanel(live) : ''}${flightPath(live, { id: `work-live-flight-${detail.item.id}` })}${answers(live, { layout: 'chips', ask: false })}</section>`;
 }
 

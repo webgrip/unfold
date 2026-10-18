@@ -26,11 +26,12 @@ const logInterval = 5000;
 const logLineCap = 2000;
 const logPanel = /^work-run-logs-([1-9][0-9]{0,19})$/;
 const transcriptInterval = 4000;
+const healthInterval = 30_000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null }));
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
@@ -97,6 +98,7 @@ function model() {
     askDraft: work.askDraft,
     runLogs: work.logs?.id === work.detailId ? work.logs.runs : null,
     runTranscripts: work.transcripts?.id === work.detailId ? work.transcripts.runs : null,
+    runHealth: work.health?.id === work.detailId ? work.health.runs : null,
     actions: work.actions?.id === work.detailId ? work.actions.data : null,
     userRole: state.bootstrap?.user?.role,
   };
@@ -138,11 +140,11 @@ function renderWork() {
   const transcriptScroll = new Map([...document.querySelectorAll('#app [data-run-transcript]')].map(element => [element.dataset.runTranscript, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
   renderHtml(shell(workMarkup(current), shellOptions(current)));
   if (current.detail) exposed('work.live-view', { screen: 'work', workItemId: current.detail.item.id });
-  if (current.detail) exposed('work.run-health', { screen: 'work', workItemId: current.detail.item.id });
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
   for (const element of document.querySelectorAll('#app [data-run-log]')) { const kept = logScroll.get(element.dataset.runLog); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
   for (const element of document.querySelectorAll('#app [data-run-transcript]')) { const kept = transcriptScroll.get(element.dataset.runTranscript); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
   loadUnreadTranscripts();
+  loadUnreadHealth();
   const list = $('.work-list-pane .work-list');
   if (list && listTop) list.scrollTop = listTop;
   if (target && (!document.activeElement || document.activeElement === document.body)) (document.querySelector(target) || (target.includes('ploeg-refresh') ? $('[data-action="ploeg-refresh"][data-id="toolbar"]') : null))?.focus({ preventScroll: true });
@@ -731,7 +733,6 @@ async function loadRunTranscript(runId) {
       entry.after = data.nextAfter;
       entry.data = data;
       entry.error = null;
-      entry.readAt = Date.now();
       if (!data.available || !data.hasMore) break;
     }
   } catch (error) {
@@ -786,6 +787,69 @@ function retryRunTranscript(button) {
   void loadRunTranscript(runId);
 }
 
+function runHealthEntry(runId) {
+  if (work.health?.id !== work.detailId) work.health = { id: work.detailId, runs: new Map() };
+  let entry = work.health.runs.get(runId);
+  if (!entry) { entry = { data: null, at: 0, error: null, busy: false, announced: false, wrong: new Set() }; work.health.runs.set(runId, entry); }
+  return entry;
+}
+
+const healthShape = entry => JSON.stringify([entry.data?.combined, entry.data?.reason, entry.data?.judge?.id, entry.data?.judgeState, entry.data?.stale, Boolean(entry.error)]);
+
+function runningRuns() {
+  return (state.ploegDetail?.runs || []).filter(run => run.state === 'running' && String(state.ploegDetail?.item?.id) === String(work.detailId)).map(run => String(run.id));
+}
+
+async function loadRunHealth(runId) {
+  const id = work.detailId;
+  if (!id) return false;
+  const entry = runHealthEntry(runId);
+  if (entry.busy) return false;
+  entry.busy = true;
+  const before = healthShape(entry);
+  try {
+    const data = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/health`);
+    if (work.detailId !== id || work.health?.runs.get(runId) !== entry) return false;
+    entry.data = data;
+    entry.at = Date.now();
+    entry.error = null;
+    const offTrack = data.combined?.health === 'off_track';
+    if (offTrack && !entry.announced) announce(`Run ${runId} is off track: ${data.reason}`);
+    entry.announced = offTrack;
+  } catch (error) {
+    if (work.detailId !== id || work.health?.runs.get(runId) !== entry) return false;
+    entry.error = { message: error.message, code: error.code || '' };
+  } finally { entry.busy = false; }
+  if (visible() && healthShape(entry) !== before) renderWork();
+  return true;
+}
+
+function loadUnreadHealth() {
+  if (!visible() || !work.detailId) return;
+  for (const runId of runningRuns()) if (!(work.health?.id === work.detailId && work.health.runs.has(runId))) void loadRunHealth(runId);
+}
+
+async function pollRunHealth() {
+  if (!visible() || !work.detailId) return false;
+  const running = runningRuns();
+  if (!running.length) return false;
+  await Promise.all(running.map(runId => loadRunHealth(runId)));
+  return true;
+}
+
+async function judgeWrong(button) {
+  const { id: judgement, run: runId } = button.dataset;
+  const id = work.detailId;
+  if (!judgement || !runId || !id) return;
+  button.disabled = true;
+  try {
+    await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/health/judgements/${encodeURIComponent(judgement)}/wrong`, { method: 'POST', body: '{}' });
+    runHealthEntry(runId).wrong.add(judgement);
+    announce('Recorded: this judgement was wrong.');
+    renderWork();
+  } catch (error) { button.disabled = false; notify(error.message, true); }
+}
+
 async function refreshQuietly() {
   if (!visible() || work.cancelBusy) return;
   await Promise.all([loadOverview({ quiet: true }), work.detailId ? loadDetail(work.detailId, { quiet: true }) : null]);
@@ -798,6 +862,7 @@ function registerLive() {
   live.register('work-logs', { interval: logInterval, refresh: pollRunLogs, scope: 'global' });
   document.addEventListener('toggle', loadOpenedLogs, true);
   live.register('work-transcripts', { interval: transcriptInterval, refresh: pollRunTranscripts, scope: 'global' });
+  live.register('work-health', { interval: healthInterval, refresh: pollRunHealth, scope: 'global' });
   document.addEventListener('toggle', loadOpenedTranscripts, true);
   addEventListener('scroll', schedulePane, { passive: true });
   addEventListener('resize', schedulePane, { passive: true });
@@ -1155,6 +1220,7 @@ export default {
     'work-run-log-clear': clearLogFilters,
     'work-run-log-download': downloadRunLog,
     'work-run-transcript-retry': retryRunTranscript,
+    'work-run-judge-wrong': judgeWrong,
     'work-section': jumpToSection,
     'work-context-add': () => openContext(),
     'work-ask-open': () => openAsk(),

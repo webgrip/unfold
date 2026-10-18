@@ -1,3 +1,18 @@
+## [unfold-v0.4.0-rc.85](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.84...unfold-v0.4.0-rc.85) (2026-10-18)
+
+### Added
+
+* **unfold:** fold strip glyphs, a slimmer trace, a broken-word check and agent tripwires ([276b8af](https://forgejo.webgrip.dev/webgrip/unfold/commit/276b8afcb0c419f7ac723bd032bd87bb2ac6cc1c))
+* **unfold:** live Work Item components with stories and a constraint-checked workbench ([357110a](https://forgejo.webgrip.dev/webgrip/unfold/commit/357110ab68ac6e65398074f2627f5105c3c4d1c9))
+* **unfold:** redraw the flight path and make the workbench switch stories instantly ([538f122](https://forgejo.webgrip.dev/webgrip/unfold/commit/538f122ebe91dd9394dd6bc8059c0f3f5ab2b3c9))
+* **unfold:** run the real app in the workbench from recordings and fix what it found ([26f24a8](https://forgejo.webgrip.dev/webgrip/unfold/commit/26f24a82e2d6796a2ad4b8a582efc95c03826150))
+* **unfold:** the live view on the real page, a meaning ledger, and hijack and judge states ([052d756](https://forgejo.webgrip.dev/webgrip/unfold/commit/052d7560f1b2d4bdddda19d31e9c2d3858a9f553))
+
+### Fixed
+
+* **unfold:** keep the cause when an OpenCode turn fails ([8ce9c2d](https://forgejo.webgrip.dev/webgrip/unfold/commit/8ce9c2d4601da36ade65941e7a787f9f8f318aec))
+* **unfold:** serve the live view's modules, retire the flight profile, and open a Run from its hop ([d593c94](https://forgejo.webgrip.dev/webgrip/unfold/commit/d593c9439b1f94f194337e2a10ddb60f964e43a2))
+
 ## [unfold-v0.4.0-rc.84](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.83...unfold-v0.4.0-rc.84) (2026-10-17)
 
 ### Performance

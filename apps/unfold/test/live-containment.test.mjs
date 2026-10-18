@@ -18,11 +18,11 @@ test('the panel tells the hijack in order: what it read, what it tried, which ru
   assert.match(html, /<span class="lv-contain-outcome">Not blocked<\/span>/);
   assert.match(html, /class="lv-contain-drift"/);
   assert.match(html, /Ploeg does not report rule snapshots yet/);
-  assert.match(html, /Unfold runs no judge Ask yet/);
+  assert.match(html, /only when the Team’s cards\.health\.judge flag is on/);
   assert.match(html, /never stops the Run/);
   assert.match(html, /<span class="lv-contain-verdict">AI · off track<\/span>/);
   assert.doesNotMatch(html, /abort/i);
-  assert.equal((html.match(/<span class="lv-contain-proposed">Proposed<\/span>/g) ?? []).length, 5, 'two proposed sections and three proposed actions');
+  assert.equal((html.match(/<span class="lv-contain-proposed">Proposed<\/span>/g) ?? []).length, 4, 'the rules section and three actions are proposed; the AI judge is built');
 });
 
 test('transcript text is inert and the proposed actions carry no handler', () => {
