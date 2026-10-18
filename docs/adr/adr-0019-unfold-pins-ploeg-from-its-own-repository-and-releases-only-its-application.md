@@ -1,6 +1,6 @@
 ---
-status: accepted
-date: 2026-10-03
+status: superseded by ADR-0039
+date: 2026-10-18
 decision-makers: Ryan Grippeling
 ---
 
@@ -33,7 +33,7 @@ Unfold still needs Ploeg: the Unfold application runs managed work only through 
 Chosen option: "A Git submodule at `apps/ploeg`, pinned to a commit on Ploeg's `main`", because it keeps one source of truth, gives every Unfold commit a reproducible Ploeg, and keeps the paths the qualification, the unified demo and the documentation already use.
 
 * `apps/ploeg` is a gitlink (mode `160000`) to `https://github.com/ploeg-hq/ploeg.git`. The first pin is `v0.1.0`, commit `87f8dc45a0ea768c6ab95196d8b99d481df10c65`. `mise run setup`, the CI checkouts and the documentation builds initialise it.
-* [scripts/ploeg-pin.mjs](../../scripts/ploeg-pin.mjs) refuses vendored source, another repository, and an uninitialised or modified checkout; `mise run verify` runs it. The `ploeg-pin` CI job also requires the pinned commit to be on Ploeg's `main`, and the Unfold release waits for that job.
+* [scripts/ploeg-pin.mjs](https://forgejo.webgrip.dev/webgrip/unfold/src/commit/b3d866a42db8e989e93c2e96ccd91613631f678b/scripts/ploeg-pin.mjs) refuses vendored source, another repository, and an uninitialised or modified checkout; `mise run verify` runs it. The `ploeg-pin` CI job also requires the pinned commit to be on Ploeg's `main`, and the Unfold release waits for that job.
 * A Ploeg change lands upstream first. Unfold then moves the pin in a commit scoped `ploeg`, for example `build(ploeg): pin ploeg-hq/ploeg v0.1.1`. [apps/.releaserc.cjs](../../apps/.releaserc.cjs) never releases a commit scoped `ploeg`. An Unfold change that needs the new Ploeg is a separate commit with its own scope.
 * `mise run verify` runs Ploeg's own `scripts/verify.sh` at the pin, compiles the unified demo helper against it, and runs the managed qualification with the pinned Ploeg and this Unfold. The verify cache keys those gates on the pinned commit.
 * The `unfold-v…` train versions the Unfold application only. Unfold no longer builds, signs or publishes `ploegd`, the Ploeg chart or a Go module. [scripts/publish_release.py](../../scripts/publish_release.py) refuses `ploeg` before any Git, network or file access, and the Unfold publisher takes the GitHub release out of draft itself.
@@ -81,3 +81,4 @@ Chosen option: "A Git submodule at `apps/ploeg`, pinned to a commit on Ploeg's `
 * 2026-10-04 — Unfold pins the latest Ploeg release, release candidates included, instead of a commit on Ploeg's `main`, at the owner's direction. `.gitmodules` names the release tag (`branch = v0.x.y` or `v0.x.y-rc.N`), the `ploeg-pin` job requires the gitlink to be that tag's commit on `github.com/ploeg-hq/ploeg`, and Renovate proposes each newer release tag. This replaces the main-commit rule of the decision above and the weekly main-commit proposals of the previous bullet. Ploeg tags candidates on its `development` trunk and stable releases on `main`.
 * 2026-10-13 — The pin always arrives in its own `build(ploeg)` pull request on `renovate/ploeg`, never in the shared non-major group: Ploeg release candidates count as patches, and v0.2.0-rc.18 had arrived inside `feat(ploeg): update all non-major dependencies` ([#343](https://forgejo.webgrip.dev/webgrip/unfold/pulls/343)). A separate `ploeg-docs` check names a stale or clashing combined glossary, and a weekly run checks Ploeg's newest release and `development` head ahead of the pin ([CI and release workflows](../operations/ci.md#the-ploeg-pin-pull-request)).
 * Overtakes sections 1 and 5 of [ADR-0018](adr-0018-ploeg-releases-on-its-own-schedule-behind-a-tested-contract-version.md), which split the train inside this repository. Its contract version, bundles and cross-version qualification remain proposed.
+* 2026-10-18 — Superseded by [ADR-0039](adr-0039-unfold-depends-on-a-released-ploeg-through-its-contract-bundle-and-go-module.md): Unfold depends on Ploeg's released contract bundle and Go module instead of the submodule, and a Ploeg bump merges itself and releases Unfold. The release identities, the retired Ploeg floor and Unfold's refusal to publish Ploeg stay.

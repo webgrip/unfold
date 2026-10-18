@@ -36,5 +36,5 @@ test('the hijacked fixture trips every wire it was written to, in time order, fr
   assert.deepEqual([guard.high, guard.source.title], [6, 'Read brain fixtures']);
   assert.ok(guard.signals.every((signal, index, all) => !index || all[index - 1].at <= signal.at));
   assert.deepEqual(guard.drift.map(change => change.field), ['instructions', 'skills']);
-  for (const name of ['running', 'firstTry', 'judgeDrifting', 'judgeAbort', 'stress']) assert.deepEqual(liveModel(scenarios[name].input()).guard.signals, [], name);
+  for (const name of ['running', 'firstTry', 'judgeDrifting', 'judgeRaises', 'run305Watch', 'stress']) assert.deepEqual(liveModel(scenarios[name].input()).guard.signals, [], name);
 });

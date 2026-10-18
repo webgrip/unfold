@@ -29,6 +29,6 @@ only what Unfold adds.
 - Into `ready`: work that crosses Ploeg and Unfold links
   [managed execution](../../docs/workflows/managed-execution.md) under Technical context.
 - Verification names `mise run verify`; live-provider tests stay opt-in and are named as such.
-- Protected areas for agents, in addition to tests and CI config: `apps/ploeg` (a submodule
-  pin) and production desired state, which lives in `webgrip/homelab-cluster`.
+- Protected areas for agents, in addition to tests and CI config: `apps/ploeg` (the unpacked
+  Ploeg release) and production desired state, which lives in `webgrip/homelab-cluster`.
 - Proposed behaviour is labelled as proposed in the ticket, never written as if implemented.

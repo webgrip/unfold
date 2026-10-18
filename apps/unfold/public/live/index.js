@@ -1,4 +1,4 @@
-export { liveModel, movesOf, healthRules, stages } from './model.js';
+export { liveModel, movesOf, moveRules, stages } from './model.js';
 export { flightPath } from './flight-path.js';
 export { instruments } from './instruments.js';
 export { answers, standingAnswers } from './answers.js';

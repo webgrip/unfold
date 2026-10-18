@@ -48,14 +48,14 @@ test('the shared prerelease configuration needs an existing main baseline', asyn
   }
 });
 
-test('one Unfold release selects Unfold commits and ignores the site, the Ploeg pin and changes outside the applications', async () => {
+test('one Unfold release selects Unfold commits, Ploeg release bumps included, and ignores the site and changes outside the applications', async () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-release-'));
   const previous = process.cwd();
   try {
     git(directory, 'init', '-b', 'development');
     git(directory, 'config', 'user.name', 'Unfold qualification');
     git(directory, 'config', 'user.email', 'qualification@example.invalid');
-    for (const app of ['unfold', 'ploeg', 'site']) fs.mkdirSync(path.join(directory, 'apps', app), { recursive: true });
+    for (const app of ['unfold/scripts/unified-demo', 'site']) fs.mkdirSync(path.join(directory, 'apps', app), { recursive: true });
     fs.mkdirSync(path.join(directory, 'scripts'));
     fs.mkdirSync(path.join(directory, 'docs'));
     const files = ['apps/.releaserc.cjs', 'scripts/release-policy.cjs', 'scripts/release-floors.cjs', 'scripts/release-floors.json'];
@@ -67,10 +67,10 @@ test('one Unfold release selects Unfold commits and ignores the site, the Ploeg 
     const commits = [];
     for (const [name, message, paths] of [
       ['unfold', 'fix: correct interactive work', ['apps/unfold/change.txt']],
-      ['ploeg-pin', 'build(ploeg): pin ploeg-hq/ploeg v0.1.1', ['apps/ploeg/change.txt']],
-      ['ploeg-fix', 'fix(ploeg): pin the Ploeg fix for stuck reviewers', ['apps/ploeg/change.txt']],
-      ['ploeg-breaking', 'feat(ploeg)!: pin a Ploeg with a new operator contract', ['apps/ploeg/change.txt']],
-      ['both', 'fix: show the field the newly pinned Ploeg sends', ['apps/unfold/change.txt', 'apps/ploeg/change.txt']],
+      ['ploeg-bump', 'fix(ploeg): update Ploeg to v0.1.1', ['apps/unfold/ploeg-release.json', 'apps/unfold/scripts/unified-demo/go.mod']],
+      ['ploeg-breaking', 'feat(ploeg)!: update Ploeg to a release with a new operator contract', ['apps/unfold/ploeg-release.json']],
+      ['ploeg-tooling', 'build(ploeg): fetch the Ploeg contract bundle through Harbor', ['apps/unfold/ploeg-release.json']],
+      ['both', 'fix: show the field the newly pinned Ploeg sends', ['apps/unfold/change.txt', 'apps/unfold/ploeg-release.json']],
       ['docs', 'fix: clarify shared documentation', ['docs/guide.md']],
       ['site', 'feat(site): add the landing page', ['apps/site/change.txt']],
       ['site-breaking', 'feat(site)!: move the site to a new domain', ['apps/site/change.txt']],
@@ -87,7 +87,7 @@ test('one Unfold release selects Unfold commits and ignores the site, the Ploeg 
     const input = { cwd, env: process.env, logger, stdout: process.stdout, stderr: process.stderr };
     const { options, plugins } = await getConfig(input, { repositoryUrl: 'https://example.invalid/unfold.git' });
     assert.equal(options.tagFormat, 'unfold-v${version}');
-    const expected = { unfold: 'patch', 'ploeg-pin': null, 'ploeg-fix': null, 'ploeg-breaking': null, both: 'patch', docs: null, site: null, 'site-breaking': null };
+    const expected = { unfold: 'patch', 'ploeg-bump': 'patch', 'ploeg-breaking': 'minor', 'ploeg-tooling': null, both: 'patch', docs: null, site: null, 'site-breaking': null };
     for (const commit of commits) {
       const actual = await plugins.analyzeCommits({ ...input, options, commits: [commit] });
       assert.equal(actual ?? null, expected[commit.name], commit.name);

@@ -39,7 +39,7 @@ function facts(model) {
 /**
  * Direction F, the cockpit: the flight path with its instruments, the trace of the selected attempt opening right
  * under it, and the standing answers beside it. The containment panel sits above the flight when a tripwire, a rules
- * change or a judge verdict gives a reason to look.
+ * change or an AI judge verdict gives a reason to look.
  * @param {object} model A `liveModel` result.
  * @param {{ selectedCall?: string }} [options]
  * @returns {string}

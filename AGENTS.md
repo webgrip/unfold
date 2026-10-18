@@ -11,7 +11,7 @@ Unfold turns units of work (Work Items) into pull requests that are ready for hu
 ## Rules
 
 - Trunk is `development`. Use conventional commits.
-- `apps/ploeg` is a submodule pinned to [ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg). Land Ploeg changes there first, then pin its release in a `ploeg`-scoped commit ([ADR-0019](docs/adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md)).
+- Unfold depends on a released [ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg) ([ADR-0039](docs/adr/adr-0039-unfold-depends-on-a-released-ploeg-through-its-contract-bundle-and-go-module.md)). `apps/ploeg` is its unpacked contract bundle; never edit it. Change Ploeg upstream.
 - Stage only the paths you wrote. Never use `git add -A`, `git add .` or `git commit -a`: other sessions share this checkout, and a whole-tree commit absorbs their uncommitted work.
 - Source comments are limited to machine directives and exported API documentation. Put reasoning in names, tests, docs or an ADR.
 - Unfold never executes new work types; until the engine is deleted, a managed execution never falls back to standalone.

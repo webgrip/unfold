@@ -102,6 +102,15 @@ The reviewable change Unfold captures from a Session's Workspace when its Team s
 **Not to be confused with** [Result](#result): What a Work Item delivers with its Evidence; a Candidate is one piece of that Evidence.  
 **See also:** [Session](#session), [Workspace](#workspace), [Evidence](#evidence), [Review](#review)  
 
+## Chat
+*Context: Participation · Owner: Unfold*
+
+A conversation one person has with Unfold itself in the Agents window, under the agent named Unfold beside Unfold teams. Each message is admitted by Ploeg against a Team's chat allowance and answered with that Team's Ask model, which may read Unfold through its MCP tools and act only after the person confirms each change. Unfold keeps the conversation; no Team reads it. Proposed (Unfold ADR 0049).
+
+**Not to be confused with** [Session](#session): A Session submits work to a Team; a Chat starts Team work only through a confirmed hand-off.  
+**Not to be confused with** [Ask](../reference/glossary.md#ask): An Ask is one question about one Work Item, paid from the Ask Allowance.  
+**See also:** [Session](#session), [Ask](../reference/glossary.md#ask), [Team](../reference/glossary.md#team)  
+
 ## Client Portal
 *Context: Offering · Owner: Unfold*
 
@@ -465,7 +474,7 @@ The part of a Work Item's price charged for every attempt: model tokens and comp
 ## Unfold
 *Context: System · Owner: Unfold*
 
-The product, its application and the monorepo that holds them. In the Unfold application, in the browser and the VS Code extension, people define work, follow it, steer agents and review evidence; Ploeg, pinned into the monorepo as a submodule, admits and runs every Run. Without Ploeg the application runs only a deterministic demo that makes no model calls.
+The product, its application and the monorepo that holds them. In the Unfold application, in the browser and the VS Code extension, people define work, follow it, steer agents and review evidence; Ploeg, a released dependency the monorepo pins, admits and runs every Run. Without Ploeg the application runs only a deterministic demo that makes no model calls.
 
 **Examples:** Current state: Unfold's own engine still executes delegated Steps until the system ADR-0002 migration is complete.  
 **See also:** [Ploeg](#ploeg), [Session](#session), [Step](#step)  

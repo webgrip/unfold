@@ -446,10 +446,9 @@
 .lv-fp-wire-n { font-size: 0.625rem; line-height: 1; font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; }
 
 .lv-fp-call, .lv-fp-call-line, .lv-fp-call-chip { --lv-fp-call-tone: var(--text-muted); }
-.lv-fp-call.is-on_course, .lv-fp-call-line.is-on_course, .lv-fp-call-chip.is-on_course { --lv-fp-call-tone: var(--success-fg); }
-.lv-fp-call.is-drifting, .lv-fp-call-line.is-drifting, .lv-fp-call-chip.is-drifting { --lv-fp-call-tone: var(--attention-fg); }
-.lv-fp-call.is-off_course, .lv-fp-call-line.is-off_course, .lv-fp-call-chip.is-off_course { --lv-fp-call-tone: var(--danger-fg); }
-.lv-fp-call.is-abort, .lv-fp-call-line.is-abort, .lv-fp-call-chip.is-abort { --lv-fp-call-tone: var(--danger-fg); }
+.lv-fp-call.is-on_track, .lv-fp-call-line.is-on_track, .lv-fp-call-chip.is-on_track { --lv-fp-call-tone: var(--success-fg); }
+.lv-fp-call.is-watch, .lv-fp-call-line.is-watch, .lv-fp-call-chip.is-watch { --lv-fp-call-tone: var(--attention-fg); }
+.lv-fp-call.is-off_track, .lv-fp-call-line.is-off_track, .lv-fp-call-chip.is-off_track { --lv-fp-call-tone: var(--danger-fg); }
 
 .lv-fp-call {
   top: 1.5rem;
@@ -470,10 +469,12 @@
 .lv-fp-sky:not(:has(.lv-fp-wire)) .lv-fp-call:not(.lv-fp-call-quiet) { top: 0.125rem; }
 .lv-fp-call.lv-fp-call-end { flex-direction: row-reverse; padding: 0 0.25rem 0 0.375rem; transform: translateX(calc(-100% + 0.5rem)); }
 .lv-fp-call.lv-fp-call-quiet { padding: 0; width: 1.125rem; justify-content: center; transform: translateX(-50%); }
-.lv-fp-call.is-abort { border-style: solid; background: var(--danger-fg); color: var(--bg-surface); }
 
 .lv-fp-plane.is-suspect { border-color: var(--danger-fg); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger-fg) 22%, transparent); }
 .lv-fp-plane.is-suspect.is-chip { box-shadow: none; }
+.lv-fp-plane.is-watch, .lv-fp-hold .lv-fp-plane.is-watch { border-color: var(--attention-fg); box-shadow: 0 0 0 4px color-mix(in srgb, var(--attention-fg) 22%, transparent); }
+.lv-fp-plane.is-off_track, .lv-fp-hold .lv-fp-plane.is-off_track { border-color: var(--danger-fg); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger-fg) 18%, transparent); }
+.lv-fp-plane.is-watch.is-chip, .lv-fp-plane.is-off_track.is-chip { box-shadow: none; }
 
 @media (prefers-reduced-motion: no-preference) {
   .lv-fp-plane.is-live::after {
@@ -484,7 +485,8 @@
     border: 2px solid var(--lv-live);
     animation: lv-fp-radar 2.4s var(--ease-standard) infinite;
   }
-  .lv-fp-plane.is-live.is-suspect::after { border-color: var(--danger-fg); }
+  .lv-fp-plane.is-live.is-suspect::after, .lv-fp-plane.is-live.is-off_track::after { border-color: var(--danger-fg); }
+  .lv-fp-plane.is-live.is-watch::after { border-color: var(--attention-fg); }
   .lv-fp-hold-svg rect { animation: lv-fp-circle 1.6s linear infinite; }
   @keyframes lv-fp-radar { from { transform: scale(1); opacity: 0.7; } to { transform: scale(2.2); opacity: 0; } }
   @keyframes lv-fp-circle { to { stroke-dashoffset: -18; } }
@@ -564,7 +566,8 @@
   .lv-fp-wire-chip { color: var(--attention-fg); }
   .lv-fp-wire-chip.is-high { color: var(--danger-fg); }
   .lv-fp-call-chip { color: var(--lv-fp-call-tone); }
-  .lv-fp-chip .lv-fp-plane.is-suspect { outline: 2px solid var(--danger-fg); outline-offset: -2px; border-radius: var(--radius-full); }
+  .lv-fp-chip .lv-fp-plane.is-suspect, .lv-fp-chip .lv-fp-plane.is-off_track { outline: 2px solid var(--danger-fg); outline-offset: -2px; border-radius: var(--radius-full); }
+  .lv-fp-chip .lv-fp-plane.is-watch { outline: 2px solid var(--attention-fg); outline-offset: -2px; border-radius: var(--radius-full); }
 }
 
 .lv-trace-scroll { overflow-x: auto; min-width: 0; }
@@ -886,8 +889,8 @@
 }
 
 .lv-contain-judgement { grid-template-columns: 3rem minmax(0, 1fr); }
-.lv-contain-signal.is-high, .lv-contain-judgement.is-off_course, .lv-contain-judgement.is-abort { --lv-contain-row: var(--danger-fg); }
-.lv-contain-judgement.is-on_course { --lv-contain-row: var(--success-fg); }
+.lv-contain-signal.is-high, .lv-contain-judgement.is-off_track { --lv-contain-row: var(--danger-fg); }
+.lv-contain-judgement.is-on_track { --lv-contain-row: var(--success-fg); }
 .lv-contain-time { font-family: var(--font-mono); font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--text-subtle); font-variant-numeric: tabular-nums; }
 .lv-contain-what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .lv-contain-rule, .lv-contain-verdict { font-size: var(--text-sm); line-height: var(--leading-sm); font-weight: var(--weight-semibold); color: var(--lv-contain-row); }

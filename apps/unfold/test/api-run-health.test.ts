@@ -11,7 +11,7 @@ test('the demo computes a running Run\'s health from its illustrative limits, la
   assert.equal(read.body.judgeState, 'off');
   assert.equal(read.body.health, 'on_track');
   assert.match(read.body.reason, /^\d+ of 90 min$/);
-  assert.deepEqual(read.body.signals.filter((signal: { reason: string }) => signal.reason === 'no transcript').map((signal: { key: string }) => signal.key), ['quiet', 'pace', 'repeat']);
+  assert.deepEqual(read.body.signals.filter((signal: { reason: string }) => signal.reason === 'The demo records no transcripts').map((signal: { key: string }) => signal.key), ['tripwire', 'quiet', 'pace', 'repeat']);
   const finished = await request(api.url, '/api/ploeg/work-items/105/runs/50/health');
   assert.equal(finished.status, 200, finished.text);
   assert.equal(finished.body.health, null);

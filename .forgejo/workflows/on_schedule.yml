@@ -15,14 +15,13 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: recursive
       - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           version: 2026.10.7
           install: false
           cache: false
           github_token: ''
+      - run: python3 scripts/ploeg-contract.py fetch
       - name: Report broken external links in current docs
         continue-on-error: true
         run: mise run docs-links-external
@@ -32,8 +31,6 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: recursive
       - uses: ./.forgejo/actions/tutorial-smoke
 
   ploeg-ahead:
@@ -45,28 +42,29 @@ jobs:
         ploeg: [newest-release, development]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: recursive
       - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           version: 2026.10.7
           install_args: uv
           cache: false
           github_token: ''
-      - name: Check out Ploeg's newest release or its development head
-        working-directory: apps/ploeg
+      - name: Unpack the contract bundle of Ploeg's newest release, or build one from its development head
         env:
           PLOEG: ${{ matrix.ploeg }}
         run: |
-          git fetch --quiet --tags origin development
+          set -eu
           if [ "$PLOEG" = development ]; then
-            ref=FETCH_HEAD
+            clone="${RUNNER_TEMP:-/tmp}/ploeg-development"
+            git clone --quiet --depth 1 --no-tags --branch development https://github.com/ploeg-hq/ploeg.git "$clone"
+            CONTRACT_BUNDLE_OUTPUT="$clone/.bundle" bash "$clone/scripts/contract-bundle.sh" build v0.0.0-rc.1 "$clone"
+            mise exec -- uv run --no-project python scripts/ploeg-contract.py fetch-unpinned 0.0.0-rc.1 --archive "$clone/.bundle/ploeg-contract-0.0.0-rc.1.tar.gz"
+            echo "Checking Unfold's docs against Ploeg's development head $(git -C "$clone" rev-parse HEAD), labelled 0.0.0-rc.1"
           else
-            ref=$(git -c versionsort.suffix=-rc tag --list 'v*' --sort=-v:refname | head -n 1)
+            mise exec -- uv run --no-project python scripts/ploeg-contract.py fetch-unpinned latest
           fi
-          git checkout --quiet --detach "$ref"
-          echo "Checking Unfold's docs against Ploeg $PLOEG: $(git describe --tags --always)"
       - name: Regenerate the Ploeg-derived pages as Renovate would, then fail on what it cannot fix
+        env:
+          UNFOLD_PLOEG_CONTRACT_UNPINNED: 'true'
         run: |
           mise exec -- sh scripts/renovate-ploeg-docs.sh
           mise exec -- uv run --frozen python scripts/docs.py --domain-check --without-landscape

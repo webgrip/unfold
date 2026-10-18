@@ -32,6 +32,8 @@ import { InsightService, maxEventPayloadBytes, parseInsightEvents } from './insi
 import { ReportError, ReportService, parseReport } from './reports.ts';
 import { knownSecrets, withoutKnownSecrets } from './redaction.ts';
 import { AskService, type AskAuthority } from './ask/service.ts';
+import { ChatService, type ChatAuthority } from './chat/service.ts';
+import { mcpToolbox } from './chat/tools.ts';
 import { RunHealthService } from './run-health/service.ts';
 import { RunJudge, defaultJudgeModels } from './run-health/judge.ts';
 import { noErrorReports, type ErrorReports } from './error-reports.ts';
@@ -190,6 +192,14 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   } : undefined;
   const asks = new AskService(store, ploeg, askAuthority, { demo: askDemo, gatewayUrl: config.litellm?.baseUrl, secrets, reports: errors });
   agentHost?.useAsks(asks);
+  const chatAuthority: ChatAuthority | undefined = config.ploeg || config.mode === 'demo' ? {
+    teams: async user => (await ploeg.teams(user)).map(team => ({ id: team.id, name: team.id })),
+    admit: (user, team, chatId, message) => ploeg.admitChat(user, team, chatId, message),
+    finish: (user, team, chatId) => ploeg.finishChat(user, team, chatId),
+    allowance: (user, team) => ploeg.chatAllowance(user, team),
+  } : undefined;
+  const chatTools = mcpToolbox({ delegate: (user, ttlMs) => auth.delegate(user, ttlMs), apiUrl: () => loopbackUrl(server.address() as AddressInfo), linkUrl: config.baseUrl ?? '', version: applicationVersion });
+  agentHost?.useChat(new ChatService(chatAuthority, chatTools, { demo: config.mode === 'demo', gatewayUrl: config.litellm?.baseUrl, secrets }));
   const flags = new FeatureFlags({ registry: loadRegistry(), settings: config.flags ?? { document: {}, unknown: [] }, store });
   flags.watch();
   const flagContext = (user: User): FlagContext => {

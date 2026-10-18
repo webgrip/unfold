@@ -311,7 +311,25 @@ test('the transcript is read incrementally after the last seq, and a failing rea
 test('a Ploeg without transcripts judges Time and Budget only', async () => {
   const t = setup({ flag: false, available: false });
   const view = await t.service.health(operator, '190', '305');
-  for (const key of ['quiet', 'pace', 'repeat']) assert.equal(view.signals.find(signal => signal.key === key)?.reason, 'no transcript');
+  for (const key of ['tripwire', 'quiet', 'pace', 'repeat']) assert.equal(view.signals.find(signal => signal.key === key)?.reason, 'This Ploeg does not report transcripts');
+});
+
+test('a first transcript read that fails says so instead of judging the transcript signals', async () => {
+  const t = setup({ flag: false, fail: true });
+  const view = await t.service.health(operator, '190', '305');
+  assert.equal(view.stale, false);
+  for (const key of ['tripwire', 'quiet', 'pace', 'repeat']) assert.equal(view.signals.find(signal => signal.key === key)?.reason, 'Its transcript could not be read');
+});
+
+test('a tripwire hit keeps counting after its entries leave the transcript tail', async () => {
+  const t = setup({ flag: false, entries: [planEntry(10, '08:37:00', 2), entry(11, '09:05:00', { kind: 'tool_call', toolCallId: 'a', toolKind: 'execute', input: 'cat ~/.ssh/id_ed25519', status: 'completed' })] });
+  const first = await t.service.health(operator, '190', '305');
+  assert.deepEqual([first.health, first.deciding], ['off_track', 'tripwire']);
+  for (let seq = 12; seq < 12 + judgeLimits.windowEntries + 5; seq += 1) t.state.entries.push(entry(seq, '09:05:30', { kind: 'tool_call', toolCallId: `c${seq}`, toolKind: 'read', input: `file-${seq}.ts`, status: 'completed' }));
+  t.clock.now += 30_000;
+  const later = await t.service.health(operator, '190', '305');
+  assert.deepEqual([later.health, later.deciding], ['off_track', 'tripwire']);
+  assert.match(later.reason, /^Tripwire \d+ (s|min) ago: went after credentials$/);
 });
 
 test('a health change is a product event with the deciding signal and the Run id, never transcript text', async () => {

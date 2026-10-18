@@ -21,11 +21,11 @@ export const hopEndings = Object.freeze({
   done: Object.freeze({ glyph: 'check', tone: 'done', words: 'finished' }),
   pending: Object.freeze({ glyph: 'clock', tone: 'neutral', words: 'waiting for a worker' }),
   live: Object.freeze({ glyph: null, tone: 'live', words: 'working now' }),
-  holding: Object.freeze({ glyph: null, tone: 'stuck', words: 'holding: no call for a while' }),
+  holding: Object.freeze({ glyph: null, tone: 'stuck', words: 'holding: no output for a while' }),
 });
 
 function ending(run, model) {
-  if (run.state === 'running') return model.health.word === 'stalled' ? 'holding' : 'live';
+  if (run.state === 'running') return ['watch', 'off_track'].includes(model.health?.signals.find(signal => signal.key === 'quiet')?.health) ? 'holding' : 'live';
   if (run.status === 'pending') return 'pending';
   if (run.status === 'cancelled') return 'cancelled';
   if (run.status === 'stuck') return run.machine ? 'machine' : 'stuck';
@@ -147,18 +147,31 @@ export function heightAt(points, x) {
   return points.at(-1)[1];
 }
 
-const verdictWords = Object.freeze({ on_course: 'on course', drifting: 'drifting', off_course: 'off course', abort: 'abort' });
+const verdictWords = Object.freeze({ on_track: 'on track', watch: 'watch', off_track: 'off track' });
 const labelBins = 5;
-const verdictRank = Object.freeze({ on_course: 0, drifting: 1, off_course: 2, abort: 3 });
+const verdictRank = Object.freeze({ on_track: 0, watch: 1, off_track: 2 });
+
+/**
+ * The ring the plane flies with while a Run works: `is-suspect` when a high tripwire decided an Off track health,
+ * otherwise `is-watch` or `is-off_track` after the health, and none when it is on track or not judged.
+ * @param {object} model A `liveModel` result.
+ * @returns {string}
+ */
+export function planeRing(model) {
+  const health = model.health;
+  if (!health || !['watch', 'off_track'].includes(health.health)) return '';
+  if (health.health === 'off_track' && health.deciding === 'tripwire') return 'is-suspect';
+  return `is-${health.health}`;
+}
 
 /** Where a moment falls on a hop: one of `bins` columns, so marks sit on fixed CSS positions instead of inline styles. */
 export const markBins = bins;
 
 /**
- * The marks drawn on one hop: tripwire hits from the followed Run's transcript, grouped by column, and judge
- * verdicts for the Run (proposed). Each mark sits in one of `markBins` columns across the hop's 100-wide box, at the
+ * The marks drawn on one hop: tripwire hits from the followed Run's transcript, grouped by column, and AI judge
+ * verdicts for the Run from Unfold's shadow judge. A verdict only advises: it never moves the Run. Each mark sits in one of `markBins` columns across the hop's 100-wide box, at the
  * same place the activity profile puts the call. The worst verdict is `labelled`: on its own row when the hop has no
- * tripwire marks, and otherwise only when its word fits on `side` without covering another verdict. `divertedAt` is the column of the first `off_course` or `abort`.
+ * tripwire marks, and otherwise only when its word fits on `side` without covering another verdict. `divertedAt` is the column of the first `off_track` verdict.
  * @param {object} model A `liveModel` result.
  * @param {{ run: object, from: string, end: string, count: number }} hop
  * @returns {{ wires: object[], calls: object[], divertedAt: number|null }}
@@ -184,8 +197,8 @@ export function hopMarks(model, hop) {
   }
   const wires = [...grouped.entries()].sort((a, b) => a[0] - b[0]).map(([bin, signals]) => ({ bin, signals, severity: signals.some(each => each.severity === 'high') ? 'high' : 'medium' }));
   const own = (model.judgements ?? []).filter(each => each.runId === run.id && inside(each.at));
-  const worst = own.reduce((best, each) => !best || verdictRank[each.verdict] >= verdictRank[best.verdict] ? each : best, null);
-  const placed = own.map(each => ({ bin: binOf(each.at), verdict: each.verdict, judgement: each }));
+  const worst = own.reduce((best, each) => !best || verdictRank[each.health] >= verdictRank[best.health] ? each : best, null);
+  const placed = own.map(each => ({ bin: binOf(each.at), verdict: each.health, judgement: each }));
   const room = (bin, step) => !placed.some(other => other.judgement !== worst && Math.sign(other.bin - bin) === step && Math.abs(other.bin - bin) < labelBins) && bin + step * (labelBins - 1) >= 0 && bin + step * (labelBins - 1) <= bins - 1;
   const calls = placed.map(call => {
     if (call.judgement !== worst) return { ...call, labelled: false, side: null };
@@ -193,7 +206,7 @@ export function hopMarks(model, hop) {
     const step = wires.length ? order.find(each => room(call.bin, each)) : order[0];
     return { ...call, labelled: step !== undefined, side: step === undefined ? null : step === 1 ? 'start' : 'end' };
   });
-  const turn = own.find(each => each.verdict === 'off_course' || each.verdict === 'abort');
+  const turn = own.find(each => each.health === 'off_track');
   return { wires, calls, divertedAt: turn ? binOf(turn.at) : null };
 }
 
@@ -241,8 +254,7 @@ export function flightLegs(model) {
   const pr = model.stages.find(stage => stage.id === 'pr')?.status === 'done';
   const stopped = { needs_human: ['attention', 'Needs you', 'flag'], stale: ['severe', 'Stopped retrying', 'circle-slash'], withdrawn: ['neutral', 'Withdrawn', 'circle-slash'] }[model.state];
   const lastFailure = [...model.runs].reverse().find(run => run.failure || run.status === 'cancelled');
-  const aborted = (model.judgements ?? []).at(-1)?.verdict === 'abort';
-  if (stopped) legs.push({ kind: 'stop', tone: stopped[0], label: stopped[1], glyph: stopped[2], note: aborted ? 'A judge called abort (proposed)' : lastFailure?.failure?.label ?? (model.state === 'withdrawn' ? 'Its Runs are kept' : '') });
+  if (stopped) legs.push({ kind: 'stop', tone: stopped[0], label: stopped[1], glyph: stopped[2], note: lastFailure?.failure?.label ?? (model.state === 'withdrawn' ? 'Its Runs are kept' : '') });
   else if (!model.running && (model.state === 'awaiting_review' || model.state === 'done' || pr)) legs.push({ kind: 'approach', mode: 'landed', note: '' });
   else if (!queued) legs.push({ kind: 'approach', mode: model.running ? 'forecast' : 'taxi', note: model.estimate ? model.estimate.text : 'no estimate' });
   for (const stage of model.stages.filter(entry => ['pr', 'review', 'merge', 'production'].includes(entry.id))) {
@@ -265,7 +277,7 @@ function wireWords(signals) {
 }
 
 function callWords(judgement) {
-  return `Judge model (proposed) at ${clock(judgement.at)}: ${verdictWords[judgement.verdict]}.${judgement.reason ? ` ${judgement.reason}` : ''}`;
+  return `AI judge (advisory) at ${clock(judgement.at)}: ${verdictWords[judgement.health]}. ${judgement.reason}`;
 }
 
 function markWords(model, hop) {
@@ -274,7 +286,8 @@ function markWords(model, hop) {
   const parts = [];
   if (signals.length) parts.push(`${plural(signals.length, 'call', 'calls')} crossed a tripwire${signals.some(each => each.blocked) ? `, ${signals.filter(each => each.blocked).length} blocked` : ''}.`);
   for (const call of calls) parts.push(callWords(call.judgement));
-  if (hop.end === 'live' && model.health.word === 'suspect') parts.push(`Possible hijack: ${model.health.reason}`);
+  const ring = planeRing(model);
+  if ((hop.end === 'live' || hop.end === 'holding') && ring) parts.push(ring === 'is-suspect' ? `Possible hijack: ${model.health.reason}.` : `Health ${model.health.label.toLowerCase()}: ${model.health.source === 'judge' && model.health.judge ? `AI judge: ${model.health.judge.reason}` : model.health.reason}.`);
   return parts.join(' ');
 }
 
@@ -290,7 +303,7 @@ function markHtml(hop) {
   const { wires, calls } = hop.marks;
   return [
     ...wires.map(wire => `<span class="${cx('lv-fp-wire', `is-${wire.severity}`, `lv-fp-at-${wire.bin}`)}" title="${escape(wireWords(wire.signals))}" aria-hidden="true">${icon('alert')}${wire.signals.length > 1 ? `<span class="lv-fp-wire-n">${wire.signals.length}</span>` : ''}</span>`),
-    ...calls.map(call => `<span class="${cx('lv-fp-call', `is-${call.verdict}`, `lv-fp-at-${call.bin}`, call.labelled ? '' : 'lv-fp-call-quiet', call.side === 'end' ? 'lv-fp-call-end' : '')}" title="${escape(callWords(call.judgement))}" aria-hidden="true">${icon('eye')}${call.labelled ? `<span class="lv-fp-call-word">${escape(verdictWords[call.verdict])}</span>` : ''}</span>`),
+    ...calls.map(call => `<span class="${cx('lv-fp-call', `is-${call.verdict}`, `lv-fp-at-${call.bin}`, call.labelled ? '' : 'lv-fp-call-quiet', call.side === 'end' ? 'lv-fp-call-end' : '')}" title="${escape(callWords(call.judgement))}" aria-hidden="true">${icon('eye')}${call.labelled ? `<span class="lv-fp-call-word">AI · ${escape(verdictWords[call.verdict])}</span>` : ''}</span>`),
   ].join('');
 }
 
@@ -298,7 +311,7 @@ function chipMarks(hop) {
   const { wires, calls } = hop.marks ?? { wires: [], calls: [] };
   const signals = wires.flatMap(wire => wire.signals);
   const worst = calls.reduce((best, call) => !best || verdictRank[call.verdict] >= verdictRank[best.verdict] ? call : best, null);
-  return `${signals.length ? `<span class="${cx('lv-fp-wire-chip', signals.some(each => each.severity === 'high') ? 'is-high' : 'is-medium')}">${icon('alert')}${signals.length}</span>` : ''}${worst ? `<span class="${cx('lv-fp-call-chip', `is-${worst.verdict}`)}">${icon('eye')}${escape(verdictWords[worst.verdict])}</span>` : ''}`;
+  return `${signals.length ? `<span class="${cx('lv-fp-wire-chip', signals.some(each => each.severity === 'high') ? 'is-high' : 'is-medium')}">${icon('alert')}${signals.length}</span>` : ''}${worst ? `<span class="${cx('lv-fp-call-chip', `is-${worst.verdict}`)}">${icon('eye')}AI · ${escape(verdictWords[worst.verdict])}</span>` : ''}`;
 }
 
 function hopMarkup(hop, key, model) {
@@ -318,13 +331,13 @@ function hopMarkup(hop, key, model) {
     : `Run ${run.n}, ${run.role}, ${span(run.seconds)}${run.state === 'running' ? ' so far' : ''}, ${hop.words}${run.failure ? `: ${run.failure.label}` : ''}.`;
   const extra = markWords(model, { ...hop, marks });
   const words = extra ? `${base} ${extra}` : base;
-  const suspect = end === 'live' && model.health.word === 'suspect';
+  const ring = planeRing(model);
   const badge = hop.count > 1 ? `<span class="lv-fp-count">${hop.count}×</span>` : '';
-  const marker = end === 'live' ? planeMark(cx('is-live', suspect ? 'is-suspect' : ''))
-    : end === 'holding' ? `<span class="lv-fp-hold" aria-hidden="true"><svg viewBox="0 0 60 30" class="lv-fp-hold-svg" aria-hidden="true"><rect x="3" y="3" width="54" height="24" rx="12"></rect></svg>${planeMark('is-holding')}</span>`
+  const marker = end === 'live' ? planeMark(cx('is-live', ring))
+    : end === 'holding' ? `<span class="lv-fp-hold" aria-hidden="true"><svg viewBox="0 0 60 30" class="lv-fp-hold-svg" aria-hidden="true"><rect x="3" y="3" width="54" height="24" rx="12"></rect></svg>${planeMark(cx('is-holding', ring))}</span>`
       : end === 'pending' ? planeMark('is-taxi')
         : `<span class="${cx('lv-fp-end', grounded(end) ? 'is-ground' : 'is-air', `is-${tone}`)}" aria-hidden="true">${icon(hop.glyph)}${badge}</span>`;
-  const chip = `${end === 'live' || end === 'holding' || end === 'pending' ? planeMark(cx('is-chip', suspect ? 'is-suspect' : '')) : `${icon(hop.glyph)}${badge}`}${chipMarks({ marks })}`;
+  const chip = `${end === 'live' || end === 'holding' || end === 'pending' ? planeMark(cx('is-chip', end === 'pending' ? '' : ring)) : `${icon(hop.glyph)}${badge}`}${chipMarks({ marks })}`;
   return `<li class="${cx('lv-fp-hop', `lv-g${hop.grow}`, `is-${tone}`, `is-${end}`, run.writes ? 'is-writer' : 'is-reader', diverted ? 'is-diverted' : '')}" title="${escape(words)}"><button type="button" class="lv-fp-hit" data-action="work-run" data-id="${escape(hop.runs?.at(-1)?.id ?? run.id)}" aria-label="${escape(`Open ${words}`)}"></button><div class="lv-fp-sky">${sky}${markHtml({ marks })}${marker}</div><div class="lv-fp-runway" aria-hidden="true"></div><span class="${cx('lv-fp-chip', `is-${tone}`)}" aria-hidden="true">${chip}</span></li>`;
 }
 
@@ -335,11 +348,12 @@ function head(name, note, extra = '') {
 /**
  * The flight path: one column per leg on a shared runway. The ask and the wait sit on the ground; each attempt takes
  * off and every Run is a hop whose altitude follows its activity; a machine-ended Run drops back with a neutral bolt,
- * an agent failure with a red mark, a stalled Run circles in a holding pattern, and the plane flies at the head of the
+ * an agent failure with a red mark, a Run gone quiet circles in a holding pattern, and the plane flies at the head of the
  * live Run. Ahead are the stations, with your review in the brand red. A stopped Work Item ends in a flag. A call that
- * crossed a tripwire (derived from the transcript) stands on its hop as a line up to a warning mark; a judge verdict
- * (proposed: Ploeg has no judge model yet) is a call sign above the hop, and an `off_course` or `abort` verdict
- * diverts the hop: its line turns dashed red from that moment. A suspect live Run flies a red-ringed plane. Columns
+ * crossed a tripwire (derived from the transcript) stands on its hop as a line up to a warning mark; an AI judge
+ * verdict is a call sign above the hop, and an `off_track` verdict marks the
+ * hop: its line turns dashed red from that moment, while the Run keeps flying. The live plane's ring follows the
+ * Run's health (`planeRing`): red with a halo when a high tripwire decided it. Columns
  * grow with the square root of time, so a long wait does not crowd out the work. Under 34 rem of container width the
  * same list stands up as a vertical flight log. Pure: the same model always gives the same markup, with no inline
  * styles. Every hop is a button that opens its Run on the Work Item page (`data-action="work-run"`).
