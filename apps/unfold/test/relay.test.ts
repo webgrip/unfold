@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createServer, type Server } from 'node:http';
+import { createServer, request as httpRequest, type Server } from 'node:http';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WorkerRelay, memoryCredentials, type WorkerCredentials } from '../src/runtime/relay.ts';
 import { captureInPlace } from '../src/runtime/kubernetes.ts';
+import { limitRequestBodies } from '../src/http.ts';
+import { OpenCodeRuntime, type RuntimeWorkspaces } from '../src/runtime/opencode.ts';
+import { executionFixture } from './runtime-fixture.ts';
 import type { AppConfig, Repository, Session } from '../src/types.ts';
 import { scaledTimeout, settle, testTimeout, waitFor } from './timeframes.ts';
 
@@ -294,4 +297,81 @@ test('a worker rides out refusals for its grace period and stops at once when it
   serving.relay.unregister('ws-grace');
   assert.equal(await exited, 0);
   assert.match(logs, /relay revoked the worker \(HTTP 401\); stopping/);
+});
+
+test('a request body that has not arrived by the deadline is cut off, and an authorized relayed response stream is not', { timeout: testTimeout(20_000) }, async t => {
+  const relay = new WorkerRelay();
+  const server = createServer(async (req, res) => { if (await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost'))) return; req.resume(); req.on('end', () => { res.writeHead(200); res.end('read'); }); });
+  limitRequestBodies(server, 300, req => relay.streamingUpload(req));
+  const port = await listen(server);
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const slowUpload = await new Promise<string>(resolve => {
+    const upload = httpRequest({ host: '127.0.0.1', port, method: 'POST', path: '/api/anything', headers: { 'content-type': 'text/plain', 'transfer-encoding': 'chunked' } });
+    upload.on('response', () => resolve('answered'));
+    upload.on('error', error => resolve((error as NodeJS.ErrnoException).code ?? 'error'));
+    upload.write('a body that never ends');
+  });
+  assert.equal(slowUpload, 'ECONNRESET', 'a body still arriving after the deadline is cut off');
+  const token = relay.register('ws-stream');
+  const pending = relay.fetcher('ws-stream')('http://workspace/event');
+  const polled = await (await fetch(`http://127.0.0.1:${port}/api/relay/ws-stream/requests?wait=1000`, { headers: { authorization: `Bearer ${token}` } })).json();
+  const upload = httpRequest({ host: '127.0.0.1', port, method: 'POST', path: `/api/relay/ws-stream/responses/${polled.requests[0].id}`, headers: { authorization: `Bearer ${token}`, 'x-relay-status': '200', 'x-relay-headers': '{"content-type":"text/event-stream"}', 'transfer-encoding': 'chunked' } });
+  upload.on('error', () => {});
+  t.after(() => upload.destroy());
+  const ticks = setInterval(() => upload.write('data: {}\n\n'), 100);
+  t.after(() => clearInterval(ticks));
+  const reader = (await pending).body!.getReader();
+  let received = '';
+  const until = Date.now() + 1200;
+  while (Date.now() < until) received += new TextDecoder().decode((await reader.read()).value);
+  assert.ok(received.split('data:').length > 8, 'the relayed stream kept flowing past four deadlines');
+});
+
+test('a relayed response that resets mid-body is read again and the turn completes, and the relay logs the interruption with its session', { timeout: testTimeout(30_000) }, async t => {
+  const relay = new WorkerRelay();
+  const relayServer = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
+  limitRequestBodies(relayServer, 300, req => relay.streamingUpload(req));
+  const relayPort = await listen(relayServer);
+  const messages: unknown[] = [];
+  const counts = { event: 0, message: 0 };
+  const harness = createServer(async (req, res) => {
+    for await (const _chunk of req) {}
+    const path = new URL(req.url ?? '/', 'http://workspace').pathname;
+    const json = (value: unknown) => { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(value)); };
+    if (path === '/event') { counts.event++; res.writeHead(200, { 'content-type': 'text/event-stream' }); const ticks = setInterval(() => res.write('data: {"type":"server.heartbeat","properties":{}}\n\n'), 100); req.on('close', () => clearInterval(ticks)); return; }
+    if (path === '/session') return json({ id: 'ses_reset' });
+    if (path === '/session/status') return json({});
+    if (path === '/permission' || path === '/question' || path.endsWith('/children') || path.endsWith('/diff')) return json([]);
+    if (path.endsWith('/prompt_async')) {
+      messages.push({ info: { id: 'msg_prompt', role: 'user' }, parts: [] });
+      setTimeout(() => messages.push({ info: { id: 'msg_answer', role: 'assistant', time: { created: 1, completed: 2 }, finish: 'stop', cost: 0.01 }, parts: [{ type: 'text', text: 'Done despite the reset.' }] }), 1500);
+      res.writeHead(204); res.end(); return;
+    }
+    if (path.endsWith('/message') && ++counts.message === 3) {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.write(`[${JSON.stringify({ info: { id: 'msg_prompt', role: 'user' }, parts: [{ type: 'text', text: 'x'.repeat(65536) }] }).slice(0, 40000)}`);
+      setTimeout(() => res.socket?.destroy(), 50);
+      return;
+    }
+    if (path.endsWith('/message')) return json(messages);
+    res.writeHead(404); res.end();
+  });
+  const harnessPort = await listen(harness);
+  const token = relay.register('ws-reset');
+  const worker = startWorker(`http://127.0.0.1:${relayPort}/api/relay/ws-reset`, token, `http://127.0.0.1:${harnessPort}`);
+  const logged: string[] = [];
+  const original = console.error;
+  console.error = (...line: unknown[]) => { logged.push(line.map(String).join(' ')); };
+  t.after(() => { console.error = original; worker.kill('SIGKILL'); relayServer.closeAllConnections(); relayServer.close(); harness.closeAllConnections(); harness.close(); });
+  await relay.waitForWorker('ws-reset', new AbortController().signal, scaledTimeout(10_000));
+  const workspaces: RuntimeWorkspaces = { prepare: async () => { throw new Error('prepared already'); }, credentials: () => ({ username: 'opencode', password: 'secret' }), executionEnvironment: () => ({}), dispose: async () => {}, transport: () => relay.fetcher('ws-reset') };
+  const runtime = new OpenCodeRuntime({ models: [{ id: 'coding', providerId: 'litellm', modelId: 'coding', name: 'Coding' }], runtime: { timeoutMs: 20_000 } } as AppConfig, workspaces);
+  const turn = executionFixture({ runtime: 'opencode', role: { id: 'builder', name: 'Builder', mode: 'write', instruction: 'Change it' }, workspace: { id: 'ws-reset', backend: 'kubernetes', directory: '/workspace/repository', endpoint: 'relay://ws-reset' }, verify: ['npm', 'test'], prompt: 'Change it', signal: new AbortController().signal, emit: () => {} });
+  turn.session.id = 'ws-reset';
+  const result = await runtime.execute(turn);
+  assert.equal(result.summary, 'Done despite the reset.');
+  assert.ok(counts.message > 3, 'the turn read its state again after the reset');
+  assert.ok(logged.some(line => line.includes('"event":"runtime.observation_retried"') && line.includes('"session":"ws-reset"')), logged.join('\n'));
+  assert.ok(logged.some(line => line.includes('"event":"relay.response_interrupted"') && line.includes('"session":"ws-reset"') && line.includes('/session/ses_reset/message')), logged.join('\n'));
+  assert.equal(counts.event, 1, 'the relayed event stream outlived the request body deadline instead of being cut and reopened');
 });

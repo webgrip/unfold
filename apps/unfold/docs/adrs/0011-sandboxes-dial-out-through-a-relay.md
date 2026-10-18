@@ -21,3 +21,5 @@ Reconsider the transport when the estate has an inbound path that carries identi
 ## Update, 2026-10-18
 
 Worker tokens no longer live only in memory. The relay keeps each token's SHA-256 digest in the store and a `revoked` marker once the workspace is released, so a restarted workbench accepts a running worker and keeps refusing a released one ([ADR 0051](0051-a-running-session-survives-a-workbench-restart.md)).
+
+A relayed response is a request from the worker whose body lasts as long as the response it carries, such as OpenCode's event stream. The workbench's 15-second limit on receiving a request body used to cut every such stream after 15 to 45 seconds (Node's `requestTimeout`, checked every 30 seconds), which the worker logged as `response relay for … ended: ECONNRESET`. The limit now exempts an authorized relayed response, and every other request keeps it. When a relayed response does end early, the relay logs `relay.response_interrupted` with the session, and the OpenCode adapter reads the turn's state again up to five times (`runtime.observation_retried`) before it fails the turn; it never sends a prompt again.

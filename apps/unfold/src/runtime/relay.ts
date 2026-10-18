@@ -45,6 +45,7 @@ export class WorkerRelay {
   private readonly poolWaiters = new Map<string, Set<() => void>>();
   private poolToken?: Buffer;
   private readonly credentials: WorkerCredentials;
+  private readonly uploads = new WeakSet<IncomingMessage>();
   private closed = false;
   readonly basePath = '/api/relay/';
 
@@ -91,6 +92,9 @@ export class WorkerRelay {
     for (const wake of registration.waiters) wake();
     this.registrations.delete(workspaceId);
   }
+
+  /** Whether this request is an authorized worker streaming a relayed response, whose body lasts as long as the response it carries. */
+  streamingUpload(req: IncomingMessage): boolean { return this.uploads.has(req); }
 
   /**
    * Stops serving workers: every waiting poll is answered at once and every later relay request gets 503 with its
@@ -236,7 +240,13 @@ export class WorkerRelay {
       try { headers = JSON.parse(String(req.headers['x-relay-headers'] ?? '{}')); } catch {}
       if (!Number.isInteger(status) || status < 200 || status > 599) { pending.fail(new RuntimeFailure('harness_rejected', 'runtime', 'unknown', undefined, 'The worker relayed an invalid status')); json(400, { error: { code: 'invalid_status', message: 'x-relay-status must be an HTTP status code.' } }); return true; }
       if (pending.cancelled) { req.resume(); json(200, { ok: true, cancelled: true }); return true; }
-      pending.abortIncoming = () => req.destroy();
+      let consumerCancelled = false;
+      pending.abortIncoming = () => { consumerCancelled = true; req.destroy(); };
+      this.uploads.add(req);
+      req.on('close', () => {
+        if (req.complete || consumerCancelled) return;
+        console.error(JSON.stringify({ level: 'warn', event: 'relay.response_interrupted', session: match[1], request: match[3], method: pending.method, path: pending.path.split('?')[0], status, message: 'The worker\'s relayed response ended before its body was complete.' }));
+      });
       const stream = Readable.toWeb(req) as ReadableStream<Uint8Array>;
       const safeHeaders = new Headers();
       for (const [key, value] of Object.entries(headers)) if (typeof value === 'string' && !/^(content-length|transfer-encoding|connection)$/i.test(key)) safeHeaders.set(key, value);

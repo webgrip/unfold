@@ -426,7 +426,7 @@ VS Code's Agent Merge (`session/configChanged` with only `config.agentMerge`) ne
 
 Routes under `/api/relay/` are for sandbox workers, authenticated by per-workspace or pool bearer tokens rather than login cookies, and are not part of the operator contract.
 
-A refused worker poll answers `401` with `error.code` `revoked` when the workspace's credential was revoked, which tells the worker to stop at once, and `unauthorized` otherwise, which a worker retries for `UNFOLD_RELAY_REFUSAL_GRACE_MS` (default 120000) before it stops.
+A refused worker poll answers `401` with `error.code` `revoked` when the workspace's credential was revoked, which tells the worker to stop at once, and `unauthorized` otherwise, which a worker retries for `UNFOLD_RELAY_REFUSAL_GRACE_MS` (default 120000) before it stops. A worker's upload of a relayed response is exempt from the 15-second request-body limit every other request keeps; one that ends before its body is complete is logged as `relay.response_interrupted` with the session, the relayed method and path.
 
 Candidate access uses the same owner/administrator checks as the session. A successful export preserves a reviewable change; it does not certify independent verification, authorize publication or merge anything. Availability and limitations are explicit in the metadata. Native harness history and credentials are not portable candidate contents.
 

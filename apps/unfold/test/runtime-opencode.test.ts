@@ -87,8 +87,8 @@ test('OpenCode never retries an ambiguous paid prompt and excludes raw error bod
 });
 
 test('a call that fails during a turn names itself in the failure, without the response body', async () => {
-  const runtime = new OpenCodeRuntime(config, manager, wire({ failPermissionList: 502 }).fetcher);
-  await assert.rejects(runtime.execute(context([])), error => error instanceof RuntimeFailure && error.category === 'harness_rejected' && error.stage === 'execution' && error.promptAcceptance === 'accepted' && error.httpStatus === 502 && error.detail === 'GET /permission answered HTTP 502' && !JSON.stringify(error).includes('secret-opencode-body'));
+  const runtime = new OpenCodeRuntime(config, manager, wire({ failPermissionList: 500 }).fetcher);
+  await assert.rejects(runtime.execute(context([])), error => error instanceof RuntimeFailure && error.category === 'harness_rejected' && error.stage === 'execution' && error.promptAcceptance === 'accepted' && error.httpStatus === 500 && error.detail === 'GET /permission answered HTTP 500' && !JSON.stringify(error).includes('secret-opencode-body'));
 });
 
 test('an error OpenCode reports on the assistant message is kept in the failure', async () => {

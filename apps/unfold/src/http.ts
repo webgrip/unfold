@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { actionContext, channelOf, confirmationOf, describeAction, isAction, outcomeOf, recordedInputs } from './action-records.ts';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
 import { Auth, editorCredentialDays, editorLabel, type EditorRequestView } from './auth.ts';
@@ -155,6 +155,21 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
     if (origin !== expected) fault(403, 'origin', 'This request came from another origin.');
   }
   if (req.headers['sec-fetch-site'] === 'cross-site') fault(403, 'origin', 'Cross-site requests are not allowed.');
+}
+
+const requestBodyLimitMs = 15000;
+
+/**
+ * Destroys a request whose body has not fully arrived within `withinMs`, as Node's server-wide `requestTimeout` does,
+ * except a request `streams` says carries a long-lived stream, such as a relayed response.
+ */
+export function limitRequestBodies(server: Server, withinMs: number, streams: (req: IncomingMessage) => boolean): void {
+  server.requestTimeout = 0;
+  server.on('request', (req: IncomingMessage) => {
+    if (req.complete) return;
+    const timer = setTimeout(() => { if (!req.complete && !streams(req)) req.destroy(); }, withinMs).unref();
+    req.once('close', () => clearTimeout(timer));
+  });
 }
 
 export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports) {
@@ -972,7 +987,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     });
     void actionContext.run({ via: channel, confirmation }, () => handle(req, res));
   });
-  server.requestTimeout = 15000;
+  limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;
   return { server, cards, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); }, reports };
 }
