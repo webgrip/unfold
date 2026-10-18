@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { attributionLine, linkedSessionPage, linkedSessionsMarkup, linkedStatusLine } from '../public/core/linked-sessions.js';
+import { agentsText, attributionLine, linkedSessionPage, linkedSessionsMarkup, linkedStatusLine } from '../public/core/linked-sessions.js';
 import { setupSteps } from '../public/views/linked-sessions.js';
 
 const now = Date.parse('2026-10-17T10:00:00.000Z');
@@ -41,4 +41,10 @@ test('the setup steps name this workbench and never show a real token', () => {
   assert.match(steps, /UNFOLD_URL=https:\/\/unfold\.example\.org npm --prefix apps\/unfold run mcp -- login/);
   assert.match(steps, /\/plugin install unfold@unfold/);
   assert.match(steps, /vle_…/);
+});
+
+test('a commit row says which agents wrote its AI lines', () => {
+  assert.equal(agentsText({ main: 3, 'code-reviewer': 10 }), 'main agent 3 · code-reviewer 10');
+  assert.match(agentsText(undefined), /—/);
+  assert.match(linkedSessionPage({ ...session, commits: [{ ...session.commits[0], agents: { 'code-reviewer': 12 } }] }, { now }), /code-reviewer 12/);
 });

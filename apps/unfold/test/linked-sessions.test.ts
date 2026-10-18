@@ -216,3 +216,16 @@ test('the API takes hook reports from a signed-in person, lists them as theirs a
   const actions = await request(app.url, '/api/actions', { cookie });
   assert.equal(actions.body.actions.some((record: { action: string }) => record.action.includes('linked-sessions')), false);
 });
+
+test('a commit counts its AI lines per agent from the conversation URLs of its Agent Trace record', async () => {
+  const { traceLinesByAgent } = await import('../src/agent-trace.ts');
+  const record = parseAgentTrace(trace({ files: [{ path: 'src/a.ts', conversations: [
+    { url: `${base}/#linked-session/x`, contributor: { type: 'ai' }, ranges: [{ start_line: 1, end_line: 3 }] },
+    { url: `${base}/#linked-session/x?agent=code-reviewer`, contributor: { type: 'ai' }, ranges: [{ start_line: 5, end_line: 14 }, { start_line: 20, end_line: 20, contributor: { type: 'human' } }] },
+  ] }] }));
+  assert.deepEqual(traceLinesByAgent(record), { main: 3, 'code-reviewer': 10 });
+  const linked = service();
+  await linked.report(owner, event({ event: 'commit', commit: { sha, subject: 'fix', trailer: false } }), base);
+  linked.addTrace(owner, '0f6c1c9e-1111-4222-8333-944445555666', record);
+  assert.deepEqual((await linked.view(owner, '0f6c1c9e-1111-4222-8333-944445555666', base)).commits[0].agents, { main: 3, 'code-reviewer': 10 });
+});

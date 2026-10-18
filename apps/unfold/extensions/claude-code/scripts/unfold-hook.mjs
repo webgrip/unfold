@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync, renameSync, openSync, readSync, fstatSync, closeSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, renameSync, openSync, readSync, fstatSync, closeSync, existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, relative, isAbsolute } from 'node:path';
-import { addedLines, attribute, remember, traceRecord, writtenText } from './agent-trace.mjs';
+import { dirname, join, relative, isAbsolute } from 'node:path';
+import { addedLines, attribute, mainAgent, remember, traceRecord, writtenText } from './agent-trace.mjs';
 
 const unfoldUrl = (process.env.UNFOLD_URL ?? '').trim().replace(/\/+$/, '');
 const token = (process.env.UNFOLD_TOKEN ?? '').trim();
@@ -19,7 +19,11 @@ function stateDir() {
 }
 
 function loadState(sessionId) {
-  try { return JSON.parse(readFileSync(join(stateDir(), `${sessionId}.json`), 'utf8')); } catch { return { written: {}, head: '', link: '', workItems: [], model: '', harnessVersion: '' }; }
+  let state;
+  try { state = JSON.parse(readFileSync(join(stateDir(), `${sessionId}.json`), 'utf8')); } catch { state = { link: '', workItems: [], model: '', harnessVersion: '' }; }
+  state.repos ??= {};
+  if (state.written || state.head) { state.legacy = { written: state.written ?? {}, head: state.head ?? '' }; delete state.written; delete state.head; }
+  return state;
 }
 
 function saveState(sessionId, state) {
@@ -81,21 +85,33 @@ async function report(input, state, event, extra = {}) {
   return { answer, repo };
 }
 
+function tracked(state, top) {
+  if (!state.repos[top]) {
+    state.repos[top] = state.legacy ? { ...state.legacy } : { written: {}, head: git(top, ['rev-parse', 'HEAD']) };
+    delete state.legacy;
+  }
+  return state.repos[top];
+}
+
 async function commits(input, state) {
   learn(input, state);
-  const cwd = input.cwd ?? process.cwd();
-  const repo = repository(cwd);
-  if (!repo?.head || repo.head === state.head) return;
-  const fresh = state.head ? git(cwd, ['rev-list', '--max-count=10', `${state.head}..${repo.head}`]).split('\n').filter(Boolean).reverse() : [repo.head];
-  state.head = repo.head;
-  for (const sha of fresh) {
-    const message = git(cwd, ['show', '-s', '--format=%B', sha]);
-    await report(input, state, 'commit', { commit: { sha, subject: message.split('\n')[0].slice(0, 200), trailer: /^Unfold-Session: /m.test(message) } });
-    const files = attribute(addedLines(git(cwd, ['show', '--format=', '--unified=0', '--no-color', '--no-renames', '--no-ext-diff', sha])), state.written);
-    const record = traceRecord({ revision: sha, timestamp: git(cwd, ['show', '-s', '--format=%cI', sha]) || new Date().toISOString(), files, sessionId: input.session_id, sessionUrl: state.link || `${unfoldUrl}/#linked-session/${encodeURIComponent(input.session_id)}`, remoteUrl: remoteUrl(), model: state.model, harnessVersion: state.harnessVersion, workItems: state.workItems });
-    if (!record) continue;
-    git(cwd, ['notes', '--ref=agent-trace', 'add', '-f', '-F', '-', sha], `${JSON.stringify(record)}\n`);
-    await post(`/api/linked-sessions/${encodeURIComponent(input.session_id)}/traces`, record);
+  const here = repository(input.cwd ?? process.cwd());
+  if (here) tracked(state, here.top);
+  for (const top of Object.keys(state.repos).slice(0, 20)) {
+    const repo = state.repos[top];
+    const head = git(top, ['rev-parse', 'HEAD']);
+    if (!head || head === repo.head) continue;
+    const fresh = repo.head ? git(top, ['rev-list', '--max-count=10', `${repo.head}..${head}`]).split('\n').filter(Boolean).reverse() : [head];
+    repo.head = head;
+    for (const sha of fresh) {
+      const message = git(top, ['show', '-s', '--format=%B', sha]);
+      await report(input, state, 'commit', { commit: { sha, subject: message.split('\n')[0].slice(0, 200), trailer: /^Unfold-Session: /m.test(message) } });
+      const files = attribute(addedLines(git(top, ['show', '--format=', '--unified=0', '--no-color', '--no-renames', '--no-ext-diff', sha])), repo.written);
+      const record = traceRecord({ revision: sha, timestamp: git(top, ['show', '-s', '--format=%cI', sha]) || new Date().toISOString(), files, sessionId: input.session_id, sessionUrl: state.link || `${unfoldUrl}/#linked-session/${encodeURIComponent(input.session_id)}`, remoteUrl: remoteUrl(), model: state.model, harnessVersion: state.harnessVersion, workItems: state.workItems });
+      if (!record) continue;
+      git(top, ['notes', '--ref=agent-trace', 'add', '-f', '-F', '-', sha], `${JSON.stringify(record)}\n`);
+      await post(`/api/linked-sessions/${encodeURIComponent(input.session_id)}/traces`, record);
+    }
   }
 }
 
@@ -112,7 +128,7 @@ async function handle(input) {
     case 'SessionStart': {
       learn(input, state);
       const { answer, repo } = await report(input, state, 'start', input.session_title ? { title: input.session_title } : {});
-      if (repo?.head && !state.head) state.head = repo.head;
+      if (repo) tracked(state, repo.top);
       const hookSpecificOutput = { hookEventName: 'SessionStart', additionalContext: String(answer.context ?? '') };
       if (answer.suggestedTitle && !input.session_title && ['startup', 'resume', 'fork'].includes(input.source)) hookSpecificOutput.sessionTitle = answer.suggestedTitle;
       output.hookSpecificOutput = hookSpecificOutput;
@@ -124,11 +140,15 @@ async function handle(input) {
     case 'SessionEnd': await commits(input, state); await report(input, state, 'end'); break;
     case 'PostToolUse': {
       if (editingTools.has(input.tool_name)) {
-        const repo = repository(input.cwd ?? process.cwd());
-        const file = String(input.tool_input?.file_path ?? input.tool_input?.notebook_path ?? '');
-        if (repo && file) {
-          const path = relative(repo.top, isAbsolute(file) ? file : join(input.cwd ?? process.cwd(), file));
-          if (!path.startsWith('..')) remember(state.written, path.split('\\').join('/'), writtenText(input.tool_name, input.tool_input));
+        const given = String(input.tool_input?.file_path ?? input.tool_input?.notebook_path ?? '');
+        const file = given && (isAbsolute(given) ? given : join(input.cwd ?? process.cwd(), given));
+        let folder = file ? dirname(file) : '';
+        while (folder && !existsSync(folder) && dirname(folder) !== folder) folder = dirname(folder);
+        const top = folder ? git(folder, ['rev-parse', '--show-toplevel']) : '';
+        if (top) {
+          const path = relative(top, file);
+          const agent = typeof input.agent_type === 'string' && input.agent_type ? input.agent_type.slice(0, 80) : input.agent_id ? 'subagent' : mainAgent;
+          if (!path.startsWith('..')) remember(tracked(state, top).written, path.split('\\').join('/'), writtenText(input.tool_name, input.tool_input), agent);
         }
       } else if (input.tool_name === 'Bash') {
         await commits(input, state);

@@ -9,8 +9,8 @@ This plugin reports your own Claude Code sessions to Unfold and links each one t
 | `SessionStart` | `start`, with the repository, branch, model and Claude Code version | Gives the session its Unfold page, its session id and the `Unfold-Session:` trailer as `additionalContext`. Sets `sessionTitle` from the first Work Item when the session has no title |
 | `UserPromptSubmit` | `prompt` (never the prompt itself) | |
 | `Notification` | `waiting`, for `permission_prompt`, `idle_prompt`, `elicitation_dialog` and `agent_needs_input` only | |
-| `PostToolUse` on `Write`, `Edit`, `MultiEdit` and `NotebookEdit` | Nothing | Remembers fingerprints of the lines written, per repository file, in `${CLAUDE_PLUGIN_DATA}/sessions/<id>.json` |
-| `PostToolUse` on `Bash` | `commit` for each new commit since the last one it saw. Also any pull request address that a `pr create` command printed | Builds the commit's Agent Trace record, writes it to `refs/notes/agent-trace` and sends it to `POST /api/linked-sessions/<id>/traces` |
+| `PostToolUse` on `Write`, `Edit`, `MultiEdit` and `NotebookEdit` | Nothing | Remembers fingerprints of the lines written, per file and per repository, and which agent wrote each: `main`, or the subagent's `agent_type`. They are kept in `${CLAUDE_PLUGIN_DATA}/sessions/<id>.json`. The repository is the one the file is in, so a subagent working in its own git worktree is followed too |
+| `PostToolUse` on `Bash` | `commit` for each new commit since the last one it saw, in every repository and worktree the session edited. Also any pull request address that a `pr create` command printed | Builds the commit's Agent Trace record, writes it to `refs/notes/agent-trace` and sends it to `POST /api/linked-sessions/<id>/traces` |
 | `Stop` | Any new commits, then `idle` | |
 | `SessionEnd` | Any new commits, then `end` | |
 
@@ -22,7 +22,7 @@ This plugin reports your own Claude Code sessions to Unfold and links each one t
 
 ## How a line is attributed
 
-A line added by a commit is the agent's when its trimmed text matches a line this session's editing tools wrote to the same file. A short line, such as `}` or a blank line, follows the line directly before or after it. Consecutive agent lines form one range, which carries `content_hash: sha256:<16 hex>` of its text. Lines the session did not write are left out.
+A line added by a commit is the agent's when its trimmed text matches a line this session's editing tools wrote to the same file. A short line, such as `}` or a blank line, follows the line directly before or after it. Consecutive lines by one agent form one range, which carries `content_hash: sha256:<16 hex>` of its text. Each agent gets its own conversation: the main agent at the session's Unfold page, and a subagent at that page with `?agent=<type>`, with a `parent-session` link back. `metadata["dev.unfoldhq"].agents` lists them. Lines the session did not write are left out.
 
 The record's conversation `url` is the session's Unfold page. Its `related` links name the Remote Control session and the Work Items. Unfold's own fields are in `metadata["dev.unfoldhq"]`, with `method: "line-fingerprint"`.
 
