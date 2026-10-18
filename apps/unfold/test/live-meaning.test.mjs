@@ -12,10 +12,26 @@ import { instruments } from '../public/live/instruments.js';
 import { answers } from '../public/live/answers.js';
 import { runHealthBadge, runHealthMarkup } from '../public/ploeg.js';
 import { healthEntry } from '../public/live/stories/shared.js';
+import { workView } from '../public/live/work-view.js';
+import { workInputOf } from '../public/live/work-fixtures.js';
+import { acceptanceLedger, roleRoster, decisionDock, intentBar, leaseBaton, originStamp, presenceStack, spendTape, timeline } from '../public/live/work-parts.js';
 
-const components = ['flight', 'folds', 'dial', 'trace', 'instruments', 'answers', 'containment', 'health'];
+const components = ['flight', 'folds', 'dial', 'trace', 'instruments', 'answers', 'containment', 'health', 'timeline', 'intent', 'dock', 'roles', 'tape', 'ledger', 'people'];
 const containmentUrl = new URL('../public/live/containment.js', import.meta.url);
 const containment = await access(containmentUrl).then(() => import(containmentUrl.href), () => null);
+
+function workRenders(name) {
+  const views = ['unfold', 'tracker'].map(origin => workView(workInputOf(name, { origin })));
+  return {
+    timeline: views.flatMap(view => ['chat', 'log', 'compact'].map(layout => timeline(view, { layout }))),
+    intent: views.map(view => intentBar(view)),
+    dock: views.map(view => decisionDock(view, { quiet: true })),
+    roles: views.flatMap(view => [roleRoster(view), leaseBaton(view)]),
+    tape: views.map(spendTape),
+    ledger: views.map(acceptanceLedger),
+    people: views.flatMap(view => [originStamp(view), presenceStack(view), presenceStack(view, { names: true })]),
+  };
+}
 
 function renders(model) {
   const out = {
@@ -36,7 +52,7 @@ test('every mark a live component draws in every scenario has an entry in the me
   const names = Object.keys(scenarios);
   assert.ok(names.length > 0);
   for (const name of names) {
-    const output = renders(liveModel(scenarios[name].input()));
+    const output = { ...renders(liveModel(scenarios[name].input())), ...workRenders(name) };
     for (const component of components) {
       for (const html of output[component]) assert.deepEqual(unexplained(html, component), [], `${name} ${component}: these classes mean nothing in the ledger`);
     }

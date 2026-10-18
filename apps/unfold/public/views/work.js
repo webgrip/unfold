@@ -75,6 +75,8 @@ function model() {
     sessions: state.sessions,
     linkedSessions: work.linked?.id === work.detailId ? work.linked.data : null,
     userId: state.bootstrap?.user?.id,
+    userName: state.bootstrap?.user?.name,
+    workLayout: prefs.get('workLayout'),
     trackerUrl: state.ploeg?.trackerUrl,
     reviewFacts: Object.fromEntries(work.reviewFacts),
     demoMode: state.bootstrap?.mode === 'demo',
@@ -222,7 +224,7 @@ function observeActions() {
 }
 
 function focusTitle() {
-  const title = $('#ploeg-item-title');
+  const title = $('#ploeg-item-title') || $('.work-detail-layout .lv-page-title');
   if (!title || !state.ploegDetail) return;
   title.focus({ preventScroll: true });
   if (title.getBoundingClientRect().top < 0) window.scrollTo({ top: 0 });
@@ -412,6 +414,30 @@ function openAsk(question = '') {
   const dialog = openPloegDialog(askDialogMarkup(detail, { question }));
   dialog.querySelector('#work-ask-question')?.focus();
   dialog.addEventListener('close', () => { if (!work.askBusy) $('[data-action="work-ask-open"]')?.focus(); }, { once: true });
+}
+
+function chooseLayout(button) {
+  const layout = button.dataset.id;
+  if (!prefs.set('workLayout', layout)) return;
+  exposed('work.layouts', { screen: 'work', workItemId: work.detailId });
+  track('work.layout.chosen');
+  renderWork();
+}
+
+async function submitSteer(data, form) {
+  const session = form.dataset.session;
+  const text = String(data.text ?? '').trim();
+  const field = form.querySelector('[name="text"]');
+  if (!text) { field?.setAttribute('aria-invalid', 'true'); field?.focus(); return; }
+  if (!session || form.dataset.id !== work.detailId) return;
+  field?.removeAttribute('aria-invalid');
+  try {
+    await api(`/api/sessions/${encodeURIComponent(session)}/messages`, { method: 'POST', body: JSON.stringify({ text }) });
+    form.reset();
+    notify('Sent. The running Run reads it where its Harness allows, otherwise the next Run does.');
+  } catch (error) {
+    notify(error.message || 'Unfold could not send the message.', true);
+  }
 }
 
 async function submitAsk(data, form) {
@@ -1224,6 +1250,7 @@ export default {
     'work-section': jumpToSection,
     'work-context-add': () => openContext(),
     'work-ask-open': () => openAsk(),
+    'work-layout': chooseLayout,
     'work-ask-model': askModelAnyway,
     'work-ask-again': askAgain,
     'work-actions-retry': () => { if (work.detailId) { work.actions = null; renderWork(); void loadActions(work.detailId); } },
@@ -1234,7 +1261,7 @@ export default {
     'trace-dispute': openCrackStep('dispute'),
     'trace-resolve': openCrackStep('resolve'),
   },
-  forms: { 'trace-step': submitTraceStep, 'work-context': submitContext, 'work-ask': submitAsk },
+  forms: { 'trace-step': submitTraceStep, 'work-context': submitContext, 'work-ask': submitAsk, 'work-steer': submitSteer },
   inputs: { '[data-run-log-search]': searchRunLog },
   changes: {
     '#ploeg-team': changeTeam,

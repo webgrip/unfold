@@ -51,6 +51,22 @@
         "labs": true
       }
     },
+    "work.layouts": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": { "$ref": "labs-choice" },
+      "metadata": {
+        "kind": "experiment",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-18",
+        "expires": "2027-01-18",
+        "title": "Work Item layouts",
+        "description": "Adds a layout switch to the Work Item page with five ways to show one Work Item and the session that started it as one thing: Thread (a conversation of the brief, your messages and every Run), Night cockpit (the flight on a dark ground), Desk (views you switch between), Logbook (a vertical log with the spend tape beside it) and Proof (the brief as a document with its acceptance conditions). Each has the intent bar, which steers, asks or adds context and says who reads it before you send. Your choice is kept in this browser. Acceptance proof is not reported by Ploeg yet, so conditions say so.",
+        "client": true,
+        "labs": true
+      }
+    },
     "now.fleet": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },
