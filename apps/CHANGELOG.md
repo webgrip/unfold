@@ -1,3 +1,16 @@
+## [unfold-v0.4.0-rc.97](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.96...unfold-v0.4.0-rc.97) (2026-10-18)
+
+### Added
+
+* **unfold:** estimate when a running Run's pull request lands ([c0efa01](https://forgejo.webgrip.dev/webgrip/unfold/commit/c0efa0155eae0d7b9e7b77c435327bcd8eef78d8))
+* **unfold:** show what a Run's calls do, by Activity, on the trace ([9c3411a](https://forgejo.webgrip.dev/webgrip/unfold/commit/9c3411a0a0200b74b42fc444262df7d8b5cc70be))
+* **unfold:** the loop and the fleet board share Now's switch ([1a71032](https://forgejo.webgrip.dev/webgrip/unfold/commit/1a7103203b81a9eb350d36c8ffcdba71558df3a2))
+* **unfold:** the loop on Now, with a hand-off sheet and Try again in place ([21d9afd](https://forgejo.webgrip.dev/webgrip/unfold/commit/21d9afd4668fb798cc16de5d9cdb845a1374823c))
+
+### Fixed
+
+* **unfold:** log every session failure and catch OpenCode permission breakage in CI ([261ad22](https://forgejo.webgrip.dev/webgrip/unfold/commit/261ad22fa92a7035475cc62fd6aa1b7925f5e115))
+
 ## [unfold-v0.4.0-rc.96](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.95...unfold-v0.4.0-rc.96) (2026-10-18)
 
 ### Added
