@@ -7,6 +7,7 @@ import { Store } from '../src/store.ts';
 import { executionStates } from '../src/execution-authority.ts';
 import { auditEvent, closeReasonLabel, costStatuses, costStatusWord, executionStateText, failureReason, failureReasons, runOutcome, runOutcomes, runState, runStates, verdict, verdicts, workItemState, workItemStates } from '../public/core/states.js';
 import { listReason } from '../public/core/reasons.js';
+import { findingAnswerKinds } from '../public/core/blackboard.js';
 import { workStages, stageLabels } from '../public/core/stages.js';
 import { paths, readTable, render } from '../scripts/ploeg-words.mjs';
 
@@ -59,7 +60,7 @@ const composedSuffixes: Record<string, string[]> = {
   'delivery.publication_': enumAt('operator-delivery.schema.json', '/$defs/operation/properties/state'),
 };
 
-const knownSets = ['work-item-state', 'run-state', 'run-outcome', 'verdict', 'failure-reason', 'close-reason', 'needs-human-reason', 'execution-state', 'run-cost-status', 'ask-cost-status', 'audit-event'];
+const knownSets = ['work-item-state', 'run-state', 'run-outcome', 'verdict', 'failure-reason', 'close-reason', 'needs-human-reason', 'execution-state', 'run-cost-status', 'ask-cost-status', 'audit-event', 'finding-answer-status'];
 
 test('the translation table lists each value set once, each value once, and names Ploeg terms the glossary gives to Ploeg', () => {
   assert.deepEqual(words.sets.map(set => set.id).sort(), [...knownSets].sort(), `${table} must have exactly these sets; this test knows how to check each one`);
@@ -125,6 +126,7 @@ test('codes Ploeg defines only in its code (close reasons, needs_human reasons, 
   for (const id of ['close-reason', 'needs-human-reason', 'audit-event']) {
     const set = sets[id];
     for (const entry of set.values) {
+      if (entry.acceptedAhead && !literal(entry.value)) continue;
       if (entry.composedFrom) {
         assert(literal(entry.composedFrom), `${where(set, entry.value)}: Ploeg's code no longer builds codes from "${entry.composedFrom}". Check ${entry.ploegSource ?? 'apps/ploeg/pkg'} and update the row.`);
         const suffix = entry.value.slice(entry.composedFrom.length);
@@ -200,6 +202,14 @@ test('the screen label in the translation table is the one Unfold renders, and e
       assert.equal(entry.label, costStatusWord(entry.value), `${where(sets[id], entry.value)}: the table says "${entry.label}" but apps/unfold/public/core/states.js \`costStatuses\` says "${costStatusWord(entry.value)}"`);
     }
   }
+});
+
+test('finding answer statuses are worded as the table says and accepted exactly, ahead of the Ploeg release that publishes them', () => {
+  const set = sets['finding-answer-status'];
+  assert.deepEqual(set.values.map(entry => entry.value).sort(), [...ploegAccepted.findingAnswerStatuses].sort(), `apps/unfold/src/ploeg.ts \`findingAnswerStatuses\` must accept exactly the values of ${table}, set "finding-answer-status"`);
+  assert.deepEqual(Object.keys(findingAnswerKinds).sort(), set.values.map(entry => entry.value).sort(), 'apps/unfold/public/core/blackboard.js `findingAnswerKinds` labels exactly these statuses');
+  for (const entry of set.values) assert.equal(entry.label, findingAnswerKinds[entry.value as keyof typeof findingAnswerKinds].label, `${where(set, entry.value)}: the label differs from apps/unfold/public/core/blackboard.js`);
+  if (!set.ploeg.schemas) for (const entry of set.values) assert(entry.acceptedAhead, `${where(set, entry.value)}: without a schema pointer every row is acceptedAhead`);
 });
 
 test('Unfold stores and returns Ploeg\'s cost status unchanged and reads its own retired word as Ploeg\'s', () => {

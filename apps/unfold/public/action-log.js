@@ -11,6 +11,7 @@ const phrases = [
   ['POST', `ploeg/work-items/${id}/cancel`, 'stopped'],
   ['POST', `ploeg/work-items/${id}/retry`, 'retried'],
   ['POST', `ploeg/work-items/${id}/notes`, 'left a note for the next Run'],
+  ['POST', `ploeg/work-items/${id}/questions/${id}/answer`, 'answered an agent’s question'],
   ['POST', `ploeg/work-items/${id}/context`, 'added a context file'],
   ['POST', `ploeg/work-items/${id}/asks`, 'asked a question'],
   ['POST', `ploeg/work-items/${id}/cracks`, 'proposed the cause of a bug'],

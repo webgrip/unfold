@@ -204,7 +204,7 @@ function shiftSpend(entry, demo) {
 }
 
 function latestVerdict(entry, runs) {
-  const run = byFinish(runs).find(candidate => candidate.workItemId === entry.id && candidate.verdict && candidate.verdict !== 'none');
+  const run = byFinish(runs).find(candidate => candidate.workItemId === entry.id && !candidate.shadow && candidate.verdict && candidate.verdict !== 'none');
   return run ? verdictMeta(run.verdict) : null;
 }
 
@@ -217,7 +217,26 @@ function origin(entry) {
   return kinds[entry.createdKind] || '';
 }
 
+const questionClip = 180;
+
+function questionLine(entry) {
+  const question = entry.question;
+  if (!question?.text) return '';
+  const who = question.role ? `The ${question.role}` : 'An agent';
+  const shown = question.text.length > questionClip ? `${question.text.slice(0, questionClip - 1)}…` : question.text;
+  return `<span class="now-why now-question" title="${escape(`${who} ${question.typed ? 'asks' : 'needs'}: “${question.text}”`)}">${icon('help-circle')}<span data-private>${escape(`“${shown}”`)}</span></span>`;
+}
+
+function disagreementChip(entry) {
+  const found = entry.disagreement;
+  if (!found) return '';
+  const said = value => verdictMeta(value).short.toLowerCase();
+  return chipMarkup({ label: 'Reviewers disagree', tone: 'attention', glyph: 'eye', title: `Round ${found.round}: ${said(found.acting)} by the acting reviewer, ${said(found.shadow)} by the shadow reviewer. Ploeg followed the acting reviewer.` });
+}
+
 function whyLine(entry, reason, warning, grouped) {
+  const question = questionLine(entry);
+  if (question) return question;
   if (grouped) return '';
   let text = '';
   let full = '';
@@ -242,6 +261,8 @@ function waitingMeta(entry, context, { reason, warning, grouped }) {
   if (merge?.key === 'conflicted') chips.push(chipMarkup({ label: 'Merge conflict', tone: 'attention', glyph: 'alert', title: `${merge.title}. ${merge.detail}` }));
   if (entry.state === 'proposed' && entry.ready === false) chips.push(chipMarkup({ label: 'Needs refinement', tone: 'attention', title: 'Not Ready yet: the brief needs refining before an agent can pick it up.' }));
   if (warning) chips.push(chipMarkup({ label: warning.chip, tone: warning.tone, glyph: warning.glyph, title: warning.sentence, secondary: true }));
+  const disagreement = disagreementChip(entry);
+  if (disagreement) chips.push(disagreement);
   const review = entry.state === 'awaiting_review' ? latestVerdict(entry, context.runs) : null;
   const verdict = review ? badge({ tone: review.tone, glyph: review.glyph, label: review.short, title: `${review.label}. Agent review is evidence, not a human review.`, size: 'sm' }) : '';
   const round = entry.state !== 'proposed' && entry.latestShift?.round ? { class: 'now-round', html: `Round ${escape(entry.latestShift.round)}` } : null;
@@ -260,6 +281,7 @@ function waitingActions(entry, context, reason) {
   const pr = entry.state === 'awaiting_review' ? safeUrl(entry.pullRequestUrl) : null;
   const failedCi = reason?.code === 'ci_failed';
   if (pr) primary = button({ id: `now-pr-${entry.id}`, label: failedCi ? 'Failing checks' : 'Pull request', icon: failedCi ? 'x-circle' : 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: failedCi ? `Open the pull request for “${title}” to see why CI did not pass (opens in a new tab)` : `Open the pull request for “${title}” (opens in a new tab)` });
+  if (entry.state === 'needs_human' && entry.question?.text) primary = button({ id: `now-answer-${entry.id}`, label: 'Answer', icon: 'send', size: 'sm', href: `#work/${encodeURIComponent(entry.id)}`, ariaLabel: `Answer the question on “${title}”` });
   if (entry.state === 'proposed') primary = button({ id: `now-decide-${entry.id}`, label: 'Approve or reject', icon: 'arrow', size: 'sm', href: `#proposed?id=${encodeURIComponent(entry.id)}`, ariaLabel: `Approve or reject “${title}” on Proposed` });
   const links = [];
   const tracker = safeUrl(entry.url);

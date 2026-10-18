@@ -119,6 +119,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0041](../../apps/unfold/docs/adrs/0041-the-work-item-page-shows-plain-figures-and-the-card-has-its-own-page.md) | The Work Item page shows plain figures, and the card has its own page | 2026-10-11 | — |
 | Unfold | [0042](../../apps/unfold/docs/adrs/0042-unfold-reports-errors-and-failed-asks-to-any-error-tracker.md) | Unfold reports errors and failed Asks to any error tracker | 2026-10-13 | — |
 | Unfold | [0045](../../apps/unfold/docs/adrs/0045-unfold-records-the-run-card-rules-it-computes.md) | Unfold records the Run card rules it computes | 2026-10-14 | — |
+| Unfold | [0050](../../apps/unfold/docs/adrs/0050-people-write-on-the-blackboard-and-unfold-shows-questions-disagreements-and-finding-answers.md) | People write on the blackboard, and Unfold shows the questions, disagreements and finding answers waiting for them | 2026-10-18 | — |
 
 ## Proposed
 

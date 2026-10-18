@@ -710,6 +710,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const context = /^\/api\/ploeg\/work-items\/([^/]+)\/context$/.exec(path);
           const asked = /^\/api\/ploeg\/work-items\/([^/]+)\/asks$/.exec(path);
           const restart = /^\/api\/ploeg\/work-items\/([^/]+)\/(requeue|notes)$/.exec(path);
+          const answered = /^\/api\/ploeg\/work-items\/([^/]+)\/questions\/([^/]+)\/answer$/.exec(path);
           const health = /^\/api\/ploeg\/work-items\/([^/]+)\/runs\/([^/]+)\/health$/.exec(path);
           const wrong = /^\/api\/ploeg\/work-items\/([^/]+)\/runs\/([^/]+)\/health\/judgements\/([A-Za-z0-9-]{1,64})\/wrong$/.exec(path);
           if (health || wrong) {
@@ -734,18 +735,24 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               throw error;
             }
           }
-          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep || context || restart))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions, restarts, notes, context files and crack attributions.');
-          if (method === 'GET' && restart) fault(405, 'method', 'Restart or leave a note with POST.');
+          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep || context || restart || answered))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions, restarts, notes, answers, context files and crack attributions.');
+          if (method === 'GET' && (restart || answered)) fault(405, 'method', 'Restart, leave a note or answer with POST.');
           try {
-            if (method === 'POST' && (decision || attribution || crackStep || context || restart)) {
+            if (method === 'POST' && (decision || attribution || crackStep || context || restart || answered)) {
               if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot change Ploeg work.');
+              if (answered) {
+                const data = await body(req);
+                const commandId = data.commandId === undefined ? randomUUID() : text(data.commandId, 'Command id', 128);
+                const result = await ploeg.answerQuestion(user, answered[1], answered[2], { commandId, answer: text(data.answer, 'Answer', 4096) });
+                return json(res, result.replayed ? 200 : 201, sanitize(result));
+              }
               if (restart) {
                 const data = await body(req);
                 const commandId = data.commandId === undefined ? randomUUID() : text(data.commandId, 'Command id', 128);
                 if (restart[2] === 'requeue') {
                   const expectedState = text(data.expectedState, 'Expected state', 32);
                   if (!['needs_human', 'stale'].includes(expectedState)) fault(400, 'ploeg_requeue', 'Ploeg restarts only a Work Item that needs you or went stale.');
-                  return json(res, 200, sanitize(await ploeg.requeue(user, restart[1], { commandId, expectedState: expectedState as PloegState, ...(typeof data.note === 'string' && data.note.trim() ? { note: data.note } : {}) })));
+                  return json(res, 200, sanitize(await ploeg.requeue(user, restart[1], { commandId, expectedState: expectedState as PloegState, ...(typeof data.note === 'string' && data.note.trim() ? { note: data.note } : {}), ...(data.resume === true ? { resume: true } : {}) })));
                 }
                 const note = text(data.text, 'Note', 4096);
                 if (ploeg.isDemo && await ploeg.detail(user, restart[1], true)) return json(res, 200, { workItemId: restart[1], noteId: null, commandId, shiftId: null, replayed: false, demo: true, message: demoNoteRefusal });
@@ -930,7 +937,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         return fault(404, 'not_found', 'API route not found.');
       }
-      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt', '/action-log.js': 'action-log.js' };
+      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/blackboard-view.js': 'blackboard-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt', '/action-log.js': 'action-log.js' };
       const file = assets[path] ?? (browserModule.test(path) ? path.slice(1) : undefined);
       if (method !== 'GET' || !file) return fault(404, 'not_found', 'Page not found.');
       await staticFiles.serve(req, res, file, Boolean(assets[path]));

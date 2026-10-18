@@ -500,6 +500,53 @@
           "label": "The Team plan was removed",
           "chip": "Team plan removed",
           "mcp": "plan removed from configuration"
+        },
+        {
+          "value": "question_for_person",
+          "ploegSource": "pkg/shiftengine/questions.go (ploeg-hq/ploeg#180)",
+          "label": "An agent asked a person a question",
+          "chip": "Question for you",
+          "mcp": "question_for_person",
+          "acceptedAhead": "Ploeg's next release (ploeg-hq/ploeg#180, ADR-0121) writes it; the pinned Ploeg does not yet. Unfold already words it."
+        }
+      ]
+    },
+    {
+      "id": "finding-answer-status",
+      "name": "Finding answer status",
+      "ploegTerm": "Outcome Report",
+      "ploeg": {
+        "note": "Published as the enum of `findings[].answer.status` and `runFindingAnswer.status` in operator-api.v1.schema.json from ploeg-hq/ploeg#180 (ADR-0121). The pinned Ploeg does not publish it yet; once the pin moves, name the schema pointers here."
+      },
+      "unfold": {
+        "accepts": "apps/unfold/src/ploeg.ts `findingAnswerStatuses`; any other status drops the answer",
+        "labels": "apps/unfold/public/core/blackboard.js `findingAnswerKinds`"
+      },
+      "mcp": "unfold_get_work passes the status through as `findings[].answer.status`",
+      "values": [
+        {
+          "value": "fixed",
+          "label": "Fixed",
+          "mcp": "fixed",
+          "acceptedAhead": "Ploeg's next release (ploeg-hq/ploeg#180) sends it."
+        },
+        {
+          "value": "disagree",
+          "label": "Disagrees",
+          "mcp": "disagree",
+          "acceptedAhead": "Ploeg's next release (ploeg-hq/ploeg#180) sends it."
+        },
+        {
+          "value": "out_of_scope",
+          "label": "Out of scope",
+          "mcp": "out_of_scope",
+          "acceptedAhead": "Ploeg's next release (ploeg-hq/ploeg#180) sends it."
+        },
+        {
+          "value": "deferred",
+          "label": "Deferred",
+          "mcp": "deferred",
+          "acceptedAhead": "Ploeg's next release (ploeg-hq/ploeg#180) sends it."
         }
       ]
     },

@@ -68,7 +68,7 @@ export const refusedRoutes = Object.freeze([
   { method: 'POST', path: '/api/status/notes' }, { method: 'POST', path: `/api/status/notes/${id}/resolve` },
   { method: 'POST', path: '/api/task-imports' }, { method: '*', path: `/api/task-sources/${id}/tasks/${id}/${id}` },
   { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/logs` }, { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/transcript` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/runs/${id}/health/judgements/${id}/wrong` },
-  { method: 'POST', path: `/api/ploeg/work-items/${id}/${id}` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/cracks/${id}/${id}` },
+  { method: 'POST', path: `/api/ploeg/work-items/${id}/${id}` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/cracks/${id}/${id}` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/questions/${id}/answer` },
   { method: 'GET', path: `/api/sessions/${id}/delivery` }, { method: '*', path: `/api/sessions/${id}/${id}` }, { method: '*', path: `/api/sessions/${id}/${id}/${id}` },
 ]);
 

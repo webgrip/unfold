@@ -326,8 +326,8 @@ test('a needs-you item explains why with Ploeg’s own words, the evidence Runs 
   assert.match(detailMarkup(demoDetail('109'), model({ detailId: '109', trackerUrl: 'https://tracker.test/' })), />Open Vikunja</, 'only the tracker root is known, so the link says so');
   const stuck = detailMarkup(demoDetail('111'), model({ detailId: '111' }));
   assert.match(stuck, /Agent is stuck[^]*The builder reported that it cannot finish in Round 2 without a person\./);
-  assert.doesNotMatch(stuck, /work-quote/, 'Ploeg’s sentence repeats the stuck reason the evidence already shows, so it is left out');
-  assert.equal((stuck.match(/every source in the repository stops at 2023/g) || []).length, 4, 'once in the evidence, once in the Run body, and in Activity’s quote and raw JSON');
+  assert.doesNotMatch(stuck, /<blockquote class="work-quote">/, 'Ploeg’s sentence repeats the stuck reason the question already shows, so it is left out');
+  assert.equal((stuck.match(/every source in the repository stops at 2023/g) || []).length, 4, 'once as what the builder needs from you, once in the Run body, and in Activity’s quote and raw JSON');
   assert.doesNotMatch(stuck, /<p class="work-run-summary">Illustrative: the brief asks/, 'the Run summary is dropped when the stuck reason already says it');
   assert.match(stuck, /<details class="work-run" id="work-run-28" data-tone="attention">/, 'the Run stays closed: the box already shows why it is stuck');
 });
@@ -433,7 +433,7 @@ test('Runs are grouped by Shift and Round, failures first, newest Round first', 
 
 test('the Round ladder is Roles by Rounds with retries counted, and Runs list failures first', () => {
   const ladder = roundLadder(ploegDemo.details['109'].runs);
-  assert.deepEqual(ladder.roles, ['implementer', 'reviewer']);
+  assert.deepEqual(ladder.roles, ['implementer', 'reviewer', 'second-reviewer']);
   assert.deepEqual(ladder.rounds, [1, 2, 3, 4]);
   assert.deepEqual(ladder.cells.reviewer[2].map(run => run.id), ['42']);
   assert.deepEqual(ladder.cells.implementer[2], []);

@@ -1,6 +1,6 @@
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 
-export const coreModules = ['states.js', 'format.js', 'reasons.js', 'checkout.js', 'progress.js', 'terms.js', 'agents-window.js'];
+export const coreModules = ['states.js', 'format.js', 'reasons.js', 'blackboard.js', 'checkout.js', 'progress.js', 'terms.js', 'agents-window.js'];
 const source = new URL('../../../public/core/', import.meta.url);
 const target = new URL('../media/core/', import.meta.url);
 
