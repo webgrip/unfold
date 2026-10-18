@@ -29,6 +29,8 @@ import { runTranscriptMarkup } from './run-transcript.js';
 import { workActionsMarkup } from './action-log.js';
 import { defaultLogView, logViewerMarkup } from './run-log-view.js';
 import { healthMeta } from './core/run-health.js';
+import { resumeOffer, waitingQuestion, waitingQuestions } from './core/blackboard.js';
+import { questionMarkup, disagreementsMarkup, findingAnswersMarkup, findingsMarkup, noteAction } from './blackboard-view.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -175,16 +177,17 @@ function prLink(detail) {
 /**
  * The review projection of a Work Item detail: the pull request, the branch, the latest Shift's Runs by Round,
  * the reviewer findings, the latest agent verdict, the Shift's spend and time, and instruction files named in the
- * findings (a text match, not a diff check). `lastReader` is the id and outcome of the latest reviewing Run.
+ * findings (a text match, not a diff check). `lastReader` is the id and outcome of the latest reviewing Run. A shadow
+ * reviewer's Run (Ploeg ADR-0096) never gives the verdict, the findings or the last reader, because it never acts.
  */
 export function ploegReview(detail) {
   const shift = latestShift(detail);
   const shiftRuns = shift ? detail.runs.filter(run => run.shiftId === shift.id) : [];
   const runs = (shiftRuns.length ? shiftRuns : detail.runs).slice().sort((a, b) => a.round - b.round || byId(a, b));
   const checkpoint = detail.checkpoints.find(entry => entry.prUrl);
-  const findings = runs.filter(run => !run.writes && run.findings.trim()).map(run => ({ runId: run.id, role: run.role, round: run.round, verdict: run.verdict, text: run.findings }));
+  const findings = runs.filter(run => !run.writes && !run.shadow && run.findings.trim()).map(run => ({ runId: run.id, role: run.role, round: run.round, verdict: run.verdict, text: run.findings }));
   const flagged = instructionFiles.filter(([, pattern]) => findings.some(finding => pattern.test(finding.text))).map(([name]) => name);
-  const lastReader = runs.filter(run => !run.writes && run.state === 'finished').at(-1) || null;
+  const lastReader = runs.filter(run => !run.writes && !run.shadow && run.state === 'finished').at(-1) || null;
   const pullRequestUrl = prLink(detail);
   return {
     pullRequestUrl,
@@ -193,7 +196,7 @@ export function ploegReview(detail) {
     shift,
     closeReason: shift?.closeReason || '',
     closeMeaning: shift?.closeReason === 'review_approved' ? 'An agent reviewer approved. This is not a human review.' : shift?.closeReason === 'review_failed' ? 'No agent reviewed this pull request: the reviewer Run kept failing. Review it yourself.' : shift?.closeReason ? closeReasonLabel(shift.closeReason) : '',
-    runs: runs.map(run => ({ id: run.id, role: run.role, round: run.round, writes: run.writes, state: run.state, outcome: run.outcome || '', verdict: run.verdict })),
+    runs: runs.map(run => ({ id: run.id, role: run.role, round: run.round, writes: run.writes, state: run.state, outcome: run.outcome || '', verdict: run.verdict, ...(run.shadow ? { shadow: true } : {}) })),
     findings,
     verdict: lastReader ? lastReader.verdict || '' : null,
     lastReader: lastReader ? { id: lastReader.id, outcome: lastReader.outcome || '' } : null,
@@ -645,7 +648,7 @@ function whatYouCanDo(body) {
 
 function lastReaderRun(detail) {
   const shift = latestShift(detail);
-  return detail.runs.filter(run => !run.writes && run.state === 'finished' && (!shift || run.shiftId === shift.id)).sort((a, b) => (b.round || 0) - (a.round || 0) || newestFirst(a, b))[0] || null;
+  return detail.runs.filter(run => !run.writes && !run.shadow && run.state === 'finished' && (!shift || run.shiftId === shift.id)).sort((a, b) => (b.round || 0) - (a.round || 0) || newestFirst(a, b))[0] || null;
 }
 
 const reasonLinks = {
@@ -682,6 +685,8 @@ export function decisionPlan(detail, model, reason) {
     if (main && html) primary = { kind, html };
     return html;
   };
+  const question = model.canWrite ? waitingQuestion(detail, reason) : null;
+  if (question) primary = { kind: 'answer', html: ui.button({ label: 'Answer', icon: 'send', variant: 'primary', action: 'work-answer-open' }) };
   const prKind = reason.variant === 'changes_unresolved' || (reason.code === 'plan_exhausted' && !reason.variant && pr) ? 'pr' : reasonLinks[reason.code];
   const main = { text: escape(reason.fix), actions: [] };
   const requeue = { text: escape(reason.requeue), actions: [] };
@@ -691,9 +696,11 @@ export function decisionPlan(detail, model, reason) {
   if (prKind) { const html = control(prKind); if (html) main.actions.push(html); }
   if ((reason.code === 'fix_round_cap_reached' || reason.variant === 'changes_unresolved') && reader) main.actions.push(runJump(reader, 'Read the reviewer’s findings').replace('button ghost xs', 'button ghost'));
   if (reason.code === 'unknown') main.actions.push('<button type="button" class="button ghost" data-action="work-section" data-id="work-activity">Read its history</button>');
+  if (question) main.actions.unshift(primary.html);
   entries.push(main);
   const trackerHtml = control('tracker');
   if (trackerHtml) requeue.actions.push(trackerHtml);
+  if (question) requeue.text = escape('Or answer in the tracker and assign the task to the Team again there.');
   entries.push(requeue);
   if (!primary) {
     const key = trackerReference(item) ? String(item.externalId ?? '').trim() : '';
@@ -720,9 +727,11 @@ function needsYouBox(detail, model, reason, plan) {
   const item = detail.item;
   const warning = routingWarning(item);
   const event = (detail.events || []).find(entry => entry.action === `work_item.${item.state}` && entry.detail?.reason);
-  const evidence = evidenceRuns(detail, reason);
+  const question = waitingQuestion(detail, reason);
+  const evidence = evidenceRuns(detail, reason).filter(run => !question || String(run.id) !== question.runId);
   const why = [`<p class="work-decision-sentence">${escape(reason.sentence)}</p>`];
-  if (reason.headline && !evidence.some(run => overlaps(evidenceText(run, reason), reason.headline.split(' — ').at(-1)))) why.push(quote(reason.headline, event?.at));
+  if (question) why.push(questionMarkup(question, { canAnswer: Boolean(model.canWrite), demo: Boolean(detail.demo), others: waitingQuestions(detail).filter(entry => entry.id !== question.id), resume: resumeOffer(detail) }));
+  if (reason.headline && !(question && overlaps(question.text, reason.headline.split(' — ').at(-1))) && !evidence.some(run => overlaps(evidenceText(run, reason), reason.headline.split(' — ').at(-1)))) why.push(quote(reason.headline, event?.at));
   const shift = latestShift(detail);
   if (shift && ['budget_exhausted', 'budget_exhausted_before_fix_round', 'budget_held'].includes(reason.code)) why.push(`<div class="work-decision-meter">${shiftMeter(shift, detail.demo)}</div>`);
   if (evidence.length) why.push(`<ul class="work-evidence-list" aria-label="Evidence">${evidence.map(run => evidenceLine(run, reason)).join('')}</ul>`);
@@ -816,13 +825,13 @@ function statusBox(detail, model) {
   if (item.state === 'leased') {
     const lines = running.length ? running.map(run => `<li class="work-evidence" data-tone="live"><span class="work-evidence-icon" aria-hidden="true"><span class="live-dot"></span></span><div class="work-evidence-main"><p class="work-evidence-title"><strong>${escape(run.role || 'Agent')}</strong>${run.round ? ` · Round ${escape(run.round)}` : ''} · ${escape(run.state === 'running' ? `running${run.startedAt ? ` for ${duration(runSeconds(run, model.now)) || 'a moment'}` : ''}` : 'waiting for a worker')}</p></div>${runJump(run)}</li>`).join('') : '';
     const lease = item.lease?.renewedAt ? `<p class="meta">The worker last checked in ${ui.timeAgo(item.lease.renewedAt)}.</p>` : '';
-    const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(shift ? `Round ${shift.round} is running.` : 'An agent is working on it.')}</p>${lines ? `<ul class="work-evidence-list">${lines}</ul>` : ''}${lease}</div>${whatYouCanDo(`<p>${escape('Nothing is needed now. This page refreshes itself while live updates are on.')}${model.canCancel ? ` ${escape('Cancel the Work Item to stop its Runs.')}` : ''}</p>`)}`;
+    const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(shift ? `Round ${shift.round} is running.` : 'An agent is working on it.')}</p>${lines ? `<ul class="work-evidence-list">${lines}</ul>` : ''}${lease}</div>${whatYouCanDo(`<p>${escape('Nothing is needed now. This page refreshes itself while live updates are on.')}${model.canCancel ? ` ${escape('Cancel the Work Item to stop its Runs.')}` : ''}</p>`)}${noteAction(item, { canWrite: Boolean(model.canWrite) })}`;
     return ui.card({ id: 'work-decision', region: true, title: 'Running now', icon: 'activity', tone: 'live', level: 3, body });
   }
   if (item.state === 'queued' || item.state === 'ingested') {
     const later = item.nextEligibleAt && Date.parse(item.nextEligibleAt) > model.now ? `<p>${escape('Ploeg retries it after')} ${ui.timeAt(item.nextEligibleAt)} ${escape('(infrastructure backoff).')}</p>` : '';
     const infra = amount(item.infraFailures) && item.infraFailures > 0 ? `<p>${escape(`${plural(item.infraFailures, 'infrastructure failure')} so far. These do not count against the agent’s attempts.`)}</p>` : '';
-    const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(item.state === 'ingested' ? 'Ploeg recorded the task and has not queued it yet.' : 'It starts when a worker of the Team is free. The tracker sets its priority.')}</p>${later}${infra}</div>${whatYouCanDo(`<p>${escape('Nothing is needed now. To change its priority, change it in the tracker; Unfold never re-ranks work.')}</p>`)}`;
+    const body = `<div class="work-decision-part"><p class="work-decision-sentence">${escape(item.state === 'ingested' ? 'Ploeg recorded the task and has not queued it yet.' : 'It starts when a worker of the Team is free. The tracker sets its priority.')}</p>${later}${infra}</div>${whatYouCanDo(`<p>${escape('Nothing is needed now. To change its priority, change it in the tracker; Unfold never re-ranks work.')}</p>`)}${noteAction(item, { canWrite: Boolean(model.canWrite) })}`;
     return ui.card({ id: 'work-decision', region: true, title: 'Waiting to start', icon: 'circle-dashed', level: 3, body });
   }
   if (item.state === 'done' && displayState(item, detail.events) === 'rejected') {
@@ -1045,7 +1054,7 @@ export function runHealthMarkup(run, entry, { now = Date.now() } = {}) {
   return `<section class="work-run-health" aria-label="Run health"${age ? ' data-stale' : ''}>${parts.join('')}</section>`;
 }
 
-function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts, health }) {
+function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts, health, detail: detailOf = null }) {
   const failure = runFailure(run);
   const retriedAs = failure?.retries ? attempts?.get(String(run.id))?.next : null;
   const parts = [];
@@ -1061,8 +1070,11 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts
     const body = `${reasonText}${outputText}${note ? `<p>${escape(note)}</p>` : ''}`;
     parts.push(ui.callout({ tone, title, body }));
   }
+  if (run.shadow) parts.push(`<p class="meta work-run-shadow">${icon('eye')}<span>${escape('A shadow reviewer: Ploeg records its verdict and findings and never acts on them. It opens no fix Round and posts nothing on the pull request.')}</span></p>`);
   const healthSection = runHealthMarkup(run, health?.get(String(run.id)), { now });
   if (healthSection) parts.push(healthSection);
+  const answers = run.writes ? findingAnswersMarkup(run, detailOf) : '';
+  if (answers) parts.push(answers);
   if (run.findings?.trim()) parts.push(`<div class="work-findings"><h4 class="overline">Findings</h4><div data-private class="prose">${markdown(run.findings, { baseLevel: 5 })}</div></div>`);
   const links = runLinks(run);
   if (links) parts.push(links);
@@ -1096,14 +1108,14 @@ function runRow(run, context, { round }) {
   const attempt = attemptLabel(context.attempts?.get(String(run.id)));
   const stateBadge = ui.badge({ tone: result.tone, label: result.label, title: result.title, size: 'sm' });
   const healthBadge = runHealthBadge(run, context.health?.get(String(run.id)), context.now);
-  const role = `${round ? `<span class="work-run-round">${escape(round)} · </span>` : ''}${run.writes ? 'writer' : 'reader'}${attempt ? ` · ${escape(attempt)}` : ''}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}`;
+  const role = `${round ? `<span class="work-run-round">${escape(round)} · </span>` : ''}${run.writes ? 'writer' : run.shadow ? 'shadow reader' : 'reader'}${attempt ? ` · ${escape(attempt)}` : ''}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}`;
   return `<details class="work-run" id="work-run-${escape(run.id)}" data-tone="${result.tone}"><summary><span class="work-run-lead" aria-hidden="true">${lead}</span><span class="work-run-name"><strong>${escape(run.role || 'Agent')}</strong><span class="meta">${role}</span></span>${healthBadge ? `<span class="work-run-badges">${stateBadge}${healthBadge}</span>` : stateBadge}<span class="work-run-numbers meta">${time !== null ? `<span class="num">${escape(duration(time))}</span>` : ''}${cost ? `<span class="num">${escape(cost)}</span>` : ''}${when ? ui.timeAgo(when) : ''}</span>${icon('chevron-down', 'work-run-chevron')}</summary><div class="work-run-body">${runBody(run, context)}</div></details>`;
 }
 
 function runsMarkup(detail, model) {
   const shift = latestShift(detail);
   const groups = runGroups(detail.runs, shift?.id);
-  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, health: model.runHealth };
+  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), detail, attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, health: model.runHealth };
   const render = (list, continued) => list.map(group => `${group.label && !continued.has(group.key) ? `<p class="work-run-group">${escape(group.label)}</p>` : ''}${group.runs.map(run => runRow(run, context, { round: group.label })).join('')}`).join('');
   const shown = [];
   const rest = [];
@@ -1582,7 +1594,7 @@ export function layoutMarkup(detail, model, layout, { primary = '', decision, ac
   return workPage(layout, view, { primary, ...(decision ? { decision } : {}), ...(account ? { account } : {}) }, text => markdown(text, { baseLevel: 3 }));
 }
 
-/** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, who did what, activity, technical details and, on phones, the action bar. */
+/** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box (with the question it waits on, if any), the Reviewers disagree card when a shadow reviewer disagreed, the Reviewer findings card with the writer's answers, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, who did what, activity, technical details and, on phones, the action bar. */
 export function detailMarkup(recordedDetail, model) {
   const detail = reconcileDetail(recordedDetail, model.sessions);
   const reason = detailReason(detail);
@@ -1597,7 +1609,7 @@ export function detailMarkup(recordedDetail, model) {
     primary = plan.primary;
   }
   const layout = model.flags?.['work.layouts'] === true ? model.workLayout || 'current' : null;
-  if (layout && layout !== 'current') return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${layoutSwitchMarkup(layout)}${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${layoutMarkup(detail, model, layout, { primary, decision: layout === 'unified' ? (reason ? needsYouBox(detail, model, reason, plan) : item.state === 'awaiting_review' ? reviewBox(detail, model, plan) : '') : '', account: layout === 'unified' ? accountMarkup(detail) : '' })}</article>`;
+  if (layout && layout !== 'current') return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${layoutSwitchMarkup(layout)}${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${layoutMarkup(detail, model, layout, { primary, decision: layout === 'unified' ? `${reason ? needsYouBox(detail, model, reason, plan) : item.state === 'awaiting_review' ? reviewBox(detail, model, plan) : ''}${disagreementsMarkup(detail)}${findingsMarkup(detail)}` : '', account: layout === 'unified' ? accountMarkup(detail) : '' })}</article>`;
   const status = statusMarkup(detail, model, { reason, plan });
   let decision;
   if (reason) decision = needsYouBox(detail, model, reason, plan);
@@ -1613,6 +1625,8 @@ export function detailMarkup(recordedDetail, model) {
     status,
     accountMarkup(detail),
     decision,
+    disagreementsMarkup(detail),
+    findingsMarkup(detail),
     model.asksEnabled === false ? '' : askMarkup(detail, model),
     deliveryMarkup(detail, model),
     model.trace && model.trace.workItemId === item.id ? traceMarkup(model.trace, { now: model.now, busy: model.traceBusy, result: model.traceResult }) : '',

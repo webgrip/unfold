@@ -183,8 +183,8 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
   for (const label of ['Runs finished', 'Failed', 'Stuck', 'Settled spend', 'Ready for review', 'Needs you', 'Running', 'Queued', 'Proposed']) assert.match(html, new RegExp(`<span class="stat-label"><i data-icon="[a-z-]+"></i>${label}</span>`), label);
   assert.equal((html.match(/<span class="stat-go" aria-hidden="true"><i data-icon="chevron"><\/i><\/span>/g) || []).length, 8, 'linked tiles show where they go, drawn through helpers.icon');
   for (const href of ['#runs?state=finished"', '#runs?state=finished&amp;outcome=failed"', '#work?lane=awaiting_review"', '#work?lane=needs_human"', '#work?lane=leased"', '#work?lane=queued"', '#proposed"']) assert(html.includes(`href="${href}`), href);
-  assert.match(html, /<strong class="stat-value">32<\/strong><span class="stat-detail">Failed and stuck Runs included/);
-  assert.match(html, /50% of finished Runs/);
+  assert.match(html, /<strong class="stat-value">33<\/strong><span class="stat-detail">Failed and stuck Runs included/);
+  assert.match(html, /48% of finished Runs/);
   assert.match(html, /<th scope="row">delivery<\/th>/);
   assert.match(html, /<th scope="row">research<\/th>/);
   assert.match(html, /<th scope="col" class="num">Stopped retrying<\/th>/);
@@ -215,9 +215,9 @@ test('Insights shows tiles and per-Team tables for the window and for right now,
 });
 
 test('the demo summary counts window-bound Runs and keeps spend at zero', () => {
-  assert.deepEqual(summary('24h').totals.runs, { pending: 1, running: 1, finished: 23, failed: 13, stuck: 1 });
-  assert.deepEqual(summary('7d').totals.runs, { pending: 1, running: 1, finished: 32, failed: 16, stuck: 2 });
-  assert.deepEqual(summary('30d').totals.runs, { pending: 1, running: 1, finished: 32, failed: 16, stuck: 2 });
+  assert.deepEqual(summary('24h').totals.runs, { pending: 1, running: 1, finished: 24, failed: 13, stuck: 1 });
+  assert.deepEqual(summary('7d').totals.runs, { pending: 1, running: 1, finished: 33, failed: 16, stuck: 2 });
+  assert.deepEqual(summary('30d').totals.runs, { pending: 1, running: 1, finished: 33, failed: 16, stuck: 2 });
   assert.deepEqual(summary('30d').totals.spend, { settledUsd: 0, reservedUsd: 0 });
   assert.equal(summary('24h').totals.workItems.proposed, 2);
 });

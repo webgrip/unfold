@@ -599,7 +599,7 @@ test('the demo exercises every needs-you reason with Ploeg’s own sentences and
       assert(detail.body.runs.every((run: { startedAt: string | null; summary: string }) => run.startedAt === null && run.summary.startsWith('cancelled: shift closed (budget exhausted')), 'no Run started, so no model was called');
     }
     if (!closeReason.startsWith('run stuck:') && detail.body.runs.some((run: { outcome: string }) => run.outcome === 'stuck')) assert.match(closeReason, /^Illustrative /, `${item.id}: a stuck Run without a run-stuck close reason is the free-text escalation`);
-    if (closeReason === 'fix_round_cap_reached') assert.deepEqual(detail.body.runs.map((run: { round: number; verdict: string }) => [run.round, run.verdict]).reverse(), [[1, ''], [2, 'request_changes'], [3, ''], [4, 'request_changes']]);
+    if (closeReason === 'fix_round_cap_reached') assert.deepEqual(detail.body.runs.filter((run: { shadow?: boolean }) => !run.shadow).map((run: { round: number; verdict: string }) => [run.round, run.verdict]).reverse(), [[1, ''], [2, 'request_changes'], [3, ''], [4, 'request_changes']]);
     assert.equal(detail.body.events[0].action, 'work_item.needs_human', `${item.id}: the newest event is the park`);
   }
   const escalation = ploegDemo.details['101'];

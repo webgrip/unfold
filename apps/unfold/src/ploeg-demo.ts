@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { addDemoKpis } from './ploeg-demo-kpis.ts';
 import type { DemoKpiSpec } from './ploeg-demo-kpis.ts';
 import { fixedRarityTier, percentileRarityTier, rarityCohortMinimum, rarityFormula, rarityPercentile, rarityQuarter, rarityScore } from './rarity.ts';
-import type { PloegActivityEvent, RunCard, RunCardCondition, RunCardGates, PloegCrack, PloegCrackCandidates, PloegGate, RunCardDeployment, RunCardGrade, RunCardPlay, RunCardRarityInputs, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRefusal, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
+import type { PloegActivityEvent, RunCard, RunCardCondition, RunCardGates, PloegCrack, PloegCrackCandidates, PloegGate, RunCardDeployment, RunCardGrade, RunCardPlay, RunCardRarityInputs, PloegBlackboard, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRefusal, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
 
 const anchor = Math.floor(Date.now() / 60_000) * 60_000;
 /** The minute, in epoch milliseconds, that every illustrative Ploeg timestamp is relative to: the clock when this module loaded. */
@@ -208,7 +208,7 @@ const shifts = new Map(shiftSpecs.map(spec => {
 const items: PloegItem[] = itemSpecs.map(({ created, updated, ...spec }) => ({ provider: 'demo', description: illustrative, revision: 'illustrative-v1', team: 'delivery', priority: 1, attempts: 0, infraFailures: 0, nextEligibleAt: null, target: orders, lease: null, url: '', ...spec, createdAt: ago(created), updatedAt: ago(updated), latestShift: shifts.get(spec.id) ?? null }));
 const find = (id: string) => items.find(item => item.id === id)!;
 
-type RunSpec = { id: string; item: string; role: string; round: number; writes: boolean; started: number | null; finished: number | null; outcome?: string; verdict?: string; failure?: string; summary?: string; stuck?: string; findings?: string; problem?: string; solution?: string; links?: string[]; limits?: [number, number] };
+type RunSpec = { id: string; item: string; role: string; round: number; writes: boolean; started: number | null; finished: number | null; outcome?: string; verdict?: string; failure?: string; summary?: string; stuck?: string; findings?: string; problem?: string; solution?: string; links?: string[]; limits?: [number, number]; shadow?: boolean };
 const legacy = { role: '', round: 0, writes: true };
 const killed = Array.from({ length: 10 }, (_, attempt): RunSpec => {
   const created = 1319 - attempt * 12;
@@ -231,6 +231,7 @@ const runSpecs: RunSpec[] = [
   { id: '41', item: '109', role: 'implementer', round: 1, writes: true, started: 555, finished: 520, outcome: 'pr_opened', summary: 'Illustrative writer handoff: negative quantities are refused.', problem: 'A shopper can add an item with a negative amount and lower the price of the whole order.\n\n### For developers\n- The cart API accepts a negative quantity.', solution: 'The shop now refuses a negative amount, so an order total can no longer be lowered this way. Nothing else changes for shoppers. This is illustrative content, not a result of an executed Run.\n\n### For developers\n- The cart API refuses a quantity below zero.', links: [pull(7)] },
   { id: '42', item: '109', role: 'reviewer', round: 2, writes: false, started: 515, finished: 500, outcome: 'no_change_needed', verdict: 'request_changes', summary: 'Illustrative review: zero is still accepted.', findings: '**Changes requested**\n\n- A quantity of `0` is still accepted.\n- The error does not name the field.\n\nThis is illustrative content, not a result of an executed review.' },
   { id: '43', item: '109', role: 'implementer', round: 3, writes: true, started: 495, finished: 470, outcome: 'pr_updated', summary: 'Illustrative fix round: zero refused; the error names the field.', problem: 'A shopper can add an item with a negative amount and lower the price of the whole order.\n\n### For developers\n- The cart API accepts a negative quantity.', solution: 'The shop now refuses an amount of zero or less and tells the shopper which field to correct. Nothing else changes for shoppers. This is illustrative content, not a result of an executed Run.\n\n### For developers\n- The cart API refuses a quantity of zero or less.\n- The error names the `quantity` field.', links: [pull(7)] },
+  { id: '55', item: '109', role: 'second-reviewer', round: 4, writes: false, shadow: true, started: 465, finished: 452, outcome: 'no_change_needed', verdict: 'approve', summary: 'Illustrative shadow review: approved.', findings: 'Sample finding: zero and negative quantities are refused and the error names the field. `400` instead of `422` is a wording choice the task can settle; approve.\n\nThis is an illustrative shadow review, not a result of an executed review. It never acts.' },
   { id: '44', item: '109', role: 'reviewer', round: 4, writes: false, started: 465, finished: 450, outcome: 'no_change_needed', verdict: 'request_changes', summary: 'Illustrative review: the status code is still wrong.', findings: '**Changes requested**\n\n- The API answers `400`, but the task asks for `422`.\n\nThe team allows one fix round, so a person decides what happens next. This is illustrative content, not a result of an executed review.' },
   { id: '45', item: '108', role: 'implementer', round: 1, writes: true, started: 325, finished: 300, outcome: 'no_change_needed', summary: 'Illustrative: the repository in this workspace already shows VAT per line, so the writer changed nothing and opened no pull request.' },
   { id: '46', item: '104', ...legacy, started: 300, finished: 240, outcome: 'failed', failure: 'agent_error', summary: 'Illustrative: the agent stopped after asking which markets the brief covers, and proposed a clarification.', stuck: 'Illustrative log tail: the brief names "our markets" but lists none.' },
@@ -248,12 +249,12 @@ const runState = (spec: RunSpec): PloegRun['state'] => spec.finished !== null ? 
 const runDetail = (spec: RunSpec): PloegRun => {
   const item = find(spec.item);
   const state = runState(spec);
-  return { id: spec.id, workItemId: spec.item, shiftId: spec.role ? shifts.get(spec.item)?.id ?? null : null, team: item.team, role: spec.role, round: spec.round, writes: spec.writes, state, startedAt: spec.started === null ? null : ago(spec.started), finishedAt: spec.finished === null ? null : ago(spec.finished), expiresAt: state === 'running' ? ago(-9) : null, outcome: spec.outcome ?? null, summary: spec.summary ?? '', stuckReason: spec.stuck ?? '', links: spec.links ?? [], findings: spec.findings ?? '', verdict: spec.verdict ?? '', problem: spec.problem ?? '', solution: spec.solution ?? '', failureReason: spec.failure ?? null, authorizedUsd: 0, usage: null, costStatus: 'unknown', keyAlias: null, ...(spec.limits && spec.started !== null ? { limits: { promptSeconds: spec.limits[0], idleSeconds: spec.limits[1], promptStartedAt: ago(spec.started) } } : {}) };
+  return { id: spec.id, workItemId: spec.item, shiftId: spec.role ? shifts.get(spec.item)?.id ?? null : null, team: item.team, role: spec.role, round: spec.round, writes: spec.writes, state, startedAt: spec.started === null ? null : ago(spec.started), finishedAt: spec.finished === null ? null : ago(spec.finished), expiresAt: state === 'running' ? ago(-9) : null, outcome: spec.outcome ?? null, summary: spec.summary ?? '', stuckReason: spec.stuck ?? '', links: spec.links ?? [], findings: spec.findings ?? '', verdict: spec.verdict ?? '', problem: spec.problem ?? '', solution: spec.solution ?? '', failureReason: spec.failure ?? null, authorizedUsd: 0, usage: null, costStatus: 'unknown', keyAlias: null, ...(spec.shadow ? { shadow: true as const } : {}), ...(spec.limits && spec.started !== null ? { limits: { promptSeconds: spec.limits[0], idleSeconds: spec.limits[1], promptStartedAt: ago(spec.started) } } : {}) };
 };
 const runRow = (spec: RunSpec): PloegRunRow => {
   const item = find(spec.item);
   const run = runDetail(spec);
-  return { id: run.id, workItemId: run.workItemId, workItemTitle: item.title, externalRef: item.externalId, team: run.team, role: run.role, round: run.round, writes: run.writes, state: run.state, outcome: run.outcome ?? '', verdict: run.verdict, failureReason: run.failureReason ?? '', startedAt: run.startedAt, finishedAt: run.finishedAt, durationSeconds: spec.started !== null && spec.finished !== null ? (spec.started - spec.finished) * 60 : null, authorizedUsd: run.state === 'pending' ? null : 0, settledUsd: run.state === 'finished' && spec.started !== null ? 0 : null, observedUsd: null, reservedModels: [], usage: null };
+  return { id: run.id, workItemId: run.workItemId, workItemTitle: item.title, externalRef: item.externalId, team: run.team, role: run.role, round: run.round, writes: run.writes, state: run.state, outcome: run.outcome ?? '', verdict: run.verdict, failureReason: run.failureReason ?? '', startedAt: run.startedAt, finishedAt: run.finishedAt, durationSeconds: spec.started !== null && spec.finished !== null ? (spec.started - spec.finished) * 60 : null, authorizedUsd: run.state === 'pending' ? null : 0, settledUsd: run.state === 'finished' && spec.started !== null ? 0 : null, observedUsd: null, reservedModels: [], usage: null, ...(run.shadow ? { shadow: true as const } : {}) };
 };
 const newestFirst = (a: { id: string }, b: { id: string }) => (BigInt(b.id) > BigInt(a.id) ? 1 : -1);
 const runs: PloegRunRow[] = runSpecs.map(runRow).sort(newestFirst);
@@ -305,6 +306,19 @@ const events: PloegActivityEvent[] = eventSpecs
   .map(({ spec: [minutes, item, action, actor, detail] }, index) => ({ id: String(1001 + index), at: ago(minutes), actor, action, workItemId: item, team: find(item).team, detail: detail ?? {}, workItemTitle: find(item).title }))
   .reverse();
 
+const illustrativeFinding = { shiftId: '15', shadow: false, unanswered: false } as const;
+const blackboards: Record<string, PloegBlackboard> = {
+  '109': {
+    findings: [
+      { ...illustrativeFinding, id: 'f42-1', runId: '42', role: 'reviewer', round: 2, lastRaisedRound: 2, severity: 'blocking', title: 'A quantity of 0 is still accepted.', path: 'src/cart/quantity.ts', line: 14, answer: { status: 'fixed', runId: '43', role: 'implementer', round: 3 } },
+      { ...illustrativeFinding, id: 'f42-2', runId: '42', role: 'reviewer', round: 2, lastRaisedRound: 2, severity: 'should_fix', title: 'The error does not name the field.', answer: { status: 'fixed', runId: '43', role: 'implementer', round: 3 } },
+      { ...illustrativeFinding, id: 'f44-1', runId: '44', role: 'reviewer', round: 4, lastRaisedRound: 4, severity: 'blocking', title: 'The API answers 400, but the task asks for 422.', answer: null },
+      { ...illustrativeFinding, id: 'f55-1', runId: '55', role: 'second-reviewer', round: 4, lastRaisedRound: 4, shadow: true, severity: 'nit', title: 'Illustrative shadow finding: 400 instead of 422 is a wording choice.', answer: null },
+    ],
+    questions: [],
+    reviewDisagreements: [{ shiftId: '15', round: 4, shadowRunId: '55', shadowRole: 'second-reviewer', primaryVerdict: 'request_changes', shadowVerdict: 'approve' }],
+  },
+};
 const details = Object.fromEntries(items.map(item => {
   const own = <T extends { workItemId: string }>(entries: T[]) => entries.filter(entry => entry.workItemId === item.id);
   const shift = shifts.get(item.id);
@@ -315,6 +329,7 @@ const details = Object.fromEntries(items.map(item => {
     checkpoints: own(checkpoints).sort(newestFirst),
     events: own(events).map(({ workItemTitle: _title, ...entry }): PloegEvent => entry),
     truncated: { shifts: false, runs: false, checkpoints: false, events: false },
+    ...(blackboards[item.id] ? structuredClone(blackboards[item.id]) : {}),
   };
   return [item.id, detail];
 })) as Record<string, PloegDetail>;

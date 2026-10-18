@@ -1547,6 +1547,111 @@ button.stream-bar:hover {
   margin: 0;
 }
 
+.work-finding-answers {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.work-finding-answers > h4 {
+  margin: 0;
+}
+
+.work-run-shadow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1-5);
+  margin: 0;
+}
+
+.work-run-shadow > svg.icon {
+  flex: none;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  margin-top: 0.15em;
+}
+
+.work-question {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-inline-start: var(--border-width-strong) solid var(--tone-fg);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-subtle);
+}
+
+.work-question-lead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin: 0;
+}
+
+.work-question-lead > svg.icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  color: var(--tone-fg);
+}
+
+.work-question-text > p {
+  color: var(--text);
+  font-size: var(--text-md);
+  line-height: var(--leading-md);
+  white-space: pre-line;
+}
+
+.work-question > .meta {
+  margin: 0;
+}
+
+.work-disagree-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.work-disagree {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.work-disagree > .meta {
+  margin: 0;
+}
+
+.work-disagree-sides {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-2);
+}
+
+.work-disagree-side {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  gap: var(--space-1-5);
+  min-width: 0;
+  padding: var(--space-2-5) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface-subtle);
+}
+
+.work-disagree-side[data-shadow] {
+  border-style: dashed;
+}
+
+.work-disagree-who {
+  margin: 0;
+}
+
+.work-disagree-findings {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .work-run-ids-row {
   display: flex;
   flex-wrap: wrap;

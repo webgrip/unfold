@@ -457,6 +457,18 @@
   color: var(--text);
 }
 
+.now-why.now-question {
+  color: var(--text);
+}
+
+.now-why.now-question > svg.icon {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  margin-inline-end: var(--space-1);
+  vertical-align: -0.15em;
+  color: var(--text-muted);
+}
+
 .now-when {
   color: var(--text-subtle);
 }

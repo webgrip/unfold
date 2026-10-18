@@ -1,5 +1,6 @@
 import { money, plural } from './format.js';
 import { ciState, failureReason, parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason } from './states.js';
+import { detailQuestions } from './blackboard.js';
 
 export { parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason };
 
@@ -80,6 +81,11 @@ const copy = {
     chip: 'Cluster kept stopping the writer',
     sentence: 'Not the Work Item’s fault: the cluster stopped the writer before it could finish, so the work was never really tried.',
     fix: 'Look at the cluster (evictions, node pressure, image pulls), not the ticket.',
+  },
+  person_question: {
+    chip: 'Question for you',
+    sentence: 'An agent asked a question only a person can answer, instead of guessing.',
+    fix: 'Answer it here. Unfold restarts the Work Item with your answer, so its next Runs read it.',
   },
   run_stuck: {
     chip: 'Agent is stuck',
@@ -176,6 +182,8 @@ const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'checks_n
 
 const sessionCodes = new Set(['operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
 
+const answeredHere = new Set(['person_question']);
+
 /** Whether the reason is about the Unfold session that drives the Work Item, so the next step happens on that session's page. */
 export function sessionReason(reason) {
   return sessionCodes.has(reason?.code);
@@ -186,6 +194,7 @@ const reasonCode = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/;
 function classify(closeReason) {
   const text = String(closeReason ?? '').trim();
   const lower = text.toLowerCase();
+  if (text === 'question_for_person') return { code: 'person_question', text };
   if (exactCodes.has(text)) return { code: text, text };
   if (lower.startsWith('budget held by unsettled runs')) return { code: 'budget_held', text };
   if (lower.startsWith('budget exhausted')) {
@@ -229,6 +238,7 @@ const reasonGlyphs = Object.freeze({
   review_failed: 'eye-off',
   writing_run_failed_repeatedly: 'x-circle',
   writing_run_killed_repeatedly: 'zap',
+  person_question: 'help-circle',
   run_stuck: 'pause-circle',
   plan_removed: 'settings',
   pull_request_closed: 'circle-slash',
@@ -250,7 +260,7 @@ export function reasonGlyph(reason) {
 
 function build(code, item, text = '', demo = false) {
   const entry = copy[code === 'unknown' && text ? 'recorded' : code];
-  const requeue = sessionCodes.has(code) ? '' : `Then assign the task to the Team again in ${trackerOf(item.provider)}.`;
+  const requeue = sessionCodes.has(code) || answeredHere.has(code) ? '' : `Then assign the task to the Team again in ${trackerOf(item.provider)}.`;
   return {
     code,
     chip: code === 'unrecognised' ? `Unrecognised: ${text}` : entry.chip,
@@ -271,7 +281,9 @@ function build(code, item, text = '', demo = false) {
  * keeps the code `unknown` and reads "Needs a decision", with Ploeg's text in the sentence. A snake_case code this
  * version does not know gets the code `unrecognised` and the chip "Unrecognised: <code>". With `demo`, a budget
  * sentence names the budget but no spend, because the demo spends nothing. An `awaiting_review` Work Item gets
- * its `reviewHold`, so a pull request whose CI did not pass or still runs says so.
+ * its `reviewHold`, so a pull request whose CI did not pass or still runs says so. A `needs_human` item whose `question`
+ * is a typed question to a person (Now attaches it), or whose Shift closed `question_for_person` (Ploeg ADR-0121), reads
+ * "Question for you".
  * @param {object | null | undefined} item
  * @param {{ demo?: boolean }} [options]
  * @returns {Reason | null}
@@ -280,6 +292,7 @@ export function listReason(item, { demo = false } = {}) {
   if (item?.state === 'awaiting_review') return reviewHold(item);
   if (!item || !['needs_human', 'stale'].includes(item.state)) return null;
   if (item.state === 'stale') return build(number(item.infraFailures) && item.infraFailures >= 10 ? 'stale_infrastructure' : 'stale_attempts', item);
+  if (item.question?.typed === true) return build('person_question', item);
   const closeReason = item.latestShift?.closeReason ?? item.closeReason ?? '';
   if (item.latestShift && !item.latestShift.closedAt && !item.closeReason) return build('unknown', item);
   const { code, text } = classify(closeReason);
@@ -350,11 +363,12 @@ function relevantRun(detail, reason, closeReason) {
   const runs = [...(detail.runs || [])].sort(newestFirst);
   if (reason.code === 'run_stuck') {
     const { role, round } = parseStuckReason(closeReason);
-    return runs.find(run => run.outcome === 'stuck' && (!role || run.role === role) && (round === null || run.round === round)) || runs.find(run => run.outcome === 'stuck') || null;
+    const acting = runs.filter(run => !run.shadow);
+    return acting.find(run => run.outcome === 'stuck' && (!role || run.role === role) && (round === null || run.round === round)) || acting.find(run => run.outcome === 'stuck') || null;
   }
   if (['writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'stale_attempts', 'stale_infrastructure', 'budget_held'].includes(reason.code)) return runs.find(run => run.writes && (run.outcome === 'failed' || run.failureReason)) || runs.find(run => run.outcome === 'failed' || run.failureReason) || null;
   if (reason.code === 'checks_not_passed') return runs.find(run => run.writes && (run.outcome === 'pr_opened' || run.outcome === 'pr_updated')) || null;
-  if (reason.code === 'review_failed') return runs.find(run => !run.writes && (run.outcome === 'failed' || run.failureReason)) || null;
+  if (reason.code === 'review_failed') return runs.find(run => !run.writes && !run.shadow && (run.outcome === 'failed' || run.failureReason)) || null;
   if (reason.code === 'unknown') return runs.find(run => run.outcome === 'stuck') || null;
   return null;
 }
@@ -363,7 +377,7 @@ const pullRequestPath = /\/(?:pulls?|merge_requests)\/\d+\/?$/;
 
 function planVariant(detail, shift) {
   const runs = (detail.runs || []).filter(run => !shift?.id || !run.shiftId || run.shiftId === shift.id);
-  const readers = runs.filter(run => !run.writes && run.state === 'finished').sort((a, b) => (a.round || 0) - (b.round || 0) || -newestFirst(a, b));
+  const readers = runs.filter(run => !run.writes && !run.shadow && run.state === 'finished').sort((a, b) => (a.round || 0) - (b.round || 0) || -newestFirst(a, b));
   if (readers.at(-1)?.verdict === 'request_changes') return { variant: 'changes_unresolved', writer: null };
   const writers = runs.filter(run => run.writes).sort(newestFirst);
   const reported = writers.some(run => run.outcome === 'pr_opened' || run.outcome === 'pr_updated')
@@ -410,7 +424,8 @@ export function detailReason(detail) {
   const item = detail?.item;
   if (!item) return null;
   const shift = detail.shifts?.[0] ?? item.latestShift ?? null;
-  let reason = listReason({ ...item, latestShift: shift }, { demo: Boolean(detail.demo) });
+  const typed = item.state === 'needs_human' && detailQuestions(detail).some(entry => entry.to === 'person' && entry.waitingForPerson);
+  let reason = listReason({ ...item, latestShift: shift, ...(typed ? { question: { typed: true } } : {}) }, { demo: Boolean(detail.demo) });
   if (!reason) return null;
   const event = (detail.events || []).find(entry => entry.action === `work_item.${item.state}` && entry.detail?.reason);
   let headline = event ? String(event.detail.reason) : null;

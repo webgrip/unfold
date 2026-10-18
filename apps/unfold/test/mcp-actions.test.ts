@@ -29,18 +29,26 @@ async function fakePloeg(t: TestContext) {
   process.env[env] = randomBytes(24).toString('hex');
   t.after(() => { delete process.env[env]; });
   const posted: { path: string; body: any; headers: IncomingHttpHeaders }[] = [];
-  const details = structuredClone(ploegDemo.details);
+  const details = structuredClone(ploegDemo.details) as Record<string, any>;
+  details['109'].shifts[0].closeReason = 'question_for_person';
+  details['109'].questions = [{ id: 'q43-1', shiftId: '15', runId: '43', role: 'implementer', round: 3, to: 'person', text: 'Must it be 422?', answer: null, answeredBy: null, waitingForPerson: true }];
+  details['109'].resume = { shiftId: '15', askedRound: 3, fromRound: 3, roundCapUsd: 0.4, poolUsd: 2.25, ready: false, waitingQuestionIds: ['q43-1'] };
   const url = await listen(t, (req, res, body) => {
     const path = new URL(req.url!, 'http://fixture.invalid').pathname;
     const send = (status: number, data: object) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...data }));
     if (path.endsWith('/teams')) return send(200, { teams: ploegDemo.teams });
+    const answer = /\/work-items\/(\d+)\/questions\/(q[0-9-]+)\/answer$/.exec(path);
+    if (req.method === 'POST' && answer) {
+      posted.push({ path, body, headers: req.headers });
+      return send(201, { answer: { workItemId: answer[1], questionId: answer[2], commandId: body.commandId, createdAt: '2026-10-18T10:00:00Z', replayed: false } });
+    }
     const step = /\/work-items\/(\d+)\/(approve|reject|cancel|requeue|notes)$/.exec(path);
     if (req.method === 'POST' && step) {
       posted.push({ path, body, headers: req.headers });
       const [, id, kind] = step;
       const team = details[id].item.team;
       if (kind === 'cancel') return send(200, { cancellation: { workItemId: id, team, state: 'withdrawn', withdrawn: true, shiftId: '20', cancelledRuns: 1, stoppedRuns: 1, keysBlocked: true } });
-      if (kind === 'requeue') return send(200, { requeue: { workItemId: id, team, state: 'queued', fromRound: 1, poolUsd: 3, commandId: body.commandId, replayed: false } });
+      if (kind === 'requeue') return send(200, { requeue: { workItemId: id, team, state: 'queued', fromRound: body.resume ? 3 : 1, poolUsd: 3, commandId: body.commandId, replayed: false, ...(body.resume ? { resume: true } : {}) } });
       if (kind === 'notes') return send(201, { note: { id: '5', workItemId: id, commandId: body.commandId, shiftId: '20', replayed: false } });
       return send(200, { decision: { workItemId: id, team, state: kind === 'approve' ? 'queued' : 'withdrawn' } });
     }
@@ -336,4 +344,19 @@ test('POST /api/ploeg/work-items/:id/requeue and /notes call Ploeg as the person
   assert.equal((await request(demo.url, '/api/ploeg/work-items/999/notes', { method: 'POST', body: { text: 'hi' } })).status, 404);
   const demoRequeue = await request(demo.url, '/api/ploeg/work-items/101/requeue', { method: 'POST', body: { expectedState: 'needs_human' } });
   assert.equal(demoRequeue.body.demo, true, demoRequeue.text);
+});
+
+test('unfold_answer_question stores the answer under the question, then resumes the Round that asked, after one confirmation', async t => {
+  const ploeg = await fakePloeg(t);
+  const server = await application('live', config => { config.ploeg = ploeg.config; }); t.after(() => server.close());
+  const token = credential(server, server.app.store.getUserByName('admin')!.id);
+  const done = await overStdio(server.url, token, 'unfold_answer_question', { id: '109', text: 'Use 422' }, accept);
+  assert.equal(done.result.isError, undefined, JSON.stringify(done.result));
+  assert.equal(done.elicited.length, 1);
+  assert.match(done.elicited[0].message, /^Answer the question on Work Item 109 ".*"\? Then Ploeg resumes Round 3 on the same branch: this Round up to \$0\.40, in total up to \$2\.25, from Team delivery's budget\. Answer: Use 422$/);
+  assert.deepEqual(ploeg.posted.map(call => call.path), ['/api/v1/operator/work-items/109/questions/q43-1/answer', '/api/v1/operator/work-items/109/requeue']);
+  assert.equal(ploeg.posted[0].body.answer, 'Use 422');
+  assert.equal(ploeg.posted[1].body.resume, true);
+  assert.equal(ploeg.posted[1].body.note, undefined, 'the answer travels with the question, not as a note');
+  assert.equal(done.result.structuredContent.result.resumed, true);
 });

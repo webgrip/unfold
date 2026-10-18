@@ -145,6 +145,22 @@ MCP: unfold_get_work passes `closeReason` through on each Shift; unfold_now and 
 | `budget held by unsettled runs`… | The US$ 5,00 budget is still held, not spent | Budget held, not spent | budget held by unsettled runs: pool 5, spent 1, held 4 | Prefix; the label shown is for `budget held by unsettled runs: pool 5, spent 1, held 4`. |
 | `run stuck`… | The writer got stuck in Round 2 | Agent is stuck | run stuck: writer round 2 | Prefix; the label shown is for `run stuck: writer round 2`. |
 | `plan removed from configuration`… | The Team plan was removed | Team plan removed | same | Prefix; the label shown is for `plan removed from configuration`. |
+| `question_for_person` | An agent asked a person a question | Question for you | same | Accepted ahead of Ploeg: Ploeg's next release (ploeg-hq/ploeg#180, ADR-0121) writes it; the pinned Ploeg does not yet. Unfold already words it. |
+
+## Finding answer status
+
+Ploeg term: [Outcome Report](glossary.md#outcome-report). Published as the enum of `findings[].answer.status` and `runFindingAnswer.status` in operator-api.v1.schema.json from ploeg-hq/ploeg#180 (ADR-0121). The pinned Ploeg does not publish it yet; once the pin moves, name the schema pointers here.
+
+Unfold accepts: apps/unfold/src/ploeg.ts `findingAnswerStatuses`; any other status drops the answer. Screen words: apps/unfold/public/core/blackboard.js `findingAnswerKinds`.
+
+MCP: unfold_get_work passes the status through as `findings[].answer.status`.
+
+| Value | Screen label | MCP | Note |
+|---|---|---|---|
+| `fixed` | Fixed | same | Accepted ahead of Ploeg: Ploeg's next release (ploeg-hq/ploeg#180) sends it. |
+| `disagree` | Disagrees | same | Accepted ahead of Ploeg: Ploeg's next release (ploeg-hq/ploeg#180) sends it. |
+| `out_of_scope` | Out of scope | same | Accepted ahead of Ploeg: Ploeg's next release (ploeg-hq/ploeg#180) sends it. |
+| `deferred` | Deferred | same | Accepted ahead of Ploeg: Ploeg's next release (ploeg-hq/ploeg#180) sends it. |
 
 ## Operator Execution needs_human reason
 

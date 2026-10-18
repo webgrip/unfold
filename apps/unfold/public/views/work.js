@@ -5,7 +5,7 @@ import { $, renderHtml, notify, announce, safeUrl, download } from '../core/dom.
 import { buildHash } from '../core/route.js';
 import { live } from '../core/live.js';
 import { prefs } from '../core/prefs.js';
-import { plural } from '../core/format.js';
+import { money, plural } from '../core/format.js';
 import { singleKeyAllowed, isTyping } from '../core/keys.js';
 import { shell } from '../shell.js';
 import { enterPloegView, openPloegDialog } from './ploeg-common.js';
@@ -16,6 +16,9 @@ import { enabled, exposed, flagValues, track } from '../core/flags.js';
 import { agentsWindowAvailable, openAgentsWindow } from '../agents-window.js';
 import { actionsCsv, actionsJson, engineRows, newestFirst, recordRow } from '../action-log.js';
 import { linkedChangedEvent } from './linked-sessions.js';
+import { answerDialogMarkup, answerField, noteDialogMarkup, noteLimit } from '../blackboard-view.js';
+import { answerLimit, answerNote, resumeOffer, waitingQuestion, waitingQuestions, writeError } from '../core/blackboard.js';
+import { detailReason } from '../core/reasons.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -29,9 +32,9 @@ const transcriptInterval = 4000;
 const healthInterval = 30_000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null };
+const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null }));
+onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
@@ -95,6 +98,7 @@ function model() {
     contextBusy: work.contextBusy,
     contextResult: work.contextResult?.id === work.detailId ? work.contextResult : null,
     canAddContext: canAddContext(),
+    canWrite: canAddContext(),
     asks: work.asks?.id === work.detailId ? work.asks.data : null,
     askBusy: work.askBusy,
     askDraft: work.askDraft,
@@ -1064,6 +1068,104 @@ async function submitCancel(id) {
   }
 }
 
+function currentDetail() {
+  const detail = state.ploegDetail;
+  return detail && detail.item.id === work.detailId ? detail : null;
+}
+
+function pendingQuestions(detail) {
+  const listed = waitingQuestions(detail);
+  if (listed.length) return listed;
+  const one = waitingQuestion(detail, detailReason(detail));
+  return one ? [one] : [];
+}
+
+function openAnswer() {
+  const detail = currentDetail();
+  const questions = detail ? pendingQuestions(detail) : [];
+  if (!questions.length || work.writeBusy || !canAddContext()) return;
+  const budget = detail.shifts?.[0]?.budgetUsd ?? detail.item.latestShift?.budgetUsd;
+  const dialog = openPloegDialog(answerDialogMarkup(detail, questions, { demo: Boolean(detail.demo || state.bootstrap?.mode === 'demo'), budget: typeof budget === 'number' && budget > 0 ? money(budget) : '', resume: resumeOffer(detail) }));
+  dialog.querySelector('#work-answer-text-0')?.focus();
+  dialog.addEventListener('close', () => { if (!work.writeBusy) $('[data-action="work-answer-open"]')?.focus(); }, { once: true });
+}
+
+function openNote() {
+  const detail = currentDetail();
+  if (!detail || work.writeBusy || !canAddContext()) return;
+  const dialog = openPloegDialog(noteDialogMarkup(detail, { demo: Boolean(detail.demo || state.bootstrap?.mode === 'demo') }));
+  dialog.querySelector('#work-note-text')?.focus();
+  dialog.addEventListener('close', () => { if (!work.writeBusy) $('[data-action="work-note-open"]')?.focus(); }, { once: true });
+}
+
+function fieldError(form, name, message) {
+  const error = form.querySelector(`[data-error-for="${name}"]`);
+  const field = form.querySelector(`[name="${name}"]`);
+  if (error) { error.textContent = message; error.hidden = !message; }
+  if (message) { field?.setAttribute('aria-invalid', 'true'); field?.focus(); } else field?.removeAttribute('aria-invalid');
+  return Boolean(message);
+}
+
+async function sendWrite(id, path, body, settled) {
+  work.writeBusy = true;
+  renderWork();
+  try {
+    const result = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/${path}`, { method: 'POST', body: JSON.stringify(body) });
+    notify(settled(result));
+  } catch (error) {
+    notify(error.message, true);
+  } finally {
+    work.writeBusy = false;
+    if (visible() && work.detailId === id) {
+      await Promise.all([loadOverview({ fresh: true, quiet: true }).catch(() => {}), loadDetail(id, { fresh: true, quiet: true }).catch(() => {})]);
+      renderWork();
+    }
+  }
+}
+
+const continued = result => result.demo ? 'This is the demo: nothing was stored, nothing restarted and nothing was spent.' : result.resumed ? `Answered. Ploeg resumed Round ${result.fromRound} with your answer.` : `Answered. Ploeg started the Work Item over from Round ${result.fromRound ?? 1} with your answer.`;
+
+async function submitAnswer(data, form, event) {
+  const id = form.dataset.id;
+  const detail = currentDetail();
+  const questions = detail ? pendingQuestions(detail) : [];
+  for (const question of questions) if (fieldError(form, answerField(question), writeError(data[answerField(question)], answerLimit, 'Type your answer.'))) return;
+  if (!id || !questions.length || id !== detail.item.id || work.writeBusy) return;
+  const resume = event?.submitter?.value === 'resume' && resumeOffer(detail);
+  form.closest('dialog')?.close();
+  const commandId = crypto.randomUUID();
+  const untyped = questions.find(question => !question.id);
+  if (untyped) {
+    await sendWrite(id, 'requeue', { commandId, expectedState: 'needs_human', note: answerNote(untyped, String(data[answerField(untyped)]).trim()) }, continued);
+    return;
+  }
+  work.writeBusy = true;
+  renderWork();
+  for (const [index, question] of questions.entries()) {
+    try {
+      await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/questions/${encodeURIComponent(question.id)}/answer`, { method: 'POST', body: JSON.stringify({ commandId: `${commandId}-a${index + 1}`, answer: String(data[answerField(question)]).trim() }) });
+    } catch (error) {
+      if (error.code === 'already_answered') continue;
+      work.writeBusy = false;
+      notify(error.message, true);
+      renderWork();
+      return;
+    }
+  }
+  work.writeBusy = false;
+  await sendWrite(id, 'requeue', { commandId, expectedState: 'needs_human', ...(resume ? { resume: true } : {}) }, continued);
+}
+
+async function submitNote(data, form) {
+  const id = form.dataset.id;
+  const detail = currentDetail();
+  if (fieldError(form, 'text', writeError(data.text, noteLimit, 'Type the note.'))) return;
+  if (!id || !detail || id !== detail.item.id || work.writeBusy) return;
+  form.closest('dialog')?.close();
+  const open = (detail.shifts || []).find(shift => !shift.closedAt);
+  await sendWrite(id, 'notes', { commandId: crypto.randomUUID(), text: String(data.text).trim(), ...(open?.id ? { expectedShiftId: String(open.id) } : {}) }, result => result.demo ? result.message || 'This is the demo: the note was not stored.' : 'Saved. The next Run of this Work Item reads your note.');
+}
+
 function traceData() {
   return work.trace?.id === work.detailId ? work.trace.data : null;
 }
@@ -1251,6 +1353,8 @@ export default {
     'work-context-add': () => openContext(),
     'work-ask-open': () => openAsk(),
     'work-layout': chooseLayout,
+    'work-answer-open': () => openAnswer(),
+    'work-note-open': () => openNote(),
     'work-ask-model': askModelAnyway,
     'work-ask-again': askAgain,
     'work-actions-retry': () => { if (work.detailId) { work.actions = null; renderWork(); void loadActions(work.detailId); } },
@@ -1261,7 +1365,7 @@ export default {
     'trace-dispute': openCrackStep('dispute'),
     'trace-resolve': openCrackStep('resolve'),
   },
-  forms: { 'trace-step': submitTraceStep, 'work-context': submitContext, 'work-ask': submitAsk, 'work-steer': submitSteer },
+  forms: { 'trace-step': submitTraceStep, 'work-context': submitContext, 'work-ask': submitAsk, 'work-steer': submitSteer, 'work-answer': submitAnswer, 'work-note': submitNote },
   inputs: { '[data-run-log-search]': searchRunLog },
   changes: {
     '#ploeg-team': changeTeam,
