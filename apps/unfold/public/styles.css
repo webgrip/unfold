@@ -25,6 +25,7 @@
 @import url('styles/designer.css') layer(views);
 @import url('styles/live.css') layer(views);
 @import url('styles/fleet.css') layer(views);
+@import url('styles/loop.css') layer(views);
 @import url('styles/live-work.css') layer(views);
 @font-face {
   font-family:Archivo;
