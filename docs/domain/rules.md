@@ -125,6 +125,16 @@ A person initially accepts Results; automatic acceptance requires a separately a
 
 **Also applies to:** Review
 
+## Review
+
+### R22
+
+A Work Item has one Review. Unfold records no verdict of its own on a Candidate; the person reviews the pull request.
+
+**Why:** Two places to accept the same change let them disagree, and only the pull request is what merges.
+
+**Also applies to:** Candidate, Work Item
+
 ## Run
 
 ### R8
@@ -144,6 +154,16 @@ A Run Card describes a change and never scores a person. Its state never changes
 **Why:** A record of a change makes people care about it; a score of a person gets gamed, and in the Netherlands it needs works council consent.
 
 **Also applies to:** Steward, Grade
+
+## Session
+
+### R21
+
+People see Work Items, never Sessions. A Session's questions, permission requests, controls and Evidence show on its Work Item's page, and "session" on screen names only a Linked Session.
+
+**Why:** One piece of work is one thing to the person following it; "session" already names a Linked Session, and Ploeg forbids the word for a Shift.
+
+**Also applies to:** Work Item, Linked Session
 
 ## Shift
 

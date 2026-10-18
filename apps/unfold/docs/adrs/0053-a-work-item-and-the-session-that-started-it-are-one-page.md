@@ -30,7 +30,9 @@ Since managed execution, every session someone starts in Unfold runs in Ploeg as
 
 Chosen option: "**one Work Item page**", because the Work Item is the unit Ploeg runs and every session that runs has one, so the Work Item page can carry everything the session page did. The other five layouts are removed; their best parts stay on the one page: the flight on a dark ground (Night cockpit), the log with clock times and the spend tape (Logbook), and the conversation entries and intent bar (Thread).
 
-On the page, each Run in the log opens in place to the same body the current page shows: its account, failure, health, findings, what the agent did (Ploeg's transcript) and its pod logs. The Run that works now is open. When an Unfold session started the Work Item, the page loads that session (`attachSession` in `public/views/session.js`) and shows its questions, permission requests, delivery and review above the flight, its Pause, Resume, Cancel and Export in the header, its evidence (activity, gateway calls, changes, checks and hand-off) as an Evidence view beside Log, Brief and Trace, and its budget, repository hand-off, tool approval and details beside the views. `#session/<id>` opens `#work/<id>` once Ploeg has admitted the session; a session without a Work Item yet, or a standalone demo session, keeps its own page.
+On the page, each Run in the log opens in place to the same body the current page shows: its account, failure, health, findings, what the agent did (Ploeg's transcript) and its pod logs. The Run that works now is open. When an Unfold session started the Work Item, the page loads that session (`attachSession` in `public/views/session.js`) and shows its questions, permission requests and delivery above the flight, its Pause, Resume, Cancel and Export in the header, its evidence (activity, gateway calls, changes, checks and hand-off) as an Evidence view beside Log, Brief and Trace, and its budget, repository hand-off, tool approval and details beside the views. `#session/<id>` opens `#work/<id>` once Ploeg has admitted the session; a session without a Work Item yet, or a standalone demo session, keeps its own page.
+
+In the domain language ([domain model](../../../../docs/domain/model.yaml)): people see Work Items, never Sessions (rule R21); a Session is Unfold's internal record of a Work Item started in Unfold, and "session" on screen names only a Linked Session. A Shift is an **Attempt** on screen. A Work Item has one Review, its pull request (rule R22), so the page shows no Accept or Reject of the session's Candidate.
 
 ### Consequences
 
@@ -41,11 +43,11 @@ On the page, each Run in the log opens in place to the same body the current pag
 
 ### Confirmation
 
-`test/live-work.test.mjs` checks that every started Run is asked for its body, the working Run opens, each Run of a machine-ended burst opens on its own, and a session's parts render with no link to a separate session page. On 2026-10-18 the page was checked in headless Chromium against `npm run demo` with the flag on: a running Work Item opens its working Run with "What the agent did" and "Pod logs", and a session whose binding was stubbed to a demo Work Item redirected to that Work Item and showed its review, evidence, budget and hand-off with no script error. Not checked: a real Ploeg-bound session (the unified demo needs PostgreSQL, not installed here).
+`test/live-work.test.mjs` checks that every started Run is asked for its body, the working Run opens, each Run of a machine-ended burst opens on its own, and a session's parts render with no link to a separate session page. On 2026-10-18 the page was checked in headless Chromium against `npm run demo` with the flag on: a running Work Item opens its working Run with "What the agent did" and "Pod logs", and a session whose binding was stubbed to a demo Work Item redirected to that Work Item and showed its evidence, budget and hand-off with no script error. Not checked: a real Ploeg-bound session (the unified demo needs PostgreSQL, not installed here).
 
 ## More Information
 
 ### Choices to re-check
 
-* Promote the page to everyone and retire `#session/<id>` and the current Work Item page once the owner has used it.
+* Promote the page to everyone and retire `#session/<id>`, the Sessions list (a "Started by me" filter on Work instead) and the current Work Item page once the owner has used it; then the session page's own Accept and Reject go too (R22).
 * The session's Activity view and Ploeg's transcript show the same agent work from two records; once the page is promoted one of them can go.

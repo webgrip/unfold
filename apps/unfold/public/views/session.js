@@ -658,9 +658,9 @@ function stateNoticeMarkup(session) {
   return '';
 }
 
-function decisionMarkup(session) {
+function decisionMarkup(session, { review = true } = {}) {
   const permissions = state.permissions.filter(request => !request.resolved).map(request => permissionMarkup(session, request)).join('');
-  const parts = [failureMarkup(session), permissions, deliveryMarkup(state), reviewMarkup(session), stateNoticeMarkup(session)].filter(Boolean);
+  const parts = [failureMarkup(session), permissions, deliveryMarkup(state), review ? reviewMarkup(session) : '', stateNoticeMarkup(session)].filter(Boolean);
   return parts.length ? `<div class="session-decisions">${parts.join('')}</div>` : '';
 }
 
@@ -888,13 +888,13 @@ export async function attachSession(id, { view, render: draw, here, inspect = ()
   return true;
 }
 
-/** The session's own parts for a host view, drawn from the shared state: what it waits on, its controls, its evidence without the steering box, and its budget, hand-off, execution, approval and details cards. Null while `id` is not the loaded session. */
+/** The session's own parts for a host view, drawn from the shared state: what it waits on, its controls, its evidence without the steering box, and its budget, hand-off, approval and details cards. It carries no Accept or Reject: the Work Item's one Review is its pull request (domain rule R22). Null while `id` is not the loaded session. */
 export function sessionParts(id) {
   const session = state.session;
   if (!session || session.id !== id) return null;
-  const decision = decisionMarkup(session);
+  const decision = decisionMarkup(session, { review: false });
   return {
-    decision: decision ? `<div id="session-decision" tabindex="-1">${decision}${reviewBarMarkup(session)}</div>` : reviewBarMarkup(session),
+    decision: decision ? `<div id="session-decision" tabindex="-1">${decision}</div>` : '',
     actions: headerActions(session),
     evidence: evidenceMarkup(session, { composer: false }),
     evidenceLabel: 'Evidence',

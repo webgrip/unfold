@@ -62,7 +62,7 @@
         "created": "2026-10-18",
         "expires": "2027-01-18",
         "title": "One Work Item page",
-        "description": "One page for a Work Item and the session that started it. Where it stands and what waits on you first, the flight on a dark ground, then a log of everything that happened with clock times and the spend tape, where every Run opens in place to what the agent did and its pod logs. A Work Item started in Unfold also carries its session there: its questions and permission requests, Pause, Resume and Cancel, its evidence (activity, gateway calls, changes, checks and hand-off), budget and review. A session link opens its Work Item. The intent bar steers, asks or adds context and says who reads it before you send. Acceptance proof is not reported by Ploeg yet, so conditions say so.",
+        "description": "One page for a Work Item and the session that started it. Where it stands and what waits on you first, the flight on a dark ground, then a log of everything that happened with clock times and the spend tape, where every Run opens in place to what the agent did and its pod logs. A Work Item started in Unfold also carries its session there: its questions and permission requests, Pause, Resume and Cancel, its evidence (activity, gateway calls, changes, checks and hand-off) and budget. A session link opens its Work Item; the pull request is the one review. The intent bar steers, asks or adds context and says who reads it before you send. Acceptance proof is not reported by Ploeg yet, so conditions say so.",
         "client": true,
         "labs": true
       }
