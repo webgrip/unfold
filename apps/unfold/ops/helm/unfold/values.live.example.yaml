@@ -41,3 +41,14 @@ config:
       url: https://forge.example/organization/application.git
       baseBranch: main
       verify: [node, --test]
+      executionOwner: ploeg
+  litellm:
+    baseUrl: https://gateway.internal.example/v1
+  ploeg:
+    url: https://ploeg.internal.example
+    tokenEnv: PLOEG_OPERATOR_UNFOLD_TOKEN
+    teams: [delivery]
+    userTeams:
+      replace-with-user-id: [delivery]
+  execution:
+    team: delivery

@@ -6,7 +6,7 @@ This contract extends [shared execution](ploeg-execution.md). Architecture ratif
 
 An administrator adds `ploeg: { target: { forge, owner, repo, baseBranch } }` to a Vikunja or ClickUp task source with `executionOwner: "ploeg"`. The source's existing `provider`, normalized `baseUrl` and `project` identify Ploeg's configured singleton provider and native project or home List. Ploeg checks the API root by equality to its configuration; it never requests a client-supplied URL. The registered target must match the Ploeg Work Target and the Unfold repository URL and base branch. Credentials remain server-side environment references or the session owner's linked account.
 
-Unmapped sources remain readable where their existing permissions allow it. Import into shared execution fails closed. Forgejo, GitHub and GitLab remain available for standalone imports; they are not Ploeg tracker adapters in this milestone.
+Unmapped sources remain readable where their existing permissions allow it. Import into shared execution fails closed. Forgejo, GitHub and GitLab sources are not Ploeg tracker adapters in this milestone; their imports were for standalone execution, which a live Unfold no longer starts.
 
 ## Preview and import
 

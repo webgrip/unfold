@@ -2,6 +2,7 @@ import { readFileSync, existsSync, mkdirSync, chmodSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppConfig, Repository, Team, Placement, WorkspaceBackend } from './types.ts';
+import { mcpHttpSettings } from './mcp-auth.ts';
 import { validateTaskSources } from './tasks.ts';
 import { reportSettings } from './reports.ts';
 import { sentryTarget } from './error-reports.ts';
@@ -9,6 +10,7 @@ import { validatePloeg } from './ploeg.ts';
 import { validateCardRules } from './cards/settings.ts';
 import { validateDeliveryConfig } from './delivery-config.ts';
 import { flagSettings, loadRegistry } from './flags.ts';
+import { defaultJudgeModels } from './run-health/judge.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 export const defaultTeams: Team[] = [
@@ -118,6 +120,21 @@ export function validateCards(raw: unknown, mode: AppConfig['mode']): NonNullabl
 }
 
 /**
+ * Checks the `runHealth` block (RFC-0007): `judgeModels`, the gateway models the shadow judge may use, in order of
+ * preference. It defaults to Hetzner's free EU-hosted inference; the judge never falls back to a model not listed here.
+ */
+export function runHealthSettings(raw: unknown): NonNullable<AppConfig['runHealth']> {
+  if (raw === undefined) return { judgeModels: [...defaultJudgeModels] };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('runHealth must be an object');
+  const value = raw as Record<string, unknown>;
+  for (const key of Object.keys(value)) if (key !== 'judgeModels') throw new Error(`runHealth.${key} is not a setting`);
+  if (value.judgeModels === undefined) return { judgeModels: [...defaultJudgeModels] };
+  const models = value.judgeModels;
+  if (!Array.isArray(models) || !models.length || models.length > 8 || models.some(model => typeof model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:/@-]{0,127}$/.test(model)) || new Set(models).size !== models.length) throw new Error('runHealth.judgeModels must list 1 to 8 distinct gateway model names');
+  return { judgeModels: models as string[] };
+}
+
+/**
  * Checks the `cardThemes` block: an optional read-only themes folder, the asset quota, and optional art generation
  * through an OpenAI-compatible endpoint with its own key. The key is named by a `UNFOLD_` environment variable, which
  * `runtime.agentEnvironment` can never pass to an agent workspace, must be set, and must not be the gateway master
@@ -189,11 +206,46 @@ export function errorReportSettings(mode: string): AppConfig['errorReports'] {
   return { ...(sentryDsn ? { sentryDsn } : {}), ...(otlpUrl ? { otlpUrl } : {}), environment };
 }
 
+/**
+ * Reads the remote MCP servers the workbench tells editors about. `UNFOLD_PLOEG_MCP_URL` is the exact resource URL of
+ * `ploeg-mcp http`, and `UNFOLD_PLOEG_MCP_CLIENT_ID` the public OAuth client registered for it. Both or neither; there is no default.
+ */
+export function mcpServerSettings(): AppConfig['mcpServers'] {
+  const url = process.env.UNFOLD_PLOEG_MCP_URL || undefined;
+  const clientId = process.env.UNFOLD_PLOEG_MCP_CLIENT_ID || undefined;
+  if (!url && !clientId) return undefined;
+  if (!url || !clientId) throw new Error('UNFOLD_PLOEG_MCP_URL and UNFOLD_PLOEG_MCP_CLIENT_ID must be set together');
+  let parsed: URL;
+  try { parsed = new URL(url); } catch { throw new Error('UNFOLD_PLOEG_MCP_URL must be an absolute URL'); }
+  const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(parsed.hostname);
+  if (!(parsed.protocol === 'https:' || (parsed.protocol === 'http:' && loopback)) || parsed.username || parsed.password || parsed.search || parsed.hash) throw new Error('UNFOLD_PLOEG_MCP_URL must be an HTTPS URL without credentials, query or fragment');
+  if (!/^[A-Za-z0-9._:-]{1,200}$/.test(clientId)) throw new Error('UNFOLD_PLOEG_MCP_CLIENT_ID must be an OAuth client id');
+  return { ploeg: { url, clientId } };
+}
+
 /** Reads `UNFOLD_INSIGHT_EVENTS`: product events are recorded unless it is `off`, as ADR-0023's tenant default says. */
 export function productEventsSetting(): boolean {
   const value = process.env.UNFOLD_INSIGHT_EVENTS || 'on';
   if (!['on', 'off'].includes(value)) throw new Error('UNFOLD_INSIGHT_EVENTS must be on or off');
   return value === 'on';
+}
+
+export const managedExecutionGuide = 'https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/workflows/managed-execution.md';
+
+/**
+ * Refuses to start a live Unfold that Ploeg does not authorize. Ploeg authorizes and budgets every
+ * agent Run (system ADR-0002), so live mode needs an `execution` block and a `ploeg` connection with
+ * a server credential. Demo mode makes no model calls and is unaffected.
+ */
+export function requirePloegExecution(config: Pick<AppConfig, 'mode' | 'execution' | 'ploeg'>): void {
+  if (config.mode !== 'live') return;
+  const missing = [
+    ...(!config.ploeg || config.ploeg.demo ? ['ploeg.url'] : []),
+    ...(!config.ploeg?.tokenEnv ? ['ploeg.tokenEnv'] : []),
+    ...(!config.execution?.team ? ['execution.team'] : []),
+  ];
+  if (!missing.length) return;
+  throw new Error(`Live mode runs agent work only under Ploeg's authorization, and standalone live mode is retired. Configure ${missing.join(', ')} (see config/live.example.json) and set the variable ploeg.tokenEnv names to Unfold's Ploeg consumer token. Guide: ${managedExecutionGuide}. For the credential-free demonstration, run npm run demo.`);
 }
 
 export function loadConfig(argv = process.argv.slice(2)): AppConfig {
@@ -308,6 +360,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     observability = {};
     if (o.grafanaUrl !== undefined) observability.grafanaUrl = configuredUrl(o.grafanaUrl, 'observability.grafanaUrl');
     if (o.logsUrl !== undefined) observability.logsUrl = configuredUrl(o.logsUrl, 'observability.logsUrl');
+    if (o.metricsUrl !== undefined) observability.metricsUrl = configuredUrl(o.metricsUrl, 'observability.metricsUrl');
     if (o.dashboards !== undefined) {
       if (!o.dashboards || typeof o.dashboards !== 'object' || Array.isArray(o.dashboards) || Object.entries(o.dashboards).some(([key, value]) => !/^[a-z0-9-]{1,40}$/.test(key) || typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(value))) throw new Error('observability.dashboards maps short names to Grafana dashboard uids');
       observability.dashboards = o.dashboards;
@@ -330,9 +383,11 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     observability,
     insight: insightSettings(),
     errorReports: errorReportSettings(mode),
+    mcpServers: mcpServerSettings(),
     productEvents: productEventsSetting(),
     cards,
     cardThemes: cardThemeSettings(raw.cardThemes, mode),
+    runHealth: runHealthSettings(raw.runHealth),
     flags: flagSettings(raw.flags, loadRegistry()),
     litellm: litellmBase && (adminKey || raw.execution) ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
   };
@@ -361,6 +416,13 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (oidc.clientSecretEnv && !clientSecret) throw new Error(`auth.oidc.clientSecretEnv names ${oidc.clientSecretEnv}, which is not set`);
     config.auth.oidc = { issuer: configuredUrl(oidc.issuer, 'auth.oidc.issuer'), ...(oidc.subjectNamespace !== undefined ? { subjectNamespace: oidc.subjectNamespace.replace(/\/$/, '') } : {}), clientId: oidc.clientId, ...(clientSecret ? { clientSecret } : {}), scopes, displayName: oidc.displayName ?? 'Authentik', roleClaim: oidc.roleClaim ?? 'unfold_role', groupsClaim: oidc.groupsClaim ?? 'groups', roles: roles as Record<'admin' | 'operator' | 'viewer', string[]> };
   } else delete (config.auth as { oidc?: unknown }).oidc;
+  const mcp = mcpHttpSettings();
+  if (mcp) {
+    if (mode !== 'live') throw new Error('UNFOLD_MCP_RESOURCE serves unfold-mcp over HTTP for signed-in people, which needs live mode');
+    if (!config.auth.oidc) throw new Error('UNFOLD_MCP_RESOURCE needs auth.oidc: an MCP sign-in maps to the account the same person has from single sign-on');
+    if (!mcp.subjectNamespace && new URL(mcp.issuer).origin !== new URL(config.auth.oidc.issuer).origin) throw new Error('UNFOLD_MCP_ISSUER is on another origin than auth.oidc.issuer, so its subjects may not be the same people; serve both from one identity provider, or set UNFOLD_MCP_SUBJECT_NAMESPACE to the namespace whose subjects match');
+    config.mcp = mcp;
+  }
   config.runtime.maxToolCalls = number(raw.runtime?.maxToolCalls, 80, 1, 2000, 'runtime.maxToolCalls');
   if (raw.runtime?.briefCheck !== undefined && typeof raw.runtime.briefCheck !== 'boolean') throw new Error('runtime.briefCheck must be true or false');
   config.runtime.briefCheck = raw.runtime?.briefCheck ?? true;

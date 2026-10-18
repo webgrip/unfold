@@ -199,7 +199,7 @@ export class CrackWorkflow {
     return marked;
   }
 
-  /** Settles every recorded mend whose window has an answer at `now`: reopened when another crack on the same card was confirmed within the window, confirmed once the window passed, the bug Work Item is done and the crack still counts. `bugDone` says whether a bug is done, or undefined when unknown. */
+  /** Settles every recorded mend whose window has an answer at `now`: reopened when another crack on the same card, proposed within the window after the mend, is now confirmed or disputed; confirmed once the window passed, the bug Work Item is done and the crack still counts. `bugDone` says whether a bug is done, or undefined when unknown. */
   confirmMends(now: number, bugDone: (bugId: string) => boolean | undefined, actor = 'unfold:sweep'): { confirmed: number; reopened: number } {
     let confirmed = 0, reopened = 0;
     this.store.transaction(() => {

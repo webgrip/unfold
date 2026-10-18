@@ -32,7 +32,7 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0016](adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | accepted | 2026-10-02 |
 | [ADR-0017](adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) | A Tenant sits above Teams and bounds what users, sources and budgets can reach | accepted | 2026-10-04 |
 | [ADR-0018](adr-0018-ploeg-releases-on-its-own-schedule-behind-a-tested-contract-version.md) | Ploeg releases on its own schedule behind a tested contract version | proposed | 2026-10-03 |
-| [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) | Unfold pins Ploeg from its own repository and releases only its application | accepted | 2026-10-03 |
+| [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) | Unfold pins Ploeg from its own repository and releases only its application | superseded by ADR-0039 | 2026-10-18 |
 | [ADR-0020](adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) | Unfold is the application, and the name Vloer is retired | accepted | 2026-10-04 |
 | [ADR-0021](adr-0021-agents-are-briefed-from-a-per-tenant-knowledge-base-exchanged-as-okf.md) | Agents are briefed from a per-Tenant knowledge base exchanged as OKF | proposed | 2026-10-04 |
 | [ADR-0022](adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md) | People give a Work Item context files, at the start and while steering | accepted | 2026-10-04 |
@@ -50,3 +50,6 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0034](adr-0034-agent-knowledge-is-scoped-to-tenant-client-repository-and-work-item-in-two-graphs-per-tenant.md) | Agent knowledge is scoped to Tenant, Client, repository and Work Item, in two graphs per Tenant | proposed | 2026-10-11 |
 | [ADR-0035](adr-0035-interactive-sessions-reach-tenant-knowledge-only-through-unfold-mcp.md) | Interactive sessions reach Tenant knowledge only through unfold-mcp | proposed | 2026-10-11 |
 | [ADR-0036](adr-0036-ploeg-and-unfold-use-one-vocabulary-with-named-screen-words.md) | Ploeg and Unfold use one vocabulary, with named screen words | accepted | 2026-10-13 |
+| [ADR-0037](adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md) | People act on work through either MCP server, and every action names its person, channel and confirmation | accepted | 2026-10-17 |
+| [ADR-0038](adr-0038-report-a-problem-becomes-its-own-component-that-any-application-embeds.md) | Report a problem becomes its own component that any application embeds | accepted | 2026-10-18 |
+| [ADR-0039](adr-0039-unfold-depends-on-a-released-ploeg-through-its-contract-bundle-and-go-module.md) | Unfold depends on a released Ploeg through its contract bundle and Go module | accepted | 2026-10-18 |

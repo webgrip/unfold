@@ -1,0 +1,13 @@
+name: Run unfold-mcp's end-to-end suite against Authentik
+description: Sign people in through a real Authentik, connect the official MCP client over HTTP and check auth, tenancy and spend; the job's container must be the Playwright image that matches Unfold's playwright version, and the job must run Authentik as services and name it in UNFOLD_E2E_AUTHENTIK_URL and UNFOLD_E2E_AUTHENTIK_TOKEN
+runs:
+  using: composite
+  steps:
+    - name: Install Unfold's packages
+      shell: bash
+      working-directory: apps/unfold
+      run: npm ci --no-audit --no-fund
+    - name: Run the end-to-end suite
+      shell: bash
+      working-directory: apps/unfold
+      run: npm run test:mcp-e2e

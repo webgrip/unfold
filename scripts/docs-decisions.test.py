@@ -54,6 +54,13 @@ class DecisionRegister(unittest.TestCase):
         self.assertIn('ploeg 0001: implemented must be yes, partial or no', problems)
         self.assertIn('ploeg 0001: missing evidence apps/missing.go', problems)
 
+    def test_evidence_may_name_a_ploeg_file_the_contract_bundle_lists_but_leaves_out(self):
+        (self.base / 'apps/ploeg/files.txt').write_text('pkg/open.go\npkg/open_test.go\n')
+        self.evidence.write_text('ploeg:\n  "0002":\n    implemented: partial\n    evidence: apps/ploeg/pkg/open_test.go\n')
+        self.assertEqual(decisions.unknown_evidence(self.base), [])
+        self.evidence.write_text('ploeg:\n  "0002":\n    implemented: partial\n    evidence: apps/ploeg/pkg/gone_test.go\n')
+        self.assertEqual(decisions.unknown_evidence(self.base), ['ploeg 0002: missing evidence apps/ploeg/pkg/gone_test.go'])
+
 
 if __name__ == '__main__':
     unittest.main()

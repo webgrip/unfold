@@ -43,7 +43,16 @@ Unfold records product events from the browser in its own database ([RFC-0001](.
 | `errorReports.sentry.secretKey` | `sentry-dsn` | Key in that Secret. |
 | `errorReports.environment` | `""` | `UNFOLD_ERROR_ENVIRONMENT`, the environment reports carry, such as `staging`; empty uses the mode. Either destination, both or neither; failures are always logged. |
 
-The server sends the export, never the browser, so the workbench pod needs egress to the collector. [Running Unfold live](../../../docs/operations/live.md) describes what each level sends, and [the dashboard](../../grafana/README.md) reads it back in Grafana.
+The server sends the export, never the browser, so the workbench pod needs egress to the collector.
+
+## The Ploeg MCP server for editors
+
+The VS Code extension offers people the remote `ploeg-mcp` that the workbench names in `GET /api/mcp-servers` ([API contract](../../../docs/contracts/api.md#mcp-servers-for-editors)). Both values are public: a URL and an OAuth client id, never a token. Leave both empty and the workbench names no server.
+
+| Value | Default | Sets |
+| --- | --- | --- |
+| `ploegMcp.url` | `""` | `UNFOLD_PLOEG_MCP_URL`: the exact resource URL of `ploeg-mcp http`, the same string as its `PLOEG_MCP_RESOURCE`, such as `https://mcp-ploeg.example.com/mcp`. |
+| `ploegMcp.clientId` | `""` | `UNFOLD_PLOEG_MCP_CLIENT_ID`: the public client registered for it at the identity provider, such as `ploeg-mcp`. Set it together with the URL. | [Running Unfold live](../../../docs/operations/live.md) describes what each level sends, and [the dashboard](../../grafana/README.md) reads it back in Grafana.
 
 ## Teams
 
@@ -56,13 +65,13 @@ The server sends the export, never the browser, so the workbench pod needs egres
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       defaultVariant: "on"
 ```
 
 ## Live mode
 
-Live mode reaches services the chart cannot guess, and none of them has a default. The chart does not check them; Unfold does at startup. With `config.execution` set, it refuses to start without a Ploeg connection and a gateway URL. Set them in values or in the `credentialsSecret` environment:
+Live mode reaches services the chart cannot guess, and none of them has a default. The chart does not check them; Unfold does at startup. In live mode it refuses to start without `config.execution`, a Ploeg connection with `tokenEnv`, and a gateway URL. Set them in values or in the `credentialsSecret` environment:
 
 | Service | Where |
 | --- | --- |

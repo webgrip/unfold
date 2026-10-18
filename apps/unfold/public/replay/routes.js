@@ -34,7 +34,7 @@ export const recordedRoutes = Object.freeze([
   '/api/task-sources', `/api/task-sources/${id}/tasks`, `/api/task-sources/${id}/tasks/${id}`,
   '/api/ploeg', '/api/ploeg/teams', '/api/ploeg/summary', '/api/ploeg/runs', '/api/ploeg/events', '/api/ploeg/proposed', '/api/ploeg/now',
   '/api/ploeg/work-items', `/api/ploeg/work-items/${id}`, `/api/ploeg/work-items/${id}/card`, `/api/ploeg/work-items/${id}/cracks`, `/api/ploeg/work-items/${id}/crack-candidates`, `/api/ploeg/work-items/${id}/value-stream`,
-  `/api/ploeg/work-items/${id}/context`, `/api/ploeg/work-items/${id}/asks`, '/api/asks',
+  `/api/ploeg/work-items/${id}/context`, `/api/ploeg/work-items/${id}/asks`, `/api/ploeg/work-items/${id}/runs/${id}/health`, '/api/asks', '/api/actions', '/api/actions/filters',
 ].map(path => ({ method: 'GET', path })));
 
 /** Requests answered from the recorded session timeline or acknowledged without being kept. */
@@ -59,14 +59,15 @@ export const timelineRoutes = Object.freeze([
 export const refusedRoutes = Object.freeze([
   { method: 'POST', path: '/api/login' }, { method: 'POST', path: '/api/logout' }, { method: 'POST', path: '/api/reports' }, { method: 'POST', path: '/api/reports/seen' }, { method: 'GET', path: '/api/reports/similar' }, { method: 'POST', path: `/api/reports/${id}/replies` }, { method: 'GET', path: '/api/auth/oidc' },
   { method: 'GET', path: '/api/flags' }, { method: 'PUT', path: `/api/flags/${id}/choice` }, { method: 'GET', path: '/api/admin/flags' }, { method: 'PUT', path: `/api/admin/flags/${id}/override` }, { method: 'PUT', path: `/api/admin/flags/${id}/rollout` }, { method: 'GET', path: '/api/admin/flags/export' }, { method: 'PUT', path: `/api/admin/flag-segments/${id}` }, { method: 'DELETE', path: `/api/admin/flag-segments/${id}` }, { method: 'POST', path: '/api/ofrep/v1/evaluate/flags' },
-  { method: '*', path: '/api/agent-host' }, { method: '*', path: '/api/agent-host/tokens' },
+  { method: '*', path: '/api/agent-host' }, { method: '*', path: '/api/agent-host/tokens' }, { method: 'GET', path: `/api/agent-host/${id}/${id}/link` },
   { method: '*', path: '/api/editor-credentials' }, { method: '*', path: `/api/editor-credentials/${id}` }, { method: '*', path: `/api/editor-requests/${id}` }, { method: '*', path: `/api/editor-requests/${id}/${id}` },
   { method: '*', path: '/api/links' }, { method: '*', path: `/api/links/${id}` },
+  { method: '*', path: '/api/linked-sessions' }, { method: '*', path: `/api/linked-sessions/${id}` }, { method: '*', path: `/api/linked-sessions/${id}/${id}` }, { method: '*', path: `/api/linked-sessions/${id}/work-items/${id}` }, { method: 'GET', path: `/api/agent-trace/${id}` },
   { method: 'PUT', path: '/api/me/card-identity' }, { method: '*', path: `/api/cards/${id}/world` }, { method: 'POST', path: '/api/binder/seen' }, { method: 'POST', path: `/api/packs/${id}/open` },
   { method: '*', path: `/api/card-themes/${id}` }, { method: 'POST', path: '/api/card-assets' }, { method: 'GET', path: `/api/card-assets/${id}` }, { method: 'POST', path: '/api/card-art/generate' },
   { method: 'POST', path: '/api/status/notes' }, { method: 'POST', path: `/api/status/notes/${id}/resolve` },
   { method: 'POST', path: '/api/task-imports' }, { method: '*', path: `/api/task-sources/${id}/tasks/${id}/${id}` },
-  { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/logs` }, { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/transcript` },
+  { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/logs` }, { method: 'GET', path: `/api/ploeg/work-items/${id}/runs/${id}/transcript` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/runs/${id}/health/judgements/${id}/wrong` },
   { method: 'POST', path: `/api/ploeg/work-items/${id}/${id}` }, { method: 'POST', path: `/api/ploeg/work-items/${id}/cracks/${id}/${id}` },
   { method: 'GET', path: `/api/sessions/${id}/delivery` }, { method: '*', path: `/api/sessions/${id}/${id}` }, { method: '*', path: `/api/sessions/${id}/${id}/${id}` },
 ]);

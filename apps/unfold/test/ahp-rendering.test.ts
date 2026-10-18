@@ -105,7 +105,7 @@ test('C9: without a captured candidate, a native file diff is served on both sid
   assert.equal((await client.rpc('resourceRead', { channel: 'ahp-root://', uri: files[0].edit.after.content.uri })).data, 'new\n');
   assert.equal((await client.rpc('subscribe', { channel: `ahp-session:/${native.id}` })).snapshot.state.changesets[0].changeKind, 'session');
 
-  assert.equal((await client.rpc('subscribe', { channel: `ahp-session:/${patchOnly.id}` })).snapshot.state.changesets, undefined, 'no changeset is advertised for changes that cannot be shown as files');
+  assert.deepEqual((await client.rpc('subscribe', { channel: `ahp-session:/${patchOnly.id}` })).snapshot.state.changesets, [], 'no changeset is advertised for changes that cannot be shown as files, and the empty catalogue says so');
   assert.deepEqual((await client.rpc('subscribe', { channel: `ahp-changeset:/${patchOnly.id}` })).snapshot.state.files, []);
 });
 

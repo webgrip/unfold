@@ -75,7 +75,7 @@ export async function run({ page, app, live, password, assert, screenshot }) {
   await first('Show VAT per line on the order confirmation');
   await screenshot('palette-number');
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => location.hash === '#work/108');
+  await page.waitForFunction(() => location.hash.split('?')[0] === '#work/108');
   await page.locator('#page-title').waitFor();
 
   await search('99999', 'Open Work Item #99999');

@@ -13,6 +13,7 @@ import { live } from '../core/live.js';
 import { render } from '../core/navigation.js';
 import { shell, showConnection } from '../shell.js';
 import { openNew, confirmAction, openReviewDialog, openBudgetDialog, fieldError } from './dialogs.js';
+import { agentsWindowAvailable, agentsWindowButton, openAgentsWindow } from '../agents-window.js';
 
 const evidenceTabs = [
   { id: 'stream', icon: 'activity', label: 'Activity' },
@@ -720,6 +721,7 @@ function headerActions(session) {
   const evidence = session.artifacts.length > 0 || session.runs.some(run => run.status === 'completed');
   const parts = [];
   if (evidence) parts.push(button({ id: 'session-export', label: 'Export handoff', icon: 'download', variant: 'ghost', action: 'export' }));
+  if (agentsWindowAvailable(state.bootstrap) && (state.bootstrap.user.id === session.ownerId || state.bootstrap.user.role === 'admin')) parts.push(agentsWindowButton('sessions', session.id, { size: 'md' }));
   if (canOperate()) {
     if (!finished) parts.push(button({ id: 'session-cancel', label: 'Cancel', icon: 'stop', variant: 'danger-ghost', action: 'cancel', disabled: state.busy, busy: busy('cancel') }));
     if (['running', 'waiting_input'].includes(session.status)) parts.push(button({ id: 'session-pause', label: 'Pause', icon: 'pause', action: 'pause', disabled: state.busy, busy: busy('pause') }));
@@ -1028,6 +1030,7 @@ export default {
     supervision: setSupervision,
     permission: decidePermission,
     budget: () => openBudgetDialog(),
+    'session-agents-window': control => openAgentsWindow(control, state.session?.title),
   },
   forms: { review: recordReview, message: saveInstruction, budget: authorizeBudget, question: answerQuestion },
   inputs: { '#operator-message': element => { state.draft = element.value; }, '[data-question-other]': keepOtherAnswer },

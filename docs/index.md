@@ -19,7 +19,7 @@ A unit of work, a **Work Item**, is something you have decided to do, or a probl
 * [Ploeg](../apps/ploeg/docs/index.md) authorizes, budgets and runs every agent Run. It is a Go controller plus short-lived worker pods.
 * [The Unfold application](../apps/unfold/docs/index.md) is the front end, where you follow and steer work, in the browser or in VS Code.
 
-The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg), and Unfold pins one tested commit of it as a submodule at `apps/ploeg` ([ADR-0019](adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md)). The two deploy separately ([ADR-0002](adr/adr-0002-ploeg-is-the-only-engine.md)).
+The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/ploeg](https://github.com/ploeg-hq/ploeg), and Unfold depends on one tested release of it: its contract bundle, unpacked into `apps/ploeg`, and its Go module ([ADR-0039](adr/adr-0039-unfold-depends-on-a-released-ploeg-through-its-contract-bundle-and-go-module.md)). The two deploy separately ([ADR-0002](adr/adr-0002-ploeg-is-the-only-engine.md)).
 
 | I want to… | Go to |
 | --- | --- |
@@ -36,6 +36,8 @@ The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/pl
 | Let agents work in a repository | [Prepare a repository](how-to/prepare-a-repository.md) |
 | Try a Team on ten real Work Items, or compare prompts, models and harnesses | [Run a pilot batch](how-to/run-a-pilot-batch.md) |
 | Ask an AI client what waits for you, why, and what to do | [Ask Unfold and Ploeg from an AI client](how-to/ask-from-an-ai-client.md) |
+| See your own Claude Code sessions on the Work Items they serve, with Agent Trace attribution and telemetry | [Link your Claude Code sessions](how-to/link-claude-code-sessions.md) |
+| Let people connect Claude Code, VS Code or Cursor to Unfold by URL, with a browser sign-in | [Serve Unfold's MCP tools over HTTPS](how-to/serve-unfold-mcp-over-https.md) |
 | Operate Ploeg or the Unfold application | [Ploeg](../apps/ploeg/docs/index.md) · [Unfold application](../apps/unfold/docs/index.md) |
 | Use the Unfold name, mark or colours | [Brand](brand/README.md) · [Trademark policy](brand/TRADEMARK.md) (proposed) |
 | Check what the website claims about credentials and execution, and which settings each claim needs | [Capability matrix](reference/capability-matrix.md) |

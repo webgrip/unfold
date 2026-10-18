@@ -89,6 +89,22 @@ test('an OIDC subject namespace is kept without its trailing slash, and an empty
   await assert.rejects(load(t, { auth: { oidc: { ...oidc, subjectNamespace: ' ' } } }), /auth.oidc.subjectNamespace must be a non-empty string/);
 });
 
+test('unfold-mcp over HTTP is off unless UNFOLD_MCP_RESOURCE is set, and then needs live mode and single sign-on', async t => {
+  const oidc = { issuer: 'https://auth.example/application/o/unfold/', clientId: 'unfold' };
+  assert.equal((await load(t, { auth: { oidc } })).mcp, undefined);
+  const keys = ['UNFOLD_MCP_RESOURCE', 'UNFOLD_MCP_ISSUER', 'UNFOLD_MCP_CLIENT_IDS', 'UNFOLD_MCP_SUBJECT_NAMESPACE'] as const;
+  const previous = keys.map(key => process.env[key]);
+  t.after(() => keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; }));
+  Object.assign(process.env, { UNFOLD_MCP_RESOURCE: 'https://unfold.example/mcp', UNFOLD_MCP_ISSUER: 'https://auth.example/application/o/unfold-mcp/', UNFOLD_MCP_CLIENT_IDS: 'unfold-mcp' });
+  assert.equal((await load(t, { auth: { oidc } })).mcp?.resource, 'https://unfold.example/mcp');
+  await assert.rejects(load(t, {}), /UNFOLD_MCP_RESOURCE needs auth.oidc/);
+  await assert.rejects(load(t, { mode: 'demo', auth: { oidc } }), /needs live mode/);
+  process.env.UNFOLD_MCP_ISSUER = 'https://other-idp.example/application/o/unfold-mcp/';
+  await assert.rejects(load(t, { auth: { oidc } }), /UNFOLD_MCP_ISSUER is on another origin than auth.oidc.issuer/);
+  process.env.UNFOLD_MCP_SUBJECT_NAMESPACE = 'https://auth.example/application/o/unfold/';
+  assert.equal((await load(t, { auth: { oidc } })).mcp?.subjectNamespace, 'https://auth.example/application/o/unfold', 'an explicit namespace is the operator saying the subjects match');
+});
+
 test('the insight export defaults off, needs a collector URL for faro and otlp, and takes an aggregate or events level', async t => {
   const keys = ['UNFOLD_INSIGHT_EXPORT', 'UNFOLD_INSIGHT_EXPORT_URL', 'UNFOLD_INSIGHT_EXPORT_LEVEL'] as const;
   const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));

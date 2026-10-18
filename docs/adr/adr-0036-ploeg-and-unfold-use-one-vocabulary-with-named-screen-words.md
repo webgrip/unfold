@@ -70,4 +70,5 @@ Chosen option: "One canonical term per concept, each friendlier screen word reco
 ## More Information
 
 * 2026-10-13 — The owner chose these words in two rounds of questions after the domain language audit. Accepted; not implemented yet.
+* 2026-10-14 — The owner named three more terms. **Needs-you Reason** (why a Work Item waits on a person, with its fix) and **Workbench** (one running deployment of the Unfold application) are Unfold terms in Unfold's domain model. **Ask Allowance** keeps its name and stays Ploeg's term.
 * Related: [system ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md), [system ADR-0030](adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md), [system ADR-0031](adr-0031-people-ask-about-a-work-item-through-a-metered-read-only-ask-paid-from-a-monthly-allowance.md).

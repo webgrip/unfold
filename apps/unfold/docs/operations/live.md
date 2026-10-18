@@ -4,19 +4,28 @@ Live mode runs paid or otherwise metered agent work. The intended first deployme
 
 Read [validation](../validation.md) for the actual qualification level. The local fixture demonstration does not validate these external integrations.
 
-## First standalone OpenCode session
+## First managed session
 
-For Ploeg-authorized execution, start with [the unified guide](../../../../docs/workflows/managed-execution.md). The management-key setup below applies to standalone Unfold. Shared execution keeps that authority in Ploeg.
+Ploeg authorizes and budgets every live agent Run ([ADR-0002](../../../../docs/adr/adr-0002-ploeg-is-the-only-engine.md)). Standalone live mode, where Unfold minted its own gateway keys without Ploeg, is retired: since 2026-10-14 a live Unfold without a `ploeg` connection and an `execution` block refuses to start, and the error names the missing settings. Demo mode needs neither. Set up Ploeg first with [the managed-execution guide](../../../../docs/workflows/managed-execution.md): an operator consumer with team scope and `execute: true`, and a managed inference policy for the team.
 
 Prepare Node 24, Git and the OpenCode version pinned in [the agent image](../../ops/agent/Dockerfile). The mise `live` and `probe-opencode` tasks install that version on demand; other mise commands do not. Register a repository the execution environment can clone. For the first qualification use a disposable public test repository; private forge credential provisioning is a separate deployment concern and must not inherit an operator's workstation login.
 
-Prepare a LiteLLM proxy with virtual-key management enabled and a working model alias such as `coding`. The gateway must support the model's required tool calls. Unfold uses the inference URL and a separately configurable management URL. Confirm model access and spend tracking in the gateway before supervising a paid session. The [LiteLLM virtual-key guide](https://docs.litellm.ai/docs/proxy/virtual_keys) documents the gateway prerequisites.
+Prepare a LiteLLM gateway with a working model alias such as `coding`. The gateway must support the model's required tool calls. Ploeg holds the gateway's management credential and mints each Run's capped key; Unfold needs only the inference URL. Confirm model access and spend tracking in the gateway before supervising a paid session.
 
-Copy the supplied non-secret configuration and set the repository URL, branch and verification argv:
+Copy the supplied non-secret configuration and set the repository URL, branch and verification argv, the gateway URL, Ploeg's URL and Team, and the Unfold user IDs that may use that Team:
 
 ```sh
 cp config/live.example.json config/live.local.json
 ```
+
+The example already has the blocks managed execution needs. `ploeg.tokenEnv` names the environment variable that holds Unfold's Ploeg consumer token, and `execution.team` must be one of `ploeg.teams`:
+
+```json
+"ploeg": { "url": "https://ploeg.internal.example", "tokenEnv": "PLOEG_OPERATOR_UNFOLD_TOKEN", "teams": ["delivery"] },
+"execution": { "team": "delivery" }
+```
+
+`executionOwner: "ploeg"` on a repository records that Ploeg owns its work; with `execution` set, every session Unfold starts goes through Ploeg either way.
 
 The minimal runtime selection is:
 
@@ -55,8 +64,9 @@ Supply credentials through the deployment's secret mechanism or a short-lived sh
 | `UNFOLD_HOST`, `UNFOLD_PORT` | Bind address and port; default `127.0.0.1:4080` |
 | `UNFOLD_BASE_URL` | Public HTTP(S) URL used for origin and secure-cookie behavior |
 | `LITELLM_BASE_URL` | Agent inference endpoint, normally the gateway URL including `/v1` |
-| `LITELLM_ADMIN_URL` | Management API root; defaults to inference URL with trailing `/v1` removed |
-| `LITELLM_MASTER_KEY` | Gateway management credential held by the control plane |
+| `LITELLM_ADMIN_URL` | Gateway root the Status page checks for liveness; defaults to inference URL with trailing `/v1` removed |
+| `LITELLM_MASTER_KEY` | Not used: Ploeg holds the gateway management credential and Unfold discards this value under managed execution. Leave it unset |
+| The variable `ploeg.tokenEnv` names | Unfold's Ploeg operator consumer token, the same one registered in Ploeg's `PLOEG_OPERATOR_CONSUMERS`; never listed in `agentEnvironment` |
 | `UNFOLD_INSIGHT_EVENTS` | `on` (default) records product events from the browser; `off` stores none, and the browser posts none |
 | `UNFOLD_INSIGHT_EXPORT` | Product-event sink: `off` (default), `faro` or `otlp` |
 | `UNFOLD_INSIGHT_EXPORT_URL` | Full collector URL the server posts to; required for `faro` and `otlp`. For Faro it ends in `/collect`, for OTLP/HTTP in `/v1/logs` |
@@ -64,6 +74,8 @@ Supply credentials through the deployment's secret mechanism or a short-lived sh
 | `UNFOLD_ERROR_OTLP_URL` | Optional OTLP/HTTP logs URL of an OpenTelemetry collector (ends in `/v1/logs`). Server errors (HTTP 5xx), unhandled rejections, crashes and failed Asks are sent there as log records. See [Error reports](#error-reports) |
 | `UNFOLD_SENTRY_DSN` | Optional Sentry-protocol DSN (`https://<key>@<host>/<project>`) for Sentry, GlitchTip or Bugsink; the same reports as envelopes |
 | `UNFOLD_ERROR_ENVIRONMENT` | Environment name on each report, such as `staging`; defaults to the mode |
+| `UNFOLD_PLOEG_MCP_URL` | Optional exact resource URL of the remote `ploeg-mcp`, the same string as its `PLOEG_MCP_RESOURCE`. HTTPS, except on loopback. No default. See [Ploeg's MCP server in VS Code](#ploegs-mcp-server-in-vs-code) |
+| `UNFOLD_PLOEG_MCP_CLIENT_ID` | The public OAuth client registered for that server, such as `ploeg-mcp`. Set it together with the URL; one without the other stops Unfold from starting |
 
 The insight export forwards product events the browser and VS Code extension post to `POST /api/insight/events` ([RFC-0001](../../../../docs/design/rfc-0001-product-events-and-confusion-signals.md)). The call is server to server, so the browser never contacts the collector and the CSP stays `'self'`.
 
@@ -80,9 +92,9 @@ Then start and sign in:
 mise run live --config config/live.local.json
 ```
 
-Select the registered repository and delivery Team, authorize a small budget and start one session. Inspect actual tool activity, changes, verification output and the explicit review verdict. Exercise a human permission response when one occurs. Reload the browser to verify continuity. At completion verify the final spend state and gateway key revocation; `unknown` is a blocker to investigate, not zero cost. The default 60-second settlement delay is a configurable grace period for gateway reporting, not a guarantee that delayed upstream charges can never arrive. Qualify it against the gateway’s spend update interval; budget enforcement has the gateway’s concurrency and in-flight request limits.
+Select the registered repository and delivery Team, authorize a small budget and start one session. Its **Ploeg runs this session** card links to the Work Item in Ploeg. Inspect actual tool activity, changes, verification output and the explicit review verdict. Exercise a human permission response when one occurs. Reload the browser to verify continuity. At completion verify the final spend state and that Ploeg blocked the Run's key; `unknown` is a blocker to investigate, not zero cost. Ploeg keeps the authorization until its accounting reconciles the spend; budget enforcement has the gateway's concurrency and in-flight request limits.
 
-The workspace manager starts an authenticated OpenCode server per managed workspace and injects a session-scoped LiteLLM inference key. Do **not** set `OPENCODE_URL` in live mode. Every live session receives a scoped model credential, and the workbench refuses to give one to a shared pre-existing OpenCode server, so live configuration with an external endpoint is rejected at startup. Use local provisioning on the remote host or Kubernetes provisioning.
+The workspace manager starts an authenticated OpenCode server per managed workspace and injects the session-scoped inference key Ploeg minted. Do **not** set `OPENCODE_URL` in live mode. Every live session receives a scoped model credential, and the workbench refuses to give one to a shared pre-existing OpenCode server, so live configuration with an external endpoint is rejected at startup. Use local provisioning on the remote host or Kubernetes provisioning.
 
 For another operator, run `npm run user:add` against the same `UNFOLD_DATA_DIR` while the server is stopped, then restart it. The helper asks for a name and role and generates a password shown once unless `UNFOLD_USER_PASSWORD` is supplied through the environment. Keep that output private. This helper provisions local accounts. OIDC sign-in is also implemented; see [signing in with the estate](#signing-in-with-the-estate). Shared session membership is a separate capability.
 
@@ -107,7 +119,7 @@ The Activity stream shows one card per tool call with its status; open it for th
 A profile can point the workbench at the estate's Grafana so every session links out to where the rest of the evidence lives:
 
 ```json
-"observability": { "grafanaUrl": "https://grafana.example", "dashboards": { "spend": "litellm", "reliability": "litellm-reliability", "finops": "finops-fleet" }, "tracesDatasource": "victoriatraces", "logsDatasource": "victorialogs", "logsUrl": "http://vlsingle-victorialogs.observability.svc.cluster.local:9428" }
+"observability": { "grafanaUrl": "https://grafana.example", "dashboards": { "spend": "litellm", "reliability": "litellm-reliability", "finops": "finops-fleet" }, "tracesDatasource": "victoriatraces", "logsDatasource": "victorialogs", "logsUrl": "http://vlsingle-victorialogs.observability.svc.cluster.local:9428", "metricsUrl": "http://vmsingle-vmsingle.observability.svc.cluster.local:8429" }
 ```
 
 **Settings › Environment** lists the dashboards, the budget panel links to the spend board whose "Cost per run" table is keyed by the session's key alias, and the Gateway tab opens Grafana Explore on the trace and log datasources for the session's time window, or for one request's window from its row. The default trace query selects the gateway's service and the default log query its namespace and container; `traceQuery` and `logsQuery` override them and may use `{callId}`, `{alias}` and `{sessionId}` once the estate records the gateway call id as a span attribute or log field. At the second estate the spend board's per-run rows come from the ledger exporter, which reads the gateway's request log by key alias, so a session's cost survives the revocation of its key.
@@ -119,6 +131,8 @@ Set `observability.logsUrl` to the VictoriaLogs base URL, for example `http://vl
 The page reads each line the way Grafana's log panel does, in the browser over the lines it holds. Go `slog` text (logfmt) and JSON lines give a level, a message and their other fields; any other line is its own message, with a level only when a level word such as `WARN` leads it. Above the lines a volume chart counts lines per level over the Run's time, and choosing a bar shows only that slice. Level filters with counts, a search that marks its matches, Wrap and Times switches and a Download of the shown lines sit between the chart and the lines. Fields every line carries, such as `trace` and `role`, show once above the lines instead of on each one. A line opens to its store time, level, pod and fields and its raw text. The search and filters stay on the page and never reach the log store; for anything older than the newest 500 lines, use **Open in Grafana**.
 
 Without `logsUrl` the disclosure says the logs are not connected and, when `grafanaUrl` and `logsDatasource` are set, links Grafana Explore to the same search. The demo has no agent pods and says so. In Kubernetes the Unfold pod needs NetworkPolicy egress to the VictoriaLogs pod on TCP 9428 (on the owner's homelab, pods labelled `app.kubernetes.io/name: vlsingle` and `app.kubernetes.io/instance: victorialogs` in the `observability` namespace); without it every read fails with "The log store could not be reached".
+
+Set `observability.metricsUrl` to a Prometheus-compatible query API, for example `http://vmsingle-vmsingle.observability.svc.cluster.local:8429`, and a [Linked Session](../contracts/api.md#linked-sessions)'s page shows its cost estimate, tokens and active time from Claude Code's OpenTelemetry metrics; with `logsUrl` it also shows prompt and tool counts, the most used tools and the Claude account the session reported. Map `observability.dashboards["claude-code-session"]` to the uid of a Grafana dashboard that takes a `session` variable to link it. Claude Code sends that telemetry only when the person enables it in their own `~/.claude/settings.json` ([monitoring](https://code.claude.com/docs/en/monitoring-usage)). The Unfold pod needs egress to VictoriaMetrics on TCP 8429 as it does to VictoriaLogs.
 
 ## Error reports
 
@@ -139,6 +153,14 @@ At most 30 reports a minute leave. Each send waits at most three seconds and nev
 
 Before a report leaves, configured secrets, the DSN itself, URL credentials, `sk-` keys and bearer, basic and token values are replaced by `[redacted]`, and the user id is replaced by the first 16 hex digits of its SHA-256. Reports carry the release `unfold@<version>`, the host name and the environment.
 
+**Finding reports in VictoriaLogs.** When the collector forwards OTLP logs to VictoriaLogs on a Loki-protocol path, as Grafana Alloy's `loki.write` does, the record's `event.name` (`unfold.error`) and the resource's `service.name` (`unfold`) land as the stream fields `event_name` and `service_name`, with underscores. The other attributes keep their dots under `attributes.`: `attributes.exception.*` and `attributes.unfold.*`, such as `attributes.exception.message` and `attributes.unfold.fingerprint`. This LogsQL query lists every report:
+
+```logsql
+service_name:unfold event_name:"unfold.error"
+```
+
+Add `| stats by (attributes.unfold.fingerprint) count()` to group them.
+
 ### Why an Ask has no answer
 
 Each failed or refused Ask stores a `failureCode`, says why in plain words on the Work Item page, in the VS Code chat and through `unfold_ask`, and offers **Ask again** when another try may help. Every failure is logged as `ask.failed` or `ask.refused`.
@@ -150,10 +172,13 @@ Each failed or refused Ask stores a `failureCode`, says why in plain words on th
 | `ploeg_unavailable` | Ploeg could not be reached or failed | yes | error |
 | `no_model` | The Team has no model for Asks | no | error |
 | `gateway_unreachable` | The model gateway could not be reached | yes | error |
-| `key_rejected` | The gateway refused the Ask's key (HTTP 401 or 403) | no | error |
+| `key_rejected` | The gateway refused the Ask's key: unknown, expired or blocked | no | error |
 | `budget_exceeded` | Answering needed more than the per-Ask Budget | yes | warning |
-| `rate_limited` | The provider is busy (HTTP 429) | yes | warning |
-| `provider_error` | The provider failed (any other HTTP error) | yes | error |
+| `spend_limit_reached` | A wider gateway spending limit, such as the Team's, is used up | no | error |
+| `model_unavailable` | The gateway does not offer the Team's Ask model to the key, or the model does not exist | no | error |
+| `too_long` | The record and the question are more than the model's context window | no | warning |
+| `rate_limited` | The gateway or the provider is busy | yes | warning |
+| `provider_error` | The provider failed, refused the gateway's credential, or its own quota is used up; also any error Unfold does not recognise | yes | error |
 | `bad_response` | The gateway's reply could not be read | yes | error |
 | `timeout` | No answer within 60 seconds | yes | warning |
 | `cut_off` | The model spent all 1,500 output tokens reasoning and wrote nothing | yes | warning |
@@ -161,7 +186,24 @@ Each failed or refused Ask stores a `failureCode`, says why in plain words on th
 | `empty` | The model returned an empty answer | yes | warning |
 | `interrupted` | Unfold restarted while answering; set the next time the Asks are listed, two minutes after the question | yes | warning |
 
+Unfold reads the gateway's error from LiteLLM's error body first, its `type` and its wording, and from the HTTP status only when the body says nothing. A spent LiteLLM budget is therefore `budget_exceeded` or `spend_limit_reached` whichever status LiteLLM gives it: 429 up to LiteLLM 1.103, 422 from 1.104, and 400 or 402 elsewhere. The message names whose budget it was; only the Ask's own key is `budget_exceeded`. The art generator under [Card themes](#card-themes-and-generated-art) uses the same reading for its error message.
+
 The call asks for `reasoning_effort: low`, since an answer is at most 120 words; a gateway that refuses that parameter is asked once more without it. An answer the model stopped at its length limit is kept and marked `cutOff`. Costs show as Ploeg reports them: an amount with "not final yet" while Ploeg can still correct it (a day after the Ask), "Cost not known yet" before the gateway has recorded anything, and "Nothing charged" for an Ask refused before any model call.
+
+## Run health and its judge
+
+While a Run runs, its row on the Work Item page shows a health badge (On track, Watch, Off track, Not judged yet or Not known) with a reason line that names its numbers ([RFC-0007](../../../../docs/design/rfc-0007-run-health.md), [ADR 0046](../adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md)). Unfold's server computes it from the Run, its limits, the tail of its transcript and the time, so every viewer sees one answer. The time-based signals need a Ploeg that serves each Run's `limits` (ploeg-hq/ploeg#160); with an older Ploeg they say Not known and Budget and Repeat still judge.
+
+A shadow judge can add a model's verdict. It is off until the `cards.health.judge` flag is on for the Run's Team ([feature flags](feature-flags.md)), and it needs a connected Ploeg and the gateway (`LITELLM_BASE_URL`). Each judgement is a Ploeg Ask paid from the Team's Ask Allowance and never counted as delivery spend. It runs on a plan change, when a signal turns to Watch, and otherwise at most every 10 minutes, at most 9 times per Run, one at a time, and only from the read of a person who is not a viewer. Its verdict can raise the badge, never lower it, and it never stops, requeues, steers or grades a Run.
+
+```json
+"runHealth": { "judgeModels": ["hetzner-qwen3-8-27b", "hetzner-qwen3-6-35b-a3b"] }
+```
+
+* `judgeModels` lists the gateway models the judge may use, in order. The default is Hetzner's free, EU-hosted experimental inference through LiteLLM, which does not store content. Hetzner says that service is not for production; the judge accepts that because it only advises, and a missing verdict leaves the signals. The judge uses the first listed model the Ask's key may call. When Ploeg offers none of them, the Ask is finished unused, the judge shows "Judge off" and logs `run_judge.model_not_offered`: it never falls back to a paid model.
+* A verdict is kept only when it is one JSON object with `health`, a `reason` of at most 160 characters and at most 5 transcript `evidence` seqs from the window it read; anything else is discarded and logged as `run_judge.discarded`. A gateway that refuses `response_format` is asked once more without it.
+* A spent Ask Allowance pauses the judge ("Judge paused: this month's allowance is spent") without counting an attempt. A failed or timed-out judgement shows nothing; the signals still answer.
+* Health changes are recorded as the product event `run.health.changed` (old and new health, the deciding signal and the Run id, never transcript text), and the "This was wrong" control as `run.health.judge_wrong`.
 
 ## Card themes and generated art
 
@@ -196,6 +238,8 @@ A profile can name the providers and regions the gateway may route a session to:
 
 The provider rule is enforced before the first turn, from the gateway's model catalogue, including every tier behind an auto-router; a session whose Team names a model served elsewhere does not start. The region rule can only be checked against what the gateway attributes after a request, so a violation stops the session at the next ledger read and revokes its key, and the Gateway tab marks the row. The names are the gateway's own: `anthropic`, `fireworks_ai`, and regions such as `global` or `eu` as the provider reports them. Anthropic's public endpoint reports `global`, so a profile that requires `eu` needs a gateway route to a regional endpoint first.
 
+Ploeg execution refuses `gatewayPolicy` at start-up, so on a live Unfold enforce provider and region restrictions in the gateway's own policy instead; this setting is kept for the retired standalone path until its code is deleted.
+
 Each role's brief is recorded with the run and shown in the Activity stream, and the budget panel draws cumulative cost against the ceiling from the gateway's rows.
 
 ## Keeping a thin brief from spending the budget
@@ -210,7 +254,7 @@ An investigation Team, one with no writer, completes with its challenger's verdi
 
 Every OpenCode session starts with `ask` for every tool, so each read, search and shell command waits for the operator. That is the right default on the `local` backend, where the Team shares the workbench's files. In a container or a pod the sandbox is the boundary, so a session there can be created with automatic approval, or switched to it from the decision panel while it runs. The switch answers the permissions already waiting and creates later roles with allow rules; read roles still cannot edit or run commands, and a Team's questions still wait for a person. Automatic approval is refused on the `local` backend.
 
-The gateway can refuse requests with `budget_exhausted`. Displayed spend is an observation, and final accounting may arrive later. The settlement delay is configurable; it does not guarantee provider billing latency or a strict ceiling for requests in flight. Qualify the configured model and Team with a small explicit budget.
+The gateway can refuse requests with `budget_exhausted`. Displayed spend is an observation, and final accounting may arrive later; it is not a strict ceiling for requests in flight. Qualify the configured model and Team with a small explicit budget.
 
 ## Gateway tools for a repository
 
@@ -220,7 +264,7 @@ A repository can give its sessions read-only tools that the LiteLLM gateway serv
 { "id": "orders", "mcp": { "litellmTeamId": "agents-orders", "accessGroups": ["observability-read-orders"] } }
 ```
 
-A standalone session's key is then minted with `team_id` and `object_permission.mcp_access_groups`, and the gateway refuses the mint when the team does not allow those groups. With `require_key_mcp_access_defined` on the gateway, a key minted without them gets no tools at all, whatever team it is in. Under Ploeg execution Ploeg mints the key, so it must apply the same team and groups; Unfold only writes the agent configuration. Either way the agent gets one remote MCP server, `litellm`, at the gateway root with `/v1` removed plus `/mcp`, authenticated with the session key in `x-litellm-api-key`. The tools fall under the session's approval mode like every other tool, so they ask unless the session approves automatically.
+Ploeg mints the session key, so it must apply that team as `team_id` and those groups as `object_permission.mcp_access_groups`; the gateway refuses the mint when the team does not allow those groups. With `require_key_mcp_access_defined` on the gateway, a key minted without them gets no tools at all, whatever team it is in. Unfold only writes the agent configuration: the agent gets one remote MCP server, `litellm`, at the gateway root with `/v1` removed plus `/mcp`, authenticated with the session key in `x-litellm-api-key`. The tools fall under the session's approval mode like every other tool, so they ask unless the session approves automatically.
 
 
 In VS Code's Agents window the session lists the server as **Gateway tools (<access groups>)**, managed by the host. It cannot be started, stopped or turned off from there, and VS Code rolls such a change back. Under Ploeg it shows an error until Ploeg mints keys with the repository's access groups (VIK-1934). Plugins added from VS Code are refused; the session lists the client's own plugins with the reason ([ADR 0012](../adrs/0012-agent-host-protocol-host.md#update-2026-10-10-mcp-servers-and-plugins)).
@@ -229,11 +273,11 @@ In VS Code's Agents window the session lists the server as **Gateway tools (<acc
 
 A completed session has done everything the machine does: every role finished, the final reviewer's verdict is on its run, the candidate is captured as a bundle, patch and manifest with two signed statements over them, the workspace is released, and nothing was pushed or merged. The label now says what is missing: a person's review. Accept records that you inspected the candidate and consider it fit to take further, with an optional note; reject requires a reason, which the next attempt receives. Both are recorded with your name in the session history and shown on the session instead of the label. Until the publish action exists, taking an accepted candidate further is still a manual push and merge request from the downloaded bundle.
 
-Pending or unknown spend stays visible after the Team finishes. Standalone settlement uses the configured grace period. Shared execution retains its authorization until trusted accounting reconciles it; see [shared recovery](../../../../docs/workflows/managed-execution.md#recovery).
+Pending or unknown spend stays visible after the Team finishes. Ploeg retains the authorization until trusted accounting reconciles it; see [shared recovery](../../../../docs/workflows/managed-execution.md#recovery).
 
 ## Trying a failed session again
 
-A failed standalone session can use "Try again" after unresolved spend is reconciled. It releases the old workspace, resets the Team's Roles and replaces the current candidate view while retaining durable session history and spent budget. Shared Ploeg executions cannot use this reset: reconcile the failed authorization and create an explicit new session. "Duplicate as a new session" prepares a new brief, model, Team or budget selection; it does not itself authorize execution. See [the retry implementation](../../src/engine.ts).
+A session Ploeg executes cannot be reset in place: reconcile the failed authorization and create an explicit new session. The in-place "Try again" reset belongs to the retired standalone path. "Duplicate as a new session" prepares a new brief, model, Team or budget selection; it does not itself authorize execution. See [the retry implementation](../../src/engine.ts).
 
 ## Linking ClickUp
 
@@ -270,7 +314,7 @@ Each person then opens Linked accounts, links GitLab, and approves the applicati
 The `docker` backend runs the clone and the OpenCode server inside a container from the pinned agent image, through the Docker Engine socket. The workbench never invokes a shell or the Docker CLI. Build the image once from the repository and reference it by tag, or pull a digest-pinned build from the registry:
 
 ```sh
-docker build -t unfold-agent:1.19.0 ops/agent
+docker build -t unfold-agent:1.19.2 ops/agent
 ```
 
 The Dockerfile pulls its hardened base from `dhi.io`, which needs `docker login dhi.io` with a Docker account; pass `--build-arg REGISTRY_DHI=<your-proxy>` to use a mirror. Released builds are at `ghcr.io/webgrip/unfold-agent:<version>`, signed and within a zero critical, zero high CVE budget ([releases](release.md)).
@@ -279,7 +323,7 @@ Add a `docker` block next to `runtime`:
 
 ```json
 {
-  "image": "unfold-agent:1.19.0",
+  "image": "unfold-agent:1.19.2",
   "cpus": 2,
   "memoryMb": 4096,
   "pidsLimit": 512,
@@ -295,7 +339,7 @@ Set `"transport": "pull"` in the `docker` block to let the container dial out in
 Candidate capture stops the container, confirms the stop and snapshots the host directory. The container is removed on disposal; the session directory is retained like the local backend's. Reproduce the no-inference qualification against your image with:
 
 ```sh
-node scripts/probe-docker.mjs unfold-agent:1.19.0
+node scripts/probe-docker.mjs unfold-agent:1.19.2
 ```
 
 The probe serves a fixture repository to the container, verifies the hardened container configuration, authenticated health, managed configuration, adapter session creation, the event stream, abort, candidate capture and container removal, and records that zero inference requests reached its sink.
@@ -311,7 +355,7 @@ helm lint ops/helm/unfold
 helm template unfold ops/helm/unfold > /tmp/unfold-rendered.yaml
 ```
 
-The chart defaults to **demo** mode. Copy `ops/helm/unfold/values.live.example.yaml` to a private `values.live.local.yaml` and replace its example registry, forge, gateway/model and network selectors. Configure `credentialsSecret` in the application namespace with the environment variables listed above. Keep the master key out of the workspace namespace. Configure `workspaceGitSecretName` only when a dedicated repository read credential has been provisioned there. `workspaceUserNamespaces` maps the workspace pod into its own user namespace (`hostUsers: false`), so the container's root is an unprivileged uid on the node; user namespaces are generally available from Kubernetes 1.36 and the cluster's container runtime must support them, so it is opt-in and refused together with the sandbox provisioner, where the guest kernel already provides that boundary. `workspaceAgentSecrets` lists Secrets in the workspace namespace whose keys become environment inside the agent container only, never the clone container; an External Secret from OpenBao is the intended way to let an agent pod reach something beyond the repository and the gateway. The chart refuses to render when `workspaceAgentSecrets` lists `credentialsSecret`; the delivery verifier and publisher tokens live only in the application namespace's credentials Secret or a dedicated Secret there. Candidate delivery in the cluster uses the Kubernetes verifier: set `delivery.enabled`, the policies, the inputs volume, `delivery.verifier.image` and, for publication, `delivery.publisher.existingSecret`; the [chart README](../../ops/helm/unfold/README.md#candidate-delivery) lists the values and the [delivery contract](../contracts/candidate-delivery.md#kubernetes-verifier) how each check pod is isolated. Register `unfold-kubernetes-v1` as the verifier ID in Ploeg's delivery policy. The chart's deny-all NetworkPolicy only isolates check pods where the network plugin enforces NetworkPolicy; the verifier probes from inside every check pod and fails the check as `network_reachable` when it is not enforced.
+The chart defaults to **demo** mode. Copy `ops/helm/unfold/values.live.example.yaml` to a private `values.live.local.yaml` and replace its example registry, forge, gateway/model and network selectors. Configure `credentialsSecret` in the application namespace with the environment variables listed above. Put Unfold's Ploeg consumer token there under the name `config.ploeg.tokenEnv` gives; the gateway master key belongs to Ploeg, not to Unfold or the workspace namespace. Configure `workspaceGitSecretName` only when a dedicated repository read credential has been provisioned there. `workspaceUserNamespaces` maps the workspace pod into its own user namespace (`hostUsers: false`), so the container's root is an unprivileged uid on the node; user namespaces are generally available from Kubernetes 1.36 and the cluster's container runtime must support them, so it is opt-in and refused together with the sandbox provisioner, where the guest kernel already provides that boundary. `workspaceAgentSecrets` lists Secrets in the workspace namespace whose keys become environment inside the agent container only, never the clone container; an External Secret from OpenBao is the intended way to let an agent pod reach something beyond the repository and the gateway. The chart refuses to render when `workspaceAgentSecrets` lists `credentialsSecret`; the delivery verifier and publisher tokens live only in the application namespace's credentials Secret or a dedicated Secret there. Candidate delivery in the cluster uses the Kubernetes verifier: set `delivery.enabled`, the policies, the inputs volume, `delivery.verifier.image` and, for publication, `delivery.publisher.existingSecret`; the [chart README](../../ops/helm/unfold/README.md#candidate-delivery) lists the values and the [delivery contract](../contracts/candidate-delivery.md#kubernetes-verifier) how each check pod is isolated. Register `unfold-kubernetes-v1` as the verifier ID in Ploeg's delivery policy. The chart's deny-all NetworkPolicy only isolates check pods where the network plugin enforces NetworkPolicy; the verifier probes from inside every check pod and fails the check as `network_reachable` when it is not enforced.
 
 Use **one application replica** with persistent storage and the chart's `Recreate` rollout strategy. Configure a separate workspace namespace, storage class/size, CPU/memory limits (`workspaceCpu`, `workspaceMemory`) and what each workspace reserves (`workspaceCpuRequest`, `workspaceMemoryRequest`, the limits when empty; see [workspace size](../../ops/helm/unfold/README.md#workspace-size)), an agent image and an inference gateway URL reachable by agent Pods. The control plane needs the chart's narrowly scoped workspace-management RBAC. Agent Pods must not mount the control-plane service account or LiteLLM master credential.
 
@@ -375,7 +419,7 @@ curl -sS -X POST -H 'X-Unfold-Request: 1' -H 'Content-Type: application/json' -b
 
 The response contains `address` and a ready-made `vscodeSetting.entry` with the token. In the Agents window, run **Sessions: Add Remote Agent Host…** and paste the address with the token as a `tkn` query parameter, for example `wss://unfold.example.com/?tkn=<token>`. You can also add the entry to `chat.remoteAgentHosts` in your user `settings.json` yourself.
 
-Sessions appear in VS Code's agent sessions list, grouped under **Unfold · <repository> [Unfold]**, where the part in brackets is the entry's name. To start one, choose **New**, open the composer's **Workspace ▾** picker and pick **Unfold · <repository>** under the Unfold host; the workbench offers its configured repositories there as folders. The composer then shows the repository you picked, read-only, with pickers for Team, budget and, when more than one backend is enabled, placement; the approvals picker offers automatic approval only for a container or pod. VS Code remembers your last choices for the next session. The model shown in the composer is the Team, `Ploeg team · <team>`; each Team's entry in the picker names the model every role runs on. The first message starts the Team. Every other client attached with a token of the same user sees the same session. Tokens are bound to the user who created them and honour the same ownership rules as the HTTP API. A token expires after `auth.sessionHours` without use; each connection or message renews it. Signing out, or the end of the sign-in session that issued it, revokes it and closes its open connections. `DELETE /api/agent-host/tokens/<id>` revokes one token, where `<id>` is the token's SHA-256 digest. When you sign out, the extension revokes its token, removes the entry it wrote and leaves entries it did not issue. When it replaces a token the workbench rejected, it revokes the old one too ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)). Marking a session read or done in VS Code's Agents window is kept per person and changes nothing about the session itself, and a ready candidate appears in the Changes view with **Accept**, **Request changes…** and **Reject…** while its review is open. Reject and Request changes ask for your message in the session's chat. Request changes turns your message and your comments on the candidate's files into the instruction of a new session with the same brief, which waits for you to start it. Comments you add in the Changes view's diff editor are kept with the session; **Submit** opens Request changes with them. Merging still happens on the forge, never from the editor. A command the Team runs shows as a terminal on its tool call. The terminal is read-only: it shows the command line and the recorded output with secrets and escape sequences removed, and the exit code when the runtime reported one. Typing into it, resizing it or opening a new terminal on the Unfold host is refused. A failed session shows VS Code's **Try Again**, which creates a new session with the same brief and budget that waits for you to start it; it never runs on its own. Yes/no questions show Yes and No, skipping or closing a question tells the Team you declined to answer, and spend appears in the chat at the end of each Run and when it passes half, four fifths and all of the budget. Each Role's Run shows in the chat as a subagent: expand it to follow the Run's tool calls with their input and output, or open it to read the Run's own chat. A write Run's file diff and the captured candidate appear as edited files whose diff opens on click.
+Sessions appear in VS Code's agent sessions list, grouped under **Unfold · <repository> [Unfold]**, where the part in brackets is the entry's name. To start one, choose **New**, open the composer's **Workspace ▾** picker, choose **Folders (Unfold)** and pick the repository's folder, named after its forge path (for example `twente.dev`); the workbench offers its configured repositories there as folders. The composer then shows the repository you picked, read-only, with pickers for Team, budget and, when more than one backend is enabled, placement; the approvals picker offers automatic approval only for a container or pod. VS Code remembers your last choices for the next session. The model shown in the composer is the Team, `Ploeg team · <team>`; each Team's entry in the picker names the model every role runs on. The first message starts the Team. Every other client attached with a token of the same user sees the same session. Tokens are bound to the user who created them and honour the same ownership rules as the HTTP API. A token expires after `auth.sessionHours` without use; each connection or message renews it. Signing out, or the end of the sign-in session that issued it, revokes it and closes its open connections. `DELETE /api/agent-host/tokens/<id>` revokes one token, where `<id>` is the token's SHA-256 digest. When you sign out, the extension revokes its token, removes the entry it wrote and leaves entries it did not issue. When it replaces a token the workbench rejected, it revokes the old one too ([ADR 0012](../adrs/0012-agent-host-protocol-host.md)). Marking a session read or done in VS Code's Agents window is kept per person and changes nothing about the session itself, and a ready candidate appears in the Changes view with **Accept**, **Request changes…** and **Reject…** while its review is open. Reject and Request changes ask for your message in the session's chat. Request changes turns your message and your comments on the candidate's files into the instruction of a new session with the same brief, which waits for you to start it. Comments you add in the Changes view's diff editor are kept with the session; **Submit** opens Request changes with them. Merging still happens on the forge, never from the editor. A command the Team runs shows as a terminal on its tool call. The terminal is read-only: it shows the command line and the recorded output with secrets and escape sequences removed, and the exit code when the runtime reported one. Typing into it, resizing it or opening a new terminal on the Unfold host is refused. A failed session shows VS Code's **Try Again**, which creates a new session with the same brief and budget that waits for you to start it; it never runs on its own. Yes/no questions show Yes and No, skipping or closing a question tells the Team you declined to answer, and spend appears in the chat at the end of each Run and when it passes half, four fifths and all of the budget. Each Role's Run shows in the chat as a subagent: expand it to follow the Run's tool calls with their input and output, or open it to read the Run's own chat. A write Run's file diff and the captured candidate appear as edited files whose diff opens on click.
 
 The Unfold extension in [extensions/vscode](../../extensions/vscode/README.md) is the other way in, and it now mirrors what the browser shows for a 0.3.0 server: the same run labels (implementation, analysis, independent review), the brief each role received, tool input and error text in the Activity tab, a Gateway tab with the gateway's per-request attribution, the spend observed at the gateway with the cost curve, transcripts, the approval switch for `docker` and `kubernetes` sessions, and GitLab linking through **Unfold: Linked Accounts**. Both clients read the same API and event stream, so a session opened in one is the same session in the other.
 
@@ -391,6 +435,12 @@ When the status bar says **not connected**, open the Agents window: it connects 
 2. Open the user `settings.json` and look for the `chat.remoteAgentHosts` entry with your workbench's address. If it is missing, `unfold.agentHost.autoConnect` may be `false`, or the file could not be parsed.
 3. Without a GitHub account, the Agents window asks for GitHub sign-in before it shows anything. VS Code decides that, not Unfold ([sign-in spike](../research/2026-10-10-ahp-sign-in-spike.md)).
 4. A workbench behind a proxy must pass WebSocket upgrades on `/` or `/ahp`.
+
+## Ploeg's MCP server in VS Code
+
+When Ploeg serves `ploeg-mcp` over HTTPS ([Ploeg's guide](../../../ploeg/docs/how-to/serve-ploeg-mcp-over-https.md)), set `UNFOLD_PLOEG_MCP_URL` and `UNFOLD_PLOEG_MCP_CLIENT_ID`, or the chart's `ploegMcp.url` and `ploegMcp.clientId` ([chart README](../../ops/helm/unfold/README.md#the-ploeg-mcp-server-for-editors)). Both are public values, so they belong in plain configuration, not in a Secret. `GET /api/mcp-servers` then names the server to every signed-in person ([API contract](../contracts/api.md#mcp-servers-for-editors)). The VS Code extension provides it to chat by URL, and VS Code signs the person in through the browser ([extension README](../../extensions/vscode/README.md#use-ploegs-tools-in-vs-code-chat)). On the homelab the values would be `https://mcp-ploeg.webgrip.dev/mcp` and `ploeg-mcp`; the desired state for that lives in `webgrip/homelab-cluster`, not here.
+
+The identity provider's client must allow VS Code's redirect URIs, `http://127.0.0.1:33418` and `https://vscode.dev/redirect`. Unfold never sees the person's Ploeg token.
 
 ## Verifying a candidate
 

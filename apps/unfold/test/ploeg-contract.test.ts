@@ -18,7 +18,7 @@ const unfold = resolve(import.meta.dirname, '..');
 const ploeg = resolve(repository, 'apps/ploeg');
 const contracts = resolve(ploeg, 'docs/contracts');
 const table = 'docs/domain/ploeg-words.json';
-assert(statSync(contracts, { throwIfNoEntry: false })?.isDirectory(), 'apps/ploeg is not checked out; run git submodule update --init --recursive');
+assert(statSync(contracts, { throwIfNoEntry: false })?.isDirectory(), 'apps/ploeg holds no Ploeg contract bundle; run mise run ploeg-contract');
 
 const words = readTable(repository) as { sets: ValueSet[]; screenWords: { term: string; word: string; note: string }[] };
 const sets = Object.fromEntries(words.sets.map(set => [set.id, set]));
@@ -187,7 +187,13 @@ test('the screen label in the translation table is the one Unfold renders, and e
     }
   }
   for (const entry of sets['execution-state'].values) assert.equal(entry.label, executionStateText({ state: entry.value }), `${where(sets['execution-state'], entry.value)}: the label differs from apps/unfold/public/core/states.js \`executionStateText\``);
-  for (const entry of sets['audit-event'].values) assert.equal(entry.label, auditEvent({ action: entry.value }).label, `${where(sets['audit-event'], entry.value)}: the table says "${entry.label}" but apps/unfold/public/core/states.js \`auditEvent\` shows "${auditEvent({ action: entry.value }).label}"`);
+  const humanized = (action: string) => { const [head, ...rest] = action.split('.'); const words = (text: string) => text.replaceAll('_', ' ').trim(); return `${words(head)[0].toUpperCase()}${words(head).slice(1)}${rest.length ? `: ${words(rest.join('.'))}` : ''}`; };
+  for (const entry of sets['audit-event'].values) {
+    const shown = auditEvent({ action: entry.value }).label;
+    assert.equal(entry.label, shown, `${where(sets['audit-event'], entry.value)}: the table says "${entry.label}" but apps/unfold/public/core/states.js \`auditEvent\` shows "${shown}"`);
+    const unworded = shown === humanized(entry.value);
+    assert.equal(Boolean(entry.gap), unworded, unworded ? `apps/unfold/public/core/states.js \`auditEvent\` shows the audit action "${entry.value}" only humanized ("${shown}"). Word it there, or mark the row in ${table} as a known gap.` : `${where(sets['audit-event'], entry.value)} is marked as a gap, but apps/unfold/public/core/states.js \`auditEvent\` now words it. Remove its "gap".`);
+  }
   for (const id of ['run-cost-status', 'ask-cost-status']) {
     for (const entry of sets[id].values) {
       assert(Object.hasOwn(costStatuses, entry.value), `apps/unfold/public/core/states.js \`costStatuses\` has no screen word for the cost status "${entry.value}"`);

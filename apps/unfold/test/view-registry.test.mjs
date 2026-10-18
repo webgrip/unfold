@@ -60,7 +60,7 @@ test('every hash routes to at most one view with the params that view expects', 
   const registry = createRegistry(views);
   const cases = [
     ['now', 'now', {}], ['sessions', 'sessions', {}], ['tasks', 'tasks', {}], ['settings/accounts', 'account', {}], ['settings/environment', 'system', {}], ['settings/preferences', 'preferences', {}],
-    ['work', 'work', {}], ['work/105', 'work', { id: '105' }], ['proposed', 'proposed', {}], ['runs', 'runs', {}], ['activity', 'activity', {}], ['insights', 'insights', {}],
+    ['work', 'work', {}], ['work/105', 'work', { id: '105' }], ['proposed', 'proposed', {}], ['runs', 'runs', {}], ['activity', 'activity', {}], ['activity/actions', 'actions', {}], ['activity/other', null], ['insights', 'insights', {}],
     ['session/0f1e', 'session', { id: '0f1e' }], ['compare/a/b', null],
     ['binder', 'binder', {}], ['season', 'season', {}], ['settings/cards', 'card-identity', {}], ['settings/card-designer', 'designer', {}], ['settings/editors', 'editors', {}], ['editor-sign-in/AbC-12_xyz', 'editor-sign-in', { code: 'AbC-12_xyz' }], ['editor-sign-in/short', null], ['editor-sign-in', null], ['packs', 'packs', { page: 'shelf' }], ['packs/odds', 'packs', { page: 'odds' }], ['packs/2026-W40', 'packs', { page: 'pack', id: '2026-W40' }], ['packs/delivery~2026-09-28', 'packs', { page: 'pack', id: 'delivery~2026-09-28' }], ['packs/a/b', null], ['binderx', null],
     ['nowhere', null], ['sessionsx', null], ['ploeg', null], ['ploeg/105', null], ['account', null], ['system', null], ['work/abc', null], ['work/0', null], ['workx', null], ['', null], ['login', null], ['dialogs', null], ['ploeg-feeds', null], ['palette', null], ['chrome', null], ['settings', null],
@@ -78,4 +78,22 @@ test('the editor approval page asks its question in plain language, naming the w
   const { editorQuestion } = await import('../public/views/editor-sign-in.js');
   assert.equal(editorQuestion({ workbench: 'unfold.example' }), 'A VS Code editor is asking to sign in to unfold.example as you.');
   assert.equal(editorQuestion({ workbench: 'unfold.example', label: 'unfold-mcp on laptop' }), 'unfold-mcp on laptop is asking to sign in to unfold.example as you.');
+});
+
+test('a signed-in editor row names every month, says how far away each date is, and shows the inactivity sign-out only when it comes first', async () => {
+  const { editorFacts } = await import('../public/views/editors.js');
+  const text = html => html.replace(/<[^>]+>/g, '');
+  const now = new Date(2026, 9, 17, 12, 0).getTime();
+  const fresh = { createdAt: new Date(2026, 9, 10, 9, 0).toISOString(), lastUsedAt: new Date(2026, 9, 17, 10, 0).toISOString(), expiresAt: new Date(2026, 10, 9, 9, 0).toISOString(), idleExpiresAt: new Date(2026, 9, 31, 10, 0).toISOString() };
+  assert.deepEqual(editorFacts(fresh, now).map(([term, value]) => [term, text(value)]), [
+    ['Approved', '10 Oct 2026 (7 days ago)'],
+    ['Last used', '2 hours ago'],
+    ['Signs out after 14 days unused', '31 Oct 2026 (in 14 days)'],
+    ['Expires', '9 Nov 2026 (in 23 days)'],
+  ]);
+  assert.match(editorFacts(fresh, now)[3][1], /^<time class="num" datetime="2026-11-09T[^"]+" title="09-11-2026 09:00">/);
+  const late = { ...fresh, lastUsedAt: new Date(2026, 10, 1, 9, 0).toISOString(), idleExpiresAt: new Date(2026, 10, 15, 9, 0).toISOString() };
+  assert.deepEqual(editorFacts(late, now).map(([term]) => term), ['Approved', 'Last used', 'Expires']);
+  const unused = { ...fresh, lastUsedAt: undefined, idleExpiresAt: new Date(2026, 9, 24, 9, 0).toISOString() };
+  assert.equal(editorFacts(unused, now)[1][1], 'Not yet');
 });

@@ -1,0 +1,43 @@
+name: unfold-e2e-authentik
+
+x-authentik: &authentik
+  image: ${UNFOLD_E2E_AUTHENTIK_IMAGE:-ghcr.io/goauthentik/server:2026.5.2@sha256:3ddf09bbf69ded6a9634ecd753a01608d477f811e99bb5ffe9fc2ef7ad1c6581}
+  depends_on:
+    postgresql:
+      condition: service_healthy
+  shm_size: 512mb
+  environment:
+    AUTHENTIK_POSTGRESQL__HOST: postgresql
+    AUTHENTIK_POSTGRESQL__NAME: authentik
+    AUTHENTIK_POSTGRESQL__USER: authentik
+    AUTHENTIK_POSTGRESQL__PASSWORD: e2e-only-database-password
+    AUTHENTIK_SECRET_KEY: ${UNFOLD_E2E_AUTHENTIK_SECRET:?the harness generates a secret key per run}
+    AUTHENTIK_BOOTSTRAP_PASSWORD: ${UNFOLD_E2E_AUTHENTIK_PASSWORD:?the harness generates a bootstrap password per run}
+    AUTHENTIK_BOOTSTRAP_TOKEN: ${UNFOLD_E2E_AUTHENTIK_TOKEN:?the harness generates a bootstrap token per run}
+    AUTHENTIK_BOOTSTRAP_EMAIL: akadmin@e2e.invalid
+    AUTHENTIK_DISABLE_UPDATE_CHECK: "true"
+    AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+    AUTHENTIK_DISABLE_STARTUP_ANALYTICS: "true"
+    AUTHENTIK_AVATARS: none
+
+services:
+  postgresql:
+    image: ${UNFOLD_E2E_POSTGRES_IMAGE:-postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea}
+    environment:
+      POSTGRES_DB: authentik
+      POSTGRES_USER: authentik
+      POSTGRES_PASSWORD: e2e-only-database-password
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d authentik -U authentik"]
+      interval: 2s
+      retries: 30
+  server:
+    <<: *authentik
+    command: server
+    ports:
+      - "127.0.0.1::9000"
+  worker:
+    <<: *authentik
+    command: worker

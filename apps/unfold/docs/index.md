@@ -17,7 +17,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 
 ## Operate
 
-- [Live operation](operations/live.md): standalone setup, identity, workspaces and intervention
+- [Live operation](operations/live.md): managed setup, identity, workspaces and intervention
 - [Shared execution setup and recovery](../../../docs/workflows/managed-execution.md)
 - [Task connections](operations/task-connections.md)
 - [Release procedure](operations/release.md)
@@ -35,6 +35,7 @@ Unfold provides durable operator sessions, agent workspaces, intervention and re
 - [Unfold as Ploeg's front end](ploeg-front-end.md): proposed design and increment plan for retiring the application's own engine
 - [Current architecture](architecture.md), [ADR index](adrs/README.md) and the [decision register](../../../docs/reference/decisions.md) across all three ledgers
 - [Browser UI](browser-ui.md): routes and redirects, what each screen shows, the view contract, core modules, CSS layers, tokens and accessibility rules for the browser workbench
+- [Component workbench](workbench.md): components rendered from fixtures outside the app, their stories and the layout, contrast and CSP checks they must pass
 - [Shared product explanation](../../../docs/landscape/index.md), [diagrams](../../../docs/landscape/c4.md) and [open choices](../../../docs/landscape/questions.md)
 - [Product domain YAML](../../../docs/domain/model.yaml), generated [rules](../../../docs/domain/rules.md) and the [combined glossary](../../../docs/reference/glossary.md)
 - [Monorepo and runner proposal](../../../docs/migration-proposal.md)

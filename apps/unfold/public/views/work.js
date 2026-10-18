@@ -12,7 +12,10 @@ import { enterPloegView, openPloegDialog } from './ploeg-common.js';
 import { stepDialogMarkup, stepOutcome, stepRequest } from '../core/attribution.js';
 import { transcriptEntryCap } from '../run-transcript.js';
 import { defaultLogView, logDownloadText } from '../run-log-view.js';
-import { exposed, flagValues, track } from '../core/flags.js';
+import { enabled, exposed, flagValues, track } from '../core/flags.js';
+import { agentsWindowAvailable, openAgentsWindow } from '../agents-window.js';
+import { actionsCsv, actionsJson, engineRows, newestFirst, recordRow } from '../action-log.js';
+import { linkedChangedEvent } from './linked-sessions.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -23,11 +26,12 @@ const logInterval = 5000;
 const logLineCap = 2000;
 const logPanel = /^work-run-logs-([1-9][0-9]{0,19})$/;
 const transcriptInterval = 4000;
+const healthInterval = 30_000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, flightRevealed: null };
+const work = { team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null };
 
-onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, flightRevealed: null }));
+onForget(() => Object.assign(work, { team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
@@ -64,10 +68,12 @@ function model() {
     detailError: state.ploegDetailError || null,
     listHref: `#${listHash()}`,
     canCancel: canCancel(),
+    agentsWindow: agentsWindowAvailable(state.bootstrap),
     cancelBusy: work.cancelBusy,
     cancelResult: work.cancelResult?.id === work.detailId ? work.cancelResult : null,
     briefOpen: work.briefOpen.has(work.detailId),
     sessions: state.sessions,
+    linkedSessions: work.linked?.id === work.detailId ? work.linked.data : null,
     userId: state.bootstrap?.user?.id,
     trackerUrl: state.ploeg?.trackerUrl,
     reviewFacts: Object.fromEntries(work.reviewFacts),
@@ -92,6 +98,9 @@ function model() {
     askDraft: work.askDraft,
     runLogs: work.logs?.id === work.detailId ? work.logs.runs : null,
     runTranscripts: work.transcripts?.id === work.detailId ? work.transcripts.runs : null,
+    runHealth: work.health?.id === work.detailId ? work.health.runs : null,
+    actions: work.actions?.id === work.detailId ? work.actions.data : null,
+    userRole: state.bootstrap?.user?.role,
   };
 }
 
@@ -127,16 +136,15 @@ function renderWork() {
   const listTop = scroller ? scroller.scrollTop : 0;
   const target = focusTarget();
   const current = model();
-  const skyLeft = $('#app .flight-sky')?.scrollLeft ?? null;
   const logScroll = new Map([...document.querySelectorAll('#app [data-run-log]')].map(element => [element.dataset.runLog, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
   const transcriptScroll = new Map([...document.querySelectorAll('#app [data-run-transcript]')].map(element => [element.dataset.runTranscript, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
   renderHtml(shell(workMarkup(current), shellOptions(current)));
-  if (current.detail) exposed('work.flight-profile', { screen: 'work', workItemId: current.detail.item.id });
-  revealFlight(skyLeft);
+  if (current.detail) exposed('work.live-view', { screen: 'work', workItemId: current.detail.item.id });
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
   for (const element of document.querySelectorAll('#app [data-run-log]')) { const kept = logScroll.get(element.dataset.runLog); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
   for (const element of document.querySelectorAll('#app [data-run-transcript]')) { const kept = transcriptScroll.get(element.dataset.runTranscript); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
   loadUnreadTranscripts();
+  loadUnreadHealth();
   const list = $('.work-list-pane .work-list');
   if (list && listTop) list.scrollTop = listTop;
   if (target && (!document.activeElement || document.activeElement === document.body)) (document.querySelector(target) || (target.includes('ploeg-refresh') ? $('[data-action="ploeg-refresh"][data-id="toolbar"]') : null))?.focus({ preventScroll: true });
@@ -367,6 +375,20 @@ async function loadContext(id, { fresh = false } = {}) {
   if (visible() && !state.ploegDetailLoading) renderWork();
 }
 
+async function loadLinked(id) {
+  const request = ++work.linkedRequest;
+  let data;
+  try { data = { sessions: (await api(`/api/linked-sessions?workItemId=${encodeURIComponent(id)}`)).sessions, error: '' }; }
+  catch (error) { if (work.linked?.id === id && work.linked.data && !work.linked.data.error) return; data = { sessions: [], error: error.message || 'Unfold could not list the agent sessions.' }; }
+  if (request !== work.linkedRequest || work.detailId !== id) return;
+  const next = signature(data);
+  if (work.linked?.id === id && work.linked.signature === next) return;
+  work.linked = { id, data, signature: next };
+  if (visible() && !state.ploegDetailLoading) renderWork();
+}
+
+if (globalThis.window) window.addEventListener(linkedChangedEvent, event => { if (work.detailId && String(event.detail?.workItem) === String(work.detailId)) void loadLinked(work.detailId); });
+
 async function loadAsks(id) {
   const request = ++work.askRequest;
   let data;
@@ -496,12 +518,42 @@ async function submitContext(data, form) {
   }
 }
 
+async function loadActions(id) {
+  const request = ++work.actionsRequest;
+  let data;
+  try {
+    const result = await api(`/api/actions?${new URLSearchParams({ workItemId: id, limit: '100' })}`);
+    data = { records: result.actions, nextBefore: result.nextBefore ?? null, error: '' };
+  } catch (error) {
+    if (work.actions?.id === id && work.actions.data && !work.actions.data.error) return;
+    data = { records: [], nextBefore: null, error: error.message || 'Unfold could not list the actions.' };
+  }
+  if (request !== work.actionsRequest || work.detailId !== id) return;
+  const next = signature(data);
+  if (work.actions?.id === id && work.actions.signature === next) return;
+  work.actions = { id, data, signature: next };
+  if (visible() && !state.ploegDetailLoading) renderWork();
+}
+
+function exportActions(button) {
+  const detail = state.ploegDetail;
+  if (!detail || detail.item.id !== work.detailId) return;
+  const rows = newestFirst([...(work.actions?.id === detail.item.id ? work.actions.data.records : []).map(recordRow), ...engineRows(detail.events, detail.item.id)]);
+  if (!rows.length) return;
+  const name = `work-item-${detail.item.id}-who-did-what`;
+  if (button.dataset.format === 'json') download(`${name}.json`, actionsJson(rows, { scope: `Work Item ${detail.item.id}` }), 'application/json');
+  else download(`${name}.csv`, actionsCsv(rows), 'text/csv');
+  announce(`Downloaded ${plural(rows.length, 'action')}`);
+}
+
 async function loadDetail(id, { fresh = false, quiet = false } = {}) {
   void loadCard(id, { fresh });
   void loadStream(id, { fresh });
   void loadContext(id, { fresh });
   void loadAsks(id);
+  void loadActions(id);
   void loadTrace(id, { fresh });
+  void loadLinked(id);
   const request = ++work.detailRequest;
   let changed = !quiet;
   if (!quiet) { state.ploegDetailLoading = true; state.ploegDetailError = ''; if (state.ploegDetail?.item.id !== id) state.ploegDetail = null; renderWork(); }
@@ -695,6 +747,13 @@ function openTranscriptPanels() {
   return [...document.querySelectorAll('#app details[id^="work-run-transcript-"][open]')].filter(element => element.closest('details.work-run')?.open !== false).map(element => transcriptPanel.exec(element.id)?.[1]).filter(Boolean);
 }
 
+function followedTranscripts() {
+  const open = openTranscriptPanels();
+  if (!enabled('work.live-view')) return open;
+  const running = [...(state.ploegDetail?.runs || [])].reverse().find(run => run.state === 'running');
+  return running && !open.includes(String(running.id)) ? [...open, String(running.id)] : open;
+}
+
 function transcriptIsLive(runId) {
   const entry = work.transcripts?.id === work.detailId ? work.transcripts.runs.get(runId) : null;
   if (entry?.data) return entry.data.available === true && (entry.data.complete !== true || entry.data.hasMore === true);
@@ -703,7 +762,7 @@ function transcriptIsLive(runId) {
 
 function loadUnreadTranscripts() {
   if (!visible() || !work.detailId) return;
-  for (const runId of openTranscriptPanels()) if (!(work.transcripts?.id === work.detailId && work.transcripts.runs.has(runId))) void loadRunTranscript(runId);
+  for (const runId of followedTranscripts()) if (!(work.transcripts?.id === work.detailId && work.transcripts.runs.has(runId))) void loadRunTranscript(runId);
 }
 
 function loadOpenedTranscripts(event) {
@@ -713,7 +772,7 @@ function loadOpenedTranscripts(event) {
 
 async function pollRunTranscripts() {
   if (!visible() || !work.detailId) return false;
-  const running = openTranscriptPanels().filter(transcriptIsLive);
+  const running = followedTranscripts().filter(transcriptIsLive);
   if (!running.length) return false;
   await Promise.all(running.map(runId => loadRunTranscript(runId)));
   return true;
@@ -728,6 +787,69 @@ function retryRunTranscript(button) {
   void loadRunTranscript(runId);
 }
 
+function runHealthEntry(runId) {
+  if (work.health?.id !== work.detailId) work.health = { id: work.detailId, runs: new Map() };
+  let entry = work.health.runs.get(runId);
+  if (!entry) { entry = { data: null, at: 0, error: null, busy: false, announced: false, wrong: new Set() }; work.health.runs.set(runId, entry); }
+  return entry;
+}
+
+const healthShape = entry => JSON.stringify([entry.data?.combined, entry.data?.reason, entry.data?.judge?.id, entry.data?.judgeState, entry.data?.stale, Boolean(entry.error)]);
+
+function runningRuns() {
+  return (state.ploegDetail?.runs || []).filter(run => run.state === 'running' && String(state.ploegDetail?.item?.id) === String(work.detailId)).map(run => String(run.id));
+}
+
+async function loadRunHealth(runId) {
+  const id = work.detailId;
+  if (!id) return false;
+  const entry = runHealthEntry(runId);
+  if (entry.busy) return false;
+  entry.busy = true;
+  const before = healthShape(entry);
+  try {
+    const data = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/health`);
+    if (work.detailId !== id || work.health?.runs.get(runId) !== entry) return false;
+    entry.data = data;
+    entry.at = Date.now();
+    entry.error = null;
+    const offTrack = data.combined?.health === 'off_track';
+    if (offTrack && !entry.announced) announce(`Run ${runId} is off track: ${data.reason}`);
+    entry.announced = offTrack;
+  } catch (error) {
+    if (work.detailId !== id || work.health?.runs.get(runId) !== entry) return false;
+    entry.error = { message: error.message, code: error.code || '' };
+  } finally { entry.busy = false; }
+  if (visible() && healthShape(entry) !== before) renderWork();
+  return true;
+}
+
+function loadUnreadHealth() {
+  if (!visible() || !work.detailId) return;
+  for (const runId of runningRuns()) if (!(work.health?.id === work.detailId && work.health.runs.has(runId))) void loadRunHealth(runId);
+}
+
+async function pollRunHealth() {
+  if (!visible() || !work.detailId) return false;
+  const running = runningRuns();
+  if (!running.length) return false;
+  await Promise.all(running.map(runId => loadRunHealth(runId)));
+  return true;
+}
+
+async function judgeWrong(button) {
+  const { id: judgement, run: runId } = button.dataset;
+  const id = work.detailId;
+  if (!judgement || !runId || !id) return;
+  button.disabled = true;
+  try {
+    await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}/health/judgements/${encodeURIComponent(judgement)}/wrong`, { method: 'POST', body: '{}' });
+    runHealthEntry(runId).wrong.add(judgement);
+    announce('Recorded: this judgement was wrong.');
+    renderWork();
+  } catch (error) { button.disabled = false; notify(error.message, true); }
+}
+
 async function refreshQuietly() {
   if (!visible() || work.cancelBusy) return;
   await Promise.all([loadOverview({ quiet: true }), work.detailId ? loadDetail(work.detailId, { quiet: true }) : null]);
@@ -740,6 +862,7 @@ function registerLive() {
   live.register('work-logs', { interval: logInterval, refresh: pollRunLogs, scope: 'global' });
   document.addEventListener('toggle', loadOpenedLogs, true);
   live.register('work-transcripts', { interval: transcriptInterval, refresh: pollRunTranscripts, scope: 'global' });
+  live.register('work-health', { interval: healthInterval, refresh: pollRunHealth, scope: 'global' });
   document.addEventListener('toggle', loadOpenedTranscripts, true);
   addEventListener('scroll', schedulePane, { passive: true });
   addEventListener('resize', schedulePane, { passive: true });
@@ -1007,22 +1130,10 @@ function motion() {
   return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
 }
 
-function revealFlight(previousLeft) {
-  const sky = $('#app .flight-sky');
-  if (!sky || sky.scrollWidth <= sky.clientWidth) return;
-  if (work.flightRevealed === work.detailId) { if (previousLeft !== null) sky.scrollLeft = previousLeft; return; }
-  const mark = sky.querySelector('[data-current]');
-  if (!mark) return;
-  work.flightRevealed = work.detailId;
-  const box = mark.getBoundingClientRect();
-  const frame = sky.getBoundingClientRect();
-  sky.scrollLeft += box.left - frame.left - frame.width * 0.6;
-}
-
 function jumpToRun(button) {
   const run = document.getElementById(`work-run-${button.dataset.id}`);
   if (!run) return;
-  track(button.closest('.flight') ? 'work.run_opened_from_flight' : 'work.run_opened');
+  track(button.closest('.lv-fp') ? 'work.run_opened_from_flight' : 'work.run_opened');
   const more = run.closest('details:not(.work-run)');
   if (more) more.open = true;
   run.open = true;
@@ -1096,6 +1207,7 @@ export default {
     'work-copy-run': copyRunLink,
     'work-copy-ref': copyRef,
     'work-checkout': () => openCheckout(),
+    'work-agents-window': control => openAgentsWindow(control, state.ploegDetail?.item?.title),
     'work-copy-command': copyCommand,
     'work-cancel': () => work.cancelBusy ? null : openCancel(),
     'work-brief': () => toggleBrief(),
@@ -1108,11 +1220,14 @@ export default {
     'work-run-log-clear': clearLogFilters,
     'work-run-log-download': downloadRunLog,
     'work-run-transcript-retry': retryRunTranscript,
+    'work-run-judge-wrong': judgeWrong,
     'work-section': jumpToSection,
     'work-context-add': () => openContext(),
     'work-ask-open': () => openAsk(),
     'work-ask-model': askModelAnyway,
     'work-ask-again': askAgain,
+    'work-actions-retry': () => { if (work.detailId) { work.actions = null; renderWork(); void loadActions(work.detailId); } },
+    'work-actions-export': exportActions,
     'trace-propose': openPropose,
     'trace-evolved': openEvolved,
     'trace-confirm': openCrackStep('confirm'),

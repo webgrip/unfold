@@ -3,6 +3,7 @@ import type { User } from '../types.ts';
 import { sessionForWorkItem } from '../../public/core/progress.js';
 import type { RunCard, RunCardView, PloegCostStatus, PloegDetail } from '../ploeg.ts';
 import { AskAllowanceUsedUp, PloegError, type PloegAskAllowance } from '../ploeg.ts';
+import { gatewayError } from '../gateway-errors.ts';
 import { withoutKnownSecrets } from '../redaction.ts';
 import type { Store } from '../store.ts';
 import { briefText, workItemBrief, type WorkItemBrief } from './brief.ts';
@@ -63,6 +64,9 @@ export const askFailures: Readonly<Record<AskFailureCode, FailureMeaning>> = Obj
   gateway_unreachable: { status: 'failed', message: 'The model did not answer: the model gateway could not be reached. Try again in a minute.', retryable: true, report: 'error' },
   key_rejected: { status: 'failed', message: 'The model gateway refused the key Ploeg issued for this question, so nothing was answered. An administrator must check the Ask settings in Ploeg and the gateway.', retryable: false, report: 'error' },
   budget_exceeded: { status: 'failed', message: 'Answering needed more than the per-Ask Budget, so the model was stopped. Ask a shorter, narrower question.', retryable: true, report: 'warning' },
+  spend_limit_reached: { status: 'failed', message: 'The model gateway\'s spending limit for this Team or its people is used up, so nothing was answered. An administrator must raise it in the gateway, or wait until it resets.', retryable: false, report: 'error' },
+  model_unavailable: { status: 'failed', message: 'The model gateway does not offer this Team\'s Ask model to the key Ploeg issued, so nothing was answered. An administrator must check the Team\'s Ask model in Ploeg and the gateway.', retryable: false, report: 'error' },
+  too_long: { status: 'failed', message: 'This Work Item\'s record and the question are more than the model can read at once, so nothing was answered. An administrator can choose an Ask model with a larger context window.', retryable: false, report: 'warning' },
   rate_limited: { status: 'failed', message: 'The model provider is busy right now. Try again in a minute.', retryable: true, report: 'warning' },
   provider_error: { status: 'failed', message: 'The model provider failed to answer. Try again in a minute; if it keeps failing, tell an administrator.', retryable: true, report: 'error' },
   bad_response: { status: 'failed', message: 'The model gateway sent a reply Unfold could not read, so there is no answer. An administrator should check the gateway.', retryable: true, report: 'error' },
@@ -81,13 +85,25 @@ export class AskFailure extends Error {
   constructor(code: AskFailureCode, detail = '', status: number | null = null) { super(`Ask failed: ${code}${status ? ` (HTTP ${status})` : ''}`); this.name = 'AskFailure'; this.code = code; this.status = status; this.detail = detail; }
 }
 
-/** The failure a gateway answer with HTTP `status` and body `text` means. LiteLLM reports a spent key budget as 400 or 429 naming the budget. */
+/** The failure a gateway answer with HTTP `status` and body `text` means, read from LiteLLM's error body before its status (see `gatewayError`). */
 export function gatewayFailure(status: number, text: string): AskFailureCode {
-  if (/budget/i.test(text) && (status === 400 || status === 429)) return 'budget_exceeded';
-  if (status === 401 || status === 403) return 'key_rejected';
-  if (status === 429) return 'rate_limited';
-  if (status === 408 || status === 504) return 'timeout';
-  return 'provider_error';
+  const error = gatewayError(status, text);
+  switch (error.kind) {
+    case 'budget_exceeded': return error.budgetOwner === null || error.budgetOwner === 'key' ? 'budget_exceeded' : 'spend_limit_reached';
+    case 'rate_limited': return 'rate_limited';
+    case 'key_rejected': return 'key_rejected';
+    case 'model_unavailable': return 'model_unavailable';
+    case 'context_too_long': return 'too_long';
+    case 'content_filtered': return 'filtered';
+    case 'timeout': return 'timeout';
+    default: return 'provider_error';
+  }
+}
+
+/** Text a model or a person wrote, made safe to store and show: terminal escapes and control characters dropped, URL credentials, `sk-` keys and `secrets` redacted, trimmed and cut at `max`. */
+export function cleanText(value: string, max: number, secrets: readonly string[]): string {
+  const text = value.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').replace(/[^\P{C}\n\t]/gu, '').replace(/:\/\/[^\s/@]+@/g, '://[redacted]@').replace(/\bsk-[\w-]+/g, '[redacted]');
+  return withoutKnownSecrets(text, secrets).trim().slice(0, max);
 }
 
 const sourced = (ask: Ask): Ask => ({ ...ask, source: ask.source ?? (ask.demo ? 'record' : 'model'), intent: ask.intent ?? null });
@@ -109,10 +125,7 @@ export class AskService {
     this.store = store; this.workItems = workItems; this.authority = authority; this.options = options;
   }
 
-  private clean(value: string, max: number): string {
-    const text = value.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '').replace(/[^\P{C}\n\t]/gu, '').replace(/:\/\/[^\s/@]+@/g, '://[redacted]@').replace(/\bsk-[\w-]+/g, '[redacted]');
-    return withoutKnownSecrets(text, this.options.secrets).trim().slice(0, max);
-  }
+  private clean(value: string, max: number): string { return cleanText(value, max, this.options.secrets); }
   private clock(): Date { return this.options.now?.() ?? new Date(); }
   private now(): string { return this.clock().toISOString(); }
 

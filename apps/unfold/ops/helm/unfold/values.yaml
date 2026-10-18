@@ -25,7 +25,7 @@ affinity: {}
 extraEnv: []
 # Feature flag rules for this deployment, as a flagd document (apps/unfold/docs/operations/feature-flags.md).
 # Mounted as its own ConfigMap and watched every 5 seconds, so a change applies without restarting Unfold.
-# Example: featureFlags: {flags: {work.flight-profile: {defaultVariant: "on"}}}
+# Example: featureFlags: {flags: {work.live-view: {defaultVariant: "on"}}}
 featureFlags: {}
 insight:
   events: true
@@ -38,6 +38,9 @@ errorReports:
   sentry:
     existingSecret: ""
     secretKey: sentry-dsn
+ploegMcp:
+  url: ""
+  clientId: ""
 mode: demo
 baseUrl: ""
 credentialsSecret: unfold-credentials

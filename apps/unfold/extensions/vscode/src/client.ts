@@ -1,3 +1,4 @@
+import { hostname } from 'node:os';
 import type { RunCard, PloegDetail, PloegNow, PloegOverview } from './ploeg-types.js';
 import type { AccountLink, Approval, Bootstrap, Session, SessionEvent, SessionInput, Permission, Decision, TaskSource, TaskPreview, TaskPage, TaskImportInput, TaskPloegStatus, CandidateFormat, Investigation, Recovery, RecoveryAction, DeliveryView, PublicationBinding } from './types.js';
 import type { BrowserLoginStart } from './browser-login.js';
@@ -141,7 +142,7 @@ export class UnfoldClient {
     return { local: result?.local !== false, oidc: result?.oidc && typeof result.oidc.name === 'string' ? result.oidc : null };
   }
   async beginBrowserLogin(): Promise<BrowserLoginStart> {
-    const result = await this.request<{ code?: string; secret?: string; userCode?: string; url?: string; expiresIn?: number; interval?: number }>('/api/auth/editor', 'POST', {});
+    const result = await this.request<{ code?: string; secret?: string; userCode?: string; url?: string; expiresIn?: number; interval?: number }>('/api/auth/editor', 'POST', { client: 'vscode', host: hostname().split('.')[0] });
     if (typeof result?.code !== 'string' || typeof result?.secret !== 'string' || typeof result?.url !== 'string' || typeof result?.userCode !== 'string' || !/^[A-Z]{4}-[A-Z]{4}$/.test(result.userCode)) throw new ApiError(0, 'invalid_response', 'The workbench did not start a browser sign-in with a code to approve. It may need an update.');
     return { code: result.code, secret: result.secret, userCode: result.userCode, url: result.url, expiresIn: typeof result.expiresIn === 'number' ? result.expiresIn : 600, interval: typeof result.interval === 'number' && result.interval > 0 && result.interval <= 30 ? result.interval : 2 };
   }

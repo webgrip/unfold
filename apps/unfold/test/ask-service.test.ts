@@ -267,6 +267,10 @@ test('each way a model call can fail gets its own code, message and report, and 
     [new TypeError('fetch failed'), 'gateway_unreachable', 'failed', true, 'error'],
     [reply(401, { error: { message: 'Authentication Error, Invalid proxy server token passed' } }), 'key_rejected', 'failed', false, 'error'],
     [reply(400, { error: { message: 'Budget has been exceeded! Current cost: 0.021, Max budget: 0.02' } }), 'budget_exceeded', 'failed', true, 'warning'],
+    [reply(422, { error: { message: 'Budget has been exceeded! Key=ask-p-1 Current cost: 0.021, Max budget: 0.02', type: 'budget_exceeded', param: null, code: '422' } }), 'budget_exceeded', 'failed', true, 'warning'],
+    [reply(422, { error: { message: 'Budget has been exceeded! Team=delivery Current cost: 50.1, Max budget: 50.0', type: 'budget_exceeded', param: null, code: '422' } }), 'spend_limit_reached', 'failed', false, 'error'],
+    [reply(403, { error: { message: 'The requested model \'glm-5.3-flash\' is not available for this API key, or the model name is invalid.', type: 'key_model_access_denied', param: 'model', code: '403' } }), 'model_unavailable', 'failed', false, 'error'],
+    [reply(400, { error: { message: 'litellm.ContextWindowExceededError: litellm.BadRequestError: ContextWindowExceededError: OpenAIException - This model\'s maximum context length is 8192 tokens.', type: 'invalid_request_error', param: null, code: '400' } }), 'too_long', 'failed', false, 'warning'],
     [reply(429, { error: { message: 'Rate limit reached' } }), 'rate_limited', 'failed', true, 'warning'],
     [reply(502, { error: { message: 'upstream connect error' } }), 'provider_error', 'failed', true, 'error'],
     [reply(200, '<html>proxy page</html>'), 'bad_response', 'failed', true, 'error'],
@@ -374,5 +378,7 @@ test('gateway statuses map to failures', () => {
   assert.equal(gatewayFailure(403, ''), 'key_rejected');
   assert.equal(gatewayFailure(504, ''), 'timeout');
   assert.equal(gatewayFailure(400, 'bad request'), 'provider_error');
+  assert.equal(gatewayFailure(422, '{"error":{"message":"Budget has been exceeded! Key=k Current cost: 1.0, Max budget: 0.01","type":"budget_exceeded","param":null,"code":"422"}}'), 'budget_exceeded');
+  assert.equal(gatewayFailure(429, '{"error":{"message":"litellm.RateLimitError: RateLimitError: OpenAIException - You exceeded your current quota","type":"throttling_error","param":null,"code":"429"}}'), 'provider_error', 'a provider\'s billing quota is not a busy provider');
   for (const meaning of Object.values(askFailures)) assert.doesNotMatch(meaning.message, /Ploeg settles|only this attempt/i);
 });

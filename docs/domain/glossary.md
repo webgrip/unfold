@@ -28,6 +28,16 @@ The observable conditions a Result must satisfy to answer the requested work. Th
 
 **See also:** [Work Item](../reference/glossary.md#work-item), [Result](#result), [Review](#review), [Acceptance](#acceptance), [Client Profile](#client-profile)  
 
+## Access Role
+*Context: Participation*
+
+A named set of permissions a person holds in a Tenant, a Client or a project. The built-in Access Roles are Account owner (billing, budgets, the kill switch and everything an Admin may do), Admin (identity, Teams, sources, secrets and policies, no billing), Lead (start policy, review routing and budgets within the Agency's cap for their projects, accepting learnings), Developer (starts work, reviews and accepts, steers, takes over), Product owner (makes work Ready, prioritises, signs off, never accepts code) and Viewer (reads), plus the Client membership of system ADR-0017. An Agency may compose its own Access Roles from the same permissions. Decided by the owner on VIK-2011; replaces system ADR-0017's viewer, member and admin and the code's admin, operator and viewer; not implemented yet.
+
+**Do not use:** operator, member, pilot  
+**Not to be confused with** [Role](../reference/glossary.md#role): Ploeg's specialist function inside a Team, such as builder or reviewer.  
+**Not to be confused with** [Operator Consumer](../reference/glossary.md#operator-consumer): A service identity, never a person.  
+**See also:** [Tenant](../reference/glossary.md#tenant), [Client](../reference/glossary.md#client), [Agency](#agency)  
+
 ## Agency
 *Context: Offering*
 
@@ -70,9 +80,9 @@ A person's private collection of the Run Cards they hold a copy of. Only its own
 ## Bounce
 *Context: Cards*
 
-A Work Item moving from a later Gate back to an earlier one, with a reason: defect, requirement, misunderstood, environment or unknown. Only defect and unknown Bounces count against the Grade. A requirement change marks the card Evolved and leaves no Crack. Unfold reads the reason from a bounce:<reason> label or comment; a board without Gates has no Bounces.
+A Work Item moving from a later Gate back to an earlier one, with a reason: defect, requirement, misunderstood, environment or unknown. Only defect and unknown Bounces count against the Grade. A requirement Bounce out of acceptance or done marks the card Evolved and leaves no Crack. The reason arrives resolved with each Gate move in Ploeg's delivery facts; a move without one counts as unknown, and a board without Gates has no Bounces (Unfold ADR 0045).
 
-**Examples:** A tester moves the ticket from In test back to In progress with the label bounce:defect; the fix becomes the card's next Play.  
+**Examples:** A tester moves the ticket from In test back to In progress with the label bounce:defect, which Ploeg records as the reason; the fix becomes the card's next Play.  
 **See also:** [Gate](#gate), [Play](#play), [Grade](#grade), [Crack](#crack)  
 
 ## Budget
@@ -110,7 +120,7 @@ A Client's Definition of Ready, Definition of Done and extra instructions for ag
 ## Crack
 *Context: Cards*
 
-A defect confirmed against a Run Card's change. Unfold proposes candidate changes, the fixer names the cause, and a second person who is not the Steward confirms it; the Steward may dispute within five working days. A Crack is never applied automatically, carries a severity from S1 to S4, and is never totalled per person.
+A defect confirmed against a Run Card's change. Unfold proposes candidate changes, the fixer names the cause, and a second person who is not the Steward confirms it; the Steward may dispute within five working days. A Crack is never applied automatically, carries a severity from S1 to S4, and is never totalled per person (Unfold ADR 0045).
 
 **See also:** [Mend](#mend), [Steward](#steward), [Grade](#grade), [Bounce](#bounce)  
 
@@ -185,17 +195,25 @@ The visual layer a Run Card earns by staying live in production: matte, then foi
 ## Gate
 *Context: Cards*
 
-A point in a board's workflow that a Work Item passes after review, such as development, test, acceptance and production. Each board maps its tracker statuses to Gates in Unfold's cards.rules setting (boards.<provider:scope>.gates), and Unfold derives a card's Gate history from the status moves in Ploeg's delivery facts.
+A point in a board's workflow that a Work Item passes after review, such as development, test, acceptance and production. Ploeg's delivery facts carry each Gate move already resolved (gateTransitions), and Unfold walks a card's Gate history from them. Unfold's cards.rules setting (boards.<provider:scope>.gates) only places a status move that Ploeg sent without a Gate in the flow figures (Unfold ADR 0045).
 
 **See also:** [Bounce](#bounce), [Run Card](#run-card), [Acceptance](#acceptance)  
 
 ## Grade
 *Context: Cards*
 
-A Run Card's assessment of its change from 1 to 10 in half steps, from four subgrades: 40 % reliability, 25 % durability, 20 % delivery and 15 % review. The formula is versioned and printed on the card, and a card under 180 days live is capped at 9. It grades the change, never a person. Unfold computes it on read under the current formula (2026.3; every earlier version is kept), lists the inputs it missed, and shows none until a person reviewed a Play or one merged.
+A Run Card's assessment of its change from 1 to 10 in half steps, from four subgrades: 40 % reliability, 25 % durability, 20 % delivery and 15 % review. The formula is versioned and printed on the card, and a card under 180 days live is capped at 9. It grades the change, never a person. Unfold computes it on read under the current formula (2026.3; every earlier version is kept), lists the inputs it missed, and shows none until a person reviewed a Play or one merged (Unfold ADR 0045).
 
 **Not to be confused with** [Verdict](../reference/glossary.md#verdict): A reviewing Run's approve or request_changes answer in one Round. It is one input a Grade could use, not a Grade.  
 **See also:** [Run Card](#run-card), [Crack](#crack), [Bounce](#bounce), [Finish](#finish)  
+
+## Linked Session
+*Context: Participation · Owner: Unfold*
+
+An agent session a person runs outside Unfold, such as Claude Code on their own machine, that reports to Unfold through its hooks and is linked to Work Items. Unfold never starts, steers or pays for it; it records the session's state, branch and commits, the Agent Trace of what it wrote, and reads its telemetry.
+
+**Not to be confused with** [Session](#session): Unfold's own record of interaction around work it submits to Ploeg.  
+**See also:** [Session](#session), [Work Item](../reference/glossary.md#work-item)  
 
 ## Markup
 *Context: Billing*
@@ -208,7 +226,7 @@ The published percentage Unfold adds to token and compute cost when billing an A
 ## Mend
 *Context: Cards*
 
-The confirmed fix of a Crack, drawn as gold seams that stay on the card (kintsugi). A mended card looks more distinguished than an untouched one, while its Grade ends slightly lower. Whoever mends another person's card becomes a co-signer. Built: Unfold records a Mend when the bug's pull request merges and confirms it after 30 days without a new Crack; the gold seams are drawn by the skins.
+The confirmed fix of a Crack, drawn as gold seams that stay on the card (kintsugi). A mended card looks more distinguished than an untouched one, while its Grade ends slightly lower. Whoever mends another person's card becomes a co-signer. Built: Unfold records a Mend when the bug's pull request merges and confirms it after 30 days without a new Crack; the gold seams are drawn by the skins (Unfold ADR 0045).
 
 **Also known as:** kintsugi  
 **See also:** [Crack](#crack), [Steward](#steward), [Grade](#grade)  
@@ -220,6 +238,16 @@ The service that runs a model and answers inference requests. A provider can run
 
 **Examples:** Fireworks.ai; DeepSeek  
 **See also:** [Harness](../reference/glossary.md#harness)  
+
+## Needs-you Reason
+*Context: Participation · Owner: Unfold*
+
+Why a Work Item waits on a person, with its fix. Unfold reads it from Ploeg's state (needs_human or stale) and the Shift's close reason, and shows a short chip, a sentence that explains it, what to change and how to start again: assign the task to the Team again in its tracker. Needs you groups Work Items by it. A reason code Unfold does not know is named as unrecognised, never hidden (apps/unfold/public/core/reasons.js; Unfold ADR 0024, proposed).
+
+**Do not use:** needs attention  
+**Not to be confused with** [Verdict](../reference/glossary.md#verdict): An agent reviewer's answer; a Needs-you Reason is why a person must act.  
+**Examples:** Checks did not pass: the Team's checks failed on the pushed commit and no fix Round could run.  
+**See also:** [Work Item](../reference/glossary.md#work-item), [Shift](../reference/glossary.md#shift), [Stage](#stage)  
 
 ## OpenSpec
 *Context: Tooling · Owner: Ploeg*
@@ -244,7 +272,7 @@ Where a Session's Workspace runs, chosen per Session from the backends a deploym
 ## Play
 *Context: Cards · Owner: Unfold*
 
-One pull request of a Work Item as its Run Card shows it, oldest first. A pull request closed after a Bounce and its merged successor are two Plays on one card. Cost and lines are summed across Plays, and each Play's Runs appear as the Roles that ran.
+One pull request of a Work Item as its Run Card shows it, oldest first. A pull request closed after a Bounce and its merged successor are two Plays on one card. Cost and lines are summed across Plays, and each Play's Runs appear as the Roles that ran (Unfold ADR 0045).
 
 **See also:** [Run Card](#run-card), [Bounce](#bounce), [Shift](../reference/glossary.md#shift)  
 
@@ -281,7 +309,7 @@ A Work Item's Size and the Agency's price for it, drafted by Refinement and appr
 ## Rarity
 *Context: Cards*
 
-How exceptional a Run Card's change was, its challenge, kept apart from how well it was done (Grade) and how long it has lasted (Finish). Cosmetic only, and off unless cards.rules.rarity turns it on. Unfold scores reach, sensitive ground, novelty and damped size under a versioned formula, predicts a tier at mint and reveals one at release, as percentile tiers per repository and quarter (common, uncommon, rare, epic, legendary), and freezes the revealed tier in its card store (system ADR-0030). Nothing Ploeg authorizes, budgets or merges depends on it.
+How exceptional a Run Card's change was, its challenge, kept apart from how well it was done (Grade) and how long it has lasted (Finish). Cosmetic only, and off by default (owner decision 2026-10-17): it shows when cards.rules.rarity is true, or, while that setting is unset, to a person whose cards.rarity feature flag is on. Unfold scores reach, sensitive ground, novelty and damped size under a versioned formula, predicts a tier at mint and reveals one at release, as percentile tiers per repository and quarter (common, uncommon, rare, epic, legendary), and freezes the revealed tier in its card store (system ADR-0030), also while rarity is hidden, so turning it on shows the frozen tiers (Unfold ADR 0045). Nothing Ploeg authorizes, budgets or merges depends on it.
 
 **See also:** [Run Card](#run-card), [Grade](#grade), [Finish](#finish), [Pack](#pack)  
 
@@ -336,7 +364,7 @@ An assessment of a Result against its Acceptance Conditions and supporting Evide
 ## Roster
 *Context: Cards*
 
-The humans who acted on a Run Card's change, each with their roles. Built roles: merger and reviewer. Proposed: developer, QA, PO and acceptor, each holding a copy of the card that shares its fate, so a Crack shows on every copy and a Mend names the mender on every copy.
+The humans who acted on a Run Card's change, each with their roles. Built roles: merger, reviewer, qa (moved the Work Item out of the test Gate), acceptor (out of acceptance) and cosigner (mended a Crack on someone else's card). Proposed: developer and PO copies, each holding a copy of the card that shares its fate, so a Crack shows on every copy and a Mend names the mender on every copy. The built roles are recorded in Unfold ADR 0045.
 
 **See also:** [Run Card](#run-card), [Steward](#steward), [Binder](#binder)  
 
@@ -361,7 +389,7 @@ Unfold's continuing record of a person's interaction around work: instructions, 
 ## Set Card
 *Context: Cards*
 
-The Run Card of an epic Work Item, whose children are Run Cards numbered within the set, read from the tracker parents in Ploeg's delivery facts. A set completes when every child has been live for 30 days with no unmended Crack, and its epic's card then shows as legendary.
+The Run Card of an epic Work Item, whose children are Run Cards numbered within the set, read from the tracker parents in Ploeg's delivery facts. A set completes when every child has been live for 30 days with no unmended Crack, and its epic's card then shows as legendary (Unfold ADR 0045).
 
 **See also:** [Run Card](#run-card), [Work Item](../reference/glossary.md#work-item), [Crack](#crack)  
 
@@ -401,7 +429,7 @@ A part of one Run that Unfold performs internally, such as one Team Role in a de
 ## Steward
 *Context: Cards*
 
-The person a Run Card names as answering for its change while it runs, with first right to mend it. Built today: whoever merged the latest merged Play, otherwise the last approver; forge bot logins never count. Proposed: the developer carrying the Work Item, meaning the tracker assignee at release, falling back to the merger and then the approver. The agent is never a Steward. A Steward is a role on a change, not a measure of a person.
+The person a Run Card names as answering for its change while it runs, with first right to mend it. Built today: whoever merged the latest merged Play, otherwise the last approver; forge bot logins never count. Proposed: the developer carrying the Work Item, meaning the tracker assignee at release, falling back to the merger and then the approver. The agent is never a Steward. A Steward is a role on a change, not a measure of a person. The built rule is recorded in Unfold ADR 0045.
 
 **Do not use:** owner (of a card)  
 **See also:** [Run Card](#run-card), [Roster](#roster), [Crack](#crack), [Mend](#mend)  
@@ -409,7 +437,7 @@ The person a Run Card names as answering for its change while it runs, with firs
 ## Supervision
 *Context: Participation · Owner: Unfold*
 
-Whether a person is watching a Ploeg-authorized Session live (human) or has handed it back to run on its own (background). Switching it changes only who is paying attention; the same execution keeps running and no new Run starts. Standalone Sessions have no supervision setting.
+Whether a person is watching a Ploeg-authorized Session live (human) or has handed it back to run on its own (background). Switching it changes only who is paying attention; the same execution keeps running and no new Run starts. Demo Sessions have no supervision setting.
 
 **See also:** [Session](#session), [Run](../reference/glossary.md#run), [Authority](../reference/glossary.md#authority)  
 
@@ -437,10 +465,19 @@ The part of a Work Item's price charged for every attempt: model tokens and comp
 ## Unfold
 *Context: System · Owner: Unfold*
 
-The product, its application and the monorepo that holds them. In the Unfold application, in the browser and the VS Code extension, people define work, follow it, steer agents and review evidence; Ploeg, pinned into the monorepo as a submodule, admits and runs every Run. Without Ploeg the application runs only a deterministic demo that makes no model calls.
+The product, its application and the monorepo that holds them. In the Unfold application, in the browser and the VS Code extension, people define work, follow it, steer agents and review evidence; Ploeg, a released dependency the monorepo pins, admits and runs every Run. Without Ploeg the application runs only a deterministic demo that makes no model calls.
 
 **Examples:** Current state: Unfold's own engine still executes delegated Steps until the system ADR-0002 migration is complete.  
 **See also:** [Ploeg](#ploeg), [Session](#session), [Step](#step)  
+
+## User Journey
+*Context: Participation*
+
+One person's path from a trigger to an outcome they care about, across every tool they touch, such as deciding on an agent pull request. The ten User Journeys Unfold must support are ranked on the users-and-journeys concept page; every screen serves one of them.
+
+**Do not use:** flow, journey (for a Work Item's path through Ploeg)  
+**Not to be confused with** [Work Item](../reference/glossary.md#work-item): The paths a Work Item takes through Ploeg are the system journeys page, not User Journeys.  
+**See also:** [Access Role](#access-role), [Agency](#agency)  
 
 ## Work Item Brief
 *Context: Participation*
@@ -448,6 +485,16 @@ The product, its application and the monorepo that holds them. In the Unfold app
 The Client-safe projection of a Work Item that an Ask answers from. It never holds prompts, tool input or output, transcripts, diffs, gateway details, operator notes or another Work Item's facts. Built in Unfold (apps/unfold/src/ask/brief.ts) from an allow-list: title, objective, state and why it stopped, pull request and preview status, its Runs with their summaries and Verdicts, progress, and spend in US dollars. It does has no Acceptance Conditions field yet. Decided in system ADR-0031, which is still proposed.
 
 **See also:** [Ask](../reference/glossary.md#ask), [Client](../reference/glossary.md#client)  
+
+## Workbench
+*Context: System · Owner: Unfold*
+
+One running deployment of the Unfold application: its server, its configuration, credentials and storage, and the host or namespace it runs on. People sign in to a workbench, link accounts to it and connect the VS Code extension to it; its Sessions and connections belong to it. The workbench host runs its docker and local Placements, and the workbench key signs its Candidates. Ploeg does not use the word.
+
+**Not to be confused with** [Workspace](#workspace): The files and tools of one Run or Session; a workbench runs many.  
+**Not to be confused with** [Unfold](#unfold): The product and its application; a workbench is one deployment of it.  
+**Examples:** No Ploeg connection is configured for this workbench.  
+**See also:** [Unfold](#unfold), [Session](#session), [Placement](#placement), [Candidate](#candidate)  
 
 ## Workspace
 *Context: Execution*

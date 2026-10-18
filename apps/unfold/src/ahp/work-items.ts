@@ -5,6 +5,7 @@ import { money } from '../../public/core/format.js';
 import { customizationRefusal } from './customizations.ts';
 import { sessionChatCatalog } from './versions.ts';
 import { runChatChannel, runDescription, subagentContent, subagentMeta, verdictText, type Spelling } from './runs.ts';
+import { failureHeadline, failureMarkdown } from './tracebacks.ts';
 
 type Json = Record<string, any>;
 type ViewFlags = { session: number; chat: number };
@@ -39,7 +40,7 @@ export function workItemRefusal(actionType: unknown): string {
 }
 
 /** What a Work Item session says about the Runs' own words: Ploeg keeps each Run's report, not its conversation. */
-export const noAgentMessages = 'Ploeg records what each Run reported when it finished, not its messages or tool calls, so this chat shows the Rounds, their Runs and what each Run reported.';
+export const noAgentMessages = 'Each Round is a turn and each Run a subagent. Open a Run for what Ploeg recorded of it: its tool calls, messages and pod logs while it works, and its report once it finishes.';
 /** Said in a finished Ploeg Run's own chat for the same reason. */
 export const noRunMessages = 'Ploeg records no messages or tool calls for its Runs. This is what the Run reported when it finished.';
 /** Said in a Ploeg Run's own chat while the Run works or waits to start. */
@@ -135,6 +136,10 @@ function rounds(detail: PloegDetail): Round[] {
 }
 
 const runToolCallId = (run: PloegRun) => `ploeg-run-${run.id}`;
+const failureText = (run: PloegRun, fallback: string) => {
+  const code = /^[a-z][a-z0-9_]*$/.test(run.failureReason ?? '');
+  return (code && run.stuckReason.trim() ? run.stuckReason : run.failureReason || run.stuckReason) || fallback;
+};
 const failed = (run: PloegRun) => ['failed', 'stuck'].includes(run.outcome ?? '') || Boolean(run.failureReason);
 
 function runResult(run: PloegRun, spawned: Json): Json {
@@ -142,7 +147,7 @@ function runResult(run: PloegRun, spawned: Json): Json {
   const success = !failed(run);
   const pastTenseMessage = run.verdict ? `${role} ${verdictText(run.verdict)}` : success ? `${role} finished${run.outcome ? ` (${run.outcome.replaceAll('_', ' ')})` : ''}` : `${role} stopped (${(run.outcome ?? 'failed').replaceAll('_', ' ')})`;
   const summary = run.summary.trim();
-  return { success, pastTenseMessage, content: [spawned, ...(summary ? [{ type: 'text', text: summary }] : [])], ...(!success ? { error: { message: run.failureReason || run.stuckReason || pastTenseMessage } } : {}) };
+  return { success, pastTenseMessage, content: [spawned, ...(summary ? [{ type: 'text', text: summary }] : [])], ...(!success ? { error: { message: failureHeadline(failureText(run, pastTenseMessage)) } } : {}) };
 }
 
 function runPart(run: PloegRun, spelling: Spelling): Json {
@@ -173,7 +178,7 @@ export function verdictParts(run: PloegRun, item: PloegItem): Json[] {
   const pullRequest = run.writes && item.pullRequest?.url ? `[pull request${item.pullRequest.number ? ` #${item.pullRequest.number}` : ''}](${item.pullRequest.url})` : '';
   const verification = /verification passed/i.test(run.summary) ? 'Ploeg\'s checks passed.' : /verification failed/i.test(run.summary) ? 'Ploeg\'s checks failed.' : '';
   const headline = run.verdict ? `${role} ${verdictText(run.verdict)}` : failed(run) ? `${role} stopped` : pullRequest && run.outcome === 'pr_opened' ? `${role} opened the ${pullRequest}` : `${role} finished`;
-  const gist = failed(run) ? firstSentence(run.failureReason || run.stuckReason || run.summary) : verification || firstSentence(run.summary);
+  const gist = failed(run) ? firstSentence(failureHeadline(failureText(run, run.summary))) : verification || firstSentence(run.summary);
   return [{ kind: 'markdown', id: `${runToolCallId(run)}-verdict`, content: `**${headline}.**${gist ? ` ${gist}` : ''} Open ${role} above for the full report.` }];
 }
 
@@ -186,7 +191,7 @@ function turnOf(round: Round, index: number, spelling: Spelling, item: PloegItem
 export function workItemChatState(entry: WorkItemRecord, detail: PloegDetail, spelling: Spelling, flags: ViewFlags): Json {
   const turns = rounds(detail).map((round, index) => ({ round, turn: turnOf(round, index, spelling, detail.item) }));
   const active = turns.find(({ round }) => round.open);
-  return { ...workItemChatSummary(entry, spelling, flags), turns: turns.filter(({ round }) => !round.open).map(({ turn }) => turn), ...(active ? { activeTurn: active.turn } : {}) };
+  return { ...workItemChatSummary(entry, spelling, flags), turns: turns.filter(({ round }) => !round.open).map(({ turn }) => turn), ...(active ? { activeTurn: active.turn } : {}), changesets: [] };
 }
 
 const runActivity = (run: PloegRun) => run.state === 'running' ? `${roleName(run.role)} is working` : run.state === 'pending' ? 'Waiting to start' : null;
@@ -198,8 +203,9 @@ function runChatSummary(run: PloegRun, spelling: Spelling, since: string): Json 
 
 function reportParts(run: PloegRun, turnId: string): Json[] {
   if (run.state !== 'finished') return [];
-  const sections = [['Summary', run.summary], ['Findings', run.findings], ['Why it got stuck', run.stuckReason], ['Why it failed', run.failureReason ?? '']].filter(([, value]) => value.trim());
-  return sections.length ? [{ kind: 'markdown', id: `${turnId}-report`, content: sections.map(([title, value]) => `**${title}**\n\n${value.trim()}`).join('\n\n') }] : [];
+  const sections = [['Summary', run.summary, false], ['Findings', run.findings, false], ['Why it got stuck', run.stuckReason, true], ['Why it failed', run.failureReason ?? '', true]] as const;
+  const shown = sections.filter(([, value]) => value.trim());
+  return shown.length ? [{ kind: 'markdown', id: `${turnId}-report`, content: shown.map(([title, value, failure]) => `**${title}**\n\n${failure ? failureMarkdown(value) : value.trim()}`).join('\n\n') }] : [];
 }
 
 function runTurn(run: PloegRun, since: string): Json {
@@ -215,15 +221,18 @@ export function workItemRunChatState(detail: PloegDetail, toolCallId: string, sp
   const run = detail.runs.find(entry => runToolCallId(entry) === toolCallId);
   if (!run) return undefined;
   const turn = runTurn(run, detail.item.updatedAt);
-  return { ...runChatSummary(run, spelling, detail.item.updatedAt), ...(run.state === 'finished' ? { turns: [turn] } : { turns: [], activeTurn: turn }) };
+  return { ...runChatSummary(run, spelling, detail.item.updatedAt), ...(run.state === 'finished' ? { turns: [turn] } : { turns: [], activeTurn: turn }), changesets: [] };
 }
 
-/** A Work Item session as a client subscribes to it: read-only, without changesets, configuration or input requests of its own. */
+/**
+ * A Work Item session as a client subscribes to it: read-only, without configuration or input requests of its own, and with an
+ * empty changeset catalogue. Its change lives in its pull request, which Ploeg's detail names but does not list the files of.
+ */
 export function workItemSessionState(entry: WorkItemRecord, detail: PloegDetail, spelling: Spelling, flags: ViewFlags, protocolVersion: string, activeClients: Json[]): Json {
   return {
     ...workItemSummary(entry, spelling, flags, protocolVersion), lifecycle: 'ready', activeClients,
     chats: [workItemChatSummary(entry, spelling, flags), ...[...detail.runs].sort(byId).map(run => runChatSummary(run, spelling, detail.item.updatedAt))], defaultChat: spelling.chat,
-    config: { schema: { type: 'object', properties: {} }, values: {} }, customizations: [], inputNeeded: [],
+    config: { schema: { type: 'object', properties: {} }, values: {} }, customizations: [], inputNeeded: [], changesets: [],
   };
 }
 
@@ -254,7 +263,7 @@ function runChatActions(before: PloegRun | undefined, run: PloegRun, spelling: S
     const turn = runTurn(run, since);
     const toolCallId = runToolCallId(run);
     for (const part of reportParts(run, turn.id)) actions.push({ to: { run: toolCallId }, action: { type: 'chat/responsePart', turnId: turn.id, part } });
-    actions.push({ to: { run: toolCallId }, action: failed(run) ? { type: 'chat/error', turnId: turn.id, duration: turn.duration, part: { kind: 'error', error: { errorType: 'run_failed', message: run.failureReason || run.stuckReason || `${roleName(run.role)} stopped` } } } : { type: 'chat/turnComplete', turnId: turn.id, duration: turn.duration } });
+    actions.push({ to: { run: toolCallId }, action: failed(run) ? { type: 'chat/error', turnId: turn.id, duration: turn.duration, part: { kind: 'error', error: { errorType: 'run_failed', message: failureHeadline(failureText(run, `${roleName(run.role)} stopped`)) } } } : { type: 'chat/turnComplete', turnId: turn.id, duration: turn.duration } });
   }
   return actions;
 }
@@ -374,6 +383,9 @@ export class WorkItemSessions {
 
   /** The Work Item session as the viewer last saw it, for their read and archive flags. */
   remembered(user: User, publicId: string): WorkItemRecord | undefined { return this.seen.get(user.id)?.get(publicId)?.entry; }
+
+  /** The detail of a Work Item as Ploeg last answered it to anyone, without asking Ploeg again. */
+  kept(workItemId: string): PloegDetail | undefined { return this.details.get(workItemId); }
 
   /** One Work Item session the viewer may open, with the detail its chat is built from. Undefined when Ploeg's team authorization hides it or an Operator Execution owns it. */
   async session(user: User, workItemId: string): Promise<{ entry: WorkItemRecord; detail: PloegDetail } | undefined> {

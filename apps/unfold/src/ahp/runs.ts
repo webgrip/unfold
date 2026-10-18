@@ -79,7 +79,7 @@ export function runChats(transcripts: RunTranscripts, spelling: Spelling): Json[
 export function runChatState(transcripts: RunTranscripts, toolCallId: string, spelling: Spelling): Json | undefined {
   const chat = transcripts.chats.get(toolCallId);
   if (!chat) return undefined;
-  return { ...runChatSummary(chat, spelling), ...(chat.closed ? { turns: [chat.turn] } : { turns: [], activeTurn: chat.turn }) };
+  return { ...runChatSummary(chat, spelling), ...(chat.closed ? { turns: [chat.turn] } : { turns: [], activeTurn: chat.turn }), changesets: [] };
 }
 
 /** The content by which a tool call names the subagent chat it spawned, which VS Code opens when the call is expanded. */

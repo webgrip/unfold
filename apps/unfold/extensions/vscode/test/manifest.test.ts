@@ -13,7 +13,7 @@ test('the walkthrough has a step for the Agents window that opens it with a regi
   assert.ok(step, 'the step exists');
   assert.equal(steps.indexOf(step), 1, 'it follows connecting');
   assert.match(step.description, /\(command:unfold\.openAgentsWindow\)/);
-  assert.match(step.description, /Workspace ▾ → Unfold · <repository>/);
+  assert.match(step.description, /Workspace ▾ → Folders \(Unfold\) → <repository>/);
   assert.ok(step.completionEvents?.includes('onCommand:unfold.openAgentsWindow'));
   assert.ok(contributed.has('unfold.openAgentsWindow'));
   assert.match(source, /register\('openAgentsWindow'/);

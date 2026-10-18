@@ -761,3 +761,35 @@ test('each Run shows what the agent did above its Pod logs', () => {
   assert.ok(transcript > 0 && transcript < html.indexOf('id="work-run-logs-14"'));
   assert.match(html, /data-run-transcript="14"[^]*<p>Done\.<\/p>/);
 });
+
+test('the live view shows the health the Run row’s badge shows, says why calls are missing, and replaces the Running now box', async () => {
+  const { liveViewMarkup } = await import('../public/ploeg.js');
+  const base = detail();
+  const running = { ...base.runs[1], id: '15', state: 'running', finishedAt: null, outcome: null, startedAt: '2026-09-20T10:00:00Z', costStatus: 'observed', usage: { costUsd: 0.95 }, authorizedUsd: 1 };
+  const live = { ...base, item: { ...base.item, state: 'leased' }, runs: [running, ...base.runs] };
+  const entries = [{ seq: 1, kind: 'tool_call', at: '2026-09-20T10:13:00Z', toolCallId: 't1', title: 'Run tests', toolKind: 'execute', status: 'completed', input: 'npm test' }];
+  const runTranscripts = new Map([['15', { data: { available: true, complete: false }, entries, trimmed: false }]]);
+  const now = Date.parse('2026-09-20T10:14:00Z');
+  const served = { data: { health: 'watch', combined: { health: 'watch', source: 'signals' }, reason: 'A command has had no output for 6 min; the idle stop is at 10 min', deciding: 'quiet', signals: [], judge: null, history: [], judgeState: 'off', stale: false, demo: false, asOf: new Date(now).toISOString() } };
+  const runHealth = new Map([['15', served]]);
+  const page = detailMarkup(live, model({ detailId: '50', now, runTranscripts, runHealth, flags: { 'work.live-view': true } }));
+  assert.match(page, /<span class="work-run-health-badge"><span class="badge sm" data-tone="attention"[^>]*>.*?<span class="sr-only">Health: <\/span>Watch<\/span>/, 'the badge reads Health: Watch to a screen reader and Watch on screen');
+  assert.match(page, /Watch: A command has had no output for 6 min; the idle stop is at 10 min\./, 'the live view says the badge’s word and reason');
+  assert.doesNotMatch(page, /Off track/, 'the live view never computes its own, different answer while the server’s is there');
+  assert.doesNotMatch(page, /id="work-decision"/, 'with the live view on, a leased Work Item has no separate Running now box');
+  assert.match(page, /data-action="work-run"/, 'every hop opens its Run');
+  const own = liveViewMarkup(live, model({ detailId: '50', now, runTranscripts }));
+  assert.match(own, /Off track: US\$\s?0,95 of US\$\s?1,00 authorized spent \(95 %\)/, 'before the server entry is read, the live view computes the same rules from the Run and its raw entries');
+  const demo = liveViewMarkup(live, model({ detailId: '50', now, runTranscripts: new Map([['15', { data: { available: false, reason: 'demo' }, entries: [] }]]) }));
+  assert.match(demo, /The demo records no transcripts, so its calls are not shown\./);
+  const old = liveViewMarkup(live, model({ detailId: '50', now, runTranscripts: new Map([['15', { data: { available: false, reason: 'unsupported' }, entries: [] }]]) }));
+  assert.match(old, /This Ploeg does not report transcripts, so its calls are not shown\./);
+  assert.match(liveViewMarkup(live, model({ detailId: '50', now })), /Loading its calls…/);
+  assert.match(liveViewMarkup(live, model({ detailId: '50', now, runTranscripts: new Map([['15', { data: null, entries: [], error: { message: 'offline' } }]]) })), /Its calls could not be read\./);
+});
+
+test('the Run row badge reads Health: and its word to a screen reader', async () => {
+  const { runHealthBadge } = await import('../public/ploeg.js');
+  const badge = runHealthBadge({ state: 'running' }, { data: { health: 'unknown', reason: 'Ploeg did not report this Run\'s limits', signals: [] } });
+  assert.match(badge, /<span class="sr-only">Health: <\/span>Not known<\/span>/);
+});

@@ -7,6 +7,7 @@ import { chromium } from 'playwright';
 import { createApplication } from '../src/main.ts';
 import { loadConfig } from '../src/config.ts';
 import { startFakeArtModel } from './browser/fake-art-model.mjs';
+import { defaultTimeout } from './browser/timeouts.mjs';
 
 const flows = [
   ['now', 'the Now page: waiting groups with reason chips, the digest with counts that jump to their rows and Mark as caught up, stat links, the running meter, keyboard row navigation and o at desktop/mobile widths'],
@@ -24,14 +25,15 @@ const flows = [
   ['world', 'the forge card’s inner world: a demo card’s islands in the art window under the CSP with a screen reader description, flatten and back by button and F, a thing found by its hover cursor reacting to a click and to the keyboard, a crystal placed by pointer and a thing erased by keyboard, the decoration saved for its owner and shown again after a reload, the reset to the card’s own world, and a reduced-motion world that flattens at once without particles'],
   ['collection', 'the collection side of Run cards: card logins, the private binder with forge thumbnails, a focused card and the once-only While you were away replay, a demo pack ripped by keyboard to its summary, the published odds, the reduced-motion ceremony and the Team season page'],
   ['skins', 'the DOM skin packs (holo, loot, arcade, ticker and patch): each demo card under the CSP with the facts every card shows and no amount, the Set Cards, the back tabs, no horizontal scrolling at desktop and phone widths, the mend moment and its event, idle only while on screen and facing front, and the still end state under reduced motion'],
-  ['rarity', 'Run card rarity: every tier predicted and revealed on Unfold Native, the DOM skin packs and the forge with its mark, frame ring and Rarity tab, a legendary reveal at full size and a reveal below its prediction at its own tier without a loss cue, the still glow under reduced motion, and the binder rarity filter and rarest-first sort'],
+  ['rarity', 'Run card rarity: hidden while the cards.rarity flag is off by default, then turned on under Labs, every tier predicted and revealed on Unfold Native, the DOM skin packs and the forge with its mark, frame ring and Rarity tab, a legendary reveal at full size and a reveal below its prediction at its own tier without a loss cue, the still glow under reduced motion, and the binder rarity filter and rarest-first sort; Default hides it again'],
   ['kpis', 'Run card KPIs: three or four headline figures on Unfold Native, the forge and each DOM skin pack, waiting while nobody has responded, reruns and blocked time as the only colours, the Flow tab’s stacked bar, status table, calendar line and what is not collected, the calendar ↔ working-hours toggle remembered across a reload, the Review & CI steps and CI rows, the Change tab’s complexity, Life’s merge to each environment, and phone width without horizontal scrolling'],
   ['designer', 'the card designer: a new theme changes the live forge preview (frame, foil pattern, art preset, colour tokens through the CSSOM, an uploaded set symbol, a pasted shader), a hostile SVG and a broken shader are refused with a reason, the theme saves, versions, reloads and previews on a real Work Item, the page fits 390px, and in live mode generated art retries once with the browser compiler log from a fake model and ends as the card art'],
   ['confusion', 'confusion signals from real clicks: a rage click and a dead click on named elements, no dead click when a menu opens, no rage click for triple-click text selection, a U-turn after two quick visits to one Work Item, and no screen text in any signal'],
   ['brand', 'the Vouwvlieger at desktop, tablet and three phone sizes: the loading flight lands before the loading screen lifts and never widens the page, the brand link pops on hover in the sidebar and on tap in the phone drawer, the sign-in lockup pops, and reduced motion keeps every mark still'],
   ['report', 'Report a problem: opened from the top bar, the palette and ! without scrolling the page, private text blurred in the screenshot against ordinary text, a click that boxes a control and names it, a box, an arrow and a label drawn and undone, tool keys, the required field, the suggested title, the optional expectation and impact, a draft kept across an accidental close, Ctrl Enter, a multipart report kept by the demo with its kind and screenshot, the idea kind, and a scrolled page photographed where it is scrolled to with and without reduced motion'],
   ['report-follow', 'following a report: the news dot and a toast once per stage, Your reports from the palette with the fix, the release that carries it and the team’s comment, seen after opening, a reply posted from Unfold, and a repeat report suggested while typing, refused once and not suggested again, then joined with the acknowledgement line'],
-  ['flags', 'feature flags: Settings › Labs with the flight profile off by default, turning it on to draw a demo Work Item as a flight under the CSP, a waypoint that opens its Run, the profile scrolling inside its frame at 390px without widening the page, the administrator flag table, and Default restoring the stage strip'],
+  ['health', 'Run health: the running demo Run\'s badge beside its state with a glyph and a word, its reason line and demo label in the Run body, no judge in the demo and no badge on a finished Run, at 1440px in light and 320px in dark without horizontal scrolling'],
+  ['flags', 'feature flags: Settings › Labs with the live view off by default, turning it on to draw a demo Work Item’s live view under the CSP in place of the stage strip, a hop that opens its Run, the flight standing up as a vertical log at 390px without widening the page, the administrator flag table, and Default restoring the stage strip'],
   ['login', 'live login with a failed attempt that keeps the account name, the password reveal, logout, an expired session that keeps its deep link, and a sign-out after which the next person never sees the previous Now page'],
 ];
 
@@ -57,7 +59,7 @@ try {
   await Promise.all([new Promise(done => app.server.listen(0, '127.0.0.1', done)), new Promise(done => live.server.listen(0, '127.0.0.1', done))]);
   browser = await chromium.launch({ headless: true, ...(process.env.UNFOLD_CHROMIUM_BIN ? { executablePath: process.env.UNFOLD_CHROMIUM_BIN, args: ['--no-sandbox', '--no-zygote', '--single-process', '--disable-dev-shm-usage', '--disable-gpu'] } : {}) });
   const page = await browser.newPage({ viewport: { width: 1440, height: 1040 } });
-  page.setDefaultTimeout(10000);
+  page.setDefaultTimeout(defaultTimeout);
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const refusedOnPurpose = message => /\b400\b/.test(message.text()) && String(message.location()?.url ?? '').includes('/api/card-assets?purpose=symbol');
@@ -65,8 +67,11 @@ try {
   const screenshot = async name => { if (screenshots) { await mkdir(screenshots, { recursive: true }); await page.screenshot({ path: join(screenshots, `${name}.png`), fullPage: true }); } };
   for (const [name] of selected) {
     const { run } = await import(`./browser/${name}.mjs`);
+    const started = performance.now();
+    process.stderr.write(`${name}: started\n`);
     try { await run({ page, app, live, password, assert, screenshot, artModel }); }
     catch (error) { error.message = `[${name} flow] ${error.message}`; throw error; }
+    process.stderr.write(`${name}: passed in ${((performance.now() - started) / 1000).toFixed(1)} s\n`);
   }
   assert.deepEqual(errors, [], 'Browser script or CSP errors occurred');
   process.stdout.write(`PASS: Chromium ${browser.version()}; ${selected.map(([, covers]) => covers).join(', ')}, navigation. No inference requests: generated art comes from a local fake model.\n`);

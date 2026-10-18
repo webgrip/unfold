@@ -4,9 +4,12 @@ import { dirname, join } from 'node:path';
 import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import type { Session, Event, PermissionRequest, User } from './types.ts';
 import type { Ask } from './ask/types.ts';
+import type { RunJudgement } from './run-health/judge.ts';
+import type { ActionRecord, ActionTarget } from './action-records.ts';
 import type { IssueState } from './tasks.ts';
 import type { FlagOverride } from './flags.ts';
 import type { RolloutSpec, Segment } from './flag-rollouts.ts';
+import { editorIdleDays } from './auth.ts';
 
 export type StoredUser = User & { passwordHash: string };
 /** One change to an administrator flag override. */
@@ -76,6 +79,11 @@ export class Store {
       CREATE TABLE IF NOT EXISTS asks (id TEXT PRIMARY KEY, work_item_id TEXT NOT NULL, asker_id TEXT NOT NULL, created_at TEXT NOT NULL, body TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS asks_work_item ON asks(work_item_id, created_at);
       CREATE INDEX IF NOT EXISTS asks_asker ON asks(asker_id, created_at);
+      CREATE TABLE IF NOT EXISTS run_judgements (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, work_item_id TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS run_judgements_run ON run_judgements(run_id, at);
+      CREATE TABLE IF NOT EXISTS action_records (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT NOT NULL, role TEXT NOT NULL, channel TEXT NOT NULL, action TEXT NOT NULL, method TEXT NOT NULL, target_kind TEXT, target_id TEXT, inputs TEXT NOT NULL, confirmation TEXT, status INTEGER NOT NULL, outcome TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS action_records_user ON action_records(user_id, id);
+      CREATE INDEX IF NOT EXISTS action_records_target ON action_records(target_kind, target_id, id);
       CREATE TABLE IF NOT EXISTS reports (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, status TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL, created_at TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT, last_error TEXT, url TEXT, filed_at TEXT, issue TEXT);
       CREATE INDEX IF NOT EXISTS reports_due ON reports(status, next_attempt_at);
       CREATE TABLE IF NOT EXISTS report_files (report_id TEXT NOT NULL REFERENCES reports(id), name TEXT NOT NULL, type TEXT NOT NULL, content BLOB NOT NULL, PRIMARY KEY (report_id, name));
@@ -160,8 +168,58 @@ export class Store {
   }
 
   /** At most `limit` Asks about one Work Item, newest first. */
+  /** Records one action a person took (system ADR-0037). */
+  recordAction(record: Omit<ActionRecord, 'id'>): void {
+    this.db.prepare('INSERT INTO action_records(at,user_id,user_name,role,channel,action,method,target_kind,target_id,inputs,confirmation,status,outcome) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
+      .run(record.at, record.userId, record.userName, record.role, record.channel, record.action, record.method, record.target?.kind ?? null, record.target?.id ?? null, JSON.stringify(record.inputs), record.confirmation, record.status, record.outcome);
+  }
+
+  /** Action records newest first, optionally of one person, about one target, with one outcome or through one channel, older than `before` (an id), at most `limit`. */
+  actionRecords(filter: { userId?: string; target?: ActionTarget; outcome?: ActionRecord['outcome']; channel?: string; before?: number; limit: number }): ActionRecord[] {
+    const where: string[] = [];
+    const values: (string | number)[] = [];
+    if (filter.userId) { where.push('user_id=?'); values.push(filter.userId); }
+    if (filter.target) { where.push('target_kind=? AND target_id=?'); values.push(filter.target.kind, filter.target.id); }
+    if (filter.outcome) { where.push('outcome=?'); values.push(filter.outcome); }
+    if (filter.channel) { where.push('channel=?'); values.push(filter.channel); }
+    if (filter.before) { where.push('id<?'); values.push(filter.before); }
+    const rows = this.db.prepare(`SELECT * FROM action_records${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY id DESC LIMIT ?`).all(...values, filter.limit) as Record<string, any>[];
+    return rows.map(row => ({ id: Number(row.id), at: String(row.at), userId: String(row.user_id), userName: String(row.user_name), role: String(row.role), channel: String(row.channel), action: String(row.action), method: String(row.method), target: row.target_kind ? { kind: row.target_kind, id: String(row.target_id) } : null, inputs: JSON.parse(String(row.inputs)), confirmation: row.confirmation ?? null, status: Number(row.status), outcome: row.outcome }));
+  }
+
+  /** The people and channels in the Action Records, optionally of one person: each person with their latest name and how many actions they took, and each channel, most used first. */
+  actionFacets(userId?: string): { people: { userId: string; userName: string; count: number }[]; channels: { channel: string; count: number }[] } {
+    const scope = userId ? ' WHERE user_id=?' : '';
+    const values = userId ? [userId] : [];
+    const people = this.db.prepare(`SELECT user_id, (SELECT user_name FROM action_records latest WHERE latest.user_id=records.user_id ORDER BY id DESC LIMIT 1) AS user_name, COUNT(*) AS total FROM action_records records${scope} GROUP BY user_id ORDER BY user_name COLLATE NOCASE LIMIT 500`).all(...values) as Record<string, any>[];
+    const channels = this.db.prepare(`SELECT channel, COUNT(*) AS total FROM action_records${scope} GROUP BY channel ORDER BY total DESC, channel LIMIT 100`).all(...values) as Record<string, any>[];
+    return { people: people.map(row => ({ userId: String(row.user_id), userName: String(row.user_name), count: Number(row.total) })), channels: channels.map(row => ({ channel: String(row.channel), count: Number(row.total) })) };
+  }
+
   asksAbout(workItemId: string, limit: number): Ask[] {
     return (this.db.prepare('SELECT body FROM asks WHERE work_item_id=? ORDER BY created_at DESC, id DESC LIMIT ?').all(workItemId, limit) as { body: string }[]).map(row => restoreAsk(row.body));
+  }
+
+  /** Stores one judge verdict on a running Run (RFC-0007). Verdicts live apart from Session events, so none can become an instruction to an agent. */
+  saveRunJudgement(judgement: RunJudgement): void {
+    this.db.prepare('INSERT INTO run_judgements(id,run_id,work_item_id,at,body) VALUES(?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body')
+      .run(judgement.id, judgement.runId, judgement.workItemId, judgement.at, JSON.stringify(judgement));
+  }
+
+  /** At most `limit` judge verdicts on one Run, newest first. */
+  runJudgements(runId: string, limit = 20): RunJudgement[] {
+    return (this.db.prepare('SELECT body FROM run_judgements WHERE run_id=? ORDER BY at DESC, id DESC LIMIT ?').all(runId, limit) as { body: string }[]).map(row => JSON.parse(row.body) as RunJudgement);
+  }
+
+  /** How many judge verdicts one Run has. */
+  countRunJudgements(runId: string): number {
+    return Number((this.db.prepare('SELECT COUNT(*) AS count FROM run_judgements WHERE run_id=?').get(runId) as { count: number }).count);
+  }
+
+  /** One judge verdict by id. */
+  getRunJudgement(id: string): RunJudgement | undefined {
+    const row = this.db.prepare('SELECT body FROM run_judgements WHERE id=?').get(id) as { body: string } | undefined;
+    return row ? JSON.parse(row.body) as RunJudgement : undefined;
   }
 
   /** At most `limit` Asks one person asked, newest first. */
@@ -280,17 +338,25 @@ export class Store {
     this.db.prepare('INSERT INTO editor_credentials(id,token_hash,user_id,label,scope,created_at,expires_at,last_used_at) VALUES(?,?,?,?,?,?,?,?)').run(credential.id, credential.tokenHash, credential.userId, credential.label, credential.scope, credential.createdAt, credential.expiresAt, credential.lastUsedAt ?? null);
   }
 
-  /** The unexpired editor credential whose token hashes to `tokenHash`. */
+  /** The live editor credential whose token hashes to `tokenHash`: unexpired, and used (or approved) within `editorIdleDays`. */
   getEditorCredential(tokenHash: string): EditorCredential | undefined {
-    return this.editorCredential(this.db.prepare('SELECT * FROM editor_credentials WHERE token_hash=? AND expires_at>?').get(tokenHash, new Date().toISOString()));
+    return this.editorCredential(this.db.prepare('SELECT * FROM editor_credentials WHERE token_hash=? AND expires_at>? AND COALESCE(last_used_at, created_at)>?').get(tokenHash, ...this.editorCutoffs()));
   }
 
-  /** A person's unexpired editor credentials, newest first. */
+  /** A person's live editor credentials, newest first. */
   editorCredentials(userId: string): EditorCredential[] {
-    return (this.db.prepare('SELECT * FROM editor_credentials WHERE user_id=? AND expires_at>? ORDER BY created_at DESC, id').all(userId, new Date().toISOString())).map(row => this.editorCredential(row)!);
+    return (this.db.prepare('SELECT * FROM editor_credentials WHERE user_id=? AND expires_at>? AND COALESCE(last_used_at, created_at)>? ORDER BY created_at DESC, id').all(userId, ...this.editorCutoffs())).map(row => this.editorCredential(row)!);
   }
 
   touchEditorCredential(id: string, at: string): void { this.db.prepare('UPDATE editor_credentials SET last_used_at=? WHERE id=?').run(at, id); }
+
+  /** Records a use of the editor credential whose token hashes to `tokenHash`; does nothing for any other sign-in. */
+  touchEditorSignIn(tokenHash: string, at: string): void { this.db.prepare('UPDATE editor_credentials SET last_used_at=? WHERE token_hash=?').run(at, tokenHash); }
+
+  private editorCutoffs(): [string, string] {
+    const now = Date.now();
+    return [new Date(now).toISOString(), new Date(now - editorIdleDays * 86_400_000).toISOString()];
+  }
 
   /** Deletes one of a person's editor credentials and returns it, or undefined when that person holds no such credential. */
   deleteEditorCredential(userId: string, id: string): EditorCredential | undefined {
@@ -301,7 +367,7 @@ export class Store {
 
   deleteEditorCredentialByToken(tokenHash: string): void { this.db.prepare('DELETE FROM editor_credentials WHERE token_hash=?').run(tokenHash); }
 
-  /** Whether `tokenHash` identifies a live sign-in: an unexpired browser login or editor credential. */
+  /** Whether `tokenHash` identifies a live sign-in: an unexpired browser login, or an editor credential that is neither expired nor idle. */
   liveSignIn(tokenHash: string): boolean { return Boolean(this.getLogin(tokenHash) ?? this.getEditorCredential(tokenHash)); }
 
   private editorCredential(row: unknown): EditorCredential | undefined {

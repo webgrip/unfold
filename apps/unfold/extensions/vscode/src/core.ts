@@ -57,15 +57,17 @@ export type Core = {
   sessionForWorkItem<T extends { execution?: { workItemId: string } }>(sessions: T[], workItemId: string): T | null;
   elapsedClock(seconds: number | null | undefined): string;
   changedFiles(session: unknown): { file: string; added: number; removed: number; before?: string; after?: string; artifactId: string }[];
+  agentHostAuthority(address: string): string;
+  agentsWindowSessionLink(options: { protocol?: string; session: string; address: string }): string;
 };
 
 /** The branch a Work Item's change is on and the repository it belongs to, as `public/core/checkout.js` reads them. */
 export type CheckoutTarget = { branch: string; owner: string; repo: string; baseBranch: string };
 
-/** Loads the shared modules from `base`, a directory URL that holds `states.js`, `format.js`, `reasons.js`, `checkout.js` and `progress.js`. */
+/** Loads the shared modules from `base`, a directory URL that holds `states.js`, `format.js`, `reasons.js`, `checkout.js`, `progress.js` and `agents-window.js`. */
 export async function loadCore(base: string | URL): Promise<Core> {
   const directory = String(base).endsWith('/') ? String(base) : `${base}/`;
-  const [states, format, reasons, checkout, progress] = await Promise.all(['states.js', 'format.js', 'reasons.js', 'checkout.js', 'progress.js'].map(name => import(new URL(name, directory).href)));
+  const [states, format, reasons, checkout, progress, agentsWindow] = await Promise.all(['states.js', 'format.js', 'reasons.js', 'checkout.js', 'progress.js', 'agents-window.js'].map(name => import(new URL(name, directory).href)));
   return {
     workItemState: states.workItemState, displayState: states.displayState, runOutcome: states.runOutcome, verdict: states.verdict, failureReason: states.failureReason,
     playState: states.playState, ciState: states.ciState, humanReview: states.humanReview, sessionStatus: states.sessionStatus,
@@ -73,5 +75,6 @@ export async function loadCore(base: string | URL): Promise<Core> {
     money: format.money, moneyExact: format.moneyExact, count: format.count, dateTime: format.dateTime, time: format.time, relative: format.relative, duration: format.duration, notReported: format.notReported,
     checkoutTarget: checkout.checkoutTarget, checkoutCommand: checkout.checkoutCommand, worktreeFolder: checkout.worktreeFolder, checkoutableBranch: checkout.checkoutableBranch,
     sessionProgress: progress.sessionProgress, progressGroup: progress.progressGroup, sessionForWorkItem: progress.sessionForWorkItem, elapsedClock: progress.elapsedClock, changedFiles: progress.changedFiles,
+    agentHostAuthority: agentsWindow.agentHostAuthority, agentsWindowSessionLink: agentsWindow.agentsWindowSessionLink,
   };
 }

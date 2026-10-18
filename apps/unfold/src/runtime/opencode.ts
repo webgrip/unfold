@@ -4,6 +4,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { AgentRuntime, AppConfig, Artifact, Credential, ExecutionContext, ExecutionResult, PermissionRequest, Repository, Session, Workspace, WorkspaceWait } from '../types.ts';
 import { WorkspaceManager } from './workspace.ts';
 import { RuntimeFailure, classifyFailure, transportFailure, type PromptAcceptance } from '../failures.ts';
+import { gatewayError } from '../gateway-errors.ts';
 
 export interface RuntimeWorkspaces {
   prepare(session: Session, repository: Repository, credential: Credential | undefined, signal: AbortSignal): Promise<Workspace>;
@@ -115,7 +116,7 @@ export class OpenCodeRuntime implements AgentRuntime {
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       });
-      if (!response.ok) throw new RuntimeFailure('harness_rejected', 'runtime', 'not_submitted', response.status);
+      if (!response.ok) throw new RuntimeFailure('harness_rejected', 'runtime', 'not_submitted', response.status, `${method} ${path.split('?')[0]} answered HTTP ${response.status}`);
       if (response.status === 204) return undefined;
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -126,11 +127,11 @@ export class OpenCodeRuntime implements AgentRuntime {
           const chunk = await reader.read();
           if (chunk.done) { text += decoder.decode(); break; }
           size += chunk.value.byteLength;
-          if (size > 16 * 1024 * 1024) throw new RuntimeFailure('harness_rejected', 'runtime');
+          if (size > 16 * 1024 * 1024) throw new RuntimeFailure('harness_rejected', 'runtime', 'not_submitted', undefined, `${method} ${path.split('?')[0]} answered more than 16 MiB`);
           text += decoder.decode(chunk.value, { stream: true });
         }
       } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
-      try { return text ? JSON.parse(text) : undefined; } catch { throw new RuntimeFailure('harness_rejected', 'runtime'); }
+      try { return text ? JSON.parse(text) : undefined; } catch { throw new RuntimeFailure('harness_rejected', 'runtime', 'not_submitted', undefined, `${method} ${path.split('?')[0]} answered something other than JSON`); }
     } catch (error) {
       if (error instanceof RuntimeFailure) throw error;
       if (signal?.aborted) throw signal.reason;
@@ -305,7 +306,7 @@ export class OpenCodeRuntime implements AgentRuntime {
       }
       if (timeout.aborted) throw new RuntimeFailure('timeout', 'execution', promptAcceptance);
       const failure = classifyFailure(error, 'execution', promptAcceptance);
-      throw new RuntimeFailure(failure.category, 'execution', promptAcceptance);
+      throw new RuntimeFailure(failure.category, 'execution', promptAcceptance, error instanceof RuntimeFailure ? error.httpStatus : undefined, failure.detail);
     } finally { completion.abort(); await watching; }
   }
 
@@ -313,7 +314,7 @@ export class OpenCodeRuntime implements AgentRuntime {
     const name = error && typeof error === 'object' && 'name' in error ? error.name : undefined;
     const message = error && typeof error === 'object' && 'message' in error ? String(error.message ?? '') : '';
     const gateway = ['APIError', 'APICallError', 'ProviderAuthError', 'ModelNotFoundError'].includes(String(name));
-    const exhausted = /budget has been exceeded|BudgetExceeded|ExceededBudget/i.test(message);
+    const exhausted = gatewayError(0, `${String(name ?? '')}: ${message}`).kind === 'budget_exceeded';
     return new RuntimeFailure(exhausted ? 'budget_exhausted' : gateway ? 'gateway_rejected' : 'harness_rejected', 'execution', 'accepted', undefined, message ? `${String(name ?? 'error')}: ${message.slice(0, 300)}` : undefined);
   }
 

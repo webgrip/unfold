@@ -31,7 +31,6 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0013](../adr/adr-0013-the-product-is-named-unfold.md) | The product is named Unfold, and Ploeg and Vloer are its parts | 2026-10-01 | — |
 | System | [0016](../adr/adr-0016-site-sign-ups-are-stored-in-cloudflare-d1-in-the-eu.md) | Site sign-ups are stored by a small Worker in Cloudflare D1, in the EU jurisdiction | 2026-10-02 | — |
 | System | [0017](../adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md) | A Tenant sits above Teams and bounds what users, sources and budgets can reach | 2026-10-04 | — |
-| System | [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) | Unfold pins Ploeg from its own repository and releases only its application | 2026-10-03 | — |
 | System | [0020](../adr/adr-0020-unfold-is-the-application-and-the-name-vloer-is-retired.md) | Unfold is the application, and the name Vloer is retired | 2026-10-04 | — |
 | System | [0022](../adr/adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md) | People give a Work Item context files, at the start and while steering | 2026-10-04 | — |
 | System | [0023](../adr/adr-0023-unfold-measures-happiness-and-confusion-with-first-party-events-surveys-and-bug-reports.md) | Unfold measures happiness and confusion with first-party events, surveys and bug reports | 2026-10-05 | — |
@@ -42,6 +41,9 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | System | [0032](../adr/adr-0032-unfold-also-serves-its-own-read-only-mcp-tools-next-to-ploeg-mcp.md) | Unfold also serves its own read-only MCP tools, next to ploeg-mcp | 2026-10-10 | — |
 | System | [0033](../adr/adr-0033-unfold-plans-non-trivial-changes-as-openspec-changes.md) | Unfold plans non-trivial changes as OpenSpec changes | 2026-10-11 | — |
 | System | [0036](../adr/adr-0036-ploeg-and-unfold-use-one-vocabulary-with-named-screen-words.md) | Ploeg and Unfold use one vocabulary, with named screen words | 2026-10-13 | — |
+| System | [0037](../adr/adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md) | People act on work through either MCP server, and every action names its person, channel and confirmation | 2026-10-17 | — |
+| System | [0038](../adr/adr-0038-report-a-problem-becomes-its-own-component-that-any-application-embeds.md) | Report a problem becomes its own component that any application embeds | 2026-10-18 | — |
+| System | [0039](../adr/adr-0039-unfold-depends-on-a-released-ploeg-through-its-contract-bundle-and-go-module.md) | Unfold depends on a released Ploeg through its contract bundle and Go module | 2026-10-18 | — |
 | Ploeg | [0001](../../apps/ploeg/docs/adrs/0001-adrs-are-the-decision-ledger.md) | ADRs in docs/adrs/ are the single decision ledger | 2026-07-29 | — |
 | Ploeg | [0002](../../apps/ploeg/docs/adrs/0002-go-as-the-implementation-language.md) | Go is the implementation language | 2026-07-29 | — |
 | Ploeg | [0003](../../apps/ploeg/docs/adrs/0003-apache-2-0-license.md) | Ploeg ships under Apache-2.0 | 2026-07-29 | — |
@@ -56,7 +58,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0012](../../apps/ploeg/docs/adrs/0012-two-level-budgets-authorized-and-settled.md) | Budgets are two-level: a Shift pool, authorized and settled per Run | 2026-07-29 | — |
 | Ploeg | [0013](../../apps/ploeg/docs/adrs/0013-push-rights-are-minted-per-run.md) | Push rights are minted per Run and die with the Lease | 2026-07-29 | — |
 | Ploeg | [0014](../../apps/ploeg/docs/adrs/0014-work-target-is-a-work-item-attribute.md) | Bind the Work Target to the Work Item, not to the Team | 2026-07-29 | — |
-| Ploeg | [0020](../../apps/ploeg/docs/adrs/0020-published-artifacts-name-the-mirror-as-source.md) | Published artifacts name the GitHub mirror as their source, and Forgejo as their URL | 2026-08-26 | — |
+| Ploeg | [0020](../../apps/ploeg/docs/adrs/0020-published-artifacts-name-the-mirror-as-source.md) | Published artifacts name the GitHub mirror as their source, and Forgejo as their URL | 2026-08-26 | Ploeg [0102](../../apps/ploeg/docs/adrs/0102-an-operator-consumer-admits-work-items-that-ploeg-worker-executes.md) |
 | Ploeg | [0022](../../apps/ploeg/docs/adrs/0022-the-name-and-mark-are-trademarks-not-cc-licensed-artwork.md) | The name and mark are trademarks under a usage policy, not CC-licensed artwork | 2026-08-27 | — |
 | Ploeg | [0027](../../apps/ploeg/docs/adrs/0027-candidate-delivery-uses-trusted-evidence-and-a-publication-barrier.md) | Candidate delivery uses trusted evidence and a publication barrier | 2026-10-10 | — |
 | Ploeg | [0034](../../apps/ploeg/docs/adrs/0034-the-harness-gets-placeholders-the-worker-keeps-credentials.md) | The harness gets placeholders; the worker keeps the credentials | 2026-10-04 | — |
@@ -79,6 +81,15 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0083](../../apps/ploeg/docs/adrs/0083-a-run-is-told-which-skills-bear-on-its-work-item.md) | A Run is told which skills bear on its Work Item | 2026-10-11 | — |
 | Ploeg | [0084](../../apps/ploeg/docs/adrs/0084-a-claude-code-run-can-execute-in-a-teams-self-hosted-claude-environment.md) | A claude-code Run can execute in its Team's self-hosted Claude environment, paid by the Team's plan | 2026-10-11 | — |
 | Ploeg | [0093](../../apps/ploeg/docs/adrs/0093-the-working-state-is-active-and-budget-kept-back-is-a-hold.md) | The working state is active, budget kept back is a Hold, and every cost has one Cost Status | 2026-10-13 | — |
+| Ploeg | [0095](../../apps/ploeg/docs/adrs/0095-work-is-handed-to-ploeg-by-assigning-one-ploeg-user-and-a-team-label-picks-the-team.md) | Work is handed to Ploeg by assigning one Ploeg user, and a team label picks the team | 2026-10-17 | — |
+| Ploeg | [0097](../../apps/ploeg/docs/adrs/0097-a-run-records-its-harness-version-and-the-teams-read-shows-each-roles-harness-and-model.md) | A Run records its Harness version, and the Teams read shows each Role's Harness and model | 2026-10-13 | — |
+| Ploeg | [0098](../../apps/ploeg/docs/adrs/0098-an-operator-admission-may-choose-each-runs-harness-from-its-teams-allowlist.md) | An operator admission may choose each Run's Harness from its Team's allowlist | 2026-10-14 | — |
+| Ploeg | [0099](../../apps/ploeg/docs/adrs/0099-each-allowed-harness-runs-in-its-own-workload-and-the-claim-selects-on-it.md) | Each allowed Harness runs in its own workload, and the claim selects on it | 2026-10-14 | — |
+| Ploeg | [0102](../../apps/ploeg/docs/adrs/0102-an-operator-consumer-admits-work-items-that-ploeg-worker-executes.md) | An Operator Consumer admits Work Items that ploeg-worker executes | 2026-10-14 | — |
+| Ploeg | [0103](../../apps/ploeg/docs/adrs/0103-an-operator-admission-may-choose-each-runs-model-from-the-models-its-roles-policy-lists.md) | An operator admission may choose each Run's model from the models its Role's policy lists | 2026-10-14 | — |
+| Ploeg | [0105](../../apps/ploeg/docs/adrs/0105-a-credential-leak-parks-the-work-item-and-closes-its-pull-request.md) | A credential leak parks the Work Item and closes its pull request | 2026-10-17 | — |
+| Ploeg | [0108](../../apps/ploeg/docs/adrs/0108-every-operator-action-names-its-person-and-channel-and-an-mcp-action-needs-the-persons-confirmation.md) | Every operator action names its person and channel, and an MCP action needs the person's confirmation | 2026-10-17 | — |
+| Ploeg | [0111](../../apps/ploeg/docs/adrs/0111-a-spent-litellm-budget-wider-than-the-runs-key-parks-the-work-item.md) | A spent LiteLLM budget wider than the Run's key parks the Work Item | 2026-10-17 | — |
 | Unfold | [0001](../../apps/unfold/docs/adrs/0001-the-human-workbench-beside-ploeg.md) | The human workbench beside Ploeg | 2026-09-09 | — |
 | Unfold | [0002](../../apps/unfold/docs/adrs/0002-native-node-and-single-writer-storage.md) | Native Node and one durable writer | 2026-09-09 | — |
 | Unfold | [0003](../../apps/unfold/docs/adrs/0003-runtime-workspace-and-credential-seams.md) | Keep harness, workspace and credential seams distinct | 2026-09-09 | — |
@@ -103,6 +114,7 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0040](../../apps/unfold/docs/adrs/0040-accept-opens-a-pull-request-through-the-trusted-publisher-in-the-unfold-control-service.md) | Accept opens a pull request through the trusted publisher in the Unfold control service | 2026-10-11 | — |
 | Unfold | [0041](../../apps/unfold/docs/adrs/0041-the-work-item-page-shows-plain-figures-and-the-card-has-its-own-page.md) | The Work Item page shows plain figures, and the card has its own page | 2026-10-11 | — |
 | Unfold | [0042](../../apps/unfold/docs/adrs/0042-unfold-reports-errors-and-failed-asks-to-any-error-tracker.md) | Unfold reports errors and failed Asks to any error tracker | 2026-10-13 | — |
+| Unfold | [0045](../../apps/unfold/docs/adrs/0045-unfold-records-the-run-card-rules-it-computes.md) | Unfold records the Run card rules it computes | 2026-10-14 | — |
 
 ## Proposed
 
@@ -167,9 +179,17 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0090](../../apps/ploeg/docs/adrs/0090-a-runs-agent-session-is-kept-as-a-bounded-redacted-transcript.md) | A Run's agent session is kept as a bounded, redacted transcript | 2026-10-11 | unknown | — |
 | Ploeg | [0091](../../apps/ploeg/docs/adrs/0091-each-run-records-the-model-harness-plan-and-ploegd-version-it-was-configured-with.md) | Each Run records the model, harness, plan and ploegd version it was configured with | 2026-10-11 | unknown | — |
 | Ploeg | [0092](../../apps/ploeg/docs/adrs/0092-a-team-pins-its-skills-in-a-catalogue-that-ploegd-fetches-once-and-serves-by-digest.md) | A Team pins its skills in a catalogue that ploegd fetches once and serves by digest | 2026-10-13 | unknown | — |
-| Ploeg | [0094](../../apps/ploeg/docs/adrs/0094-a-person-connects-a-teams-claude-login-from-unfold-and-the-teams-worker-signs-in.md) | A person connects a team's Claude login from Unfold, and the team's own worker signs in | 2026-10-13 | unknown | — |
-| Ploeg | [0095](../../apps/ploeg/docs/adrs/0095-work-is-handed-to-ploeg-by-assigning-one-ploeg-user-and-a-team-label-picks-the-team.md) | Work is handed to Ploeg by assigning one Ploeg user, and a team label picks the team | 2026-10-13 | unknown | — |
 | Ploeg | [0096](../../apps/ploeg/docs/adrs/0096-a-shadow-reader-records-its-verdict-and-never-acts.md) | A shadow reader records its verdict and never acts | 2026-10-13 | unknown | — |
+| Ploeg | [0100](../../apps/ploeg/docs/adrs/0100-an-attended-run-relays-its-harnesss-requests-through-ploegd-and-falls-back-to-its-teams-policy.md) | An attended Run relays its Harness's requests through ploegd and falls back to its Team's policy | 2026-10-13 | unknown | — |
+| Ploeg | [0101](../../apps/ploeg/docs/adrs/0101-a-paused-run-keeps-its-pod-and-session-for-a-bounded-time-and-is-never-retried-automatically.md) | A paused Run keeps its pod and session for a bounded time and is never retried automatically | 2026-10-13 | unknown | — |
+| Ploeg | [0104](../../apps/ploeg/docs/adrs/0104-a-message-to-an-attended-run-reaches-it-at-the-next-prompt-turn-and-context-items-still-wait.md) | A message to an attended Run reaches it at the next prompt turn, and context items still wait for the next Run | 2026-10-13 | unknown | — |
+| Ploeg | [0106](../../apps/ploeg/docs/adrs/0106-a-run-declares-an-isolation-floor-and-a-cell-runs-it-at-the-strictest-class-it-can-honour.md) | A Run declares an isolation floor, and a cell runs it at the strictest class it can honour | 2026-10-17 | unknown | — |
+| Ploeg | [0107](../../apps/ploeg/docs/adrs/0107-execution-runs-in-cells-that-pull-from-one-hub.md) | Execution runs in cells that pull from one hub | 2026-10-17 | unknown | — |
+| Ploeg | [0109](../../apps/ploeg/docs/adrs/0109-a-pull-request-someone-else-opened-is-read-by-a-team-on-the-pull-request.md) | A pull request someone else opened is read by a Team on the pull request, and what the reader delivers is the route's instruction | 2026-10-17 | unknown | — |
+| Ploeg | [0110](../../apps/ploeg/docs/adrs/0110-a-team-is-ploegs-own-manifest-of-charter-crew-permissions-intake-and-skills.md) | A Team is Ploeg's own manifest of charter, crew, permissions, intake and skills, with borrowed shapes and no borrowed schema | 2026-10-17 | unknown | — |
+| Ploeg | [0112](../../apps/ploeg/docs/adrs/0112-a-claude-environment-run-uses-the-claude-login-of-the-person-it-acts-for.md) | A claude-environment Run uses the Claude login of the person it acts for, and a person's own Claude Code may carry it | 2026-10-17 | unknown | — |
+| Ploeg | [0113](../../apps/ploeg/docs/adrs/0113-a-runs-harness-exports-opentelemetry-to-a-collector-set-per-team-and-role.md) | A Run's Harness exports OpenTelemetry to a collector set per Team and Role | 2026-10-17 | unknown | — |
+| Ploeg | [0114](../../apps/ploeg/docs/adrs/0114-each-run-records-the-limits-that-stop-its-prompt.md) | Each Run records the limits that stop its prompt | 2026-10-18 | unknown | — |
 | Unfold | [0005](../../apps/unfold/docs/adrs/0005-one-work-authority.md) | One work authority across unattended and interactive delivery | 2026-09-09 | partial | Guarded commands to Ploeg exist; work orders and fenced takeover do not ([source](../../apps/unfold/src/execution-authority.ts)) |
 | Unfold | [0006](../../apps/unfold/docs/adrs/0006-trusted-verifier-and-publisher.md) | Verify and publish outside the agent workspace | 2026-09-09 | partial | Independent verifier exists; the trusted publisher does not ([source](../../apps/unfold/src/delivery-verifier.ts)) |
 | Unfold | [0008](../../apps/unfold/docs/adrs/0008-task-connections-and-candidate-handoff.md) | Shared task connections and portable candidate handoff | 2026-09-09 | yes | Implemented in the 0.2.0 prototype; team adoption is what remains proposed ([source](../../apps/unfold/src/candidates.ts)) |
@@ -190,12 +210,16 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Unfold | [0035](../../apps/unfold/docs/adrs/0035-run-cards-lead-with-three-or-four-kpis-for-their-state-and-keep-the-rest-on-the-back.md) | Run cards lead with three or four KPIs for their state, and keep the rest on the back | 2026-10-02 | unknown | — |
 | Unfold | [0043](../../apps/unfold/docs/adrs/0043-feature-flags-are-flagd-rules-evaluated-in-process-behind-openfeature-s-interface.md) | Feature flags are flagd rules evaluated in process behind OpenFeature's interface | 2026-10-13 | unknown | — |
 | Unfold | [0044](../../apps/unfold/docs/adrs/0044-sessions-run-in-ploeg-with-a-harness-chosen-per-session-and-interaction-kept.md) | Sessions run in Ploeg, with a Harness chosen per session and interaction kept | 2026-10-13 | unknown | — |
+| Unfold | [0046](../../apps/unfold/docs/adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md) | A running Run's health is computed from its own facts, and a judge only advises | 2026-10-17 | unknown | — |
+| Unfold | [0047](../../apps/unfold/docs/adrs/0047-people-link-their-own-agent-sessions-through-a-plugin-agent-trace-and-telemetry-never-a-claude-sign-in.md) | People link their own agent sessions through a plugin, Agent Trace and telemetry, never a Claude sign-in | 2026-10-17 | unknown | — |
+| Unfold | [0048](../../apps/unfold/docs/adrs/0048-components-are-built-and-checked-in-a-workbench-outside-the-app.md) | Components are built and checked in a workbench outside the app | 2026-10-17 | unknown | — |
 
 ## Other statuses
 
 | Scope | ADR | Title | Status | Date | Superseded by |
 | --- | --- | --- | --- | --- | --- |
 | System | [0004](../adr/adr-0004-unfold-releases-one-version.md) | Unfold releases its application and Ploeg under one version | superseded by ADR-0019 | 2026-10-03 | System [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) |
+| System | [0019](../adr/adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md) | Unfold pins Ploeg from its own repository and releases only its application | superseded by ADR-0039 | 2026-10-18 | System [0039](../adr/adr-0039-unfold-depends-on-a-released-ploeg-through-its-contract-bundle-and-go-module.md) |
 | System | [0028](../adr/adr-0028-unfold-owns-the-run-card-and-collects-its-inputs-itself.md) | Unfold owns the Run card and collects its inputs itself | superseded by ADR-0030 | 2026-10-10 | System [0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md) |
 | System | [0029](../adr/adr-0029-unfold-collects-run-card-data-in-a-separate-go-service.md) | Unfold collects Run card data in a separate Go service | superseded by ADR-0030 | 2026-10-10 | System [0030](../adr/adr-0030-run-cards-are-an-unfold-domain-on-top-of-ploegs-delivery-facts.md) |
 | Ploeg | [0046](../../apps/ploeg/docs/adrs/0046-a-run-card-is-assembled-per-work-item-from-stored-facts.md) | A Run card is assembled per Work Item from stored facts | rejected | 2026-10-10 | — |
@@ -205,3 +229,4 @@ An accepted record states why a rule exists. A proposed record is an open questi
 | Ploeg | [0055](../../apps/ploeg/docs/adrs/0055-ploeg-keeps-one-card-comment-with-a-static-card-image-on-the-pull-request.md) | Ploeg keeps one card comment with a static card image on the pull request | rejected | 2026-10-10 | — |
 | Ploeg | [0056](../../apps/ploeg/docs/adrs/0056-a-run-cards-rarity-is-its-challenge-predicted-at-mint-and-frozen-at-release.md) | A Run card's rarity is its challenge, predicted at mint and frozen at release | rejected | 2026-10-10 | — |
 | Ploeg | [0061](../../apps/ploeg/docs/adrs/0061-a-run-cards-grade-penalizes-rework-not-review-and-says-which-inputs-it-missed.md) | A Run card's grade penalizes rework, not review, and says which inputs it missed | rejected | 2026-10-10 | — |
+| Ploeg | [0094](../../apps/ploeg/docs/adrs/0094-a-person-connects-a-teams-claude-login-from-unfold-and-the-teams-worker-signs-in.md) | A person connects a team's Claude login from Unfold, and the team's own worker signs in | rejected | 2026-10-17 | — |

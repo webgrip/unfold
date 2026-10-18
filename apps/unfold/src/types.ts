@@ -4,6 +4,7 @@ import type { Candidate } from './candidates.ts';
 import type { TaskSourceConfig, TaskSnapshot } from './tasks.ts';
 import type { DeliveryConfig } from './delivery-config.ts';
 import type { FlagSettings } from './flags.ts';
+import type { McpHttpSettings } from './mcp-auth.ts';
 
 export type SessionStatus = 'queued' | 'running' | 'waiting_input' | 'exporting' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
 export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | 'failed' | 'cancelled' | 'paused';
@@ -44,15 +45,20 @@ export type AppConfig = {
   litellm?: { baseUrl: string; adminUrl: string; masterKey: string; models: string[]; ttl: string; settlementDelayMs?: number };
   kubernetes?: { namespace: string; image: string; storageClass?: string; storageSize: string; cpu: string; memory: string; cpuRequest?: string; memoryRequest?: string; apiUrl?: string; tokenFile?: string; caFile?: string; pullPolicy?: string; ingressFrom?: Record<string, unknown>[]; egress?: Record<string, unknown>[]; gitSecretName?: string; agentSecrets?: string[]; imagePullSecrets?: string[]; provisionTimeoutMs?: number; transport?: WorkspaceTransport; relayUrl?: string; provisioner?: 'pod' | 'sandbox'; userNamespaces?: boolean; sandbox?: { runtimeClassName?: string; warmPool?: string; poolTokenEnv?: string } };
   auth: { secureCookies: boolean; sessionHours: number; bootstrapPassword?: string; bootstrapName: string; oidc?: { issuer: string; subjectNamespace?: string; clientId: string; clientSecret?: string; scopes: string[]; displayName: string; roleClaim: string; groupsClaim: string; roles: Record<UserRole, string[]> } };
+  /** `unfold-mcp` served over Streamable HTTP on its own path, from `UNFOLD_MCP_*`; off when absent. */
+  mcp?: McpHttpSettings;
   maxConcurrentSessions: number; maxBudgetUsd: number;
   ploeg?: { url: string; tokenEnv?: string; teams?: string[]; userTeams?: Record<string, string[]>; forgeLogins?: Record<string, string>; trackerUrl?: string; demo?: boolean };
   links?: { gitlab?: { baseUrl: string; clientId?: string; scopes: string[] }; clickup?: { clientId?: string; clientSecret?: string; apiUrl: string; appUrl: string } };
   gatewayPolicy?: { providers?: string[]; regions?: string[] };
   cards?: { backfillPeriods: number; teams: Record<string, { lengthDays: number; anchor: string }>; publishPullRequestComment?: boolean; rules?: CardRuleSettings };
+  /** The Run health judge's gateway models, in order of preference (RFC-0007). */
+  runHealth?: { judgeModels: string[] };
   cardThemes?: { directory?: string; assetQuotaMb: number; ai?: { baseUrl: string; model: string; keyEnv: string; maxTokens: number; timeoutMs: number; requestsPerHour: number } };
-  observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; traceQuery?: string; logsQuery?: string };
+  observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; metricsUrl?: string; traceQuery?: string; logsQuery?: string };
   insight?: InsightConfig;
   errorReports?: ErrorReportConfig;
+  mcpServers?: McpServersConfig;
   productEvents?: boolean;
   /** The deployment's feature flag rules (ADR 0043): an inline flagd document and an optional watched flagd file. */
   flags?: FlagSettings;
@@ -63,6 +69,8 @@ export type AppConfig = {
 export type ReportTarget = { source: TaskSourceConfig; project: string; acknowledgement?: string };
 /** Where errors and notable failures are reported: a Sentry-protocol DSN, an OTLP/HTTP logs URL, or both, and the environment name reports carry. */
 export type ErrorReportConfig = { sentryDsn?: string; otlpUrl?: string; environment: string };
+/** Remote MCP servers people connect their own editor to: each an exact URL and the public OAuth client their sign-in uses. Never a token. */
+export type McpServersConfig = { ploeg?: { url: string; clientId: string } };
 export type InsightConfig = { export: 'off' | 'faro' | 'otlp'; url?: string; level: 'aggregate' | 'events' };
 /** One product event the browser or VS Code extension posted, after the catalogue checked it. */
 export type InsightEvent = { name: string; at: string; session: string; screen: string; workItemId?: number; shiftId?: number; props: Record<string, string | number | boolean> };

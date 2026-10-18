@@ -1,3 +1,4 @@
+import { ploegAttribution } from './action-records.ts';
 import { randomUUID } from 'node:crypto';
 import type { AppConfig, Credential, ExecutionBinding, Session, User } from './types.ts';
 import type { Store } from './store.ts';
@@ -45,7 +46,7 @@ export class ExecutionAuthority {
     if (!token || token.length < 32 || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw unavailable({ cause: 'not_configured' });
     const started = Date.now();
     try {
-      const response = await fetch(`${this.config.ploeg!.url}/api/v1/operator/executions${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'X-Ploeg-Actor': session.ownerId, 'X-Ploeg-Acting-User': actingUser, accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json' }) }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(path.endsWith('/credential') ? 30000 : authorityRequestTimeoutMs), redirect: 'manual' });
+      const response = await fetch(`${this.config.ploeg!.url}/api/v1/operator/executions${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'X-Ploeg-Actor': session.ownerId, 'X-Ploeg-Acting-User': actingUser, accept: 'application/json', ...(body === undefined ? {} : { 'content-type': 'application/json', ...ploegAttribution() }) }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(path.endsWith('/credential') ? 30000 : authorityRequestTimeoutMs), redirect: 'manual' });
       if (!response.ok) { await response.body?.cancel(); throw Object.assign(new PloegError(response.status === 409 ? 409 : 503, 'execution_unconfirmed', response.status === 409 ? 'Ploeg rejected a stale or incompatible operation. Reconcile this execution before continuing.' : 'Ploeg could not confirm this operation. No replacement execution was started.'), { failure: { cause: response.status === 409 ? 'stale' : 'http', status: response.status } satisfies AuthorityFailure }); }
       if (!response.body || !(response.headers.get('content-type') ?? '').includes('application/json')) throw unavailable();
       const chunks: Uint8Array[] = []; let size = 0;

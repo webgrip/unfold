@@ -2,7 +2,7 @@
   "name": "unfold",
   "displayName": "Unfold — Remote Agent Workbench",
   "description": "Steer agent work from VS Code: review evidence and control sessions on your machine or a remote workbench.",
-  "version": "0.4.0-rc.80",
+  "version": "0.4.0-rc.85",
   "publisher": "webgrip",
   "license": "Apache-2.0",
   "homepage": "https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/extensions/vscode",
@@ -95,6 +95,12 @@
       {
         "command": "unfold.openAgentsWindow",
         "title": "Open Agents Window",
+        "category": "Unfold",
+        "icon": "$(remote)"
+      },
+      {
+        "command": "unfold.openInAgentsWindow",
+        "title": "Open in Agents Window",
         "category": "Unfold",
         "icon": "$(remote)"
       },
@@ -322,6 +328,11 @@
         "title": "Refresh Work",
         "category": "Unfold",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "unfold.addPloegMcpServer",
+        "title": "Add Ploeg MCP Server to VS Code",
+        "category": "Unfold"
       }
     ],
     "configuration": {
@@ -383,9 +394,21 @@
           "default": true,
           "scope": "application",
           "markdownDescription": "After you sign in, add this workbench to VS Code's Agents window (`chat.remoteAgentHosts` in your user settings) so its sessions appear there. The connection token is stored in that setting in plain text, as VS Code keeps it. Signing out removes the entry. Turn this off to connect only through **Unfold: Connect VS Code Agents Window**."
+        },
+        "unfold.mcp.provideServers": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "Provide the Ploeg MCP server the workbench names (`GET /api/mcp-servers`) to VS Code's chat, by URL only: no token or header is stored. VS Code signs you in through your browser and asks once for the client ID, because the definition an extension provides cannot carry one. Turn this off after **Unfold: Add Ploeg MCP Server to VS Code** added it to your user `mcp.json`, which that command does for you. Needs VS Code 1.101 or later."
         }
       }
     },
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "unfold.ploeg",
+        "label": "Ploeg"
+      }
+    ],
     "viewsContainers": {
       "activitybar": [
         {
@@ -486,6 +509,10 @@
         {
           "command": "unfold.checkoutBranch",
           "when": "false"
+        },
+        {
+          "command": "unfold.openInAgentsWindow",
+          "when": "unfold.connected"
         }
       ],
       "view/title": [
@@ -667,6 +694,11 @@
           "group": "links@3"
         },
         {
+          "command": "unfold.openInAgentsWindow",
+          "when": "view == unfold.sessions && viewItem =~ /^session:/",
+          "group": "links@4"
+        },
+        {
           "command": "unfold.openTaskLink",
           "when": "view == unfold.sessions && viewItem == task:linked",
           "group": "inline"
@@ -712,9 +744,19 @@
           "group": "navigation@3"
         },
         {
+          "command": "unfold.openInAgentsWindow",
+          "when": "view == unfold.now && viewItem =~ /^now:(item|run|session)/",
+          "group": "navigation@4"
+        },
+        {
           "command": "unfold.checkoutBranch",
           "when": "view == unfold.ploeg && viewItem == ploeg:item",
           "group": "navigation@1"
+        },
+        {
+          "command": "unfold.openInAgentsWindow",
+          "when": "view == unfold.ploeg && viewItem == ploeg:item",
+          "group": "navigation@2"
         }
       ],
       "editor/context": [
@@ -745,7 +787,7 @@
           {
             "id": "agentsWindow",
             "title": "Use Unfold from the Agents window",
-            "description": "Signing in adds Unfold to VS Code's Agents window. There, choose New, then Workspace ▾ → Unfold · <repository> to start a session; your sessions are grouped the same way.\n[Open the Agents window](command:unfold.openAgentsWindow)",
+            "description": "Signing in adds Unfold to VS Code's Agents window. There, choose New, then Workspace ▾ → Folders (Unfold) → <repository> to start a session; your sessions are grouped the same way. To jump to one session or Work Item, use Open in Agents Window on its row in the Now or Sessions view.\n[Open the Agents window](command:unfold.openAgentsWindow)",
             "media": {
               "markdown": "media/walkthrough/agents-window.md"
             },

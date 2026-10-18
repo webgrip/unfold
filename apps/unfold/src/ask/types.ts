@@ -12,11 +12,12 @@ export type AskSource = 'record' | 'model';
 /**
  * Why an Ask has no answer. Refused before any model call: `allowance_used_up`, `not_admitted`. Failed before any model
  * call, so nothing was spent: `ploeg_unavailable`, `no_model`, `gateway_unreachable`. Failed at the model gateway or
- * provider: `key_rejected`, `budget_exceeded`, `rate_limited`, `provider_error`, `bad_response`, `timeout`. Failed with
+ * provider: `key_rejected`, `budget_exceeded` (the per-Ask key), `spend_limit_reached` (a wider gateway spend limit),
+ * `model_unavailable`, `too_long`, `rate_limited`, `provider_error`, `bad_response`, `timeout`. Failed with
  * no answer text: `cut_off` (the model spent its output thinking), `filtered`, `empty`. `interrupted`: Unfold stopped
  * while the Ask was being answered.
  */
-export type AskFailureCode = 'allowance_used_up' | 'not_admitted' | 'ploeg_unavailable' | 'no_model' | 'gateway_unreachable' | 'key_rejected' | 'budget_exceeded' | 'rate_limited' | 'provider_error' | 'bad_response' | 'timeout' | 'cut_off' | 'filtered' | 'empty' | 'interrupted';
+export type AskFailureCode = 'allowance_used_up' | 'not_admitted' | 'ploeg_unavailable' | 'no_model' | 'gateway_unreachable' | 'key_rejected' | 'budget_exceeded' | 'spend_limit_reached' | 'model_unavailable' | 'too_long' | 'rate_limited' | 'provider_error' | 'bad_response' | 'timeout' | 'cut_off' | 'filtered' | 'empty' | 'interrupted';
 
 /** A question about one Work Item and its answer, as Unfold stores it apart from Session events. `costUsd` is null until Ploeg reports the Ask's spend, and `costStatus` is Ploeg's cost status (system ADR-0036); a demo Ask has no cost. A failed or refused Ask says why in `failure`, names the cause in `failureCode` and says in `retryable` whether asking again may help. `cutOff` marks an answer the model stopped writing at its length limit. An answer from the record costs nothing and names the standing question it answered in `intent`. */
 export type Ask = {

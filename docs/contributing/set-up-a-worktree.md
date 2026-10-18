@@ -27,7 +27,7 @@ Several sessions, human and agent, share one checkout of Unfold. Give each sessi
     mise run setup
     ```
 
-    `setup` checks out `apps/ploeg` at the pinned commit. If you are moving the pin, commit the new pin before running `setup` again, or it puts the old one back.
+    `setup` unpacks the pinned Ploeg contract bundle into `apps/ploeg`. A worktree made from a checkout that still has the old Ploeg submodule leaves a checkout there, which `setup` refuses; delete it with `rm -rf apps/ploeg` and run `setup` again.
 
 3. Prove the worktree works before changing anything: `mise run verify`.
 

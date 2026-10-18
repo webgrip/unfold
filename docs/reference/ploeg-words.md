@@ -111,7 +111,8 @@ MCP: passes the Ploeg value through as `failureReason` in unfold_get_work, `""` 
 | `lease_lost` | The worker stopped responding | same |  |
 | `timeout` | The Run timed out | same |  |
 | `idle` | The agent went silent | same |  |
-| `credential_leak` | Credential leak | same | **Gap:** states.js has no entry, so the screen shows the humanized key. |
+| `credential_leak` | The Run leaked a credential | same |  |
+| `shared_budget_spent` | A shared model budget is spent | same |  |
 
 ## Shift close reason
 
@@ -125,16 +126,16 @@ MCP: unfold_get_work passes `closeReason` through on each Shift; unfold_now and 
 |---|---|---|---|---|
 | `review_approved` | An agent reviewer approved | Pull request closed | same |  |
 | `plan_exhausted` | Every planned Round ran | Every Round ran, no result | same |  |
-| `review_failed` | No agent reviewed it: the reviewer kept failing | Unrecognised: review_failed | same | **Gap:** reasons.js does not know it: if it ever ends in needs_human, the chip reads "Unrecognised: review_failed". |
+| `review_failed` | No agent reviewed it: the reviewer kept failing | Reviewer kept failing | same |  |
 | `fix_round_cap_reached` | The fix Rounds ran out | Reviewer still wants changes | same |  |
 | `budget_exhausted_before_fix_round` | The budget ran out before a fix Round | Budget ran out | same |  |
-| `checks_not_passed` | Ploeg recorded: “checks_not_passed” | Unrecognised: checks_not_passed | same | **Gap:** states.js and reasons.js do not know it: the Shift row quotes the raw code and the Needs-you chip reads "Unrecognised: checks_not_passed", although Ploeg hands the Work Item to a person. |
+| `checks_not_passed` | The checks did not pass | Checks did not pass | same |  |
 | `writing_run_failed_repeatedly` | The writer kept failing | Writer kept failing | same |  |
 | `writing_run_killed_repeatedly` | The cluster kept stopping the writer | Cluster kept stopping the writer | same |  |
 | `withdrawn_unassigned` | The task was unassigned from the Team | — | same |  |
 | `withdrawn_closed` | The task was closed before any Run started | — | same |  |
 | `withdrawn_by_operator` | An operator cancelled it | — | same |  |
-| `withdrawn_session_ended` | Ploeg recorded: “withdrawn_session_ended” | — | same | **Gap:** states.js does not know it: the Shift row quotes the raw code. |
+| `withdrawn_session_ended` | An operator closed it after its Unfold session ended | — | same |  |
 | `operator_adopted` | An Unfold session took it over | — | same |  |
 | `operator_admission_expired` | The Unfold session never started | — | same |  |
 | `operator_completed` | The Unfold session completed it | — | same |  |
@@ -263,34 +264,21 @@ MCP: not exposed; unfold_get_work quotes the reason of the latest `work_item.<st
 | `llm.reconciled` | [Inference Account](glossary.md#inference-account) | Spend settled | not exposed |  |
 | `llm.blocked` | [Inference Account](glossary.md#inference-account) | Model key blocked | not exposed |  |
 | `llm.unissued_blocked` | [Inference Account](glossary.md#inference-account) | Unused model key blocked | not exposed |  |
-| `work_item.requeued` | [Work Item](glossary.md#work-item) | Work item: requeued | not exposed | **Gap:** states.js has no wording for it, so the screen shows the humanized action. |
-| `work_item.route_refused` | [Work Item](glossary.md#work-item) | Work item: route refused | not exposed | **Gap:** states.js has no wording for it, so the screen shows the humanized action. |
-| `work_item.epics_seen` | [Work Item](glossary.md#work-item) | Work item: epics seen | not exposed | **Gap:** states.js has no wording for it, so the screen shows the humanized action. |
-| `pull_request.mergeable` | [Forge Event](glossary.md#forge-event) | Pull request: mergeable | not exposed | **Gap:** states.js has no wording for it, so the screen shows the humanized action. |
-| `pull_request.conflicted` | [Forge Event](glossary.md#forge-event) | Pull request: conflicted | not exposed | **Gap:** states.js has no wording for it, so the screen shows the humanized action. |
-| `pull_request.reverted` | [Forge Event](glossary.md#forge-event) | Pull request: reverted | not exposed | **Gap:** states.js has no wording for it, so the screen shows the humanized action. |
-| `pull_request_comment.upserted` | [Forge Event](glossary.md#forge-event) | Pull request comment: upserted | not exposed | **Gap:** states.js has no wording for it, so the screen shows the humanized action. |
-| `pull_request_comment.deleted` | [Forge Event](glossary.md#forge-event) | Pull request comment: deleted | not exposed | **Gap:** states.js has no wording for it, so the screen shows the humanized action. |
-| `deploy.recorded` | [Forge Event](glossary.md#forge-event) | Deploy: recorded | not exposed | **Gap:** states.js has no wording for it, so the screen shows the humanized action. |
-| `ask.admitted` | [Ask](glossary.md#ask) | Ask: admitted | not exposed | **Gap:** states.js has no wording for it, so the screen shows the humanized action. |
-| `ask.finished` | [Ask](glossary.md#ask) | Ask: finished | not exposed | **Gap:** states.js has no wording for it, so the screen shows the humanized action. |
+| `work_item.requeued` | [Work Item](glossary.md#work-item) | Queued for a new attempt | not exposed |  |
+| `work_item.route_refused` | [Work Item](glossary.md#work-item) | The task could not be routed to a repository | not exposed |  |
+| `work_item.epics_seen` | [Work Item](glossary.md#work-item) | The task’s epics changed | not exposed |  |
+| `pull_request.mergeable` | [Forge Event](glossary.md#forge-event) | The merge conflict is resolved | not exposed |  |
+| `pull_request.conflicted` | [Forge Event](glossary.md#forge-event) | The pull request has a merge conflict | not exposed |  |
+| `pull_request.reverted` | [Forge Event](glossary.md#forge-event) | The merged pull request was reverted | not exposed |  |
+| `pull_request.closed_for_leak` | [Work Item](glossary.md#work-item) | The pull request was closed after a credential leak | not exposed |  |
+| `pull_request.leak_close_failed` | [Work Item](glossary.md#work-item) | The pull request could not be closed after a credential leak | not exposed |  |
+| `pull_request_comment.upserted` | [Forge Event](glossary.md#forge-event) | Comment posted on the pull request | not exposed |  |
+| `pull_request_comment.deleted` | [Forge Event](glossary.md#forge-event) | Comment removed from the pull request | not exposed |  |
+| `deploy.recorded` | [Forge Event](glossary.md#forge-event) | Deployed | not exposed |  |
+| `ask.admitted` | [Ask](glossary.md#ask) | Asked a model about this work | not exposed |  |
+| `ask.finished` | [Ask](glossary.md#ask) | Ask finished | not exposed |  |
 
 ## Known gaps
 
 Values Ploeg sends that Unfold does not word yet. The test records them as they are; when one is fixed, remove its `gap` from the table.
 
-* Run failure reason `credential_leak`: states.js has no entry, so the screen shows the humanized key.
-* Shift close reason `review_failed`: reasons.js does not know it: if it ever ends in needs_human, the chip reads "Unrecognised: review_failed".
-* Shift close reason `checks_not_passed`: states.js and reasons.js do not know it: the Shift row quotes the raw code and the Needs-you chip reads "Unrecognised: checks_not_passed", although Ploeg hands the Work Item to a person.
-* Shift close reason `withdrawn_session_ended`: states.js does not know it: the Shift row quotes the raw code.
-* Audit event `work_item.requeued`: states.js has no wording for it, so the screen shows the humanized action.
-* Audit event `work_item.route_refused`: states.js has no wording for it, so the screen shows the humanized action.
-* Audit event `work_item.epics_seen`: states.js has no wording for it, so the screen shows the humanized action.
-* Audit event `pull_request.mergeable`: states.js has no wording for it, so the screen shows the humanized action.
-* Audit event `pull_request.conflicted`: states.js has no wording for it, so the screen shows the humanized action.
-* Audit event `pull_request.reverted`: states.js has no wording for it, so the screen shows the humanized action.
-* Audit event `pull_request_comment.upserted`: states.js has no wording for it, so the screen shows the humanized action.
-* Audit event `pull_request_comment.deleted`: states.js has no wording for it, so the screen shows the humanized action.
-* Audit event `deploy.recorded`: states.js has no wording for it, so the screen shows the humanized action.
-* Audit event `ask.admitted`: states.js has no wording for it, so the screen shows the humanized action.
-* Audit event `ask.finished`: states.js has no wording for it, so the screen shows the humanized action.

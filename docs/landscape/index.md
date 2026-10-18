@@ -12,7 +12,7 @@ The business hypothesis is that adding execution capacity lets us complete more 
 
 **Unfold is where people steer AI work and review results. Ploeg coordinates authorized work and records its execution and spending. In shared mode, Unfold runs its Team under Ploeg's authority.**
 
-An external ticket is optional today, but a registered repository and Team are required. Repository-free conversation is intended product work. Unfold also supports standalone execution. Local work must remain usable without Ploeg. The engines remain separate; see the [transition plan](../migration-proposal.md). The Unfold repository contains `apps/unfold` and `apps/ploeg`, with shared documentation at the root.
+An external ticket is optional today, but a registered repository and Team are required. Repository-free conversation is intended product work. Standalone live execution is retired: a live Unfold refuses to start without Ploeg ([ADR-0002](../adr/adr-0002-ploeg-is-the-only-engine.md)). The engines remain separate until Ploeg's worker executes every Run; see the [transition plan](../migration-proposal.md). The Unfold repository contains `apps/unfold` and `apps/ploeg`, with shared documentation at the root.
 
 ## Choose a starting point
 

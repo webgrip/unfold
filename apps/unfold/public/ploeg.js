@@ -1,4 +1,5 @@
 import { escape, safeUrl } from './core/dom.js';
+import { linkedSessionsMarkup } from './core/linked-sessions.js';
 import { icon } from './core/icons.js';
 import { markdown } from './core/markdown.js';
 import { count as formatCount, money, moneyHtml, plural, duration, dateTime, decimal } from './core/format.js';
@@ -7,16 +8,25 @@ import { workItemState, runOutcome, runState, verdict as verdictMeta, failureRea
 import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph } from './core/reasons.js';
 import { grafanaTeam, runExplorer } from './core/observability.js';
 import { checkoutTarget, checkoutCommand, checkoutLink } from './core/checkout.js';
+import { agentsWindowButton } from './agents-window.js';
 import { traceMarkup } from './core/attribution.js';
 import { workStages } from './core/stages.js';
 import { cardView } from './cards/card-model.js';
 import { deliveryStages, stageTime } from './core/delivery-track.js';
-import { streamChart, streamLanes, streamStats } from './core/value-stream.js';
-import { flightMarkup, flightPlan } from './core/flight-profile.js';
+import { streamChart, streamLanes } from './core/value-stream.js';
+import { foldTranscript } from './run-transcript.js';
+import { liveModel } from './live/model.js';
+import { flightPath } from './live/flight-path.js';
+import { foldStrip } from './live/fold-strip.js';
+import { answers } from './live/answers.js';
+import { nowLine } from './live/layouts.js';
+import { containmentPanel, needsContainment } from './live/containment.js';
 import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
 import { runTranscriptMarkup } from './run-transcript.js';
+import { workActionsMarkup } from './action-log.js';
 import { defaultLogView, logViewerMarkup } from './run-log-view.js';
+import { healthMeta } from './core/run-health.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
 export const ploegLanes = Object.freeze([
@@ -579,6 +589,7 @@ function headerMarkup(detail, model, reason) {
   if (grafana) tools.push(ui.button({ label: 'Grafana', icon: 'activity', variant: 'ghost', size: 'sm', href: grafana, external: true, data: { linkOut: 'grafana' } }));
   const checkout = checkoutTarget(detail, model.card);
   if (checkout) tools.push(`<button type="button" class="button ghost sm work-checkout" data-action="work-checkout" title="${escape(`Check out ${checkout.branch}`)}">${icon('branch')}<span class="button-label">Check out branch</span></button>`);
+  if (model.agentsWindow && !detail.demo) tools.push(agentsWindowButton('work-items', item.id));
   if (model.canCancel && canStop(detail)) tools.push(`<button type="button" class="button ghost sm work-cancel" data-action="work-cancel" data-id="${escape(item.id)}"${model.cancelBusy ? ' aria-disabled="true" aria-busy="true"' : ''}>${model.cancelBusy ? '<span class="spinner" aria-hidden="true"></span>' : icon('x-circle')}<span class="button-label">Cancel Work Item</span></button>`);
   return `<header class="work-detail-header"><div class="work-detail-bar"><p class="work-detail-ref overline"><span class="work-detail-kind">Work Item · </span>Team ${escape(item.team)} · ${ref(item)}</p><div class="work-detail-tools">${tools.join('')}</div>${close}</div><h2 class="work-detail-title" id="ploeg-item-title" tabindex="-1">${escape(item.title || `Work Item ${item.id}`)}</h2><div class="work-detail-status">${ui.stateBadge(meta, reason ? { reason: reason.chip, reasonTone: reason.tone } : {})}${warning ? ui.chip({ label: warning.chip, tone: warning.tone, icon: warning.glyph, title: warning.sentence }) : ''}</div>${facts.length ? `<p class="work-detail-facts dots">${facts.join('')}</p>` : ''}</header>`;
 }
@@ -943,7 +954,66 @@ export function runLogsMarkup(run, entry) {
   return ui.disclosure({ summary: 'Pod logs', id: `work-run-logs-${run.id}`, body: `<div class="work-run-logs" data-run-logs="${escape(run.id)}">${runLogsBody(run, entry)}</div>` });
 }
 
-function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts }) {
+const signalNames = Object.freeze({ quiet: 'Quiet', pace: 'Pace', time: 'Time', budget: 'Budget', repeat: 'Repeat' });
+
+/** Whole minutes since a Run's health was last computed, when it is shown from an older read (`entry.error`, or Ploeg's transcript unreadable); otherwise 0. */
+export function healthAge(entry, now = Date.now()) {
+  if (!entry?.data || (!entry.error && !entry.data.stale)) return 0;
+  const asOf = Date.parse(entry.data.asOf || '') || entry.at || now;
+  return Math.max(1, Math.round((now - asOf) / 60_000));
+}
+
+/**
+ * The health badge of a running Run, next to its state badge: the signals' health raised by the judge, with a glyph and
+ * a word, and the reason in its title. '' for a Run that is not running or whose health is not read yet.
+ * @param {{ state: string }} run
+ * @param {{ data?: object, error?: object, at?: number } | undefined} entry
+ * @param {number} [now]
+ * @returns {string}
+ */
+export function runHealthBadge(run, entry, now = Date.now()) {
+  const data = entry?.data;
+  if (run.state !== 'running' || !data?.health) return '';
+  const combined = data.combined ?? { health: data.health, source: 'signals' };
+  const meta = healthMeta(combined.health);
+  const age = healthAge(entry, now);
+  const title = [`Health: ${meta.label}${combined.source === 'judge' ? ', raised by the AI judge' : ''}`, data.reason, age ? `health as of ${age} min ago` : '', data.demo ? 'demo data' : ''].filter(Boolean).join(' · ');
+  return `<span class="work-run-health-badge"${age ? ' data-stale' : ''}>${ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.label, lead: 'Health: ', title, size: 'sm' })}</span>`;
+}
+
+/**
+ * The health section in a running Run's body: the signals' reason line with every signal in its title, the AI judge's
+ * latest verdict with its model, evidence and a "This was wrong" control, the rule that combined them, and the judge's
+ * pause. '' for a Run that is not running or whose health is not read yet.
+ * @param {{ id: string|number, state: string }} run
+ * @param {{ data?: object, error?: object, at?: number, wrong?: Set<string> } | undefined} entry
+ * @param {{ now?: number }} [options]
+ * @returns {string}
+ */
+export function runHealthMarkup(run, entry, { now = Date.now() } = {}) {
+  const data = entry?.data;
+  if (run.state !== 'running' || !data?.health) return '';
+  const signals = healthMeta(data.health);
+  const age = healthAge(entry, now);
+  const every = (data.signals || []).map(signal => `${signalNames[signal.key] ?? signal.key}: ${healthMeta(signal.health).label}, ${signal.reason}`).join('\n');
+  const parts = [`<p class="work-run-health-line" data-tone="${signals.tone}"${every ? ` title="${escape(every)}"` : ''}>${icon(signals.glyph)}<span><strong>Signals: ${escape(signals.label)}</strong> · ${escape(data.reason)}</span></p>`];
+  if (age) parts.push(`<p class="meta work-run-health-age">Health as of ${age} min ago: it could not be read again.</p>`);
+  const judge = data.judge;
+  if (judge) {
+    const verdict = healthMeta(judge.health);
+    const evidence = (judge.evidence || []).length ? ` · evidence ${judge.evidence.map(seq => `<span class="mono" title="Transcript entry ${escape(seq)}">#${escape(seq)}</span>`).join(', ')}` : '';
+    const control = entry.wrong?.has(judge.id) ? '<span class="meta">Recorded as wrong. Thank you.</span>' : ui.button({ label: 'This was wrong', variant: 'ghost', size: 'xs', action: 'work-run-judge-wrong', data: { id: judge.id, run: run.id } });
+    parts.push(`<p class="work-run-judge" data-tone="${verdict.tone}"><span class="badge sm" data-tone="neutral" role="img" aria-label="AI judgement" title="Judged by ${escape(judge.model)}">${icon('spark')}AI</span><span><strong>${escape(verdict.label)}</strong> · ${escape(judge.reason)}${evidence}</span>${control}</p>`);
+    const combined = healthMeta(data.combined?.health ?? data.health);
+    parts.push(`<p class="meta work-run-health-rule">Badge: ${escape(combined.label)}, the worst of the signals (${escape(signals.label)}) raised but never lowered by the AI judge (${escape(verdict.label)}). The judge only advises.</p>`);
+  }
+  if (data.judgeState === 'paused_allowance') parts.push('<p class="meta">Judge paused: this month\'s allowance is spent.</p>');
+  if (data.judgeState === 'model_not_offered') parts.push('<p class="meta">Judge off: Ploeg offers none of the judge\'s free models to this Team.</p>');
+  if (data.demo) parts.push('<p class="meta">Demo: health computed from illustrative data. No judge runs in the demo.</p>');
+  return `<section class="work-run-health" aria-label="Run health"${age ? ' data-stale' : ''}>${parts.join('')}</section>`;
+}
+
+function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts, health }) {
   const failure = runFailure(run);
   const retriedAs = failure?.retries ? attempts?.get(String(run.id))?.next : null;
   const parts = [];
@@ -959,6 +1029,8 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts
     const body = `${reasonText}${outputText}${note ? `<p>${escape(note)}</p>` : ''}`;
     parts.push(ui.callout({ tone, title, body }));
   }
+  const healthSection = runHealthMarkup(run, health?.get(String(run.id)), { now });
+  if (healthSection) parts.push(healthSection);
   if (run.findings?.trim()) parts.push(`<div class="work-findings"><h4 class="overline">Findings</h4><div data-private class="prose">${markdown(run.findings, { baseLevel: 5 })}</div></div>`);
   const links = runLinks(run);
   if (links) parts.push(links);
@@ -990,14 +1062,16 @@ function runRow(run, context, { round }) {
   const when = run.finishedAt || run.startedAt;
   const failure = runFailure(run);
   const attempt = attemptLabel(context.attempts?.get(String(run.id)));
+  const stateBadge = ui.badge({ tone: result.tone, label: result.label, title: result.title, size: 'sm' });
+  const healthBadge = runHealthBadge(run, context.health?.get(String(run.id)), context.now);
   const role = `${round ? `<span class="work-run-round">${escape(round)} · </span>` : ''}${run.writes ? 'writer' : 'reader'}${attempt ? ` · ${escape(attempt)}` : ''}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}`;
-  return `<details class="work-run" id="work-run-${escape(run.id)}" data-tone="${result.tone}"><summary><span class="work-run-lead" aria-hidden="true">${lead}</span><span class="work-run-name"><strong>${escape(run.role || 'Agent')}</strong><span class="meta">${role}</span></span>${ui.badge({ tone: result.tone, label: result.label, title: result.title, size: 'sm' })}<span class="work-run-numbers meta">${time !== null ? `<span class="num">${escape(duration(time))}</span>` : ''}${cost ? `<span class="num">${escape(cost)}</span>` : ''}${when ? ui.timeAgo(when) : ''}</span>${icon('chevron-down', 'work-run-chevron')}</summary><div class="work-run-body">${runBody(run, context)}</div></details>`;
+  return `<details class="work-run" id="work-run-${escape(run.id)}" data-tone="${result.tone}"><summary><span class="work-run-lead" aria-hidden="true">${lead}</span><span class="work-run-name"><strong>${escape(run.role || 'Agent')}</strong><span class="meta">${role}</span></span>${healthBadge ? `<span class="work-run-badges">${stateBadge}${healthBadge}</span>` : stateBadge}<span class="work-run-numbers meta">${time !== null ? `<span class="num">${escape(duration(time))}</span>` : ''}${cost ? `<span class="num">${escape(cost)}</span>` : ''}${when ? ui.timeAgo(when) : ''}</span>${icon('chevron-down', 'work-run-chevron')}</summary><div class="work-run-body">${runBody(run, context)}</div></details>`;
 }
 
 function runsMarkup(detail, model) {
   const shift = latestShift(detail);
   const groups = runGroups(detail.runs, shift?.id);
-  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts };
+  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), attempts: runAttempts(detail.runs), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, health: model.runHealth };
   const render = (list, continued) => list.map(group => `${group.label && !continued.has(group.key) ? `<p class="work-run-group">${escape(group.label)}</p>` : ''}${group.runs.map(run => runRow(run, context, { round: group.label })).join('')}`).join('');
   const shown = [];
   const rest = [];
@@ -1436,18 +1510,23 @@ export function statusMarkup(detail, model, { reason = null, plan = null } = {})
 }
 
 /**
- * The head of a Work Item page while the `work.flight-profile` flag is on: the Work Item as a flight, from its
- * Shifts, Runs, Run card and session, with the value stream's waits and work to scale below it.
+ * The live view at the head of a Work Item page while the `work.live-view` flag is on: the fold strip, the live
+ * sentence and the flight path, from the detail and the running Run's transcript when its panel has loaded it, then
+ * the questions answered from the record. Its health is the running Run's entry from Unfold's health route, the one
+ * the Run row's badge shows, so the two never disagree.
  */
-export function flightProfileMarkup(detail, model) {
-  const card = model.card && String(model.card.workItemId) === detail.item.id ? model.card : null;
-  const plan = flightPlan({ detail, card, sessions: model.sessions, now: model.now, publisher: Boolean(model.publisher) });
-  const stream = model.stream && String(model.stream.workItemId ?? detail.item.id) === detail.item.id ? model.stream : null;
-  const lanes = stream ? streamLanes({ stream, shifts: detail.shifts || [], runs: detail.runs || [], runTone: runResult }) : [];
-  return flightMarkup(plan, { stats: lanes.length ? streamStats(lanes, { stream, now: model.now }) : null });
+export function liveViewMarkup(detail, model) {
+  const running = [...(detail.runs || [])].reverse().find(run => run.state === 'running');
+  const entry = running ? model.runTranscripts?.get?.(String(running.id)) : null;
+  const entries = entry?.entries ?? [];
+  const transcript = entries.length ? foldTranscript(entries, { known: entry.trimmed ? null : 0 }).items : [];
+  const missing = entry?.data?.available === false ? (entry.data.reason === 'demo' ? 'demo' : 'unsupported') : !entries.length && entry?.error ? 'failed' : null;
+  const health = running ? model.runHealth?.get?.(String(running.id)) ?? null : null;
+  const live = liveModel({ detail, transcript, entries, health, transcriptKnown: entries.length > 0, transcriptMissing: missing, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
+  return `<section class="card work-live lv" aria-label="Live view">${foldStrip(live)}${nowLine(live)}${needsContainment(live) ? containmentPanel(live) : ''}${flightPath(live, { id: `work-live-flight-${detail.item.id}` })}${answers(live, { layout: 'chips', ask: false })}</section>`;
 }
 
-/** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
+/** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, who did what, activity, technical details and, on phones, the action bar. */
 export function detailMarkup(recordedDetail, model) {
   const detail = reconcileDetail(recordedDetail, model.sessions);
   const reason = detailReason(detail);
@@ -1465,10 +1544,11 @@ export function detailMarkup(recordedDetail, model) {
   let decision;
   if (reason) decision = needsYouBox(detail, model, reason, plan);
   else if (item.state === 'awaiting_review') decision = reviewBox(detail, model, plan);
+  else if (model.flags?.['work.live-view'] === true && item.state === 'leased') decision = '';
   else decision = statusBox(detail, model);
   const parts = [
     headerMarkup(detail, model, reason),
-    model.flags?.['work.flight-profile'] === true ? flightProfileMarkup(detail, model) : stagesMarkup(detail, model),
+    model.flags?.['work.live-view'] === true ? liveViewMarkup(detail, model) : stagesMarkup(detail, model),
     model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : '',
     cancelResultMarkup(model),
     status,
@@ -1478,9 +1558,11 @@ export function detailMarkup(recordedDetail, model) {
     deliveryMarkup(detail, model),
     model.trace && model.trace.workItemId === item.id ? traceMarkup(model.trace, { now: model.now, busy: model.traceBusy, result: model.traceResult }) : '',
     sessionsMarkup(detail, model.sessions),
+    linkedSessionsMarkup(detail, model.linkedSessions, { now: model.now, canChange: model.userRole !== undefined }),
     briefMarkup(detail, model),
     contextMarkup(detail, model),
     storyMarkup(detail, model),
+    workActionsMarkup(detail, model),
     eventsMarkup(detail, model),
     technicalMarkup(detail),
     primary ? `<div class="work-sticky-actions" role="group" aria-label="Next step">${primary}</div>` : '',
@@ -1509,7 +1591,7 @@ function demoMarkup(model) {
  * The whole Work page body for `model`: the demo note, the toolbar (Team and lane), a partial-data notice,
  * the list, and the Work Item detail beside it (wide) or instead of it (narrow).
  * `model` = { data, lane, lanePending (the lane waits for the open Work Item's state), team, teams, loading, refreshing,
- * loadingMore, detailId, detail, detailLoading, detailError, listHref, canCancel, cancelBusy, cancelResult, briefOpen,
+ * loadingMore, detailId, detail, detailLoading, detailError, listHref, canCancel, agentsWindow, cancelBusy, cancelResult, briefOpen,
  * sessions, userId, trackerUrl, reviewFacts, demoMode, now, card, trace, traceBusy, traceResult }.
  */
 export function workMarkup(model) {

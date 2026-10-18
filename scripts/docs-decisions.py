@@ -143,6 +143,14 @@ def render(base=root):
     return '\n'.join(lines) + '\n'
 
 
+def evidence_exists(base, path):
+    if (base / path).exists():
+        return True
+    released = base / 'apps/ploeg/files.txt'
+    prefix = 'apps/ploeg/'
+    return path.startswith(prefix) and released.is_file() and path[len(prefix):] in released.read_text().splitlines()
+
+
 def unknown_evidence(base=root):
     """Return evidence entries that name no proposed record or no existing file."""
     evidence_path = base / EVIDENCE
@@ -157,7 +165,7 @@ def unknown_evidence(base=root):
                 problems.append(f'{scope} {number}: not a proposed record')
             if entry.get('implemented') not in {'yes', 'partial', 'no'}:
                 problems.append(f'{scope} {number}: implemented must be yes, partial or no')
-            if entry.get('evidence') and not (base / entry['evidence']).exists():
+            if entry.get('evidence') and not evidence_exists(base, entry['evidence']):
                 problems.append(f"{scope} {number}: missing evidence {entry['evidence']}")
     return problems
 

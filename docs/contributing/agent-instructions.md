@@ -2,8 +2,8 @@
 type: reference
 audience: [contributor, agent]
 owner: unfold
-last_verified: 2026-10-11
-verified_by: "OpenHands row measured with 18 headless OpenHands 1.16.0 runs on 2026-10-11 (VIK-2001); the hook outcome reproduced with and without a mise shim under a fresh home. Load matrix from Ploeg's adapters (apps/ploeg/pkg/harness/adapters, pkg/worker/adapters.go, task.go) and the homelab Team configuration; Claude Code rows measured with headless probes on 2.1.296 (PR #308). OpenHands, opencode and Codex rows marked inferred were read from their sources and docs, not measured."
+last_verified: 2026-10-17
+verified_by: "OpenHands row measured with 18 headless OpenHands 1.16.0 runs on 2026-10-11 (VIK-2001); the hook outcome reproduced with and without a mise shim under a fresh home. Load matrix from Ploeg's adapters (apps/ploeg/pkg/harness/adapters, pkg/worker/adapters.go, task.go) and the homelab Team configuration; Claude Code rows measured with headless probes on 2.1.296 (PR #308). OpenHands, opencode and Codex rows marked inferred were read from their sources and docs, not measured. Codex app import: source-command-* folders written by the openai.chatgpt extension with external-agent-import-sync-enabled = true, checked 2026-10-17 (they stopped after setting it to false)."
 ---
 
 # Agent instructions
@@ -45,6 +45,8 @@ Ploeg owns a term when Ploeg stores it or its API names it, such as Run, Shift, 
 | Codex | yes | only from the root down to the working directory | yes (inferred) | a project hook needs Codex's hook trust; not observed to run |
 
 Ploeg starts every agent with a fresh home directory, so nothing from a person's `~/.claude` or `~/.codex` reaches a Run. It installs its own skills, `ploeg-verify-before-handoff` and `ploeg-review-against-work-item`, outside the clone.
+
+The Codex app's external agent import (`external-agent-import-sync-enabled` under `[desktop]` in `~/.codex/config.toml`) copies each `.claude/commands/*.md` into `.agents/skills/source-command-<name>/`, and through the `.claude/skills` link Claude Code then lists every command twice. Codex reads `.agents/skills` itself and OpenSpec installs Codex's own `openspec-*` skills, so the copies are never needed: `.gitignore` keeps them out of commits, and setting the option to `false` stops them appearing.
 
 The OpenHands row was measured on 2026-10-11 with OpenHands 1.16.0, team silver's models (DeepSeek V4.1 Flash and GLM 5.3 Flash through LiteLLM), a fresh home directory and Ploeg's own brief wording, three runs per model. A hook only blocks with exit code 2; any other failure lets the call through. In the probe the hook's `python3` resolved to a mise shim, which refuses to run without a trusted configuration under a fresh home, so the hook exited 1 and `git add -A` went through in all six runs. With the runner image's own Python (it has no mise) the same hook exits 2 and blocks. When a guard matters, run its command once in the harness's real environment, home directory and `PATH` included.
 

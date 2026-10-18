@@ -1,4 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { actionContext, channelOf, confirmationOf, describeAction, isAction, outcomeOf, recordedInputs } from './action-records.ts';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
 import { Auth, editorCredentialDays, editorLabel, type EditorRequestView } from './auth.ts';
 import type { Engine } from './engine.ts';
@@ -8,14 +10,16 @@ import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
 import type { WorkerRelay } from './runtime/relay.ts';
 import type { AgentHost } from './ahp/host.ts';
-import { agentHostTokenId, protocolBaselines as agentHostProtocolVersions, protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
+import { agentHostTokenId, type AgentsWindowTarget, protocolBaselines as agentHostProtocolVersions, protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
+import { agentHostAuthority, agentsWindowSessionLinks } from '../public/core/agents-window.js';
 import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
 import { readFileSync } from 'node:fs';
 import { StatusBoard, gatewayProbe } from './status.ts';
 import { CardService, importStatusLine } from './cards/service.ts';
 import { CardStore } from './cards/card-store.ts';
-import { PloegClient, PloegError, contextInput, contextUploadLimit, type PloegDecision } from './ploeg.ts';
+import { rarityShown } from './cards/settings.ts';
+import { PloegClient, PloegError, contextInput, contextUploadLimit, demoNoteRefusal, type PloegDecision, type PloegState } from './ploeg.ts';
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
@@ -27,10 +31,17 @@ import { InsightService, maxEventPayloadBytes, parseInsightEvents } from './insi
 import { ReportError, ReportService, parseReport } from './reports.ts';
 import { knownSecrets, withoutKnownSecrets } from './redaction.ts';
 import { AskService, type AskAuthority } from './ask/service.ts';
+import { RunHealthService } from './run-health/service.ts';
+import { RunJudge, defaultJudgeModels } from './run-health/judge.ts';
 import { noErrorReports, type ErrorReports } from './error-reports.ts';
 import { FeatureFlags, loadRegistry, type FlagContext } from './flags.ts';
 import { clientContext, ofrepBulk, ofrepFlag } from './flag-ofrep.ts';
 import { defaultTenant } from './insight.ts';
+import { createMcpHttp } from './mcp-http.ts';
+import { entitledRole } from './oidc.ts';
+import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
+import { agentTraceMediaType } from './agent-trace.ts';
+import type { AddressInfo } from 'node:net';
 
 const reportRefreshWaitMs = 2500;
 const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
@@ -38,7 +49,8 @@ const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(
 /** The most events one storage read loads while streaming a session's history to a live event client. */
 export const eventReplayBatch = 200;
 const eventReplayBuffered = 262144;
-const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:(?:skins\/[a-z0-9][a-z0-9-]*(?:\/world)?|effects)\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/(?:three|html-to-image)\/[a-z0-9][a-z0-9-]*\.js)$/;
+/** The paths of browser modules the server serves from `public/` besides its named assets; anything else is a 404. */
+export const browserModule = /^\/(?:(?:core|views|styles|live)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:(?:skins\/[a-z0-9][a-z0-9-]*(?:\/world)?|effects)\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/(?:three|html-to-image)\/[a-z0-9][a-z0-9-]*\.js)$/;
 
 /** A request path with its ids replaced by `:id`, so errors on one route group together. */
 export function routeShape(path: string): string {
@@ -52,7 +64,15 @@ function json(res: ServerResponse, status: number, value: unknown): void {
   res.end(JSON.stringify(value));
 }
 
+const parsedBodies = new WeakMap<IncomingMessage, Record<string, unknown>>();
+
 async function body(req: IncomingMessage): Promise<Record<string, unknown>> {
+  const parsed = await readBody(req);
+  parsedBodies.set(req, parsed);
+  return parsed;
+}
+
+async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
   if (!req.headers['content-type']?.startsWith('application/json')) fault(415, 'content_type', 'Use application/json.');
   const chunks: Buffer[] = [];
   let size = 0;
@@ -117,6 +137,11 @@ function text(value: unknown, name: string, max: number, optional = false): stri
   return (value as string).trim();
 }
 
+function loopbackUrl(address: AddressInfo): string {
+  const host = address.address === '::' || address.address === '0.0.0.0' ? '127.0.0.1' : address.family === 'IPv6' ? `[${address.address}]` : address.address;
+  return `http://${host}:${address.port}`;
+}
+
 function mutationGuard(req: IncomingMessage, config: AppConfig): void {
   if (req.headers['x-unfold-request'] !== '1') fault(403, 'csrf', 'The request is missing the application request header.');
   const origin = req.headers.origin;
@@ -137,6 +162,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const delivery = new DeliveryService(config, store);
   void delivery.reconcileAll().catch(() => undefined);
   const handoff = new TaskHandoff(config, ploeg);
+  const linked = new LinkedSessions(store.db, config, ploeg);
   const status = new StatusBoard(config, store, () => engine.provisioning(), {
     gateway: gatewayProbe(config),
     ploeg: async user => {
@@ -169,6 +195,17 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     const choices = store.flagChoices(user.id);
     return { targetingKey: user.id, userId: user.id, role: user.role, tenantId: defaultTenant, mode: config.mode, teams: config.ploeg?.userTeams?.[user.id] ?? [], labs: Object.keys(choices).filter(key => choices[key]), labsOff: Object.keys(choices).filter(key => !choices[key]) };
   };
+  const runJudge = askAuthority && config.litellm?.baseUrl ? new RunJudge(askAuthority, { gatewayUrl: config.litellm.baseUrl, models: config.runHealth?.judgeModels ?? defaultJudgeModels, secrets }) : undefined;
+  const runHealth = new RunHealthService(store, ploeg, {
+    demo: askDemo,
+    judge: runJudge,
+    judgeEnabled: (user, team) => flags.getBooleanValue('cards.health.judge', false, { ...flagContext(user), team }),
+    record: (user, name, workItemId, props) => {
+      if (config.productEvents === false) return;
+      try { insight.ingest([{ name, at: new Date().toISOString(), session: '', screen: 'work', ...(/^\d{1,15}$/.test(workItemId) ? { workItemId: Number(workItemId) } : {}), props }], user); } catch { return; }
+    },
+  });
+  ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
     const choices = store.flagChoices(user.id);
@@ -198,12 +235,23 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitize(item)])) as T;
     return value;
   }
+  const account = (record: { id: string; name: string; role: User['role'] } | undefined): User | undefined => record ? { id: record.id, name: record.name, role: record.role } : undefined;
+  const mcp = config.mcp && config.auth.oidc ? createMcpHttp({
+    settings: config.mcp,
+    subjectNamespace: config.mcp.subjectNamespace ?? config.auth.oidc.subjectNamespace ?? config.auth.oidc.issuer,
+    findUser: id => account(store.getUser(id)),
+    entitle: claims => entitledRole(config.auth.oidc!, claims),
+    delegate: (user, ttlMs) => auth.delegate(user, ttlMs),
+    apiUrl: () => loopbackUrl(server.address() as AddressInfo),
+    linkUrl: config.baseUrl ?? new URL(config.mcp.resource).origin,
+    version: applicationVersion,
+  }) : undefined;
   function visible(id: string, user: User): Session {
     const session = store.getSession(id);
     if (!session || (session.ownerId !== user.id && user.role !== 'admin')) fault(404, 'not_found', 'Session not found.');
     return session as Session;
   }
-  const server = createServer(async (req, res) => {
+  const handle = async (req: IncomingMessage, res: ServerResponse) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -217,6 +265,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         if (path === '/readyz') store.ping();
         return json(res, 200, { status: 'ok', version: applicationVersion });
       }
+      if (mcp?.handles(path)) return await mcp.handle(req, res, path);
       if (relay && await relay.handle(req, res, url)) return;
       const editorCollect = path.match(/^\/api\/auth\/editor\/([A-Za-z0-9_-]{8,32})$/);
       const ofrep = path.startsWith('/api/ofrep/v1/evaluate/flags');
@@ -407,7 +456,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           return json(res, 200, await adminFlags(user));
         }
         if (method === 'GET' && path === '/api/bootstrap') return json(res, 200, sanitize({
-          user, mode: config.mode, sharedExecution: Boolean(config.execution), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], deliveryPublisher: Boolean(config.delivery?.publisher), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
+          user, mode: config.mode, sharedExecution: Boolean(config.execution), agentHost: Boolean(agentHost), deliveryRepositories: config.delivery?.policies.map(policy => policy.repositoryId) ?? [], deliveryPublisher: Boolean(config.delivery?.publisher), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined,
           gatewayPolicy: config.gatewayPolicy ?? null,
           observability: config.observability ?? null,
           insight: { events: config.productEvents !== false && user.role !== 'viewer' },
@@ -425,13 +474,29 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         const statusNote = path.match(/^\/api\/status\/notes\/([0-9a-f-]{36})\/resolve$/);
         if (method === 'POST' && statusNote) return json(res, 200, sanitize(status.resolveNote(user, statusNote[1])));
         if (method === 'GET' && path === '/api/health') return json(res, 200, { status: 'ok', mode: config.mode, version: applicationVersion, runtimes: runtimeKinds, litellm: Boolean(config.litellm), gateway: config.litellm ? new URL(config.litellm.baseUrl).host : undefined, workspaceBackend: config.mode === 'demo' ? 'demo' : config.runtime.backend, workspaceBackends: placements(config).map(item => item.id) });
+        if (method === 'GET' && path === '/api/mcp-servers') return json(res, 200, { servers: config.mcpServers?.ploeg ? [{ id: 'ploeg', label: 'Ploeg', type: 'http', url: config.mcpServers.ploeg.url, oauth: { clientId: config.mcpServers.ploeg.clientId } }] : [] });
         const agentHostToken = path.match(/^\/api\/agent-host\/tokens\/([0-9a-f]{64})$/);
-        if (path === '/api/agent-host' || path === '/api/agent-host/tokens' || agentHostToken) {
+        const agentsWindowLink = path.match(/^\/api\/agent-host\/(sessions|work-items)\/([^/]{1,100})\/link$/);
+        if (path === '/api/agent-host' || path === '/api/agent-host/tokens' || agentHostToken || agentsWindowLink) {
           if (!agentHost) fault(404, 'agent_host_disabled', 'The agent host is not enabled on this workbench.');
           const address = (config.baseUrl ?? `http://${config.host}:${config.port}`).replace(/^http/, 'ws');
           if (method === 'GET' && path === '/api/agent-host') {
             const attached = agentHost!.attachedClients(user);
-            return json(res, 200, { protocolVersion: agentHostProtocolVersion, protocolVersions: agentHostProtocolVersions, address, provider: 'unfold', clients: attached.length, attached, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
+            return json(res, 200, { protocolVersion: agentHostProtocolVersion, protocolVersions: agentHostProtocolVersions, address, connectionAuthority: agentHostAuthority(address), provider: 'unfold', clients: attached.length, attached, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
+          }
+          if (method === 'GET' && agentsWindowLink) {
+            if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host, so they have no Agents window to open.');
+            const [, kind, id] = agentsWindowLink;
+            let target: AgentsWindowTarget | undefined;
+            if (kind === 'sessions') {
+              target = agentHost!.sessionLinkTarget(user, id);
+              if (!target) fault(404, 'not_found', 'Session not found.');
+            } else {
+              try { target = await agentHost!.workItemLinkTarget(user, id); }
+              catch (error) { if (error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } }); throw error; }
+              if (!target) fault(404, 'not_found', 'No Work Item session of yours has this id.');
+            }
+            return json(res, 200, { ...target!, address, connectionAuthority: agentHostAuthority(address), links: agentsWindowSessionLinks({ session: target!.session, address }) });
           }
           if (method === 'POST' && path === '/api/agent-host/tokens') {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host.');
@@ -560,6 +625,61 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             throw error;
           }
         }
+        if (path === '/api/actions/filters') {
+          if (method !== 'GET') fault(405, 'method', 'Read the action filters with GET.');
+          const person = user.role === 'admin' ? url.searchParams.get('userId') || undefined : user.id;
+          return json(res, 200, sanitize(store.actionFacets(person)));
+        }
+        if (path === '/api/actions') {
+          if (method !== 'GET') fault(405, 'method', 'List actions with GET.');
+          const workItem = url.searchParams.get('workItemId');
+          const session = url.searchParams.get('sessionId');
+          const before = Number(url.searchParams.get('before') ?? '');
+          const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? '') || 50));
+          const target = workItem ? { kind: 'work-item' as const, id: text(workItem, 'Work Item', 40) } : session ? { kind: 'session' as const, id: text(session, 'Session', 80) } : undefined;
+          const outcome = url.searchParams.get('outcome') || undefined;
+          if (outcome && !['done', 'refused', 'failed'].includes(outcome)) fault(400, 'outcome', 'Filter by the outcome done, refused or failed.');
+          const channel = url.searchParams.get('channel') ? text(url.searchParams.get('channel'), 'Channel', 200) : undefined;
+          const person = user.role === 'admin' ? url.searchParams.get('userId') || undefined : user.id;
+          const actions = store.actionRecords({ userId: person, target, outcome: outcome as 'done' | 'refused' | 'failed' | undefined, channel, before: Number.isInteger(before) && before > 0 ? before : undefined, limit: limit + 1 });
+          return json(res, 200, sanitize({ actions: actions.slice(0, limit), nextBefore: actions.length > limit ? actions[limit - 1].id : null }));
+        }
+        const linkedSession = /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})(?:\/(agent-trace|traces)|\/work-items\/([1-9][0-9]{0,18}))?$/.exec(path);
+        const tracedRevision = /^\/api\/agent-trace\/([0-9a-f]{40}(?:[0-9a-f]{24})?)$/.exec(path);
+        if (path === '/api/linked-sessions' || path === '/api/linked-sessions/events' || linkedSession || tracedRevision) {
+          const base = config.baseUrl ?? `http://${req.headers.host}`;
+          if (path === '/api/linked-sessions/events') {
+            if (method !== 'POST') fault(405, 'method', 'Report a session event with POST.');
+            return json(res, 200, sanitize(await linked.report(user, parseLinkedEvent(await body(req), new Date()), base)));
+          }
+          if (path === '/api/linked-sessions') {
+            if (method !== 'GET') fault(405, 'method', 'List Linked Sessions with GET.');
+            const workItem = url.searchParams.get('workItemId');
+            return json(res, 200, sanitize({ sessions: workItem ? await linked.forWorkItem(user, workItem, base) : linked.mine(user, base, url.searchParams.get('all') === '1') }));
+          }
+          if (tracedRevision) {
+            if (method !== 'GET') fault(405, 'method', 'Read Agent Trace records with GET.');
+            return json(res, 200, sanitize({ records: await linked.tracesFor(user, tracedRevision[1]) }));
+          }
+          const [, id, part, workItem] = linkedSession!;
+          if (workItem) {
+            if (method !== 'PUT' && method !== 'DELETE') fault(405, 'method', 'Link a Work Item with PUT and unlink it with DELETE.');
+            return json(res, 200, sanitize({ session: await linked.setLink(user, id, workItem, method === 'PUT', base) }));
+          }
+          if (part === 'traces') {
+            if (method !== 'POST') fault(405, 'method', 'Send an Agent Trace record with POST.');
+            const stored = linked.addTrace(user, id, await body(req));
+            return json(res, stored.stored ? 201 : 200, stored);
+          }
+          if (method !== 'GET') fault(405, 'method', 'Read a Linked Session with GET.');
+          if (part === 'agent-trace') {
+            const records = await linked.traces(user, id);
+            res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Disposition': `attachment; filename="agent-trace-${id}.jsonl"`, 'X-Agent-Trace-Media-Type': agentTraceMediaType });
+            res.end(records.map(record => JSON.stringify(record)).join('\n') + (records.length ? '\n' : ''));
+            return;
+          }
+          return json(res, 200, sanitize({ session: await linked.view(user, id, base, url.searchParams.get('telemetry') === '1') }));
+        }
         if (path === '/api/asks') {
           if (method !== 'GET') fault(405, 'method', 'List your Asks with GET.');
           return json(res, 200, sanitize(await asks.mine(user)));
@@ -570,6 +690,19 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const crackStep = /^\/api\/ploeg\/work-items\/([^/]+)\/cracks\/([^/]+)\/(confirm|dispute|resolve)$/.exec(path);
           const context = /^\/api\/ploeg\/work-items\/([^/]+)\/context$/.exec(path);
           const asked = /^\/api\/ploeg\/work-items\/([^/]+)\/asks$/.exec(path);
+          const restart = /^\/api\/ploeg\/work-items\/([^/]+)\/(requeue|notes)$/.exec(path);
+          const health = /^\/api\/ploeg\/work-items\/([^/]+)\/runs\/([^/]+)\/health$/.exec(path);
+          const wrong = /^\/api\/ploeg\/work-items\/([^/]+)\/runs\/([^/]+)\/health\/judgements\/([A-Za-z0-9-]{1,64})\/wrong$/.exec(path);
+          if (health || wrong) {
+            try {
+              if (health) { if (method !== 'GET') fault(405, 'method', 'Read Run health with GET.'); return json(res, 200, sanitize(await runHealth.health(user, health[1], health[2]))); }
+              if (method !== 'POST') fault(405, 'method', 'Report a wrong judgement with POST.');
+              return json(res, 202, await runHealth.wrong(user, wrong![1], wrong![2], wrong![3]));
+            } catch (error) {
+              if (error instanceof PloegError) return json(res, error.status, { error: { code: error.code, message: error.message } });
+              throw error;
+            }
+          }
           if (asked) {
             try {
               if (method === 'GET') return json(res, 200, sanitize(await asks.about(user, asked[1])));
@@ -582,10 +715,24 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               throw error;
             }
           }
-          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep || context))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions, context files and crack attributions.');
+          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep || context || restart))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions, restarts, notes, context files and crack attributions.');
+          if (method === 'GET' && restart) fault(405, 'method', 'Restart or leave a note with POST.');
           try {
-            if (method === 'POST' && (decision || attribution || crackStep || context)) {
+            if (method === 'POST' && (decision || attribution || crackStep || context || restart)) {
               if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot change Ploeg work.');
+              if (restart) {
+                const data = await body(req);
+                const commandId = data.commandId === undefined ? randomUUID() : text(data.commandId, 'Command id', 128);
+                if (restart[2] === 'requeue') {
+                  const expectedState = text(data.expectedState, 'Expected state', 32);
+                  if (!['needs_human', 'stale'].includes(expectedState)) fault(400, 'ploeg_requeue', 'Ploeg restarts only a Work Item that needs you or went stale.');
+                  return json(res, 200, sanitize(await ploeg.requeue(user, restart[1], { commandId, expectedState: expectedState as PloegState, ...(typeof data.note === 'string' && data.note.trim() ? { note: data.note } : {}) })));
+                }
+                const note = text(data.text, 'Note', 4096);
+                if (ploeg.isDemo && await ploeg.detail(user, restart[1], true)) return json(res, 200, { workItemId: restart[1], noteId: null, commandId, shiftId: null, replayed: false, demo: true, message: demoNoteRefusal });
+                const expectedShiftId = data.expectedShiftId === undefined || data.expectedShiftId === null ? undefined : String(data.expectedShiftId);
+                return json(res, 201, sanitize({ ...await ploeg.note(user, restart[1], { commandId, text: note, ...(expectedShiftId !== undefined ? { expectedShiftId } : {}) }), demo: false }));
+              }
               if (context) {
                 const input = contextInput(url.searchParams.get('name'), url.searchParams.get('note') ?? undefined);
                 const added = await ploeg.addContext(user, context[1], input.name, input.note, await upload(req, contextUploadLimit, 'context_too_large'));
@@ -764,7 +911,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         return fault(404, 'not_found', 'API route not found.');
       }
-      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/delivery.js': 'delivery.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt' };
+      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt', '/action-log.js': 'action-log.js' };
       const file = assets[path] ?? (browserModule.test(path) ? path.slice(1) : undefined);
       if (method !== 'GET' || !file) return fault(404, 'not_found', 'Page not found.');
       await staticFiles.serve(req, res, file, Boolean(assets[path]));
@@ -780,6 +927,24 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       }
       json(res, status, sanitize({ error: { code, message } }));
     }
+  };
+  const server = createServer((req, res) => {
+    const method = req.method || 'GET';
+    const requested = new URL(req.url || '/', 'http://localhost');
+    const path = requested.pathname;
+    if (!isAction(method, path)) { void handle(req, res); return; }
+    const scope = auth.scope(req);
+    const signIn = scope === 'editor' ? auth.signIn(req) : undefined;
+    const channel = channelOf(scope, signIn ? store.getEditorCredential(signIn)?.label : undefined, req.headers['x-unfold-client']);
+    const confirmation = confirmationOf(req.headers['x-unfold-confirmation']);
+    res.once('finish', () => {
+      const user = auth.user(req);
+      if (!user || res.statusCode === 401) return;
+      const { action, target } = describeAction(method, path);
+      try { store.recordAction({ at: new Date().toISOString(), userId: user.id, userName: user.name, role: user.role, channel, action, method, target, inputs: recordedInputs({ ...(parsedBodies.get(req) ?? {}), ...(requested.search ? { query: Object.fromEntries(requested.searchParams) } : {}) }) as Record<string, unknown>, confirmation, status: res.statusCode, outcome: outcomeOf(res.statusCode) }); }
+      catch (error) { console.error(JSON.stringify({ level: 'error', event: 'action_record.failed', action, message: String((error as Error).message).slice(0, 300) })); }
+    });
+    void actionContext.run({ via: channel, confirmation }, () => handle(req, res));
   });
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;

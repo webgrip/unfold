@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Unfold workbench</title>
+  <link rel="icon" href="../public/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../public/styles.css">
+  <link rel="stylesheet" href="workbench.css">
+  <script type="module" src="workbench.js"></script>
+</head>
+<body class="wb">
+  <nav class="wb-nav" aria-label="Stories">
+    <p class="wb-brand">Unfold workbench</p>
+    <p class="wb-hint">Components rendered from fixtures, outside the app. Every frame runs the same checks as <code>npm run test:workbench</code>.</p>
+    <div class="wb-modes" role="tablist" aria-label="What to show">
+      <a class="wb-mode" role="tab" href="#app" id="mode-app">Real app</a>
+      <a class="wb-mode" role="tab" href="#" id="mode-stories">Components</a>
+    </div>
+    <div id="apps" class="wb-stories"></div>
+    <div id="stories" class="wb-stories"></div>
+  </nav>
+  <main class="wb-main">
+    <header class="wb-bar">
+      <h1 id="story-title" class="wb-title">Pick a story</h1>
+      <form id="controls" class="wb-controls">
+        <fieldset class="wb-set"><legend>Widths</legend>
+          <label><input type="checkbox" name="width" value="390" checked> 390</label>
+          <label><input type="checkbox" name="width" value="768" checked> 768</label>
+          <label><input type="checkbox" name="width" value="1280" checked> 1280</label>
+        </fieldset>
+        <fieldset class="wb-set"><legend>Theme</legend>
+          <label><input type="checkbox" name="theme" value="light" checked> Light</label>
+          <label><input type="checkbox" name="theme" value="dark" checked> Dark</label>
+        </fieldset>
+        <fieldset class="wb-set" id="flags-field"><legend>Labs</legend>
+          <label><input type="checkbox" name="flag" value="work.live-view" checked> Live view</label>
+        </fieldset>
+        <label class="wb-field" id="scenario-field">Scenario <select name="scenario" id="scenario"><option value="">The story’s own</option></select></label>
+      </form>
+    </header>
+    <p id="summary" class="wb-summary" role="status"></p>
+    <div id="stage" class="wb-stage"></div>
+    <details class="wb-model"><summary>The model this story renders</summary><pre id="model" class="wb-pre"></pre></details>
+  </main>
+</body>
+</html>

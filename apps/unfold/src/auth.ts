@@ -1,6 +1,7 @@
 import { randomBytes, randomInt, scryptSync, timingSafeEqual, createHash } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import type { AppConfig, User } from './types.ts';
+import type { AppConfig, User, UserRole } from './types.ts';
+import { lowerRole } from './oidc.ts';
 import type { EditorCredential, Store } from './store.ts';
 
 /** How an editor sign-in looks to the person who signed in for it. */
@@ -14,17 +15,49 @@ const editorSecretFailures = 5;
 const userCodeAlphabet = 'BCDFGHJKLMNPQRSTVWXZ';
 /** Editor credentials last this many days from approval and are never renewed. */
 export const editorCredentialDays = 30;
+/** An editor credential left unused for this many days stops working, as if it had expired. */
+export const editorIdleDays = 14;
 /** Every editor credential starts with this prefix, so it is never mistaken for a browser session. */
 export const editorTokenPrefix = 'vle_';
 const editorTokenPattern = /^vle_[A-Za-z0-9_-]{43}$/;
+const delegatedTokenPattern = /^vlm_[A-Za-z0-9_-]{43}$/;
+const maxDelegatedMs = 300_000;
+const workItem = '\\d{1,19}';
+/** The only method and path pairs a delegated `unfold-mcp` credential reaches: the API calls its tools make. */
+export const delegatedRoutes: ReadonlyArray<readonly [string, RegExp]> = [
+  ['GET', /^\/api\/ploeg\/now$/],
+  ['GET', /^\/api\/ploeg\/summary$/],
+  ['GET', /^\/api\/ploeg\/work-items$/],
+  ['GET', new RegExp(`^/api/ploeg/work-items/${workItem}$`)],
+  ['GET', new RegExp(`^/api/ploeg/work-items/${workItem}/asks$`)],
+  ['POST', new RegExp(`^/api/ploeg/work-items/${workItem}/asks$`)],
+  ['POST', new RegExp(`^/api/ploeg/work-items/${workItem}/(?:approve|reject|cancel|requeue|notes)$`)],
+  ['GET', /^\/api\/sessions$/],
+  ['GET', /^\/api\/linked-sessions$/],
+  ['GET', /^\/api\/linked-sessions\/[A-Za-z0-9_-]{8,128}$/],
+  ['PUT', new RegExp(`^/api/linked-sessions/[A-Za-z0-9_-]{8,128}/work-items/${workItem}$`)],
+  ['DELETE', new RegExp(`^/api/linked-sessions/[A-Za-z0-9_-]{8,128}/work-items/${workItem}$`)],
+  ['GET', /^\/api\/sessions\/[a-zA-Z0-9_-]{1,128}$/],
+  ['POST', /^\/api\/sessions\/[a-zA-Z0-9_-]{1,128}\/(?:messages|pause|resume|cancel)$/],
+  ['GET', /^\/api\/task-sources\/[a-z0-9-]{1,64}\/tasks\/[a-zA-Z0-9_-]{1,128}(?:\/ploeg)?$/],
+  ['POST', /^\/api\/task-sources\/[a-z0-9-]{1,64}\/tasks\/[a-zA-Z0-9_-]{1,128}\/handoff$/],
+];
+
+function delegatedRoute(req: IncomingMessage): boolean {
+  let path: string;
+  try { path = new URL(req.url || '/', 'http://localhost').pathname; } catch { return false; }
+  return delegatedRoutes.some(([method, pattern]) => method === req.method && pattern.test(path));
+}
 
 /**
- * The name an editor sign-in and its credential carry: `VS Code` unless the client says it is `unfold-mcp`, which is
- * named after the host it runs on. Unfold builds the name, so a client cannot put its own text on the approval page.
+ * The name an editor sign-in and its credential carry: `VS Code`, or `unfold-mcp` when the client says it is that,
+ * followed by ` on <host>` when the client names a valid host. Unfold builds the name, so a client cannot put its own
+ * text on the approval page.
  */
 export function editorLabel(client: unknown, host: unknown): string {
-  if (client !== 'mcp') return 'VS Code';
-  return typeof host === 'string' && /^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(host) ? `unfold-mcp on ${host}` : 'unfold-mcp';
+  const name = client === 'mcp' ? 'unfold-mcp' : 'VS Code';
+  if (client !== 'mcp' && client !== 'vscode') return name;
+  return typeof host === 'string' && /^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$/.test(host) ? `${name} on ${host}` : name;
 }
 
 export function hashPassword(password: string): string {
@@ -91,10 +124,11 @@ export class Auth {
     const token = this.token(req);
     return token && token.length <= 200 ? digest(token) : undefined;
   }
-  /** Which credential authenticated a request: a browser session or an editor credential. */
-  scope(req: IncomingMessage): 'browser' | 'editor' | undefined {
+  /** Which credential authenticated a request: a browser session, an editor credential, or a credential `unfold-mcp` over HTTP delegated. */
+  scope(req: IncomingMessage): 'browser' | 'editor' | 'mcp' | undefined {
     if (this.config.mode === 'demo') return 'browser';
-    if (this.bearer(req) !== undefined) return this.editorUser(req) ? 'editor' : undefined;
+    const bearer = this.bearer(req);
+    if (bearer !== undefined) return this.editorUser(req) ? delegatedTokenPattern.test(bearer) ? 'mcp' : 'editor' : undefined;
     return this.user(req) ? 'browser' : undefined;
   }
   user(req: IncomingMessage): User | undefined {
@@ -107,8 +141,30 @@ export class Auth {
     const user = this.store.getUser(login.userId);
     return user ? { id: user.id, name: user.name, role: user.role } : undefined;
   }
+  private readonly delegated = new Map<string, { userId: string; role: UserRole; expiresAt: number }>();
+
+  /**
+   * Mints a credential that acts as `user` on this process's own API for at most `ttlMs`, reaching only
+   * `delegatedRoutes` and never more than `user.role` or the account's stored role, whichever is lower. It lives
+   * only in memory and is revoked by `revoke`. `unfold-mcp` over HTTP calls the API with it, so a caller's access
+   * token never travels further than the MCP endpoint.
+   */
+  delegate(user: User, ttlMs: number): { token: string; revoke(): void } {
+    const now = Date.now();
+    for (const [hash, entry] of this.delegated) if (entry.expiresAt <= now) this.delegated.delete(hash);
+    const token = `vlm_${randomBytes(32).toString('base64url')}`;
+    const hash = digest(token);
+    this.delegated.set(hash, { userId: user.id, role: user.role, expiresAt: now + Math.min(Math.max(ttlMs, 1), maxDelegatedMs) });
+    return { token, revoke: () => { this.delegated.delete(hash); } };
+  }
+
   private editorUser(req: IncomingMessage): User | undefined {
     const bearer = this.bearer(req);
+    if (bearer && delegatedTokenPattern.test(bearer)) {
+      const entry = this.delegated.get(digest(bearer));
+      const user = entry && entry.expiresAt > Date.now() && delegatedRoute(req) ? this.store.getUser(entry.userId) : undefined;
+      return user && entry ? { id: user.id, name: user.name, role: lowerRole(user.role, entry.role) } : undefined;
+    }
     if (!bearer || !editorTokenPattern.test(bearer)) return undefined;
     const credential = this.store.getEditorCredential(digest(bearer));
     const user = credential && this.store.getUser(credential.userId);
@@ -207,9 +263,9 @@ export class Auth {
     return { status: 'ready', user, token, expiresAt };
   }
 
-  /** A person's live editor credentials, without their token hashes. */
-  editorCredentials(user: User): Array<Omit<EditorCredential, 'tokenHash' | 'userId'>> {
-    return this.store.editorCredentials(user.id).map(({ id, label, scope, createdAt, expiresAt, lastUsedAt }) => ({ id, label, scope, createdAt, expiresAt, ...(lastUsedAt ? { lastUsedAt } : {}) }));
+  /** A person's live editor credentials, without their token hashes, each with the moment it signs out if it stays unused. */
+  editorCredentials(user: User): Array<Omit<EditorCredential, 'tokenHash' | 'userId'> & { idleExpiresAt: string }> {
+    return this.store.editorCredentials(user.id).map(({ id, label, scope, createdAt, expiresAt, lastUsedAt }) => ({ id, label, scope, createdAt, expiresAt, ...(lastUsedAt ? { lastUsedAt } : {}), idleExpiresAt: new Date(Date.parse(lastUsedAt ?? createdAt) + editorIdleDays * 86_400_000).toISOString() }));
   }
 
   /** Revokes one of a person's editor credentials and returns the sign-in it identified. */

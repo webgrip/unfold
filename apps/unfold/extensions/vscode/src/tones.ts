@@ -16,6 +16,7 @@ const codicons: Record<string, string> = {
   'pull-request': 'git-pull-request', alert: 'bell-dot', clock: 'watch', 'circle-slash': 'circle-slash', 'check-circle': 'pass',
   check: 'check', plus: 'add', tag: 'tag', 'x-circle': 'error', x: 'close', branch: 'git-branch', eye: 'eye', circle: 'circle-outline',
   'pause-circle': 'debug-pause', zap: 'zap', stop: 'debug-stop', coins: 'credit-card', 'help-circle': 'question', sessions: 'comment-discussion',
+  shield: 'shield', 'eye-off': 'eye-closed',
 };
 
 /** The codicon for a glyph name from the shared vocabulary; an unknown glyph falls back to a plain circle. */

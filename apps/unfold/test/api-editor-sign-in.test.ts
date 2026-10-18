@@ -100,7 +100,7 @@ test('an approved editor collects its own credential once, uses it as a bearer t
   assert.equal(listed.status, 200);
   assert.equal(listed.body.editors.length, 1);
   const [editor] = listed.body.editors;
-  assert.deepEqual(Object.keys(editor).sort(), ['createdAt', 'expiresAt', 'id', 'label', 'lastUsedAt', 'scope']);
+  assert.deepEqual(Object.keys(editor).sort(), ['createdAt', 'expiresAt', 'id', 'idleExpiresAt', 'label', 'lastUsedAt', 'scope']);
   assert.equal(editor.scope, 'editor');
   assert.equal(JSON.stringify(listed.body).includes(token), false);
   const forged = await request(server.url, `/api/editor-credentials/${editor.id}`, { method: 'DELETE', cookie: browser.cookie, csrf: false });
@@ -167,4 +167,14 @@ test('an unfold-mcp sign-in shows the client and host it named, built by Unfold,
   const forged = await begin(server.url, { client: 'mcp', host: 'Approve me <b>now</b>' });
   const other = await signInForEditor(forged.url, idp);
   assert.equal((await request(server.url, `/api/editor-requests/${forged.code}`, { cookie: other.cookie })).body.label, 'unfold-mcp');
+});
+
+test('a VS Code sign-in that names its host shows it on the approval page, and an old extension that names nothing still reads VS Code', async t => {
+  const { server, idp } = await workbench(t);
+  const started = await begin(server.url, { client: 'vscode', host: 'ryan-laptop' });
+  const browser = await signInForEditor(started.url, idp);
+  assert.equal((await request(server.url, `/api/editor-requests/${started.code}`, { cookie: browser.cookie })).body.label, 'VS Code on ryan-laptop');
+  const old = await begin(server.url);
+  const other = await signInForEditor(old.url, idp);
+  assert.equal((await request(server.url, `/api/editor-requests/${old.code}`, { cookie: other.cookie })).body.label, 'VS Code');
 });

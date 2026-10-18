@@ -88,12 +88,18 @@ test('Reject asks why in the chat and records the rejection with that reason thr
 });
 
 test('skipping the review question records nothing and leaves the candidate waiting for review', { timeout: testTimeout(60_000) }, async t => {
-  const { client, chat, changeset, stored } = await reviewable(t);
+  const { client, session, chat, changeset, stored } = await reviewable(t);
+  const status = async () => ((await client.rpc('listSessions', { channel: 'ahp-root://' })).items as Json[]).find(item => item.resource === session)!.status & 31;
+  assert.equal(await status(), 1, 'a candidate waiting in the Changes view is a finished session with changes, not an open question');
+  const mark = client.inbox.length;
   await client.rpc('invokeChangesetOperation', { channel: changeset, operationId: 'request-changes' });
   const asked = (await client.until(message => action(message, chat, 'chat/inputRequested'))).params.action.request;
+  await client.until(message => message.method === 'root/sessionSummaryChanged' && message.params.session === session && (message.params.changes.status & 24) === 24 && client.inbox.indexOf(message) >= mark);
+  assert.equal(await status(), 24, 'the review question needs input, which VS Code 1.142 shows as "Needs attention"');
   const seen = completions(client, chat);
   client.notify('dispatchAction', { channel: chat, clientSeq: 2, action: { type: 'chat/inputCompleted', requestId: asked.id, response: 'cancel' } });
   await turnCompleted(client, chat, seen);
+  await client.until(message => message.method === 'root/sessionSummaryChanged' && message.params.session === session && (message.params.changes.status & 31) === 1);
   assert.equal(stored().review, undefined);
   assert.equal((await client.rpc('subscribe', { channel: changeset })).snapshot.state.operations.length, 3);
 });

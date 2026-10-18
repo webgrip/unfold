@@ -1,7 +1,8 @@
 import { state, onForget, disconnect } from '../core/state.js';
 import { api } from '../core/api.js';
 import { escape, renderHtml, notify } from '../core/dom.js';
-import { button, callout, disclosure, dl, emptyState, skeleton, timeAt } from '../core/ui.js';
+import { button, callout, disclosure, dl, emptyState, skeleton } from '../core/ui.js';
+import { dateTime, namedDate, relativeWords } from '../core/format.js';
 import { agentHostConnectionAddress, agentsWindowLink, extensionViewLink, openVsxListing } from '../core/vscode.js';
 import { icon } from '../core/icons.js';
 import { shell } from '../shell.js';
@@ -10,19 +11,40 @@ import { confirmAction } from './dialogs.js';
 const view = { editors: null, error: '', loading: false, agentHost: undefined, copying: false, manualAddress: '' };
 onForget(() => Object.assign(view, { editors: null, error: '', loading: false, agentHost: undefined, copying: false, manualAddress: '' }));
 
+function moment(value, text) {
+  const at = new Date(value);
+  return `<time class="num" datetime="${escape(at.toISOString())}" title="${escape(dateTime(at))}">${escape(text)}</time>`;
+}
+
+const dated = (value, now) => moment(value, `${namedDate(value)} (${relativeWords(value, now)})`);
+
+/**
+ * The facts on one signed-in editor's row, as `[term, html]` pairs: when it was approved and last used, when it signs
+ * out for inactivity if that comes before its expiry, and when it expires. Every date names its month.
+ */
+export function editorFacts(editor, now = Date.now()) {
+  const facts = [
+    ['Approved', dated(editor.createdAt, now)],
+    ['Last used', editor.lastUsedAt ? moment(editor.lastUsedAt, relativeWords(editor.lastUsedAt, now)) : 'Not yet'],
+  ];
+  const idle = Date.parse(editor.idleExpiresAt);
+  if (idle < Date.parse(editor.expiresAt)) {
+    const days = Math.round((idle - Date.parse(editor.lastUsedAt ?? editor.createdAt)) / 86_400_000);
+    facts.push([`Signs out after ${days} days unused`, dated(editor.idleExpiresAt, now)]);
+  }
+  facts.push(['Expires', dated(editor.expiresAt, now)]);
+  return facts;
+}
+
 function editorCard(editor) {
-  const facts = dl([
-    ['Approved', timeAt(editor.createdAt)],
-    ['Last used', editor.lastUsedAt ? timeAt(editor.lastUsedAt) : 'Not yet'],
-    ['Signed out automatically', timeAt(editor.expiresAt)],
-  ], { rows: true });
+  const facts = dl(editorFacts(editor), { rows: true });
   return `<li class="editor-item"><div class="editor-item-text"><p class="settings-row-label">${icon('code')}<span>${escape(editor.label)}</span></p>${facts}</div>${button({ label: 'Sign out', icon: 'logout', variant: 'danger-ghost', size: 'sm', action: 'editor-revoke', data: { id: editor.id } })}</li>`;
 }
 
 function body() {
   if (view.error && !view.editors) return callout({ tone: 'danger', title: 'Could not read your signed-in editors', body: `<p>${escape(view.error)}</p>` });
   if (!view.editors) return skeleton({ rows: 2 });
-  if (!view.editors.length) return emptyState({ icon: 'code', title: 'No editors are signed in as you', body: 'When you approve a VS Code sign-in, it appears here until it expires or you sign it out.', compact: true });
+  if (!view.editors.length) return emptyState({ icon: 'code', title: 'No editors are signed in as you', body: 'When you approve a VS Code sign-in, it appears here until it expires, goes unused for two weeks, or you sign it out.', compact: true });
   return `<ul class="editor-list" aria-label="Signed-in editors">${view.editors.map(editorCard).join('')}</ul>`;
 }
 
@@ -43,7 +65,7 @@ function connectCard() {
 }
 
 function renderEditors() {
-  const note = `<p class="settings-footnote">${icon('lock')}<span>Each editor has its own sign-in, separate from this browser's. Signing one out ends it at once, along with any agent host connection it opened.</span></p>`;
+  const note = `<p class="settings-footnote">${icon('lock')}<span>Each editor has its own sign-in, separate from this browser's. Signing one out ends it at once, along with any agent host connection it opened. An editor left unused for two weeks is signed out on its own.</span></p>`;
   const content = `<div class="settings-page">${connectCard()}<section class="card settings-card" aria-labelledby="editors-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="editors-title">Signed-in editors</h2><p class="card-subtitle">VS Code editors you approved to act in this workbench as you.</p></div></header><div class="card-body">${body()}</div></section>${note}</div>`;
   renderHtml(shell(content, { title: 'Signed-in editors', subtitle: 'Connect VS Code, and see and sign out the editors that act as you.' }));
 }

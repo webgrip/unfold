@@ -201,7 +201,7 @@ test('the registry rejects a release flag without a removal date and a key that 
   assert.throws(() => checkRegistry({ flags: { 'work.x': { state: 'ENABLED', variants: { on: true }, defaultVariant: 'on', metadata: meta({ expires: undefined }) } } }), /expires is required for a release flag/);
   assert.throws(() => checkRegistry({ flags: { Work: { state: 'ENABLED', variants: { on: true }, defaultVariant: 'on', metadata: meta() } } }), /area.feature-name/);
   const shipped = loadRegistry();
-  assert.equal(shipped.flags['work.flight-profile'].defaultVariant, 'off', 'the flight profile ships off');
+  assert.equal(shipped.flags['work.live-view'].defaultVariant, 'off', 'the live view ships off');
 });
 
 test('the watched flag file applies valid changes and keeps the last good rules when a change is invalid', async t => {

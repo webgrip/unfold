@@ -15,21 +15,19 @@ runs:
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.local/share/mise/installs
-        key: unfold-mise-${{ runner.os }}-${{ hashFiles('mise.toml', 'mise.lock', 'apps/unfold/mise.toml', 'apps/unfold/mise.lock', 'apps/ploeg/mise.toml', 'apps/ploeg/mise.lock', 'apps/site/mise.toml') }}
+        key: unfold-mise-${{ runner.os }}-${{ hashFiles('mise.toml', 'mise.lock', 'apps/unfold/mise.toml', 'apps/unfold/mise.lock', 'apps/site/mise.toml') }}
         restore-keys: unfold-mise-${{ runner.os }}-
     - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
       with:
         version: 2026.10.7
         cache: false
         github_token: ''
-    - run: mise trust apps/unfold/mise.toml && mise trust apps/ploeg/mise.toml && mise trust apps/site/mise.toml
+    - run: mise trust apps/unfold/mise.toml && mise trust apps/site/mise.toml
       shell: bash
     - name: Prepare the output capture
       shell: bash
       run: mkdir -p "${RUNNER_TEMP:-/tmp}/unfold-output"
     - run: set -o pipefail; mise -C apps/unfold install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
-      shell: bash
-    - run: set -o pipefail; mise -C apps/ploeg install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
       shell: bash
     - run: set -o pipefail; mise -C apps/site install 2>&1 | tee -a "${RUNNER_TEMP:-/tmp}/unfold-output/install.log"
       shell: bash
@@ -45,9 +43,9 @@ runs:
       run: |
         set -euo pipefail
         {
-          echo "gomod=$(mise -C apps/ploeg exec -- go env GOMODCACHE)"
-          echo "gobuild=$(mise -C apps/ploeg exec -- go env GOCACHE)"
-          echo "go=$(mise -C apps/ploeg exec -- go env GOVERSION)"
+          echo "gomod=$(mise exec -- go env GOMODCACHE)"
+          echo "gobuild=$(mise exec -- go env GOCACHE)"
+          echo "go=$(mise exec -- go env GOVERSION)"
           echo "npm=$(mise -C apps/unfold exec -- npm config get cache)"
           echo "pnpm=$(mise -C apps/site exec -- corepack pnpm store path)"
         } >> "$GITHUB_OUTPUT"
@@ -57,9 +55,9 @@ runs:
         path: |
           ${{ steps.caches.outputs.gomod }}
           ${{ steps.caches.outputs.gobuild }}
-        key: unfold-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/ploeg/go.sum') }}-${{ hashFiles('apps/ploeg/**/*.go') }}
+        key: unfold-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/unfold/scripts/unified-demo/go.sum') }}-${{ hashFiles('apps/unfold/scripts/unified-demo/**/*.go') }}
         restore-keys: |
-          unfold-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/ploeg/go.sum') }}-
+          unfold-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-${{ hashFiles('apps/unfold/scripts/unified-demo/go.sum') }}-
           unfold-go-${{ runner.os }}-${{ steps.caches.outputs.go }}-
           unfold-go-${{ runner.os }}-
     - name: Restore npm download cache

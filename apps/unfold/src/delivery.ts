@@ -1,3 +1,4 @@
+import { ploegAttribution } from './action-records.ts';
 import type { AppConfig, Session, User } from './types.ts';
 import type { Store } from './store.ts';
 import { policyDigest } from './delivery-config.ts';
@@ -48,7 +49,7 @@ export class DeliveryService {
     const token = name ? process.env[name] : undefined;
     if (!token || token.length < 32 || token.length > 4096 || /[^\x21-\x7e]/.test(token) || !session.execution) deliveryFailure('delivery_authority_unavailable');
     try {
-      const response = await fetch(`${this.config.ploeg!.url}/api/v1/operator/executions/${session.execution!.id}/delivery${suffix}`, { method: payload === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'X-Ploeg-Actor': session.ownerId, 'X-Ploeg-Acting-User': actingUser, accept: 'application/json', ...(payload === undefined ? {} : { 'content-type': 'application/json' }) }, body: payload === undefined ? undefined : JSON.stringify(payload), signal: AbortSignal.timeout(10000), redirect: 'manual' });
+      const response = await fetch(`${this.config.ploeg!.url}/api/v1/operator/executions/${session.execution!.id}/delivery${suffix}`, { method: payload === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'X-Ploeg-Actor': session.ownerId, 'X-Ploeg-Acting-User': actingUser, accept: 'application/json', ...(payload === undefined ? {} : { 'content-type': 'application/json', ...ploegAttribution() }) }, body: payload === undefined ? undefined : JSON.stringify(payload), signal: AbortSignal.timeout(10000), redirect: 'manual' });
       if (!response.ok || !(response.headers.get('content-type') ?? '').includes('application/json') || !response.body) { await response.body?.cancel(); throw Object.assign(new Error('Candidate delivery blocked: delivery authority rejected.'), { status: 409, code: 'delivery_authority_rejected', upstreamStatus: response.status }); }
       const chunks: Uint8Array[] = []; let size = 0; const reader = response.body!.getReader();
       try { while (true) { const part = await reader.read(); if (part.done) break; size += part.value.byteLength; if (size > 262144) deliveryFailure('delivery_response_too_large'); chunks.push(part.value); } } finally { await reader.cancel().catch(() => undefined); }

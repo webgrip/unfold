@@ -59,6 +59,16 @@ const copy = {
     sentence: 'Ploeg stopped for lack of budget, but most of the budget was only held for Runs whose spend it had not settled yet, not spent.',
     fix: 'Find out why those Runs failed and fix that first. Raising the budget does not help while the money is only held.',
   },
+  checks_not_passed: {
+    chip: 'Checks did not pass',
+    sentence: 'The writer opened the pull request, but the Team’s checks failed or did not finish on the commit it pushed, and no fix Round could run. The pull request stays open.',
+    fix: 'Run the Team’s checks on the pull request’s branch to see which one fails. Fix the branch by hand, or fix a flaky check in the Team’s configuration.',
+  },
+  review_failed: {
+    chip: 'Reviewer kept failing',
+    sentence: 'The agent reviewer failed on every try, so no agent reviewed this work, and Ploeg did not mark it ready for review.',
+    fix: 'Read the reviewer’s failed Runs to see why. Review the change yourself, or fix the reviewer’s model or harness.',
+  },
   writing_run_failed_repeatedly: {
     chip: 'Writer kept failing',
     sentence: 'The writer failed three times in one Round without writing the branch. These were agent failures, not infrastructure.',
@@ -150,7 +160,7 @@ const number = value => typeof value === 'number' && Number.isFinite(value);
 
 const held = (spent, reserved) => number(spent) && number(reserved) && reserved > 0 && reserved >= spent;
 
-const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'budget_exhausted_before_fix_round', 'writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
+const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'checks_not_passed', 'review_failed', 'budget_exhausted_before_fix_round', 'writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
 
 const reasonCode = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)+$/;
 
@@ -196,6 +206,8 @@ const reasonGlyphs = Object.freeze({
   budget_exhausted: 'coins',
   budget_exhausted_before_fix_round: 'coins',
   budget_held: 'lock',
+  checks_not_passed: 'x-circle',
+  review_failed: 'eye-off',
   writing_run_failed_repeatedly: 'x-circle',
   writing_run_killed_repeatedly: 'zap',
   run_stuck: 'pause-circle',
@@ -272,6 +284,8 @@ function relevantRun(detail, reason, closeReason) {
     return runs.find(run => run.outcome === 'stuck' && (!role || run.role === role) && (round === null || run.round === round)) || runs.find(run => run.outcome === 'stuck') || null;
   }
   if (['writing_run_failed_repeatedly', 'writing_run_killed_repeatedly', 'stale_attempts', 'stale_infrastructure', 'budget_held'].includes(reason.code)) return runs.find(run => run.writes && (run.outcome === 'failed' || run.failureReason)) || runs.find(run => run.outcome === 'failed' || run.failureReason) || null;
+  if (reason.code === 'checks_not_passed') return runs.find(run => run.writes && (run.outcome === 'pr_opened' || run.outcome === 'pr_updated')) || null;
+  if (reason.code === 'review_failed') return runs.find(run => !run.writes && (run.outcome === 'failed' || run.failureReason)) || null;
   if (reason.code === 'unknown') return runs.find(run => run.outcome === 'stuck') || null;
   return null;
 }

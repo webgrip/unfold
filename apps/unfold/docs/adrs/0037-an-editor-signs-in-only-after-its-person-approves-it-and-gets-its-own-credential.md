@@ -120,3 +120,4 @@ Out of scope: a person who approves a request they did not start despite the war
 ### History
 
 * 2026-10-03: accepted with the implementation. The owner approved the ticket's approach (approval page with a shared code, a separate revocable editor credential) on 2026-10-03, so the record starts as accepted.
+* 2026-10-17 — Owner decided: an editor credential left unused for fourteen days (from its last use, or from approval when never used) signs out on its own, exactly like an expired one, ending its Agent Host connections too; the thirty-day lifetime stays. A VS Code sign-in is named after its machine, `VS Code on <host>`, built by Unfold from the host the extension sends, and Signed-in editors shows dates with the month named and how far away they are, plus when an unused editor will be signed out.
