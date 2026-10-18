@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { AppConfig, User } from './types.ts';
-import { parseAgentTrace, traceLines, type AgentTraceRecord } from './agent-trace.ts';
+import { parseAgentTrace, traceLines, traceLinesByAgent, type AgentTraceRecord } from './agent-trace.ts';
 import { readSessionTelemetry, type SessionTelemetry } from './linked-telemetry.ts';
 
 /** The harnesses whose sessions a person can link. */
@@ -20,7 +20,7 @@ export type LinkedStatus = 'working' | 'waiting' | 'idle' | 'ended';
 /** How a Linked Session came to be linked to a Work Item: a person or agent said so, or its branch names the Work Item's tracker task. */
 export type LinkedHow = 'explicit' | 'branch';
 export type LinkedWorkItem = { id: string; how: LinkedHow; linkedAt: string; linkedBy: string };
-export type LinkedCommit = { sha: string; subject: string; at: string; trailer: boolean; aiLines: number | null; files: number | null };
+export type LinkedCommit = { sha: string; subject: string; at: string; trailer: boolean; aiLines: number | null; files: number | null; agents?: Record<string, number> };
 /**
  * A Linked Session: an agent session a person runs outside Unfold, such as Claude Code on their own machine, that
  * reports to Unfold through its hooks and is linked to Work Items. Unfold never starts, steers or pays for it.
@@ -301,9 +301,10 @@ export class LinkedSessions {
     if (!owner && this.store.traceCount(id) >= linkedLimits.traces) fail(409, 'agent_trace_full', `A Linked Session keeps at most ${linkedLimits.traces} Agent Trace records.`);
     const lines = traceLines(record);
     const stored = this.store.addTrace(id, record, this.clock().toISOString());
+    const agents = traceLinesByAgent(record);
     const commit = session!.commits.find(entry => entry.sha === record.vcs!.revision);
-    if (commit) { commit.aiLines = lines.ai; commit.files = lines.files; }
-    else session!.commits = [...session!.commits, { sha: record.vcs!.revision, subject: '', at: record.timestamp, trailer: false, aiLines: lines.ai, files: lines.files }].slice(-linkedLimits.commits);
+    if (commit) Object.assign(commit, { aiLines: lines.ai, files: lines.files, agents });
+    else session!.commits = [...session!.commits, { sha: record.vcs!.revision, subject: '', at: record.timestamp, trailer: false, aiLines: lines.ai, files: lines.files, agents }].slice(-linkedLimits.commits);
     this.store.save(session!);
     return { stored, aiLines: lines.ai, files: lines.files };
   }

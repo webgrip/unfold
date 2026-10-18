@@ -73,11 +73,18 @@ function telemetryTiles(telemetry) {
   return `<div class="stat-row linked-session-stats">${tiles}</div>${tools}${partial}`;
 }
 
+/** Who wrote a commit's AI lines: `main 12 · code-reviewer 40`, or a dash when the record names no agents. */
+export function agentsText(agents) {
+  const entries = Object.entries(agents ?? {}).filter(([, lines]) => lines > 0);
+  if (!entries.length) return '<span class="meta">—</span>';
+  return entries.map(([agent, lines]) => `${escape(agent === 'main' ? 'main agent' : agent)} ${escape(compactCount(lines))}`).join(' · ');
+}
+
 function commitsTable(session) {
   const commits = [...(session.commits ?? [])].reverse();
   if (!commits.length) return `<p class="meta">No commits reported yet.</p>`;
-  const rows = commits.slice(0, 50).map(entry => `<tr><td class="mono">${escape(entry.sha.slice(0, 10))}</td><td>${escape(entry.subject || '—')}</td><td class="num">${entry.aiLines === null || entry.aiLines === undefined ? '<span class="meta">no record</span>' : escape(compactCount(entry.aiLines))}</td><td>${entry.trailer ? icon('check') + '<span class="visually-hidden">has the Unfold-Session trailer</span>' : '<span class="meta">—</span>'}</td></tr>`).join('');
-  return `<div class="table-wrap" data-private><table class="table compact"><caption class="visually-hidden">Commits this session reported</caption><thead><tr><th scope="col">Commit</th><th scope="col">Subject</th><th scope="col" class="num">AI-written lines</th><th scope="col">Trailer</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  const rows = commits.slice(0, 50).map(entry => `<tr><td class="mono">${escape(entry.sha.slice(0, 10))}</td><td>${escape(entry.subject || '—')}</td><td class="num">${entry.aiLines === null || entry.aiLines === undefined ? '<span class="meta">no record</span>' : escape(compactCount(entry.aiLines))}</td><td>${agentsText(entry.agents)}</td><td>${entry.trailer ? icon('check') + '<span class="visually-hidden">has the Unfold-Session trailer</span>' : '<span class="meta">—</span>'}</td></tr>`).join('');
+  return `<div class="table-wrap" data-private><table class="table compact"><caption class="visually-hidden">Commits this session reported</caption><thead><tr><th scope="col">Commit</th><th scope="col">Subject</th><th scope="col" class="num">AI-written lines</th><th scope="col">By</th><th scope="col">Trailer</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 /** The facts of one Linked Session as `[term, html]` pairs for its page. */

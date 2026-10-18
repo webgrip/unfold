@@ -30,7 +30,7 @@ test('the plugin manifest, hooks and marketplace entry are what Claude Code load
 });
 
 test('lines the agent wrote are matched by fingerprint in the commit, short lines follow their neighbours, and lines it did not write stay out', () => {
-  const written: Record<string, string[]> = {};
+  const written: Record<string, any> = {};
   remember(written, 'src/login.ts', writtenText('Write', { content: 'export function login(user) {\n  return check(user);\n}\n' }));
   remember(written, 'src/login.ts', writtenText('MultiEdit', { edits: [{ new_string: '    const audited = audit(user);' }] }));
   assert.equal(writtenText('Edit', { new_string: 'x' }), 'x');
@@ -43,6 +43,23 @@ test('lines the agent wrote are matched by fingerprint in the commit, short line
   assert.match(files[0].ranges[0].content_hash, /^sha256:[0-9a-f]{16}$/);
   assert.equal(modelId('claude-opus-5-5[1m]'), 'anthropic/claude-opus-5-5');
   assert.equal(modelId(''), '');
+});
+
+test('lines written by a subagent are attributed to it, in their own conversation, and an older state counts as the main agent', () => {
+  const written: Record<string, any> = {};
+  remember(written, 'src/a.ts', 'const main = 1;\nconst shared = 2;');
+  remember(written, 'src/a.ts', 'const reviewed = 3;\nconst shared = 2;', 'code-reviewer');
+  const diff = ['+++ b/src/a.ts', '@@ -0,0 +1,4 @@', '+const main = 1;', '+const shared = 2;', '+const reviewed = 3;', '+}'].join('\n');
+  const files = attribute(addedLines(diff), written);
+  assert.deepEqual(files[0].ranges.map((range: any) => [range.start_line, range.end_line, range.agent]), [[1, 1, 'main'], [2, 4, 'code-reviewer']], 'the last agent to write a line owns it, and a closing brace follows its neighbour');
+  const record = traceRecord({ revision: sha, timestamp: '2026-10-18T10:00:00Z', files, sessionId: 'abcd1234', sessionUrl: 'https://unfold.example.org/#linked-session/abcd1234' });
+  const parsed = parseAgentTrace(record);
+  assert.deepEqual(parsed.files[0].conversations.map(conversation => [conversation.url, conversation.ranges.length]), [['https://unfold.example.org/#linked-session/abcd1234', 1], ['https://unfold.example.org/#linked-session/abcd1234?agent=code-reviewer', 1]]);
+  assert.deepEqual(parsed.files[0].conversations[1].related, [{ type: 'parent-session', url: 'https://unfold.example.org/#linked-session/abcd1234' }]);
+  assert.deepEqual((parsed.metadata as Record<string, any>)['dev.unfoldhq'].agents, ['main', 'code-reviewer']);
+  const legacy: Record<string, any> = { 'src/b.ts': [] };
+  remember(legacy, 'src/b.ts', 'const old = true;');
+  assert.deepEqual(Object.values(legacy['src/b.ts']), ['main']);
 });
 
 test('a record from the plugin passes Unfold’s strict Agent Trace check and links the session and its Work Items', () => {
@@ -143,6 +160,21 @@ test('the hook reports a session, names it after its Work Item, and sends an Age
   assert.equal(unfold.received.length, before, 'only notifications that wait for the person are reported');
   await runHook({ ...base, hook_event_name: 'Notification', notification_type: 'permission_prompt' }, env);
   assert.deepEqual([unfold.received.at(-1)!.body.event, unfold.received.at(-1)!.body.waitingFor], ['waiting', 'permission_prompt']);
+
+  const worktree = join(dir, 'worktree');
+  gitIn('worktree', 'add', '-q', '-b', 'subagent/branch', worktree);
+  const content2 = 'export const reviewed = (value: string) => value.trim();\n';
+  await runHook({ ...base, hook_event_name: 'PostToolUse', tool_name: 'Write', agent_id: 'agent-7', agent_type: 'code-reviewer', tool_input: { file_path: join(worktree, 'src/review.ts'), content: content2 } }, env);
+  execFileSync('mkdir', ['-p', join(worktree, 'src')]);
+  await writeFile(join(worktree, 'src/review.ts'), content2);
+  execFileSync('git', ['-C', worktree, 'add', 'src/review.ts']);
+  execFileSync('git', ['-C', worktree, 'commit', '-q', '-m', 'feat: review helper']);
+  const worktreeHead = execFileSync('git', ['-C', worktree, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  await runHook({ ...base, hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'ls' } }, env);
+  const subTrace = unfold.received.filter(entry => entry.path === '/api/linked-sessions/plugin-session-1/traces').map(entry => parseAgentTrace(entry.body)).find(entry => entry.vcs?.revision === worktreeHead);
+  assert.ok(subTrace, 'a commit in a worktree the session edited gets its Agent Trace record');
+  assert.deepEqual(subTrace!.files.map(file => [file.path, file.conversations.map(conversation => conversation.url)]), [['src/review.ts', ['http://unfold.test/#linked-session/plugin-session-1?agent=code-reviewer']]]);
+  assert.equal(JSON.parse(execFileSync('git', ['-C', worktree, 'notes', '--ref=agent-trace', 'show', worktreeHead], { encoding: 'utf8' })).id, subTrace!.id);
 });
 
 test('without UNFOLD_URL and UNFOLD_TOKEN, or with Unfold down, the hook prints nothing and exits 0', async t => {
