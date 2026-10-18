@@ -283,6 +283,8 @@ MCP: not exposed; unfold_get_work quotes the reason of the latest `work_item.<st
 | `work_item.requeued` | [Work Item](glossary.md#work-item) | Queued for a new attempt | not exposed |  |
 | `work_item.route_refused` | [Work Item](glossary.md#work-item) | The task could not be routed to a repository | not exposed |  |
 | `work_item.epics_seen` | [Work Item](glossary.md#work-item) | The task’s epics changed | not exposed |  |
+| `work_item.dependencies_seen` | [Work Item](glossary.md#work-item) | The task’s blockers changed | not exposed |  |
+| `work_item.premise_checked` | [Work Item](glossary.md#work-item) | Checked the task before starting | not exposed |  |
 | `pull_request.mergeable` | [Forge Event](glossary.md#forge-event) | The merge conflict is resolved | not exposed |  |
 | `pull_request.conflicted` | [Forge Event](glossary.md#forge-event) | The pull request has a merge conflict | not exposed |  |
 | `pull_request.reverted` | [Forge Event](glossary.md#forge-event) | The merged pull request was reverted | not exposed |  |

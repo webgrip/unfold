@@ -319,6 +319,12 @@ const sentence = text => { const value = String(text ?? '').trim(); return value
 const isAmount = value => typeof value === 'number' && Number.isFinite(value);
 const pullRequestNumber = number => Number.isInteger(number) && number > 0 ? `Pull request #${number}` : '';
 const epicList = epics => Array.isArray(epics) ? epics.filter(each => typeof each === 'string' && each.trim()).map(each => each.trim()) : null;
+const premiseChecks = {
+  proceed: ['Checked before starting: ready to go', 'success', 'check'],
+  ask: ['Checked before starting: a question for you', 'attention', 'alert'],
+  too_big: ['Checked before starting: too big for one go', 'attention', 'alert'],
+  skipped: ['The check before starting was skipped', 'neutral', 'circle-dashed'],
+};
 const outcomeEvents = { pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'Reported no change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Reported that it is stuck', failed: 'Run failed' };
 
 /**
@@ -461,6 +467,8 @@ export function auditEvent(entry) {
     case 'work_item.requeued': return event('Queued for a new attempt', 'neutral', 'refresh', [Number.isInteger(detail.from_round) && detail.from_round > 1 ? `From Round ${detail.from_round}` : '', sentence(detail.note)].filter(Boolean).join(' · '));
     case 'work_item.route_refused': return event('The task could not be routed to a repository', 'attention', 'alert', said);
     case 'work_item.epics_seen': { const epics = epicList(detail.epics); return event('The task’s epics changed', 'neutral', 'tag', epics === null ? '' : epics.length ? `Now under ${epics.join(', ')}` : 'No longer under an epic'); }
+    case 'work_item.dependencies_seen': { const blockers = epicList(detail.waiting_for); return event('The task’s blockers changed', 'neutral', 'clock', blockers === null ? '' : blockers.length ? `Waiting for ${blockers.join(', ')}` : 'No longer waiting for another task'); }
+    case 'work_item.premise_checked': { const checked = premiseChecks[detail.verdict] ?? ['Checked the task before starting', 'neutral', 'check']; return event(...checked, detail.verdict === 'ask' ? sentence(detail.question) || said : said); }
     case 'pull_request.conflicted': return event('The pull request has a merge conflict', 'attention', 'alert', pullRequestNumber(detail.number));
     case 'pull_request.mergeable': return event('The merge conflict is resolved', 'success', 'check', pullRequestNumber(detail.number));
     case 'pull_request.reverted': return event('The merged pull request was reverted', 'attention', 'undo', pullRequestNumber(detail.pr));
