@@ -30,6 +30,7 @@ import { RunLive, type LiveAction } from './run-live.ts';
 import { WorkItemCommands, openShiftOf, promptClosedActions, promptInputNeeded, promptOpenActions, restartable, takesNotes, withPrompts, workItemCommandText, type WorkItemPrompt } from './work-item-commands.ts';
 import { PloegError } from '../ploeg.ts';
 import { refusalPlacement, refusalReply } from './refusals.ts';
+import { editorLink, openElsewherePart, withLeadingPart, type EditorTarget, type EditorWindow } from './editor-window.ts';
 
 export { MalformedVersion, negotiateProtocolVersion, protocolBaselines, protocolVersion, supportedVersions } from './versions.ts';
 export const provider = 'unfold';
@@ -286,6 +287,7 @@ export class AgentHost {
   private readonly offering = new Set<string>();
   private readonly offeredAfter = new Map<string, number>();
   private readonly loadingCandidates = new Map<string, Promise<void>>();
+  private readonly editorWindows = new Map<string, EditorWindow>();
   private timer?: ReturnType<typeof setInterval>;
   private polling = false;
   private closed = false;
@@ -391,6 +393,21 @@ export class AgentHost {
       if (bound) this.store.setSecret(`ahp-sign-in:${bound}`, [...(this.store.getSecret<string[]>(`ahp-sign-in:${bound}`) ?? []), key]);
     });
     return token;
+  }
+
+  /** Remembers the VS Code editor window a person's extension registered last, so links in their Agents window open panels there. */
+  rememberEditorWindow(user: User, window: EditorWindow): void { this.editorWindows.set(user.id, window); }
+
+  /** Forgets a person's editor window; links in their Agents window then open only the browser. */
+  forgetEditorWindow(user: User): boolean { return this.editorWindows.delete(user.id); }
+
+  private openElsewhere(user: User, target: EditorTarget, page: string, noun: string, partId: string): Json | undefined {
+    const window = this.editorWindows.get(user.id);
+    return openElsewherePart(partId, { editor: window ? editorLink(window, target, this.config.baseUrl) : '', page }, noun);
+  }
+
+  private workItemPage(workItemId: string): string {
+    return this.config.baseUrl ? `${this.config.baseUrl.replace(/\/+$/, '')}/#work/${encodeURIComponent(workItemId)}` : '';
   }
 
   /** Revokes every connection token issued by one sign-in and closes its connections. */
@@ -1264,7 +1281,13 @@ export class AgentHost {
     const session = this.sessionFor(client.user, channel);
     if (!session) throw new RpcError(codes.sessionNotFound, 'Session not found');
     if (parsed.kind === 'session') return { resource: channel, state: this.sessionState(session, client), fromSeq: this.serverSeq };
-    if (parsed.kind === 'chat') return { resource: channel, state: this.chatState(session, client), fromSeq: this.serverSeq };
+    if (parsed.kind === 'chat') {
+      const workItemId = session.execution?.workItemId;
+      const lead = workItemId
+        ? this.openElsewhere(client.user, { kind: 'work-item', id: workItemId }, this.workItemPage(workItemId), 'Work Item', `${session.id}-open-elsewhere`)
+        : this.openElsewhere(client.user, { kind: 'session', id: session.id }, this.sessionPage(session), 'session', `${session.id}-open-elsewhere`);
+      return { resource: channel, state: withLeadingPart(this.chatState(session, client), lead), fromSeq: this.serverSeq };
+    }
     return { resource: channel, state: this.changesetState(session), fromSeq: this.serverSeq };
   }
 
@@ -1593,7 +1616,8 @@ export class AgentHost {
     const flags = this.viewOf(client, parsed.id);
     const open = this.workItemCommands.open(client.user.id, found.entry.workItemId);
     const sessionState = parsed.kind === 'session' && !parsed.run ? { ...workItemSessionState(found.entry, found.detail, spelling, flags, client.protocolVersion, this.activeClientsOf(parsed.id)), ...this.workItemProject(found.entry.item), inputNeeded: open ? [promptInputNeeded(open, spelling.chat)] : [] } : undefined;
-    const chatState = parsed.kind === 'chat' && !parsed.run ? withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId), this.workItemCommands.notes(client.user.id, found.entry.workItemId)) : undefined;
+    const lead = this.openElsewhere(client.user, { kind: 'work-item', id: found.entry.workItemId }, this.workItemPage(found.entry.workItemId), 'Work Item', `${parsed.id}-open-elsewhere`);
+    const chatState = parsed.kind === 'chat' && !parsed.run ? withLeadingPart(withPrompts(workItemChatState(found.entry, found.detail, spelling, flags), this.workItemCommands.prompts(client.user.id, found.entry.workItemId), this.workItemCommands.notes(client.user.id, found.entry.workItemId)), lead) : undefined;
     const waiting = (state: Json) => open ? this.awaitingPerson(state) : state;
     const runChat = parsed.run ? workItemRunChatState(found.detail, parsed.run, spelling) : undefined;
     const state = parsed.run ? runChat && await this.runLive.chat(client.user, found.detail, parsed.run, runChat) : sessionState ? waiting(sessionState) : chatState ? waiting(chatState) : undefined;

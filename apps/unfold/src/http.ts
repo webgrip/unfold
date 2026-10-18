@@ -10,6 +10,7 @@ import { readCandidate, unavailableCandidate } from './candidates.ts';
 import { placements } from './config.ts';
 import type { WorkerRelay } from './runtime/relay.ts';
 import type { AgentHost } from './ahp/host.ts';
+import { parseEditorWindow } from './ahp/editor-window.ts';
 import { agentHostTokenId, type AgentsWindowTarget, protocolBaselines as agentHostProtocolVersions, protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
 import { agentHostAuthority, agentsWindowSessionLinks } from '../public/core/agents-window.js';
 import type { Links } from './links.ts';
@@ -477,7 +478,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         if (method === 'GET' && path === '/api/mcp-servers') return json(res, 200, { servers: config.mcpServers?.ploeg ? [{ id: 'ploeg', label: 'Ploeg', type: 'http', url: config.mcpServers.ploeg.url, oauth: { clientId: config.mcpServers.ploeg.clientId } }] : [] });
         const agentHostToken = path.match(/^\/api\/agent-host\/tokens\/([0-9a-f]{64})$/);
         const agentsWindowLink = path.match(/^\/api\/agent-host\/(sessions|work-items)\/([^/]{1,100})\/link$/);
-        if (path === '/api/agent-host' || path === '/api/agent-host/tokens' || agentHostToken || agentsWindowLink) {
+        if (path === '/api/agent-host' || path === '/api/agent-host/tokens' || path === '/api/agent-host/editor-window' || agentHostToken || agentsWindowLink) {
           if (!agentHost) fault(404, 'agent_host_disabled', 'The agent host is not enabled on this workbench.');
           const address = (config.baseUrl ?? `http://${config.host}:${config.port}`).replace(/^http/, 'ws');
           if (method === 'GET' && path === '/api/agent-host') {
@@ -504,6 +505,14 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             const token = agentHost!.issueToken(user, text(data.label, 'Label', 80, true) || 'agent host', auth.signIn(req));
             return json(res, 201, { token, id: agentHostTokenId(token), address, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: token } } });
           }
+          if (path === '/api/agent-host/editor-window' && method === 'PUT') {
+            if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host, so they have no Agents window to link from.');
+            const window = parseEditorWindow(await body(req));
+            if (!window) fault(400, 'invalid_editor_window', 'Send protocol "vscode" or "vscode-insiders" and the numeric windowId from env.asExternalUri.');
+            agentHost!.rememberEditorWindow(user, window);
+            return json(res, 200, window);
+          }
+          if (path === '/api/agent-host/editor-window' && method === 'DELETE') return json(res, 200, { forgotten: agentHost!.forgetEditorWindow(user) });
           if (method === 'DELETE' && agentHostToken) {
             if (!agentHost!.revokeToken(user, agentHostToken[1])) fault(404, 'not_found', 'No connection token of yours has this identifier.');
             return json(res, 200, { revoked: true });

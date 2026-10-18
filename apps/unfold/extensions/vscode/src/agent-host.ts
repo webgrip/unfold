@@ -385,3 +385,12 @@ export function agentsWindowPlan(view: AgentsWindowLinkView, entries: readonly A
   const url = build({ protocol, session: view.session, address: entry.address });
   return url ? { kind: 'open', url, attached: view.attached } : { kind: 'unusable' };
 }
+
+/** This editor window as the workbench needs it to address links at it: the URL protocol and window id of the extension's own link after `env.asExternalUri`. Undefined for a link without a window id, as in VS Code for the Web. */
+export function editorWindowOf(externalLink: string): { protocol: string; windowId: string } | undefined {
+  let url: URL;
+  try { url = new URL(externalLink); } catch { return undefined; }
+  const windowId = url.searchParams.get('windowId') ?? '';
+  const protocol = url.protocol.replace(/:$/, '');
+  return url.host === 'webgrip.unfold' && /^[1-9][0-9]{0,8}$/.test(windowId) && /^[a-z][a-z0-9-]*$/.test(protocol) ? { protocol, windowId } : undefined;
+}

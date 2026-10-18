@@ -6,7 +6,7 @@ import { chmod, lstat, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowState, agentsWindowStatusText, attachAgentHost, connectionAddress, detachAgentHost, editSetting, fileStore, hasAgentHost,
+  SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowState, agentsWindowStatusText, attachAgentHost, connectionAddress, detachAgentHost, editSetting, editorWindowOf, fileStore, hasAgentHost,
   isUnfoldAgentHostName, probeAgentHostToken, userSettingsFile, withAgentHost, withAgentHostNames, withoutIssuedAgentHost,
   type AgentHostEntry, type AgentHostStore, type AttachRequest, type SettingsConfiguration, type TokenProbe,
 } from '../src/agent-host.ts';
@@ -272,4 +272,13 @@ test('a renamed entry keeps its name and no longer counts as one of Unfold\'s', 
   assert.equal(isUnfoldAgentHostName('Unfold (127.0.0.1:4080)'), true);
   assert.equal(isUnfoldAgentHostName('Unfold staging'), false);
   assert.equal(isUnfoldAgentHostName(undefined), false);
+});
+
+test('the editor window is read from the extension\'s own link after env.asExternalUri', () => {
+  assert.deepEqual(editorWindowOf('vscode://webgrip.unfold/?windowId=3'), { protocol: 'vscode', windowId: '3' });
+  assert.deepEqual(editorWindowOf('vscode-insiders://webgrip.unfold/?windowId=12'), { protocol: 'vscode-insiders', windowId: '12' });
+  assert.equal(editorWindowOf('https://vscode.dev/callback?windowId=3'), undefined, 'VS Code for the Web resolves the link to its own page');
+  assert.equal(editorWindowOf('vscode://webgrip.unfold/'), undefined, 'no window id, nothing to address');
+  assert.equal(editorWindowOf('vscode://other.extension/?windowId=3'), undefined);
+  assert.equal(editorWindowOf('not a link'), undefined);
 });

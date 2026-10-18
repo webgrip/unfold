@@ -292,6 +292,7 @@ export class UnfoldClient {
 /** What a `vscode://webgrip.unfold/<path>?<query>` link from the workbench asks the extension to do. */
 export type UnfoldLink =
   | { kind: 'checkout'; workItem?: string; origin?: string }
+  | { kind: 'work-item' | 'session'; id: string; origin?: string }
   | { kind: 'connect-agents-window'; origin?: string };
 
 /** Reads a link's path and query; throws for a path the extension does not handle or an origin that is not a workbench address. */
@@ -304,5 +305,10 @@ export function parseUnfoldLink(path: string, query: string): UnfoldLink {
   }
   if (path === '/checkout') return { kind: 'checkout', workItem: params.get('workItem') ?? undefined, ...(origin ? { origin } : {}) };
   if (path === '/connect-agents-window') return { kind: 'connect-agents-window', ...(origin ? { origin } : {}) };
+  if (path === '/work-item' || path === '/session') {
+    const id = params.get('id') ?? '';
+    if (!(path === '/work-item' ? /^[1-9][0-9]{0,19}$/ : /^[A-Za-z0-9_-]{1,80}$/).test(id)) throw new Error(`This link names no ${path === '/work-item' ? 'Work Item' : 'session'}.`);
+    return { kind: path === '/work-item' ? 'work-item' : 'session', id, ...(origin ? { origin } : {}) };
+  }
   throw new Error(`Unfold does not handle ${path || 'this link'}.`);
 }
