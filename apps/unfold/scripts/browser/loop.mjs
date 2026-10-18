@@ -1,4 +1,4 @@
-/** The loop on Now: the desk stays while now.loop is off; turning it on under Labs shows Decide, Unstick and Start in that order with the day line, h opens the hand-off sheet on the demo fixture task with its readiness, the demo note and no live button, Escape returns focus to the row, Try again on a stopped demo Work Item asks for a note and says the demo spends nothing, the loop fits 390px without widening the page, and Default brings the desk back. */
+/** The loop on Now: the desk stays while now.loop is off; turning it on under Labs shows Decide, Unstick and Start in that order with the day line, h opens the hand-off sheet on the demo fixture task with its readiness, the demo note and no live button, Escape returns focus to the row, Try again on a stopped demo Work Item asks for a note and says the demo spends nothing, the loop fits 390px without widening the page, with the Fleet board on too the Now switch reads Loop and Fleet and moves between them, and Default brings the desk back. */
 export async function run({ app, page, assert, screenshot }) {
   const origin = `http://127.0.0.1:${app.server.address().port}`;
   await page.setViewportSize({ width: 1440, height: 1040 });
@@ -58,6 +58,19 @@ export async function run({ app, page, assert, screenshot }) {
 
   await page.setViewportSize({ width: 1440, height: 1040 });
   await page.goto(`${origin}/#settings/labs`);
+  const fleetChoice = page.getByRole('group', { name: 'Fleet board on Now: your choice' });
+  await fleetChoice.getByRole('button', { name: 'On', exact: true }).click();
+  await page.goto(`${origin}/#now`);
+  const modes = page.getByRole('group', { name: 'Show Now as' });
+  await modes.getByRole('button', { name: 'Loop' }).click();
+  await loop.waitFor();
+  await modes.getByRole('button', { name: 'Fleet' }).click();
+  await page.locator('article.fb').waitFor();
+  assert.equal(await page.locator('.now-loop').count(), 0, 'Fleet still shows the loop');
+  await modes.getByRole('button', { name: 'Loop' }).click();
+  await loop.waitFor();
+  await page.goto(`${origin}/#settings/labs`);
+  await fleetChoice.getByRole('button', { name: 'Default' }).click();
   await choice.getByRole('button', { name: 'Default' }).click();
   await page.getByText(/Your choice: default/i).first().waitFor().catch(() => {});
   await page.goto(`${origin}/#now`);

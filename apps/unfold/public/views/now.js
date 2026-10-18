@@ -75,7 +75,7 @@ function fleetShown() {
 
 function modeSwitch(fleet) {
   if (!enabled('now.fleet')) return '';
-  return `<span class="now-mode">${segmented({ label: 'Show Now as', action: 'now-mode', items: [{ id: 'desk', label: 'Desk', selected: !fleet }, { id: 'fleet', label: 'Fleet', selected: fleet }] })}</span>`;
+  return `<span class="now-mode">${segmented({ label: 'Show Now as', action: 'now-mode', items: [{ id: 'desk', label: enabled('now.loop') ? 'Loop' : 'Desk', selected: !fleet }, { id: 'fleet', label: 'Fleet', selected: fleet }] })}</span>`;
 }
 
 const start = { lists: new Map(), loading: false, loaded: false, handed: [], sheet: null, week: null, weekAt: 0 };
@@ -136,7 +136,7 @@ function switchMode(element) {
   if (!prefs.set('nowView', mode)) return;
   track(`now.view_${mode}`);
   renderNow();
-  announce(mode === 'fleet' ? 'Showing the fleet' : 'Showing the desk');
+  announce(mode === 'fleet' ? 'Showing the fleet' : enabled('now.loop') ? 'Showing the loop' : 'Showing the desk');
   document.querySelector(`[data-action="now-mode"][data-id="${mode}"]`)?.focus({ preventScroll: true });
 }
 
