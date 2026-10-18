@@ -126,8 +126,14 @@ test('a pending permission OpenCode cannot list arrives through the event stream
     events.push(event);
     if (event.type === 'permission') void refused.then(() => runtime.respond(ctx.workspace, { ...event.data, id: 'local', sessionId: 'session', runId: 'run' } as any, { decision: 'once' }));
   };
-  const result = await runtime.execute(ctx);
+  const logged: string[] = [];
+  const original = console.error;
+  console.error = (...line: unknown[]) => { logged.push(line.map(String).join(' ')); };
+  let result;
+  try { result = await runtime.execute(ctx); } finally { console.error = original; }
   assert.equal(result.verdict, 'approve');
+  assert.equal(events.filter(event => event.type === 'runtime.permission_list_unreadable').length, 1, 'the session records once that the list could not be read');
+  assert.equal(logged.filter(line => line.includes('"event":"runtime.permission_list_unreadable"') && line.includes('"session":"session"')).length, 1, logged.join('\n'));
   assert.equal(events.some(event => event.type === 'permission' && event.data.nativeId === 'perm_one'), true);
   assert.equal(calls.includes('POST /permission/perm_one/reply'), true);
   assert.ok(calls.indexOf('GET /permission') < calls.indexOf('POST /permission/perm_one/reply'));

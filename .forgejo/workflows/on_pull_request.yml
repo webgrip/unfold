@@ -39,6 +39,20 @@ jobs:
           printf '%s\n' "$REPORT"
           exit 1
 
+  opencode-contract:
+    runs-on: docker
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.7
+          cache: false
+          github_token: ''
+      - run: mise trust apps/unfold/mise.toml
+      - run: mise -C apps/unfold exec -- npm ci
+      - run: mise -C apps/unfold run opencode-contract
+
   ploeg-pin:
     runs-on: docker
     timeout-minutes: 5

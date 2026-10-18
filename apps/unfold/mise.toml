@@ -8,6 +8,10 @@ tools = { "npm:opencode-ai" = { version = "1.19.2", npm_args = "--ignore-scripts
 run = "node scripts/probe-opencode.mjs"
 description = "Probe the pinned OpenCode server without a model call"
 
+[tasks.opencode-contract]
+run = "node scripts/opencode-contract.mjs"
+description = "Run the permission round-trip against the OpenCode build ops/agent/Dockerfile pins, with a local fake model"
+
 [tasks.live]
 tools = { "npm:opencode-ai" = { version = "1.19.2", npm_args = "--ignore-scripts=false" } }
 run = "npm start --"
