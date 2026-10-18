@@ -65,7 +65,7 @@ The VS Code extension offers people the remote `ploeg-mcp` that the workbench na
 ```yaml
 featureFlags:
   flags:
-    work.flight-profile:
+    work.live-view:
       defaultVariant: "on"
 ```
 

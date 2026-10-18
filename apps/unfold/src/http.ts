@@ -47,7 +47,8 @@ const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(
 /** The most events one storage read loads while streaming a session's history to a live event client. */
 export const eventReplayBatch = 200;
 const eventReplayBuffered = 262144;
-const browserModule = /^\/(?:(?:core|views|styles)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:(?:skins\/[a-z0-9][a-z0-9-]*(?:\/world)?|effects)\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/(?:three|html-to-image)\/[a-z0-9][a-z0-9-]*\.js)$/;
+/** The paths of browser modules the server serves from `public/` besides its named assets; anything else is a 404. */
+export const browserModule = /^\/(?:(?:core|views|styles|live)\/[a-z0-9][a-z0-9-]*\.(?:js|css)|cards\/(?:(?:skins\/[a-z0-9][a-z0-9-]*(?:\/world)?|effects)\/)?[a-z0-9][a-z0-9-]*\.(?:js|css|json)|vendor\/(?:three|html-to-image)\/[a-z0-9][a-z0-9-]*\.js)$/;
 
 /** A request path with its ids replaced by `:id`, so errors on one route group together. */
 export function routeShape(path: string): string {

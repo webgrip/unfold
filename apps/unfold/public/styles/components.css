@@ -2695,3 +2695,8 @@ a.round-cell:hover {
     translate: calc(-24px * var(--motion-distance)) 0;
   }
 }
+
+a.chip,
+button.chip {
+  min-height: 1.5rem;
+}

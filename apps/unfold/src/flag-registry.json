@@ -3,25 +3,50 @@
   "$evaluators": {
     "labs-choice": {
       "if": [
-        { "in": [{ "var": "$flagd.flagKey" }, { "var": "labsOff" }] }, "off",
-        { "in": [{ "var": "$flagd.flagKey" }, { "var": "labs" }] }, "on",
+        {
+          "in": [
+            {
+              "var": "$flagd.flagKey"
+            },
+            {
+              "var": "labsOff"
+            }
+          ]
+        },
+        "off",
+        {
+          "in": [
+            {
+              "var": "$flagd.flagKey"
+            },
+            {
+              "var": "labs"
+            }
+          ]
+        },
+        "on",
         null
       ]
     }
   },
   "flags": {
-    "work.flight-profile": {
+    "work.live-view": {
       "state": "ENABLED",
-      "variants": { "on": true, "off": false },
+      "variants": {
+        "on": true,
+        "off": false
+      },
       "defaultVariant": "off",
-      "targeting": { "$ref": "labs-choice" },
+      "targeting": {
+        "$ref": "labs-choice"
+      },
       "metadata": {
         "kind": "release",
         "owner": "Ryan Grippeling",
-        "created": "2026-10-13",
-        "expires": "2027-01-13",
-        "title": "Work Item flight profile",
-        "description": "Draws a Work Item as a flight on its page: it takes off when an agent picks it up, every Run is a waypoint, fix rounds and waiting for you are holding patterns, failed checks are a go-around, the pull request lands it and production is the arrival. Replaces the four-stage strip at the top of the page.",
+        "created": "2026-10-17",
+        "expires": "2027-01-17",
+        "title": "Live Work Item view",
+        "description": "Puts the live view at the top of a Work Item page: the stages as folds, one sentence on what the agent is doing, and the flight path where every Run is a hop whose height follows its tool calls, machine failures bounce back, a stalled Run holds and tripwires and a judge's verdicts are marked. Below it, questions answered from the record. Takes the place of the four-stage strip and the flight profile.",
         "client": true,
         "labs": true
       }

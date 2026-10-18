@@ -153,7 +153,7 @@ Chosen option: **flagd documents evaluated in process behind OpenFeature's inter
   * the [OpenTelemetry feature-flag semantic conventions](https://opentelemetry.io/docs/specs/semconv/feature-flags/feature-flags-events/);
   * the rollout, segment, prerequisite and experiment features of LaunchDarkly, Unleash, GrowthBook, Flagsmith, Statsig, PostHog, ConfigCat and Flipt;
   * Hodgson's [Feature Toggles](https://martinfowler.com/articles/feature-toggles.html).
-* The first flag is `work.flight-profile` (release, off, in Labs).
+* The first flag is `work.flight-profile` (release, off, in Labs). On 2026-10-17 the owner retired it in favour of `work.live-view`, which the component workbench checks ([ADR 0048](0048-components-are-built-and-checked-in-a-workbench-outside-the-app.md)).
 * 2026-10-13: proposed with its implementation (VIK-2042).
 * 2026-10-13 (later): widened to:
   * flagd's current bucketing;
