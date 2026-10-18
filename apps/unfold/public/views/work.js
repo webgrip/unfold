@@ -989,6 +989,19 @@ function closeDetail() {
   location.hash = listHash();
 }
 
+async function sessionAction(control, path, done) {
+  const id = control.dataset.id;
+  if (!id) return;
+  control.disabled = true;
+  try {
+    await api(`/api/sessions/${encodeURIComponent(id)}/${path}`, { method: 'POST', body: '{}' });
+    notify(done);
+    state.sessions = await api('/api/sessions');
+    if (work.detailId) await loadDetail(work.detailId, { fresh: true, quiet: true });
+    renderWork();
+  } catch (error) { notify(error.message, true); control.disabled = false; }
+}
+
 async function copyLink(button) {
   const url = `${location.origin}${location.pathname}#work/${button.dataset.id}`;
   try { await navigator.clipboard.writeText(url); notify('Link copied'); }
@@ -1338,6 +1351,8 @@ export default {
     'work-agents-window': control => openAgentsWindow(control, state.ploegDetail?.item?.title),
     'work-copy-command': copyCommand,
     'work-cancel': () => work.cancelBusy ? null : openCancel(),
+    'work-session-retry': control => sessionAction(control, 'retry', 'Trying again. The team starts from the beginning.'),
+    'work-session-close': control => sessionAction(control, 'close-work-item', 'Closed. The Work Item has left Needs you; its session and history stay.'),
     'work-brief': () => toggleBrief(),
     'work-run': jumpToRun,
     'work-stream-zoom': zoomStream,

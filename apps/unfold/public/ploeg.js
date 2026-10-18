@@ -716,11 +716,24 @@ function drivingSession(detail, sessions) {
   return (sessions || []).filter(session => String(session.execution?.workItemId ?? '') === String(detail.item.id)).sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')))[0] || null;
 }
 
-/** The one step of a reason about the driving Unfold session: open that session, whose page starts it again or closes the Work Item. */
+/**
+ * The step of a reason about the driving Unfold session. A failed session is acted on here: Try again (once its
+ * spend is reconciled) and Close this Work Item, with the session page one link away for its failure detail. Every
+ * other session reason opens the session, whose page answers, resumes or cancels it.
+ */
 function sessionPlan(detail, model, reason) {
   const session = drivingSession(detail, model.sessions);
-  const html = ui.button({ label: session ? 'Open the session' : 'Open Sessions', icon: 'sessions', variant: 'primary', href: session ? `#session/${encodeURIComponent(session.id)}` : '#sessions' });
-  return { entries: [{ text: escape(reason.fix), actions: [html] }], primary: html };
+  const open = (variant, label) => ui.button({ label, icon: 'sessions', variant, href: session ? `#session/${encodeURIComponent(session.id)}` : '#sessions' });
+  if (reason.code !== 'operator_failed' || session?.status !== 'failed' || !model.canCancel) {
+    const html = open('primary', session ? 'Open the session' : 'Open Sessions');
+    return { entries: [{ text: escape(reason.fix), actions: [html] }], primary: html };
+  }
+  const retry = session.costStatus === 'unknown' ? '' : ui.button({ label: 'Try again', icon: 'refresh', variant: 'primary', action: 'work-session-retry', data: { id: session.id } });
+  const close = session.workItemClosedAt ? '' : ui.button({ label: 'Close this Work Item', icon: 'x-circle', variant: retry ? 'secondary' : 'primary', action: 'work-session-close', data: { id: session.id } });
+  const failure = session.failure?.message ? `${session.failure.message} ` : '';
+  const note = session.costStatus === 'unknown' ? 'Try again becomes available once the session’s spend is reconciled.' : 'Try again runs the same brief from the beginning and spends from the session’s budget.';
+  const entry = { text: escape(`${failure}Try it again, or close this Work Item if you no longer want it.`), actions: [retry, close, open('ghost', 'Why it failed')].filter(Boolean), note: escape(note) };
+  return { entries: [entry], primary: retry || close };
 }
 
 function needsYouBox(detail, model, reason, plan) {
