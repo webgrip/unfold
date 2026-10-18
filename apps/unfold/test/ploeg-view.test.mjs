@@ -334,6 +334,20 @@ test('plan_exhausted tells no pull request apart from unresolved changes and nev
   assert.match(unresolved.sentence, /the last reviewer still asked for changes/);
 });
 
+test('a failed driving session sends the person to that session, never to a tracker', () => {
+  const failed = demoDetail('108');
+  failed.item = { ...failed.item, provider: 'manual', externalId: '', url: 'https://forge.test/acme/app.git' };
+  failed.shifts.at(-1).closeReason = 'operator_failed';
+  if (failed.item.latestShift) failed.item.latestShift.closeReason = 'operator_failed';
+  const sessions = [{ id: 'old-run', createdAt: '2026-09-19T10:00:00Z', execution: { workItemId: '108' } }, { id: 'new-run', createdAt: '2026-09-20T10:00:00Z', execution: { workItemId: '108' } }];
+  const plan = decisionPlan(failed, model({ sessions }), detailReason(failed));
+  assert.equal(plan.entries.length, 1, 'one step: open the session');
+  assert.match(plan.primary, /class="button primary" href="#session\/new-run"[^]*Open the session/, 'the newest driving session');
+  const html = detailMarkup(failed, model({ detailId: '108', sessions }));
+  assert.doesNotMatch(html.slice(0, html.indexOf('id="work-ask"')), /tracker|forge\.test/i,'a manual Work Item has no task to open and no tracker to re-assign in');
+  assert.match(decisionPlan(failed, model(), detailReason(failed)).primary, /href="#sessions"[^]*Open Sessions/, 'without the session at hand it opens Sessions');
+});
+
 test('a budget stop shows its meter in the decision box and never zero money in the demo', () => {
   const html = detailMarkup(demoDetail('110'), model({ detailId: '110' }));
   const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));

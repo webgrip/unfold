@@ -15,7 +15,6 @@ test('every needs-human close reason code gets a chip, a sentence and an action 
     budget_exhausted_before_fix_round: 'Budget ran out',
     writing_run_failed_repeatedly: 'Writer kept failing',
     writing_run_killed_repeatedly: 'Cluster kept stopping the writer',
-    operator_failed: 'Session failed',
     review_approved: 'Pull request closed',
     checks_not_passed: 'Checks did not pass',
     review_failed: 'Reviewer kept failing',
@@ -304,6 +303,10 @@ test('an open Shift whose needs-human event carries an operator code reads as th
   assert.equal(detail('operator_expired').chip, 'Session lost contact');
   assert.equal(detail('operator_paused').chip, 'Session paused');
   assert.equal(detail('operator_waiting_input').chip, 'Session needs an answer');
+  const failed = detail('operator_failed');
+  assert.deepEqual([failed.chip, failed.requeue, failed.action], ['Session failed', '', failed.fix], 'the session page starts it again, so no tracker step follows');
+  assert.match(failed.fix, /try it again, start it over as a new session, or close this Work Item/);
+  assert.equal(detail('operator_interrupted').requeue, '');
   assert.deepEqual([detail('operator_vanished').code, detail('operator_vanished').chip], ['unrecognised', 'Unrecognised: operator_vanished']);
   assert.equal(detail('A person should look at this.').headline, 'A person should look at this.', 'free text stays a quoted headline');
 });
