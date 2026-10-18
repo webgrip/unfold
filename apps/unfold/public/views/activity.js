@@ -7,14 +7,19 @@ import { buildHash } from '../core/route.js';
 import { live } from '../core/live.js';
 import { plural } from '../core/format.js';
 import { shell } from '../shell.js';
+import { autoPages, eventInRange, eventMoment, reachesStart } from '../controls/range-filter.js';
+import { listRangeControl } from './time-range-control.js';
 import { enterPloegView, liveRefresh, loadPloegTeams, onPloegReload, ploegFailure, ploegHelpers, ploegVisible, refreshButton, settle, track } from './ploeg-common.js';
 
 const kinds = eventGroups.map(([id]) => id);
 
+let range = null;
+
 function renderActivity() {
   const feed = state.ploegFeed;
   const actions = refreshButton({ busy: feed.mode === 'reset' || feed.mode === 'refresh', shown: Boolean(feed.events) || !feed.error });
-  renderHtml(shell(activitySwitch('events') + activityMarkup(feed, state.ploegTeams || [], ploegHelpers(), Date.now(), state.bootstrap.user), { title: 'Activity', subtitle: 'What Ploeg recorded across your Teams, newest first.', actions }));
+  const shown = range ? { ...feed, range: range.resolved(), rangeControl: range.markup(), rangeFilling: feed.filling } : feed;
+  renderHtml(shell(activitySwitch('events') + activityMarkup(shown, state.ploegTeams || [], ploegHelpers(), Date.now(), state.bootstrap.user), { title: 'Activity', subtitle: 'What Ploeg recorded across your Teams, newest first.', actions }));
 }
 
 function eventsQuery(feed, { before, fresh } = {}) {
@@ -103,18 +108,44 @@ function showNewEvents() {
   announce(`${shown} new ${shown === 1 ? 'event' : 'events'} shown`);
 }
 
+async function fillRange() {
+  const feed = state.ploegFeed;
+  const request = state.ploegRequest;
+  feed.filling = true;
+  try {
+    for (let pages = 0; pages < autoPages; pages++) {
+      const resolved = range?.resolved();
+      if (!resolved || !feed.events || !feed.nextCursor || request !== state.ploegRequest || reachesStart(feed.events, eventMoment, resolved, Boolean(feed.nextCursor))) break;
+      const cursor = feed.nextCursor;
+      await loadOlder();
+      if (feed.nextCursor === cursor) break;
+    }
+  } finally {
+    feed.filling = false;
+    if (ploegVisible('activity')) renderActivity();
+  }
+}
+
+async function changeRange() {
+  keepFiltersInHash();
+  renderActivity();
+  await fillRange();
+  announceEvents();
+}
+
 function announceEvents() {
   const feed = state.ploegFeed;
   if (!ploegVisible('activity')) return;
   if (!feed.events) { announce('Could not load Activity'); return; }
-  const shown = feed.kind ? feed.events.filter(entry => eventKind(entry.action).group === feed.kind).length : feed.events.length;
+  const resolved = range?.resolved();
+  const shown = feed.events.filter(entry => (!feed.kind || eventKind(entry.action).group === feed.kind) && (!resolved || eventInRange(entry, resolved))).length;
   announce(`${plural(shown, 'event')}${feed.nextCursor ? ' loaded, more are older' : ''}`);
 }
 
 async function filterTeam(element) {
   state.ploegFeed.team = element.value;
   keepFiltersInHash();
-  const loading = loadFeed('reset');
+  const loading = loadFeed('reset').then(fillRange);
   const request = state.ploegRequest;
   await loading.catch(() => {});
   if (request === state.ploegRequest) announceEvents();
@@ -128,27 +159,31 @@ function filterKind(element) {
 }
 
 function keepFiltersInHash() {
-  history.replaceState(null, '', `#${buildHash('activity', { team: state.ploegFeed.team, kind: state.ploegFeed.kind })}`);
+  history.replaceState(null, '', `#${buildHash('activity', { team: state.ploegFeed.team, kind: state.ploegFeed.kind, ...range?.query() })}`);
 }
 
 async function enterActivity({ query = {} } = {}) {
   enterPloegView('activity');
   state.ploegFeed.team = query.team || '';
   state.ploegFeed.kind = kinds.includes(query.kind) ? query.kind : '';
+  range?.picker.destroy();
+  range = listRangeControl('activity-range', query, () => void changeRange());
   if (state.ploegTeams === null) void loadPloegTeams();
-  return await loadFeed('reset');
+  const loaded = await loadFeed('reset');
+  void fillRange();
+  return loaded;
 }
 
 onPloegReload('activity', () => loadFeed(state.ploegFeed.events ? 'refresh' : 'reset'));
 live.register('activity', { interval: 15000, refresh: liveRefresh('activity', poll, () => state.ploegFeed.error) });
 
-/** Activity: Ploeg's audit feed across the Teams you can read, grouped by day and filtered by Team and kind (`#activity?team=&kind=`). Checks for new events every 15 seconds and holds them behind an "N new" button. */
+/** Activity: Ploeg's audit feed across the Teams you can read, grouped by day and filtered by Team, kind and a time range (`#activity?team=&kind=&from=&to=`, the last 7 days by default), loading older pages by itself to reach the start of the range. Checks for new events every 15 seconds and holds them behind an "N new" button. */
 export default {
   id: 'activity',
   match: hash => hash === 'activity' ? {} : null,
   enter: enterActivity,
   render: renderActivity,
-  actions: { 'ploeg-feed-older': loadOlder, 'activity-show-new': showNewEvents },
+  actions: { 'ploeg-feed-older': loadOlder, 'activity-show-new': showNewEvents, 'activity-range-zoom-out': () => range?.picker.dispatch({ type: 'zoom-out' }) },
   changes: {
     '#ploeg-feed-team': filterTeam,
     '#ploeg-feed-kind': filterKind,

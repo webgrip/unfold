@@ -50,3 +50,13 @@
     margin-inline-start: 0;
   }
 }
+
+.feeds-toolbar > .tp {
+  margin-inline-start: auto;
+}
+
+@media (max-width: 40rem) {
+  .feeds-toolbar > .tp {
+    grid-column: 1 / -1;
+  }
+}
