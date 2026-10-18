@@ -22,7 +22,7 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0006](adr-0006-the-ticket-is-the-billing-unit.md) | The ticket is the billing unit: a quoted, capped Shift budget charged on delivery | accepted | 2026-09-29 |
 | [ADR-0007](adr-0007-clients-approve-ready-work.md) | Clients approve Ready work, and each client sets its own definitions of Ready and Done | accepted | 2026-09-29 |
 | [ADR-0008](adr-0008-every-pull-request-gets-a-preview-environment.md) | Every pull request gets a preview environment; production stays with the agency | accepted | 2026-09-29 |
-| [ADR-0009](adr-0009-one-tenant-per-agency.md) | One tenant per agency, isolated by namespace, network, runtime and credentials | accepted | 2026-09-29 |
+| [ADR-0009](adr-0009-one-tenant-per-agency.md) | One tenant per agency, isolated by namespace, network, runtime and credentials | accepted | 2026-10-18 |
 | [ADR-0010](adr-0010-pull-requests-are-small-whole-and-explained.md) | Unfold pull requests are small, whole and explained, and CI asks the reviewer questions | accepted | 2026-09-29 |
 | [ADR-0011](adr-0011-unfold-is-reachable-over-mcp-through-a-read-first-server.md) | Unfold is reachable over MCP through a separate, read-first server on Ploeg's operator API | accepted | 2026-09-30 |
 | [ADR-0012](adr-0012-the-marketing-site-releases-and-deploys-on-its-own.md) | The marketing site releases and deploys on its own, outside the Unfold version | accepted | 2026-10-01 |
@@ -53,3 +53,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0037](adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md) | People act on work through either MCP server, and every action names its person, channel and confirmation | accepted | 2026-10-17 |
 | [ADR-0038](adr-0038-report-a-problem-becomes-its-own-component-that-any-application-embeds.md) | Report a problem becomes its own component that any application embeds | accepted | 2026-10-18 |
 | [ADR-0039](adr-0039-unfold-depends-on-a-released-ploeg-through-its-contract-bundle-and-go-module.md) | Unfold depends on a released Ploeg through its contract bundle and Go module | accepted | 2026-10-18 |
+| [ADR-0040](adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md) | Unfold's production runs on a rented EU Talos cluster, and the homelab is staging | proposed | 2026-10-18 |

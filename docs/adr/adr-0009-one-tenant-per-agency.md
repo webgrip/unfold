@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2026-09-29
+date: 2026-10-18
 decision-makers: Ryan Grippeling
 ---
 
@@ -36,7 +36,7 @@ Chosen option: "A tenant is an agency: one namespace set, default-deny network, 
 * Clients of an agency are users inside that tenant, not tenants.
 * When an agency leaves, its code, prompts and logs are deleted. An agency can opt in to let Unfold keep anonymised traces to improve agents; without that, only anonymous counts such as delivery rate and spend per size remain.
 * Every item above is in place before a second, external agency shares a cluster with another tenant. The first external pilot agency runs on its own dedicated pilot cluster until then, or self-hosts Unfold in its own cluster if it prefers.
-* In the hosted phase, paying agencies run on a rented EU cloud cluster. Until then, every user self-hosts, and the owner's homelab cluster serves Unfold's own development.
+* In the hosted phase, paying agencies run on a rented EU cloud cluster. Before then, the owner's own production Unfold, the public install proof and the demo run on a rented EU cluster and the homelab is staging ([ADR-0040](adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md)); every other user self-hosts.
 * Each agency chooses EU-only model routing or EU plus US under the Data Privacy Framework. DeepSeek is used only as open weights hosted in the EU, never through its own API, for client data.
 * The homelab cluster reconciles from the Forgejo repository; the GitHub mirror of `homelab-cluster` is stale and is not evidence of what runs.
 
@@ -73,3 +73,4 @@ Confirmed when a cross-tenant test Run fails to reach another tenant's namespace
 * 2026-09-29 — The owner set deletion on exit with opt-in retention of anonymised traces.
 * 2026-09-29 — The owner moved the rented EU cloud to the hosted phase; until then every user self-hosts.
 * 2026-09-29 — Wording aligned with the domain model (Agency); no decision changed.
+* 2026-10-18 — Hosting bullet changed: the owner's production moves to a rented EU cluster before the hosted phase, recorded in [ADR-0040](adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md). It read: "In the hosted phase, paying agencies run on a rented EU cloud cluster. Until then, every user self-hosts, and the owner's homelab cluster serves Unfold's own development."
