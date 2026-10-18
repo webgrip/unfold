@@ -72,10 +72,27 @@ UNFOLD_COOKIE='<cookie name>=<value>' mise exec -- npm run workbench:record -- v
 
 These components are not wired into the Work Item page yet. The fleet board is wired into Now behind `now.fleet`.
 
+## Controls
+
+`public/controls/` holds controls the app's pages share. Their stories sit beside them and are listed in the same `stories/index.js`.
+
+| Module | Does |
+| --- | --- |
+| `time-range.js` | the time arithmetic, without a DOM: Grafana expressions (`now-6h`, `now-1d/d`, `now/w` with weeks from Monday), `18-10-2026 09:00` and ISO moments, the quick ranges, names such as `Last 45 minutes` or `18-10-2026 07:00 to 08:15`, moving back and forward by half the span, zooming out, a typed span such as `3 days` as a range, recently used ranges, the `from`, `to` and `refresh` query parameters and the `t ←`, `t →`, `t z` shortcuts |
+| `time-picker.js` | the time picker: `pickerUpdate()` is its state machine, `timePicker()` its markup and `mountTimePicker()` makes it act, with focus kept, Escape and a click outside closing the panel, arrow keys through the quick ranges and auto-refresh only while the page is visible |
+
+The picker is not wired into a page yet.
+
+## Play functions
+
+A story can export a `play({ canvasElement, args })` function, as in Storybook. The frame runs it after the markup is in the page and before the checks, so `play` can make a component act and drive an interaction through it. A `play` that throws fails the frame with a `render` failure, at every width and theme, so an interaction test runs inside `npm run test:workbench`. `public/live/stories/play.js` has the helpers: `expect`, `find`, `click`, `type`, `press` and `shown`. A `play` that returns a function has it called before the frame renders the next story, to remove listeners it added.
+
+The time picker's stories test it this way: `PicksATypedSpan`, `KeyboardShortcuts`, `ChecksTypedRanges`, `ClosesLikeAPopover` and `RefreshesOnSchedule`. `Interactive` only makes the picker act, so you can try it in the workbench.
+
 ## Add a component
 
 1. Write a pure function that takes a view model and returns HTML. Use classes from a stylesheet under `public/styles/`, never a `style` attribute, and SVG presentation attributes for geometry.
-2. Add a `*.stories.js` file under the component's `stories/` folder: `export default meta({ title, render })` and one named export per state, then list the file in `stories/index.js`.
+2. Add a `*.stories.js` file under the component's `stories/` folder: `export default meta({ title, render })` and one named export per state, then list the file in `stories/index.js`. Add a `play` to the stories that test an interaction.
 3. Run `npm run workbench`, then `npm run test:workbench` and `npm test`.
 
 A story file is Component Story Format 3, so Storybook's HTML renderer can load it as it is.
