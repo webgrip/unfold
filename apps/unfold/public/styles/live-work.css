@@ -635,12 +635,20 @@ a.lv-origin:hover { background: var(--bg-hover); color: var(--text); }
 .work-detail-layout { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 
 .lv-unified .lv-page-main .lv-desk-main { flex: none; }
-.lv-unified-hero { gap: var(--space-3); }
+.lv-unified-deck {
+  color-scheme: dark;
+  color: var(--text);
+  gap: var(--space-3);
+  border-color: var(--border);
+  background-color: var(--bg-canvas);
+  background-image: radial-gradient(60rem 20rem at 75% -20%, color-mix(in oklch, var(--live-solid) 16%, var(--bg-canvas)), var(--bg-canvas) 65%);
+}
+.lv-unified-dial { align-items: center; }
+.lv-unified-dial .lv-dial { margin: 0; }
 .lv-unified-decision { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
 .lv-unified-inside { border-top: 1px solid var(--border-subtle); padding-top: var(--space-3); }
 .lv-unified-inside[open] { display: flex; flex-direction: column; gap: var(--space-3); }
 .lv-unified-inside-sum { cursor: pointer; font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-muted); }
-.lv-unified-flight { gap: var(--space-3); }
 .lv-unified .lv-presence.is-named { padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
 
 @container lv-tl (max-width: 34rem) {

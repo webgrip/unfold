@@ -75,8 +75,9 @@ function entriesOf(live, { detail, brief, asks, context, linked, messages, origi
   for (const ask of asks?.items ?? []) list.push({ kind: 'ask', at: toMs(ask.createdAt), who: ask.askerName || 'Someone', question: ask.question, answer: ask.status === 'answered' ? ask.answer : '', status: ask.status, fromRecord: ask.source === 'record', costUsd: isAmount(ask.costUsd) ? ask.costUsd : null });
   for (const message of messages) {
     const at = toMs(message.at);
+    const flying = live.runs.find(run => run.startedAt !== null && at !== null && run.startedAt <= at && (run.finishedAt === null || run.finishedAt > at)) ?? null;
     const reader = live.runs.find(run => run.startedAt !== null && at !== null && run.startedAt >= at) ?? null;
-    list.push({ kind: 'steer', at, who: message.by || 'You', text: message.text, readBy: reader ? { role: reader.role, n: reader.n, attempt: reader.attempt, at: reader.startedAt } : null });
+    list.push({ kind: 'steer', at, who: message.by || 'You', text: message.text, flying: flying ? { role: flying.role, n: flying.n, attempt: flying.attempt } : null, readBy: reader ? { role: reader.role, n: reader.n, attempt: reader.attempt, at: reader.startedAt } : null });
   }
   for (const session of linked?.sessions ?? []) list.push({ kind: 'linked', at: toMs(session.lastSeenAt ?? session.startedAt), who: session.ownerName || 'Someone', harness: harnesses[session.harness] ?? String(session.harness ?? 'Agent'), branch: session.branch || '', commits: Array.isArray(session.commits) ? session.commits.length : Number(session.commits) || 0, state: session.state || '' });
   const ordered = burstsOf(list.filter(entry => entry.at !== null).sort((a, b) => a.at - b.at));
