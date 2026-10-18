@@ -1,6 +1,7 @@
 import { failureReason } from '../core/states.js';
 import { combineHealth, healthMeta, runHealth } from '../core/run-health.js';
 import { guardSignals, policyDrift } from '../core/guard.js';
+import { tripwireChecks, tripwireHitScore, tripwireMaxScore } from '../core/tripwire.js';
 
 /**
  * The stages every Work Item moves through, in order. The fold strip and the flight path draw one mark per stage.
@@ -107,6 +108,13 @@ function judgementOf(value) {
   return { ...value, runId: String(value.runId ?? ''), at: toMs(value.at), reason: value.reason.trim(), model: typeof value.model === 'string' && value.model ? value.model : 'Judge model' };
 }
 
+const checkKeys = new Set(tripwireChecks.map(check => check.key));
+
+function tripwireHitOf(value) {
+  if (!value || typeof value !== 'object' || !checkKeys.has(value.check) || !Number.isSafeInteger(value.score) || value.score < tripwireHitScore || value.score > tripwireMaxScore) return null;
+  return { id: String(value.id ?? ''), runId: String(value.runId ?? ''), at: toMs(value.at), check: value.check, score: value.score, excerpt: typeof value.excerpt === 'string' ? value.excerpt : '', decider: typeof value.decider?.name === 'string' ? value.decider.name : 'Decider', demo: value.demo === true };
+}
+
 function healthOf(result, judge, { stale = false, demo = false } = {}) {
   const combined = combineHealth({ health: result.health ?? 'unknown' }, judge);
   const meta = healthMeta(combined.health);
@@ -162,12 +170,14 @@ function stageStates(item, runs, current) {
  * @param {object[]} [input.judgements] AI judge verdicts as Unfold's shadow judge stores them (`RunJudgement`: `{ id,
  *   runId, at, health, reason, evidence, model, … }`). A verdict without a known health, a reason or whole-number
  *   evidence is dropped.
+ * @param {object[]} [input.tripwire] Hits of Unfold's decider tripwire on the followed Run (`TripwireHit`: `{ id, runId,
+ *   at, check, score, excerpt, decider, demo? }`). A hit on an unknown check or below 2 is dropped.
  * @param {{ data?: object }|null} [input.health] The running Run's entry from Unfold's health route, the same entry its
  *   Run row shows, so the two never disagree. Without one, the health is computed here with `runHealth` from `entries`
  *   and raised by the newest of `judgements` the way the server does.
  * @returns {object}
  */
-export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null, allowedHosts = null, policy = null, transcriptKnown = transcript.length > 0, transcriptMissing = null, entries = [], judgements: verdicts = [], health: given = null }) {
+export function liveModel({ detail, transcript = [], transcriptRunId, now, ticketCreatedAt, estimate = null, allowance = null, allowedHosts = null, policy = null, transcriptKnown = transcript.length > 0, transcriptMissing = null, entries = [], judgements: verdicts = [], tripwire: hits = [], health: given = null }) {
   const item = detail.item;
   const shifts = [...(detail.shifts ?? [])].sort((a, b) => (toMs(a.openedAt) ?? 0) - (toMs(b.openedAt) ?? 0));
   const runs = [...(detail.runs ?? [])].sort(byStart);
@@ -269,6 +279,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     health,
     guard,
     judgements,
+    tripwire: (hits ?? []).map(tripwireHitOf).filter(Boolean).sort((a, b) => (a.at ?? 0) - (b.at ?? 0)),
     estimate: estimate && typeof estimate.text === 'string' && estimate.text ? estimate : null,
     allowance: allowance && isAmount(allowance.leftUsd) ? allowance : null,
     window: { start: windowStart, end: windowEnd },
