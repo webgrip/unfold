@@ -19,14 +19,14 @@ async function setup(t: test.TestContext) {
   return { store, auth, request };
 }
 
-test('a delegated credential reaches only the routes the MCP tools call', async t => {
+test('a delegated credential reaches only the routes the MCP tools call, its action tools included', async t => {
   const { auth, request } = await setup(t);
   const { token } = auth.delegate({ id: 'oidc-person', name: 'person@example.com', role: 'operator' }, 60_000);
   assert.match(token, /^vlm_[A-Za-z0-9_-]{43}$/);
-  for (const [method, url] of [['GET', '/api/ploeg/now'], ['GET', '/api/ploeg/summary?window=7d'], ['GET', '/api/ploeg/work-items?team=a&state=needs_human'], ['GET', '/api/ploeg/work-items/184'], ['GET', '/api/ploeg/work-items/184/asks'], ['POST', '/api/ploeg/work-items/184/asks'], ['GET', '/api/sessions']]) {
+  for (const [method, url] of [['GET', '/api/ploeg/now'], ['GET', '/api/ploeg/summary?window=7d'], ['GET', '/api/ploeg/work-items?team=a&state=needs_human'], ['GET', '/api/ploeg/work-items/184'], ['GET', '/api/ploeg/work-items/184/asks'], ['POST', '/api/ploeg/work-items/184/asks'], ['GET', '/api/sessions'], ['POST', '/api/ploeg/work-items/184/approve'], ['POST', '/api/ploeg/work-items/184/requeue'], ['POST', '/api/ploeg/work-items/184/notes'], ['GET', '/api/sessions/s-1'], ['POST', '/api/sessions/s-1/pause'], ['GET', '/api/task-sources/board/tasks/1505'], ['GET', '/api/task-sources/board/tasks/1505/ploeg?refresh=1'], ['POST', '/api/task-sources/board/tasks/1505/handoff']]) {
     assert.equal(auth.user(request(token, method, url))?.id, 'oidc-person', `${method} ${url}`);
   }
-  for (const [method, url] of [['POST', '/api/agent-host/tokens'], ['GET', '/api/agent-host'], ['GET', '/api/editor-credentials'], ['POST', '/api/editor-requests/abcdefgh/approve'], ['GET', '/api/bootstrap'], ['POST', '/api/sessions'], ['POST', '/api/ploeg/work-items/184/approve'], ['DELETE', '/api/ploeg/work-items/184/asks'], ['GET', '/api/ploeg/work-items/184/runs/1/logs'], ['GET', '/api/ploeg/work-items/x/asks']]) {
+  for (const [method, url] of [['POST', '/api/agent-host/tokens'], ['GET', '/api/agent-host'], ['GET', '/api/editor-credentials'], ['POST', '/api/editor-requests/abcdefgh/approve'], ['GET', '/api/bootstrap'], ['POST', '/api/sessions'], ['POST', '/api/sessions/s-1/delivery/publish'], ['POST', '/api/sessions/s-1/budget'], ['DELETE', '/api/task-sources/board/tasks/1505/handoff'], ['POST', '/api/ploeg/work-items/184/context'], ['DELETE', '/api/ploeg/work-items/184/asks'], ['GET', '/api/ploeg/work-items/184/runs/1/logs'], ['GET', '/api/ploeg/work-items/x/asks']]) {
     assert.equal(auth.user(request(token, method, url)), undefined, `${method} ${url} is outside the allowlist`);
     assert.equal(auth.scope(request(token, method, url)), undefined);
   }

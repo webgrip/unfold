@@ -1,6 +1,6 @@
 # Component workbench
 
-The workbench shows Unfold's browser components on their own, rendered from fixtures, with every state at phone, tablet and desktop width in both themes. The same stories feed the unit tests and a browser check that fails on layout, contrast, target-size, naming, motion and Content Security Policy problems. [ADR 0045](adrs/0045-components-are-built-and-checked-in-a-workbench-outside-the-app.md) records why it is not Storybook.
+The workbench shows Unfold's browser components on their own, rendered from fixtures, with every state at phone, tablet and desktop width in both themes. The same stories feed the unit tests and a browser check that fails on layout, contrast, target-size, naming, motion and Content Security Policy problems. [ADR 0048](adrs/0048-components-are-built-and-checked-in-a-workbench-outside-the-app.md) records why it is not Storybook.
 
 ## Run it
 

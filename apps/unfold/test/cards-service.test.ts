@@ -148,11 +148,51 @@ test('with facts, the card route assembles the card from Ploeg’s facts, never 
   const reference = service(stub);
   const facts: WorkItemFacts = parseWorkItemFacts(cardWorld.world.find(f => f.workItem.id === '177'));
   const expected = parseCard(JSON.parse(JSON.stringify(assembleCard(facts, reference.cards.context(new Map([[facts.workItem.id, facts]]))))));
-  assert.deepEqual(readNow(answer.body.card), readNow(JSON.parse(JSON.stringify(expected))), 'the route serves exactly the card assembled from the same facts, through the same browser parser');
+  assert.ok(expected.rarity, 'the assembled card carries its rarity');
+  assert.deepEqual(readNow(answer.body.card), readNow(JSON.parse(JSON.stringify({ ...expected, rarity: null }))), 'the route serves exactly the card assembled from the same facts, through the same browser parser, without the rarity the cards.rarity flag keeps off');
 
   const outside = await request(server.url, '/api/ploeg/work-items/177/card', sessions.outsider);
   assert.deepEqual([outside.status, outside.body.error?.code], [404, 'ploeg_not_found'], 'a viewer outside the Team does not find the card');
   assert.equal((await request(server.url, '/api/ploeg/work-items/999/card', sessions.member)).status, 404, 'a Work Item Ploeg has no facts for is not found');
+});
+
+test('rarity is off by default: a frozen tier stays in the store, shows for a person who turns the cards.rarity flag on, and cards.rules.rarity decides when it is set', async t => {
+  const stub = await ploegStub(t, cardWorld.world);
+  const start = (rarity?: boolean) => application('live', config => {
+    config.ploeg = { ...stub.config, userTeams: { member: ['silver'], other: ['silver'] } };
+    if (rarity !== undefined) config.cards = { backfillPeriods: 1, teams: {}, rules: { rarity } };
+  });
+  const tier = async (server: Awaited<ReturnType<typeof application>>, session: { cookie: string }) => {
+    const answer = await request(server.url, '/api/ploeg/work-items/177/card', session);
+    assert.equal(answer.status, 200, answer.text);
+    return answer.body.card.rarity?.revealed ?? null;
+  };
+  const frozen = (server: Awaited<ReturnType<typeof application>>) => server.app.store.db.prepare('SELECT revealed_tier AS tier FROM card_rarity WHERE work_item_id=?').get('177') as { tier: string } | undefined;
+
+  const unset = await start();
+  t.after(() => unset.close());
+  const sessions = await users(unset, [['member', 'viewer'], ['other', 'viewer']]);
+  assert.equal(await tier(unset, sessions.member), null, 'nobody sees rarity while the flag is off');
+  assert.equal(frozen(unset)?.tier, 'common', 'Unfold still freezes the revealed tier while it is hidden');
+  const on = await request(unset.url, '/api/flags/cards.rarity/choice', { method: 'PUT', body: { choice: 'on' }, cookie: sessions.member.cookie });
+  assert.equal(on.status, 200, on.text);
+  assert.equal(await tier(unset, sessions.member), 'common', 'turning the flag on shows the frozen tier');
+  assert.equal(await tier(unset, sessions.other), null, 'and only for the person whose flag is on');
+  await request(unset.url, '/api/flags/cards.rarity/choice', { method: 'PUT', body: { choice: 'default' }, cookie: sessions.member.cookie });
+  assert.equal(await tier(unset, sessions.member), null, 'back to the default hides it again');
+  assert.equal(frozen(unset)?.tier, 'common', 'and keeps the frozen tier');
+
+  const pinned = await start(true);
+  t.after(() => pinned.close());
+  const pinnedSessions = await users(pinned, [['member', 'viewer']]);
+  assert.equal(await tier(pinned, pinnedSessions.member), 'common', 'cards.rules.rarity: true shows rarity to everyone without the flag');
+
+  const off = await start(false);
+  t.after(() => off.close());
+  const offSessions = await users(off, [['member', 'viewer']]);
+  await request(off.url, '/api/flags/cards.rarity/choice', { method: 'PUT', body: { choice: 'on' }, cookie: offSessions.member.cookie });
+  assert.equal(await tier(off, offSessions.member), null, 'cards.rules.rarity: false keeps rarity off whatever the flag says');
+  assert.equal(frozen(off), undefined, 'and Unfold neither computes nor freezes it');
 });
 
 test('without facts, every card and crack route says so plainly and never asks Ploeg for a card', async t => {

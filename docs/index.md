@@ -36,6 +36,7 @@ The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/pl
 | Let agents work in a repository | [Prepare a repository](how-to/prepare-a-repository.md) |
 | Try a Team on ten real Work Items, or compare prompts, models and harnesses | [Run a pilot batch](how-to/run-a-pilot-batch.md) |
 | Ask an AI client what waits for you, why, and what to do | [Ask Unfold and Ploeg from an AI client](how-to/ask-from-an-ai-client.md) |
+| See your own Claude Code sessions on the Work Items they serve, with Agent Trace attribution and telemetry | [Link your Claude Code sessions](how-to/link-claude-code-sessions.md) |
 | Let people connect Claude Code, VS Code or Cursor to Unfold by URL, with a browser sign-in | [Serve Unfold's MCP tools over HTTPS](how-to/serve-unfold-mcp-over-https.md) |
 | Operate Ploeg or the Unfold application | [Ploeg](../apps/ploeg/docs/index.md) · [Unfold application](../apps/unfold/docs/index.md) |
 | Use the Unfold name, mark or colours | [Brand](brand/README.md) · [Trademark policy](brand/TRADEMARK.md) (proposed) |

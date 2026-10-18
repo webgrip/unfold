@@ -1,5 +1,16 @@
 import type { AppConfig, User } from './types.ts';
 import { checkArtSource } from './card-assets.ts';
+import { gatewayError, type GatewayErrorKind } from './gateway-errors.ts';
+
+const artGatewayHints: Partial<Record<GatewayErrorKind, string>> = {
+  budget_exceeded: ' Its gateway budget is used up.',
+  rate_limited: ' Its rate limit is reached; try again in a minute.',
+  provider_quota: ' The model provider\'s quota or credit is used up.',
+  key_rejected: ' The gateway refused its key.',
+  model_unavailable: ' The gateway does not offer its model to that key.',
+  context_too_long: ' The prompt is longer than the model can read.',
+  content_filtered: ' The provider refused the prompt under its content rules.',
+};
 
 export type CardArtConfig = NonNullable<NonNullable<AppConfig['cardThemes']>['ai']>;
 
@@ -200,7 +211,7 @@ export class CardArtGenerator {
     } catch (error: any) {
       throw new CardArtError(error?.name === 'TimeoutError' ? 'The art model did not answer in time.' : 'The art model could not be reached.', 502, 'art_gateway');
     }
-    if (!response.ok) throw new CardArtError(`The art model answered HTTP ${response.status}.${response.status === 400 || response.status === 429 ? ' Its budget or rate limit may be used up.' : ''}`, 502, 'art_gateway');
+    if (!response.ok) throw new CardArtError(`The art model answered HTTP ${response.status}.${artGatewayHints[gatewayError(response.status, await response.text().catch(() => '')).kind] ?? ''}`, 502, 'art_gateway');
     let reply = '';
     try {
       const data = await response.json() as { choices?: { message?: { content?: unknown } }[] };

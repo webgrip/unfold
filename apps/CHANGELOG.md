@@ -1,3 +1,106 @@
+## [unfold-v0.4.0-rc.84](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.83...unfold-v0.4.0-rc.84) (2026-10-17)
+
+### Performance
+
+* **verify:** cut the CPU that verification spends and skip unchanged gates locally ([8029a38](https://forgejo.webgrip.dev/webgrip/unfold/commit/8029a3878ccd059941d7ef9020357cf201503c51))
+
+### Build
+
+* **ploeg:** update ploeg ( v0.2.0-rc.24 ➔ v0.2.0-rc.25 ) ([bba8c20](https://forgejo.webgrip.dev/webgrip/unfold/commit/bba8c207a4171acab7da8007b6f4a70bb85b6a94))
+
+## [unfold-v0.4.0-rc.83](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.82...unfold-v0.4.0-rc.83) (2026-10-17)
+
+### Added
+
+* **unfold:** act on work from unfold-mcp after the person confirms ([4ec75cc](https://forgejo.webgrip.dev/webgrip/unfold/commit/4ec75cc762d9fd83cbff4ac5c538e56c1db84fcb))
+* **unfold:** add a Claude Code plugin that reports sessions and writes Agent Trace per commit ([e132b71](https://forgejo.webgrip.dev/webgrip/unfold/commit/e132b71ff14b6f6e71d836b312bd22468efac8f1))
+* **unfold:** link people's own agent sessions to Work Items, with Agent Trace and telemetry ([7d7d1ef](https://forgejo.webgrip.dev/webgrip/unfold/commit/7d7d1ef271cff219a09698902e4a60f0a9bf6493))
+* **unfold:** turn Run card rarity off by default behind the cards.rarity flag ([4ad778f](https://forgejo.webgrip.dev/webgrip/unfold/commit/4ad778f538aa410349b6166899c83628368e39be))
+* **unfold:** word the pull request closures Ploeg records after a credential leak ([4611d80](https://forgejo.webgrip.dev/webgrip/unfold/commit/4611d8090130a609fdc1ab0b6e69ce05e62705da))
+* **unfold:** word the pull request closures Ploeg records after a credential leak ([33d8aa2](https://forgejo.webgrip.dev/webgrip/unfold/commit/33d8aa20152a2df299e58aa306b2cc046307ad62))
+* **unfold:** word the shared_budget_spent failure Ploeg rc.24 records ([4727f8c](https://forgejo.webgrip.dev/webgrip/unfold/commit/4727f8c82cea6dc678f2130c576a2377acb60a0f)), references [ploeg-hq#155](https://forgejo.webgrip.dev/ploeg-hq/issues/155)
+
+### Docs
+
+* **unfold:** propose Run health on the Run card (RFC-0007, ADR 0046) ([1995676](https://forgejo.webgrip.dev/webgrip/unfold/commit/1995676035737ee624b76616e959a9a12ec5c704))
+* **unfold:** record Linked Sessions in ADR 0047, the contract and a how-to ([92fcf6f](https://forgejo.webgrip.dev/webgrip/unfold/commit/92fcf6f797179afe4cf7ce8472c3eb746301c5e8))
+
+### Build
+
+* **ploeg:** pin Ploeg 0.2.0-rc.23 ([bf9124b](https://forgejo.webgrip.dev/webgrip/unfold/commit/bf9124baedab62b44eef12d7b4d7d4c3a7de34cd)), closes [#144](https://forgejo.webgrip.dev/webgrip/unfold/issues/144) [#152](https://forgejo.webgrip.dev/webgrip/unfold/issues/152), references [#151](https://forgejo.webgrip.dev/webgrip/unfold/issues/151) [#147](https://forgejo.webgrip.dev/webgrip/unfold/issues/147) [#150](https://forgejo.webgrip.dev/webgrip/unfold/issues/150)
+* **ploeg:** pin Ploeg 0.2.0-rc.24 ([6384090](https://forgejo.webgrip.dev/webgrip/unfold/commit/6384090c0cf6ad696a571dce0816a0ad900ba373)), references [#155](https://forgejo.webgrip.dev/webgrip/unfold/issues/155) [#142](https://forgejo.webgrip.dev/webgrip/unfold/issues/142) [#156](https://forgejo.webgrip.dev/webgrip/unfold/issues/156) [#153](https://forgejo.webgrip.dev/webgrip/unfold/issues/153)
+* **ploeg:** pin Ploeg v0.2.0-rc.23 ([3717181](https://forgejo.webgrip.dev/webgrip/unfold/commit/371718120f6796d1ae777f0bac2757cee2346861)), references [#152](https://forgejo.webgrip.dev/webgrip/unfold/issues/152)
+
+## [unfold-v0.4.0-rc.82](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.81...unfold-v0.4.0-rc.82) (2026-10-17)
+
+### Added
+
+* **unfold:** refuse to start in live mode without Ploeg execution ([ac6a166](https://forgejo.webgrip.dev/webgrip/unfold/commit/ac6a1667939d59c0a2d2a73766df7f4e15c13327))
+* **unfold:** show a running Run's transcript and pod logs in the Agents window ([cdeebec](https://forgejo.webgrip.dev/webgrip/unfold/commit/cdeebec686b7a1ac3b4bd5ea5fdeb90ae169f6f7))
+* **unfold:** show who did what on each Work Item and on an Activity page ([499f7fd](https://forgejo.webgrip.dev/webgrip/unfold/commit/499f7fd40a96a4434e52c8c54f07c2bc04e659bd))
+
+### Fixed
+
+* **agent:** update opencode ( 1.19.0 ➔ 1.19.2 ) ([d54b7cb](https://forgejo.webgrip.dev/webgrip/unfold/commit/d54b7cbf84e66e2666408ccfeb4990a1cb5794d6))
+* **unfold:** answer Terminal not found for a Run's pod-log terminal the person does not watch ([e22db33](https://forgejo.webgrip.dev/webgrip/unfold/commit/e22db33c54508d22036609cc8d398c4d53a81d21))
+* **unfold:** classify LiteLLM gateway errors by their body, not their status ([7e01e44](https://forgejo.webgrip.dev/webgrip/unfold/commit/7e01e4439489aeecb1a26f8396107cfb17ef55f1))
+* **unfold:** declare unfold_get_work's routingWarning in its output schema ([93f759b](https://forgejo.webgrip.dev/webgrip/unfold/commit/93f759b982747b58626952ef4c2378f02ed41b0d))
+* **unfold:** let the task-source example start live under Ploeg ([f685bff](https://forgejo.webgrip.dev/webgrip/unfold/commit/f685bff4d6df7bfbb623cb2a8ddec4036c33e1bb))
+* **unfold:** word the Ploeg values Unfold showed raw ([514ab3b](https://forgejo.webgrip.dev/webgrip/unfold/commit/514ab3bf337508ae13d3be074569a1db89b73bf9))
+
+### Docs
+
+* **adr:** record the Run card rules Unfold computes in Unfold ADR 0045 ([f546191](https://forgejo.webgrip.dev/webgrip/unfold/commit/f546191743847af28ff9f6726c13a856cd3630f7))
+* **unfold:** record the live Run transcript and pod-log terminal in the agent-host contract ([d55cf18](https://forgejo.webgrip.dev/webgrip/unfold/commit/d55cf18206b2859b65344ce6b2a7a33546335e4e))
+
+### Tests
+
+* **unfold:** drive unfold-mcp over HTTPS end to end through a real Authentik ([8ad67f8](https://forgejo.webgrip.dev/webgrip/unfold/commit/8ad67f85895cf15ebb444685a804b693f01ac65d))
+
+## [unfold-v0.4.0-rc.81](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.80...unfold-v0.4.0-rc.81) (2026-10-17)
+
+### Added
+
+* **unfold:** add Open in Agents Window to the extension's Now, Sessions and Ploeg rows ([1a112ed](https://forgejo.webgrip.dev/webgrip/unfold/commit/1a112edf188b26e20ce496514b187072d7d8b565))
+* **unfold:** build Agents window session links for the session's owner ([4c4ed26](https://forgejo.webgrip.dev/webgrip/unfold/commit/4c4ed264df6fab425a53992e3257c63f9500bc2b))
+* **unfold:** name the remote ploeg-mcp to editors in GET /api/mcp-servers ([d17ac81](https://forgejo.webgrip.dev/webgrip/unfold/commit/d17ac81af8d7fb4bf6f58e90bb9df5247e850ad7))
+* **unfold:** offer Open in Agents window on the session and Work Item pages ([8f21e79](https://forgejo.webgrip.dev/webgrip/unfold/commit/8f21e79a815602675f33ccaa3967c8d488cabfa1))
+* **unfold:** provide ploeg-mcp to VS Code chat by URL, without a stored secret ([85f7ff6](https://forgejo.webgrip.dev/webgrip/unfold/commit/85f7ff6584b046db84f0c3ae0060eab049a03840))
+* **unfold:** record unfold-mcp actions as mcp:<client> with the agreed confirmation ([d844d21](https://forgejo.webgrip.dev/webgrip/unfold/commit/d844d21baeac4c62d665bbbcdf2455b5a5cb7dda))
+* **unfold:** record who did what, through which channel, for every action ([e04f090](https://forgejo.webgrip.dev/webgrip/unfold/commit/e04f0907543842c52625bd543bfed39c756030bd))
+* **unfold:** serve unfold-mcp over Streamable HTTP as an OAuth resource server ([0fdc8fd](https://forgejo.webgrip.dev/webgrip/unfold/commit/0fdc8fd7f468b8991351e0eb83611b198afa9f5a))
+* **unfold:** tell signed-in editors apart and sign out unused ones ([5fa2e4d](https://forgejo.webgrip.dev/webgrip/unfold/commit/5fa2e4d52b34272e0a32759d394701d64ea0afb6))
+
+### Fixed
+
+* **unfold:** answer resourceResolve so VS Code 1.142's folder picker reaches the repositories ([1bb90e1](https://forgejo.webgrip.dev/webgrip/unfold/commit/1bb90e180c93ad7acf67cef988493d7af5854c8f))
+* **unfold:** fit the AHP host to VS Code 1.142.0 and tolerate AHP 1.1 ([09c9a1d](https://forgejo.webgrip.dev/webgrip/unfold/commit/09c9a1dce224004e0c75ac14465b3d359f78601e))
+* **unfold:** give a session's Agents window link to whoever the host lists it to ([ddb039e](https://forgejo.webgrip.dev/webgrip/unfold/commit/ddb039ec06a5c928254bd4d8cb233da1e4c80cf6))
+* **unfold:** give every chat an explicit changeset catalogue so VS Code stops showing a stale file count ([fcf640a](https://forgejo.webgrip.dev/webgrip/unfold/commit/fcf640acce43a2f85321528d6cbff97d250d2176))
+* **unfold:** map unfold-mcp tokens by subject only and cap their role and reach ([b687368](https://forgejo.webgrip.dev/webgrip/unfold/commit/b6873688a02f3b3c10abe26d08b51383324ae740))
+* **unfold:** show every refused chat action as a reply VS Code renders ([89c8009](https://forgejo.webgrip.dev/webgrip/unfold/commit/89c8009d4889fa3a5dc8c229fff7c07435f3a25a))
+* **unfold:** show Work Item questions as needing input and refuse host debug logs with a reason ([4be5240](https://forgejo.webgrip.dev/webgrip/unfold/commit/4be52403b7c49339a8bb8edd18874cbd692a8e9f))
+
+### Docs
+
+* **unfold:** align the 1.142 records with [#393](https://forgejo.webgrip.dev/webgrip/unfold/issues/393) and the rebased commits ([7834106](https://forgejo.webgrip.dev/webgrip/unfold/commit/78341061b938ba134dcc78052e60fc4a6c5812de))
+* **unfold:** place the Agents window link entry before the 1.142 negotiation note in ADR 0012 ([6264281](https://forgejo.webgrip.dev/webgrip/unfold/commit/6264281bbd78b0fb23983ada6afa654241522b20))
+* **unfold:** record every integration surface the full VS Code 1.142 crawl found ([6b296c2](https://forgejo.webgrip.dev/webgrip/unfold/commit/6b296c2b96c72697b614701ecf1502fc0c283e09))
+* **unfold:** record how the extension hands out ploeg-mcp, with source evidence ([dc502d5](https://forgejo.webgrip.dev/webgrip/unfold/commit/dc502d5899f86da5cf277be89a0135d1832f4088))
+* **unfold:** record the 1.142.0 replay, Needs attention for choices and AHP 1.1 tolerance ([3ea7700](https://forgejo.webgrip.dev/webgrip/unfold/commit/3ea7700c7f24bf665f1621ccd55d6fb270192cdf))
+* **unfold:** record the Agents window link format and the VIK-1660 routes ([7576064](https://forgejo.webgrip.dev/webgrip/unfold/commit/7576064cd63e540c67244ed2eb9afc076e618c45))
+* **unfold:** record what VS Code 1.142 unblocks for the agent host and MCP ([e3501fe](https://forgejo.webgrip.dev/webgrip/unfold/commit/e3501fe3cf2c98787546ff2754b117161e380e84))
+* **unfold:** record Work Item input-needed and the debug-log refusal ([0a7cdeb](https://forgejo.webgrip.dev/webgrip/unfold/commit/0a7cdeb829301ce9f64a1e187c3673de91cfee22))
+
+### Tests
+
+* **unfold:** let the browser flows pass on a slow machine and say where they are ([6f8bd8a](https://forgejo.webgrip.dev/webgrip/unfold/commit/6f8bd8a8227ca7ca33951467ff9bc593efdb2753))
+* **unfold:** run Microsoft's AHP client against the demo in every verify ([8d9ec37](https://forgejo.webgrip.dev/webgrip/unfold/commit/8d9ec3787ce5d1f361e260feadf73d856bba23f9))
+
+### Internal
+
+* **release:** unfold-site-v1.0.0-rc.9 [skip ci] ([18b5804](https://forgejo.webgrip.dev/webgrip/unfold/commit/18b58042e6a7aa20859edd561f5fc2c535830235))
+
 ## [unfold-v0.4.0-rc.80](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.79...unfold-v0.4.0-rc.80) (2026-10-14)
 
 ### Added

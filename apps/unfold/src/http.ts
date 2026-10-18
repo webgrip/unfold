@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { actionContext, channelOf, confirmationOf, describeAction, isAction, outcomeOf, recordedInputs } from './action-records.ts';
 import type { AppConfig, User, RuntimeKind, Session } from './types.ts';
@@ -17,7 +18,8 @@ import { readFileSync } from 'node:fs';
 import { StatusBoard, gatewayProbe } from './status.ts';
 import { CardService, importStatusLine } from './cards/service.ts';
 import { CardStore } from './cards/card-store.ts';
-import { PloegClient, PloegError, contextInput, contextUploadLimit, type PloegDecision } from './ploeg.ts';
+import { rarityShown } from './cards/settings.ts';
+import { PloegClient, PloegError, contextInput, contextUploadLimit, demoNoteRefusal, type PloegDecision, type PloegState } from './ploeg.ts';
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
@@ -35,6 +37,8 @@ import { clientContext, ofrepBulk, ofrepFlag } from './flag-ofrep.ts';
 import { defaultTenant } from './insight.ts';
 import { createMcpHttp } from './mcp-http.ts';
 import { entitledRole } from './oidc.ts';
+import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
+import { agentTraceMediaType } from './agent-trace.ts';
 import type { AddressInfo } from 'node:net';
 
 const reportRefreshWaitMs = 2500;
@@ -156,6 +160,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const delivery = new DeliveryService(config, store);
   void delivery.reconcileAll().catch(() => undefined);
   const handoff = new TaskHandoff(config, ploeg);
+  const linked = new LinkedSessions(store.db, config, ploeg);
   const status = new StatusBoard(config, store, () => engine.provisioning(), {
     gateway: gatewayProbe(config),
     ploeg: async user => {
@@ -188,6 +193,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
     const choices = store.flagChoices(user.id);
     return { targetingKey: user.id, userId: user.id, role: user.role, tenantId: defaultTenant, mode: config.mode, teams: config.ploeg?.userTeams?.[user.id] ?? [], labs: Object.keys(choices).filter(key => choices[key]), labsOff: Object.keys(choices).filter(key => !choices[key]) };
   };
+  ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
     const choices = store.flagChoices(user.id);
@@ -607,6 +613,11 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             throw error;
           }
         }
+        if (path === '/api/actions/filters') {
+          if (method !== 'GET') fault(405, 'method', 'Read the action filters with GET.');
+          const person = user.role === 'admin' ? url.searchParams.get('userId') || undefined : user.id;
+          return json(res, 200, sanitize(store.actionFacets(person)));
+        }
         if (path === '/api/actions') {
           if (method !== 'GET') fault(405, 'method', 'List actions with GET.');
           const workItem = url.searchParams.get('workItemId');
@@ -614,9 +625,48 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const before = Number(url.searchParams.get('before') ?? '');
           const limit = Math.min(200, Math.max(1, Number(url.searchParams.get('limit') ?? '') || 50));
           const target = workItem ? { kind: 'work-item' as const, id: text(workItem, 'Work Item', 40) } : session ? { kind: 'session' as const, id: text(session, 'Session', 80) } : undefined;
+          const outcome = url.searchParams.get('outcome') || undefined;
+          if (outcome && !['done', 'refused', 'failed'].includes(outcome)) fault(400, 'outcome', 'Filter by the outcome done, refused or failed.');
+          const channel = url.searchParams.get('channel') ? text(url.searchParams.get('channel'), 'Channel', 200) : undefined;
           const person = user.role === 'admin' ? url.searchParams.get('userId') || undefined : user.id;
-          const actions = store.actionRecords({ userId: person, target, before: Number.isInteger(before) && before > 0 ? before : undefined, limit: limit + 1 });
+          const actions = store.actionRecords({ userId: person, target, outcome: outcome as 'done' | 'refused' | 'failed' | undefined, channel, before: Number.isInteger(before) && before > 0 ? before : undefined, limit: limit + 1 });
           return json(res, 200, sanitize({ actions: actions.slice(0, limit), nextBefore: actions.length > limit ? actions[limit - 1].id : null }));
+        }
+        const linkedSession = /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})(?:\/(agent-trace|traces)|\/work-items\/([1-9][0-9]{0,18}))?$/.exec(path);
+        const tracedRevision = /^\/api\/agent-trace\/([0-9a-f]{40}(?:[0-9a-f]{24})?)$/.exec(path);
+        if (path === '/api/linked-sessions' || path === '/api/linked-sessions/events' || linkedSession || tracedRevision) {
+          const base = config.baseUrl ?? `http://${req.headers.host}`;
+          if (path === '/api/linked-sessions/events') {
+            if (method !== 'POST') fault(405, 'method', 'Report a session event with POST.');
+            return json(res, 200, sanitize(await linked.report(user, parseLinkedEvent(await body(req), new Date()), base)));
+          }
+          if (path === '/api/linked-sessions') {
+            if (method !== 'GET') fault(405, 'method', 'List Linked Sessions with GET.');
+            const workItem = url.searchParams.get('workItemId');
+            return json(res, 200, sanitize({ sessions: workItem ? await linked.forWorkItem(user, workItem, base) : linked.mine(user, base, url.searchParams.get('all') === '1') }));
+          }
+          if (tracedRevision) {
+            if (method !== 'GET') fault(405, 'method', 'Read Agent Trace records with GET.');
+            return json(res, 200, sanitize({ records: await linked.tracesFor(user, tracedRevision[1]) }));
+          }
+          const [, id, part, workItem] = linkedSession!;
+          if (workItem) {
+            if (method !== 'PUT' && method !== 'DELETE') fault(405, 'method', 'Link a Work Item with PUT and unlink it with DELETE.');
+            return json(res, 200, sanitize({ session: await linked.setLink(user, id, workItem, method === 'PUT', base) }));
+          }
+          if (part === 'traces') {
+            if (method !== 'POST') fault(405, 'method', 'Send an Agent Trace record with POST.');
+            const stored = linked.addTrace(user, id, await body(req));
+            return json(res, stored.stored ? 201 : 200, stored);
+          }
+          if (method !== 'GET') fault(405, 'method', 'Read a Linked Session with GET.');
+          if (part === 'agent-trace') {
+            const records = await linked.traces(user, id);
+            res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Disposition': `attachment; filename="agent-trace-${id}.jsonl"`, 'X-Agent-Trace-Media-Type': agentTraceMediaType });
+            res.end(records.map(record => JSON.stringify(record)).join('\n') + (records.length ? '\n' : ''));
+            return;
+          }
+          return json(res, 200, sanitize({ session: await linked.view(user, id, base, url.searchParams.get('telemetry') === '1') }));
         }
         if (path === '/api/asks') {
           if (method !== 'GET') fault(405, 'method', 'List your Asks with GET.');
@@ -628,6 +678,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const crackStep = /^\/api\/ploeg\/work-items\/([^/]+)\/cracks\/([^/]+)\/(confirm|dispute|resolve)$/.exec(path);
           const context = /^\/api\/ploeg\/work-items\/([^/]+)\/context$/.exec(path);
           const asked = /^\/api\/ploeg\/work-items\/([^/]+)\/asks$/.exec(path);
+          const restart = /^\/api\/ploeg\/work-items\/([^/]+)\/(requeue|notes)$/.exec(path);
           if (asked) {
             try {
               if (method === 'GET') return json(res, 200, sanitize(await asks.about(user, asked[1])));
@@ -640,10 +691,24 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
               throw error;
             }
           }
-          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep || context))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions, context files and crack attributions.');
+          if (method !== 'GET' && !(method === 'POST' && (decision || attribution || crackStep || context || restart))) fault(405, 'method', 'Ploeg operator views are read-only except Work Item decisions, restarts, notes, context files and crack attributions.');
+          if (method === 'GET' && restart) fault(405, 'method', 'Restart or leave a note with POST.');
           try {
-            if (method === 'POST' && (decision || attribution || crackStep || context)) {
+            if (method === 'POST' && (decision || attribution || crackStep || context || restart)) {
               if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot change Ploeg work.');
+              if (restart) {
+                const data = await body(req);
+                const commandId = data.commandId === undefined ? randomUUID() : text(data.commandId, 'Command id', 128);
+                if (restart[2] === 'requeue') {
+                  const expectedState = text(data.expectedState, 'Expected state', 32);
+                  if (!['needs_human', 'stale'].includes(expectedState)) fault(400, 'ploeg_requeue', 'Ploeg restarts only a Work Item that needs you or went stale.');
+                  return json(res, 200, sanitize(await ploeg.requeue(user, restart[1], { commandId, expectedState: expectedState as PloegState, ...(typeof data.note === 'string' && data.note.trim() ? { note: data.note } : {}) })));
+                }
+                const note = text(data.text, 'Note', 4096);
+                if (ploeg.isDemo && await ploeg.detail(user, restart[1], true)) return json(res, 200, { workItemId: restart[1], noteId: null, commandId, shiftId: null, replayed: false, demo: true, message: demoNoteRefusal });
+                const expectedShiftId = data.expectedShiftId === undefined || data.expectedShiftId === null ? undefined : String(data.expectedShiftId);
+                return json(res, 201, sanitize({ ...await ploeg.note(user, restart[1], { commandId, text: note, ...(expectedShiftId !== undefined ? { expectedShiftId } : {}) }), demo: false }));
+              }
               if (context) {
                 const input = contextInput(url.searchParams.get('name'), url.searchParams.get('note') ?? undefined);
                 const added = await ploeg.addContext(user, context[1], input.name, input.note, await upload(req, contextUploadLimit, 'context_too_large'));
@@ -822,7 +887,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         return fault(404, 'not_found', 'API route not found.');
       }
-      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt' };
+      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt', '/action-log.js': 'action-log.js' };
       const file = assets[path] ?? (browserModule.test(path) ? path.slice(1) : undefined);
       if (method !== 'GET' || !file) return fault(404, 'not_found', 'Page not found.');
       await staticFiles.serve(req, res, file, Boolean(assets[path]));

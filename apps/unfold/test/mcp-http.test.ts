@@ -151,7 +151,7 @@ test('a valid token runs the tools as the Unfold account its subject maps to; an
   const listed = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, { token: token() });
   assert.equal(listed.status, 200, listed.text);
   assert.equal(listed.json.result.resultType, 'complete');
-  assert.deepEqual(listed.json.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_spend', 'unfold_digest', 'unfold_ask']);
+  assert.deepEqual(listed.json.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_linked_sessions', 'unfold_link_session', 'unfold_spend', 'unfold_digest', 'unfold_ask', 'unfold_hand_off', 'unfold_approve_work', 'unfold_reject_work', 'unfold_stop_work', 'unfold_retry_work', 'unfold_add_note', 'unfold_steer_session']);
   assert.equal(listed.headers.get('mcp-session-id'), null, 'a stateless server mints no session');
 
   const sessions = await post(unfold.url, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'unfold_sessions', arguments: {} } }, { token: token() });
@@ -208,7 +208,7 @@ test('a 2025-11-25 client initializes over HTTP and lists tools without a sessio
   const initialized = await post(unfold.url, { jsonrpc: '2.0', method: 'notifications/initialized' }, { token: token(), version: '2025-11-25' });
   assert.equal(initialized.status, 202);
   const listed = await post(unfold.url, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, { token: token(), version: '2025-11-25' });
-  assert.equal(listed.json.result.tools.length, 7);
+  assert.equal(listed.json.result.tools.length, 16);
   assert.equal(listed.json.result.resultType, undefined);
 });
 
@@ -419,4 +419,62 @@ test('an ask through unfold-mcp over HTTPS is recorded as mcp:<client> with the 
   assert.deepEqual({ action: record.action, channel: record.channel, outcome: record.outcome, user: record.userId, target: record.target }, { action: 'POST /api/ploeg/work-items/:id/asks', channel: 'mcp:Claude Code 2.1.296', outcome: 'done', user: personId, target: { kind: 'work-item', id: '101' } });
   assert.ok(record.confirmation?.endsWith(agreed), `the record carries the hash of the exact text agreed to: ${record.confirmation}`);
   assert.deepEqual(admitted, [{ via: 'mcp:Claude Code 2.1.296', confirmation: record.confirmation }], 'Ploeg receives the same channel and confirmation');
+});
+
+test('an action through unfold-mcp over HTTPS asks with input_required, acts once as the person when accepted, and refuses a viewer before asking', async t => {
+  const rsa = rsaSigner();
+  const idp = await identityProvider([{ publicKey: rsa.publicKey, kid: 'rsa-1' }]);
+  t.after(() => idp.close());
+  const env = `UNFOLD_MCP_PLOEG_${randomBytes(6).toString('hex').toUpperCase()}`;
+  process.env[env] = randomBytes(24).toString('hex');
+  t.after(() => { delete process.env[env]; });
+  const decided: { path: string; via: unknown; confirmation: unknown; actor: unknown }[] = [];
+  const ploeg = createServer((req, res) => {
+    const url = new URL(req.url!, 'http://fixture.invalid');
+    const send = (status: number, payload: object) => res.writeHead(status, { 'content-type': 'application/json' }).end(JSON.stringify({ schemaVersion: '1.0', ...payload }));
+    if (url.pathname.endsWith('/teams')) return send(200, { teams: ploegDemo.teams });
+    if (req.method === 'POST' && url.pathname.endsWith('/work-items/106/approve')) {
+      decided.push({ path: url.pathname, via: req.headers['x-ploeg-via'], confirmation: req.headers['x-ploeg-confirmation'], actor: req.headers['x-ploeg-actor'] });
+      return send(200, { decision: { workItemId: '106', team: 'delivery', state: 'queued' } });
+    }
+    const detail = ploegDemo.details[url.pathname.split('/').at(-1)!];
+    return detail ? send(200, detail) : send(404, { error: { code: 'not_found', message: 'no' } });
+  });
+  ploeg.listen(0, '127.0.0.1');
+  await once(ploeg, 'listening');
+  t.after(() => new Promise<void>(done => ploeg.close(() => done())));
+  const personId = subjectUserId(browserIssuer, 'person-sub');
+  const unfold = await application('live', config => {
+    config.baseUrl = undefined;
+    (config.auth as any).oidc = { issuer: browserIssuer, clientId: 'unfold', scopes: ['openid'], displayName: 'Authentik', roleClaim: 'unfold_role', groupsClaim: 'groups', roles: { admin: ['unfold-admins'], operator: ['unfold-operators'], viewer: ['unfold-viewers'] } };
+    config.mcp = settingsFor(idp.issuer);
+    config.ploeg = { url: `http://127.0.0.1:${(ploeg.address() as { port: number }).port}`, tokenEnv: env, userTeams: { [personId]: ['delivery'] } };
+  });
+  t.after(() => unfold.close());
+  unfold.app.store.addUser({ id: personId, name: 'person@example.com', role: 'operator', passwordHash: '' });
+  const clientMeta = { ...meta({ elicitation: {} }), 'io.modelcontextprotocol/clientInfo': { name: 'Claude Code', version: '2.1.296' } };
+  const approve = (id: number, extra: Record<string, unknown> = {}, claims: Record<string, unknown> = {}) => post(unfold.url, { jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'unfold_approve_work', arguments: { id: '106' }, _meta: clientMeta, ...extra } }, { token: jwt(rsa.signer, claimsFor(idp.issuer, claims)) });
+  const records = () => unfold.app.store.actionRecords({ userId: personId, limit: 50 });
+
+  const viewer = await approve(1, {}, { groups: ['unfold-viewers'] });
+  assert.equal(viewer.json.result.isError, true, viewer.text);
+  assert.equal(viewer.json.result.content[0].text, 'Your Unfold role is viewer, which cannot change work. Nothing was changed.');
+  assert.equal(viewer.json.result.resultType, 'complete', 'a viewer is never asked to confirm');
+
+  const pending = (await approve(2)).json.result;
+  assert.equal(pending.resultType, 'input_required');
+  const message = pending.inputRequests.confirm_action.params.message;
+  assert.match(message, /^Approve Work Item 106 ".*"\? Ploeg queues it for Team delivery/);
+  assert.equal(decided.length, 0);
+  const accepted = { inputResponses: { confirm_action: { action: 'accept', content: { confirm: true } } }, requestState: pending.requestState };
+  const done = await approve(3, accepted);
+  assert.equal(done.json.result.structuredContent.done, true, done.text);
+  const [record] = records();
+  assert.deepEqual({ action: record.action, channel: record.channel, outcome: record.outcome, target: record.target }, { action: 'POST /api/ploeg/work-items/:id/approve', channel: 'mcp:Claude Code 2.1.296', outcome: 'done', target: { kind: 'work-item', id: '106' } });
+  assert.ok(record.confirmation?.endsWith(`:${createHash('sha256').update(message).digest('hex')}`), String(record.confirmation));
+  assert.deepEqual(decided, [{ path: '/api/v1/operator/work-items/106/approve', via: 'mcp:Claude Code 2.1.296', confirmation: record.confirmation, actor: personId }]);
+  const replayed = await approve(4, accepted);
+  assert.match(replayed.json.result.content[0].text, /already used\. Nothing was changed/);
+  assert.equal(decided.length, 1, 'a sealed confirmation acts at most once');
+  assert.equal(records().length, 1);
 });

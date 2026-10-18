@@ -31,8 +31,9 @@ export async function run({ app, page, assert, screenshot }) {
 
   await page.setViewportSize({ width: 1440, height: 1040 });
   await page.goto(`${origin}/#settings/labs`);
-  await page.getByRole('group', { name: 'Live Work Item view: your choice' }).getByRole('button', { name: 'Default' }).click();
-  await page.getByText(/Off for you · The default/).waitFor();
+  const liveRow = page.locator('.labs-row', { has: page.getByRole('group', { name: 'Live Work Item view: your choice' }) });
+  await liveRow.getByRole('button', { name: 'Default' }).click();
+  await liveRow.getByText(/Off for you · The default/).waitFor();
   await page.goto(`${origin}/#work/102?lane=leased`);
   await page.locator('.work-stages').waitFor();
   assert.equal(await page.locator('.work-live').count(), 0, 'the live view still shows after choosing Default');

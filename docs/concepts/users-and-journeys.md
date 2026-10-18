@@ -2,8 +2,8 @@
 type: explanation
 audience: [owner, contributor, agent]
 owner: unfold
-last_verified: 2026-10-11
-verified_by: "Round-1 owner answers of 2026-10-11 (recorded on VIK-2008); read against docs/adr 0005-0011, 0017, 0021, 0022, 0026, 0031, apps/unfold/docs/adrs 0023-0025, 0038, 0040, Ploeg ADRs 0012, 0044, 0066 at the pinned aad61107, and apps/unfold/src at origin/development 42c6a041. Today's status per stage comes from a source read; nothing was run. No user research has been done: every role and journey is the owner's decision or a hypothesis marked as one."
+last_verified: 2026-10-14
+verified_by: "Round-1 owner answers of 2026-10-11 (recorded on VIK-2008) and the owner decisions of 2026-10-14 on Access Role names, Try again and spent budgets (VIK-2011, VIK-2019); read against docs/adr 0005-0011, 0017, 0021, 0022, 0026, 0031, apps/unfold/docs/adrs 0023-0025, 0038, 0040, Ploeg ADRs 0012, 0044, 0066 at the pinned aad61107, and apps/unfold/src at origin/development 42c6a041. Today's status per stage comes from a source read; nothing was run. No user research has been done: every role and journey is the owner's decision or a hypothesis marked as one."
 ---
 
 # Users and their journeys
@@ -37,7 +37,21 @@ An **Agency** buys Unfold and pays for it; its **Client** pays the agency ([ADR-
 | Auditor, finance | edge (*hypothesis*: not classified by the owner yet) | asks who did what and what it cost; exports | exports |
 | Client | outside the workbench | requests, approves quotes, tries previews | Client Portal (not built) |
 
-Juniors get full access "but RBAC etc granular"; product owners make Unfold their main place, "RBAC etc through SSO in proper ways"; any developer may hand work over. Unfold therefore needs permissions finer than today's three roles: [VIK-2011](https://vikunja.webgrip.dev/tasks/2011).
+Juniors get full access "but RBAC etc granular"; product owners make Unfold their main place, "RBAC etc through SSO in proper ways"; any developer may hand work over. Unfold therefore needs permissions finer than today's three roles.
+
+**Access Roles.** The owner decided the built-in [Access Roles](../reference/glossary.md#access-role) on [VIK-2011](https://vikunja.webgrip.dev/tasks/2011); the permission table per role is that ticket's work, and nothing is built yet.
+
+| Access Role | May | Typical holder from the cast |
+|---|---|---|
+| Account owner | billing, budgets, the kill switch, everything an Admin may do | agency owner |
+| Admin | identity, Teams, sources, secrets, policies; no billing | platform engineer |
+| Lead | start policy, review routing and budgets within the agency cap for their projects; accept learnings | tech lead |
+| Developer | start work, review and accept, steer, take over | freelancer, senior, medior and junior developers (a junior with a narrower scope) |
+| Product owner | make work Ready, prioritise, sign off; never accept code | product owner, QA |
+| Viewer | read | scrum master, account manager |
+| Client | its own Client's work only ([ADR-0017](../adr/adr-0017-a-tenant-sits-above-teams-and-bounds-what-users-sources-and-budgets-reach.md)) | the agency's client |
+
+They replace ADR-0017's `viewer`, `member`, `admin` and the code's `admin`, `operator`, `viewer`: admin becomes Admin, operator and member become Developer, viewer stays Viewer. Each Tenant names its Account owner explicitly. *Operator* stays a word for service identities and *pilot* for the hosted trial.
 
 ## What the core users need
 
@@ -135,7 +149,7 @@ Two entry points with one outcome: a person hands work over, or Ready work start
 | Starts when | an agent stopped (question, repeated failure, spent budget, closed PR) or a person wants to steer running work |
 | Done when | answered and resumed, tried again, split, taken over in the editor, given context, or cancelled |
 | How often | daily |
-| Decided | "Needs you" always carries its reason and a fix ([Unfold ADR-0024](../../apps/unfold/docs/adrs/0024-unfold-opens-on-now-with-one-vocabulary-and-one-token-system.md), proposed); a spent budget stops the Shift and offers a split, never a silent top-up ([ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md)); context added while steering reaches the next Run ([ADR-0022](../adr/adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md)); Try again is a requeue from a chosen Round, with the actor recorded (Ploeg ADR-0044) |
+| Decided | "Needs you" always carries its reason and a fix ([Unfold ADR-0024](../../apps/unfold/docs/adrs/0024-unfold-opens-on-now-with-one-vocabulary-and-one-token-system.md), proposed); a spent budget stops the Shift and offers a split, never a silent top-up ([ADR-0006](../adr/adr-0006-the-ticket-is-the-billing-unit.md)); context added while steering reaches the next Run ([ADR-0022](../adr/adr-0022-people-give-a-work-item-context-files-at-the-start-and-while-steering.md)); Try again is a requeue from a chosen Round, with the actor recorded (Ploeg ADR-0044), and it happens in Unfold, never by reassigning in the tracker (owner, [VIK-2019](https://vikunja.webgrip.dev/tasks/2019)) |
 | Enterprise | who may raise a budget, cancel, discard, take over (*open*, [VIK-2011](https://vikunja.webgrip.dev/tasks/2011)); each choice audited |
 | States | each stop reason · no permission for a path · budget split proposed · work already resumed elsewhere |
 | Success measure | time from stop to resume; baseline: not instrumented |
@@ -268,13 +282,10 @@ Every stage is missing in Unfold: learnings exist only inside Ploeg. This journe
 
 ## Open questions
 
-Round 2 ([VIK-2009](https://vikunja.webgrip.dev/tasks/2009)) holds R1 to R12. Reading the decision records for this page added these, each with the owner as the one who decides:
+Round 2 ([VIK-2009](https://vikunja.webgrip.dev/tasks/2009)) holds R1 to R12. Reading the decision records for this page added eight more. The owner decided three on 2026-10-14: the Access Role names ([VIK-2011](https://vikunja.webgrip.dev/tasks/2011)), Try again happens in Unfold, and a spent budget is split, never topped up ([VIK-2019](https://vikunja.webgrip.dev/tasks/2019)). These remain, each with the owner as the one who decides:
 
-1. **Role names.** Code has `admin`, `operator`, `viewer`; ADR-0017 decides `viewer`, `member`, `admin`. Which survives?
-2. **Try again.** Unfold ADR-0024 says to reassign in the tracker; Unfold ADR-0023 and Ploeg ADR-0044 put Try again in Unfold. Which does the web page offer?
-3. **Notification scope.** ADR-0026 notifies "people who can read that Team"; ADR-0017 makes Tenant and Client the boundary, not Team.
-4. **Budget top-up.** Ploeg ADR-0012 lets a person top up a spent pool; ADR-0006 forbids it and offers a split.
-5. **Who opens the pull request.** Unfold ADR-0016 has it opened as the signed-in person; Unfold ADR-0040 uses the publisher identity.
-6. **Client steering.** ADR-0017 lets client users add context but not steer; ADR-0031 leaves client steering open.
-7. **Client contact.** ADR-0007 has clients talk to the refinement agent, while Unfold never contacts clients; is the refinement conversation in the portal an exception?
-8. **Auditor and finance.** Are they users of Unfold, or served by exports only?
+1. **Notification scope.** ADR-0026 notifies "people who can read that Team"; ADR-0017 makes Tenant and Client the boundary, not Team.
+2. **Who opens the pull request.** Unfold ADR-0016 has it opened as the signed-in person; Unfold ADR-0040 uses the publisher identity.
+3. **Client steering.** ADR-0017 lets client users add context but not steer; ADR-0031 leaves client steering open.
+4. **Client contact.** ADR-0007 has clients talk to the refinement agent, while Unfold never contacts clients; is the refinement conversation in the portal an exception?
+5. **Auditor and finance.** Are they users of Unfold, or served by exports only?

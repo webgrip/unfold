@@ -34,7 +34,7 @@ export const recordedRoutes = Object.freeze([
   '/api/task-sources', `/api/task-sources/${id}/tasks`, `/api/task-sources/${id}/tasks/${id}`,
   '/api/ploeg', '/api/ploeg/teams', '/api/ploeg/summary', '/api/ploeg/runs', '/api/ploeg/events', '/api/ploeg/proposed', '/api/ploeg/now',
   '/api/ploeg/work-items', `/api/ploeg/work-items/${id}`, `/api/ploeg/work-items/${id}/card`, `/api/ploeg/work-items/${id}/cracks`, `/api/ploeg/work-items/${id}/crack-candidates`, `/api/ploeg/work-items/${id}/value-stream`,
-  `/api/ploeg/work-items/${id}/context`, `/api/ploeg/work-items/${id}/asks`, '/api/asks',
+  `/api/ploeg/work-items/${id}/context`, `/api/ploeg/work-items/${id}/asks`, '/api/asks', '/api/actions', '/api/actions/filters',
 ].map(path => ({ method: 'GET', path })));
 
 /** Requests answered from the recorded session timeline or acknowledged without being kept. */
@@ -62,6 +62,7 @@ export const refusedRoutes = Object.freeze([
   { method: '*', path: '/api/agent-host' }, { method: '*', path: '/api/agent-host/tokens' }, { method: 'GET', path: `/api/agent-host/${id}/${id}/link` },
   { method: '*', path: '/api/editor-credentials' }, { method: '*', path: `/api/editor-credentials/${id}` }, { method: '*', path: `/api/editor-requests/${id}` }, { method: '*', path: `/api/editor-requests/${id}/${id}` },
   { method: '*', path: '/api/links' }, { method: '*', path: `/api/links/${id}` },
+  { method: '*', path: '/api/linked-sessions' }, { method: '*', path: `/api/linked-sessions/${id}` }, { method: '*', path: `/api/linked-sessions/${id}/${id}` }, { method: '*', path: `/api/linked-sessions/${id}/work-items/${id}` }, { method: 'GET', path: `/api/agent-trace/${id}` },
   { method: 'PUT', path: '/api/me/card-identity' }, { method: '*', path: `/api/cards/${id}/world` }, { method: 'POST', path: '/api/binder/seen' }, { method: 'POST', path: `/api/packs/${id}/open` },
   { method: '*', path: `/api/card-themes/${id}` }, { method: 'POST', path: '/api/card-assets' }, { method: 'GET', path: `/api/card-assets/${id}` }, { method: 'POST', path: '/api/card-art/generate' },
   { method: 'POST', path: '/api/status/notes' }, { method: 'POST', path: `/api/status/notes/${id}/resolve` },

@@ -107,3 +107,33 @@ test('a person sees only their own actions; an administrator sees everyone\'s', 
   assert.equal((await request(server.url, '/api/actions', admin)).body.actions.length >= 1, true);
   assert.equal((await request(server.url, '/api/actions', { method: 'POST', body: {}, ...admin })).status, 405);
 });
+
+test('actions filter by outcome and channel, and the filters list people for an administrator and only yourself for anyone else', async t => {
+  const ploeg = await fakePloeg(t);
+  const server = await application('live', config => { config.ploeg = ploeg.config; }); t.after(() => server.close());
+  const admin = await login(server.url);
+  await request(server.url, `/api/ploeg/work-items/${ploeg.proposed}/approve`, { method: 'POST', body: {}, ...admin });
+  await request(server.url, '/api/ploeg/work-items/999999/approve', { method: 'POST', body: {}, ...admin });
+  const password = randomBytes(24).toString('hex');
+  const { hashPassword } = await import('../src/auth.ts');
+  server.app.store.addUser({ id: 'reader', name: 'reader', role: 'operator', passwordHash: hashPassword(password) });
+  const reader = await login(server.url, 'reader', password);
+  await request(server.url, '/api/ploeg/work-items/999998/reject', { method: 'POST', body: { reason: 'no' }, ...reader });
+
+  const refused = (await request(server.url, '/api/actions?outcome=refused', admin)).body.actions;
+  assert(refused.length >= 2 && refused.every((record: { outcome: string }) => record.outcome === 'refused'));
+  const done = (await request(server.url, '/api/actions?outcome=done', admin)).body.actions;
+  assert.equal(done.length, 1);
+  assert.equal((await request(server.url, '/api/actions?channel=browser', admin)).body.actions.length >= 3, true);
+  assert.equal((await request(server.url, '/api/actions?channel=nowhere', admin)).body.actions.length, 0);
+  assert.equal((await request(server.url, '/api/actions?outcome=maybe', admin)).status, 400);
+
+  const everyone = (await request(server.url, '/api/actions/filters', admin)).body;
+  assert.deepEqual(everyone.people.map((person: { userName: string }) => person.userName).sort(), ['admin', 'reader']);
+  assert.deepEqual(everyone.channels.map((entry: { channel: string }) => entry.channel), ['browser']);
+  const adminUser = server.app.store.getUserByName('admin')!;
+  assert.deepEqual((await request(server.url, `/api/actions/filters?userId=${adminUser.id}`, admin)).body.people.map((person: { count: number }) => person.count), [2]);
+  const own = (await request(server.url, `/api/actions/filters?userId=${adminUser.id}`, reader)).body;
+  assert.deepEqual(own.people.map((person: { userId: string; count: number }) => [person.userId, person.count]), [['reader', 1]], 'a person sees only themselves, whoever they ask for');
+  assert.equal((await request(server.url, '/api/actions/filters', { method: 'POST', body: {}, ...admin })).status, 405);
+});

@@ -19,6 +19,7 @@ export class RunLogsError extends Error {
 
 const aliasPattern = /^[a-z0-9-]{1,64}$/;
 const namePattern = /^[a-z0-9](?:[-a-z0-9.]{0,251}[a-z0-9])?$/;
+const sandboxPod = /^sbx-[a-z0-9]/;
 const cursorPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 const unreachable = 'The log store could not be reached or answered with something unexpected. Try again in a moment.';
 
@@ -74,7 +75,8 @@ async function query(logsUrl: string, logsql: string, limit: number, fetcher: ty
 
 /**
  * Reads the agent pod logs of one Run from VictoriaLogs at `observability.logsUrl`. It finds the pods whose lines
- * carry the Run's trace key (its gateway key alias) inside the Run's window, then returns their newest lines oldest
+ * carry the Run's trace key (its gateway key alias) inside the Run's window, and for a sandbox pod `sbx-<name>` the
+ * worker pod `<name>` that claimed it, whose lines carry no trace key, then returns their newest lines oldest
  * first, without the duplicates a log shipper may deliver twice, with terminal escapes removed and credentials masked. `after` (a returned `cursor`) reads only newer lines.
  * Without `logsUrl` it answers `available: false` with a Grafana Explore link when Grafana and a logs datasource are
  * configured. The demo has no pods and says so.
@@ -98,8 +100,10 @@ export async function readRunLogs(observability: AppConfig['observability'], run
   const fetcher = options.fetch ?? fetch;
   const window = `_time:[${new Date(from).toISOString()}, ${new Date(to).toISOString()}]`;
   const found = await query(observability.logsUrl, `${window} ${traced} | stats by (namespace, pod, container) count() n`, 100, fetcher);
+  const workers = [...new Map(found.map(row => [String(row.namespace ?? ''), String(row.pod ?? '')] as const).filter(([namespace, pod]) => namePattern.test(namespace) && sandboxPod.test(pod)).map(([namespace, pod]) => [`${namespace}/${pod}`, { namespace, pod: pod.slice('sbx-'.length) }])).values()].slice(0, runLogLimits.pods);
+  const launched = workers.length ? await query(observability.logsUrl, `${window} (${workers.map(entry => `namespace:=${logsqlString(entry.namespace)} pod:=${logsqlString(entry.pod)}`).join(' or ')}) | stats by (namespace, pod, container) count() n`, 100, fetcher) : [];
   const seen = new Set<string>();
-  const pods = found
+  const pods = [...found, ...launched]
     .map(row => ({ namespace: String(row.namespace ?? ''), pod: String(row.pod ?? ''), container: String(row.container ?? '') }))
     .filter(entry => namePattern.test(entry.namespace) && namePattern.test(entry.pod) && namePattern.test(entry.container) && !seen.has(`${entry.namespace}/${entry.pod}/${entry.container}`) && seen.add(`${entry.namespace}/${entry.pod}/${entry.container}`))
     .sort((a, b) => a.pod.localeCompare(b.pod) || a.container.localeCompare(b.container))

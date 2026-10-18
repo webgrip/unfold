@@ -9,9 +9,31 @@ import { join } from 'node:path';
 import { application } from './api-support.ts';
 import { confirmationLedger, createMcpServer, serveStdio } from '../src/mcp.ts';
 
+function conforms(schema: Record<string, any>, value: unknown, at: string): string[] {
+  const types = [schema.type ?? []].flat();
+  const actual = value === null ? 'null' : Array.isArray(value) ? 'array' : Number.isInteger(value) ? 'integer' : typeof value;
+  if (types.length && !types.includes(actual) && !(actual === 'integer' && types.includes('number'))) return [`${at} is ${actual}, not ${types.join(' or ')}`];
+  if (actual === 'array' && schema.items) return (value as unknown[]).flatMap((item, index) => conforms(schema.items, item, `${at}[${index}]`));
+  if (actual !== 'object' || !schema.properties) return [];
+  const record = value as Record<string, unknown>;
+  return [
+    ...(schema.required ?? []).filter((key: string) => !(key in record)).map((key: string) => `${at}.${key} is missing`),
+    ...(schema.additionalProperties === false ? Object.keys(record).filter(key => !(key in schema.properties)).map(key => `${at}.${key} is not in the output schema`) : []),
+    ...Object.entries(record).filter(([key]) => key in schema.properties).flatMap(([key, item]) => conforms(schema.properties[key], item, `${at}.${key}`)),
+  ];
+}
+
+const schemas = new WeakMap<object, Promise<Map<string, Record<string, any>>>>();
+
 async function call(server: ReturnType<typeof createMcpServer>, name: string, args: Record<string, unknown> = {}) {
   const answer = await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } });
   assert(answer && 'result' in answer, JSON.stringify(answer));
+  if (!answer.result.isError && answer.result.structuredContent) {
+    if (!schemas.has(server)) schemas.set(server, Promise.resolve(server.handle({ jsonrpc: '2.0', id: 'schemas', method: 'tools/list' })).then(listed => new Map(listed?.result.tools.map((tool: { name: string; outputSchema: Record<string, any> }) => [tool.name, tool.outputSchema]))));
+    const schema = (await schemas.get(server)!).get(name);
+    assert(schema, `${name} has no output schema`);
+    assert.deepEqual(conforms(schema, answer.result.structuredContent, name), [], 'MCP clients reject structured content that does not match the tool\'s output schema');
+  }
   return answer.result;
 }
 
@@ -26,9 +48,12 @@ test('unfold-mcp tells a client what waits, why, and what to do, from the demo w
   assert.equal(await server.handle({ jsonrpc: '2.0', method: 'notifications/initialized' }), undefined);
 
   const listed = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  assert.deepEqual(listed?.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_spend', 'unfold_digest', 'unfold_ask']);
+  assert.deepEqual(listed?.result.tools.map((tool: { name: string }) => tool.name), ['unfold_now', 'unfold_find_work', 'unfold_get_work', 'unfold_sessions', 'unfold_linked_sessions', 'unfold_link_session', 'unfold_spend', 'unfold_digest', 'unfold_ask', 'unfold_hand_off', 'unfold_approve_work', 'unfold_reject_work', 'unfold_stop_work', 'unfold_retry_work', 'unfold_add_note', 'unfold_steer_session']);
   for (const tool of listed?.result.tools ?? []) {
-    assert.equal(tool.annotations.readOnlyHint, tool.name !== 'unfold_ask', tool.name);
+    const acts = tool.name === 'unfold_ask' || tool.name === 'unfold_link_session' || /^unfold_(hand_off|approve_work|reject_work|stop_work|retry_work|add_note|steer_session)$/.test(tool.name);
+    assert.equal(tool.annotations.readOnlyHint, !acts, tool.name);
+    assert.equal(tool.annotations.destructiveHint === true, ['unfold_reject_work', 'unfold_stop_work', 'unfold_steer_session'].includes(tool.name), tool.name);
+    if (acts && !['unfold_ask', 'unfold_link_session'].includes(tool.name)) assert.match(tool.description, /confirm/, tool.name);
     assert.match(tool.name, /^[a-z][a-z0-9_]{0,29}$/);
     assert(tool.outputSchema && tool.title && tool.description.length < 1000, tool.name);
   }
@@ -132,7 +157,7 @@ test('unfold-mcp speaks newline-delimited JSON-RPC on stdio and answers bad line
   assert.deepEqual(lines.map(line => line.id ?? null), [1, null, null, 3]);
   assert.equal(lines[1].error.code, -32700);
   assert.equal(lines[2].error.code, -32600);
-  assert.equal(lines[3].result.tools.length, 7);
+  assert.equal(lines[3].result.tools.length, 16);
 });
 
 test('unfold_spend names the Work Items whose finished Runs still hold budget, and says when it cannot tell', async t => {
@@ -255,7 +280,7 @@ test('unfold-mcp serves 2026-07-28 requests without a handshake: server/discover
 
   const listed = await server.handle({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: modernMeta() } });
   assert.equal(listed?.result.resultType, 'complete');
-  assert.equal(listed?.result.tools.length, 7);
+  assert.equal(listed?.result.tools.length, 16);
   assert.equal(typeof listed?.result.ttlMs, 'number');
 
   const legacy = await server.handle({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
@@ -378,4 +403,25 @@ test('unfold_digest reports only what changed since the cutoff, and remembers it
   assert.equal(peek.since, '2026-10-06T12:30:00.000Z');
   assert.equal(JSON.parse(await readFile(stateFile, 'utf8'))[url], '2026-10-13T12:30:00.000Z', 'remember: false leaves the previous digest');
   assert.equal((await call(later, 'unfold_digest', { since: '90d' })).isError, true);
+});
+
+test('unfold-mcp links and unlinks the caller’s agent session with PUT and DELETE, and lists Linked Sessions of a Work Item', async () => {
+  const calls: { method: string; url: string; headers: Record<string, string> }[] = [];
+  const session = { id: 'abcd1234-session', harness: 'claude-code', ownerName: 'ryan', state: 'working', waitingFor: '', lastSeenAt: '2026-10-17T10:00:00.000Z', link: 'https://unfold.example.org/#linked-session/abcd1234-session', resume: 'claude --resume abcd1234-session', workItems: [{ id: '184', how: 'explicit' }], aiLines: 12, commits: [{ sha: 'a'.repeat(40), subject: 'fix', aiLines: 12, files: 1, trailer: true }], pullRequests: [], title: 'Fix login', branch: 'feat/vik-2051', repository: 'forgejo.example.org:webgrip/unfold.git' };
+  const fetcher = (async (url: string, init: RequestInit) => {
+    calls.push({ method: String(init.method), url: String(url), headers: init.headers as Record<string, string> });
+    return new Response(JSON.stringify(String(init.method) === 'GET' ? { sessions: [session] } : { session }), { status: 200 });
+  }) as typeof fetch;
+  const server = createMcpServer({ url: 'https://unfold.example.org', token: 'vle_test', fetch: fetcher });
+  const linked = await call(server, 'unfold_link_session', { session_id: 'abcd1234-session', id: 'https://unfold.example.org/#work/184' });
+  assert.match(linked.structuredContent.summary, /linked to Work Item 184/);
+  assert.deepEqual([calls[0].method, calls[0].url, calls[0].headers['x-unfold-request']], ['PUT', 'https://unfold.example.org/api/linked-sessions/abcd1234-session/work-items/184', '1']);
+  await call(server, 'unfold_link_session', { session_id: 'abcd1234-session', id: '184', unlink: true });
+  assert.equal(calls[1].method, 'DELETE');
+  const refused = await call(server, 'unfold_link_session', { session_id: '../x', id: '184' });
+  assert.equal(refused.isError, true);
+  const listed = await call(server, 'unfold_linked_sessions', { id: '184' });
+  assert.equal(calls.at(-1)!.url, 'https://unfold.example.org/api/linked-sessions?workItemId=184');
+  assert.equal(listed.structuredContent.sessions[0].untrusted.title, 'Fix login');
+  assert.match(listed.structuredContent.summary, /1 linked sessions on Work Item 184; 1 working or waiting/);
 });

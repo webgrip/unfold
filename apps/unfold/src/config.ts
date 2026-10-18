@@ -214,6 +214,24 @@ export function productEventsSetting(): boolean {
   return value === 'on';
 }
 
+export const managedExecutionGuide = 'https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/docs/workflows/managed-execution.md';
+
+/**
+ * Refuses to start a live Unfold that Ploeg does not authorize. Ploeg authorizes and budgets every
+ * agent Run (system ADR-0002), so live mode needs an `execution` block and a `ploeg` connection with
+ * a server credential. Demo mode makes no model calls and is unaffected.
+ */
+export function requirePloegExecution(config: Pick<AppConfig, 'mode' | 'execution' | 'ploeg'>): void {
+  if (config.mode !== 'live') return;
+  const missing = [
+    ...(!config.ploeg || config.ploeg.demo ? ['ploeg.url'] : []),
+    ...(!config.ploeg?.tokenEnv ? ['ploeg.tokenEnv'] : []),
+    ...(!config.execution?.team ? ['execution.team'] : []),
+  ];
+  if (!missing.length) return;
+  throw new Error(`Live mode runs agent work only under Ploeg's authorization, and standalone live mode is retired. Configure ${missing.join(', ')} (see config/live.example.json) and set the variable ploeg.tokenEnv names to Unfold's Ploeg consumer token. Guide: ${managedExecutionGuide}. For the credential-free demonstration, run npm run demo.`);
+}
+
 export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   const fileIndex = argv.indexOf('--config');
   const configFile = fileIndex >= 0 ? argv[fileIndex + 1] : process.env.UNFOLD_CONFIG;
@@ -326,6 +344,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     observability = {};
     if (o.grafanaUrl !== undefined) observability.grafanaUrl = configuredUrl(o.grafanaUrl, 'observability.grafanaUrl');
     if (o.logsUrl !== undefined) observability.logsUrl = configuredUrl(o.logsUrl, 'observability.logsUrl');
+    if (o.metricsUrl !== undefined) observability.metricsUrl = configuredUrl(o.metricsUrl, 'observability.metricsUrl');
     if (o.dashboards !== undefined) {
       if (!o.dashboards || typeof o.dashboards !== 'object' || Array.isArray(o.dashboards) || Object.entries(o.dashboards).some(([key, value]) => !/^[a-z0-9-]{1,40}$/.test(key) || typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(value))) throw new Error('observability.dashboards maps short names to Grafana dashboard uids');
       observability.dashboards = o.dashboards;

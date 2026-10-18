@@ -51,6 +51,7 @@ for (const [name, version] of Object.entries(manifest.dependencies || {})) {
 }
 if (Object.keys(manifest.optionalDependencies || {}).length || Object.keys(manifest.peerDependencies || {}).length) fail(packagePath, 'optional and peer npm dependencies require an architecture decision');
 let sources = 0;
+const modules = [];
 let jsonFiles = 0;
 for (const path of files) {
   const extension = extname(path);
@@ -70,8 +71,7 @@ for (const path of files) {
   try {
     javascript = extension === '.ts' ? stripTypeScriptTypes(source, { mode: 'strip', sourceUrl: path }) : source;
   } catch { fail(path, 'TypeScript must use native erasable syntax'); continue; }
-  const checked = spawnSync(process.execPath, ['--input-type=module', '--check'], { input: javascript, encoding: 'utf8', timeout: 10000 });
-  if (checked.status !== 0 || checked.error) fail(path, 'module syntax check failed');
+  modules.push([path, javascript]);
   const importPattern = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)(['"])([^'"\n]+)\1/g;
   for (const match of javascript.matchAll(importPattern)) {
     const specifier = match[2];
@@ -112,6 +112,18 @@ if (existsSync(flagRegistryPath)) {
   }
   for (const [key, path] of used) if (!Object.hasOwn(registered, key)) fail(path, `evaluates the flag ${key}, which src/flag-registry.json does not register`);
 }
+const parseModules = `
+import { readFileSync } from 'node:fs';
+import { SourceTextModule } from 'node:vm';
+const unparsed = [];
+for (const [path, source] of JSON.parse(readFileSync(0, 'utf8'))) {
+  try { new SourceTextModule(source, { identifier: path }); } catch { unparsed.push(path); }
+}
+process.stdout.write(JSON.stringify(unparsed));
+`;
+const parsed = spawnSync(process.execPath, ['--experimental-vm-modules', '--no-warnings', '--input-type=module', '--eval', parseModules], { input: JSON.stringify(modules), encoding: 'utf8', timeout: 60000, maxBuffer: 16 * 1024 * 1024 });
+if (parsed.status !== 0 || parsed.error) failures.push(`module syntax check could not run: ${parsed.error?.message ?? parsed.stderr.trim()}`);
+else for (const path of JSON.parse(parsed.stdout)) fail(path, 'module syntax check failed');
 const vendorDirectory = resolve(root, 'public/vendor/three');
 let vendored = 0;
 if (existsSync(vendorDirectory)) {

@@ -9,6 +9,10 @@ import { money } from '../public/core/format.js';
 import { agentHostAuthority } from '../public/core/agents-window.js';
 import { noAgentMessages, noRunMessages, ploegRunToolName, workItemActivity, workItemRefusals } from '../src/ahp/work-items.ts';
 import { workItemCommandText } from '../src/ahp/work-item-commands.ts';
+import { liveRunNotice, podLogsToolName } from '../src/ahp/run-live.ts';
+import { runChatChannel } from '../src/ahp/runs.ts';
+import { condenseTraceback } from '../src/ahp/tracebacks.ts';
+import { readOnlyTerminal } from '../src/ahp/terminals.ts';
 import { application, login, request } from './api-support.ts';
 import { action, chatAsSeen, connect, defaultChatOf, vscodeChangesetCatalogue, vscodeChangesets, type Json } from './ahp-support.ts';
 import { testTimeout } from './timeframes.ts';
@@ -50,7 +54,7 @@ function world() {
     { id: '1002', at: daysAgo(3), actor: 'operator:unfold:op-1', action: 'work_item.withdrawn', workItemId: '208', team: 'delivery', detail: {} },
     { id: '1003', at: daysAgo(2), actor: 'ploegd:merge', action: 'work_item.done', workItemId: '207', team: 'delivery', detail: {} },
   ];
-  return { details, events, down: false, seen: [] as string[], writes: [] as Write[], requeues: new Map<string, Json>(), notes: new Map<string, Json>(), notesRoute: true, cancelBody: true, consumerMaxBudgetUsd: 5, pendingCommand: (_key: string): unknown => undefined };
+  return { details, events, down: false, seen: [] as string[], writes: [] as Write[], requeues: new Map<string, Json>(), notes: new Map<string, Json>(), notesRoute: true, cancelBody: true, consumerMaxBudgetUsd: 5, pendingCommand: (_key: string): unknown => undefined, transcripts: new Map<string, Json[]>(), logRows: [] as Json[], logQueries: [] as string[] };
 }
 
 type Write = { path: string; actor?: string; acting?: string; body: string; pending: unknown };
@@ -131,6 +135,14 @@ async function ploegServer(t: TestContext, bearer: string, state: World): Promis
       const items = [...state.details.values()].map(detail => detail.item).filter(item => item.team === url.searchParams.get('team') && (!url.searchParams.has('state') || item.state === url.searchParams.get('state')) && BigInt(item.id) > after).sort((a, b) => (BigInt(a.id) < BigInt(b.id) ? -1 : 1));
       return send({ items: items.slice(0, limit), nextCursor: items.length > limit ? items[limit - 1].id : null });
     }
+    const transcript = /^runs\/([0-9]+)\/transcript$/.exec(path);
+    if (transcript) {
+      const entries = state.transcripts.get(transcript[1]);
+      if (!entries) return send({}, 404);
+      const after = Number(url.searchParams.get('after') ?? 0);
+      const page = entries.filter(entry => entry.seq > after);
+      return send({ runId: transcript[1], entries: page, nextAfter: page.at(-1)?.seq ?? after, hasMore: false, truncated: false, complete: false });
+    }
     const detail = /^work-items\/([0-9]+)$/.exec(path);
     if (detail) return state.details.has(detail[1]) ? send(state.details.get(detail[1])) : send({}, 404);
     if (path === 'events') {
@@ -155,6 +167,25 @@ async function ploegServer(t: TestContext, bearer: string, state: World): Promis
   return `http://127.0.0.1:${address.port}`;
 }
 
+async function logStore(t: TestContext, state: World): Promise<string> {
+  const server = createServer(async (req, res) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of req) chunks.push(chunk as Buffer);
+    const query = new URLSearchParams(Buffer.concat(chunks).toString('utf8')).get('query') ?? '';
+    state.logQueries.push(query);
+    const rows = (values: Json[]) => res.writeHead(200, { 'content-type': 'application/stream+json' }).end(values.map(value => JSON.stringify(value)).join('\n'));
+    const pods = [...new Map(state.logRows.map(row => [`${row.pod}/${row.container}`, row])).values()];
+    if (query.includes('| stats by') && query.includes('"trace=')) return rows(pods.filter(row => row.traced).map(row => ({ namespace: 'ploeg', pod: row.pod, container: row.container, n: '1' })));
+    if (query.includes('| stats by')) return rows(pods.filter(row => !row.traced && query.includes(`pod:=${JSON.stringify(row.pod)}`)).map(row => ({ namespace: 'ploeg', pod: row.pod, container: row.container, n: '1' })));
+    const after = /_time:\((\S+?),/.exec(query)?.[1];
+    return rows(state.logRows.filter(row => query.includes(`pod:=${JSON.stringify(row.pod)}`) && (!after || row._time > after)).sort((a, b) => b._time.localeCompare(a._time)).map(row => ({ _time: row._time, _msg: row._msg, pod: row.pod })));
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));
+  const address = server.address(); assert(address && typeof address !== 'string');
+  return `http://127.0.0.1:${address.port}`;
+}
+
 async function fixture(t: TestContext) {
   const env = `UNFOLD_WORK_ITEMS_TEST_${randomBytes(6).toString('hex').toUpperCase()}`;
   const bearer = randomBytes(24).toString('hex');
@@ -162,11 +193,14 @@ async function fixture(t: TestContext) {
   t.after(() => { delete process.env[env]; });
   const state = world();
   const ploeg = await ploegServer(t, bearer, state);
-  const server = await application('live', config => { config.ploeg = { url: ploeg, tokenEnv: env, userTeams: { 'op-1': ['delivery'], 'viewer-2': ['delivery'] } }; });
+  const logsUrl = await logStore(t, state);
+  const userTeams: Record<string, string[]> = { 'op-1': ['delivery'], 'viewer-2': ['delivery'] };
+  const server = await application('live', config => { config.ploeg = { url: ploeg, tokenEnv: env, userTeams }; config.observability = { logsUrl }; });
   t.after(() => server.close());
   const host = server.app.agentHost;
   host.workItems.pollMs = 3_600_000;
   host.workItems.reconcileMs = 3_600_000;
+  host.runLive.pollMs = 3_600_000;
   server.app.store.addUser({ id: 'op-1', name: 'op-1', role: 'operator', passwordHash: await hashPassword(password) });
   server.app.store.addUser({ id: 'viewer-1', name: 'viewer-1', role: 'viewer', passwordHash: await hashPassword(password) });
   server.app.store.addUser({ id: 'viewer-2', name: 'viewer-2', role: 'viewer', passwordHash: await hashPassword(password) });
@@ -183,7 +217,7 @@ async function fixture(t: TestContext) {
     return client;
   };
   const listed = async (client: Awaited<ReturnType<typeof attach>>) => (await client.rpc('listSessions', {})).items as Json[];
-  return { server, host, state, attach, listed, unfoldSession };
+  return { server, host, state, attach, listed, unfoldSession, userTeams };
 }
 
 const settled = (...clients: Array<{ rpc(method: string, params: Json): Promise<Json> }>) => Promise.all(clients.map(client => client.rpc('ping', {})));
@@ -853,4 +887,198 @@ test('a Work Item session\'s Agents window link goes to the people Ploeg lets op
   assert.equal((await link('wi-205')).status, 404, 'the id is Ploeg\'s Work Item id');
   const viewer = await login(f.server.url, 'viewer-2', password);
   assert.equal((await link('205', viewer.cookie)).status, 403, 'a viewer cannot attach an Agents window, so gets no link');
+});
+
+const knownSecret = 'test-admin-password-314159';
+const runChatOf = (publicId: string, runId: string) => runChatChannel(`unfold:/${publicId}`, `ploeg-run-${runId}`);
+const transcriptReads = (state: World, runId: string) => state.seen.filter(path => path.startsWith(`runs/${runId}/transcript`));
+
+function runningBuilder(state: World): void {
+  state.details.get('202')!.runs[0].keyAlias = 'ploeg-abc123';
+  state.transcripts.set('301', [
+    { seq: 1, at: minutesAgo(3), kind: 'message', text: 'Reading the order totals.' },
+    { seq: 2, at: minutesAgo(2), kind: 'tool_call', toolCallId: 'call-1', title: 'Run the tests', toolKind: 'execute', status: 'in_progress', input: '{"command":"npm test"}' },
+  ]);
+  state.logRows.push(
+    { _time: minutesAgo(3), _msg: `starting acp agent trace=ploeg-abc123 echo ${knownSecret}`, pod: 'sbx-ploeg-worker-delivery-builder-abc12-x1y2z', container: 'worker', traced: true },
+    { _time: minutesAgo(2.5), _msg: 'sandbox claim ready', pod: 'ploeg-worker-delivery-builder-abc12-x1y2z', container: 'launcher', traced: false },
+  );
+}
+
+test('a watched running Run shows its transcript and both pod logs in its chat, and a new entry past the cursor reaches the subscriber, redacted', { timeout: testTimeout(20_000) }, async t => {
+  const f = await fixture(t);
+  runningBuilder(f.state);
+  const op = await f.attach('op-1');
+  await op.rpc('subscribe', { channel: 'unfold:/wi-202' });
+  const channel = runChatOf('wi-202', '301');
+  const chat = (await op.rpc('subscribe', { channel })).snapshot.state;
+  const parts: Json[] = chat.activeTurn.responseParts;
+  assert.equal(parts[0].content, liveRunNotice('Implementer', true), 'the notice says the transcript is live');
+  const logs = parts.find(part => part.kind === 'toolCall' && part.toolCall.toolName === podLogsToolName)!.toolCall;
+  assert.deepEqual(logs.content, [{ type: 'terminal', resource: 'ahp-terminal:/wi-202/301', title: 'Pod logs', isPty: false }]);
+  assert.equal(typeof logs.toolInput, 'string', 'VS Code 1.142 attaches a terminal only to a tool call with a string input');
+  assert.deepEqual(parts.filter(part => part.kind === 'markdown').map(part => part.content), ['Reading the order totals.']);
+  const tests = parts.find(part => part.kind === 'toolCall' && part.toolCall.displayName === 'Run the tests')!.toolCall;
+  assert.equal(tests.status, 'running');
+  assert.equal(tests.toolInput, '{"command":"npm test"}');
+
+  const terminal = (await op.rpc('subscribe', { channel: logs.content[0].resource })).snapshot.state;
+  const output = terminal.content[0].value as string;
+  assert.match(output, /\[sandbox\] starting acp agent/);
+  assert.match(output, /\[worker\] sandbox claim ready/, 'the worker pod that claimed the sandbox is found by name');
+  assert.ok(!output.includes(knownSecret) && output.includes('[redacted]'), 'a configured secret never reaches a pod-log terminal');
+  assert.equal(terminal.lifecycle.status, 'running');
+
+  f.state.transcripts.get('301')!.push(
+    { seq: 3, at: minutesAgo(1), kind: 'tool_output', toolCallId: 'call-1', text: `ok 12 tests; printed ${knownSecret}` },
+    { seq: 4, at: minutesAgo(1), kind: 'tool_call', toolCallId: 'call-1', title: 'Run the tests', toolKind: 'execute', status: 'completed' },
+  );
+  f.state.logRows.push({ _time: minutesAgo(0.5), _msg: 'npm test finished', pod: 'sbx-ploeg-worker-delivery-builder-abc12-x1y2z', container: 'worker', traced: true });
+  await f.host.runLive.tick('202', '301');
+  assert.ok(transcriptReads(f.state, '301').some(path => path.includes('after=2')), 'the poller reads after the cursor it reached');
+  const completed = await op.until(message => action(message, channel, 'chat/toolCallComplete'));
+  assert.equal(completed.params.action.toolCallId, tests.toolCallId);
+  assert.equal(completed.params.action.result.success, true);
+  assert.deepEqual(completed.params.action.result.content, [{ type: 'text', text: 'ok 12 tests; printed [redacted]' }]);
+  const data = await op.until(message => action(message, 'ahp-terminal:/wi-202/301', 'terminal/data'));
+  assert.match(data.params.action.data, /npm test finished\n$/);
+  assert.ok(!data.params.action.data.includes('sandbox claim ready'), 'only lines past the log cursor are sent');
+  assert.ok(!JSON.stringify(op.inbox).includes(knownSecret));
+});
+
+test('nothing polls a Run without a subscriber, one poller serves every viewer, and it stops when the last one leaves or the Run finishes', { timeout: testTimeout(20_000) }, async t => {
+  const f = await fixture(t);
+  runningBuilder(f.state);
+  const op = await f.attach('op-1');
+  const viewer = await f.attach('viewer-2');
+  await op.rpc('subscribe', { channel: 'unfold:/wi-202' });
+  await f.host.workItems.tick();
+  assert.equal(f.host.runLive.polling('202', '301'), false);
+  assert.deepEqual(transcriptReads(f.state, '301'), [], 'a session subscriber alone reads no transcript');
+  const channel = runChatOf('wi-202', '301');
+  await op.rpc('subscribe', { channel });
+  await viewer.rpc('subscribe', { channel });
+  assert.equal(f.host.runLive.polling('202', '301'), true);
+  const before = transcriptReads(f.state, '301').length;
+  assert.equal(before, 1, 'the second viewer reuses the first one\'s read');
+  await f.host.runLive.tick('202', '301');
+  assert.equal(transcriptReads(f.state, '301').length, before + 1, 'one read per tick for two viewers');
+  for (const client of [op, viewer]) client.notify('unsubscribe', { channel });
+  await settled(op, viewer);
+  await f.host.runLive.tick('202', '301');
+  assert.equal(f.host.runLive.polling('202', '301'), false);
+  assert.equal(transcriptReads(f.state, '301').length, before + 1, 'no read once nobody watches');
+
+  await op.rpc('subscribe', { channel });
+  await op.rpc('subscribe', { channel: 'ahp-terminal:/wi-202/301' });
+  const run = f.state.details.get('202')!.runs[0];
+  Object.assign(run, { state: 'finished', finishedAt: minutesAgo(0), outcome: 'pr_opened' });
+  await f.host.runLive.tick('202', '301');
+  assert.equal(f.host.runLive.polling('202', '301'), false, 'a finished Run is not read again');
+  const exited = await op.until(message => action(message, 'ahp-terminal:/wi-202/301', 'terminal/exited'));
+  assert.ok(exited);
+  const open = await op.until(message => action(message, channel, 'chat/toolCallComplete') && message.params.action.result.success === false);
+  assert.match(open.params.action.result.pastTenseMessage, /did not report a result before the Run ended/);
+});
+
+test('a Ploeg outage backs a Run\'s poller off and leaves the session list alone', { timeout: testTimeout(20_000) }, async t => {
+  const f = await fixture(t);
+  runningBuilder(f.state);
+  const op = await f.attach('op-1');
+  await op.rpc('subscribe', { channel: runChatOf('wi-202', '301') });
+  f.state.down = true;
+  await f.host.runLive.tick('202', '301');
+  assert.equal(f.host.runLive.polling('202', '301'), true, 'it keeps trying, later');
+  assert.ok(workItemsOf(await f.listed(op)).length > 0, 'the Work Item sessions still list, stale');
+  assert.ok((await f.listed(op)).some(item => item.title === 'An Unfold session'));
+});
+
+test('a viewer outside the Run\'s team gets neither its chat, its terminal nor its live output', { timeout: testTimeout(20_000) }, async t => {
+  const f = await fixture(t);
+  runningBuilder(f.state);
+  const op = await f.attach('op-1');
+  const outsider = await f.attach('viewer-1');
+  const leaving = await f.attach('viewer-2');
+  await op.rpc('subscribe', { channel: 'ahp-terminal:/wi-202/301' });
+  await assert.rejects(outsider.rpc('subscribe', { channel: 'ahp-terminal:/wi-202/301' }), (error: Json) => error.code === -32008, 'a Run someone of its team already watches stays hidden');
+  await assert.rejects(outsider.rpc('subscribe', { channel: runChatOf('wi-202', '301') }), (error: Json) => error.code === -32001);
+  await leaving.rpc('subscribe', { channel: 'ahp-terminal:/wi-202/301' });
+  f.userTeams['viewer-2'] = [];
+  f.state.logRows.push({ _time: minutesAgo(0.5), _msg: 'after the team changed', pod: 'sbx-ploeg-worker-delivery-builder-abc12-x1y2z', container: 'worker', traced: true });
+  await f.host.runLive.tick('202', '301');
+  await op.until(message => action(message, 'ahp-terminal:/wi-202/301', 'terminal/data'));
+  await settled(leaving, outsider);
+  assert.ok(!leaving.inbox.some(message => message.params?.channel === 'ahp-terminal:/wi-202/301'), 'a person who left the team gets no more output');
+  assert.ok(!outsider.inbox.some(message => JSON.stringify(message).includes('after the team changed')));
+});
+
+const richTraceback = [
+  'last agent message: Error starting the agent',
+  '╭───────────────────── Traceback (most recent call last) ─────────────────────╮',
+  '│ /root/.local/share/uv/tools/openhands/lib/python3.12/site-packages/openhands/cli/main.py:88 in run │',
+  '│                                                                              │',
+  '│ ❱  88 │   config = load_config()                                             │',
+  '│ /root/.local/share/uv/tools/openhands/lib/python3.12/site-packages/openhands/sdk/mcp/config.py:41 in load_config │',
+  '│ /root/.local/share/uv/tools/openhands/lib/python3.12/site-packages/pydantic/main.py:253 in __init__ │',
+  '│ /root/.local/share/uv/tools/openhands/lib/python3.12/site-packages/pydantic/_internal/x.py:12 in validate │',
+  '╰──────────────────────────────────────────────────────────────────────────────╯',
+  'ValidationError: 6 validation errors for MCPConfig',
+  'mcpServers.litellm.TransformingStdioMCPServer',
+  "  Value error, At least one of 'tools', 'include_tags', or 'exclude_tags' is required [type=value_error]",
+].join('\n');
+
+test('a rich or plain traceback condenses to its exception, message and last frames, and other text is left alone', () => {
+  const rich = condenseTraceback(richTraceback);
+  assert.equal(rich.condensed, true);
+  assert.deepEqual(rich.text.split('\n'), [
+    'last agent message: Error starting the agent',
+    'ValidationError: 6 validation errors for MCPConfig',
+    'mcpServers.litellm.TransformingStdioMCPServer',
+    "Value error, At least one of 'tools', 'include_tags', or 'exclude_tags' is required [type=value_error]",
+    '',
+    'Last frames:',
+    '  sdk/mcp/config.py:41 in load_config',
+    '  site-packages/pydantic/main.py:253 in __init__',
+    '  pydantic/_internal/x.py:12 in validate',
+  ]);
+  assert.ok(!rich.text.includes('╭'));
+  const plain = condenseTraceback('Traceback (most recent call last):\n  File "/app/run.py", line 3, in <module>\n    main()\n  File "/app/run.py", line 1, in main\n    raise KeyError("x")\nKeyError: \'x\'');
+  assert.deepEqual(plain.text.split('\n'), ["KeyError: 'x'", '', 'Last frames:', '  /app/run.py:3 in <module>', '  /app/run.py:1 in main']);
+  assert.deepEqual(condenseTraceback('acp agent did not start'), { text: 'acp agent did not start', condensed: false });
+});
+
+test('a failed Run\'s report shows the condensed traceback first and keeps the full output', { timeout: testTimeout(20_000) }, async t => {
+  const f = await fixture(t);
+  Object.assign(f.state.details.get('204')!.runs[0], { outcome: 'failed', stuckReason: richTraceback, failureReason: 'agent_error' });
+  const op = await f.attach('op-1');
+  const chat = (await op.rpc('subscribe', { channel: defaultChatOf('unfold:/wi-204') })).snapshot.state;
+  const run = chat.turns.flatMap((turn: Json) => turn.responseParts).find((part: Json) => part.kind === 'toolCall').toolCall;
+  assert.match(run.error.message, /^last agent message: Error starting the agent · ValidationError: 6 validation errors for MCPConfig/);
+  const report = (await op.rpc('subscribe', { channel: run.content[0].resource })).snapshot.state.turns[0].responseParts.find((part: Json) => part.kind === 'markdown').content as string;
+  const condensedAt = report.indexOf('ValidationError: 6 validation errors');
+  const fullAt = report.indexOf('**Full output**');
+  assert.ok(condensedAt > 0 && fullAt > condensedAt, 'the condensed cause comes before the full output');
+  assert.ok(report.slice(0, fullAt).includes('Last frames:') && !report.slice(0, fullAt).includes('╭'), 'no box drawing before the full output');
+  assert.ok(report.slice(fullAt).includes('pydantic/_internal/x.py:12 in validate │'), 'the full text is still there');
+});
+
+test('every client action on a Run\'s pod-log terminal is refused as read-only, with no chat reply, and a message in the Run\'s chat gets its refusal as a reply', { timeout: testTimeout(20_000) }, async t => {
+  const f = await fixture(t);
+  runningBuilder(f.state);
+  const op = await f.attach('op-1');
+  const terminal = 'ahp-terminal:/wi-202/301';
+  const channel = runChatOf('wi-202', '301');
+  await op.rpc('subscribe', { channel: terminal });
+  await op.rpc('subscribe', { channel });
+  op.notify('dispatchAction', { channel: terminal, clientSeq: 1, action: { type: 'terminal/input', data: 'rm -rf /\r' } });
+  const refused = await op.until(message => action(message, terminal, 'terminal/input'));
+  assert.equal(refused.params.rejectionReason, readOnlyTerminal);
+  const unwatched = 'ahp-terminal:/wi-209/1';
+  op.notify('dispatchAction', { channel: unwatched, clientSeq: 3, action: { type: 'terminal/input', data: 'ls\r' } });
+  assert.equal((await op.until(message => action(message, unwatched, 'terminal/input'))).params.rejectionReason, 'Terminal not found', 'a terminal the person does not watch is not confirmed to exist');
+  op.notify('dispatchAction', { channel, clientSeq: 2, action: { type: 'chat/turnStarted', turnId: 'mine-1', message: { text: 'go faster', origin: { kind: 'user' } } } });
+  const reply = await op.until(message => action(message, channel, 'chat/responsePart'));
+  assert.match(reply.params.action.part.content, /read-only/);
+  await settled(op);
+  assert.ok(!op.inbox.some(message => message.params?.channel === terminal && message.params.action?.type !== 'terminal/input'), 'nothing but the refusal on the terminal');
 });

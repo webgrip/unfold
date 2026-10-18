@@ -2,8 +2,8 @@
 type: how-to
 audience: [owner, operator, contributor]
 owner: unfold
-last_verified: 2026-10-13
-verified_by: "On 2026-10-13 written with the implementation on branch feat/feature-flips: src/flags.ts, src/flag-rollouts.ts, src/flag-ofrep.ts, src/flag-registry.json, src/http.ts flag and OFREP routes, public/core/flags.js, public/views/labs.js, ops/helm/unfold featureFlags (helm template rendered with providers), scripts/check.mjs; test/flags.test.ts, test/flag-ofrep.test.ts (against a local OFREP server), test/api-flags.test.ts and the flags browser flow passed. Not checked: a real flagd, Flipt or GO Feature Flag server, and the YAML examples on a cluster."
+last_verified: 2026-10-17
+verified_by: "On 2026-10-13 written with the implementation on branch feat/feature-flips: src/flags.ts, src/flag-rollouts.ts, src/flag-ofrep.ts, src/flag-registry.json, src/http.ts flag and OFREP routes, public/core/flags.js, public/views/labs.js, ops/helm/unfold featureFlags (helm template rendered with providers), scripts/check.mjs; test/flags.test.ts, test/flag-ofrep.test.ts (against a local OFREP server), test/api-flags.test.ts and the flags browser flow passed. Not checked: a real flagd, Flipt or GO Feature Flag server, and the YAML examples on a cluster. On 2026-10-17 the cards.rarity row checked against src/flag-registry.json, src/http.ts and src/ploeg.ts useRarity; test/cards-service.test.ts and the rarity browser flow passed."
 ---
 
 # Feature flags
@@ -15,6 +15,8 @@ A feature flag lets Unfold ship a change switched off, then turn it on without a
 | Key | Kind | Default | Labs | Remove by | What it does |
 | --- | --- | --- | --- | --- | --- |
 | `work.live-view` | release | off | yes | 2027-01-17 | Puts the live view at the top of a Work Item page in place of the four-stage strip and the flight profile: the stages as folds, one sentence on what the agent is doing, and the flight path, where every Run is a hop whose height follows its tool calls, machine failures bounce back, a stalled Run circles and tripwire hits are marked. Below it, the questions people ask, answered from the record. Built and checked in the [component workbench](../workbench.md) |
+
+| `cards.rarity` | release | off | yes | 2027-01-17 | Shows each Run card's rarity: its tier from common to legendary, predicted once a Run starts and revealed at release, with the mark, frame ring, reveal and Rarity tab, and the binder's rarity filter and sort. Applies only while the deployment leaves `cards.rules.rarity` unset: `true` shows rarity to everyone and `false` turns it off whatever the flag says. Unfold still freezes revealed tiers while the flag is off, so turning it on shows them ([Unfold ADR 0045](../adrs/0045-unfold-records-the-run-card-rules-it-computes.md#update-2026-10-17-rarity-is-off-by-default-behind-a-feature-flag)). Evaluated on the server: a person whose flag is off never receives a card's rarity |
 
 `npm run check` fails when this table misses a registered flag.
 

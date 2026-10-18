@@ -33,17 +33,33 @@
       "verify": [
         "node",
         "--test"
-      ]
+      ],
+      "executionOwner": "ploeg"
     }
   ],
   "litellm": {
-    "ttl": "4h",
-    "settlementDelayMs": 60000
+    "baseUrl": "https://gateway.internal.example/v1"
   },
   "docker": {
-    "image": "unfold-agent:1.19.0",
+    "image": "unfold-agent:1.19.2",
     "cpus": 2,
     "memoryMb": 4096,
     "pidsLimit": 512
+  },
+  "ploeg": {
+    "url": "https://ploeg.internal.example",
+    "tokenEnv": "PLOEG_OPERATOR_UNFOLD_TOKEN",
+    "teams": [
+      "delivery"
+    ],
+    "userTeams": {
+      "replace-with-user-id": [
+        "delivery"
+      ]
+    }
+  },
+  "execution": {
+    "team": "delivery",
+    "heartbeatMs": 15000
   }
 }

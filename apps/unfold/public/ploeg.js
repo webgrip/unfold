@@ -1,4 +1,5 @@
 import { escape, safeUrl } from './core/dom.js';
+import { linkedSessionsMarkup } from './core/linked-sessions.js';
 import { icon } from './core/icons.js';
 import { markdown } from './core/markdown.js';
 import { count as formatCount, money, moneyHtml, plural, duration, dateTime, decimal } from './core/format.js';
@@ -23,6 +24,7 @@ import { containmentPanel, needsContainment } from './live/containment.js';
 import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
 import { runTranscriptMarkup } from './run-transcript.js';
+import { workActionsMarkup } from './action-log.js';
 import { defaultLogView, logViewerMarkup } from './run-log-view.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
@@ -1456,7 +1458,7 @@ export function liveViewMarkup(detail, model) {
   return `<section class="card work-live lv" aria-label="Live view">${foldStrip(live)}${nowLine(live)}${needsContainment(live) ? containmentPanel(live) : ''}${flightPath(live, { id: `work-live-flight-${detail.item.id}` })}${answers(live, { layout: 'chips', ask: false })}</section>`;
 }
 
-/** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, activity, technical details and, on phones, the action bar. */
+/** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, who did what, activity, technical details and, on phones, the action bar. */
 export function detailMarkup(recordedDetail, model) {
   const detail = reconcileDetail(recordedDetail, model.sessions);
   const reason = detailReason(detail);
@@ -1488,9 +1490,11 @@ export function detailMarkup(recordedDetail, model) {
     deliveryMarkup(detail, model),
     model.trace && model.trace.workItemId === item.id ? traceMarkup(model.trace, { now: model.now, busy: model.traceBusy, result: model.traceResult }) : '',
     sessionsMarkup(detail, model.sessions),
+    linkedSessionsMarkup(detail, model.linkedSessions, { now: model.now, canChange: model.userRole !== undefined }),
     briefMarkup(detail, model),
     contextMarkup(detail, model),
     storyMarkup(detail, model),
+    workActionsMarkup(detail, model),
     eventsMarkup(detail, model),
     technicalMarkup(detail),
     primary ? `<div class="work-sticky-actions" role="group" aria-label="Next step">${primary}</div>` : '',

@@ -67,6 +67,23 @@ terms:
       the application runs only a deterministic demo that makes no model calls.
     examples: ["Current state: Unfold's own engine still executes delegated Steps until the system ADR-0002 migration is complete."]
     see_also: [Ploeg, Session, Step]
+  - name: Workbench
+    context: System
+    owner: unfold
+    definition: >
+      One running deployment of the Unfold application: its server, its
+      configuration, credentials and storage, and the host or namespace it runs
+      on. People sign in to a workbench, link accounts to it and connect the
+      VS Code extension to it; its Sessions and connections belong to it. The
+      workbench host runs its docker and local Placements, and the workbench
+      key signs its Candidates. Ploeg does not use the word.
+    examples: ["No Ploeg connection is configured for this workbench."]
+    not_to_be_confused_with:
+      - term: Workspace
+        note: The files and tools of one Run or Session; a workbench runs many.
+      - term: Unfold
+        note: The product and its application; a workbench is one deployment of it.
+    see_also: [Unfold, Session, Placement, Candidate]
   - name: Ploeg
     context: System
     owner: ploeg
@@ -129,6 +146,19 @@ terms:
       - term: Shift
         note: Ploeg's whole attempt on a Work Item; Ploeg avoids "session" for it.
     see_also: [Work Item, Shift, Team]
+  - name: Linked Session
+    context: Participation
+    owner: unfold
+    definition: >
+      An agent session a person runs outside Unfold, such as Claude Code on
+      their own machine, that reports to Unfold through its hooks and is linked
+      to Work Items. Unfold never starts, steers or pays for it; it records the
+      session's state, branch and commits, the Agent Trace of what it wrote, and
+      reads its telemetry.
+    not_to_be_confused_with:
+      - term: Session
+        note: Unfold's own record of interaction around work it submits to Ploeg.
+    see_also: [Session, Work Item]
   - name: Step
     context: Participation
     owner: unfold
@@ -172,7 +202,7 @@ terms:
       Whether a person is watching a Ploeg-authorized Session live (human) or
       has handed it back to run on its own (background). Switching it changes
       only who is paying attention; the same execution keeps running and no new
-      Run starts. Standalone Sessions have no supervision setting.
+      Run starts. Demo Sessions have no supervision setting.
     see_also: [Session, Run, Authority]
   - name: Stage
     context: Participation
@@ -190,6 +220,23 @@ terms:
       - term: Review
         note: The assessment of a Result. The Review Stage is the time a pull request waits for it.
     see_also: [Work Item, Review, Run Card]
+  - name: Needs-you Reason
+    context: Participation
+    owner: unfold
+    definition: >
+      Why a Work Item waits on a person, with its fix. Unfold reads it from
+      Ploeg's state (needs_human or stale) and the Shift's close reason, and
+      shows a short chip, a sentence that explains it, what to change and how
+      to start again: assign the task to the Team again in its tracker. Needs
+      you groups Work Items by it. A reason code Unfold does not know is named
+      as unrecognised, never hidden (apps/unfold/public/core/reasons.js; Unfold
+      ADR 0024, proposed).
+    examples: ["Checks did not pass: the Team's checks failed on the pushed commit and no fix Round could run."]
+    avoid: [needs attention]
+    not_to_be_confused_with:
+      - term: Verdict
+        note: An agent reviewer's answer; a Needs-you Reason is why a person must act.
+    see_also: [Work Item, Shift, Stage]
   - name: Agent
     context: Execution
     definition: >
@@ -350,6 +397,40 @@ terms:
       - term: Client
         note: The Agency's own customer.
     see_also: [Tenant, Client, Acceptance]
+  - name: Access Role
+    context: Participation
+    definition: >
+      A named set of permissions a person holds in a Tenant, a Client or a
+      project. The built-in Access Roles are Account owner (billing, budgets,
+      the kill switch and everything an Admin may do), Admin (identity, Teams,
+      sources, secrets and policies, no billing), Lead (start policy, review
+      routing and budgets within the Agency's cap for their projects, accepting
+      learnings), Developer (starts work, reviews and accepts, steers, takes
+      over), Product owner (makes work Ready, prioritises, signs off, never
+      accepts code) and Viewer (reads), plus the Client membership of system
+      ADR-0017. An Agency may compose its own Access Roles from the same
+      permissions. Decided by the owner on VIK-2011; replaces system ADR-0017's
+      viewer, member and admin and the code's admin, operator and viewer; not
+      implemented yet.
+    avoid: [operator, member, pilot]
+    not_to_be_confused_with:
+      - term: Role
+        note: Ploeg's specialist function inside a Team, such as builder or reviewer.
+      - term: Operator Consumer
+        note: A service identity, never a person.
+    see_also: [Tenant, Client, Agency]
+  - name: User Journey
+    context: Participation
+    definition: >
+      One person's path from a trigger to an outcome they care about, across
+      every tool they touch, such as deciding on an agent pull request. The ten
+      User Journeys Unfold must support are ranked on the users-and-journeys
+      concept page; every screen serves one of them.
+    avoid: [flow, journey (for a Work Item's path through Ploeg)]
+    not_to_be_confused_with:
+      - term: Work Item
+        note: The paths a Work Item takes through Ploeg are the system journeys page, not User Journeys.
+    see_also: [Access Role, Agency]
   - name: Client Portal
     context: Offering
     owner: unfold
@@ -496,7 +577,7 @@ terms:
       One pull request of a Work Item as its Run Card shows it, oldest first.
       A pull request closed after a Bounce and its merged successor are two
       Plays on one card. Cost and lines are summed across Plays, and each
-      Play's Runs appear as the Roles that ran.
+      Play's Runs appear as the Roles that ran (Unfold ADR 0045).
     see_also: [Run Card, Bounce, Shift]
   - name: Steward
     context: Cards
@@ -507,35 +588,41 @@ terms:
       Proposed: the developer carrying the Work Item, meaning the tracker
       assignee at release, falling back to the merger and then the approver.
       The agent is never a Steward. A Steward is a role on a change, not a
-      measure of a person.
+      measure of a person. The built rule is recorded in Unfold ADR 0045.
     avoid: [owner (of a card)]
     see_also: [Run Card, Roster, Crack, Mend]
   - name: Roster
     context: Cards
     definition: >
       The humans who acted on a Run Card's change, each with their roles.
-      Built roles: merger and reviewer. Proposed: developer, QA, PO and
-      acceptor, each holding a copy of the card that shares its fate, so a
-      Crack shows on every copy and a Mend names the mender on every copy.
+      Built roles: merger, reviewer, qa (moved the Work Item out of the test
+      Gate), acceptor (out of acceptance) and cosigner (mended a Crack on
+      someone else's card). Proposed: developer and PO copies, each holding a
+      copy of the card that shares its fate, so a Crack shows on every copy
+      and a Mend names the mender on every copy. The built roles are recorded
+      in Unfold ADR 0045.
     see_also: [Run Card, Steward, Binder]
   - name: Gate
     context: Cards
     definition: >
       A point in a board's workflow that a Work Item passes after review, such as development, test,
-      acceptance and production. Each board maps its tracker statuses to Gates
-      in Unfold's cards.rules setting (boards.<provider:scope>.gates), and
-      Unfold derives a card's Gate history from the status moves in Ploeg's
-      delivery facts.
+      acceptance and production. Ploeg's delivery facts carry each Gate move
+      already resolved (gateTransitions), and Unfold walks a card's Gate
+      history from them. Unfold's cards.rules setting
+      (boards.<provider:scope>.gates) only places a status move that Ploeg sent
+      without a Gate in the flow figures (Unfold ADR 0045).
     see_also: [Bounce, Run Card, Acceptance]
   - name: Bounce
     context: Cards
     definition: >
       A Work Item moving from a later Gate back to an earlier one, with a
       reason: defect, requirement, misunderstood, environment or unknown. Only
-      defect and unknown Bounces count against the Grade. A requirement change
-      marks the card Evolved and leaves no Crack. Unfold reads the reason from
-      a bounce:<reason> label or comment; a board without Gates has no Bounces.
-    examples: ["A tester moves the ticket from In test back to In progress with the label bounce:defect; the fix becomes the card's next Play."]
+      defect and unknown Bounces count against the Grade. A requirement Bounce
+      out of acceptance or done marks the card Evolved and leaves no Crack.
+      The reason arrives resolved with each Gate move in Ploeg's delivery
+      facts; a move without one counts as unknown, and a board without Gates
+      has no Bounces (Unfold ADR 0045).
+    examples: ["A tester moves the ticket from In test back to In progress with the label bounce:defect, which Ploeg records as the reason; the fix becomes the card's next Play."]
     see_also: [Gate, Play, Grade, Crack]
   - name: Crack
     context: Cards
@@ -544,7 +631,7 @@ terms:
       changes, the fixer names the cause, and a second person who is not the
       Steward confirms it; the Steward may dispute within five working days.
       A Crack is never applied automatically, carries a severity from S1 to
-      S4, and is never totalled per person.
+      S4, and is never totalled per person (Unfold ADR 0045).
     see_also: [Mend, Steward, Grade, Bounce]
   - name: Mend
     context: Cards
@@ -554,7 +641,7 @@ terms:
       while its Grade ends slightly lower. Whoever mends another person's card
       becomes a co-signer. Built: Unfold records a Mend when the bug's pull
       request merges and confirms it after 30 days without a new Crack; the
-      gold seams are drawn by the skins.
+      gold seams are drawn by the skins (Unfold ADR 0045).
     synonyms: [kintsugi]
     see_also: [Crack, Steward, Grade]
   - name: Finish
@@ -577,7 +664,7 @@ terms:
       under 180 days live is capped at 9. It grades the change, never a person.
       Unfold computes it on read under the current formula (2026.3; every
       earlier version is kept), lists the inputs it missed, and shows none
-      until a person reviewed a Play or one merged.
+      until a person reviewed a Play or one merged (Unfold ADR 0045).
     not_to_be_confused_with:
       - term: Verdict
         note: A reviewing Run's approve or request_changes answer in one Round. It is one input a Grade could use, not a Grade.
@@ -587,13 +674,16 @@ terms:
     definition: >
       How exceptional a Run Card's change was, its challenge, kept apart from
       how well it was done (Grade) and how long it has lasted (Finish).
-      Cosmetic only, and off unless cards.rules.rarity turns it on. Unfold
+      Cosmetic only, and off by default (owner decision 2026-10-17): it shows
+      when cards.rules.rarity is true, or, while that setting is unset, to a
+      person whose cards.rarity feature flag is on. Unfold
       scores reach, sensitive ground, novelty and damped size under a
       versioned formula, predicts a tier at mint and reveals one at release,
       as percentile tiers per repository and quarter (common, uncommon, rare,
       epic, legendary), and freezes the revealed tier in its card store
-      (system ADR-0030). Nothing Ploeg authorizes, budgets or merges depends
-      on it.
+      (system ADR-0030), also while rarity is hidden, so turning it on shows
+      the frozen tiers (Unfold ADR 0045). Nothing Ploeg authorizes, budgets or
+      merges depends on it.
     see_also: [Run Card, Grade, Finish, Pack]
   - name: Set Card
     context: Cards
@@ -601,7 +691,8 @@ terms:
       The Run Card of an epic Work Item, whose children are Run Cards numbered
       within the set, read from the tracker parents in Ploeg's delivery facts.
       A set completes when every child has been live for 30 days with no
-      unmended Crack, and its epic's card then shows as legendary.
+      unmended Crack, and its epic's card then shows as legendary
+      (Unfold ADR 0045).
     see_also: [Run Card, Work Item, Crack]
   - name: Binder
     context: Cards
@@ -695,8 +786,9 @@ rules:
     statement: >
       Ploeg is the Authority for every Run (system ADR-0002). Unfold requests Admission through Ploeg's API and never
       falls back to its own execution when Ploeg is unavailable, whatever the cause. Without Ploeg, Unfold runs only
-      its deterministic demo, which makes no model calls. Current state — Unfold's standalone mode and its own engine
-      remain until the migration to ploeg-worker is complete; no new execution features are added to that engine.
+      its deterministic demo, which makes no model calls. Current state — since 2026-10-14 a live Unfold refuses to
+      start without Ploeg execution configured. Unfold's own engine, and its standalone broker code, remain until the
+      migration to ploeg-worker is complete; no new execution features are added to that engine.
     rationale: One authority, one budget path and one revocable credential per Run; runner location does not decide who authorizes work.
     applies_to: [Run, Work Item, Session]
   - id: R9

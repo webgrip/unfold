@@ -124,7 +124,7 @@ export function createMcpHttp(options: McpHttpOptions) {
     const delegated = options.delegate(user, delegationMs);
     let answer: any;
     try {
-      const server = createMcpServer({ url: options.linkUrl, apiUrl: options.apiUrl(), token: delegated.token, version: options.version, principal: user.id, confirmations });
+      const server = createMcpServer({ url: options.linkUrl, apiUrl: options.apiUrl(), token: delegated.token, version: options.version, principal: user.id, role: user.role, confirmations });
       answer = await server.handle(message);
     } finally { delegated.revoke(); }
     console.log(JSON.stringify({ level: 'info', event: 'mcp.request', actor: user.id, method: String(method).slice(0, 64), ...(method === 'tools/call' ? { tool: String(params?.name ?? '').slice(0, 64) } : {}), protocol: modern ? 'stateless' : 'legacy' }));

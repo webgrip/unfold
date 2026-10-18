@@ -65,3 +65,9 @@ This record is accepted but not yet implemented. Implementation is complete when
 ## More Information
 
 * 2026-09-22 — The owner chose Ploeg as the only engine, Unfold as its front end, and Ploeg authority for every run. The same day the owner stated Unfold's goal as an internal tool: work items to review-ready pull requests.
+
+## Update, 2026-10-14: live start-up refuses standalone
+
+The owner decided that a live Unfold must not start without Ploeg. The server's start-up path now calls [`requirePloegExecution`](../../apps/unfold/src/config.ts) before it opens a store: in live mode it refuses to start unless `ploeg.url`, `ploeg.tokenEnv` and `execution.team` are configured, and the error links the [managed-execution guide](../workflows/managed-execution.md). Demo mode is unaffected. The supplied live examples configure managed execution, and [Running Unfold live](../../apps/unfold/docs/operations/live.md) now starts with a managed first session.
+
+This is progress towards the Confirmation criteria, not their completion. The standalone broker and the engine's non-demo launch remain in the code, unreachable from `npm start` and `mise run live` but still built by tests and qualification scripts that call `createApplication` directly, so the status stays accepted and not yet implemented.

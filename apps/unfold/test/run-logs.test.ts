@@ -30,7 +30,7 @@ const isStats = (query: string) => query.includes('| stats by');
 
 test('a finished Run reads its pod in two steps and returns the lines oldest first, cleaned and bounded', async () => {
   const fake = victoriaLogs(query => isStats(query)
-    ? [{ ...pod, n: '3' }]
+    ? (query.includes('"trace=') ? [{ ...pod, n: '3' }] : [])
     : [
       { _time: '2026-10-11T10:19:59.000000002Z', _msg: '\u001b[32mrun finished\u001b[0m outcome=done', pod: pod.pod },
       { _time: '2026-10-11T10:19:59.000000002Z', _msg: '\u001b[32mrun finished\u001b[0m outcome=done', pod: pod.pod },
@@ -50,10 +50,11 @@ test('a finished Run reads its pod in two steps and returns the lines oldest fir
   assert.equal(logs.lines[0].stream, undefined, 'one pod needs no label');
   assert.equal(logs.cursor, '2026-10-11T10:19:59.000000002Z');
   assert.equal(logs.truncated, false);
-  assert.equal(fake.queries.length, 2);
+  assert.equal(fake.queries.length, 3);
   assert.equal(fake.queries[0].url, `${logsUrl}/select/logsql/query`);
   assert.equal(fake.queries[0].query, '_time:[2026-10-11T09:58:00.000Z, 2026-10-11T10:22:00.000Z] "trace=ploeg-f84d713980ea" | stats by (namespace, pod, container) count() n');
-  assert.equal(fake.queries[1].query, `_time:[2026-10-11T09:58:00.000Z, 2026-10-11T10:22:00.000Z] (namespace:="ploeg" pod:="${pod.pod}" container:="worker") | sort by (_time desc) | limit ${runLogLimits.lines + 1} | fields _time, _msg, pod`);
+  assert.equal(fake.queries[1].query, '_time:[2026-10-11T09:58:00.000Z, 2026-10-11T10:22:00.000Z] (namespace:="ploeg" pod:="ploeg-worker-bronze-builder-frbbg-sjpx5") | stats by (namespace, pod, container) count() n', 'the worker pod that claimed the sandbox is looked up by name');
+  assert.equal(fake.queries[2].query, `_time:[2026-10-11T09:58:00.000Z, 2026-10-11T10:22:00.000Z] (namespace:="ploeg" pod:="${pod.pod}" container:="worker") | sort by (_time desc) | limit ${runLogLimits.lines + 1} | fields _time, _msg, pod`);
   const panes = JSON.parse(decodeURIComponent(new URL(logs.grafanaUrl!).searchParams.get('panes')!.replace(/\+/g, ' ')));
   assert.equal(panes.v.queries[0].expr, `(namespace:="ploeg" pod:="${pod.pod}" container:="worker")`);
   assert.deepEqual(panes.v.range, { from: String(Date.parse('2026-10-11T09:58:00Z')), to: String(Date.parse('2026-10-11T10:22:00Z')) });
@@ -66,7 +67,18 @@ test('a retried Run shows each pod, labelled, and pod names the log store return
   const logs = await readRunLogs(observability, run, { fetch: fake.fetch });
   assert.deepEqual(logs.pods.map(entry => entry.pod), [pod.pod, 'sbx-second-attempt'].sort());
   assert.deepEqual(logs.lines.map(line => [line.stream, line.text]), [[pod.pod, 'first'], ['sbx-second-attempt', 'second']]);
-  assert.doesNotMatch(fake.queries[1].query, /namespace:="ai/);
+  assert.doesNotMatch(fake.queries.map(entry => entry.query).join('\n'), /namespace:="ai/);
+});
+
+test('a sandbox pod brings the worker pod that claimed it, whose lines carry no trace key, labelled apart', async () => {
+  const worker = { namespace: 'ploeg', pod: 'ploeg-worker-bronze-builder-frbbg-sjpx5', container: 'launcher' };
+  const fake = victoriaLogs(query => isStats(query)
+    ? (query.includes('"trace=') ? [{ ...pod, n: '2' }] : [{ ...worker, n: '4' }])
+    : [{ _time: '2026-10-11T10:02:00Z', _msg: 'agent started', pod: pod.pod }, { _time: '2026-10-11T10:01:00Z', _msg: 'sandbox claim ready', pod: worker.pod }]);
+  const logs = await readRunLogs(observability, run, { fetch: fake.fetch });
+  assert.deepEqual(logs.pods, [worker, pod]);
+  assert.deepEqual(logs.lines.map(line => [line.stream, line.text]), [[worker.pod, 'sandbox claim ready'], [pod.pod, 'agent started']]);
+  assert.match(fake.queries[2].query, /pod:="ploeg-worker-bronze-builder-frbbg-sjpx5" container:="launcher"/);
 });
 
 test('a running Run reads only lines after the cursor and says it is live; a full page says it is truncated', async () => {
@@ -78,7 +90,7 @@ test('a running Run reads only lines after the cursor and says it is live; a ful
   assert.equal(logs.truncated, true);
   assert.equal(logs.lines.length, runLogLimits.lines);
   assert.equal(logs.lines.at(-1)!.text, 'line 0', 'the newest line is last');
-  assert.match(fake.queries[1].query, /^_time:\(2026-10-11T10:05:00\.123456789Z, 2026-10-11T10:32:00\.000Z\] \(/);
+  assert.match(fake.queries.at(-1)!.query, /^_time:\(2026-10-11T10:05:00\.123456789Z, 2026-10-11T10:32:00\.000Z\] \(/);
   await assert.rejects(readRunLogs(observability, running, { fetch: fake.fetch, after: '2026-10-11 10:05" or *' }), (error: RunLogsError) => error.status === 400 && error.code === 'run_logs_cursor');
 });
 

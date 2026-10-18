@@ -2,13 +2,13 @@
 type: how-to
 audience: [operator, owner]
 owner: unfold
-last_verified: 2026-10-16
-verified_by: "Read apps/unfold/src/mcp-http.ts, src/mcp-auth.ts, src/mcp.ts and src/auth.ts; ran apps/unfold/test/mcp-http.test.ts and test/mcp.test.ts. Not checked against a live Authentik, a running client or the homelab."
+last_verified: 2026-10-17
+verified_by: "Ran apps/unfold/test/e2e/mcp-over-https.e2e.ts (npm run test:mcp-e2e) against Authentik 2026.5.2, provisioned as this page says, with the official MCP TypeScript client 2.3.1 and Chromium. Not checked against Claude Code, VS Code or Cursor themselves, or the homelab."
 ---
 
 # Serve Unfold's MCP tools over HTTPS with a browser sign-in
 
-**Goal:** people connect Claude Code, VS Code or Cursor to one HTTPS URL, sign in once in the browser, and use Unfold's seven `unfold_*` tools as themselves, with no local checkout, `vle_…` credential or port-forward ([ADR-0032, entry of 2026-10-16](../adr/adr-0032-unfold-also-serves-its-own-read-only-mcp-tools-next-to-ploeg-mcp.md#more-information)). The stdio server in [Ask Unfold and Ploeg from an AI client](ask-from-an-ai-client.md) keeps working unchanged.
+**Goal:** people connect Claude Code, VS Code or Cursor to one HTTPS URL, sign in once in the browser, and use Unfold's `unfold_*` tools as themselves, with no local checkout, `vle_…` credential or port-forward ([ADR-0032, entry of 2026-10-16](../adr/adr-0032-unfold-also-serves-its-own-read-only-mcp-tools-next-to-ploeg-mcp.md#more-information)). The stdio server in [Ask Unfold and Ploeg from an AI client](ask-from-an-ai-client.md) keeps working unchanged.
 
 The Unfold server itself serves the MCP endpoint on its own path, off until you configure it. It is a stateless Streamable HTTP endpoint and an OAuth resource server: it checks the person's access token from Authentik, finds the Unfold account the same person has from single sign-on, and runs every tool as that account. The person's token never goes further than the endpoint. Ploeg's twin is [Serve Ploeg's MCP tools over HTTPS](../../apps/ploeg/docs/how-to/serve-ploeg-mcp-over-https.md).
 
@@ -34,9 +34,11 @@ Create one public client (no secret, authorization code with PKCE S256) whose ac
    return {"groups": [group.name for group in request.user.ak_groups.all()]}
    ```
 
+   Authentik 2026.5 logs `ak_groups` as deprecated in favour of `groups`; the expression still works there.
+
    If your browser provider puts a role claim (`auth.oidc.roleClaim`) in its tokens instead, return the same claim here. Also attach `openid` and `offline_access`, so clients get a refresh token and do not open the browser every time a token expires.
 4. Access token validity: 10 minutes. Unfold refuses a token that lives longer, unless you raise `UNFOLD_MCP_MAX_TOKEN_LIFETIME`.
-5. Subject mode: exactly the same as Unfold's own browser provider. Unfold finds a person's account by the token's `sub` alone, under the browser issuer (or `auth.oidc.subjectNamespace`), and never by email or name, so both providers must give one person the same subject. Authentik's default, "Based on the User's hashed ID", is meant to. Not verified: that it is identical across two providers of one Authentik; check one person's `sub` in both before you roll out.
+5. Subject mode: exactly the same as Unfold's own browser provider. Unfold finds a person's account by the token's `sub` alone, under the browser issuer (or `auth.oidc.subjectNamespace`), and never by email or name, so both providers must give one person the same subject. Authentik's default, "Based on the User's hashed ID", gives one person the same subject in every provider of one Authentik; the end-to-end suite checks this on each run.
 6. Bind the application to the same groups that may sign in to Unfold.
 
 ## 2. Configure the Unfold server
@@ -68,7 +70,7 @@ The pod needs egress to the provider's discovery and key URLs. Route `/mcp`, `/.
 
 ## 3. Connect a client
 
-Each client finds the provider through `/.well-known/oauth-protected-resource/mcp`, opens the browser for sign-in, and stores and refreshes the token itself. Name the pre-registered client id, because the provider does not accept dynamic registration.
+Each client finds the provider through `/.well-known/oauth-protected-resource/mcp`, opens the browser for sign-in, and stores and refreshes the token itself. A client that asks for `offline_access` with `prompt=consent`, as the official MCP SDK does, gets Authentik's consent page ("Access to request new tokens without interaction") even under the implicit-consent flow; the person chooses **Continue** once. Name the pre-registered client id, because the provider does not accept dynamic registration.
 
 Claude Code:
 
@@ -108,6 +110,7 @@ Cursor, in `~/.cursor/mcp.json`:
 ## What changes over HTTP
 
 * `unfold_ask` spends only after the person confirms. A 2026-07-28 client that declares form elicitation is asked through an `input_required` result, and the confirmation it sends back can be used once, by that person, for that question, within 10 minutes. A 2025 client, such as VS Code 1.142, cannot be asked over stateless HTTP, so it is refused with a link to the Work Item and nothing is spent. Ask it over stdio, or in Unfold.
+* The action tools (`unfold_hand_off`, `unfold_approve_work`, `unfold_reject_work`, `unfold_stop_work`, `unfold_retry_work`, `unfold_add_note`, `unfold_steer_session`) confirm the same way: `input_required` with the exact effect and cost, then one use of the sealed confirmation. They act only if the text the person agreed to is still what the action would do, and a 2025 client over HTTP is refused with a link to the Unfold page ([Act on work from an AI client](ask-from-an-ai-client.md#act-on-work)).
 * `unfold_digest` without `since` covers the last 24 hours, because the "since your previous digest" mark is kept per machine by the stdio server.
 * Every tool reads with the person's own account and Teams, at the lower of the stored role and the role the token's groups entitle. Its credential reaches only the API calls the tools make; it cannot approve editor sign-ins, manage credentials or reach the agent host.
 * Every action is recorded in Unfold's Action Records and at Ploeg with the channel `mcp:<client name and version>` and, for a spend, the hash of the confirmation text the person agreed to ([ADR-0037](../adr/adr-0037-people-act-on-work-through-either-mcp-server-and-every-action-names-its-person-channel-and-confirmation.md)). A 2025 client over HTTP names no client on its calls and shows as `mcp:unnamed client`.
@@ -123,6 +126,21 @@ curl -s https://unfold.example.com/.well-known/oauth-protected-resource/mcp
 
 The first answers 401 with `resource_metadata` and `scope`; the second names the issuer under `authorization_servers` and the exact URL as `resource`. After signing in, ask the client "what waits for me in Unfold?".
 
+## Test it end to end
+
+`npm run test:mcp-e2e` in `apps/unfold` starts a throwaway Authentik with Docker Compose, provisions both providers as this page says, signs people in on Authentik's own login page in Chromium, and connects the official MCP TypeScript client through the real sign-in. A stand-in Ploeg and inference gateway count every admitted Ask, so nothing reaches a model and nothing is spent. It checks:
+
+* that the access token carries `groups`, `azp`, `scope` and a 10-minute lifetime, and the same `sub` as the browser provider, so a person's MCP sign-in finds their browser account;
+* refresh tokens, and that a refreshed token carries the groups Authentik has now: a demoted admin acts as a viewer, and a person in no admitted group gets 403;
+* that a person reads only their own Teams' Work Items;
+* that one `unfold_ask` confirmation spends exactly once, and that a replayed, tampered, foreign or other-question confirmation spends nothing; a 2025 client never spends;
+* that Unfold's browser-client access token, the ID token and the refresh token are refused;
+* that the session cookie alone gets 401, another origin cannot send a bearer token, and a wrong `Origin`, method or content type is refused;
+* the MCP conformance scenarios `server-initialize`, `ping` and `tools-list`;
+* that no token, delegated credential or upstream key appears in a tool result or log line.
+
+Set `UNFOLD_E2E_AUTHENTIK_URL` and `UNFOLD_E2E_AUTHENTIK_TOKEN` to run it against an Authentik you already have; each run provisions its own names. The nightly workflow runs it with Authentik as job services.
+
 ## Symptom → cause → fix
 
 | Symptom | Cause | Fix |
@@ -136,4 +154,4 @@ The first answers 401 with `resource_metadata` and `scope`; the second names the
 | 403 "no Unfold account belongs to this identity" | The person never signed in to Unfold in the browser, or the two providers give different subjects | Sign in to Unfold in the browser once first, then connect again; if it persists, set both providers to the same subject mode |
 | 403 "holds none of the groups this workbench admits" | The token carries no admitted group or role | Check the `unfold:mcp` mapping returns groups, and that the person is in an admitted group |
 | 503 "signing keys are unavailable" | Unfold cannot reach the provider's key set | Check egress and `UNFOLD_MCP_JWKS_URL` |
-| `unfold_ask` says the client cannot confirm | The client speaks 2025 over HTTP, or declares no form elicitation | Ask over stdio or in Unfold |
+| `unfold_ask` or an action tool says the client cannot confirm | The client speaks 2025 over HTTP, or declares no form elicitation | Use it over stdio, or act in Unfold |

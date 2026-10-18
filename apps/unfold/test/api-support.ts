@@ -34,12 +34,18 @@ export function configuration(dataDir: string, mode: 'demo' | 'live' = 'demo'): 
   };
 }
 
+async function start(config: AppConfig, runtimes?: Map<RuntimeKind, AgentRuntime>) {
+  const app = await createApplication(config, runtimes ? { runtimes } : undefined);
+  app.store.db.exec('PRAGMA synchronous=OFF');
+  return app;
+}
+
 export async function application(mode: 'demo' | 'live' = 'demo', configure?: (config: AppConfig) => void, runtimes?: Map<RuntimeKind, AgentRuntime>) {
   const dataDir = await mkdtemp(join(tmpdir(), 'unfold-api-'));
   const config = configuration(dataDir, mode);
   configure?.(config);
   runtimes ??= config.mode === 'demo' ? new Map([['demo', new DemoRuntime({ dataDir: config.dataDir, delayMs: testDemoStepMs })]]) : undefined;
-  let app = await createApplication(config, runtimes ? { runtimes } : undefined);
+  let app = await start(config, runtimes);
   let url = await listen(app.server);
   return {
     config,
@@ -47,7 +53,7 @@ export async function application(mode: 'demo' | 'live' = 'demo', configure?: (c
     get url() { return url; },
     async restart() {
       await app.close();
-      app = await createApplication(config, runtimes ? { runtimes } : undefined);
+      app = await start(config, runtimes);
       url = await listen(app.server);
     },
     async close() {
