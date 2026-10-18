@@ -160,7 +160,7 @@ test('a session keeps the Agent Trace of its commits, counts AI lines on the com
 });
 
 test('telemetry is read by session id from the metrics and log stores, never reads prompt text, and says what it could not read', async () => {
-  assert.equal(metricQueries('s"1', '600s').cost, 'sum(increase(claude_code_cost_usage_USD_total{session_id="s\\"1"}[600s]))');
+  assert.equal(metricQueries('s"1', '600s').cost, 'sum(max_over_time(claude_code_cost_usage_USD_total{session_id="s\\"1"}[600s]))');
   assert.match(logQueries('abc').events, /^\{service_name="claude-code"\} attributes\.session\.id:="abc" \| stats by \(event_name\) count\(\) hits$/);
   assert.doesNotMatch(Object.values(logQueries('abc')).join(' '), /prompt\b(?!s)|body|user\.email/);
   const seen: string[] = [];
@@ -215,4 +215,17 @@ test('the API takes hook reports from a signed-in person, lists them as theirs a
   assert.equal(bad.body.error.code, 'agent_trace_invalid');
   const actions = await request(app.url, '/api/actions', { cookie });
   assert.equal(actions.body.actions.some((record: { action: string }) => record.action.includes('linked-sessions')), false);
+});
+
+test('a commit counts its AI lines per agent from the conversation URLs of its Agent Trace record', async () => {
+  const { traceLinesByAgent } = await import('../src/agent-trace.ts');
+  const record = parseAgentTrace(trace({ files: [{ path: 'src/a.ts', conversations: [
+    { url: `${base}/#linked-session/x`, contributor: { type: 'ai' }, ranges: [{ start_line: 1, end_line: 3 }] },
+    { url: `${base}/#linked-session/x?agent=code-reviewer`, contributor: { type: 'ai' }, ranges: [{ start_line: 5, end_line: 14 }, { start_line: 20, end_line: 20, contributor: { type: 'human' } }] },
+  ] }] }));
+  assert.deepEqual(traceLinesByAgent(record), { main: 3, 'code-reviewer': 10 });
+  const linked = service();
+  await linked.report(owner, event({ event: 'commit', commit: { sha, subject: 'fix', trailer: false } }), base);
+  linked.addTrace(owner, '0f6c1c9e-1111-4222-8333-944445555666', record);
+  assert.deepEqual((await linked.view(owner, '0f6c1c9e-1111-4222-8333-944445555666', base)).commits[0].agents, { main: 3, 'code-reviewer': 10 });
 });

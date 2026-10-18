@@ -140,3 +140,16 @@ export function traceLines(record: AgentTraceRecord): { ai: number; human: numbe
   }
   return counts;
 }
+
+/**
+ * The AI-attributed lines of a record per agent: a conversation whose URL carries `?agent=<name>` counts for that
+ * subagent, any other for `main`. Agent names are clipped to 80 characters; at most 20 agents are kept.
+ */
+export function traceLinesByAgent(record: AgentTraceRecord): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const file of record.files) for (const conversation of file.conversations) {
+    const agent = (() => { try { return conversation.url ? new URLSearchParams(conversation.url.split('?')[1] ?? '').get('agent') : null; } catch { return null; } })()?.replace(/[^\w.:-]/g, '').slice(0, 80) || 'main';
+    for (const range of conversation.ranges) if ((range.contributor?.type ?? conversation.contributor?.type) === 'ai') counts[agent] = (counts[agent] ?? 0) + range.end_line - range.start_line + 1;
+  }
+  return Object.fromEntries(Object.entries(counts).slice(0, 20));
+}

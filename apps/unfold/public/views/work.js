@@ -20,6 +20,7 @@ import { answerDialogMarkup, answerField, noteDialogMarkup, noteLimit } from '..
 import { answerLimit, answerNote, resumeOffer, waitingQuestion, waitingQuestions, writeError } from '../core/blackboard.js';
 import { detailReason } from '../core/reasons.js';
 import { attachSession, sessionParts } from './session.js';
+import { announcesTripwire, tripwireCheckLabel } from '../core/tripwire.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -33,9 +34,9 @@ const transcriptInterval = 4000;
 const healthInterval = 30_000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null };
+const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null };
 
-onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null }));
+onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
@@ -108,6 +109,7 @@ function model() {
     runLogs: work.logs?.id === work.detailId ? work.logs.runs : null,
     runTranscripts: work.transcripts?.id === work.detailId ? work.transcripts.runs : null,
     runHealth: work.health?.id === work.detailId ? work.health.runs : null,
+    tripwire: work.tripwire?.id === work.detailId ? work.tripwire : null,
     actions: work.actions?.id === work.detailId ? work.actions.data : null,
     userRole: state.bootstrap?.user?.role,
   };
@@ -155,6 +157,7 @@ function renderWork() {
   for (const element of document.querySelectorAll('#app [data-run-transcript]')) { const kept = transcriptScroll.get(element.dataset.runTranscript); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
   loadUnreadTranscripts();
   loadUnreadHealth();
+  loadUnreadTripwire();
   const list = $('.work-list-pane .work-list');
   if (list && listTop) list.scrollTop = listTop;
   if (target && (!document.activeElement || document.activeElement === document.body)) (document.querySelector(target) || (target.includes('ploeg-refresh') ? $('[data-action="ploeg-refresh"][data-id="toolbar"]') : null))?.focus({ preventScroll: true });
@@ -909,6 +912,59 @@ async function judgeWrong(button) {
   } catch (error) { button.disabled = false; notify(error.message, true); }
 }
 
+function tripwireEntry() {
+  if (work.tripwire?.id !== work.detailId) work.tripwire = { id: work.detailId, data: null, error: null, busy: false, marked: new Map(), announced: new Set() };
+  return work.tripwire;
+}
+
+const tripwireShape = entry => JSON.stringify([entry.data?.status, entry.data?.screened, entry.data?.missed, (entry.data?.runs || []).map(run => [run.runId, run.screened, run.missed, run.transcript]), (entry.data?.hits || []).map(hit => [hit.id, hit.verdict]), [...entry.marked]]);
+
+async function loadTripwire() {
+  const id = work.detailId;
+  if (!id) return false;
+  const entry = tripwireEntry();
+  if (entry.busy) return false;
+  entry.busy = true;
+  const before = tripwireShape(entry);
+  try {
+    const data = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/tripwire`);
+    if (work.tripwire !== entry) return false;
+    entry.data = data;
+    entry.error = null;
+    const fresh = (data.hits || []).filter(hit => announcesTripwire(hit) && !entry.announced.has(hit.id));
+    for (const hit of fresh) entry.announced.add(hit.id);
+    if (fresh.length) announce(fresh.length === 1 ? `Tripwire on Run ${fresh[0].runId}: ${tripwireCheckLabel(fresh[0].check)}, clearly, 3 of 3.` : `Tripwire: ${fresh.length} hits scored 3 of 3.`);
+  } catch (error) {
+    if (work.tripwire !== entry) return false;
+    entry.error = { message: error.message, code: error.code || '' };
+  } finally { entry.busy = false; }
+  if (visible() && tripwireShape(entry) !== before) renderWork();
+  return true;
+}
+
+function loadUnreadTripwire() {
+  if (!visible() || !work.detailId || String(state.ploegDetail?.item?.id) !== String(work.detailId)) return;
+  if (work.tripwire?.id !== work.detailId) void loadTripwire();
+}
+
+async function pollTripwire() {
+  if (!visible() || !work.detailId || !runningRuns().length) return false;
+  return loadTripwire();
+}
+
+async function tripwireVerdict(button) {
+  const { id: hit, verdict } = button.dataset;
+  const id = work.detailId;
+  if (!hit || !verdict || !id) return;
+  button.disabled = true;
+  try {
+    await api(`/api/ploeg/work-items/${encodeURIComponent(id)}/tripwire/${encodeURIComponent(hit)}/verdict`, { method: 'POST', body: JSON.stringify({ verdict }) });
+    tripwireEntry().marked.set(hit, verdict);
+    announce(`Recorded: this hit was ${verdict}.`);
+    renderWork();
+  } catch (error) { button.disabled = false; notify(error.message, true); }
+}
+
 async function refreshQuietly() {
   if (!visible() || work.cancelBusy) return;
   await Promise.all([loadOverview({ quiet: true }), work.detailId ? loadDetail(work.detailId, { quiet: true }) : null]);
@@ -922,6 +978,7 @@ function registerLive() {
   document.addEventListener('toggle', loadOpenedLogs, true);
   live.register('work-transcripts', { interval: transcriptInterval, refresh: pollRunTranscripts, scope: 'global' });
   live.register('work-health', { interval: healthInterval, refresh: pollRunHealth, scope: 'global' });
+  live.register('work-tripwire', { interval: healthInterval, refresh: pollTripwire, scope: 'global' });
   document.addEventListener('toggle', loadOpenedTranscripts, true);
   addEventListener('scroll', schedulePane, { passive: true });
   addEventListener('resize', schedulePane, { passive: true });
@@ -1016,6 +1073,19 @@ async function loadMore() {
 
 function closeDetail() {
   location.hash = listHash();
+}
+
+async function sessionAction(control, path, done) {
+  const id = control.dataset.id;
+  if (!id) return;
+  control.disabled = true;
+  try {
+    await api(`/api/sessions/${encodeURIComponent(id)}/${path}`, { method: 'POST', body: '{}' });
+    notify(done);
+    state.sessions = await api('/api/sessions');
+    if (work.detailId) await loadDetail(work.detailId, { fresh: true, quiet: true });
+    renderWork();
+  } catch (error) { notify(error.message, true); control.disabled = false; }
 }
 
 async function copyLink(button) {
@@ -1365,6 +1435,8 @@ export default {
     'work-agents-window': control => openAgentsWindow(control, state.ploegDetail?.item?.title),
     'work-copy-command': copyCommand,
     'work-cancel': () => work.cancelBusy ? null : openCancel(),
+    'work-session-retry': control => sessionAction(control, 'retry', 'Trying again. The team starts from the beginning.'),
+    'work-session-close': control => sessionAction(control, 'close-work-item', 'Closed. The Work Item has left Needs you; its session and history stay.'),
     'work-brief': () => toggleBrief(),
     'work-run': jumpToRun,
     'work-stream-zoom': zoomStream,
@@ -1376,6 +1448,7 @@ export default {
     'work-run-log-download': downloadRunLog,
     'work-run-transcript-retry': retryRunTranscript,
     'work-run-judge-wrong': judgeWrong,
+    'work-tripwire-verdict': tripwireVerdict,
     'work-section': jumpToSection,
     'work-context-add': () => openContext(),
     'work-ask-open': () => openAsk(),

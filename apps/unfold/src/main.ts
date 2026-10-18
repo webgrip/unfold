@@ -6,7 +6,7 @@ import { DemoRuntime } from './runtime/demo.ts';
 import { OpenCodeRuntime } from './runtime/opencode.ts';
 import { CommandRuntime } from './runtime/command.ts';
 import { WorkspaceManager } from './runtime/workspace.ts';
-import { WorkerRelay } from './runtime/relay.ts';
+import { WorkerRelay, storedCredentials } from './runtime/relay.ts';
 import { AgentHost } from './ahp/host.ts';
 import { LiteLLMBroker } from './broker.ts';
 import { Links } from './links.ts';
@@ -17,14 +17,14 @@ import { knownSecrets } from './redaction.ts';
 import { ErrorReporter } from './error-reports.ts';
 import type { AppConfig, AgentRuntime, RuntimeKind } from './types.ts';
 
-export async function createApplication(config: AppConfig, options: { runtimes?: Map<RuntimeKind, AgentRuntime> } = {}) {
+export async function createApplication(config: AppConfig, options: { runtimes?: Map<RuntimeKind, AgentRuntime> | ((relay: WorkerRelay) => Map<RuntimeKind, AgentRuntime>) } = {}) {
   const errors = new ErrorReporter(config.errorReports, knownSecrets(config));
   const databasePath = join(config.dataDir, 'unfold.sqlite');
   const adopted = adoptRenamedDatabase(databasePath);
   if (adopted) console.error(JSON.stringify({ level: 'info', event: 'store.renamed', message: `Moved the database from ${adopted} to ${databasePath}.` }));
   const store = new Store(databasePath);
-  const runtimes = options.runtimes || new Map<RuntimeKind, AgentRuntime>();
-  const relay = new WorkerRelay();
+  const relay = new WorkerRelay(storedCredentials(store));
+  const runtimes = typeof options.runtimes === 'function' ? options.runtimes(relay) : options.runtimes || new Map<RuntimeKind, AgentRuntime>();
   if (!options.runtimes) {
     if (config.mode === 'demo') runtimes.set('demo', new DemoRuntime(config));
     else {
@@ -38,7 +38,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const engine = new Engine(store, config, runtimes, broker, links);
   engine.recover();
   const agentHost = new AgentHost(config, store, engine);
-  const { server, cards, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config), errors);
+  const { server, cards, tripwire, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config), errors);
   server.on('upgrade', (req, socket, head) => { if (!agentHost.handleUpgrade(req, socket, head)) socket.destroy(); });
   let closed = false;
   const cardTimers: NodeJS.Timeout[] = [];
@@ -55,11 +55,12 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
     closeStreams();
     stopInsight();
     await engine.shutdown();
+    relay.close();
     if (server.listening) await new Promise<void>((done) => { server.close(() => done()); server.closeIdleConnections(); });
     store.close();
     await errors.flush();
   }
-  return { server, store, engine, agentHost, reports, errors, close, startCardSweeps };
+  return { server, store, engine, agentHost, reports, errors, tripwire, close, startCardSweeps };
 }
 
 async function main() {
@@ -72,6 +73,7 @@ async function main() {
     throw new Error('Set UNFOLD_ADMIN_PASSWORD to a password of at least 12 characters for the first launch, or create an account with npm run user:add.');
   }
   app.startCardSweeps();
+  app.tripwire.start();
   app.server.listen(config.port, config.host, () => {
     const address = app.server.address();
     const port = typeof address === 'object' && address ? address.port : config.port;

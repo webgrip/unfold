@@ -5,6 +5,7 @@ import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import type { Session, Event, PermissionRequest, User } from './types.ts';
 import type { Ask } from './ask/types.ts';
 import type { RunJudgement } from './run-health/judge.ts';
+import type { TripwireHit, TripwireRunState, TripwireVerdict } from './tripwire/reader.ts';
 import type { ActionRecord, ActionTarget } from './action-records.ts';
 import type { IssueState } from './tasks.ts';
 import type { FlagOverride } from './flags.ts';
@@ -81,6 +82,10 @@ export class Store {
       CREATE INDEX IF NOT EXISTS asks_asker ON asks(asker_id, created_at);
       CREATE TABLE IF NOT EXISTS run_judgements (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, work_item_id TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS run_judgements_run ON run_judgements(run_id, at);
+      CREATE TABLE IF NOT EXISTS tripwire_hits (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, work_item_id TEXT NOT NULL, team TEXT NOT NULL, seq INTEGER NOT NULL, at TEXT NOT NULL, check_name TEXT NOT NULL, score INTEGER NOT NULL, decider TEXT NOT NULL, model TEXT NOT NULL, excerpt TEXT NOT NULL, verdict TEXT, verdict_by TEXT, verdict_at TEXT);
+      CREATE INDEX IF NOT EXISTS tripwire_hits_work_item ON tripwire_hits(work_item_id, at);
+      CREATE TABLE IF NOT EXISTS tripwire_runs (run_id TEXT PRIMARY KEY, work_item_id TEXT NOT NULL, team TEXT NOT NULL, cursor INTEGER NOT NULL, screened INTEGER NOT NULL, missed INTEGER NOT NULL, transcript TEXT NOT NULL, seen TEXT NOT NULL, updated_at TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS tripwire_runs_work_item ON tripwire_runs(work_item_id);
       CREATE TABLE IF NOT EXISTS action_records (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT NOT NULL, role TEXT NOT NULL, channel TEXT NOT NULL, action TEXT NOT NULL, method TEXT NOT NULL, target_kind TEXT, target_id TEXT, inputs TEXT NOT NULL, confirmation TEXT, status INTEGER NOT NULL, outcome TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS action_records_user ON action_records(user_id, id);
       CREATE INDEX IF NOT EXISTS action_records_target ON action_records(target_kind, target_id, id);
@@ -220,6 +225,43 @@ export class Store {
   getRunJudgement(id: string): RunJudgement | undefined {
     const row = this.db.prepare('SELECT body FROM run_judgements WHERE id=?').get(id) as { body: string } | undefined;
     return row ? JSON.parse(row.body) as RunJudgement : undefined;
+  }
+
+  /** The tripwire reader's state for one Run: its cursor, counts and the tool calls it already screened. */
+  tripwireRun(runId: string): TripwireRunState | undefined {
+    const row = this.db.prepare('SELECT * FROM tripwire_runs WHERE run_id=?').get(runId) as Record<string, any> | undefined;
+    return row ? tripwireRunOf(row) : undefined;
+  }
+
+  /** The tripwire reader's state for every Run of one Work Item it has seen. */
+  tripwireRunsOf(workItemId: string): TripwireRunState[] {
+    return (this.db.prepare('SELECT * FROM tripwire_runs WHERE work_item_id=? ORDER BY run_id').all(workItemId) as Record<string, any>[]).map(tripwireRunOf);
+  }
+
+  /** Stores a Run's new tripwire state and the hits found since the last one in one transaction, so a restart never screens a tool call twice or loses a hit. */
+  recordTripwire(state: TripwireRunState, hits: TripwireHit[]): void {
+    this.transaction(() => {
+      const insert = this.db.prepare('INSERT INTO tripwire_hits(id,run_id,work_item_id,team,seq,at,check_name,score,decider,model,excerpt) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING');
+      for (const hit of hits) insert.run(hit.id, hit.runId, hit.workItemId, hit.team, hit.seq, hit.at, hit.check, hit.score, hit.decider.name, hit.decider.model, hit.excerpt);
+      this.db.prepare('INSERT INTO tripwire_runs(run_id,work_item_id,team,cursor,screened,missed,transcript,seen,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(run_id) DO UPDATE SET cursor=excluded.cursor,screened=excluded.screened,missed=excluded.missed,transcript=excluded.transcript,seen=excluded.seen,updated_at=excluded.updated_at')
+        .run(state.runId, state.workItemId, state.team, state.cursor, state.screened, state.missed, state.transcript, JSON.stringify(state.seen), state.updatedAt);
+    });
+  }
+
+  /** At most `limit` tripwire hits on one Work Item's Runs, newest first. */
+  tripwireHits(workItemId: string, limit = 200): TripwireHit[] {
+    return (this.db.prepare('SELECT * FROM tripwire_hits WHERE work_item_id=? ORDER BY at DESC, seq DESC, check_name LIMIT ?').all(workItemId, limit) as Record<string, any>[]).map(tripwireHitOf);
+  }
+
+  /** One tripwire hit by id. */
+  tripwireHit(id: string): TripwireHit | undefined {
+    const row = this.db.prepare('SELECT * FROM tripwire_hits WHERE id=?').get(id) as Record<string, any> | undefined;
+    return row ? tripwireHitOf(row) : undefined;
+  }
+
+  /** Records whether a person found one tripwire hit right or wrong; a later mark replaces an earlier one. */
+  setTripwireVerdict(id: string, verdict: TripwireVerdict, by: string, at: string): void {
+    this.db.prepare('UPDATE tripwire_hits SET verdict=?, verdict_by=?, verdict_at=? WHERE id=?').run(verdict, by, at, id);
   }
 
   /** At most `limit` Asks one person asked, newest first. */
@@ -737,4 +779,12 @@ export function adoptRenamedDatabase(path: string): string | null {
     return legacy;
   }
   return null;
+}
+
+function tripwireRunOf(row: Record<string, any>): TripwireRunState {
+  return { runId: String(row.run_id), workItemId: String(row.work_item_id), team: String(row.team), cursor: Number(row.cursor), screened: Number(row.screened), missed: Number(row.missed), transcript: row.transcript, seen: JSON.parse(String(row.seen)) as string[], updatedAt: String(row.updated_at) };
+}
+
+function tripwireHitOf(row: Record<string, any>): TripwireHit {
+  return { id: String(row.id), runId: String(row.run_id), workItemId: String(row.work_item_id), team: String(row.team), seq: Number(row.seq), at: String(row.at), check: String(row.check_name), score: Number(row.score), decider: { name: String(row.decider), model: String(row.model) }, excerpt: String(row.excerpt), verdict: row.verdict ?? null, verdictAt: row.verdict_at ?? null };
 }

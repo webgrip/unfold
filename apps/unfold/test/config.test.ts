@@ -152,6 +152,16 @@ test('a repository opts into gateway MCP tools with one LiteLLM team and its acc
   if (!process.env.LITELLM_BASE_URL) await assert.rejects(load(t, { runtime, repositories: [{ ...base.repositories[0], mcp }] }), /LiteLLM gateway base URL/);
 });
 
+test('kubernetes git rewrites are HTTP(S) URL prefixes ending in a slash, without credentials', async t => {
+  const kubernetes = { namespace: 'workspaces', image: 'unfold-agent:1', storageSize: '8Gi', cpu: '1', memory: '2Gi', transport: 'publish' };
+  const runtime = { kind: 'opencode', backend: 'kubernetes', timeoutMs: 60000 };
+  const rewrite = { url: 'http://forge-http.forge.svc.cluster.local:3000/', insteadOf: 'https://forge.example/' };
+  assert.deepEqual((await load(t, { runtime, kubernetes: { ...kubernetes, gitRewrites: [rewrite] } })).kubernetes?.gitRewrites, [rewrite]);
+  assert.equal((await load(t, { runtime, kubernetes })).kubernetes?.gitRewrites, undefined);
+  for (const gitRewrites of [{}, [{ ...rewrite, insteadOf: 'https://forge.example' }], [{ ...rewrite, url: 'file:///srv/git/' }], [{ ...rewrite, url: 'http://user:pass@forge/' }], [{ ...rewrite, extra: true }], [{ url: rewrite.url, insteadOf: rewrite.url }], [rewrite.url]])
+    await assert.rejects(load(t, { runtime, kubernetes: { ...kubernetes, gitRewrites } }), /kubernetes\.gitRewrites/);
+});
+
 test('a kubernetes workspace reservation is a Kubernetes quantity and is kept apart from its limits', async t => {
   const kubernetes = { namespace: 'workspaces', image: 'unfold-agent:1', storageSize: '8Gi', cpu: '1', memory: '2Gi', cpuRequest: '500m', memoryRequest: '1Gi', transport: 'publish' };
   const config = await load(t, { runtime: { kind: 'opencode', backend: 'kubernetes', timeoutMs: 60000 }, kubernetes });

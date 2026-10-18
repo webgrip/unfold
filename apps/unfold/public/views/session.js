@@ -289,11 +289,16 @@ function startingPhase() {
   return last?.type === 'workspace.waiting' ? last : null;
 }
 
+function reconnectingPhase() {
+  const last = state.events.findLast(event => (event.type === 'workspace.waiting' && event.data?.phase === 'reconnecting') || ['workspace.reconnected', 'session.interrupted', 'run.started'].includes(event.type));
+  return last?.type === 'workspace.waiting' ? last : null;
+}
+
 function workingMarkup(session) {
   const run = session.runs.find(item => ['running', 'waiting_input'].includes(item.status));
   if (session.status === 'waiting_input') return streamItem({ kind: 'status', tone: 'attention', marker: icon('alert'), head: `<span class="stream-text-inline">${escape(run?.roleName || 'The team')} is waiting for your decision at the top of this page.</span>` });
   if (!isActive(session)) return '';
-  const starting = !run && session.status !== 'exporting' ? startingPhase() : null;
+  const starting = !run && session.status !== 'exporting' ? startingPhase() : reconnectingPhase();
   if (starting) return `<li class="stream-item" data-kind="status" data-tone="live"><span class="stream-marker" aria-hidden="true"><span class="live-dot"></span></span><div class="stream-body"><div class="stream-head"><span class="stream-text-inline">${escape(workspacePhaseLabel(starting.data.phase))} · since ${timeHtml(starting.at, { display: 'time' })}</span></div></div></li>`;
   const text = session.status === 'exporting' ? 'Preparing the repository handoff' : `${run?.roleName || 'The team'} is working`;
   return `<li class="stream-item" data-kind="status" data-tone="live"><span class="stream-marker" aria-hidden="true"><span class="live-dot"></span></span><div class="stream-body"><div class="stream-head"><span class="stream-text-inline">${escape(text)}${run?.startedAt ? ` · started ${timeHtml(run.startedAt, { display: 'time' })}` : ''}</span></div></div></li>`;

@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, mkdirSync, chmodSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { AppConfig, Repository, Team, Placement, WorkspaceBackend } from './types.ts';
+import type { AppConfig, GitRewrite, Repository, Team, Placement, WorkspaceBackend } from './types.ts';
 import { mcpHttpSettings } from './mcp-auth.ts';
 import { validateTaskSources } from './tasks.ts';
 import { reportSettings } from './reports.ts';
@@ -34,6 +34,16 @@ function configuredUrl(value: string, name: string): string {
   const parsed = new URL(value);
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error(`${name} must be an HTTP(S) URL without embedded credentials`);
   return value.replace(/\/$/, '');
+}
+
+function gitRewrites(value: unknown): GitRewrite[] {
+  if (!Array.isArray(value) || value.length > 16) throw new Error('kubernetes.gitRewrites must list at most 16 { url, insteadOf } entries');
+  return value.map((entry, index) => {
+    const { url, insteadOf, ...rest } = (entry ?? {}) as Record<string, unknown>;
+    const prefix = (item: unknown) => { if (typeof item !== 'string' || !item.endsWith('/')) return false; try { const parsed = new URL(item); return ['http:', 'https:'].includes(parsed.protocol) && !parsed.username && !parsed.password && !parsed.search && !parsed.hash; } catch { return false; } };
+    if (Object.keys(rest).length || !prefix(url) || !prefix(insteadOf) || url === insteadOf) throw new Error(`kubernetes.gitRewrites[${index}] needs url and insteadOf, two different HTTP(S) URL prefixes ending in / without credentials`);
+    return { url: url as string, insteadOf: insteadOf as string };
+  });
 }
 
 const backendOrder: WorkspaceBackend[] = ['docker', 'kubernetes', 'local'];
@@ -132,6 +142,30 @@ export function runHealthSettings(raw: unknown): NonNullable<AppConfig['runHealt
   const models = value.judgeModels;
   if (!Array.isArray(models) || !models.length || models.length > 8 || models.some(model => typeof model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:/@-]{0,127}$/.test(model)) || new Set(models).size !== models.length) throw new Error('runHealth.judgeModels must list 1 to 8 distinct gateway model names');
   return { judgeModels: models as string[] };
+}
+
+/**
+ * Checks the `decider` block the tripwire asks (RFC-0008, ADR-0042): an OpenAI-compatible base URL, the `UNFOLD_`
+ * environment variable holding Unfold's own virtual key (default `UNFOLD_DECIDER_KEY`), which must be set and must not
+ * be the gateway master key, the model (default Hetzner's free `hetzner-qwen3-8-27b`), the name a hit shows, and at
+ * most `requestsPerMinute` screens (default 8). Absent, or in the demo, there is no decider and the tripwire is off.
+ */
+export function deciderSettings(raw: unknown, mode: AppConfig['mode']): AppConfig['decider'] {
+  if (raw === undefined || mode === 'demo') return undefined;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('decider must be an object');
+  const value = raw as Record<string, unknown>;
+  for (const key of Object.keys(value)) if (!['baseUrl', 'keyEnv', 'model', 'name', 'requestsPerMinute'].includes(key)) throw new Error(`decider.${key} is not a setting; put the key in the environment variable keyEnv names`);
+  if (typeof value.baseUrl !== 'string') throw new Error('decider.baseUrl must be the OpenAI-compatible base URL, for example https://litellm.example/v1');
+  const keyEnv = value.keyEnv ?? 'UNFOLD_DECIDER_KEY';
+  if (typeof keyEnv !== 'string' || !/^UNFOLD_[A-Z0-9_]{1,100}$/.test(keyEnv)) throw new Error('decider.keyEnv must name a UNFOLD_ environment variable that holds Unfold’s own virtual key');
+  const model = value.model ?? 'hetzner-qwen3-8-27b';
+  if (typeof model !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_.:/@-]{0,127}$/.test(model)) throw new Error('decider.model must name a model the endpoint serves');
+  const name = value.name ?? 'Hetzner Qwen';
+  if (typeof name !== 'string' || !name.trim() || name.length > 64 || /[\u0000-\u001f\u007f]/.test(name)) throw new Error('decider.name must be a short name of at most 64 characters');
+  const key = process.env[keyEnv];
+  if (!key || key.length > 4096 || /[^\x21-\x7e]/.test(key)) throw new Error(`decider.keyEnv names ${keyEnv}, which is not set to a valid key`);
+  if (process.env.LITELLM_MASTER_KEY && key === process.env.LITELLM_MASTER_KEY) throw new Error('decider must use its own zero-budget virtual key, never the LiteLLM master key');
+  return { baseUrl: configuredUrl(value.baseUrl, 'decider.baseUrl'), keyEnv, model, name: name.trim(), requestsPerMinute: Math.floor(number(value.requestsPerMinute, 8, 1, 60, 'decider.requestsPerMinute')) };
 }
 
 /**
@@ -310,6 +344,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     if (raw.kubernetes.userNamespaces !== undefined && typeof raw.kubernetes.userNamespaces !== 'boolean') throw new Error('kubernetes.userNamespaces must be true or false');
     if (raw.kubernetes.userNamespaces && raw.kubernetes.provisioner === 'sandbox') throw new Error('kubernetes.userNamespaces cannot be combined with the sandbox provisioner; a Kata guest kernel already remaps the workload');
     if (!['pod', 'sandbox'].includes(raw.kubernetes.provisioner)) throw new Error('kubernetes.provisioner must be pod or sandbox');
+    if (raw.kubernetes.gitRewrites !== undefined) raw.kubernetes.gitRewrites = gitRewrites(raw.kubernetes.gitRewrites);
     if (raw.kubernetes.runtimeClassName !== undefined && (typeof raw.kubernetes.runtimeClassName !== 'string' || !/^[A-Za-z0-9_.-]{1,253}$/.test(raw.kubernetes.runtimeClassName))) throw new Error('kubernetes.runtimeClassName must be a RuntimeClass name');
     if (raw.kubernetes.runtimeClassName && raw.kubernetes.provisioner === 'sandbox') throw new Error('kubernetes.runtimeClassName applies to the pod provisioner; the sandbox provisioner takes kubernetes.sandbox.runtimeClassName');
     if (raw.kubernetes.runtimeClassName && raw.kubernetes.userNamespaces) throw new Error('kubernetes.runtimeClassName cannot be combined with kubernetes.userNamespaces; a sandboxed runtime such as Kata already remaps the workload in its guest kernel');
@@ -390,6 +425,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     productEvents: productEventsSetting(),
     cards,
     cardThemes: cardThemeSettings(raw.cardThemes, mode),
+    decider: deciderSettings(raw.decider, mode),
     runHealth: runHealthSettings(raw.runHealth),
     flags: flagSettings(raw.flags, loadRegistry()),
     litellm: litellmBase && (adminKey || raw.execution) ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
@@ -427,6 +463,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     config.mcp = mcp;
   }
   config.runtime.maxToolCalls = number(raw.runtime?.maxToolCalls, 80, 1, 2000, 'runtime.maxToolCalls');
+  config.runtime.reconnectGraceMs = number(raw.runtime?.reconnectGraceMs, 300_000, 1000, 900_000, 'runtime.reconnectGraceMs');
   if (raw.runtime?.briefCheck !== undefined && typeof raw.runtime.briefCheck !== 'boolean') throw new Error('runtime.briefCheck must be true or false');
   config.runtime.briefCheck = raw.runtime?.briefCheck ?? true;
   if (!existsSync(config.publicDir)) throw new Error('Browser application directory is missing');

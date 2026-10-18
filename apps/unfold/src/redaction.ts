@@ -4,6 +4,7 @@ import type { AppConfig } from './types.ts';
 export function knownSecrets(config: AppConfig): string[] {
   return [
     config.cardThemes?.ai ? process.env[config.cardThemes.ai.keyEnv] : undefined,
+    config.decider ? process.env[config.decider.keyEnv] : undefined,
     config.delivery?.verifierTokenEnv ? process.env[config.delivery.verifierTokenEnv] : undefined,
     config.delivery?.publisher ? process.env[config.delivery.publisher.tokenEnv] : undefined,
     config.litellm?.masterKey, config.runtime.password, config.auth.bootstrapPassword,

@@ -1315,6 +1315,42 @@ export class PloegClient {
     const page = await this.eventPage({ before, limit: 200 }, true);
     return { events: page.events.filter(entry => !this.config?.teams || this.config.teams.includes(entry.team)), lastCursor: page.lastCursor, nextCursor: page.nextCursor };
   }
+  /**
+   * Lists the running Runs across every team of the consumer's scope that Unfold reads, newest first, at most `pages`
+   * pages of 100, for the tripwire reader. Like {@link PloegClient.followEvents} it answers to no viewer: whoever is
+   * shown what the reader stored is authorized separately.
+   */
+  async followRunning(pages = 5): Promise<PloegRunRow[]> {
+    if (this.demo || !this.config) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.');
+    const found: PloegRunRow[] = [];
+    let before: string | null = null;
+    for (let page = 0; page < pages; page += 1) {
+      const query = new URLSearchParams({ limit: '100', state: 'running', ...(before ? { before } : {}) });
+      const data = envelope(await this.request(`runs?${query}`, true, { added: true }));
+      const runs = array(data.runs, runRow, 200);
+      if (runs.some(run => run.state !== 'running')) throw invalid();
+      found.push(...runs.filter(run => run.role !== askRole));
+      before = nullable(data.nextBefore ?? null, identifier);
+      if (!before) break;
+    }
+    return found.filter(run => !this.config?.teams || this.config.teams.includes(run.team));
+  }
+  /**
+   * Reads one page of a Run's agent transcript after the seq `after`, for the tripwire reader, in the same scope and
+   * with the same parsing and redaction as {@link PloegClient.runTranscript}, but for no viewer. A Ploeg without the
+   * transcript endpoint answers `available: false` with reason `unsupported`.
+   */
+  async followTranscript(workItemId: string, runId: string, after: number): Promise<RunTranscript> {
+    if (this.demo || !this.config) throw new PloegError(503, 'ploeg_unconfigured', 'Connect the authenticated Ploeg operator API in the server configuration.');
+    if (!/^[1-9][0-9]{0,18}$/.test(runId) || !/^[1-9][0-9]{0,19}$/.test(workItemId)) throw new PloegError(400, 'ploeg_id', 'Use a valid Ploeg Run identifier.');
+    const cursor = transcriptCursor(String(after));
+    if (cursor === null) throw new PloegError(400, 'transcript_cursor', 'Use a cursor from an earlier read of this transcript.');
+    let data: unknown;
+    try { data = await this.request(`runs/${runId}/transcript?${new URLSearchParams({ after: String(cursor), limit: String(transcriptLimits.page) })}`, true, { added: true }); }
+    catch (error) { if (error instanceof PloegError && error.code === 'ploeg_unsupported') return unavailableTranscript(workItemId, runId, 'unsupported', cursor, false); throw error; }
+    try { return { workItemId, runId, available: true, ...parseTranscriptPage(data, runId, cursor), demo: false, fetchedAt: new Date().toISOString() }; }
+    catch (error) { if (error instanceof TranscriptError) throw new PloegError(502, 'ploeg_transcript_invalid', `Ploeg returned a Run transcript Unfold cannot read (${error.path}).`); throw error; }
+  }
   /** Lists Work Items waiting in state `proposed` across the caller's teams, with where each came from. */
   async proposed(user: User, fresh = false): Promise<PloegProposedPage> {
     this.connected(user);

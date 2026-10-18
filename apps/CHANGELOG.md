@@ -1,3 +1,21 @@
+## [unfold-v0.4.0-rc.95](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.94...unfold-v0.4.0-rc.95) (2026-10-18)
+
+### Added
+
+* **unfold:** add a Grafana-style time picker to the workbench ([926f8d3](https://forgejo.webgrip.dev/webgrip/unfold/commit/926f8d38202e03fdef9058256b77b8e69f32bdd1))
+* **unfold:** attribute a Linked Session's lines per subagent and follow its worktrees ([844d045](https://forgejo.webgrip.dev/webgrip/unfold/commit/844d04555b3565135806fbd66a60021a88860fee))
+* **unfold:** let workspaces reach the forge through its in-cluster address ([4a48030](https://forgejo.webgrip.dev/webgrip/unfold/commit/4a48030d9d7aa7e09298a953256ff133be4e260b))
+
+### Fixed
+
+* **ploeg:** update ploeg ([7afb7c5](https://forgejo.webgrip.dev/webgrip/unfold/commit/7afb7c5d489b58fa13fd64d3cc9e906ed2e82629))
+* **unfold:** harden relay credentials after the security review ([a9a8a07](https://forgejo.webgrip.dev/webgrip/unfold/commit/a9a8a07f5611572a6f6f9ead1e75ee04b3cfe528))
+* **unfold:** have the Claude Code plugin learn the version and model after the session starts ([653a48a](https://forgejo.webgrip.dev/webgrip/unfold/commit/653a48a382667716e60c15855e025f243f81716d))
+* **unfold:** keep a running session alive through a workbench restart ([1b14a4a](https://forgejo.webgrip.dev/webgrip/unfold/commit/1b14a4ac6d3727acb1867cee967e07104451a838))
+* **unfold:** stop cutting relayed streams and retry a reset turn read ([4e39f92](https://forgejo.webgrip.dev/webgrip/unfold/commit/4e39f921ebe054acd76d0b585d8f81e8c61a5ff2))
+* **unfold:** try again or close a failed session's Work Item from its page ([49c4f9d](https://forgejo.webgrip.dev/webgrip/unfold/commit/49c4f9d83faa26f7c6bf6d40a5326003c5c9a9be))
+* **unfold:** word Ploeg rc.33's blocker and pre-start check audit actions ([7bc37d3](https://forgejo.webgrip.dev/webgrip/unfold/commit/7bc37d33001ec97c85590bce35129042ed5328dc))
+
 ## [unfold-v0.4.0-rc.94](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.93...unfold-v0.4.0-rc.94) (2026-10-18)
 
 ### Added

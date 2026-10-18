@@ -13,6 +13,21 @@
       "required": ["repository", "tag", "pullPolicy"]
     },
     "mode": { "enum": ["demo", "live"] },
+    "decider": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The decider the tripwire asks (RFC-0008). Off unless enabled; live mode only.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "baseUrl": { "type": "string", "pattern": "^(https?://.+)?$" },
+        "model": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/@-]{0,127}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "keyEnv": { "type": "string", "pattern": "^UNFOLD_[A-Z0-9_]{1,100}$" },
+        "requestsPerMinute": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "existingSecret": { "type": "string" },
+        "secretKey": { "type": "string", "minLength": 1 }
+      }
+    },
     "podAnnotations": { "type": "object", "additionalProperties": { "type": "string" } },
     "podLabels": { "type": "object", "additionalProperties": { "type": "string" } },
     "priorityClassName": { "type": "string" },
@@ -35,6 +50,7 @@
     "workspaceEgress": { "type": "array", "items": { "type": "object" } },
     "workspaceImagePullSecrets": { "type": "array", "items": { "type": "string" } },
     "workspaceGitSecretName": { "type": "string" },
+    "workspaceGitRewrites": { "type": "array", "maxItems": 16, "items": { "type": "object", "additionalProperties": false, "required": ["url", "insteadOf"], "properties": { "url": { "type": "string", "pattern": "^https?://[^\\s@?#]+/$" }, "insteadOf": { "type": "string", "pattern": "^https?://[^\\s@?#]+/$" } } } },
     "workspaceTransport": { "enum": ["publish", "pull"] },
     "workspaceRelayUrl": { "type": "string" },
     "workspaceProvisioner": { "enum": ["pod", "sandbox"] },

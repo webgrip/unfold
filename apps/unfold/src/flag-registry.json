@@ -112,6 +112,20 @@
         "client": false,
         "labs": false
       }
+    },
+    "runs.tripwire": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-18",
+        "title": "Decider tripwire",
+        "description": "Lets Unfold's tripwire screen every new tool call of the Team's running Runs with the decider (RFC-0008): five checks scored 0 to 3, on Hetzner's free EU-hosted model through Unfold's own zero-budget gateway key, off the Run's path. Hits scoring 2 or more show on the Work Item page with right and wrong controls. Shadow only: it never stops, cancels, steers or notes a Run. Evaluated per Team: the context carries the Run's team.",
+        "client": false,
+        "labs": false
+      }
     }
   }
 }

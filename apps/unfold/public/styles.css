@@ -2,6 +2,7 @@
 @import url('styles/tokens.css') layer(tokens);
 @import url('styles/base.css') layer(base);
 @import url('styles/components.css') layer(components);
+@import url('styles/controls.css') layer(components);
 @import url('styles/shell.css') layer(shell);
 @import url('styles/now.css') layer(views);
 @import url('styles/work.css') layer(views);

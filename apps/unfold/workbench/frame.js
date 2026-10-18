@@ -8,10 +8,11 @@ const violations = [];
 const modules = new Map();
 let fontsReady = null;
 let current = 0;
+let cleanup = null;
 document.addEventListener('securitypolicyviolation', event => violations.push(`${event.violatedDirective} blocked ${event.blockedURI || 'inline content'}`));
 
 const send = message => { if (parent !== window) parent.postMessage({ key, ...message }, location.origin); };
-const height = () => Math.ceil(root.getBoundingClientRect().height);
+const height = () => Math.ceil(Math.max(root.getBoundingClientRect().height, root.scrollHeight));
 
 async function load(file) {
   if (!Object.hasOwn(storyFiles, file)) throw new Error(`No story file ${file}`);
@@ -29,7 +30,12 @@ async function render({ story = '', theme = null, args = {} }) {
     if (turn !== current) return;
     document.title = rendered.title;
     root.dataset.frame = rendered.parameters.frame ?? 'panel';
+    cleanup?.();
+    cleanup = null;
     root.innerHTML = rendered.html;
+    const played = rendered.play ? await rendered.play({ canvasElement: root, args: rendered.args }) : null;
+    if (typeof played === 'function') cleanup = played;
+    if (turn !== current) return;
     send({ type: 'lv-frame', story, height: height() });
     fontsReady ??= document.fonts.ready;
     await fontsReady;

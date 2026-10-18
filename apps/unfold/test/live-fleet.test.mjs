@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { fleetBoard, fleetHeadline, fleetModel, stageLimit } from '../public/live/fleet.js';
+import { clearSkies, fleetBoard, fleetHeadline, fleetModel, stageLimit } from '../public/live/fleet.js';
 import { fleetAt, fleetScenarios } from '../public/live/fleet-fixtures.js';
 
 const modelOf = name => fleetModel({ ...fleetScenarios[name](), at: fleetAt });
@@ -55,6 +55,16 @@ test('the headline says what holds first and never invents a count', () => {
   assert.equal(fleetHeadline(modelOf('today')), '2 holding for you and 1 on approach to your review. 4 of 5 Teams flying.');
   assert.equal(fleetHeadline(modelOf('clear')), 'Clear skies. 0 of 2 Teams flying, nothing waits.');
   assert.equal(fleetHeadline(fleetModel({ now: null, at: fleetAt })), 'No Team is in the sky yet.');
+});
+
+test('a paper plane floats over the board only under clear skies', () => {
+  assert.equal(clearSkies(modelOf('clear')), true);
+  assert.match(fleetBoard(modelOf('clear')), /class="fb-cruise"/);
+  for (const fleet of ['today', 'rush']) {
+    assert.equal(clearSkies(modelOf(fleet)), false);
+    assert.doesNotMatch(fleetBoard(modelOf(fleet)), /fb-cruise/);
+  }
+  assert.equal(clearSkies(fleetModel({ now: null, at: fleetAt })), false);
 });
 
 test('a crowded stage links to the rest of its lane in Work', () => {

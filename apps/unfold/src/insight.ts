@@ -2,7 +2,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 import type { AppConfig, InsightEvent, User } from './types.ts';
 import type { ProductEventDaily, Store, StoredProductEvent } from './store.ts';
 
-/** Every event name RFC-0001 lists, and RFC-0007's two Run health events, with the properties its entry allows. `screen` is always a top-level field. */
+/** Every event name RFC-0001 lists, RFC-0007's two Run health events and RFC-0008's tripwire verdict, with the properties its entry allows. `screen` is always a top-level field. */
 export const insightCatalogue: Readonly<Record<string, readonly string[]>> = Object.freeze({
   'screen.viewed': [],
   'needs_you.verdict_shown': ['verdict', 'path', 'group_size'],
@@ -20,10 +20,11 @@ export const insightCatalogue: Readonly<Record<string, readonly string[]>> = Obj
   'flag.tracked': ['feature_flag.key', 'feature_flag.result.variant', 'event', 'value'],
   'run.health.changed': ['old', 'new', 'signal', 'run'],
   'run.health.judge_wrong': ['run', 'judgement', 'health', 'model'],
+  'run.tripwire.verdict': ['run', 'hit', 'check', 'score', 'verdict', 'decider', 'model'],
 });
 
 /** Events only the server records. A browser that posts one has it dropped like an unknown name. */
-export const serverOnlyEvents: ReadonlySet<string> = new Set(['ui.link_out_burst', 'work_item.back_in_needs_you', 'report.filed', 'run.health.changed', 'run.health.judge_wrong']);
+export const serverOnlyEvents: ReadonlySet<string> = new Set(['ui.link_out_burst', 'work_item.back_in_needs_you', 'report.filed', 'run.health.changed', 'run.health.judge_wrong', 'run.tripwire.verdict']);
 /** How many `link_out.opened` on one Work Item before one `needs_you.command_sent` make a `ui.link_out_burst`. */
 export const linkOutBurst = 3;
 const burstLookbackMs = 86_400_000;

@@ -7,6 +7,9 @@ credentialsSecret: unfold-credentials
 workspaceNamespace: unfold-workspaces
 workspaceImage: ""
 workspaceGitSecretName: repository-readonly
+workspaceGitRewrites:
+  - url: http://forgejo-http.forge.svc.cluster.local:3000/
+    insteadOf: https://forge.example/
 workspaceEgress:
   - to:
       - namespaceSelector:

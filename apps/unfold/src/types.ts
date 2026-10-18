@@ -11,6 +11,8 @@ export type RunStatus = 'queued' | 'running' | 'waiting_input' | 'completed' | '
 export type UserRole = 'admin' | 'operator' | 'viewer';
 export type User = { id: string; name: string; role: UserRole };
 export type RepositoryAccess = { username: string; password: string };
+/** A git URL prefix fetched from another address: `insteadOf` is what repository URLs say, `url` is where git goes. */
+export type GitRewrite = { url: string; insteadOf: string };
 /** Read-only gateway MCP tools for sessions on one repository: keys are minted into this LiteLLM team with exactly these MCP access groups. */
 export type RepositoryMcp = { litellmTeamId: string; accessGroups: string[] };
 export type Repository = { id: string; name: string; description: string; url: string; baseBranch: string; verify: string[]; trackerUrl?: string; executionOwner?: 'interactive' | 'ploeg'; access?: RepositoryAccess; mcp?: RepositoryMcp };
@@ -40,10 +42,10 @@ export type AppConfig = {
   repositories: Repository[]; teams: Team[]; models: ModelConfig[];
   taskSources?: TaskSourceConfig[];
   execution?: { team: string; heartbeatMs?: number };
-  runtime: { kind: RuntimeKind; backend: WorkspaceBackend | 'external'; backends?: WorkspaceBackend[]; endpoint?: string; username?: string; password?: string; binary?: string; image?: string; command?: string[]; timeoutMs: number; agentEnvironment?: string[]; maxToolCalls?: number; briefCheck?: boolean };
+  runtime: { kind: RuntimeKind; backend: WorkspaceBackend | 'external'; backends?: WorkspaceBackend[]; endpoint?: string; username?: string; password?: string; binary?: string; image?: string; command?: string[]; timeoutMs: number; agentEnvironment?: string[]; maxToolCalls?: number; briefCheck?: boolean; reconnectGraceMs?: number };
   docker?: { image: string; socketPath?: string; network?: string; cpus?: number; memoryMb?: number; pidsLimit?: number; gatewayUrl?: string; provisionTimeoutMs?: number; user?: string; transport?: WorkspaceTransport; relayUrl?: string };
   litellm?: { baseUrl: string; adminUrl: string; masterKey: string; models: string[]; ttl: string; settlementDelayMs?: number };
-  kubernetes?: { namespace: string; image: string; storageClass?: string; storageSize: string; cpu: string; memory: string; cpuRequest?: string; memoryRequest?: string; apiUrl?: string; tokenFile?: string; caFile?: string; pullPolicy?: string; ingressFrom?: Record<string, unknown>[]; egress?: Record<string, unknown>[]; gitSecretName?: string; agentSecrets?: string[]; imagePullSecrets?: string[]; provisionTimeoutMs?: number; transport?: WorkspaceTransport; relayUrl?: string; provisioner?: 'pod' | 'sandbox'; userNamespaces?: boolean; runtimeClassName?: string; sandbox?: { runtimeClassName?: string; warmPool?: string; poolTokenEnv?: string } };
+  kubernetes?: { namespace: string; image: string; storageClass?: string; storageSize: string; cpu: string; memory: string; cpuRequest?: string; memoryRequest?: string; apiUrl?: string; tokenFile?: string; caFile?: string; pullPolicy?: string; ingressFrom?: Record<string, unknown>[]; egress?: Record<string, unknown>[]; gitSecretName?: string; gitRewrites?: GitRewrite[]; agentSecrets?: string[]; imagePullSecrets?: string[]; provisionTimeoutMs?: number; transport?: WorkspaceTransport; relayUrl?: string; provisioner?: 'pod' | 'sandbox'; userNamespaces?: boolean; runtimeClassName?: string; sandbox?: { runtimeClassName?: string; warmPool?: string; poolTokenEnv?: string } };
   auth: { secureCookies: boolean; sessionHours: number; bootstrapPassword?: string; bootstrapName: string; oidc?: { issuer: string; subjectNamespace?: string; clientId: string; clientSecret?: string; scopes: string[]; displayName: string; roleClaim: string; groupsClaim: string; roles: Record<UserRole, string[]> } };
   /** `unfold-mcp` served over Streamable HTTP on its own path, from `UNFOLD_MCP_*`; off when absent. */
   mcp?: McpHttpSettings;
@@ -54,6 +56,8 @@ export type AppConfig = {
   cards?: { backfillPeriods: number; teams: Record<string, { lengthDays: number; anchor: string }>; publishPullRequestComment?: boolean; rules?: CardRuleSettings };
   /** The Run health judge's gateway models, in order of preference (RFC-0007). */
   runHealth?: { judgeModels: string[] };
+  /** The decider the tripwire asks (RFC-0008): an OpenAI-compatible gateway, Unfold's own key named by `keyEnv`, and a cap on requests per minute. Absent, the tripwire is off. */
+  decider?: { baseUrl: string; keyEnv: string; model: string; name: string; requestsPerMinute: number };
   cardThemes?: { directory?: string; assetQuotaMb: number; ai?: { baseUrl: string; model: string; keyEnv: string; maxTokens: number; timeoutMs: number; requestsPerHour: number } };
   observability?: { grafanaUrl?: string; dashboards?: Record<string, string>; tracesDatasource?: string; logsDatasource?: string; logsUrl?: string; metricsUrl?: string; traceQuery?: string; logsQuery?: string };
   insight?: InsightConfig;
@@ -77,7 +81,8 @@ export type InsightEvent = { name: string; at: string; session: string; screen: 
 export type RuntimeEvent = { type: string; data: Record<string, unknown> };
 export type Emit = (event: RuntimeEvent) => void;
 export type Credential = { key: string; alias: string; budgetUsd: number; reference: string };
-export type ExecutionContext = { session: Session; run: Run; repository: Repository; role: TeamRole; workspace: Workspace; model?: ModelConfig; prompt: string; signal: AbortSignal; emit: Emit };
+/** One Run's turn. `continuing` marks a turn whose prompt the workspace accepted before the workbench restarted: the runtime observes it to the end and never prompts again. */
+export type ExecutionContext = { session: Session; run: Run; repository: Repository; role: TeamRole; workspace: Workspace; model?: ModelConfig; prompt: string; signal: AbortSignal; emit: Emit; continuing?: boolean };
 export type ExecutionResult = { summary: string; verdict?: 'approve' | 'request_changes' | 'inconclusive'; artifacts: Artifact[]; costUsd?: number; nativeId?: string };
 export interface AgentRuntime {
   kind: RuntimeKind;
@@ -88,4 +93,10 @@ export interface AgentRuntime {
   respond?(workspace: Workspace, request: PermissionRequest, answer: { decision?: 'once' | 'always' | 'reject'; answers?: string[][] }): Promise<void>;
   interrupt(workspace: Workspace): Promise<void>;
   dispose(workspace: Workspace): Promise<void>;
+  /** Whether this workspace keeps working while the workbench restarts and can be reattached afterwards. */
+  reattachable?(workspace: Workspace): boolean;
+  /** Reattaches a workspace that kept working through a workbench restart; false when it is gone or its worker did not reconnect within `withinMs`. */
+  reattach?(workspace: Workspace, signal: AbortSignal, withinMs: number): Promise<boolean>;
+  /** Revokes the workspace worker's relay credential and keeps the workspace's storage. */
+  revokeWorker?(workspace: Workspace): Promise<void>;
 }

@@ -197,6 +197,12 @@ test('requeues, routing, epics, pull request, comment, deploy and Ask events rea
   assert.deepEqual(read('work_item.route_refused', { reason: 'the task has no repo/ label' }), ['The task could not be routed to a repository', 'The task has no repo/ label']);
   assert.deepEqual(read('work_item.epics_seen', { epics: ['12', '40'] }), ['The task’s epics changed', 'Now under 12, 40']);
   assert.deepEqual(read('work_item.epics_seen', { epics: [] }), ['The task’s epics changed', 'No longer under an epic']);
+  assert.deepEqual(read('work_item.dependencies_seen', { waiting_for: ['VIK-12', 'VIK-40'] }), ['The task’s blockers changed', 'Waiting for VIK-12, VIK-40']);
+  assert.deepEqual(read('work_item.dependencies_seen', { waiting_for: [] }), ['The task’s blockers changed', 'No longer waiting for another task']);
+  assert.deepEqual(read('work_item.premise_checked', { verdict: 'proceed', reason: 'the task is clear' }), ['Checked before starting: ready to go', 'The task is clear']);
+  assert.deepEqual(read('work_item.premise_checked', { verdict: 'ask', reason: 'unclear target', question: 'which repository?' }), ['Checked before starting: a question for you', 'Which repository?']);
+  assert.deepEqual(read('work_item.premise_checked', { verdict: 'skipped', reason: 'the model did not answer' }), ['The check before starting was skipped', 'The model did not answer']);
+  assert.equal(auditEvent({ action: 'work_item.premise_checked', detail: { verdict: 'too_big' } }).tone, 'attention');
   assert.deepEqual(read('pull_request.conflicted', { number: 7 }), ['The pull request has a merge conflict', 'Pull request #7']);
   assert.equal(auditEvent({ action: 'pull_request.conflicted' }).tone, 'attention');
   assert.deepEqual(read('pull_request.mergeable', { number: 7 }), ['The merge conflict is resolved', 'Pull request #7']);

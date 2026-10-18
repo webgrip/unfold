@@ -78,3 +78,9 @@ export function transportFailure(error: unknown, stage: FailureStage): RuntimeFa
   const failure = classifyFailure(error, stage);
   return new RuntimeFailure(failure.category === 'runtime_failure' || failure.category === 'workspace_setup' ? 'connectivity' : failure.category, stage);
 }
+
+/** The abort reason a stopping workbench gives the turns it leaves working in their workspaces, to reattach after it restarts. */
+export function workbenchRestart(): DOMException { return new DOMException('The workbench is restarting; the workspace keeps working', 'WorkbenchRestart'); }
+
+/** Whether a turn was aborted only because the workbench is restarting, so its workspace must be left working. */
+export function leftWorkingForRestart(signal: AbortSignal): boolean { return signal.aborted && (signal.reason as { name?: unknown } | undefined)?.name === 'WorkbenchRestart'; }

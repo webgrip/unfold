@@ -372,6 +372,28 @@ test('a failed driving session sends the person to that session, never to a trac
   assert.match(decisionPlan(failed, model(), detailReason(failed)).primary, /href="#sessions"[^]*Open Sessions/, 'without the session at hand it opens Sessions');
 });
 
+test('a failed session is tried again or closed from the Work Item page itself', () => {
+  const failed = demoDetail('108');
+  failed.item = { ...failed.item, provider: 'manual', externalId: '', url: '' };
+  failed.shifts.at(-1).closeReason = 'operator_failed';
+  if (failed.item.latestShift) failed.item.latestShift.closeReason = 'operator_failed';
+  const session = { id: 's1', status: 'failed', costStatus: 'settled', failure: { message: 'The agent runtime rejected a request or reported a failure.' }, execution: { workItemId: '108' } };
+  const plan = decisionPlan(failed, model({ sessions: [session] }), detailReason(failed));
+  const [step] = plan.entries;
+  assert.match(step.text, /^The agent runtime rejected a request or reported a failure\. Try it again, or close this Work Item/);
+  assert.match(step.actions[0], /class="button primary" data-action="work-session-retry" data-id="s1"[^]*Try again/);
+  assert.match(step.actions[1], /class="button secondary" data-action="work-session-close" data-id="s1"[^]*Close this Work Item/);
+  assert.match(step.actions[2], /href="#session\/s1"[^]*Why it failed/, 'the session page stays one link away for the detail');
+  assert.match(plan.primary, /Try again/);
+  const unsettled = decisionPlan(failed, model({ sessions: [{ ...session, costStatus: 'unknown' }] }), detailReason(failed));
+  assert.match(unsettled.primary, /class="button primary" data-action="work-session-close"/, 'until spend is reconciled, closing is the action');
+  assert.match(unsettled.entries[0].note, /once the session’s spend is reconciled/);
+  const closed = decisionPlan(failed, model({ sessions: [{ ...session, workItemClosedAt: '2026-09-20T12:00:00Z' }] }), detailReason(failed));
+  assert.doesNotMatch(closed.entries[0].actions.join(''), /work-session-close/);
+  const viewer = decisionPlan(failed, model({ sessions: [session], canCancel: false }), detailReason(failed));
+  assert.match(viewer.primary, /href="#session\/s1"[^]*Open the session/, 'someone who cannot operate only gets the link');
+});
+
 test('a budget stop shows its meter in the decision box and never zero money in the demo', () => {
   const html = detailMarkup(demoDetail('110'), model({ detailId: '110' }));
   const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));

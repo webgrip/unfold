@@ -7,6 +7,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { RuntimeFailure, transportFailure } from '../failures.ts';
 import type { AppConfig, Credential, Repository, Session, Workspace, WorkspaceWait, WorkspaceWaitPhase } from '../types.ts';
 import { WorkerRelay, relayEndpoint } from './relay.ts';
+import { gitRewriteVariables } from './git-access.ts';
 import { WebSocket } from 'ws';
 
 type KubernetesConfig = NonNullable<AppConfig['kubernetes']> & {
@@ -153,6 +154,7 @@ export function workspaceManifests(config: AppConfig, session: Session, reposito
     { name: 'OPENCODE_DISABLE_AUTOUPDATE', value: 'true' }, { name: 'OPENCODE_DISABLE_SHARE', value: 'true' },
     { name: 'GIT_AUTHOR_NAME', value: 'Unfold' }, { name: 'GIT_AUTHOR_EMAIL', value: 'agent@localhost' }, { name: 'GIT_COMMITTER_NAME', value: 'Unfold' }, { name: 'GIT_COMMITTER_EMAIL', value: 'agent@localhost' },
   ];
+  const rewrites = gitRewriteVariables(k.gitRewrites);
   const envFrom = (k.agentSecrets ?? []).map(secretName => ({ secretRef: { name: secretName } }));
   const relayEnv = relay ? [{ name: 'UNFOLD_RELAY_URL', value: relay.url }, { name: 'UNFOLD_RELAY_TOKEN', valueFrom: valueFrom('UNFOLD_RELAY_TOKEN') }, { name: 'UNFOLD_RELAY_TARGET', value: 'http://127.0.0.1:4096' }] : [];
   const serveCommand = relay ? ['node', relayWorker, '--', 'opencode', 'serve', '--hostname', '127.0.0.1', '--port', '4096'] : ['opencode', 'serve', '--hostname', '0.0.0.0', '--port', '4096'];
@@ -175,11 +177,12 @@ export function workspaceManifests(config: AppConfig, session: Session, reposito
           { name: 'GIT_USERNAME', valueFrom: { secretKeyRef: { name: k.gitSecretName, key: 'username' } } },
           { name: 'GIT_PASSWORD', valueFrom: { secretKeyRef: { name: k.gitSecretName, key: 'password' } } },
         ] : []),
+        ...rewrites,
       ], volumeMounts: [{ name: 'workspace', mountPath: '/workspace' }, { name: 'clone-auth', mountPath: '/clone-auth', readOnly: true }],
       resources: { requests: { cpu: '100m', memory: '128Mi' }, limits: { cpu: k.cpu, memory: k.memory } },
     }],
     containers: [{ name: 'agent', image: k.image, imagePullPolicy: k.pullPolicy ?? 'IfNotPresent', securityContext,
-      command: serveCommand, workingDir: '/workspace/repository', env: [...env, ...relayEnv], ...(envFrom.length ? { envFrom } : {}),
+      command: serveCommand, workingDir: '/workspace/repository', env: [...env, ...rewrites, ...relayEnv], ...(envFrom.length ? { envFrom } : {}),
       ...(relay ? {} : { ports: [{ name: 'http', containerPort: 4096 }] }),
       startupProbe: { exec: { command: ['node', '-e', healthProgram] }, periodSeconds: 2, failureThreshold: 90, timeoutSeconds: 3 },
       readinessProbe: { exec: { command: ['node', '-e', healthProgram] }, periodSeconds: 10, timeoutSeconds: 3 },
@@ -275,6 +278,13 @@ export async function captureInPlace(relay: WorkerRelay, config: AppConfig, sess
     return await persistRemoteCandidate(config.dataDir, session.id, manifest, bundle, patch);
   } catch { return unavailableCandidate('capture_failed'); }
   finally { await control('/__unfold/stop-child', undefined, 30_000).catch(() => {}); }
+}
+
+function secretCredentials(secret: KubernetesObject | undefined): BasicCredentials | undefined {
+  const read = (key: string) => typeof secret?.data?.[key] === 'string' ? Buffer.from(secret.data[key], 'base64').toString('utf8') : undefined;
+  const username = read('OPENCODE_SERVER_USERNAME');
+  const password = read('OPENCODE_SERVER_PASSWORD');
+  return username && password ? { username, password } : undefined;
 }
 
 export class KubernetesWorkspaces {
@@ -407,6 +417,22 @@ export class KubernetesWorkspaces {
       const patch = await read('/patch', 128 * 1024 * 1024);
       return await persistRemoteCandidate(this.config.dataDir, session.id, manifest, bundle, patch);
     } catch { return unavailableCandidate('capture_failed'); }
+  }
+
+  /**
+   * Takes back a pull-transport workspace that kept working while the workbench restarted. Its OpenCode credentials
+   * come from the workspace's own Secret, and its worker must reconnect to the relay with the credential it holds.
+   */
+  async reattach(workspace: Workspace, signal: AbortSignal, withinMs: number): Promise<boolean> {
+    if (workspace.metadata?.transport !== 'pull' || this.kube.transport !== 'pull') return false;
+    const name = workspaceName(workspace.id);
+    const pod = await this.client.request(this.path('Pod', name), 'GET', undefined, true);
+    if (!pod || pod.metadata?.deletionTimestamp || ['Failed', 'Succeeded'].includes(pod.status?.phase)) return false;
+    const basic = secretCredentials(await this.client.request(this.path('Secret', name), 'GET', undefined, true));
+    if (!basic) return false;
+    await this.relay.waitForWorker(workspace.id, signal, withinMs);
+    this.passwords.set(workspace.id, basic);
+    return true;
   }
 
   async dispose(workspace: Workspace): Promise<void> {
