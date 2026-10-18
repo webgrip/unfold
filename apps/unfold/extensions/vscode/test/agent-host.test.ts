@@ -6,7 +6,7 @@ import { chmod, lstat, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowState, agentsWindowStatusText, attachAgentHost, connectionAddress, detachAgentHost, editSetting, editorWindowOf, fileStore, hasAgentHost,
+  SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowFolder, agentsWindowState, agentsWindowStatusText, foldersByLastPick, attachAgentHost, connectionAddress, detachAgentHost, editSetting, editorWindowOf, fileStore, hasAgentHost,
   isUnfoldAgentHostName, probeAgentHostToken, userSettingsFile, withAgentHost, withAgentHostNames, withoutIssuedAgentHost,
   type AgentHostEntry, type AgentHostStore, type AttachRequest, type SettingsConfiguration, type TokenProbe,
 } from '../src/agent-host.ts';
@@ -245,7 +245,9 @@ test('the Agents window counts as attached only when it connected with this edit
   assert.deepEqual(agentsWindowState([otherDevice, probe], mine), { status: 'not-connected' }, 'another device\'s Agents window does not confirm this one');
   assert.deepEqual(agentsWindowState([], mine), { status: 'not-connected' });
   assert.deepEqual(agentsWindowState(undefined, mine), { status: 'unknown' }, 'a workbench without the attached list confirms nothing');
-  assert.equal(agentsWindowStatusText({ status: 'connected', client: window }, 'unfold.example')?.text, 'Unfold · Agents window $(check)');
+  const connected = agentsWindowStatusText({ status: 'connected', client: window }, 'unfold.example')!;
+  assert.deepEqual({ text: connected.text, command: connected.command }, { text: '$(unfold-mark) Start an Unfold session', command: 'unfold.startInAgentsWindow' }, 'once attached, the item is the way to start a session');
+  assert.equal(agentsWindowStatusText({ status: 'not-connected' }, 'unfold.example')!.command, 'unfold.agentsWindowStatus');
   assert.match(agentsWindowStatusText({ status: 'connected', client: window }, 'unfold.example')!.tooltip, /unfold\.example \(VS Code 1\.141\.0\)/);
   assert.match(agentsWindowStatusText({ status: 'not-connected' }, 'unfold.example')!.text, /not connected/);
   assert.equal(agentsWindowStatusText({ status: 'unknown' }, 'unfold.example'), undefined);
@@ -281,4 +283,20 @@ test('the editor window is read from the extension\'s own link after env.asExter
   assert.equal(editorWindowOf('vscode://webgrip.unfold/'), undefined, 'no window id, nothing to address');
   assert.equal(editorWindowOf('vscode://other.extension/?windowId=3'), undefined);
   assert.equal(editorWindowOf('not a link'), undefined);
+});
+
+test('a workbench folder becomes the vscode-agent-host URI the Agents window resolves to that host', () => {
+  assert.deepEqual(agentsWindowFolder('unfold.example.com', '/unfold-repositories/order-service'), { scheme: 'vscode-agent-host', authority: 'unfold.example.com', path: '/unfold-repositories/order-service' });
+  assert.deepEqual(agentsWindowFolder('localhost__8787', '/unfold-repositories/a b')?.authority, 'localhost__8787');
+  assert.equal(agentsWindowFolder(undefined, '/unfold-repositories/x'), undefined);
+  assert.equal(agentsWindowFolder('Unfold.Example', '/x'), undefined, 'an authority VS Code would not derive is refused');
+  assert.equal(agentsWindowFolder('unfold.example.com', 'relative'), undefined);
+  assert.equal(agentsWindowFolder('unfold.example.com', '/x?tkn=secret'), undefined, 'a path never carries a query');
+});
+
+test('the repository picked last is offered first', () => {
+  const folders = [{ repositoryId: 'a', name: 'a', path: '/unfold-repositories/a' }, { repositoryId: 'b', name: 'b', path: '/unfold-repositories/b' }];
+  assert.deepEqual(foldersByLastPick(folders, 'b').map(folder => folder.repositoryId), ['b', 'a']);
+  assert.deepEqual(foldersByLastPick(folders, 'gone').map(folder => folder.repositoryId), ['a', 'b']);
+  assert.deepEqual(foldersByLastPick(folders, undefined).map(folder => folder.repositoryId), ['a', 'b']);
 });

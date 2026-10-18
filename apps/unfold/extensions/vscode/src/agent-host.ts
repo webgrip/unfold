@@ -340,11 +340,29 @@ export function agentsWindowState(attached: readonly AttachedClient[] | undefine
   return client ? { status: 'connected', client } : { status: 'not-connected' };
 }
 
-/** The status bar text and tooltip for an Agents window state; undefined hides the item. */
-export function agentsWindowStatusText(state: AgentsWindowState, host: string): { text: string; tooltip: string } | undefined {
+/** The status bar text, tooltip and command for an Agents window state; undefined hides the item. Once attached, the item starts a session there. */
+export function agentsWindowStatusText(state: AgentsWindowState, host: string): { text: string; tooltip: string; command: string } | undefined {
   if (state.status === 'unknown') return undefined;
-  if (state.status === 'connected') return { text: 'Unfold · Agents window $(check)', tooltip: `The Agents window is attached to Unfold at ${host}${state.client.version ? ` (VS Code ${state.client.version})` : ''}.` };
-  return { text: '$(debug-disconnect) Unfold · Agents window not connected', tooltip: `No Agents window is attached to Unfold at ${host} with this editor's token. Click to troubleshoot.` };
+  if (state.status === 'connected') return { text: '$(unfold-mark) Start an Unfold session', tooltip: `Start an Unfold session in the Agents window. The Agents window is attached to Unfold at ${host}${state.client.version ? ` (VS Code ${state.client.version})` : ''}.`, command: 'unfold.startInAgentsWindow' };
+  return { text: '$(debug-disconnect) Unfold · Agents window not connected', tooltip: `No Agents window is attached to Unfold at ${host} with this editor's token. Click to troubleshoot.`, command: 'unfold.agentsWindowStatus' };
+}
+
+/** A repository's folder on the workbench, as `GET /api/agent-host` lists it. */
+export type AgentHostFolder = { repositoryId: string; name: string; path: string };
+
+/** The URI scheme VS Code's Agents window gives a remote agent host's files and folders. */
+export const agentHostFolderScheme = 'vscode-agent-host';
+
+/** A workbench folder as the Agents window addresses it, `vscode-agent-host://<connection authority><path>`, or undefined when either part is unusable. */
+export function agentsWindowFolder(connectionAuthority: string | undefined, path: string | undefined): { scheme: string; authority: string; path: string } | undefined {
+  if (!connectionAuthority || !/^[a-z0-9._-]+$/.test(connectionAuthority) || !path || !/^\/[^?#]*$/.test(path)) return undefined;
+  return { scheme: agentHostFolderScheme, authority: connectionAuthority, path };
+}
+
+/** The folders in the order a picker offers them: the last one picked first, then as the workbench lists them. */
+export function foldersByLastPick(folders: readonly AgentHostFolder[], last: string | undefined): AgentHostFolder[] {
+  const picked = folders.find(folder => folder.repositoryId === last);
+  return picked ? [picked, ...folders.filter(folder => folder !== picked)] : [...folders];
 }
 
 /** What the Agents window link endpoints serve: the session URI in the person's Agents window spelling, whether one of theirs is attached, and the host address. */

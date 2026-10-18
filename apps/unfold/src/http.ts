@@ -11,7 +11,7 @@ import { placements } from './config.ts';
 import type { WorkerRelay } from './runtime/relay.ts';
 import type { AgentHost } from './ahp/host.ts';
 import { parseEditorWindow } from './ahp/editor-window.ts';
-import { agentHostTokenId, type AgentsWindowTarget, protocolBaselines as agentHostProtocolVersions, protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
+import { agentHostTokenId, type AgentsWindowTarget, repositoryFolderPaths, protocolBaselines as agentHostProtocolVersions, protocolVersion as agentHostProtocolVersion } from './ahp/host.ts';
 import { agentHostAuthority, agentsWindowSessionLinks } from '../public/core/agents-window.js';
 import type { Links } from './links.ts';
 import type { Oidc } from './oidc.ts';
@@ -493,7 +493,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const address = (config.baseUrl ?? `http://${config.host}:${config.port}`).replace(/^http/, 'ws');
           if (method === 'GET' && path === '/api/agent-host') {
             const attached = agentHost!.attachedClients(user);
-            return json(res, 200, { protocolVersion: agentHostProtocolVersion, protocolVersions: agentHostProtocolVersions, address, connectionAuthority: agentHostAuthority(address), provider: 'unfold', clients: attached.length, attached, vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
+            return json(res, 200, { protocolVersion: agentHostProtocolVersion, protocolVersions: agentHostProtocolVersions, address, connectionAuthority: agentHostAuthority(address), provider: 'unfold', clients: attached.length, attached, folders: [...repositoryFolderPaths(config.repositories)].map(([repositoryId, folder]) => ({ repositoryId, name: config.repositories.find(repo => repo.id === repositoryId)?.name ?? repositoryId, path: folder })), vscodeSetting: { key: 'chat.remoteAgentHosts', entry: { address, name: 'Unfold', connectionToken: '<token from POST /api/agent-host/tokens>' } } });
           }
           if (method === 'GET' && agentsWindowLink) {
             if (user.role === 'viewer') fault(403, 'forbidden', 'Viewers cannot connect an agent host, so they have no Agents window to open.');

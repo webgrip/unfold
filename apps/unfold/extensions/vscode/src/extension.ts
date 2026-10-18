@@ -17,7 +17,7 @@ import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome }
 import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor, plainText, providerNames } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
 import { linkedAccounts, type AccountChoice } from './accounts.js';
-import { SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowPlan, agentsWindowState, agentsWindowStatusText, agentsWindowSubject, attachAgentHost, type AgentsWindowLinkView, type AgentsWindowState, type AttachedClient, connectionAddress, detachAgentHost, editorWindowOf, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
+import { SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowPlan, agentsWindowState, agentsWindowFolder, agentsWindowStatusText, agentsWindowSubject, foldersByLastPick, type AgentHostFolder, attachAgentHost, type AgentsWindowLinkView, type AgentsWindowState, type AttachedClient, connectionAddress, detachAgentHost, editorWindowOf, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
 import { TaskPanels, type TaskPanelHost } from './task-panel.js';
 import { checkOutWorkItemBranch } from './checkout.js';
@@ -93,7 +93,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.panels = new SessionPanels(this);
     this.taskPanels = new TaskPanels(this);
     this.status.name = 'Unfold';
-    this.status.text = '$(layers) Unfold';
+    this.status.text = '$(unfold-mark) Unfold';
     this.status.command = 'unfold.now.focus';
     this.status.show();
     this.agentsWindowItem.name = 'Unfold Agents Window';
@@ -123,6 +123,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     register('connectAgentHost', () => this.connectAgentHost());
     register('agentsWindowStatus', () => this.agentsWindowStatus());
     register('openAgentsWindow', () => this.openAgentsWindow());
+    register('startInAgentsWindow', () => this.startInAgentsWindow());
     register('openInAgentsWindow', value => this.openInAgentsWindow(value));
     register('refresh', () => { this.nowReadAt = 0; return this.refresh(true, true); });
     register('openWorkItem', (value?: WorkItemRef) => this.openWorkItem(value));
@@ -619,6 +620,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     if (!shown) { this.agentsWindowItem.hide(); return; }
     this.agentsWindowItem.text = shown.text;
     this.agentsWindowItem.tooltip = shown.tooltip;
+    this.agentsWindowItem.command = shown.command;
     this.agentsWindowItem.show();
   }
 
@@ -629,6 +631,27 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     this.watchAgentsWindow(5_000);
     if (!(await vscode.commands.getCommands(true)).includes(openAgentsWindowCommand)) throw new Error('This VS Code has no Agents window. It needs VS Code 1.141 or later.');
     await vscode.commands.executeCommand(openAgentsWindowCommand);
+  }
+
+  async startInAgentsWindow(): Promise<void> {
+    if (this.configurationError) throw this.configurationError;
+    const target = this.current;
+    const generation = this.generation;
+    try { await this.attachAgentHostTo(target, 'always'); }
+    catch (error) { if (error instanceof SettingsFileError) { await this.settingsFileProblem(target, error); return; } throw error; }
+    this.watchAgentsWindow(5_000);
+    if (!(await vscode.commands.getCommands(true)).includes(openAgentsWindowCommand)) throw new Error('This VS Code has no Agents window. It needs VS Code 1.142 or later.');
+    const host = await target.request<{ connectionAuthority?: string; folders?: AgentHostFolder[] }>('/api/agent-host');
+    this.assertTarget(target, generation);
+    const lastPick = `unfold.agentsWindowRepository:${target.origin}`;
+    const folders = foldersByLastPick(Array.isArray(host.folders) ? host.folders : [], this.context.globalState.get<string>(lastPick));
+    const folder = folders.length > 1
+      ? (await vscode.window.showQuickPick(folders.map(item => ({ label: `$(repo) ${item.name}`, description: item.repositoryId === item.name ? undefined : item.repositoryId, folder: item })), { title: 'Start an Unfold session on which repository?', placeHolder: 'The Agents window opens a new session on this repository', ignoreFocusOut: true }))?.folder
+      : folders[0];
+    if (folders.length > 1 && !folder) return;
+    if (folder) await this.context.globalState.update(lastPick, folder.repositoryId);
+    const folderUri = folder && agentsWindowFolder(host.connectionAuthority, folder.path);
+    await vscode.commands.executeCommand(openAgentsWindowCommand, { reveal: 'new', ...(folderUri ? { folderUri: vscode.Uri.from(folderUri) } : {}) });
   }
 
   async openInAgentsWindow(value?: unknown): Promise<void> {
@@ -662,8 +685,8 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     const host = new URL(this.current.origin).host;
     const canOpen = (await vscode.commands.getCommands(true)).includes(openAgentsWindowCommand);
     if (this.agentsWindow.status === 'connected') {
-      const choice = await vscode.window.showInformationMessage(`The Agents window is attached to Unfold at ${host}. Start a session there with New → Workspace ▾ → Folders (Unfold) → <repository>.`, ...(canOpen ? ['Open Agents Window'] : []));
-      if (choice === 'Open Agents Window') await vscode.commands.executeCommand(openAgentsWindowCommand);
+      const choice = await vscode.window.showInformationMessage(`The Agents window is attached to Unfold at ${host}.`, ...(canOpen ? ['Start an Unfold Session'] : []));
+      if (choice === 'Start an Unfold Session') await this.startInAgentsWindow();
       return;
     }
     const choice = await vscode.window.showWarningMessage(`No Agents window is attached to Unfold at ${host} yet. Open the Agents window; it connects within seconds. If it does not, its Output panel's Agent Host channel says why.`, ...(canOpen ? ['Open Agents Window'] : []), 'Troubleshoot', 'Reconnect');
@@ -767,13 +790,11 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     try { outcome = await this.attachAgentHostTo(target, 'always'); }
     catch (error) { if (error instanceof SettingsFileError) { await this.settingsFileProblem(target, error); return; } throw error; }
     this.watchAgentsWindow(5_000);
-    const openAgentsWindow = openAgentsWindowCommand;
-    const canOpen = (await vscode.commands.getCommands(true)).includes(openAgentsWindow);
+    const canOpen = (await vscode.commands.getCommands(true)).includes(openAgentsWindowCommand);
     const host = new URL(target.origin).host;
-    const start = 'To start a session there, choose New → Workspace ▾ → Folders (Unfold) → <repository>.';
-    const message = outcome?.status === 'unchanged' ? `Unfold at ${host} is already in the VS Code Agents window. ${start}` : `Unfold at ${host} now appears in the VS Code Agents window. ${start} Its connection token is stored in your user settings, as VS Code keeps it.`;
-    const choice = await vscode.window.showInformationMessage(message, ...(canOpen ? ['Open Agents Window'] : []));
-    if (choice === 'Open Agents Window') await vscode.commands.executeCommand(openAgentsWindow);
+    const message = outcome?.status === 'unchanged' ? `Unfold at ${host} is already in the VS Code Agents window.` : `Unfold at ${host} now appears in the VS Code Agents window. Its connection token is stored in your user settings, as VS Code keeps it.`;
+    const choice = await vscode.window.showInformationMessage(message, ...(canOpen ? ['Start an Unfold Session'] : []));
+    if (choice === 'Start an Unfold Session') await this.startInAgentsWindow();
   }
 
   async create(): Promise<void> {

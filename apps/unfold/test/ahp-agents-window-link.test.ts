@@ -90,3 +90,15 @@ test('a Work Item link needs a live Ploeg: without one there is no Work Item ses
   assert.equal(result.status, 404, result.text);
   assert.equal((await request(w.server.url, '/api/agent-host/work-items/not-a-number/link', { cookie: w.owner.cookie })).status, 404);
 });
+
+test('the host names each repository\'s folder, which the folder picker resolves, so an editor can start a session there', async t => {
+  const w = await workbench(t);
+  const { folders } = (await request(w.server.url, '/api/agent-host', { cookie: w.owner.cookie })).body;
+  assert.ok(folders.length >= 1);
+  assert.deepEqual(folders.map((folder: { repositoryId: string }) => folder.repositoryId), w.server.config.repositories.map(repo => repo.id));
+  const client = await w.attach();
+  for (const folder of folders) {
+    assert.match(folder.path, /^\/unfold-repositories\/[^/]+$/);
+    assert.equal((await client.rpc('resourceResolve', { channel: 'ahp-root://', uri: `file://${folder.path}` })).type, 'directory', `${folder.path} is a folder the picker offers`);
+  }
+});

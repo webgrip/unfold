@@ -8,15 +8,23 @@ const source = readFileSync(new URL('src/extension.ts', root), 'utf8');
 const contributed = new Set<string>(manifest.contributes.commands.map((command: { command: string }) => command.command));
 const steps: Array<{ id: string; title: string; description: string; media: { markdown?: string }; completionEvents?: string[] }> = manifest.contributes.walkthroughs.flatMap((walkthrough: { steps: unknown[] }) => walkthrough.steps);
 
-test('the walkthrough has a step for the Agents window that opens it with a registered command', () => {
+test('the walkthrough has a step for the Agents window that starts a session there with a registered command', () => {
   const step = steps.find(item => item.title === 'Use Unfold from the Agents window');
   assert.ok(step, 'the step exists');
   assert.equal(steps.indexOf(step), 1, 'it follows connecting');
-  assert.match(step.description, /\(command:unfold\.openAgentsWindow\)/);
-  assert.match(step.description, /Workspace ▾ → Folders \(Unfold\) → <repository>/);
-  assert.ok(step.completionEvents?.includes('onCommand:unfold.openAgentsWindow'));
-  assert.ok(contributed.has('unfold.openAgentsWindow'));
-  assert.match(source, /register\('openAgentsWindow'/);
+  assert.match(step.description, /\(command:unfold\.startInAgentsWindow\)/);
+  assert.ok(step.completionEvents?.includes('onCommand:unfold.startInAgentsWindow'));
+  assert.ok(contributed.has('unfold.startInAgentsWindow'));
+  assert.match(source, /register\('startInAgentsWindow'/);
+});
+
+test('the Unfold mark is a product icon the extension ships, and the way into the Agents window wears it', () => {
+  const mark = manifest.contributes.icons['unfold-mark'];
+  assert.equal(mark.default.fontCharacter, '\\E000');
+  assert.ok(existsSync(new URL(mark.default.fontPath, root)), 'the icon font ships with the extension');
+  assert.equal(manifest.contributes.commands.find((command: { command: string }) => command.command === 'unfold.startInAgentsWindow').icon, '$(unfold-mark)');
+  const buttons = manifest.contributes.menus['view/title'].filter((item: { command: string }) => item.command === 'unfold.startInAgentsWindow');
+  assert.deepEqual(buttons.map((item: { when: string; group: string }) => [item.when, item.group]), [['view == unfold.now && unfold.connected', 'navigation@0'], ['view == unfold.sessions && unfold.connected', 'navigation@0']], 'it is the first button on Now and Sessions');
 });
 
 test('every walkthrough step links contributed commands and ships its media', () => {
