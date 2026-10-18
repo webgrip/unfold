@@ -125,3 +125,28 @@ test('administrators author a percentage rollout and segments in Unfold, export 
   const readout = operatorStore.flagExperiment('work.live-view', '2000-01-01T00:00:00Z');
   assert.deepEqual(readout, { exposures: { true: 1 }, conversions: [{ event: 'run.opened', variant: 'true', people: 1, value: 1 }] });
 });
+
+test('turning on One Work Item page turns the Live Work Item view off for that person, and the other way round', async t => {
+  const app = await application('live');
+  t.after(() => app.close());
+  const person = await login(app.url);
+  const choose = (key: string, choice: string) => request(app.url, `/api/flags/${key}/choice`, { method: 'PUT', cookie: person.cookie, body: { choice } });
+  const choiceOf = (body: any, key: string) => body.labs.find((item: any) => item.key === key).choice;
+
+  const live = await choose('work.live-view', 'on');
+  assert.equal(live.status, 200, live.text);
+  assert.deepEqual([live.body.values['work.live-view'], live.body.values['work.layouts']], [true, false]);
+
+  const page = await choose('work.layouts', 'on');
+  assert.deepEqual([page.body.values['work.layouts'], page.body.values['work.live-view']], [true, false]);
+  assert.equal(choiceOf(page.body, 'work.live-view'), 'off', 'the excluded flag is chosen off, not left at its default');
+  assert.deepEqual(page.body.labs.find((item: any) => item.key === 'work.layouts').excludes, ['work.live-view']);
+
+  const back = await choose('work.live-view', 'on');
+  assert.deepEqual([back.body.values['work.live-view'], back.body.values['work.layouts']], [true, false]);
+
+  const off = await choose('work.live-view', 'off');
+  assert.equal(choiceOf(off.body, 'work.layouts'), 'off', 'turning one off leaves the other as it was');
+  const neither = await request(app.url, '/api/bootstrap', { cookie: person.cookie });
+  assert.deepEqual([neither.body.flags['work.live-view'], neither.body.flags['work.layouts']], [false, false]);
+});

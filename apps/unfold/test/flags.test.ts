@@ -226,3 +226,16 @@ test('a flag past its removal date reads as expired, and one that served a singl
   for (let i = 0; i < 50; i++) await flags.getBooleanValue('work.static', false, {});
   assert.equal((await flags.list({})).find(view => view.key === 'work.static')?.settled, 'on');
 });
+
+test('mutually exclusive Labs flags name each other, and the registry refuses a one-sided, unknown or non-Labs exclusion', () => {
+  const flag = (extra: Record<string, unknown>) => ({ state: 'ENABLED', variants: { on: true, off: false }, defaultVariant: 'off', metadata: meta(extra) });
+  const pair = checkRegistry({ flags: { 'work.a': flag({ excludes: ['work.b'] }), 'work.b': flag({ excludes: ['work.a'] }) } });
+  assert.deepEqual(pair.flags['work.a'].metadata.excludes, ['work.b']);
+  assert.throws(() => checkRegistry({ flags: { 'work.a': flag({ excludes: ['work.b'] }), 'work.b': flag({}) } }), /exclusion is mutual/);
+  assert.throws(() => checkRegistry({ flags: { 'work.a': flag({ excludes: ['work.gone'] }) } }), /not another registered flag/);
+  assert.throws(() => checkRegistry({ flags: { 'work.a': flag({ excludes: ['work.a'] }) } }), /not another registered flag/);
+  assert.throws(() => checkRegistry({ flags: { 'work.a': flag({ excludes: ['work.b'] }), 'work.b': flag({ labs: false, excludes: ['work.a'] }) } }), /both must be Labs flags/);
+  assert.throws(() => checkRegistry({ flags: { 'work.a': flag({ excludes: 'work.b' }) } }), /must list flag keys/);
+  const shipped = loadRegistry();
+  assert.deepEqual([shipped.flags['work.layouts'].metadata.excludes, shipped.flags['work.live-view'].metadata.excludes], [['work.live-view'], ['work.layouts']]);
+});

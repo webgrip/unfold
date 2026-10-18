@@ -26,6 +26,8 @@ export interface FlagMetadata {
   client: boolean;
   /** A person may opt in or out of it under Settings › Labs. */
   labs: boolean;
+  /** Labs flags that cannot be on for one person at the same time; choosing this one on turns those off. Listed on both sides. */
+  excludes?: string[];
 }
 
 /** A flagd flag rule: `state`, `variants`, `defaultVariant` and optional JsonLogic `targeting`. */
@@ -161,6 +163,7 @@ function checkMetadata(metadata: unknown, where: string): FlagMetadata {
   if (metadata.expires !== undefined && (typeof metadata.expires !== 'string' || !datePattern.test(metadata.expires))) throw new Error(`${where}.metadata.expires must be a date (YYYY-MM-DD)`);
   if ((metadata.kind === 'release' || metadata.kind === 'experiment') && metadata.expires === undefined) throw new Error(`${where}.metadata.expires is required for a ${metadata.kind} flag`);
   for (const key of ['client', 'labs'] as const) if (typeof metadata[key] !== 'boolean') throw new Error(`${where}.metadata.${key} must be true or false`);
+  if (metadata.excludes !== undefined && (!Array.isArray(metadata.excludes) || !metadata.excludes.every(key => typeof key === 'string' && validFlagKey(key)))) throw new Error(`${where}.metadata.excludes must list flag keys`);
   return metadata as unknown as FlagMetadata;
 }
 
@@ -173,6 +176,14 @@ export function checkRegistry(raw: unknown): FlagRegistry {
     const rule = checkRule(value, `flags.${key}`, false) as FlagRule & { metadata?: unknown };
     if (!Object.hasOwn(rule.variants, rule.defaultVariant)) throw new Error(`flags.${key}.defaultVariant names no variant`);
     flags[key] = { state: rule.state, variants: rule.variants, defaultVariant: rule.defaultVariant, ...(rule.targeting ? { targeting: rule.targeting } : {}), metadata: checkMetadata(rule.metadata, `flags.${key}`) };
+  }
+  for (const [key, flag] of Object.entries(flags)) {
+    for (const other of flag.metadata.excludes ?? []) {
+      const partner = flags[other];
+      if (other === key || !partner) throw new Error(`flags.${key}.metadata.excludes names ${other}, which is not another registered flag`);
+      if (!flag.metadata.labs || !partner.metadata.labs) throw new Error(`flags.${key}.metadata.excludes pairs ${other}; both must be Labs flags`);
+      if (!(partner.metadata.excludes ?? []).includes(key)) throw new Error(`flags.${other}.metadata.excludes must name ${key} too: exclusion is mutual`);
+    }
   }
   if (raw.$evaluators !== undefined && !plainObject(raw.$evaluators)) throw new Error('$evaluators must be an object');
   return { flags, ...(raw.$evaluators ? { $evaluators: raw.$evaluators as Record<string, unknown> } : {}) };
