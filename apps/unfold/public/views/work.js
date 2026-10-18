@@ -19,6 +19,7 @@ import { linkedChangedEvent } from './linked-sessions.js';
 import { answerDialogMarkup, answerField, noteDialogMarkup, noteLimit } from '../blackboard-view.js';
 import { answerLimit, answerNote, resumeOffer, waitingQuestion, waitingQuestions, writeError } from '../core/blackboard.js';
 import { detailReason } from '../core/reasons.js';
+import { attachSession, sessionParts } from './session.js';
 
 const lanes = ploegLanes.map(lane => lane.id);
 const itemPath = /^work\/([1-9][0-9]{0,19})$/;
@@ -32,9 +33,9 @@ const transcriptInterval = 4000;
 const healthInterval = 30_000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null };
+const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null };
 
-onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null }));
+onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
@@ -79,7 +80,9 @@ function model() {
     linkedSessions: work.linked?.id === work.detailId ? work.linked.data : null,
     userId: state.bootstrap?.user?.id,
     userName: state.bootstrap?.user?.name,
-    workLayout: prefs.get('workLayout'),
+    session: enabled('work.layouts') ? sessionParts(sessionOf(work.detailId)?.id) : null,
+    workTab: work.tab?.id === work.detailId ? work.tab.value : null,
+    intentMode: work.intent?.id === work.detailId ? work.intent.value : null,
     trackerUrl: state.ploeg?.trackerUrl,
     reviewFacts: Object.fromEntries(work.reviewFacts),
     demoMode: state.bootstrap?.mode === 'demo',
@@ -146,6 +149,7 @@ function renderWork() {
   const transcriptScroll = new Map([...document.querySelectorAll('#app [data-run-transcript]')].map(element => [element.dataset.runTranscript, { top: element.scrollTop, pinned: element.scrollHeight - element.scrollTop - element.clientHeight < 24 }]));
   renderHtml(shell(workMarkup(current), shellOptions(current)));
   if (current.detail) exposed('work.live-view', { screen: 'work', workItemId: current.detail.item.id });
+  if (current.detail && current.flags['work.layouts'] === true) exposed('work.layouts', { screen: 'work', workItemId: current.detail.item.id });
   for (const element of document.querySelectorAll('#app details[id]')) if (open.has(element.id)) element.open = open.get(element.id);
   for (const element of document.querySelectorAll('#app [data-run-log]')) { const kept = logScroll.get(element.dataset.runLog); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
   for (const element of document.querySelectorAll('#app [data-run-transcript]')) { const kept = transcriptScroll.get(element.dataset.runTranscript); element.scrollTop = !kept || kept.pinned ? element.scrollHeight : kept.top; }
@@ -158,6 +162,41 @@ function renderWork() {
   syncPane();
   revealSelected();
   observeActions();
+  followSession();
+}
+
+function sessionOf(workItemId) {
+  if (!workItemId) return null;
+  return state.sessions.find(session => String(session.execution?.workItemId ?? '') === String(workItemId)) ?? null;
+}
+
+function followSession() {
+  const session = enabled('work.layouts') ? sessionOf(work.detailId) : null;
+  if (!session || (state.session?.id === session.id && state.stream) || work.attaching === session.id || work.sessionFailed === session.id) return;
+  const id = work.detailId;
+  work.attaching = session.id;
+  void attachSession(session.id, { view: 'work', render: renderWork, here: () => visible() && work.detailId === id, inspect: showEvidence })
+    .then(attached => { if (!attached && work.detailId === id) work.sessionFailed = session.id; })
+    .finally(() => { if (work.attaching === session.id) work.attaching = null; });
+}
+
+function showEvidence() {
+  const radio = document.querySelector('#app .lv-desk-radio.is-evidence');
+  if (!radio) return;
+  radio.checked = true;
+  work.tab = { id: work.detailId, value: 'evidence' };
+  radio.closest('.lv-desk-main')?.scrollIntoView({ block: 'start', behavior: motion() });
+}
+
+function keepTab(element) { work.tab = { id: work.detailId, value: element.value }; }
+
+function keepIntent(element) { work.intent = { id: work.detailId, value: element.value }; }
+
+function openRun(run) {
+  for (let parent = run.parentElement?.closest('details'); parent; parent = parent.parentElement?.closest('details')) parent.open = true;
+  const log = run.closest('.lv-desk-main')?.querySelector('.lv-desk-radio.is-log');
+  if (log && !log.checked) { log.checked = true; work.tab = { id: work.detailId, value: 'log' }; }
+  run.open = true;
 }
 
 function revealPendingRun() {
@@ -171,9 +210,7 @@ function revealPendingRun() {
   }
   const run = document.getElementById(`work-run-${runId}`);
   if (!run) return;
-  const more = run.closest('details:not(.work-run)');
-  if (more) more.open = true;
-  run.open = true;
+  openRun(run);
   run.scrollIntoView({ block: 'start', behavior: motion() });
   run.querySelector('summary')?.focus({ preventScroll: true });
 }
@@ -418,14 +455,6 @@ function openAsk(question = '') {
   const dialog = openPloegDialog(askDialogMarkup(detail, { question }));
   dialog.querySelector('#work-ask-question')?.focus();
   dialog.addEventListener('close', () => { if (!work.askBusy) $('[data-action="work-ask-open"]')?.focus(); }, { once: true });
-}
-
-function chooseLayout(button) {
-  const layout = button.dataset.id;
-  if (!prefs.set('workLayout', layout)) return;
-  exposed('work.layouts', { screen: 'work', workItemId: work.detailId });
-  track('work.layout.chosen');
-  renderWork();
 }
 
 async function submitSteer(data, form) {
@@ -1262,9 +1291,7 @@ function jumpToRun(button) {
   const run = document.getElementById(`work-run-${button.dataset.id}`);
   if (!run) return;
   track(button.closest('.lv-fp') ? 'work.run_opened_from_flight' : 'work.run_opened');
-  const more = run.closest('details:not(.work-run)');
-  if (more) more.open = true;
-  run.open = true;
+  openRun(run);
   run.scrollIntoView({ block: 'start', behavior: motion() });
   run.querySelector('summary')?.focus({ preventScroll: true });
 }
@@ -1352,7 +1379,6 @@ export default {
     'work-section': jumpToSection,
     'work-context-add': () => openContext(),
     'work-ask-open': () => openAsk(),
-    'work-layout': chooseLayout,
     'work-answer-open': () => openAnswer(),
     'work-note-open': () => openNote(),
     'work-ask-model': askModelAnyway,
@@ -1369,6 +1395,8 @@ export default {
   inputs: { '[data-run-log-search]': searchRunLog },
   changes: {
     '#ploeg-team': changeTeam,
+    '#app .lv-unified .lv-desk-radio': keepTab,
+    '#app .lv-unified .lv-intent-radio': keepIntent,
   },
   keys: [workKeys],
 };

@@ -16,7 +16,6 @@ export function originStamp(view) {
   const from = view.origin;
   const mark = `<span class="lv-origin-mark" aria-hidden="true">${escape(from.initials)}</span>`;
   const text = `<span class="lv-origin-text">${escape(from.label)}</span>`;
-  if (from.kind === 'unfold' && from.sessionId) return `<a class="${cx('lv-origin', 'is-unfold')}" href="#session/${escape(encodeURIComponent(from.sessionId))}">${mark}${text}</a>`;
   if (from.url) return `<a class="${cx('lv-origin', `is-${from.kind}`)}" href="${escape(from.url)}" target="_blank" rel="noopener noreferrer">${mark}${text}</a>`;
   return `<span class="${cx('lv-origin', `is-${from.kind}`)}">${mark}${text}</span>`;
 }
@@ -46,14 +45,26 @@ function entryHead(entry, title, detail = '', chip = '') {
 
 const chip = (text, tone = '') => `<span class="${cx('lv-tl-chip', tone ? `lv-tone-${tone}` : '')}">${escape(text)}</span>`;
 
-function runStub(entry) {
+function runStub(entry, { opens = false } = {}) {
   const cost = entry.costUsd === null ? 'cost not reported' : usd(entry.costUsd);
   const tokenText = entry.tokensIn === null ? '' : ` · ${tokens(entry.tokensIn)} in`;
   const runs = entry.count > 1 ? `Runs ${entry.firstN}–${entry.n}` : `Run ${entry.n}`;
-  return `<div class="lv-tl-stub"><span class="lv-tl-stub-label">${runs}${entry.ending === 'live' ? ' · now' : ''}</span><span class="lv-tl-stub-value">${escape(span(entry.seconds) || '0 s')}</span><span class="lv-tl-stub-detail">${escape(`${cost}${tokenText}`)}</span><a class="lv-tl-stub-link" href="#run-${escape(entry.id)}" data-action="work-run" data-id="${escape(entry.id)}">${entry.ending === 'live' ? 'Follow live' : 'Open the Run'}</a></div>`;
+  const link = opens
+    ? `<span class="lv-tl-stub-link lv-tl-run-toggle" aria-hidden="true"><span class="lv-tl-run-closed">${entry.ending === 'live' ? 'Follow live' : 'Show what it did'}</span><span class="lv-tl-run-opened">Hide</span>${icon('chevron-down')}</span>`
+    : `<a class="lv-tl-stub-link" href="#run-${escape(entry.id)}" data-action="work-run" data-id="${escape(entry.id)}">${entry.ending === 'live' ? 'Follow live' : 'Open the Run'}</a>`;
+  return `<div class="lv-tl-stub"><span class="lv-tl-stub-label">${runs}${entry.ending === 'live' ? ' · now' : ''}</span><span class="lv-tl-stub-value">${escape(span(entry.seconds) || '0 s')}</span><span class="lv-tl-stub-detail">${escape(`${cost}${tokenText}`)}</span>${link}</div>`;
 }
 
-function entryBody(entry, view) {
+function runOpening(entry, ticket, runDetail) {
+  const members = entry.members ?? [{ id: entry.id, n: entry.n }];
+  const body = members.length > 1
+    ? members.map(member => `<details class="work-run lv-tl-run-part" id="work-run-${escape(member.id)}"><summary class="lv-tl-run-part-sum">${escape(`Run ${member.n}`)}${icon('chevron-down')}</summary><div class="work-run-body">${runDetail(String(member.id))}</div></details>`).join('')
+    : runDetail(String(entry.id));
+  const id = members.length > 1 ? `work-runs-${members[0].id}-${members.at(-1).id}` : `work-run-${entry.id}`;
+  return `<details class="${cx(members.length > 1 ? 'lv-tl-run-burst' : 'work-run', 'lv-tl-run')}" id="${escape(id)}"${entry.ending === 'live' ? ' open' : ''}><summary class="lv-tl-run-sum">${ticket}</summary><div class="${cx(members.length > 1 ? '' : 'work-run-body', 'lv-tl-run-body')}">${body}</div></details>`;
+}
+
+function entryBody(entry, view, runDetail = null) {
   if (entry.kind === 'brief') return `${entryHead(entry, who(entry, view), view.origin.kind === 'unfold' ? 'wrote the brief' : 'filed the task', entry.conditions ? chip(`${entry.conditions} acceptance ${entry.conditions === 1 ? 'condition' : 'conditions'}`) : '')}${entry.text ? `<p class="lv-tl-text" data-private>${escape(entry.text.split('\n').find(line => line.trim() && !line.trim().startsWith('#')) ?? '')}</p>` : '<p class="lv-tl-text lv-tl-quiet">No brief was written.</p>'}`;
   if (entry.kind === 'admit') return `${entryHead(entry, 'Ploeg', `started attempt ${entry.attempt}`)}<p class="lv-tl-text lv-tl-quiet">${escape(entry.budgetUsd === null ? 'No budget reported for this attempt.' : `${usd(entry.budgetUsd)} held for this attempt.`)}</p>`;
   if (entry.kind === 'run') {
@@ -62,7 +73,8 @@ function entryBody(entry, view) {
     const runs = entry.count > 1 ? `${entry.count} Runs in a row, Runs ${entry.firstN}–${entry.n}` : `Run ${entry.n}`;
     const machine = entry.ending === 'machine' ? `<p class="lv-tl-text lv-tl-quiet">${entry.count > 1 ? 'Machines ended these Runs, not the agent; they do not count against the agent.' : 'The machine ended this Run, not the agent; it does not count against the agent.'}</p>` : '';
     const now = entry.move ? `<p class="lv-tl-move"><span class="lv-tl-move-dot" aria-hidden="true"></span><span>${escape(entry.move.title)}</span><span class="lv-tl-detail">${escape(`${entry.move.calls} ${entry.move.calls === 1 ? 'call' : 'calls'} so far`)}</span></p>` : '';
-    return `<div class="lv-tl-ticket"><div class="lv-tl-ticket-main">${entryHead(entry, entry.role, `attempt ${entry.attempt} · ${runs}`, chip(words, tone))}${machine}${now}</div>${runStub(entry)}</div>`;
+    const ticket = `<div class="lv-tl-ticket"><div class="lv-tl-ticket-main">${entryHead(entry, entry.role, `attempt ${entry.attempt} · ${runs}`, chip(words, tone))}${machine}${now}</div>${runStub(entry, { opens: Boolean(runDetail) })}</div>`;
+    return runDetail ? runOpening(entry, ticket, runDetail) : ticket;
   }
   if (entry.kind === 'context') return `${entryHead(entry, who(entry, view), 'added context', entry.steering ? chip('reaches the next Run', 'attention') : '')}<p class="lv-tl-files"><span class="lv-tl-file">${icon('file')}${escape(entry.name)}</span></p>${entry.note ? `<p class="lv-tl-text" data-private>${escape(entry.note)}</p>` : ''}`;
   if (entry.kind === 'ask') {
@@ -96,17 +108,18 @@ function tapeCell(entry) {
  * The timeline of a Work Item: the brief, each attempt and Run, context, Asks, steering and linked sessions in time
  * order, with long quiet stretches folded into a line that opens. `chat` draws people's messages as bubbles and Runs
  * as tickets, `log` a vertical spine with clock times and the spend tape beside it, `compact` one line per entry.
+ * With `runDetail`, every Run opens in place to the body it returns for a Run id.
  * @param {object} view A `workView` result.
- * @param {{ layout?: 'chat'|'log'|'compact', id?: string }} [options]
+ * @param {{ layout?: 'chat'|'log'|'compact', id?: string, runDetail?: ((runId: string) => string) | null }} [options]
  * @returns {string}
  */
-export function timeline(view, { layout = 'chat', id = `lv-tl-${view.id}` } = {}) {
+export function timeline(view, { layout = 'chat', id = `lv-tl-${view.id}`, runDetail = null } = {}) {
   const rows = view.entries.map(entry => {
     if (entry.kind === 'fold') return `<li class="${cx('lv-tl-entry', 'is-fold')}"><details class="lv-tl-fold"><summary class="lv-tl-fold-sum"><span class="lv-tl-zigzag" aria-hidden="true"></span><span><strong>${escape(span(entry.seconds))} folded</strong> · ${escape(entry.reason)}</span></summary><p class="lv-tl-text lv-tl-quiet">${escape(`${clock(entry.at)} to ${clock(entry.at + entry.seconds * 1000)}. Nothing was needed from anyone.`)}</p></details></li>`;
     const mine = ['brief', 'context', 'ask', 'steer'].includes(entry.kind) && who(entry, view) === 'You';
     const ending = entry.kind === 'run' ? `is-${entry.ending}` : '';
     const time = layout === 'log' ? `<span class="lv-tl-clock">${escape(clock(entry.at))}${entry.kind === 'run' && entry.end ? `<br>${escape(clock(entry.end))}` : ''}</span>` : '';
-    return `<li class="${cx('lv-tl-entry', `is-${entry.kind}`, ending, mine ? 'is-mine' : '')}">${time}<span class="lv-tl-mark" aria-hidden="true">${mark(entry, view)}</span>${layout === 'log' ? tapeCell(entry) : ''}<div class="lv-tl-body">${entryBody(entry, view)}</div></li>`;
+    return `<li class="${cx('lv-tl-entry', `is-${entry.kind}`, ending, mine ? 'is-mine' : '')}">${time}<span class="lv-tl-mark" aria-hidden="true">${mark(entry, view)}</span>${layout === 'log' ? tapeCell(entry) : ''}<div class="lv-tl-body">${entryBody(entry, view, runDetail)}</div></li>`;
   }).join('');
   const now = view.live.running || view.decisions.length ? `<li class="${cx('lv-tl-entry', 'is-now', view.decisions.length ? 'lv-tone-attention' : 'lv-tone-live')}">${layout === 'log' ? `<span class="lv-tl-clock">${escape(clock(view.live.now))}</span>` : ''}<span class="lv-tl-mark" aria-hidden="true"></span>${layout === 'log' ? '<span class="lv-tl-tape"></span>' : ''}<div class="lv-tl-body"><p class="lv-tl-who"><strong>Now</strong> <span class="lv-tl-detail">${escape(view.sentence.head)}</span></p></div></li>` : '';
   return `<ol class="${cx('lv-tl', `lv-tl-${layout}`)}" id="${escape(id)}" aria-label="What happened, oldest first">${rows}${now}</ol>`;
@@ -140,7 +153,7 @@ export function intentBar(view, { id = `lv-intent-${view.id}`, mode } = {}) {
 function decisionActions(decision, extras) {
   if (decision.kind === 'review') return `${decision.pullRequest?.url ? button({ label: 'Open the pull request', variant: 'secondary', size: 'sm', href: decision.pullRequest.url, external: true }) : ''}${extras.primary ?? ''}`;
   if (decision.kind === 'stop') return extras.primary ?? '';
-  if (decision.kind === 'session') return button({ label: 'Answer in the session', variant: 'primary', size: 'sm', href: `#session/${encodeURIComponent(decision.sessionId)}` });
+  if (decision.kind === 'session') return button({ label: 'Answer it', variant: 'primary', size: 'sm', action: 'work-section', data: { id: 'session-decision' } });
   if (decision.kind === 'linked') return button({ label: 'Open the linked session', size: 'sm', href: `#linked-session/${encodeURIComponent(decision.sessionId)}` });
   return '';
 }

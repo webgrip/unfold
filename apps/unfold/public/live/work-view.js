@@ -58,8 +58,8 @@ function burstsOf(entries) {
   for (const entry of entries) {
     const last = out.at(-1);
     const same = last?.kind === 'run' && entry.kind === 'run' && last.ending === 'machine' && entry.ending === 'machine' && last.role === entry.role && last.attempt === entry.attempt;
-    if (!same) { out.push(entry.kind === 'run' ? { ...entry, count: 1, firstN: entry.n } : entry); continue; }
-    out[out.length - 1] = { ...last, end: entry.end, seconds: last.seconds + entry.seconds, costUsd: last.costUsd === null && entry.costUsd === null ? null : (last.costUsd ?? 0) + (entry.costUsd ?? 0), n: entry.n, count: last.count + 1 };
+    if (!same) { out.push(entry.kind === 'run' ? { ...entry, count: 1, firstN: entry.n, members: [{ id: entry.id, n: entry.n }] } : entry); continue; }
+    out[out.length - 1] = { ...last, id: entry.id, members: [...last.members, { id: entry.id, n: entry.n }], end: entry.end, seconds: last.seconds + entry.seconds, costUsd: last.costUsd === null && entry.costUsd === null ? null : (last.costUsd ?? 0) + (entry.costUsd ?? 0), n: entry.n, count: last.count + 1 };
   }
   return out;
 }
@@ -100,7 +100,7 @@ function decisionsOf(live, { session, linked, sentence }) {
   const list = [];
   if (live.state === 'needs_human' || live.state === 'stale') list.push({ kind: 'stop', tone: live.state === 'stale' ? 'severe' : 'attention', title: sentence.head, detail: sentence.sub });
   if (live.state === 'awaiting_review') list.push({ kind: 'review', tone: 'review', title: sentence.head, detail: sentence.sub, pullRequest: live.pullRequest });
-  if (session && session.status === 'waiting_input') list.push({ kind: 'session', tone: 'attention', title: 'An agent asked you something in its session', detail: 'Answer it in the session; the Run waits until you do.', sessionId: session.id });
+  if (session && session.status === 'waiting_input') list.push({ kind: 'session', tone: 'attention', title: 'An agent asked you something', detail: 'Answer it on this page; the Run waits until you do.', sessionId: session.id });
   for (const each of linked?.sessions ?? []) if (each.waitingFor) list.push({ kind: 'linked', tone: 'attention', title: `${each.ownerName || 'A linked session'} waits for ${each.waitingFor}`, detail: `${harnesses[each.harness] ?? 'An agent'} on ${each.branch || 'its branch'}. Unfold does not run it, so answer it where it runs.`, sessionId: each.id });
   return list;
 }

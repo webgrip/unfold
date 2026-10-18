@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { briefOf, foldGapSeconds, workView } from '../public/live/work-view.js';
 import { workInputOf } from '../public/live/work-fixtures.js';
 import { intentBar, decisionDock, acceptanceLedger, timeline } from '../public/live/work-parts.js';
-import { workLayouts, workPage } from '../public/live/pages.js';
+import { workPage } from '../public/live/pages.js';
 
 test('a brief lists the items under its acceptance heading as conditions and keeps the text before it', () => {
   const brief = briefOf('Make it fast.\n\n## Acceptance\n- under 60 min\n* no test skipped\n1. profile attached\n\n## Notes\n- not a condition');
@@ -67,23 +67,46 @@ test('the spend tape holds money for the running Run and the ledger never claims
   assert.match(acceptanceLedger(unproven), /proof not reported yet/);
 });
 
-test('every layout renders every scenario with one level-one heading, the intent bar and no leaked values', () => {
+test('the page renders every scenario with one level-one heading, the intent bar and no leaked values', () => {
   for (const name of ['running', 'needsYou', 'review', 'landed', 'queued', 'stress', 'hijacked']) {
-    for (const { id } of workLayouts) {
-      const html = workPage(id, workView(workInputOf(name)));
-      assert.equal((html.match(/<h1\b/g) ?? []).length, 1, `${name} ${id}`);
-      assert.match(html, /class="lv-intent"/, `${name} ${id}`);
-      assert.doesNotMatch(html, /undefined|NaN|\[object /, `${name} ${id}`);
-    }
+    const html = workPage(workView(workInputOf(name)), { runDetail: id => `<p>Run ${id} body</p>` });
+    assert.equal((html.match(/<h1\b/g) ?? []).length, 1, name);
+    assert.match(html, /class="lv-intent"/, name);
+    assert.doesNotMatch(html, /undefined|NaN|\[object /, name);
   }
   assert.match(timeline(workView(workInputOf('queued'))), /lv-tl/);
+});
+
+test('every Run in the log opens in place to its body, the working Run already open', () => {
+  const view = workView(workInputOf('running'));
+  const asked = [];
+  const html = workPage(view, { runDetail: id => { asked.push(id); return `<p class="probe">Run ${id} body</p>`; } });
+  assert.deepEqual(asked.sort(), view.live.runs.filter(run => run.startedAt !== null).map(run => String(run.id)).sort(), 'every started Run is asked for its body once');
+  const running = view.live.runs.find(run => run.state === 'running');
+  assert.match(html, new RegExp(`<details class="work-run lv-tl-run" id="work-run-${running.id}" open>`));
+  assert.doesNotMatch(html, /data-action="work-run"[^>]*>Open the Run/, 'no link out when the Run opens in place');
+  const burst = view.entries.find(entry => entry.kind === 'run' && entry.count > 1);
+  if (burst) for (const member of burst.members) assert.match(html, new RegExp(`id="work-run-${member.id}"`), 'each Run of a burst opens on its own');
+  assert.match(workPage(view), /Open the Run|Follow live/, 'without bodies a Run stays a ticket with its link');
+});
+
+test('a Work Item started in Unfold carries its session: what it waits on, its controls, its evidence and its cards', () => {
+  const view = workView(workInputOf('running', { origin: 'unfold' }));
+  const session = { decision: '<section id="probe-decision"></section>', actions: '<button data-action="pause">Pause</button>', evidence: '<section class="session-evidence">probe</section>', evidenceLabel: 'Evidence', side: '<section id="session-budget"></section>' };
+  const html = workPage(view, { session, tab: 'evidence' });
+  assert.match(html, /probe-decision/);
+  assert.match(html, /data-action="pause"/);
+  assert.match(html, /class="lv-desk-radio is-evidence" type="radio"[^>]* checked/);
+  assert.match(html, /session-budget/);
+  assert.doesNotMatch(html, /href="#session\//, 'nothing sends a person to a separate session page');
+  assert.match(workPage(workView(workInputOf('running', { origin: 'tracker' })), { tab: 'evidence' }), /class="lv-desk-radio is-log" type="radio"[^>]* checked/, 'without a session the evidence tab falls back to the log');
 });
 
 test('a Run that went off track and came back shows the judge’s history on its flight, not a containment alarm', () => {
   const recovered = workView(workInputOf('driftRecovered'));
   assert.equal(recovered.live.health.health, 'on_track');
-  const html = workPage('unified', recovered);
+  const html = workPage(recovered);
   assert.doesNotMatch(html, /lv-containment/);
   assert.match(html, /Sent to the running Builder/);
-  assert.match(workPage('unified', workView(workInputOf('rogue'))), /lv-containment/, 'a Run that is off track now still raises the alarm');
+  assert.match(workPage(workView(workInputOf('rogue'))), /lv-containment/, 'a Run that is off track now still raises the alarm');
 });

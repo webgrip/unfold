@@ -6,32 +6,23 @@ import { flightPath } from './flight-path.js';
 import { foldStrip } from './fold-strip.js';
 import { instruments } from './instruments.js';
 import { nowLine } from './layouts.js';
-import { cx, escape, span, usd } from './parts.js';
+import { cx, escape } from './parts.js';
 import { moveList, traceLanes } from './trace.js';
 import { acceptanceLedger, roleRoster, decisionDock, intentBar, leaseBaton, originStamp, presenceStack, spendTape, timeline } from './work-parts.js';
 
-/** The Work Item page layouts, in the order the layout switch offers them. */
-export const workLayouts = Object.freeze([
-  Object.freeze({ id: 'unified', label: 'Unified', means: 'The recommended page: where it stands and what it needs from you first, then the conversation, the brief with its acceptance conditions and the trace, with spend, Roles and free answers beside them.' }),
-  Object.freeze({ id: 'thread', label: 'Thread', means: 'Conversation first: the brief, your messages and every Run in one thread, what waits on you above the intent bar.' }),
-  Object.freeze({ id: 'cockpit', label: 'Night cockpit', means: 'The flight on a dark ground: flight path and instruments, the Shift dial and Roles, the trace, and the dock.' }),
-  Object.freeze({ id: 'desk', label: 'Desk', means: 'Views you switch between: overview, conversation, trace and spend, with what waits on you and the Roles beside them.' }),
-  Object.freeze({ id: 'logbook', label: 'Logbook', means: 'A vertical log with clock times, the stage lights on a spine and the spend tape beside every entry.' }),
-  Object.freeze({ id: 'proof', label: 'Proof', means: 'The brief as a document with its acceptance conditions and their proof, and everything said pinned in the margin.' }),
-]);
-
 function headerActions(view, extras) {
-  if (extras.actions !== undefined) return extras.actions;
+  const own = extras.session?.actions ?? '';
+  if (extras.actions !== undefined) return `${extras.actions}${own}`;
   const list = [];
   if (view.live.branch) list.push(button({ label: 'Check out', icon: 'branch', size: 'sm', action: 'work-checkout' }));
-  if (['leased', 'queued', 'ingested', 'needs_human'].includes(view.live.state)) list.push(button({ label: 'Cancel Work Item', variant: 'danger-ghost', size: 'sm', action: 'work-cancel' }));
-  return list.join('');
+  if (!own.includes('data-action="cancel"') && ['leased', 'queued', 'ingested', 'needs_human'].includes(view.live.state)) list.push(button({ label: 'Cancel Work Item', variant: 'danger-ghost', size: 'sm', action: 'work-cancel' }));
+  return `${list.join('')}${own}`;
 }
 
-function head(view, extras, { level = 1, size = 'lg' } = {}) {
+function head(view, extras) {
   const meta = [view.live.ref, `Team ${view.live.team}`, view.live.repo ? `${view.live.repo}${view.live.base ? ` → ${view.live.base}` : ''}` : ''].filter(Boolean).join(' · ');
   const actions = headerActions(view, extras);
-  return `<header class="${cx('lv-page-head', `is-${size}`)}"><div class="lv-page-head-text"><div class="lv-page-stamps">${originStamp(view)}<span class="lv-page-meta">${escape(meta)}</span></div><h${level} class="lv-page-title" id="lv-page-title-${escape(view.id)}" tabindex="-1">${escape(view.title)}</h${level}></div><div class="lv-page-head-side">${presenceStack(view)}${actions ? `<div class="lv-page-actions">${actions}</div>` : ''}</div></header>`;
+  return `<header class="lv-page-head is-lg"><div class="lv-page-head-text"><div class="lv-page-stamps">${originStamp(view)}<span class="lv-page-meta">${escape(meta)}</span></div><h1 class="lv-page-title" id="lv-page-title-${escape(view.id)}" tabindex="-1">${escape(view.title)}</h1></div><div class="lv-page-head-side">${presenceStack(view)}${actions ? `<div class="lv-page-actions">${actions}</div>` : ''}</div></header>`;
 }
 
 function contain(view) {
@@ -40,91 +31,9 @@ function contain(view) {
   return needsContainment(live) && current ? containmentPanel(live) : '';
 }
 
-/**
- * Direction I, the thread: the fold strip, then one conversation of the brief, every attempt and Run as a ticket,
- * context, Asks and steering with quiet stretches folded, what waits on you, and the intent bar. Beside it the live
- * sentence, the instruments, the Roles with the lease, and the questions answered from the record.
- * @param {object} view A `workView` result.
- * @param {{ primary?: string, actions?: string }} [extras] The app's next-step button and header actions.
- * @returns {string}
- */
-export function threadPage(view, extras = {}) {
-  return `<article class="lv lv-page lv-thread" data-live="thread" aria-labelledby="lv-page-title-${escape(view.id)}">${head(view, extras)}${foldStrip(view.live)}${contain(view)}<div class="lv-page-cols"><div class="lv-page-main">${timeline(view, { layout: 'chat' })}${decisionDock(view, extras)}${intentBar(view)}</div><aside class="lv-page-side" aria-label="Where it stands">${nowLine(view.live)}${instruments(view.live, { layout: 'list' })}<section class="lv-panel" aria-label="Roles"><h2 class="lv-overline">Roles</h2>${roleRoster(view)}${leaseBaton(view)}</section><section class="lv-panel">${answers(view.live, { layout: 'list', ask: false })}</section></aside></div></article>`;
-}
-
-/**
- * Direction J, the night cockpit: the same parts on the dark ground whatever the theme, the flight path with the live
- * sentence and an instrument strip as the hero, then the Shift dial with the Roles, the trace of the whole Shift with
- * its moves, and the dock with the intent bar.
- * @param {object} view A `workView` result.
- * @param {{ primary?: string, actions?: string, selectedCall?: string }} [extras]
- * @returns {string}
- */
-export function cockpitPage(view, extras = {}) {
-  return `<article class="lv lv-page lv-night" data-live="night-cockpit" aria-labelledby="lv-page-title-${escape(view.id)}">${head(view, extras, { size: 'sm' })}${contain(view)}<section class="lv-panel lv-night-hero" aria-label="Flight">${nowLine(view.live)}${flightPath(view.live, { id: `lv-night-flight-${view.id}` })}${instruments(view.live, { layout: 'strip' })}</section><div class="lv-night-grid"><section class="lv-panel lv-night-roles" aria-label="Shift and Roles">${shiftDial(view.live)}${roleRoster(view)}</section><section class="lv-panel lv-night-deck" aria-label="Decisions and messages">${decisionDock(view, { ...extras, quiet: true })}${intentBar(view, { id: `lv-night-intent-${view.id}` })}</section><section class="lv-panel lv-night-trace" aria-label="Trace"><h2 class="lv-overline">Trace · whole Shift</h2>${traceLanes(view.live, { selectedCall: extras.selectedCall ?? null })}${moveList(view.live, { selectedCall: extras.selectedCall ?? null })}</section></div></article>`;
-}
-
-/**
- * Direction K, the desk: a header with a short fold strip, four views switched by radio buttons that work without
- * script (overview, conversation, trace, spend), and beside them what waits on you, the Roles, the lease and the
- * intent bar.
- * @param {object} view A `workView` result.
- * @param {{ primary?: string, actions?: string, tab?: 'overview'|'talk'|'trace'|'spend' }} [extras]
- * @returns {string}
- */
-export function deskPage(view, extras = {}) {
-  const tab = extras.tab ?? 'overview';
-  const name = `lv-desk-${view.id}`;
-  const views = [['overview', 'Overview'], ['talk', `Conversation · ${view.entries.filter(entry => entry.kind !== 'fold').length}`], ['trace', `Trace · ${view.live.runs.length} ${view.live.runs.length === 1 ? 'Run' : 'Runs'}`], ['spend', 'Spend']];
-  const switches = views.map(([id, label]) => `<label class="lv-desk-tab"><input class="${cx('lv-desk-radio', `is-${id}`)}" type="radio" name="${escape(name)}" value="${id}"${tab === id ? ' checked' : ''}><span>${escape(label)}</span></label>`).join('');
-  const panels = [
-    `<div class="${cx('lv-desk-panel', 'is-overview')}">${nowLine(view.live)}${instruments(view.live, { layout: 'tiles' })}<h2 class="lv-overline">Acceptance</h2>${acceptanceLedger(view)}${answers(view.live, { layout: 'chips', ask: false })}</div>`,
-    `<div class="${cx('lv-desk-panel', 'is-talk')}">${timeline(view, { layout: 'compact', id: `lv-desk-tl-${view.id}` })}</div>`,
-    `<div class="${cx('lv-desk-panel', 'is-trace')}">${traceLanes(view.live)}${moveList(view.live)}</div>`,
-    `<div class="${cx('lv-desk-panel', 'is-spend')}">${spendTape(view)}${instruments(view.live, { layout: 'list' })}</div>`,
-  ].join('');
-  return `<article class="lv lv-page lv-desk" data-live="desk" aria-labelledby="lv-page-title-${escape(view.id)}">${head(view, extras, { size: 'md' })}${foldStrip(view.live, { size: 'mini' })}${contain(view)}<div class="lv-page-cols"><section class="lv-panel lv-desk-main" aria-label="Work Item views"><fieldset class="lv-desk-tabs"><legend class="sr-only">Show</legend>${switches}</fieldset>${panels}</section><aside class="lv-page-side" aria-label="Waiting on you and the Roles">${decisionDock(view, { ...extras, quiet: true })}<section class="lv-panel" aria-label="Roles"><h2 class="lv-overline">Roles</h2>${roleRoster(view)}${leaseBaton(view)}</section>${intentBar(view, { id: `lv-desk-intent-${view.id}` })}</aside></div></article>`;
-}
-
-/**
- * Direction L, the logbook: a header of figures (time in the air and on the ground, spend, what waits on you), then
- * the whole Work Item as a vertical log with clock times, a spine of stage lights and the spend tape beside every
- * entry; beside it the dock, the spend tape and the intent bar.
- * @param {object} view A `workView` result.
- * @param {{ primary?: string, actions?: string }} [extras]
- * @returns {string}
- */
-export function logbookPage(view, extras = {}) {
-  const live = view.live;
-  const ground = live.time.lead !== null ? Math.max(0, live.time.lead - live.time.agent) : null;
-  const figures = [['In the air', span(live.time.agent) || '0 s', ''], ['On the ground', ground === null ? 'Not known' : span(ground) || '0 s', ''], ['Spent', usd(live.spend.usd), ''], ['Waiting on you', String(view.decisions.length), view.decisions.length ? 'is-waiting' : '']];
-  const board = `<dl class="lv-log-figures">${figures.map(([label, value, tone]) => `<div class="${cx('lv-log-figure', tone)}"><dt>${escape(label)}</dt><dd>${escape(value)}</dd></div>`).join('')}</dl>`;
-  return `<article class="lv lv-page lv-logbook" data-live="logbook" aria-labelledby="lv-page-title-${escape(view.id)}">${head(view, extras)}${board}${contain(view)}<div class="lv-page-cols"><section class="lv-page-main" aria-label="Log">${timeline(view, { layout: 'log', id: `lv-log-${view.id}` })}</section><aside class="lv-page-side" aria-label="Act on it">${decisionDock(view, { ...extras, quiet: true })}<section class="lv-panel" aria-label="Spend"><h2 class="lv-overline">Spend tape</h2>${spendTape(view)}</section>${intentBar(view, { id: `lv-log-intent-${view.id}` })}</aside></div></article>`;
-}
-
-function margin(view) {
-  const notes = view.entries.filter(entry => ['ask', 'steer', 'context', 'linked'].includes(entry.kind));
-  if (!notes.length) return '<p class="lv-proof-empty">Nothing has been said about this Work Item yet.</p>';
-  return timeline({ ...view, entries: notes, decisions: [], live: { ...view.live, running: null } }, { layout: 'compact', id: `lv-proof-margin-${view.id}` });
-}
-
-/**
- * Direction M, proof: the stages as a vertical rail, the brief as a document with its acceptance conditions and the
- * proof for each, the delivery under it, and in the margin what waits on you, everything people said about the work
- * and the intent bar.
- * @param {object} view A `workView` result.
- * @param {{ primary?: string, actions?: string }} [extras]
- * @param {(text: string) => string} [render] Renders the brief's Markdown; the app passes its own renderer.
- * @returns {string}
- */
-export function proofPage(view, extras = {}, render = text => `<p>${escape(text)}</p>`) {
-  const pr = view.live.pullRequest;
-  const delivery = pr ? `<p class="lv-proof-delivery">${button({ label: `Open pull request${pr.number ? ` #${pr.number}` : ''}`, size: 'sm', href: pr.url, external: true })}${extras.primary ?? ''}</p>` : '<p class="lv-proof-delivery is-waiting">The pull request opens when the writer finishes and the reviewer approves. Accept and Reject appear here.</p>';
-  return `<article class="lv lv-page lv-proof" data-live="proof" aria-labelledby="lv-page-title-${escape(view.id)}"><nav class="lv-proof-rail" aria-label="Where this Work Item stands">${foldStrip(view.live)}${instruments(view.live, { layout: 'list' })}</nav><div class="lv-proof-sheet">${head(view, extras)}${nowLine(view.live)}${contain(view)}<section class="lv-proof-brief" aria-label="Brief"><h2 class="lv-overline">Brief</h2><div class="lv-proof-prose prose" data-private>${view.brief.text ? render(view.brief.text) : '<p>No brief was written.</p>'}</div></section><section aria-label="Acceptance"><h2 class="lv-overline">Acceptance</h2>${acceptanceLedger(view)}</section><section aria-label="Delivery"><h2 class="lv-overline">Delivery</h2>${delivery}</section></div><aside class="lv-proof-margin" aria-label="Margin">${decisionDock(view, { ...extras, quiet: true })}<h2 class="lv-overline">Margin</h2>${margin(view)}${intentBar(view, { id: `lv-proof-intent-${view.id}` })}</aside></article>`;
-}
-
 function decisionBand(view, extras) {
-  if (extras.decision) return `<div class="lv-unified-decision">${extras.decision}</div>`;
+  const own = `${extras.session?.decision ?? ''}${extras.decision ?? ''}`;
+  if (own) return `<div class="lv-unified-decision">${own}</div>`;
   return view.decisions.length ? decisionDock(view, extras) : '';
 }
 
@@ -134,46 +43,68 @@ function flightDeck(view, extras) {
   return `<section class="lv-panel lv-unified-deck" aria-label="Flight">${nowLine(live)}${flightPath(live, { id: `lv-unified-flight-${view.id}` })}${instruments(live, { layout: 'strip' })}${inside}</section>`;
 }
 
+/** The views the Work Item page switches between under its flight deck, in order; `evidence` shows only for a Work Item started in Unfold. */
+export const workTabs = Object.freeze(['log', 'brief', 'trace', 'evidence']);
+
 /**
- * The unified Work Item page: what a person needs first, then the detail. The fold strip says where the Work Item
- * stands; under it the app's own decision box when it waits on you (a stop with its reason and fix, or the review
- * with its checks), then the flight deck on the dark ground in every state: the live sentence, the flight path, the
- * instrument strip and, open while a Run works, what that Run is doing. The Shift dial leads the side column. Below it, three views switched without script: the conversation of the
- * brief, every Run, context, Asks and steering; the brief with its acceptance conditions and their proof; and the
- * trace of the whole Shift. Beside them the standing answers, the spend tape and the Roles with the lease. The intent
- * bar stays under the views.
+ * The Work Item page: one page for a Work Item and, when it was started in Unfold, the session that started it.
+ * The fold strip says where it stands; under it what waits on a person (the app's stop or review box and the
+ * session's own questions and permission requests), then the flight deck on the dark ground: the live sentence, the
+ * flight path, the instrument strip and, open while a Run works, what that Run is doing. Below it, views switched
+ * without script: the log of everything that happened with clock times and the spend tape, where every Run opens in
+ * place to what the agent did and its pod logs; the brief with its acceptance conditions; the trace of the whole
+ * Shift; and, for a Work Item started in Unfold, the session's evidence (activity, gateway calls, changes, checks and
+ * hand-off). The intent bar sits under the views. Beside them the Shift dial, the standing answers, the spend tape,
+ * the Roles with the lease and who is here, then the session's budget, candidate and execution facts.
  * @param {object} view A `workView` result.
- * @param {{ primary?: string, actions?: string, decision?: string, account?: string, tab?: 'talk'|'brief'|'trace', selectedCall?: string }} [extras]
- *   `decision` and `account` are the app's own decision box and the writer's problem and solution.
+ * @param {object} [extras]
+ * @param {string} [extras.primary] The app's next-step button.
+ * @param {string} [extras.actions] Header actions that replace the defaults.
+ * @param {string} [extras.decision] The app's own decision box.
+ * @param {string} [extras.account] The writer's problem and solution.
+ * @param {'log'|'brief'|'trace'|'evidence'} [extras.tab] The view that opens.
+ * @param {'steer'|'ask'|'context'} [extras.intent] The intent bar's mode.
+ * @param {string} [extras.selectedCall]
+ * @param {(runId: string) => string} [extras.runDetail] The body of one Run: what it did, its transcript and its pod
+ *   logs. Without it a Run in the log is a closed ticket.
+ * @param {{ decision?: string, actions?: string, evidence?: string, evidenceLabel?: string, side?: string }} [extras.session]
+ *   The parts of the session that started the Work Item, already drawn by the app.
  * @param {(text: string) => string} [render] The brief's Markdown renderer.
  * @returns {string}
  */
-export function unifiedPage(view, extras = {}, render = text => `<p>${escape(text)}</p>`) {
+export function workItemPage(view, extras = {}, render = text => `<p>${escape(text)}</p>`) {
   const live = view.live;
-  const tab = extras.tab ?? (live.state === 'awaiting_review' ? 'brief' : 'talk');
+  const session = extras.session ?? null;
+  const evidence = Boolean(session?.evidence);
+  const fallback = live.state === 'awaiting_review' ? 'brief' : 'log';
+  const tab = extras.tab === 'evidence' && !evidence ? fallback : extras.tab ?? fallback;
   const name = `lv-unified-${view.id}`;
   const conditions = view.brief.conditions.length;
-  const tabs = [['talk', `Conversation · ${view.entries.filter(entry => entry.kind !== 'fold').length}`], ['brief', conditions ? `Brief · ${conditions} ${conditions === 1 ? 'condition' : 'conditions'}` : 'Brief'], ['trace', `Trace · ${live.runs.length} ${live.runs.length === 1 ? 'Run' : 'Runs'}`]];
+  const tabs = [['log', `Log · ${view.entries.filter(entry => entry.kind !== 'fold').length}`], ['brief', conditions ? `Brief · ${conditions} ${conditions === 1 ? 'condition' : 'conditions'}` : 'Brief'], ['trace', `Trace · ${live.runs.length} ${live.runs.length === 1 ? 'Run' : 'Runs'}`], ...(evidence ? [['evidence', session.evidenceLabel || 'Evidence']] : [])];
   const switches = tabs.map(([id, label]) => `<label class="lv-desk-tab"><input class="${cx('lv-desk-radio', `is-${id}`)}" type="radio" name="${escape(name)}" value="${id}"${tab === id ? ' checked' : ''}><span>${escape(label)}</span></label>`).join('');
   const panels = [
-    `<div class="${cx('lv-desk-panel', 'is-talk')}">${timeline(view, { layout: 'chat', id: `lv-unified-tl-${view.id}` })}</div>`,
+    `<div class="${cx('lv-desk-panel', 'is-log')}">${timeline(view, { layout: 'log', id: `lv-unified-tl-${view.id}`, runDetail: extras.runDetail })}</div>`,
     `<div class="${cx('lv-desk-panel', 'is-brief')}">${extras.account ?? ''}<section class="lv-proof-brief" aria-label="Brief"><div class="lv-proof-prose prose" data-private>${view.brief.text ? render(view.brief.text) : '<p>No brief was written.</p>'}</div></section><section aria-label="Acceptance"><h2 class="lv-overline">Acceptance</h2>${acceptanceLedger(view)}</section></div>`,
     `<div class="${cx('lv-desk-panel', 'is-trace')}">${live.runs.length ? `${traceLanes(live)}${moveList(live)}` : '<p class="lv-proof-empty">No Run has started yet.</p>'}</div>`,
+    evidence ? `<div class="${cx('lv-desk-panel', 'is-evidence')}">${session.evidence}</div>` : '',
   ].join('');
-  return `<article class="lv lv-page lv-desk lv-unified" data-live="unified" aria-labelledby="lv-page-title-${escape(view.id)}">${head(view, extras)}${foldStrip(live)}${contain(view)}${decisionBand(view, extras)}${flightDeck(view, extras)}<div class="lv-page-cols"><div class="lv-page-main"><section class="lv-panel lv-desk-main" aria-label="Work Item views"><fieldset class="lv-desk-tabs"><legend class="sr-only">Show</legend>${switches}</fieldset>${panels}</section>${intentBar(view, { id: `lv-unified-intent-${view.id}` })}</div><aside class="lv-page-side" aria-label="At a glance">${live.runs.length ? `<section class="lv-panel lv-unified-dial" aria-label="Shift">${shiftDial(live)}</section>` : ''}<section class="lv-panel">${answers(live, { layout: 'list', ask: false })}</section><section class="lv-panel" aria-label="Spend"><h2 class="lv-overline">Spend</h2>${spendTape(view)}</section><section class="lv-panel" aria-label="Roles"><h2 class="lv-overline">Roles</h2>${roleRoster(view)}${leaseBaton(view)}${presenceStack(view, { names: true })}</section></aside></div></article>`;
+  const side = [
+    live.runs.length ? `<section class="lv-panel lv-unified-dial" aria-label="Shift">${shiftDial(live)}</section>` : '',
+    `<section class="lv-panel">${answers(live, { layout: 'list', ask: false })}</section>`,
+    `<section class="lv-panel" aria-label="Spend"><h2 class="lv-overline">Spend</h2>${spendTape(view)}</section>`,
+    `<section class="lv-panel" aria-label="Roles"><h2 class="lv-overline">Roles</h2>${roleRoster(view)}${leaseBaton(view)}${presenceStack(view, { names: true })}</section>`,
+    session?.side ? `<div class="lv-unified-session">${session.side}</div>` : '',
+  ].join('');
+  return `<article class="lv lv-page lv-desk lv-unified" data-live="work-item" aria-labelledby="lv-page-title-${escape(view.id)}">${head(view, extras)}${foldStrip(live)}${contain(view)}${decisionBand(view, extras)}${flightDeck(view, extras)}<div class="lv-page-cols"><div class="lv-page-main"><section class="lv-panel lv-desk-main" aria-label="Work Item views"><fieldset class="lv-desk-tabs"><legend class="sr-only">Show</legend>${switches}</fieldset>${panels}</section>${intentBar(view, { id: `lv-unified-intent-${view.id}`, mode: extras.intent })}</div><aside class="lv-page-side" aria-label="At a glance">${side}</aside></div></article>`;
 }
 
-const pages = { unified: unifiedPage, thread: threadPage, cockpit: cockpitPage, desk: deskPage, logbook: logbookPage, proof: proofPage };
-
 /**
- * The Work Item page in one of the `workLayouts`.
- * @param {string} layout A `workLayouts` id.
+ * The Work Item page in its frame.
  * @param {object} view A `workView` result.
- * @param {object} [extras] Passed to the layout.
- * @param {(text: string) => string} [render] The brief's Markdown renderer, for `proof`.
+ * @param {object} [extras] Passed to `workItemPage`.
+ * @param {(text: string) => string} [render] The brief's Markdown renderer.
  * @returns {string}
  */
-export function workPage(layout, view, extras = {}, render) {
-  const draw = pages[layout] ?? unifiedPage;
-  return `<div class="lv-page-frame">${draw(view, extras, render)}</div>`;
+export function workPage(view, extras = {}, render) {
+  return `<div class="lv-page-frame">${workItemPage(view, extras, render)}</div>`;
 }

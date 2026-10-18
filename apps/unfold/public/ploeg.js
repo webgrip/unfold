@@ -21,7 +21,7 @@ import { foldStrip } from './live/fold-strip.js';
 import { answers } from './live/answers.js';
 import { nowLine } from './live/layouts.js';
 import { workView } from './live/work-view.js';
-import { workLayouts, workPage } from './live/pages.js';
+import { workPage } from './live/pages.js';
 import { containmentPanel, needsContainment } from './live/containment.js';
 import { progressTitle, reconcileDetail, sessionProgress } from './core/progress.js';
 import { effortText, termTitle, trackerReference } from './core/terms.js';
@@ -1576,22 +1576,17 @@ export function liveViewMarkup(detail, model) {
 }
 
 /**
- * The layout switch the `work.layouts` Labs flag adds to a Work Item page: the current page, then each of
- * `workLayouts`, with the chosen one pressed.
+ * The Work Item on its one page, the `work.layouts` Labs flag: one view of the Work Item, the session that started it,
+ * its Asks, context and linked sessions, drawn by `workPage`. Every Run in the log opens in place to the same body as
+ * on the current page, with what the agent did and its pod logs. `model.session` carries the session's own parts.
  */
-export function layoutSwitchMarkup(layout) {
-  const items = [{ id: 'current', label: 'Current' }, ...workLayouts.map(entry => ({ id: entry.id, label: entry.label }))].map(item => ({ ...item, selected: item.id === layout }));
-  const means = workLayouts.find(entry => entry.id === layout)?.means ?? 'The Work Item page as it is today.';
-  return `<div class="work-layout-switch"><p class="work-layout-switch-label overline">${icon('layers')}<span>Layout · Labs</span></p>${ui.segmented({ label: 'Work Item layout', action: 'work-layout', items })}<p class="work-layout-switch-means">${escape(means)}</p></div>`;
-}
-
-/**
- * The Work Item in one of the `work.layouts` layouts: one view of the Work Item, its session, its Asks, context and
- * linked sessions, drawn by `workPage`. The decision dock carries the page's own next-step button.
- */
-export function layoutMarkup(detail, model, layout, { primary = '', decision, account } = {}) {
+export function onePageMarkup(detail, model, { primary = '', decision, account } = {}) {
   const view = workView({ live: liveOf(detail, model), detail, asks: model.asksEnabled === false ? null : model.asks, context: model.context, linked: model.linkedSessions, sessions: model.sessions, viewer: model.userName || 'You', canOperate: model.canAddContext !== false });
-  return workPage(layout, view, { primary, ...(decision ? { decision } : {}), ...(account ? { account } : {}) }, text => markdown(text, { baseLevel: 3 }));
+  const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), detail, attempts: runAttempts(detail.runs || []), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, health: model.runHealth };
+  const runs = new Map((detail.runs || []).map(run => [String(run.id), run]));
+  const runDetail = id => { const run = runs.get(id); return run ? runBody(run, context) : ''; };
+  const extras = { primary, runDetail, ...(decision ? { decision } : {}), ...(account ? { account } : {}), ...(model.session ? { session: model.session } : {}), ...(model.workTab ? { tab: model.workTab } : {}), ...(model.intentMode ? { intent: model.intentMode } : {}) };
+  return workPage(view, extras, text => markdown(text, { baseLevel: 3 }));
 }
 
 /** The Work Item detail: header, stages, the status panel with every figure and the primary action, the writer's problem and solution, the decision box (with the question it waits on, if any), the Reviewers disagree card when a shadow reviewer disagreed, the Reviewer findings card with the writer's answers, the Trace this bug panel when Ploeg traced anything, the brief, Rounds and Runs, who did what, activity, technical details and, on phones, the action bar. */
@@ -1608,8 +1603,7 @@ export function detailMarkup(recordedDetail, model) {
     plan = reviewPlan(detail, model.card);
     primary = plan.primary;
   }
-  const layout = model.flags?.['work.layouts'] === true ? model.workLayout || 'current' : null;
-  if (layout && layout !== 'current') return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${layoutSwitchMarkup(layout)}${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${layoutMarkup(detail, model, layout, { primary, decision: layout === 'unified' ? `${reason ? needsYouBox(detail, model, reason, plan) : item.state === 'awaiting_review' ? reviewBox(detail, model, plan) : ''}${disagreementsMarkup(detail)}${findingsMarkup(detail)}` : '', account: layout === 'unified' ? accountMarkup(detail) : '' })}</article>`;
+  if (model.flags?.['work.layouts'] === true) return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${onePageMarkup(detail, model, { primary, decision: `${reason ? needsYouBox(detail, model, reason, plan) : item.state === 'awaiting_review' ? reviewBox(detail, model, plan) : ''}${disagreementsMarkup(detail)}${findingsMarkup(detail)}`, account: accountMarkup(detail) })}</article>`;
   const status = statusMarkup(detail, model, { reason, plan });
   let decision;
   if (reason) decision = needsYouBox(detail, model, reason, plan);
@@ -1617,7 +1611,6 @@ export function detailMarkup(recordedDetail, model) {
   else if (model.flags?.['work.live-view'] === true && item.state === 'leased') decision = '';
   else decision = statusBox(detail, model);
   const parts = [
-    layout ? layoutSwitchMarkup(layout) : '',
     headerMarkup(detail, model, reason),
     model.flags?.['work.live-view'] === true ? liveViewMarkup(detail, model) : stagesMarkup(detail, model),
     model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : '',

@@ -14,6 +14,7 @@ import { render } from '../core/navigation.js';
 import { shell, showConnection } from '../shell.js';
 import { openNew, confirmAction, openReviewDialog, openBudgetDialog, fieldError } from './dialogs.js';
 import { agentsWindowAvailable, agentsWindowButton, openAgentsWindow } from '../agents-window.js';
+import { enabled } from '../core/flags.js';
 
 const evidenceTabs = [
   { id: 'stream', icon: 'activity', label: 'Activity' },
@@ -40,6 +41,22 @@ let investigation = { id: null, busy: false, result: null, error: '' };
 let renderedId = null;
 let opening = 0;
 const answers = new Map();
+const pageHost = Object.freeze({ view: 'session', render: () => renderSessionPage(), here: id => location.hash === `#session/${id}`, inspect: () => $('.session-evidence')?.scrollIntoView({ block: 'start' }) });
+let host = pageHost;
+
+const shown = () => state.view === 'session' || state.view === host.view;
+const workItemOf = session => { const id = String(session?.execution?.workItemId ?? ''); return /^[1-9][0-9]{0,19}$/.test(id) ? id : null; };
+
+/** The Work Item page that shows `session` in place of its own page, or null while the session has no Work Item or the one page is off. */
+export function onePageFor(session) {
+  const id = workItemOf(session);
+  return id && enabled('work.layouts') ? `work/${id}` : null;
+}
+
+function renderSession() {
+  if (state.view === 'session') renderSessionPage();
+  else if (state.view === host.view && state.session) host.render();
+}
 
 const canOperate = () => state.bootstrap.user.role !== 'viewer';
 const isFinished = session => ['completed', 'failed', 'cancelled'].includes(session.status);
@@ -380,7 +397,7 @@ async function loadSnapshotPatch(session) {
   } catch (error) { next = { status: 'error', content: error.message }; }
   if (snapshotPatch.sessionId !== id) return;
   snapshotPatch = { sessionId: id, ...next };
-  if (state.view === 'session' && state.session?.id === id) renderSession();
+  if (shown() && state.session?.id === id) renderSession();
 }
 
 function reloadSnapshotPatch() {
@@ -468,12 +485,12 @@ export function askPointer(session) {
   return `<p class="field-hint session-ask-pointer">${escape('Only want to know where it stands? ')}<a href="#work/${encodeURIComponent(id)}">${escape('Ask about this work')}</a>${escape(' on its Work Item. The agents never see a question asked there.')}</p>`;
 }
 
-function evidenceMarkup(session) {
-  if (notStarted(session)) return `<section class="card flush session-evidence" aria-labelledby="session-evidence-title"><header class="card-header"><h2 class="card-title" id="session-evidence-title">Evidence</h2></header><div class="session-evidence-empty">${emptyState({ icon: 'activity', compact: true, title: 'Evidence appears once the team starts', body: '<p>Activity, gateway calls, changes, checks and the handoff show up here as each role works.</p>' })}</div>${composerMarkup(session)}</section>`;
+function evidenceMarkup(session, { composer = true } = {}) {
+  if (notStarted(session)) return `<section class="card flush session-evidence" aria-labelledby="session-evidence-title"><header class="card-header"><h2 class="card-title" id="session-evidence-title">Evidence</h2></header><div class="session-evidence-empty">${emptyState({ icon: 'activity', compact: true, title: 'Evidence appears once the team starts', body: '<p>Activity, gateway calls, changes, checks and the handoff show up here as each role works.</p>' })}</div>${composer ? composerMarkup(session) : ''}</section>`;
   const counts = { diff: changesSource(session) === 'snapshot' ? session.candidate.fileCount : session.artifacts.filter(artifact => artifact.kind === 'diff').length, test: session.artifacts.filter(artifact => artifact.kind === 'test').length };
   const list = tabs({ id: 'evidence', label: 'Session evidence', action: 'tab', items: evidenceTabs.map(tab => ({ ...tab, selected: state.tab === tab.id, count: counts[tab.id] || null })) });
   const panels = evidenceTabs.map(({ id }) => `<div class="session-panel" role="tabpanel" id="evidence-panel-${id}" aria-labelledby="evidence-tab-${id}" tabindex="0" data-tab="${id}" data-session-id="${escape(session.id)}"${state.tab === id ? '' : ' hidden'}>${state.tab === id ? panelMarkup(session, id) : ''}</div>`).join('');
-  return `<section class="card flush session-evidence" aria-label="Evidence">${list}${panels}${composerMarkup(session)}</section>`;
+  return `<section class="card flush session-evidence" aria-label="Evidence">${list}${panels}${composer ? composerMarkup(session) : ''}</section>`;
 }
 
 function stepState(run, starting) {
@@ -765,7 +782,7 @@ function restoreFocus(target) {
   (same || document.getElementById('session-review-title') || document.getElementById('page-title'))?.focus({ preventScroll: true });
 }
 
-function renderSession() {
+function renderSessionPage() {
   const session = state.session;
   const target = focusTarget();
   if (!session) {
@@ -788,7 +805,7 @@ async function loadDelivery(id) {
   const request = ++state.deliveryRequest;
   try { const view = await api(`/api/sessions/${id}/delivery`); if (state.session?.id !== id || request !== state.deliveryRequest) return; state.delivery = view; state.deliveryError = ''; }
   catch (error) { if (state.session?.id !== id || request !== state.deliveryRequest) return; state.delivery = null; state.deliveryError = error.message; }
-  if (state.session?.id === id && state.view === 'session') renderSession();
+  if (state.session?.id === id && shown()) renderSession();
 }
 
 async function publishDelivery() {
@@ -813,6 +830,9 @@ async function actDelivery(action) {
 
 async function openSession(id) {
   const token = ++opening;
+  host = pageHost;
+  const listed = onePageFor(state.sessions.find(item => item.id === id));
+  if (listed) { location.replace(`#${listed}`); return; }
   disconnect();
   if (state.session?.id !== id) state.tab = 'stream';
   ++state.deliveryRequest; state.delivery = null; state.deliveryError = ''; state.deliveryPublishError = ''; state.deliveryBusy = false;
@@ -828,10 +848,56 @@ async function openSession(id) {
     return;
   }
   if (token !== opening || location.hash !== `#session/${id}`) return;
+  const moved = onePageFor(session);
+  if (moved) { location.replace(`#${moved}`); return; }
   state.session = session; state.events = events; state.permissions = permissions; state.view = 'session'; state.online = true; state.draft = ''; state.evidenceScroll = isFinished(session) ? { stream: { top: 0, atBottom: false } } : {}; render();
   live.touch('session');
   if (session.execution && state.bootstrap.deliveryRepositories?.includes(session.repositoryId)) void loadDelivery(id);
-  const after = events.at(-1)?.id || 0;
+  follow(id, events.at(-1)?.id || 0);
+}
+
+/**
+ * Shows the session `id` inside another view instead of on its own page: loads it with its history and permission
+ * requests into the shared state, follows its event stream, and from then on redraws `options.render` wherever the
+ * session's controls change it. The Work Item page uses it for the session that started its Work Item.
+ * @param {string} id
+ * @param {{ view: string, render: () => void, here: () => boolean, inspect?: () => void }} options `view` is the host
+ *   view's id, `here` whether the host still shows this session, `inspect` brings the session's evidence into view.
+ * @returns {Promise<boolean>} False when the session could not be read.
+ */
+export async function attachSession(id, { view, render: draw, here, inspect = () => {} }) {
+  host = { view, render: draw, here: () => here(), inspect };
+  if (state.session?.id === id && state.stream) return true;
+  const token = ++opening;
+  state.stream?.close(); state.stream = null;
+  if (state.session?.id !== id) { state.tab = 'stream'; state.session = null; }
+  ++state.deliveryRequest; state.delivery = null; state.deliveryError = ''; state.deliveryPublishError = ''; state.deliveryBusy = false;
+  let session; let events; let permissions;
+  try { [session, events, permissions] = await Promise.all([api(`/api/sessions/${id}`), api(`/api/sessions/${id}/history`), api(`/api/sessions/${id}/permissions`)]); }
+  catch { return token !== opening; }
+  if (token !== opening || !state.bootstrap || state.view !== view || !host.here()) return true;
+  state.session = session; state.events = events; state.permissions = permissions; state.online = true; state.evidenceScroll = isFinished(session) ? { stream: { top: 0, atBottom: false } } : {};
+  host.render();
+  if (session.execution && state.bootstrap.deliveryRepositories?.includes(session.repositoryId)) void loadDelivery(id);
+  follow(id, events.at(-1)?.id || 0);
+  return true;
+}
+
+/** The session's own parts for a host view, drawn from the shared state: what it waits on, its controls, its evidence without the steering box, and its budget, hand-off, execution, approval and details cards. Null while `id` is not the loaded session. */
+export function sessionParts(id) {
+  const session = state.session;
+  if (!session || session.id !== id) return null;
+  const decision = decisionMarkup(session);
+  return {
+    decision: decision ? `<div id="session-decision" tabindex="-1">${decision}${reviewBarMarkup(session)}</div>` : reviewBarMarkup(session),
+    actions: headerActions(session),
+    evidence: evidenceMarkup(session, { composer: false }),
+    evidenceLabel: 'Evidence',
+    side: `${budgetMarkup(session)}${candidateMarkup(session)}${approvalMarkup(session)}${detailsMarkup(session)}`,
+  };
+}
+
+function follow(id, after) {
   state.stream?.close();
   const stream = new EventSource(`/api/sessions/${id}/events?after=${after}`);
   state.stream = stream;
@@ -846,7 +912,7 @@ async function openSession(id) {
     state.refreshTimer = setTimeout(async () => {
       try {
         const [latest, requests] = await Promise.all([api(`/api/sessions/${id}`), api(`/api/sessions/${id}/permissions`)]);
-        if (state.session?.id !== id || state.view !== 'session') return;
+        if (state.session?.id !== id || !shown()) return;
         if (latest.status !== state.session.status) announce(sessionStatus(latest).label);
         state.session = latest; state.permissions = requests;
         const index = state.sessions.findIndex(item => item.id === id);
@@ -885,11 +951,11 @@ async function lifecycle(action) {
   try {
     const session = await api(`/api/sessions/${sessionId}/${action}`, { method: 'POST', body: '{}' });
     state.sessions = state.sessions.map(item => item.id === sessionId ? session : item);
-    if (state.view === 'session' && state.session?.id === sessionId) state.session = session;
+    if (shown() && state.session?.id === sessionId) state.session = session;
     notify(action === 'pause' ? 'Paused. Your context and budget remain attached to this session.' : action === 'cancel' ? 'Cancelled. This work will not automatically retry.' : 'The team is starting.');
   }
   catch (error) { notify(error.message, true); }
-  finally { state.busy = false; busyAction = null; if (state.view === 'session' && state.session?.id === sessionId) renderSession(); }
+  finally { state.busy = false; busyAction = null; if (shown() && state.session?.id === sessionId) renderSession(); }
 }
 
 function selectEvidenceTab(id) {
@@ -916,12 +982,12 @@ function moveEvidenceTab(event) {
 function inspectEvidence(control) {
   const id = control.dataset.id;
   selectEvidenceTab(id);
-  if (control.getAttribute('role') !== 'tab') $('.session-evidence')?.scrollIntoView({ block: 'start' });
+  if (control.getAttribute('role') !== 'tab') (state.view === 'session' ? pageHost : host).inspect();
 }
 
 async function closeWorkItem(control) { control.disabled = true; try { state.session = await api(`/api/sessions/${state.session.id}/close-work-item`, { method: 'POST', body: '{}' }); notify('Closed. The Work Item has left Needs you; this session and its history stay.'); renderSession(); } catch (error) { notify(error.message, true); control.disabled = false; } }
 
-async function retry(control) { control.disabled = true; try { await api(`/api/sessions/${state.session.id}/retry`, { method: 'POST', body: '{}' }); notify('Trying again. The team starts from the beginning.'); await openSession(state.session.id); } catch (error) { notify(error.message, true); control.disabled = false; } }
+async function retry(control) { control.disabled = true; try { await api(`/api/sessions/${state.session.id}/retry`, { method: 'POST', body: '{}' }); notify('Trying again. The team starts from the beginning.'); const id = state.session.id; if (state.view === 'session') await openSession(id); else { state.stream?.close(); state.stream = null; await attachSession(id, host); } } catch (error) { notify(error.message, true); control.disabled = false; } }
 
 function duplicate() { const source = state.session; location.hash = 'sessions'; openNew(); const form = $('#new-session form'); if (form) { for (const [name, value] of Object.entries({ title: source.title, objective: source.objective, repositoryId: source.repositoryId, teamId: source.teamId, model: source.model || '', budgetUsd: source.budgetUsd })) { const field = form.elements[name]; if (field) field.value = value; } if (source.placement && form.elements.placement) form.elements.placement.value = source.placement; if (source.approval === 'auto' && form.elements.approval) form.elements.approval.checked = true; const advanced = $('#new-advanced'); if (advanced && (source.model || source.approval === 'auto' || source.placement)) advanced.open = true; } }
 
@@ -930,8 +996,8 @@ async function setApproval(control) { control.disabled = true; try { state.sessi
 async function setSupervision(control) {
   if (!state.session || state.busy) return;
   const id = state.session.id; state.busy = true; renderSession();
-  try { const session = await api(`/api/sessions/${id}/supervision`, { method: 'POST', body: JSON.stringify({ supervision: control.dataset.supervision }) }); if (state.view === 'session' && state.session?.id === id) state.session = session; notify('Supervision updated on the existing Ploeg execution.'); }
-  finally { state.busy = false; if (state.bootstrap && state.view === 'session' && state.session?.id === id) renderSession(); }
+  try { const session = await api(`/api/sessions/${id}/supervision`, { method: 'POST', body: JSON.stringify({ supervision: control.dataset.supervision }) }); if (shown() && state.session?.id === id) state.session = session; notify('Supervision updated on the existing Ploeg execution.'); }
+  finally { state.busy = false; if (state.bootstrap && shown() && state.session?.id === id) renderSession(); }
 }
 
 async function decidePermission(control) {
@@ -1004,7 +1070,7 @@ export default {
   id: 'session',
   match: hash => hash.startsWith('session/') ? { id: hash.slice(8) } : null,
   enter: ({ id }) => openSession(id),
-  render: renderSession,
+  render: renderSessionPage,
   actions: {
     'delivery-refresh': () => loadDelivery(state.session.id),
     'delivery-verify': control => actDelivery(control.dataset.action),
