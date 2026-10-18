@@ -57,6 +57,10 @@ workspaceImagePullSecrets: []
 workspaceGitSecretName: ""
 workspaceAgentSecrets: []
 workspaceUserNamespaces: false
+# RuntimeClass for agent and export pods under the pod provisioner, such as kata
+# to run each in its own lightweight VM. Empty runs them on the node's default
+# runtime. The sandbox provisioner uses workspaceRuntimeClassName instead.
+workspacePodRuntimeClassName: ""
 workspaceTransport: pull
 workspaceRelayUrl: ""
 workspaceProvisioner: pod
