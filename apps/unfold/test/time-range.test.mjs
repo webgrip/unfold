@@ -189,3 +189,44 @@ test('the markup names every control and says what the arrows will do', () => {
   assert.match(quickList(pickerState(), 'tp'), /data-from="now-6h" data-to="now" aria-pressed="true"/);
   assert.match(timePicker(pickerState({ query: '<b>' , open: true }), { now }), /value="&lt;b&gt;"/);
 });
+
+test('a Run is in a range when it worked at any time inside it, and an event when it happened inside it', async () => {
+  const { eventInRange, reachesStart, runInRange, runSpan } = await import('../public/controls/range-filter.js');
+  const range = { from: now - 6 * HOUR, to: now };
+  const iso = ms => new Date(ms).toISOString();
+  assert.equal(runInRange({ startedAt: iso(now - 8 * HOUR), finishedAt: iso(now - 5 * HOUR) }, range, now), true, 'overlaps the start');
+  assert.equal(runInRange({ startedAt: iso(now - 8 * HOUR), finishedAt: iso(now - 7 * HOUR) }, range, now), false);
+  assert.equal(runInRange({ startedAt: iso(now - 30 * HOUR), finishedAt: null }, range, now), true, 'still running');
+  assert.equal(runInRange({ startedAt: null, finishedAt: null }, range, now), true, 'waiting for a worker');
+  assert.equal(runInRange({ startedAt: null, finishedAt: null }, { from: now - 9 * HOUR, to: now - 3 * HOUR }, now), false, 'a waiting Run is not in the past');
+  assert.deepEqual(runSpan({ startedAt: 'garbage', finishedAt: iso(now - HOUR) }, now), { start: now - HOUR, end: now - HOUR });
+  assert.equal(eventInRange({ at: iso(now - HOUR) }, range), true);
+  assert.equal(eventInRange({ at: iso(now - 7 * HOUR) }, range), false);
+  assert.equal(eventInRange({ at: '' }, range), true, 'an event without a time is never hidden');
+  const start = entry => Date.parse(entry.at);
+  assert.equal(reachesStart([{ at: iso(now - HOUR) }], start, range, true), false);
+  assert.equal(reachesStart([{ at: iso(now - HOUR) }, { at: iso(now - 7 * HOUR) }], start, range, true), true);
+  assert.equal(reachesStart([], start, range, false), true, 'nothing older exists');
+  assert.equal(reachesStart([], start, range, true), false);
+});
+
+test('Runs and Activity show only what falls in the range, and offer to zoom out when nothing does', async () => {
+  const { activityMarkup, runsMarkup } = await import('../public/ploeg-activity.js');
+  const helpers = { escape: value => String(value), icon: name => `<i data-icon="${name}"></i>`, money: value => String(value), safeUrl: value => value, ago: () => '' };
+  const iso = ms => new Date(ms).toISOString();
+  const run = (id, hoursAgo) => ({ id, workItemId: '1', workItemTitle: `Run ${id} item`, team: 'a', role: 'builder', round: 1, state: 'finished', outcome: 'pr_opened', startedAt: iso(now - (hoursAgo + 1) * HOUR), finishedAt: iso(now - hoursAgo * HOUR), durationSeconds: 3600 });
+  const view = { runs: [run('3', 1), run('2', 30), run('1', 200)], nextBefore: null, filter: {}, range: { from: now - 24 * HOUR, to: now }, rangeControl: '<div class="tp" id="runs-range"></div>' };
+  const html = runsMarkup(view, [], helpers, now);
+  assert.match(html, /id="runs-range"/);
+  assert.match(html, /Run 3 item/);
+  assert.doesNotMatch(html, /Run 2 item/);
+  assert.match(html, /1 Run of 3 loaded in this time range/);
+  const none = runsMarkup({ ...view, range: { from: now - 400 * HOUR, to: now - 300 * HOUR } }, [], helpers, now);
+  assert.match(none, /No Runs in this time range/);
+  assert.match(none, /data-action="runs-range-zoom-out"/);
+  assert.match(runsMarkup({ ...view, range: { from: now - 400 * HOUR, to: now - 300 * HOUR }, nextBefore: '1', rangeFilling: true }, [], helpers, now), /Reaching the start of the range/);
+  const events = [{ id: '9', at: iso(now - HOUR), action: 'run.finished', actor: 'ploeg', team: 'a', detail: {} }, { id: '8', at: iso(now - 50 * HOUR), action: 'run.finished', actor: 'ploeg', team: 'a', detail: {} }];
+  const feed = activityMarkup({ events, nextCursor: null, team: '', kind: '', range: { from: now - 24 * HOUR, to: now }, rangeControl: '' }, [], helpers, now);
+  assert.match(feed, /2 events loaded, 1 in this time range/);
+  assert.match(activityMarkup({ events, nextCursor: null, team: '', kind: '', range: { from: now - 400 * HOUR, to: now - 300 * HOUR } }, [], helpers, now), /No events in this time range[\s\S]*activity-range-zoom-out/);
+});

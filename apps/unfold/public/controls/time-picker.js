@@ -78,12 +78,13 @@ function field(state, id, name, label, hint) {
  * A Grafana-style time picker: arrows that move the range back and forward by half its span, the range in words that
  * opens the panel, zoom out, refresh now and auto-refresh. The panel takes an absolute range in two fields (`now-6h`,
  * `now/d` or `18-10-2026 09:00`), offers the quick ranges with a search that turns a typed span such as `45m` into a
- * range, and lists the recently used ranges. The markup works on its own; `mountTimePicker` makes it act.
+ * range, and lists the recently used ranges. `refreshControls: false` leaves out refresh now and auto-refresh, for a
+ * page that refreshes itself. The markup works on its own; `timePickerController` makes it act.
  * @param {TimePickerState} state
- * @param {{ id?: string, now: number }} options
+ * @param {{ id?: string, now: number, refreshControls?: boolean }} options
  * @returns {string}
  */
-export function timePicker(state, { id = 'tp', now }) {
+export function timePicker(state, { id = 'tp', now, refreshControls = true }) {
   const resolved = resolveRange(state.range, now);
   const label = rangeLabel(state.range, now);
   const span = resolved.ok ? resolved.to - resolved.from : 0;
@@ -96,38 +97,43 @@ export function timePicker(state, { id = 'tp', now }) {
 <section class="tp-quick" aria-labelledby="${id}-quick-title"><h3 class="tp-heading" id="${id}-quick-title">Quick ranges</h3><label class="sr-only" for="${id}-search">Search quick ranges or type a span such as 45m</label><div class="tp-search">${icon('search')}<input type="search" class="tp-input" id="${id}-search" data-tp-search value="${escape(state.query)}" placeholder="Search or type 45m, 3 days" autocomplete="off" spellcheck="false" aria-controls="${id}-quick-region"></div><div class="tp-quick-region" id="${id}-quick-region" data-tp-quick aria-live="polite">${quickList(state, id)}</div></section>
 <p class="tp-foot"><span>Times in ${escape(state.timeZone)}.</span><span class="tp-keys"><kbd class="kbd">t</kbd> <kbd class="kbd">←</kbd> back · <kbd class="kbd">t</kbd> <kbd class="kbd">→</kbd> forward · <kbd class="kbd">t</kbd> <kbd class="kbd">z</kbd> zoom out</span></p>
 </div>`;
+  const refresh = refreshControls ? `<span class="tp-refresh"><button type="button" class="button sm icon-only" data-tp="refresh-now" aria-label="Refresh now" title="Refresh now">${icon('refresh')}</button><select class="tp-every" id="${id}-every" data-tp-refresh aria-label="Refresh automatically">${refreshIntervals.map(([value, text]) => `<option value="${value}"${value === state.refresh ? ' selected' : ''}>${value ? `Every ${text}` : 'Auto off'}</option>`).join('')}</select></span>` : '';
   return `<div class="${cx('tp', state.open && 'is-open', live && 'is-live')}" id="${id}" data-time-picker>
 <div class="tp-bar" role="group" aria-label="Time range">
-<button type="button" class="button sm icon-only tp-step" data-tp="shift-back" aria-label="Move back ${half}" title="Move back ${half} (t ←)"${resolved.ok ? '' : ' disabled'}>${icon('chevron-left')}</button>
-<button type="button" class="button sm tp-trigger" data-tp="toggle" title="${escape(label)}" aria-expanded="${state.open}" aria-controls="${id}-panel" aria-haspopup="dialog">${icon('clock')}<span class="tp-label">${escape(label)}</span>${live ? `<span class="${cx('tp-live', refreshing && 'is-ticking')}" aria-hidden="true"></span><span class="sr-only">, follows the clock</span>` : ''}${icon('chevron-down', 'tp-caret')}</button>
-<button type="button" class="button sm icon-only tp-step" data-tp="shift-forward" aria-label="Move forward ${half}" title="Move forward ${half} (t →)"${resolved.ok && !atNow(state.range, now) ? '' : ' disabled'}>${icon('chevron')}</button>
-<button type="button" class="button sm icon-only tp-zoom" data-tp="zoom-out" aria-label="Zoom out to ${spanWords(span * 2)}" title="Zoom out (t z)"${resolved.ok ? '' : ' disabled'}>${icon('zoom-out')}</button>
-<span class="tp-refresh"><button type="button" class="button sm icon-only" data-tp="refresh-now" aria-label="Refresh now" title="Refresh now">${icon('refresh')}</button><select class="tp-every" data-tp-refresh aria-label="Refresh automatically">${refreshIntervals.map(([value, text]) => `<option value="${value}"${value === state.refresh ? ' selected' : ''}>${value ? `Every ${text}` : 'Auto off'}</option>`).join('')}</select></span>
+<button type="button" class="button sm icon-only tp-step" id="${id}-back" data-tp="shift-back" aria-label="Move back ${half}" title="Move back ${half} (t ←)"${resolved.ok ? '' : ' disabled'}>${icon('chevron-left')}</button>
+<button type="button" class="button sm tp-trigger" id="${id}-trigger" data-tp="toggle" title="${escape(label)}" aria-expanded="${state.open}" aria-controls="${id}-panel" aria-haspopup="dialog">${icon('clock')}<span class="tp-label">${escape(label)}</span>${live ? `<span class="${cx('tp-live', refreshing && 'is-ticking')}" aria-hidden="true"></span><span class="sr-only">, follows the clock</span>` : ''}${icon('chevron-down', 'tp-caret')}</button>
+<button type="button" class="button sm icon-only tp-step" id="${id}-forward" data-tp="shift-forward" aria-label="Move forward ${half}" title="Move forward ${half} (t →)"${resolved.ok && !atNow(state.range, now) ? '' : ' disabled'}>${icon('chevron')}</button>
+<button type="button" class="button sm icon-only tp-zoom" id="${id}-zoom" data-tp="zoom-out" aria-label="Zoom out to ${spanWords(span * 2)}" title="Zoom out (t z)"${resolved.ok ? '' : ' disabled'}>${icon('zoom-out')}</button>
+${refresh}
 </div>
 ${panel}
 </div>`;
 }
 
-const typing = target => target instanceof Element && (target.matches('input, textarea, select, [contenteditable=""], [contenteditable="true"]'));
+const typing = target => typeof target?.matches === 'function' && target.matches('input, textarea, select, [contenteditable=""], [contenteditable="true"]');
+const plainKey = event => !event.ctrlKey && !event.metaKey && !event.altKey && !typing(event.target);
 
 /**
- * Makes a picker act inside `host`, which it owns: it renders the state, runs every action through `pickerUpdate`,
- * keeps focus where the person was, closes on Escape or a click outside, moves through quick ranges with the arrow keys,
- * reads Grafana's `t ←`, `t →` and `t z` shortcuts anywhere on the page, and refreshes on the chosen interval while
- * the page is visible.
- * `timers` replaces `setInterval` and `clearInterval`, so a test can fire auto-refresh without waiting.
- * @param {Element} host
- * @param {{ state?: Partial<TimePickerState>, id?: string, now?: () => number, timers?: { set: (run: () => void, ms: number) => unknown, clear: (handle: unknown) => void }, onChange?: (change: { range: { from: string, to: string }, refresh: string, from: number, to: number }) => void, onRefresh?: (change: { range: { from: string, to: string }, from: number, to: number }) => void, shortcuts?: boolean }} [options]
- * @returns {{ state: () => TimePickerState, dispatch: (action: object) => void, destroy: () => void }}
+ * Makes the picker with id `id` act wherever it is in `doc`, and keeps its state while the page around it re-renders:
+ * a page puts `markup()` where the picker belongs on every render, and the controller listens on the document, so it
+ * needs no binding after a render. It runs every action through `pickerUpdate`, re-renders only the picker, keeps
+ * focus where the person was, closes on Escape or a click outside, moves through quick ranges with the arrow keys,
+ * reads Grafana's `t ←`, `t →` and `t z` while `allowed(event)` says so (by default no modifier is held and no field
+ * has focus), and refreshes on the chosen interval while the page is visible. `timers` replaces `setInterval` and
+ * `clearInterval`, so a test can fire auto-refresh without waiting.
+ * @param {{ doc?: Document, state?: Partial<TimePickerState>, id?: string, now?: () => number, refreshControls?: boolean, allowed?: (event: KeyboardEvent) => boolean, timers?: { set: (run: () => void, ms: number) => unknown, clear: (handle: unknown) => void }, onChange?: (change: { range: { from: string, to: string }, refresh: string, from: number, to: number }) => void, onRefresh?: (change: { range: { from: string, to: string }, from: number, to: number }) => void, shortcuts?: boolean }} [options]
+ * @returns {{ state: () => TimePickerState, markup: () => string, dispatch: (action: object) => void, destroy: () => void }}
  */
-export function mountTimePicker(host, { state: initial = {}, id = 'tp', now = () => Date.now(), timers = null, onChange = () => {}, onRefresh = () => {}, shortcuts = true } = {}) {
+export function timePickerController({ doc = globalThis.document, state: initial = {}, id = 'tp', now = () => Date.now(), refreshControls = true, allowed = plainKey, timers = null, onChange = () => {}, onRefresh = () => {}, shortcuts = true } = {}) {
   let state = pickerState(initial);
   let timer = null;
   let lastKey = null;
   let lastKeyAt = 0;
-  const doc = host.ownerDocument;
   const view = doc.defaultView;
   const clock = timers ?? { set: (run, ms) => view.setInterval(run, ms), clear: handle => view.clearInterval(handle) };
+  const root = () => doc.getElementById(id);
+  const inside = target => Boolean(typeof target?.closest === 'function' && target.closest(`#${id}`));
+  const markup = () => timePicker(state, { id, now: now(), refreshControls });
 
   const emitRefresh = () => {
     const resolved = resolveRange(state.range, now());
@@ -136,18 +142,19 @@ export function mountTimePicker(host, { state: initial = {}, id = 'tp', now = ()
   const schedule = () => {
     if (timer) clock.clear(timer);
     timer = null;
-    const every = refreshMs(state.refresh);
-    if (every) timer = clock.set(() => { if (doc.visibilityState !== 'hidden') emitRefresh(); }, every);
+    const every = refreshControls ? refreshMs(state.refresh) : 0;
+    if (every) timer = clock.set(() => { if (doc.visibilityState !== 'hidden' && root()) emitRefresh(); }, every);
   };
   const render = focus => {
-    host.innerHTML = timePicker(state, { id, now: now() });
-    if (focus) host.querySelector(focus)?.focus();
+    const element = root();
+    if (element) element.outerHTML = markup();
+    if (focus) doc.getElementById(focus)?.focus();
   };
   const dispatch = (action, focus) => {
     const result = pickerUpdate(state, action, now());
     const wasOpen = state.open;
     state = result.state;
-    render(focus === undefined ? (wasOpen && !state.open ? `#${id} [data-tp="toggle"]` : null) : focus);
+    render(focus === undefined ? (wasOpen && !state.open ? `${id}-trigger` : null) : focus);
     if (action.type === 'refresh') schedule();
     if (result.changed) {
       const resolved = resolveRange(state.range, now());
@@ -156,44 +163,46 @@ export function mountTimePicker(host, { state: initial = {}, id = 'tp', now = ()
   };
 
   const onClick = event => {
+    if (!inside(event.target)) return;
     const target = event.target.closest('[data-tp]');
-    if (!target || !host.contains(target) || target.disabled) return;
+    if (!target || target.disabled) return;
     const kind = target.dataset.tp;
-    if (kind === 'toggle') dispatch({ type: 'toggle' }, state.open ? undefined : `#${id}-search`);
+    if (kind === 'toggle') dispatch({ type: 'toggle' }, state.open ? undefined : `${id}-search`);
     else if (kind === 'pick') dispatch({ type: 'pick', from: target.dataset.from, to: target.dataset.to });
-    else if (kind === 'shift-back') dispatch({ type: 'shift', direction: -1 }, `#${id} [data-tp="shift-back"]`);
-    else if (kind === 'shift-forward') dispatch({ type: 'shift', direction: 1 }, atNow(shiftRange(state.range, 1, now()), now()) ? `#${id} [data-tp="toggle"]` : `#${id} [data-tp="shift-forward"]`);
-    else if (kind === 'zoom-out') dispatch({ type: 'zoom-out' }, `#${id} [data-tp="zoom-out"]`);
+    else if (kind === 'shift-back') dispatch({ type: 'shift', direction: -1 }, `${id}-back`);
+    else if (kind === 'shift-forward') dispatch({ type: 'shift', direction: 1 }, atNow(shiftRange(state.range, 1, now()), now()) ? `${id}-trigger` : `${id}-forward`);
+    else if (kind === 'zoom-out') dispatch({ type: 'zoom-out' }, `${id}-zoom`);
     else if (kind === 'refresh-now') emitRefresh();
   };
   const onInput = event => {
+    if (!inside(event.target)) return;
     if (event.target.matches('[data-tp-search]')) {
       state = pickerUpdate(state, { type: 'search', query: event.target.value }, now()).state;
-      const region = host.querySelector('[data-tp-quick]');
+      const region = doc.getElementById(`${id}-quick-region`);
       if (region) region.innerHTML = quickList(state, id);
     } else if (event.target.matches('.tp-absolute input')) {
       const hadError = Boolean(state.error);
       state = pickerUpdate(state, { type: 'draft', field: event.target.name, value: event.target.value }, now()).state;
       if (hadError && !state.error) {
-        host.querySelector(`#${id}-error`)?.remove();
+        doc.getElementById(`${id}-error`)?.remove();
         event.target.removeAttribute('aria-invalid');
         event.target.setAttribute('aria-describedby', `${id}-${event.target.name}-hint`);
       }
     }
   };
   const onChangeEvent = event => {
-    if (event.target.matches('[data-tp-refresh]')) dispatch({ type: 'refresh', value: event.target.value }, `#${id} [data-tp-refresh]`);
+    if (inside(event.target) && event.target.matches('[data-tp-refresh]')) dispatch({ type: 'refresh', value: event.target.value }, `${id}-every`);
   };
   const onSubmit = event => {
-    if (!event.target.matches('[data-tp-form]')) return;
+    if (!inside(event.target) || !event.target.matches('[data-tp-form]')) return;
     event.preventDefault();
     for (const input of event.target.querySelectorAll('input[name]')) state = pickerUpdate(state, { type: 'draft', field: input.name, value: input.value }, now()).state;
     dispatch({ type: 'apply' });
-    if (state.error) host.querySelector(`#${id}-${state.error.field}`)?.focus();
+    if (state.error) doc.getElementById(`${id}-${state.error.field}`)?.focus();
   };
-  const quickButtons = () => [...host.querySelectorAll('.tp-quick-list .tp-quick-item')];
-  const onKeydown = event => {
-    if (event.key === 'Escape' && state.open) { event.preventDefault(); dispatch({ type: 'close' }); return; }
+  const quickButtons = () => [...(root()?.querySelectorAll('.tp-quick-list .tp-quick-item') ?? [])];
+  const onPickerKey = event => {
+    if (event.key === 'Escape' && state.open) { event.preventDefault(); event.stopPropagation(); dispatch({ type: 'close' }); return; }
     if (event.target.matches('[data-tp-search]')) {
       if (event.key === 'ArrowDown') { event.preventDefault(); quickButtons()[0]?.focus(); }
       else if (event.key === 'Enter') { event.preventDefault(); quickButtons()[0]?.click(); }
@@ -204,12 +213,13 @@ export function mountTimePicker(host, { state: initial = {}, id = 'tp', now = ()
       const buttons = quickButtons();
       const index = buttons.indexOf(event.target);
       const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : index + (event.key === 'ArrowDown' ? 1 : -1);
-      if (next < 0) host.querySelector('[data-tp-search]')?.focus();
+      if (next < 0) doc.getElementById(`${id}-search`)?.focus();
       else buttons[Math.min(next, buttons.length - 1)]?.focus();
     }
   };
-  const onDocumentKeydown = event => {
-    if (!shortcuts || event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || typing(event.target)) return;
+  const onKeydown = event => {
+    if (inside(event.target)) { onPickerKey(event); if (event.defaultPrevented) return; }
+    if (!shortcuts || !root() || event.defaultPrevented || !allowed(event)) { lastKey = null; return; }
     const at = view.performance.now();
     const action = shortcutAction(lastKey, event.key, at - lastKeyAt);
     lastKey = event.key;
@@ -220,30 +230,30 @@ export function mountTimePicker(host, { state: initial = {}, id = 'tp', now = ()
     if (action === 'zoom-out') dispatch({ type: 'zoom-out' });
     else dispatch({ type: 'shift', direction: action === 'shift-back' ? -1 : 1 });
   };
-  const onPointerdown = event => { if (state.open && !host.contains(event.target)) dispatch({ type: 'close' }, null); };
-
-  host.addEventListener('click', onClick);
-  host.addEventListener('input', onInput);
-  host.addEventListener('change', onChangeEvent);
-  host.addEventListener('submit', onSubmit);
-  host.addEventListener('keydown', onKeydown);
-  doc.addEventListener('keydown', onDocumentKeydown);
-  doc.addEventListener('pointerdown', onPointerdown);
-  render();
+  const onPointerdown = event => { if (state.open && root() && !inside(event.target)) dispatch({ type: 'close' }, null); };
+  const listeners = [['click', onClick], ['input', onInput], ['change', onChangeEvent], ['submit', onSubmit], ['keydown', onKeydown], ['pointerdown', onPointerdown]];
+  for (const [type, listener] of listeners) doc.addEventListener(type, listener);
   schedule();
 
   return {
     state: () => state,
+    markup,
     dispatch: action => dispatch(action),
     destroy() {
       if (timer) clock.clear(timer);
-      host.removeEventListener('click', onClick);
-      host.removeEventListener('input', onInput);
-      host.removeEventListener('change', onChangeEvent);
-      host.removeEventListener('submit', onSubmit);
-      host.removeEventListener('keydown', onKeydown);
-      doc.removeEventListener('keydown', onDocumentKeydown);
-      doc.removeEventListener('pointerdown', onPointerdown);
+      timer = null;
+      for (const [type, listener] of listeners) doc.removeEventListener(type, listener);
     },
   };
+}
+
+/**
+ * Renders a picker into `host` and makes it act: `timePickerController` for a picker that owns its element.
+ * @param {Element} host
+ * @param {Parameters<typeof timePickerController>[0]} [options]
+ */
+export function mountTimePicker(host, options = {}) {
+  const picker = timePickerController({ ...options, doc: host.ownerDocument });
+  host.innerHTML = picker.markup();
+  return picker;
 }

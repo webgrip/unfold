@@ -81,7 +81,7 @@ These components are not wired into the Work Item page yet. The fleet board is w
 | `time-range.js` | the time arithmetic, without a DOM: Grafana expressions (`now-6h`, `now-1d/d`, `now/w` with weeks from Monday), `18-10-2026 09:00` and ISO moments, the quick ranges, names such as `Last 45 minutes` or `18-10-2026 07:00 to 08:15`, moving back and forward by half the span, zooming out, a typed span such as `3 days` as a range, recently used ranges, the `from`, `to` and `refresh` query parameters and the `t ←`, `t →`, `t z` shortcuts |
 | `time-picker.js` | the time picker: `pickerUpdate()` is its state machine, `timePicker()` its markup and `mountTimePicker()` makes it act, with focus kept, Escape and a click outside closing the panel, arrow keys through the quick ranges and auto-refresh only while the page is visible |
 
-The picker is not wired into a page yet.
+Runs and Activity use the picker through [`views/time-range-control.js`](../public/views/time-range-control.js), without its auto-refresh, because both pages refresh themselves. [`range-filter.js`](../public/controls/range-filter.js) decides which Runs and events fall inside a range.
 
 ## Play functions
 

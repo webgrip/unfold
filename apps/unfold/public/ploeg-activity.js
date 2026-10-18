@@ -5,6 +5,7 @@ import { markdown } from './core/markdown.js';
 import { routingWarning } from './core/reasons.js';
 import { buildHash } from './core/route.js';
 import { sinceLabel } from './now.js';
+import { eventInRange, eventMoment, reachesStart, runInRange, runSpan } from './controls/range-filter.js';
 
 /** The Insights time windows as `[id, label]`. */
 export const ploegWindows = [['24h', '24 hours'], ['7d', '7 days'], ['30d', '30 days']];
@@ -322,19 +323,22 @@ function activitySkeleton() {
  */
 export function activityMarkup(view, teams, helpers, now = Date.now(), user = null) {
   const { escape, icon } = helpers;
-  const toolbar = `<div class="toolbar feeds-toolbar">${teamField('ploeg-feed-team', teams, view.team, escape)}${selectField('ploeg-feed-kind', 'Kind', eventGroups, view.kind, 'All kinds')}</div>`;
+  const toolbar = `<div class="toolbar feeds-toolbar">${teamField('ploeg-feed-team', teams, view.team, escape)}${selectField('ploeg-feed-kind', 'Kind', eventGroups, view.kind, 'All kinds')}${view.rangeControl ?? ''}</div>`;
   if (!view.events && view.error) return page('activity', toolbar, problemMarkup(view.error, 'Activity', helpers));
   if (!view.events) return page('activity', toolbar, activitySkeleton());
-  const matches = entry => !view.kind || eventKind(entry.action).group === view.kind;
+  const matches = entry => (!view.kind || eventKind(entry.action).group === view.kind) && (!view.range || eventInRange(entry, view.range));
   const shown = view.events.filter(matches);
   const fresh = view.latest ? newerEvents(view, view.latest) : { events: [], gap: false };
   const waiting = fresh.events.filter(matches).length;
   const pill = waiting ? `<div class="activity-new"><button type="button" class="button primary sm activity-new-button" id="activity-show-new" data-action="activity-show-new">${icon('chevron-up')}<span class="button-label">${fresh.gap ? `${count(waiting)}+ new events` : plural(waiting, 'new event')}</span></button></div>` : '';
-  const loaded = `<span class="meta">${plural(view.events.length, 'event')} loaded${view.kind ? `, ${count(shown.length)} of this kind` : ''}</span>`;
-  const older = view.nextCursor ? `<button type="button" class="button secondary" id="ploeg-feed-older" data-action="ploeg-feed-older"${view.mode === 'older' ? ' disabled aria-busy="true"' : ''}>${view.mode === 'older' ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load older</span></button>` : '<span class="meta">This is where the history starts.</span>';
+  const loaded = `<span class="meta">${plural(view.events.length, 'event')} loaded${view.kind || view.range ? `, ${count(shown.length)} ${view.range ? 'in this time range' : 'of this kind'}` : ''}</span>`;
+  const busy = view.mode === 'older' || view.rangeFilling;
+  const covered = view.range && view.nextCursor && !view.rangeFilling && reachesStart(view.events, eventMoment, view.range, true);
+  const older = covered ? `<span class="meta">Older events fall outside this time range.</span>` : view.nextCursor ? `<button type="button" class="button secondary" id="ploeg-feed-older" data-action="ploeg-feed-older"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">${view.rangeFilling ? 'Reaching the start of the range' : 'Load older'}</span></button>` : '<span class="meta">This is where the history starts.</span>';
   const footer = `<footer class="activity-footer">${older}${loaded}</footer>`;
   let body;
   if (!view.events.length) body = empty({ glyph: 'activity', title: 'No activity yet', body: '<p>Events appear here as Ploeg queues, runs and reviews work for your Teams.</p>' }, helpers);
+  else if (!shown.length && view.range && !view.kind) body = empty({ glyph: 'clock', title: 'No events in this time range', body: `<p>${view.nextCursor ? 'None of the events loaded so far. Load older events to look further back.' : 'Zoom out or choose another time range.'}</p>`, actions: `<button type="button" class="button secondary sm" data-action="activity-range-zoom-out">${zoomOutLabel(icon)}</button>` }, helpers);
   else if (!shown.length) body = empty({ glyph: 'filter', title: `No ${groupNouns[view.kind] || 'matching'} events loaded`, body: `<p>${view.nextCursor ? 'Load older events, or show every kind.' : 'Show every kind to see the rest of the history.'}</p>`, actions: `<a class="button secondary sm" href="#activity${view.team ? `?team=${escape(encodeURIComponent(view.team))}` : ''}">${icon('x')}<span class="button-label">Show all kinds</span></a>` }, helpers);
   else body = eventDays(shown, now).map(day => `<section class="activity-day" aria-labelledby="activity-day-${day.key}"><header class="activity-day-header"><h2 class="activity-day-title" id="activity-day-${day.key}">${escape(day.label)}</h2><span class="meta">${plural(day.events.length, 'event')}</span></header><ol class="timeline activity-events">${day.events.map(entry => eventItem(entry, helpers, now, user)).join('')}</ol></section>`).join('');
   return page('activity', demoNote(view.demo), toolbar, view.error ? staleNotice(view, helpers) : '', `<div class="card flush activity-feed" id="activity-feed" tabindex="-1" aria-label="Ploeg events, newest first">${pill}${body}${footer}</div>`);
@@ -437,18 +441,20 @@ export function runsMarkup(view, teams, helpers, now = Date.now()) {
   const { escape, icon } = helpers;
   const filter = view.filter || {};
   const outcomeOff = ['pending', 'running'].includes(filter.state);
-  const toolbar = `<div class="toolbar feeds-toolbar runs-toolbar">${teamField('ploeg-runs-team', teams, filter.team, escape)}${selectField('ploeg-runs-state', 'State', runStateOptions, filter.state, 'All states')}${selectField('ploeg-runs-outcome', 'Outcome', runOutcomeOptions.map(value => [value, runOutcome(value).label]), filter.outcome, 'All outcomes', { disabled: outcomeOff, hint: 'Only finished Runs have an outcome.' })}</div>`;
+  const toolbar = `<div class="toolbar feeds-toolbar runs-toolbar">${teamField('ploeg-runs-team', teams, filter.team, escape)}${selectField('ploeg-runs-state', 'State', runStateOptions, filter.state, 'All states')}${selectField('ploeg-runs-outcome', 'Outcome', runOutcomeOptions.map(value => [value, runOutcome(value).label]), filter.outcome, 'All outcomes', { disabled: outcomeOff, hint: 'Only finished Runs have an outcome.' })}${view.rangeControl ?? ''}</div>`;
   if (!view.runs && view.error) return page('runs', toolbar, problemMarkup(view.error, 'Runs', helpers));
   if (!view.runs) return page('runs', toolbar, runsSkeleton());
   const filtered = Boolean(filter.team || filter.state || filter.outcome);
   const stale = view.error ? staleNotice(view, helpers) : '';
   const sinceLine = filter.since ? sinceNotice(filter, helpers, now) : '';
-  const listed = sinceRuns(view.runs, filter.since);
+  const listed = sinceRuns(view.runs, filter.since).filter(run => !view.range || runInRange(run, view.range, now));
   if (!listed.length) {
-    const title = filter.since ? `No Run finished ${sinceLabel(filter.since, now).replace(/^Since/, 'since')}` : filtered ? 'No Runs match these filters' : 'No Runs yet';
-    const body = filter.since ? (view.nextBefore ? 'None of the Runs loaded so far. Load older Runs to look further back.' : 'Show every finished Run to look further back.') : filtered ? 'Choose another Team, state or outcome.' : 'Runs appear here once a Team’s worker picks up a Work Item.';
-    const more = filter.since && view.nextBefore ? olderButton(view, helpers) : '';
-    return page('runs', demoNote(view.demo), toolbar, sinceLine, stale, `<div class="card">${empty({ glyph: 'runs', title, body: `<p>${escape(body)}</p>`, actions: `${more}${filtered ? linkButton('Clear filters', '#runs', helpers, 'x') : ''}` }, helpers)}</div>`);
+    const ranged = Boolean(view.range && view.runs.length);
+    const title = filter.since ? `No Run finished ${sinceLabel(filter.since, now).replace(/^Since/, 'since')}` : ranged ? `No Runs${filtered ? ' match these filters' : ''} in this time range` : filtered ? 'No Runs match these filters' : 'No Runs yet';
+    const body = filter.since || ranged ? (view.nextBefore ? 'None of the Runs loaded so far. Load older Runs to look further back.' : filter.since ? 'Show every finished Run to look further back.' : 'Zoom out or choose another time range.') : filtered ? 'Choose another Team, state or outcome.' : 'Runs appear here once a Team’s worker picks up a Work Item.';
+    const more = (filter.since || ranged) && view.nextBefore ? olderButton(view, helpers) : '';
+    const zoom = ranged && !view.nextBefore ? `<button type="button" class="button secondary sm" data-action="runs-range-zoom-out">${zoomOutLabel(icon)}</button>` : '';
+    return page('runs', demoNote(view.demo), toolbar, sinceLine, stale, `<div class="card">${empty({ glyph: ranged ? 'clock' : 'runs', title, body: `<p>${escape(body)}</p>`, actions: `${more}${zoom}${filtered ? linkButton('Clear filters', '#runs', helpers, 'x') : ''}` }, helpers)}</div>`);
   }
   const runs = sortRuns(listed);
   const active = runs.filter(run => run.state !== 'finished');
@@ -458,15 +464,18 @@ export function runsMarkup(view, teams, helpers, now = Date.now()) {
   const table = `<div class="table-wrap runs-table"${view.demo ? ' data-demo' : ''}><table class="table"><caption class="sr-only">Runs, running first, then newest first</caption>${runHead(view.demo)}${group('Running and waiting', active)}${group('Finished', done)}</table></div>`;
   const cardGroup = (label, total) => grouped ? `<li class="runs-cards-group">${escape(label)} <span class="count">${count(total)}</span></li>` : '';
   const cards = `<ul class="runs-cards" aria-label="Runs, running first">${cardGroup('Running and waiting', active.length)}${active.map(run => runCard(run, view.demo, helpers, now)).join('')}${cardGroup('Finished', done.length)}${done.map(run => runCard(run, view.demo, helpers, now)).join('')}</ul>`;
-  const older = view.nextBefore ? olderButton(view, helpers) : '<span class="meta">No older Runs.</span>';
-  const loaded = filter.since ? `${plural(listed.length, 'Run')} of ${count(view.runs.length)} loaded` : `${plural(view.runs.length, 'Run')} loaded`;
+  const covered = view.range && view.nextBefore && !view.rangeFilling && reachesStart(view.runs, run => runSpan(run, now).start, view.range, true);
+  const older = covered ? '<span class="meta">Older Runs fall outside this time range.</span>' : view.nextBefore ? olderButton(view, helpers) : '<span class="meta">No older Runs.</span>';
+  const loaded = filter.since || view.range ? `${plural(listed.length, 'Run')} of ${count(view.runs.length)} loaded${view.range && !filter.since ? ' in this time range' : ''}` : `${plural(view.runs.length, 'Run')} loaded`;
   return page('runs', demoNote(view.demo), toolbar, sinceLine, stale, `<div class="card flush runs-list">${table}${cards}<footer class="runs-footer">${older}<span class="meta">${loaded}</span></footer></div>`);
 }
 
 function olderButton(view, { icon }) {
-  const busy = view.mode === 'older';
-  return `<button type="button" class="button secondary" id="ploeg-runs-older" data-action="ploeg-runs-older"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">Load older</span></button>`;
+  const busy = view.mode === 'older' || view.rangeFilling;
+  return `<button type="button" class="button secondary" id="ploeg-runs-older" data-action="ploeg-runs-older"${busy ? ' disabled aria-busy="true"' : ''}>${busy ? '<span class="spinner" aria-hidden="true"></span>' : icon('chevron-down')}<span class="button-label">${view.rangeFilling ? 'Reaching the start of the range' : 'Load older'}</span></button>`;
 }
+
+const zoomOutLabel = icon => `${icon('zoom-out')}<span class="button-label">Zoom out</span>`;
 
 function sinceNotice(filter, helpers, now) {
   const { escape } = helpers;

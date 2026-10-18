@@ -39,6 +39,9 @@ export const shortcuts = [
   { id: 'open', keys: ['Enter'], label: 'Open the focused row', group: 'Lists' },
   { id: 'open-link', keys: ['o'], label: 'Open the pull request or task', group: 'Lists', single: true, where: 'Now and Work' },
   { id: 'new-session', keys: ['n'], label: 'New session', group: 'Sessions', single: true, where: 'Sessions' },
+  { id: 'time-back', keys: ['t', '←'], label: 'Move the time range back by half', group: 'Time range', single: true, where: 'Runs and Activity' },
+  { id: 'time-forward', keys: ['t', '→'], label: 'Move the time range forward by half', group: 'Time range', single: true, where: 'Runs and Activity' },
+  { id: 'time-zoom-out', keys: ['t', 'z'], label: 'Zoom the time range out', group: 'Time range', single: true, where: 'Runs and Activity' },
 ];
 
 const chords = new Map(shortcuts.filter(entry => entry.route).map(entry => [entry.keys[1], entry.route]));
@@ -102,7 +105,7 @@ export function createGlobalKeys({ dispatch, navigate = route => { location.hash
 export function shortcutsMarkup({ mac = isMac(), singleKeys = singleKeysEnabled() } = {}) {
   const groups = [...new Set(shortcuts.map(entry => entry.group))];
   const caps = list => kbd(list.map(key => keyLabel(key, mac)));
-  const keys = entry => `${entry.keys.map((key, index) => `${index && entry.keys[0] === 'g' ? '<span class="shortcut-then">then</span>' : ''}${kbd([keyLabel(key, mac)])}`).join('')}${entry.also ? `<span class="shortcut-then">or</span>${caps(entry.also)}` : ''}`;
+  const keys = entry => `${entry.keys.map((key, index) => `${index && ['g', 't'].includes(entry.keys[0]) ? '<span class="shortcut-then">then</span>' : ''}${kbd([keyLabel(key, mac)])}`).join('')}${entry.also ? `<span class="shortcut-then">or</span>${caps(entry.also)}` : ''}`;
   const row = entry => `<div class="shortcut-row${entry.proposed ? ' is-proposed' : ''}"><dt>${keys(entry)}</dt><dd>${escape(entry.label)}${entry.where ? `<span class="shortcut-where"> · on ${escape(entry.where)}</span>` : ''}${entry.proposed ? ' <span class="shortcut-proposed">Proposed</span>' : ''}</dd></div>`;
   const slug = group => escape(group.toLowerCase().replaceAll(' ', '-'));
   return `<form method="dialog" class="shortcuts-form"><header class="dialog-header"><h2 id="shortcuts-title">Keyboard shortcuts</h2><button type="submit" class="button ghost icon-only sm" aria-label="Close keyboard shortcuts" title="Close">${icon('x')}</button></header><div class="dialog-body"><label class="shortcuts-toggle"><input type="checkbox" autofocus data-pref="singleKeyShortcuts" ${singleKeys ? 'checked' : ''}><span><strong>Single-key shortcuts</strong><small>When off, only ${escape(keyLabel('Mod', mac))} K, Enter and Esc work, so speech input never triggers a shortcut by accident.</small></span></label>${groups.map(group => `<section class="shortcut-group" aria-labelledby="shortcuts-${slug(group)}"><h3 id="shortcuts-${slug(group)}">${escape(group)}</h3><dl>${shortcuts.filter(entry => entry.group === group).map(row).join('')}</dl></section>`).join('')}</div></form>`;
