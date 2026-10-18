@@ -205,6 +205,22 @@ A shadow judge can add a model's verdict. It is off until the `cards.health.judg
 * A spent Ask Allowance pauses the judge ("Judge paused: this month's allowance is spent") without counting an attempt. A failed or timed-out judgement shows nothing; the signals still answer.
 * Health changes are recorded as the product event `run.health.changed` (old and new health, the deciding signal and the Run id, never transcript text), and the "This was wrong" control as `run.health.judge_wrong`.
 
+## What a Run spent its time on
+
+The trace on a Work Item page draws one lane per Activity (Orient, Explore, Change, Verify, Ship, and Setup, Wait or Other when a Run has them), read from each tool call's command by [`public/core/activity.js`](../../public/core/activity.js), not from the harness's tool name ([RFC-0009](../../../../docs/design/rfc-0009-judging-a-run-by-its-kind-of-work.md)). Hover a tick to see the rule that placed it.
+
+To see the split over many past Runs, export Ploeg's Runs and transcript entries read-only and run the report:
+
+```sh
+P=$(kubectl -n ploeg get cluster ploeg-db -o jsonpath='{.status.currentPrimary}')
+q() { kubectl -n ploeg exec "$P" -c postgres -- psql -U postgres -d app -At -v default_transaction_read_only=on -c "$1"; }
+q "select json_agg(r) from (select a.id, a.team, a.role, a.state, a.outcome, a.harness, a.started_at, a.finished_at, w.title from agent_runs a join work_items w on w.id = a.work_item_id where a.id in (select distinct run_id from run_transcript_entries)) r" > runs.json
+q "select json_agg(e order by run_id, seq) from (select run_id, seq, at, kind, body->>'toolKind' as tool_kind, body->>'title' as title, body->>'input' as input, body->>'toolCallId' as call_id, body->'paths' as paths from run_transcript_entries where kind = 'tool_call') e" > entries.json
+node scripts/activity-report.mjs runs.json entries.json
+```
+
+It prints each Run's calls, moves, minutes to its first Change and the share of its time in each Activity, and how many calls no rule placed. The exports hold commands the agents ran, so keep them out of the repository and delete them afterwards.
+
 ## Decider tripwire
 
 The tripwire screens every new tool call of a running Run with a decider, a model asked for scores instead of prose ([RFC-0008](../../../../docs/design/rfc-0008-decision-models.md), [ADR-0042](../../../../docs/adr/adr-0042-a-self-hosted-decider-reads-what-agents-do-and-starts-as-a-shadow-tripwire.md), both proposed). Built on branch `feat/tripwire-reader`, not released. It is off until a `decider` block is configured and the `runs.tripwire` flag is on for the Run's Team ([feature flags](feature-flags.md)); it needs a connected Ploeg.
