@@ -1400,5 +1400,13 @@ export class Engine {
     const execution = this.authority?.current(session.id);
     if (execution) session.execution = execution;
     this.store.transaction(() => { this.store.saveSession(session); this.store.appendEvent(session.id, type, actor, this.clean(data), runId); });
+    if (type === 'session.failed') logFailure(session, this.cleanText(session.failure?.detail ?? ''));
   }
+}
+
+/** The one server log line every failed session writes, so an operator can find why a session failed without opening it. */
+function logFailure(session: Session, detail: string): void {
+  const failure = session.failure;
+  const run = session.runs.find(item => item.status === 'failed');
+  console.error(JSON.stringify({ level: 'error', event: 'session.failed', session: session.id, ...(session.execution ? { workItem: session.execution.workItemId } : {}), category: failure?.category ?? 'unknown', stage: failure?.stage ?? null, promptAcceptance: failure?.promptAcceptance ?? null, ...(run ? { run: run.id, role: run.roleName } : {}), message: (failure?.message ?? session.blocker ?? '').slice(0, 300), ...(detail ? { detail: detail.slice(0, 500) } : {}) }));
 }

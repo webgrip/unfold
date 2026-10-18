@@ -44,11 +44,6 @@ function preview(value: unknown, limit: number): string {
 
 function tail(text: string, limit: number): string { return text.length > limit ? '…' + text.slice(-limit) : text; }
 
-function unreadablePermissionList(error: unknown): undefined {
-  if (error instanceof RuntimeFailure && error.httpStatus === 400) return undefined;
-  throw error;
-}
-
 export function withoutVerdictBlock(text: string): string {
   try { const whole = JSON.parse(text); if (whole && typeof whole === 'object' && 'verdict' in whole) return typeof whole.summary === 'string' && whole.summary ? whole.summary : text; } catch {}
   let summary = '';
@@ -276,6 +271,15 @@ export class OpenCodeRuntime implements AgentRuntime {
       promptAcceptance = 'accepted';
       if (!context.continuing) emit({ type: 'native.session', data: { nativeId, prompted: true } });
       let hiccups = 0;
+      let permissionListUnreadable = false;
+      const unreadablePermissionList = (error: unknown): undefined => {
+        if (!(error instanceof RuntimeFailure && error.httpStatus === 400)) throw error;
+        if (permissionListUnreadable) return undefined;
+        permissionListUnreadable = true;
+        console.error(JSON.stringify({ level: 'warn', event: 'runtime.permission_list_unreadable', session: context.session.id, run: context.run.id, status: 400, message: 'OpenCode answered GET /permission with HTTP 400; pending requests are followed through its event stream.' }));
+        emit({ type: 'runtime.permission_list_unreadable', data: { message: 'OpenCode could not list its pending permission requests (HTTP 400, an OpenCode defect for some tools). Unfold follows them through the event stream instead; the turn continues.' } });
+        return undefined;
+      };
       while (true) {
         operation.throwIfAborted();
         if (failure) throw failure;
