@@ -88,3 +88,4 @@ Marker.io SRL is in Brussels and stores data in AWS Ireland.
 
 * 2026-10-05: proposed with [ADR-0023](adr-0023-unfold-measures-happiness-and-confusion-with-first-party-events-surveys-and-bug-reports.md) and [ADR-0025](adr-0025-unfold-asks-one-ease-question-on-anomalies-and-a-random-baseline.md); design in [RFC-0002](../design/rfc-0002-report-a-problem.md).
 * 2026-10-05: accepted by the owner as proposed, together with the open questions of RFC-0002 answered as proposed.
+* 2026-10-18: [ADR-0038](adr-0038-report-a-problem-becomes-its-own-component-that-any-application-embeds.md) moves Report a problem out of Unfold into its own component that any application embeds, filing through the shared tracker contract. The capture, privacy and attachment rules above are unchanged.
