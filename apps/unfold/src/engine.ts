@@ -725,13 +725,14 @@ export class Engine {
     const remoteStop = this.authority?.current(id) ? this.authority.command(session, status === 'paused' ? 'pause' : 'cancel', {}, user.id).catch(() => {
       this.store.appendEvent(id, 'execution.stop_pending', user.id, { intent: status, message: 'Ploeg has not acknowledged the stop. Local execution stopped and capability blocking will be attempted.' });
     }) : undefined;
-    if (session.workspace) {
-      try { await this.runtimes.get(session.runtime)!.interrupt(session.workspace); this.store.deleteSecret(`interruption:${id}`); }
-      catch { this.store.setSecret(`interruption:${id}`, true); }
-    }
-    if (active) await active.task;
-    if (remoteStop) await remoteStop;
-    await this.revokeEndedWorker(id, this.runtimes.get(session.runtime)!);
+    try {
+      if (session.workspace) {
+        try { await this.runtimes.get(session.runtime)!.interrupt(session.workspace); this.store.deleteSecret(`interruption:${id}`); }
+        catch { this.store.setSecret(`interruption:${id}`, true); }
+      }
+      if (active) await active.task;
+      if (remoteStop) await remoteStop;
+    } finally { await this.revokeEndedWorker(id, this.runtimes.get(session.runtime)); }
     if (this.authority?.current(id)) await this.finishAuthority(id);
     return this.store.getSession(id)!;
   }
@@ -812,6 +813,7 @@ export class Engine {
         this.save(session, 'execution.reconciliation_pending', 'system', { admission: 'unconfirmed', autoResumed: false });
       }
       if (!this.active.has(session.id) && this.reattachable(session)) { this.reconnect(session); continue; }
+      if (session.workspace && ['completed', 'failed', 'cancelled'].includes(session.status)) void this.revokeEndedWorker(session.id, this.runtimes.get(session.runtime)).catch(() => undefined);
       const interrupted = ['running', 'waiting_input', 'exporting'].includes(session.status);
       if (interrupted) this.interruptAfterRestart(session, 'The server restarted. Execution has not been resumed; review the workspace and explicitly resume.');
       if (!this.active.has(session.id) && session.runs.some(run => ['running', 'waiting_input'].includes(run.status))) this.haltRuns(session);
@@ -1229,9 +1231,9 @@ export class Engine {
   }
 
   /** An ended session's workspace keeps its storage for recovery, but its worker loses the relay, so it stops and never outlives the session. */
-  private async revokeEndedWorker(id: string, runtime: AgentRuntime): Promise<void> {
+  private async revokeEndedWorker(id: string, runtime: AgentRuntime | undefined): Promise<void> {
     const ended = this.store.getSession(id)!;
-    if (ended.workspace && ['completed', 'failed', 'cancelled'].includes(ended.status)) await runtime.revokeWorker?.(ended.workspace).catch(() => undefined);
+    if (ended.workspace && ['completed', 'failed', 'cancelled'].includes(ended.status)) await runtime?.revokeWorker?.(ended.workspace).catch(() => undefined);
   }
 
   private async prepareWorkspace(session: Session, runtime: AgentRuntime, repository: Repository, credential: Credential | undefined, signal: AbortSignal): Promise<Workspace> {

@@ -2,7 +2,7 @@ import test, { type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -11,7 +11,7 @@ import { createApplication } from '../src/main.ts';
 import { OpenCodeRuntime } from '../src/runtime/opencode.ts';
 import { WorkspaceManager } from '../src/runtime/workspace.ts';
 import { KubernetesWorkspaces } from '../src/runtime/kubernetes.ts';
-import type { WorkerRelay } from '../src/runtime/relay.ts';
+import { relayEndpoint, storedCredentials, type WorkerRelay } from '../src/runtime/relay.ts';
 import type { AgentRuntime, AppConfig, RuntimeKind, Session, User } from '../src/types.ts';
 import { configuration, createInput } from './api-support.ts';
 import { testTimeout, waitFor } from './timeframes.ts';
@@ -25,7 +25,7 @@ async function listen(server: Server, port = 0): Promise<number> {
 }
 
 function ploeg() {
-  const state = { credentialRequests: 0, blocks: 0, observedUsd: 0.04, capability: 'reserved', execution: undefined as Record<string, any> | undefined };
+  const state = { credentialRequests: 0, blocks: 0, observedUsd: 0.04, capability: 'reserved', leaseLapsed: false, execution: undefined as Record<string, any> | undefined };
   const leaseMs = 120_000;
   const server = createServer(async (req, res) => {
     const chunks: Buffer[] = [];
@@ -52,7 +52,7 @@ function ploeg() {
     if (req.url.endsWith('/spend')) { send({ capabilityState: state.capability, costStatus: 'observed', observedUsd: state.observedUsd }); return; }
     if (req.url.endsWith('/credential')) { state.credentialRequests++; state.capability = 'issued'; send({ credential: { key: randomBytes(32).toString('hex'), alias: 'restart-fixture', reference: execution.id, budgetUsd: 2 } }); return; }
     if (req.url.endsWith('/block')) { state.blocks++; state.capability = 'blocked'; send({ blocked: true }); return; }
-    if (req.method === 'GET') { send({ execution }); return; }
+    if (req.method === 'GET') { send({ execution: state.leaseLapsed ? { ...execution, expiresAt: new Date(Date.now() - 1000).toISOString() } : execution }); return; }
     res.writeHead(404).end();
   });
   return { state, server };
@@ -206,4 +206,35 @@ test('a cancelled session revokes its worker, which gets a 401 and stops, and a 
   assert.equal(refused.status, 401);
   assert.equal((await refused.json()).error.code, 'revoked');
   assert.equal(f.session(session.id).status, 'cancelled');
+});
+
+test('a session whose Ploeg lease ran out while the workbench was down is not reattached: its turn ends and its key is blocked', { timeout: testTimeout(90_000) }, async t => {
+  const f = await workbench(t);
+  const session = f.app.engine.create(createInput({ runtime: 'opencode', budgetUsd: 2 }) as any, owner);
+  await f.app.engine.start(session.id, owner);
+  await waitFor(() => prompted(f, session.id), undefined, { reason: 'the agent never received its prompt', withinMs: 30_000 });
+  f.authority.state.leaseLapsed = true;
+  await f.restart();
+  await waitFor(() => f.session(session.id).status, status => status === 'interrupted', { reason: 'a session whose lease lapsed must not keep running', withinMs: 30_000 });
+  assert.equal(await waitFor(() => f.cluster.worker()!.process.exitCode, code => code !== null, { reason: 'the workspace of a lapsed lease kept working', withinMs: 15_000 }), 0);
+  await waitFor(() => f.authority.state.blocks, blocks => blocks > 0, { reason: 'the inference key of a lapsed lease was not blocked', withinMs: 15_000 });
+  assert.equal(f.app.store.events(session.id).some(event => event.type === 'workspace.reconnected'), false);
+});
+
+test('startup recovery revokes the relay credential of a session that ended before its worker was revoked', { timeout: testTimeout(60_000) }, async t => {
+  const f = await workbench(t);
+  const session = f.app.engine.create(createInput({ runtime: 'opencode', budgetUsd: 2 }) as any, owner);
+  const token = 'the-token-of-a-worker-whose-session-ended';
+  storedCredentials(f.app.store).write(session.id, { digest: createHash('sha256').update(token).digest('hex') });
+  const ended = f.session(session.id);
+  ended.status = 'cancelled';
+  ended.workspace = { id: session.id, backend: 'kubernetes', directory: '/workspace/repository', endpoint: relayEndpoint(session.id), metadata: { transport: 'pull' } };
+  f.app.store.saveSession(ended);
+  const poll = async () => {
+    const response = await fetch(`http://127.0.0.1:${(f.app.server.address() as { port: number }).port}/api/relay/${session.id}/requests?wait=0`, { headers: { authorization: `Bearer ${token}` } });
+    return { status: response.status, code: response.ok ? undefined : (await response.json()).error.code };
+  };
+  assert.equal((await poll()).status, 200, 'the fixture is an ended session whose worker credential is still valid');
+  await f.restart();
+  assert.deepEqual(await poll(), { status: 401, code: 'revoked' });
 });

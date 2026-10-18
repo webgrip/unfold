@@ -12,8 +12,8 @@ const pickupTimeoutMs = 30_000;
 
 export function relayEndpoint(workspaceId: string): string { return `relay://${workspaceId}`; }
 
-/** What a relay remembers about one workspace's worker credential: the SHA-256 digest of the token it accepts, or that the credential was revoked. */
-export type WorkerCredential = { digest: string } | { revoked: true };
+/** What a relay remembers about one workspace's worker credential: the SHA-256 digest of its token, and whether that credential was revoked. */
+export type WorkerCredential = { digest: string; revoked?: true };
 
 /**
  * Where a relay keeps its worker credentials. A store-backed one lets a restarted workbench accept the worker of a
@@ -49,7 +49,9 @@ export class WorkerRelay {
   private closed = false;
   readonly basePath = '/api/relay/';
 
-  constructor(credentials: WorkerCredentials = memoryCredentials()) { this.credentials = credentials; }
+  private readonly uploadIdleMs: number;
+
+  constructor(credentials: WorkerCredentials = memoryCredentials(), uploadIdleMs = 60_000) { this.credentials = credentials; this.uploadIdleMs = uploadIdleMs; }
 
   configurePool(token: string | undefined): void { this.poolToken = token ? Buffer.from(token) : undefined; }
 
@@ -73,19 +75,42 @@ export class WorkerRelay {
     return { digest, queue: [], inFlight: new Map(), waiters: new Set(), lastSeen: 0, cancelled: new Set() };
   }
 
+  private stored(workspaceId: string): WorkerCredential | undefined {
+    const stored = this.credentials.read(workspaceId);
+    return typeof stored?.digest === 'string' && /^[a-f0-9]{64}$/.test(stored.digest) ? stored : undefined;
+  }
+
   private registered(workspaceId: string): Registration | undefined {
     const known = this.registrations.get(workspaceId);
     if (known) return known;
-    const stored = this.credentials.read(workspaceId);
-    if (!stored || !('digest' in stored) || !/^[a-f0-9]{64}$/.test(stored.digest)) return undefined;
+    const stored = this.stored(workspaceId);
+    if (!stored || stored.revoked) return undefined;
     const restored = this.emptyRegistration(Buffer.from(stored.digest, 'hex'));
     this.registrations.set(workspaceId, restored);
     return restored;
   }
 
+  /**
+   * The registration a worker's request authenticates to: the one in memory, or one rebuilt from the store when the
+   * presented token matches the stored digest. `revoked` only when the token matches a revoked credential, so a caller
+   * without the token learns nothing about the workspace, and a refused request leaves nothing behind.
+   */
+  private authenticate(workspaceId: string, req: IncomingMessage): Registration | 'revoked' | undefined {
+    const header = req.headers.authorization ?? '';
+    if (!header.startsWith('Bearer ')) return undefined;
+    const presented = digestOf(header.slice(7));
+    const known = this.registrations.get(workspaceId);
+    if (known) return timingSafeEqual(presented, known.digest) ? known : undefined;
+    const stored = this.stored(workspaceId);
+    if (!stored || !timingSafeEqual(presented, Buffer.from(stored.digest, 'hex'))) return undefined;
+    if (stored.revoked) return 'revoked';
+    return this.registered(workspaceId);
+  }
+
   /** Revokes the workspace's worker credential, here and in its store, and fails every request still waiting for that worker. */
   unregister(workspaceId: string): void {
-    this.credentials.write(workspaceId, { revoked: true });
+    const stored = this.stored(workspaceId);
+    if (stored && !stored.revoked) this.credentials.write(workspaceId, { digest: stored.digest, revoked: true });
     const registration = this.registrations.get(workspaceId);
     if (!registration) return;
     for (const pending of [...registration.queue, ...registration.inFlight.values()]) pending.fail(new RuntimeFailure('connectivity', 'runtime', 'unknown', undefined, 'The workspace relay was closed'));
@@ -161,13 +186,6 @@ export class WorkerRelay {
     };
   }
 
-  private authorized(registration: Registration | undefined, req: IncomingMessage): registration is Registration {
-    if (!registration) return false;
-    const header = req.headers.authorization ?? '';
-    if (!header.startsWith('Bearer ')) return false;
-    return timingSafeEqual(digestOf(header.slice(7)), registration.digest);
-  }
-
   private poolAuthorized(req: IncomingMessage): boolean {
     if (!this.poolToken) return false;
     const header = req.headers.authorization ?? '';
@@ -204,11 +222,9 @@ export class WorkerRelay {
     }
     const match = url.pathname.slice(this.basePath.length).match(/^([a-zA-Z0-9_-]{1,80})\/(requests|responses\/([a-zA-Z0-9_-]{1,32}))$/);
     if (!match) { json(404, { error: { code: 'not_found', message: 'Relay route not found.' } }); return true; }
-    const registration = this.registered(match[1]);
-    if (!this.authorized(registration, req)) {
-      const stored = this.credentials.read(match[1]);
-      const revoked = Boolean(stored && 'revoked' in stored);
-      json(401, { error: revoked ? { code: 'revoked', message: 'This workspace was released; its worker must stop.' } : { code: 'unauthorized', message: 'Relay token rejected.' } });
+    const registration = this.authenticate(match[1], req);
+    if (!registration || registration === 'revoked') {
+      json(401, { error: registration === 'revoked' ? { code: 'revoked', message: 'This workspace was released; its worker must stop.' } : { code: 'unauthorized', message: 'Relay token rejected.' } });
       return true;
     }
     registration.lastSeen = Date.now();
@@ -243,6 +259,7 @@ export class WorkerRelay {
       let consumerCancelled = false;
       pending.abortIncoming = () => { consumerCancelled = true; req.destroy(); };
       this.uploads.add(req);
+      req.setTimeout(this.uploadIdleMs, () => req.destroy());
       req.on('close', () => {
         if (req.complete || consumerCancelled) return;
         console.error(JSON.stringify({ level: 'warn', event: 'relay.response_interrupted', session: match[1], request: match[3], method: pending.method, path: pending.path.split('?')[0], status, message: 'The worker\'s relayed response ended before its body was complete.' }));

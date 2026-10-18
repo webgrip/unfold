@@ -375,3 +375,54 @@ test('a relayed response that resets mid-body is read again and the turn complet
   assert.ok(logged.some(line => line.includes('"event":"relay.response_interrupted"') && line.includes('"session":"ws-reset"') && line.includes('/session/ses_reset/message')), logged.join('\n'));
   assert.equal(counts.event, 1, 'the relayed event stream outlived the request body deadline instead of being cut and reopened');
 });
+
+test('a caller without the token learns nothing about a workspace, and a refused poll leaves nothing behind', { timeout: testTimeout(20_000) }, async t => {
+  const credentials = memoryCredentials();
+  const serving = await relayServing(credentials);
+  t.after(() => serving.close());
+  const revoked = serving.relay.register('ws-oracle');
+  serving.relay.unregister('ws-oracle');
+  assert.deepEqual(await serving.poll('ws-oracle', 'a-guess'), { status: 401, code: 'unauthorized' }, 'a revoked workspace looks like any other to a caller without its token');
+  assert.deepEqual(await serving.poll('ws-oracle', revoked), { status: 401, code: 'revoked' }, 'its own worker still learns it must stop');
+  const token = 'a-worker-token-the-store-knows';
+  const digest = createHash('sha256').update(token).digest('hex');
+  credentials.write('ws-cache', { digest });
+  assert.deepEqual(await serving.poll('ws-cache', 'a-wrong-token'), { status: 401, code: 'unauthorized' });
+  credentials.write('ws-cache', { digest, revoked: true });
+  assert.deepEqual(await serving.poll('ws-cache', token), { status: 401, code: 'revoked' }, 'the refused poll cached no registration that would outlive the stored credential');
+});
+
+test('a relayed response upload that stops sending is cut after its idle limit, and one that keeps sending is not', { timeout: testTimeout(20_000) }, async t => {
+  const relay = new WorkerRelay(memoryCredentials(), 300);
+  const server = createServer(async (req, res) => { if (!(await relay.handle(req, res, new URL(req.url ?? '/', 'http://localhost')))) { res.writeHead(404); res.end(); } });
+  limitRequestBodies(server, 60_000, req => relay.streamingUpload(req));
+  const port = await listen(server);
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const token = relay.register('ws-idle');
+  const logged: string[] = [];
+  const original = console.error;
+  console.error = (...line: unknown[]) => { logged.push(line.map(String).join(' ')); };
+  t.after(() => { console.error = original; });
+  const relayed = async (tickMs?: number) => {
+    const pending = relay.fetcher('ws-idle')('http://workspace/event');
+    const polled = await (await fetch(`http://127.0.0.1:${port}/api/relay/ws-idle/requests?wait=1000`, { headers: { authorization: `Bearer ${token}` } })).json();
+    const upload = httpRequest({ host: '127.0.0.1', port, method: 'POST', path: `/api/relay/ws-idle/responses/${polled.requests[0].id}`, headers: { authorization: `Bearer ${token}`, 'x-relay-status': '200', 'x-relay-headers': '{"content-type":"text/event-stream"}', 'transfer-encoding': 'chunked' } });
+    upload.on('error', () => {});
+    upload.write('data: {}\n\n');
+    const ticks = tickMs ? setInterval(() => upload.write('data: {}\n\n'), tickMs) : undefined;
+    t.after(() => { clearInterval(ticks); upload.destroy(); });
+    const reader = (await pending).body!.getReader();
+    const until = Date.now() + 1500;
+    try {
+      while (Date.now() < until) {
+        const next = await Promise.race([reader.read(), settle(Math.max(0, until - Date.now()) + 1000).then(() => 'silent' as const)]);
+        if (next === 'silent') return 'stalled and still open';
+        if (next.done) return 'ended';
+      }
+      return 'flowing';
+    } catch { return 'cut'; }
+  };
+  assert.equal(await relayed(100), 'flowing', 'an upload that keeps sending outlives its idle limit');
+  assert.equal(await relayed(), 'cut', 'a stalled upload is cut after its idle limit');
+  assert.ok(logged.some(line => line.includes('"event":"relay.response_interrupted"') && line.includes('"session":"ws-idle"')), logged.join('\n'));
+});
