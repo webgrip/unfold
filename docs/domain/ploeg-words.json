@@ -1033,6 +1033,16 @@
           "mcp": "not exposed"
         },
         {
+          "value": "work_item.dependencies_seen",
+          "label": "The task’s blockers changed",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "work_item.premise_checked",
+          "label": "Checked the task before starting",
+          "mcp": "not exposed"
+        },
+        {
           "value": "pull_request.mergeable",
           "ploegTerm": "Forge Event",
           "label": "The merge conflict is resolved",
