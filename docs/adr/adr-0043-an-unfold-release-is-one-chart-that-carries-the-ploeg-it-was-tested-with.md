@@ -57,7 +57,7 @@ These checks are built with the change:
 
 * A chart test in Unfold fails when the `ploeg` dependency in `Chart.yaml` or `Chart.lock` names another release than [apps/unfold/ploeg-release.json](../../apps/unfold/ploeg-release.json).
 * [scripts/workflow-policy.test.cjs](../../scripts/workflow-policy.test.cjs) fails when the chart job of the release workflow does not need every image job.
-* `helm template` of the packaged chart with no values renders no image without a digest.
+* The release refuses a packaged chart that renders an Unfold image without a digest. Ploeg's chart requires a database Secret and a LiteLLM URL, which have no sensible default, so the packaged chart renders with no values only when `ploeg.enabled` is `false`.
 
 ## Pros and Cons of the Options
 
