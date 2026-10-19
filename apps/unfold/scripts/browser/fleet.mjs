@@ -1,4 +1,4 @@
-/** The fleet board: Now offers no Desk and Fleet switch while now.fleet is off, turning it on under Labs shows the fleet with the demo's Teams as lanes under the CSP, a plane opens its Work Item, Desk brings back the waiting list and stays chosen across a reload, the board fits 390px without widening the page, reduced motion stops the planes and approach lights, and Default removes the switch again. */
+/** The fleet board: Now offers no Desk and Fleet switch while now.fleet is off, turning it on under Labs shows the fleet with the demo's Teams as lanes under the CSP, a plane opens its Work Item without a script error, Desk brings back the waiting list and stays chosen across a reload, the board fits 390px without widening the page, reduced motion stops the planes and approach lights, and Default removes the switch again. */
 export async function run({ app, page, assert, screenshot }) {
   const origin = `http://127.0.0.1:${app.server.address().port}`;
   await page.setViewportSize({ width: 1440, height: 1040 });
@@ -23,6 +23,9 @@ export async function run({ app, page, assert, screenshot }) {
   const href = await planeLink.getAttribute('href');
   await planeLink.click();
   await page.waitForFunction(target => location.hash === target, href);
+  await page.locator('.boot').first().waitFor({ state: 'detached' });
+  await page.getByRole('heading', { level: 1 }).first().waitFor();
+  assert.equal(await page.locator('#toast').evaluate(toast => /Cannot read|is not a function|undefined/.test(toast.textContent ?? '')), false, 'opening a plane\'s Work Item showed a script error');
   await page.goBack();
   await board.waitFor();
 

@@ -110,7 +110,7 @@ function model() {
     runTranscripts: work.transcripts?.id === work.detailId ? work.transcripts.runs : null,
     runHealth: work.health?.id === work.detailId ? work.health.runs : null,
     tripwire: work.tripwire?.id === work.detailId ? work.tripwire : null,
-    landingHistory: work.landing?.team === state.ploegDetail?.item?.team ? work.landing.runs : null,
+    landingHistory: work.landing && work.landing.team === state.ploegDetail?.item?.team ? work.landing.runs : null,
     actions: work.actions?.id === work.detailId ? work.actions.data : null,
     userRole: state.bootstrap?.user?.role,
   };
