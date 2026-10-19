@@ -333,7 +333,7 @@ export const scenarios = {
   },
   staleMachines: {
     label: 'Stopped retrying after machine failures',
-    description: 'Ten Runs in a row were ended by the machine; Ploeg gave up.',
+    description: 'Infrastructure faults stopped ten Runs in a row; Ploeg gave up.',
     input: () => ({ detail: { ...empty, item: item({ state: 'stale', createdAt: at(-130), infraFailures: 10 }), shifts: [shift('183', -125, { closedAt: at(-30), closeReason: 'infra cap' })], runs: Array.from({ length: 10 }, (_, index) => run(String(index + 1), '183', -124 + index * 9, -124 + index * 9 + 2 + (index % 3), { failureReason: index % 4 === 3 ? 'lease_lost' : 'infra_node', outcome: 'failed', costStatus: 'observed', usage: { costUsd: 0 } })) }, now: fixtureNow, allowance }),
   },
   withdrawn: {

@@ -633,12 +633,21 @@ function evidenceText(run, reason) {
   return reason.run && reason.run.id === run.id ? reason.run.text : run.stuckReason || run.summary || '';
 }
 
+function evidenceBody(run, reason) {
+  const text = evidenceText(run, reason);
+  if (!text) return '';
+  const split = text === run.stuckReason ? runFailureText(run) : { reason: text, output: '', outputLabel: '' };
+  const raw = !split.output && logLike.test(split.reason);
+  const said = raw ? '' : split.reason;
+  const printed = split.output || (raw ? split.reason : '');
+  return `${said ? `<p class="work-evidence-text">${escape(said)}</p>` : ''}${printed ? ui.disclosure({ summary: split.outputLabel || 'What the agent printed', body: `<p class="work-log">${escape(printed)}</p>`, plain: true }) : ''}`;
+}
+
 function evidenceLine(run, reason) {
   const result = runResult(run);
-  const text = evidenceText(run, reason);
   const failure = runFailure(run);
   const when = run.finishedAt || run.startedAt;
-  return `<li class="work-evidence" data-tone="${result.tone}"><span class="work-evidence-icon" aria-hidden="true">${icon(result.glyph || 'circle')}</span><div class="work-evidence-main"><p class="work-evidence-title"><strong>${escape(run.role || 'Agent')}</strong>${run.round ? ` · Round ${escape(run.round)}` : ''} · ${escape(result.title || result.label)}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}${when ? ` · ${ui.timeAgo(when)}` : ''}</p>${text ? `<p class="${logLike.test(text) ? 'work-evidence-text work-log' : 'work-evidence-text'}">${escape(text)}</p>` : ''}</div>${runJump(run)}</li>`;
+  return `<li class="work-evidence" data-tone="${result.tone}"><span class="work-evidence-icon" aria-hidden="true">${icon(result.glyph || 'circle')}</span><div class="work-evidence-main"><p class="work-evidence-title"><strong>${escape(run.role || 'Agent')}</strong>${run.round ? ` · Round ${escape(run.round)}` : ''} · ${escape(result.title || result.label)}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}${when ? ` · ${ui.timeAgo(when)}` : ''}</p>${evidenceBody(run, reason)}</div>${runJump(run)}</li>`;
 }
 
 function steps(entries) {

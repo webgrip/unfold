@@ -1,5 +1,5 @@
 import { money, plural } from './format.js';
-import { ciState, failureReason, parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason } from './states.js';
+import { ciState, failureReason, runFailure, parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason } from './states.js';
 import { detailQuestions } from './blackboard.js';
 
 export { parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason };
@@ -80,12 +80,12 @@ const copy = {
   review_failed: {
     chip: 'Reviewer kept failing',
     sentence: 'The agent reviewer failed on every try, so no agent reviewed this work, and Ploeg did not mark it ready for review.',
-    fix: 'Read the reviewer’s failed Runs to see why. Review the change yourself, or fix the reviewer’s model or harness.',
+    fix: 'Read the reviewer’s failed Runs to see why. Review the change yourself, or fix the reviewer’s model or setup.',
   },
   writing_run_failed_repeatedly: {
     chip: 'Writer kept failing',
-    sentence: 'The writer failed three times in one Round without writing the branch. These were agent failures, not infrastructure.',
-    fix: 'Read the failed Runs’ failure reasons and log tails. Fix the brief, the model or the harness.',
+    sentence: 'The writer failed three times in one Round without writing the branch, so Ploeg stopped trying.',
+    fix: 'Read why the failed Runs stopped, then fix the brief or the agent setup, or pick another model.',
   },
   writing_run_killed_repeatedly: {
     chip: 'Cluster kept stopping the writer',
@@ -125,7 +125,7 @@ const copy = {
   stale_attempts: {
     chip: 'Agents kept failing',
     sentence: 'The agents failed on every attempt, so Ploeg stopped retrying.',
-    fix: 'Read the failed Runs’ failure reasons. Fix the brief, the model or the harness.',
+    fix: 'Read why the failed Runs stopped, then fix the brief or the agent setup, or pick another model.',
   },
   operator_interrupted: {
     chip: 'Session interrupted',
@@ -452,6 +452,12 @@ export function detailReason(detail) {
     if (recorded.code !== 'unknown') { reason = build(recorded.code, item, recorded.text, Boolean(detail.demo)); headline = null; }
   }
   if (budgetCodes.has(reason.code)) headline = null;
+  if (reason.code === 'writing_run_failed_repeatedly') {
+    headline = null;
+    const sentence = `${run?.role ? `The ${run.role}` : 'The writer'} failed three times ${run?.round ? `in Round ${run.round}` : 'in one Round'} without writing the branch, so Ploeg stopped trying.`;
+    const fix = runFailure(run)?.next || reason.fix;
+    reason = { ...reason, sentence, fix, action: `${fix} ${reason.requeue}` };
+  }
   if (reason.code === 'budget_held') reason = { ...reason, ...heldDetail(detail, shift, reason) };
   let variant = null;
   if (reason.code === 'plan_exhausted') {

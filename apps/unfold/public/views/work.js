@@ -472,7 +472,7 @@ async function submitSteer(data, form) {
   try {
     await api(`/api/sessions/${encodeURIComponent(session)}/messages`, { method: 'POST', body: JSON.stringify({ text }) });
     form.reset();
-    notify('Sent. The running Run reads it where its Harness allows, otherwise the next Run does.');
+    notify('Sent. The agent working now reads it mid-task if its agent tool supports that; otherwise the next Run picks it up.');
   } catch (error) {
     notify(error.message || 'Unfold could not send the message.', true);
   }
