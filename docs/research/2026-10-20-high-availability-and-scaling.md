@@ -55,6 +55,8 @@ What would already work with a shared database: login cookies and editor credent
 
 If an availability objective arrives, the order is: finish the engine deletion of [app ADR 0023](../../apps/unfold/docs/adrs/0023-unfold-submits-work-to-ploeg-and-never-executes-it.md) so Ploeg owns all execution, which removes the boot-recovery problem; move the store to Postgres with a migration runner and the key file to a Secret; claim or lease the timers; persist sign-in state; then make the chart configurable.
 
+What a single replica can still gain in restart time, availability and efficiency is measured in the [single-replica record](../../apps/unfold/docs/research/2026-10-20-unfold-single-replica-restart-and-efficiency.md).
+
 ## Together
 
 - Unfold calls `/api/v1/operator/*` with plain `fetch`, 5 s timeouts, a 5 s cache and no retries ([`src/ploeg.ts`](../../apps/unfold/src/ploeg.ts)). It follows Ploeg's audit events with an ascending cursor every 3 s while someone watches, and reconciles every 60 s to catch events committed behind the cursor ([`src/ahp/work-items.ts`](../../apps/unfold/src/ahp/work-items.ts)). Several ploegd replicas behind one Service are therefore transparent to Unfold.
