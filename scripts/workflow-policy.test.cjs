@@ -102,8 +102,8 @@ test('every pull request checks the Ploeg-derived pages on their own, and a week
   assert.doesNotMatch(JSON.stringify(ahead), /secrets\.|permissions|continue-on-error/);
 });
 
-test('Ploeg\'s release opens the Ploeg pull request, and a weekly run fails when the pin falls behind', () => {
-  const behind = workflows['on_schedule.yml'].jobs['ploeg-behind'];
+test('Ploeg\'s release opens the Ploeg pull request, and a nightly run fails when the pin falls behind', () => {
+  const behind = workflows['on_nightly.yml'].jobs['ploeg-behind'];
   assert.equal(behind.steps.at(-1).run, 'python3 scripts/ploeg-contract.py behind');
   assert.doesNotMatch(JSON.stringify(behind), /secrets\.|permissions|continue-on-error/);
   const renovate = JSON.parse(fs.readFileSync(path.join(root, 'renovate.json'), 'utf8'));
@@ -464,7 +464,7 @@ test('the weekly external link check is scheduled, pinned and reports without bl
   const schedule = workflows['on_schedule.yml'];
   assert.deepEqual(Object.keys(schedule.on).sort(), ['schedule', 'workflow_dispatch']);
   assert.match(schedule.on.schedule[0].cron, /^\d+ \d+ \* \* [0-6]$/);
-  assert.deepEqual(Object.keys(schedule.jobs), ['external-links', 'tutorial-smoke', 'ploeg-ahead', 'ploeg-behind', 'release-notes']);
+  assert.deepEqual(Object.keys(schedule.jobs), ['external-links', 'tutorial-smoke', 'ploeg-ahead', 'release-notes']);
   const step = schedule.jobs['external-links'].steps.find(step => step.run === 'mise run docs-links-external');
   assert.equal(step['continue-on-error'], true);
   assert.doesNotMatch(JSON.stringify(schedule), /secrets\.|permissions|UNFOLD_(RELEASES|DOCS_PUBLISH)_ENABLED/);
