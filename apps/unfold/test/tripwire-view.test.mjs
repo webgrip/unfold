@@ -21,8 +21,10 @@ test('the five checks keep RFC-0008\'s keys and wording, and only a 3 on a hijac
 
 test('a hit shows its check in words, its score with a glyph and a word, when, the escaped action, the decider and Right and Wrong', () => {
   const html = runTripwireMarkup(running, { data: data(), marked: new Map() });
-  assert.match(html, /<section class="work-run-tripwire" aria-label="Tripwire"><h4 class="overline">Tripwire<\/h4>/);
-  assert.match(html, /14 tool calls screened, 1 screen missed by Hetzner Qwen\./);
+  assert.match(html, /<section class="work-run-tripwire" aria-label="Decider"><h4 class="overline">Decider<\/h4>/);
+  assert.match(html, /<h5 class="overline">Tripwire<\/h5>/);
+  assert.doesNotMatch(html, /Progress checks/, 'no progress hit, no progress list');
+  assert.match(html, /14 screened, 1 screen missed by Hetzner Qwen\./);
   assert.match(html, /data-tone="danger"><svg[^>]*class="icon[^"]*"[^>]*>.*?<span class="sr-only">Score: <\/span>Clearly · 3 of 3<\/span>/s);
   assert.match(html, /<strong>Probes the sandbox<\/strong><time/);
   assert.match(html, /ls -la \/var\/run\/docker\.sock &lt;b&gt;<\/code>/);
@@ -47,8 +49,8 @@ test('the list shows while the tripwire is active or the Run has hits, and says 
   assert.equal(runTripwireMarkup(running, undefined), '');
   assert.equal(runTripwireMarkup(running, { data: data({ status: 'flag_off', hits: [], runs: [] }) }), '');
   assert.match(runTripwireMarkup(running, { data: data({ status: 'flag_off' }) }), /Probes the sandbox/, 'stored hits stay visible after the flag goes off');
-  assert.match(runTripwireMarkup(running, { data: data({ hits: [], runs: [] }) }), /No tool call screened yet\./);
-  assert.match(runTripwireMarkup(running, { data: data({ hits: [], runs: [{ runId: '305', screened: 0, missed: 0, transcript: 'unavailable' }] }) }), /has no transcript, so the tripwire cannot screen it/);
+  assert.match(runTripwireMarkup(running, { data: data({ hits: [], runs: [] }) }), /Nothing screened yet\./);
+  assert.match(runTripwireMarkup(running, { data: data({ hits: [], runs: [{ runId: '305', screened: 0, missed: 0, transcript: 'unavailable' }] }) }), /has no transcript, so the decider cannot read it/);
   assert.equal(runTripwireMarkup({ id: '306', state: 'running' }, { data: data({ status: 'off' }) }), '', 'another Run\'s hits are not this Run\'s');
 });
 
@@ -57,4 +59,12 @@ test('the demo labels its hit, never offers a verdict and says no decider runs',
   assert.match(html, /Demo: illustrative hits\. No decider runs in the demo\./);
   assert.match(html, /Scored by Demo, never screened/);
   assert.doesNotMatch(html, /work-tripwire-verdict/);
+});
+
+test('progress check hits list under their own heading, in their own words, with the same controls', () => {
+  const progress = hit({ id: '305-40-already_done', check: 'already_done', score: 3, excerpt: 'The logging fix may have already landed in #472.' });
+  const html = runTripwireMarkup(running, { data: data({ hits: [hit(), progress] }) });
+  assert.match(html, /<h5 class="overline">Tripwire<\/h5>.*Probes the sandbox.*<h5 class="overline">Progress checks<\/h5>.*Thinks it is already done/s);
+  assert.match(html, /may have already landed in #472/);
+  assert.match(html, /data-id="305-40-already_done" data-verdict="wrong"|data-verdict="wrong"[^>]*data-id="305-40-already_done"/);
 });
