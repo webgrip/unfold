@@ -104,9 +104,9 @@ MCP: passes the Ploeg value through as `failureReason` in unfold_get_work, `""` 
 
 | Value | Screen label | MCP | Note |
 |---|---|---|---|
-| `infra_node` | The machine ended the Run | same |  |
+| `infra_node` | The machine running the Run failed | same |  |
 | `infra_llm` | The model gateway failed | same |  |
-| `agent_error` | The agent harness failed | same |  |
+| `agent_error` | The agent exited with an error | same |  |
 | `budget` | The agent reached its token ceiling | same |  |
 | `lease_lost` | The worker stopped responding | same |  |
 | `timeout` | The Run timed out | same |  |
