@@ -1,3 +1,9 @@
+## [unfold-v0.4.0-rc.101](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.100...unfold-v0.4.0-rc.101) (2026-10-19)
+
+### Fixed
+
+* **agent:** update opencode ( 1.19.2 ➔ 1.19.3 ) ([8cb1794](https://forgejo.webgrip.dev/webgrip/unfold/commit/8cb1794b9d2b565751290cafa0fec2094222293d))
+
 ## [unfold-v0.4.0-rc.100](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.99...unfold-v0.4.0-rc.100) (2026-10-19)
 
 ### Added
