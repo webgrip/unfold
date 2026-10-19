@@ -1,3 +1,10 @@
+## [unfold-v0.4.0-rc.100](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.99...unfold-v0.4.0-rc.100) (2026-10-19)
+
+### Added
+
+* **unfold:** let the decider read what agents write and guess the kind of work ([6613993](https://forgejo.webgrip.dev/webgrip/unfold/commit/66139933f0a493feaeaed5f1b56ab161c326ac79))
+* **unfold:** show whether each board and repository Ploeg routes to is wired ([14e8f88](https://forgejo.webgrip.dev/webgrip/unfold/commit/14e8f882f7e5e91639ea44569a1e6d1de4f9002c))
+
 ## [unfold-v0.4.0-rc.99](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.98...unfold-v0.4.0-rc.99) (2026-10-19)
 
 ### Fixed
