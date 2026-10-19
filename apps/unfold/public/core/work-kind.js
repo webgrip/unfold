@@ -34,7 +34,7 @@ const words = Object.freeze([
  * source says so, so a person sees it was not recognised.
  * @param {{ title?: string, description?: string }} item The Work Item.
  * @param {{ writes?: boolean, round?: number, role?: string } | null} run The Run.
- * @returns {{ kind: string, family: string, label: string, source: 'role'|'round'|'prefix'|'title'|'default', rule: string }}
+ * @returns {{ kind: string, family: string, label: string, source: 'role'|'round'|'prefix'|'title'|'default', rule: string }} `runWork` adds `decider` for a guess.
  */
 export function workKindOf(item, run) {
   const result = (key, source, rule) => { const meta = workKindMeta(key); return { kind: meta.key, family: meta.family, label: meta.label, source, rule }; };

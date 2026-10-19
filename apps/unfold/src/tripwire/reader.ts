@@ -4,6 +4,8 @@ import type { Store } from '../store.ts';
 import { cleanText } from '../ask/service.ts';
 import type { Decider, DeciderIdentity, DeciderQuestion } from '../decider/decider.ts';
 import { tripwireChecks, tripwireHitScore } from '../../public/core/tripwire.js';
+import { kindFromScores, kindQuestions, progressChecks } from '../../public/core/checks.js';
+import { workKindOf } from '../../public/core/work-kind.js';
 
 /** What a person said about one hit. */
 export type TripwireVerdict = 'right' | 'wrong';
@@ -13,15 +15,19 @@ export type TripwireTranscript = 'unknown' | 'available' | 'unavailable';
 export type TripwireHit = { id: string; runId: string; workItemId: string; team: string; seq: number; at: string; check: string; score: number; decider: DeciderIdentity; excerpt: string; verdict: TripwireVerdict | null; verdictAt: string | null };
 /** The reader's persisted state for one Run: the last transcript seq it handled, screens made and missed, and the tool calls already screened. */
 export type TripwireRunState = { runId: string; workItemId: string; team: string; cursor: number; screened: number; missed: number; transcript: TripwireTranscript; seen: string[]; updatedAt: string };
+/** The decider's Work Kind guess for one Run from its Work Item's title (RFC-0009): the kind, or null when no kind scored clearly enough, and its score. */
+export type DeciderKindGuess = { runId: string; workItemId: string; kind: string | null; score: number; decider: DeciderIdentity; at: string };
+/** The running Run fields the reader uses. */
+export type FollowedRun = Pick<PloegRunRow, 'id' | 'workItemId' | 'team'> & Partial<Pick<PloegRunRow, 'workItemTitle' | 'role' | 'round' | 'writes'>>;
 /** The Ploeg reads the reader needs, all for no viewer and none of them a write. */
 export interface TripwireSource {
-  followRunning(): Promise<Pick<PloegRunRow, 'id' | 'workItemId' | 'team'>[]>;
+  followRunning(): Promise<FollowedRun[]>;
   followTranscript(workItemId: string, runId: string, after: number): Promise<RunTranscript>;
 }
-export type TripwireReaderOptions = { decider?: Decider; enabled: (team: string) => Promise<boolean>; demo: boolean; requestsPerMinute: number; secrets: readonly string[]; now?: () => Date; log?: (line: string) => void; intervalMs?: number };
+export type TripwireReaderOptions = { decider?: Decider; enabled: (team: string) => Promise<boolean>; progress?: (team: string) => Promise<boolean>; demo: boolean; requestsPerMinute: number; secrets: readonly string[]; now?: () => Date; log?: (line: string) => void; intervalMs?: number };
 
 /** The reader's bounds: the loop's period, the rate window, the excerpt and screened text sizes, the tool call ids kept per Run and transcript pages per Run per round. */
-export const tripwireLimits = Object.freeze({ intervalMs: 15_000, windowMs: 60_000, excerpt: 300, text: 2000, seen: 500, pagesPerRun: 4 });
+export const tripwireLimits = Object.freeze({ intervalMs: 15_000, windowMs: 60_000, excerpt: 300, text: 2000, seen: 500, pagesPerRun: 4, messageMin: 40 });
 const finalStatuses = new Set(['completed', 'failed']);
 
 /** The five checks as decider questions, in RFC-0008's wording. */
@@ -43,6 +49,22 @@ export function screenable(entry: TranscriptEntry, seen: ReadonlySet<string>): b
   if (entry.kind !== 'tool_call' || !entry.toolCallId || seen.has(entry.toolCallId)) return false;
   return Boolean(entry.input || entry.paths?.length || (entry.title && entry.status && finalStatuses.has(entry.status)));
 }
+
+/** Whether a transcript entry is something the agent wrote that the progress checks read: a thought or message of at least 40 characters, never one already read. */
+export function readableMessage(entry: TranscriptEntry, seen: ReadonlySet<string>): boolean {
+  return (entry.kind === 'thought' || entry.kind === 'message') && (entry.text ?? '').trim().length >= tripwireLimits.messageMin && !seen.has(messageKey(entry));
+}
+
+/** The key a read message is remembered by among the screened tool calls. */
+export const messageKey = (entry: TranscriptEntry) => `m${entry.seq}`;
+
+/** The text the progress checks read: the Work Item's title, then what the agent wrote, redacted and cut to 2000 characters. */
+export function messageText(entry: TranscriptEntry, title: string, secrets: readonly string[]): string {
+  return cleanText(`Work Item: ${title}\nThe agent wrote: ${entry.text ?? ''}`, tripwireLimits.text, secrets);
+}
+
+/** The three progress checks as decider questions (RFC-0009). */
+export function progressQuestions(): DeciderQuestion[] { return progressChecks.map(check => ({ key: check.key, question: check.question })); }
 
 /**
  * The decider tripwire (RFC-0008, ADR-0042): a server-side loop, every 15 seconds, over the running Runs of Teams whose
@@ -96,21 +118,23 @@ export class TripwireReader {
 
   private async round(): Promise<void> {
     if (!this.active) return;
-    let runs: Pick<PloegRunRow, 'id' | 'workItemId' | 'team'>[];
+    let runs: FollowedRun[];
     try { runs = await this.source.followRunning(); }
     catch (error) { this.log({ level: 'warn', event: 'tripwire.runs_unread', message: this.clean(error) }); return; }
     if (!runs.length) return;
     this.offset = (this.offset + 1) % runs.length;
     const ordered = [...runs.slice(this.offset), ...runs.slice(0, this.offset)];
-    const teams = new Map<string, boolean>();
+    const teams = new Map<string, { calls: boolean; messages: boolean }>();
     for (const run of ordered) {
-      if (!teams.has(run.team)) teams.set(run.team, await this.options.enabled(run.team).catch(() => false));
-      if (!teams.get(run.team)) continue;
-      if (!await this.screenRun(run)) break;
+      if (!teams.has(run.team)) teams.set(run.team, { calls: await this.options.enabled(run.team).catch(() => false), messages: await (this.options.progress?.(run.team) ?? Promise.resolve(false)).catch(() => false) });
+      const reads = teams.get(run.team)!;
+      if (!reads.calls && !reads.messages) continue;
+      if (!await this.screenRun(run, reads)) break;
     }
   }
 
-  private async screenRun(run: Pick<PloegRunRow, 'id' | 'workItemId' | 'team'>): Promise<boolean> {
+  private async screenRun(run: FollowedRun, reads: { calls: boolean; messages: boolean }): Promise<boolean> {
+    if (reads.messages && !await this.guessKind(run)) return false;
     const state: TripwireRunState = this.store.tripwireRun(run.id) ?? { runId: run.id, workItemId: run.workItemId, team: run.team, cursor: 0, screened: 0, missed: 0, transcript: 'unknown', seen: [], updatedAt: '' };
     const seen = new Set(state.seen);
     for (let page = 0; page < tripwireLimits.pagesPerRun; page += 1) {
@@ -125,10 +149,12 @@ export class TripwireReader {
       state.transcript = 'available';
       for (const entry of [...read.entries].sort((a, b) => a.seq - b.seq)) {
         if (entry.seq <= state.cursor) continue;
-        if (!screenable(entry, seen)) { state.cursor = entry.seq; continue; }
+        const call = reads.calls && screenable(entry, seen);
+        const message = reads.messages && readableMessage(entry, seen);
+        if (!call && !message) { state.cursor = entry.seq; continue; }
         if (!this.take()) { this.save(state, seen, []); return false; }
-        const hits = await this.screen(run, entry, state);
-        seen.add(entry.toolCallId!);
+        const hits = call ? await this.screen(run, entry, state) : await this.readMessage(run, entry, state);
+        seen.add(call ? entry.toolCallId! : messageKey(entry));
         state.cursor = entry.seq;
         this.save(state, seen, hits);
       }
@@ -139,10 +165,38 @@ export class TripwireReader {
     return true;
   }
 
-  private async screen(run: Pick<PloegRunRow, 'id' | 'workItemId' | 'team'>, entry: TranscriptEntry, state: TripwireRunState): Promise<TripwireHit[]> {
+  private async guessKind(run: FollowedRun): Promise<boolean> {
+    if (this.store.deciderKind(run.id) || !run.workItemTitle || workKindOf({ title: run.workItemTitle }, { writes: run.writes, round: run.round, role: run.role }).source !== 'default') return true;
+    if (!this.take()) return false;
     const decider = this.options.decider!;
     try {
-      const answer = await decider.ask(screenText(entry, this.options.secrets), tripwireQuestions());
+      const answer = await decider.ask(cleanText(`Title: ${run.workItemTitle}`, tripwireLimits.text, this.options.secrets), kindQuestions(), 'work_item');
+      const guess = kindFromScores(answer.scores);
+      this.store.saveDeciderKind({ runId: run.id, workItemId: run.workItemId, kind: guess?.kind ?? null, score: guess?.score ?? 0, decider: answer.decider, at: new Date(this.clock()).toISOString() });
+    } catch (error) {
+      this.log({ level: 'warn', event: 'decider.kind_missed', run: run.id, workItem: run.workItemId, decider: decider.identity.name, reason: (error as { reason?: string })?.reason, message: this.clean(error) });
+    }
+    return true;
+  }
+
+  private async readMessage(run: FollowedRun, entry: TranscriptEntry, state: TripwireRunState): Promise<TripwireHit[]> {
+    const decider = this.options.decider!;
+    try {
+      const answer = await decider.ask(messageText(entry, run.workItemTitle ?? '', this.options.secrets), progressQuestions(), 'message');
+      state.screened += 1;
+      const excerpt = cleanText((entry.text ?? '').replace(/\s+/g, ' '), tripwireLimits.excerpt, this.options.secrets);
+      return progressChecks.filter(check => (answer.scores[check.key] ?? 0) >= tripwireHitScore).map(check => ({ id: `${run.id}-${entry.seq}-${check.key}`, runId: run.id, workItemId: run.workItemId, team: run.team, seq: entry.seq, at: entry.at, check: check.key, score: answer.scores[check.key]!, decider: answer.decider, excerpt, verdict: null, verdictAt: null }));
+    } catch (error) {
+      state.missed += 1;
+      this.log({ level: 'warn', event: 'decider.message_missed', run: run.id, workItem: run.workItemId, seq: entry.seq, decider: decider.identity.name, reason: (error as { reason?: string })?.reason, message: this.clean(error) });
+      return [];
+    }
+  }
+
+  private async screen(run: FollowedRun, entry: TranscriptEntry, state: TripwireRunState): Promise<TripwireHit[]> {
+    const decider = this.options.decider!;
+    try {
+      const answer = await decider.ask(screenText(entry, this.options.secrets), tripwireQuestions(), 'action');
       state.screened += 1;
       const excerpt = screenExcerpt(entry, this.options.secrets);
       return tripwireChecks.filter(check => (answer.scores[check.key] ?? 0) >= tripwireHitScore).map(check => ({ id: `${run.id}-${entry.seq}-${check.key}`, runId: run.id, workItemId: run.workItemId, team: run.team, seq: entry.seq, at: entry.at, check: check.key, score: answer.scores[check.key]!, decider: answer.decider, excerpt, verdict: null, verdictAt: null }));

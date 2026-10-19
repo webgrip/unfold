@@ -5,7 +5,7 @@ import { randomBytes, createCipheriv, createDecipheriv } from 'node:crypto';
 import type { Session, Event, PermissionRequest, User } from './types.ts';
 import type { Ask } from './ask/types.ts';
 import type { RunJudgement } from './run-health/judge.ts';
-import type { TripwireHit, TripwireRunState, TripwireVerdict } from './tripwire/reader.ts';
+import type { DeciderKindGuess, TripwireHit, TripwireRunState, TripwireVerdict } from './tripwire/reader.ts';
 import type { ActionRecord, ActionTarget } from './action-records.ts';
 import type { IssueState } from './tasks.ts';
 import type { FlagOverride } from './flags.ts';
@@ -86,6 +86,7 @@ export class Store {
       CREATE INDEX IF NOT EXISTS tripwire_hits_work_item ON tripwire_hits(work_item_id, at);
       CREATE TABLE IF NOT EXISTS tripwire_runs (run_id TEXT PRIMARY KEY, work_item_id TEXT NOT NULL, team TEXT NOT NULL, cursor INTEGER NOT NULL, screened INTEGER NOT NULL, missed INTEGER NOT NULL, transcript TEXT NOT NULL, seen TEXT NOT NULL, updated_at TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS tripwire_runs_work_item ON tripwire_runs(work_item_id);
+      CREATE TABLE IF NOT EXISTS decider_kinds (run_id TEXT PRIMARY KEY, work_item_id TEXT NOT NULL, kind TEXT, score INTEGER NOT NULL, decider TEXT NOT NULL, model TEXT NOT NULL, at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS action_records (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, user_id TEXT NOT NULL, user_name TEXT NOT NULL, role TEXT NOT NULL, channel TEXT NOT NULL, action TEXT NOT NULL, method TEXT NOT NULL, target_kind TEXT, target_id TEXT, inputs TEXT NOT NULL, confirmation TEXT, status INTEGER NOT NULL, outcome TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS action_records_user ON action_records(user_id, id);
       CREATE INDEX IF NOT EXISTS action_records_target ON action_records(target_kind, target_id, id);
@@ -246,6 +247,17 @@ export class Store {
       this.db.prepare('INSERT INTO tripwire_runs(run_id,work_item_id,team,cursor,screened,missed,transcript,seen,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(run_id) DO UPDATE SET cursor=excluded.cursor,screened=excluded.screened,missed=excluded.missed,transcript=excluded.transcript,seen=excluded.seen,updated_at=excluded.updated_at')
         .run(state.runId, state.workItemId, state.team, state.cursor, state.screened, state.missed, state.transcript, JSON.stringify(state.seen), state.updatedAt);
     });
+  }
+
+  /** Stores the decider's Work Kind guess for one Run (RFC-0009), or that it made none (`kind` null), once: a later guess for the same Run is ignored. */
+  saveDeciderKind(guess: DeciderKindGuess): void {
+    this.db.prepare('INSERT INTO decider_kinds(run_id,work_item_id,kind,score,decider,model,at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(run_id) DO NOTHING').run(guess.runId, guess.workItemId, guess.kind, guess.score, guess.decider.name, guess.decider.model, guess.at);
+  }
+
+  /** The decider's Work Kind guess for one Run, when it was asked. */
+  deciderKind(runId: string): DeciderKindGuess | undefined {
+    const row = this.db.prepare('SELECT * FROM decider_kinds WHERE run_id=?').get(runId) as Record<string, any> | undefined;
+    return row ? { runId: String(row.run_id), workItemId: String(row.work_item_id), kind: row.kind ?? null, score: Number(row.score), decider: { name: String(row.decider), model: String(row.model) }, at: String(row.at) } : undefined;
   }
 
   /** At most `limit` tripwire hits on one Work Item's Runs, newest first. */

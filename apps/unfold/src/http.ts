@@ -239,8 +239,9 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const tripwireEnabled = (team: string) => flags.getBooleanValue('runs.tripwire', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team });
   const decider = config.decider ? new ChatDecider({ baseUrl: config.decider.baseUrl, model: config.decider.model, name: config.decider.name, key: () => process.env[config.decider!.keyEnv] }) : undefined;
   const tripwireConnected = Boolean(config.ploeg) && !ploeg.isDemo;
-  const tripwire = new TripwireReader(store, ploeg, { decider: tripwireConnected ? decider : undefined, enabled: tripwireEnabled, demo: askDemo, requestsPerMinute: config.decider?.requestsPerMinute ?? 8, secrets });
-  const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: tripwireEnabled, record: recordWork });
+  const progressEnabled = (team: string) => flags.getBooleanValue('runs.progress-checks', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team });
+  const tripwire = new TripwireReader(store, ploeg, { decider: tripwireConnected ? decider : undefined, enabled: tripwireEnabled, progress: progressEnabled, demo: askDemo, requestsPerMinute: config.decider?.requestsPerMinute ?? 8, secrets });
+  const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
   ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);

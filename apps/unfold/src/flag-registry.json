@@ -144,6 +144,20 @@
         "client": false,
         "labs": false
       }
+    },
+    "runs.progress-checks": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-19",
+        "title": "Decider progress checks",
+        "description": "Lets the decider read what the Team's running agents write (RFC-0009): each thought or message of 40 characters or more is scored 0 to 3 on three checks (thinks the work is already done, asks for a person, off the brief), and a Run no rule recognises gets a Work Kind guessed from its title. Same free EU-hosted decider, key and rate limit as the tripwire, off the Run's path. Hits scoring 2 or more are listed on the Work Item page with right and wrong controls, and a 3 on a shown check raises the Run's health to Watch; it never stops, cancels, steers or notes a Run. Evaluated per Team: the context carries the Run's team.",
+        "client": false,
+        "labs": false
+      }
     }
   }
 }

@@ -48,8 +48,11 @@ export const expectationKinds = Object.freeze(workKinds.map(entry => entry.key))
  * @param {{ writes?: boolean, round?: number, role?: string } | null} run
  * @param {object} tally From `activityTally`/`tallyCall`.
  * @param {Record<string, Record<string, unknown>> | null} [pinned] The Team's pinned expectations by Work Kind.
+ * @param {{ kind: string|null, score: number } | null} [guess] The decider's Work Kind guess; used only when no rule recognised the work.
  */
-export function runWork(item, run, tally, pinned = null) {
-  const kind = workKindOf(item, run);
+export function runWork(item, run, tally, pinned = null, guess = null) {
+  const ruled = workKindOf(item, run);
+  const meta = guess?.kind && ruled.source === 'default' ? workKindMeta(guess.kind) : null;
+  const kind = meta ? { kind: meta.key, family: meta.family, label: meta.label, source: 'decider', rule: `the decider scored the title ${guess.score} of 3 as ${meta.label} work` } : ruled;
   return { ...kind, expectations: expectationsFor(kind.kind, pinned?.[kind.kind] ?? null), tally };
 }

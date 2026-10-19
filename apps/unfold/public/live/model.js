@@ -4,6 +4,7 @@ import { guardSignals, policyDrift } from '../core/guard.js';
 import { tripwireChecks, tripwireHitScore, tripwireMaxScore } from '../core/tripwire.js';
 import { activityOf, activityTime, moveActivities, tallyCalls } from '../core/activity.js';
 import { runWork } from '../core/expectations.js';
+import { isProgressCheck } from '../core/checks.js';
 
 /**
  * The stages every Work Item moves through, in order. The fold strip and the flight path draw one mark per stage.
@@ -123,6 +124,11 @@ const checkKeys = new Set(tripwireChecks.map(check => check.key));
 function tripwireHitOf(value) {
   if (!value || typeof value !== 'object' || !checkKeys.has(value.check) || !Number.isSafeInteger(value.score) || value.score < tripwireHitScore || value.score > tripwireMaxScore) return null;
   return { id: String(value.id ?? ''), runId: String(value.runId ?? ''), at: toMs(value.at), check: value.check, score: value.score, excerpt: typeof value.excerpt === 'string' ? value.excerpt : '', decider: typeof value.decider?.name === 'string' ? value.decider.name : 'Decider', demo: value.demo === true };
+}
+
+function progressHitOf(value) {
+  if (!value || typeof value !== 'object' || !isProgressCheck(value.check) || !Number.isSafeInteger(value.score) || value.score < tripwireHitScore || value.score > tripwireMaxScore) return null;
+  return { id: String(value.id ?? ''), runId: String(value.runId ?? ''), at: value.at ?? null, check: value.check, score: value.score, excerpt: typeof value.excerpt === 'string' ? value.excerpt : '', verdict: value.verdict === 'wrong' || value.verdict === 'right' ? value.verdict : null };
 }
 
 function healthOf(result, judge, { stale = false, demo = false } = {}) {
@@ -256,6 +262,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
   const ownTranscript = Boolean(running && followed && followed.id === running.id);
   const runningRun = running ? runs.find(run => String(run.id) === running.id) : null;
   const latestJudge = running ? (served ? served.judge ?? null : judgements.findLast(entry => entry.runId === running.id) ?? null) : null;
+  const progress = (hits ?? []).map(progressHitOf).filter(Boolean);
   const localWork = followed ? runWork(item, runs.find(run => String(run.id) === followed.id) ?? null, tallyCalls(calls), null) : null;
   const health = !running ? null : served ? healthOf(served, latestJudge, { stale: served.stale, demo: served.demo }) : healthOf(runHealth({
     run: runningRun,
@@ -264,6 +271,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     transcriptState: ownTranscript ? transcriptState : 'loading',
     allowedHosts,
     work: ownTranscript && known ? localWork : null,
+    checks: progress.filter(hit => hit.runId === running.id),
   }), latestJudge);
   const work = served?.work?.kind ? served.work : localWork ? (({ tally: _tally, ...rest }) => rest)(localWork) : null;
   const stageList = stageStates(item, runs, running);
@@ -308,6 +316,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     guard,
     judgements,
     tripwire: (hits ?? []).map(tripwireHitOf).filter(Boolean).sort((a, b) => (a.at ?? 0) - (b.at ?? 0)),
+    checks: progress,
     estimate: estimate && typeof estimate.text === 'string' && estimate.text ? estimate : null,
     allowance: allowance && isAmount(allowance.leftUsd) ? allowance : null,
     window: { start: windowStart, end: windowEnd },
