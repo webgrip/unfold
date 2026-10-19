@@ -235,7 +235,7 @@ Every stage is missing: the portal is not built ([VIK-1500](https://vikunja.webg
 |---|---|---|
 | Sign in | Unfold | works: OIDC with three global roles |
 | People and roles | Unfold | missing: no screens; Tenants and SSO group mapping are M1 work |
-| Sources, Teams, secrets | configuration files | partly: files only |
+| Sources, Teams, secrets | configuration files | partly: files only; stage by stage on [Connect a repository](connect-a-repository.md) |
 | Health | Status | works |
 
 ### 9. Curate what agents know
