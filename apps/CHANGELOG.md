@@ -1,3 +1,10 @@
+## [unfold-v0.4.0-rc.104](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.103...unfold-v0.4.0-rc.104) (2026-10-19)
+
+### Fixed
+
+* **unfold:** give OpenCode two minutes to open a session, and say so when it does not ([7d91ab0](https://forgejo.webgrip.dev/webgrip/unfold/commit/7d91ab08bb58664a7e3552751bdbfd91925c8b1a))
+* **unfold:** say plainly why a Run stopped, and fold what the agent printed ([6d66068](https://forgejo.webgrip.dev/webgrip/unfold/commit/6d660684b5a9749b65e5d9de0bf2f30eb368b6f7))
+
 ## [unfold-v0.4.0-rc.103](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.102...unfold-v0.4.0-rc.103) (2026-10-19)
 
 ### Fixed
