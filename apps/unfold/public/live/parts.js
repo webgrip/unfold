@@ -91,7 +91,7 @@ export function flightSummary(model) {
   const parts = [`${model.ref}.`];
   if (model.time.waiting !== null) parts.push(`Waited ${span(model.time.waiting)} before the first Run.`);
   for (const attempt of model.attempts) {
-    const lost = attempt.lost ? `, ${attempt.lost} lost to machines` : '';
+    const lost = attempt.lost ? `, ${attempt.lost} lost to infrastructure faults` : '';
     const live = attempt.runs.some(run => run.state === 'running') ? ', running now' : '';
     parts.push(`Attempt ${attempt.n}: ${attempt.runs.length} ${attempt.runs.length === 1 ? 'Run' : 'Runs'}${lost}${live}.`);
   }

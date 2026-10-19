@@ -12,7 +12,7 @@ import { flightLegs } from '../public/live/flight-path.js';
 
 const model = (name, change = input => input) => liveModel(change(scenarios[name].input()));
 
-test('VIK-2049 reads as two attempts: six Runs lost to machines, then one builder Run numbered from 1 inside its attempt', () => {
+test('VIK-2049 reads as two attempts: six Runs lost to infrastructure faults, then one builder Run numbered from 1 inside its attempt', () => {
   const live = model('running');
   assert.deepEqual(live.attempts.map(attempt => [attempt.n, attempt.runs.length, attempt.lost]), [[1, 6, 6], [2, 1, 0]]);
   assert.deepEqual([live.running.attempt, live.running.n, live.running.role], [2, 1, 'Builder']);
@@ -38,7 +38,7 @@ test('a figure Ploeg did not report stays null and reads Not reported, never zer
   assert.doesNotMatch(markup, /US\$\s0,00/);
 });
 
-test('agent time is useful time plus time lost to machines, for every scenario', () => {
+test('agent time is useful time plus time lost to infrastructure faults, for every scenario', () => {
   for (const [name, scenario] of Object.entries(scenarios)) {
     const live = liveModel(scenario.input());
     assert.equal(Math.round(live.time.agent), Math.round(live.time.useful + live.time.lost), name);

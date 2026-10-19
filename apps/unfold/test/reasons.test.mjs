@@ -132,11 +132,26 @@ test('the detail reason shows the failing writer’s failure reason and recognis
   const reason = detailReason(failing);
   assert.equal(reason.headline, null);
   assert.equal(reason.run.text, 'exit status 1: harness crashed');
-  assert.equal(reason.run.failure.label, 'The agent harness failed');
+  assert.equal(reason.run.failure.label, 'The agent exited with an error');
+  assert.equal(reason.sentence, 'The implementer failed three times in Round 1 without writing the branch, so Ploeg stopped trying.');
+  assert.match(reason.fix, /^Read the last lines it printed/);
   const closed = { item: item('review_approved'), shifts: [], runs: [], events: [{ id: '9', action: 'work_item.needs_human', detail: { reason: 'pull request closed without merging' } }] };
   assert.equal(detailReason(closed).chip, 'Pull request closed');
   assert.equal(detailReason({ item: item('plan_exhausted', { state: 'awaiting_review' }), shifts: [], runs: [], events: [] }), null);
   assert.equal(detailReason(null), null);
+});
+
+test('a writer that kept spending its model allowance points the fix at the allowance and drops Ploeg’s repeated sentence', () => {
+  const detail = {
+    item: item('writing_run_failed_repeatedly'), shifts: [],
+    runs: [{ id: '8', role: 'builder', round: 1, writes: true, outcome: 'failed', stuckReason: 'last agent message: Error: litellm.BadRequestError: Litellm_proxyException - Budget has been exceeded! Key=ploeg-0c3699a2bb3b (sk-...0h6g) Current cost: 2.059854912, Max budget: 2.0', summary: '', failureReason: 'agent_error' }],
+    events: [{ id: '4', action: 'work_item.needs_human', detail: { reason: 'shift stopped: builder failed 3 times in round 1 without writing the branch — a person should look at why the run keeps dying' } }],
+  };
+  const reason = detailReason(detail);
+  assert.equal(reason.headline, null);
+  assert.equal(reason.sentence, 'The builder failed three times in Round 1 without writing the branch, so Ploeg stopped trying.');
+  assert.equal(reason.fix, 'Split the ticket or raise the Role’s per-Run allowance, then retry the Work Item.');
+  assert.match(reason.action, /assign the task to the Team again in Vikunja\.$/);
 });
 
 test('checks that did not pass say the pull request stays open, how to find the failing check, and point at the writer that opened it', () => {

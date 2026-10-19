@@ -9,7 +9,7 @@ const maxGrow = 40;
 
 /** How each way a Run can end is drawn: its glyph, tone and words. Machine endings are neutral: not the agent's fault. */
 export const hopEndings = Object.freeze({
-  machine: Object.freeze({ glyph: 'zap', tone: 'machine', words: 'ended by the machine' }),
+  machine: Object.freeze({ glyph: 'zap', tone: 'machine', words: 'stopped by an infrastructure fault' }),
   stuck: Object.freeze({ glyph: 'pause-circle', tone: 'stuck', words: 'stopped answering' }),
   failed: Object.freeze({ glyph: 'x', tone: 'failed', words: 'failed' }),
   budget: Object.freeze({ glyph: 'coins', tone: 'failed', words: 'ran out of budget' }),
@@ -249,7 +249,7 @@ export function flightLegs(model) {
     const last = Math.max(...attempt.runs.map(run => run.finishedAt ?? (run.state === 'running' ? model.now : run.startedAt ?? 0)));
     const queued = attempt.runs.filter(run => run.status === 'pending').length;
     const started = attempt.runs.length - queued;
-    const words = [started ? `${started} ${started === 1 ? 'Run' : 'Runs'}` : '', queued ? `${queued} queued` : '', lost ? `${lost} lost to machines` : '', failed ? `${failed} failed` : ''].filter(Boolean).join(' · ');
+    const words = [started ? `${started} ${started === 1 ? 'Run' : 'Runs'}` : '', queued ? `${queued} queued` : '', lost ? `${lost} lost to infrastructure faults` : '', failed ? `${failed} failed` : ''].filter(Boolean).join(' · ');
     const waiting = attempt.runs.some(run => run.status === 'pending');
     legs.push({ kind: 'attempt', n: attempt.n, live: live || waiting, hops, grow: Math.min(maxGrow, hops.reduce((sum, hop) => sum + hop.grow, 0)), head: `Attempt ${attempt.n}`, note: words, time: first !== null ? `${clock(first)}–${live ? 'now' : clock(last)}` : '', tone: live || waiting ? 'live' : lost === attempt.runs.length ? 'machine' : failed ? 'failed' : 'done' });
   }

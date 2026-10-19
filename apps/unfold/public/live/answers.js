@@ -17,7 +17,7 @@ export function standingAnswers(model) {
     list.push({ id: 'progress', question: 'Is it getting anywhere?', answer: `${made}${trouble}${health}`, source: 'record' });
   }
   if (model.lost.runs || model.lost.agentFailures) {
-    const machine = model.lost.runs ? `${model.lost.runs} ${model.lost.runs === 1 ? 'Run was' : 'Runs were'} ended by the machine, not the agent.` : '';
+    const machine = model.lost.runs ? model.lost.runs === 1 ? 'An infrastructure fault stopped 1 Run, so it does not count against the agent.' : `Infrastructure faults stopped ${model.lost.runs} Runs, so they do not count against the agent.` : '';
     const reasons = [...new Set(model.runs.filter(run => run.failure && !run.machine).map(run => run.failure.label))];
     const agent = model.lost.agentFailures ? ` ${model.lost.agentFailures} failed in the agent: ${reasons.join('; ')}.` : '';
     const lostUsd = model.runs.filter(run => run.failure).reduce((sum, run) => sum + (run.costUsd ?? 0), 0);

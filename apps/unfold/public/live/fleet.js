@@ -61,7 +61,7 @@ const stuckFix = 'Read why it stuck, then clarify or split the ticket';
 
 function remark(run) {
   if (run.state === 'running') return { text: 'Running', tone: 'live', fix: '' };
-  if (run.outcome === 'failed') { const failure = runFailure(run); return { text: failure?.infra ? 'Machine ended it' : (failure?.label ?? 'Failed'), tone: failure?.infra ? 'machine' : 'failed', fix: failure && !failure.infra ? failure.next ?? '' : '' }; }
+  if (run.outcome === 'failed') { const failure = runFailure(run); return { text: failure?.infra ? 'Infrastructure fault' : (failure?.label ?? 'Failed'), tone: failure?.infra ? 'machine' : 'failed', fix: failure && !failure.infra ? failure.next ?? '' : '' }; }
   const outcome = runOutcome(run.outcome);
   return { text: outcome?.short ?? outcome?.label ?? 'Finished', tone: outcome?.tone ?? 'neutral', fix: run.outcome === 'stuck' ? stuckFix : '' };
 }
@@ -223,7 +223,7 @@ function stageCell(lane, stage) {
     const stuck = landed?.stuck ? ` · <a class="fb-stuck" href="${escape(`#runs?team=${encodeURIComponent(lane.team)}&outcome=stuck&from=now-24h&to=now`)}" title="${escape(`${stuckFix}.`)}">${landed.stuck} stuck · see why</a>` : '';
     const count = landed ? `<span class="fb-landed-count num">${landed.finished}</span><span class="fb-landed-note">${landed.finished ? `${landed.failed ? `${landed.failed} failed` : 'none failed'}${stuck}` : 'no Run'}</span>` : '<span class="fb-landed-note">Not known</span>';
     const tones = lane.trail.reduce((counts, tick) => ({ ...counts, [tick.tone]: (counts[tick.tone] ?? 0) + 1 }), {});
-    const said = Object.entries(tones).map(([tone, n]) => `${n} ${{ success: 'changed something', neutral: 'without a change', attention: 'stuck', failed: 'failed', machine: 'ended by the machine', live: 'running', review: 'reviewed' }[tone] ?? tone}`).join(', ');
+    const said = Object.entries(tones).map(([tone, n]) => `${n} ${{ success: 'changed something', neutral: 'without a change', attention: 'stuck', failed: 'failed', machine: 'stopped by an infrastructure fault', live: 'running', review: 'reviewed' }[tone] ?? tone}`).join(', ');
     const trail = lane.trail.length ? `<span class="fb-trail" role="img" aria-label="${escape(`Last ${plural(lane.trail.length, 'Run')}, oldest first: ${said}`)}">${lane.trail.map(tick => `<span class="${cx('fb-tick', `is-${tick.tone}`)}" title="${escape(tick.label)}"></span>`).join('')}</span>` : '';
     return `<li class="fb-cell is-landed">${head}<span class="fb-landed">${count}</span>${trail}</li>`;
   }

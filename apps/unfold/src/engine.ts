@@ -49,7 +49,7 @@ const waitMessages: Record<Provisioning['phase'], string> = {
   preparing: 'Creating the workspace.',
   scheduling: 'Finding a machine for the workspace.',
   capacity: 'Waiting for a free machine. Every machine is busy; nothing is being charged while the workspace waits.',
-  creating: 'A machine took the workspace. Attaching its storage and downloading the workspace image.',
+  creating: 'Found a machine for the workspace. Attaching its disk and downloading the workspace image.',
   image_unavailable: 'The workspace image cannot be downloaded. Unfold keeps trying until the time limit.',
   container_error: 'The workspace container cannot start. Unfold keeps trying until the time limit.',
   cloning: 'Cloning the repository into the workspace.',
