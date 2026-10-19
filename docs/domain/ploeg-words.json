@@ -284,7 +284,7 @@
       "values": [
         {
           "value": "infra_node",
-          "label": "The machine ended the Run",
+          "label": "The machine running the Run failed",
           "mcp": "infra_node"
         },
         {
@@ -294,7 +294,7 @@
         },
         {
           "value": "agent_error",
-          "label": "The agent harness failed",
+          "label": "The agent exited with an error",
           "mcp": "agent_error"
         },
         {
