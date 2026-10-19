@@ -67,7 +67,7 @@ UNFOLD_COOKIE='<cookie name>=<value>' mise exec -- npm run workbench:record -- v
 | `dial.js` | the Shift dial |
 | `fold-strip.js` | the stages as folds, full or row-sized |
 | `layouts.js` | the cockpit, instrument and fleet pages |
-| `fleet.js` | the fleet board Now shows while the `now.fleet` Labs flag is on: `fleetModel()` from a Now and a 24-hour summary response, the headline and totals, the airspace (a lane per Team, a plane per Work Item from the gate to landed, approach lights while a pull request waits, the last Runs as a contrail) and the departures and arrivals boards on the night ground. Its fixtures are in `fleet-fixtures.js` |
+| `fleet.js` | the fleet board Now shows while the `now.fleet` Labs flag is on: `fleetModel()` from a Now and a 24-hour summary response, the headline and totals, the airspace (a lane per Team, a plane per Work Item from the gate to landed with how long it waited, approach lights while a pull request waits, the last Runs as a contrail) and the tasks Ploeg refused with why, and the departures and arrivals boards on the night ground. Its fixtures are in `fleet-fixtures.js` |
 
 `fixtures.js` holds the scenarios: VIK-2049 as it ran, first try, stalled, close to budget, a fix round after review, timed out and waiting for a worker, ready for review, needs you after agent failures, out of budget, stopped retrying after ten machine failures, withdrawn mid-Run, landed, queued, usage not reported, and a stress case with 40 Runs and 240 calls.
 
