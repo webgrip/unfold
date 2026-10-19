@@ -78,6 +78,14 @@ export type PloegNowDisagreement = { round: number; acting: string; shadow: stri
 export type PloegRefusalCode = 'label_missing' | 'label_not_allowed' | 'label_unregistered' | 'multiple_labels' | 'labels_unread' | 'no_board_rule' | 'target_not_ready' | 'unclassified';
 /** A tracker task Ploeg could not start because routing refused it. It is not a Work Item: none exists. `board` names the task source whose provider and project match the task, or is empty; `link` says whether `url` is the task itself, the tracker's root or absent. */
 export type PloegRefusal = { provider: string; externalId: string; externalScope: string; team: string; title: string; labels: string[]; code: PloegRefusalCode; reason: string; allowedLabels: string[]; refusedAt: string; board: string; url: string; link: 'task' | 'tracker' | 'none' };
+/** A repository Ploeg can route work to (Ploeg ADR-0129): a registered target keyed by its target key, or one a board names directly, keyed `owner/name@branch`. `lastForgeEventAt` is when its forge last sent Ploeg an event in the last `eventWindowDays`. */
+export type PloegConnectionRepository = { key: string; label: string | null; forge: string; owner: string; repo: string; baseBranch: string; readiness: 'ready' | 'not_ready' | 'unknown'; reason: string; lastForgeEventAt: string | null; boards: string[] };
+/** An Unfold task source that shows a board's tasks, and whether its Ploeg target is one the board routes to. */
+export type PloegConnectionSource = { id: string; name: string; target: string; routed: boolean };
+/** A tracker board Ploeg routes (Ploeg ADR-0129), with its tracker webhook, whether each Team's tracker user can see it, and the Unfold task sources that show it. */
+export type PloegConnectionBoard = { tracker: string; name: string; projectId: string | null; team: string | null; repository: string | null; default: string | null; allow: string[]; webhook: 'present' | 'missing' | 'unreadable' | 'unresolved' | 'unchecked'; teams: { team: string; assignees: { username: string; shared: boolean | null }[] }[]; sources: PloegConnectionSource[] };
+/** How every board and repository is wired. `supported` is false for a Ploeg that predates the connections read; `unrouted` lists the Unfold task sources that hand work to Ploeg on a board Ploeg does not route. */
+export type PloegConnections = { demo: boolean; supported: boolean; checkedAt: string | null; eventWindowDays: number; repositories: PloegConnectionRepository[]; boards: PloegConnectionBoard[]; unrouted: { id: string; name: string; provider: string; project: string }[]; fetchedAt: string };
 export type PloegNowGroup = 'waiting' | 'active' | 'running' | 'recent' | 'refused';
 export type PloegNow = { demo: boolean; teams: string[]; waiting: PloegNowItem[]; active: PloegNowItem[]; refused: PloegRefusal[]; running: PloegRunRow[]; recent: PloegRunRow[]; runningTruncated: boolean; recentTruncated: boolean; truncatedStates: PloegNowTruncatedState[]; errors: Partial<Record<PloegNowGroup, string>>; fetchedAt: string };
 export type PloegNowTruncatedState = 'awaiting_review' | 'needs_human' | 'proposed' | 'leased' | 'queued';
@@ -257,6 +265,19 @@ function routeRefusal(value: unknown): Omit<PloegRefusal, 'board' | 'url' | 'lin
   const code = field(data.code, 64);
   return { provider: field(data.provider, 128), externalId: field(data.externalId, 256), externalScope: field(data.externalScope, 512), team: field(data.team, 128), title: field(data.title, 4096), labels: array(data.labels, entry => field(entry, 512), 200), code: (refusalCodes as string[]).includes(code) ? code as PloegRefusalCode : 'unclassified', reason: field(data.reason, 4096), allowedLabels: array(data.allowedLabels, entry => field(entry, 512), 200), refusedAt: timestamp(data.refusedAt) };
 }
+const readinessValues: PloegConnectionRepository['readiness'][] = ['ready', 'not_ready', 'unknown'];
+const webhookValues: PloegConnectionBoard['webhook'][] = ['present', 'missing', 'unreadable', 'unresolved', 'unchecked'];
+function known<T extends string>(value: unknown, values: T[], fallback: T): T { const text = field(value, 64); return (values as string[]).includes(text) ? text as T : fallback; }
+function connectionRepository(value: unknown): PloegConnectionRepository {
+  const data = record(value);
+  return { key: field(data.key, 512), label: nullable(data.label, entry => field(entry, 256)), forge: field(data.forge, 128), owner: field(data.owner, 256), repo: field(data.repo, 256), baseBranch: field(data.baseBranch, 256), readiness: known(data.readiness, readinessValues, 'unknown'), reason: field(data.reason, 4096), lastForgeEventAt: nullable(data.lastForgeEventAt, timestamp), boards: array(data.boards, entry => field(entry, 512), 500) };
+}
+function connectionBoard(value: unknown): Omit<PloegConnectionBoard, 'sources'> {
+  const data = record(value);
+  const text = (entry: unknown) => field(entry, 512);
+  return { tracker: field(data.tracker, 64), name: field(data.name, 512), projectId: nullable(data.projectId, text), team: nullable(data.team, text), repository: nullable(data.repository, text), default: nullable(data.default, text), allow: array(data.allow, text, 200), webhook: known(data.webhook, webhookValues, 'unchecked'), teams: array(data.teams, entry => { const t = record(entry); return { team: field(t.team, 128), assignees: array(t.assignees, raw => { const a = record(raw); return { username: field(a.username, 256), shared: nullable(a.shared, boolean) }; }, 100) }; }, 100) };
+}
+const targetText = (target: { owner: string; repo: string; baseBranch: string }) => `${target.owner}/${target.repo}${target.baseBranch ? `@${target.baseBranch}` : ''}`;
 function team(value: unknown): PloegTeam {
   const data = record(value);
   return { id: field(data.id, 100), paused: nullable(data.paused, boolean), queueDepth: numeric(data.queueDepth, true), roles: array(data.roles, value => { const role = record(value); return { id: field(role.id, 100), queueDepth: numeric(role.queueDepth, true) }; }, 100), assignees: data.assignees === undefined || data.assignees === null ? [] : array(data.assignees, value => field(value, 256), 100).filter(Boolean), pinnedScopes: data.pinnedScopes === undefined || data.pinnedScopes === null ? [] : array(data.pinnedScopes, value => field(value, 256), 500).filter(Boolean) };
@@ -1392,6 +1413,37 @@ export class PloegClient {
     }
     return { demo: this.demo, teams: teams.map(entry => entry.id), waiting: waiting.rows, active: active.rows, refused, running: running.runs, recent: recent.runs, runningTruncated: running.more, recentTruncated: recent.more, truncatedStates: [...waiting.truncated, ...active.truncated], errors, fetchedAt: new Date().toISOString() };
   }
+  /**
+   * How every board and repository Ploeg routes to is wired, read from Ploeg's connections (Ploeg ADR-0129) and
+   * matched against Unfold's own task sources. Boards pinned to a Team the person cannot read, and Teams they cannot
+   * read, are left out. A Ploeg without the read answers `supported: false` with Unfold's sources only.
+   */
+  async connections(user: User, fresh = false): Promise<PloegConnections> {
+    this.connected(user);
+    const fetchedAt = new Date().toISOString();
+    const handed = this.taskSources.filter(source => source.executionOwner === 'ploeg');
+    const unrouted = (boards: PloegConnectionBoard[]) => handed.filter(source => !boards.some(board => board.tracker === source.provider && board.projectId === source.project)).map(source => ({ id: source.id, name: source.name, provider: source.provider, project: source.project }));
+    if (this.demo) return { ...structuredClone(ploegDemo.connections), fetchedAt };
+    let data: Record<string, unknown>;
+    try { data = envelope(await this.request('connections', fresh, { added: true })); }
+    catch (error) {
+      if (error instanceof PloegError && error.code === 'ploeg_unsupported') return { demo: false, supported: false, checkedAt: null, eventWindowDays: 30, repositories: [], boards: [], unrouted: [], fetchedAt };
+      throw error;
+    }
+    const repositories = array(data.repositories, connectionRepository, 500);
+    const byKey = new Map(repositories.map(repository => [repository.key, repository]));
+    const boards = array(data.boards, connectionBoard, 500).filter(board => board.team === null || this.allowed(user, board.team)).map(board => {
+      const reachable = [board.repository, board.default, ...board.allow].filter((key): key is string => Boolean(key)).map(key => byKey.get(key)).filter(Boolean).map(repository => targetText(repository!));
+      const sources = this.taskSources.filter(source => source.provider === board.tracker && source.project === board.projectId).map(source => {
+        const target = source.ploeg?.target ? targetText(source.ploeg.target) : '';
+        return { id: source.id, name: source.name, target, routed: !target || reachable.includes(target) };
+      });
+      return { ...board, teams: board.teams.filter(entry => this.allowed(user, entry.team)), sources };
+    });
+    const visible = new Set(boards.map(board => board.name));
+    return { demo: false, supported: true, checkedAt: nullable(data.checkedAt, timestamp), eventWindowDays: numeric(data.eventWindowDays, true), repositories: repositories.map(repository => ({ ...repository, boards: repository.boards.filter(name => visible.has(name)) })), boards, unrouted: unrouted(boards), fetchedAt };
+  }
+
   private async refusals(user: User, fresh: boolean): Promise<PloegRefusal[]> {
     if (this.demo) return structuredClone(ploegDemo.refusals.filter(entry => this.allowed(user, entry.team)));
     let data: Record<string, unknown>;

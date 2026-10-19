@@ -28,6 +28,7 @@ The application lives in this repository. Ploeg lives at [github.com/ploeg-hq/pl
 | Understand the parts and why they exist | [Architecture](concepts/architecture.md) |
 | See what happens inside one agent Run: pods, sandbox, harness, credentials | [Inside a Run](concepts/inside-a-run.md) |
 | Know who uses Unfold, what they need and the ten journeys it must support | [Users and their journeys](concepts/users-and-journeys.md) |
+| Connect a repository and its board so a Team can work on it, and where that breaks today | [Connect a repository](concepts/connect-a-repository.md) |
 | Follow a whole path end to end: ticket to merge, release to production, stopping work, failures | [Journeys](concepts/journeys.md) |
 | See who Unfold is for and where it is heading | [Who Unfold is for](concepts/who-unfold-is-for.md) (the agency offering; not built yet) |
 | See how each delivered change is recorded on a card, and what that means for privacy | [Run Cards](concepts/run-cards.md) (mostly proposed) · [Works council and DPIA pack](reference/run-cards-works-council-pack.md) |

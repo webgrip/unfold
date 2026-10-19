@@ -241,7 +241,7 @@ def main(argv=None):
     unpinned.add_argument('version', help='a release version, or "latest"')
     unpinned.add_argument('--archive', type=Path, help='a bundle built by Ploeg\'s scripts/contract-bundle.sh build')
     commands.add_parser('latest', help='print the newest published release')
-    commands.add_parser('behind', help='fail when a newer release is published than the one pinned; the weekly ploeg-behind check')
+    commands.add_parser('behind', help='fail when a newer release is published than the one pinned; the nightly ploeg-behind check')
     args = parser.parse_args(argv)
     registry = Registry()
     try:

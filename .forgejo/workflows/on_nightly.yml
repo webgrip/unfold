@@ -69,3 +69,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.forgejo/actions/mcp-e2e
+
+  ploeg-behind:
+    runs-on: docker
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fail when Ploeg has published a newer release than the one Unfold pins
+        run: python3 scripts/ploeg-contract.py behind

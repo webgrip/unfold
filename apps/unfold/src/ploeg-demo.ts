@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { addDemoKpis } from './ploeg-demo-kpis.ts';
 import type { DemoKpiSpec } from './ploeg-demo-kpis.ts';
 import { fixedRarityTier, percentileRarityTier, rarityCohortMinimum, rarityFormula, rarityPercentile, rarityQuarter, rarityScore } from './rarity.ts';
-import type { PloegActivityEvent, RunCard, RunCardCondition, RunCardGates, PloegCrack, PloegCrackCandidates, PloegGate, RunCardDeployment, RunCardGrade, RunCardPlay, RunCardRarityInputs, PloegBlackboard, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRefusal, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
+import type { PloegActivityEvent, RunCard, RunCardCondition, RunCardGates, PloegCrack, PloegCrackCandidates, PloegConnections, PloegGate, RunCardDeployment, RunCardGrade, RunCardPlay, RunCardRarityInputs, PloegBlackboard, PloegCheckpoint, PloegDetail, PloegEvent, PloegItem, PloegRefusal, PloegRun, PloegRunRow, PloegShift, PloegTeam, PloegTeamSummary, PloegWindow } from './ploeg.ts';
 
 const anchor = Math.floor(Date.now() / 60_000) * 60_000;
 /** The minute, in epoch milliseconds, that every illustrative Ploeg timestamp is relative to: the clock when this module loaded. */
@@ -568,4 +568,16 @@ const refusals: PloegRefusal[] = [
   { provider: 'demo', externalId: 'DEMO-30', externalScope: 'demo', team: 'delivery', title: 'Illustrative task: show the delivery date on the order page', labels: ['do-next'], code: 'label_missing', reason: 'board rule "demo" requires a repository label and the item has none; add one of: repo/market-research, repo/order-service', allowedLabels: ['repo/market-research', 'repo/order-service'], refusedAt: ago(40), board: 'Demo', url: '', link: 'none' },
 ];
 
-export const ploegDemo = { teams, items, details, runs, events, summary, cards, cracks, crackCandidates, refusals, pageSize: 10 };
+const connections: Omit<PloegConnections, 'fetchedAt'> = {
+  demo: true, supported: true, checkedAt: ago(20), eventWindowDays: 30,
+  repositories: [
+    { key: 'order-service', label: 'order-service', forge: 'demo', owner: 'example', repo: 'order-service', baseBranch: 'main', readiness: 'ready', reason: '', lastForgeEventAt: ago(90), boards: ['Demo'] },
+    { key: 'market-research', label: 'market-research', forge: 'demo', owner: 'example', repo: 'market-research', baseBranch: 'main', readiness: 'not_ready', reason: 'example/market-research has no AGENTS.md on branch "main"', lastForgeEventAt: null, boards: ['Demo'] },
+  ],
+  boards: [
+    { tracker: 'demo', name: 'Demo', projectId: 'demo', team: null, repository: null, default: 'order-service', allow: ['market-research'], webhook: 'present', teams: [{ team: 'delivery', assignees: [{ username: 'delivery', shared: true }] }, { team: 'research', assignees: [{ username: 'research', shared: false }] }], sources: [{ id: 'demo', name: 'Demo', target: 'example/order-service@main', routed: true }] },
+  ],
+  unrouted: [],
+};
+
+export const ploegDemo = { teams, items, details, runs, events, summary, cards, cracks, crackCandidates, refusals, connections, pageSize: 10 };

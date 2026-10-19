@@ -1,5 +1,6 @@
 import { money } from './format.js';
 import { guardSignals, transcriptCalls } from './guard.js';
+import { progressCheck, raiseScore } from './checks.js';
 
 /** A Run is not judged in its first five minutes while it has no plan. */
 export const startupSeconds = 300;
@@ -27,7 +28,7 @@ export const repeatOffTrack = 5;
 export const tripwireHealth = Object.freeze({ medium: 'watch', high: 'off_track' });
 
 /** The signals, in the order a reason lists them; on a tie of the worst health the first one decides. The five after `time` judge a Run against its Work Kind's expectations (RFC-0009) and appear only when Unfold knows its Activities. */
-export const healthSignals = Object.freeze(['tripwire', 'quiet', 'pace', 'time', 'out_of_role', 'order', 'first_change', 'overstay', 'churn', 'budget', 'repeat']);
+export const healthSignals = Object.freeze(['tripwire', 'quiet', 'pace', 'time', 'out_of_role', 'order', 'first_change', 'overstay', 'churn', 'checks', 'budget', 'repeat']);
 
 /** How each health reads: a label, an existing tone, a glyph and an example of its reason line. Never colour alone. */
 export const healthStates = Object.freeze(Object.fromEntries(Object.entries({
@@ -197,6 +198,16 @@ function expectationSignals(work, now) {
   return out;
 }
 
+function checksSignal(hits, now) {
+  const shown = (hits ?? []).filter(hit => progressCheck(hit?.check) && progressCheck(hit.check).authority !== 'record' && hit.verdict !== 'wrong' && hit.score >= raiseScore);
+  if (!shown.length) return null;
+  const worst = shown.reduce((best, hit) => hit.score > best.score || (hit.score === best.score && (time(hit.at) ?? 0) >= (time(best.at) ?? 0)) ? hit : best);
+  const hitAt = time(worst.at);
+  const ago = hitAt !== null && Number.isFinite(now) ? `, ${since(Math.max(0, (now - hitAt) / 1000))} ago` : '';
+  const more = shown.length - 1;
+  return signal('checks', 'watch', `The decider says ${progressCheck(worst.check).reason} (${worst.score} of 3${ago})${more ? ` and ${more} more` : ''}`);
+}
+
 const activityWord = key => ({ change: 'changing files', verify: 'testing', ship: 'shipping', setup: 'setting up' })[key] ?? 'working';
 
 function onTrackReason(signals) {
@@ -216,12 +227,14 @@ function onTrackReason(signals) {
  * `loading`, is missing because of the `demo` or a Ploeg that does not report one (`unsupported`), or could not be
  * read (`failed`); the older `transcriptAvailable` false means `unsupported`. `work` is the Run's Work Kind, its
  * expectations and the tally of its calls' Activities (RFC-0009): with a loaded transcript it adds the Out of role,
- * Order, First change, Overstay and Churn signals that apply to that kind, none of which can make a Run On track alone. `stale` is the earlier result when the
+ * Order, First change, Overstay and Churn signals that apply to that kind, none of which can make a Run On track alone.
+ * `checks` are the decider's progress-check hits on this Run (public/core/checks.js): one a person has not marked wrong,
+ * scoring `raiseScore` (3) on a check that is shown, adds the Checks signal at Watch; the decider never makes a Run Off track. `stale` is the earlier result when the
  * facts could not be read again: it comes back unchanged, marked stale, and is never re-judged. A Run that is not
  * running has no health (null): its state badge or outcome speaks instead.
- * @param {{ run: object, entries?: object[], now: number, transcriptState?: 'loaded'|'loading'|'demo'|'unsupported'|'failed', transcriptAvailable?: boolean, stale?: object|null, tripwires?: object[]|null, allowedHosts?: string[], work?: { kind: string, label: string, expectations: object, tally: object } | null }} input
+ * @param {{ run: object, entries?: object[], now: number, transcriptState?: 'loaded'|'loading'|'demo'|'unsupported'|'failed', transcriptAvailable?: boolean, stale?: object|null, tripwires?: object[]|null, allowedHosts?: string[], work?: { kind: string, label: string, expectations: object, tally: object } | null, checks?: object[] | null }} input
  */
-export function runHealth({ run, entries = [], now, transcriptState, transcriptAvailable, stale = null, tripwires = null, allowedHosts = null, work = null }) {
+export function runHealth({ run, entries = [], now, transcriptState, transcriptAvailable, stale = null, tripwires = null, allowedHosts = null, work = null, checks = null }) {
   if (stale) return { ...stale, stale: true };
   if (run?.state !== 'running') return { health: null, signals: [], deciding: null, reason: '' };
   const state = Object.hasOwn(transcriptStates, transcriptState) ? transcriptState : transcriptAvailable === false ? 'unsupported' : 'loaded';
@@ -229,7 +242,7 @@ export function runHealth({ run, entries = [], now, transcriptState, transcriptA
   const started = limits?.startedAt ?? time(run?.startedAt);
   const elapsed = started === null ? 0 : Math.max(0, (now - started) / 1000);
   const plan = state === 'loaded' ? latestPlan(entries) : null;
-  const signals = [tripwireSignal(entries, state, tripwires, allowedHosts, now), quietSignal(entries, limits, now, state), paceSignal(plan, limits, elapsed, state), timeSignal(plan, limits, elapsed), ...(state === 'loaded' ? expectationSignals(work, now) : []), budgetSignal(run), repeatSignal(entries, state)];
+  const signals = [tripwireSignal(entries, state, tripwires, allowedHosts, now), quietSignal(entries, limits, now, state), paceSignal(plan, limits, elapsed, state), timeSignal(plan, limits, elapsed), ...(state === 'loaded' ? expectationSignals(work, now) : []), ...[checksSignal(checks, now)].filter(Boolean), budgetSignal(run), repeatSignal(entries, state)];
   const judged = signals.filter(entry => entry.judged);
   const worst = judged.reduce((current, entry) => !current || rank[entry.health] > rank[current.health] ? entry : current, null);
   const startup = started !== null && elapsed < startupSeconds && !plan?.length;
