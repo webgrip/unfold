@@ -14,7 +14,7 @@ import { enabled, exposed, track } from '../core/flags.js';
 import { segmented } from '../core/ui.js';
 import { fleetBoard, fleetModel } from '../live/fleet.js';
 import { taskStandings } from '../handoff.js';
-import { handedMarkup, pendingHandoffs, retryMarkup, roomOf, sheetMarkup, startCard, startQueue, suggestedTeam, taskKey } from '../start.js';
+import { handedMarkup, labelledTeam, pendingHandoffs, retryMarkup, roomOf, sheetMarkup, startCard, startQueue, suggestedTeam, taskKey } from '../start.js';
 
 const baselineKey = 'unfold.nowSince';
 const view = Object.assign(state.now, { summary: { data: null, error: null }, summaryRequest: 0, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false, keepFocus: false });
@@ -80,6 +80,17 @@ function modeSwitch(fleet) {
 
 const start = { lists: new Map(), loading: false, loaded: false, handed: [], sheet: null, week: null, weekAt: 0 };
 const teamKey = 'unfold.handoffTeam';
+const boardKey = 'unfold.startBoard';
+
+function chosenBoard() {
+  try { return globalThis.localStorage?.getItem(boardKey) || ''; } catch { return ''; }
+}
+
+function chooseBoard(element) {
+  try { globalThis.localStorage?.setItem(boardKey, element.dataset.board || ''); } catch {}
+  renderNow();
+  document.querySelector(`[data-action="start-board"][data-board="${CSS.escape(element.dataset.board || '')}"]`)?.focus({ preventScroll: true });
+}
 const weekFor = 5 * 60 * 1000;
 
 function loopShown() {
@@ -106,7 +117,7 @@ function startLane(standings) {
   const errors = sources.map(source => start.lists.get(source.id)?.error).filter(Boolean);
   const failed = sources.length > 0 && errors.length === sources.length;
   const queue = !start.loaded || failed ? null : startQueue(lists, standings, start.handed);
-  return startCard({ queue, sources, error: failed ? errors[0] : '', room: roomOf(view.data), singleKeys: singleKeysEnabled(), demo: Boolean(view.data?.demo) });
+  return startCard({ queue, sources, error: failed ? errors[0] : '', room: roomOf(view.data), singleKeys: singleKeysEnabled(), demo: Boolean(view.data?.demo), board: chosenBoard() });
 }
 
 function loopContent() {
@@ -311,7 +322,7 @@ function renderSheet() {
   const source = taskSources().find(entry => entry.id === sheet.sourceId);
   if (!task || !source) { dialog.close(); return; }
   const focused = dialog.contains(document.activeElement) ? document.activeElement.id : '';
-  const team = sheet.team || suggestedTeam(sheet.status?.teams, rememberedTeam(sheet.sourceId));
+  const team = sheet.team || suggestedTeam(sheet.status?.teams, rememberedTeam(sheet.sourceId), labelledTeam(task));
   dialog.innerHTML = sheetMarkup({ task, source, repository: source.repositoryId ? repoName(source.repositoryId) : '', status: sheet.status, statusError: sheet.statusError, summary: start.week, team, remembered: rememberedTeam(sheet.sourceId), busy: sheet.busy, error: sheet.error, room: roomOf(view.data), singleKeys: singleKeysEnabled() });
   const target = (focused && document.getElementById(focused)) || document.querySelector('#sheet-submit:not([disabled])') || dialog.querySelector('[data-action="close-dialog"]');
   target?.focus();
@@ -353,7 +364,7 @@ function chooseTeam(element, event) {
 async function handOff(data) {
   const sheet = start.sheet;
   const task = sheet && sheetTask(sheet);
-  const team = data.team || sheet?.team || suggestedTeam(sheet?.status?.teams, rememberedTeam(sheet?.sourceId));
+  const team = data.team || sheet?.team || suggestedTeam(sheet?.status?.teams, rememberedTeam(sheet?.sourceId), labelledTeam(task));
   if (!sheet || !task || !team || sheet.busy) return;
   sheet.busy = true; sheet.error = '';
   renderSheet();
@@ -468,6 +479,7 @@ export default {
     'start-sheet-retry': () => { if (start.sheet) { start.sheet.status = null; renderSheet(); loadSheet(); } },
     'start-take-back': takeBack,
     'loop-retry': openRetry,
+    'start-board': chooseBoard,
   },
   forms: { 'start-handoff': handOff, 'loop-retry': retry },
   changes: { '[data-form="start-handoff"]': chooseTeam },

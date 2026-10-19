@@ -6,11 +6,12 @@ import { badge, button, callout, count, demoNote, emptyState, kbd, listRow, skel
 /** How many agent pull requests may wait for your review before the Start lane says to decide first. */
 export const reviewRoom = 4;
 
-/** How many Ready tasks the Start lane lists before it points to Tasks. */
-export const startLimit = 8;
+/** How many tasks the Start lane lists as up next before it points to Tasks. */
+export const startLimit = 5;
 
 const readyLabels = ['ready', 'agent-ready', 'do-next'];
 const unreadyLabels = ['needs-refinement', 'needs-info', 'blocked', 'on-hold', 'wontfix'];
+const epic = task => /^epic\b/i.test(String(task?.title ?? '').trim()) || labelsOf(task).includes('epic');
 const acceptance = /acceptance|done when|definition of done|verification|^\s*[-*] \[ \]/im;
 const moving = ['ingested', 'queued'];
 const labelsOf = task => (Array.isArray(task?.labels) ? task.labels : []).map(label => String(label?.name ?? '').trim().toLowerCase()).filter(Boolean);
@@ -23,7 +24,8 @@ export const taskKey = task => `${task.provider}:${task.id}`;
 /**
  * What Unfold can tell about a task before anyone spends on it, from the task alone: its ready or not-ready label,
  * whether it has a brief and whether that brief names acceptance conditions. Each fact is `ok` true, false or null
- * (not found, which is not a failure). `state` is `ready` when every fact holds, `blocked` when a fact fails, else `check`.
+ * (not found, which is not a failure). `state` is `ready` only when a person labelled it ready and every fact holds,
+ * `blocked` when a fact fails, else `check`.
  * @param {object} task A task snapshot from `GET /api/task-sources/:source/tasks`.
  * @returns {{ state: 'ready'|'check'|'blocked', label: string, tone: string, facts: { ok: boolean|null, text: string }[] }}
  */
@@ -38,14 +40,16 @@ export function readiness(task) {
   facts.push(brief ? { ok: true, text: `Brief of ${plural(words(brief), 'word')}` } : { ok: false, text: 'No brief: an agent would start from the title alone' });
   if (brief) facts.push(acceptance.test(brief) ? { ok: true, text: 'Names acceptance conditions' } : { ok: null, text: 'No acceptance conditions found in the brief' });
   if (facts.some(fact => fact.ok === false)) return { state: 'blocked', label: unready ? 'Not ready' : 'No brief', tone: 'attention', facts };
-  if (facts.every(fact => fact.ok === true)) return { state: 'ready', label: 'Ready', tone: 'success', facts };
-  return { state: 'check', label: 'Check the brief', tone: 'neutral', facts };
+  if (marked && facts.every(fact => fact.ok === true)) return { state: 'ready', label: 'Marked ready', tone: 'success', facts };
+  if (!marked) facts.unshift({ ok: null, text: 'Not labelled ready in the tracker' });
+  return { state: 'check', label: 'Not marked ready', tone: 'neutral', facts };
 }
 
 /**
- * The tasks the Start lane offers, from every listed connection: open, not with Ploeg in any state Now reports, and
- * not handed over from this page in the meantime. Ready ones come first, then by tracker priority, then the most
- * recently updated. The tracker owns priority; this only orders what it reported.
+ * The tasks the Start lane offers, from every listed connection: open, not an epic, not with Ploeg in any state Now
+ * reports, and not handed over from this page in the meantime. Tasks labelled ready come first, then the rest, then
+ * not-ready ones; within each, by tracker priority, then the most recently updated. The tracker owns priority; this
+ * only orders what it reported.
  * @param {{ sourceId: string, tasks: object[] }[]} lists
  * @param {Map<string, object>} standings `taskStandings` of the Now response.
  * @param {{ sourceId: string, taskId: string }[]} [handed]
@@ -55,7 +59,7 @@ export function startQueue(lists, standings, handed = []) {
   const away = new Set(handed.map(entry => `${entry.sourceId}:${entry.taskId}`));
   const rank = { ready: 0, check: 1, blocked: 2 };
   return lists.flatMap(({ sourceId, tasks }) => (Array.isArray(tasks) ? tasks : [])
-    .filter(task => task.status === 'open' && !standings.has(taskKey(task)) && !away.has(`${sourceId}:${task.id}`))
+    .filter(task => task.status === 'open' && !epic(task) && !standings.has(taskKey(task)) && !away.has(`${sourceId}:${task.id}`))
     .map(task => ({ task, sourceId, readiness: readiness(task) })))
     .sort((a, b) => rank[a.readiness.state] - rank[b.readiness.state] || (b.task.priority ?? 0) - (a.task.priority ?? 0) || moment(b.task.updatedAt) - moment(a.task.updatedAt));
 }
@@ -86,19 +90,41 @@ export function pendingHandoffs(handed, standings) {
 function roomMarkup(room) {
   if (!room) return '';
   const cells = Array.from({ length: room.size }, (_, index) => `<span class="start-room-cell"${index < room.used ? ' data-used' : ''}></span>`).join('');
-  const text = room.full ? `Review room full: ${plural(room.used, 'pull request')} ${room.used === 1 ? 'waits' : 'wait'} for you` : `Review room: ${formatCount(room.size - room.used)} of ${formatCount(room.size)} free`;
-  return `<p class="start-room"${room.full ? ' data-full' : ''}><span class="start-room-cells" aria-hidden="true">${cells}</span><span>${escape(text)}</span></p>`;
+  const free = room.size - room.used;
+  const text = room.full ? `Review room full: ${plural(room.used, 'pull request')} ${room.used === 1 ? 'waits' : 'wait'} for you` : `Room for ${plural(free, 'more review')}`;
+  const why = `Unfold suggests at most ${room.size} agent pull requests waiting for your review at once. ${formatCount(room.used)} wait now.`;
+  return `<p class="start-room"${room.full ? ' data-full' : ''} title="${escape(why)}"><span class="start-room-cells" aria-hidden="true">${cells}</span><span>${escape(text)}</span></p>`;
 }
 
 function readyBadge(state) {
   return badge({ label: state.label, tone: state.tone, glyph: state.state === 'ready' ? 'check' : state.state === 'blocked' ? 'alert' : 'help-circle', size: 'sm' });
 }
 
+/** The Team a task's own `team/<name>` label asks for, or empty. */
+export function labelledTeam(task) {
+  const label = labelsOf(task).find(name => name.startsWith('team/'));
+  return label ? label.slice('team/'.length) : '';
+}
+
+function rowFacts(entry, sourceName) {
+  const { task } = entry;
+  const labels = labelsOf(task);
+  const facts = [];
+  if (entry.readiness.state !== 'check') facts.push(readyBadge(entry.readiness));
+  if (labels.includes('spike')) facts.push(badge({ label: 'Spike', tone: 'neutral', size: 'sm' }));
+  facts.push(escape(task.identifier || `#${task.id}`));
+  if (sourceName) facts.push(escape(sourceName));
+  const effort = labels.find(name => name.startsWith('effort/'));
+  if (effort) facts.push(escape(`size ${effort.slice('effort/'.length).toUpperCase()}`));
+  const team = labelledTeam(task);
+  if (team) facts.push(escape(`for ${team}`));
+  if ((task.priority ?? 0) >= 3) facts.push(escape(task.priority >= 4 ? 'urgent' : 'high priority'));
+  return `<span class="now-facts"><span class="now-facts-list">${facts.map(fact => `<span>${fact}</span>`).join('')}</span></span>`;
+}
+
 function startRow(entry, sourceName) {
   const { task, sourceId } = entry;
-  const ref = task.identifier || `#${task.id}`;
-  const meta = `<span class="now-facts"><span class="now-facts-list"><span>${readyBadge(entry.readiness)}</span><span>${escape(ref)}</span>${sourceName ? `<span>${escape(sourceName)}</span>` : ''}</span></span>`;
-  const row = listRow({ action: 'start-open', data: { source: sourceId, task: task.id, nowRow: true }, id: `start-row-${sourceId}-${task.id}`, tone: entry.readiness.state === 'ready' ? 'neutral' : entry.readiness.tone, lead: icon('tasks'), title: task.title || `Task ${task.id}`, meta, trail: `<span class="start-row-go" aria-hidden="true">Hand off</span>` });
+  const row = listRow({ action: 'start-open', data: { source: sourceId, task: task.id, nowRow: true }, id: `start-row-${sourceId}-${task.id}`, tone: entry.readiness.state === 'blocked' ? 'attention' : 'neutral', lead: icon('tasks'), title: task.title || `Task ${task.id}`, meta: rowFacts(entry, sourceName), trail: `<span class="start-row-go" aria-hidden="true">${icon('arrow')}Hand off</span>` });
   return `<li class="now-item start-item">${row}</li>`;
 }
 
@@ -123,28 +149,39 @@ export function handedMarkup(entries, standings) {
   return `<ul class="start-handed-list" aria-label="Handed over from Now">${entries.map(entry => handedRow(entry, standings.get(entry.key))).join('')}</ul>`;
 }
 
+function boardSwitch(sources, queue, board) {
+  if (sources.length < 2 || !queue) return '';
+  const counts = new Map(sources.map(source => [source.id, 0]));
+  for (const entry of queue) counts.set(entry.sourceId, (counts.get(entry.sourceId) ?? 0) + 1);
+  const items = [{ id: '', label: `All ${formatCount(queue.length)}` }, ...sources.filter(source => counts.get(source.id)).map(source => ({ id: source.id, label: `${source.name} ${formatCount(counts.get(source.id))}` }))];
+  return `<div class="start-boards" role="group" aria-label="Board">${items.map(item => `<button type="button" class="start-board" data-action="start-board" data-board="${escape(item.id)}" aria-pressed="${item.id === board}">${escape(item.label)}</button>`).join('')}</div>`;
+}
+
 /**
- * The Start lane of the loop: the Ready tasks of every connection Ploeg runs, best first, each opening the hand-off
- * sheet, with the review room above them.
- * @param {{ queue: object[]|null, sources: object[], error?: string, room: object|null, singleKeys?: boolean, demo?: boolean }} input
+ * The Start lane of the loop: the next tasks to hand off from every connection Ploeg runs, best first, each opening
+ * the hand-off sheet, with the review room above them and a board switch when there are several boards. `board` is the
+ * chosen connection id, or empty for all.
+ * @param {{ queue: object[]|null, sources: object[], error?: string, room: object|null, singleKeys?: boolean, demo?: boolean, board?: string }} input
  * @returns {string}
  */
-export function startCard({ queue, sources, error = '', room, singleKeys = false, demo = false }) {
+export function startCard({ queue, sources, error = '', room, singleKeys = false, demo = false, board = '' }) {
   const names = new Map(sources.map(source => [source.id, source.name]));
-  const total = queue ? queue.length : null;
+  const chosen = board && queue?.some(entry => entry.sourceId === board) ? board : '';
+  const shownQueue = queue && chosen ? queue.filter(entry => entry.sourceId === chosen) : queue;
   let body;
   if (!sources.length) body = emptyState({ icon: 'tasks', compact: true, title: 'No task connection hands work to Ploeg', body: 'An administrator connects a Vikunja board with executionOwner "ploeg". Its open tasks show up here to hand off.' });
   else if (error && !queue) body = emptyState({ icon: 'x-circle', compact: true, tone: 'danger', title: 'Could not list your tasks', body: escape(error), actions: button({ label: 'Try again', icon: 'refresh', size: 'sm', action: 'start-reload', id: 'start-reload' }) });
   else if (!queue) body = skeleton({ rows: 3 });
   else if (!queue.length) body = emptyState({ icon: 'check-circle', compact: true, title: 'Nothing left to start', body: 'Every open task is with Ploeg already. Make more work Ready in your tracker.', actions: button({ label: 'Open Tasks', size: 'sm', variant: 'ghost', href: '#tasks', id: 'start-tasks' }) });
   else {
-    const shown = queue.slice(0, startLimit);
-    const more = queue.length > shown.length ? `<li class="now-item now-more-item"><a class="now-more" href="#tasks">${escape(`Show ${formatCount(queue.length - shown.length)} more in Tasks`)}${icon('chevron')}</a></li>` : '';
-    body = `<ul class="list now-list start-list" aria-labelledby="loop-start-title">${shown.map(entry => startRow(entry, sources.length > 1 ? names.get(entry.sourceId) : '')).join('')}${more}</ul>`;
+    const shown = shownQueue.slice(0, startLimit);
+    const rest = shownQueue.length - shown.length;
+    const more = rest > 0 ? `<li class="now-item now-more-item"><a class="now-more" href="#tasks">${escape(`${formatCount(rest)} more open ${rest === 1 ? 'task' : 'tasks'} in Tasks`)}${icon('chevron')}</a></li>` : '';
+    body = `${boardSwitch(sources, queue, chosen)}<ul class="list now-list start-list" aria-labelledby="loop-start-title">${shown.map(entry => startRow(entry, sources.length > 1 && !chosen ? names.get(entry.sourceId) : '')).join('')}${more}</ul>`;
   }
-  const keys = singleKeys && total ? `<p class="now-keys" aria-hidden="true">${kbd('h')}<span>hand off</span></p>` : '';
-  const warn = room?.full && total ? `<p class="start-decide-first">${icon('alert')}<span>Decide on what waits first. You can still hand off; the work queues behind your review.</span></p>` : '';
-  return `<section class="card flush now-card loop-start" aria-labelledby="loop-start-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-start-title">Start${total ? count(total) : ''}</h2>${roomMarkup(room)}</div><div class="card-actions">${keys}</div></header><div class="card-body">${demo && sources.some(source => source.provider === 'demo') ? demoNote('Fixture tasks · a hand-off needs a live Vikunja board and Ploeg') : ''}${warn}${body}</div></section>`;
+  const keys = singleKeys && queue?.length ? `<p class="now-keys" aria-hidden="true">${kbd('h')}<span>hand off</span></p>` : '';
+  const warn = room?.full && queue?.length ? `<p class="start-decide-first">${icon('alert')}<span>Decide on what waits first. You can still hand off; the work queues behind your review.</span></p>` : '';
+  return `<section class="card flush now-card loop-start" aria-labelledby="loop-start-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-start-title">Up next</h2>${roomMarkup(room)}</div><div class="card-actions">${keys}</div></header><div class="card-body">${demo && sources.some(source => source.provider === 'demo') ? demoNote('Fixture tasks · a hand-off needs a live Vikunja board and Ploeg') : ''}${warn}${body}</div></section>`;
 }
 
 function teamFacts(team, summary) {
@@ -160,9 +197,10 @@ function teamFacts(team, summary) {
   return facts;
 }
 
-/** The Team a sheet starts on: the one last used for this connection if it is still offered, otherwise the first. */
-export function suggestedTeam(teams, remembered) {
+/** The Team a sheet starts on: the one the task's `team/<name>` label asks for, else the one last used for this connection, else the first, each only while it is on offer. */
+export function suggestedTeam(teams, remembered, labelled = '') {
   if (!Array.isArray(teams) || !teams.length) return '';
+  if (teams.some(team => team.id === labelled)) return labelled;
   return teams.some(team => team.id === remembered) ? remembered : teams[0].id;
 }
 
@@ -185,7 +223,7 @@ export function sheetMarkup({ task, source, repository = '', status, statusError
   if (!status && !statusError) teamBody = skeleton({ rows: 2 });
   else if (statusError) teamBody = callout({ tone: 'danger', title: 'Could not ask Ploeg', body: `<p>${escape(statusError)} Nothing was handed over.</p>`, actions: button({ label: 'Try again', icon: 'refresh', size: 'sm', action: 'start-sheet-retry', id: 'start-sheet-retry' }) });
   else if (!teams.length) teamBody = `<p class="sheet-none">${escape(status.handoff?.reason || 'No Team of yours can take this task.')}</p>`;
-  else teamBody = `<fieldset class="sheet-teams"><legend class="sr-only">Team</legend>${teams.map((entry, index) => `<label class="sheet-team" for="sheet-team-${escape(entry.id)}"><input type="radio" id="sheet-team-${escape(entry.id)}" name="team" value="${escape(entry.id)}"${entry.id === chosen?.id ? ' checked' : ''}${busy ? ' disabled' : ''}><span class="sheet-team-name">${escape(entry.id)}</span>${entry.id === remembered ? '<span class="sheet-team-why">last used here</span>' : singleKeys && index < 9 ? `<span class="sheet-team-key" aria-hidden="true">${index + 1}</span>` : ''}<span class="sheet-team-roles">${escape(entry.roles.length ? entry.roles.join(' → ') : 'No Roles reported')}</span><span class="sheet-team-facts">${teamFacts(entry, perTeam.get(entry.id)).map(fact => `<span>${escape(fact)}</span>`).join('')}</span></label>`).join('')}</fieldset>`;
+  else teamBody = `<fieldset class="sheet-teams"><legend class="sr-only">Team</legend>${teams.map((entry, index) => `<label class="sheet-team" for="sheet-team-${escape(entry.id)}"><input type="radio" id="sheet-team-${escape(entry.id)}" name="team" value="${escape(entry.id)}"${entry.id === chosen?.id ? ' checked' : ''}${busy ? ' disabled' : ''}><span class="sheet-team-name">${escape(entry.id)}</span>${entry.id === labelledTeam(task) ? `<span class="sheet-team-why">labelled team/${escape(entry.id)}</span>` : entry.id === remembered ? '<span class="sheet-team-why">last used here</span>' : singleKeys && index < 9 ? `<span class="sheet-team-key" aria-hidden="true">${index + 1}</span>` : ''}<span class="sheet-team-roles">${escape(entry.roles.length ? entry.roles.join(' → ') : 'No Roles reported')}</span><span class="sheet-team-facts">${teamFacts(entry, perTeam.get(entry.id)).map(fact => `<span>${escape(fact)}</span>`).join('')}</span></label>`).join('')}</fieldset>`;
   const allowed = Boolean(status?.available && status.handoff?.allowed && chosen && !status.assignedTeams?.length);
   const held = status?.assignedTeams?.length ? `Already handed to ${status.assignedTeams.join(', ')}.` : status?.message && !status.handoff?.allowed ? status.message : '';
   const refusal = status && !statusError && !allowed && teams.length ? `<p class="sheet-none">${escape(held || status.handoff?.reason || 'Ploeg does not take this task right now.')}</p>` : '';

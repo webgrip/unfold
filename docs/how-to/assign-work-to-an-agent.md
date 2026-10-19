@@ -60,7 +60,7 @@ ClickUp is only registered when `PLOEG_CLICKUP_SECRET` or `PLOEG_CLICKUP_TOKEN` 
 
 ## Hand it off from Now
 
-With **The loop on Now** turned on under Settings › Labs, Now ends in a **Start** lane: the open tasks of every board Ploeg runs that no Team holds yet, ready ones first. Press `h` on one, or click it, to open the hand-off sheet. It shows what Unfold reads from the task (a ready or not-ready label, a brief, acceptance conditions), each Team you may use with its Roles, queue and last 7 days, and what handing it over does: Unfold assigns the Team's tracker user and leaves a comment, exactly as in step 2. The hand-off then shows under **Just handed over** with **Take back** until a worker starts it. When four agent pull requests already wait for you, the lane says to decide first, but still lets you hand off.
+With **The loop on Now** turned on under Settings › Labs, Now ends in an **Up next** lane: the next five open tasks of the boards Ploeg runs that no Team holds yet, ones labelled `ready` first and epics left out, with a switch per board. Press `h` on one, or click it, to open the hand-off sheet. It shows what Unfold reads from the task (a ready or not-ready label, a brief, acceptance conditions), each Team you may use with its Roles, queue and last 7 days, and what handing it over does: Unfold assigns the Team's tracker user and leaves a comment, exactly as in step 2. The hand-off then shows under **Just handed over** with **Take back** until a worker starts it. When four agent pull requests already wait for you, the lane says to decide first, but still lets you hand off.
 
 ## Watch progress and spend
 

@@ -292,6 +292,14 @@ function waitingActions(entry, context, reason) {
   return `<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary" data-insight="now.row.primary">${primary}</span><span class="now-action-links" data-insight="now.row.link">${links.join('')}</span></div>`;
 }
 
+function lastRunLine(entry, context) {
+  const last = context.lastFailure?.get(String(entry.id));
+  if (!last || entry.question?.text) return '';
+  const where = [last.role, last.round ? `Round ${last.round}` : ''].filter(Boolean).join(', ');
+  const times = last.count > 1 ? ` · ${last.count} failed Runs lately` : '';
+  return `<span class="now-why now-last-run">${icon('x-circle')}<span>Last Run: ${escape(last.label)}${where ? ` (${escape(where)})` : ''}${escape(times)}</span></span>`;
+}
+
 function retryHere(reason, context) {
   if (!context.retryHere || !reason?.requeue) return reason;
   return { ...reason, requeue: 'Then press Try again.', action: `${reason.fix} Then press Try again.` };
@@ -311,7 +319,7 @@ function waitingRow(entry, context, grouped = false) {
     tone: reason?.tone || meta.tone,
     lead: icon(reason ? reasonGlyph(reason) : meta.glyph),
     title: entry.title || `Work Item ${entry.id}`,
-    meta: waitingMeta(entry, context, { reason, warning, grouped }),
+    meta: `${waitingMeta(entry, context, { reason, warning, grouped })}${lastRunLine(entry, context)}`,
     trail: when ? `<span class="now-when"><span class="now-when-label">${created ? 'Created' : 'Updated'} </span>${format.timeHtml(when, { now: context.now })}</span>` : '',
     data: { nowRow: true, openUrl: target?.href, openLabel: target?.label, unread: unread || null },
   });
@@ -413,7 +421,7 @@ function refusalRow(entry, context) {
   const href = safeUrl(entry.url);
   const tracker = trackerNames[entry.provider] || '';
   const label = entry.link === 'task' ? `Open in ${tracker || 'its tracker'}` : `Open ${tracker || 'the tracker'}`;
-  const primary = href && entry.link !== 'none' ? button({ id: `now-refused-open-${key}`, label, icon: 'external', variant: 'primary', size: 'sm', href, external: true, ariaLabel: `${label}: “${entry.title || entry.externalId}” (opens in a new tab)` }) : '';
+  const primary = href && entry.link !== 'none' ? button({ id: `now-refused-open-${key}`, label, icon: 'external', variant: 'secondary', size: 'sm', href, external: true, ariaLabel: `${label}: “${entry.title || entry.externalId}” (opens in a new tab)` }) : '';
   return `<li class="now-item">${row}<div class="now-item-actions"${primary ? ' data-primary' : ''}><span class="now-action-primary">${primary}</span><span class="now-action-links"></span></div></li>`;
 }
 
@@ -522,7 +530,7 @@ function runningCard(view, context) {
   return `<section class="card flush now-card now-running" aria-labelledby="now-running-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-running-title">In flight${label}</h2></div><div class="card-actions">${button({ id: 'now-running-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=running', ariaLabel: 'View all running Runs' })}</div></header><div class="card-body">${body}</div></section>`;
 }
 
-function recentRow(run, context) {
+function recentRow(run, context, earlier = 0) {
   const outcome = runOutcome(run.outcome);
   const tone = outcome?.tone || 'neutral';
   const failure = runFailure(run);
@@ -534,6 +542,7 @@ function recentRow(run, context) {
     failure ? escape(failure.label) : '',
     run.role ? escape(run.role) : '',
     run.round ? `Round ${escape(run.round)}` : '',
+    earlier ? `+${escape(format.count(earlier))} earlier ${earlier === 1 ? 'Run' : 'Runs'}` : '',
   ]);
   const agentReview = verdict ? badge({ tone: verdict.tone, glyph: verdict.glyph, label: verdict.short, title: `${verdict.label}. Agent review is evidence, not a human review.`, size: 'sm' }) : '';
   return `<li>${listRow({ href: `#work/${run.workItemId}`, id: `now-row-f-${run.id}`, tone, lead: icon(outcome?.glyph || 'circle-slash'), title: run.workItemTitle || `Work Item ${run.workItemId}`, meta: `${agentReview}${facts}`, trail: format.timeHtml(run.finishedAt, { now: context.now }), data: { nowRow: true, unread: unread || null } })}</li>`;
@@ -740,38 +749,100 @@ export function nowMarkup(input, options = {}, now = Date.now()) {
 const loopGroups = {
   review: { ...groups[0], hint: 'Agents finished these. Only you can accept: merge it, or ask for changes on the forge.' },
   proposed: groups[2],
-  needs: { ...groups[1], hint: 'Ploeg stopped. Each says why; fix the cause, then Try again here.' },
+  needs: { ...groups[1], hint: '' },
 };
 
-function dayLine(view) {
+/**
+ * The counts of the loop, from one reading of the Now response: `decide` (pull requests and proposals waiting on you),
+ * `stuck` (Work Items Ploeg stopped on), `refused` (tasks Ploeg could not start), `stale` (Work Items that stopped
+ * retrying, from the summary), `moving` (running Runs and Work Items waiting to run). `needYou` adds decide, stuck and
+ * refused, the same number the Now badge shows. A group Ploeg could not list is null.
+ * @param {object} view `state.now` with `data` normalised.
+ * @returns {{ decide: number|null, stuck: number|null, refused: number|null, stale: number, moving: number|null, needYou: number|null }}
+ */
+export function loopCounts(view) {
   const data = view.data;
-  const summary = view.summary?.data;
   const waiting = data.errors?.waiting ? null : data.waiting;
   const decide = waiting ? waiting.filter(entry => ['review', 'proposed'].includes(waitingGroup(entry))).length : null;
-  const stuck = waiting ? waiting.filter(entry => waitingGroup(entry) === 'needs').length + (data.errors?.refused ? 0 : data.refused.length) : null;
+  const stuck = waiting ? waiting.filter(entry => waitingGroup(entry) === 'needs').length : null;
+  const stale = waiting ? staleCount(view) : 0;
+  const refused = data.errors?.refused ? null : data.refused.length;
   const moving = data.errors?.running ? null : data.running.length + (waitingToRun(data)?.length ?? 0);
-  const demo = Boolean(data.demo || summary?.demo);
-  const settled = summary?.totals?.spend?.settledUsd;
-  const reserved = summary?.totals?.spend?.reservedUsd;
-  const part = (value, text, tone) => `<li class="loop-day-part"${tone && value ? ` data-tone="${tone}"` : ''}><strong class="num">${value === null ? '—' : escape(format.count(value))}</strong> ${escape(text)}</li>`;
-  const spend = demo ? '<li class="loop-day-part">no spend in the demo</li>'
-    : amount(settled) ? `<li class="loop-day-part"><strong class="num">${escape(format.money(settled))}</strong> spent in 24 h${amount(reserved) && reserved > 0 ? ` · ${escape(format.money(reserved))} held` : ''}</li>`
-    : '<li class="loop-day-part">spend not known yet</li>';
-  return `<ul class="loop-day" aria-label="Today">${part(decide, 'to decide', 'review')}${part(stuck, 'stuck', 'attention')}${part(moving, 'moving', 'live')}${spend}</ul>`;
+  const needYou = decide === null || stuck === null ? null : decide + stuck + (refused ?? 0);
+  return { decide, stuck, refused, stale, moving, needYou };
 }
 
-function laneCard(id, title, hint, total, tone, body) {
-  return `<section class="card flush now-card loop-lane loop-${id}" aria-labelledby="loop-${id}-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-${id}-title">${escape(title)}${total ? count(total, { tone }) : ''}</h2><p class="loop-hint">${escape(hint)}</p></div></header><div class="card-body">${body}</div></section>`;
+function dayLine(view, counts) {
+  const summary = view.summary?.data;
+  const demo = Boolean(view.data.demo || summary?.demo);
+  const runs = summary?.totals?.runs;
+  const settled = summary?.totals?.spend?.settledUsd;
+  const reserved = summary?.totals?.spend?.reservedUsd;
+  const clear = counts.needYou === 0;
+  const head = counts.needYou === null ? 'Could not count what needs you'
+    : clear ? 'Nothing needs you'
+    : `${format.plural(counts.needYou, 'thing needs', 'things need')} you`;
+  const parts = [
+    counts.decide ? `${format.count(counts.decide)} to decide` : '',
+    counts.stuck ? `${format.count(counts.stuck)} stuck` : '',
+    counts.refused ? `${format.count(counts.refused)} could not start` : '',
+  ].filter(Boolean);
+  const day = [
+    counts.stale ? `${format.plural(counts.stale, 'Work Item')} stopped retrying` : '',
+    counts.moving === null ? '' : counts.moving ? `${format.count(counts.moving)} moving` : 'nothing moving',
+    runs && amount(runs.finished) ? `${format.plural(runs.finished, 'Run')} finished in 24 h${amount(runs.failed) && runs.failed ? `, ${format.count(runs.failed)} failed` : ''}` : '',
+    demo ? 'no spend in the demo' : amount(settled) ? `${format.money(settled)} spent${amount(reserved) && reserved > 0 ? ` + ${format.money(reserved)} held` : ''}` : '',
+  ].filter(Boolean);
+  const tone = counts.needYou === null ? 'neutral' : clear ? 'success' : 'attention';
+  return `<section class="loop-day" data-tone="${tone}" aria-labelledby="loop-day-title"><span class="loop-day-icon" aria-hidden="true">${icon(clear ? 'check-circle' : 'alert')}</span><div class="loop-day-text"><h2 class="loop-day-title" id="loop-day-title">${escape(head)}${parts.length ? `<span class="loop-day-split">: ${escape(parts.join(', '))}</span>` : ''}</h2>${day.length ? `<p class="loop-day-facts">${escape(day.join(' · '))}</p>` : ''}</div></section>`;
+}
+
+function laneCard(id, title, total, tone, body, clearText) {
+  if (!total && clearText) return `<section class="loop-lane loop-clear loop-${id}" aria-labelledby="loop-${id}-title"><span class="loop-clear-icon" aria-hidden="true">${icon('check')}</span><h2 class="loop-clear-title" id="loop-${id}-title">${escape(title)}</h2><p class="loop-clear-text">${escape(clearText)}</p></section>`;
+  return `<section class="card flush now-card loop-lane loop-${id}" aria-labelledby="loop-${id}-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-${id}-title">${escape(title)}${total ? count(total, { tone }) : ''}</h2></div></header><div class="card-body">${body}</div></section>`;
+}
+
+function failures(runs) {
+  const map = new Map();
+  for (const run of byFinish(runs)) {
+    if (run.outcome !== 'failed' || run.shadow) continue;
+    const key = String(run.workItemId);
+    const known = map.get(key);
+    if (known) { known.count += 1; continue; }
+    map.set(key, { label: runFailure(run)?.label || 'Failed', role: run.role || '', round: run.round || null, count: 1 });
+  }
+  return map;
+}
+
+function loopRecent(view, visible, held, context, hide) {
+  const error = view.data.errors?.recent;
+  const groupsById = new Map();
+  for (const run of byFinish(visible.recent)) {
+    const key = String(run.workItemId);
+    if (hide.has(key)) continue;
+    const known = groupsById.get(key);
+    if (known) known.more += 1; else groupsById.set(key, { run, more: 0 });
+  }
+  const rows = [...groupsById.values()].slice(0, recentLimit);
+  const pill = held.recent ? showNew('recent', `${format.count(held.recent)} new`) : '';
+  let body;
+  if (error) body = errorState('recent', 'Could not load finished Runs', error);
+  else if (!rows.length) body = `<p class="now-group-empty">${visible.recent.length ? 'Every recent Run belongs to work listed on the left.' : 'No Run has finished yet.'}</p>`;
+  else body = `<ul class="list now-list">${rows.map(({ run, more }) => recentRow(run, context, more)).join('')}</ul>`;
+  return `<section class="card flush now-card now-recent" aria-labelledby="now-recent-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="now-recent-title">Recently ended</h2></div><div class="card-actions">${button({ id: 'now-recent-all', label: 'View all', size: 'sm', variant: 'ghost', href: '#runs?state=finished', ariaLabel: 'View all finished Runs' })}</div></header><div class="card-body">${pill}${body}</div></section>`;
 }
 
 /**
- * Renders Now as the loop, under the `now.loop` Labs flag: one line for the day, then the lanes in the order a person
- * works them. Decide holds the pull requests and proposals only a person can accept; Unstick holds what Ploeg stopped
- * on and the tasks it refused; Start lists Ready tasks to hand off (`options.start`, markup from `start.js`). In flight,
- * with the hand-offs made from here (`options.handed`), and what finished sit beside them. `options.hideQueued` names
- * `provider:externalId` keys whose queued row the hand-off list already shows. A stopped Work Item that only needs a
- * new attempt offers Try again in its row instead of sending you to the tracker; `options.retryHere` false leaves that
- * out, as for a viewer. Loading and failure match the desk.
+ * Renders Now as the loop, under the `now.loop` Labs flag. One line says how many things need you, split into to
+ * decide, stuck and could not start (`loopCounts`, the only source of those numbers), with what moved in 24 hours.
+ * Then the lanes in the order a person works them: Decide (pull requests and proposals only a person can accept),
+ * Unstick (what Ploeg stopped on, each with its last failed Run, then the tasks it refused) and Up next (`options.start`,
+ * markup from `start.js`). A lane with nothing in it folds to one line. In flight, with the hand-offs made from here
+ * (`options.handed`), and the Runs that ended, one row per Work Item and none for work already in a lane, sit beside them.
+ * `options.hideQueued` names `provider:externalId` keys whose queued row the hand-off list already shows. A stopped Work
+ * Item that only needs a new attempt offers Try again in its row instead of sending you to the tracker;
+ * `options.retryHere` false leaves that out, as for a viewer. The digest shows only when something changed since your
+ * last visit. Loading and failure match the desk.
  * @param {object} input `state.now`, as for `nowMarkup`.
  * @param {{ start?: string, handed?: string, hideQueued?: Set<string>, retryHere?: boolean, grafanaUrl?: string, singleKeys?: boolean }} [options]
  * @param {number} [now]
@@ -784,22 +855,28 @@ export function loopMarkup(input, options = {}, now = Date.now()) {
   const active = list(input.data.active).filter(entry => !(entry.state === 'queued' && hide.has(`${entry.provider}:${entry.externalId}`)));
   const view = { ...input, data: { ...input.data, errors: input.data.errors || {}, waiting: list(input.data.waiting), refused: list(input.data.refused), running: list(input.data.running), active, recent: list(input.data.recent) } };
   const since = view.since === undefined ? null : view.since;
-  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs: view.data.errors.recent ? [] : view.data.recent, dots: true, retryHere: options.retryHere !== false };
+  const runs = view.data.errors.recent ? [] : view.data.recent;
+  const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs, dots: true, retryHere: options.retryHere !== false, lastFailure: failures(runs) };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
   const error = view.data.errors.waiting;
   const rows = byWaitingSince(visible.waiting);
-  const local = { ...context, stale: error ? 0 : staleCount(view), refused: refusedMarkup(view.data, context), truncated: new Set(waitingStates.filter(state => stateTruncated(view.data, state))) };
+  const counts = loopCounts(view);
+  const local = { ...context, stale: error ? 0 : staleCount(view), truncated: new Set(waitingStates.filter(state => stateTruncated(view.data, state))) };
   const pill = held.waiting ? showNew('waiting', format.plural(held.waiting, 'new Work Item')) : '';
   const of = group => rows.filter(entry => waitingGroup(entry) === group);
   const decideRows = [...of('review'), ...of('proposed')];
   const decide = error ? errorState('waiting', 'Could not load what waits on you', error)
-    : decideRows.length ? `${pill}${['review', 'proposed'].filter(group => of(group).length).map(group => groupMarkup(loopGroups[group], of(group), local)).join('')}`
-    : `${pill}<p class="now-group-empty">Nothing to decide. Every pull request and proposal has your answer.</p>`;
-  const unstickTotal = of('needs').length + view.data.refused.length;
-  const unstick = error ? '' : of('needs').length || local.refused || local.stale ? groupMarkup(loopGroups.needs, of('needs'), local) : '<p class="now-group-empty">Nothing is stuck.</p>';
-  const keys = context.singleKeys ? `<p class="now-keys loop-keys" aria-hidden="true">${kbd(['j', 'k'])}<span>move</span>${kbd('o')}<span>open PR or tracker</span>${kbd('h')}<span>hand off</span>${kbd('!')}<span>something in the way</span></p>` : '';
+    : `${pill}${['review', 'proposed'].filter(group => of(group).length).map(group => groupMarkup(loopGroups[group], of(group), local)).join('')}`;
+  const stuck = of('needs').length || local.stale ? needsMarkup(of('needs'), loopGroups.needs, local, 'loop-unstick-title') : '';
+  const unstick = `${stuck}${refusedMarkup(view.data, context)}`;
+  const unstickTotal = (counts.stuck ?? 0) + (counts.refused ?? 0);
+  const fresh = digestCounts(view.data, since);
+  const news = since !== null && [fresh.review, fresh.needsYou, fresh.proposed].some(value => value > 0);
   const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
-  const lanes = `${laneCard('decide', 'Decide', 'First: what only you can finish.', decideRows.length, 'review', decide)}${error ? '' : laneCard('unstick', 'Unstick', 'Then: what Ploeg could not finish alone.', unstickTotal, 'attention', unstick)}${options.start || ''}`;
-  const rail = `${options.handed ? `<section class="card flush now-card loop-handed" aria-labelledby="loop-handed-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-handed-title">Just handed over</h2></div></header><div class="card-body">${options.handed}</div></section>` : ''}${runningCard(view, { ...context, handOver: false })}${recentCard(view, visible, held, context)}${view.asksEnabled === false ? '' : asksCard(view)}`;
-  return `<div class="now now-loop"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}<div class="loop-top">${dayLine(view)}${keys}</div><div class="now-columns"><div class="now-main loop-lanes">${lanes}</div><div class="now-rail">${rail}</div></div></div>`;
+  const lanes = `${laneCard('decide', 'Decide', error ? 1 : decideRows.length, 'review', decide, 'Nothing waits for your review or approval.')}${error ? '' : laneCard('unstick', 'Unstick', unstickTotal, 'attention', unstick, 'Nothing is stuck.')}${options.start || ''}`;
+  const hideRecent = new Set(rows.map(entry => String(entry.id)));
+  const running = (view.data.errors.running ? 0 : view.data.running.length) + (waitingToRun(view.data)?.length ?? 0);
+  const flight = running || view.data.errors.running ? runningCard(view, { ...context, handOver: false }) : '<section class="loop-lane loop-clear" aria-labelledby="loop-flight-title"><span class="loop-clear-icon" aria-hidden="true">' + icon('runs') + '</span><h2 class="loop-clear-title" id="loop-flight-title">In flight</h2><p class="loop-clear-text">Nothing runs or waits for a worker.</p></section>';
+  const rail = `${options.handed ? `<section class="card flush now-card loop-handed" aria-labelledby="loop-handed-title"><header class="card-header"><div class="card-heading"><h2 class="card-title" id="loop-handed-title">Just handed over</h2></div></header><div class="card-body">${options.handed}</div></section>` : ''}${flight}${loopRecent(view, visible, held, context, hideRecent)}`;
+  return `<div class="now now-loop"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${dayLine(view, counts)}${news ? digestMarkup(view, since, now) : ''}<div class="now-columns"><div class="now-main loop-lanes">${lanes}</div><div class="now-rail">${rail}</div></div></div>`;
 }
