@@ -194,6 +194,14 @@ The call asks for `reasoning_effort: low`, since an answer is at most 120 words;
 
 While a Run runs, its row on the Work Item page shows a health badge (On track, Watch, Off track, Not judged yet or Not known) with a reason line that names its numbers ([RFC-0007](../../../../docs/design/rfc-0007-run-health.md), [ADR 0046](../adrs/0046-a-running-runs-health-is-computed-from-its-own-facts-and-a-judge-only-advises.md)). Unfold's server computes it from the Run, its limits, the tail of its transcript and the time, so every viewer sees one answer. The time-based signals need a Ploeg that serves each Run's `limits` (ploeg-hq/ploeg#160); with an older Ploeg they say Not known and Budget and Repeat still judge.
 
+Each running Run is also judged against its Work Kind ([RFC-0009](../../../../docs/design/rfc-0009-judging-a-run-by-its-kind-of-work.md)). The kind comes from rules in [`public/core/work-kind.js`](../../public/core/work-kind.js): a reading Role is a Review, a writing Run after the first Round is a Repair, a conventional title prefix (`docs:`, `fix(scope):`, `chore(deps):`) names the kind, then keywords in the title; a writing Run no rule recognises counts as a Feature and says "(default)". The server tallies every call's Activity as it reads the transcript, and five signals compare the tally with the kind's expectations: Out of role (a Review that changes a file), Order (shipping after a change with no test run in between; a push is Off track), First change (no file changed by the expected minute), Overstay (reading too long without changing, testing, shipping or setting up) and Churn (more change-and-test rounds than expected). Each is Watch at its number and Off track at twice it. The defaults are in [`public/core/expectations.js`](../../public/core/expectations.js); a Team pins its own per kind:
+
+```json
+"judgement": { "teams": { "bronze": { "expectations": { "docs": { "firstChangeMinutes": 5 }, "spike": { "readMinutes": 90 } } } } }
+```
+
+`readMinutes` and `firstChangeMinutes` take whole minutes from 1 to 600, `cycles` 1 to 50, `verifyBeforeShip` true or false. The reason line says whether a number is the default or set for this Team.
+
 A shadow judge can add a model's verdict. It is off until the `cards.health.judge` flag is on for the Run's Team ([feature flags](feature-flags.md)), and it needs a connected Ploeg and the gateway (`LITELLM_BASE_URL`). Each judgement is a Ploeg Ask paid from the Team's Ask Allowance and never counted as delivery spend. It runs on a plan change, when a signal turns to Watch, and otherwise at most every 10 minutes, at most 9 times per Run, one at a time, and only from the read of a person who is not a viewer. Its verdict can raise the badge, never lower it, and it never stops, requeues, steers or grades a Run.
 
 ```json

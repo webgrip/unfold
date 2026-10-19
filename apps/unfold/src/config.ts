@@ -8,6 +8,7 @@ import { reportSettings } from './reports.ts';
 import { sentryTarget } from './error-reports.ts';
 import { validatePloeg } from './ploeg.ts';
 import { validateCardRules } from './cards/settings.ts';
+import { expectationKinds, expectationSettings } from '../public/core/expectations.js';
 import { validateDeliveryConfig } from './delivery-config.ts';
 import { flagSettings, loadRegistry } from './flags.ts';
 import { defaultJudgeModels } from './run-health/judge.ts';
@@ -127,6 +128,37 @@ export function validateCards(raw: unknown, mode: AppConfig['mode']): NonNullabl
     }
   }
   return { backfillPeriods, teams, ...(data.publishPullRequestComment === true ? { publishPullRequestComment: true } : {}), ...(data.rules !== undefined ? { rules } : {}) };
+}
+
+/**
+ * Checks the `judgement` block (RFC-0009): per Team, the Work Kind expectations it pins over the defaults in
+ * public/core/expectations.js, as `teams.<team>.expectations.<kind>.<setting>`. Minutes are 1 to 600, cycles 1 to 50.
+ */
+export function judgementSettings(raw: unknown): NonNullable<AppConfig['judgement']> {
+  if (raw === undefined) return { teams: {} };
+  const object = (value: unknown, path: string) => { if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${path} must be an object`); return value as Record<string, unknown>; };
+  const value = object(raw, 'judgement');
+  for (const key of Object.keys(value)) if (key !== 'teams') throw new Error(`judgement.${key} is not a setting`);
+  const teams: NonNullable<AppConfig['judgement']>['teams'] = {};
+  for (const [team, rule] of Object.entries(object(value.teams ?? {}, 'judgement.teams'))) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$/.test(team)) throw new Error(`judgement.teams.${team} is not a Team name`);
+    const entry = object(rule, `judgement.teams.${team}`);
+    for (const key of Object.keys(entry)) if (key !== 'expectations') throw new Error(`judgement.teams.${team}.${key} is not a setting`);
+    const kinds: Record<string, Record<string, number | boolean>> = {};
+    for (const [kind, settings] of Object.entries(object(entry.expectations ?? {}, `judgement.teams.${team}.expectations`))) {
+      const path = `judgement.teams.${team}.expectations.${kind}`;
+      if (!expectationKinds.includes(kind)) throw new Error(`${path}: ${kind} is not a Work Kind (${expectationKinds.join(', ')})`);
+      kinds[kind] = {};
+      for (const [setting, setValue] of Object.entries(object(settings, path))) {
+        const type = (expectationSettings as Record<string, string>)[setting];
+        if (!type) throw new Error(`${path}.${setting} is not a setting (${Object.keys(expectationSettings).join(', ')})`);
+        if (type === 'boolean' ? typeof setValue !== 'boolean' : !Number.isInteger(setValue) || (setValue as number) < 1 || (setValue as number) > (type === 'minutes' ? 600 : 50)) throw new Error(`${path}.${setting} must be ${type === 'boolean' ? 'true or false' : type === 'minutes' ? 'whole minutes from 1 to 600' : 'a whole number from 1 to 50'}`);
+        kinds[kind][setting] = setValue as number | boolean;
+      }
+    }
+    teams[team] = { expectations: kinds };
+  }
+  return { teams };
 }
 
 /**
@@ -427,6 +459,7 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
     cardThemes: cardThemeSettings(raw.cardThemes, mode),
     decider: deciderSettings(raw.decider, mode),
     runHealth: runHealthSettings(raw.runHealth),
+    judgement: judgementSettings(raw.judgement),
     flags: flagSettings(raw.flags, loadRegistry()),
     litellm: litellmBase && (adminKey || raw.execution) ? { baseUrl: configuredUrl(litellmBase, 'litellm.baseUrl'), adminUrl: configuredUrl(process.env.LITELLM_ADMIN_URL || raw.litellm?.adminUrl || litellmBase.replace(/\/v1\/?$/, ''), 'litellm.adminUrl'), masterKey: adminKey, models: models.map((model: any) => model.modelId), ttl: raw.litellm?.ttl || '4h', settlementDelayMs: number(raw.litellm?.settlementDelayMs, 60000, 0, 3600000, 'litellm.settlementDelayMs') } : undefined
   };

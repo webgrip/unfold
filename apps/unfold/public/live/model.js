@@ -2,7 +2,8 @@ import { failureReason } from '../core/states.js';
 import { combineHealth, healthMeta, runHealth } from '../core/run-health.js';
 import { guardSignals, policyDrift } from '../core/guard.js';
 import { tripwireChecks, tripwireHitScore, tripwireMaxScore } from '../core/tripwire.js';
-import { activityOf, activityTime, moveActivities } from '../core/activity.js';
+import { activityOf, activityTime, moveActivities, tallyCalls } from '../core/activity.js';
+import { runWork } from '../core/expectations.js';
 
 /**
  * The stages every Work Item moves through, in order. The fold strip and the flight path draw one mark per stage.
@@ -255,13 +256,16 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
   const ownTranscript = Boolean(running && followed && followed.id === running.id);
   const runningRun = running ? runs.find(run => String(run.id) === running.id) : null;
   const latestJudge = running ? (served ? served.judge ?? null : judgements.findLast(entry => entry.runId === running.id) ?? null) : null;
+  const localWork = followed ? runWork(item, runs.find(run => String(run.id) === followed.id) ?? null, tallyCalls(calls), null) : null;
   const health = !running ? null : served ? healthOf(served, latestJudge, { stale: served.stale, demo: served.demo }) : healthOf(runHealth({
     run: runningRun,
     entries: ownTranscript ? entries : [],
     now,
     transcriptState: ownTranscript ? transcriptState : 'loading',
     allowedHosts,
+    work: ownTranscript && known ? localWork : null,
   }), latestJudge);
+  const work = served?.work?.kind ? served.work : localWork ? (({ tally: _tally, ...rest }) => rest)(localWork) : null;
   const stageList = stageStates(item, runs, running);
   const roleWork = allRuns.filter(run => !run.machine);
   const roles = [...new Set(roleWork.map(run => run.role))].map(role => ({ role, runs: roleWork.filter(run => run.role === role).length }));
@@ -296,6 +300,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     transcriptKnown: known,
     transcriptMissing: known ? null : transcriptState === 'demo' ? 'The demo records no transcripts, so its calls are not shown.' : transcriptState === 'unsupported' ? 'This Ploeg does not report transcripts, so its calls are not shown.' : transcriptState === 'failed' ? 'Its calls could not be read.' : running ? 'Loading its calls…' : null,
     calls: { total: known ? calls.length : null, byKind, lastAt: lastActivity },
+    work,
     activity: known && calls.length ? { ...split, current: followed?.state === 'running' ? moves.findLast(entry => entry.calls.length)?.activity ?? null : null } : null,
     edits: known ? edited.size : null,
     lastTrouble,

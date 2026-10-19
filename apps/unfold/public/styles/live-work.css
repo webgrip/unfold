@@ -624,3 +624,4 @@ a.lv-origin:hover { background: var(--bg-hover); color: var(--text); }
 .lv-unified-session { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 .lv-unified-decision > [id="session-decision"]:focus { outline: none; }
 .lv-desk-panel.is-evidence > .session-evidence { margin: 0 calc(-1 * var(--space-4)); border-inline: 0; border-radius: 0; box-shadow: none; }
+.lv-work-kind { color: var(--text); text-decoration: underline dotted; text-underline-offset: 3px; cursor: help; }

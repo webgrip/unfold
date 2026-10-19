@@ -349,3 +349,30 @@ test('"This was wrong" records the disagreement for a verdict on this Run only',
   await assert.rejects(t.service.wrong(viewer, '190', '999', id), /not part of the Run/);
   await assert.rejects(t.service.wrong(viewer, '191', '305', id), /not found/);
 });
+
+test('the server tallies every call\'s Activity once, past the tail it keeps, and judges the Run against its Work Kind', async () => {
+  const calls = Array.from({ length: 60 }, (_, index) => entry(20 + index * 2, `08:${String(35 + Math.floor(index / 2)).padStart(2, '0')}:${index % 2 ? '30' : '00'}`, { kind: 'tool_call', toolCallId: `r${index}`, toolKind: 'execute', input: `sed -n '${index},${index + 9}p' src/engine.ts`, status: 'completed' }));
+  const { service, clock, state } = setup({ entries: calls, flag: false, now: '2026-10-17T09:05:00Z' });
+  const first = await service.health(operator, '190', '305');
+  assert.deepEqual([first.work?.kind, first.work?.source, first.health, first.deciding], ['tests', 'prefix', 'off_track', 'first_change'], 'thirty minutes of reading is twice the 15 minutes Tests work gets to change a file');
+  assert.match(first.reason, /^No file changed after 30 min; Tests work usually changes one by 15 min \(default\)$/);
+  state.entries = [...calls, entry(200, '09:05:30', { kind: 'tool_call', toolCallId: 'e1', toolKind: 'edit', title: 'Edit engine.ts', paths: ['/w/src/engine.ts'], status: 'completed' })];
+  clock.now = Date.parse('2026-10-17T09:06:00Z');
+  const second = await service.health(operator, '190', '305');
+  assert.equal(second.signals.find(signal => signal.key === 'first_change')?.health, 'on_track', 'the change arrived after 60 calls had left the tail');
+  assert.equal(second.signals.find(signal => signal.key === 'first_change')?.reason, 'first change after 31 min');
+});
+
+test('a Team pins Work Kind expectations in judgement.teams, and anything else is refused', async () => {
+  const { judgementSettings } = await import('../src/config.ts');
+  assert.deepEqual(judgementSettings(undefined), { teams: {} });
+  assert.deepEqual(judgementSettings({ teams: { bronze: { expectations: { docs: { firstChangeMinutes: 5, verifyBeforeShip: false } } } } }), { teams: { bronze: { expectations: { docs: { firstChangeMinutes: 5, verifyBeforeShip: false } } } } });
+  assert.throws(() => judgementSettings({ teams: { bronze: { expectations: { chores: {} } } } }), /chores is not a Work Kind/);
+  assert.throws(() => judgementSettings({ teams: { bronze: { expectations: { docs: { firstChange: 5 } } } } }), /firstChange is not a setting/);
+  assert.throws(() => judgementSettings({ teams: { bronze: { expectations: { docs: { readMinutes: 0 } } } } }), /whole minutes from 1 to 600/);
+  assert.throws(() => judgementSettings({ checks: {} }), /judgement.checks is not a setting/);
+  const pinned = setup({ entries: [entry(20, '08:40:00', { kind: 'tool_call', toolCallId: 'a', input: 'ls', status: 'completed' }), entry(21, '08:51:50', { kind: 'tool_call', toolCallId: 'b', input: 'cat README.md', status: 'completed' })], flag: false, now: '2026-10-17T08:52:00Z' });
+  const service = new RunHealthService(pinned.store, pinned.work.value, { demo: false, judgeEnabled: async () => false, expectations: team => team === 'bronze' ? { tests: { firstChangeMinutes: 10 } } : null, now: () => new Date(pinned.clock.now) });
+  const view = await service.health(operator, '190', '305');
+  assert.deepEqual([view.health, view.reason, view.work?.expectations.pinned], ['watch', 'No file changed after 12 min; Tests work usually changes one by 10 min (set for this Team)', ['firstChangeMinutes']]);
+});

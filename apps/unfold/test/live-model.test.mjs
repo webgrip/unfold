@@ -49,9 +49,10 @@ test('agent time is useful time plus time lost to machines, for every scenario',
 
 test('the running Run’s health comes from runHealth over its raw entries, in the badge’s words, and no Run working means no health', () => {
   const running = model('running');
-  assert.deepEqual([running.health.health, running.health.label], ['unknown', 'Not known'], 'nothing is off, machine-ended Runs do not count, and without limits its progress cannot be judged, so it is never On track');
+  assert.deepEqual([running.health.health, running.health.label, running.health.deciding], ['watch', 'Watch', 'first_change'], 'without limits the clock cannot judge it, but 17 minutes without a change is long for Tests work');
   assert.deepEqual(running.health.signals.filter(signal => !signal.judged).map(signal => signal.key).sort(), ['pace', 'quiet', 'time']);
-  assert.equal(running.health.reason, 'Nothing is off, but its progress cannot be judged: Ploeg did not report this Run\'s limits');
+  assert.equal(running.health.reason, 'No file changed after 17 min; Tests work usually changes one by 15 min (default)');
+  assert.deepEqual([running.work.kind, running.work.source], ['tests', 'prefix']);
   assert.deepEqual([model('firstTry').health.health, model('firstTry').health.label, model('firstTry').health.glyph], ['on_track', 'On track', 'check']);
   assert.equal(model('stalled').health.health, 'watch', 'seven quiet minutes of a ten-minute idle stop');
   assert.ok((fixtureNow - model('stalled').calls.lastAt) / 1000 >= quietWatch * 600);

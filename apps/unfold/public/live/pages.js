@@ -8,6 +8,7 @@ import { instruments } from './instruments.js';
 import { nowLine } from './layouts.js';
 import { cx, escape } from './parts.js';
 import { activitySummary, moveList, traceLanes } from './trace.js';
+import { workKindMeta } from '../core/work-kind.js';
 import { acceptanceLedger, roleRoster, decisionDock, intentBar, leaseBaton, originStamp, presenceStack, spendTape, timeline } from './work-parts.js';
 
 function headerActions(view, extras) {
@@ -40,7 +41,7 @@ function decisionBand(view, extras) {
 
 function flightDeck(view, extras) {
   const live = view.live;
-  const inside = live.followed && live.moves.length ? `<details class="lv-unified-inside"${live.running ? ' open' : ''}><summary class="lv-unified-inside-sum">Inside ${escape(live.followed.role)} · Run ${live.followed.n}: ${escape(activitySummary(live) ?? `${live.calls.total ?? 0} calls`)}</summary>${traceLanes(live, { scope: 'run', selectedCall: extras.selectedCall ?? null })}${moveList(live, { selectedCall: extras.selectedCall ?? null })}</details>` : '';
+  const inside = live.followed && live.moves.length ? `<details class="lv-unified-inside"${live.running ? ' open' : ''}><summary class="lv-unified-inside-sum">Inside ${escape(live.followed.role)} · Run ${live.followed.n}${live.work ? ` · <span class="lv-work-kind" title="${escape(`${live.work.label}, because ${live.work.rule}. Expected result: ${workKindMeta(live.work.kind).result}.`)}">${escape(live.work.label)}${live.work.source === 'default' ? ' (default)' : ''}</span>` : ''}: ${escape(activitySummary(live) ?? `${live.calls.total ?? 0} calls`)}</summary>${traceLanes(live, { scope: 'run', selectedCall: extras.selectedCall ?? null })}${moveList(live, { selectedCall: extras.selectedCall ?? null })}</details>` : '';
   return `<section class="lv-panel lv-unified-deck" aria-label="Flight">${nowLine(live)}${flightPath(live, { id: `lv-unified-flight-${view.id}` })}${instruments(live, { layout: 'strip' })}${inside}</section>`;
 }
 

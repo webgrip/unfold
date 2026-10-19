@@ -28,7 +28,7 @@ test('the thresholds are the RFC-0007 constants, each named once', () => {
   assert.deepEqual([budgetWatch, budgetOffTrack], [0.7, 0.9]);
   assert.deepEqual([repeatWindow, repeatWatch, repeatOffTrack], [10, 3, 5]);
   assert.equal(startupSeconds, 300);
-  assert.deepEqual(healthSignals, ['tripwire', 'quiet', 'pace', 'time', 'budget', 'repeat']);
+  assert.deepEqual(healthSignals, ['tripwire', 'quiet', 'pace', 'time', 'out_of_role', 'order', 'first_change', 'overstay', 'churn', 'budget', 'repeat']);
   assert.deepEqual(progressSignals, ['quiet', 'time', 'pace']);
   assert.deepEqual(tripwireHealth, { medium: 'watch', high: 'off_track' });
 });

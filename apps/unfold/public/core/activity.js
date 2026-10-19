@@ -278,3 +278,41 @@ export function activityTime(calls, end) {
   if (last && end !== null) seconds[last.activity] += Math.max(0, (end - last.at) / 1000);
   return { seconds, calls: counts, firstChangeAt: calls.find(call => call.activity === 'change')?.at ?? null };
 }
+
+const progressing = Object.freeze(['change', 'verify', 'ship', 'setup']);
+const pushRule = /push|pull request|posts/;
+
+/** An empty running count of one Run's Activities, for `tallyCall` to fill call by call. */
+export function activityTally() {
+  return { seconds: Object.fromEntries(activities.map(entry => [entry.key, 0])), calls: Object.fromEntries(activities.map(entry => [entry.key, 0])), firstAt: null, lastAt: null, last: null, readingSince: null, firstChangeAt: null, changedSinceVerify: false, cycles: 0, unverifiedShip: null };
+}
+
+/**
+ * Counts one more call of a Run into `tally`, in place, and returns it: its Activity's calls and time (the time since
+ * the previous call), when the Run last stopped reading (a Change, Verify, Ship or Setup call), its first Change, its
+ * Change-then-Verify cycles, and the first Ship after a Change that no Verify followed (a push or pull request beats a
+ * commit). Calls arrive in order; one without a time counts but adds no time.
+ * @param {ReturnType<typeof activityTally>} tally
+ * @param {{ activity: string, rule?: string, at: number|null }} call
+ */
+export function tallyCall(tally, call) {
+  const activity = Object.hasOwn(tally.calls, call.activity) ? call.activity : 'other';
+  tally.calls[activity] += 1;
+  if (call.at === null || call.at === undefined) return tally;
+  if (tally.lastAt !== null) tally.seconds[activity] += Math.max(0, (call.at - tally.lastAt) / 1000);
+  tally.firstAt ??= call.at;
+  tally.lastAt = call.at;
+  tally.last = activity;
+  if (progressing.includes(activity)) tally.readingSince = null;
+  else tally.readingSince ??= call.at;
+  if (activity === 'change') { tally.firstChangeAt ??= call.at; tally.changedSinceVerify = true; }
+  if (activity === 'verify' && tally.changedSinceVerify) { tally.cycles += 1; tally.changedSinceVerify = false; }
+  if (activity === 'ship' && tally.changedSinceVerify) {
+    const push = pushRule.test(call.rule ?? '');
+    if (!tally.unverifiedShip || (push && !tally.unverifiedShip.push)) tally.unverifiedShip = { rule: call.rule ?? 'ship', at: call.at, push };
+  }
+  return tally;
+}
+
+/** The tally of a list of calls already placed by `activityOf`, in order. */
+export function tallyCalls(calls) { return calls.reduce((tally, call) => tallyCall(tally, call), activityTally()); }
