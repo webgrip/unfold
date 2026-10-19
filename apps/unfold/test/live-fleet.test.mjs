@@ -22,14 +22,14 @@ test('lanes put what needs a person first and park Teams that did not fly', () =
   const model = modelOf('today');
   assert.deepEqual(model.lanes.map(lane => [lane.team, lane.parked]), [['unfold', false], ['bronze', false], ['copper', false], ['pewter', false], ['silver', true]]);
   assert.equal(model.lanes[0].tone, 'attention');
-  assert.equal(model.lanes[0].refused, 1);
+  assert.equal(model.lanes[0].refused.length, 1);
   assert.equal(model.lanes[1].tone, 'review');
   assert.equal(modelOf('clear').lanes.every(lane => lane.parked), true);
 });
 
 test('totals add up the lanes and the summary, and stay unknown without a summary', () => {
   const model = modelOf('today');
-  assert.deepEqual({ ...model.totals }, { teams: 5, flying: 4, gate: 0, air: 0, holding: 2, approach: 1, refused: 1, finished: 34, failed: 17, settledUsd: 1.39, reservedUsd: 0, stuckHolds: 0 });
+  assert.deepEqual({ ...model.totals }, { teams: 5, flying: 4, gate: 0, air: 0, holding: 2, approach: 1, refused: 1, longestHold: 14 * 3600, finished: 34, failed: 17, settledUsd: 1.39, reservedUsd: 0, stuckHolds: 0 });
   const partial = modelOf('partial');
   assert.equal(partial.totals.finished, null);
   assert.equal(partial.totals.settledUsd, null);
@@ -72,4 +72,28 @@ test('a crowded stage links to the rest of its lane in Work', () => {
   const extra = Array.from({ length: stageLimit + 2 }, (_, index) => ({ ...now.waiting[2], id: String(400 + index) }));
   const html = fleetBoard(fleetModel({ now: { ...now, waiting: [...now.waiting, ...extra] }, summary: null, at: fleetAt }));
   assert.match(html, /href="#work\?team=unfold&amp;lane=needs_human">3 more</);
+});
+
+test('the board says how long each Work Item has waited and why it holds', () => {
+  const html = fleetBoard(modelOf('today'));
+  assert.match(html, /longest wait 14 h/);
+  assert.match(html, /class="fb-chip-sub">waiting 12 h · [^<]+</);
+  assert.match(html, /class="fb-chip-sub">waiting 11 min · Round 2</);
+  assert.doesNotMatch(html, /fb-lane-facts|Parked/);
+});
+
+test('a refused task is named with why it could not start and what fixes it', () => {
+  const model = modelOf('today');
+  assert.deepEqual(model.refused.map(entry => [entry.ref, entry.team, entry.waited]), [['Vikunja #2025', 'unfold', 4 * 86400]]);
+  const html = fleetBoard(model);
+  assert.match(html, /Could not start · 1/);
+  assert.match(html, /repo\/ploeg names no repository Ploeg knows\. Ask an operator to register it\./);
+  assert.match(html, /refused 4 d ago/);
+  assert.match(html, /href="#fb-refused"[^>]*>Vikunja #2025 could not start</);
+});
+
+test('a stuck count links to the stuck Runs and says how to fix them', () => {
+  const html = fleetBoard(modelOf('today'));
+  assert.match(html, /href="#runs\?team=copper&amp;outcome=stuck&amp;from=now-24h&amp;to=now"[^>]*>4 stuck · see why</);
+  assert.match(html, /class="fb-remark-fix">Read why it stuck, then clarify or split the ticket</);
 });
