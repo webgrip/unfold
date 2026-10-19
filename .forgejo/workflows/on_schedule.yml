@@ -56,7 +56,8 @@ jobs:
           if [ "$PLOEG" = development ]; then
             clone="${RUNNER_TEMP:-/tmp}/ploeg-development"
             git clone --quiet --depth 1 --no-tags --branch development https://github.com/ploeg-hq/ploeg.git "$clone"
-            CONTRACT_BUNDLE_OUTPUT="$clone/.bundle" bash "$clone/scripts/contract-bundle.sh" build v0.0.0-rc.1 "$clone"
+            oras_version=$(sed -n 's/^oras = "\(.*\)"$/\1/p' "$clone/mise.toml")
+            CONTRACT_BUNDLE_OUTPUT="$clone/.bundle" mise exec "oras@${oras_version:?the mise.toml of Ploeg pins no oras}" -- bash "$clone/scripts/contract-bundle.sh" build v0.0.0-rc.1 "$clone"
             mise exec -- uv run --no-project python scripts/ploeg-contract.py fetch-unpinned 0.0.0-rc.1 --archive "$clone/.bundle/ploeg-contract-0.0.0-rc.1.tar.gz"
             echo "Checking Unfold's docs against Ploeg's development head $(git -C "$clone" rev-parse HEAD), labelled 0.0.0-rc.1"
           else
