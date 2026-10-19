@@ -56,3 +56,4 @@ Use MADR 4.0 for new system decisions. Application decisions remain in their exi
 | [ADR-0040](adr-0040-unfold-production-runs-on-a-rented-eu-talos-cluster-and-the-homelab-is-staging.md) | Unfold's production runs on a rented EU Talos cluster, and the homelab is staging | accepted | 2026-10-18 |
 | [ADR-0041](adr-0041-a-ploeg-release-opens-unfolds-pin-pull-request-by-running-unfolds-recipe.md) | A Ploeg release opens Unfold's pin pull request by running Unfold's recipe | accepted | 2026-10-18 |
 | [ADR-0042](adr-0042-a-self-hosted-decider-reads-what-agents-do-and-starts-as-a-shadow-tripwire.md) | A self-hosted decider reads what agents do and starts as a shadow tripwire | proposed | 2026-10-18 |
+| [ADR-0043](adr-0043-an-unfold-release-is-one-chart-that-carries-the-ploeg-it-was-tested-with.md) | An Unfold release is one chart that carries the Ploeg it was tested with | accepted | 2026-10-19 |

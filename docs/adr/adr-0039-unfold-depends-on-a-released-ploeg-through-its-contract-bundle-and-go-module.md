@@ -90,5 +90,6 @@ Chosen option: "Ploeg's contract bundle from GHCR and its Go module, both pinned
 * 2026-10-17 — The owner chose decision D2 of that RFC: Unfold depends on a released Ploeg, not the `apps/ploeg` submodule.
 * 2026-10-18 — Accepted. Ploeg publishes the bundle from [ploeg-hq/ploeg#163](https://github.com/ploeg-hq/ploeg/pull/163) on.
 * 2026-10-18 — Amended by [ADR-0041](adr-0041-a-ploeg-release-opens-unfolds-pin-pull-request-by-running-unfolds-recipe.md): Ploeg's release opens the pin pull request by running `scripts/consume-ploeg-release.sh`, and Renovate no longer moves either pin.
+* 2026-10-19 — Amended by [ADR-0043](adr-0043-an-unfold-release-is-one-chart-that-carries-the-ploeg-it-was-tested-with.md): the Unfold chart carries the Ploeg chart it was tested with, so Unfold now publishes Ploeg's chart inside its own.
 * Supersedes [ADR-0019](adr-0019-unfold-pins-ploeg-from-its-own-repository-and-releases-only-its-application.md). Its release identities, the retired Ploeg floor and Unfold's refusal to publish Ploeg stay.
 * Supported by [ADR-0027](adr-0027-unfold-checks-its-ploeg-client-against-ploegs-published-schemas.md), whose schema checks now read the bundle.
