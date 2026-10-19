@@ -1,3 +1,13 @@
+## [unfold-v0.4.0-rc.102](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.101...unfold-v0.4.0-rc.102) (2026-10-19)
+
+### Added
+
+* **unfold:** carry the pinned Ploeg chart as a dependency of the Unfold chart ([02c5b12](https://forgejo.webgrip.dev/webgrip/unfold/commit/02c5b12d970229c7006e95696749de99423dd34f))
+
+### Fixed
+
+* **ploeg:** update Ploeg to 0.2.0-rc.43 ([19df029](https://forgejo.webgrip.dev/webgrip/unfold/commit/19df029666885c9f9b1447eeb4470cec437fb0cf))
+
 ## [unfold-v0.4.0-rc.101](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.100...unfold-v0.4.0-rc.101) (2026-10-19)
 
 ### Fixed
