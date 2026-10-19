@@ -9,6 +9,7 @@ import urllib.request
 from pathlib import Path
 from unittest.mock import patch
 
+import publish_chart
 import publish_release
 import release_registry
 from release_registry import SafeRedirect, copy_chart, copy_image, digest, manifest_media_type, verify_image
@@ -207,6 +208,26 @@ class DistributionTests(unittest.TestCase):
         metadata = release_registry.command('helm', 'show', 'chart', str(root / 'apps/unfold/ops/helm/unfold')).splitlines()
         self.assertIn('home: https://forgejo.webgrip.dev/webgrip/unfold', metadata)
         self.assertEqual(metadata[metadata.index('sources:') + 1], '- https://github.com/webgrip/unfold')
+
+    def test_the_released_chart_defaults_every_unfold_image_to_its_pushed_digest(self):
+        root = Path(__file__).resolve().parent.parent
+        digests = {'unfold': 'sha256:' + 'a' * 64, 'unfold-agent': 'sha256:' + 'b' * 64}
+        values = publish_chart.release_values((root / 'apps/unfold/ops/helm/unfold/values.yaml').read_text(), '0.4.0-rc.9', digests)
+        self.assertIn('image:\n  repository: ghcr.io/webgrip/unfold\n  tag: "0.4.0-rc.9"\n  digest: "sha256:' + 'a' * 64 + '"\n', values)
+        self.assertIn('\nworkspaceImage: ghcr.io/webgrip/unfold-agent:0.4.0-rc.9@sha256:' + 'b' * 64 + '\n', values)
+        with self.assertRaisesRegex(RuntimeError, 'one empty image.tag'):
+            publish_chart.release_values(values, '0.4.0-rc.9', digests)
+
+    def test_the_chart_waits_for_the_pushed_digest_of_every_image(self):
+        registry = MemoryRegistry('harbor.webgrip.dev')
+        registry.manifests['webgrip/unfold', '0.4.0-rc.9'] = b'unfold-index'
+        registry.manifests['webgrip/unfold-agent', '0.4.0-rc.9'] = b'agent-index'
+        pushed = {'UNFOLD_IMAGE_DIGEST': digest(b'unfold-index'), 'UNFOLD_AGENT_IMAGE_DIGEST': digest(b'agent-index')}
+        self.assertEqual(publish_chart.released_digests(registry, '0.4.0-rc.9', pushed), {'unfold': digest(b'unfold-index'), 'unfold-agent': digest(b'agent-index')})
+        with self.assertRaisesRegex(RuntimeError, 'UNFOLD_AGENT_IMAGE_DIGEST must be the pushed digest'):
+            publish_chart.released_digests(registry, '0.4.0-rc.9', {**pushed, 'UNFOLD_AGENT_IMAGE_DIGEST': ''})
+        with self.assertRaisesRegex(RuntimeError, 'harbor.webgrip.dev/webgrip/unfold:0.4.0-rc.9'):
+            publish_chart.released_digests(registry, '0.4.0-rc.9', {**pushed, 'UNFOLD_IMAGE_DIGEST': 'sha256:' + 'c' * 64})
 
     def test_redirects_never_forward_credentials_to_another_host(self):
         request = urllib.request.Request('https://forgejo.webgrip.dev/asset', headers={'Authorization': 'fixture'})

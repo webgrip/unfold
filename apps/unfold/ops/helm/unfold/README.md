@@ -1,21 +1,29 @@
 # Unfold Helm chart
 
-This chart installs Unfold, Ploeg's front end: one workbench Deployment with a persistent volume, its Service, and, in live mode, the RBAC it needs to manage agent workspaces in a separate namespace.
+This chart installs Unfold, Ploeg's front end: one workbench Deployment with a persistent volume, its Service, and, in live mode, the RBAC it needs to manage agent workspaces in a separate namespace. It also carries the Ploeg release this Unfold release was tested with, as the `ploeg` dependency (see [Ploeg](#ploeg)).
 
-By default it runs the deterministic **demo**, which needs nothing outside the cluster except the public image and a default StorageClass. The demo says it is one and makes no model calls.
+By default it runs the deterministic **demo**, which needs nothing outside the cluster except the public image and a default StorageClass, once `ploeg.enabled` is `false`. The demo says it is one and makes no model calls.
 
 ## Images
 
 | Image | Default | Notes |
 | --- | --- | --- |
-| Workbench | `ghcr.io/webgrip/unfold:<appVersion>` | Public. Harbor and Forgejo hold the same signed digest; see [release artifacts](../../../../../docs/operations/artifacts.md). Set `image.repository`, and `image.digest` to pin, plus `imagePullSecrets` for a private copy. |
-| Workspace (live mode) | `ghcr.io/webgrip/unfold-agent:<appVersion>` | Set `workspaceImage` and `workspaceImagePullSecrets` to use a private copy. |
+| Workbench | `ghcr.io/webgrip/unfold@<digest>` | Public. The published chart sets `image.tag` to its version and `image.digest` to the digest the release pushed. Harbor and Forgejo hold the same signed digest; see [release artifacts](../../../../../docs/operations/artifacts.md). For a private copy set only `image.repository` and `imagePullSecrets`: the digest stays. |
+| Workspace (live mode) | `ghcr.io/webgrip/unfold-agent:<version>@<digest>` | The published chart sets `workspaceImage` to the digest the release pushed. Set `workspaceImage` and `workspaceImagePullSecrets` to use a private copy of that digest. |
+
+The chart in this repository leaves `image.tag`, `image.digest` and `workspaceImage` empty and renders the tag of its `appVersion`. Only the release fills them, after every image is pushed ([publication order](../../../../../docs/operations/ci.md#publication-and-recovery)), so set none of them in a cluster that installs a published chart.
 
 ## Demo install
 
 ```sh
-helm install unfold oci://ghcr.io/webgrip/charts/unfold --version <version> -n unfold --create-namespace
+helm install unfold oci://ghcr.io/webgrip/charts/unfold --version <version> -n unfold --create-namespace --set ploeg.enabled=false
 ```
+
+## Ploeg
+
+`Chart.yaml` depends on `ploeg` from `oci://ghcr.io/ploeg-hq/charts` at exactly the release [apps/unfold/ploeg-release.json](../../../ploeg-release.json) pins, and the published chart vendors that chart ([system ADR-0043](../../../../../docs/adr/adr-0043-an-unfold-release-is-one-chart-that-carries-the-ploeg-it-was-tested-with.md)). Ploeg's values go under `ploeg:`, unchanged from Ploeg's own chart; Ploeg needs at least `ploeg.database.existingSecret.name` and `ploeg.executor.litellm.adminUrl`, as the [live example](values.live.example.yaml) shows. `ploeg.enabled` (default `true`) turns the dependency off for the demo or a cluster that runs Ploeg elsewhere.
+
+Only `scripts/consume-ploeg-release.sh`, which Ploeg's release runs, moves the dependency: `mise run ploeg-pin <version>` rewrites its version and `Chart.lock` together with the other pins. A checkout downloads the locked chart into `charts/`, which Git ignores, with `mise run setup` or `mise exec -- python3 scripts/ploeg-contract.py chart`; `helm template` and `helm lint` of this directory need it, even with `ploeg.enabled=false`.
 
 ## Scheduling and pod metadata
 

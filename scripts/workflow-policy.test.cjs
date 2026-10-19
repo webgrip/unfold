@@ -107,8 +107,8 @@ test('Ploeg\'s release opens the Ploeg pull request, and a nightly run fails whe
   assert.equal(behind.steps.at(-1).run, 'python3 scripts/ploeg-contract.py behind');
   assert.doesNotMatch(JSON.stringify(behind), /secrets\.|permissions|continue-on-error/);
   const renovate = JSON.parse(fs.readFileSync(path.join(root, 'renovate.json'), 'utf8'));
-  const ploeg = renovate.packageRules.filter(rule => (rule.matchPackageNames ?? []).some(name => /ploeg-hq\/ploeg/.test(name)));
-  assert.deepEqual(ploeg.map(rule => [rule.matchPackageNames, rule.enabled]), [[['ghcr.io/ploeg-hq/ploeg-contract', 'github.com/ploeg-hq/ploeg'], false]], 'Renovate must not be a second writer on the Ploeg pin (ADR-0041)');
+  const ploeg = renovate.packageRules.filter(rule => (rule.matchPackageNames ?? []).some(name => /ploeg-hq\//.test(name)));
+  assert.deepEqual(ploeg.map(rule => [rule.matchPackageNames, rule.enabled]), [[['ghcr.io/ploeg-hq/charts/ploeg', 'ghcr.io/ploeg-hq/ploeg-contract', 'github.com/ploeg-hq/ploeg'], false]], 'Renovate must not be a second writer on the Ploeg pin (ADR-0041) or the chart dependency (ADR-0043)');
   const recipe = path.join(root, 'scripts/consume-ploeg-release.sh');
   assert.ok(fs.statSync(recipe).mode & 0o111, 'Ploeg\'s release runs the recipe as an executable');
   assert.match(fs.readFileSync(recipe, 'utf8'), /scripts\/ploeg-contract\.py pin "\$\{version#v\}"\n.*scripts\/renovate-ploeg-docs\.sh\n$/);
@@ -200,6 +200,25 @@ test('every published image passes its application CVE budget before signing', (
   const budgets = parse(fs.readFileSync(path.join(root, 'apps/unfold/ops/security/cve-budgets.yaml'), 'utf8'));
   assert.equal(budgets.images['unfold'].mode, 'enforce');
   assert.ok(fs.statSync(path.join(root, 'apps/unfold/ops/vex/statements')).isDirectory());
+});
+
+test('the chart is published only after every image of the release, and defaults each image to the digest its job pushed', () => {
+  const chart = publisher.jobs['unfold-release-publish-chart'];
+  const pushesImage = job => (job.steps ?? []).some(step => /\/docker-build-push[^/]*@|\/cosign-sign-attest@/.test(step.uses ?? '') || /\b(docker|buildx|regctl|crane|oras) [^|;]*\b(push|copy)\b/.test(step.run ?? ''));
+  const imageJobs = Object.entries(publisher.jobs).filter(([name, job]) => name !== 'unfold-release-distribute' && pushesImage(job)).map(([name]) => name);
+  assert.deepEqual(imageJobs, ['unfold-release-distribute-harbor']);
+  for (const name of imageJobs) assert.ok(chart.needs.includes(name), `the chart job needs ${name}: a chart in a registry is a complete release (ADR-0043)`);
+  const publish = chart.steps.find(step => step.run?.includes('python3 scripts/publish_chart.py unfold'));
+  for (const name of imageJobs) {
+    const job = publisher.jobs[name];
+    const digest = job.steps.find(step => step.id === 'digest');
+    assert.match(digest.run, /echo "digest-\$\{\{ matrix\.name \}\}=\$digest" >> "\$GITHUB_OUTPUT"/, 'each matrix leg writes its digest under its own name, so the legs\' outputs merge');
+    for (const { name: image } of job.strategy.matrix.include) {
+      assert.equal(job.outputs[`${image}-digest`], `\${{ steps.digest.outputs.digest-${image} }}`, image);
+      assert.equal(publish.env[`${image.toUpperCase().replace(/-/g, '_')}_IMAGE_DIGEST`], `\${{ needs.${name}.outputs.${image}-digest }}`, image);
+    }
+  }
+  assert.ok(publisher.jobs['unfold-release-distribute'].needs.includes('unfold-release-publish-chart'), 'the mirrors copy the chart only after it is published');
 });
 
 test('Unfold builds, signs and publishes no Ploeg artifact', () => {

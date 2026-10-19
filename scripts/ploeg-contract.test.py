@@ -2,10 +2,13 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
+import stat
 import tarfile
 import tempfile
 import threading
 import unittest
+import unittest.mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -14,6 +17,34 @@ contract = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(contract)
 
 COMMIT = 'a' * 40
+CHART_YAML = '''apiVersion: v2
+name: unfold
+version: 0.4.0-rc.101
+appVersion: 0.4.0-rc.101
+dependencies:
+  - name: other
+    version: 9.9.9
+    repository: oci://example.invalid/charts
+  - name: ploeg
+    version: {version}
+    repository: {repository}
+    condition: ploeg.enabled
+'''
+CHART_LOCK = '''dependencies:
+- name: ploeg
+  repository: {repository}
+  version: {version}
+digest: sha256:{digest}
+generated: "2026-10-19T00:00:00Z"
+'''
+FAKE_HELM = '''#!/usr/bin/env python3
+import json, os, pathlib, re, sys
+chart = pathlib.Path(sys.argv[-1])
+version = re.search(r'name: ploeg\\n\\s+version: (\\S+)', (chart / 'Chart.yaml').read_text())[1]
+registry = json.loads(pathlib.Path(os.environ['HELM_REGISTRY_CONFIG']).read_text())
+pathlib.Path(os.environ['FAKE_HELM_LOG']).write_text(json.dumps({'args': sys.argv[1:], 'registry': registry, 'docker': os.environ['DOCKER_CONFIG'] == str(pathlib.Path(os.environ['HELM_REGISTRY_CONFIG']).parent)}))
+(chart / 'Chart.lock').write_text(f'dependencies:\\n- name: ploeg\\n  repository: oci://ghcr.io/ploeg-hq/charts\\n  version: {version}\\ndigest: sha256:fake\\n')
+'''
 TOKEN = 'anonymous-pull'
 
 
@@ -115,6 +146,13 @@ class Checkout(unittest.TestCase):
     def pin(self, version, pinned):
         (self.root / contract.PIN).write_text(json.dumps({'contract': f'{contract.REPOSITORY}:{version}@{pinned}'}))
         (self.root / contract.GO_MODULE / 'go.mod').write_text(f'module example.invalid/demo\n\ngo 1.26.0\n\nrequire {contract.MODULE} v{version}\n')
+        self.chart(version)
+
+    def chart(self, version, lock=None, repository=contract.CHART_REPOSITORY):
+        chart = self.root / contract.CHART
+        chart.mkdir(parents=True, exist_ok=True)
+        (chart / 'Chart.yaml').write_text(CHART_YAML.format(version=version, repository=repository))
+        (chart / 'Chart.lock').write_text(CHART_LOCK.format(version=lock or version, repository=repository, digest='0' * 64))
 
     def test_fetch_unpacks_the_pinned_bundle_once_and_the_checks_pass(self):
         pinned = self.registry.publish('0.2.0-rc.25', bundle('0.2.0-rc.25'))
@@ -194,6 +232,54 @@ class Checkout(unittest.TestCase):
         self.assertRegex(contract.behind(self.root, self.registry.client()), r'pins Ploeg 0\.2\.0-rc\.27, but 0\.2\.0-rc\.28 is the newest release')
         self.registry.tags['0.2.0'] = 'sha256:' + '0' * 64
         self.assertRegex(contract.behind(self.root, self.registry.client()), r'but 0\.2\.0 is the newest release')
+
+    def test_the_check_names_a_chart_dependency_or_lock_on_another_release(self):
+        pinned = self.registry.publish('0.2.0-rc.25', bundle('0.2.0-rc.25'))
+        self.pin('0.2.0-rc.25', pinned)
+        contract.fetch(self.root, self.registry.client())
+        self.assertEqual(contract.problems(self.root), [])
+        self.chart('0.2.0-rc.24')
+        found = contract.problems(self.root)
+        self.assertIn(f'{contract.CHART}/Chart.yaml depends on the ploeg chart 0.2.0-rc.24, but {contract.PIN} pins 0.2.0-rc.25; move both with mise run ploeg-pin 0.2.0-rc.25', found)
+        self.assertIn(f'{contract.CHART}/Chart.lock depends on the ploeg chart 0.2.0-rc.24, but {contract.PIN} pins 0.2.0-rc.25; move both with mise run ploeg-pin 0.2.0-rc.25', found)
+        self.chart('0.2.0-rc.25', lock='0.2.0-rc.24')
+        self.assertEqual(contract.problems(self.root), [f'{contract.CHART}/Chart.lock depends on the ploeg chart 0.2.0-rc.24, but {contract.PIN} pins 0.2.0-rc.25; move both with mise run ploeg-pin 0.2.0-rc.25'])
+        self.chart('0.2.0-rc.25', repository='oci://example.invalid/ploeg-hq/charts')
+        self.assertEqual(len([problem for problem in contract.problems(self.root) if 'takes ploeg from oci://example.invalid/ploeg-hq/charts' in problem]), 2)
+        (self.root / contract.CHART / 'Chart.yaml').write_text('apiVersion: v2\nname: unfold\nversion: 0.4.0-rc.101\n')
+        (self.root / contract.CHART / 'Chart.lock').unlink()
+        self.assertEqual(contract.problems(self.root), [
+            f'{contract.CHART}/Chart.yaml lists no ploeg dependency; the Unfold chart carries the Ploeg release it was tested with (system ADR-0043)',
+            f'{contract.CHART}/Chart.lock is missing; run mise run ploeg-pin 0.2.0-rc.25',
+        ])
+
+    def test_pin_moves_the_chart_dependency_and_its_lock_with_the_other_two_pins(self):
+        pinned = self.registry.publish('0.2.0-rc.26', bundle('0.2.0-rc.26'))
+        self.pin('0.2.0-rc.25', 'sha256:' + '0' * 64)
+        tools = Path(self.temp.name) / 'bin'
+        tools.mkdir()
+        for name, script in [('helm', FAKE_HELM), ('go', '#!/bin/sh\nexit 0\n')]:
+            (tools / name).write_text(script)
+            (tools / name).chmod(stat.S_IRWXU)
+        log = Path(self.temp.name) / 'helm.json'
+        environment = {'PATH': f'{tools}{os.pathsep}{os.environ["PATH"]}', 'FAKE_HELM_LOG': str(log)}
+        with unittest.mock.patch.dict(os.environ, environment):
+            self.assertEqual(contract.pin(self.root, self.registry.client(), '0.2.0-rc.26'), pinned)
+        chart = (self.root / contract.CHART / 'Chart.yaml').read_text()
+        self.assertEqual(chart, CHART_YAML.format(version='0.2.0-rc.26', repository=contract.CHART_REPOSITORY), 'only the ploeg dependency moves; the chart\'s own version and other dependencies stay')
+        self.assertEqual(contract.chart_dependency((self.root / contract.CHART / 'Chart.lock').read_text())['version'], '0.2.0-rc.26')
+        helm = json.loads(log.read_text())
+        self.assertEqual(helm['args'], ['dependency', 'update', contract.CHART])
+        self.assertEqual(helm['registry'], {'auths': {'ghcr.io': {}}}, 'the public chart is pulled anonymously, never with a stale local credential')
+        self.assertTrue(helm['docker'])
+
+    def test_pin_refuses_a_chart_that_does_not_take_ploeg_from_its_registry(self):
+        self.registry.publish('0.2.0-rc.26', bundle('0.2.0-rc.26'))
+        self.pin('0.2.0-rc.25', 'sha256:' + '0' * 64)
+        self.chart('0.2.0-rc.25', repository='oci://example.invalid/charts')
+        with self.assertRaisesRegex(contract.ContractError, 'must list ploeg from oci://ghcr.io/ploeg-hq/charts'):
+            contract.move_chart_dependency(self.root, '0.2.0-rc.26')
+
 
 if __name__ == '__main__':
     unittest.main()

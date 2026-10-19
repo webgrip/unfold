@@ -17,6 +17,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 PIN = 'apps/unfold/ploeg-release.json'
 GO_MODULE = 'apps/unfold/scripts/unified-demo'
+CHART = 'apps/unfold/ops/helm/unfold'
+CHART_DEPENDENCY = 'ploeg'
+CHART_REPOSITORY = 'oci://ghcr.io/ploeg-hq/charts'
 UNPACKED = 'apps/ploeg'
 STAMP = '.ploeg-contract-digest'
 REPOSITORY = 'ghcr.io/ploeg-hq/ploeg-contract'
@@ -57,6 +60,71 @@ def module_version(root):
     if not match:
         raise ContractError(f'{GO_MODULE}/go.mod does not require {MODULE}')
     return match[1]
+
+
+def chart_dependency(text):
+    block = re.search(r'^dependencies:[ \t]*\n((?:[ \t-].*(?:\n|$))*)', text, re.M)
+    for item in re.split(r'^[ \t]*- ', block[1], flags=re.M)[1:] if block else []:
+        fields = {key: value.strip('"\'') for key, value in re.findall(r'^[ \t]*([\w-]+):[ \t]*(.*?)[ \t]*$', item, re.M)}
+        if fields.get('name') == CHART_DEPENDENCY:
+            return fields
+    return None
+
+
+def chart_problems(root, version):
+    found = []
+    for name in ('Chart.yaml', 'Chart.lock'):
+        path = f'{CHART}/{name}'
+        try:
+            dependency = chart_dependency((root / path).read_text())
+        except FileNotFoundError:
+            found.append(f'{path} is missing; run mise run ploeg-pin {version}')
+            continue
+        if dependency is None:
+            found.append(f'{path} lists no {CHART_DEPENDENCY} dependency; the Unfold chart carries the Ploeg release it was tested with (system ADR-0043)')
+        elif dependency.get('repository') != CHART_REPOSITORY:
+            found.append(f'{path} takes {CHART_DEPENDENCY} from {dependency.get("repository")}, not {CHART_REPOSITORY}')
+        elif dependency.get('version') != version:
+            found.append(f'{path} depends on the {CHART_DEPENDENCY} chart {dependency.get("version")}, but {PIN} pins {version}; move both with mise run ploeg-pin {version}')
+    return found
+
+
+def move_chart_dependency(root, version):
+    path = root / CHART / 'Chart.yaml'
+    lines = path.read_text().split('\n')
+    dependencies = next((index for index, line in enumerate(lines) if re.match(r'^dependencies:[ \t]*$', line)), None)
+    items, current = [], None
+    for index in range(dependencies + 1 if dependencies is not None else len(lines), len(lines)):
+        line = lines[index]
+        if not line.startswith((' ', '\t', '-')):
+            break
+        if line.lstrip().startswith('- '):
+            current = [index]
+            items.append(current)
+        elif current is not None:
+            current.append(index)
+    for item in items:
+        dependency = chart_dependency('dependencies:\n' + '\n'.join(lines[index] for index in item))
+        if dependency is not None and dependency.get('repository') == CHART_REPOSITORY:
+            for index in item:
+                lines[index] = re.sub(r'^([ \t]*(?:- [ \t]*)?version:[ \t]*).*$', rf'\g<1>{version}', lines[index])
+            path.write_text('\n'.join(lines))
+            return
+    raise ContractError(f'{CHART}/Chart.yaml must list {CHART_DEPENDENCY} from {CHART_REPOSITORY}')
+
+
+def helm(root, *args):
+    host = CHART_REPOSITORY.removeprefix('oci://').split('/')[0]
+    with tempfile.TemporaryDirectory(prefix='ploeg-chart-') as config:
+        registry = Path(config) / 'config.json'
+        registry.write_text(json.dumps({'auths': {host: {}}}))
+        environment = {**os.environ, 'DOCKER_CONFIG': config, 'HELM_REGISTRY_CONFIG': str(registry)}
+        try:
+            subprocess.run(['helm', *args, CHART], cwd=root, env=environment, check=True)
+        except FileNotFoundError:
+            raise ContractError('helm is not installed; run this through mise (mise exec -- python3 scripts/ploeg-contract.py ...), which installs the version mise.toml pins')
+        except subprocess.CalledProcessError as error:
+            raise ContractError(f'helm {" ".join(args)} {CHART} failed with exit code {error.returncode}') from error
 
 
 class Registry:
@@ -198,6 +266,7 @@ def problems(root, registry=None):
         found.append(str(error))
     if installed(root) != (version, digest):
         found.append(f'{UNPACKED} does not hold the pinned contract bundle {version}; run mise run ploeg-contract')
+    found.extend(chart_problems(root, version))
     if registry is not None:
         try:
             published = sha256(registry.manifest(version))
@@ -226,6 +295,8 @@ def pin(root, registry, version):
     (root / PIN).write_text(json.dumps({'contract': f'{REPOSITORY}:{version}@{digest}'}, indent=2) + '\n')
     subprocess.run(['go', 'get', f'{MODULE}@v{version}'], cwd=root / GO_MODULE, check=True)
     subprocess.run(['go', 'mod', 'tidy'], cwd=root / GO_MODULE, check=True)
+    move_chart_dependency(root, version)
+    helm(root, 'dependency', 'update')
     return digest
 
 
@@ -233,13 +304,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description='Fetch, check or move the released Ploeg that Unfold depends on.')
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('fetch', help=f'unpack the pinned contract bundle into {UNPACKED}, verifying its digest')
-    check = commands.add_parser('check', help='fail when the pin, the Go module and the unpacked bundle disagree')
+    check = commands.add_parser('check', help='fail when the pin, the Go module, the chart dependency with its Chart.lock and the unpacked bundle disagree')
     check.add_argument('--published', action='store_true', help='also require the registry tag to still be the pinned digest')
-    moved = commands.add_parser('pin', help='pin a published release: the bundle digest and the Go module')
+    moved = commands.add_parser('pin', help='pin a published release: the bundle digest, the Go module and the Unfold chart\'s ploeg dependency with its Chart.lock; needs go and helm')
     moved.add_argument('version')
     unpinned = commands.add_parser('fetch-unpinned', help='unpack a release by tag, or a locally built archive, without the pin; for the weekly ploeg-ahead check only')
     unpinned.add_argument('version', help='a release version, or "latest"')
     unpinned.add_argument('--archive', type=Path, help='a bundle built by Ploeg\'s scripts/contract-bundle.sh build')
+    commands.add_parser('chart', help=f'download the pinned ploeg chart into {CHART}/charts from Chart.lock, anonymously; needs helm')
     commands.add_parser('latest', help='print the newest published release')
     commands.add_parser('behind', help='fail when a newer release is published than the one pinned; the nightly ploeg-behind check')
     args = parser.parse_args(argv)
@@ -253,11 +325,13 @@ def main(argv=None):
             if found:
                 sys.exit('Ploeg dependency check failed:\n' + '\n'.join(f'- {problem}' for problem in found))
             version, digest = read_pin(ROOT)
-            print(f'Ploeg {version}: contract {digest} and Go module v{version}{", published" if args.published else ""}')
+            print(f'Ploeg {version}: contract {digest}, Go module v{version} and chart dependency {version}{", published" if args.published else ""}')
         elif args.command == 'pin':
             digest = pin(ROOT, registry, args.version)
             fetch(ROOT, registry)
             print(f'Pinned Ploeg {args.version}: {REPOSITORY}:{args.version}@{digest}')
+        elif args.command == 'chart':
+            helm(ROOT, 'dependency', 'build')
         elif args.command == 'fetch-unpinned':
             version = registry.versions()[-1] if args.version == 'latest' else args.version
             if args.archive:

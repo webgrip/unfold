@@ -15,6 +15,7 @@ OPENSPEC_NO_UPDATE_CHECK = "1"
 [tasks.setup]
 run = [
   "python3 scripts/ploeg-contract.py fetch",
+  "python3 scripts/ploeg-contract.py chart",
   "mise trust apps/unfold/mise.toml",
   "mise trust apps/site/mise.toml",
   "if git remote get-url origin >/dev/null 2>&1; then git fetch --no-tags origin '+refs/notes/*:refs/notes/*'; else echo 'setup: no origin remote; imported release notes not fetched'; fi",
@@ -53,7 +54,7 @@ description = "Unpack the pinned Ploeg contract bundle into apps/ploeg after ver
 
 [tasks.ploeg-pin]
 run = "python3 scripts/ploeg-contract.py pin"
-description = "Pin a published Ploeg release: mise run ploeg-pin 0.x.y-rc.N moves the contract bundle and the Go module together"
+description = "Pin a published Ploeg release: mise run ploeg-pin 0.x.y-rc.N moves the contract bundle, the Go module and the Unfold chart's ploeg dependency with its Chart.lock together"
 
 [tasks.docs-check]
 run = "uv run --frozen python scripts/docs.py --check"
