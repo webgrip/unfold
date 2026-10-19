@@ -1,11 +1,7 @@
 mode: live
 baseUrl: https://workbench.example
-image:
-  repository: ghcr.io/webgrip/unfold
-  tag: ""
 credentialsSecret: unfold-credentials
 workspaceNamespace: unfold-workspaces
-workspaceImage: ""
 workspaceGitSecretName: repository-readonly
 workspaceGitRewrites:
   - url: http://forgejo-http.forge.svc.cluster.local:3000/
@@ -55,3 +51,11 @@ config:
       replace-with-user-id: [delivery]
   execution:
     team: delivery
+ploeg:
+  enabled: true
+  database:
+    existingSecret:
+      name: ploeg-app
+  executor:
+    litellm:
+      adminUrl: http://litellm.ai.svc.cluster.local:4000

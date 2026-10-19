@@ -272,7 +272,7 @@ test('delivery.verifier accepts docker or a pinned kubernetes verifier and rejec
   assert.throws(() => validateDeliveryConfig(raw(valid, [f.policy]), config), /delivery.verifier/);
 });
 
-const helm = (args: string[]) => spawnSync('helm', ['template', 'unfold', fileURLToPath(new URL('../ops/helm/unfold', import.meta.url)), '--namespace', 'unfold', ...args], { encoding: 'utf8' });
+const helm = (args: string[]) => spawnSync('helm', ['template', 'unfold', fileURLToPath(new URL('../ops/helm/unfold', import.meta.url)), '--namespace', 'unfold', '--set', 'ploeg.enabled=false', ...args], { encoding: 'utf8' });
 const chartValues = (directory: string) => ['--set', 'mode=live', '--set', 'workspaceNamespace=unfold-workspaces', '--set', 'delivery.enabled=true', '--set-json', `config={"execution":{"team":"delivery"},"repositories":[{"id":"prices","name":"Prices","url":"https://forge.example/acme/prices.git","baseBranch":"main","verify":["node","--test"]}]}`,
   '--set-json', `delivery.policies=[{"repositoryId":"prices","approvedBaseSha":"${'a'.repeat(40)}","approvedBaseBundle":"${directory}/approved.bundle","image":"${nodeImage}","directory":"${directory}/policy","files":{"check.mjs":"${'b'.repeat(64)}"},"protectedPaths":[],"checks":[{"id":"one","argv":["/usr/local/bin/node","/policy/check.mjs"],"stdout":"1\\n","exitCode":0}]}]`,
   '--set-json', 'delivery.inputs.volume={"persistentVolumeClaim":{"claimName":"unfold-delivery-inputs","readOnly":true}}', '--set', `delivery.verifier.image=${helperImage}`, '--set-json', 'delivery.verifier.nodeSelector={"pool":"worker"}',

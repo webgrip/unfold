@@ -11,11 +11,11 @@ const unfold = task => gate('apps/unfold', 'npm', ['run', ...task.split(' ')]);
 const site = task => gate('apps/site', 'corepack', ['pnpm', 'run', task]);
 const helm = [];
 for (const [scope, name, variants] of [
-  ['unfold', 'unfold', ['', 'values.live.example.yaml']],
+  ['unfold', 'unfold', [['--set', 'ploeg.enabled=false'], ['-f', 'values.live.example.yaml']]],
 ]) {
   const chart = `ops/helm/${name}`;
   for (const variant of variants) {
-    const values = variant ? ['-f', `${chart}/${variant}`] : [];
+    const values = variant[0] === '-f' ? ['-f', `${chart}/${variant[1]}`] : variant;
     helm.push(gate(`apps/${scope}`, 'helm', ['lint', chart, ...values]));
     helm.push(gate(`apps/${scope}`, 'helm', ['template', name, chart, ...values], { discardStdout: true }));
   }
@@ -25,7 +25,7 @@ const groups = [
   { name: 'unfold', inputs: ['apps/unfold', 'docs'], gates: ['typecheck', 'test', 'check', 'design:check', 'icons:check', 'license:check'].map(unfold) },
   {
     name: 'ploeg',
-    inputs: ['apps/unfold/ploeg-release.json', 'apps/unfold/scripts/unified-demo', 'scripts/ploeg-contract.py', 'scripts/ploeg-contract.test.py'],
+    inputs: ['apps/unfold/ploeg-release.json', 'apps/unfold/scripts/unified-demo', 'apps/unfold/ops/helm/unfold/Chart.yaml', 'apps/unfold/ops/helm/unfold/Chart.lock', 'scripts/ploeg-contract.py', 'scripts/ploeg-contract.test.py'],
     gates: [
       gate('.', 'python3', ['scripts/ploeg-contract.py', 'check']),
       gate('.', 'python3', ['scripts/ploeg-contract.test.py']),

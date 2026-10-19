@@ -137,3 +137,5 @@ ingress:
   className: ""
   host: ""
   tlsSecret: ""
+ploeg:
+  enabled: true

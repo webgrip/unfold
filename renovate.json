@@ -158,8 +158,9 @@
       "enabled": false
     },
     {
-      "description": "Ploeg's release workflow opens the Ploeg pull request by running scripts/consume-ploeg-release.sh (ADR-0041), so Renovate leaves the contract bundle pin and the Go module alone: two writers on one pin would race. The weekly ploeg-behind check fails when the pin falls behind Ploeg's newest release.",
+      "description": "Ploeg's release workflow opens the Ploeg pull request by running scripts/consume-ploeg-release.sh (ADR-0041), so Renovate leaves the contract bundle pin, the Go module and the Unfold chart's ploeg dependency alone (ADR-0043): two writers on one pin would race. The weekly ploeg-behind check fails when the pin falls behind Ploeg's newest release.",
       "matchPackageNames": [
+        "ghcr.io/ploeg-hq/charts/ploeg",
         "ghcr.io/ploeg-hq/ploeg-contract",
         "github.com/ploeg-hq/ploeg"
       ],

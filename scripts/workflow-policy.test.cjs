@@ -107,8 +107,8 @@ test('Ploeg\'s release opens the Ploeg pull request, and a nightly run fails whe
   assert.equal(behind.steps.at(-1).run, 'python3 scripts/ploeg-contract.py behind');
   assert.doesNotMatch(JSON.stringify(behind), /secrets\.|permissions|continue-on-error/);
   const renovate = JSON.parse(fs.readFileSync(path.join(root, 'renovate.json'), 'utf8'));
-  const ploeg = renovate.packageRules.filter(rule => (rule.matchPackageNames ?? []).some(name => /ploeg-hq\/ploeg/.test(name)));
-  assert.deepEqual(ploeg.map(rule => [rule.matchPackageNames, rule.enabled]), [[['ghcr.io/ploeg-hq/ploeg-contract', 'github.com/ploeg-hq/ploeg'], false]], 'Renovate must not be a second writer on the Ploeg pin (ADR-0041)');
+  const ploeg = renovate.packageRules.filter(rule => (rule.matchPackageNames ?? []).some(name => /ploeg-hq\//.test(name)));
+  assert.deepEqual(ploeg.map(rule => [rule.matchPackageNames, rule.enabled]), [[['ghcr.io/ploeg-hq/charts/ploeg', 'ghcr.io/ploeg-hq/ploeg-contract', 'github.com/ploeg-hq/ploeg'], false]], 'Renovate must not be a second writer on the Ploeg pin (ADR-0041) or the chart dependency (ADR-0043)');
   const recipe = path.join(root, 'scripts/consume-ploeg-release.sh');
   assert.ok(fs.statSync(recipe).mode & 0o111, 'Ploeg\'s release runs the recipe as an executable');
   assert.match(fs.readFileSync(recipe, 'utf8'), /scripts\/ploeg-contract\.py pin "\$\{version#v\}"\n.*scripts\/renovate-ploeg-docs\.sh\n$/);
