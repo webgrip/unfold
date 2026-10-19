@@ -69,6 +69,7 @@ jobs:
         run: |
           mise exec -- sh scripts/renovate-ploeg-docs.sh
           mise exec -- uv run --frozen python scripts/docs.py --domain-check --without-landscape
+          mise exec -- uv run --frozen python scripts/docs.py --stage-only
 
   ploeg-behind:
     runs-on: docker

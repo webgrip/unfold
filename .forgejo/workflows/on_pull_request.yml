@@ -84,6 +84,8 @@ jobs:
         run: mise exec -- uv run --no-project python scripts/ploeg-contract.py fetch
       - name: Require the glossary and decision register to match the pinned Ploeg's domain model and ADRs
         run: mise exec -- uv run --frozen python scripts/docs.py --domain-check
+      - name: Require every documentation link into the pinned Ploeg to resolve
+        run: mise exec -- uv run --frozen python scripts/docs.py --stage-only
 
   release-policy:
     runs-on: docker

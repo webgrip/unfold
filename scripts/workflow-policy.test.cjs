@@ -90,15 +90,15 @@ test('every job that reads Ploeg\'s contract unpacks the pinned bundle first, an
   assert.match(mise, /\[tasks\.setup\]\nrun = \[\n  "python3 scripts\/ploeg-contract\.py fetch",/);
 });
 
-test('every pull request checks the Ploeg-derived pages on their own, and a weekly run checks the Ploeg to come', () => {
+test('every pull request checks the Ploeg-derived pages and the links into Ploeg on their own, and a weekly run checks the Ploeg to come', () => {
   const pr = workflows['on_pull_request.yml'].jobs['ploeg-docs'];
-  assert.equal(pr.steps.at(-1).run, 'mise exec -- uv run --frozen python scripts/docs.py --domain-check');
+  assert.deepEqual(pr.steps.slice(-2).map(step => step.run), ['mise exec -- uv run --frozen python scripts/docs.py --domain-check', 'mise exec -- uv run --frozen python scripts/docs.py --stage-only']);
   assert.equal(pr.needs, undefined);
   assert.doesNotMatch(JSON.stringify(pr), /secrets\.|permissions/);
   const ahead = workflows['on_schedule.yml'].jobs['ploeg-ahead'];
   assert.deepEqual(ahead.strategy.matrix.ploeg, ['newest-release', 'development']);
   assert.equal(ahead.strategy['fail-fast'], false);
-  assert.match(ahead.steps.at(-1).run, /scripts\/renovate-ploeg-docs\.sh\n.*scripts\/docs\.py --domain-check/);
+  assert.match(ahead.steps.at(-1).run, /scripts\/renovate-ploeg-docs\.sh\n.*scripts\/docs\.py --domain-check --without-landscape\n.*scripts\/docs\.py --stage-only\n$/);
   assert.doesNotMatch(JSON.stringify(ahead), /secrets\.|permissions|continue-on-error/);
 });
 
