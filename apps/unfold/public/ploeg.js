@@ -1638,7 +1638,8 @@ export function onePageMarkup(detail, model, { primary = '', decision, account }
   const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), detail, attempts: runAttempts(detail.runs || []), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, health: model.runHealth };
   const runs = new Map((detail.runs || []).map(run => [String(run.id), run]));
   const runDetail = id => { const run = runs.get(id); return run ? runBody(run, context) : ''; };
-  const extras = { primary, runDetail, ...(decision ? { decision } : {}), ...(account ? { account } : {}), ...(model.session ? { session: model.session } : {}), ...(model.workTab ? { tab: model.workTab } : {}), ...(model.intentMode ? { intent: model.intentMode } : {}) };
+  const cancel = model.canCancel && canStop(detail) ? { busy: Boolean(model.cancelBusy) } : null;
+  const extras = { primary, runDetail, cancel, ...(decision ? { decision } : {}), ...(account ? { account } : {}), ...(model.session ? { session: model.session } : {}), ...(model.workTab ? { tab: model.workTab } : {}), ...(model.intentMode ? { intent: model.intentMode } : {}) };
   return workPage(view, extras, text => markdown(text, { baseLevel: 3 }));
 }
 
