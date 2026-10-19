@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { connect as tcpConnect, createServer, type Socket } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -26,13 +27,16 @@ export type Authentik = {
 /**
  * Starts a throwaway Authentik with Docker Compose, or adopts the one `UNFOLD_E2E_AUTHENTIK_URL` and
  * `UNFOLD_E2E_AUTHENTIK_TOKEN` name. Every run provisions its own slugs, so an adopted instance can be reused.
+ * An adopted Authentik on another host is reached through a loopback forwarder, because the MCP client only
+ * sends credentials to a token endpoint over TLS or on a loopback host, and Authentik names its endpoints
+ * after the host it was addressed by.
  */
 export async function startAuthentik(log: (line: string) => void): Promise<Authentik> {
   const adopted = process.env.UNFOLD_E2E_AUTHENTIK_URL?.replace(/\/+$/, '');
   if (adopted) {
     const token = process.env.UNFOLD_E2E_AUTHENTIK_TOKEN;
     if (!token) throw new Error('UNFOLD_E2E_AUTHENTIK_URL needs UNFOLD_E2E_AUTHENTIK_TOKEN, an API token of an Authentik administrator');
-    const authentik = client(adopted, token);
+    const authentik = client(await onLoopback(adopted, log), token);
     await ready(authentik, log);
     return authentik;
   }
@@ -61,6 +65,28 @@ export async function startAuthentik(log: (line: string) => void): Promise<Authe
     await close();
     throw Object.assign(error as Error, { message: `${(error as Error).message}\n${logs}` });
   }
+}
+
+async function onLoopback(url: string, log: (line: string) => void): Promise<string> {
+  const target = new URL(url);
+  if (target.protocol === 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname) || target.hostname.endsWith('.localhost')) return url;
+  const port = Number(target.port || 80);
+  const open = new Set<Socket>();
+  const forwarder = createServer(socket => {
+    const upstream = tcpConnect(port, target.hostname);
+    for (const end of [socket, upstream]) { open.add(end); end.once('close', () => open.delete(end)); }
+    socket.pipe(upstream).pipe(socket);
+    socket.on('error', () => upstream.destroy());
+    upstream.on('error', () => socket.destroy());
+  });
+  await new Promise<void>((resolve, reject) => forwarder.once('error', reject).listen(0, '127.0.0.1', resolve));
+  cleanups.push(() => new Promise<void>(done => { forwarder.close(() => done()); for (const end of open) end.destroy(); }));
+  const local = new URL(url);
+  local.hostname = '127.0.0.1';
+  local.port = String((forwarder.address() as { port: number }).port);
+  const address = local.href.replace(/\/+$/, '');
+  log(`reaching Authentik at ${url} through ${address}`);
+  return address;
 }
 
 function client(url: string, token: string): Authentik {
