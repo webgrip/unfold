@@ -1,3 +1,9 @@
+## [unfold-v0.4.0-rc.103](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.102...unfold-v0.4.0-rc.103) (2026-10-19)
+
+### Fixed
+
+* **unfold:** one count, folded lanes and a ranked Up next on the loop ([a123730](https://forgejo.webgrip.dev/webgrip/unfold/commit/a123730f87b25f26ae9a204c1cd26741e4927fd4))
+
 ## [unfold-v0.4.0-rc.102](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.101...unfold-v0.4.0-rc.102) (2026-10-19)
 
 ### Added
