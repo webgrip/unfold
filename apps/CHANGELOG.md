@@ -1,3 +1,24 @@
+## [unfold-v0.4.0-rc.99](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.98...unfold-v0.4.0-rc.99) (2026-10-19)
+
+### Fixed
+
+* **ploeg:** update Ploeg to 0.2.0-rc.41 ([3c4fff4](https://forgejo.webgrip.dev/webgrip/unfold/commit/3c4fff4e3627360ef50790b6c3d0fe508bb4c026))
+* **ploeg:** update Ploeg to 0.2.0-rc.42 ([0a1dda9](https://forgejo.webgrip.dev/webgrip/unfold/commit/0a1dda95a613196738a9ad55311e7ba9aeefb113))
+
+## [unfold-v0.4.0-rc.98](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.97...unfold-v0.4.0-rc.98) (2026-10-19)
+
+### Added
+
+* **unfold:** judge a running Run against what its kind of work should look like ([8ae402c](https://forgejo.webgrip.dev/webgrip/unfold/commit/8ae402c2b4e27ec4564ffdfc238cd828eefb3ea0))
+* **unfold:** say how long fleet planes waited and which task Ploeg refused ([b06a07c](https://forgejo.webgrip.dev/webgrip/unfold/commit/b06a07c773808f996705a488908d2c805e7ec5fc))
+
+### Fixed
+
+* **unfold:** offer Cancel on the one Work Item page only when Ploeg would stop something ([194ad63](https://forgejo.webgrip.dev/webgrip/unfold/commit/194ad637618753f11f24ace6297cda9b9c926905))
+* **unfold:** open a Work Item before its detail loads without a script error ([349f793](https://forgejo.webgrip.dev/webgrip/unfold/commit/349f793d6526515edeada5bb5bd0991e00ac6328))
+* **unfold:** reach the nightly Authentik over loopback so the MCP client exchanges codes ([4dcda9e](https://forgejo.webgrip.dev/webgrip/unfold/commit/4dcda9ef3e7a74af67aaca72865f9bd62822e5a0))
+* **unfold:** say plainly when a Run spent its model allowance ([bd96647](https://forgejo.webgrip.dev/webgrip/unfold/commit/bd966474f4440138951cb0457bc4ea937f804d8d)), closes [#479](https://forgejo.webgrip.dev/webgrip/unfold/issues/479)
+
 ## [unfold-v0.4.0-rc.97](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.96...unfold-v0.4.0-rc.97) (2026-10-18)
 
 ### Added

@@ -79,7 +79,7 @@ function sourcesCheck() {
   const list = sources.map(source => `${escape(source.name)} (${escape(providerName(source.provider))} to ${escape(repoName(source.repositoryId))})`).join(' · ');
   const unlinked = sources.filter(source => source.needsLink && state.links && !state.links.some(link => link.provider === source.needsLink && link.linked));
   if (unlinked.length) return { id: 'sources', title: 'Task connections', status: 'setup', label: 'Needs your link', detail: `${list}.`, next: `${unlinked.map(source => escape(source.name)).join(', ')} ${unlinked.length === 1 ? 'reads' : 'read'} tasks with your own ${escape(providerLabels[unlinked[0].needsLink] || unlinked[0].needsLink)} account. Link it once.`, action: button({ label: 'Open Linked accounts', href: '#settings/accounts', size: 'sm' }) };
-  return { id: 'sources', title: 'Task connections', status: 'ok', label: plural(sources.length, 'connection'), detail: `${list}.` };
+  return { id: 'sources', title: 'Task connections', status: 'ok', label: plural(sources.length, 'connection'), detail: `${list}.`, action: button({ label: 'Check the wiring', href: '#settings/connections', size: 'sm' }) };
 }
 
 function dashboardLinks() {

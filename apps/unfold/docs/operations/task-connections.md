@@ -212,6 +212,8 @@ Or give reports a connection of their own, which is not a task source and never 
 
 ## Diagnose a connection
 
+Start at **Settings → Connections** (`#settings/connections`, also linked from the Task connections check on Environment). It reads Ploeg's `GET /api/v1/operator/connections` (Ploeg ADR-0129) and matches it against the task sources here. Each board shows whether assignments reach Ploeg, which Teams can be assigned on it, where its work goes and whether Unfold lists it. Each repository shows whether it is ready for agents, whether its forge has sent Ploeg any pull request event in 30 days, and which boards reach it. A task source that hands work to Ploeg on a board Ploeg does not route is listed first, because a hand-off there assigns the Team and nothing starts. Every problem names its fix. A Ploeg release without the connections read gets a note saying so instead.
+
 | Symptom | Check |
 | --- | --- |
 | Server rejects a missing credential | The named environment variable is present in the actual server process. Supplying it only to the editor does not configure the server |
@@ -229,6 +231,6 @@ The tests exercise provider contracts with local HTTP fixtures. They do not demo
 
 ## Proposed extensions
 
-The connection-management proposal includes an administrator wizard, provider authorization where applicable, scope discovery, credential rotation, a health view and explicit source-to-repository mappings. The broader unattended delivery proposal includes authenticated webhooks and reconciliation through Ploeg, transactional deduplication, one canonical WorkOrder, independent verification and fenced publication. Both clients should remain thin views over those shared contracts.
+The connection-management proposal includes an administrator wizard, provider authorization where applicable, scope discovery, credential rotation and explicit source-to-repository mappings. The health view is the Connections page above. The broader unattended delivery proposal includes authenticated webhooks and reconciliation through Ploeg, transactional deduplication, one canonical WorkOrder, independent verification and fenced publication. Both clients should remain thin views over those shared contracts.
 
 The [ticket integration design](../design/ticket-integration.md) and [system design](../PRODUCT-DESIGN.md) describe that larger system. The five implemented read adapters are a starting point for it; they do not make arbitrary project-management APIs automatically compatible.

@@ -7,6 +7,7 @@ import { combineHealth, latestPlan, runHealth } from '../../public/core/run-heal
 import { guardSignals, transcriptCalls } from '../../public/core/guard.js';
 import { activityOf, activityTally, tallyCall } from '../../public/core/activity.js';
 import { runWork } from '../../public/core/expectations.js';
+import { isProgressCheck } from '../../public/core/checks.js';
 import { judgeLimits, type JudgeState, type RunJudge, type RunJudgement } from './judge.ts';
 
 /** The Ploeg reads Run health needs. Both refuse a Work Item outside the caller's Teams. */
@@ -133,8 +134,9 @@ export class RunHealthService {
     const fresh = await this.read(user, workItemId, runId, tail);
     const entries = this.entries(tail);
     const stale = !fresh && tail.last !== null;
-    const work = runWork(detail.item, run, tail.tally, this.options.expectations?.(run.team) ?? null);
-    const result = (stale ? runHealth({ run, now, stale: tail.last }) : runHealth({ run, entries, now, transcriptState: !fresh ? 'failed' : tail.available ? 'loaded' : tail.reason, tripwires: [...tail.tripwires.values()], work })) as Result;
+    const work = runWork(detail.item, run, tail.tally, this.options.expectations?.(run.team) ?? null, this.store.deciderKind(run.id) ?? null);
+    const checks = this.store.tripwireHits(workItemId).filter(hit => hit.runId === run.id && isProgressCheck(hit.check));
+    const result = (stale ? runHealth({ run, now, stale: tail.last }) : runHealth({ run, entries, now, transcriptState: !fresh ? 'failed' : tail.available ? 'loaded' : tail.reason, tripwires: [...tail.tripwires.values()], work, checks })) as Result;
     if (!stale) this.remember(user, workItemId, runId, tail, result, now);
     const judgeState = await this.consider(user, detail, run, tail, result, entries, stale, demo);
     const view = { ...base, judge: this.store.runJudgements(runId, 1)[0] ?? null, judgements: this.store.countRunJudgements(runId) };

@@ -1328,3 +1328,59 @@
   flex-wrap: wrap;
   gap: var(--space-2);
 }
+
+.connections-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.connections-head {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-left: 4px solid var(--tone-fg);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+.connections-headline {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  text-wrap: balance;
+}
+
+.connections-checked,
+.connections-note,
+.connections-group-note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.connections-group {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.connections-group-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.connections-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.connection-card .card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}

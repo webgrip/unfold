@@ -30,7 +30,8 @@ import { runTranscriptMarkup } from './run-transcript.js';
 import { workActionsMarkup } from './action-log.js';
 import { defaultLogView, logViewerMarkup } from './run-log-view.js';
 import { healthMeta } from './core/run-health.js';
-import { tripwireCheckLabel, tripwireScoreMeta } from './core/tripwire.js';
+import { tripwireScoreMeta } from './core/tripwire.js';
+import { checkLabel, isProgressCheck } from './core/checks.js';
 import { resumeOffer, waitingQuestion, waitingQuestions } from './core/blackboard.js';
 import { questionMarkup, disagreementsMarkup, findingAnswersMarkup, findingsMarkup, noteAction } from './blackboard-view.js';
 
@@ -1072,7 +1073,8 @@ export function runHealthMarkup(run, entry, { now = Date.now() } = {}) {
 const tripwireVerdictWords = Object.freeze({ right: 'You marked this hit right.', wrong: 'You marked this hit wrong.' });
 
 /**
- * The Tripwire list in a Run's body (RFC-0008): each hit on this Run, newest first, with its check in words, its score
+ * The Decider list in a Run's body (RFC-0008, RFC-0009): the tripwire's hits and then the progress checks' hits on
+ * this Run, newest first, each with its check in words, its score
  * as a glyph, a word and "2 of 3" or "3 of 3", when, the redacted action it scored, the decider that answered, and
  * Right and Wrong controls. Shown while the tripwire screens the Team's Runs or when the Run has hits; '' otherwise.
  * @param {object} run A Ploeg Run.
@@ -1083,22 +1085,25 @@ export function runTripwireMarkup(run, entry) {
   const data = entry?.data;
   if (!data) return '';
   const id = String(run.id);
-  const hits = (data.hits || []).filter(hit => String(hit.runId) === id);
-  if (!hits.length && data.status !== 'active') return '';
+  const all = (data.hits || []).filter(hit => String(hit.runId) === id);
+  if (!all.length && data.status !== 'active') return '';
   const counts = (data.runs || []).find(state => String(state.runId) === id);
   const lines = [];
   if (data.demo) lines.push('Demo: illustrative hits. No decider runs in the demo.');
-  else if (counts?.transcript === 'unavailable') lines.push('This Run has no transcript, so the tripwire cannot screen it.');
-  else if (counts) lines.push(`${plural(counts.screened, 'tool call')} screened${counts.missed ? `, ${plural(counts.missed, 'screen')} missed` : ''}${data.decider ? ` by ${data.decider.name}` : ''}.`);
-  else if (data.status === 'active') lines.push(run.state === 'running' ? 'No tool call screened yet.' : 'The tripwire did not screen this Run.');
-  const rows = hits.map(hit => {
+  else if (counts?.transcript === 'unavailable') lines.push('This Run has no transcript, so the decider cannot read it.');
+  else if (counts) lines.push(`${counts.screened} screened${counts.missed ? `, ${plural(counts.missed, 'screen')} missed` : ''}${data.decider ? ` by ${data.decider.name}` : ''}.`);
+  else if (data.status === 'active') lines.push(run.state === 'running' ? 'Nothing screened yet.' : 'The decider did not read this Run.');
+  const row = hit => {
     const score = tripwireScoreMeta(hit.score);
     const marked = entry.marked?.get(hit.id) ?? hit.verdict;
-    const controls = marked ? `<span class="meta">${escape(tripwireVerdictWords[marked] ?? '')}</span>` : hit.demo ? '' : `${ui.button({ label: 'Right', variant: 'ghost', size: 'xs', action: 'work-tripwire-verdict', data: { id: hit.id, verdict: 'right' }, title: 'This hit points at something worth stopping' })}${ui.button({ label: 'Wrong', variant: 'ghost', size: 'xs', action: 'work-tripwire-verdict', data: { id: hit.id, verdict: 'wrong' }, title: 'This hit points at ordinary work' })}`;
+    const controls = marked ? `<span class="meta">${escape(tripwireVerdictWords[marked] ?? '')}</span>` : hit.demo ? '' : `${ui.button({ label: 'Right', variant: 'ghost', size: 'xs', action: 'work-tripwire-verdict', data: { id: hit.id, verdict: 'right' }, title: 'The decider read this right' })}${ui.button({ label: 'Wrong', variant: 'ghost', size: 'xs', action: 'work-tripwire-verdict', data: { id: hit.id, verdict: 'wrong' }, title: 'The decider read this wrong' })}`;
     const decider = hit.demo ? 'Demo, never screened' : `${hit.decider.name} (${hit.decider.model})`;
-    return `<li class="work-run-tripwire-hit" data-tone="${score.tone}"><p class="work-run-tripwire-head">${ui.badge({ tone: score.tone, glyph: score.glyph, label: `${score.word} · ${score.label}`, lead: 'Score: ', size: 'sm' })}<strong>${escape(tripwireCheckLabel(hit.check))}</strong>${ui.timeAt(hit.at)}</p><code class="work-run-tripwire-excerpt" data-private>${escape(hit.excerpt)}</code><p class="work-run-tripwire-foot"><span class="meta">Scored by ${escape(decider)}</span><span class="work-run-tripwire-controls">${controls}</span></p></li>`;
-  }).join('');
-  return `<section class="work-run-tripwire" aria-label="Tripwire"><h4 class="overline">Tripwire</h4>${lines.map(line => `<p class="meta">${escape(line)}</p>`).join('')}${rows ? `<ol class="work-run-tripwire-hits">${rows}</ol>` : ''}<p class="meta">A hit is a reason to look, not proof. The tripwire only reads: it never stops, steers or notes the Run.</p></section>`;
+    return `<li class="work-run-tripwire-hit" data-tone="${score.tone}"><p class="work-run-tripwire-head">${ui.badge({ tone: score.tone, glyph: score.glyph, label: `${score.word} · ${score.label}`, lead: 'Score: ', size: 'sm' })}<strong>${escape(checkLabel(hit.check))}</strong>${ui.timeAt(hit.at)}</p><code class="work-run-tripwire-excerpt" data-private>${escape(hit.excerpt)}</code><p class="work-run-tripwire-foot"><span class="meta">Scored by ${escape(decider)}</span><span class="work-run-tripwire-controls">${controls}</span></p></li>`;
+  };
+  const safety = all.filter(hit => !isProgressCheck(hit.check)).map(row).join('');
+  const progress = all.filter(hit => isProgressCheck(hit.check)).map(row).join('');
+  const list = (label, rows) => rows ? `<h5 class="overline">${label}</h5><ol class="work-run-tripwire-hits">${rows}</ol>` : '';
+  return `<section class="work-run-tripwire" aria-label="Decider"><h4 class="overline">Decider</h4>${lines.map(line => `<p class="meta">${escape(line)}</p>`).join('')}${list('Tripwire', safety)}${list('Progress checks', progress)}<p class="meta">A hit is a reason to look, not proof. The decider only reads: it never stops, steers or notes the Run.</p></section>`;
 }
 
 function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts, health, tripwire, detail: detailOf = null }) {
