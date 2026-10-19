@@ -1112,7 +1112,7 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts
     const title = run.outcome === 'stuck' ? 'Why it is stuck' : failure ? failure.label : 'Why it failed';
     const { reason: stated, output, outputLabel } = runFailureText(run);
     const reasonText = stated ? `<p class="${logLike.test(stated) ? 'work-log' : 'work-run-reason'}">${escape(stated)}</p>` : '';
-    const outputText = output ? `<h4 class="overline">${escape(outputLabel)}</h4><p class="work-log">${escape(output)}</p>` : '';
+    const outputText = !output ? '' : failure?.foldOutput ? ui.disclosure({ summary: outputLabel, body: `<p class="work-log">${escape(output)}</p>`, plain: true }) : `<h4 class="overline">${escape(outputLabel)}</h4><p class="work-log">${escape(output)}</p>`;
     const note = failure ? [failureNote(failure, { live: live && !retriedAs }), retriedAs ? `Ploeg ran it again as Run ${retriedAs}.` : ''].filter(Boolean).join(' ') : '';
     const body = `${reasonText}${outputText}${note ? `<p>${escape(note)}</p>` : ''}`;
     parts.push(ui.callout({ tone, title, body }));

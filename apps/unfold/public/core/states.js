@@ -116,28 +116,51 @@ export const failureReasons = table({
 const stoppedResponding = Object.freeze({ ...failureReasons.agent_error, label: 'The agent stopped responding', glyph: 'clock', owner: 'the agent harness', action: 'Read the last lines it printed to see where it stopped.', cause: 'The agent stopped responding', next: 'Its reason names the watchdog that stopped it. A hung command or a long silent model call is the usual cause.', outputLabel: 'Last lines it printed' });
 const watchdogSummary = /^acp (?:agent stopped responding|idle watchdog stopped the agent|prompt wall stopped the agent)\b/;
 const stderrPart = /(?:^| \| )stderr: /;
+const harnessOutput = 'What the harness printed';
+const keyBudgetWords = /Budget has been exceeded!?\s*Key=|ExceededBudget:\s*Key\b/;
+const sharedBudgetWords = /Budget has been exceeded!?\s*(?:Team|TeamMember|User|End User|Organization|Project|Tag|Model access group)=|ExceededBudget:\s*(?:Team|User|End User|Organization|Project|Tag)=/i;
+const spentAmounts = /(?:Current cost|Spend)[:=]\s*(\d+(?:\.\d+)?)[\s\S]*?(?:Max budget|Budget)[:=]\s*(\d+(?:\.\d+)?)/;
+
+function allowanceReason(text) {
+  const match = spentAmounts.exec(text);
+  const spent = match ? `It spent ${money(Number(match[1]))} of the ${money(Number(match[2]))} Ploeg authorized for it` : 'It spent the model allowance Ploeg authorized for it';
+  return `${spent}, so the model gateway refused its next call and the agent stopped.`;
+}
+
+const allowanceSpent = Object.freeze({ ...failureReasons.budget, label: 'The Run spent its model allowance', tone: 'attention', owner: 'the ticket size or the Role’s per-Run allowance', action: 'Split the ticket or raise the Role’s per-Run allowance, then retry.', cause: 'The Run used up the model allowance Ploeg authorized for it', next: 'Split the ticket or raise the Role’s per-Run allowance, then retry the Work Item.', outputLabel: harnessOutput, foldOutput: true, explain: allowanceReason });
+const sharedSpent = Object.freeze({ ...failureReasons.shared_budget_spent, outputLabel: harnessOutput, foldOutput: true, explain: () => 'The model gateway refused the agent’s next call because a shared LiteLLM budget is spent, so the agent stopped.' });
 
 /**
  * The failure meta of a Run, or null when it did not fail. A Run whose summary says an ACP watchdog stopped it reads
- * as an agent that stopped responding; every other Run reads as its `failureReason`, whose key it keeps.
+ * as an agent that stopped responding. An `agent_error` or `budget` Run whose stuck reason carries LiteLLM's spent-budget
+ * answer reads as a Run that spent its own allowance (its key's budget) or as a spent shared budget, with `foldOutput`
+ * set so the raw harness output stays folded. Every other Run reads as its `failureReason`, whose key it keeps.
  * @param {{ failureReason?: string | null, summary?: string | null }} run
  * @returns {object | null}
  */
 export function runFailure(run) {
   if (!run?.failureReason) return null;
   if (run.failureReason === 'agent_error' && watchdogSummary.test(run.summary || '')) return stoppedResponding;
+  if (run.failureReason === 'agent_error' || run.failureReason === 'budget') {
+    const text = `${run.stuckReason || ''} ${run.summary || ''}`;
+    if (keyBudgetWords.test(text)) return allowanceSpent;
+    if (sharedBudgetWords.test(text)) return sharedSpent;
+  }
   return failureReason(run.failureReason);
 }
 
 /**
- * A failed Run's stuck reason split for display. When its failure meta labels the agent's output, `output` is the
- * stderr tail and `reason` the rest; otherwise `reason` is the whole stuck reason and `output` is empty.
+ * A failed Run's stuck reason split for display. A spent-budget failure gives a plain `reason` sentence and the whole
+ * stuck reason as `output`. When its failure meta labels the agent's output, `output` is the stderr tail and `reason`
+ * the rest; otherwise `reason` is the whole stuck reason and `output` is empty.
  * @param {{ failureReason?: string | null, summary?: string | null, stuckReason?: string | null }} run
  * @returns {{ reason: string, output: string, outputLabel: string }}
  */
 export function runFailureText(run) {
   const text = run?.stuckReason || '';
-  const label = runFailure(run)?.outputLabel || '';
+  const meta = runFailure(run);
+  if (meta?.explain) return { reason: meta.explain(text), output: text, outputLabel: meta.outputLabel };
+  const label = meta?.outputLabel || '';
   const match = label ? stderrPart.exec(text) : null;
   if (!label) return { reason: text, output: '', outputLabel: '' };
   if (!match) return { reason: text, output: '', outputLabel: label };
