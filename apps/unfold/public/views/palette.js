@@ -317,6 +317,7 @@ const lanes = [
 const settings = [
   { hash: 'settings/accounts', label: 'Linked accounts', icon: 'link', keywords: 'github gitlab clickup vikunja token credentials connect' },
   { hash: 'settings/environment', label: 'Environment', icon: 'globe', keywords: 'health system configuration checks gateway status' },
+  { hash: 'settings/connections', label: 'Connections', icon: 'link', keywords: 'boards repositories webhooks wiring routing tracker forge ploeg connect' },
   { hash: 'design', label: 'Style guide', icon: 'grid', keywords: 'design system components tokens colours' },
 ];
 

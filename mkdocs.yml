@@ -18,6 +18,7 @@ nav:
       - Architecture: concepts/architecture.md
       - Inside a Run: concepts/inside-a-run.md
       - Users and their journeys: concepts/users-and-journeys.md
+      - Connect a repository: concepts/connect-a-repository.md
       - Journeys: concepts/journeys.md
       - Who Unfold is for: concepts/who-unfold-is-for.md
       - Run Cards (mostly proposed): concepts/run-cards.md
