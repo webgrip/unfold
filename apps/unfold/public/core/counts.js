@@ -17,7 +17,7 @@ export function countsFromNow(data) {
   const waiting = !data?.errors?.waiting && Array.isArray(data?.waiting) ? data.waiting : null;
   const inGroup = (name, states) => waiting ? waiting.filter(entry => states.includes(entry.state) && waitingGroup(entry) === name).length : null;
   return {
-    waiting: waiting ? waiting.length : null,
+    waiting: waiting ? waiting.length + (!data?.errors?.refused && Array.isArray(data?.refused) ? data.refused.length : 0) : null,
     review: inGroup('review', ['awaiting_review']),
     needsYou: inGroup('needs', ['awaiting_review', 'needs_human']),
     proposed: inGroup('proposed', ['proposed']),
