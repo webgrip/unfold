@@ -1139,3 +1139,37 @@ test('the demo stores no context files and says so', async t => {
   assert.deepEqual(body.error, { code: 'ploeg_demo', message: demoContextRefusal });
   assert.equal(demoContextRefusal, 'The demo does not store context files.');
 });
+
+const connectionRepository = (key: string, extra: Record<string, unknown> = {}) => ({ key, label: key, forge: 'forgejo', owner: 'webgrip', repo: key, baseBranch: 'development', readiness: 'ready', reason: '', lastForgeEventAt: '2026-10-18T10:00:00Z', boards: ['Unfold', 'Research'], ...extra });
+const connectionBoard = (name: string, projectId: string, extra: Record<string, unknown> = {}) => ({ tracker: 'vikunja', name, projectId, team: null, repository: null, default: 'unfold', allow: [], webhook: 'present', teams: [{ team: 'delivery', assignees: [{ username: 'delivery', shared: true }] }, { team: 'research', assignees: [{ username: 'research', shared: false }] }], ...extra });
+
+test('Connections match Ploeg’s boards to Unfold’s task sources and stay inside the person’s Teams', async (t) => {
+  const upstreamApi = await upstream(t);
+  upstreamApi.intercept((req, res) => new URL(req.url!, 'http://fixture.invalid').pathname.endsWith('/connections') ? reply(res, 200, { generatedAt: '2026-10-19T10:00:00Z', checkedAt: '2026-10-19T09:40:00Z', eventWindowDays: 30, repositories: [connectionRepository('unfold'), connectionRepository('lab', { readiness: 'from-the-future', boards: ['Research'] })], boards: [connectionBoard('Unfold', '10'), connectionBoard('Research', '12', { team: 'research', webhook: 'missing' })] }) : false);
+  const target = { forge: 'forgejo', owner: 'webgrip', repo: 'unfold', baseBranch: 'development' };
+  const sources = [
+    { ...unfoldBoard, ploeg: { target } },
+    { ...unfoldBoard, id: 'elsewhere', name: 'Elsewhere', ploeg: { target: { ...target, repo: 'other' } } },
+    { ...unfoldBoard, id: 'dark-factory', name: 'Dark Factory', project: '5' },
+    { ...unfoldBoard, id: 'sessions', name: 'Sessions only', project: '6', executionOwner: 'interactive' as const },
+  ];
+  const ploeg = new PloegClient({ ...configuration('/unused', 'live'), ploeg: { ...upstreamApi.config, userTeams: { reader: ['delivery'] } }, taskSources: sources });
+  const connections = await ploeg.connections({ id: 'reader', name: 'reader', role: 'operator' as const });
+  assert.equal(connections.supported, true);
+  assert.equal(connections.checkedAt, '2026-10-19T09:40:00Z');
+  assert.deepEqual(connections.boards.map(board => board.name), ['Unfold'], 'a board pinned to a Team the person cannot read is left out');
+  assert.deepEqual(connections.boards[0].teams.map(entry => entry.team), ['delivery']);
+  assert.deepEqual(connections.boards[0].sources, [{ id: 'unfold', name: 'Unfold', target: 'webgrip/unfold@development', routed: true }, { id: 'elsewhere', name: 'Elsewhere', target: 'webgrip/other@development', routed: false }]);
+  assert.deepEqual(connections.unrouted, [{ id: 'dark-factory', name: 'Dark Factory', provider: 'vikunja', project: '5' }], 'only sources that hand work to Ploeg can be unrouted');
+  assert.deepEqual(connections.repositories.map(entry => [entry.key, entry.readiness, entry.boards]), [['unfold', 'ready', ['Unfold']], ['lab', 'unknown', []]], 'an unknown readiness is unknown, and hidden boards are not named');
+  assert(upstreamApi.seen.some(entry => entry.path === '/api/v1/operator/connections'));
+});
+
+test('Connections from an older Ploeg say so, and the demo is illustrative', async (t) => {
+  const upstreamApi = await upstream(t);
+  const older = await new PloegClient({ ...configuration('/unused', 'live'), ploeg: upstreamApi.config, taskSources: [unfoldBoard] }).connections(admin);
+  assert.deepEqual({ supported: older.supported, boards: older.boards, unrouted: older.unrouted }, { supported: false, boards: [], unrouted: [] });
+  const demo = await new PloegClient(configuration('/unused', 'demo')).connections(admin);
+  assert.equal(demo.demo, true);
+  assert(demo.repositories.some(entry => entry.readiness === 'not_ready'), 'the demo shows one problem to fix');
+});
