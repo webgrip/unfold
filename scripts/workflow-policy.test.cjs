@@ -102,14 +102,13 @@ test('every pull request checks the Ploeg-derived pages on their own, and a week
   assert.doesNotMatch(JSON.stringify(ahead), /secrets\.|permissions|continue-on-error/);
 });
 
-test('Renovate is the one writer on the Ploeg pin until Ploeg\'s release hook is declarative, and a weekly run fails when the pin falls behind', () => {
+test('Ploeg\'s release opens the Ploeg pull request, and a weekly run fails when the pin falls behind', () => {
   const behind = workflows['on_schedule.yml'].jobs['ploeg-behind'];
   assert.equal(behind.steps.at(-1).run, 'python3 scripts/ploeg-contract.py behind');
   assert.doesNotMatch(JSON.stringify(behind), /secrets\.|permissions|continue-on-error/);
   const renovate = JSON.parse(fs.readFileSync(path.join(root, 'renovate.json'), 'utf8'));
   const ploeg = renovate.packageRules.filter(rule => (rule.matchPackageNames ?? []).some(name => /ploeg-hq\/ploeg/.test(name)));
-  assert.deepEqual(ploeg.map(rule => [rule.matchPackageNames, rule.enabled !== false, rule.groupSlug, rule.automerge]), [[['ghcr.io/ploeg-hq/ploeg-contract', 'github.com/ploeg-hq/ploeg'], true, 'ploeg', true]], 'one Renovate group moves the Ploeg pin and merges itself (ADR-0041, interim of 2026-10-18)');
-  assert.ok(ploeg[0].postUpgradeTasks.commands.includes('./scripts/renovate-ploeg-docs.sh'), 'the Ploeg group regenerates the docs the bundle feeds');
+  assert.deepEqual(ploeg.map(rule => [rule.matchPackageNames, rule.enabled]), [[['ghcr.io/ploeg-hq/ploeg-contract', 'github.com/ploeg-hq/ploeg'], false]], 'Renovate must not be a second writer on the Ploeg pin (ADR-0041)');
   const recipe = path.join(root, 'scripts/consume-ploeg-release.sh');
   assert.ok(fs.statSync(recipe).mode & 0o111, 'Ploeg\'s release runs the recipe as an executable');
   assert.match(fs.readFileSync(recipe, 'utf8'), /scripts\/ploeg-contract\.py pin "\$\{version#v\}"\n.*scripts\/renovate-ploeg-docs\.sh\n$/);
