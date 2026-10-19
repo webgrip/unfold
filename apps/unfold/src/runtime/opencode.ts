@@ -20,6 +20,8 @@ export interface RuntimeWorkspaces {
 }
 
 const maxObservationHiccups = 5;
+const requestTimeoutMs = 15_000;
+const sessionOpenTimeoutMs = 120_000;
 
 /** A failure reading a turn's state that a second read can cure: the connection or relay dropped, a read timed out, or the worker could not reach OpenCode for a moment. */
 function transient(error: unknown): boolean {
@@ -125,8 +127,8 @@ export class OpenCodeRuntime implements AgentRuntime {
     return { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Basic ${Buffer.from(`${auth.username}:${auth.password}`).toString('base64')}` } : {}) };
   }
 
-  private async request(workspace: Workspace, path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<any> {
-    const timeout = AbortSignal.timeout(15000);
+  private async request(workspace: Workspace, path: string, method = 'GET', body?: unknown, signal?: AbortSignal, timeoutMs = requestTimeoutMs): Promise<any> {
+    const timeout = AbortSignal.timeout(timeoutMs);
     try {
       const response = await this.fetch(workspace)(this.url(workspace, path), {
         method, headers: this.headers(workspace), redirect: 'error',
@@ -198,14 +200,14 @@ export class OpenCodeRuntime implements AgentRuntime {
         const permission = context.role.mode === 'read'
           ? [{ permission: '*', pattern: '*', action: auto ? 'allow' : 'ask' }, { permission: 'edit', pattern: '*', action: 'deny' }, { permission: 'bash', pattern: '*', action: 'deny' }, { permission: 'task', pattern: '*', action: 'deny' }, { permission: 'read', pattern: '*', action: 'allow' }, { permission: 'glob', pattern: '*', action: 'allow' }, { permission: 'grep', pattern: '*', action: 'allow' }, { permission: 'external_directory', pattern: '*', action: 'deny' }]
           : auto ? [{ permission: '*', pattern: '*', action: 'allow' }, { permission: 'external_directory', pattern: '*', action: 'deny' }] : undefined;
-        const created = await this.request(workspace, '/session', 'POST', { title: `${context.session.title} · ${context.role.name}`, ...(permission ? { permission } : {}) }, operation);
+        const created = await this.request(workspace, '/session', 'POST', { title: `${context.session.title} · ${context.role.name}`, ...(permission ? { permission } : {}) }, operation, sessionOpenTimeoutMs);
         if (typeof created?.id !== 'string') throw new RuntimeFailure('harness_rejected', 'runtime');
         nativeId = created.id;
       }
       if (typeof nativeId !== 'string') throw new RuntimeFailure('harness_rejected', 'runtime');
       workspace.nativeSessionId = nativeId;
       emit({ type: 'native.session', data: { nativeId } });
-      const listed = await this.request(workspace, `/session/${encodeURIComponent(nativeId)}/message`, 'GET', undefined, operation);
+      const listed = await this.request(workspace, `/session/${encodeURIComponent(nativeId)}/message`, 'GET', undefined, operation, sessionOpenTimeoutMs);
       if (!Array.isArray(listed)) throw new RuntimeFailure('harness_rejected', 'runtime');
       const accounted = context.continuing ? throughLatestPrompt(listed) : listed;
       if (!accounted) throw new RuntimeFailure('harness_rejected', 'runtime');
