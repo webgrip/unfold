@@ -2,7 +2,7 @@ import { escape, safeUrl } from './core/dom.js';
 import { linkedSessionsMarkup } from './core/linked-sessions.js';
 import { icon } from './core/icons.js';
 import { markdown } from './core/markdown.js';
-import { count as formatCount, money, moneyHtml, plural, duration, dateTime, decimal } from './core/format.js';
+import { count as formatCount, money, moneyHtml, plural, duration, dateTime, decimal, time as clockTime } from './core/format.js';
 import * as ui from './core/ui.js';
 import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, runFailure, runFailureText, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason, costStatuses, costStatusWord } from './core/states.js';
 import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph, sessionReason, reviewHold, failingChecks } from './core/reasons.js';
@@ -16,7 +16,7 @@ import { deliveryStages, stageTime } from './core/delivery-track.js';
 import { streamChart, streamLanes } from './core/value-stream.js';
 import { foldTranscript } from './run-transcript.js';
 import { liveModel } from './live/model.js';
-import { landingEstimate } from './live/landing.js';
+import { landingEstimate, withJudgeEta } from './live/landing.js';
 import { flightPath } from './live/flight-path.js';
 import { foldStrip } from './live/fold-strip.js';
 import { answers } from './live/answers.js';
@@ -1069,7 +1069,7 @@ export function runHealthMarkup(run, entry, { now = Date.now() } = {}) {
     const verdict = healthMeta(judge.health);
     const evidence = (judge.evidence || []).length ? ` · evidence ${judge.evidence.map(seq => `<span class="mono" title="Transcript entry ${escape(seq)}">#${escape(seq)}</span>`).join(', ')}` : '';
     const control = entry.wrong?.has(judge.id) ? '<span class="meta">Recorded as wrong. Thank you.</span>' : ui.button({ label: 'This was wrong', variant: 'ghost', size: 'xs', action: 'work-run-judge-wrong', data: { id: judge.id, run: run.id } });
-    parts.push(`<p class="work-run-judge" data-tone="${verdict.tone}"><span class="badge sm" data-tone="neutral" role="img" aria-label="AI judgement" title="Judged by ${escape(judge.model)}">${icon('spark')}AI</span><span><strong>${escape(verdict.label)}</strong> · ${escape(judge.reason)}${evidence}</span>${control}</p>`);
+    parts.push(`<p class="work-run-judge" data-tone="${verdict.tone}"><span class="badge sm" data-tone="neutral" role="img" aria-label="AI judgement" title="Judged by ${escape(judge.model)}">${icon('spark')}AI</span><span><strong>${escape(verdict.label)}</strong> · ${escape(judge.reason)}${evidence}${judge.etaAt ? ` · expects it done about ${escape(clockTime(Date.parse(judge.etaAt)))}` : ''}</span>${control}</p>`);
     const combined = healthMeta(data.combined?.health ?? data.health);
     parts.push(`<p class="meta work-run-health-rule">Badge: ${escape(combined.label)}, the worst of the signals (${escape(signals.label)}) raised but never lowered by the AI judge (${escape(verdict.label)}). The judge only advises.</p>`);
   }
@@ -1623,7 +1623,7 @@ export function statusMarkup(detail, model, { reason = null, plan = null } = {})
  * the questions answered from the record. Its health is the running Run's entry from Unfold's health route, the one
  * the Run row's badge shows, so the two never disagree; its decider tripwire hits are the running Run's hits from
  * Unfold's tripwire route, the ones its Run body lists. Its estimate is `landingEstimate` over the Team's earlier
- * Runs that opened a pull request, `model.landingHistory`.
+ * Runs that opened a pull request, `model.landingHistory`, with the AI judge's forecast from the health entry added.
  */
 function liveOf(detail, model) {
   const running = [...(detail.runs || [])].reverse().find(run => run.state === 'running');
@@ -1633,8 +1633,9 @@ function liveOf(detail, model) {
   const missing = entry?.data?.available === false ? (entry.data.reason === 'demo' ? 'demo' : 'unsupported') : !entries.length && entry?.error ? 'failed' : null;
   const health = running ? model.runHealth?.get?.(String(running.id)) ?? null : null;
   const tripwire = running ? (model.tripwire?.data?.hits ?? []).filter(hit => String(hit.runId) === String(running.id)) : [];
-  const estimate = model.landingHistory ? landingEstimate({ history: model.landingHistory, run: running, now: model.now ?? Date.now() }) : null;
-  return liveModel({ detail, transcript, entries, health, tripwire, estimate, transcriptKnown: entries.length > 0, transcriptMissing: missing, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
+  const now = model.now ?? Date.now();
+  const estimate = withJudgeEta(model.landingHistory ? landingEstimate({ history: model.landingHistory, run: running, now }) : null, health?.data?.judge, { run: running, now });
+  return liveModel({ detail, transcript, entries, health, tripwire, estimate, transcriptKnown: entries.length > 0, transcriptMissing: missing, transcriptRunId: running ? String(running.id) : undefined, now });
 }
 
 export function liveViewMarkup(detail, model) {

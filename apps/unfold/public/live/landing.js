@@ -38,3 +38,19 @@ export function landingEstimate({ history, run, now }) {
   }
   return { ...base, landsAt: null, note: elapsed <= longest ? 'running long' : 'past every earlier Run', text: elapsed <= longest ? `No landing time: this Run is slower than nine in ten earlier ${run.role} Runs, whose median is ${span(median)}` : `No landing time: this Run has run longer than any of the last ${durations.length} ${run.role} Runs that opened a pull request (longest ${span(longest)})` };
 }
+
+/**
+ * Adds the AI judge's forecast to the history estimate: the moment its newest verdict on the running Run expects the
+ * Run to finish (`RunJudgement.etaAt`), read from its progress. A forecast already past, or one for another Run, is left
+ * out, and so is a Run that does not write. Without a history estimate the judge's forecast stands alone.
+ * @param {ReturnType<typeof landingEstimate>} estimate
+ * @param {{ runId: string, at: string, etaAt: string|null }|null|undefined} judge
+ * @param {{ run: object|null|undefined, now: number }} context
+ */
+export function withJudgeEta(estimate, judge, { run, now }) {
+  const etaAt = Date.parse(judge?.etaAt ?? '');
+  if (!run?.writes || !judge || String(judge.runId) !== String(run.id) || !Number.isFinite(etaAt) || etaAt < now) return estimate;
+  const judged = `The AI judge, reading its progress at ${clock(Date.parse(judge.at))}, expects it about ${clock(etaAt)}`;
+  if (!estimate) return { source: 'judge', landsAt: etaAt, judgeAt: etaAt, note: `AI · about ${clock(etaAt)}`, text: `${judged}; there is too little history for this Team to compare` };
+  return { ...estimate, judgeAt: etaAt, note: `${estimate.note} · AI ${clock(etaAt)}`, text: `${estimate.text}. ${judged}` };
+}
