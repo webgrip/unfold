@@ -52,6 +52,7 @@ export class Store {
     if (path !== ':memory:') chmodSync(path, 0o600);
     this.db.exec(`
       PRAGMA journal_mode=WAL;
+      PRAGMA synchronous=NORMAL;
       PRAGMA foreign_keys=ON;
       PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, updated_at TEXT NOT NULL, body TEXT NOT NULL);
@@ -101,9 +102,19 @@ export class Store {
       CREATE TABLE IF NOT EXISTS flag_segments (name TEXT PRIMARY KEY, spec TEXT NOT NULL, set_by TEXT NOT NULL, set_at TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS flag_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, flag_key TEXT NOT NULL, action TEXT NOT NULL, variant TEXT, reason TEXT NOT NULL, actor TEXT NOT NULL, at TEXT NOT NULL);
     `);
+    this.db.exec('PRAGMA optimize=0x10002');
   }
 
   close(): void { this.db.close(); }
+
+  /** Refreshes the query planner's statistics for tables whose contents changed enough to need it. */
+  optimize(): void { this.db.exec('PRAGMA optimize'); }
+
+  /** Runs SQLite's `quick_check` and returns each problem it reports; an empty list means the database is intact. */
+  quickCheck(): string[] {
+    const problems = this.db.prepare('PRAGMA quick_check').all().map(row => String(row.quick_check));
+    return problems.length === 1 && problems[0] === 'ok' ? [] : problems;
+  }
 
   transaction<T>(fn: () => T): T {
     this.db.exec('BEGIN IMMEDIATE');
