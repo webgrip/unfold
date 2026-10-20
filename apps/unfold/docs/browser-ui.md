@@ -255,6 +255,8 @@ Rules for handlers:
 * No single key approves, rejects or cancels anything. Those actions need a click and, when they spend money or stop work, a confirmation.
 * Live jobs run only while the tab is visible, someone is signed in, no dialog is open, live updates are on and their view is current. Use `scope: 'global'` only for data every page needs, as the navigation counts do, and `hidden: true` only for a job that must keep running in a background tab.
 * Activity refreshes every 15 seconds; Now, Work, Proposed, Runs and Sessions every 30 seconds; Insights and the navigation counts every 60 seconds.
+* A failed refresh backs off exponentially up to five minutes. A failure that looks like Unfold restarting (a network error, 502, 503 or 504) backs off to at most 15 seconds. Once any refresh or load succeeds again, the browser comes back online or the tab becomes visible, every failed job forgets its failures and runs at once, so a view is current within seconds of Unfold returning.
+* A session's event stream reopens itself when the browser gives up on it, as it does once the gateway answers a reconnect with 503: after a jittered wait from one second up to 30, from the last event it showed, until the person leaves the view ([`event-stream.js`](../public/core/event-stream.js), `test/event-stream.test.mjs`).
 
 ## Core modules
 
@@ -267,6 +269,7 @@ Rules for handlers:
 | [`reasons.js`](../public/core/reasons.js) | Why a `needs_human` or `stale` Work Item waits on you: chip, glyph, sentence, fix and how to start again | `listReason(item, { demo })` for lists, `detailReason(detail)` for the Work Item page, `routingWarning(item)` for the secondary "Not routed" chip, which is never the reason. A free-text close reason reads "Needs a decision"; a missing one, or an open Shift, "Stopped; open for details" |
 | [`prefs.js`](../public/core/prefs.js), [`theme.js`](../public/core/theme.js) | Per-browser preferences in `localStorage` key `unfold.prefs`: `theme`, `density`, `singleKeyShortcuts`, `live`, `notify`, `format`, `lastVisit`, `team`, `cardMotion`, `cardSound` | Read and write through `prefs`; storage failures fall back to memory. `theme.js` is a classic script that applies theme and density before first paint |
 | [`live.js`](../public/core/live.js) | The one refresh scheduler, backoff, the Live or Paused state and "Updated … ago" | See [Extend the UI](#extend-the-ui) |
+| [`event-stream.js`](../public/core/event-stream.js) | Follows a session's server-sent events and reopens the stream after the browser closed it | Open a stream with `followEventStream`, never `new EventSource`, and keep its handle in `state.stream` so leaving the view closes it |
 | [`keys.js`](../public/core/keys.js) | The shortcut table, the `?` help dialog and the global keys | See [Extend the UI](#extend-the-ui) |
 | [`counts.js`](../public/core/counts.js) | The navigation counts and the Ploeg status, read from `GET /api/ploeg/now` | A view that loads Now data passes it to `applyNowCounts` rather than fetching twice. `onCountsChange(listener)` hands listeners the Now response, which the palette and the attention signals read |
 | [`route.js`](../public/core/route.js) | Hash parsing, building and redirects | Build hashes with `buildHash`, never by string concatenation |

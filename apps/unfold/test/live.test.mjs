@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { createLive, heartbeat, live, maxBackoff } from '../public/core/live.js';
+import { createLive, heartbeat, live, maxBackoff, restartBackoff, restartLike } from '../public/core/live.js';
 import '../public/views/index.js';
 
 function fakeEnvironment() {
@@ -121,6 +121,62 @@ test('a failing refresh backs off exponentially up to five minutes and recovers 
   assert.equal(scheduler.lastUpdated, 1065000);
   await env.advance(15000);
   assert.equal(attempts.at(-1), 1080000, 'after a success the interval is back to normal');
+});
+
+test('a failure that looks like a restart backs off to at most fifteen seconds', async () => {
+  for (const failure of [Object.assign(new Error('Bad gateway'), { status: 502 }), Object.assign(new Error('Unavailable'), { status: 503 }), Object.assign(new Error('Timed out'), { status: 504 }), new TypeError('Failed to fetch')]) {
+    const env = fakeEnvironment();
+    env.view = 'now';
+    const scheduler = createLive(env);
+    const attempts = [];
+    scheduler.register('now', { interval: 30000, refresh: async () => { attempts.push(env.clock); throw failure; } });
+    scheduler.start();
+    await env.advance(30000 + 4 * restartBackoff);
+    assert.deepEqual(attempts, [30000, 45000, 60000, 75000, 90000], String(failure.status ?? failure.name));
+  }
+  assert.equal(restartLike(Object.assign(new Error('Conflict'), { status: 409 })), false);
+  assert.equal(restartLike(new Error('Ploeg unreachable')), false);
+});
+
+test('once any request succeeds again every failed job is due at once and its backoff is forgotten', async () => {
+  const env = fakeEnvironment();
+  env.view = 'now';
+  const scheduler = createLive(env);
+  const calls = [];
+  let down = true;
+  const outage = () => Object.assign(new Error('Upstream unavailable'), { status: 503 });
+  scheduler.register('counts', { interval: 60000, scope: 'global', refresh: async () => { calls.push(`counts@${env.clock}`); if (down) throw outage(); } });
+  scheduler.register('now', { interval: 30000, refresh: async () => { calls.push(`now@${env.clock}`); if (down) throw new Error('Ploeg unreachable'); } });
+  scheduler.start();
+  await env.advance(30000 + 60000 + 120000);
+  assert.deepEqual(calls.filter(call => call.startsWith('now')), ['now@30000', 'now@90000', 'now@210000'], 'the Now job backs off exponentially');
+  down = false;
+  const before = calls.length;
+  await env.advance(restartBackoff);
+  const next = calls.slice(before);
+  assert.equal(next[0].startsWith('counts@'), true, 'the restart-like job retries within fifteen seconds');
+  const recovered = Number(next[0].split('@')[1]);
+  assert.deepEqual(next, [`counts@${recovered}`, `now@${recovered}`], 'its success makes the backed-off Now job due at once');
+  await env.advance(30000);
+  assert.equal(calls.at(-1), `now@${recovered + 30000}`, 'the Now job is back on its plain interval');
+});
+
+test('recover forgets failures and runs the failed jobs now, for when the browser is back online or the tab visible', async () => {
+  const env = fakeEnvironment();
+  const scheduler = createLive(env);
+  const attempts = [];
+  let failing = true;
+  scheduler.register('activity', { interval: 15000, refresh: async () => { attempts.push(env.clock); if (failing) throw new Error('Ploeg unreachable'); } });
+  scheduler.start();
+  await env.advance(15000 + 30000 + 60000);
+  assert.deepEqual(attempts, [15000, 45000, 105000]);
+  failing = false;
+  await env.advance(1000);
+  scheduler.recover();
+  await env.advance(0);
+  assert.deepEqual(attempts.slice(3), [106000], 'the job ran at once instead of 120 s after its last failure');
+  await env.advance(15000);
+  assert.deepEqual(attempts.slice(4), [121000]);
 });
 
 test('a global job runs on every view, touch restarts the current view’s interval, and subscribers hear every change', async () => {

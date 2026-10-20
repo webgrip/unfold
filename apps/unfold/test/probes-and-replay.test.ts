@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { application, createSession, replay, request } from './api-support.ts';
-import { eventReplayBatch } from '../src/http.ts';
+import { eventReplayBatch, streamCursor } from '../src/http.ts';
 import { testTimeout } from './timeframes.ts';
 
 test('health probes stay cheap and a corrupt session row fails neither of them', { timeout: testTimeout(15_000) }, async t => {
@@ -66,4 +66,26 @@ test('a live event client from an old cursor catches up completely in bounded st
 
   const remainder = await request(server.url, `/api/sessions/${created.id}/history?after=${cursor}`);
   assert.deepEqual(remainder.body, expected, 'the history endpoint still returns the whole remainder');
+});
+
+test('an automatic reconnect resumes after its Last-Event-ID instead of replaying from the lower ?after= cursor', { timeout: testTimeout(15_000) }, async t => {
+  const server = await application('demo');
+  t.after(() => server.close());
+  const store = server.app.store;
+  const created = await createSession(server.url);
+  store.transaction(() => { for (let index = 0; index < 10; index++) store.appendEvent(created.id, 'test.seeded', 'test', { index }); });
+  const history = store.events(created.id);
+  const cursor = history[0].id;
+  const seen = history[history.length - 4].id;
+  const after = (from: number) => history.filter(event => event.id > from);
+
+  assert.deepEqual(await replay(server.url, created.id, cursor, after(seen).length, undefined, { 'Last-Event-ID': String(seen) }), after(seen), 'the reconnect starts after the last event the browser saw');
+  const resumed = await replay(server.url, created.id, seen, after(seen).length, undefined, { 'Last-Event-ID': String(cursor) });
+  assert.deepEqual(resumed, after(seen), 'a lower Last-Event-ID never rewinds an explicit cursor');
+
+  assert.equal(streamCursor('7', '12'), 12);
+  assert.equal(streamCursor('12', '7'), 12);
+  assert.equal(streamCursor(null, '5'), 5);
+  assert.equal(streamCursor('3', undefined), 3);
+  assert.equal(streamCursor('-4', 'not-a-number'), 0);
 });
