@@ -5,13 +5,21 @@ import { prefs } from './prefs.js';
 export const heartbeat = 5000;
 /** The longest wait after repeated failures. */
 export const maxBackoff = 5 * 60 * 1000;
+/** The longest wait after a failure that looks like Unfold restarting: a network error or a 502, 503 or 504. */
+export const restartBackoff = 15000;
+
+/** Whether `error` looks like Unfold restarting behind its gateway rather than a request it refused. */
+export function restartLike(error) {
+  return [502, 503, 504].includes(error?.status) || error?.name === 'TypeError';
+}
 
 /**
  * Creates the one live-update scheduler. `env` supplies the clock and timers (`now`, `setTimeout`,
  * `clearTimeout`) and the conditions (`visible`, `signedIn`, `blocked` for an open dialog, `currentView`,
  * `paused`, `setPaused`). A job runs only while the tab is visible (or the job is `hidden`), someone is signed in,
  * no dialog is open, live updates are on, and its view is current (or it is `scope: 'global'`). A failing job backs off
- * exponentially, from its interval up to five minutes. One timer serves every job.
+ * exponentially, from its interval up to five minutes, or up to fifteen seconds while the failure looks like a
+ * restart. Once any job succeeds again, every failed job is due at once. One timer serves every job.
  */
 export function createLive(env) {
   const jobs = new Map();
@@ -23,7 +31,11 @@ export function createLive(env) {
   const record = view => { lastUpdated = env.now(); updatedView = view; };
   const notify = () => { for (const listener of listeners) { try { listener(); } catch {} } };
   const eligible = job => !job.running && (env.visible() || job.hidden) && env.signedIn() && !env.paused() && !env.blocked() && (job.scope === 'global' || env.currentView() === job.id);
-  const backoff = job => Math.min(job.interval * 2 ** job.failures, Math.max(maxBackoff, job.interval));
+  const backoff = (job, error) => Math.min(job.interval * 2 ** job.failures, restartLike(error) ? restartBackoff : Math.max(maxBackoff, job.interval));
+  const recover = () => {
+    const now = env.now();
+    for (const job of jobs.values()) if (job.failures > 0) { job.failures = 0; job.due = Math.min(job.due, now); }
+  };
 
   function schedule() {
     if (timer !== null) { env.clearTimeout(timer); timer = null; }
@@ -36,8 +48,8 @@ export function createLive(env) {
 
   async function run(job) {
     job.running = true;
-    try { const read = await job.refresh(); job.failures = 0; job.due = env.now() + job.interval; if (read !== false && job.scope !== 'global') record(job.id); }
-    catch { job.failures += 1; job.due = env.now() + backoff(job); }
+    try { const read = await job.refresh(); recover(); job.failures = 0; job.due = env.now() + job.interval; if (read !== false && job.scope !== 'global') record(job.id); }
+    catch (error) { job.failures += 1; job.due = env.now() + backoff(job, error); }
     finally { job.running = false; notify(); schedule(); }
   }
 
@@ -70,11 +82,17 @@ export function createLive(env) {
     /** Re-evaluates the conditions now, for example after the tab became visible or a dialog closed. */
     wake() { schedule(); },
     /**
+     * Forgets every job's failures and makes each failed job due now, for when the server is likely reachable again:
+     * the browser came back online or the tab became visible.
+     */
+    recover() { recover(); schedule(); },
+    /**
      * Records a successful load by the view `id` (default: the current view): updates `lastUpdated` for that
-     * view and restarts its interval.
+     * view, restarts its interval and, like any success, makes every failed job due now.
      */
     touch(id = env.currentView()) {
       record(id);
+      recover();
       const job = jobs.get(id);
       if (job && job.scope !== 'global' && !job.running) { job.due = lastUpdated + job.interval; job.failures = 0; }
       notify(); schedule();

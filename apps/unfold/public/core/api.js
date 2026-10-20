@@ -10,7 +10,7 @@ export function unauthorized() { unauthorizedHandler(); }
 
 /**
  * Calls the Unfold JSON API with the same-origin request marker. A 401 outside login runs the registered handler.
- * Rejects with an Error that carries the server's `status` and `code`.
+ * Rejects with an Error that carries the server's `status` and `code`, also when a gateway answered with a body that is not JSON.
  */
 export async function api(path, options = {}) {
   activity();
@@ -19,13 +19,13 @@ export async function api(path, options = {}) {
   try { response = await fetch(path, { ...options, headers: { 'Content-Type': 'application/json', 'X-Unfold-Request': '1', ...options.headers }, credentials: 'same-origin' }); }
   catch (error) { rememberRequest({ method: options.method, url: path, durationMs: performance.now() - started }); throw error; }
   rememberRequest({ method: options.method, url: path, status: response.status, durationMs: performance.now() - started });
-  const data = await response.json();
   if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
     if (response.status === 401 && path !== '/api/login') unauthorized();
     const error = new Error(data.error?.message || 'The request could not be completed.');
     error.status = response.status;
     error.code = data.error?.code;
     throw error;
   }
-  return data;
+  return response.json();
 }

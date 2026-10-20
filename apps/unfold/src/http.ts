@@ -63,6 +63,12 @@ export function routeShape(path: string): string {
   return path.split('/').map(part => /^[0-9]+$|^[0-9a-f-]{16,}$|^[A-Za-z0-9_-]{20,}$/i.test(part) ? ':id' : part).join('/').slice(0, 200);
 }
 
+/** Where a session event stream resumes: after the higher of the `after` query and the `Last-Event-ID` an automatic reconnect sends, so a reconnect never replays events the browser already has. */
+export function streamCursor(after: string | null, lastEventId: string | string[] | undefined): number {
+  const read = (value: unknown) => Math.max(0, Math.floor(Number(value)) || 0);
+  return Math.max(read(after), read(Array.isArray(lastEventId) ? lastEventId[0] : lastEventId));
+}
+
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
 
 function json(res: ServerResponse, status: number, value: unknown): void {
@@ -923,7 +929,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (method === 'GET' && action === 'permissions') return json(res, 200, sanitize(store.permissions(id).map(({ nativeId, ...request }) => request)));
           if (method === 'GET' && action === 'events') {
             if (streams.size >= 100) fault(429, 'streams', 'Too many live connections.');
-            let cursor = Math.max(0, Math.floor(Number(url.searchParams.get('after') || req.headers['last-event-id']) || 0));
+            let cursor = streamCursor(url.searchParams.get('after'), req.headers['last-event-id']);
             res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
             streams.add(res);
             res.write('retry: 1500\n\n');

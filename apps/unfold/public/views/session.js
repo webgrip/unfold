@@ -10,6 +10,7 @@ import { sessionStatus, verdict as verdictMeta, workItemState, workspacePhaseLab
 import { repoName, teamName, runtimeName, placementName, isActive, providerName, statusLabel } from '../core/lookup.js';
 import { observabilityLinks, dashboardLinks } from '../core/observability.js';
 import { live } from '../core/live.js';
+import { followEventStream } from '../core/event-stream.js';
 import { render } from '../core/navigation.js';
 import { shell, showConnection } from '../shell.js';
 import { openNew, confirmAction, openReviewDialog, openBudgetDialog, fieldError } from './dialogs.js';
@@ -904,29 +905,31 @@ export function sessionParts(id) {
 
 function follow(id, after) {
   state.stream?.close();
-  const stream = new EventSource(`/api/sessions/${id}/events?after=${after}`);
-  state.stream = stream;
-  stream.onopen = () => { state.online = true; showConnection(true); };
-  stream.onerror = () => { state.online = false; showConnection(false); };
-  stream.onmessage = event => {
-    if (state.session?.id !== id) return;
-    const record = JSON.parse(event.data);
-    if (record.type.startsWith('delivery.')) void loadDelivery(id);
-    if (!state.events.some(item => item.id === record.id)) state.events.push(record);
-    clearTimeout(state.refreshTimer);
-    state.refreshTimer = setTimeout(async () => {
-      try {
-        const [latest, requests] = await Promise.all([api(`/api/sessions/${id}`), api(`/api/sessions/${id}/permissions`)]);
-        if (state.session?.id !== id || !shown()) return;
-        if (latest.status !== state.session.status) announce(sessionStatus(latest).label);
-        state.session = latest; state.permissions = requests;
-        const index = state.sessions.findIndex(item => item.id === id);
-        if (index >= 0) state.sessions[index] = latest;
-        renderSession();
-        live.touch('session');
-      } catch (error) { notify(error.message, true); }
-    }, 120);
-  };
+  state.stream = followEventStream(cursor => `/api/sessions/${id}/events?after=${cursor}`, after, {
+    open: () => { state.online = true; showConnection(true); },
+    offline: () => { state.online = false; showConnection(false); },
+    message: event => received(id, event),
+  });
+}
+
+function received(id, event) {
+  if (state.session?.id !== id) return;
+  const record = JSON.parse(event.data);
+  if (record.type.startsWith('delivery.')) void loadDelivery(id);
+  if (!state.events.some(item => item.id === record.id)) state.events.push(record);
+  clearTimeout(state.refreshTimer);
+  state.refreshTimer = setTimeout(async () => {
+    try {
+      const [latest, requests] = await Promise.all([api(`/api/sessions/${id}`), api(`/api/sessions/${id}/permissions`)]);
+      if (state.session?.id !== id || !shown()) return;
+      if (latest.status !== state.session.status) announce(sessionStatus(latest).label);
+      state.session = latest; state.permissions = requests;
+      const index = state.sessions.findIndex(item => item.id === id);
+      if (index >= 0) state.sessions[index] = latest;
+      renderSession();
+      live.touch('session');
+    } catch (error) { notify(error.message, true); }
+  }, 120);
 }
 
 async function downloadCandidate(format) {
