@@ -56,7 +56,7 @@ spec:
       affinity: {{- toYaml . | nindent 8 }}
       {{- end }}
       automountServiceAccountToken: {{ eq .Values.mode "live" }}
-      terminationGracePeriodSeconds: 90
+      terminationGracePeriodSeconds: 20
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
@@ -168,7 +168,8 @@ spec:
             httpGet:
               path: /readyz
               port: http
-            periodSeconds: 10
+            periodSeconds: 1
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /healthz
@@ -178,8 +179,8 @@ spec:
             httpGet:
               path: /healthz
               port: http
-            periodSeconds: 2
-            failureThreshold: 30
+            periodSeconds: 1
+            failureThreshold: 60
           resources: {{- toYaml .Values.resources | nindent 12 }}
       volumes:
         - name: data

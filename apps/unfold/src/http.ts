@@ -161,6 +161,7 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
 }
 
 const requestBodyLimitMs = 15000;
+export const keepAliveTimeoutMs = 75_000;
 
 /**
  * Destroys a request whose body has not fully arrived within `withinMs`, as Node's server-wide `requestTimeout` does,
@@ -1019,5 +1020,6 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   });
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;
+  server.keepAliveTimeout = keepAliveTimeoutMs;
   return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); tripwire.stop(); }, reports };
 }

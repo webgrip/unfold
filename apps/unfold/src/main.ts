@@ -36,7 +36,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
   const broker = config.mode === 'live' && config.litellm?.masterKey && !config.execution ? new LiteLLMBroker(config.litellm) : undefined;
   const links = new Links(store, config);
   const engine = new Engine(store, config, runtimes, broker, links);
-  engine.recover();
+  const recoveredSessions = engine.recover();
   const agentHost = new AgentHost(config, store, engine);
   const { server, cards, tripwire, closeStreams, stopInsight, reports } = buildServer(config, store, engine, [...runtimes.keys()], relay, agentHost, links, new Oidc(config), errors);
   server.on('upgrade', (req, socket, head) => { if (!agentHost.handleUpgrade(req, socket, head)) socket.destroy(); });
@@ -60,7 +60,26 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
     store.close();
     await errors.flush();
   }
-  return { server, store, engine, agentHost, reports, errors, tripwire, close, startCardSweeps };
+  return { server, store, engine, agentHost, reports, errors, tripwire, close, startCardSweeps, recoveredSessions };
+}
+
+export const shutdownDeadlineMs = 10_000;
+
+/** Runs `close` and settles at whichever comes first: `close` finishing, or `deadlineMs` passing. */
+export async function closeWithin(close: () => Promise<void>, deadlineMs: number): Promise<'closed' | 'deadline'> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<'deadline'>(done => { timer = setTimeout(() => done('deadline'), deadlineMs); });
+  try { return await Promise.race([close().then(() => 'closed' as const), deadline]); }
+  finally { clearTimeout(timer); }
+}
+
+async function stopProcess(close: () => Promise<void>) {
+  const outcome = await closeWithin(close, shutdownDeadlineMs).catch((error: unknown) => {
+    console.error(JSON.stringify({ level: 'error', event: 'server.shutdown_failed', message: String((error as Error)?.message ?? error).slice(0, 300) }));
+    return 'failed' as const;
+  });
+  if (outcome === 'deadline') console.error(JSON.stringify({ level: 'warn', event: 'server.shutdown_deadline', deadlineMs: shutdownDeadlineMs, message: `Shutdown did not finish within ${shutdownDeadlineMs / 1000} seconds; exiting. Sessions were already marked interrupted or left to reconnect.` }));
+  process.exit(outcome === 'closed' ? 0 : 1);
 }
 
 async function main() {
@@ -77,9 +96,9 @@ async function main() {
   app.server.listen(config.port, config.host, () => {
     const address = app.server.address();
     const port = typeof address === 'object' && address ? address.port : config.port;
-    console.log(JSON.stringify({ level: 'info', event: 'server.ready', mode: config.mode, url: config.baseUrl || `http://${config.host}:${port}`, message: config.mode === 'demo' ? 'Local demonstration. Real code verification; no model calls.' : 'Authenticated remote agent workbench.' }));
+    console.log(JSON.stringify({ level: 'info', event: 'server.ready', mode: config.mode, bootMs: Math.round(performance.now()), recoveredSessions: app.recoveredSessions, url: config.baseUrl || `http://${config.host}:${port}`, message: config.mode === 'demo' ? 'Local demonstration. Real code verification; no model calls.' : 'Authenticated remote agent workbench.' }));
   });
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void app.close().then(() => process.exit(0)); });
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void stopProcess(app.close); });
   process.on('unhandledRejection', reason => app.errors.capture(reason, { level: 'error', tags: { feature: 'process', source: 'unhandledRejection' } }));
   process.on('uncaughtException', error => {
     console.error(JSON.stringify({ level: 'error', event: 'process.crashed', message: String(error?.message ?? error).slice(0, 300) }));
