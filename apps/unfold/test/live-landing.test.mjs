@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { landingEstimate } from '../public/live/landing.js';
+import { landingEstimate, withJudgeEta } from '../public/live/landing.js';
 import { liveModel } from '../public/live/model.js';
 import { flightLegs } from '../public/live/flight-path.js';
 import { standingAnswers } from '../public/live/answers.js';
@@ -46,4 +46,25 @@ test('the flight path and the review answer show the estimate instead of “no e
   const review = standingAnswers(model).find(entry => entry.id === 'review');
   assert.equal(review.source, 'estimate');
   assert.match(review.answer, /should open about 21:44/);
+});
+
+test('the AI judge’s forecast stands beside the history estimate, and alone when there is too little history', () => {
+  const judge = { runId: '50', at: new Date(at(10)).toISOString(), etaAt: new Date(at(40)).toISOString() };
+  const both = withJudgeEta(landingEstimate({ history, run, now: at(12) }), judge, { run, now: at(12) });
+  assert.equal(both.landsAt, at(18));
+  assert.equal(both.judgeAt, at(40));
+  assert.match(both.note, /^about \d{2}:\d{2} · AI \d{2}:\d{2}$/);
+  assert.match(both.text, /The AI judge, reading its progress at \d{2}:\d{2}, expects it about \d{2}:\d{2}/);
+  const alone = withJudgeEta(null, judge, { run, now: at(12) });
+  assert.equal(alone.source, 'judge');
+  assert.equal(alone.landsAt, at(40));
+  assert.match(alone.note, /^AI · about/);
+});
+
+test('a judge forecast already past, for another Run, or for a Run that does not write is left out', () => {
+  const judge = { runId: '50', at: new Date(at(1)).toISOString(), etaAt: new Date(at(20)).toISOString() };
+  assert.equal(withJudgeEta(null, judge, { run, now: at(21) }), null);
+  assert.equal(withJudgeEta(null, { ...judge, runId: '49' }, { run, now: at(2) }), null);
+  assert.equal(withJudgeEta(null, judge, { run: { ...run, writes: false }, now: at(2) }), null);
+  assert.equal(withJudgeEta(null, { ...judge, etaAt: null }, { run, now: at(2) }), null);
 });
