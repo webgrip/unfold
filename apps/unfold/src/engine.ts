@@ -805,14 +805,15 @@ export class Engine {
     return current;
   }
 
-  recover(): void {
+  recover(): number {
+    let recovered = 0;
     for (const session of this.store.listSessions()) {
       const unconfirmed = 'Ploeg admission was requested for this session but never confirmed. It will not run standalone; restore the Ploeg execution connection to reconcile it, or cancel it to discard it.';
       if (!this.authority && !session.execution && this.managed(session) && ['queued', 'paused', 'interrupted'].includes(session.status) && session.blocker !== unconfirmed) {
         session.blocker = unconfirmed;
         this.save(session, 'execution.reconciliation_pending', 'system', { admission: 'unconfirmed', autoResumed: false });
       }
-      if (!this.active.has(session.id) && this.reattachable(session)) { this.reconnect(session); continue; }
+      if (!this.active.has(session.id) && this.reattachable(session)) { this.reconnect(session); recovered++; continue; }
       if (session.workspace && ['completed', 'failed', 'cancelled'].includes(session.status)) void this.revokeEndedWorker(session.id, this.runtimes.get(session.runtime)).catch(() => undefined);
       const interrupted = ['running', 'waiting_input', 'exporting'].includes(session.status);
       if (interrupted) this.interruptAfterRestart(session, 'The server restarted. Execution has not been resumed; review the workspace and explicitly resume.');
@@ -821,7 +822,9 @@ export class Engine {
       const controller = new AbortController(); controller.abort();
       const task = this.stopRecoveredSession(session).finally(() => this.active.delete(session.id));
       this.active.set(session.id, { controller, task });
+      recovered++;
     }
+    return recovered;
   }
 
   private interruptAfterRestart(session: Session, blocker: string): void {
