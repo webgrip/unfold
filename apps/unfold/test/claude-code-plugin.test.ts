@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -107,10 +107,12 @@ function runHook(payload: Record<string, unknown>, env: Record<string, string>):
   });
 }
 
-test('the hook reports a session, names it after its Work Item, and sends an Agent Trace record and a git note for its commit', async t => {
+test('the hook reports a session, names it after its Work Item, and sends an Agent Trace record and a git note for its commit, also when the repository is reached through a symlink', async t => {
   const unfold = await fakeUnfold();
-  const dir = await mkdtemp(join(tmpdir(), 'unfold-plugin-'));
-  t.after(async () => { await unfold.close(); await rm(dir, { recursive: true, force: true }); });
+  const real = await mkdtemp(join(tmpdir(), 'unfold-plugin-'));
+  const dir = `${real}-link`;
+  await symlink(real, dir);
+  t.after(async () => { await unfold.close(); await rm(dir, { force: true }); await rm(real, { recursive: true, force: true }); });
   const repo = join(dir, 'repo');
   const gitIn = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' }).trim();
   execFileSync('git', ['init', '-q', '-b', 'feat/vik-2051-login', repo]);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync, renameSync, openSync, readSync, fstatSync, closeSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, renameSync, openSync, readSync, fstatSync, closeSync, existsSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, relative, isAbsolute } from 'node:path';
 import { addedLines, attribute, mainAgent, remember, traceRecord, writtenText } from './agent-trace.mjs';
@@ -146,7 +146,7 @@ async function handle(input) {
         while (folder && !existsSync(folder) && dirname(folder) !== folder) folder = dirname(folder);
         const top = folder ? git(folder, ['rev-parse', '--show-toplevel']) : '';
         if (top) {
-          const path = relative(top, file);
+          const path = relative(top, join(realpathSync(folder), relative(folder, file)));
           const agent = typeof input.agent_type === 'string' && input.agent_type ? input.agent_type.slice(0, 80) : input.agent_id ? 'subagent' : mainAgent;
           if (!path.startsWith('..')) remember(tracked(state, top).written, path.split('\\').join('/'), writtenText(input.tool_name, input.tool_input), agent);
         }
