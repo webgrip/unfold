@@ -1,3 +1,16 @@
+## [unfold-v0.4.0-rc.106](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.105...unfold-v0.4.0-rc.106) (2026-10-20)
+
+### Added
+
+* **unfold:** the run health judge forecasts when a Run finishes ([9c6cf5c](https://forgejo.webgrip.dev/webgrip/unfold/commit/9c6cf5ce4f1bf044f85a93262920351931a16acc))
+
+### Fixed
+
+* **ploeg:** update Ploeg to 0.2.0-rc.45 ([990650b](https://forgejo.webgrip.dev/webgrip/unfold/commit/990650b59b5c73a23d4101abc9f02f6f591eee6d))
+* **unfold:** attribute the Claude Code plugin's edits in a repository reached through a symlink ([234f05e](https://forgejo.webgrip.dev/webgrip/unfold/commit/234f05e5cab39c83e9c66b13b7327a98b5d9ddc0))
+* **unfold:** pass a pool config to Ploeg's store.New in the unified demo ([11bc03e](https://forgejo.webgrip.dev/webgrip/unfold/commit/11bc03e14eeee9d4ff3273f6571db3554024b3e4))
+* **unfold:** rethrow the error that ended a transaction instead of a failed rollback ([0ef5947](https://forgejo.webgrip.dev/webgrip/unfold/commit/0ef59470d9ad97000efb5cdcfadd14c9320d356b))
+
 ## [unfold-v0.4.0-rc.105](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.104...unfold-v0.4.0-rc.105) (2026-10-20)
 
 ### Added
