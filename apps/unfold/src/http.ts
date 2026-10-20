@@ -28,6 +28,7 @@ import { Collection, CollectionError } from './collection.ts';
 import { CardThemes, ThemeError } from './card-themes.ts';
 import { AssetError, assetLimits, maxImageSide, maxUploadBytes } from './card-assets.ts';
 import { CardArtError, CardArtGenerator, maxArtAttempts } from './card-art.ts';
+import { StoreUpkeep } from './store-upkeep.ts';
 import { InsightService, maxEventPayloadBytes, parseInsightEvents } from './insight.ts';
 import { ReportError, ReportService, parseReport } from './reports.ts';
 import { knownSecrets, withoutKnownSecrets } from './redaction.ts';
@@ -199,7 +200,8 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const collection = new Collection(config, store, ploeg, config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true));
   const themes = new CardThemes(store, config);
   const cardArt = new CardArtGenerator(config);
-  const insight = new InsightService(store, config, applicationVersion);
+  const upkeep = new StoreUpkeep(store, errors);
+  const insight = new InsightService(store, config, applicationVersion, undefined, { upkeep: () => upkeep.run() });
   const reports = new ReportService(store, config, applicationVersion);
   const secrets = knownSecrets(config);
   const askDemo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true);
