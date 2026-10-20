@@ -1,3 +1,9 @@
+## [unfold-v0.4.0-rc.107](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.106...unfold-v0.4.0-rc.107) (2026-10-20)
+
+### Fixed
+
+* **ploeg:** update Ploeg to 0.2.0-rc.46 ([a541188](https://forgejo.webgrip.dev/webgrip/unfold/commit/a5411889c2ea92216d8ac56314ae5b4ad7cd3a16))
+
 ## [unfold-v0.4.0-rc.106](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.105...unfold-v0.4.0-rc.106) (2026-10-20)
 
 ### Added
