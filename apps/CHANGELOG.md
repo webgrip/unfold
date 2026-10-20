@@ -1,3 +1,18 @@
+## [unfold-v0.4.0-rc.105](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.104...unfold-v0.4.0-rc.105) (2026-10-20)
+
+### Added
+
+* **unfold:** run SQLite with synchronous=NORMAL, keep planner statistics fresh and check integrity daily ([be21123](https://forgejo.webgrip.dev/webgrip/unfold/commit/be2112353694428f2b4d62df2111366308eb041c))
+
+### Fixed
+
+* **unfold:** recover the browser within seconds after a restart ([c0b16ff](https://forgejo.webgrip.dev/webgrip/unfold/commit/c0b16ff005c49f8a666bba0e9bfcdbc0a9786be5))
+* **unfold:** restart faster with one replica: 1 s probes, a 10 s shutdown deadline and 75 s keep-alive ([11938e4](https://forgejo.webgrip.dev/webgrip/unfold/commit/11938e4f60625e3bf1a93a1d413e2b4fa56fa01f))
+
+### Performance
+
+* **unfold:** bake a Node compile cache into the workbench image ([8844923](https://forgejo.webgrip.dev/webgrip/unfold/commit/88449233813be7b9c27c192c9fc5cb8d5420a984))
+
 ## [unfold-v0.4.0-rc.104](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.103...unfold-v0.4.0-rc.104) (2026-10-19)
 
 ### Fixed
