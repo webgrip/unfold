@@ -119,7 +119,7 @@ export class Store {
   transaction<T>(fn: () => T): T {
     this.db.exec('BEGIN IMMEDIATE');
     try { const value = fn(); this.db.exec('COMMIT'); return value; }
-    catch (error) { this.db.exec('ROLLBACK'); throw error; }
+    catch (error) { if (this.db.isTransaction) this.db.exec('ROLLBACK'); throw error; }
   }
 
   saveSession(session: Session): void {
