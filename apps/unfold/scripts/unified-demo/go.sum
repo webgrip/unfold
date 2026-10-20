@@ -15,8 +15,8 @@ github.com/jackc/puddle/v2 v2.2.2 h1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo
 github.com/jackc/puddle/v2 v2.2.2/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
 github.com/lib/pq v1.12.3 h1:tTWxr2YLKwIvK90ZXEw8GP7UFHtcbTtty8zsI+YjrfQ=
 github.com/lib/pq v1.12.3/go.mod h1:/p+8NSbOcwzAEI7wiMXFlgydTwcgTr3OSKMsD2BitpA=
-github.com/ploeg-hq/ploeg v0.2.0-rc.45 h1:HcRQUnm3/AwyP/bg3RU7DZF011rcFjA63jL0wo2Oxw0=
-github.com/ploeg-hq/ploeg v0.2.0-rc.45/go.mod h1:HDlfv/vMciorsaXchNhE0eTsnI8L0wLcuRdaVjm/kRQ=
+github.com/ploeg-hq/ploeg v0.2.0-rc.46 h1:MWlGJab8mFTg0UgwlcUUE5chEgboaoVTqsM2t4B93po=
+github.com/ploeg-hq/ploeg v0.2.0-rc.46/go.mod h1:HDlfv/vMciorsaXchNhE0eTsnI8L0wLcuRdaVjm/kRQ=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 h1:1EYB5IzjZawrrnELUi78f9fPu57HuXjmddZPjrls/28=
