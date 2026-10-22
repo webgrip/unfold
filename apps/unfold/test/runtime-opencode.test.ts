@@ -277,3 +277,66 @@ test('a new turn records that its prompt was accepted, so a restart knows it may
   await new OpenCodeRuntime(config, manager, wire().fetcher).execute(context(events));
   assert.deepEqual(events.filter(event => event.type === 'native.session').map(event => event.data), [{ nativeId: 'ses_native' }, { nativeId: 'ses_native', prompted: true }]);
 });
+
+function answerAfter(ms: number, signal: AbortSignal | null | undefined): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = Number.isFinite(ms) ? setTimeout(resolve, ms) : undefined;
+    signal?.addEventListener('abort', () => { clearTimeout(timer); reject(signal.reason); }, { once: true });
+  });
+}
+
+function coldStart(delays: { session?: number; firstMessages?: number }): { fetcher: typeof fetch } {
+  const fake = wire();
+  let messagesRead = false;
+  const fetcher = (async (input: URL | RequestInfo, init?: RequestInit) => {
+    const path = new URL(String(input)).pathname;
+    if (path === '/session' && delays.session) await answerAfter(delays.session, init?.signal);
+    if (path.endsWith('/message') && !messagesRead && delays.firstMessages) { messagesRead = true; await answerAfter(delays.firstMessages, init?.signal); }
+    return fake.fetcher(input, init);
+  }) as typeof fetch;
+  return { fetcher };
+}
+
+const coldLimits = { requestMs: 100, sessionOpenMs: 600 };
+
+test('a fresh OpenCode that bootstraps its directory for longer than an ordinary request still opens the session and finishes', async () => {
+  const runtime = new OpenCodeRuntime(config, manager, coldStart({ session: 350 }).fetcher, coldLimits);
+  const result = await runtime.execute(context([]));
+  assert.equal(result.nativeId, 'ses_native');
+  assert.equal(result.verdict, 'approve');
+});
+
+test('a session open that never answers fails as a runtime timeout whose detail names the timer and the elapsed time', async () => {
+  const runtime = new OpenCodeRuntime(config, manager, coldStart({ session: Infinity }).fetcher, coldLimits);
+  await assert.rejects(runtime.execute(context([])), (error: unknown) => {
+    assert.ok(error instanceof RuntimeFailure);
+    assert.equal(error.category, 'timeout');
+    assert.equal(error.stage, 'runtime');
+    assert.equal(error.promptAcceptance, 'not_submitted');
+    assert.match(error.detail ?? '', /^opencode\.session_open fired: POST \/session got no answer after \d+ ms against a limit of 600 ms$/);
+    return true;
+  });
+});
+
+test('opening the session and reading its first messages share one deadline instead of each getting their own', async () => {
+  const runtime = new OpenCodeRuntime(config, manager, coldStart({ session: 400, firstMessages: Infinity }).fetcher, coldLimits);
+  const started = Date.now();
+  await assert.rejects(runtime.execute(context([])), (error: unknown) => {
+    assert.ok(error instanceof RuntimeFailure);
+    const elapsed = Number(/after (\d+) ms/.exec(error.detail ?? '')?.[1]);
+    assert.match(error.detail ?? '', /^opencode\.session_open fired: GET \/session\/ses_native\/message got no answer/);
+    assert.ok(elapsed >= 590 && elapsed < 900, `elapsed ${elapsed} ms`);
+    return true;
+  });
+  assert.ok(Date.now() - started < 900);
+});
+
+test('an ordinary request that outlasts its own limit names opencode.request in the failure', async () => {
+  const silent = (async (_input: URL | RequestInfo, init?: RequestInit) => { await answerAfter(Infinity, init?.signal); return new Response(null, { status: 204 }); }) as typeof fetch;
+  const runtime = new OpenCodeRuntime(config, manager, silent, coldLimits);
+  await assert.rejects(runtime.respond({ ...workspace }, { id: 'local', sessionId: 'session', runId: 'run', nativeId: 'perm_one', kind: 'permission', title: 'Allow', detail: '' }, { decision: 'once' }), (error: unknown) => {
+    assert.ok(error instanceof RuntimeFailure);
+    assert.match(error.detail ?? '', /^opencode\.request fired: POST \/permission\/perm_one\/reply got no answer after \d+ ms against a limit of 100 ms$/);
+    return true;
+  });
+});
