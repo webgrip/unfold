@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { commonFields, defaultLogView, logDownloadText, logExtent, logLineShown, logViewerMarkup, logVolume, levelOf, parseLogLine } from '../public/run-log-view.js';
+import { commonFields, defaultLogView, logDownloadText, logExtent, logLineShown, logViewerMarkup, logVolume, levelOf, parseLogLine, podLabels } from '../public/run-log-view.js';
 
 const slog = (at, level, msg, extra = '') => ({ at, text: `time=${at} level=${level} msg="${msg}" trace=ploeg-f8a5bb14e4a6 role=reviewer${extra}` });
 const lines = [
@@ -28,8 +28,9 @@ test('fields every line carries show once, not on each line', () => {
   const parsed = lines.map(line => parseLogLine(line.text));
   assert.deepEqual(commonFields(parsed), [['trace', 'ploeg-f8a5bb14e4a6'], ['role', 'reviewer']]);
   assert.deepEqual(commonFields(parsed.slice(0, 1)), [], 'one line has nothing in common to lift out');
+  assert.deepEqual(commonFields([...parsed, parseLogLine('plain output from the agent')]), [['trace', 'ploeg-f8a5bb14e4a6'], ['role', 'reviewer']], 'a plain line among them does not stop the lift');
   const html = logViewerMarkup(run, lines, defaultLogView());
-  assert.match(html, /Every line carries<\/span> <span class="log-field"><span class="log-field-key">trace=<\/span>ploeg-f8a5bb14e4a6<\/span>/);
+  assert.match(html, /Every line with fields carries<\/span> <span class="log-field"><span class="log-field-key">trace=<\/span>ploeg-f8a5bb14e4a6<\/span>/);
   assert.doesNotMatch(html.slice(html.indexOf('class="log-lines"')).replace(/<div class="log-detail">[^]*?<\/pre><\/div>/g, ''), /trace=/, 'rows leave the shared fields to their detail');
 });
 
@@ -73,4 +74,28 @@ test('lines open to their fields and raw text; wrap and times can be switched of
 test('the download holds the shown lines with their store time', () => {
   assert.equal(logDownloadText(lines, { ...defaultLogView(), level: 'warn' }), `2026-10-10T23:24:02.140Z ${lines[1].text}\n`);
   assert.equal(logDownloadText([{ at: 'a', text: 'x', stream: 'pod-b' }], defaultLogView(), { several: true }), 'a pod-b x\n');
+});
+
+test('a logfmt line cut off inside a quoted value still reads as logfmt', () => {
+  assert.deepEqual(parseLogLine('time=2026-10-18T19:59:31.116Z level=INFO msg="run finished" outcome=failed stuck_reason="last agent message: Error: Conversation run failed for id=7bfe'), { level: 'info', message: 'run finished', fields: [['outcome', 'failed'], ['stuck_reason', 'last agent message: Error: Conversation run failed for id=7bfe']] });
+});
+
+test('a line that continues the one before it hides its repeated time and pod', () => {
+  const at = '2026-10-18T19:59:27.732Z';
+  const printed = [{ at, stream: 'sbx-w', text: 'RuntimeError: Conversation run failed' }, { at, stream: 'sbx-w', text: '  To help debug this issue, please' }, { at: '2026-10-18T19:59:27.754Z', stream: 'sbx-w', text: 'next' }];
+  const html = logViewerMarkup(run, printed, defaultLogView(), { several: true });
+  assert.equal(html.match(/data-continued/g).length, 1);
+  assert.match(html, /data-level="none" data-continued><summary>[^]*To help debug/);
+});
+
+test('when only the newest lines arrived, the volume chart spans those lines, not the whole Run', () => {
+  assert.equal(logExtent(lines, run, { truncated: true }).from, Date.parse(lines[0].at));
+  assert.equal(logExtent(lines, run).from, Date.parse(run.startedAt));
+});
+
+test('pods read by a short name', () => {
+  const worker = 'ploeg-worker-bronze-builder-cvmvc-97xmz';
+  assert.deepEqual([...podLabels([worker, `sbx-${worker}`])], [[worker, 'worker'], [`sbx-${worker}`, 'sandbox']]);
+  assert.deepEqual([...podLabels(['api-7f9c-abc', 'api-7f9c-def'])], [['api-7f9c-abc', 'abc'], ['api-7f9c-def', 'def']]);
+  assert.deepEqual([...podLabels(['a', 'a-b'])].map(([, label]) => label), ['a', 'b']);
 });
