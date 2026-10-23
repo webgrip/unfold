@@ -259,6 +259,10 @@ export class WorkspaceManager {
     this.relay.unregister(workspace.id);
   }
 
+  async releaseVolume(workspace: Workspace): Promise<boolean> {
+    return workspace.backend === 'kubernetes' && this.kubernetes instanceof KubernetesWorkspaces ? this.kubernetes.releaseVolume(workspace) : false;
+  }
+
   async dispose(workspace: Workspace): Promise<void> {
     const state = this.internal.get(workspace.id);
     if (state?.process) await this.stop(state.process);

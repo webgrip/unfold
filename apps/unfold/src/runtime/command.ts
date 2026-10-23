@@ -145,4 +145,5 @@ export class CommandRuntime implements AgentRuntime {
   captureCandidate(session: Session, repository: Repository): Promise<Candidate> { return this.workspaces.captureCandidate?.(session, repository) ?? Promise.resolve(unavailableCandidate('unsupported_workspace')); }
 
   dispose(workspace: Workspace): Promise<void> { return this.workspaces.dispose(workspace); }
+  releaseVolume(workspace: Workspace): Promise<boolean> { return this.workspaces.releaseVolume?.(workspace) ?? Promise.resolve(false); }
 }
