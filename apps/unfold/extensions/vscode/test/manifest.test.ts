@@ -67,3 +67,11 @@ test('each tool reads only, can be referenced in a prompt and describes itself t
   assert.equal(manifest.engines.vscode, '^1.99.0', 'the engine floor stays; the tool API is feature-detected');
   assert.match(source, /lmToolApi<.+>\(vscode as/);
 });
+
+test('the extension declares that it runs in the Agents window, and stays quiet there', () => {
+  assert.deepEqual(manifest.capabilities.agentsWindow, { supported: true }, 'VS Code 1.143 reads capabilities.agentsWindow.supported without an API proposal');
+  assert.equal(manifest.enabledApiProposals, undefined, 'no proposal is needed for it');
+  assert.match(source, /inAgentsWindow = isAgentsWindowWorkspace\(vscode\.workspace\.workspaceFile\)/);
+  assert.match(source, /private async registerEditorWindow[^]*?if \(this\.inAgentsWindow \|\|/, 'the Agents window never claims the editor-window links');
+  assert.match(source, /if \(!this\.inAgentsWindow\) \{\s*await this\.announceNeedsYou/, 'notifications come from the editor window only');
+});

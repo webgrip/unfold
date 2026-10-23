@@ -17,7 +17,7 @@ import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome }
 import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor, plainText, providerNames } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
 import { linkedAccounts, type AccountChoice } from './accounts.js';
-import { SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowPlan, agentsWindowState, agentsWindowFolder, agentsWindowStatusText, agentsWindowSubject, foldersByLastPick, type AgentHostFolder, attachAgentHost, type AgentsWindowLinkView, type AgentsWindowState, type AttachedClient, connectionAddress, detachAgentHost, editorWindowOf, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
+import { SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowPlan, agentsWindowState, agentsWindowFolder, agentsWindowStatusText, agentsWindowSubject, foldersByLastPick, type AgentHostFolder, attachAgentHost, type AgentsWindowLinkView, type AgentsWindowState, type AttachedClient, connectionAddress, detachAgentHost, editorWindowOf, isAgentsWindowWorkspace, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
 import { TaskPanels, type TaskPanelHost } from './task-panel.js';
 import { checkOutWorkItemBranch, gitApi } from './checkout.js';
@@ -65,6 +65,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   private ticks = 0;
   private quietTicks = 0;
   private eventRefresh?: ReturnType<typeof setTimeout>;
+  private readonly inAgentsWindow = isAgentsWindowWorkspace(vscode.workspace.workspaceFile);
   private readonly needsYou = new NeedsYouNotifier(() => settings().get<boolean>('notifications.needsYou', true));
   private timer: ReturnType<typeof setInterval>;
   private refreshBusy = false;
@@ -367,8 +368,10 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       this.statusLine(client, bootstrap.mode, now.value, rows);
       await vscode.commands.executeCommand('setContext', 'unfold.sessions', demo || Boolean(bootstrap.sharedExecution) || sessions.length > 0);
       await vscode.commands.executeCommand('setContext', 'unfold.connected', true);
-      await this.announceNeedsYou(client, bootstrap, rows);
-      if (now.value) this.announceWaiting(now.value, rows);
+      if (!this.inAgentsWindow) {
+        await this.announceNeedsYou(client, bootstrap, rows);
+        if (now.value) this.announceWaiting(now.value, rows);
+      }
       await this.panels.refreshVisible();
     } catch (error) {
       if (client === this.current && generation === this.generation) {
@@ -588,7 +591,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   }
 
   private async registerEditorWindow(target = this.current): Promise<void> {
-    if (this.configurationError || this.cachedBootstrap?.user.role === 'viewer') return;
+    if (this.inAgentsWindow || this.configurationError || this.cachedBootstrap?.user.role === 'viewer') return;
     try {
       const external = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://webgrip.unfold/`));
       const window = editorWindowOf(external.toString(true));
