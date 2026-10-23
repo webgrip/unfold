@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { closeReasonLabel, detailReason, listReason, needsYouBlocks, parseBudgetReason, parseStuckReason, routingWarning, withdrawnReason } from '../public/core/reasons.js';
+import { approvedToMerge, closeReasonLabel, detailReason, listReason, needsYouBlocks, parseBudgetReason, parseStuckReason, routingWarning, withdrawnReason } from '../public/core/reasons.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
+import { waitingGroup } from '../public/core/reasons.js';
 
 const space = ' ';
 const shift = closeReason => ({ id: '9', round: 2, branch: 'agent/x', budgetUsd: 3, spentUsd: 2.97, reservedUsd: 0.1, openedAt: '2026-09-30T09:00:00Z', closedAt: '2026-09-30T10:00:00Z', closeReason });
@@ -326,4 +327,21 @@ test('an open Shift whose needs-human event carries an operator code reads as th
   assert.equal(detail('operator_interrupted').requeue, '');
   assert.deepEqual([detail('operator_vanished').code, detail('operator_vanished').chip], ['unrecognised', 'Unrecognised: operator_vanished']);
   assert.equal(detail('A person should look at this.').headline, 'A person should look at this.', 'free text stays a quoted headline');
+});
+
+test('an approved Work Item whose pull request is still open waits for your merge, not for a closed pull request', () => {
+  const open = item('review_approved', { pullRequestState: 'open', pullRequestUrl: 'https://forge.test/pulls/840' });
+  const reason = listReason(open);
+  assert.equal(reason.code, 'approved_to_merge');
+  assert.equal(reason.chip, 'Approved: merge it');
+  assert.equal(reason.requeue, '', 'merging is the next step, not a new assignment');
+  assert.equal(approvedToMerge(open), true);
+  assert.equal(waitingGroup(open), 'review', 'it sits with what you decide');
+  assert.equal(listReason(item('review_approved', { pullRequestState: 'merged' })).chip, 'Merged');
+  assert.equal(listReason(item('review_approved', { pullRequestState: 'closed' })).chip, 'Pull request closed');
+  assert.equal(listReason(item('review_approved')).chip, 'Pull request closed', 'an unknown pull request keeps the old reading');
+  assert.equal(waitingGroup(item('review_approved', { pullRequestState: 'closed' })), 'needs');
+  const approved = { item: item('review_approved'), shifts: [], runs: [], events: [{ id: '9', action: 'work_item.needs_human', detail: { reason: 'the reviewer approved; a person is asked to merge' } }] };
+  assert.equal(detailReason(approved).chip, 'Approved: merge it', 'the Work Item page reads Ploeg\'s own words');
+  assert.equal(detailReason(approved).headline, null);
 });

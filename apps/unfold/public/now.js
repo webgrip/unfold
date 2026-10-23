@@ -278,7 +278,7 @@ function linkIcon(id, href, glyph, label) {
 function waitingActions(entry, context, reason) {
   const title = entry.title || `Work Item ${entry.id}`;
   let primary = '';
-  const pr = entry.state === 'awaiting_review' ? safeUrl(entry.pullRequestUrl) : null;
+  const pr = entry.state === 'awaiting_review' || reason?.code === 'approved_to_merge' ? safeUrl(entry.pullRequestUrl) : null;
   const failedCi = reason?.code === 'ci_failed';
   if (pr) primary = button({ id: `now-pr-${entry.id}`, label: failedCi ? 'Failing checks' : 'Pull request', icon: failedCi ? 'x-circle' : 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: failedCi ? `Open the pull request for “${title}” to see why CI did not pass (opens in a new tab)` : `Open the pull request for “${title}” (opens in a new tab)` });
   if (entry.state === 'needs_human' && entry.question?.text) primary = button({ id: `now-answer-${entry.id}`, label: 'Answer', icon: 'send', size: 'sm', href: `#work/${encodeURIComponent(entry.id)}`, ariaLabel: `Answer the question on “${title}”` });
