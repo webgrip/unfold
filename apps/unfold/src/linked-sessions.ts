@@ -4,7 +4,7 @@ import { parseAgentTrace, traceLines, traceLinesByAgent, type AgentTraceRecord }
 import { readSessionTelemetry, type SessionTelemetry } from './linked-telemetry.ts';
 
 /** The harnesses whose sessions a person can link. */
-export const linkedHarnesses = ['claude-code', 'opencode', 'codex'] as const;
+export const linkedHarnesses = ['claude-code', 'opencode', 'codex', 'acp'] as const;
 /** What a harness hook reports: the session started, took a prompt, waits for its person, stopped working, ended, or committed. */
 export const linkedEvents = ['start', 'prompt', 'waiting', 'idle', 'end', 'commit'] as const;
 /** A working or waiting session not heard from for this long shows as stale. */
@@ -17,9 +17,10 @@ export const linkedTelemetryConcurrency = 4;
 export const trackerPrefixes: Readonly<Record<string, string>> = { vik: 'vikunja' };
 
 export type LinkedHarness = typeof linkedHarnesses[number];
-const harnessLabels: Record<LinkedHarness, string> = { 'claude-code': 'Claude Code', opencode: 'OpenCode', codex: 'Codex' };
-/** The command that resumes a harness session on its owner's machine, such as `claude --resume <id>`. */
+const harnessLabels: Record<LinkedHarness, string> = { 'claude-code': 'Claude Code', opencode: 'OpenCode', codex: 'Codex', acp: 'ACP agent' };
+/** The command that resumes a harness session on its owner's machine, such as `claude --resume <id>`; empty for `acp`, which only its editor resumes. */
 export function resumeCommand(harness: LinkedHarness, id: string): string {
+  if (harness === 'acp') return '';
   return harness === 'opencode' ? `opencode --session ${id}` : harness === 'codex' ? `codex resume ${id}` : `claude --resume ${id}`;
 }
 export type LinkedEvent = typeof linkedEvents[number];
