@@ -1672,34 +1672,57 @@ button.stream-bar:hover {
   margin: 0;
 }
 
-.work-disagree-sides {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
-  gap: var(--space-2);
+.work-disagree-round {
+  font-weight: var(--weight-semibold);
 }
 
-.work-disagree-side {
+.work-disagree-sides {
   display: grid;
-  align-content: start;
-  justify-items: start;
-  gap: var(--space-1-5);
-  min-width: 0;
-  padding: var(--space-2-5) var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
   background: var(--bg-surface-subtle);
 }
 
+.work-disagree-side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5) var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+.work-disagree-side + .work-disagree-side {
+  border-top: 1px solid var(--border-subtle);
+}
+
 .work-disagree-side[data-shadow] {
-  border-style: dashed;
+  border-top-style: dashed;
 }
 
 .work-disagree-who {
+  flex: 1 1 12rem;
+  min-width: 0;
   margin: 0;
+}
+
+.work-disagree-fold {
+  flex: 1 0 100%;
+  min-width: 0;
+}
+
+.work-disagree-fold > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }
 
 .work-disagree-findings {
   max-width: 100%;
+  margin-top: var(--space-1-5);
   overflow-wrap: anywhere;
 }
 
@@ -1876,51 +1899,6 @@ button.stream-bar:hover {
 }
 
 @container work (min-width: 49rem) {
-  .work[data-detail] .work-toolbar {
-    display: flex;
-  }
-
-  .work[data-detail] .work-layout {
-    grid-template-columns: var(--list-width) minmax(0, 1fr);
-  }
-
-  .work[data-detail] .work-list-pane {
-    display: flex;
-    flex-direction: column;
-    position: sticky;
-    top: calc(var(--topbar-height) + var(--space-4));
-    max-height: var(--work-pane-max, calc(100dvh - var(--topbar-height) - var(--space-8)));
-  }
-
-  .work[data-detail] .work-list-pane > * {
-    flex: none;
-  }
-
-  .work[data-detail] .work-list-pane > .work-list {
-    flex: 0 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-  }
-
-  .work[data-detail] .work-layout:has(.work-list-pane .empty-state) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .work[data-detail] .work-layout:has(.work-list-pane .empty-state) .work-list-pane {
-    display: none;
-  }
-
-  .work[data-detail] .reason-band {
-    position: sticky;
-    top: 0;
-    z-index: var(--z-raised);
-  }
-
-  .work[data-detail] .reason-band-fix {
-    display: none;
-  }
-
   .work-close {
     display: inline-flex;
   }

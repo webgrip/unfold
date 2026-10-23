@@ -4,7 +4,7 @@ import { answerNote, answeredBy, detailQuestions, disagreementSummary, resumeOff
 import { detailReason, listReason } from '../public/core/reasons.js';
 import { closeReasonLabel } from '../public/core/states.js';
 import { detailMarkup, ploegReview } from '../public/ploeg.js';
-import { answerDialogMarkup, findingsMarkup, noteAction, noteDialogMarkup } from '../public/blackboard-view.js';
+import { answerDialogMarkup, disagreementsMarkup, findingsMarkup, noteAction, noteDialogMarkup } from '../public/blackboard-view.js';
 import { nowMarkup } from '../public/now.js';
 import { ploegDemo } from '../src/ploeg-demo.ts';
 import { detail as parseDetail } from '../src/ploeg.ts';
@@ -91,6 +91,17 @@ test('a shadow reviewer never gives the Work Item’s verdict, findings or last 
   assert.equal(review.lastReader.id, '13');
   assert.deepEqual(review.findings.map(finding => finding.runId), ['13']);
   assert.equal(review.runs.find(run => run.id === '14').shadow, true);
+});
+
+test('acting reviewers stopped before a verdict share one row, and the shadow’s findings stay folded', () => {
+  const stopped = ['21', '22', '23'].map(id => reader(id, 'none', { findings: '' }));
+  const runs = [...stopped, reader('24', 'approve', { shadow: true, role: 'shadow-reviewer', findings: 'Looks right' })];
+  const detail = { item: { id: '50', latestShift: { id: '7' } }, shifts: [{ id: '7' }], runs, reviewDisagreements: [{ shiftId: '7', round: 2, shadowRunId: '24', primaryVerdict: 'none', shadowVerdict: 'approve' }] };
+  const html = disagreementsMarkup(detail);
+  assert.match(html, /Only the shadow reviewer has a verdict/);
+  assert.equal(html.match(/class="work-disagree-side">/g).length, 1, 'three verdictless acting Runs read as one row');
+  assert.match(html, /acts · 3 Runs[^]*No verdict[^]*data-id="23"[^]*Show the latest/);
+  assert.match(html, /data-shadow[^]*Agent approved[^]*<details class="work-disagree-fold"><summary>Findings<\/summary>[^]*Looks right/);
 });
 
 test('the Findings card lists acting findings with answers, flags unanswered ones first, and folds shadow findings away', () => {
