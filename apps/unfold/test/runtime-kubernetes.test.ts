@@ -7,7 +7,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { once } from 'node:events';
-import { KubernetesClient } from '../src/runtime/kubernetes.ts';
+import { KubernetesClient, startTimeoutDetail, waitFailure } from '../src/runtime/kubernetes.ts';
 
 test('Kubernetes DELETE frames its complete JSON body and preserves a reused connection after an allowed 404', async t => {
   const directory = await mkdtemp(join(tmpdir(), 'unfold-kubernetes-http-'));
@@ -55,4 +55,15 @@ test('Kubernetes DELETE frames its complete JSON body and preserves a reused con
   assert.equal(received[1].method, 'GET');
   assert.equal(received[1].body, '');
   assert.equal(received[0].port, received[1].port);
+});
+
+test('a workspace that does not start in time names workspace_start_timeout, the elapsed time and where it went', () => {
+  const startedAt = 1_000_000;
+  const phases = [{ phase: 'scheduling' as const, at: startedAt }, { phase: 'creating' as const, at: startedAt + 2_000 }, { phase: 'cloning' as const, at: startedAt + 47_500 }, { phase: 'starting' as const, at: startedAt + 60_000 }];
+  const detail = startTimeoutDetail(startedAt, 180_000, phases, startedAt + 180_000);
+  assert.equal(detail, 'workspace_start_timeout fired after 180000 ms against a limit of 180000 ms (scheduling 2.0 s, creating 45.5 s, cloning 12.5 s, starting 120.0 s)');
+  const failure = waitFailure({ phase: 'starting' }, detail);
+  assert.equal(failure.category, 'timeout');
+  assert.equal(failure.stage, 'workspace');
+  assert.equal(failure.detail, `The workspace was still starting when the time limit ran out.\n${detail}`);
 });

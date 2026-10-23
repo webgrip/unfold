@@ -27,7 +27,7 @@ Sources: [OpenCode release](https://github.com/anomalyco/opencode/releases/tag/v
 
 The manager provisions one workspace and credentials; the adapter creates a native session per role run. An explicit resumed run can reconnect using its persisted native ID. Native state remains on the workspace volume. An operator action never automatically replays a paid prompt after an ambiguous transport failure.
 
-Every instance-scoped request includes `directory` as a URL-encoded query parameter. The endpoint comes from provisioning, not user prompts. HTTP redirects are rejected. Each JSON request has a 15-second timeout; execution and streams also share the configured total timeout and cancellation signal.
+Every instance-scoped request includes `directory` as a URL-encoded query parameter. The endpoint comes from provisioning, not user prompts. HTTP redirects are rejected. Each JSON request has a 15-second timeout, except that opening the native session and reading its first message list share one 180-second deadline: the first directory-scoped request to a fresh server waits while OpenCode bootstraps that directory, which installs the repository's `.opencode` plugin dependencies and took 70 seconds for OpenCode 1.19.3 on this repository with outbound connections dropped (3.7 seconds with them, 0.2 seconds without the `.opencode` directory). Execution and streams also share the configured total timeout and cancellation signal. A timed-out request fails with a `detail` that names the timer (`opencode.request`, `opencode.session_open` or `runtime.timeoutMs`), what got no answer, and the elapsed and allowed milliseconds.
 
 | Operation | Method and path | Payload or result |
 | --- | --- | --- |
