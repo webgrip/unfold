@@ -34,9 +34,9 @@ const transcriptInterval = 4000;
 const healthInterval = 30_000;
 const transcriptPages = 10;
 const transcriptPanel = /^work-run-transcript-([1-9][0-9]{0,19})$/;
-const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), paneFrame: 0, stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null };
+const work = { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: 0, detailRequest: 0, detailId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, registered: false, reviewFacts: new Map(), reviewPending: new Set(), stickyObserver: null, savedTeam: false, pickLane: null, card: null, cardRequest: 0, stream: null, streamRequest: 0, streamZoom: 'all', trace: null, traceRequest: 0, traceBusy: false, traceResult: null, context: null, contextRequest: 0, contextBusy: false, contextResult: null, asks: null, askRequest: 0, linked: null, linkedRequest: 0, actions: null, actionsRequest: 0, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null };
 
-onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, revealedId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null }));
+onForget(() => Object.assign(work, { writeBusy: false, team: '', teams: [], loadedTeam: null, listRequest: work.listRequest + 1, detailRequest: work.detailRequest + 1, detailId: null, pendingRun: null, runNotice: '', loadingMore: false, refreshing: false, cancelBusy: false, cancelResult: null, briefOpen: new Set(), sessionsLoaded: false, listScroll: 0, reviewFacts: new Map(), reviewPending: new Set(), pickLane: null, card: null, cardRequest: work.cardRequest + 1, stream: null, streamRequest: work.streamRequest + 1, streamZoom: 'all', trace: null, traceRequest: work.traceRequest + 1, traceBusy: false, traceResult: null, context: null, contextRequest: work.contextRequest + 1, contextBusy: false, contextResult: null, asks: null, askRequest: work.askRequest + 1, linked: null, linkedRequest: work.linkedRequest + 1, askBusy: false, askDraft: '', logs: null, transcripts: null, health: null, tab: null, intent: null, attaching: null, sessionFailed: null, tripwire: null, landing: null }));
 
 const laneOfState = { needs_human: 'needs_human', awaiting_review: 'awaiting_review', leased: 'leased', queued: 'queued', done: 'closed', withdrawn: 'closed' };
 const laneFor = item => laneOfState[item?.state] || 'open';
@@ -164,8 +164,6 @@ function renderWork() {
   if (list && listTop) list.scrollTop = listTop;
   if (target && (!document.activeElement || document.activeElement === document.body)) (document.querySelector(target) || (target.includes('ploeg-refresh') ? $('[data-action="ploeg-refresh"][data-id="toolbar"]') : null))?.focus({ preventScroll: true });
   revealLane();
-  syncPane();
-  revealSelected();
   observeActions();
   followSession();
 }
@@ -226,37 +224,6 @@ function revealLane() {
   if (!pressed || lanes.scrollWidth <= lanes.clientWidth) return;
   const start = pressed.offsetLeft - lanes.offsetLeft;
   if (start < lanes.scrollLeft || start + pressed.offsetWidth > lanes.scrollLeft + lanes.clientWidth) lanes.scrollLeft = Math.max(0, start - (lanes.clientWidth - pressed.offsetWidth) / 2);
-}
-
-function syncPane() {
-  const pane = $('.work[data-detail] .work-list-pane');
-  if (!pane) return;
-  if (getComputedStyle(pane).position !== 'sticky') { pane.style.removeProperty('--work-pane-max'); return; }
-  const stick = parseFloat(getComputedStyle(pane).top) || 0;
-  const top = Math.max(stick, pane.getBoundingClientRect().top);
-  pane.style.setProperty('--work-pane-max', `${Math.max(240, Math.floor(innerHeight - top - 16))}px`);
-}
-
-function schedulePane() {
-  if (work.paneFrame || !visible()) return;
-  work.paneFrame = requestAnimationFrame(() => { work.paneFrame = 0; if (visible()) syncPane(); });
-}
-
-function revealSelected() {
-  if (!work.detailId || work.revealedId === work.detailId) return;
-  const scroller = $('.work[data-detail] .work-list-pane > .work-list');
-  const row = scroller?.querySelector('[data-work-row][aria-current="true"]');
-  if (!row || !scroller.offsetParent) return;
-  const id = work.detailId;
-  work.revealedId = id;
-  if (document.fonts && document.fonts.status !== 'loaded') document.fonts.ready.then(() => { if (visible() && work.detailId === id && work.revealedId === id) { work.revealedId = null; revealSelected(); } });
-  if (scroller.scrollHeight <= scroller.clientHeight) return;
-  const header = row.closest('.work-group')?.querySelector('.work-group-header');
-  const offset = header ? header.offsetHeight : 0;
-  const top = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
-  const bottom = top + row.offsetHeight;
-  if (top - offset < scroller.scrollTop) scroller.scrollTop = Math.max(0, top - offset - 8);
-  else if (bottom > scroller.scrollTop + scroller.clientHeight) scroller.scrollTop = bottom - scroller.clientHeight + 8;
 }
 
 function observeActions() {
@@ -625,7 +592,6 @@ async function loadDetail(id, { fresh = false, quiet = false } = {}) {
     const detail = await api(`/api/ploeg/work-items/${encodeURIComponent(id)}${fresh ? '?refresh=1' : ''}`);
     if (request !== work.detailRequest || !visible() || work.detailId !== id) return;
     if (signature(detail) !== signature(state.ploegDetail)) changed = true;
-    if (!quiet) work.revealedId = null;
     state.ploegDetail = detail;
     state.ploegDetailError = '';
     if (work.pickLane === id) { work.pickLane = null; state.ploegLane = laneFor(detail.item); keepFiltersInHash(); changed = true; void loadReviewFacts(); }
@@ -997,8 +963,6 @@ function registerLive() {
   live.register('work-health', { interval: healthInterval, refresh: pollRunHealth, scope: 'global' });
   live.register('work-tripwire', { interval: healthInterval, refresh: pollTripwire, scope: 'global' });
   document.addEventListener('toggle', loadOpenedTranscripts, true);
-  addEventListener('scroll', schedulePane, { passive: true });
-  addEventListener('resize', schedulePane, { passive: true });
 }
 
 function teamFromQuery(query) {
@@ -1025,7 +989,7 @@ async function enterWork({ id, query = {} } = {}) {
   work.pendingRun = id && runPath.test(String(query.run ?? '')) ? String(query.run) : null;
   work.runNotice = '';
   if (chosen) keepFiltersInHash();
-  if (!id) { state.ploegDetailLoading = false; state.ploegDetailError = ''; work.revealedId = null; }
+  if (!id) { state.ploegDetailLoading = false; state.ploegDetailError = ''; }
   const listReady = within && !teamChanged && state.ploeg && work.loadedTeam === team;
   const detailReady = id && previous === id && state.ploegDetail?.item.id === id && !state.ploegDetailError;
   const loads = [];
@@ -1401,9 +1365,18 @@ function openLinkOut() {
   return true;
 }
 
+function openSibling(rows, step) {
+  const selected = rows.findIndex(row => row.dataset.id === String(work.detailId));
+  const next = rows[selected === -1 ? 0 : selected + step];
+  if (!next?.href) return false;
+  location.hash = new URL(next.href).hash;
+  return true;
+}
+
 function moveRow(step) {
   const rows = [...document.querySelectorAll('.work-list-pane [data-work-row]')];
   if (!rows.length) return false;
+  if (work.detailId) return openSibling(rows, step);
   const current = rows.indexOf(document.activeElement);
   const selected = rows.findIndex(row => row.getAttribute('aria-current') === 'true');
   const from = current !== -1 ? current : selected;
@@ -1430,8 +1403,9 @@ function workKeys(event) {
 
 /**
  * Work: the Work Items of one Team or all Teams by lane (`#work?lane=&team=`, the Team remembered per browser),
- * and one Work Item's decision, evidence and history (`#work/<id>`), beside the list on wide screens. Refreshes
- * every 30 s while on screen without dropping pages loaded with Load more. `j`/`k` move between rows, `o` opens
+ * and one Work Item's decision, evidence and history (`#work/<id>`), full width in place of the list. Refreshes
+ * every 30 s while on screen without dropping pages loaded with Load more. `j`/`k` move between rows, or open the
+ * next or previous Work Item while one is open, `o` opens
  * the pull request or tracker task, Esc closes.
  */
 export default {

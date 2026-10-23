@@ -1727,7 +1727,7 @@ function demoMarkup(model) {
 
 /**
  * The whole Work page body for `model`: the demo note, the toolbar (Team and lane), a partial-data notice,
- * the list, and the Work Item detail beside it (wide) or instead of it (narrow).
+ * the list, and the Work Item detail in place of it.
  * `model` = { data, lane, lanePending (the lane waits for the open Work Item's state), team, teams, loading, refreshing,
  * loadingMore, detailId, detail, detailLoading, detailError, listHref, canCancel, agentsWindow, cancelBusy, cancelResult, briefOpen,
  * sessions, userId, trackerUrl, reviewFacts, demoMode, now, card, trace, traceBusy, traceResult }.
