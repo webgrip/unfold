@@ -61,6 +61,16 @@ The extension does not provide `unfold-mcp`, the server for Unfold's own reasons
 
 Not verified against a desktop VS Code: the sign-in through the provider and the client ID question, the install view keeping `oauth.clientId`, and whether the Copilot, Claude and Codex harnesses in the Agents window can sign in to a forwarded Ploeg server. VS Code 1.142 forwards the URL to them but drops the client ID.
 
+## Tools for agents in VS Code
+
+The extension lends agents in VS Code chat three read-only tools, so an agent session in the editor window can answer "what waits for me" or "where is this Work Item" without an MCP server:
+
+- **Unfold: What Waits for Me** (`unfold_now`, `#unfoldNow`) lists what needs you, what is ready for your review and what is proposed, each with why it waits and the fix, the Runs that are running and the tracker tasks Ploeg refused to route.
+- **Unfold: Work Item State** (`unfold_get_work`, `#unfoldGetWork`) gives one Work Item by id or `#work/<id>` link: its state and why it waits, the agent review and the pull request with its CI, the Runs, and spend against budget.
+- **Unfold: Find Work Items** (`unfold_find_work`, `#unfoldFindWork`) finds Work Items by title words, a tracker id such as `VIK-123`, a Work Item id or a branch name. Without a query it uses the Git branch of the repository holding the active file.
+
+They read the same workbench routes as the **Now** view and the Work Item panel, with this editor's sign-in, and never spend, approve, reject, retry or stop anything; those stay behind Unfold's own confirmations. Titles, questions and reports that come from a tracker or an agent are quoted and labelled as untrusted data, as `unfold-mcp` does. Signed out or offline, a tool answers in one sentence and names **Unfold: Connect to Workbench**. An administrator turns extension tools off for everyone with VS Code's `ChatAgentExtensionTools` policy. The tools need an editor with the language-model tool API; on one without it the extension runs as before. Not verified in a desktop VS Code chat yet.
+
 ## See what waits on you
 
 The Unfold sidebar opens on **Now**, the same list as the browser's Now page:

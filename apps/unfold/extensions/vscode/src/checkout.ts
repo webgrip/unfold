@@ -21,7 +21,8 @@ export function missingReason({ detail, card }: CheckoutSource): string {
   return 'Ploeg has not reported a branch for this Work Item yet. It has one once a writing Run starts.';
 }
 
-async function gitApi(): Promise<GitApi | undefined> {
+/** The built-in Git extension's API once it has initialized, or undefined when the Git extension is absent. */
+export async function gitApi(): Promise<GitApi | undefined> {
   const extension = vscode.extensions.getExtension<{ getAPI(version: 1): GitApi }>('vscode.git');
   if (!extension) return undefined;
   const api = (extension.isActive ? extension.exports : await extension.activate()).getAPI(1);
