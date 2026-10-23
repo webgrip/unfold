@@ -104,10 +104,10 @@ export function agentUrl(sessionUrl, agent) {
 /**
  * One Agent Trace 0.1 record for a commit: the files and line ranges this session wrote, one conversation per agent
  * (the main agent at the session's Unfold page, each subagent at that page with `?agent=`). Returns null when the
- * commit holds no line the session wrote. A record that would exceed {@link limits}.recordBytes drops its hashes,
+ * commit holds no line the session wrote. `harness` names the reporting tool, `claude-code` unless another harness says so. A record that would exceed {@link limits}.recordBytes drops its hashes,
  * then files, and says so in its metadata.
  */
-export function traceRecord({ revision, timestamp, files, sessionId, sessionUrl, remoteUrl = '', model = '', harnessVersion = '', workItems = /** @type {{ id: string, url: string }[]} */ ([]) }) {
+export function traceRecord({ revision, timestamp, files, sessionId, sessionUrl, remoteUrl = '', model = '', harnessVersion = '', harness = 'claude-code', workItems = /** @type {{ id: string, url: string }[]} */ ([]) }) {
   if (!files.length) return null;
   const contributor = { type: 'ai', ...(modelId(model) ? { model_id: modelId(model).slice(0, 250) } : {}) };
   const related = [...(remoteUrl ? [{ type: 'session', url: remoteUrl }] : []), ...workItems.slice(0, 10).map(item => ({ type: 'work-item', url: item.url }))];
@@ -118,9 +118,9 @@ export function traceRecord({ revision, timestamp, files, sessionId, sessionUrl,
     return ranges.length ? { url: agentUrl(sessionUrl, agent), contributor, ranges, ...(links.length ? { related: links } : {}) } : null;
   }).filter(Boolean);
   const build = (entries, hashes, truncated) => ({
-    version: '0.1', id: randomUUID(), timestamp, vcs: { type: 'git', revision }, tool: { name: 'claude-code', version: harnessVersion || 'unknown' },
+    version: '0.1', id: randomUUID(), timestamp, vcs: { type: 'git', revision }, tool: { name: harness, version: harnessVersion || 'unknown' },
     files: entries.map(entry => ({ path: entry.path, conversations: conversations(entry, hashes) })),
-    metadata: { [namespace]: { session_id: sessionId, harness: 'claude-code', method: 'line-fingerprint', agents, work_items: workItems.map(item => item.id), ...(truncated ? { truncated: true } : {}) } },
+    metadata: { [namespace]: { session_id: sessionId, harness, method: 'line-fingerprint', agents, work_items: workItems.map(item => item.id), ...(truncated ? { truncated: true } : {}) } },
   });
   let record = build(files, true, false);
   if (JSON.stringify(record).length <= limits.recordBytes) return record;

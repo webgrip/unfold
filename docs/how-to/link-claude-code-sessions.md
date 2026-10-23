@@ -14,6 +14,8 @@ Use this when you work on a Work Item in your own Claude Code and want that sess
 * each commit records which lines the agent wrote, as an [Agent Trace](https://agent-trace.dev/) record;
 * the session's page shows its cost estimate, tokens and tools from Claude Code's own telemetry.
 
+For OpenCode and Codex, see [Link your OpenCode and Codex sessions](link-opencode-and-codex-sessions.md).
+
 Unfold never holds your Claude sign-in. Anthropic does not allow third-party apps to hold one ([terms](https://code.claude.com/docs/en/legal-and-compliance)). Your Unfold editor credential is the only credential involved ([ADR 0047](../../apps/unfold/docs/adrs/0047-people-link-their-own-agent-sessions-through-a-plugin-agent-trace-and-telemetry-never-a-claude-sign-in.md)).
 
 ## 1. Get an editor credential

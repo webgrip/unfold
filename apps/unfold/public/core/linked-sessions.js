@@ -13,7 +13,7 @@ export const linkedStates = {
   stale: { key: 'linked:stale', label: 'Not heard from', tone: 'neutral', glyph: 'clock' },
 };
 
-const harnessNames = { 'claude-code': 'Claude Code' };
+const harnessNames = { 'claude-code': 'Claude Code', opencode: 'OpenCode', codex: 'Codex' };
 const waitingWords = { permission_prompt: 'asks for a permission', idle_prompt: 'waits for your next prompt', elicitation_dialog: 'asks you a question', agent_needs_input: 'needs your input' };
 
 /** The name of a harness, such as `Claude Code` for `claude-code`. */
