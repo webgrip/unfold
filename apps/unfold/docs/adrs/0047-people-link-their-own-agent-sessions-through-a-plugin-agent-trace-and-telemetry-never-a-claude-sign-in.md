@@ -108,3 +108,7 @@ Chosen option: **a plugin, telemetry read from the estate's stores, and Agent Tr
 * [How to link your Claude Code sessions](../../../../docs/how-to/link-claude-code-sessions.md)
 * [API contract](../contracts/api.md#linked-sessions)
 * Ticket VIK-2137
+
+## Update, 2026-10-23
+
+The plugin (0.3.0) is also an [Agent Plugin](https://github.com/agentplugins/agent-plugins-spec/blob/main/spec/1.0.0.md) (specification 1.0.0), so one directory installs in Claude Code, GitHub Copilot CLI and VS Code 1.143 from the same repository marketplace, `/.claude-plugin/marketplace.json`. Claude Code reads `.claude-plugin/plugin.json`, `hooks/hooks.json` and `skills/`. Copilot CLI and VS Code read the root `plugin.json`, whose Agent Plugins `$schema` takes precedence over the Claude manifest, and load only `skills/`: in Agent Plugins mode they take hooks from `com.github.copilot/hooks/hooks.json`, so the Claude Code hooks reach Claude Code alone, as their payloads require. The plugin ships no MCP servers. The specification forbids expansion in a remote server's `url` and `headers` and defines no OAuth client id, so a shipped definition would name one Unfold installation. People keep adding `ploeg-mcp` and `unfold-mcp` themselves until the specification allows configuration per installation ([plugin README](../../extensions/claude-code/README.md)).
