@@ -33,7 +33,7 @@ export async function run({ page, app, live, password, assert, screenshot }) {
   assert.deepEqual(await active(), { id: 'palette-option-0', selected: 'true', role: 'option', text: 'Round half-cent totals consistently' }, 'the Work Item opened last leads the Recent group');
   assert.deepEqual(await results.getByRole('group').evaluateAll(groups => groups.map(group => group.getAttribute('aria-label'))), ['Recent', 'Commands', 'Go to'], 'commands come before the destinations the sidebar already lists');
   await results.getByRole('group', { name: 'Recent' }).getByRole('option', { name: /^Round half-cent totals consistently\s*Ready for review\s*#105/ }).waitFor();
-  await results.getByRole('group', { name: 'Go to' }).getByRole('option', { name: /^Now 9 waiting on you$/ }).waitFor();
+  await results.getByRole('group', { name: 'Go to' }).getByRole('option', { name: /^Now 10 waiting on you$/ }).waitFor();
   await results.getByRole('group', { name: 'Commands' }).getByRole('option', { name: 'Switch to dark theme' }).waitFor();
   await screenshot('palette-empty');
   await page.keyboard.press('ArrowDown');
@@ -136,14 +136,14 @@ export async function run({ page, app, live, password, assert, screenshot }) {
   await page.route('**/api/ploeg/now*', routed => failNow ? routed.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: { code: 'ploeg_unavailable', message: 'Ploeg did not answer.' } }) }) : routed.continue());
   await page.reload();
   await page.getByRole('heading', { level: 1, name: 'Preferences', exact: true }).waitFor();
-  await search('rou');
+  await search('half-cent');
   await notice.getByText('Work Items could not be loaded. Ploeg did not answer.').waitFor();
   assert.equal(await results.getByRole('option').filter({ hasText: 'could not be loaded' }).count(), 0, 'the failure is a notice, not a result');
   await screenshot('palette-error');
   await input.fill('dark');
   await first('Switch to dark theme');
   assert.equal(await notice.isHidden(), true, 'a query for a command is not told about Work Items');
-  await input.fill('rou');
+  await input.fill('half-cent');
   await notice.waitFor();
   failNow = false;
   await notice.getByRole('button', { name: 'Retry' }).click();
@@ -154,7 +154,7 @@ export async function run({ page, app, live, password, assert, screenshot }) {
   failNow = true;
   await page.reload();
   await page.getByRole('heading', { level: 1, name: 'Preferences', exact: true }).waitFor();
-  await search('rou');
+  await search('half-cent');
   await notice.waitFor();
   await close();
   failNow = false;
@@ -192,7 +192,7 @@ export async function run({ page, app, live, password, assert, screenshot }) {
     const next = { ...previous, waiting: [...previous.waiting, { id: '990', team: 'delivery', state: 'needs_human', title: 'A new item that needs you', updatedAt: new Date().toISOString(), closeReason: 'plan_exhausted', latestShift: { closeReason: 'plan_exhausted', closedAt: new Date().toISOString() } }] };
     state.now.data = next;
     applyNowCounts(next);
-    const empty = { ...previous, waiting: [] };
+    const empty = { ...previous, waiting: [], refused: [] };
     state.now.data = empty;
     applyNowCounts(empty);
     const plain = document.querySelector('link[rel~="icon"]').getAttribute('href');
