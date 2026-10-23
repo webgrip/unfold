@@ -107,6 +107,16 @@ const copy = {
     sentence: 'The Team’s plan was removed from the configuration during the attempt.',
     fix: 'Restore the plan, or move the task to another Team.',
   },
+  approved_to_merge: {
+    chip: 'Approved: merge it',
+    sentence: 'The agent reviewers approved and the pull request is still open. Ploeg leaves the merge to you.',
+    fix: 'Read the pull request and merge it on the forge. Merging finishes the Work Item.',
+  },
+  merged_untracked: {
+    chip: 'Merged',
+    sentence: 'The pull request is merged, but Ploeg still holds the Work Item.',
+    fix: 'Close the task in the tracker to finish it.',
+  },
   pull_request_closed: {
     chip: 'Pull request closed',
     sentence: 'An agent reviewer approved, but the Work Item came back to you. Most likely someone closed the pull request without merging it.',
@@ -192,7 +202,7 @@ const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'checks_n
 
 const sessionCodes = new Set(['operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
 
-const answeredHere = new Set(['person_question']);
+const answeredHere = new Set(['person_question', 'approved_to_merge', 'merged_untracked']);
 
 /** Whether the reason is about the Unfold session that drives the Work Item, so the next step happens on that session's page. */
 export function sessionReason(reason) {
@@ -254,6 +264,8 @@ const reasonGlyphs = Object.freeze({
   run_stuck: 'pause-circle',
   plan_removed: 'settings',
   pull_request_closed: 'circle-slash',
+  approved_to_merge: 'pull-request',
+  merged_untracked: 'check-circle',
   operator_failed: 'sessions',
   operator_interrupted: 'sessions',
   operator_expired: 'sessions',
@@ -308,7 +320,19 @@ export function listReason(item, { demo = false } = {}) {
   const closeReason = item.latestShift?.closeReason ?? item.closeReason ?? '';
   if (item.latestShift && !item.latestShift.closedAt && !item.closeReason) return build('unknown', item);
   const { code, text } = classify(closeReason);
-  return build(code, item, text, demo);
+  return build(approvedCode(code, item), item, text, demo);
+}
+
+function approvedCode(code, item) {
+  if (code !== 'pull_request_closed') return code;
+  if (item?.pullRequestState === 'open') return 'approved_to_merge';
+  if (item?.pullRequestState === 'merged') return 'merged_untracked';
+  return code;
+}
+
+/** Whether a Work Item that needs you is only waiting for you to merge: the agent reviewers approved and its pull request is still open. */
+export function approvedToMerge(item) {
+  return item?.state === 'needs_human' && (item.latestShift?.closeReason ?? item.closeReason) === 'review_approved' && item.pullRequestState === 'open';
 }
 
 const ciHolds = Object.freeze({ failure: 'ci_failed', error: 'ci_failed', pending: 'ci_running' });
@@ -349,14 +373,15 @@ export function reviewHold(item) {
 
 /**
  * Which Now group a waiting Work Item belongs to. A pull request whose CI did not pass needs you, not a review;
- * one whose CI still runs stays ready for review. Every state other than `awaiting_review` and `proposed` needs you.
+ * one whose CI still runs stays ready for review. A Work Item the agent reviewers approved whose pull request is still
+ * open (`approvedToMerge`) is ready for review too. Every other state needs you.
  * @param {{ state?: string, ci?: { state?: string } | null }} item
  * @returns {'review' | 'needs' | 'proposed'}
  */
 export function waitingGroup(item) {
   if (item?.state === 'proposed') return 'proposed';
   if (item?.state === 'awaiting_review') return reviewHold(item)?.code === 'ci_failed' ? 'needs' : 'review';
-  return 'needs';
+  return approvedToMerge(item) ? 'review' : 'needs';
 }
 
 /**
@@ -450,6 +475,10 @@ export function detailReason(detail) {
   if (reason.code === 'unknown' && headline) {
     const recorded = classify(headline);
     if (recorded.code !== 'unknown') { reason = build(recorded.code, item, recorded.text, Boolean(detail.demo)); headline = null; }
+  }
+  if (reason.code === 'pull_request_closed' && headline && /a person is asked to merge/i.test(headline) && !/closed without merging/i.test(headline)) {
+    reason = build('approved_to_merge', item, closeReason, Boolean(detail.demo));
+    headline = null;
   }
   if (budgetCodes.has(reason.code)) headline = null;
   if (reason.code === 'writing_run_failed_repeatedly') {

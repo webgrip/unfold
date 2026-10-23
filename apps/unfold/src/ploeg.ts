@@ -69,7 +69,7 @@ export type PloegNowShift = Pick<PloegShift, 'round' | 'closeReason' | 'budgetUs
 /** The combined CI status Ploeg last captured on a pull request's head commit, and each check's state. */
 export type PloegNowCI = { state: string; checks: { context: string; state: string }[] };
 /** A waiting or active Work Item on Now. `ci` is the CI on its pull request's head, read for the first awaiting_review rows only; absent when not read, null when the forge reported none. */
-export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | 'url' | 'createdAt' | 'updatedAt' | 'provider' | 'externalId' | 'priority' | 'attempts' | 'infraFailures' | 'target' | 'pullRequest'> & { closeReason: string | null; latestShift: PloegNowShift | null; spentUsd: number | null; pullRequestUrl: string; ci?: PloegNowCI | null; question?: PloegNowQuestion; disagreement?: PloegNowDisagreement } & Partial<Pick<PloegProposedItem, 'sourceWorkItemId' | 'sourceTitle' | 'createdKind' | 'ready'>>;
+export type PloegNowItem = Pick<PloegItem, 'id' | 'team' | 'state' | 'title' | 'url' | 'createdAt' | 'updatedAt' | 'provider' | 'externalId' | 'priority' | 'attempts' | 'infraFailures' | 'target' | 'pullRequest'> & { closeReason: string | null; latestShift: PloegNowShift | null; spentUsd: number | null; pullRequestUrl: string; pullRequestState?: 'open' | 'merged' | 'closed' | null; ci?: PloegNowCI | null; question?: PloegNowQuestion; disagreement?: PloegNowDisagreement } & Partial<Pick<PloegProposedItem, 'sourceWorkItemId' | 'sourceTitle' | 'createdKind' | 'ready'>>;
 /** The question a needs_human row on Now waits on: a typed question to a person, or the stuck reason standing in for one. Read from the detail of the first needs_human rows only. */
 export type PloegNowQuestion = { id: string; text: string; typed: boolean; role: string; round: number | null; runId: string };
 /** The latest Round of a waiting row where a shadow reviewer's verdict differs from the acting reviewers', from the Runs Now already lists (no detail read), so an older disagreement is not shown. Run rows carry no Shift, so Rounds of different Shifts count as one. */
@@ -429,10 +429,11 @@ export function pullRequestUrl(data: PloegDetail): string {
   for (const run of ordered.reverse()) for (const link of run.links.slice().reverse()) if (pullRequestPath.test(link)) return link;
   return '';
 }
-function demoReviewPlay(row: PloegNowItem): { url: string; ci: PloegNowCI | null } {
+function demoReviewPlay(row: PloegNowItem): { url: string; ci: PloegNowCI | null; state: 'open' | 'merged' | 'closed' | null } {
   const plays = (ploegDemo.cards[row.id]?.plays ?? []).slice().sort((a, b) => b.number - a.number);
   const play = plays.find(entry => entry.state === 'open') ?? plays[0];
-  return { url: play?.url ?? '', ci: play?.ci ? { state: play.ci.state, checks: play.ci.checks.map(check => ({ ...check })) } : null };
+  const state = play?.state === 'open' || play?.state === 'merged' || play?.state === 'closed' ? play.state : null;
+  return { url: play?.url ?? '', state, ci: play?.ci ? { state: play.ci.state, checks: play.ci.checks.map(check => ({ ...check })) } : null };
 }
 function nowItem(entry: PloegItem & Partial<Pick<PloegProposedItem, 'sourceTitle'>>): PloegNowItem {
   const shift = entry.latestShift;
@@ -1476,6 +1477,12 @@ export class PloegClient {
       row.pullRequestUrl = row.pullRequest?.url || play.url || await this.reviewUrl(user, row.id, fresh);
     }));
     await Promise.all(rows.filter(row => row.state === 'needs_human').slice(0, questionRowsRead).map(row => this.waitingQuestion(user, row, fresh)));
+    await Promise.all(rows.filter(row => row.state === 'needs_human' && row.closeReason === 'review_approved').slice(0, reviewRowsRead).map(async row => {
+      const play = await this.reviewPlay(row, fresh);
+      row.pullRequestState = play.state ?? null;
+      row.pullRequestUrl = row.pullRequest?.url || play.url || row.pullRequestUrl;
+      if (play.ci) row.ci = play.ci;
+    }));
     const truncated: PloegNowTruncatedState[] = [...states.filter(state => reads.some(read => read.state === state && read.truncated)), ...(proposed.truncated ? ['proposed' as const] : [])];
     return { rows: rows.sort((a, b) => (order[a.state] ?? 9) - (order[b.state] ?? 9) || a.createdAt.localeCompare(b.createdAt) || (BigInt(a.id) < BigInt(b.id) ? -1 : 1)), truncated };
   }
@@ -1490,7 +1497,7 @@ export class PloegClient {
     }
     return { items: items.slice(0, nowStateCap), truncated: true };
   }
-  private async reviewPlay(row: PloegNowItem, fresh: boolean): Promise<{ url: string; ci: PloegNowCI | null }> {
+  private async reviewPlay(row: PloegNowItem, fresh: boolean): Promise<{ url: string; ci: PloegNowCI | null; state?: 'open' | 'merged' | 'closed' | null }> {
     if (this.demo) return demoReviewPlay(row);
     if (!(await this.factsSupported())) return { url: '', ci: null };
     let facts: WorkItemFacts;
@@ -1500,7 +1507,7 @@ export class PloegClient {
     if (!pull) return { url: '', ci: null };
     const status = pull.commitStatus;
     const current = status && (!pull.headSha || !status.headSha || status.headSha === pull.headSha);
-    return { url: pull.url, ci: current ? { state: status.state, checks: status.checks.map(check => ({ context: check.context, state: check.state })) } : null };
+    return { url: pull.url, state: pull.state, ci: current ? { state: status.state, checks: status.checks.map(check => ({ context: check.context, state: check.state })) } : null };
   }
   private async waitingQuestion(user: User, row: PloegNowItem, fresh: boolean): Promise<void> {
     let found: PloegDetail;
