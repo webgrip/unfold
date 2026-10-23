@@ -39,6 +39,30 @@ jobs:
           printf '%s\n' "$REPORT"
           exit 1
 
+  agent-trace:
+    runs-on: docker
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: https://github.com/jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.7
+          install_args: node
+          cache: false
+          github_token: ''
+      - name: Read the Agent Trace notes from origin, read-only
+        run: git fetch --no-tags origin 'refs/notes/agent-trace:refs/notes/agent-trace' || echo "origin holds no Agent Trace notes."
+      - name: Summarise which lines agents wrote, without blocking the pull request
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mise exec -- node apps/unfold/extensions/claude-code/scripts/agent-trace-report.mjs --base "${BASE:-origin/development}" --head "${HEAD_SHA:-HEAD}" > agent-trace.md || echo "The Agent Trace report did not run." > agent-trace.md
+          cat agent-trace.md
+          cat agent-trace.md >> "$GITHUB_STEP_SUMMARY" || true
+
   opencode-contract:
     runs-on: docker
     timeout-minutes: 15

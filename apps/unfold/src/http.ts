@@ -50,6 +50,7 @@ import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
 import { LinkedHandoff, handoffRoute as serveLinkedHandoff, isHandoffRoute } from './linked-handoff.ts';
 import { LinkedInbox } from './linked-inbox.ts';
 import { agentTraceMediaType } from './agent-trace.ts';
+import { AgentTraceComments } from './agent-trace-comments.ts';
 import type { AddressInfo } from 'node:net';
 
 const reportRefreshWaitMs = 2500;
@@ -255,6 +256,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const progressEnabled = (team: string) => flags.getBooleanValue('runs.progress-checks', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team });
   const tripwire = new TripwireReader(store, ploeg, { decider: tripwireConnected ? decider : undefined, enabled: tripwireEnabled, progress: progressEnabled, demo: askDemo, requestsPerMinute: config.decider?.requestsPerMinute ?? 8, secrets });
   const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
+  const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
@@ -736,6 +738,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (part === 'traces') {
             if (method !== 'POST') fault(405, 'method', 'Send an Agent Trace record with POST.');
             const stored = linked.addTrace(user, id, await body(req));
+            if (stored.stored) traceComments?.notice(linked.store.get(id)?.workItems.map(entry => entry.id) ?? [], base);
             return json(res, stored.stored ? 201 : 200, stored);
           }
           if (part === 'messages') {

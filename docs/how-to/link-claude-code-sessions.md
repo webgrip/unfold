@@ -103,7 +103,7 @@ Replace the two addresses with your own. GitHub documents only `github` marketpl
 * **Or pick it on the page.** The session's page suggests open Work Items on the same repository, with a **Link** button each, and has a field to link any Work Item by id. A Work Item you unlink is never linked again automatically.
 * **Titles.** A name you give the session with `/rename` becomes its title in Unfold. A session without one shows the subject of its first commit, or its branch in words, such as "Connect a repository" for `docs/connect-a-repository`.
 * **Credential reminders.** When your Unfold credential expires within a week, the session tells you once when it starts. Sign in again (step 1) and replace `UNFOLD_TOKEN`.
-* **Commits.** The session is asked to end each commit with `Unfold-Session: <its page>`. After each commit the plugin writes an Agent Trace record to `refs/notes/agent-trace` and sends it to Unfold. To share the records on the forge, push them: `git push origin refs/notes/agent-trace`.
+* **Commits.** The session is asked to end each commit with `Unfold-Session: <its page>`. After each commit the plugin writes an Agent Trace record to `refs/notes/agent-trace` and sends it to Unfold. To share the records on the forge, see [Show reviewers which lines an agent wrote](#show-reviewers-which-lines-an-agent-wrote).
 
 The Work Item page lists every linked session in its **Agent sessions** card: state, owner, branch and AI-written lines. Your own sessions also offer `claude --resume <id>` and, under Remote Control, **Open in Claude**.
 
@@ -171,6 +171,23 @@ Limits:
 * The server takes `UNFOLD_URL`, `UNFOLD_TOKEN` and `UNFOLD_CHANNEL` from the environment Claude Code starts it with. Put them in your shell or in the `env` block of `~/.claude/settings.json`.
 * Claude Code does not acknowledge a pushed message. If the session did not load the server as a channel, Claude Code drops the message, and Unfold still shows it as delivered. That is why `UNFOLD_CHANNEL=1` is needed only when you start with the flag.
 
+## Show reviewers which lines an agent wrote
+
+Agent Trace records say which lines of a commit an agent wrote. Three things carry them to the people who review your pull request. Each is off until you or an administrator turns it on, because each one shares attribution beyond your machine.
+
+1. **Push the notes with your branch.** Set `UNFOLD_PUSH_AGENT_TRACE=1` next to `UNFOLD_URL`. After a `git push` in the session succeeds, the plugin also pushes `refs/notes/agent-trace` to the same remote. When someone else pushed notes first, it fetches theirs into a temporary ref, merges them with `git notes merge -s cat_sort_uniq`, so two records for one commit become two lines of one note, and tries once more. It never force-pushes, gives up after `UNFOLD_PUSH_AGENT_TRACE_TIMEOUT_MS` (default 8000) and stays silent when the push fails. Without the variable, push them yourself: `git push origin refs/notes/agent-trace`.
+2. **Read the report on the pull request.** [`agent-trace-report.mjs`](../../apps/unfold/extensions/claude-code/scripts/agent-trace-report.mjs) needs only Node 22 or later and git. It reads the notes on each commit between two revisions and prints a Markdown table: per commit and file, AI-written lines against added lines, the tool, the model and the conversation link. It fetches nothing, so fetch the notes first:
+
+   ```sh
+   git fetch origin refs/notes/agent-trace:refs/notes/agent-trace
+   node apps/unfold/extensions/claude-code/scripts/agent-trace-report.mjs --base origin/development --head HEAD
+   ```
+
+   It reads records from any tool that writes Agent Trace 0.1, such as Cursor, OpenCode, Amp or git-ai, and checks each as strictly as Unfold does. A note may hold one record, a JSON list or one record per line. A line two records claim counts once, and lines outside what the commit added do not count. Parts that are not valid Agent Trace are listed, not counted. In this repository the `agent-trace` job of every pull request writes the report to the job summary. It blocks nothing and only reads the notes.
+3. **A comment on the Work Item's pull request.** When the `linked.trace-comment` flag is on for the Work Item's Team ([feature flags](../../apps/unfold/docs/operations/feature-flags.md)), Unfold keeps one comment on the Work Item's newest open pull request. It lists AI-written lines per commit from the records of every Linked Session of that repository linked to the Work Item, with a link to each session's page. It shows counts and links only: no model, cost or telemetry. Unfold writes it through Ploeg five minutes after a record arrives, so a burst of commits makes one write, and replaces it rather than adding another.
+
+Records another tool writes can reach Unfold too: send them to your session with `POST /api/linked-sessions/<id>/traces`. The session page then names that tool beside the commit's AI-written lines.
+
 ## What leaves your machine
 
 The plugin sends:
@@ -179,7 +196,8 @@ The plugin sends:
 * the repository address without credentials, and the branch;
 * its state: working, waiting for you, idle or ended;
 * commit ids and subjects;
-* the Agent Trace records.
+* the Agent Trace records;
+* with `UNFOLD_PUSH_AGENT_TRACE=1`, the same records to your git remote as `refs/notes/agent-trace`.
 
 To collect messages it sends only the session id, and which kinds of message it wants. It never sends your prompts, tool output, file contents or your Claude credentials. Telemetry goes wherever your own `OTEL_*` settings send it. Unfold only reads counts from those stores, and only you and administrators see them.
 
