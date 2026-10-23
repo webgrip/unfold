@@ -1,5 +1,6 @@
 import { escape, safeUrl } from './core/dom.js';
 import { linkedSessionsMarkup } from './core/linked-sessions.js';
+import { linkedWorkMarkup } from './core/linked-handoff.js';
 import { icon } from './core/icons.js';
 import { markdown } from './core/markdown.js';
 import { count as formatCount, money, moneyHtml, plural, duration, dateTime, decimal, time as clockTime } from './core/format.js';
@@ -1675,7 +1676,7 @@ export function detailMarkup(recordedDetail, model) {
     plan = reviewPlan(detail, model.card);
     primary = plan.primary;
   }
-  if (model.flags?.['work.unified'] === true) return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${onePageMarkup(detail, model, { primary, decision: `${reason ? needsYouBox(detail, model, reason, plan) : item.state === 'awaiting_review' ? reviewBox(detail, model, plan) : ''}${disagreementsMarkup(detail)}${findingsMarkup(detail)}`, account: accountMarkup(detail) })}</article>`;
+  if (model.flags?.['work.unified'] === true) return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${onePageMarkup(detail, model, { primary, decision: `${reason ? needsYouBox(detail, model, reason, plan) : item.state === 'awaiting_review' ? reviewBox(detail, model, plan) : ''}${disagreementsMarkup(detail)}${findingsMarkup(detail)}`, account: `${accountMarkup(detail)}${linkedWorkMarkup(detail, model)}` })}</article>`;
   const status = statusMarkup(detail, model, { reason, plan });
   let decision;
   if (reason) decision = needsYouBox(detail, model, reason, plan);
@@ -1697,6 +1698,7 @@ export function detailMarkup(recordedDetail, model) {
     model.trace && model.trace.workItemId === item.id ? traceMarkup(model.trace, { now: model.now, busy: model.traceBusy, result: model.traceResult }) : '',
     sessionsMarkup(detail, model.sessions),
     linkedSessionsMarkup(detail, model.linkedSessions, { now: model.now, canChange: model.userRole !== undefined }),
+    linkedWorkMarkup(detail, model),
     briefMarkup(detail, model),
     contextMarkup(detail, model),
     storyMarkup(detail, model),

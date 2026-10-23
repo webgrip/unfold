@@ -11,6 +11,8 @@ export const linkedEvents = ['start', 'prompt', 'waiting', 'idle', 'end', 'commi
 export const linkedStaleMs = 30 * 60_000;
 /** The most Work Items, commits and pull requests one Linked Session keeps. */
 export const linkedLimits = { workItems: 20, commits: 200, pullRequests: 20, traces: 500, listed: 50 } as const;
+/** How many sessions' telemetry one Work Item read asks the stores for at once. */
+export const linkedTelemetryConcurrency = 4;
 /** Tracker reference prefixes in branch names, such as `feat/vik-2051-login`, and the tracker each names. */
 export const trackerPrefixes: Readonly<Record<string, string>> = { vik: 'vikunja' };
 
@@ -382,11 +384,22 @@ export class LinkedSessions {
     return this.store.owned(all && user.role === 'admin' ? null : user.id, linkedLimits.listed).map(session => this.present(session, user, base));
   }
 
-  /** The Linked Sessions of one Work Item, after Ploeg confirms the person may read it. */
-  async forWorkItem(user: User, workItemId: string, base: string): Promise<PresentedLinkedSession[]> {
+  /**
+   * The Linked Sessions of one Work Item, after Ploeg confirms the person may read it. With `withTelemetry`, each
+   * session whose telemetry the person may see (their own, or every one for an administrator) carries it, read at most
+   * {@link linkedTelemetryConcurrency} at a time.
+   */
+  async forWorkItem(user: User, workItemId: string, base: string, withTelemetry = false): Promise<PresentedLinkedSession[]> {
     if (!workItemPattern.test(workItemId)) fail(400, 'work_item_id', 'Use a Work Item id.');
     await this.ploeg.detail(user, workItemId);
-    return this.store.forWorkItem(workItemId, linkedLimits.listed).map(session => this.present(session, user, base));
+    const sessions = this.store.forWorkItem(workItemId, linkedLimits.listed).map(session => ({ session, shown: this.present(session, user, base) }));
+    if (withTelemetry) {
+      const visible = sessions.filter(entry => entry.session.ownerId === user.id || user.role === 'admin');
+      for (let start = 0; start < visible.length; start += linkedTelemetryConcurrency) {
+        await Promise.all(visible.slice(start, start + linkedTelemetryConcurrency).map(async entry => { entry.shown.telemetry = await readSessionTelemetry(this.config.observability, entry.session.id, entry.session.startedAt, { fetch: this.fetcher, now: this.clock().getTime() }); }));
+      }
+    }
+    return sessions.map(entry => entry.shown);
   }
 
   /** Links or unlinks one Work Item. Only the owner or an administrator may, and only to a Work Item they may read; an unlinked Work Item is not linked again by the branch. */

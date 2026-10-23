@@ -47,6 +47,7 @@ import { defaultTenant } from './insight.ts';
 import { createMcpHttp } from './mcp-http.ts';
 import { entitledRole } from './oidc.ts';
 import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
+import { LinkedHandoff, handoffRoute as serveLinkedHandoff, isHandoffRoute } from './linked-handoff.ts';
 import { agentTraceMediaType } from './agent-trace.ts';
 import type { AddressInfo } from 'node:net';
 
@@ -192,6 +193,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   void delivery.reconcileAll().catch(() => undefined);
   const handoff = new TaskHandoff(config, ploeg);
   const linked = new LinkedSessions(store.db, config, ploeg);
+  const linkedHandoff = new LinkedHandoff(linked, ploeg, store, config);
   const status = new StatusBoard(config, store, () => engine.provisioning(), {
     gateway: gatewayProbe(config),
     ploeg: async user => {
@@ -703,6 +705,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const actions = store.actionRecords({ userId: person, target, outcome: outcome as 'done' | 'refused' | 'failed' | undefined, channel, before: Number.isInteger(before) && before > 0 ? before : undefined, limit: limit + 1 });
           return json(res, 200, sanitize({ actions: actions.slice(0, limit), nextBefore: actions.length > limit ? actions[limit - 1].id : null }));
         }
+        if (isHandoffRoute(path)) {
+          const answer = await serveLinkedHandoff(linkedHandoff, { method, path, query: url.searchParams, user, base: config.baseUrl ?? `http://${req.headers.host}`, body: () => body(req) });
+          return json(res, answer.status, sanitize(answer.body));
+        }
         const linkedSession = /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})(?:\/(agent-trace|traces|suggestions)|\/work-items\/([1-9][0-9]{0,18}))?$/.exec(path);
         const tracedRevision = /^\/api\/agent-trace\/([0-9a-f]{40}(?:[0-9a-f]{24})?)$/.exec(path);
         if (path === '/api/linked-sessions' || path === '/api/linked-sessions/events' || linkedSession || tracedRevision) {
@@ -714,7 +720,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (path === '/api/linked-sessions') {
             if (method !== 'GET') fault(405, 'method', 'List Linked Sessions with GET.');
             const workItem = url.searchParams.get('workItemId');
-            return json(res, 200, sanitize({ sessions: workItem ? await linked.forWorkItem(user, workItem, base) : linked.mine(user, base, url.searchParams.get('all') === '1') }));
+            return json(res, 200, sanitize({ sessions: workItem ? await linked.forWorkItem(user, workItem, base, url.searchParams.get('telemetry') === '1') : linked.mine(user, base, url.searchParams.get('all') === '1') }));
           }
           if (tracedRevision) {
             if (method !== 'GET') fault(405, 'method', 'Read Agent Trace records with GET.');

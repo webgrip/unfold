@@ -264,15 +264,15 @@ export function createMcpServer(options: McpOptions) {
     },
     {
       name: 'unfold_digest', title: 'What changed since',
-      description: 'What changed in Unfold since a moment: Work Items that started needing you (with the reason and fix), pull requests that became ready for review, new proposals, finished Runs with their outcome and cost, sessions that changed, newly refused tracker tasks, spend and stuck holds. Without since it covers the time since your previous digest, or the last 24 hours the first time. Use it to start a day; use unfold_now for everything that waits regardless of when it changed.',
+      description: 'What changed in Unfold since a moment: Work Items that started needing you (with the reason and fix), pull requests that became ready for review, new proposals, finished Runs with their outcome and cost, sessions that changed, newly refused tracker tasks, spend and stuck holds, and a separate section on your own agent sessions (sessions, Work Items, commits, AI-written lines, estimated cost). Without since it covers the time since your previous digest, or the last 24 hours the first time. Use it to start a day; use unfold_now for everything that waits regardless of when it changed.',
       inputSchema: object({ since: string('An ISO time, or a span such as 8h, 24h or 7d; default since your previous digest'), remember: { type: 'boolean', description: 'Remember this digest as your previous one; default true' } }),
-      outputSchema: object({ summary: { type: 'string' }, demo: { type: 'boolean' }, since: { type: 'string' }, until: { type: 'string' }, counts: { type: 'object' }, needsYou: { type: 'array', items: workRow }, readyForReview: { type: 'array', items: workRow }, proposed: { type: 'array', items: workRow }, finishedRuns: { type: 'array', items: { type: 'object' } }, sessions: { type: 'array', items: { type: 'object' } }, refused: { type: 'array', items: { type: 'object' } }, spend: { type: 'object' } }, ['summary', 'demo', 'since', 'until', 'counts', 'needsYou', 'readyForReview', 'proposed', 'finishedRuns', 'sessions', 'refused', 'spend']),
+      outputSchema: object({ summary: { type: 'string' }, demo: { type: 'boolean' }, since: { type: 'string' }, until: { type: 'string' }, counts: { type: 'object' }, needsYou: { type: 'array', items: workRow }, readyForReview: { type: 'array', items: workRow }, proposed: { type: 'array', items: workRow }, finishedRuns: { type: 'array', items: { type: 'object' } }, sessions: { type: 'array', items: { type: 'object' } }, refused: { type: 'array', items: { type: 'object' } }, spend: { type: 'object' }, ownSessions: { type: ['object', 'null'], description: 'Your own Linked Sessions (Claude Code on your machine) in the last 7 or 30 days; null when Unfold could not read them' } }, ['summary', 'demo', 'since', 'until', 'counts', 'needsYou', 'readyForReview', 'proposed', 'finishedRuns', 'sessions', 'refused', 'spend']),
       async run(args) {
         const until = (options.now ?? (() => new Date()))();
         const since = await digestStart(args.since, until);
         const span = until.getTime() - since.getTime();
         const window = span <= 86_400_000 ? '24h' : span <= 7 * 86_400_000 ? '7d' : '30d';
-        const [now, summary, list] = await Promise.all([get('/api/ploeg/now'), get(`/api/ploeg/summary?window=${window}`), get('/api/sessions').catch(() => null)]);
+        const [now, summary, list, own] = await Promise.all([get('/api/ploeg/now'), get(`/api/ploeg/summary?window=${window}`), get('/api/sessions').catch(() => null), get(`/api/linked-sessions/digest?window=${window === '30d' ? '30d' : '7d'}`).catch(() => null)]);
         const demo = Boolean(now.demo);
         const changed = (value: unknown) => { const time = Date.parse(String(value ?? '')); return Number.isFinite(time) && time > since.getTime(); };
         const counts = nowPage.digestCounts(now, since.toISOString());
@@ -286,6 +286,8 @@ export function createMcpServer(options: McpOptions) {
         const refused = ((now.refused ?? []) as Json[]).filter(task => changed(task.refusedAt)).slice(0, 15).map(task => ({ tracker: `${task.provider}:${task.externalId}`, team: String(task.team ?? ''), code: String(task.code ?? ''), reason: clip(task.reason, 500), taskUrl: String(task.url ?? ''), untrusted: { title: clip(task.title, 300) } }));
         const stuck = summary.unsettled ? (summary.unsettled.accounts ?? []) as Json[] : null;
         const spend = { window: String(summary.window ?? window), settledUsd: cents(summary.totals?.spend?.settledUsd), heldUsd: held(summary.totals?.spend), stuckHolds: stuck === null ? null : stuck.map(entry => ({ workItemId: entry.workItemId === null || entry.workItemId === undefined ? null : String(entry.workItemId), heldUsd: cents(entry.heldUsd), keyState: String(entry.accountState), link: entry.workItemId === null || entry.workItemId === undefined ? '' : link(String(entry.workItemId)) })) };
+        const d = own?.digest as Json | undefined;
+        const ownSessions = d ? { window: String(d.window), sessionsStarted: Number(d.started) || 0, sessionsActive: Number(d.active) || 0, workItemsTouched: Number(d.workItems) || 0, commits: Number(d.commits) || 0, aiWrittenLines: Number(d.aiLines) || 0, estimatedCostUsd: typeof d.costUsd === 'number' ? cents(d.costUsd) : null, costIs: 'an estimate at API prices; a Claude plan is not billed it', costReason: d.costReason ?? null } : null;
         if (args.remember !== false) await rememberDigest(until);
         const parts = [
           needsYou.length ? `${needsYou.length} started needing you (${needsYou.map(item => `${item.id}: ${item.reason?.chip ?? item.state}`).join('; ')})` : '',
@@ -297,7 +299,8 @@ export function createMcpServer(options: McpOptions) {
         ].filter(Boolean);
         const money = demo ? 'This is the illustrative demo: nothing ran and nothing was spent.' : `${usd(spend.settledUsd)} settled in the last ${spend.window}; ${stuck === null ? 'stuck holds unknown' : stuck.length ? `${stuck.length} finished Runs still hold money` : 'no budget is stuck'}.`;
         const text = `Since ${since.toISOString().slice(0, 16).replace('T', ' ')} UTC: ${parts.length ? parts.join(', ') : 'nothing changed'}. ${money}`;
-        return { summary: text, demo, since: since.toISOString(), until: until.toISOString(), counts, needsYou, readyForReview, proposed, finishedRuns, sessions, refused, spend };
+        const yours = ownSessions ? ` Your own agent sessions, last ${ownSessions.window}: ${ownSessions.sessionsActive} active (${ownSessions.sessionsStarted} started), ${ownSessions.workItemsTouched} Work Items, ${ownSessions.commits} commits, ${ownSessions.aiWrittenLines} AI-written lines${ownSessions.estimatedCostUsd === null ? '' : `, about ${usd(ownSessions.estimatedCostUsd)} at API prices`}.` : '';
+        return { summary: text + yours, demo, since: since.toISOString(), until: until.toISOString(), counts, needsYou, readyForReview, proposed, finishedRuns, sessions, refused, spend, ownSessions };
       },
     },
     {
