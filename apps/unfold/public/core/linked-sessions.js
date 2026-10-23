@@ -92,7 +92,7 @@ export function agentsText(agents) {
 function commitsTable(session) {
   const commits = [...(session.commits ?? [])].reverse();
   if (!commits.length) return `<p class="meta">No commits reported yet.</p>`;
-  const rows = commits.slice(0, 50).map(entry => `<tr><td class="mono">${escape(entry.sha.slice(0, 10))}</td><td>${escape(entry.subject || '—')}</td><td class="num">${entry.aiLines === null || entry.aiLines === undefined ? '<span class="meta">no record</span>' : escape(compactCount(entry.aiLines))}</td><td>${agentsText(entry.agents)}</td><td>${entry.trailer ? icon('check') + '<span class="visually-hidden">has the Unfold-Session trailer</span>' : '<span class="meta">—</span>'}</td></tr>`).join('');
+  const rows = commits.slice(0, 50).map(entry => `<tr><td class="mono">${escape(entry.sha.slice(0, 10))}</td><td>${escape(entry.subject || '—')}</td><td class="num">${entry.aiLines === null || entry.aiLines === undefined ? '<span class="meta">no record</span>' : escape(compactCount(entry.aiLines))}</td><td>${entry.tool ? `<span class="mono" title="Agent Trace record written by ${escape(entry.tool)}, not by Unfold's plugin">${escape(entry.tool)}</span> · ` : ''}${agentsText(entry.agents)}</td><td>${entry.trailer ? icon('check') + '<span class="visually-hidden">has the Unfold-Session trailer</span>' : '<span class="meta">—</span>'}</td></tr>`).join('');
   return `<div class="table-wrap" data-private><table class="table compact"><caption class="visually-hidden">Commits this session reported</caption><thead><tr><th scope="col">Commit</th><th scope="col">Subject</th><th scope="col" class="num">AI-written lines</th><th scope="col">By</th><th scope="col">Trailer</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 

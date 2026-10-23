@@ -20,6 +20,8 @@
 - [ ] 3.4 "What it looks like" and "Try it yourself" with workbench stories for every state (VIK-2230)
 - [ ] 3.5 Approve nudge in the page and in `unfold_approve_work` (VIK-2231)
 - [ ] 3.6 Browser test: tick, reload, approve through the nudge
+- [x] 3.7 `attributeHunks` and `aiHunksFirst` in `src/agent-trace-hunks.ts`, with tests (proposed reading order, 2026-10-24)
+- [ ] 3.8 "What the agent wrote": the hunk list on the page, with the diff and the head commit's records
 
 ## 4. Agents and deployment
 

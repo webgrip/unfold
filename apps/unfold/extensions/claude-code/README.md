@@ -56,7 +56,7 @@ When the specification allows configuration per installation, the plugin can shi
 | `UserPromptSubmit` | `prompt`, never the prompt itself. When the prompt names a tracker task such as `VIK-2051`, an Unfold `#work/<id>` link or "Work Item 184", it adds only those ids as `mentions` | Collects the session's waiting Unfold messages from `POST /api/linked-sessions/<id>/inbox` and adds them as `additionalContext` |
 | `Notification` | `waiting`, for `permission_prompt`, `idle_prompt`, `elicitation_dialog` and `agent_needs_input` only | |
 | `PostToolUse` on `Write`, `Edit`, `MultiEdit` and `NotebookEdit` | Nothing | Remembers fingerprints of the lines written, per file and per repository, and which agent wrote each: `main`, or the subagent's `agent_type`. They are kept in `${CLAUDE_PLUGIN_DATA}/sessions/<id>.json`. The repository is the one the file is in, so a subagent working in its own git worktree is followed too |
-| `PostToolUse` on `Bash` | `commit` for each new commit since the last one it saw, with the task and Work Item ids its message names as `mentions`, in every repository and worktree the session edited. Also any pull request address that a `pr create` command printed | Builds the commit's Agent Trace record, writes it to `refs/notes/agent-trace` and sends it to `POST /api/linked-sessions/<id>/traces`. At most every 30 seconds, collects waiting messages as `additionalContext` |
+| `PostToolUse` on `Bash` | `commit` for each new commit since the last one it saw, with the task and Work Item ids its message names as `mentions`, in every repository and worktree the session edited. Also any pull request address that a `pr create` command printed | Builds the commit's Agent Trace record, writes it to `refs/notes/agent-trace` and sends it to `POST /api/linked-sessions/<id>/traces`. At most every 30 seconds, collects waiting messages as `additionalContext`. With `UNFOLD_PUSH_AGENT_TRACE=1`, after a `git push` also pushes `refs/notes/agent-trace` to the same remote ([below](#push-the-notes-with-the-branch)) |
 | `Stop` | Any new commits, then `idle`. Also the name the person gave with `/rename` as `title`, and pull requests Claude Code recorded in the transcript (`pr-link`) that were not sent before | Claude Code's own summary title (`ai-title`) is sent only with `UNFOLD_SHARE_TRANSCRIPT=1`. Collects messages people sent. When there are any, answers `decision: block` with them as `reason`, so the session continues. Notices wait for the next prompt |
 | `SessionEnd` | Any new commits, then `end` | |
 
@@ -71,6 +71,7 @@ When the specification allows configuration per installation, the plugin can shi
 * Every hook exits 0 and prints nothing when `UNFOLD_URL` or `UNFOLD_TOKEN` is unset, or when Unfold cannot be reached. A session is never blocked. Set `UNFOLD_HOOK_DEBUG=1` to see errors on stderr.
 * A request gives up after `UNFOLD_HOOK_TIMEOUT_MS` (default 3000).
 * Set `UNFOLD_WORK_ITEM=<id>` to link every session started from that shell to one Work Item.
+* Set `UNFOLD_PUSH_AGENT_TRACE=1` to push the notes after each `git push`; `UNFOLD_PUSH_AGENT_TRACE_TIMEOUT_MS` (default 8000) bounds every git call of that push together.
 
 ## How a line is attributed
 
@@ -78,6 +79,14 @@ A line added by a commit is the agent's when its trimmed text matches a line thi
 
 The record's conversation `url` is the session's Unfold page. Its `related` links name the Remote Control session and the Work Items. Unfold's own fields are in `metadata["dev.unfoldhq"]`, with `method: "line-fingerprint"`.
 
+## Push the notes with the branch
+
+`scripts/push-agent-trace.mjs` runs after a `PostToolUse` on `Bash` whose command ran `git push`, when `UNFOLD_PUSH_AGENT_TRACE=1`. It takes the remote from the command, or the branch's push remote when the command names none, and skips dry runs, deletions, mirrors, tag-only pushes and pushes that already name `refs/notes`. It pushes `refs/notes/agent-trace:refs/notes/agent-trace` without `+`. When the remote refuses because its notes moved, it fetches them into `refs/notes/agent-trace-incoming-<random>`, runs `git notes --ref=agent-trace merge -s cat_sort_uniq` on that ref, deletes it and pushes once more. A note then holds one record per line, which Unfold's report reads. Off by default, because the notes leave your machine with it.
+
+## Report on a range of commits
+
+`scripts/agent-trace-report.mjs --base <rev> [--head <rev>] [--ref agent-trace] [--repo <dir>]` prints a Markdown summary of the Agent Trace notes on the commits in `base..head`: per commit and file, AI-written lines against added lines, the tool, the model and up to three conversation links. It reads `refs/notes/<ref>` and never fetches, pushes or writes a ref. Records from any tool are accepted when they pass Agent Trace 0.1 as strictly as Unfold's server checks it; `scripts/agent-trace-schema.mjs` is that check without dependencies, held to `src/agent-trace.ts` by a parity test. It exits 0 with a short notice when git cannot read the range, and 2 on a usage error.
+
 ## Develop
 
-The scripts use only Node's standard library and need Node 22 or later. The tests are `apps/unfold/test/claude-code-plugin.test.ts` and, for the inbox and the channel, `apps/unfold/test/claude-code-inbox.test.ts`. They run the real hook script against a fake Unfold in a temporary git repository. `apps/unfold/test/agent-plugin.test.ts` checks `plugin.json` against the Agent Plugins 1.0.0 schema in `schemas/agent-plugins/1.0.0/`, an unchanged Apache-2.0 copy. It also checks the skill names, the marketplace entries, and that no MCP server definition names a host.
+The scripts use only Node's standard library and need Node 22 or later. The tests are `apps/unfold/test/claude-code-plugin.test.ts` and, for the inbox and the channel, `apps/unfold/test/claude-code-inbox.test.ts`. They run the real hook script against a fake Unfold in a temporary git repository. `test/agent-trace-push.test.ts` pushes notes to a bare repository in a temporary directory from two clones, and `test/agent-trace-report.test.ts` runs the report on a repository with notes from two tools. `apps/unfold/test/agent-plugin.test.ts` checks `plugin.json` against the Agent Plugins 1.0.0 schema in `schemas/agent-plugins/1.0.0/`, an unchanged Apache-2.0 copy. It also checks the skill names, the marketplace entries, and that no MCP server definition names a host.

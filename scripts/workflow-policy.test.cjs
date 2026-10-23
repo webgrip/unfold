@@ -22,7 +22,7 @@ test('event entry points preserve validation and keep application publication ou
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
-  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'opencode-contract', 'ploeg-docs', 'ploeg-pin', 'release-policy', 'warnings']);
+  assert.deepEqual(Object.keys(pr.jobs).sort(), ['agent-trace', 'checks', 'opencode-contract', 'ploeg-docs', 'ploeg-pin', 'release-policy', 'warnings']);
   assert.deepEqual(pr.jobs.checks, source.jobs.checks);
   assert.deepEqual(pr.jobs.warnings, source.jobs.warnings);
   assert.deepEqual(pr.jobs['ploeg-pin'], source.jobs['ploeg-pin']);
@@ -35,6 +35,19 @@ test('event entry points preserve validation and keep application publication ou
   assert.ok(verification.runs.steps.some(verifyStep));
   assert.doesNotMatch(JSON.stringify(pr), /secrets\./);
   assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'python3 scripts/ploeg-contract.py fetch && python3 scripts/docs.py --check --stage-only');
+});
+
+test('the Agent Trace summary on a pull request only reads notes, never fails and holds no other job up', () => {
+  const pr = workflows['on_pull_request.yml'];
+  const job = pr.jobs['agent-trace'];
+  const runs = job.steps.map(step => step.run ?? '').join('\n');
+  assert.match(runs, /git fetch --no-tags origin 'refs\/notes\/agent-trace:refs\/notes\/agent-trace' \|\| /, 'fetches the notes without force and tolerates their absence');
+  assert.doesNotMatch(runs, /\bpush\b|\+refs|--prune|update-ref|notes (?:add|merge|remove|prune)/);
+  assert.match(runs, /agent-trace-report\.mjs .*\|\| echo/);
+  assert.match(runs, /GITHUB_STEP_SUMMARY/);
+  assert.equal(job.needs, undefined);
+  for (const [name, other] of Object.entries(pr.jobs)) assert.ok(![other.needs].flat().includes('agent-trace'), `${name} does not wait for the summary`);
+  assert.doesNotMatch(JSON.stringify(job), /secrets\./);
 });
 
 test('the browser flows run every night and on command, never on a push, in the Playwright image of Unfold\'s playwright version', () => {

@@ -153,3 +153,9 @@ export function traceLinesByAgent(record: AgentTraceRecord): Record<string, numb
   }
   return Object.fromEntries(Object.entries(counts).slice(0, 20));
 }
+
+/** The tool that wrote a record when it is not Unfold's own plugin, such as `cursor 2.4.0`; null for the plugin's records, which carry the `dev.unfoldhq` metadata. */
+export function foreignTool(record: AgentTraceRecord): string | null {
+  if (record.metadata && unfoldTraceNamespace in record.metadata) return null;
+  return record.tool ? `${record.tool.name} ${record.tool.version}`.slice(0, 120) : 'an unnamed tool';
+}

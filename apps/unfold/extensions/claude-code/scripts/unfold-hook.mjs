@@ -6,6 +6,7 @@ import { dirname, join, relative, isAbsolute } from 'node:path';
 import { addedLines, attribute, mainAgent, remember, traceRecord, writtenText } from './agent-trace.mjs';
 import { mentionsIn } from './mentions.mjs';
 import { deliver } from './inbox.mjs';
+import { pushAgentTrace } from './push-agent-trace.mjs';
 
 const unfoldUrl = (process.env.UNFOLD_URL ?? '').trim().replace(/\/+$/, '');
 const token = (process.env.UNFOLD_TOKEN ?? '').trim();
@@ -171,6 +172,7 @@ async function handle(input) {
         }
       } else if (input.tool_name === 'Bash') {
         await commits(input, state);
+        if (process.env.UNFOLD_PUSH_AGENT_TRACE === '1') pushAgentTrace({ cwd: input.cwd ?? process.cwd(), command: String(input.tool_input?.command ?? ''), deadlineMs: Number(process.env.UNFOLD_PUSH_AGENT_TRACE_TIMEOUT_MS) || 8000 });
         const found = pullRequests(input);
         if (found.length) await report(input, state, 'prompt', { pullRequests: found });
       }
