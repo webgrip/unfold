@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { dirname, join, relative, isAbsolute } from 'node:path';
 import { addedLines, attribute, mainAgent, remember, traceRecord, writtenText } from './agent-trace.mjs';
 import { mentionsIn } from './mentions.mjs';
+import { deliver } from './inbox.mjs';
 
 const unfoldUrl = (process.env.UNFOLD_URL ?? '').trim().replace(/\/+$/, '');
 const token = (process.env.UNFOLD_TOKEN ?? '').trim();
@@ -177,6 +178,7 @@ async function handle(input) {
     }
     default: break;
   }
+  Object.assign(output, await deliver(input, state, post));
   saveState(input.session_id, state);
   return output;
 }

@@ -48,6 +48,7 @@ import { createMcpHttp } from './mcp-http.ts';
 import { entitledRole } from './oidc.ts';
 import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
 import { LinkedHandoff, handoffRoute as serveLinkedHandoff, isHandoffRoute } from './linked-handoff.ts';
+import { LinkedInbox } from './linked-inbox.ts';
 import { agentTraceMediaType } from './agent-trace.ts';
 import type { AddressInfo } from 'node:net';
 
@@ -194,6 +195,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const handoff = new TaskHandoff(config, ploeg);
   const linked = new LinkedSessions(store.db, config, ploeg);
   const linkedHandoff = new LinkedHandoff(linked, ploeg, store, config);
+  const inbox = new LinkedInbox(store.db, linked.store, ploeg);
   const status = new StatusBoard(config, store, () => engine.provisioning(), {
     gateway: gatewayProbe(config),
     ploeg: async user => {
@@ -709,7 +711,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const answer = await serveLinkedHandoff(linkedHandoff, { method, path, query: url.searchParams, user, base: config.baseUrl ?? `http://${req.headers.host}`, body: () => body(req) });
           return json(res, answer.status, sanitize(answer.body));
         }
-        const linkedSession = /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})(?:\/(agent-trace|traces|suggestions)|\/work-items\/([1-9][0-9]{0,18}))?$/.exec(path);
+        const linkedSession = /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})(?:\/(agent-trace|traces|suggestions|messages|inbox)|\/work-items\/([1-9][0-9]{0,18}))?$/.exec(path);
         const tracedRevision = /^\/api\/agent-trace\/([0-9a-f]{40}(?:[0-9a-f]{24})?)$/.exec(path);
         if (path === '/api/linked-sessions' || path === '/api/linked-sessions/events' || linkedSession || tracedRevision) {
           const base = config.baseUrl ?? `http://${req.headers.host}`;
@@ -735,6 +737,15 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
             if (method !== 'POST') fault(405, 'method', 'Send an Agent Trace record with POST.');
             const stored = linked.addTrace(user, id, await body(req));
             return json(res, stored.stored ? 201 : 200, stored);
+          }
+          if (part === 'messages') {
+            if (method === 'GET') return json(res, 200, sanitize({ messages: inbox.list(user, id) }));
+            if (method !== 'POST') fault(405, 'method', 'List messages with GET and send one with POST.');
+            return json(res, 201, sanitize({ message: inbox.send(user, id, (await body(req)).text) }));
+          }
+          if (part === 'inbox') {
+            if (method !== 'POST') fault(405, 'method', 'Collect a session\'s messages with POST.');
+            return json(res, 200, sanitize({ messages: await inbox.collect(user, id, await body(req)) }));
           }
           if (method !== 'GET') fault(405, 'method', 'Read a Linked Session with GET.');
           if (part === 'suggestions') return json(res, 200, sanitize({ suggestions: await linked.suggestions(user, id) }));

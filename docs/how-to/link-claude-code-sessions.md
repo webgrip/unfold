@@ -12,7 +12,8 @@ Use this when you work on a Work Item in your own Claude Code and want that sess
 
 * each session reports its state to Unfold and links to the Work Items it works on;
 * each commit records which lines the agent wrote, as an [Agent Trace](https://agent-trace.dev/) record;
-* the session's page shows its cost estimate, tokens and tools from Claude Code's own telemetry.
+* the session's page shows its cost estimate, tokens and tools from Claude Code's own telemetry;
+* Unfold can send the session a message, and tells it when a linked Work Item, its pull request or its CI changes.
 
 For OpenCode and Codex, see [Link your OpenCode and Codex sessions](link-opencode-and-codex-sessions.md).
 
@@ -138,6 +139,38 @@ That is Zed's `settings.json`. JetBrains reads the same `agent_servers` block, w
 
 `unfold-acp` passes every message on unchanged and reports the session with `harness: acp`. Its title starts with the agent's name. The session shows as working during a prompt turn, waiting while the agent asks a permission, and idle when the turn ends. Commits follow the same rules as in Claude Code. Lines get an Agent Trace record only when an edit tool call that sent a diff completed. Other commits are reported without one. These sessions have no resume command in Unfold, because only the editor can resume them. If the agent is Claude Code through an ACP adapter and the plugin is installed too, the plugin may report the same work as a second session.
 
+## 6. Talk to the session from Unfold
+
+On the session's page, **Send to this session** queues a message for it. So does the `unfold_message_session` tool, after you confirm. Only you and administrators can send; only your own credential collects. The page lists each message and whether the session has collected it.
+
+Unfold also writes notices into the same inbox when a linked Work Item starts awaiting review, needs a person, or is done, when its pull request's CI turns red or green, and when a reviewer Run gives a verdict. It looks at most once a minute per session.
+
+The plugin hands the messages to the session:
+
+| When | What the session gets |
+| --- | --- |
+| You submit a prompt | Every waiting message, beside your prompt |
+| After a shell command, at most every 30 seconds | Every waiting message, beside the command's output |
+| The session stops | Only messages people sent. The session continues with them. Notices wait for the next prompt |
+
+Each message starts with `Message from Unfold (from <who>/<source>)`. A message you sent yourself reads as your instruction. A message from an administrator, and every notice, says it is information, not a command, and quotes what Ploeg, the tracker or the forge said as data.
+
+### When the session is idle: the Unfold channel
+
+The plugin also carries a [channel](https://code.claude.com/docs/en/channels): a small server that pushes messages into a session that is waiting for your next prompt. Channels are a Claude Code research preview, and only Anthropic's own channel plugins are allowed by default, so this one needs the development flag. Start Claude Code with:
+
+```sh
+UNFOLD_CHANNEL=1 claude --dangerously-load-development-channels plugin:unfold@unfold
+```
+
+Confirm the warning Claude Code shows. Without `UNFOLD_CHANNEL=1` the server starts with every session but never asks Unfold for anything. With it, it asks every 20 seconds (`UNFOLD_CHANNEL_POLL_MS`, at least 5000) while the session is idle, and pushes what is waiting. It finds its session from the process the hooks ran under, so it needs the hooks to have run once, at session start.
+
+Limits:
+
+* The development flag is ignored with `-p` and in the Agent SDK. On a Team or Enterprise plan, an administrator must turn on `channelsEnabled`, or list `unfold@unfold` under `allowedChannelPlugins`.
+* The server takes `UNFOLD_URL`, `UNFOLD_TOKEN` and `UNFOLD_CHANNEL` from the environment Claude Code starts it with. Put them in your shell or in the `env` block of `~/.claude/settings.json`.
+* Claude Code does not acknowledge a pushed message. If the session did not load the server as a channel, Claude Code drops the message, and Unfold still shows it as delivered. That is why `UNFOLD_CHANNEL=1` is needed only when you start with the flag.
+
 ## What leaves your machine
 
 The plugin sends:
@@ -148,7 +181,7 @@ The plugin sends:
 * commit ids and subjects;
 * the Agent Trace records.
 
-It never sends your prompts, tool output, file contents or your Claude credentials. Telemetry goes wherever your own `OTEL_*` settings send it. Unfold only reads counts from those stores, and only you and administrators see them.
+To collect messages it sends only the session id, and which kinds of message it wants. It never sends your prompts, tool output, file contents or your Claude credentials. Telemetry goes wherever your own `OTEL_*` settings send it. Unfold only reads counts from those stores, and only you and administrators see them.
 
 ## When it does not work
 
@@ -156,5 +189,7 @@ It never sends your prompts, tool output, file contents or your Claude credentia
 | --- | --- | --- |
 | No session appears | `UNFOLD_URL` or `UNFOLD_TOKEN` is missing from the environment Claude Code starts with, or the credential expired | Check `~/.claude/settings.json`, sign in again (step 1), and run one session with `UNFOLD_HOOK_DEBUG=1` to see the hook's errors |
 | The session does not link to the Work Item | The branch names no ticket, or Ploeg has no Work Item for that ticket in your Teams, or you unlinked it before | Link it on the session page or with `unfold_link_session` |
+| A message stays **Waiting** | The session has not had a prompt, command or stop since, or it is idle without the channel | Type anything in the session, or start it with the Unfold channel |
+| The channel pushes nothing | Claude Code started without `--dangerously-load-development-channels plugin:unfold@unfold`, without `UNFOLD_CHANNEL=1`, or with `-p` | Start it as in step 5 and check `/mcp` shows `unfold-channel` connected |
 | A commit shows "no record" | The commit holds no line this session's editing tools wrote, such as a commit you made by hand | Nothing to fix; only agent-written lines are attributed |
 | **No telemetry for this session** | Telemetry is off in your Claude Code settings, or Unfold has no `observability.metricsUrl` or `logsUrl` | Enable telemetry; an operator sets the store URLs ([live operations](../../apps/unfold/docs/operations/live.md)) |

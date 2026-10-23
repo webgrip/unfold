@@ -5,12 +5,13 @@ import { button, callout, card, emptyState, skeleton, stateBadge } from '../core
 import { linkedSessionPage, linkedStates, linkedStatusLine, attributionLine, sessionTitle } from '../core/linked-sessions.js';
 import { icon } from '../core/icons.js';
 import { collisions, collisionsOf, isLiveSession, runningRunsOf } from '../core/collisions.js';
+import { linkedInboxCard } from '../core/linked-inbox.js';
 import { shell } from '../shell.js';
 import { digestMarkup, handOffMarkup, startWorkItemForm } from '../core/linked-handoff.js';
 
 const sessionPath = /^linked-session\/([A-Za-z0-9_-]{8,128})$/;
-const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null };
-onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null }));
+const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '' };
+onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '' }));
 const clashItems = 5;
 
 /** The event other views listen for after a Linked Session gained or lost a Work Item here. */
@@ -50,10 +51,11 @@ function sessionContent() {
   if (view.error && !view.session) return callout({ tone: 'danger', title: 'Could not read this agent session', body: `<p>${escape(view.error)}</p>` });
   if (!view.session) return `<div class="card">${skeleton({ rows: 6, variant: 'text' })}</div>`;
   const page = linkedSessionPage(view.session, { workItems: view.titles, suggestions: view.suggestions, clashes: view.clashes });
-  if (!view.session.mine) return page;
+  const inboxCard = linkedInboxCard(view.session, view.messages, { error: view.messagesError });
+  if (!view.session.mine) return `${page}${inboxCard}`;
   const handOff = handOffMarkup(view.session, view.readiness);
   const start = card({ id: 'linked-session-start', title: 'Start a Work Item from this session', subtitle: 'Hand the next piece of work to Ploeg and keep this session linked to it.', body: startWorkItemForm(view.session, view.options) });
-  return `${page}${handOff ? card({ id: 'linked-session-hand-off', title: 'Let Ploeg finish this', body: handOff }) : ''}${start}`;
+  return `${page}${handOff ? card({ id: 'linked-session-hand-off', title: 'Let Ploeg finish this', body: handOff }) : ''}${start}${inboxCard}`;
 }
 
 function renderLinked() {
@@ -69,6 +71,7 @@ async function loadSession(id) {
     if (request !== view.request) return;
     view.session = session; view.error = '';
     renderLinked();
+    if (session.mine) void loadMessages(id, request);
     const details = await Promise.all(session.workItems.slice(0, 10).map(entry => api(`/api/ploeg/work-items/${encodeURIComponent(entry.id)}`).then(detail => [entry.id, detail], () => [entry.id, null])));
     if (request !== view.request) return;
     view.titles = Object.fromEntries(details.filter(([, detail]) => detail?.item?.title).map(([id, detail]) => [id, detail.item.title]));
@@ -93,10 +96,25 @@ async function clashesOf(session, details) {
   return collisionsOf(collisions({ sessions: [session, ...lists.flat()], runs: details.flatMap(runningRunsOf) }), { sessionId: session.id });
 }
 
+async function loadMessages(id, request = view.request) {
+  try { const { messages } = await api(`/api/linked-sessions/${encodeURIComponent(id)}/messages`); if (request !== view.request) return; view.messages = messages; view.messagesError = ''; }
+  catch (error) { if (request === view.request) view.messagesError = error.message; }
+  if (request === view.request && state.view === 'linked-sessions') renderLinked();
+}
+
+async function sendMessage(data, form) {
+  const text = String(data.text ?? '').trim();
+  if (!text) throw new Error('Write a message first.');
+  await api(`/api/linked-sessions/${encodeURIComponent(form.dataset.id)}/messages`, { method: 'POST', body: JSON.stringify({ text }) });
+  notify('Sent. The session reads it on its next prompt, command or stop.');
+  form.reset();
+  await loadMessages(form.dataset.id);
+}
+
 async function enterLinked(params) {
   disconnect(); state.session = null; state.view = 'linked-sessions';
   view.mode = params.id ? 'session' : 'settings';
-  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.clashes = []; view.suggestions = []; view.options = null; view.readiness = null;
+  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.clashes = []; view.suggestions = []; view.options = null; view.readiness = null; view.messages = null; view.messagesError = '';
   renderLinked();
   if (view.mode === 'session') return loadSession(view.id);
   const request = ++view.request;
@@ -182,6 +200,6 @@ export default {
   enter: enterLinked,
   render: renderLinked,
   actions: { 'linked-session-unlink': unlink, 'linked-session-copy': copy, 'linked-session-suggest': linkSuggested, 'linked-session-hand-off': handOff, 'linked-digest-window': digestWindow },
-  forms: { 'linked-session-link': link, 'linked-session-start': startWorkItem },
+  forms: { 'linked-session-link': link, 'linked-session-start': startWorkItem, 'linked-session-message': sendMessage },
 };
 

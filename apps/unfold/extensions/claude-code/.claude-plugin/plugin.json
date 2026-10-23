@@ -1,10 +1,32 @@
 {
   "name": "unfold",
-  "version": "0.7.0",
-  "description": "Reports your Claude Code sessions to Unfold, links them to Work Items, and records Agent Trace attribution for their commits.",
-  "author": { "name": "Ryan Grippeling / WebGrip", "url": "https://unfoldhq.dev" },
+  "version": "0.8.0",
+  "description": "Reports your Claude Code sessions to Unfold, links them to Work Items, records Agent Trace attribution for their commits, and brings Unfold's messages into the session.",
+  "author": {
+    "name": "Ryan Grippeling / WebGrip",
+    "url": "https://unfoldhq.dev"
+  },
   "homepage": "https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apps/unfold/extensions/claude-code",
   "repository": "https://forgejo.webgrip.dev/webgrip/unfold",
   "license": "Apache-2.0",
-  "keywords": ["unfold", "agent-trace", "work-items", "telemetry"]
+  "keywords": [
+    "unfold",
+    "agent-trace",
+    "work-items",
+    "telemetry"
+  ],
+  "mcpServers": {
+    "unfold-channel": {
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/channel/unfold-channel.mjs"
+      ]
+    }
+  },
+  "channels": [
+    {
+      "server": "unfold-channel",
+      "displayName": "Unfold"
+    }
+  ]
 }
