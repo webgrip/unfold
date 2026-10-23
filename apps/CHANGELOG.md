@@ -1,3 +1,10 @@
+## [unfold-v0.4.0-rc.108](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.107...unfold-v0.4.0-rc.108) (2026-10-23)
+
+### Fixed
+
+* **agent:** update opencode ( 1.19.3 ➔ 1.19.4 ) ([1350f40](https://forgejo.webgrip.dev/webgrip/unfold/commit/1350f40dfcc5f40428314d7982fa18003d43c739))
+* **ploeg:** update Ploeg to 0.2.0-rc.47 ([c46f38c](https://forgejo.webgrip.dev/webgrip/unfold/commit/c46f38c5ac9fecb220e058e165cf8db81c1eaec1))
+
 ## [unfold-v0.4.0-rc.107](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.106...unfold-v0.4.0-rc.107) (2026-10-20)
 
 ### Fixed
