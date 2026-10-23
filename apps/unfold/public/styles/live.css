@@ -265,7 +265,7 @@
   position: relative;
 }
 
-.lv-fp-hops { flex: 1; display: flex; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.lv-fp-hops { flex: none; display: flex; margin: 0; padding: 0; list-style: none; min-width: 0; }
 
 .lv-g1 { flex-grow: 1; }
 .lv-g2 { flex-grow: 2; }
@@ -309,7 +309,8 @@
 .lv-g40 { flex-grow: 40; }
 
 .lv-fp-head {
-  height: 2.75rem;
+  flex: 1 0 auto;
+  min-height: 2.75rem;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -318,7 +319,6 @@
   border-left: 1px solid var(--border-subtle);
 }
 
-.lv-fp-name, .lv-fp-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lv-fp-name { font-size: var(--text-xs); font-weight: var(--weight-bold); color: var(--text); }
 .lv-fp-note { font-size: var(--text-2xs); line-height: var(--leading-2xs); color: var(--text-subtle); min-height: var(--leading-2xs); }
 .lv-fp-time { font-family: var(--font-mono); font-weight: var(--weight-regular); color: var(--text-subtle); }
@@ -342,13 +342,13 @@
 .lv-fp-grad-end { stop-color: var(--lv-fp-tone); stop-opacity: 0; }
 .lv-fp-trouble { stroke: var(--attention-fg); stroke-width: 2.5; }
 .lv-fp-hop.is-machine .lv-fp-grad, .lv-fp-hop.is-failed .lv-fp-grad, .lv-fp-hop.is-neutral .lv-fp-grad { stop-opacity: 0.08; }
-.lv-fp-gate { min-width: 3.5rem; }
+.lv-fp-gate { min-width: 6rem; }
 .lv-fp-wait { min-width: 4.5rem; }
 .lv-fp-approach { min-width: 5.5rem; }
-.lv-fp-attempt { min-width: 2.5rem; }
+.lv-fp-attempt { min-width: 6rem; }
 .lv-fp-attempt.is-live { min-width: 6rem; }
 .lv-fp-stop { min-width: 6rem; }
-.lv-fp-station { min-width: 5rem; }
+.lv-fp-station { min-width: 6.5rem; }
 .lv-fp-descent { stroke: var(--text-subtle); stroke-width: 2; stroke-dasharray: 3 6; }
 .lv-fp-approach.is-landed .lv-fp-descent { stroke: var(--text-muted); stroke-dasharray: none; }
 .lv-fp-approach.is-taxi .lv-fp-descent { stroke-dasharray: 2 5; }
@@ -545,7 +545,6 @@
   .lv-fp-station.is-you::after { border-color: var(--lv-you); }
   .lv-fp-station.is-current::after { border-color: var(--lv-live); background: var(--lv-live); }
   .lv-fp-head, .lv-fp-attempt > .lv-fp-head { grid-column: 2; height: auto; padding: 0; border: 0; margin: 0; }
-  .lv-fp-name, .lv-fp-note { white-space: normal; }
   .lv-fp-name { font-size: var(--text-sm); }
   .lv-fp-note { font-size: var(--text-xs); line-height: var(--leading-xs); }
   .lv-fp-sky, .lv-fp-runway { display: none; }
