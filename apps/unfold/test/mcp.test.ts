@@ -6,7 +6,7 @@ import { PassThrough } from 'node:stream';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { application } from './api-support.ts';
+import { application, request } from './api-support.ts';
 import { confirmationLedger, createMcpServer, serveStdio } from '../src/mcp.ts';
 
 function conforms(schema: Record<string, any>, value: unknown, at: string): string[] {
@@ -98,6 +98,23 @@ test('unfold-mcp tells a client what waits, why, and what to do, from the demo w
   const unknown = await server.handle({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'unfold_delete_everything', arguments: {} } });
   assert.equal(unknown?.error.code, -32602);
   assert.equal((await server.handle({ jsonrpc: '2.0', id: 4, method: 'resources/list' }))?.error.code, -32601);
+});
+
+test('unfold_now lists your own waiting agent sessions apart from Ploeg work, with why they wait and how to resume', async t => {
+  const demo = await application(); t.after(() => demo.close());
+  const server = createMcpServer({ url: demo.url, version: 'test' });
+  assert.deepEqual((await call(server, 'unfold_now')).structuredContent.yourSessions, []);
+  const report = (sessionId: string, event: string, extra: Record<string, unknown> = {}) => request(demo.url, '/api/linked-sessions/events', { method: 'POST', body: { harness: 'claude-code', sessionId, event, title: 'Fix the login', branch: 'feat/login', ...extra } });
+  assert.equal((await report('mcp-waiting-1', 'waiting', { waitingFor: 'permission_prompt' })).status, 200);
+  assert.equal((await report('mcp-working-1', 'prompt')).status, 200);
+  const now = (await call(server, 'unfold_now')).structuredContent;
+  assert.deepEqual(now.yourSessions.map((entry: { id: string }) => entry.id), ['mcp-waiting-1']);
+  const [waiting] = now.yourSessions;
+  assert.equal(waiting.reason, 'Your Claude Code session waits for you to approve a tool. Answer it where it runs; Unfold does not run it.');
+  assert.equal(waiting.resume, 'claude --resume mcp-waiting-1');
+  assert.equal(waiting.untrusted.title, 'Fix the login');
+  assert.match(now.summary, /1 of your own agent sessions wait for you/);
+  assert.equal(now.waiting.some((item: { id: string }) => item.id === 'mcp-waiting-1'), false, 'sessions stay out of the Work Item list');
 });
 
 test('unfold-mcp reads as the person behind an editor credential and never repeats the token', async t => {

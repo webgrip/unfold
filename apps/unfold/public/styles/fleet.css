@@ -123,6 +123,13 @@
 
 .fb-lane:last-child { border-bottom: 0; }
 
+.fb-lanes-yours { margin-bottom: var(--space-2); border-bottom: 1px dashed var(--border-strong); }
+.fb-lane.is-yours { border-bottom: 0; }
+.fb-lane-note { margin: 0; font-size: var(--text-2xs); line-height: var(--leading-2xs); color: var(--text-subtle); }
+.fb-lane.is-yours .fb-cell-label { position: static; width: auto; height: auto; margin: 0 0 var(--space-1); overflow: visible; clip-path: none; font-size: var(--text-2xs); line-height: var(--leading-2xs); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--text-subtle); }
+.fb-chip.is-yours { border-left-style: dotted; }
+.fb-chip.is-yours .fb-chip-ref { font-family: inherit; font-weight: var(--weight-semibold); }
+
 .fb-lane-head { display: flex; flex-direction: column; gap: var(--space-1); min-width: 0; padding-top: var(--space-1); }
 .fb-lane-name { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: var(--text-md); font-weight: var(--weight-bold); overflow-wrap: anywhere; }
 .fb-lane-dot { flex: none; width: 0.625rem; height: 0.625rem; border-radius: var(--radius-full); background: var(--fb-tone); }

@@ -2963,6 +2963,10 @@ button.stream-bar:hover {
   gap: var(--space-4);
 }
 
+.collision-warning { margin-bottom: var(--space-3); }
+.linked-session-page > .collision-warning { margin-bottom: 0; }
+.collision-list { display: flex; flex-direction: column; gap: var(--space-1); margin: 0 0 var(--space-2); padding-inline-start: var(--space-4); }
+
 .linked-session-list,
 .linked-session-work {
   display: grid;

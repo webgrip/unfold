@@ -1,5 +1,7 @@
 import { closeReasonLabel } from '../core/states.js';
 import { liveSentence } from './parts.js';
+import { collisionSentence, collisions, collisionsOf, runningRunsOf } from '../core/collisions.js';
+import { linkedWaitReason } from '../core/linked-waiting.js';
 
 const providers = Object.freeze({ vikunja: 'Vikunja', github: 'GitHub', forgejo: 'Forgejo', gitlab: 'GitLab', jira: 'Jira', linear: 'Linear', clickup: 'ClickUp', demo: 'Demo tracker', manual: 'Manual' });
 const harnesses = Object.freeze({ 'claude-code': 'Claude Code', claude_code: 'Claude Code', opencode: 'OpenCode', codex: 'Codex', openhands: 'OpenHands', cursor: 'Cursor' });
@@ -101,12 +103,16 @@ function entriesOf(live, { detail, brief, asks, context, linked, messages, origi
   return withFolds;
 }
 
-function decisionsOf(live, { session, linked, sentence }) {
+function decisionsOf(live, { detail, session, linked, sentence }) {
   const list = [];
   if (live.state === 'needs_human' || live.state === 'stale') list.push({ kind: 'stop', tone: live.state === 'stale' ? 'severe' : 'attention', title: sentence.head, detail: sentence.sub });
   if (live.state === 'awaiting_review') list.push({ kind: 'review', tone: 'review', title: sentence.head, detail: sentence.sub, pullRequest: live.pullRequest });
   if (session && session.status === 'waiting_input') list.push({ kind: 'session', tone: 'attention', title: 'An agent asked you something', detail: 'Answer it on this page; the Run waits until you do.', sessionId: session.id });
-  for (const each of linked?.sessions ?? []) if (each.waitingFor) list.push({ kind: 'linked', tone: 'attention', title: `${each.ownerName || 'A linked session'} waits for ${each.waitingFor}`, detail: `${harnesses[each.harness] ?? 'An agent'} on ${each.branch || 'its branch'}. Unfold does not run it, so answer it where it runs.`, sessionId: each.id });
+  for (const each of linked?.sessions ?? []) if (each.state === 'waiting') list.push({ kind: 'linked', tone: 'attention', title: each.mine ? linkedWaitReason(each).sentence : `${each.ownerName || 'Someone'}’s ${harnesses[each.harness] ?? 'agent'} session waits for them`, detail: `${harnesses[each.harness] ?? 'An agent'} on ${each.branch || 'its branch'}. Unfold does not run it, so answer it where it runs.`, sessionId: each.id });
+  for (const clash of collisionsOf(collisions({ sessions: linked?.sessions ?? [], runs: runningRunsOf(detail) }), { workItemId: detail.item.id })) {
+    const first = clash.members.find(member => member.kind === 'session');
+    list.push({ kind: 'collision', tone: 'attention', title: collisionSentence(clash), detail: 'Their edits and pushes can overwrite each other. Stop or pause one, or move it to its own branch.', sessionId: first.id });
+  }
   return list;
 }
 
@@ -185,7 +191,7 @@ export function workView({ live, detail, asks = null, context = null, linked = n
     sentence,
     brief: { text: brief.text, conditions: conditionsOf(brief, proofs), proofsReported: proofs.length > 0 },
     entries: entriesOf(live, { detail, brief, asks, context, linked, messages, origin: from }),
-    decisions: decisionsOf(live, { session, linked, sentence }),
+    decisions: decisionsOf(live, { detail, session, linked, sentence }),
     roles: rolesOf(live),
     lease: leaseOf(live),
     tape: tapeOf(live, asks),

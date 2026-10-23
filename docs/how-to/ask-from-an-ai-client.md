@@ -40,7 +40,7 @@ The steps below run `unfold` over stdio from a checkout. When your Unfold serves
 
 | Tool | Answers |
 | --- | --- |
-| `unfold_now` | Everything waiting for you, each with its reason, fix and Unfold link; running Runs; tracker tasks Ploeg refused to route; your Teams |
+| `unfold_now` | Everything waiting for you, each with its reason, fix and Unfold link; running Runs; tracker tasks Ploeg refused to route; your own agent sessions that wait for you; your Teams |
 | `unfold_find_work` | One Team's Work Items, by state, paged |
 | `unfold_get_work` | Why one Work Item waits, Ploeg's own words, the Run that explains it, budget and spend per Shift, its Runs |
 | `unfold_sessions` | Your workbench sessions |

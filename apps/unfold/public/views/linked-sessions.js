@@ -4,11 +4,13 @@ import { escape, renderHtml, notify } from '../core/dom.js';
 import { callout, card, emptyState, skeleton, stateBadge } from '../core/ui.js';
 import { linkedSessionPage, linkedStates, linkedStatusLine, attributionLine, sessionTitle } from '../core/linked-sessions.js';
 import { icon } from '../core/icons.js';
+import { collisions, collisionsOf, isLiveSession, runningRunsOf } from '../core/collisions.js';
 import { shell } from '../shell.js';
 
 const sessionPath = /^linked-session\/([A-Za-z0-9_-]{8,128})$/;
-const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, suggestions: [] };
-onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, suggestions: [] }));
+const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, clashes: [], suggestions: [] };
+onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, clashes: [], suggestions: [] }));
+const clashItems = 5;
 
 /** The event other views listen for after a Linked Session gained or lost a Work Item here. */
 export const linkedChangedEvent = 'unfold:linked-sessions-changed';
@@ -44,7 +46,7 @@ function settingsContent() {
 function sessionContent() {
   if (view.error && !view.session) return callout({ tone: 'danger', title: 'Could not read this agent session', body: `<p>${escape(view.error)}</p>` });
   if (!view.session) return `<div class="card">${skeleton({ rows: 6, variant: 'text' })}</div>`;
-  return linkedSessionPage(view.session, { workItems: view.titles, suggestions: view.suggestions });
+  return linkedSessionPage(view.session, { workItems: view.titles, suggestions: view.suggestions, clashes: view.clashes });
 }
 
 function renderLinked() {
@@ -60,19 +62,26 @@ async function loadSession(id) {
     if (request !== view.request) return;
     view.session = session; view.error = '';
     renderLinked();
-    const titles = await Promise.all(session.workItems.slice(0, 10).map(entry => api(`/api/ploeg/work-items/${encodeURIComponent(entry.id)}`).then(detail => [entry.id, detail.item.title], () => [entry.id, ''])));
+    const details = await Promise.all(session.workItems.slice(0, 10).map(entry => api(`/api/ploeg/work-items/${encodeURIComponent(entry.id)}`).then(detail => [entry.id, detail], () => [entry.id, null])));
     if (request !== view.request) return;
-    view.titles = Object.fromEntries(titles.filter(([, title]) => title));
+    view.titles = Object.fromEntries(details.filter(([, detail]) => detail?.item?.title).map(([id, detail]) => [id, detail.item.title]));
+    view.clashes = isLiveSession(session) ? await clashesOf(session, details.map(([, detail]) => detail)) : [];
+    if (request !== view.request) return;
     view.suggestions = session.mine ? await api(`/api/linked-sessions/${encodeURIComponent(id)}/suggestions`).then(answer => answer.suggestions ?? [], () => []) : [];
     if (request !== view.request) return;
   } catch (error) { if (request === view.request) view.error = error.message; }
   if (request === view.request && state.view === 'linked-sessions') renderLinked();
 }
 
+async function clashesOf(session, details) {
+  const lists = await Promise.all([api('/api/linked-sessions'), ...session.workItems.slice(0, clashItems).map(entry => api(`/api/linked-sessions?workItemId=${encodeURIComponent(entry.id)}`))].map(call => call.then(answer => answer.sessions || [], () => [])));
+  return collisionsOf(collisions({ sessions: [session, ...lists.flat()], runs: details.flatMap(runningRunsOf) }), { sessionId: session.id });
+}
+
 async function enterLinked(params) {
   disconnect(); state.session = null; state.view = 'linked-sessions';
   view.mode = params.id ? 'session' : 'settings';
-  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.suggestions = [];
+  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.clashes = []; view.suggestions = [];
   renderLinked();
   if (view.mode === 'session') return loadSession(view.id);
   const request = ++view.request;
