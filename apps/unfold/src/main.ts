@@ -1,3 +1,4 @@
+import { defaultWorkspaceRetentionDays } from './runtime/retention.ts';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Store, adoptRenamedDatabase } from './store.ts';
@@ -47,6 +48,11 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
     const sweep = () => { void cards.sweep().catch(error => console.error(JSON.stringify({ level: 'warn', event: 'cards.sweep_failed', message: String(error?.message ?? error).slice(0, 200) }))); };
     cardTimers.push(setTimeout(sweep, 30_000).unref(), setInterval(sweep, 300_000).unref());
   }
+  function startVolumeRetention() {
+    if (config.mode !== 'live' || !config.kubernetes || (config.kubernetes.workspaceRetentionDays ?? defaultWorkspaceRetentionDays) <= 0) return;
+    const sweep = () => { void engine.releaseRetainedVolumes().then(result => { if (result.released.length || result.failed.length) console.log(JSON.stringify({ level: 'info', event: 'workspace.volume_retention', released: result.released.length, failed: result.failed.length })); }, error => console.error(JSON.stringify({ level: 'warn', event: 'workspace.volume_retention_failed', message: String(error?.message ?? error).slice(0, 200) }))); };
+    cardTimers.push(setTimeout(sweep, 600_000).unref(), setInterval(sweep, 3_600_000).unref());
+  }
   async function close() {
     if (closed) return;
     closed = true;
@@ -60,7 +66,7 @@ export async function createApplication(config: AppConfig, options: { runtimes?:
     store.close();
     await errors.flush();
   }
-  return { server, store, engine, agentHost, reports, errors, tripwire, close, startCardSweeps, recoveredSessions };
+  return { server, store, engine, agentHost, reports, errors, tripwire, close, startCardSweeps, startVolumeRetention, recoveredSessions };
 }
 
 export const shutdownDeadlineMs = 10_000;
@@ -92,6 +98,7 @@ async function main() {
     throw new Error('Set UNFOLD_ADMIN_PASSWORD to a password of at least 12 characters for the first launch, or create an account with npm run user:add.');
   }
   app.startCardSweeps();
+  app.startVolumeRetention();
   app.tripwire.start();
   app.server.listen(config.port, config.host, () => {
     const address = app.server.address();

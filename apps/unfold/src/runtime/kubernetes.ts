@@ -456,6 +456,12 @@ export class KubernetesWorkspaces {
     return true;
   }
 
+  async releaseVolume(workspace: Workspace): Promise<boolean> {
+    await this.dispose(workspace);
+    await this.client.request(this.path('PersistentVolumeClaim', workspaceName(workspace.id)), 'DELETE', undefined, true);
+    return true;
+  }
+
   async dispose(workspace: Workspace): Promise<void> {
     const name = workspaceName(workspace.id);
     await this.removePod(name);

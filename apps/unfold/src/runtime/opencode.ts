@@ -12,6 +12,7 @@ export interface RuntimeWorkspaces {
   credentials(workspace: Workspace): { username: string; password: string } | undefined;
   executionEnvironment(workspace: Workspace): Record<string, string>;
   dispose(workspace: Workspace): Promise<void>;
+  releaseVolume?(workspace: Workspace): Promise<boolean>;
   captureCandidate?(session: Session, repository: Repository): Promise<Candidate>;
   transport?(workspace: Workspace): typeof fetch | undefined;
   reattachable?(workspace: Workspace): boolean;
@@ -421,4 +422,5 @@ export class OpenCodeRuntime implements AgentRuntime {
   captureCandidate(session: Session, repository: Repository): Promise<Candidate> { return this.workspaces.captureCandidate?.(session, repository) ?? Promise.resolve(unavailableCandidate('unsupported_workspace')); }
 
   dispose(workspace: Workspace): Promise<void> { return this.workspaces.dispose(workspace); }
+  releaseVolume(workspace: Workspace): Promise<boolean> { return this.workspaces.releaseVolume?.(workspace) ?? Promise.resolve(false); }
 }

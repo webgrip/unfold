@@ -1,3 +1,4 @@
+import { defaultWorkspaceRetentionDays, workspaceRetention } from './runtime/retention.ts';
 import { knownSecrets } from './redaction.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { Store } from './store.ts';
@@ -559,6 +560,31 @@ export class Engine {
       this.store.appendEvent(id, 'candidate.attestation_failed', 'system', { message: 'The candidate was captured but could not be signed. Verify it manually before trusting its provenance.' });
       return candidate;
     }
+  }
+
+  /** Deletes the retained workspace volume of every finished session the retention rule releases, once each, and records it on the session. */
+  async releaseRetainedVolumes(now = Date.now()): Promise<{ released: string[]; failed: string[] }> {
+    const days = this.config.kubernetes?.workspaceRetentionDays ?? defaultWorkspaceRetentionDays;
+    const released: string[] = [];
+    const failed: string[] = [];
+    for (const session of this.store.listSessions()) {
+      if (session.workspace?.backend !== 'kubernetes' || this.store.getSecret<boolean>(`volume-released:${session.id}`)) continue;
+      const held = this.active.has(session.id) || Boolean(this.store.getSecret<boolean>(`interruption:${session.id}`) || this.store.getSecret<boolean>(`discovery:${session.id}`) || this.store.getSecret<boolean>(`authority-unresolved:${session.id}`)) || this.reservations(session.id).length > 0;
+      const verdict = workspaceRetention(session, now, days, held);
+      if (!verdict.release) continue;
+      const runtime = this.runtimes.get(session.runtime);
+      if (!runtime?.releaseVolume) continue;
+      try {
+        if (!await runtime.releaseVolume(session.workspace)) continue;
+        this.store.setSecret(`volume-released:${session.id}`, true);
+        this.store.appendEvent(session.id, 'workspace.volume_released', 'system', { retentionDays: days, lastChangedAt: session.updatedAt, candidateRetained: session.candidate?.status === 'ready' });
+        released.push(session.id);
+      } catch (error) {
+        failed.push(session.id);
+        console.error(JSON.stringify({ level: 'warn', event: 'workspace.volume_release_failed', sessionId: session.id, message: String((error as Error)?.message ?? error).slice(0, 200) }));
+      }
+    }
+    return { released, failed };
   }
 
   private async keepCandidate(id: string, runtime: AgentRuntime, candidate: Candidate, stopped: boolean): Promise<void> {
