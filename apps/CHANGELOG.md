@@ -1,3 +1,26 @@
+## [unfold-v0.4.0-rc.109](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.108...unfold-v0.4.0-rc.109) (2026-10-23)
+
+### Added
+
+* **unfold:** give agents in VS Code read-only Unfold tools ([cba22a7](https://forgejo.webgrip.dev/webgrip/unfold/commit/cba22a72a0342325450c3b45855b32dd4f5c4479))
+* **unfold:** make the Claude Code plugin an Agent Plugin too ([27cef35](https://forgejo.webgrip.dev/webgrip/unfold/commit/27cef35e4cfa6e314da4f78f7e2409263191df90))
+* **unfold:** run the extension in VS Code's Agents window and stay quiet there ([1dc115c](https://forgejo.webgrip.dev/webgrip/unfold/commit/1dc115c0231fccbcabc76f03679994d5cac2c0ec))
+* **unfold:** show what a Run printed and did as a console ([e307dec](https://forgejo.webgrip.dev/webgrip/unfold/commit/e307dec161e84c5fc0018b4c5a4f863e869114aa))
+
+### Fixed
+
+* **unfold:** give a cold OpenCode one deadline to open its session and name the timer that fired ([5f20c0b](https://forgejo.webgrip.dev/webgrip/unfold/commit/5f20c0b43c84877f45597b15ad0edcac4a743831))
+* **unfold:** name the relay and workspace-start timers and where the time went ([dc4ae93](https://forgejo.webgrip.dev/webgrip/unfold/commit/dc4ae939aa17866e291bfd8a394993e4c0a5e14d))
+
+### Docs
+
+* **unfold:** drop worktree disk usage from the 1.143 recommendations ([86e80fa](https://forgejo.webgrip.dev/webgrip/unfold/commit/86e80fa1f29824ebb6ed1b7e960f81bfcb2fdc68))
+* **unfold:** read VS Code 1.143 against the host and the extension ([8694409](https://forgejo.webgrip.dev/webgrip/unfold/commit/8694409cc4f95c6959f854b16c12d1c3ae7e624d))
+
+### Tests
+
+* **unfold:** count refused tasks in the palette's Now badge and search a Work Item only it matches ([aab5d78](https://forgejo.webgrip.dev/webgrip/unfold/commit/aab5d78905c91b06b81d28f85d29825d0012af28))
+
 ## [unfold-v0.4.0-rc.108](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.107...unfold-v0.4.0-rc.108) (2026-10-23)
 
 ### Fixed
