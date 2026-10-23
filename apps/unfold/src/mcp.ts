@@ -517,6 +517,27 @@ export function createMcpServer(options: McpOptions) {
           });
         },
       },
+      {
+        name: 'unfold_message_session', title: 'Message a linked session', readOnly: false, confirms: true,
+        description: 'Send a message to one of your own linked agent sessions, such as Claude Code on your machine. The Unfold plugin hands it to the session on its next prompt, command or stop, or, with the Unfold channel on, while it is idle. Asks the person to confirm first; nothing is sent without that. session_id is the id unfold_linked_sessions lists.',
+        inputSchema: object({ session_id: string('The linked session id, as unfold_linked_sessions lists it'), text: string('The message, at most 2000 characters') }, ['session_id', 'text']),
+        outputSchema: actionOutput,
+        async run(args, call) {
+          const id = typeof args.session_id === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(args.session_id) ? args.session_id : '';
+          if (!id) throw new Error('session_id must be the linked session id: 8 to 128 letters, digits, - or _.');
+          const text = typeof args.text === 'string' ? args.text.trim() : '';
+          if (!text || text.length > 2000) throw new Error('text must be 1 to 2000 characters.');
+          const page = `${base}/#linked-session/${encodeURIComponent(id)}`;
+          return confirmThen('unfold_message_session', page, ['unfold_message_session', id, text], call, async demo => {
+            const { session } = await get(`/api/linked-sessions/${id}`);
+            const named = `your ${session?.harness === 'claude-code' ? 'Claude Code ' : ''}session ${id}${session?.title ? ` "${clip(session.title, 120)}"` : ''}`;
+            return { message: `${demoSays(demo)}Send this message to ${named}? Its agent reads it as your instruction and may act on it, on your own plan or key; Unfold spends nothing. Message: ${clip(text, 300)}`, async perform(confirmation) {
+              const result = await get(`/api/linked-sessions/${id}/messages`, { text }, confirmation);
+              return { summary: `Sent. The session reads it on its next prompt, command or stop.${demo ? ' This is the illustrative demo: nothing real changed.' : ''}`, done: true, demo, link: page, result: { id: String(result.message?.id ?? ''), delivered: false } };
+            } };
+          });
+        },
+      },
     ];
   }
 

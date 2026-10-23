@@ -17,7 +17,7 @@
           {
             "type": "command",
             "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/unfold-hook.mjs\"",
-            "timeout": 5
+            "timeout": 10
           }
         ]
       }

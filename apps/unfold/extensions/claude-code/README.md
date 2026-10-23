@@ -8,7 +8,7 @@ The same directory is also an [Agent Plugin](https://github.com/agentplugins/age
 
 | Client | Manifest it reads | What it loads from this plugin |
 | --- | --- | --- |
-| Claude Code | `.claude-plugin/plugin.json` ([manifest reference](https://code.claude.com/docs/en/plugins-reference)) | `hooks/hooks.json`, `skills/`, `commands/` |
+| Claude Code | `.claude-plugin/plugin.json` ([manifest reference](https://code.claude.com/docs/en/plugins-reference)) | `hooks/hooks.json`, `skills/`, `commands/`, and the `unfold-channel` MCP server it declares |
 | GitHub Copilot CLI | `plugin.json`. A root manifest with the Agent Plugins `$schema` takes precedence over `.claude-plugin/plugin.json` ([plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference)) | `skills/`. It would read `mcp.json` and `com.github.copilot/`, and neither ships |
 | VS Code 1.143 | `plugin.json`. VS Code checks for the Agent Plugins format before the Claude format ([authoring reference](https://code.visualstudio.com/docs/agents/reference/agent-plugin-reference)) | `skills/`. It would read `mcp.json` and `com.github.copilot/`, and neither ships |
 
@@ -39,7 +39,9 @@ The marketplace names the plugin by a path inside this repository, so you get wh
 
 ## MCP servers
 
-The plugin ships no `mcp.json` and no `.mcp.json`, because it works with any Unfold installation. Agent Plugins 1.0.0 forbids placeholder and environment-variable expansion in a remote server's `url` and `headers`, and it has no field for an OAuth client id. A shipped definition would therefore name one Unfold installation and still lack its client id. Add the servers yourself:
+`.claude-plugin/plugin.json` declares one local server, `unfold-channel` (`channel/unfold-channel.mjs`), and binds a [channel](https://code.claude.com/docs/en/channels-reference) to it. It is a one-way channel: it declares the `claude/channel` capability and no tools, and pushes `notifications/claude/channel` with `meta` `kind` and `sender`. It does nothing unless `UNFOLD_CHANNEL=1`, and then only while the hooks last saw the session stop. It finds its session through `processes/<its parent pid>.json`, which the `SessionStart` hook writes, because Claude Code gives an MCP server no session id. It answers `initialize` with protocol revision 2025-11-25 or older, because Claude Code does not register a channel that negotiates 2026-07-28. How to turn it on is in the [how-to](../../../../docs/how-to/link-claude-code-sessions.md#when-the-session-is-idle-the-unfold-channel).
+
+The plugin ships no `mcp.json` and no `.mcp.json`, and no remote server, because it works with any Unfold installation. Agent Plugins 1.0.0 forbids placeholder and environment-variable expansion in a remote server's `url` and `headers`, and it has no field for an OAuth client id. A shipped definition would therefore name one Unfold installation and still lack its client id. Add the servers yourself:
 
 * **VS Code:** the [Unfold extension](../vscode/README.md) provides the Ploeg MCP server from the workbench it is connected to.
 * **Claude Code:** `claude mcp add --scope user --transport http --client-id unfold-mcp unfold https://<your Unfold>/mcp`, as in [Serve unfold-mcp over HTTPS](../../../../docs/how-to/serve-unfold-mcp-over-https.md).
@@ -50,12 +52,12 @@ When the specification allows configuration per installation, the plugin can shi
 
 | Hook | Sends to `POST /api/linked-sessions/events` | Also |
 | --- | --- | --- |
-| `SessionStart` | `start`, with the repository, branch, model and Claude Code version | Gives the session its Unfold page, its session id and the `Unfold-Session:` trailer as `additionalContext`. Sets `sessionTitle` from the first Work Item when the session has no title |
-| `UserPromptSubmit` | `prompt`, never the prompt itself. When the prompt names a tracker task such as `VIK-2051`, an Unfold `#work/<id>` link or "Work Item 184", it adds only those ids as `mentions` | |
+| `SessionStart` | `start`, with the repository, branch, model and Claude Code version | Records which session the Claude Code process runs in `${CLAUDE_PLUGIN_DATA}/processes/<pid>.json`, for the channel. Gives the session its Unfold page, its session id and the `Unfold-Session:` trailer as `additionalContext`. Sets `sessionTitle` from the first Work Item when the session has no title |
+| `UserPromptSubmit` | `prompt`, never the prompt itself. When the prompt names a tracker task such as `VIK-2051`, an Unfold `#work/<id>` link or "Work Item 184", it adds only those ids as `mentions` | Collects the session's waiting Unfold messages from `POST /api/linked-sessions/<id>/inbox` and adds them as `additionalContext` |
 | `Notification` | `waiting`, for `permission_prompt`, `idle_prompt`, `elicitation_dialog` and `agent_needs_input` only | |
 | `PostToolUse` on `Write`, `Edit`, `MultiEdit` and `NotebookEdit` | Nothing | Remembers fingerprints of the lines written, per file and per repository, and which agent wrote each: `main`, or the subagent's `agent_type`. They are kept in `${CLAUDE_PLUGIN_DATA}/sessions/<id>.json`. The repository is the one the file is in, so a subagent working in its own git worktree is followed too |
-| `PostToolUse` on `Bash` | `commit` for each new commit since the last one it saw, with the task and Work Item ids its message names as `mentions`, in every repository and worktree the session edited. Also any pull request address that a `pr create` command printed | Builds the commit's Agent Trace record, writes it to `refs/notes/agent-trace` and sends it to `POST /api/linked-sessions/<id>/traces` |
-| `Stop` | Any new commits, then `idle`. Also the name the person gave with `/rename` as `title`, and pull requests Claude Code recorded in the transcript (`pr-link`) that were not sent before | Claude Code's own summary title (`ai-title`) is sent only with `UNFOLD_SHARE_TRANSCRIPT=1` |
+| `PostToolUse` on `Bash` | `commit` for each new commit since the last one it saw, with the task and Work Item ids its message names as `mentions`, in every repository and worktree the session edited. Also any pull request address that a `pr create` command printed | Builds the commit's Agent Trace record, writes it to `refs/notes/agent-trace` and sends it to `POST /api/linked-sessions/<id>/traces`. At most every 30 seconds, collects waiting messages as `additionalContext` |
+| `Stop` | Any new commits, then `idle`. Also the name the person gave with `/rename` as `title`, and pull requests Claude Code recorded in the transcript (`pr-link`) that were not sent before | Claude Code's own summary title (`ai-title`) is sent only with `UNFOLD_SHARE_TRANSCRIPT=1`. Collects messages people sent. When there are any, answers `decision: block` with them as `reason`, so the session continues. Notices wait for the next prompt |
 | `SessionEnd` | Any new commits, then `end` | |
 
 ## Commands
@@ -78,4 +80,4 @@ The record's conversation `url` is the session's Unfold page. Its `related` link
 
 ## Develop
 
-The scripts use only Node's standard library and need Node 22 or later. The tests are `apps/unfold/test/claude-code-plugin.test.ts`. They run the real hook script against a fake Unfold in a temporary git repository. `apps/unfold/test/agent-plugin.test.ts` checks `plugin.json` against the Agent Plugins 1.0.0 schema in `schemas/agent-plugins/1.0.0/`, an unchanged Apache-2.0 copy. It also checks the skill names, the marketplace entries, and that no MCP server definition names a host.
+The scripts use only Node's standard library and need Node 22 or later. The tests are `apps/unfold/test/claude-code-plugin.test.ts` and, for the inbox and the channel, `apps/unfold/test/claude-code-inbox.test.ts`. They run the real hook script against a fake Unfold in a temporary git repository. `apps/unfold/test/agent-plugin.test.ts` checks `plugin.json` against the Agent Plugins 1.0.0 schema in `schemas/agent-plugins/1.0.0/`, an unchanged Apache-2.0 copy. It also checks the skill names, the marketplace entries, and that no MCP server definition names a host.

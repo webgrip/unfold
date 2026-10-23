@@ -63,6 +63,7 @@ The steps below run `unfold` over stdio from a checkout. When your Unfold serves
 | `unfold_retry_work` | Restarts a Work Item that needs you or went stale from Round 1, with an optional `note` | `POST /api/ploeg/work-items/:id/requeue` |
 | `unfold_add_note` | Leaves a note for a queued or running Work Item's next Run | `POST /api/ploeg/work-items/:id/notes` |
 | `unfold_steer_session` | Sends a `message` to one of your sessions, or pauses, resumes or cancels it | `POST /api/sessions/:id/messages`, `/pause`, `/resume`, `/cancel` |
+| `unfold_message_session` | Sends a message to one of your linked sessions, such as Claude Code on your machine; the Unfold plugin hands it to the session | `POST /api/linked-sessions/:id/messages` |
 
 Every action leaves an Action Record with you, the channel (your credential's name and the client, such as `unfold-mcp on ryan-pc-mint (Claude Code 2.1.296)`, or `mcp:<client>` over HTTPS) and the confirmation: an id and the SHA-256 of the exact text you agreed to. Ploeg receives the same channel and confirmation. You find them under **Who did what** on the Work Item and on your Activity page. In the demo, the confirmation and the result both say it is the demo, and nothing real changes.
 

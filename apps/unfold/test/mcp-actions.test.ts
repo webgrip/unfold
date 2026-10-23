@@ -360,3 +360,24 @@ test('unfold_answer_question stores the answer under the question, then resumes 
   assert.equal(ploeg.posted[1].body.note, undefined, 'the answer travels with the question, not as a note');
   assert.equal(done.result.structuredContent.result.resumed, true);
 });
+
+test('unfold_message_session sends a message to the person\'s linked session only after they confirm', async t => {
+  const demo = await application(); t.after(() => demo.close());
+  const id = 'mcp-linked-session-1';
+  const reported = await request(demo.url, '/api/linked-sessions/events', { method: 'POST', body: { harness: 'claude-code', sessionId: id, event: 'start', title: 'Fix login' } });
+  assert.equal(reported.status, 200, reported.text);
+  const message = (args: Json, decision: Decision | null) => overStdio(demo.url, undefined, 'unfold_message_session', { session_id: id, ...args }, decision);
+  const declined = await message({ text: 'Rebase onto development first.' }, { action: 'decline' });
+  assert.match(declined.elicited[0].message, new RegExp(`Send this message to your Claude Code session ${id} "Fix login"\\? Its agent reads it as your instruction and may act on it, on your own plan or key; Unfold spends nothing\\. Message: Rebase onto development first\\.$`));
+  assert.equal(declined.result.structuredContent.done, false);
+  assert.equal((await request(demo.url, `/api/linked-sessions/${id}/messages`)).body.messages.length, 0);
+  assert.match((await message({ text: 'x'.repeat(2001) }, accept)).result.content[0].text, /text must be 1 to 2000 characters/);
+  const sent = await message({ text: 'Rebase onto development first.' }, accept);
+  assert.equal(sent.result.structuredContent.done, true, JSON.stringify(sent.result));
+  assert.equal(sent.result.structuredContent.link, `${demo.url}/#linked-session/${id}`);
+  const listed = (await request(demo.url, `/api/linked-sessions/${id}/messages`)).body.messages;
+  assert.deepEqual(listed.map((entry: Json) => [entry.text, entry.kind, entry.deliveredAt]), [['Rebase onto development first.', 'person', null]]);
+  const recorded = demo.app.store.actionRecords({ limit: 50 }).filter(entry => entry.action === 'POST /api/linked-sessions/:id/messages');
+  assert.equal(recorded.length, 1);
+  assert.match(String(recorded[0].confirmation), /^[A-Za-z0-9_-]{16}:[0-9a-f]{64}$/);
+});
