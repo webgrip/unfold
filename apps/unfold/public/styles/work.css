@@ -1,14 +1,13 @@
-.app-main:has(> .work) {
-  container: work-main / inline-size;
-}
-
-.app-page-header:has(~ .work[data-detail]) .app-page-title {
-  font-size: var(--text-lg);
-  line-height: var(--leading-lg);
-}
-
-.app-page-header:has(~ .work[data-detail]) .app-page-subtitle {
-  display: none;
+.app-page-header:has(~ .work[data-detail]) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .work {
@@ -1901,20 +1900,6 @@ button.stream-bar:hover {
 @container work (min-width: 49rem) {
   .work-close {
     display: inline-flex;
-  }
-}
-
-@container work-main (max-width: 52.99rem) {
-  .app-page-header:has(~ .work[data-detail]) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-    border: 0;
   }
 }
 

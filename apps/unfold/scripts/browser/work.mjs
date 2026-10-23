@@ -71,6 +71,7 @@ export async function run({ page, app, assert, screenshot }) {
     await page.locator('[data-work-row][data-id="109"]').click();
     await page.getByRole('heading', { name: 'Why this needs you' }).waitFor();
     assert.equal(await page.locator('.work-list-pane').isVisible(), false, 'the Work Item takes the whole Work area on wide screens');
+    assert.equal(await page.evaluate(() => document.getElementById('page-title').getBoundingClientRect().width <= 1), true, 'the page heading steps aside, for screen readers only, on a wide Work Item page too');
     assert.equal(await page.locator('[data-work-row][data-id="109"]').getAttribute('aria-current'), 'true');
     assert.equal(await page.locator('.work-sticky-actions').isVisible(), false);
     assert.equal(await page.locator('#work-decision').getByRole('link', { name: /Open pull request #7/ }).isVisible(), true, 'the decision box carries the action to take');

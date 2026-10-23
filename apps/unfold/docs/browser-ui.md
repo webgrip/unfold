@@ -115,7 +115,7 @@ Work lists Work Items by lane; the Work Item page says why one waits and what to
 
 * **Toolbar.** A Team select (All teams by default; the choice is remembered in the `team` preference), one lane control with counts (**Ready for review**, **Needs you**, **Running**, **Queued**, **All**) and Refresh. Counts cover the pages loaded so far and read "4+" when a Team has more.
 * **Rows.** Title, tracker key (with the Team when all Teams show), repository, Round and age. A queued row in infrastructure backoff reads "Retrying later". **Needs you** groups rows under one header per reason, with the reason chip, the Not routed chip, a count and the one-line fix. **Ready for review** rows read "PR #5 · Agent approved" or "No agent verdict"; Unfold reads up to twelve Work Item details for this and caches them by `updatedAt`. A live Work Item that has spent something, or is running, shows its spend of the Shift budget. **All** shows each row's state badge.
-* **Layout.** The Work Item page replaces the list and the toolbar at every width, so it uses the whole Work area. The back link, Close and Esc return to the list in its lane.
+* **Layout.** The Work Item page replaces the list, the toolbar and the visible Work heading at every width, so its title sits right under the top bar; the heading stays for screen readers. The back link, Close and Esc return to the list in its lane.
 * **Refresh.** Every 30 seconds; the page redraws only when Ploeg's data changed, so focus and a text selection survive.
 * **Keys.** `j`, `k` and Enter in the list; with a Work Item open, `j` and `k` open the next and previous Work Item of the lane; `o` opens the open Work Item's pull request or tracker task; Esc closes the Work Item.
 
