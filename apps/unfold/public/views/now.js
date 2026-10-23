@@ -13,11 +13,12 @@ import { repoName, taskSources } from '../core/lookup.js';
 import { enabled, exposed, track } from '../core/flags.js';
 import { segmented } from '../core/ui.js';
 import { fleetBoard, fleetModel } from '../live/fleet.js';
+import { linkedWaitingCard } from '../core/linked-waiting.js';
 import { taskStandings } from '../handoff.js';
 import { handedMarkup, labelledTeam, pendingHandoffs, retryMarkup, roomOf, sheetMarkup, startCard, startQueue, suggestedTeam, taskKey } from '../start.js';
 
 const baselineKey = 'unfold.nowSince';
-const view = Object.assign(state.now, { summary: { data: null, error: null }, summaryRequest: 0, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false, keepFocus: false });
+const view = Object.assign(state.now, { summary: { data: null, error: null }, summaryRequest: 0, shown: null, since: undefined, caughtUp: false, hiddenAt: null, refreshing: false, keepFocus: false, linked: null });
 
 function readBaseline() {
   try { const saved = JSON.parse(globalThis.sessionStorage?.getItem(baselineKey) ?? 'null'); return saved && typeof saved === 'object' && 'since' in saved ? saved.since : undefined; } catch { return undefined; }
@@ -124,8 +125,10 @@ function loopContent() {
   const standings = taskStandings(view.data);
   const pending = pendingHandoffs(start.handed, standings);
   start.handed = pending;
-  return loopMarkup(view, { grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), start: view.data ? startLane(standings) : '', handed: handedMarkup(pending, standings), hideQueued: new Set(pending.map(entry => entry.key)), retryHere: canStart() });
+  return loopMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), start: view.data ? startLane(standings) : '', handed: handedMarkup(pending, standings), hideQueued: new Set(pending.map(entry => entry.key)), retryHere: canStart() });
 }
+
+function yoursCard() { return view.data ? linkedWaitingCard(view.linked?.sessions) : ''; }
 
 function renderNow() {
   if (view.since === undefined) arrive();
@@ -133,9 +136,9 @@ function renderNow() {
   const fleet = fleetShown();
   const loop = !fleet && loopShown();
   const content = fleet && view.data
-    ? fleetBoard(fleetModel({ now: view.data, summary: view.summary.data, at: Date.now() }))
+    ? fleetBoard(fleetModel({ now: view.data, summary: view.summary.data, linked: view.linked?.sessions, at: Date.now() }))
     : loop ? loopContent()
-    : nowMarkup(view, { grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), handOver });
+    : nowMarkup(view, { yours: yoursCard(), grafanaUrl: state.bootstrap?.observability?.grafanaUrl, singleKeys: singleKeysEnabled(), handOver });
   const subtitle = fleet ? 'Every Team you can read, from the gate to landed.' : loop ? 'Decide, unstick, then start: in that order.' : 'What waits on you, what runs and what finished, across your Teams.';
   const keep = focusedTarget();
   renderHtml(shell(content, { title: 'Now', subtitle, actions: `${modeSwitch(fleet)}${refreshButton()}` }));
@@ -172,6 +175,12 @@ async function loadAsks() {
   if (onNow()) renderNow();
 }
 
+async function loadLinked() {
+  try { view.linked = { sessions: (await api('/api/linked-sessions')).sessions || [] }; }
+  catch { if (!view.linked) view.linked = { sessions: [] }; }
+  if (onNow() && view.data) renderNow();
+}
+
 async function loadNow(mode = 'open') {
   const request = ++view.request;
   const fresh = mode === 'manual';
@@ -181,6 +190,7 @@ async function loadNow(mode = 'open') {
   const heldBefore = visibleNow(view.data, view.shown).held;
   loadSummary(fresh);
   loadAsks();
+  loadLinked();
   try {
     const data = await api(`/api/ploeg/now${fresh ? '?refresh=1' : ''}`);
     if (request !== view.request) return;

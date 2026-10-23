@@ -104,6 +104,8 @@ Replace the two addresses with your own. GitHub documents only `github` marketpl
 
 The Work Item page lists every linked session in its **Agent sessions** card: state, owner, branch and AI-written lines. Your own sessions also offer `claude --resume <id>` and, under Remote Control, **Open in Claude**.
 
+When one of your sessions waits for you, to approve a tool, for your next prompt or with a question, Now lists it under **Your sessions wait** with how long it has waited, next to the Ploeg work that waits on you. The Fleet view of Now flies your live sessions in a lane of their own. When two live sessions, or a session and a running Ploeg Run, work the same Work Item or the same repository and branch, the Work Item page and the session page warn you, so you can stop one or move it to its own branch. In an AI client, `unfold_now` lists your waiting sessions under `yourSessions`.
+
 ## What leaves your machine
 
 The plugin sends:

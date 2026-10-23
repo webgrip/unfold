@@ -2,6 +2,7 @@ import { escape } from './dom.js';
 import { icon } from './icons.js';
 import { button, card, chip, dl, emptyState, stat, stateBadge, callout } from './ui.js';
 import { compactCount, duration, money, plural, relativeWords, dateTime } from './format.js';
+import { collisionCallout, collisions, collisionsOf, runningRunsOf } from './collisions.js';
 
 /** How each Linked Session state reads: its label, tone and glyph, the same for every surface that shows one. */
 export const linkedStates = {
@@ -57,11 +58,13 @@ function linkedRow(session, { now, canChange, workItemId }) {
 /**
  * The Work Item page's Agent sessions card: the sessions people run outside Unfold that are linked to this Work Item,
  * each with its state, owner, branch and AI-written lines. Empty when none is linked and the person has none to offer.
+ * A warning leads it when two live sessions, or a live session and a running Run of this Work Item, work it at once.
  */
 export function linkedSessionsMarkup(detail, linked, { now = Date.now(), canChange = true } = {}) {
   if (!linked || linked.error || !linked.sessions?.length) return '';
   const rows = linked.sessions.map(session => linkedRow(session, { now, canChange, workItemId: detail.item.id })).join('');
-  return card({ id: 'work-linked-sessions', title: 'Agent sessions', subtitle: 'Sessions people run on their own machines that report to Unfold and are linked here.', icon: 'bot', body: `<ul class="linked-session-list">${rows}</ul>`, region: true });
+  const clash = collisionCallout(collisionsOf(collisions({ sessions: linked.sessions, runs: runningRunsOf(detail) }), { workItemId: detail.item.id }));
+  return card({ id: 'work-linked-sessions', title: 'Agent sessions', subtitle: 'Sessions people run on their own machines that report to Unfold and are linked here.', icon: 'bot', body: `${clash}<ul class="linked-session-list">${rows}</ul>`, region: true });
 }
 
 function telemetryTiles(telemetry) {
@@ -109,7 +112,6 @@ export function linkedFacts(session, now = Date.now()) {
   ];
 }
 
-/** The page of one Linked Session (`#linked-session/<id>`): state, facts, Work Items, telemetry, commits and how to resume it. */
 function suggestionList(session, suggestions) {
   if (!session.mine || !suggestions?.length) return '';
   const reason = { pull_request: 'its pull request is one this session opened', repository: 'open on this repository' };
@@ -117,7 +119,11 @@ function suggestionList(session, suggestions) {
   return `<div class="linked-session-suggestions"><p class="field-label">Maybe this session works on</p><ul class="linked-session-work">${rows}</ul></div>`;
 }
 
-export function linkedSessionPage(session, { now = Date.now(), workItems = {}, suggestions = [] } = {}) {
+/**
+ * The page of one Linked Session (`#linked-session/<id>`): state, facts, Work Items, telemetry, commits and how to
+ * resume it. `clashes`, from `collisions`, leads it with a warning when other live work shares its Work Item or branch.
+ */
+export function linkedSessionPage(session, { now = Date.now(), workItems = {}, suggestions = [], clashes = [] } = {}) {
   const state = linkedStates[session.state] ?? linkedStates.idle;
   const items = (session.workItems ?? []).map(entry => `<li>${chip({ label: workItems[entry.id] ? `${entry.id} · ${workItems[entry.id]}` : `Work Item ${entry.id}`, href: `#work/${encodeURIComponent(entry.id)}`, icon: 'work' })} <span class="meta">${escape(linkedHow(entry))}</span>${session.mine ? ` ${button({ label: 'Unlink', icon: 'x', variant: 'ghost', size: 'sm', action: 'linked-session-unlink', data: { id: session.id, workItem: entry.id } })}` : ''}</li>`).join('');
   const linkForm = session.mine ? `<form class="linked-session-link-form" data-form="linked-session-link" data-id="${escape(session.id)}"><label class="field-label" for="linked-session-work-item">Link to Work Item</label><div class="linked-session-link-row"><input id="linked-session-work-item" name="workItem" class="mono" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="184">${button({ label: 'Link', icon: 'link', type: 'submit', size: 'sm' })}</div></form>` : '';
@@ -126,5 +132,5 @@ export function linkedSessionPage(session, { now = Date.now(), workItems = {}, s
   const telemetry = session.telemetry ? card({ id: 'linked-session-telemetry', title: 'Telemetry', subtitle: 'From Claude Code\'s OpenTelemetry export. Prompts and tool content are never read here.', actions: session.telemetry.dashboardUrl ? button({ label: 'Open in Grafana', icon: 'external', href: session.telemetry.dashboardUrl, external: true, size: 'sm', variant: 'ghost' }) : '', body: telemetryTiles(session.telemetry) }) : '';
   const commits = card({ id: 'linked-session-commits', title: 'Commits', subtitle: attributionLine(session), actions: session.commits?.some(entry => entry.aiLines !== null && entry.aiLines !== undefined) ? button({ label: 'Agent Trace records', icon: 'download', href: `/api/linked-sessions/${encodeURIComponent(session.id)}/agent-trace`, size: 'sm', variant: 'ghost' }) : '', body: `${commitsTable(session)}${session.pullRequests?.length ? `<p class="meta">Pull requests: ${session.pullRequests.map(url => `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(url.replace(/^https:\/\//, ''))}</a>`).join(' · ')}</p>` : ''}` });
   const about = card({ id: 'linked-session-about', title: 'Session', body: `<p>${stateBadge(state)} <span class="meta">${escape(linkedStatusLine(session, now))}</span></p>${dl(linkedFacts(session, now), { rows: true })}${resume}` });
-  return `<div class="linked-session-page">${about}${workCard}${telemetry}${commits}</div>`;
+  return `<div class="linked-session-page">${collisionCallout(clashes, { sessionId: session.id })}${about}${workCard}${telemetry}${commits}</div>`;
 }

@@ -148,19 +148,20 @@ export function createMcpServer(options: McpOptions) {
   const tools: Tool[] = [
     {
       name: 'unfold_now', title: 'What waits for me',
-      description: 'What waits for a person in Unfold right now, each Work Item with the reason it waits and the fix, plus running Runs and tracker tasks Ploeg refused to route. Use it first. For one Work Item in depth, use unfold_get_work.',
+      description: 'What waits for a person in Unfold right now, each Work Item with the reason it waits and the fix, plus running Runs, tracker tasks Ploeg refused to route and your own agent sessions that wait for you. Use it first. For one Work Item in depth, use unfold_get_work.',
       inputSchema: object({}),
-      outputSchema: object({ summary: { type: 'string' }, demo: { type: 'boolean' }, teams: { type: 'array', items: { type: 'string' } }, waiting: { type: 'array', items: workRow }, running: { type: 'array', items: { type: 'object' } }, refused: { type: 'array', items: { type: 'object' } }, truncated: { type: 'array', items: { type: 'string' } }, errors: { type: 'object' } }, ['summary', 'demo', 'teams', 'waiting', 'running', 'refused', 'truncated', 'errors']),
+      outputSchema: object({ summary: { type: 'string' }, demo: { type: 'boolean' }, teams: { type: 'array', items: { type: 'string' } }, waiting: { type: 'array', items: workRow }, running: { type: 'array', items: { type: 'object' } }, refused: { type: 'array', items: { type: 'object' } }, yourSessions: { type: 'array', items: { type: 'object' } }, truncated: { type: 'array', items: { type: 'string' } }, errors: { type: 'object' } }, ['summary', 'demo', 'teams', 'waiting', 'running', 'refused', 'yourSessions', 'truncated', 'errors']),
       async run() {
-        const now = await get('/api/ploeg/now');
+        const [now, linked] = await Promise.all([get('/api/ploeg/now'), get('/api/linked-sessions').catch(() => ({ sessions: [] }))]);
         const demo = Boolean(now.demo);
+        const yourSessions = waitingSessions(linked?.sessions);
         const waiting = (now.waiting ?? []).map((item: Json) => row(item, demo));
         const running = (now.running ?? []).slice(0, 25).map((run: Json) => ({ id: String(run.id), workItemId: String(run.workItemId), team: String(run.team ?? ''), role: String(run.role ?? ''), round: Number(run.round ?? 0), state: String(run.state ?? ''), startedAt: run.startedAt ?? null, link: link(String(run.workItemId)), untrusted: { title: clip(run.workItemTitle, 300) } }));
         const refused = (now.refused ?? []).slice(0, 25).map((task: Json) => ({ tracker: `${task.provider}:${task.externalId}`, team: String(task.team ?? ''), code: String(task.code ?? ''), reason: clip(task.reason, 500), allowedLabels: task.allowedLabels ?? [], taskUrl: String(task.url ?? ''), untrusted: { title: clip(task.title, 300) } }));
         const groups = ((now.waiting ?? []) as Json[]).map(item => reasons.waitingGroup(item));
         const inGroup = (group: string) => groups.filter(entry => entry === group).length;
-        const summary = `${inGroup('needs')} need a decision, ${inGroup('review')} await review, ${inGroup('proposed')} proposed; ${running.length} Runs running; ${refused.length} tasks refused.${demo ? ' This is the illustrative demo: nothing ran and nothing was spent.' : ''}`;
-        return { summary, demo, teams: (now.teams ?? []).map(String), waiting, running, refused, truncated: now.truncatedStates ?? [], errors: now.errors ?? {} };
+        const summary = `${inGroup('needs')} need a decision, ${inGroup('review')} await review, ${inGroup('proposed')} proposed; ${running.length} Runs running; ${refused.length} tasks refused${yourSessions.length ? `; ${yourSessions.length} of your own agent sessions wait for you` : ''}.${demo ? ' This is the illustrative demo: nothing ran and nothing was spent.' : ''}`;
+        return { summary, demo, teams: (now.teams ?? []).map(String), waiting, running, refused, yourSessions, truncated: now.truncatedStates ?? [], errors: now.errors ?? {} };
       },
     },
     {
@@ -635,6 +636,18 @@ export async function serveStdio(server: ReturnType<typeof createMcpServer>, inp
   for (const entry of waiting.values()) entry.reject(new Error('The client disconnected.'));
   waiting.clear();
   await Promise.all(pending);
+}
+
+const waitingWords: Record<string, string> = { permission_prompt: 'waits for you to approve a tool', idle_prompt: 'waits for your next prompt', elicitation_dialog: 'asks you a question', agent_needs_input: 'needs your input' };
+
+function waitingSessions(sessions: unknown): Json[] {
+  const list = Array.isArray(sessions) ? sessions as Json[] : [];
+  return list.filter(session => session?.mine === true && session.state === 'waiting').slice(0, 20).map(session => ({
+    id: String(session.id ?? ''), harness: String(session.harness ?? ''), waitingFor: String(session.waitingFor ?? ''), since: session.lastSeenAt ?? null,
+    reason: `Your ${session.harness === 'claude-code' ? 'Claude Code' : 'agent'} session ${waitingWords[String(session.waitingFor)] ?? 'waits for you'}. Answer it where it runs; Unfold does not run it.`,
+    link: String(session.link ?? ''), resume: String(session.resume ?? ''), remoteUrl: String(session.remoteUrl ?? ''),
+    workItems: (session.workItems ?? []).map((entry: Json) => String(entry.id)), untrusted: { title: clip(session.displayTitle || session.title, 300), branch: clip(session.branch, 200) },
+  }));
 }
 
 function linkedRow(session: Json): Json {
