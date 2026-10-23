@@ -4,12 +4,14 @@ import { mkdirSync, readFileSync, writeFileSync, renameSync, openSync, readSync,
 import { homedir } from 'node:os';
 import { dirname, join, relative, isAbsolute } from 'node:path';
 import { addedLines, attribute, mainAgent, remember, traceRecord, writtenText } from './agent-trace.mjs';
+import { mentionsIn } from './mentions.mjs';
 
 const unfoldUrl = (process.env.UNFOLD_URL ?? '').trim().replace(/\/+$/, '');
 const token = (process.env.UNFOLD_TOKEN ?? '').trim();
 const timeoutMs = Number(process.env.UNFOLD_HOOK_TIMEOUT_MS) || 3000;
 const waitingKinds = new Set(['permission_prompt', 'idle_prompt', 'elicitation_dialog', 'agent_needs_input']);
 const editingTools = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
+const shareTranscript = process.env.UNFOLD_SHARE_TRANSCRIPT === '1';
 
 function stateDir() {
   const base = process.env.CLAUDE_PLUGIN_DATA || join(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'unfold-claude-code');
@@ -37,7 +39,8 @@ function git(cwd, args, input) {
 }
 
 function transcriptFacts(transcriptPath) {
-  if (!transcriptPath) return { version: '', model: '' };
+  const none = { version: '', model: '', title: '', pullRequests: [] };
+  if (!transcriptPath) return none;
   let fd;
   try {
     fd = openSync(transcriptPath, 'r');
@@ -46,14 +49,20 @@ function transcriptFacts(transcriptPath) {
     const buffer = Buffer.alloc(length);
     readSync(fd, buffer, 0, length, size - length);
     const text = buffer.toString('utf8');
-    return { version: [...text.matchAll(/"version":"(\d+\.\d+\.\d+[\w.-]*)"/g)].at(-1)?.[1] ?? '', model: [...text.matchAll(/"model":"(claude-[\w.[\]-]{1,80})"/g)].at(-1)?.[1] ?? '' };
-  } catch { return { version: '', model: '' }; } finally { if (fd !== undefined) closeSync(fd); }
+    const last = (pattern, key) => { const line = [...text.matchAll(pattern)].at(-1)?.[0]; try { return line ? String(JSON.parse(line)[key] ?? '') : ''; } catch { return ''; } };
+    const title = last(/^\{"type":"custom-title".*$/gm, 'customTitle') || (shareTranscript ? last(/^\{"type":"ai-title".*$/gm, 'aiTitle') : '');
+    const pullRequests = [...new Set([...text.matchAll(/^\{"type":"pr-link".*$/gm)].map(match => { try { return String(JSON.parse(match[0]).prUrl ?? ''); } catch { return ''; } }).filter(url => /^https:\/\/[^\s"]+$/.test(url)))].slice(-5);
+    return { version: [...text.matchAll(/"version":"(\d+\.\d+\.\d+[\w.-]*)"/g)].at(-1)?.[1] ?? '', model: [...text.matchAll(/"model":"(claude-[\w.[\]-]{1,80})"/g)].at(-1)?.[1] ?? '', title, pullRequests };
+  } catch { return none; } finally { if (fd !== undefined) closeSync(fd); }
 }
 
 function learn(input, state) {
   const facts = transcriptFacts(input.transcript_path);
   state.harnessVersion = facts.version || state.harnessVersion || '';
   state.model = String(input.model ?? '') || state.model || facts.model || '';
+  if (facts.title) state.title = facts.title.slice(0, 160);
+  state.sentPulls ??= [];
+  state.pendingPulls = facts.pullRequests.filter(url => !state.sentPulls.includes(url));
 }
 
 async function post(path, body) {
@@ -79,8 +88,12 @@ async function report(input, state, event, extra = {}) {
   const answer = await post('/api/linked-sessions/events', {
     harness: 'claude-code', sessionId: input.session_id, event, harnessVersion: state.harnessVersion, model: state.model,
     repository: repo?.remote ?? '', branch: repo && repo.branch !== 'HEAD' ? repo.branch : '', remoteUrl: remoteUrl(),
+    ...(state.title ? { title: state.title } : {}),
     ...(process.env.UNFOLD_WORK_ITEM ? { workItem: process.env.UNFOLD_WORK_ITEM } : {}), ...extra,
+    ...(state.pendingPulls?.length ? { pullRequests: [...new Set([...(extra.pullRequests ?? []), ...state.pendingPulls])] } : {}),
   });
+  if (state.pendingPulls?.length) { state.sentPulls = [...(state.sentPulls ?? []), ...state.pendingPulls].slice(-20); state.pendingPulls = []; }
+  if (Array.isArray(answer.trackerPrefixes)) state.prefixes = answer.trackerPrefixes.filter(prefix => typeof prefix === 'string').slice(0, 10);
   if (answer.session) { state.link = answer.session.link; state.workItems = answer.session.workItems.map(item => ({ id: item.id, url: `${unfoldUrl}/#work/${encodeURIComponent(item.id)}` })); }
   return { answer, repo };
 }
@@ -105,7 +118,8 @@ async function commits(input, state) {
     repo.head = head;
     for (const sha of fresh) {
       const message = git(top, ['show', '-s', '--format=%B', sha]);
-      await report(input, state, 'commit', { commit: { sha, subject: message.split('\n')[0].slice(0, 200), trailer: /^Unfold-Session: /m.test(message) } });
+      const named = mentionsIn(message, state.prefixes, unfoldUrl);
+      await report(input, state, 'commit', { commit: { sha, subject: message.split('\n')[0].slice(0, 200), trailer: /^Unfold-Session: /m.test(message) }, ...(named ? { mentions: named } : {}) });
       const files = attribute(addedLines(git(top, ['show', '--format=', '--unified=0', '--no-color', '--no-renames', '--no-ext-diff', sha])), repo.written);
       const record = traceRecord({ revision: sha, timestamp: git(top, ['show', '-s', '--format=%cI', sha]) || new Date().toISOString(), files, sessionId: input.session_id, sessionUrl: state.link || `${unfoldUrl}/#linked-session/${encodeURIComponent(input.session_id)}`, remoteUrl: remoteUrl(), model: state.model, harnessVersion: state.harnessVersion, workItems: state.workItems });
       if (!record) continue;
@@ -134,7 +148,11 @@ async function handle(input) {
       output.hookSpecificOutput = hookSpecificOutput;
       break;
     }
-    case 'UserPromptSubmit': await report(input, state, 'prompt'); break;
+    case 'UserPromptSubmit': {
+      const named = mentionsIn(String(input.prompt ?? ''), state.prefixes, unfoldUrl);
+      await report(input, state, 'prompt', named ? { mentions: named } : {});
+      break;
+    }
     case 'Notification': if (waitingKinds.has(input.notification_type)) await report(input, state, 'waiting', { waitingFor: input.notification_type }); break;
     case 'Stop': learn(input, state); await commits(input, state); await report(input, state, 'idle'); break;
     case 'SessionEnd': await commits(input, state); await report(input, state, 'end'); break;

@@ -51,11 +51,11 @@ When the specification allows configuration per installation, the plugin can shi
 | Hook | Sends to `POST /api/linked-sessions/events` | Also |
 | --- | --- | --- |
 | `SessionStart` | `start`, with the repository, branch, model and Claude Code version | Gives the session its Unfold page, its session id and the `Unfold-Session:` trailer as `additionalContext`. Sets `sessionTitle` from the first Work Item when the session has no title |
-| `UserPromptSubmit` | `prompt` (never the prompt itself) | |
+| `UserPromptSubmit` | `prompt`, never the prompt itself. When the prompt names a tracker task such as `VIK-2051`, an Unfold `#work/<id>` link or "Work Item 184", it adds only those ids as `mentions` | |
 | `Notification` | `waiting`, for `permission_prompt`, `idle_prompt`, `elicitation_dialog` and `agent_needs_input` only | |
 | `PostToolUse` on `Write`, `Edit`, `MultiEdit` and `NotebookEdit` | Nothing | Remembers fingerprints of the lines written, per file and per repository, and which agent wrote each: `main`, or the subagent's `agent_type`. They are kept in `${CLAUDE_PLUGIN_DATA}/sessions/<id>.json`. The repository is the one the file is in, so a subagent working in its own git worktree is followed too |
-| `PostToolUse` on `Bash` | `commit` for each new commit since the last one it saw, in every repository and worktree the session edited. Also any pull request address that a `pr create` command printed | Builds the commit's Agent Trace record, writes it to `refs/notes/agent-trace` and sends it to `POST /api/linked-sessions/<id>/traces` |
-| `Stop` | Any new commits, then `idle` | |
+| `PostToolUse` on `Bash` | `commit` for each new commit since the last one it saw, with the task and Work Item ids its message names as `mentions`, in every repository and worktree the session edited. Also any pull request address that a `pr create` command printed | Builds the commit's Agent Trace record, writes it to `refs/notes/agent-trace` and sends it to `POST /api/linked-sessions/<id>/traces` |
+| `Stop` | Any new commits, then `idle`. Also the name the person gave with `/rename` as `title`, and pull requests Claude Code recorded in the transcript (`pr-link`) that were not sent before | Claude Code's own summary title (`ai-title`) is sent only with `UNFOLD_SHARE_TRANSCRIPT=1` |
 | `SessionEnd` | Any new commits, then `end` | |
 
 ## Behaviour

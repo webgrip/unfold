@@ -642,7 +642,7 @@ function linkedRow(session: Json): Json {
     id: String(session.id ?? ''), harness: String(session.harness ?? ''), owner: String(session.ownerName ?? ''), state: String(session.state ?? ''), waitingFor: String(session.waitingFor ?? ''), lastSeenAt: session.lastSeenAt ?? null, link: String(session.link ?? ''), resume: String(session.resume ?? ''),
     workItems: (session.workItems ?? []).map((entry: Json) => ({ id: String(entry.id), how: String(entry.how) })), aiLines: Number(session.aiLines ?? 0),
     commits: (session.commits ?? []).slice(-10).map((entry: Json) => ({ sha: String(entry.sha), aiLines: entry.aiLines ?? null, files: entry.files ?? null, trailer: Boolean(entry.trailer), untrusted: { subject: clip(entry.subject, 200) } })),
-    pullRequests: (session.pullRequests ?? []).map(String), untrusted: { title: clip(session.title, 300), branch: clip(session.branch, 200), repository: clip(session.repository, 300) },
+    pullRequests: (session.pullRequests ?? []).map(String), untrusted: { title: clip(session.title, 300), displayTitle: clip(session.displayTitle, 300), branch: clip(session.branch, 200), repository: clip(session.repository, 300) },
   };
 }
 

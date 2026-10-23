@@ -34,7 +34,13 @@ export function attributionLine(session) {
   return `${compactCount(session.aiLines ?? 0)} AI-written ${session.aiLines === 1 ? 'line' : 'lines'} in ${plural(traced.length, 'commit')}${traced.length < commits.length ? ` of ${commits.length}` : ''}`;
 }
 
-function sessionTitle(session) { return session.title || (session.branch ? `On ${session.branch}` : `${harnessName(session.harness)} session`); }
+/** The name a Linked Session shows: the server's display title, or its branch or harness when an older server sent none. */
+export function sessionTitle(session) { return session.displayTitle || session.title || (session.branch ? `On ${session.branch}` : `${harnessName(session.harness)} session`); }
+
+const howWords = { branch: 'by its branch', commit: 'by a commit message', mention: 'named in a prompt', pull_request: 'by its pull request' };
+
+/** How a Work Item came to be linked, in words: `by its branch`, `named in a prompt`, or `by <person>`. */
+export function linkedHow(entry) { return howWords[entry?.how] ?? `by ${entry?.linkedBy ?? 'a person'}`; }
 
 function linkedRow(session, { now, canChange, workItemId }) {
   const state = linkedStates[session.state] ?? linkedStates.idle;
@@ -45,7 +51,7 @@ function linkedRow(session, { now, canChange, workItemId }) {
   ].filter(Boolean).map(entry => `<li>${escape(entry)}</li>`).join('');
   const how = session.workItems?.find(entry => entry.id === String(workItemId))?.how;
   const unlink = canChange && session.mine ? button({ label: 'Unlink', icon: 'x', variant: 'ghost', size: 'sm', action: 'linked-session-unlink', data: { id: session.id, workItem: workItemId } }) : '';
-  return `<li class="linked-session-row"><div class="linked-session-text"><p class="linked-session-title"><a class="work-inline-link" href="#linked-session/${escape(encodeURIComponent(session.id))}">${escape(sessionTitle(session))}${icon('arrow')}</a> ${stateBadge(state)}</p><p class="meta">${escape(linkedStatusLine(session, now))}${how === 'branch' ? ' · linked by its branch' : ''}</p><ul class="linked-session-facts">${facts}</ul></div>${unlink}</li>`;
+  return `<li class="linked-session-row"><div class="linked-session-text"><p class="linked-session-title"><a class="work-inline-link" href="#linked-session/${escape(encodeURIComponent(session.id))}">${escape(sessionTitle(session))}${icon('arrow')}</a> ${stateBadge(state)}</p><p class="meta">${escape(linkedStatusLine(session, now))}${how && howWords[how] ? ` · linked ${howWords[how]}` : ''}</p><ul class="linked-session-facts">${facts}</ul></div>${unlink}</li>`;
 }
 
 /**
@@ -104,11 +110,18 @@ export function linkedFacts(session, now = Date.now()) {
 }
 
 /** The page of one Linked Session (`#linked-session/<id>`): state, facts, Work Items, telemetry, commits and how to resume it. */
-export function linkedSessionPage(session, { now = Date.now(), workItems = {} } = {}) {
+function suggestionList(session, suggestions) {
+  if (!session.mine || !suggestions?.length) return '';
+  const reason = { pull_request: 'its pull request is one this session opened', repository: 'open on this repository' };
+  const rows = suggestions.map(entry => `<li>${chip({ label: `${entry.id} · ${entry.title}`, href: `#work/${encodeURIComponent(entry.id)}`, icon: 'work' })} <span class="meta">${escape(reason[entry.reason] ?? '')}</span> ${button({ label: 'Link', icon: 'link', variant: 'ghost', size: 'sm', action: 'linked-session-suggest', data: { id: session.id, workItem: entry.id } })}</li>`).join('');
+  return `<div class="linked-session-suggestions"><p class="field-label">Maybe this session works on</p><ul class="linked-session-work">${rows}</ul></div>`;
+}
+
+export function linkedSessionPage(session, { now = Date.now(), workItems = {}, suggestions = [] } = {}) {
   const state = linkedStates[session.state] ?? linkedStates.idle;
-  const items = (session.workItems ?? []).map(entry => `<li>${chip({ label: workItems[entry.id] ? `${entry.id} · ${workItems[entry.id]}` : `Work Item ${entry.id}`, href: `#work/${encodeURIComponent(entry.id)}`, icon: 'work' })} <span class="meta">${entry.how === 'branch' ? 'by its branch' : `by ${escape(entry.linkedBy)}`}</span>${session.mine ? ` ${button({ label: 'Unlink', icon: 'x', variant: 'ghost', size: 'sm', action: 'linked-session-unlink', data: { id: session.id, workItem: entry.id } })}` : ''}</li>`).join('');
+  const items = (session.workItems ?? []).map(entry => `<li>${chip({ label: workItems[entry.id] ? `${entry.id} · ${workItems[entry.id]}` : `Work Item ${entry.id}`, href: `#work/${encodeURIComponent(entry.id)}`, icon: 'work' })} <span class="meta">${escape(linkedHow(entry))}</span>${session.mine ? ` ${button({ label: 'Unlink', icon: 'x', variant: 'ghost', size: 'sm', action: 'linked-session-unlink', data: { id: session.id, workItem: entry.id } })}` : ''}</li>`).join('');
   const linkForm = session.mine ? `<form class="linked-session-link-form" data-form="linked-session-link" data-id="${escape(session.id)}"><label class="field-label" for="linked-session-work-item">Link to Work Item</label><div class="linked-session-link-row"><input id="linked-session-work-item" name="workItem" class="mono" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="184">${button({ label: 'Link', icon: 'link', type: 'submit', size: 'sm' })}</div></form>` : '';
-  const workCard = card({ id: 'linked-session-work', title: 'Work Items', body: `${items ? `<ul class="linked-session-work">${items}</ul>` : emptyState({ icon: 'work', title: 'Not linked to a Work Item', body: 'Link it here, by name in the session (it calls unfold_link_session), or start it on a branch that names the task, such as feat/vik-2051-login.', compact: true })}${linkForm}` });
+  const workCard = card({ id: 'linked-session-work', title: 'Work Items', body: `${items ? `<ul class="linked-session-work">${items}</ul>` : emptyState({ icon: 'work', title: 'Not linked to a Work Item', body: 'Link it here, or name the Work Item or its task (VIK-2051) in a prompt or a commit message. A branch that names the task, such as feat/vik-2051-login, and a pull request of the Work Item link it too.', compact: true })}${suggestionList(session, suggestions)}${linkForm}` });
   const resume = session.mine ? `<div class="linked-session-resume"><p class="field-label">Resume it on your machine</p><p><code class="mono">${escape(session.resume)}</code> ${button({ label: 'Copy', icon: 'copy', size: 'sm', action: 'linked-session-copy', data: { text: session.resume } })}</p>${session.remoteUrl ? `<p>${button({ label: 'Open in Claude', icon: 'external', href: session.remoteUrl, external: true, size: 'sm' })}</p>` : ''}</div>` : '';
   const telemetry = session.telemetry ? card({ id: 'linked-session-telemetry', title: 'Telemetry', subtitle: 'From Claude Code\'s OpenTelemetry export. Prompts and tool content are never read here.', actions: session.telemetry.dashboardUrl ? button({ label: 'Open in Grafana', icon: 'external', href: session.telemetry.dashboardUrl, external: true, size: 'sm', variant: 'ghost' }) : '', body: telemetryTiles(session.telemetry) }) : '';
   const commits = card({ id: 'linked-session-commits', title: 'Commits', subtitle: attributionLine(session), actions: session.commits?.some(entry => entry.aiLines !== null && entry.aiLines !== undefined) ? button({ label: 'Agent Trace records', icon: 'download', href: `/api/linked-sessions/${encodeURIComponent(session.id)}/agent-trace`, size: 'sm', variant: 'ghost' }) : '', body: `${commitsTable(session)}${session.pullRequests?.length ? `<p class="meta">Pull requests: ${session.pullRequests.map(url => `<a href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(url.replace(/^https:\/\//, ''))}</a>`).join(' · ')}</p>` : ''}` });

@@ -124,6 +124,11 @@ export class Auth {
     const token = this.token(req);
     return token && token.length <= 200 ? digest(token) : undefined;
   }
+  /** When the editor credential that authenticated a request expires, or undefined for any other sign-in. */
+  editorExpiresAt(req: IncomingMessage): string | undefined {
+    const bearer = this.bearer(req);
+    return bearer && editorTokenPattern.test(bearer) ? this.store.getEditorCredential(digest(bearer))?.expiresAt : undefined;
+  }
   /** Which credential authenticated a request: a browser session, an editor credential, or a credential `unfold-mcp` over HTTP delegated. */
   scope(req: IncomingMessage): 'browser' | 'editor' | 'mcp' | undefined {
     if (this.config.mode === 'demo') return 'browser';

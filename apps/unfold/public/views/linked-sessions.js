@@ -2,13 +2,13 @@ import { state, disconnect, onForget } from '../core/state.js';
 import { api } from '../core/api.js';
 import { escape, renderHtml, notify } from '../core/dom.js';
 import { callout, card, emptyState, skeleton, stateBadge } from '../core/ui.js';
-import { harnessName, linkedSessionPage, linkedStates, linkedStatusLine, attributionLine } from '../core/linked-sessions.js';
+import { linkedSessionPage, linkedStates, linkedStatusLine, attributionLine, sessionTitle } from '../core/linked-sessions.js';
 import { icon } from '../core/icons.js';
 import { shell } from '../shell.js';
 
 const sessionPath = /^linked-session\/([A-Za-z0-9_-]{8,128})$/;
-const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {} };
-onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {} }));
+const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, suggestions: [] };
+onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, suggestions: [] }));
 
 /** The event other views listen for after a Linked Session gained or lost a Work Item here. */
 export const linkedChangedEvent = 'unfold:linked-sessions-changed';
@@ -26,7 +26,7 @@ export function setupSteps(origin) {
 }
 
 function listRows(sessions, now) {
-  return sessions.map(session => `<li class="linked-session-row"><div class="linked-session-text"><p class="linked-session-title"><a class="work-inline-link" href="#linked-session/${escape(encodeURIComponent(session.id))}">${escape(session.title || (session.branch ? `On ${session.branch}` : `${harnessName(session.harness)} session`))}${icon('arrow')}</a> ${stateBadge(linkedStates[session.state] ?? linkedStates.idle)}</p><p class="meta">${escape(linkedStatusLine(session, now))}</p><ul class="linked-session-facts"><li>${escape(session.workItems.length ? `Work Items ${session.workItems.map(entry => entry.id).join(', ')}` : 'Not linked to a Work Item')}</li><li>${escape(attributionLine(session))}</li></ul></div></li>`).join('');
+  return sessions.map(session => `<li class="linked-session-row"><div class="linked-session-text"><p class="linked-session-title"><a class="work-inline-link" href="#linked-session/${escape(encodeURIComponent(session.id))}">${escape(sessionTitle(session))}${icon('arrow')}</a> ${stateBadge(linkedStates[session.state] ?? linkedStates.idle)}</p><p class="meta">${escape(linkedStatusLine(session, now))}</p><ul class="linked-session-facts"><li>${escape(session.workItems.length ? `Work Items ${session.workItems.map(entry => entry.id).join(', ')}` : 'Not linked to a Work Item')}</li><li>${escape(attributionLine(session))}</li></ul></div></li>`).join('');
 }
 
 function settingsContent() {
@@ -44,12 +44,12 @@ function settingsContent() {
 function sessionContent() {
   if (view.error && !view.session) return callout({ tone: 'danger', title: 'Could not read this agent session', body: `<p>${escape(view.error)}</p>` });
   if (!view.session) return `<div class="card">${skeleton({ rows: 6, variant: 'text' })}</div>`;
-  return linkedSessionPage(view.session, { workItems: view.titles });
+  return linkedSessionPage(view.session, { workItems: view.titles, suggestions: view.suggestions });
 }
 
 function renderLinked() {
   if (view.mode === 'settings') return renderHtml(shell(settingsContent(), { title: 'Agent sessions', subtitle: 'Connect Claude Code, and see the sessions of yours that report to Unfold.' }));
-  const title = view.session ? (view.session.title || `${harnessName(view.session.harness)} session`) : 'Agent session';
+  const title = view.session ? sessionTitle(view.session) : 'Agent session';
   renderHtml(shell(sessionContent(), { title, subtitle: 'An agent session that runs outside Unfold and reports to it.' }));
 }
 
@@ -63,6 +63,8 @@ async function loadSession(id) {
     const titles = await Promise.all(session.workItems.slice(0, 10).map(entry => api(`/api/ploeg/work-items/${encodeURIComponent(entry.id)}`).then(detail => [entry.id, detail.item.title], () => [entry.id, ''])));
     if (request !== view.request) return;
     view.titles = Object.fromEntries(titles.filter(([, title]) => title));
+    view.suggestions = session.mine ? await api(`/api/linked-sessions/${encodeURIComponent(id)}/suggestions`).then(answer => answer.suggestions ?? [], () => []) : [];
+    if (request !== view.request) return;
   } catch (error) { if (request === view.request) view.error = error.message; }
   if (request === view.request && state.view === 'linked-sessions') renderLinked();
 }
@@ -70,7 +72,7 @@ async function loadSession(id) {
 async function enterLinked(params) {
   disconnect(); state.session = null; state.view = 'linked-sessions';
   view.mode = params.id ? 'session' : 'settings';
-  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {};
+  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.suggestions = [];
   renderLinked();
   if (view.mode === 'session') return loadSession(view.id);
   const request = ++view.request;
@@ -90,6 +92,14 @@ async function unlink(element) {
   element.disabled = true;
   await changeLink(element.dataset.id, element.dataset.workItem, false);
   notify(`Unlinked from Work Item ${element.dataset.workItem}. Its branch will not link it again.`);
+}
+
+async function linkSuggested(element) {
+  element.disabled = true;
+  await changeLink(element.dataset.id, element.dataset.workItem, true);
+  view.suggestions = view.suggestions.filter(entry => entry.id !== element.dataset.workItem);
+  notify(`Linked to Work Item ${element.dataset.workItem}.`);
+  void loadSession(element.dataset.id);
 }
 
 async function link(data, form) {
@@ -114,7 +124,7 @@ export default {
   match: hash => hash === 'settings/agent-sessions' ? {} : (sessionPath.exec(hash) ? { id: sessionPath.exec(hash)[1] } : null),
   enter: enterLinked,
   render: renderLinked,
-  actions: { 'linked-session-unlink': unlink, 'linked-session-copy': copy },
+  actions: { 'linked-session-unlink': unlink, 'linked-session-copy': copy, 'linked-session-suggest': linkSuggested },
   forms: { 'linked-session-link': link },
 };
 
