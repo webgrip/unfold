@@ -2,7 +2,7 @@
 type: how-to
 audience: [owner, contributor]
 owner: unfold
-last_verified: 2026-10-23
+last_verified: 2026-10-24
 verified_by: "Read apps/unfold/src/linked-sessions.ts, src/linked-telemetry.ts, src/agent-trace.ts and extensions/claude-code; ran test/linked-sessions.test.ts, test/claude-code-plugin.test.ts and test/linked-sessions-view.test.mjs. Not yet checked against the homelab or a real Claude Code session. On 2026-10-23 the repository and organisation sections were read against the Claude Code settings reference (extraKnownMarketplaces, enabledPlugins, strictKnownMarketplaces), the GitHub Copilot enterprise-managed settings reference and the VS Code 1.143.1 sessions bundle, which reads both settings files; no install was run."
 ---
 
@@ -95,7 +95,11 @@ Replace the two addresses with your own. GitHub documents only `github` marketpl
 ## 4. Work as usual
 
 * **Start on a branch that names the ticket**, such as `feat/vik-2051-login`. The session links itself to that ticket's Work Items and takes "VIK-2051 …" as its title.
-* **Link it any other way.** Say "this is Work Item 184" or paste the Unfold link in the session. You can also link it on its page under **Settings › Agent sessions**.
+* **Or just name the work.** A prompt or a commit message that names the ticket (`VIK-2051`), pastes the Unfold link (`…/#work/184`) or says "Work Item 184" links that Work Item. The plugin finds those ids on your machine and sends only the ids, never the text.
+* **Pull requests link too.** When the session opens a pull request that is a Work Item's, for example while fixing up a Ploeg pull request, the session links to that Work Item.
+* **Or pick it on the page.** The session's page suggests open Work Items on the same repository, with a **Link** button each, and has a field to link any Work Item by id. A Work Item you unlink is never linked again automatically.
+* **Titles.** A session without a title shows the subject of its first commit, or its branch in words, such as "Connect a repository" for `docs/connect-a-repository`.
+* **Credential reminders.** When your Unfold credential expires within a week, the session tells you once when it starts. Sign in again (step 1) and replace `UNFOLD_TOKEN`.
 * **Commits.** The session is asked to end each commit with `Unfold-Session: <its page>`. After each commit the plugin writes an Agent Trace record to `refs/notes/agent-trace` and sends it to Unfold. To share the records on the forge, push them: `git push origin refs/notes/agent-trace`.
 
 The Work Item page lists every linked session in its **Agent sessions** card: state, owner, branch and AI-written lines. Your own sessions also offer `claude --resume <id>` and, under Remote Control, **Open in Claude**.

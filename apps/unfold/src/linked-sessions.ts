@@ -17,8 +17,14 @@ export const trackerPrefixes: Readonly<Record<string, string>> = { vik: 'vikunja
 export type LinkedHarness = typeof linkedHarnesses[number];
 export type LinkedEvent = typeof linkedEvents[number];
 export type LinkedStatus = 'working' | 'waiting' | 'idle' | 'ended';
-/** How a Linked Session came to be linked to a Work Item: a person or agent said so, or its branch names the Work Item's tracker task. */
-export type LinkedHow = 'explicit' | 'branch';
+/**
+ * How a Linked Session came to be linked to a Work Item: a person or agent said so, its branch or one of its commit
+ * messages names the Work Item's tracker task, a prompt named the task or the Work Item, or a pull request the session
+ * opened is the Work Item's.
+ */
+export type LinkedHow = 'explicit' | 'branch' | 'commit' | 'mention' | 'pull_request';
+/** A credential that expires within this long is mentioned when a session starts. */
+export const credentialWarningMs = 7 * 24 * 3600_000;
 export type LinkedWorkItem = { id: string; how: LinkedHow; linkedAt: string; linkedBy: string };
 export type LinkedCommit = { sha: string; subject: string; at: string; trailer: boolean; aiLines: number | null; files: number | null; agents?: Record<string, number> };
 /**
@@ -37,11 +43,19 @@ export type LinkedEventInput = {
   harness: LinkedHarness; harnessVersion: string; sessionId: string; event: LinkedEvent; at: string;
   title: string; repository: string; branch: string; model: string; remoteUrl: string; waitingFor: string;
   workItem: string; pullRequests: string[]; commit: { sha: string; subject: string; trailer: boolean } | null;
+  mentions: LinkedMentions;
 };
+/** The tracker tasks (`VIK-2051`) and Work Items a prompt or commit message named, extracted on the person's machine. */
+export type LinkedMentions = { refs: { provider: string; externalId: string; ref: string }[]; workItems: string[] };
+/** An open Work Item as Unfold's Now read returns it, enough to match a pull request or a repository. */
+export type LinkedNowItem = { id: string; title: string; state: string; updatedAt: string; target: { owner: string; repo: string } | null; pullRequestUrl?: string; pullRequest?: { url: string } | null };
+/** An open Work Item on the session's repository that the session may be working on. */
+export type LinkedSuggestion = { id: string; title: string; state: string; updatedAt: string; reason: 'pull_request' | 'repository' };
 /** The reads of Ploeg a Linked Session needs: a Work Item the person may read, and the Work Items of one tracker task. */
 export type LinkedPloeg = {
   detail(user: User, id: string): Promise<{ item: { id: string; title: string; provider: string; externalId: string } }>;
   trackerItems(user: User, provider: string, externalId: string): Promise<{ items: { id: string; state: string }[] }>;
+  now?(user: User): Promise<{ waiting: LinkedNowItem[]; active: LinkedNowItem[] }>;
 };
 
 /** A refused Linked Session request, with the HTTP status and code the API answers. */
@@ -84,6 +98,57 @@ export function branchReferences(branch: string): { provider: string; externalId
   return [...found.values()];
 }
 
+/** Tracker references such as `VIK-2051` a hook extracted, kept when their prefix names a known tracker. */
+export function trackerReferences(values: unknown): LinkedMentions['refs'] {
+  const found = new Map<string, LinkedMentions['refs'][number]>();
+  for (const value of Array.isArray(values) ? values.slice(0, 20) : []) {
+    const match = typeof value === 'string' ? /^([A-Za-z]{2,10})-([1-9][0-9]{0,18})$/.exec(value.trim()) : null;
+    const provider = match ? trackerPrefixes[match[1].toLowerCase()] : undefined;
+    if (match && provider && found.size < 10) found.set(`${provider}:${match[2]}`, { provider, externalId: match[2], ref: `${match[1].toUpperCase()}-${match[2]}` });
+  }
+  return [...found.values()];
+}
+
+function parseMentions(value: unknown): LinkedMentions {
+  const raw = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const workItems = Array.isArray(raw.workItems) ? [...new Set(raw.workItems.slice(0, 20).filter((entry): entry is string => typeof entry === 'string' && workItemPattern.test(entry)))].slice(0, 10) : [];
+  return { refs: trackerReferences(raw.refs), workItems };
+}
+
+/** A pull request address compared without case, trailing slash or the `pull`/`pulls` difference between forges. */
+export function pullRequestKey(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.host.toLowerCase()}${parsed.pathname.replace(/\/+$/, '').replace(/\/pulls\/(\d+)$/, '/pull/$1').toLowerCase()}`;
+  } catch { return ''; }
+}
+
+/** The `owner/repo` a repository address names, compared without case or `.git`, or empty. */
+export function repositoryPath(address: string): string {
+  const path = /^[^/:]+:(.+)$/.exec(address)?.[1] ?? (() => { try { return new URL(address).pathname; } catch { return ''; } })();
+  const parts = path.replace(/\.git$/i, '').split('/').filter(Boolean);
+  return parts.length >= 2 ? `${parts.at(-2)}/${parts.at(-1)}`.toLowerCase() : '';
+}
+
+const plainBranches = new Set(['main', 'master', 'development', 'develop', 'trunk', 'head']);
+const branchKinds = /^(?:feat|feature|fix|bugfix|hotfix|docs|chore|ci|refactor|test|tests|perf|build|style|agent|wip|spike)\//i;
+
+/**
+ * The name a Linked Session shows: its own title, else the subject of the first commit it made (one carrying the
+ * `Unfold-Session` trailer), else its branch in words, else its harness and repository.
+ */
+export function displayTitle(session: Pick<LinkedSession, 'title' | 'branch' | 'repository' | 'harness' | 'commits'>): string {
+  if (session.title) return session.title;
+  const own = session.commits.find(entry => entry.trailer && entry.subject && !/^Merge /.test(entry.subject));
+  if (own) return own.subject.slice(0, 120);
+  if (session.branch && !plainBranches.has(session.branch.toLowerCase())) {
+    const words = session.branch.replace(branchKinds, '').split('/').at(-1)!.replace(/[-_]+/g, ' ').replace(/\b([a-z]{2,10}) ([1-9][0-9]{0,18})\b/gi, (whole, prefix: string, id: string) => trackerPrefixes[prefix.toLowerCase()] ? `${prefix.toUpperCase()}-${id}` : whole).trim();
+    if (words) return `${words[0].toUpperCase()}${words.slice(1)}`.slice(0, 120);
+  }
+  const repo = repositoryPath(session.repository).split('/')[1];
+  return `${session.harness === 'claude-code' ? 'Claude Code' : session.harness} session${repo ? ` in ${repo}` : ''}`;
+}
+
 /** Validates one hook report. Unknown fields are ignored; nothing a hook sends is trusted beyond these shapes. */
 export function parseLinkedEvent(data: Record<string, unknown>, now: Date): LinkedEventInput {
   if (!linkedHarnesses.includes(data.harness as LinkedHarness)) fail(400, 'linked_harness', `harness must be one of ${linkedHarnesses.join(', ')}.`);
@@ -102,7 +167,7 @@ export function parseLinkedEvent(data: Record<string, unknown>, now: Date): Link
     harness: data.harness as LinkedHarness, harnessVersion: clipped(data.harnessVersion, 40).replace(/[^\w.+-]/g, ''), sessionId: data.sessionId as string, event: data.event as LinkedEvent, at: now.toISOString(),
     title: clipped(data.title, 160), repository: repositoryAddress(data.repository), branch: clipped(data.branch, 200), model: clipped(data.model, 100).replace(/[^\w.:/[\]-]/g, ''),
     remoteUrl: /^https:\/\/claude\.ai\/code\/[A-Za-z0-9_-]{8,128}$/.test(remoteUrl) ? remoteUrl : '', waitingFor: clipped(data.waitingFor, 40).replace(/[^a-z_]/g, ''),
-    workItem: workItemPattern.test(workItem) ? workItem : '', pullRequests, commit,
+    workItem: workItemPattern.test(workItem) ? workItem : '', pullRequests, commit, mentions: parseMentions(data.mentions),
   };
 }
 
@@ -166,7 +231,7 @@ export class LinkedSessionStore {
 }
 
 /** A Linked Session as the API presents it: its stored facts, its shown state, its Unfold page and how to resume it. */
-export type PresentedLinkedSession = Omit<LinkedSession, 'dismissed' | 'resolvedBranch'> & { state: LinkedStatus | 'stale'; link: string; resume: string; mine: boolean; aiLines: number; telemetry?: SessionTelemetry };
+export type PresentedLinkedSession = Omit<LinkedSession, 'dismissed' | 'resolvedBranch'> & { state: LinkedStatus | 'stale'; displayTitle: string; link: string; resume: string; mine: boolean; aiLines: number; telemetry?: SessionTelemetry };
 
 /**
  * Records what people's own agent sessions report, links them to Work Items the person may read, and keeps the
@@ -194,7 +259,7 @@ export class LinkedSessions {
    * Records one hook report from the session's owner and links the session to the Work Items its report names. The
    * first report claims the session id for its sender; a report for someone else's session is refused as not found.
    */
-  async report(user: User, input: LinkedEventInput, base: string): Promise<{ session: PresentedLinkedSession; context: string; suggestedTitle: string }> {
+  async report(user: User, input: LinkedEventInput, base: string, options: { credentialExpiresAt?: string } = {}): Promise<{ session: PresentedLinkedSession; context: string; suggestedTitle: string; trackerPrefixes: string[]; credential: { expiresAt: string; expiresSoon: boolean } | null }> {
     const existing = this.store.get(input.sessionId);
     if (existing && existing.ownerId !== user.id) fail(404, 'not_found', 'Linked session not found.');
     if (existing && existing.harness !== input.harness) fail(409, 'linked_harness', 'This session id was reported by another harness.');
@@ -205,7 +270,8 @@ export class LinkedSessions {
     const status = nextStatus[input.event];
     if (status) { session.status = status; session.waitingFor = status === 'waiting' ? input.waitingFor : ''; session.endedAt = status === 'ended' ? input.at : null; }
     else if (session.status === 'ended') { session.status = 'idle'; session.endedAt = null; }
-    for (const url of input.pullRequests) if (!session.pullRequests.includes(url) && session.pullRequests.length < linkedLimits.pullRequests) session.pullRequests.push(url);
+    const freshPulls = input.pullRequests.filter(url => !session.pullRequests.includes(url));
+    for (const url of freshPulls) if (session.pullRequests.length < linkedLimits.pullRequests) session.pullRequests.push(url);
     if (input.commit) {
       const known = session.commits.find(entry => entry.sha === input.commit!.sha);
       if (known) Object.assign(known, { subject: input.commit.subject || known.subject, trailer: known.trailer || input.commit.trailer });
@@ -217,13 +283,62 @@ export class LinkedSessions {
     if (session.branch && session.branch !== session.resolvedBranch) {
       for (const ref of branchReferences(session.branch)) {
         const found = await this.ploeg.trackerItems(user, ref.provider, ref.externalId).catch(() => ({ items: [] }));
-        for (const item of found.items.slice(0, 3)) if (!session.dismissed.includes(item.id) && !session.workItems.some(entry => entry.id === item.id)) this.attach(session, item.id, 'branch', user, input.at);
+        for (const item of found.items.slice(0, 3)) this.attachAutomatic(session, item.id, 'branch', user, input.at);
       }
       session.resolvedBranch = session.branch;
     }
+    const mentioned: LinkedHow = input.event === 'commit' ? 'commit' : 'mention';
+    for (const ref of input.mentions.refs) {
+      const found = await this.ploeg.trackerItems(user, ref.provider, ref.externalId).catch(() => ({ items: [] }));
+      for (const item of found.items.slice(0, 3)) this.attachAutomatic(session, item.id, mentioned, user, input.at);
+    }
+    for (const id of input.mentions.workItems) {
+      if (!this.canAttach(session, id)) continue;
+      if (await this.ploeg.detail(user, id).then(() => true, () => false)) this.attachAutomatic(session, id, mentioned, user, input.at);
+    }
+    if (freshPulls.length && this.ploeg.now) {
+      const keys = new Set(freshPulls.map(pullRequestKey).filter(Boolean));
+      const open = await this.openWork(user);
+      for (const item of open) if ([item.pullRequest?.url, item.pullRequestUrl].some(url => url && keys.has(pullRequestKey(url)))) this.attachAutomatic(session, item.id, 'pull_request', user, input.at);
+    }
     this.store.save(session);
     const presented = this.present(session, user, base);
-    return { session: presented, context: await this.context(user, presented), suggestedTitle: !session.title && session.workItems.length ? await this.suggestTitle(user, session) : '' };
+    const expiresAt = options.credentialExpiresAt && Number.isFinite(Date.parse(options.credentialExpiresAt)) ? new Date(options.credentialExpiresAt).toISOString() : '';
+    const credential = expiresAt ? { expiresAt, expiresSoon: Date.parse(expiresAt) - this.clock().getTime() <= credentialWarningMs } : null;
+    return {
+      session: presented, context: await this.context(user, presented, credential), suggestedTitle: !session.title && session.workItems.length ? await this.suggestTitle(user, session) : '',
+      trackerPrefixes: Object.keys(trackerPrefixes).map(prefix => prefix.toUpperCase()), credential,
+    };
+  }
+
+  private canAttach(session: LinkedSession, id: string): boolean {
+    return !session.dismissed.includes(id) && !session.workItems.some(entry => entry.id === id) && session.workItems.length < linkedLimits.workItems;
+  }
+
+  private attachAutomatic(session: LinkedSession, id: string, how: LinkedHow, user: User, at: string): void {
+    if (this.canAttach(session, id)) this.attach(session, id, how, user, at);
+  }
+
+  private async openWork(user: User): Promise<LinkedNowItem[]> {
+    if (!this.ploeg.now) return [];
+    try { const now = await this.ploeg.now(user); return [...now.waiting, ...now.active]; } catch { return []; }
+  }
+
+  /**
+   * Open Work Items the session may be working on and is not linked to: the Work Item whose pull request the session
+   * opened, then the newest open Work Items on the session's repository. Only the session's owner or an administrator asks.
+   */
+  async suggestions(user: User, id: string): Promise<LinkedSuggestion[]> {
+    const session = this.store.get(id);
+    if (!session || (session.ownerId !== user.id && user.role !== 'admin')) return fail(404, 'not_found', 'Linked session not found.');
+    const repo = repositoryPath(session.repository);
+    const pulls = new Set(session.pullRequests.map(pullRequestKey).filter(Boolean));
+    const out = new Map<string, LinkedSuggestion>();
+    const open = (await this.openWork(user)).filter(item => !session.workItems.some(entry => entry.id === item.id) && !session.dismissed.includes(item.id));
+    for (const item of open) if ([item.pullRequest?.url, item.pullRequestUrl].some(url => url && pulls.has(pullRequestKey(url)))) out.set(item.id, { id: item.id, title: item.title, state: item.state, updatedAt: item.updatedAt, reason: 'pull_request' });
+    const sameRepo = repo ? open.filter(item => item.target && `${item.target.owner}/${item.target.repo}`.toLowerCase() === repo).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) : [];
+    for (const item of sameRepo) if (!out.has(item.id)) out.set(item.id, { id: item.id, title: item.title, state: item.state, updatedAt: item.updatedAt, reason: 'repository' });
+    return [...out.values()].slice(0, 5);
   }
 
   private attach(session: LinkedSession, id: string, how: LinkedHow, user: User, at: string): void {
@@ -240,7 +355,7 @@ export class LinkedSessions {
     } catch { return ''; }
   }
 
-  private async context(user: User, session: PresentedLinkedSession): Promise<string> {
+  private async context(user: User, session: PresentedLinkedSession, credential: { expiresAt: string; expiresSoon: boolean } | null): Promise<string> {
     const items = await Promise.all(session.workItems.slice(0, 5).map(async entry => {
       try { const { item } = await this.ploeg.detail(user, entry.id); return `Work Item ${item.id} (${item.title.replace(/[\0-\x1f]/g, ' ').slice(0, 120)})`; }
       catch { return `Work Item ${entry.id}`; }
@@ -250,6 +365,7 @@ export class LinkedSessions {
       `Unfold records this Claude Code session as ${session.link} (session id ${session.id}). ${linked}`,
       `When you commit, end the message with the trailer line "Unfold-Session: ${session.link}".`,
       `To link this session to a Work Item, call the unfold_link_session tool with session_id ${session.id} and the Work Item id.`,
+      ...(credential?.expiresSoon ? [`The Unfold credential this session reports with expires ${credential.expiresAt.slice(0, 10)}. Tell the person once, early, to sign in again and replace UNFOLD_TOKEN, or their sessions stop reporting to Unfold.`] : []),
     ].join(' ');
   }
 
@@ -340,6 +456,6 @@ export class LinkedSessions {
 
   private present(session: LinkedSession, user: User, base: string): PresentedLinkedSession {
     const { dismissed: _dismissed, resolvedBranch: _resolved, ...shown } = session;
-    return { ...structuredClone(shown), state: linkedState(session, this.clock().getTime()), link: LinkedSessions.page(base, session.id), resume: `claude --resume ${session.id}`, mine: session.ownerId === user.id, aiLines: session.commits.reduce((sum, entry) => sum + (entry.aiLines ?? 0), 0) };
+    return { ...structuredClone(shown), state: linkedState(session, this.clock().getTime()), displayTitle: displayTitle(session), link: LinkedSessions.page(base, session.id), resume: `claude --resume ${session.id}`, mine: session.ownerId === user.id, aiLines: session.commits.reduce((sum, entry) => sum + (entry.aiLines ?? 0), 0) };
   }
 }
