@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { foldTranscript, runTranscriptMarkup, toolState, transcriptEntryCap } from '../public/run-transcript.js';
+import { foldTranscript, runTranscriptMarkup, toolHeading, toolState, transcriptEntryCap } from '../public/run-transcript.js';
 
 const at = '2026-10-11T10:00:00Z';
 const running = { id: '51', state: 'running', role: 'Builder' };
@@ -46,13 +46,12 @@ test('the transcript shows messages, muted thoughts, one row per tool call, the 
   assert.match(html, /<div class="work-transcript-scroll" data-private data-run-transcript="51" tabindex="0" aria-label="What the agent did in Run 51">/);
   assert.match(html, /3 tool calls<\/span> · <span class="num">1 message<\/span> · <span class="live-dot"/);
   assert.equal(html.match(/data-kind="tool"/g).length, 3);
-  assert.match(html, /<span class="stream-tool">Read order\.js<\/span><span class="badge sm" data-tone="success">Done<\/span>/);
+  assert.match(html, /<span class="stream-tool">Read order\.js<\/span><span class="sr-only">Done<\/span>/, 'a finished call carries no badge');
   assert.match(html, /<p class="stream-detail">src\/order\.js<\/p>/, 'the input shows in monospace');
   assert.doesNotMatch(html, /<span class="mono">src\/order\.js<\/span> <\/p>/);
   assert.match(html, /<p class="work-transcript-paths"><span class="mono">src\/order\.js<\/span> <span class="mono">test\/order\.test\.js<\/span><\/p>/);
-  assert.match(html, /<span class="stream-tool">npm test<\/span><span class="badge sm" data-tone="danger">Failed<\/span>/);
-  assert.match(html, /id="work-run-transcript-51-c6"><summary><span class="disclosure-summary">Change<\/span>/, 'the output is collapsed under a stable id');
-  assert.match(html, /<span class="work-transcript-file">edit src\/order\.js<\/span>\n<span class="work-transcript-hunk">@@ line 4[^<]*<\/span>\n<span class="work-transcript-del">-return round\(x\)<\/span>\n<span class="work-transcript-add">\+return roundHalfEven\(x\)<\/span>/);
+  assert.match(html, /<span class="stream-tool">Ran a command<\/span><span class="badge sm" data-tone="danger">Failed<\/span>[^]*<span class="console-prompt" aria-hidden="true">\$ <\/span>npm test<\/span>/, 'a command shows once, at a prompt');
+  assert.match(html, /<div class="console console-compact" data-private><pre data-private class="console-text"><span class="console-line" data-diff="file">edit src\/order\.js<\/span><span class="console-line" data-diff="hunk">@@ line 4[^<]*<\/span><span class="console-line" data-diff="del">-return round\(x\)<\/span><span class="console-line" data-diff="add">\+return roundHalfEven\(x\)<\/span><\/pre><\/div>/, 'a short change shows in full');
   assert.match(html, /data-kind="thought"[^]*Thought · The rounding happens before tax\.[^]*<div class="work-transcript-thought">/);
   assert.match(html, /<strong class="stream-actor">Builder<\/strong>[^]*<p>I fixed the rounding\.<\/p><p>Tests &lt;still&gt; fail\.<\/p>/);
   assert.match(html, /Plan · 1 of 2 done[^]*<li data-status="completed">[^]*Read the failing test[^]*<li data-status="in_progress">[^]*Fix &lt;rounding&gt;/);
@@ -84,4 +83,17 @@ test('the transcript says when it loads, is not recorded by this Ploeg, is the d
   assert.match(failed, /class="callout" data-tone="danger"[^]*The transcript could not be read[^]*Ploeg could not be reached\.[^]*data-action="work-run-transcript-retry" data-id="51"/);
   const stale = runTranscriptMarkup(running, { data: { available: true, complete: false }, entries: transcript.slice(-1), error: { message: 'Timed out.' } });
   assert.match(stale, /I fixed the rounding[^]*Could not refresh: Timed out\./, 'an earlier read stays on screen when a refresh fails');
+});
+
+test('a command title splits into its label and its command, and long output folds after a few lines', () => {
+  const command = 'cd /work && ls -la';
+  assert.deepEqual(toolHeading({ title: `Explore repo root: $ ${command}`, input: command, toolKind: 'execute' }), { label: 'Explore repo root', command });
+  assert.deepEqual(toolHeading({ title: command, input: command, toolKind: 'execute' }), { label: '', command });
+  assert.deepEqual(toolHeading({ title: 'Read order.js', input: 'src/order.js', toolKind: 'read' }), { label: 'Read order.js', command: '' });
+  const output = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`).join('\n');
+  const entries = [{ seq: 1, at, kind: 'tool_call', toolCallId: 'c', title: `Explore repo root: $ ${command}`, toolKind: 'execute', status: 'completed', input: command }, { seq: 2, at, kind: 'tool_output', toolCallId: 'c', text: output, clipped: true }];
+  const html = runTranscriptMarkup(finished, { data: { available: true, complete: true }, entries });
+  assert.match(html, /<span class="stream-tool">Explore repo root<\/span>/);
+  assert.equal(html.split('cd /work &amp;&amp; ls -la').length - 1, 1, 'the command shows once');
+  assert.match(html, /line 6<\/span><\/pre><details class="console-more" id="work-run-transcript-51-c1"><summary>14 more lines · clipped<\/summary><pre data-private class="console-text"><span class="console-line">line 7</);
 });

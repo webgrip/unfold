@@ -28,7 +28,8 @@ import { progressTitle, reconcileDetail, sessionProgress } from './core/progress
 import { effortText, termTitle, trackerReference } from './core/terms.js';
 import { runTranscriptMarkup } from './run-transcript.js';
 import { workActionsMarkup } from './action-log.js';
-import { defaultLogView, logViewerMarkup } from './run-log-view.js';
+import { defaultLogView, logViewerMarkup, podLabels } from './run-log-view.js';
+import { consoleMarkup, consoleSections } from './console-view.js';
 import { healthMeta } from './core/run-health.js';
 import { tripwireScoreMeta } from './core/tripwire.js';
 import { checkLabel, isProgressCheck } from './core/checks.js';
@@ -1004,8 +1005,9 @@ function runLogsBody(run, entry) {
   }
   const pods = [...new Set(data.pods.map(entry => entry.pod))];
   const several = pods.length > 1;
-  const head = `<div class="work-run-log-head"><p class="meta">${entry.truncated ? '<span>Newest lines shown</span> · ' : ''}${several ? `${escape(plural(pods.length, 'pod'))}: ` : 'Pod '}${pods.map(pod => `<span class="mono">${escape(pod)}</span>`).join(', ')}${data.live ? ' · <span class="live-dot" aria-hidden="true"></span> live' : ''}</p>${grafana ? `<div class="work-run-tools">${grafana}</div>` : ''}</div>`;
-  return `${head}${logViewerMarkup(run, lines, entry.view || defaultLogView(), { several })}${stale}`;
+  const labels = podLabels(pods);
+  const head = `<div class="work-run-log-head"><p class="meta">${entry.truncated ? '<span>Newest lines shown</span> · ' : ''}${several ? `${escape(plural(pods.length, 'pod'))}: ` : 'Pod '}${pods.map(pod => `${several && labels.get(pod) !== pod ? `<span class="log-stream">${escape(labels.get(pod))}</span> ` : ''}<span class="mono">${escape(pod)}</span>`).join(', ')}${data.live ? ' · <span class="live-dot" aria-hidden="true"></span> live' : ''}</p>${grafana ? `<div class="work-run-tools">${grafana}</div>` : ''}</div>`;
+  return `${head}${logViewerMarkup(run, lines, entry.view || defaultLogView(), { several, truncated: Boolean(entry.truncated), pods: labels })}${stale}`;
 }
 
 /**
@@ -1126,7 +1128,8 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts
     const title = run.outcome === 'stuck' ? 'Why it is stuck' : failure ? failure.label : 'Why it failed';
     const { reason: stated, output, outputLabel } = runFailureText(run);
     const reasonText = stated ? `<p class="${logLike.test(stated) ? 'work-log' : 'work-run-reason'}">${escape(stated)}</p>` : '';
-    const outputText = !output ? '' : failure?.foldOutput ? ui.disclosure({ summary: outputLabel, body: `<p class="work-log">${escape(output)}</p>`, plain: true }) : `<h4 class="overline">${escape(outputLabel)}</h4><p class="work-log">${escape(output)}</p>`;
+    const printed = output ? consoleMarkup(consoleSections(output), { label: `${outputLabel} in Run ${run.id}` }) : '';
+    const outputText = !output ? '' : failure?.foldOutput ? ui.disclosure({ summary: outputLabel, body: printed, plain: true }) : `<h4 class="overline">${escape(outputLabel)}</h4>${printed}`;
     const note = failure ? [failureNote(failure, { live: live && !retriedAs }), retriedAs ? `Ploeg ran it again as Run ${retriedAs}.` : ''].filter(Boolean).join(' ') : '';
     const body = `${reasonText}${outputText}${note ? `<p>${escape(note)}</p>` : ''}`;
     parts.push(ui.callout({ tone, title, body }));

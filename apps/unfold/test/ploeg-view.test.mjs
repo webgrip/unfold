@@ -588,6 +588,8 @@ test('a Run that spent its model allowance says so plainly and folds what the ag
   assert.match(html, /so the model gateway refused its next call/);
   assert.match(html, /<details class="disclosure plain"><summary><span class="disclosure-summary">What the agent printed<\/span>/);
   assert.match(html, /Budget has been exceeded! Key=ploeg-1/);
+  assert.match(html, /<div class="console" data-private tabindex="0" role="region" aria-label="What the agent printed in Run \d+"><div class="console-section"><p class="console-label">Last agent message<\/p><pre data-private class="console-text"><span class="console-line" data-tone="danger">Litellm_proxyException/, 'what it printed reads as a console, one section per part');
+  assert.match(html, /<p class="console-label">stderr<\/p><pre data-private class="console-text"><span class="console-line">agent\.py:579 in prompt<\/span>/);
   assert.doesNotMatch(html, /exited with an error|Read the last lines it printed, then/);
 });
 
@@ -841,7 +843,11 @@ test('Pod logs say when they load, are not connected, have no lines yet or faile
   assert.match(failed, /class="callout" data-tone="danger"[^]*The logs could not be read[^]*The log store could not be reached\.[^]*data-action="work-run-logs-retry" data-id="7"/);
   const several = runLogsMarkup(run, { data: { available: true, live: true, pods: [{ pod: 'a' }, { pod: 'b' }] }, lines: [{ at, text: 'x', stream: 'b' }], error: { message: 'Timed out.' } });
   assert.match(several, /2 pods: <span class="mono">a<\/span>, <span class="mono">b<\/span> · <span class="live-dot"/);
-  assert.match(several, /<span class="log-stream">b<\/span> <span class="log-message">x<\/span>/);
+  assert.match(several, /<span class="log-stream" title="b">b<\/span> <span class="log-message">x<\/span>/);
+  const worker = 'ploeg-worker-bronze-builder-cvmvc-97xmz';
+  const ploegPods = runLogsMarkup(run, { data: { available: true, live: false, pods: [{ pod: worker }, { pod: `sbx-${worker}` }] }, lines: [{ at, text: 'x', stream: `sbx-${worker}` }] });
+  assert.match(ploegPods, /2 pods: <span class="log-stream">worker<\/span> <span class="mono">ploeg-worker-[^<]*<\/span>, <span class="log-stream">sandbox<\/span> <span class="mono">sbx-ploeg-worker/, 'Ploeg pods are named by what they are');
+  assert.match(ploegPods, /<span class="log-stream" title="sbx-ploeg-worker-bronze-builder-cvmvc-97xmz">sandbox<\/span> <span class="log-message">x<\/span>/, 'a line names its pod short and keeps the full name in its title');
   assert.match(several, /Could not refresh: Timed out\./, 'an earlier read stays on screen when a refresh fails');
 });
 

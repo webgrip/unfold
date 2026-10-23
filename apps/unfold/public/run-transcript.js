@@ -76,22 +76,53 @@ function paragraphs(text) {
 }
 
 const diffLine = [[/^\+(?!\+\+ )/, 'add'], [/^-(?!-- )/, 'del'], [/^@@/, 'hunk'], [/^(?:edit|new file|delete|move) \S/, 'file']];
+const commandTitle = /^(.*?):\s*\$\s+([^]*)$/;
+const outputPreviewLines = 6;
 
-function outputText(text, edit) {
-  if (!edit) return escape(text);
-  return text.split('\n').map(line => { const kind = diffLine.find(([pattern]) => pattern.test(line))?.[1]; return kind ? `<span class="work-transcript-${kind}">${escape(line)}</span>` : escape(line); }).join('\n');
+function outputLines(lines, edit) {
+  return lines.map(line => {
+    const kind = edit ? diffLine.find(([pattern]) => pattern.test(line))?.[1] : null;
+    return `<span class="console-line"${kind ? ` data-diff="${kind}"` : ''}>${escape(line) || ' '}</span>`;
+  }).join('');
+}
+
+/**
+ * What a tool call row names: a short label and, for a command, the command itself. A title such as
+ * `Explore the repo: $ ls -la` splits into both; a title that only repeats the input becomes the command.
+ * @param {{ title: string, input: string, toolKind: string }} tool
+ * @returns {{ label: string, command: string }}
+ */
+export function toolHeading(tool) {
+  const title = (tool.title || '').trim();
+  const input = (tool.input || '').trim();
+  const split = commandTitle.exec(title);
+  if (split) return { label: split[1].trim(), command: input || split[2].trim() };
+  if (tool.toolKind === 'execute') return { label: title && title !== input && !input.startsWith(title.replace(/…$/, '')) ? title : '', command: input || title };
+  return { label: title || input || 'Tool call', command: '' };
+}
+
+function toolConsole(tool, { command, edit, base }) {
+  const text = tool.outputs.join('\n').replace(/\s+$/, '');
+  const lines = text ? text.split('\n') : [];
+  const prompt = command ? `<pre data-private class="console-text console-command"><span class="console-line"><span class="console-prompt" aria-hidden="true">$ </span>${escape(command)}</span></pre>` : '';
+  if (!prompt && !lines.length) return '';
+  const shown = lines.length > outputPreviewLines + 2 ? lines.slice(0, outputPreviewLines) : lines;
+  const rest = lines.slice(shown.length);
+  const output = shown.length ? `<pre data-private class="console-text">${outputLines(shown, edit)}</pre>` : '';
+  const more = rest.length ? `<details class="console-more" id="${escape(`${base}-${tool.key}`)}"><summary>${escape(`${plural(rest.length, 'more line')}${tool.clipped ? ' · clipped' : ''}`)}</summary><pre data-private class="console-text">${outputLines(rest, edit)}</pre></details>` : tool.clipped ? '<p class="console-label">Clipped</p>' : '';
+  return `<div class="console console-compact" data-private>${prompt}${output}${more}</div>`;
 }
 
 function toolItem(tool, base, complete) {
   const shown = toolState(tool.status, complete);
-  const title = tool.title || tool.input || 'Tool call';
-  const input = tool.input && tool.input !== title ? `<p class="stream-detail">${escape(tool.input)}</p>` : '';
-  const paths = tool.paths.filter(path => path !== tool.input && path !== title);
-  const pathList = paths.length ? `<p class="work-transcript-paths">${paths.map(path => `<span class="mono">${escape(path)}</span>`).join(' ')}</p>` : '';
-  const text = tool.outputs.join('\n');
-  const edit = tool.toolKind === 'edit' || /^(?:edit|new file) \S/.test(text);
-  const output = text ? ui.disclosure({ id: `${base}-${tool.key}`, plain: true, summary: `${edit ? 'Change' : 'Output'}${tool.clipped ? ' · clipped' : ''}`, body: `<pre class="stream-pre work-transcript-output" data-private>${outputText(text, edit)}</pre>` }) : '';
-  return streamItem({ kind: 'tool', tone: shown.tone, marker: icon(toolGlyphs[tool.toolKind] || 'zap'), head: `<span class="stream-tool">${escape(title)}</span>${ui.badge({ tone: shown.tone, label: shown.label, size: 'sm' })}${time(tool.at)}`, body: `${input}${pathList}${output}` });
+  const { label, command } = toolHeading(tool);
+  const pathList = tool.paths.filter(path => path !== tool.input && path !== command && !label.includes(path));
+  const paths = pathList.length ? `<p class="work-transcript-paths">${pathList.map(path => `<span class="mono">${escape(path)}</span>`).join(' ')}</p>` : '';
+  const edit = tool.toolKind === 'edit' || /^(?:edit|new file) \S/.test(tool.outputs.join('\n'));
+  const input = !command && tool.input && tool.input !== label ? `<p class="stream-detail">${escape(tool.input)}</p>` : '';
+  const state = shown.tone === 'success' ? `<span class="sr-only">${escape(shown.label)}</span>` : ui.badge({ tone: shown.tone, label: shown.label, size: 'sm' });
+  const name = label || (command ? 'Ran a command' : 'Tool call');
+  return streamItem({ kind: 'tool', tone: shown.tone, marker: icon(toolGlyphs[tool.toolKind] || 'zap'), head: `<span class="stream-tool">${escape(name)}</span>${state}${time(tool.at)}`, body: `${input}${paths}${toolConsole(tool, { command, edit, base })}` });
 }
 
 function itemMarkup(item, { base, actor, complete }) {
