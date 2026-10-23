@@ -393,7 +393,7 @@ async function loadContext(id, { fresh = false } = {}) {
 async function loadLinked(id) {
   const request = ++work.linkedRequest;
   let data;
-  try { data = { sessions: (await api(`/api/linked-sessions?workItemId=${encodeURIComponent(id)}`)).sessions, error: '' }; }
+  try { data = { sessions: (await api(`/api/linked-sessions?workItemId=${encodeURIComponent(id)}&telemetry=1`)).sessions, error: '' }; }
   catch (error) { if (work.linked?.id === id && work.linked.data && !work.linked.data.error) return; data = { sessions: [], error: error.message || 'Unfold could not list the agent sessions.' }; }
   if (request !== work.linkedRequest || work.detailId !== id) return;
   const next = signature(data);

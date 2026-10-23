@@ -8,7 +8,7 @@ The same directory is also an [Agent Plugin](https://github.com/agentplugins/age
 
 | Client | Manifest it reads | What it loads from this plugin |
 | --- | --- | --- |
-| Claude Code | `.claude-plugin/plugin.json` ([manifest reference](https://code.claude.com/docs/en/plugins-reference)) | `hooks/hooks.json`, `skills/` |
+| Claude Code | `.claude-plugin/plugin.json` ([manifest reference](https://code.claude.com/docs/en/plugins-reference)) | `hooks/hooks.json`, `skills/`, `commands/` |
 | GitHub Copilot CLI | `plugin.json`. A root manifest with the Agent Plugins `$schema` takes precedence over `.claude-plugin/plugin.json` ([plugin reference](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference)) | `skills/`. It would read `mcp.json` and `com.github.copilot/`, and neither ships |
 | VS Code 1.143 | `plugin.json`. VS Code checks for the Agent Plugins format before the Claude format ([authoring reference](https://code.visualstudio.com/docs/agents/reference/agent-plugin-reference)) | `skills/`. It would read `mcp.json` and `com.github.copilot/`, and neither ships |
 
@@ -57,6 +57,12 @@ When the specification allows configuration per installation, the plugin can shi
 | `PostToolUse` on `Bash` | `commit` for each new commit since the last one it saw, with the task and Work Item ids its message names as `mentions`, in every repository and worktree the session edited. Also any pull request address that a `pr create` command printed | Builds the commit's Agent Trace record, writes it to `refs/notes/agent-trace` and sends it to `POST /api/linked-sessions/<id>/traces` |
 | `Stop` | Any new commits, then `idle`. Also the name the person gave with `/rename` as `title`, and pull requests Claude Code recorded in the transcript (`pr-link`) that were not sent before | Claude Code's own summary title (`ai-title`) is sent only with `UNFOLD_SHARE_TRANSCRIPT=1` |
 | `SessionEnd` | Any new commits, then `end` | |
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `/unfold:start <work item>` | Starts the Run of a Work Item that waits for your own Claude Code (Ploeg ADR-0112). From a clone of the Work Item's repository, [`scripts/unfold-start.mjs`](scripts/unfold-start.mjs) claims the Run through `POST /api/ploeg/work-items/<id>/claim`, dispatches it with `claude -p <prompt> --environment <id> --ref <ref> --output-format json` under your own login, and records the printed session through `POST /api/ploeg/work-items/<id>/claude-session`. It claims nothing outside a clone of the repository. Set `UNFOLD_CLAUDE_BIN` to use another `claude`, and `UNFOLD_DISPATCH_TIMEOUT_MS` (default 180000) to wait longer for the dispatch |
 
 ## Behaviour
 

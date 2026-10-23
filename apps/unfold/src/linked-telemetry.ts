@@ -131,3 +131,32 @@ export async function readSessionTelemetry(observability: Observability, session
   out.reason = reasons.length ? reasons.join(' ') : null;
   return out;
 }
+
+/** The most session ids one digest query names, so the regex matcher stays small. */
+export const digestSessionLimit = 100;
+
+/**
+ * The PromQL query for the summed cost of several sessions over `range`: the highest value each session's cumulative
+ * cost counter reached, through one regex matcher on `session_id`. Only ids of the shape Unfold accepts are kept, so no
+ * id can widen the matcher.
+ */
+export function digestCostQuery(sessionIds: string[], range: string): string {
+  const ids = [...new Set(sessionIds.filter(id => /^[A-Za-z0-9_-]{8,128}$/.test(id)))].slice(0, digestSessionLimit);
+  return `sum(max_over_time(claude_code_cost_usage_USD_total{session_id=~${quoted(ids.join('|'))}}[${range}]))`;
+}
+
+/**
+ * Reads the summed API-price estimate of several sessions from `observability.metricsUrl` in one query. Answers null
+ * with a reason when no metrics store is configured, it could not be read, or there are no sessions to ask about.
+ */
+export async function readSessionsCost(observability: Observability, sessionIds: string[], range: string, options: { fetch?: typeof fetch } = {}): Promise<{ costUsd: number | null; reason: string | null }> {
+  if (!sessionIds.length) return { costUsd: 0, reason: null };
+  if (!observability?.metricsUrl) return { costUsd: null, reason: 'No metrics store is configured, so the cost is unknown.' };
+  try {
+    const result = await promQuery(observability.metricsUrl, digestCostQuery(sessionIds, range), options.fetch ?? fetch);
+    return { costUsd: result.length ? Math.round(result[0].value * 10_000) / 10_000 : 0, reason: null };
+  } catch (error) {
+    const failure = error as Error;
+    return { costUsd: null, reason: `The metrics store ${failure.name === 'TimeoutError' ? 'did not answer in time' : failure.message.startsWith('answered') ? failure.message : 'could not be read'}.` };
+  }
+}

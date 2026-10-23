@@ -1,15 +1,16 @@
 import { state, disconnect, onForget } from '../core/state.js';
 import { api } from '../core/api.js';
 import { escape, renderHtml, notify } from '../core/dom.js';
-import { callout, card, emptyState, skeleton, stateBadge } from '../core/ui.js';
+import { button, callout, card, emptyState, skeleton, stateBadge } from '../core/ui.js';
 import { linkedSessionPage, linkedStates, linkedStatusLine, attributionLine, sessionTitle } from '../core/linked-sessions.js';
 import { icon } from '../core/icons.js';
 import { collisions, collisionsOf, isLiveSession, runningRunsOf } from '../core/collisions.js';
 import { shell } from '../shell.js';
+import { digestMarkup, handOffMarkup, startWorkItemForm } from '../core/linked-handoff.js';
 
 const sessionPath = /^linked-session\/([A-Za-z0-9_-]{8,128})$/;
-const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, clashes: [], suggestions: [] };
-onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, clashes: [], suggestions: [] }));
+const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null };
+onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null }));
 const clashItems = 5;
 
 /** The event other views listen for after a Linked Session gained or lost a Work Item here. */
@@ -40,13 +41,19 @@ function settingsContent() {
   else if (!view.sessions.length) list = emptyState({ icon: 'bot', title: 'No sessions have reported yet', body: 'Once the plugin is installed, each Claude Code session you start shows up here within a second.', compact: true });
   else list = `<ul class="linked-session-list">${listRows(view.sessions, now)}</ul>`;
   const note = `<p class="settings-footnote">${icon('lock')}<span>The plugin sends the session id, title, repository, branch, model, state and commit ids. Prompts, files and your Claude credentials never leave your machine through it.</span></p>`;
-  return `<div class="settings-page">${setup}${card({ id: 'linked-mine', title: 'Your agent sessions', subtitle: 'Newest report first.', body: list })}${note}</div>`;
+  const windows = ['7d', '30d'].map(window => button({ label: window === '7d' ? '7 days' : '30 days', size: 'sm', variant: view.window === window ? 'primary' : 'ghost', action: 'linked-digest-window', data: { window } })).join(' ');
+  const digest = card({ id: 'linked-digest', title: 'Your sessions at a glance', subtitle: 'Counted from what your sessions reported; the cost is Claude Code’s own estimate.', actions: windows, body: view.digest?.error ? `<p class="meta">${escape(view.digest.error)}</p>` : view.digest ? digestMarkup(view.digest) : skeleton({ rows: 1 }) });
+  return `<div class="settings-page">${digest}${setup}${card({ id: 'linked-mine', title: 'Your agent sessions', subtitle: 'Newest report first.', body: list })}${note}</div>`;
 }
 
 function sessionContent() {
   if (view.error && !view.session) return callout({ tone: 'danger', title: 'Could not read this agent session', body: `<p>${escape(view.error)}</p>` });
   if (!view.session) return `<div class="card">${skeleton({ rows: 6, variant: 'text' })}</div>`;
-  return linkedSessionPage(view.session, { workItems: view.titles, suggestions: view.suggestions, clashes: view.clashes });
+  const page = linkedSessionPage(view.session, { workItems: view.titles, suggestions: view.suggestions, clashes: view.clashes });
+  if (!view.session.mine) return page;
+  const handOff = handOffMarkup(view.session, view.readiness);
+  const start = card({ id: 'linked-session-start', title: 'Start a Work Item from this session', subtitle: 'Hand the next piece of work to Ploeg and keep this session linked to it.', body: startWorkItemForm(view.session, view.options) });
+  return `${page}${handOff ? card({ id: 'linked-session-hand-off', title: 'Let Ploeg finish this', body: handOff }) : ''}${start}`;
 }
 
 function renderLinked() {
@@ -69,6 +76,14 @@ async function loadSession(id) {
     if (request !== view.request) return;
     view.suggestions = session.mine ? await api(`/api/linked-sessions/${encodeURIComponent(id)}/suggestions`).then(answer => answer.suggestions ?? [], () => []) : [];
     if (request !== view.request) return;
+    if (session.mine) {
+      const [options, readiness] = await Promise.all([
+        api(`/api/linked-sessions/${encodeURIComponent(id)}/start-options`).catch(error => ({ error: error.message })),
+        session.workItems.length ? api(`/api/linked-sessions/${encodeURIComponent(id)}/handoff`).catch(error => ({ workItems: session.workItems.slice(0, 5).map(entry => ({ id: entry.id, title: '', state: '', available: false, reason: error.message })) })) : null,
+      ]);
+      if (request !== view.request) return;
+      view.options = options; view.readiness = readiness;
+    }
   } catch (error) { if (request === view.request) view.error = error.message; }
   if (request === view.request && state.view === 'linked-sessions') renderLinked();
 }
@@ -81,10 +96,11 @@ async function clashesOf(session, details) {
 async function enterLinked(params) {
   disconnect(); state.session = null; state.view = 'linked-sessions';
   view.mode = params.id ? 'session' : 'settings';
-  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.clashes = []; view.suggestions = [];
+  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.clashes = []; view.suggestions = []; view.options = null; view.readiness = null;
   renderLinked();
   if (view.mode === 'session') return loadSession(view.id);
   const request = ++view.request;
+  void loadDigest();
   try { const { sessions } = await api('/api/linked-sessions'); if (request === view.request) view.sessions = sessions; }
   catch (error) { if (request === view.request) view.error = error.message; }
   if (request === view.request && state.view === 'linked-sessions') renderLinked();
@@ -119,6 +135,38 @@ async function link(data, form) {
   void loadSession(form.dataset.id);
 }
 
+async function loadDigest() {
+  const chosen = view.window;
+  try { const { digest } = await api(`/api/linked-sessions/digest?window=${chosen}`); if (view.window === chosen) view.digest = digest; }
+  catch (error) { if (view.window === chosen) view.digest = { error: error.message }; }
+  if (state.view === 'linked-sessions' && view.mode === 'settings') renderLinked();
+}
+
+async function digestWindow(element) {
+  view.window = element.dataset.window === '30d' ? '30d' : '7d';
+  view.digest = null;
+  renderLinked();
+  await loadDigest();
+}
+
+async function startWorkItem(data, form) {
+  const id = form.dataset.id;
+  const result = await api(`/api/linked-sessions/${encodeURIComponent(id)}/work-items`, { method: 'POST', body: JSON.stringify({ team: data.team, target: data.target, title: data.title, brief: data.brief, requestId: `unfold-linked-${crypto.randomUUID()}` }) });
+  window.dispatchEvent(new CustomEvent(linkedChangedEvent, { detail: { id, workItem: result.workItem.id } }));
+  notify(result.linkError || `Ploeg queued Work Item ${result.workItem.id} for ${result.workItem.team}. This session is linked to it.`, Boolean(result.linkError));
+  void loadSession(id);
+}
+
+async function handOff(element) {
+  element.disabled = true;
+  const { id, workItem } = element.dataset;
+  try {
+    const result = await api(`/api/linked-sessions/${encodeURIComponent(id)}/work-items/${encodeURIComponent(workItem)}/handoff`, { method: 'POST', body: JSON.stringify({ commandId: `unfold-handoff-${crypto.randomUUID()}` }) });
+    notify(result.requeue.demo ? 'This is the demo: nothing restarted and nothing was spent.' : `Ploeg started Work Item ${workItem} over from Round ${result.requeue.fromRound}. Its Runs read where your session left off.`);
+  } catch (error) { element.disabled = false; throw error; }
+  void loadSession(id);
+}
+
 async function copy(element) {
   try { await navigator.clipboard.writeText(element.dataset.text); notify('Copied. Paste it into a terminal on the machine that ran the session.'); }
   catch { notify('The browser did not allow copying. Select the command instead.', true); }
@@ -133,7 +181,7 @@ export default {
   match: hash => hash === 'settings/agent-sessions' ? {} : (sessionPath.exec(hash) ? { id: sessionPath.exec(hash)[1] } : null),
   enter: enterLinked,
   render: renderLinked,
-  actions: { 'linked-session-unlink': unlink, 'linked-session-copy': copy, 'linked-session-suggest': linkSuggested },
-  forms: { 'linked-session-link': link },
+  actions: { 'linked-session-unlink': unlink, 'linked-session-copy': copy, 'linked-session-suggest': linkSuggested, 'linked-session-hand-off': handOff, 'linked-digest-window': digestWindow },
+  forms: { 'linked-session-link': link, 'linked-session-start': startWorkItem },
 };
 

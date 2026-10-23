@@ -62,7 +62,7 @@ export const refusedRoutes = Object.freeze([
   { method: '*', path: '/api/agent-host' }, { method: '*', path: '/api/agent-host/tokens' }, { method: 'GET', path: `/api/agent-host/${id}/${id}/link` },
   { method: '*', path: '/api/editor-credentials' }, { method: '*', path: `/api/editor-credentials/${id}` }, { method: '*', path: `/api/editor-requests/${id}` }, { method: '*', path: `/api/editor-requests/${id}/${id}` },
   { method: '*', path: '/api/links' }, { method: '*', path: `/api/links/${id}` },
-  { method: '*', path: '/api/linked-sessions' }, { method: '*', path: `/api/linked-sessions/${id}` }, { method: '*', path: `/api/linked-sessions/${id}/${id}` }, { method: '*', path: `/api/linked-sessions/${id}/work-items/${id}` }, { method: 'GET', path: `/api/agent-trace/${id}` },
+  { method: '*', path: '/api/linked-sessions' }, { method: '*', path: `/api/linked-sessions/${id}` }, { method: '*', path: `/api/linked-sessions/${id}/${id}` }, { method: '*', path: `/api/linked-sessions/${id}/work-items/${id}` }, { method: 'POST', path: `/api/linked-sessions/${id}/work-items/${id}/handoff` }, { method: 'GET', path: `/api/agent-trace/${id}` },
   { method: 'PUT', path: '/api/me/card-identity' }, { method: '*', path: `/api/cards/${id}/world` }, { method: 'POST', path: '/api/binder/seen' }, { method: 'POST', path: `/api/packs/${id}/open` },
   { method: '*', path: `/api/card-themes/${id}` }, { method: 'POST', path: '/api/card-assets' }, { method: 'GET', path: `/api/card-assets/${id}` }, { method: 'POST', path: '/api/card-art/generate' },
   { method: 'POST', path: '/api/status/notes' }, { method: 'POST', path: `/api/status/notes/${id}/resolve` },
