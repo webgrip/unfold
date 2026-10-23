@@ -33,6 +33,7 @@ test('a session page calls the cost an API-price estimate, offers resume only to
   assert.doesNotMatch(theirs, /Telemetry/);
   assert.match(linkedSessionPage({ ...session, mine: true, telemetry: { ...telemetry, available: false, reason: 'No metrics store is configured.' } }, { now }), /No telemetry for this session[\s\S]*No metrics store is configured/);
   assert.equal(attributionLine({ commits: [] }), 'No commits yet');
+  assert.doesNotMatch(linkedSessionPage({ ...session, harness: 'acp', resume: '', mine: true }, { now }), /Resume it on your machine/, 'a session without a resume command offers none');
   assert.match(linkedStatusLine({ ...session, state: 'stale' }, now), /^Not heard from · last heard/);
 });
 

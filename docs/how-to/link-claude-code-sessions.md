@@ -3,7 +3,7 @@ type: how-to
 audience: [owner, contributor]
 owner: unfold
 last_verified: 2026-10-24
-verified_by: "Read apps/unfold/src/linked-sessions.ts, src/linked-telemetry.ts, src/agent-trace.ts and extensions/claude-code; ran test/linked-sessions.test.ts, test/claude-code-plugin.test.ts, test/linked-sessions-view.test.mjs, test/linked-handoff.test.ts, test/linked-handoff-view.test.mjs and test/claude-code-start.test.ts against a fake Ploeg and a fake claude binary; /unfold:start has not dispatched to a real Claude environment. Not yet checked against the homelab or a real Claude Code session. On 2026-10-23 the repository and organisation sections were read against the Claude Code settings reference (extraKnownMarketplaces, enabledPlugins, strictKnownMarketplaces), the GitHub Copilot enterprise-managed settings reference and the VS Code 1.143.1 sessions bundle, which reads both settings files; no install was run."
+verified_by: "Read apps/unfold/src/linked-sessions.ts, src/linked-telemetry.ts, src/agent-trace.ts and extensions/claude-code; ran test/linked-sessions.test.ts, test/claude-code-plugin.test.ts, test/linked-sessions-view.test.mjs, test/linked-handoff.test.ts, test/linked-handoff-view.test.mjs and test/claude-code-start.test.ts against a fake Ploeg and a fake claude binary; /unfold:start has not dispatched to a real Claude environment. On 2026-10-24 the ACP section was read against extensions/acp-proxy and test/acp-proxy.test.ts (a fake agent and editor over pipes), and against the ACP protocol pages and the Zed and JetBrains agent configuration docs; no real editor was run. Not yet checked against the homelab or a real Claude Code session. On 2026-10-23 the repository and organisation sections were read against the Claude Code settings reference (extraKnownMarketplaces, enabledPlugins, strictKnownMarketplaces), the GitHub Copilot enterprise-managed settings reference and the VS Code 1.143.1 sessions bundle, which reads both settings files; no install was run."
 ---
 
 # Link your Claude Code sessions to Work Items
@@ -116,6 +116,27 @@ When one of your sessions waits for you, to approve a tool, for your next prompt
 * **Let Ploeg finish it.** On your session's page, **Let Ploeg finish this** restarts a linked Work Item that is stopped (Needs you, Stale or Ready for review, with no attempt open). The new attempt's Runs read a note with your session's link, branch, last commit and pull request. The button says why when Ploeg cannot take it now.
 * **Take it over from Ploeg.** On a Work Item, **Continue in my Claude Code** gives a command to copy: it fetches and switches to Ploeg's branch and starts `claude` with `UNFOLD_WORK_ITEM` set, so the session links itself, and a short brief (title, the latest Run's report, open questions) as the first prompt. Without a branch it only starts a linked session. Run it in a clone of the repository.
 * **Start a Run that waits for you.** When a Team's Runs are carried by their person's own Claude Code ([Ploeg ADR-0112](../../apps/ploeg/docs/adrs/0112-a-claude-environment-run-uses-the-claude-login-of-the-person-it-acts-for.md)), the Work Item shows **Start in my Claude** to the person it waits for. Run `/unfold:start <id>` in Claude Code from a clone of the repository. The plugin claims the Run through Unfold, dispatches it with your own `claude` login to the Team's Claude environment (`claude -p … --environment … --ref … --output-format json`), and records the session on the Run. Unfold keeps the Run's credential and never sends it to your machine. Once the session is recorded you can close your machine: Ploeg settles the Run when the session ends. If the dispatch fails after the claim, the Run stays claimed until the deadline the command prints.
+
+## Editors that speak the Agent Client Protocol
+
+Zed, JetBrains AI Assistant and the Neovim ACP plugins start their agent over the [Agent Client Protocol](https://agentclientprotocol.com). To report those sessions, whatever agent runs behind them, let the editor start [`unfold-acp`](../../apps/unfold/extensions/acp-proxy/README.md) in front of the agent:
+
+```json
+{
+  "agent_servers": {
+    "Gemini via Unfold": {
+      "type": "custom",
+      "command": "node",
+      "args": ["/path/to/unfold/apps/unfold/extensions/acp-proxy/bin/unfold-acp.mjs", "--", "gemini", "--experimental-acp"],
+      "env": { "UNFOLD_URL": "https://unfold.example.org", "UNFOLD_TOKEN": "vle_…" }
+    }
+  }
+}
+```
+
+That is Zed's `settings.json`. JetBrains reads the same `agent_servers` block, without `type`, from `~/.jetbrains/acp.json`. The README has both in full. Use the credential from step 1.
+
+`unfold-acp` passes every message on unchanged and reports the session with `harness: acp`. Its title starts with the agent's name. The session shows as working during a prompt turn, waiting while the agent asks a permission, and idle when the turn ends. Commits follow the same rules as in Claude Code. Lines get an Agent Trace record only when an edit tool call that sent a diff completed. Other commits are reported without one. These sessions have no resume command in Unfold, because only the editor can resume them. If the agent is Claude Code through an ACP adapter and the plugin is installed too, the plugin may report the same work as a second session.
 
 ## What leaves your machine
 

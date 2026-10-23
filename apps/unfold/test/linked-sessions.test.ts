@@ -81,6 +81,13 @@ test('the first report claims the session, its branch links the Work Item the pe
   await assert.rejects(linked.report(outsider, event({ event: 'prompt' }), base), { status: 404 });
 });
 
+test('an ACP session reported through the proxy is a Linked Session with no resume command, since only its editor can resume it', async () => {
+  const linked = service(fakePloeg());
+  const { session } = await linked.report(owner, event({ harness: 'acp', sessionId: 'acp-sess_abc123', title: 'Gemini CLI · unfold' }), base);
+  assert.deepEqual([session.harness, session.title, session.resume], ['acp', 'Gemini CLI · unfold', '']);
+  await assert.rejects(linked.report(owner, event({ harness: 'claude-code', sessionId: 'acp-sess_abc123', event: 'prompt' }), base), { code: 'linked_harness' });
+});
+
 test('states follow the hooks, a silent working session reads as stale, and a commit after the end reopens it as idle', async () => {
   const linked = service();
   assert.equal((await linked.report(owner, event({ event: 'prompt' }), base)).session.state, 'working');

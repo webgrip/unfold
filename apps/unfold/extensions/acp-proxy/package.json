@@ -1,0 +1,14 @@
+{
+  "name": "@webgrip/unfold-acp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reports Agent Client Protocol sessions to Unfold: an editor launches it in place of the agent, and it relays every message unchanged.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "bin": {
+    "unfold-acp": "bin/unfold-acp.mjs"
+  }
+}
