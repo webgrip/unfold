@@ -25,3 +25,9 @@ The container image includes ws 8.22.0 (node_modules/ws/), Copyright 2011 Einar
 Otto Stangvik, 2013 Arnout Kazemier and contributors, and 2016 Luigi Pinca and
 contributors, licensed under the MIT License. Its licence text is
 node_modules/ws/LICENSE and travels with the package.
+
+The Claude Code plugin (extensions/claude-code/) bundles an unchanged copy of
+the Agent Plugins 1.0.0 manifest schema
+(extensions/claude-code/schemas/agent-plugins/1.0.0/plugin.schema.json), from
+https://github.com/agentplugins/agent-plugins-spec at commit
+ff8ab5e392cc87bd88d87c060815a87490e51003, licensed under the Apache License 2.0.
