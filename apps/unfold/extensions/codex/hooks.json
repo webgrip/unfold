@@ -1,0 +1,82 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/path/to/unfold/apps/unfold/extensions/codex/unfold-codex.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/path/to/unfold/apps/unfold/extensions/codex/unfold-codex.mjs\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/path/to/unfold/apps/unfold/extensions/codex/unfold-codex.mjs\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(Bash|apply_patch)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/path/to/unfold/apps/unfold/extensions/codex/unfold-codex.mjs\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/path/to/unfold/apps/unfold/extensions/codex/unfold-codex.mjs\"",
+            "timeout": 20
+          }
+        ]
+      }
+    ],
+    "Interrupt": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/path/to/unfold/apps/unfold/extensions/codex/unfold-codex.mjs\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/path/to/unfold/apps/unfold/extensions/codex/unfold-codex.mjs\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

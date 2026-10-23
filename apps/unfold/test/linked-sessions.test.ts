@@ -52,7 +52,7 @@ test('a hook report keeps only the fields Unfold uses, strips credentials from t
   assert.equal('prompt' in parsed, false);
   assert.equal(repositoryAddress('git@forgejo.example.org:webgrip/unfold.git'), 'forgejo.example.org:webgrip/unfold.git');
   assert.equal(event({ remoteUrl: 'https://evil.example/code/x' }).remoteUrl, '');
-  assert.throws(() => event({ harness: 'codex' }), { code: 'linked_harness' });
+  assert.throws(() => event({ harness: 'cursor' }), { code: 'linked_harness' });
   assert.throws(() => event({ event: 'deploy' }), { code: 'linked_event' });
   assert.throws(() => event({ sessionId: '../etc' }), { code: 'linked_session_id' });
   assert.throws(() => event({ event: 'commit', commit: { sha: 'abc' } }), { code: 'linked_commit' });

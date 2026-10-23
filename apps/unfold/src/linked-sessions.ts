@@ -4,7 +4,7 @@ import { parseAgentTrace, traceLines, traceLinesByAgent, type AgentTraceRecord }
 import { readSessionTelemetry, type SessionTelemetry } from './linked-telemetry.ts';
 
 /** The harnesses whose sessions a person can link. */
-export const linkedHarnesses = ['claude-code'] as const;
+export const linkedHarnesses = ['claude-code', 'opencode', 'codex'] as const;
 /** What a harness hook reports: the session started, took a prompt, waits for its person, stopped working, ended, or committed. */
 export const linkedEvents = ['start', 'prompt', 'waiting', 'idle', 'end', 'commit'] as const;
 /** A working or waiting session not heard from for this long shows as stale. */
@@ -15,6 +15,11 @@ export const linkedLimits = { workItems: 20, commits: 200, pullRequests: 20, tra
 export const trackerPrefixes: Readonly<Record<string, string>> = { vik: 'vikunja' };
 
 export type LinkedHarness = typeof linkedHarnesses[number];
+const harnessLabels: Record<LinkedHarness, string> = { 'claude-code': 'Claude Code', opencode: 'OpenCode', codex: 'Codex' };
+/** The command that resumes a harness session on its owner's machine, such as `claude --resume <id>`. */
+export function resumeCommand(harness: LinkedHarness, id: string): string {
+  return harness === 'opencode' ? `opencode --session ${id}` : harness === 'codex' ? `codex resume ${id}` : `claude --resume ${id}`;
+}
 export type LinkedEvent = typeof linkedEvents[number];
 export type LinkedStatus = 'working' | 'waiting' | 'idle' | 'ended';
 /**
@@ -362,7 +367,7 @@ export class LinkedSessions {
     }));
     const linked = items.length ? `It is linked to ${items.join(', ')}.` : 'It is not linked to a Work Item yet.';
     return [
-      `Unfold records this Claude Code session as ${session.link} (session id ${session.id}). ${linked}`,
+      `Unfold records this ${harnessLabels[session.harness] ?? 'agent'} session as ${session.link} (session id ${session.id}). ${linked}`,
       `When you commit, end the message with the trailer line "Unfold-Session: ${session.link}".`,
       `To link this session to a Work Item, call the unfold_link_session tool with session_id ${session.id} and the Work Item id.`,
       ...(credential?.expiresSoon ? [`The Unfold credential this session reports with expires ${credential.expiresAt.slice(0, 10)}. Tell the person once, early, to sign in again and replace UNFOLD_TOKEN, or their sessions stop reporting to Unfold.`] : []),
@@ -373,7 +378,7 @@ export class LinkedSessions {
   async view(user: User, id: string, base: string, withTelemetry = false): Promise<PresentedLinkedSession> {
     const session = await this.readable(user, id);
     const presented = this.present(session, user, base);
-    if (withTelemetry && (session.ownerId === user.id || user.role === 'admin')) presented.telemetry = await readSessionTelemetry(this.config.observability, session.id, session.startedAt, { fetch: this.fetcher, now: this.clock().getTime() });
+    if (withTelemetry && session.harness === 'claude-code' && (session.ownerId === user.id || user.role === 'admin')) presented.telemetry = await readSessionTelemetry(this.config.observability, session.id, session.startedAt, { fetch: this.fetcher, now: this.clock().getTime() });
     return presented;
   }
 
@@ -456,6 +461,6 @@ export class LinkedSessions {
 
   private present(session: LinkedSession, user: User, base: string): PresentedLinkedSession {
     const { dismissed: _dismissed, resolvedBranch: _resolved, ...shown } = session;
-    return { ...structuredClone(shown), state: linkedState(session, this.clock().getTime()), displayTitle: displayTitle(session), link: LinkedSessions.page(base, session.id), resume: `claude --resume ${session.id}`, mine: session.ownerId === user.id, aiLines: session.commits.reduce((sum, entry) => sum + (entry.aiLines ?? 0), 0) };
+    return { ...structuredClone(shown), state: linkedState(session, this.clock().getTime()), displayTitle: displayTitle(session), link: LinkedSessions.page(base, session.id), resume: resumeCommand(session.harness, session.id), mine: session.ownerId === user.id, aiLines: session.commits.reduce((sum, entry) => sum + (entry.aiLines ?? 0), 0) };
   }
 }
