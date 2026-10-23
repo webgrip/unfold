@@ -13,6 +13,7 @@ Before delivery, run `mise run verify` from the repository root: it adds `design
 - Durable events survive disconnects. An intentional pause or cancel never becomes an automatic retry, and a restart never silently repeats paid work.
 - Native harness session state is opaque. Portable hand-offs use repository changes and structured evidence.
 - The tracker owns priority. Ploeg owns dispatch and execution.
+- Never clip a label Unfold writes with an ellipsis; wrap or reword it, as [Browser UI](docs/browser-ui.md#accessibility) explains.
 
 ## Where things live
 

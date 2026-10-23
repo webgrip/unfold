@@ -102,3 +102,15 @@ test('a hop’s height is read off its points so a mark meets its line', () => {
   assert.equal(heightAt(points, 100), 30);
   assert.ok(heightAt(points, 11) < 96 && heightAt(points, 11) > 30);
 });
+
+test('the ask reads its day and clock time, and an attempt names its day only when the day changed', () => {
+  const list = legs('running');
+  assert.match(list.find(leg => leg.kind === 'gate').note, /^\d{1,2} [A-Z][a-z]{2} \d{2}:\d{2}$/);
+  const [first, second] = list.filter(leg => leg.kind === 'attempt').map(leg => leg.time);
+  assert.match(first, /^\d{1,2} Oct \d{2}:\d{2}–\d{2}:\d{2}$/, 'the ticket was asked three days before the first attempt');
+  assert.match(second, /^\d{2}:\d{2}–now$/, 'the second attempt flies the same day as the first');
+});
+
+test('the review station keeps its full name', () => {
+  assert.equal(legs('review').find(leg => leg.id === 'review').label, 'Your review');
+});
