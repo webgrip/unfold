@@ -50,7 +50,10 @@
       "supported": "limited",
       "description": "Session inspection works. Sending editor content requires a trusted workspace."
     },
-    "virtualWorkspaces": true
+    "virtualWorkspaces": true,
+    "agentsWindow": {
+      "supported": true
+    }
   },
   "activationEvents": [
     "onView:unfold.now",
