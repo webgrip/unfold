@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -158,4 +158,18 @@ test('the hook sends the ids a prompt and a commit message name, never their tex
   await run({ hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input: { command: 'git commit' }, tool_response: {} });
   const commit = received.find(entry => entry.body.event === 'commit');
   assert.deepEqual(commit?.body.mentions, { refs: ['VIK-2190'], workItems: [] });
+
+  const transcript = join(dir, 'transcript.jsonl');
+  await writeFile(transcript, [
+    { type: 'ai-title', aiTitle: 'Summary of a secret plan', sessionId: 'plugin-session-9' },
+    { type: 'custom-title', customTitle: 'Login fix', sessionId: 'plugin-session-9' },
+    { type: 'pr-link', sessionId: 'plugin-session-9', prNumber: 514, prUrl: 'https://forgejo.example.org/webgrip/unfold/pulls/514' },
+  ].map(line => JSON.stringify(line)).join('\n') + '\n');
+  await run({ hook_event_name: 'Stop', transcript_path: transcript });
+  const stopped = received.filter(entry => entry.body.event === 'idle').at(-1);
+  assert.equal(stopped?.body.title, 'Login fix', 'a name the person gave with /rename is the title');
+  assert.deepEqual(stopped?.body.pullRequests, ['https://forgejo.example.org/webgrip/unfold/pulls/514'], 'a pull request Claude Code recorded is reported');
+  await run({ hook_event_name: 'Stop', transcript_path: transcript });
+  assert.equal(received.filter(entry => entry.body.event === 'idle').at(-1)?.body.pullRequests, undefined, 'a reported pull request is sent once');
+  assert.equal(JSON.stringify(received).includes('secret plan'), false, 'Claude Code’s own summary title stays local unless the person shares the transcript');
 });

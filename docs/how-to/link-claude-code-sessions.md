@@ -98,7 +98,7 @@ Replace the two addresses with your own. GitHub documents only `github` marketpl
 * **Or just name the work.** A prompt or a commit message that names the ticket (`VIK-2051`), pastes the Unfold link (`…/#work/184`) or says "Work Item 184" links that Work Item. The plugin finds those ids on your machine and sends only the ids, never the text.
 * **Pull requests link too.** When the session opens a pull request that is a Work Item's, for example while fixing up a Ploeg pull request, the session links to that Work Item.
 * **Or pick it on the page.** The session's page suggests open Work Items on the same repository, with a **Link** button each, and has a field to link any Work Item by id. A Work Item you unlink is never linked again automatically.
-* **Titles.** A session without a title shows the subject of its first commit, or its branch in words, such as "Connect a repository" for `docs/connect-a-repository`.
+* **Titles.** A name you give the session with `/rename` becomes its title in Unfold. A session without one shows the subject of its first commit, or its branch in words, such as "Connect a repository" for `docs/connect-a-repository`.
 * **Credential reminders.** When your Unfold credential expires within a week, the session tells you once when it starts. Sign in again (step 1) and replace `UNFOLD_TOKEN`.
 * **Commits.** The session is asked to end each commit with `Unfold-Session: <its page>`. After each commit the plugin writes an Agent Trace record to `refs/notes/agent-trace` and sends it to Unfold. To share the records on the forge, push them: `git push origin refs/notes/agent-trace`.
 

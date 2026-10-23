@@ -55,7 +55,7 @@ When the specification allows configuration per installation, the plugin can shi
 | `Notification` | `waiting`, for `permission_prompt`, `idle_prompt`, `elicitation_dialog` and `agent_needs_input` only | |
 | `PostToolUse` on `Write`, `Edit`, `MultiEdit` and `NotebookEdit` | Nothing | Remembers fingerprints of the lines written, per file and per repository, and which agent wrote each: `main`, or the subagent's `agent_type`. They are kept in `${CLAUDE_PLUGIN_DATA}/sessions/<id>.json`. The repository is the one the file is in, so a subagent working in its own git worktree is followed too |
 | `PostToolUse` on `Bash` | `commit` for each new commit since the last one it saw, with the task and Work Item ids its message names as `mentions`, in every repository and worktree the session edited. Also any pull request address that a `pr create` command printed | Builds the commit's Agent Trace record, writes it to `refs/notes/agent-trace` and sends it to `POST /api/linked-sessions/<id>/traces` |
-| `Stop` | Any new commits, then `idle` | |
+| `Stop` | Any new commits, then `idle`. Also the name the person gave with `/rename` as `title`, and pull requests Claude Code recorded in the transcript (`pr-link`) that were not sent before | Claude Code's own summary title (`ai-title`) is sent only with `UNFOLD_SHARE_TRANSCRIPT=1` |
 | `SessionEnd` | Any new commits, then `end` | |
 
 ## Behaviour
