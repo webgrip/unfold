@@ -2,8 +2,8 @@
 type: how-to
 audience: [owner, contributor]
 owner: unfold
-last_verified: 2026-10-17
-verified_by: "Read apps/unfold/src/linked-sessions.ts, src/linked-telemetry.ts, src/agent-trace.ts and extensions/claude-code; ran test/linked-sessions.test.ts, test/claude-code-plugin.test.ts and test/linked-sessions-view.test.mjs. Not yet checked against the homelab or a real Claude Code session."
+last_verified: 2026-10-23
+verified_by: "Read apps/unfold/src/linked-sessions.ts, src/linked-telemetry.ts, src/agent-trace.ts and extensions/claude-code; ran test/linked-sessions.test.ts, test/claude-code-plugin.test.ts and test/linked-sessions-view.test.mjs. Not yet checked against the homelab or a real Claude Code session. On 2026-10-23 the repository and organisation sections were read against the Claude Code settings reference (extraKnownMarketplaces, enabledPlugins, strictKnownMarketplaces), the GitHub Copilot enterprise-managed settings reference and the VS Code 1.143.1 sessions bundle, which reads both settings files; no install was run."
 ---
 
 # Link your Claude Code sessions to Work Items
@@ -51,6 +51,46 @@ In Claude Code:
 ```
 
 To link sessions from the agent as well, register `unfold-mcp` ([Ask Unfold and Ploeg from an AI client](ask-from-an-ai-client.md)). The plugin's skill then calls `unfold_link_session` when you name a Work Item.
+
+### For everyone who opens a repository
+
+To give every person who works in a repository the plugin without the two commands, commit this to the repository's `.claude/settings.json`:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "unfold": {
+      "source": { "source": "git", "url": "https://forgejo.webgrip.dev/webgrip/unfold.git" }
+    }
+  },
+  "enabledPlugins": { "unfold@unfold": true }
+}
+```
+
+Claude Code registers the marketplace and offers the plugin once a person accepts the workspace trust dialog for the folder; in a folder nobody trusted it ignores both keys. VS Code 1.143 reads the same file for its Copilot, Claude and Codex harnesses, also only after trust, and installs the plugin for the session without writing it to the person's settings. GitHub Copilot reads `.github/copilot/settings.json` with the same two keys; when both files name the plugin, the `.claude` one wins. Copilot and VS Code install the plugin's skill from version 0.3.0 on; the hooks that report sessions run in Claude Code only.
+
+The plugin does nothing for a person who has not done steps 1 and 2: without `UNFOLD_URL` and `UNFOLD_TOKEN` its hooks print nothing and exit. Point the `url` at your own mirror if you build Unfold from one.
+
+### For a whole organisation
+
+An administrator can install it on every managed machine instead. In Claude Code's `managed-settings.json`, the same two keys apply everywhere and need no trust step; add `strictKnownMarketplaces` with the same source to allow only approved marketplaces. For GitHub Copilot in Copilot CLI, VS Code and JetBrains IDEs, the enterprise-managed settings take the same `extraKnownMarketplaces` and `enabledPlugins`, and `allowedMcpServers` can allow Unfold's two MCP servers by address:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "unfold": {
+      "source": { "source": "git", "url": "https://forgejo.webgrip.dev/webgrip/unfold.git" }
+    }
+  },
+  "enabledPlugins": { "unfold@unfold": true },
+  "allowedMcpServers": [
+    { "serverUrl": "https://mcp-ploeg.example.org/*" },
+    { "serverUrl": "https://mcp-unfold.example.org/*" }
+  ]
+}
+```
+
+Replace the two addresses with your own. GitHub documents only `github` marketplace sources in that file, so check that your Copilot version accepts a `git` source before you roll it out. VS Code shows Unfold's own sessions through `chat.remoteAgentHosts`, which no managed setting controls; leave `chat.remoteAgentHostsEnabled` on.
 
 ## 4. Work as usual
 
