@@ -74,7 +74,7 @@ test('repositories compare by owner and name whatever the address form', () => {
 const detail = { item: { id: '184', target: { owner: 'webgrip', repo: 'unfold', baseBranch: 'development' } }, shifts: [{ id: 's1', branch: 'agent/vik-2051' }], runs: [{ id: 'r1', workItemId: '184', shiftId: 's1', role: 'builder', state: 'running' }, { id: 'r0', workItemId: '184', shiftId: 's1', role: 'builder', state: 'finished' }] };
 
 test('the running Runs of a Work Item carry its repository and their Shift’s branch', () => {
-  assert.deepEqual(runningRunsOf(detail), [{ id: 'r1', workItemId: '184', role: 'builder', repository: 'webgrip/unfold', branch: 'agent/vik-2051' }]);
+  assert.deepEqual(runningRunsOf(detail), [{ id: 'r1', workItemId: '184', role: 'builder', repository: 'webgrip/unfold', branch: 'agent/vik-2051', startedAt: null, shiftOpenedAt: null }]);
   assert.deepEqual(runningRunsOf(null), []);
 });
 

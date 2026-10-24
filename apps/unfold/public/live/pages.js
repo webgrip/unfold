@@ -9,6 +9,7 @@ import { nowLine } from './layouts.js';
 import { cx, escape } from './parts.js';
 import { activitySummary, moveList, traceLanes } from './trace.js';
 import { workKindMeta } from '../core/work-kind.js';
+import { workTracksMarkup } from '../core/work-tracks.js';
 import { acceptanceLedger, roleRoster, decisionDock, intentBar, leaseBaton, originStamp, presenceStack, spendTape, timeline } from './work-parts.js';
 
 function headerActions(view, extras) {
@@ -70,6 +71,7 @@ export const workTabs = Object.freeze(['log', 'brief', 'trace', 'evidence']);
  * @param {string} [extras.selectedCall]
  * @param {(runId: string) => string} [extras.runDetail] The body of one Run: what it did, its transcript and its pod
  *   logs. Without it a Run in the log is a closed ticket.
+ * @param {(run: object) => { tone: string, label: string }} [extras.runTone] How a Run bar on the two tracks reads.
  * @param {{ decision?: string, actions?: string, evidence?: string, evidenceLabel?: string, side?: string }} [extras.session]
  *   The parts of the session that started the Work Item, already drawn by the app.
  * @param {(text: string) => string} [render] The brief's Markdown renderer.
@@ -98,7 +100,7 @@ export function workItemPage(view, extras = {}, render = text => `<p>${escape(te
     `<section class="lv-panel" aria-label="Roles"><h2 class="lv-overline">Roles</h2>${roleRoster(view)}${leaseBaton(view)}${presenceStack(view, { names: true })}</section>`,
     session?.side ? `<div class="lv-unified-session">${session.side}</div>` : '',
   ].join('');
-  return `<article class="lv lv-page lv-desk lv-unified" data-live="work-item" aria-labelledby="lv-page-title-${escape(view.id)}">${head(view, extras)}${foldStrip(live)}${contain(view)}${decisionBand(view, extras)}${flightDeck(view, extras)}<div class="lv-page-cols"><div class="lv-page-main"><section class="lv-panel lv-desk-main" aria-label="Work Item views"><fieldset class="lv-desk-tabs"><legend class="sr-only">Show</legend>${switches}</fieldset>${panels}</section>${intentBar(view, { id: `lv-unified-intent-${view.id}`, mode: extras.intent })}</div><aside class="lv-page-side" aria-label="At a glance">${side}</aside></div></article>`;
+  return `<article class="lv lv-page lv-desk lv-unified" data-live="work-item" aria-labelledby="lv-page-title-${escape(view.id)}">${head(view, extras)}${foldStrip(live)}${contain(view)}${decisionBand(view, extras)}${flightDeck(view, extras)}<div class="lv-page-cols"><div class="lv-page-main">${view.tracks ? workTracksMarkup(view.tracks.model, { detail: view.tracks.detail, sessions: view.tracks.sessions, now: live.now, runTone: extras.runTone }) : ''}<section class="lv-panel lv-desk-main" aria-label="Work Item views"><fieldset class="lv-desk-tabs"><legend class="sr-only">Show</legend>${switches}</fieldset>${panels}</section>${intentBar(view, { id: `lv-unified-intent-${view.id}`, mode: extras.intent })}</div><aside class="lv-page-side" aria-label="At a glance">${side}</aside></div></article>`;
 }
 
 /**

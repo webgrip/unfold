@@ -6,18 +6,43 @@ const minute = 60_000;
 const hour = 60 * minute;
 const day = 24 * hour;
 const steps = [minute, 5 * minute, 15 * minute, 30 * minute, hour, 2 * hour, 3 * hour, 6 * hour, 12 * hour, day, 2 * day, 7 * day, 14 * day, 30 * day, 90 * day];
-const groupOrder = ['ticket', 'status', 'shift', 'run', 'pullRequest', 'ci', 'environment'];
+const groupOrder = ['ticket', 'status', 'shift', 'run', 'people', 'pullRequest', 'ci', 'environment'];
 const labelledShare = 9;
 const shortDay = at => new Intl.DateTimeFormat(formatLocale() === 'nl' ? 'nl-NL' : undefined, { day: 'numeric', month: 'short' }).format(at);
 const toMs = value => { const at = Date.parse(value ?? ''); return Number.isFinite(at) ? at : null; };
 
+const sessionStates = new Set(['working', 'waiting', 'idle']);
+const sessionHarness = { 'claude-code': 'Claude Code', opencode: 'OpenCode', codex: 'Codex', acp: 'ACP agent' };
+
+/**
+ * One lane per person and harness for the Linked Sessions people ran on a Work Item, each session a bar from its start
+ * to its end (open while it still works, waits or sits idle) that links to its page. Sessions without a start are left out.
+ * @returns {{ key: string, group: 'people', label: string, sublabel: string, url: null, bars: object[], marks: object[] }[]}
+ */
+export function sessionLanes(sessions = []) {
+  const lanes = new Map();
+  for (const session of sessions ?? []) {
+    if (toMs(session.startedAt) === null) continue;
+    const person = session.mine ? 'You' : session.ownerName || 'Someone';
+    const harness = sessionHarness[session.harness] ?? String(session.harness || 'Agent');
+    const key = `people:${person}#${harness}`;
+    const lane = lanes.get(key) ?? { key, group: 'people', label: person, sublabel: harness, url: null, bars: [], marks: [] };
+    const open = sessionStates.has(session.state) && !session.endedAt;
+    const commits = Array.isArray(session.commits) ? session.commits.length : 0;
+    lane.bars.push({ start: session.startedAt, end: open ? null : session.endedAt ?? session.lastSeenAt ?? session.startedAt, label: session.displayTitle || session.title || `${harness} session`, detail: `${harness} session · ${commits} ${commits === 1 ? 'commit' : 'commits'}`, tone: session.state === 'waiting' ? 'attention' : open ? 'review' : 'neutral', waiting: session.state === 'idle', href: `#linked-session/${encodeURIComponent(session.id)}` });
+    lanes.set(key, lane);
+  }
+  return [...lanes.values()];
+}
+
 /**
  * The lanes of a Work Item's value-stream chart: the server's tracker, pull request, CI and environment lanes with a
- * Shift lane and one lane per Role between them. `runTone(run)` gives a Run bar's `{ tone, label }`. Bars that never
- * started are left out; a bar whose `end` is null still runs.
+ * Shift lane, one lane per Role and, given `sessions`, one lane per person running Linked Sessions between them.
+ * `runTone(run)` gives a Run bar's `{ tone, label }`. Bars that never started are left out; a bar whose `end` is null
+ * still runs.
  * @returns {{ key: string, group: string, label: string, sublabel: string, url: string|null, bars: object[], marks: object[] }[]}
  */
-export function streamLanes({ stream, shifts = [], runs = [], runTone }) {
+export function streamLanes({ stream, shifts = [], runs = [], runTone, sessions = [] }) {
   const lanes = [...(stream?.lanes || [])];
   const opened = shifts.filter(shift => toMs(shift.openedAt) !== null).sort((a, b) => toMs(a.openedAt) - toMs(b.openedAt));
   if (opened.length) {
@@ -38,6 +63,7 @@ export function streamLanes({ stream, shifts = [], runs = [], runTone }) {
       }),
     });
   }
+  lanes.push(...sessionLanes(sessions));
   return lanes.sort((a, b) => groupOrder.indexOf(a.group) - groupOrder.indexOf(b.group));
 }
 
@@ -131,7 +157,8 @@ function itemMarkup(bar, window, now) {
   const text = width >= labelledShare ? `<span class="stream-bar-label" aria-hidden="true">${escape(bar.label)}</span>` : '';
   const attrs = `class="stream-bar" data-tone="${escape(bar.tone)}"${bar.waiting ? ' data-waiting' : ''}${running ? ' data-running' : ''} title="${escape(spoken)}"`;
   const inner = `${text}<span class="sr-only">${escape(spoken)}</span>`;
-  const element = bar.runId ? `<button type="button" ${attrs} data-action="work-run" data-id="${escape(bar.runId)}">${inner}</button>` : `<span ${attrs}>${inner}</span>`;
+  const href = bar.href && /^#[A-Za-z0-9/_%-]+$/.test(bar.href) ? bar.href : '';
+  const element = bar.runId ? `<button type="button" ${attrs} data-action="work-run" data-id="${escape(bar.runId)}">${inner}</button>` : href ? `<a ${attrs} href="${escape(href)}">${inner}</a>` : `<span ${attrs}>${inner}</span>`;
   return `<foreignObject x="${pct(Math.min(from, 100 - minimumWidth))}" y="0" width="${pct(width)}" height="100%">${element}</foreignObject>`;
 }
 
@@ -140,10 +167,19 @@ function markMarkup(mark, window) {
   if (at === null || at < window.from || at > window.to) return '';
   const share = ((at - window.from) / (window.to - window.from)) * 100;
   const spoken = `${mark.label}: ${dateTime(mark.at)}`;
-  return `<svg x="${pct(share)}" y="50%" width="1" height="1" overflow="visible" class="stream-mark" data-tone="${escape(mark.tone)}" role="img" aria-label="${escape(spoken)}"><title>${escape(spoken)}</title><rect x="-5" y="-5" width="10" height="10" transform="rotate(45)"/></svg>`;
+  const shape = mark.shape === 'dot' ? '<circle r="5"/>' : '<rect x="-5" y="-5" width="10" height="10" transform="rotate(45)"/>';
+  return `<svg x="${pct(share)}" y="50%" width="1" height="1" overflow="visible" class="stream-mark" data-tone="${escape(mark.tone)}"${mark.by ? ` data-by="${escape(mark.by)}"` : ''} role="img" aria-label="${escape(spoken)}"><title>${escape(spoken)}</title>${shape}</svg>`;
 }
 
-function laneMarkup(lane, window, now) {
+/**
+ * One lane of a value-stream chart over `window`: its name and sublabel, then its bars and marks. A bar with a `runId`
+ * opens that Run, one with an in-page `href` links there; a mark with `shape: 'dot'` is a circle, otherwise a diamond.
+ * @param {{ key: string, group: string, label: string, sublabel: string, url?: string|null, bars: object[], marks: object[] }} lane
+ * @param {{ from: number, to: number }} window
+ * @param {number} now
+ * @returns {string}
+ */
+export function laneMarkup(lane, window, now) {
   const url = safeUrl(lane.url);
   const name = url ? `<a class="stream-name" href="${escape(url)}" target="_blank" rel="noopener noreferrer">${escape(lane.label)}</a>` : `<span class="stream-name">${escape(lane.label)}</span>`;
   const items = [...lane.bars.map(bar => itemMarkup(bar, window, now)), ...lane.marks.map(mark => markMarkup(mark, window))].filter(Boolean).join('');

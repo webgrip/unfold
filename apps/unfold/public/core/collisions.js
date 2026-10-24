@@ -6,8 +6,33 @@ export const liveLinkedStates = Object.freeze(['working', 'waiting', 'idle']);
 
 const harnessNames = { 'claude-code': 'Claude Code' };
 
+/** The Linked Session states that change a checkout while a Run works: an idle session edits nothing, so it never collides with a Run. */
+export const busyLinkedStates = Object.freeze(['working', 'waiting']);
+
 /** Whether a Linked Session is live: it works, waits for its person or sits idle, and has reported recently enough not to be stale. */
 export function isLiveSession(session) { return liveLinkedStates.includes(session?.state); }
+
+const toMs = value => { const at = Date.parse(value ?? ''); return Number.isFinite(at) ? at : null; };
+
+/**
+ * Whether a running Run is one the session itself started: the Run it claimed with `/unfold:start`, or a Run of an
+ * attempt Ploeg opened after the session handed that Work Item to Ploeg with "Let Ploeg finish this".
+ * @param {{ handovers?: { kind: 'handoff'|'claim', workItemId: string, at: string, runId?: string }[] }} session
+ * @param {{ id: string, workItemId: string, shiftOpenedAt?: string|null, startedAt?: string|null }} run
+ * @returns {boolean}
+ */
+export function startedBy(session, run) {
+  return (session?.handovers ?? []).some(handover => {
+    if (String(handover.workItemId) !== String(run.workItemId)) return false;
+    if (handover.kind === 'claim') return String(handover.runId ?? '') === String(run.id);
+    const handed = toMs(handover.at);
+    const opened = toMs(run.shiftOpenedAt) ?? toMs(run.startedAt);
+    return handover.kind === 'handoff' && handed !== null && opened !== null && opened >= handed;
+  });
+}
+
+/** Whether a session and a running Run can step on each other: the session works or waits, and did not start that Run itself. */
+export function clashesWithRun(session, run) { return busyLinkedStates.includes(session?.state) && !startedBy(session, run); }
 
 /**
  * The `owner/repo` a repository address or a Ploeg target names, lowercased and without `.git`, so
@@ -24,9 +49,9 @@ export function repositoryKey(value) {
 
 /**
  * The running Ploeg Runs of one Work Item detail as collision subjects: each with its Work Item, Role, repository
- * (the Work Item's target) and branch (its Shift's).
+ * (the Work Item's target), branch (its Shift's), when it started and when its Shift opened.
  * @param {object|null|undefined} detail A `GET /api/ploeg/work-items/<id>` response.
- * @returns {{ id: string, workItemId: string, role: string, repository: string, branch: string }[]}
+ * @returns {{ id: string, workItemId: string, role: string, repository: string, branch: string, startedAt: string|null, shiftOpenedAt: string|null }[]}
  */
 export function runningRunsOf(detail) {
   if (!detail?.item) return [];
@@ -37,6 +62,8 @@ export function runningRunsOf(detail) {
     role: String(run.role ?? ''),
     repository: repositoryKey(detail.item.target),
     branch: String(shifts.get(String(run.shiftId))?.branch ?? ''),
+    startedAt: run.startedAt ?? null,
+    shiftOpenedAt: shifts.get(String(run.shiftId))?.openedAt ?? null,
   }));
 }
 
@@ -49,11 +76,13 @@ function runMember(run) {
 }
 
 /**
- * Where two pieces of live work would step on each other: two live Linked Sessions, or a live Linked Session and a
- * running Ploeg Run, on the same Work Item, or on the same repository and branch. Each collision names what they
- * share and its members, sessions first. Every collision has at least one session; Runs Ploeg itself coordinates on
- * one Work Item never collide with each other alone. A branch collision whose members a Work Item collision already
- * names is left out, so one clash warns once. Sessions and Runs listed twice count once.
+ * Where two pieces of live work would step on each other: two live Linked Sessions, or a working or waiting Linked
+ * Session and a running Ploeg Run it did not start itself, on the same Work Item, or on the same repository and
+ * branch. An idle session collides only with other sessions, and a session never collides with the Run it claimed or
+ * the Runs of the attempt it handed to Ploeg ({@link startedBy}). Each collision names what they share and its
+ * members, sessions first. Every collision has at least one session; Runs Ploeg itself coordinates on one Work Item
+ * never collide with each other alone. A branch collision whose members a Work Item collision already names is left
+ * out, so one clash warns once. Sessions and Runs listed twice count once.
  * @param {{ sessions?: object[], runs?: { id: string, workItemId: string, role?: string, repository?: string, branch?: string }[] }} input
  * @returns {{ key: string, on: 'work-item'|'branch', workItemId?: string, repository?: string, branch?: string, members: object[] }[]}
  */
@@ -61,20 +90,25 @@ export function collisions({ sessions = [], runs = [] } = {}) {
   const live = [...new Map((sessions ?? []).filter(isLiveSession).map(session => [String(session.id), session])).values()];
   const running = [...new Map((runs ?? []).map(run => [String(run.id), run])).values()];
   const groups = new Map();
-  const add = (key, base, member) => {
+  const sessionsIn = new Map();
+  const add = (key, base, member, session = null) => {
+    if (session) sessionsIn.set(key, [...(sessionsIn.get(key) ?? []), session]);
     const group = groups.get(key) ?? { key, ...base, members: [] };
     if (!group.members.some(known => known.kind === member.kind && known.id === member.id)) group.members.push(member);
     groups.set(key, group);
   };
   for (const session of live) {
-    for (const entry of session.workItems ?? []) add(`work-item:${entry.id}`, { on: 'work-item', workItemId: String(entry.id) }, sessionMember(session));
+    for (const entry of session.workItems ?? []) add(`work-item:${entry.id}`, { on: 'work-item', workItemId: String(entry.id) }, sessionMember(session), session);
     const repository = repositoryKey(session.repository);
-    if (repository && session.branch) add(`branch:${repository}#${session.branch}`, { on: 'branch', repository, branch: String(session.branch) }, sessionMember(session));
+    if (repository && session.branch) add(`branch:${repository}#${session.branch}`, { on: 'branch', repository, branch: String(session.branch) }, sessionMember(session), session);
   }
+  const meets = (key, run) => (sessionsIn.get(key) ?? []).some(session => clashesWithRun(session, run));
   for (const run of running) {
-    if (groups.has(`work-item:${run.workItemId}`)) add(`work-item:${run.workItemId}`, { on: 'work-item', workItemId: String(run.workItemId) }, runMember(run));
+    const item = `work-item:${run.workItemId}`;
+    if (meets(item, run)) add(item, { on: 'work-item', workItemId: String(run.workItemId) }, runMember(run));
     const repository = repositoryKey(run.repository);
-    if (repository && run.branch && groups.has(`branch:${repository}#${run.branch}`)) add(`branch:${repository}#${run.branch}`, { on: 'branch', repository, branch: String(run.branch) }, runMember(run));
+    const branch = `branch:${repository}#${run.branch}`;
+    if (repository && run.branch && meets(branch, run)) add(branch, { on: 'branch', repository, branch: String(run.branch) }, runMember(run));
   }
   const found = [...groups.values()].filter(group => group.members.length > 1 && group.members.some(member => member.kind === 'session'));
   const signature = group => group.members.map(member => `${member.kind}:${member.id}`).sort().join(',');

@@ -31,6 +31,12 @@ export function dispatchedSession(output) {
   return result.session_id;
 }
 
+/** What a claim sends: the id of the Claude Code session that runs `/unfold:start`, so Unfold links it and never warns that it collides with the Run it started. Nothing else about the session. */
+export function claimBody(sessionId) {
+  const id = String(sessionId ?? '').trim();
+  return /^[A-Za-z0-9_-]{8,128}$/.test(id) ? { linkedSession: id } : {};
+}
+
 async function call(path, init = {}) {
   const response = await fetch(`${unfoldUrl}${path}`, { ...init, headers: { authorization: `Bearer ${token}`, accept: 'application/json', 'x-unfold-request': '1', 'x-unfold-client': 'claude-code-plugin', ...(init.body ? { 'content-type': 'application/json' } : {}) }, signal: AbortSignal.timeout(15_000) });
   const text = await response.text();
@@ -52,7 +58,7 @@ async function main() {
   let remote = '';
   try { remote = execFileSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8', timeout: 2000, stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { remote = ''; }
   if (!wanted || remoteName(remote) !== wanted) { say(`Run /unfold:start in a clone of ${wanted || 'the Work Item\'s repository'}; this directory's origin is ${remote || 'not a git remote'}. Nothing was claimed.`); return 1; }
-  const claimed = await call(`/api/ploeg/work-items/${id}/claim`, { method: 'POST', body: '{}' });
+  const claimed = await call(`/api/ploeg/work-items/${id}/claim`, { method: 'POST', body: JSON.stringify(claimBody(process.env.CLAUDE_CODE_SESSION_ID)) });
   const { run, dispatch, deadline } = claimed;
   say(`Claimed Run ${run.id} (${run.role}, round ${run.round}) of Work Item ${id}. Dispatching it to the Team's Claude environment with your own Claude login…`);
   let session;

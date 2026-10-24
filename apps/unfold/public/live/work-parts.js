@@ -88,7 +88,7 @@ function entryBody(entry, view, runDetail = null) {
     const receipt = entry.flying ? `<p class="lv-tl-receipt">${icon('check')}<span>${escape(`Sent to the running ${entry.flying.role} · Run ${entry.flying.n}; it arrives where its Harness takes messages, otherwise in the next Run`)}</span></p>` : entry.readBy ? `<p class="lv-tl-receipt">${icon('check')}<span>${escape(`Next Run after it: ${entry.readBy.role} · Run ${entry.readBy.n} at ${clock(entry.readBy.at)}`)}</span></p>` : '<p class="lv-tl-receipt is-waiting">No Run has started since; the next one reads it.</p>';
     return `${entryHead(entry, who(entry, view), 'steered', chip('the agents read this', 'live'))}<p class="lv-tl-text lv-tl-said" data-private>${escape(entry.text)}</p>${receipt}`;
   }
-  if (entry.kind === 'linked') return `${entryHead(entry, `${entry.harness} · ${entry.who}`, 'linked session', chip(entry.state || 'linked'))}<p class="lv-tl-text lv-tl-quiet">${escape(`${entry.commits} ${entry.commits === 1 ? 'commit' : 'commits'}${entry.branch ? ` on ${entry.branch}` : ''}. Unfold records it; it never starts or pays for it.`)}</p>`;
+  if (entry.kind === 'linked') return `${entryHead(entry, `${entry.harness} · ${entry.who}`, 'linked session', chip(entry.state || 'linked'))}<p class="lv-tl-text lv-tl-quiet">${escape(`${entry.place ? `${entry.place}. ` : ''}${entry.commits} ${entry.commits === 1 ? 'commit' : 'commits'}${entry.branch ? ` on ${entry.branch}` : ''}. Unfold records it; it never starts or pays for it.`)}</p>`;
   return '';
 }
 

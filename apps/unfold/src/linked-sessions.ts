@@ -44,8 +44,13 @@ export type LinkedSession = {
   title: string; repository: string; branch: string; model: string; remoteUrl: string;
   status: LinkedStatus; waitingFor: string; startedAt: string; lastSeenAt: string; endedAt: string | null;
   workItems: LinkedWorkItem[]; dismissed: string[]; resolvedBranch: string;
-  pullRequests: string[]; commits: LinkedCommit[];
+  pullRequests: string[]; commits: LinkedCommit[]; handovers?: LinkedHandover[];
 };
+/**
+ * A moment control moved between a Linked Session and Ploeg on one Work Item: the session handed the Work Item to
+ * Ploeg with a requeue (`handoff`), or claimed the Run `runId` that waited for its person's own Claude Code (`claim`).
+ */
+export type LinkedHandover = { kind: 'handoff' | 'claim'; workItemId: string; at: string; runId?: string };
 /** One hook report, validated. */
 export type LinkedEventInput = {
   harness: LinkedHarness; harnessVersion: string; sessionId: string; event: LinkedEvent; at: string;

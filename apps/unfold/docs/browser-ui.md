@@ -354,7 +354,25 @@ The browser check fails on any uncaught page error and on any console error, and
 
 ### Collisions
 
-When two live Linked Sessions, or a live Linked Session and a running Ploeg Run, work the same Work Item or the same repository and branch, Unfold warns ([`core/collisions.js`](../public/core/collisions.js)): on the Work Item page's **Agent sessions** card, in the one-page Work Item's decision dock, and at the top of the session page, each with links to the other sessions and Runs. Repositories compare by owner and name. Runs Ploeg coordinates on one Work Item never warn alone, and a clash warns once. The Work Item page computes it from its linked sessions and its running Runs; the session page also reads your own sessions and the sessions of up to five of its Work Items. A session on the branch of a Run of a Work Item it is not linked to is not seen there.
+When two live Linked Sessions, or a working or waiting Linked Session and a running Ploeg Run, work the same Work Item or the same repository and branch, Unfold warns ([`core/collisions.js`](../public/core/collisions.js)): on the Work Item page's **Agent sessions** card, in the one-page Work Item's decision dock, and at the top of the session page, each with links to the other sessions and Runs. Repositories compare by owner and name. Runs Ploeg coordinates on one Work Item never warn alone, and a clash warns once. The Work Item page computes it from its linked sessions and its running Runs; the session page also reads your own sessions and the sessions of up to five of its Work Items. A session on the branch of a Run of a Work Item it is not linked to is not seen there.
+
+Two rules keep a session from warning about itself:
+
+* **An idle session never collides with a Run.** It edits nothing while it waits for its next prompt, so a session left idle after **Let Ploeg finish this** does not warn about the Run that picks the work up. Idle sessions still collide with other sessions, because either may be resumed on the same branch.
+* **A session never collides with a Run it started.** The session remembers each hand-over (`handovers`, [API](contracts/api.md)): the Run it claimed with `/unfold:start`, and the time it handed a Work Item to Ploeg. A Run of that Work Item whose attempt opened at or after the hand-off was started by the session. This covers the session that runs `/unfold:start` while its script dispatches, and a hand-off sent from inside a running session. A Run of an attempt opened before the hand-off, and every Run someone else's session meets, still warns.
+
+A plugin older than 0.11.0 does not name its session in the claim, so its `/unfold:start` session can warn for the few minutes it works on the dispatch, until it goes idle. If you keep prompting a session after handing its Work Item to Ploeg, Unfold does not warn either; stop that session or move it to its own branch.
+
+### Two tracks
+
+On the one-page Work Item (`work.unified`), when at least one Linked Session is on the Work Item, **Ploeg and people** sits above the Log, Brief and Trace views ([`core/work-tracks.js`](../public/core/work-tracks.js), derived by [`core/session-tracks.js`](../public/core/session-tracks.js)). It reads as two tracks of one story on one time axis:
+
+* **Ploeg**: the attempts lane and one lane per Role, drawn as in the value stream; each Run bar opens its Run.
+* **People**: one lane per person and harness (`You · Claude Code`, `sam · Codex`), each Linked Session a bar from its start to its end that links to its page. An open session runs to now and an idle one is hatched.
+* **One pull request**: the commit spine. Each commit a linked session reported is a dot coloured by who wrote its lines in its Agent Trace record: an agent on a person's machine when the record holds AI-written lines, a person when it holds none, hollow without a record. Ploeg reports no commits of its own Runs to Unfold, so each push to the pull request is a diamond instead, coloured as a Ploeg Role while a Run worked and as a person while only a linked session on the branch was open. A key names the colours, and every dot reads its text aloud.
+* **Hand-overs**: a dashed connector across both tracks wherever control moved, with a mark on the lanes it joins: **Let Ploeg finish this** (to the next attempt), `/unfold:start` (to the Run it claimed), a session that started on Ploeg's branch after a Run finished and while none ran, as **Continue in my Claude Code** does, and, in the attention colour, a session that started while a Run it did not start was working.
+
+Nothing new is stored to place a session: it belongs to the attempt whose open window it overlapped longest, and in it to the Round it overlapped longest, or sits before, between or after the attempts. The Log's entry for a linked session says where, such as "During attempt 2, Round 3". The hand-overs are the only stored part. Below 40 rem of the page's width the chart gives way to one vertical list in time order, each row naming its track. The value-stream card on the other Work Item page also draws a lane per person; its figures and the landing estimate still count only Ploeg's Runs, because a session's open time is not agent time Ploeg spent.
 
 ## Tests that pin this contract
 
@@ -369,6 +387,7 @@ Run them in `apps/unfold` with `mise exec -- npm test` and `mise exec -- npm run
 | [`test/ui-components.test.mjs`](../test/ui-components.test.mjs), [`test/markdown-renderer.test.mjs`](../test/markdown-renderer.test.mjs) | Escaping, safe links, meters, badges and icons; hostile Markdown staying inert |
 | [`test/now-view.test.mjs`](../test/now-view.test.mjs), [`test/ploeg-view.test.mjs`](../test/ploeg-view.test.mjs), [`test/ploeg-activity.test.mjs`](../test/ploeg-activity.test.mjs), [`test/session-view.test.mjs`](../test/session-view.test.mjs) | The markup of Now, Work and the Work Item page, the four feed pages, and the session page |
 | [`test/linked-attention.test.mjs`](../test/linked-attention.test.mjs) | Waiting Linked Sessions on Now and the fleet board, and collision warnings |
+| [`test/session-tracks.test.mjs`](../test/session-tracks.test.mjs) | Where a session sits among the attempts and Rounds, hand-overs, the commit spine, the self-collision rules, and the two tracks at desktop and phone width |
 | [`test/palette.test.mjs`](../test/palette.test.mjs), [`test/attention.test.mjs`](../test/attention.test.mjs) | Palette matching, grouping and markup; the favicon dot and desktop notifications |
 | [`test/static-assets.test.ts`](../test/static-assets.test.ts) | Which paths are served, ETag, 304 and gzip |
 | [`test/forge-world.test.mjs`](../test/forge-world.test.mjs), [`test/card-worlds.test.ts`](../test/card-worlds.test.ts) | The forge's inner world: facts to time of day and things, the theme's choice, the controls under the CSP, the world's front shader, and private, earned, holder-only decorations with their routes |
