@@ -7,7 +7,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { commandDirectory, pushAgentTrace, pushedRemote } from '../extensions/claude-code/scripts/push-agent-trace.mjs';
+import { commandDirectory, pushAgentTrace as pushAgentTraceWithin, pushedRemote } from '../extensions/claude-code/scripts/push-agent-trace.mjs';
+import { scaledTimeout } from './timeframes.ts';
 
 const hook = fileURLToPath(new URL('../extensions/claude-code/scripts/unfold-hook.mjs', import.meta.url));
 const git = (dir: string, ...args: string[]) => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -30,6 +31,7 @@ async function remoteAndClones(t: { after: (fn: () => Promise<void>) => void }) 
   return { dir, bare, a, b };
 }
 
+const pushAgentTrace = (input: { cwd: string; command: string }) => pushAgentTraceWithin({ ...input, deadlineMs: scaledTimeout(30_000) });
 const note = (dir: string, sha: string, tool: string) => execFileSync('git', ['-C', dir, 'notes', '--ref=agent-trace', 'add', '-f', '-F', '-', sha], { input: `${JSON.stringify({ version: '0.1', id: crypto.randomUUID(), timestamp: '2026-10-24T10:00:00Z', tool: { name: tool, version: '1' }, files: [] })}\n` });
 
 test('the remote of a git push is read from the command, and commands that push no branch are left alone', () => {
@@ -84,7 +86,7 @@ test('the hook pushes notes after a git push only with UNFOLD_PUSH_AGENT_TRACE=1
   note(a, git(a, 'rev-parse', 'HEAD'), 'claude-code');
   await run({}, 'git push origin main');
   assert.equal(git(bare, 'for-each-ref', 'refs/notes/'), '', 'off by default: notes are outward-facing');
-  assert.deepEqual(await run({ UNFOLD_PUSH_AGENT_TRACE: '1' }, 'git push origin main'), { code: 0, stdout: '', stderr: '' });
+  assert.deepEqual(await run({ UNFOLD_PUSH_AGENT_TRACE: '1', UNFOLD_PUSH_AGENT_TRACE_TIMEOUT_MS: String(scaledTimeout(30_000)) }, 'git push origin main'), { code: 0, stdout: '', stderr: '' });
   assert.notEqual(git(bare, 'for-each-ref', 'refs/notes/agent-trace'), '');
   git(a, 'remote', 'set-url', 'origin', join(dir, 'missing.git'));
   assert.deepEqual(await run({ UNFOLD_PUSH_AGENT_TRACE: '1', UNFOLD_PUSH_AGENT_TRACE_TIMEOUT_MS: '3000' }, 'git push origin main'), { code: 0, stdout: '', stderr: '' });
