@@ -1,0 +1,3 @@
+[mcp_servers.vikunja]
+url = "https://litellm.webgrip.dev/mcp/"
+bearer_token_env_var = "LITELLM_MCP_KEY"

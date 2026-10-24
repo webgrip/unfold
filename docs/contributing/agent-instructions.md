@@ -14,7 +14,8 @@ Where each kind of knowledge about working on Unfold lives, and what each agent 
 
 | Content | Home |
 | --- | --- |
-| Commands an agent cannot guess, repository-wide traps, pointers to docs | root [`AGENTS.md`](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/AGENTS.md) (at most 400 words) |
+| Commands an agent cannot guess, repository-wide traps, pointers to docs | root [`AGENTS.md`](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/AGENTS.md) (at most 400 hand-written words) |
+| Rules for every webgrip repository | the block between `<!-- apm:start -->` and `<!-- apm:end -->` in the root `AGENTS.md`, compiled from [agent-standards](https://forgejo.webgrip.dev/webgrip/agent-standards); see [Shared rules and skills](#shared-rules-and-skills) |
 | Rules for one application or directory | that directory's `AGENTS.md` (at most 600 words), for example `apps/unfold/`, `apps/site/`, `.forgejo/` |
 | Anything that must hold every time | a test, a CI job or a hook; the file may point at it |
 | Product knowledge, flows, reasons | `docs/` and the application's `docs/`, linked from `AGENTS.md` |
@@ -22,13 +23,23 @@ Where each kind of knowledge about working on Unfold lives, and what each agent 
 | Requirements for a change | an OpenSpec change under `openspec/changes/` |
 | Terms | the product model, [`docs/domain/model.yaml`](../domain/model.yaml), generated into the [glossary](../reference/glossary.md) |
 | A procedure needed sometimes | a skill in `.agents/skills/` |
-| A procedure a person starts | a command (`.claude/commands/`, `.opencode/commands/`) that runs the procedure and links its docs |
+| A procedure a person starts | a prompt in `.apm/prompts/<name>.prompt.md`, which `mise run agents-install` writes as the `/<name>` command for Claude Code and opencode; the `/opsx:*` commands are OpenSpec's own |
 | Review criteria | the [review guide](review.md) |
 | Facts and pitfalls Ploeg packs into a Run's brief when they match the Work Item | `knowledge/` (OKF): a short concept with tags a Work Item would use and a link to the page that owns it, never a copy of an `AGENTS.md` rule |
 | One person's preferences | that person's tool configuration (`~/.claude/`, `~/.codex/`), never this repository |
 | Open work | a ticket |
 
-`CLAUDE.md` beside each `AGENTS.md` is one line, `@AGENTS.md`, so Claude Code reads the same file. `.claude/skills` is a link to `.agents/skills`.
+`CLAUDE.md` beside each `AGENTS.md` is one line, `@AGENTS.md`, so Claude Code reads the same file. Each skill in `.agents/skills` has a link in `.claude/skills` (`ln -s ../../.agents/skills/<name> .claude/skills/<name>`); a shared skill from agent-standards is a copy APM writes into both.
+
+## Shared rules and skills
+
+[`apm.yml`](https://forgejo.webgrip.dev/webgrip/unfold/src/branch/development/apm.yml) pins three [agent-standards](https://forgejo.webgrip.dev/webgrip/agent-standards) packages at one release tag: `baseline`, the rules for every webgrip repository; `secrets`, the `guard-secrets` hook and skill and the `secrets-levels` skill; and `board`, the `vikunja` MCP server through the webgrip LiteLLM gateway with the `product-owner` and `product-owner-contract` skills. `mise run agents-install` installs them and compiles the baseline into the marked block of the root `AGENTS.md`; the lockfile and every file APM writes are committed, so Ploeg and OpenHands see them without running APM.
+
+- Never edit inside the markers, a shared skill's copy, or the hook entry APM merged into `.claude/settings.json`. Change the source in agent-standards (or the skill in ai-skills), release it, then move the `ref` in `apm.yml` and run `mise run agents-install`.
+- The baseline reaches Claude Code only through `@AGENTS.md`. Its dependency targets `opencode` and `codex`, because APM would otherwise also write it to `.claude/rules` and Claude would load it twice ([why](https://forgejo.webgrip.dev/webgrip/agent-standards/src/branch/main/docs/adopting.md#why-the-baseline-skips-claudes-rules-folder)).
+- `mise run agents-check` fails when a deployed file differs from `apm.lock.yaml` or the compiled block is stale. It runs in the `agents-check` job of every pull request, without blocking until 2026-11-07.
+- Ploeg starts Claude Code with `disableAllHooks`, so `guard-secrets` protects interactive sessions only.
+- The `vikunja` server in `.mcp.json`, `opencode.json` and `.codex/config.toml` reads its key from `LITELLM_MCP_KEY` in your environment; the files never hold it.
 
 ## Who owns a term
 
