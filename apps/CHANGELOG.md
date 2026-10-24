@@ -1,3 +1,19 @@
+## [unfold-v0.4.0-rc.111](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.110...unfold-v0.4.0-rc.111) (2026-10-24)
+
+### Added
+
+* **unfold:** render agent messages and thoughts in a Run transcript as Markdown ([c6ff8b9](https://forgejo.webgrip.dev/webgrip/unfold/commit/c6ff8b989f993ae5d4f9631c33d38e22e5e1cb40))
+* **unfold:** say how long building, the pull request and your review took ([c0990b1](https://forgejo.webgrip.dev/webgrip/unfold/commit/c0990b15734b231e85dd1f0c57700f9342d853c0))
+
+### Fixed
+
+* **unfold:** keep concurrent writes to a Linked Session ([08f1643](https://forgejo.webgrip.dev/webgrip/unfold/commit/08f16439b38e859069a5cb6d96193d634332c4de))
+* **unfold:** say that only Claude Code sessions carry a cost ([be19fbd](https://forgejo.webgrip.dev/webgrip/unfold/commit/be19fbd634b82378118add4a527ba79153d2ba89))
+
+### Docs
+
+* **unfold:** record that a Linked Session's owner now acts on it from Unfold ([b387418](https://forgejo.webgrip.dev/webgrip/unfold/commit/b3874188ade6e7433b88cfff75d2a843e7a874c8))
+
 ## [unfold-v0.4.0-rc.110](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.109...unfold-v0.4.0-rc.110) (2026-10-24)
 
 ### Added
