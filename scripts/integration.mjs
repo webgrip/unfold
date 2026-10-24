@@ -23,7 +23,8 @@ function run(command, args, options, timeoutSeconds = 240) {
 }
 
 const goModule = resolve(root, 'apps/unfold/scripts/unified-demo');
-const ploegModule = execFileSync('go', ['list', '-m', '-f', '{{.Dir}}', 'github.com/ploeg-hq/ploeg'], { cwd: goModule, encoding: 'utf8' }).trim();
+const ploegModule = JSON.parse(execFileSync('go', ['mod', 'download', '-json', 'github.com/ploeg-hq/ploeg'], { cwd: goModule, encoding: 'utf8' })).Dir;
+assert.ok(ploegModule, 'go mod download names the pinned Ploeg module directory');
 const ploegPackage = path => resolve(ploegModule, path);
 const gateway = await startFakeLiteLLM();
 const checks = [
