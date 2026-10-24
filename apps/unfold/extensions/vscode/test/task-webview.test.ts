@@ -249,7 +249,7 @@ test('viewers, closed tasks and unavailable Ploeg explain themselves instead of 
 });
 
 test('the header shows tracker facts and labels as text, and a hostile title or label stays inert', () => {
-  const header: StubElement = view.header(current({}, { title: '<img src=x onerror=alert(1)>', labels: [{ name: '<script>x</script>', color: 'red;background:url(x)' }], priority: 3 }));
+  const header: StubElement = view.header(current({}, { updatedAt: new Date().toISOString(), title: '<img src=x onerror=alert(1)>', labels: [{ name: '<script>x</script>', color: 'red;background:url(x)' }], priority: 3 }));
   assert.equal(header.find('img').length, 0);
   assert.equal(header.find('script').length, 0);
   assert.equal(header.find('h1')[0]?.textContent, '<img src=x onerror=alert(1)>');
