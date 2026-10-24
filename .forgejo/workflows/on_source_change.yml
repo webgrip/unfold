@@ -45,9 +45,9 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: https://github.com/jdx/mise-action@08ae2a091c038e1e05ec6f5115dc5c69d5a2a6b8 # v5.1.2
+      - uses: https://github.com/jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
         with:
-          version: 2026.10.11
+          version: 2026.10.18
           install_args: uv
           cache: false
           github_token: ''
@@ -61,7 +61,7 @@ jobs:
     needs: [checks]
     runs-on: docker
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.4@sha256:0d6227231c9258c230360c51f9733fe3d60cc0b33860bb7b8769b8683d637c17
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.6@sha256:58ce8639627ac522ceaee35b08803ec6846fd4fa138d4a3c3453a0afe75a0311
     permissions:
       contents: write
     steps:
@@ -70,7 +70,7 @@ jobs:
           fetch-depth: 0
       - name: Semantic Release
         id: release
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.8.1
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.8.2
         with:
           package-path: apps/site
           package-name: unfold-site

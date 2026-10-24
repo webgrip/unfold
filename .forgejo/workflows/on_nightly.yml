@@ -14,7 +14,7 @@ jobs:
     runs-on: docker
     timeout-minutes: 45
     container:
-      image: harbor.webgrip.dev/mcr/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
+      image: harbor.webgrip.dev/mcr/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.forgejo/actions/browser-suite
@@ -23,16 +23,16 @@ jobs:
     runs-on: docker
     timeout-minutes: 30
     container:
-      image: harbor.webgrip.dev/mcr/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
+      image: harbor.webgrip.dev/mcr/playwright:v1.64.1-noble@sha256:47b510dd9230bf0b9bfc9b20102241e577ea7a99334ab4c3ca19f19770e9b8ea
     services:
       postgresql:
-        image: harbor.webgrip.dev/dockerhub/library/postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
+        image: harbor.webgrip.dev/dockerhub/library/postgres:16-alpine@sha256:f4610795587492cd4fb887c2dc3de301b813278bb6f616992061141b5f15ac36
         env:
           POSTGRES_DB: authentik
           POSTGRES_USER: authentik
           POSTGRES_PASSWORD: e2e-only-database-password
       authentik:
-        image: harbor.webgrip.dev/ghcr/goauthentik/server:2026.5.2@sha256:3ddf09bbf69ded6a9634ecd753a01608d477f811e99bb5ffe9fc2ef7ad1c6581
+        image: harbor.webgrip.dev/ghcr/goauthentik/server:2026.8.5@sha256:602227a86455d6772e3d16b7d852713c4f864f40df5df894abd1285bb53979a5
         cmd: [server]
         options: --no-healthcheck
         env:
@@ -49,7 +49,7 @@ jobs:
           AUTHENTIK_DISABLE_STARTUP_ANALYTICS: 'true'
           AUTHENTIK_AVATARS: none
       authentik-worker:
-        image: harbor.webgrip.dev/ghcr/goauthentik/server:2026.5.2@sha256:3ddf09bbf69ded6a9634ecd753a01608d477f811e99bb5ffe9fc2ef7ad1c6581
+        image: harbor.webgrip.dev/ghcr/goauthentik/server:2026.8.5@sha256:602227a86455d6772e3d16b7d852713c4f864f40df5df894abd1285bb53979a5
         cmd: [worker]
         env:
           AUTHENTIK_POSTGRESQL__HOST: postgresql

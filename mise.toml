@@ -1,12 +1,12 @@
 min_version = "2026.9.17"
 
 [tools]
-node = "24.22.0"
+node = "24.22.1"
 go = "1.27.3"
 helm = "4.3.1"
-uv = "0.13.1"
-"npm:@fission-ai/openspec" = "1.14.2"
-regctl = "0.11.6"
+uv = "0.13.5"
+"npm:@fission-ai/openspec" = "1.14.3"
+regctl = "0.11.7"
 
 [env]
 OPENSPEC_TELEMETRY = "0"
@@ -140,7 +140,7 @@ run = "npm run demo:unified"
 description = "Run both applications and PostgreSQL with a deterministic runtime"
 
 [tasks.release-check]
-run = '''docker run --rm --platform linux/amd64 --network none -v "$PWD:/repo:ro" -w /repo --entrypoint sh harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.4 -c 'node --test scripts/release-policy.test.cjs scripts/release-isolation.test.cjs scripts/workflow-policy.test.cjs' '''
+run = '''docker run --rm --platform linux/amd64 --network none -v "$PWD:/repo:ro" -w /repo --entrypoint sh harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.6 -c 'node --test scripts/release-policy.test.cjs scripts/release-isolation.test.cjs scripts/workflow-policy.test.cjs' '''
 description = "Test release isolation and guards in the pinned release toolchain"
 
 [tasks.docs-site-check]

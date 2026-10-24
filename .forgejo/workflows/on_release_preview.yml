@@ -30,7 +30,7 @@ jobs:
     runs-on: docker
     timeout-minutes: 15
     container:
-      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.4@sha256:0d6227231c9258c230360c51f9733fe3d60cc0b33860bb7b8769b8683d637c17
+      image: harbor.webgrip.dev/webgrip/semantic-release-monorepo:0.3.6@sha256:58ce8639627ac522ceaee35b08803ec6846fd4fa138d4a3c3453a0afe75a0311
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,7 +40,7 @@ jobs:
       - name: Record candidate revision
         run: git rev-parse HEAD
       - name: Preview version and release notes
-        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.8.1
+        uses: https://forgejo.webgrip.dev/webgrip/workflows/.forgejo/composite-actions/semantic-release-monorepo@v2.8.2
         with:
           package-path: apps
           package-name: unfold
