@@ -51,13 +51,13 @@ function settingsContent() {
 function sessionContent() {
   if (view.error && !view.session) return callout({ tone: 'danger', title: 'Could not read this agent session', body: `<p>${escape(view.error)}</p>` });
   if (!view.session) return `<div class="card">${skeleton({ rows: 6, variant: 'text' })}</div>`;
-  const page = linkedSessionPage(view.session, { workItems: view.titles, suggestions: view.suggestions, clashes: view.clashes });
+  const options = { workItems: view.titles, suggestions: view.suggestions, clashes: view.clashes };
   const inboxCard = linkedInboxCard(view.session, view.messages, { error: view.messagesError, draft: view.draft.message });
-  if (!view.session.mine) return `${page}${inboxCard}`;
-  const waiting = permissionsCard(view.session, view.permissions);
+  if (!view.session.mine) return linkedSessionPage(view.session, { ...options, act: inboxCard });
   const handOff = handOffMarkup(view.session, view.readiness);
-  const start = card({ id: 'linked-session-start', title: 'Start a Work Item from this session', subtitle: 'Hand the next piece of work to Ploeg and keep this session linked to it.', icon: 'work', body: startWorkItemForm(view.session, view.options, view.draft) });
-  return `${waiting}${page}${inboxCard}${handOff ? card({ id: 'linked-session-hand-off', title: 'Let Ploeg finish this', body: handOff }) : ''}${start}`;
+  const start = `<div class="linked-hand-start"><p class="field-label">${handOff ? 'Or start a new Work Item' : 'Start a new Work Item'}</p>${startWorkItemForm(view.session, view.options, view.draft)}</div>`;
+  const handCard = card({ id: 'linked-session-start', title: 'Hand to Ploeg', subtitle: 'Ploeg runs it with the Team’s budget, and this session stays linked to it.', icon: 'work', body: `${handOff}${start}` });
+  return linkedSessionPage(view.session, { ...options, act: `${permissionsCard(view.session, view.permissions)}${inboxCard}${handCard}` });
 }
 
 function renderLinked() {

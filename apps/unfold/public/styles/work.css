@@ -2987,8 +2987,66 @@ button.stream-bar:hover {
 }
 
 .linked-session-page {
+  container-type: inline-size;
   display: grid;
   gap: var(--space-4);
+}
+
+.linked-session-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-6);
+}
+
+.linked-session-header-main {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.linked-session-header-work {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.linked-session-header .linked-session-resume {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.linked-session-header .linked-session-resume p {
+  margin: 0;
+}
+
+.linked-session-layout,
+.linked-session-act,
+.linked-session-rail {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+@container (min-width: 60rem) {
+  .linked-session-layout.has-act {
+    grid-template-columns: minmax(0, 3fr) minmax(20rem, 2fr);
+    align-items: start;
+  }
+}
+
+.linked-hand-off + .linked-hand-start {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.linked-hand-start {
+  display: grid;
+  gap: var(--space-3);
 }
 
 .linked-session-stats {
