@@ -320,6 +320,20 @@
     {
       "contract": "operator-api",
       "method": "POST",
+      "path": "/api/v1/operator/work-items/{id}/take-over",
+      "request": {"definition": "takeOverRequest", "example": {"commandId": "take-over-command-1", "expectedShiftId": "12"}},
+      "response": "takeOverResponse",
+      "reads": [
+        {"pointer": "/schemaVersion", "types": ["string"], "required": true},
+        {"pointer": "/takeOver", "types": ["object"], "required": true},
+        {"pointer": "/takeOver/workItemId", "types": ["string"], "required": true},
+        {"pointer": "/takeOver/state", "types": ["string"], "required": true},
+        {"pointer": "/takeOver/runs", "types": ["array"], "required": true}
+      ]
+    },
+    {
+      "contract": "operator-api",
+      "method": "POST",
       "path": "/api/v1/operator/work-items/{id}/notes",
       "request": {"definition": "noteRequest", "example": {"commandId": "note-command-1", "text": "Keep the migration additive.", "expectedShiftId": "12"}},
       "response": "noteResponse",

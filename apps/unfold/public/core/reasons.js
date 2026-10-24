@@ -97,6 +97,11 @@ const copy = {
     sentence: 'An agent asked a question only a person can answer, instead of guessing.',
     fix: 'Answer it here. Unfold restarts the Work Item with your answer, so its next Runs read it.',
   },
+  taken_over: {
+    chip: 'Taken over by a person',
+    sentence: 'A person took the Run over. It stopped at a safe point, and its work is on the Work Item’s branch.',
+    fix: 'Finish the change on the branch and push it, then hand it back so Ploeg continues from your commit.',
+  },
   run_stuck: {
     chip: 'Agent is stuck',
     sentence: 'An agent reported that it cannot finish without a person.',
@@ -202,7 +207,7 @@ const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'checks_n
 
 const sessionCodes = new Set(['operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
 
-const answeredHere = new Set(['person_question', 'approved_to_merge', 'merged_untracked']);
+const answeredHere = new Set(['person_question', 'taken_over', 'approved_to_merge', 'merged_untracked']);
 
 /** Whether the reason is about the Unfold session that drives the Work Item, so the next step happens on that session's page. */
 export function sessionReason(reason) {
@@ -215,6 +220,7 @@ function classify(closeReason) {
   const text = String(closeReason ?? '').trim();
   const lower = text.toLowerCase();
   if (text === 'question_for_person') return { code: 'person_question', text };
+  if (text === 'taken_over') return { code: 'taken_over', text };
   if (exactCodes.has(text)) return { code: text, text };
   if (lower.startsWith('budget held by unsettled runs')) return { code: 'budget_held', text };
   if (lower.startsWith('budget exhausted')) {
@@ -261,6 +267,7 @@ const reasonGlyphs = Object.freeze({
   writing_run_failed_repeatedly: 'x-circle',
   writing_run_killed_repeatedly: 'zap',
   person_question: 'help-circle',
+  taken_over: 'pause-circle',
   run_stuck: 'pause-circle',
   plan_removed: 'settings',
   pull_request_closed: 'circle-slash',

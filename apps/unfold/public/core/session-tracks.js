@@ -1,4 +1,5 @@
 import { startedBy } from './collisions.js';
+import { takeOverMarks, takeOverOf } from './take-over.js';
 
 const toMs = value => { if (typeof value === 'number') return Number.isFinite(value) ? value : null; const at = Date.parse(value ?? ''); return Number.isFinite(at) ? at : null; };
 const openStates = new Set(['working', 'waiting', 'idle']);
@@ -99,15 +100,20 @@ export function attachmentWords(attached) {
  * it to Ploeg with "Let Ploeg finish this" (the next attempt opened after it is `shiftId`). `claim`: a session started
  * the Run `runId` that waited for its person with `/unfold:start`. `take-over`: a session started on the branch of
  * Ploeg's attempt after one of its Runs finished and while none ran, as "Continue in my Claude Code" does. `overlap`:
- * a session started while a Run it did not start itself was working. `from` and `to` name the tracks it connects.
- * @returns {{ kind: 'handoff'|'claim'|'take-over'|'overlap', at: number, sessionId: string, shiftId?: string|null, runId?: string, role?: string, from: 'people'|'ploeg', to: 'people'|'ploeg', label: string }[]}
+ * a session started while a Run it did not start itself was working. `take-control` and `hand-back`: a person took a
+ * running Run over with Take control and handed it back (Ploeg ADR-0142), from Ploeg's record; a session started
+ * while they held it is theirs, so it gets no `take-over` mark of its own. `from` and `to` name the tracks it connects.
+ * @returns {{ kind: 'handoff'|'claim'|'take-over'|'take-control'|'hand-back'|'overlap', at: number, sessionId: string, shiftId?: string|null, runId?: string, role?: string, from: 'people'|'ploeg', to: 'people'|'ploeg', label: string }[]}
  */
 export function handoverMarks(detail, sessions, now) {
   const id = String(detail?.item?.id ?? '');
   const shifts = shiftWindows(detail, now);
   const runs = (detail?.runs ?? []).filter(run => toMs(run.startedAt) !== null);
   const roleOf = runId => runs.find(run => String(run.id) === String(runId))?.role || 'agent';
-  const marks = [];
+  const marks = takeOverMarks(detail, sessions);
+  const held = takeOverOf(detail);
+  const heldFrom = toMs(held?.requestedAt), heldTo = held?.handedBackAt ? toMs(held.handedBackAt) : now;
+  const whileHeld = start => heldFrom !== null && start >= heldFrom && start <= (heldTo ?? now);
   for (const session of sessions ?? []) {
     const who = session.mine ? 'You' : session.ownerName || 'Someone';
     for (const handover of session.handovers ?? []) {
@@ -130,7 +136,7 @@ export function handoverMarks(detail, sessions, now) {
     }
     const onBranch = session.branch && shifts.some(shift => shift.branch === session.branch && shift.from <= start);
     const finished = runs.filter(run => run.state !== 'running' && (toMs(run.finishedAt) ?? Infinity) <= start).sort((a, b) => toMs(b.finishedAt) - toMs(a.finishedAt))[0];
-    if (onBranch && finished) marks.push({ kind: 'take-over', at: start, sessionId: String(session.id), runId: String(finished.id), role: finished.role || 'agent', from: 'ploeg', to: 'people', label: `${who} continued on Ploeg’s branch ${session.branch} in ${harnessName(session.harness)}` });
+    if (onBranch && finished && !whileHeld(start)) marks.push({ kind: 'take-over', at: start, sessionId: String(session.id), runId: String(finished.id), role: finished.role || 'agent', from: 'ploeg', to: 'people', label: `${who} continued on Ploeg’s branch ${session.branch} in ${harnessName(session.harness)}` });
   }
   return marks.sort((a, b) => a.at - b.at);
 }

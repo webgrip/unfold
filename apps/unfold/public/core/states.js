@@ -82,6 +82,7 @@ export const runOutcomes = table({
   follow_up_created: ['Created follow-up work', 'neutral', 'plus', { short: 'Follow-up created' }],
   issue_updated: ['Updated the tracker item', 'neutral', 'tag', { short: 'Tracker updated' }],
   stuck: ['Stuck', 'attention', 'alert', { short: 'Stuck' }],
+  yielded: ['Stopped for a person', 'attention', 'pause-circle', { short: 'Taken over' }],
   failed: ['Failed', 'danger', 'x-circle', { short: 'Failed' }],
 });
 
@@ -348,7 +349,7 @@ const premiseChecks = {
   too_big: ['Checked before starting: too big for one go', 'attention', 'alert'],
   skipped: ['The check before starting was skipped', 'neutral', 'circle-dashed'],
 };
-const outcomeEvents = { pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'Reported no change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Reported that it is stuck', failed: 'Run failed' };
+const outcomeEvents = { pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'Reported no change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Reported that it is stuck', yielded: 'Stopped at a safe point for a person', failed: 'Run failed' };
 
 /**
  * Reads `budget exhausted: pool P, spent S, reserved R` or `budget held by unsettled runs: pool P, spent S, held H`
@@ -370,6 +371,7 @@ const closeLabels = {
   review_approved: ['An agent reviewer approved', 'success'],
   plan_exhausted: ['Every planned Round ran', 'neutral'],
   question_for_person: ['An agent asked a person a question', 'attention'],
+  taken_over: ['A person took it over', 'attention'],
   review_failed: ['No agent reviewed it: the reviewer kept failing', 'attention'],
   checks_not_passed: ['The checks did not pass', 'attention'],
   ci_not_finished: ['CI was still running when Ploeg stopped waiting', 'attention'],

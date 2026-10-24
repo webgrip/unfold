@@ -14,7 +14,7 @@ export const spineAuthors = Object.freeze({
   unknown: Object.freeze({ tone: 'neutral', label: 'Not known' }),
 });
 
-const handoverWords = Object.freeze({ handoff: 'Let Ploeg finish this', claim: '/unfold:start', 'take-over': 'Continued in Claude Code', overlap: 'Started while a Run worked' });
+const handoverWords = Object.freeze({ handoff: 'Let Ploeg finish this', claim: '/unfold:start', 'take-over': 'Continued in Claude Code', 'take-control': 'Take control', 'hand-back': 'Hand back', overlap: 'Started while a Run worked' });
 
 function defaultRunTone(run) {
   if (run.state === 'running') return { tone: 'live', label: 'Working' };
@@ -102,15 +102,16 @@ function list(tracks, detail, now) {
  * The two tracks of a Work Item as one picture: Ploeg's attempts and Runs above, each person's Linked Sessions below,
  * on one time axis, with a dashed connector wherever control moved between them and the commit spine at the bottom,
  * each commit coloured by who wrote its lines. Below 40 rem the tracks stack into one vertical list in time order.
- * Empty when no Linked Session is on the Work Item, where the value stream already tells Ploeg's side alone.
+ * Empty when no Linked Session is on the Work Item, where the value stream already tells Ploeg's side alone. `control`
+ * is the Take control panel, drawn under the intro so control moves from the view that shows it.
  * @param {ReturnType<import('./session-tracks.js').workTracks>} tracks
- * @param {{ detail: object, sessions: object[], now: number, runTone?: (run: object) => { tone: string, label: string }, label?: string }} input
+ * @param {{ detail: object, sessions: object[], now: number, runTone?: (run: object) => { tone: string, label: string }, label?: string, control?: string }} input
  * @returns {string}
  */
-export function workTracksMarkup(tracks, { detail, sessions, now, runTone, label = 'Ploeg and people on one time axis' }) {
+export function workTracksMarkup(tracks, { detail, sessions, now, runTone, label = 'Ploeg and people on one time axis', control = '' }) {
   if (!tracks?.people.length) return '';
   const lanes = trackLanes(tracks, { detail, sessions, runTone });
   const picture = chart(lanes, tracks, now, label);
   if (!picture) return '';
-  return `<section class="lv-panel tracks" aria-label="Two tracks"><h2 class="lv-overline">Ploeg and people</h2><p class="meta tracks-intro">What Ploeg did and what people did in their own sessions, converging on one pull request. A session belongs to the attempt and Round it overlapped.</p>${legend(tracks)}${picture}${list(tracks, detail, now)}</section>`;
+  return `<section class="lv-panel tracks" aria-label="Two tracks"><h2 class="lv-overline">Ploeg and people</h2><p class="meta tracks-intro">What Ploeg did and what people did in their own sessions, converging on one pull request. A session belongs to the attempt and Round it overlapped.</p>${control}${legend(tracks)}${picture}${list(tracks, detail, now)}</section>`;
 }

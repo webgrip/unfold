@@ -49,6 +49,7 @@ import { createMcpHttp } from './mcp-http.ts';
 import { entitledRole } from './oidc.ts';
 import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
 import { LinkedHandoff, handoffRoute as serveLinkedHandoff, isHandoffRoute } from './linked-handoff.ts';
+import { TakeOver, isTakeOverRoute, takeOverRoute } from './take-over.ts';
 import { LinkedInbox } from './linked-inbox.ts';
 import { LinkedPermissions, isPermissionRoute, permissionRoute } from './linked-permissions.ts';
 import { agentTraceMediaType } from './agent-trace.ts';
@@ -199,6 +200,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const handoff = new TaskHandoff(config, ploeg);
   const linked = new LinkedSessions(store.db, config, ploeg);
   const linkedHandoff = new LinkedHandoff(linked, ploeg, store, config);
+  const takeOver = new TakeOver(ploeg);
   const inbox = new LinkedInbox(store.db, linked.store, ploeg);
   const permissions = new LinkedPermissions(store.db, linked.store);
   const status = new StatusBoard(config, store, () => engine.provisioning(), {
@@ -717,6 +719,10 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         if (isHandoffRoute(path)) {
           const answer = await serveLinkedHandoff(linkedHandoff, { method, path, query: url.searchParams, user, base: config.baseUrl ?? `http://${req.headers.host}`, body: () => body(req) });
+          return json(res, answer.status, sanitize(answer.body));
+        }
+        if (isTakeOverRoute(path)) {
+          const answer = await takeOverRoute(takeOver, { method, path, user, body: () => body(req) });
           return json(res, answer.status, sanitize(answer.body));
         }
         if (isPermissionRoute(path)) {

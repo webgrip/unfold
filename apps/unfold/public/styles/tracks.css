@@ -141,3 +141,33 @@ a.stream-bar:hover {
     display: grid;
   }
 }
+
+.tracks-handover[data-kind="take-control"],
+.tracks-handover[data-kind="hand-back"] {
+  stroke: var(--attention-solid);
+  stroke-dasharray: none;
+}
+
+.take-over {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.take-over > p {
+  margin: 0;
+}
+
+.take-over-hand-back {
+  display: grid;
+  gap: var(--space-1-5);
+  justify-items: start;
+}
+
+.take-over-hand-back textarea {
+  inline-size: 100%;
+}
+
+.take-over-error {
+  margin: 0;
+  color: var(--danger-fg);
+}
