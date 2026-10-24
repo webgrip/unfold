@@ -7,6 +7,7 @@ import type { Links } from './links.ts';
 import { classifyFailure, executionFailure, leftWorkingForRestart, workbenchRestart, type FailureCategory, type FailureStage } from './failures.ts';
 import { getTask, taskBindingConfiguration, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
 import { lookupTaskBinding, sameTaskBinding } from './task-binding.ts';
+import type { PloegContractGate } from './ploeg-compatibility.ts';
 import { investigate, type Investigation, type PloegRevision } from './investigation.ts';
 import { PloegError } from './ploeg.ts';
 import { unavailableCandidate, type Candidate } from './candidates.ts';
@@ -107,15 +108,16 @@ export class Engine {
   private maintenanceTask?: Promise<void>;
   private signingKey?: SigningKey;
   private links?: Links;
+  private contract?: PloegContractGate;
   private briefs = new Map<string, { resolve: (answers: string[]) => void }>();
   private toolCalls = new Map<string, Set<string>>();
   private preparing = new Map<string, string>();
   private reconnecting = new Map<string, string>();
   private settlementReads = new Map<string, number>();
 
-  constructor(store: Store, config: AppConfig, runtimes: Map<RuntimeKind, AgentRuntime> | Record<string, AgentRuntime>, broker?: Broker, links?: Links) {
-    this.store = store; this.config = config; this.runtimes = runtimes instanceof Map ? runtimes : new Map(Object.entries(runtimes) as [RuntimeKind, AgentRuntime][]); this.broker = broker; this.links = links;
-    if (config.execution) this.authority = new ExecutionAuthority(store, config);
+  constructor(store: Store, config: AppConfig, runtimes: Map<RuntimeKind, AgentRuntime> | Record<string, AgentRuntime>, broker?: Broker, links?: Links, contract?: PloegContractGate) {
+    this.store = store; this.config = config; this.runtimes = runtimes instanceof Map ? runtimes : new Map(Object.entries(runtimes) as [RuntimeKind, AgentRuntime][]); this.broker = broker; this.links = links; this.contract = contract;
+    if (config.execution) this.authority = new ExecutionAuthority(store, config, contract);
     for (const value of knownSecrets(config)) this.keys.add(value);
     if (broker || this.authority) this.maintenance = setInterval(() => {
       if (this.shuttingDown || this.maintenanceTask) return;
@@ -192,7 +194,7 @@ export class Engine {
     if (!this.authority) return snapshot;
     try {
       this.authority.authorize(user);
-      return await lookupTaskBinding(this.config, snapshot);
+      return await lookupTaskBinding(this.config, snapshot, this.contract);
     } catch (error) {
       if (error instanceof PloegError || error instanceof EngineError) return { ...snapshot, ploegUnavailable: { code: error.code, message: error.message } };
       throw error;
@@ -210,7 +212,7 @@ export class Engine {
       return { session: existing, created: false };
     }
     if (related.some(session => !['completed', 'failed', 'cancelled'].includes(session.status) || this.active.has(session.id) || this.store.getSecret<boolean>(`interruption:${session.id}`) || this.store.getSecret<boolean>(`discovery:${session.id}`) || this.store.getSecret<boolean>(`authority-unresolved:${session.id}`) || this.reservations(session.id).length)) throw new EngineError(409, 'task_in_use', 'An earlier revision still has active work or unresolved execution. Finish and reconcile that session first.');
-    if (this.authority) snapshot = await lookupTaskBinding(this.config, snapshot);
+    if (this.authority) snapshot = await lookupTaskBinding(this.config, snapshot, this.contract);
     if (this.authority && (!expectedBinding || snapshot.bindingRevision !== expectedBinding)) throw new EngineError(409, 'task_binding_changed', 'The Ploeg binding changed after your preview. Refresh the task and review the current work item.');
     this.interactiveRepository(snapshot.repositoryId, snapshot);
     const concurrent = this.store.listSessions().find(session => session.sourceTask?.key === snapshot.key && (session.sourceTask.revision === snapshot.revision && (!this.authority || session.sourceTask.bindingRevision === expectedBinding) || !['completed', 'failed', 'cancelled'].includes(session.status)));
@@ -264,7 +266,7 @@ export class Engine {
         const source = this.config.taskSources!.find(source => source.id === session.sourceTask!.sourceId)!;
         const current = await getTask(await this.taskSource(source, owner), session.sourceTask.id);
         if (current.status !== 'open' || current.key !== session.sourceTask.key || current.revision !== session.sourceTask.revision || current.nativeRevision !== session.sourceTask.nativeRevision || current.scope !== session.sourceTask.scope) throw new EngineError(409, 'task_changed', 'The source task changed after import. Review its current version before starting work.');
-        const fresh = await lookupTaskBinding(this.config, current);
+        const fresh = await lookupTaskBinding(this.config, current, this.contract);
         if (!sameTaskBinding(session.sourceTask.ploeg!, fresh.ploeg!)) throw new EngineError(409, 'task_binding_changed', 'The Ploeg work item changed after import. Refresh its binding before starting work.');
         if (this.store.getSession(session.id)!.status !== session.status || this.shuttingDown) throw new EngineError(409, 'start_superseded', 'A stop or shutdown superseded this start. No execution was admitted.');
       }

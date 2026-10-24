@@ -20,8 +20,8 @@ import { StatusBoard, gatewayProbe } from './status.ts';
 import { CardService, importStatusLine } from './cards/service.ts';
 import { CardStore } from './cards/card-store.ts';
 import { rarityShown } from './cards/settings.ts';
-import { PloegClient, PloegError, contextInput, contextUploadLimit, demoNoteRefusal, type PloegDecision, type PloegState } from './ploeg.ts';
-import { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
+import { PloegClient, PloegContractIncompatible, PloegError, contextInput, contextUploadLimit, demoNoteRefusal, type PloegDecision, type PloegState } from './ploeg.ts';
+import type { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
@@ -57,7 +57,7 @@ import { AgentTraceComments } from './agent-trace-comments.ts';
 import type { AddressInfo } from 'node:net';
 
 const reportRefreshWaitMs = 2500;
-const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
+export const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
 /** The most events one storage read loads while streaming a session's history to a live event client. */
 export const eventReplayBatch = 200;
@@ -189,13 +189,13 @@ export function limitRequestBodies(server: Server, withinMs: number, streams: (r
   });
 }
 
-export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports) {
+export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports, ploegCompatibility?: PloegCompatibilityMonitor) {
   const auth = new Auth(store, config);
-  const ploeg = new PloegClient(config);
-  const ploegCompatibility = config.ploeg && !ploeg.isDemo ? new PloegCompatibilityMonitor(() => ploeg.served(), applicationVersion) : undefined;
+  const ploeg = new PloegClient(config, ploegCompatibility);
   const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
   if (cards) ploeg.useCards(cards);
   const delivery = new DeliveryService(config, store);
+  delivery.useContract(ploegCompatibility);
   void delivery.reconcileAll().catch(() => undefined);
   const handoff = new TaskHandoff(config, ploeg);
   const linked = new LinkedSessions(store.db, config, ploeg);
@@ -211,6 +211,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       catch (error) { return error instanceof PloegError && error.code === 'ploeg_unconfigured' ? 'unconfigured' : error instanceof PloegError && error.status === 403 ? 'ok' : 'down'; }
     },
     ...(cards ? { cards: () => importStatusLine(cards.status().import) } : {}),
+    ...(ploegCompatibility ? { contract: () => ploegCompatibility.status } : {}),
   });
   const streams = new Set<ServerResponse>();
   const staticFiles = new StaticFiles(config.publicDir);
@@ -321,9 +322,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (path === '/healthz' || path === '/readyz') {
         if (method !== 'GET') return json(res, 405, { error: { code: 'method', message: 'GET required.' } });
         if (path === '/readyz') store.ping();
-        const compatibility = path === '/readyz' ? ploegCompatibility?.status : undefined;
-        if (compatibility?.state === 'incompatible') return json(res, 503, { status: 'ploeg_incompatible', version: applicationVersion, error: { code: 'ploeg_contract_incompatible', message: compatibility.message } });
-        return json(res, 200, { status: 'ok', version: applicationVersion });
+        return json(res, 200, { status: 'ok', version: applicationVersion, ...(path === '/healthz' && ploegCompatibility ? { ploegContract: ploegCompatibility.status } : {}) });
       }
       if (mcp?.handles(path)) return await mcp.handle(req, res, path);
       if (relay && await relay.handle(req, res, url)) return;
@@ -1042,7 +1041,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       const status = Number(error.status || error.statusCode) || 500;
       const code = error.code || (status === 500 ? 'internal_error' : 'request_failed');
       const message = status >= 500 && !(error instanceof TaskError) && !(error instanceof PloegError) && !(error instanceof CardArtError) && !(error instanceof AssetError) && !(error instanceof ThemeError) ? 'The operation could not be completed. Check the server log.' : error.message;
-      if (status >= 500) {
+      if (status >= 500 && !(error instanceof PloegContractIncompatible)) {
         console.error(JSON.stringify({ level: 'error', event: 'http.failed', message: String(error.message).slice(0, 200).replace(/sk-[\w-]+/g, '[redacted]') }));
         const route = `${req.method || 'GET'} ${routeShape(new URL(req.url || '/', 'http://localhost').pathname)}`;
         errors.capture(error, { level: 'error', tags: { feature: 'http', route, http_status: status, code }, fingerprint: ['http', route, String(code)] });
@@ -1071,5 +1070,5 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;
   server.keepAliveTimeout = keepAliveTimeoutMs;
-  return { server, cards, tripwire, ploegCompatibility, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); tripwire.stop(); ploegCompatibility?.stop(); }, reports };
+  return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); tripwire.stop(); }, reports };
 }

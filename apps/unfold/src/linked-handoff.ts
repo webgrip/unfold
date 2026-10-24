@@ -5,7 +5,7 @@ import { digestSessionLimit, readSessionsCost } from './linked-telemetry.ts';
 import { PloegError, type PloegAdmitted, type PloegClient, type PloegClientClaim, type PloegConnectionRepository, type PloegRequeued, type PloegState } from './ploeg.ts';
 
 /** The Ploeg calls moving work between a person's own sessions and Ploeg needs. */
-export type HandoffPloeg = Pick<PloegClient, 'detail' | 'teams' | 'connections' | 'admitWorkItem' | 'requeue' | 'claimClientRun'>;
+export type HandoffPloeg = Pick<PloegClient, 'detail' | 'teams' | 'connections' | 'admitWorkItem' | 'requeue' | 'claimClientRun' | 'refuseWhenIncompatible'>;
 /** Where a claimed Run's credential waits, encrypted, until the person's client records its session. */
 export type ClaimVault = { setSecret(id: string, value: unknown): void; getSecret<T>(id: string): T | undefined; deleteSecret(id: string): void };
 
@@ -226,6 +226,7 @@ export class LinkedHandoff {
     const stored = this.vault.getSecret<StoredClaim>(`client-claim:${runId}`);
     if (!stored || stored.userId !== user.id || stored.workItemId !== workItemId) fail(404, 'claim_not_found', 'Unfold holds no claim of yours for this Run. Start it again with /unfold:start.');
     const ploegUrl = this.config.ploeg?.url;
+    this.ploeg.refuseWhenIncompatible();
     if (!ploegUrl) return fail(503, 'ploeg_unconfigured', 'Connect the Ploeg operator API in the server configuration.');
     const clip = (value: string) => value.slice(0, 512);
     const headers: Record<string, string> = { 'content-type': 'application/json', accept: 'application/json', ...(stored!.controlToken ? { authorization: `Bearer ${stored!.controlToken}` } : {}), ...(stored!.workerId ? { 'X-Ploeg-Worker-ID': stored!.workerId } : {}) };

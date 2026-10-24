@@ -3,6 +3,7 @@ import { EngineError, type Provisioning } from './engine.ts';
 import { executionFailure, type FailureCategory } from './failures.ts';
 import type { StatusNote, Store } from './store.ts';
 import type { AppConfig, User } from './types.ts';
+import type { PloegCompatibility } from './ploeg-compatibility.ts';
 
 export type CheckState = 'ok' | 'degraded' | 'down' | 'idle' | 'not_used';
 export type StatusCheck = { id: 'workspaces' | 'gateway' | 'ploeg'; title: string; state: CheckState; summary: string; checkedAt: string; detail?: string };
@@ -17,9 +18,11 @@ export type StatusReport = {
   waiting: WaitingSession[];
   failures: { since: string; total: number; causes: FailureCause[] };
   notes: StatusNote[];
+  /** Whether the connected Ploeg serves the contract majors this Unfold requires; absent without a Ploeg to check (system ADR-0044). */
+  ploegContract?: PloegCompatibility;
 };
 export type PloegProbe = 'ok' | 'unconfigured' | 'down';
-export type StatusProbes = { gateway(): Promise<boolean>; ploeg(user: User): Promise<PloegProbe>; cards?(): string | null };
+export type StatusProbes = { gateway(): Promise<boolean>; ploeg(user: User): Promise<PloegProbe>; cards?(): string | null; contract?(): PloegCompatibility };
 
 const hour = 3_600_000;
 export const failureWindowMs = 24 * hour;
@@ -71,7 +74,8 @@ export class StatusBoard {
     const waits = this.provisioning();
     const since = new Date(now.getTime() - failureWindowMs).toISOString();
     const failed = sessions.filter(session => session.status === 'failed' && session.failure && !notPlatformFailures.has(session.failure.category) && session.updatedAt >= since && (visible(session.id) || workbenchCauses.has(session.failure.category)));
-    const [gateway, ploeg] = await Promise.all([this.gatewayCheck(admin), this.ploegCheck(user)]);
+    const contract = this.probes.contract?.();
+    const [gateway, ploeg] = await Promise.all([this.gatewayCheck(admin), contract?.state === 'incompatible' ? this.mismatchCheck(contract) : this.ploegCheck(user)]);
     const checks = [ploeg, gateway, this.workspaceCheck(waits, failed, admin, now)];
     const backend = this.config.runtime.backend;
     const startLimitMs = backend === 'kubernetes' ? this.config.kubernetes?.provisionTimeoutMs ?? 180_000 : backend === 'docker' ? this.config.docker?.provisionTimeoutMs ?? 180_000 : undefined;
@@ -97,6 +101,7 @@ export class StatusBoard {
         : { own: false, phase: wait.phase, since: wait.since }),
       failures: { since, total: failed.length, causes: [...causes.values()].sort((a, b) => b.count - a.count || b.lastAt.localeCompare(a.lastAt)) },
       notes,
+      ...(contract ? { ploegContract: contract } : {}),
     };
   }
 
@@ -124,6 +129,10 @@ export class StatusBoard {
     return this.gatewayCache.up
       ? { ...base, state: 'ok', summary: 'The gateway answered.', ...host }
       : { ...base, state: 'down', summary: 'The gateway did not answer. Sessions cannot call a model until it is back.', ...host };
+  }
+
+  private mismatchCheck(contract: Extract<PloegCompatibility, { state: 'incompatible' }>): StatusCheck {
+    return { id: 'ploeg', title: 'Ploeg', checkedAt: contract.checkedAt, state: 'down', summary: 'Ploeg’s version does not match this Unfold, so managed actions are paused and Unfold sends nothing to Ploeg until they match.' };
   }
 
   private async ploegCheck(user: User): Promise<StatusCheck> {
