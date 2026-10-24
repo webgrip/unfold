@@ -892,6 +892,18 @@
           "mcp": "not exposed"
         },
         {
+          "value": "review.rework_capped",
+          "ploegTerm": "Verdict",
+          "label": "Request for changes kept for later: this Work Item reached its rework cap",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "review.rework_refused",
+          "ploegTerm": "Verdict",
+          "label": "Request for changes ignored: the reviewer may not send work back",
+          "mcp": "not exposed"
+        },
+        {
           "value": "round.opened",
           "ploegTerm": "Round",
           "label": "Round started",

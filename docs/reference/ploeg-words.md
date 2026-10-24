@@ -259,6 +259,8 @@ MCP: not exposed; unfold_get_work quotes the reason of the latest `work_item.<st
 | `follow_up.created` | [Follow-Up](glossary.md#follow-up) | Follow-up created from the forge | not exposed |  |
 | `follow_up.skipped` | [Follow-Up](glossary.md#follow-up) | Follow-up skipped | not exposed |  |
 | `review.changes_requested` | [Verdict](glossary.md#verdict) | Changes requested on the pull request | not exposed |  |
+| `review.rework_capped` | [Verdict](glossary.md#verdict) | Request for changes kept for later: this Work Item reached its rework cap | not exposed |  |
+| `review.rework_refused` | [Verdict](glossary.md#verdict) | Request for changes ignored: the reviewer may not send work back | not exposed |  |
 | `round.opened` | [Round](glossary.md#round) | Round started | not exposed |  |
 | `round.reopened` | [Round](glossary.md#round) | Round retried after a failed writer | not exposed |  |
 | `run.claimed` | [Run](glossary.md#run) | An agent started | not exposed |  |

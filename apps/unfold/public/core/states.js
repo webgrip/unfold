@@ -511,6 +511,8 @@ export function auditEvent(entry) {
     case 'follow_up.created': return event('Follow-up created from the forge', 'neutral', 'plus', said);
     case 'follow_up.skipped': return event('Follow-up skipped', 'neutral', 'minus', said);
     case 'review.changes_requested': return event('Changes requested on the pull request', 'attention', 'alert', said);
+    case 'review.rework_capped': return event('Request for changes kept for later: this Work Item reached its rework cap', 'attention', 'alert', said);
+    case 'review.rework_refused': return event('Request for changes ignored: the reviewer may not send work back', 'neutral', 'x', said);
     case 'round.opened': return event(`Round${round} started`, 'neutral', 'play', said);
     case 'round.reopened': return event(`Round${round} retried after a failed writer`, 'severe', 'refresh', said);
     case 'run.claimed': return event(`${capital(role(detail))} started${round ? ` Round${round}` : ''}${access ? ` as ${access}` : ''}`, 'live', 'play', authorized);
