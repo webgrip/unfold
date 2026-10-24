@@ -11,6 +11,7 @@ import { lineSplitter, message } from '../extensions/acp-proxy/lib/lines.mjs';
 import { addedText, linkedSessionId } from '../extensions/acp-proxy/lib/reporter.mjs';
 import { parseAgentTrace } from '../src/agent-trace.ts';
 import { parseLinkedEvent } from '../src/linked-sessions.ts';
+import { scaledTimeout } from './timeframes.ts';
 
 const proxy = fileURLToPath(new URL('../extensions/acp-proxy/bin/unfold-acp.mjs', import.meta.url));
 const fakeAgent = fileURLToPath(new URL('./fixtures/acp-fake-agent.mjs', import.meta.url));
@@ -35,7 +36,7 @@ async function fakeUnfold(delayMs = 0) {
   return { url: `http://127.0.0.1:${address.port}`, received, close: () => new Promise<void>(done => { server.closeAllConnections(); server.close(() => done()); }) };
 }
 
-async function until(check: () => boolean, what: string, ms = 10_000) {
+async function until(check: () => boolean, what: string, ms = scaledTimeout(10_000)) {
   const end = Date.now() + ms;
   while (!check()) {
     if (Date.now() > end) throw new Error(`timed out waiting for ${what}`);
@@ -130,7 +131,7 @@ test('the proxy relays both directions byte for byte and reports start, working,
 });
 
 test('without UNFOLD_URL and UNFOLD_TOKEN the proxy only relays, and a slow or absent Unfold never holds a message back', async t => {
-  const slow = await fakeUnfold(4000);
+  const slow = await fakeUnfold(scaledTimeout(4000));
   const { dir, repo } = await repository();
   t.after(async () => { await slow.close(); await rm(dir, { recursive: true, force: true }); });
 
@@ -150,7 +151,7 @@ test('without UNFOLD_URL and UNFOLD_TOKEN the proxy only relays, and a slow or a
   await conversation(delayed, repo2.repo);
   delayed.send('{"jsonrpc":"2.0","id":0,"result":{"outcome":{"outcome":"selected","optionId":"allow"}}}\n');
   await delayed.response(2);
-  assert.ok(Date.now() - started < 3500, 'the turn completes while every report to Unfold is still waiting');
+  assert.ok(Date.now() - started < scaledTimeout(3500), 'the turn completes while every report to Unfold is still waiting');
   assert.equal(await delayed.exit(), 3);
   assert.deepEqual(delayed.bytesOut(), await readFile(join(second, 'agent-out')));
 
