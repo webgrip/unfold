@@ -28,7 +28,8 @@ import { candidateEdits, carryRuns, parseRunChannel, runChatChannel, runChatStat
 import { WorkItemSessions, isWorkItemSession, workItemChatState, workItemIdOf, workItemRefusal, workItemRefusals, workItemRunChatState, workItemSessionState, workItemStatus, workItemSummary, type RoutedAction, type WorkItemRecord } from './work-items.ts';
 import { RunLive, type LiveAction } from './run-live.ts';
 import { WorkItemCommands, openShiftOf, promptClosedActions, promptInputNeeded, promptOpenActions, restartable, takesNotes, withPrompts, workItemCommandText, type WorkItemPrompt } from './work-item-commands.ts';
-import { PloegError } from '../ploeg.ts';
+import { PloegClient, PloegError } from '../ploeg.ts';
+import type { PloegContractGate } from '../ploeg-compatibility.ts';
 import { refusalPlacement, refusalReply } from './refusals.ts';
 import { editorLink, openElsewherePart, withLeadingPart, type EditorTarget, type EditorWindow } from './editor-window.ts';
 import { ChatSessions, chatChatUri, chatProvider, chatSessionUri } from './chats.ts';
@@ -316,7 +317,7 @@ export class AgentHost {
   private readonly redact: (text: string) => string;
   private delivery?: DeliveryService;
 
-  constructor(config: AppConfig, store: Store, engine: Engine) {
+  constructor(config: AppConfig, store: Store, engine: Engine, contract?: PloegContractGate) {
     this.config = config; this.store = store; this.engine = engine;
     const secrets = knownSecrets(config);
     this.redact = text => plainRedactedText(withoutKnownSecrets(text, secrets));
@@ -348,12 +349,12 @@ export class AgentHost {
       watchers: () => [...new Map([...this.clients].filter(client => client.initialized && [...client.subscriptions].some(isAutomationsChannel)).map(client => [client.user.id, client.user])).values()],
       publish: (userId, action) => this.broadcast(automationsChannel, action, undefined, client => client.user.id === userId),
       workspaceFolder: repositoryId => { const name = repositoryFolderNames(this.config.repositories).get(repositoryId); return name ? `${repositoriesDirectory}/${encodeURIComponent(name)}` : undefined; },
-    });
+    }, new PloegClient(config, contract));
     this.workItems = new WorkItemSessions(config, {
       viewers: () => [...new Map([...this.clients].filter(client => client.initialized).map(client => [client.user.id, client.user])).values()],
       listed: (user, change) => this.announceWorkItems(user, change),
       transcript: (entry, actions) => this.publishWorkItemTranscript(entry, actions),
-    });
+    }, new PloegClient(config, contract));
     this.workItemCommands = new WorkItemCommands(store, this.workItems.client, config.maxBudgetUsd);
     this.runLive = new RunLive(this.workItems.client, {
       watchers: (publicId, toolCallId, terminal) => [...new Map([...this.clients].filter(client => client.initialized && [...client.subscriptions].some(channel => channel === terminal || (parseChannel(channel)?.id === publicId && parseChannel(channel)?.run === toolCallId))).map(client => [client.user.id, client.user])).values()],

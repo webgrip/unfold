@@ -12,6 +12,7 @@ export interface RuntimeWorkspaces {
   credentials(workspace: Workspace): { username: string; password: string } | undefined;
   executionEnvironment(workspace: Workspace): Record<string, string>;
   dispose(workspace: Workspace): Promise<void>;
+  releaseVolume?(workspace: Workspace): Promise<boolean>;
   captureCandidate?(session: Session, repository: Repository): Promise<Candidate>;
   transport?(workspace: Workspace): typeof fetch | undefined;
   reattachable?(workspace: Workspace): boolean;
@@ -20,6 +21,23 @@ export interface RuntimeWorkspaces {
 }
 
 const maxObservationHiccups = 5;
+
+/**
+ * How long OpenCode may take to answer. `requestMs` bounds each ordinary request. `sessionOpenMs` is one deadline shared
+ * by opening the native session and reading its first message list: the first directory-scoped request to a fresh
+ * server waits for OpenCode to bootstrap that directory, which installs the repository's `.opencode` plugin
+ * dependencies and can take over a minute when the workspace has no registry egress.
+ */
+export type OpenCodeLimits = { requestMs: number; sessionOpenMs: number };
+
+export const openCodeLimits: OpenCodeLimits = { requestMs: 15_000, sessionOpenMs: 180_000 };
+
+type RequestTimer = { name: string; limitMs: number; startedAt: number };
+
+/** The detail a timed-out wait carries, so a failed session names the timer that fired and how long it had run. */
+export function timerDetail(name: string, limitMs: number, startedAt: number, what: string): string {
+  return `${name} fired: ${what} after ${Date.now() - startedAt} ms against a limit of ${limitMs} ms`;
+}
 
 /** A failure reading a turn's state that a second read can cure: the connection or relay dropped, a read timed out, or the worker could not reach OpenCode for a moment. */
 function transient(error: unknown): boolean {
@@ -96,11 +114,13 @@ export class OpenCodeRuntime implements AgentRuntime {
   private readonly config: AppConfig;
   private readonly workspaces: RuntimeWorkspaces;
   private readonly fetcher: typeof fetch;
+  private readonly limits: OpenCodeLimits;
 
-  constructor(config: AppConfig, workspaces: RuntimeWorkspaces = new WorkspaceManager(config), fetcher: typeof fetch = fetch) {
+  constructor(config: AppConfig, workspaces: RuntimeWorkspaces = new WorkspaceManager(config), fetcher: typeof fetch = fetch, limits: OpenCodeLimits = openCodeLimits) {
     this.config = config;
     this.workspaces = workspaces;
     this.fetcher = fetcher;
+    this.limits = limits;
   }
 
   prepare(session: Session, repository: Repository, credential: Credential | undefined, signal: AbortSignal): Promise<Workspace> {
@@ -125,8 +145,8 @@ export class OpenCodeRuntime implements AgentRuntime {
     return { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Basic ${Buffer.from(`${auth.username}:${auth.password}`).toString('base64')}` } : {}) };
   }
 
-  private async request(workspace: Workspace, path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<any> {
-    const timeout = AbortSignal.timeout(15000);
+  private async request(workspace: Workspace, path: string, method = 'GET', body?: unknown, signal?: AbortSignal, timer: RequestTimer = { name: 'opencode.request', limitMs: this.limits.requestMs, startedAt: Date.now() }): Promise<any> {
+    const timeout = AbortSignal.timeout(Math.max(1, timer.startedAt + timer.limitMs - Date.now()));
     try {
       const response = await this.fetch(workspace)(this.url(workspace, path), {
         method, headers: this.headers(workspace), redirect: 'error',
@@ -152,7 +172,7 @@ export class OpenCodeRuntime implements AgentRuntime {
     } catch (error) {
       if (error instanceof RuntimeFailure) throw error;
       if (signal?.aborted) throw signal.reason;
-      if (timeout.aborted) throw new RuntimeFailure('timeout', 'runtime');
+      if (timeout.aborted) throw new RuntimeFailure('timeout', 'runtime', 'not_submitted', undefined, timerDetail(timer.name, timer.limitMs, timer.startedAt, `${method} ${path.split('?')[0]} got no answer`));
       throw transportFailure(error, 'runtime');
     }
   }
@@ -184,13 +204,16 @@ export class OpenCodeRuntime implements AgentRuntime {
   async execute(context: ExecutionContext): Promise<ExecutionResult> {
     const { workspace, signal, emit } = context;
     signal.throwIfAborted();
+    const turnStartedAt = Date.now();
     const timeout = AbortSignal.timeout(this.config.runtime.timeoutMs);
+    const turnTimedOut = (what: string) => timerDetail('runtime.timeoutMs', this.config.runtime.timeoutMs, turnStartedAt, what);
     const completion = new AbortController();
     const operation = AbortSignal.any([signal, timeout, completion.signal]);
     const model = context.model ?? this.config.models[0];
     if (!model) throw new RuntimeFailure('harness_rejected', 'runtime');
     let nativeId = context.run.nativeId;
     let baseline: WireMessage[];
+    const opening: RequestTimer = { name: 'opencode.session_open', limitMs: this.limits.sessionOpenMs, startedAt: Date.now() };
     try {
       if (context.continuing && !nativeId) throw new RuntimeFailure('harness_rejected', 'runtime');
       if (!nativeId) {
@@ -198,23 +221,23 @@ export class OpenCodeRuntime implements AgentRuntime {
         const permission = context.role.mode === 'read'
           ? [{ permission: '*', pattern: '*', action: auto ? 'allow' : 'ask' }, { permission: 'edit', pattern: '*', action: 'deny' }, { permission: 'bash', pattern: '*', action: 'deny' }, { permission: 'task', pattern: '*', action: 'deny' }, { permission: 'read', pattern: '*', action: 'allow' }, { permission: 'glob', pattern: '*', action: 'allow' }, { permission: 'grep', pattern: '*', action: 'allow' }, { permission: 'external_directory', pattern: '*', action: 'deny' }]
           : auto ? [{ permission: '*', pattern: '*', action: 'allow' }, { permission: 'external_directory', pattern: '*', action: 'deny' }] : undefined;
-        const created = await this.request(workspace, '/session', 'POST', { title: `${context.session.title} · ${context.role.name}`, ...(permission ? { permission } : {}) }, operation);
+        const created = await this.request(workspace, '/session', 'POST', { title: `${context.session.title} · ${context.role.name}`, ...(permission ? { permission } : {}) }, operation, opening);
         if (typeof created?.id !== 'string') throw new RuntimeFailure('harness_rejected', 'runtime');
         nativeId = created.id;
       }
       if (typeof nativeId !== 'string') throw new RuntimeFailure('harness_rejected', 'runtime');
       workspace.nativeSessionId = nativeId;
       emit({ type: 'native.session', data: { nativeId } });
-      const listed = await this.request(workspace, `/session/${encodeURIComponent(nativeId)}/message`, 'GET', undefined, operation);
+      const listed = await this.request(workspace, `/session/${encodeURIComponent(nativeId)}/message`, 'GET', undefined, operation, opening);
       if (!Array.isArray(listed)) throw new RuntimeFailure('harness_rejected', 'runtime');
       const accounted = context.continuing ? throughLatestPrompt(listed) : listed;
       if (!accounted) throw new RuntimeFailure('harness_rejected', 'runtime');
       baseline = accounted;
     } catch (error) {
       if (signal.aborted) throw new DOMException('Agent turn cancelled', 'AbortError');
-      if (timeout.aborted) throw new RuntimeFailure('timeout', 'runtime');
+      if (timeout.aborted) throw new RuntimeFailure('timeout', 'runtime', 'not_submitted', undefined, turnTimedOut('opening the native session did not finish'));
       const failure = classifyFailure(error, 'runtime');
-      throw new RuntimeFailure(failure.category, 'runtime');
+      throw new RuntimeFailure(failure.category, 'runtime', 'not_submitted', error instanceof RuntimeFailure ? error.httpStatus : undefined, failure.detail);
     }
     const base = `/session/${encodeURIComponent(nativeId)}`;
     const existing = new Set(baseline.map(item => item.info?.id));
@@ -354,7 +377,7 @@ export class OpenCodeRuntime implements AgentRuntime {
         throw new RuntimeFailure('prompt_acceptance_unknown', 'prompt', 'unknown');
       }
       const cause = timeout.aborted && unreadable ? unreadable : error;
-      if (timeout.aborted && !unreadable) throw new RuntimeFailure('timeout', 'execution', promptAcceptance);
+      if (timeout.aborted && !unreadable) throw new RuntimeFailure('timeout', 'execution', promptAcceptance, undefined, turnTimedOut('the turn did not finish'));
       const failure = classifyFailure(cause, 'execution', promptAcceptance);
       throw new RuntimeFailure(failure.category, 'execution', promptAcceptance, cause instanceof RuntimeFailure ? cause.httpStatus : undefined, failure.detail);
     } finally { completion.abort(); await watching; }
@@ -399,4 +422,5 @@ export class OpenCodeRuntime implements AgentRuntime {
   captureCandidate(session: Session, repository: Repository): Promise<Candidate> { return this.workspaces.captureCandidate?.(session, repository) ?? Promise.resolve(unavailableCandidate('unsupported_workspace')); }
 
   dispose(workspace: Workspace): Promise<void> { return this.workspaces.dispose(workspace); }
+  releaseVolume(workspace: Workspace): Promise<boolean> { return this.workspaces.releaseVolume?.(workspace) ?? Promise.resolve(false); }
 }

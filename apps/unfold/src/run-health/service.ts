@@ -173,7 +173,10 @@ export class RunHealthService {
     tail.judgedPlanKey = tail.planKey;
     tail.state = 'judging';
     const judge = this.options.judge;
-    tail.judging = judge.judge({ user, workItemId: detail.item.id, runId: run.id, title: detail.item.title, description: detail.item.description, plan, entries: tail.entries, signals: result })
+    const started = run.startedAt ? Date.parse(run.startedAt) : NaN;
+    const minutes = (at: number | null) => at === null || !Number.isFinite(started) ? null : Math.max(0, Math.round((at - started) / 60_000));
+    const progress = { elapsedMinutes: minutes(now), limitMinutes: run.limits?.promptSeconds ? Math.round(run.limits.promptSeconds / 60) : null, calls: { ...tail.tally.calls }, firstChangeMinutes: minutes(tail.tally.firstChangeAt), cycles: tail.tally.cycles };
+    tail.judging = judge.judge({ user, workItemId: detail.item.id, runId: run.id, title: detail.item.title, description: detail.item.description, plan, progress, entries: tail.entries, signals: result })
       .then(outcome => {
         if (!outcome.admitted) tail.attempts = Math.max(0, (tail.attempts ?? 1) - 1);
         if (outcome.judgement) this.store.saveRunJudgement(outcome.judgement);

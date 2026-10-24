@@ -1,13 +1,5 @@
 # Ploeg session execution
 
-All behaviour below is proposed. The Ploeg routes it relies on are defined in
-Ploeg's operator API contract (`apps/ploeg/docs/contracts/README.md` and
-`operator-api.v1.schema.json`): cancel, requeue, notes and events exist in the
-pinned Ploeg; the submission route `POST /api/v1/operator/work-items` comes
-from ploeg-hq `submit-work-items`, the Harness and model fields from
-`select-harness-per-run`, and the `attended` and `autoApprove` flags and
-per-Run interaction commands from `interactive-runs`. This spec does not restate them.
-
 ## ADDED Requirements
 
 ### Requirement: A non-demo session executes only in ploeg-worker

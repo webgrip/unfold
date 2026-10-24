@@ -9,7 +9,7 @@ const maxGrow = 40;
 
 /** How each way a Run can end is drawn: its glyph, tone and words. Machine endings are neutral: not the agent's fault. */
 export const hopEndings = Object.freeze({
-  machine: Object.freeze({ glyph: 'zap', tone: 'machine', words: 'ended by the machine' }),
+  machine: Object.freeze({ glyph: 'zap', tone: 'machine', words: 'stopped by an infrastructure fault' }),
   stuck: Object.freeze({ glyph: 'pause-circle', tone: 'stuck', words: 'stopped answering' }),
   failed: Object.freeze({ glyph: 'x', tone: 'failed', words: 'failed' }),
   budget: Object.freeze({ glyph: 'coins', tone: 'failed', words: 'ran out of budget' }),
@@ -210,6 +210,14 @@ export function hopMarks(model, hop) {
   return { wires, calls, divertedAt: turn ? binOf(turn.at) : null };
 }
 
+const calendarDay = ms => new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(ms);
+
+function attemptTime(first, last, shownDay) {
+  const start = calendarDay(first) === shownDay ? clock(first) : `${calendarDay(first)} ${clock(first)}`;
+  if (last === null) return `${start}–now`;
+  return `${start}–${calendarDay(last) === calendarDay(first) ? clock(last) : `${calendarDay(last)} ${clock(last)}`}`;
+}
+
 /**
  * The flight as data: the gate, the wait, each attempt with its hops (one per Run), how it approaches the stations,
  * and the stations themselves. Pure, so tests can pin how each state is drawn without a browser.
@@ -219,7 +227,9 @@ export function hopMarks(model, hop) {
 export function flightLegs(model) {
   const legs = [];
   const queued = !model.runs.length;
-  legs.push({ kind: 'gate', id: 'ask', label: 'Ask', note: model.time.lead !== null ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(model.now - model.time.lead * 1000) : '' });
+  const asked = model.time.lead !== null ? model.now - model.time.lead * 1000 : null;
+  legs.push({ kind: 'gate', id: 'ask', label: 'Ask', note: asked !== null ? `${calendarDay(asked)} ${clock(asked)}` : '' });
+  let shownDay = asked !== null ? calendarDay(asked) : null;
   legs.push({ kind: 'wait', label: queued ? 'At the gate' : 'Waited', note: model.time.waiting !== null ? span(model.time.waiting) : '', parked: queued && ['queued', 'ingested', 'leased'].includes(model.state) });
   for (const attempt of model.attempts) {
     if (!attempt.runs.length) continue;
@@ -249,9 +259,10 @@ export function flightLegs(model) {
     const last = Math.max(...attempt.runs.map(run => run.finishedAt ?? (run.state === 'running' ? model.now : run.startedAt ?? 0)));
     const queued = attempt.runs.filter(run => run.status === 'pending').length;
     const started = attempt.runs.length - queued;
-    const words = [started ? `${started} ${started === 1 ? 'Run' : 'Runs'}` : '', queued ? `${queued} queued` : '', lost ? `${lost} lost to machines` : '', failed ? `${failed} failed` : ''].filter(Boolean).join(' · ');
+    const words = [started ? `${started} ${started === 1 ? 'Run' : 'Runs'}` : '', queued ? `${queued} queued` : '', lost ? `${lost} lost to infrastructure faults` : '', failed ? `${failed} failed` : ''].filter(Boolean).join(' · ');
     const waiting = attempt.runs.some(run => run.status === 'pending');
-    legs.push({ kind: 'attempt', n: attempt.n, live: live || waiting, hops, grow: Math.min(maxGrow, hops.reduce((sum, hop) => sum + hop.grow, 0)), head: `Attempt ${attempt.n}`, note: words, time: first !== null ? `${clock(first)}–${live ? 'now' : clock(last)}` : '', tone: live || waiting ? 'live' : lost === attempt.runs.length ? 'machine' : failed ? 'failed' : 'done' });
+    legs.push({ kind: 'attempt', n: attempt.n, live: live || waiting, hops, grow: Math.min(maxGrow, hops.reduce((sum, hop) => sum + hop.grow, 0)), head: `Attempt ${attempt.n}`, note: words, time: first !== null ? attemptTime(first, live ? null : last, shownDay) : '', tone: live || waiting ? 'live' : lost === attempt.runs.length ? 'machine' : failed ? 'failed' : 'done' });
+    if (first !== null) shownDay = calendarDay(live ? model.now : last);
   }
   const pr = ['done', 'current'].includes(model.stages.find(stage => stage.id === 'pr')?.status);
   const stopped = { needs_human: ['attention', 'Needs you', 'flag'], stale: ['severe', 'Stopped retrying', 'circle-slash'], withdrawn: ['neutral', 'Withdrawn', 'circle-slash'] }[model.state];
@@ -261,7 +272,7 @@ export function flightLegs(model) {
   else if (!queued) legs.push({ kind: 'approach', mode: model.running ? 'forecast' : 'taxi', note: model.estimate ? model.estimate.note || model.estimate.text : 'no estimate' });
   for (const stage of model.stages.filter(entry => ['pr', 'review', 'merge', 'production'].includes(entry.id))) {
     const parked = (model.state === 'awaiting_review' && stage.id === 'review') || (model.state === 'done' && stage.id === 'merge');
-    legs.push({ kind: 'station', id: stage.id, label: stage.id === 'review' ? 'You' : stage.label, status: stopped && stage.status !== 'done' ? 'blocked' : stage.status, you: stage.you, parked, note: stage.id === 'pr' && model.pullRequest?.number ? `#${model.pullRequest.number}` : '' });
+    legs.push({ kind: 'station', id: stage.id, label: stage.label, status: stopped && stage.status !== 'done' ? 'blocked' : stage.status, you: stage.you, parked, note: stage.id === 'pr' && model.pullRequest?.number ? `#${model.pullRequest.number}` : '' });
   }
   return legs;
 }

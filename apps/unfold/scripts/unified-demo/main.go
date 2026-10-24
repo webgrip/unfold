@@ -34,7 +34,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	database, err := store.New(ctx, databaseURL)
+	database, err := store.New(ctx, databaseURL, store.PoolConfig{})
 	if err != nil {
 		return err
 	}

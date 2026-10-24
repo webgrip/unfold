@@ -13,21 +13,26 @@ const root = path.resolve(__dirname, '..');
 const read = relative => parse(fs.readFileSync(path.join(root, relative), 'utf8'));
 const workflows = Object.fromEntries(fs.readdirSync(path.join(root, '.forgejo/workflows')).map(file => [file, read(`.forgejo/workflows/${file}`)]));
 const source = workflows['on_source_change.yml'];
+const train = workflows['on_release_train.yml'];
+const withoutRef = job => ({ ...job, steps: job.steps.map(({ with: inputs, ...step }) => {
+  const { ref, ...rest } = inputs ?? {};
+  return inputs && Object.keys(rest).length ? { ...step, with: rest } : step;
+}) });
 const publisher = workflows['on_release_published.yml'];
 const verifyStep = step => /^set -o pipefail; mise run verify 2>&1 \| tee /.test(step.run ?? '');
 const evaluate = (expression, context) => vm.runInNewContext(expression.replace(/^\$\{\{\s*|\s*\}\}$/g, '').replace(/needs\.([a-z-]+)/g, "needs['$1']"), { startsWith: (value, prefix) => value.startsWith(prefix), always: () => true, ...context });
 
 test('event entry points preserve validation and keep application publication out of pull requests and docs', () => {
-  assert.deepEqual(Object.keys(workflows).sort(), ['on_dns_change.yml', 'on_docs_change.yml', 'on_nightly.yml', 'on_pull_request.yml', 'on_release_preview.yml', 'on_release_published.yml', 'on_schedule.yml', 'on_source_change.yml']);
+  assert.deepEqual(Object.keys(workflows).sort(), ['on_dns_change.yml', 'on_docs_change.yml', 'on_nightly.yml', 'on_pull_request.yml', 'on_release_preview.yml', 'on_release_published.yml', 'on_release_train.yml', 'on_schedule.yml', 'on_source_change.yml']);
   assert.deepEqual(Object.keys(source.on).sort(), ['push', 'workflow_dispatch']);
   const pr = workflows['on_pull_request.yml'];
   assert.deepEqual(Object.keys(pr.on).sort(), ['pull_request', 'workflow_dispatch']);
-  assert.deepEqual(Object.keys(pr.jobs).sort(), ['checks', 'opencode-contract', 'ploeg-docs', 'ploeg-pin', 'release-policy', 'warnings']);
+  assert.deepEqual(Object.keys(pr.jobs).sort(), ['agent-trace', 'checks', 'opencode-contract', 'ploeg-docs', 'ploeg-pin', 'release-policy', 'warnings']);
   assert.deepEqual(pr.jobs.checks, source.jobs.checks);
   assert.deepEqual(pr.jobs.warnings, source.jobs.warnings);
   assert.deepEqual(pr.jobs['ploeg-pin'], source.jobs['ploeg-pin']);
-  assert.deepEqual(pr.jobs['release-policy'].container, source.jobs.release.container);
-  assert.deepEqual(pr.jobs['release-policy'].steps, source.jobs.release.steps.slice(0, 2));
+  assert.deepEqual(pr.jobs['release-policy'].container, train.jobs.release.container);
+  assert.deepEqual(pr.jobs['release-policy'].steps, withoutRef(train.jobs.release).steps.slice(0, 2));
   for (const name of ['on_pull_request.yml', 'on_docs_change.yml']) {
     assert.doesNotMatch(JSON.stringify(workflows[name]), /UNFOLD_RELEASES_ENABLED|contents":"write|semantic-release-monorepo@/);
   }
@@ -35,6 +40,19 @@ test('event entry points preserve validation and keep application publication ou
   assert.ok(verification.runs.steps.some(verifyStep));
   assert.doesNotMatch(JSON.stringify(pr), /secrets\./);
   assert.equal(workflows['on_docs_change.yml'].jobs['generate-documentation'].with['prepare-command'], 'python3 scripts/ploeg-contract.py fetch && python3 scripts/docs.py --check --stage-only');
+});
+
+test('the Agent Trace summary on a pull request only reads notes, never fails and holds no other job up', () => {
+  const pr = workflows['on_pull_request.yml'];
+  const job = pr.jobs['agent-trace'];
+  const runs = job.steps.map(step => step.run ?? '').join('\n');
+  assert.match(runs, /git fetch --no-tags origin 'refs\/notes\/agent-trace:refs\/notes\/agent-trace' \|\| /, 'fetches the notes without force and tolerates their absence');
+  assert.doesNotMatch(runs, /\bpush\b|\+refs|--prune|update-ref|notes (?:add|merge|remove|prune)/);
+  assert.match(runs, /agent-trace-report\.mjs .*\|\| echo/);
+  assert.match(runs, /GITHUB_STEP_SUMMARY/);
+  assert.equal(job.needs, undefined);
+  for (const [name, other] of Object.entries(pr.jobs)) assert.ok(![other.needs].flat().includes('agent-trace'), `${name} does not wait for the summary`);
+  assert.doesNotMatch(JSON.stringify(job), /secrets\./);
 });
 
 test('the browser flows run every night and on command, never on a push, in the Playwright image of Unfold\'s playwright version', () => {
@@ -80,7 +98,7 @@ test('every job that reads Ploeg\'s contract unpacks the pinned bundle first, an
     const read = job.steps.findIndex(step => reads.test(step.run ?? ''));
     return fetch >= 0 && fetch < read;
   };
-  for (const [file, name, reads] of [['on_pull_request.yml', 'ploeg-pin', /ploeg-contract\.py check/], ['on_source_change.yml', 'ploeg-pin', /ploeg-contract\.py check/], ['on_pull_request.yml', 'ploeg-docs', /docs\.py --domain-check/], ['on_schedule.yml', 'external-links', /docs-links-external/], ['on_schedule.yml', 'ploeg-ahead', /renovate-ploeg-docs\.sh/], ['on_docs_change.yml', 'verify-publication', /docs\.py --stage-only/]]) {
+  for (const [file, name, reads] of [['on_pull_request.yml', 'ploeg-pin', /ploeg-contract\.py check/], ['on_source_change.yml', 'ploeg-pin', /ploeg-contract\.py check/], ['on_release_train.yml', 'ploeg-pin', /ploeg-contract\.py check/], ['on_pull_request.yml', 'ploeg-docs', /docs\.py --domain-check/], ['on_schedule.yml', 'external-links', /docs-links-external/], ['on_schedule.yml', 'ploeg-ahead', /renovate-ploeg-docs\.sh/], ['on_docs_change.yml', 'verify-publication', /docs\.py --stage-only/]]) {
     assert.ok(fetchesFirst(workflows[file].jobs[name], reads), `${file}: ${name}`);
   }
   for (const name of ['generate-documentation', 'deploy-docs-site']) {
@@ -115,31 +133,119 @@ test('Ploeg\'s release opens the Ploeg pull request, and a nightly run fails whe
 });
 
 test('a pull request and a release need the pinned Ploeg to be a published release', () => {
-  for (const workflow of [workflows['on_pull_request.yml'], source]) {
+  for (const workflow of [workflows['on_pull_request.yml'], source, train]) {
     const steps = workflow.jobs['ploeg-pin'].steps;
     assert.equal(steps.at(-1).run, 'mise exec -- uv run --no-project python scripts/ploeg-contract.py check --published');
     assert.doesNotMatch(JSON.stringify(workflow.jobs['ploeg-pin']), /secrets\.|permissions/);
   }
-  assert.ok(source.jobs.release.needs.includes('ploeg-pin'));
+  assert.ok(train.jobs.release.needs.includes('ploeg-pin'));
 });
 
-test('only an enabled development push can version Unfold, after the checks and the release policy', () => {
-  assert.equal(source.concurrency['cancel-in-progress'], false);
-  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'ploeg-pin', 'release', 'site-release', 'warnings']);
-  const job = source.jobs.release;
-  assert.deepEqual(job.needs, ['checks', 'ploeg-pin']);
-  const policy = job.steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');
-  assert.ok(policy > 0 && policy < job.steps.findIndex(step => step.id === 'release'), 'the release policy runs in the release job before versioning');
-  const release = job.steps.find(step => step.id === 'release');
-  assert.equal(release.with['package-path'], 'apps');
-  assert.equal(release.with['package-name'], 'unfold');
-  for (const event_name of ['push', 'pull_request', 'workflow_dispatch', 'release']) {
-    for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic', 'refs/tags/unfold-v0.4.0-rc.1']) {
+test('a push checks the head it lands on, supersedes an older development run and no longer versions Unfold', () => {
+  for (const ref of ['refs/heads/development', 'refs/heads/topic']) assert.equal(evaluate(source.concurrency['cancel-in-progress'], { github: { ref } }), true, ref);
+  assert.equal(evaluate(source.concurrency['cancel-in-progress'], { github: { ref: 'refs/heads/main' } }), false, 'a main push releases the site, so a newer main push queues behind it');
+  assert.deepEqual(Object.keys(source.jobs).sort(), ['checks', 'ploeg-pin', 'site-release', 'warnings']);
+  assert.doesNotMatch(JSON.stringify(source), /"package-name":"unfold"/);
+});
+
+test('the release train owns Unfold versioning: hourly or on command, in its own queue, on the development head after the checks and the release policy', () => {
+  assert.deepEqual(Object.keys(train.on).sort(), ['schedule', 'workflow_dispatch']);
+  assert.equal(train.on.schedule.length, 1);
+  assert.match(train.on.schedule[0].cron, /^\d+ \* \* \* \*$/, 'every hour');
+  assert.deepEqual(train.concurrency, { group: 'release-train', 'cancel-in-progress': false });
+  assert.ok(Object.values(workflows).every(other => other === train || other.concurrency?.group !== train.concurrency.group), 'no other workflow shares the train\'s queue');
+  assert.deepEqual(Object.keys(train.jobs).sort(), ['checks', 'pending', 'ploeg-pin', 'release', 'site-release']);
+  const pending = train.jobs.pending;
+  assert.equal(pending.steps[0].with.ref, '${{ github.ref }}', 'the train reads the branch head when it starts, not the commit it was queued for');
+  assert.equal(pending.steps.at(-1).run, 'sh scripts/release-train.sh pending');
+  for (const event_name of ['schedule', 'workflow_dispatch']) {
+    for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic']) {
       for (const gate of ['', 'false', 'true']) {
-        const enabled = evaluate(job.if, { github: { event_name, ref }, vars: { UNFOLD_RELEASES_ENABLED: gate } });
-        assert.equal(enabled, event_name === 'push' && ref === 'refs/heads/development' && gate === 'true');
+        const context = { github: { event_name, ref }, vars: { UNFOLD_RELEASES_ENABLED: gate } };
+        const expected = ref === 'refs/heads/development' && gate === 'true';
+        assert.equal(evaluate(pending.if, context), expected, `pending ${event_name} ${ref} ${gate}`);
+        assert.equal(evaluate(train.jobs.release.if, context), expected, `release ${event_name} ${ref} ${gate}`);
+        assert.equal(evaluate(train.jobs['site-release'].if, context), expected, `site-release ${event_name} ${ref} ${gate}`);
       }
     }
+  }
+  for (const name of ['checks', 'ploeg-pin']) {
+    const job = train.jobs[name];
+    assert.deepEqual(job.needs, ['pending'], name);
+    for (const unreleased of ['true', 'false', '']) assert.equal(evaluate(job.if, { needs: { pending: { outputs: { unreleased } } } }), unreleased === 'true', `${name} ${unreleased}`);
+    assert.equal(job.steps[0].with.ref, '${{ needs.pending.outputs.sha }}', `${name} checks the head the train found`);
+    const { needs, if: condition, ...same } = withoutRef(job);
+    const { outputs, ...pushed } = source.jobs[name];
+    assert.deepEqual(same, pushed, `${name} runs what a push runs`);
+  }
+  const job = train.jobs.release;
+  assert.deepEqual(job.needs, ['pending', 'checks', 'ploeg-pin']);
+  assert.equal(job.steps[0].with.ref, '${{ github.ref }}');
+  const policy = job.steps.findIndex(step => step.uses === './.forgejo/actions/release-policy');
+  const head = job.steps.findIndex(step => step.id === 'head');
+  const release = job.steps.findIndex(step => step.id === 'release');
+  assert.ok(policy > 0 && policy < head && head < release, 'the release policy, then the head check, run before versioning');
+  assert.equal(job.steps[head].run, 'sh scripts/release-train.sh current "$CHECKED"');
+  assert.equal(job.steps[head].env.CHECKED, '${{ needs.pending.outputs.sha }}');
+  assert.equal(job.steps[release].if, "steps.head.outputs.current == 'true'");
+  assert.equal(job.steps[release].with['package-path'], 'apps');
+  assert.equal(job.steps[release].with['package-name'], 'unfold');
+  for (const [file, workflow] of Object.entries(workflows)) {
+    if (file !== 'on_release_train.yml' && file !== 'on_release_preview.yml') assert.doesNotMatch(JSON.stringify(workflow), /"package-name":"unfold"/, `${file} must not version Unfold`);
+  }
+});
+
+test('the release train releases only the commit its checks passed, and only when an application has unreleased commits', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'unfold-release-train-'));
+  const script = path.join(root, 'scripts/release-train.sh');
+  const output = path.join(directory, 'output');
+  const git = (...args) => {
+    const result = spawnSync('git', args, { cwd: directory, encoding: 'utf8', env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.invalid', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.invalid' } });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  const commit = (file, subject) => {
+    fs.mkdirSync(path.dirname(path.join(directory, file)), { recursive: true });
+    fs.appendFileSync(path.join(directory, file), `${subject}\n`);
+    git('add', file);
+    git('commit', '--quiet', '-m', subject);
+    return git('rev-parse', 'HEAD');
+  };
+  const run = (...args) => {
+    fs.writeFileSync(output, '');
+    const result = spawnSync('sh', [script, ...args], { cwd: directory, encoding: 'utf8', env: { ...process.env, GITHUB_OUTPUT: output } });
+    assert.equal(result.status, 0, result.stderr);
+    return Object.fromEntries(fs.readFileSync(output, 'utf8').trim().split('\n').map(line => line.split('=')));
+  };
+  try {
+    git('init', '--quiet', '--initial-branch=development');
+    commit('apps/unfold/app.txt', 'feat(unfold): first');
+    commit('apps/CHANGELOG.md', 'chore(release): unfold-v0.4.0-rc.1 [skip ci]');
+    git('tag', 'unfold-v0.4.0-rc.1');
+    commit('apps/site/CHANGELOG.md', 'chore(release): unfold-site-v1.0.0-rc.1 [skip ci]');
+    git('tag', 'unfold-site-v1.0.0-rc.1');
+    assert.deepEqual(run('pending'), { sha: git('rev-parse', 'HEAD'), unreleased: 'false' }, 'a site release commit after the Unfold tag releases nothing');
+    commit('docs/guide.md', 'docs: a guide');
+    assert.equal(run('pending').unreleased, 'false', 'a docs-only change releases nothing');
+    const site = commit('apps/site/page.txt', 'feat(site): a page');
+    assert.equal(run('pending').unreleased, 'true', 'a site change waits for a site release');
+    commit('apps/site/CHANGELOG.md', 'chore(release): unfold-site-v1.0.0-rc.2 [skip ci]');
+    git('tag', 'unfold-site-v1.0.0-rc.2');
+    assert.equal(run('pending').unreleased, 'false');
+    const checked = commit('apps/unfold/app.txt', 'fix(ploeg): update Ploeg');
+    assert.deepEqual(run('pending'), { sha: checked, unreleased: 'true' });
+    assert.deepEqual(run('current', checked), { current: 'true' });
+    commit('apps/CHANGELOG.md', 'chore(release): unfold-v0.4.0-rc.2 [skip ci]');
+    assert.deepEqual(run('current', checked), { current: 'true' }, 'the site release follows the Unfold release commit of the same train');
+    assert.deepEqual(run('current', site), { current: 'false' }, 'commits nobody checked landed after it');
+    commit('apps/unfold/app.txt', 'feat(unfold): merged during the checks');
+    assert.deepEqual(run('current', checked), { current: 'false' });
+    git('checkout', '--quiet', '-b', 'elsewhere', site);
+    const sideways = commit('apps/unfold/app.txt', 'feat(unfold): not on development');
+    git('checkout', '--quiet', 'development');
+    assert.deepEqual(run('current', sideways), { current: 'false' }, 'a commit that is not behind the head is never released');
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });
 
@@ -163,8 +269,8 @@ test('warnings from setup and verification turn their own job red without gating
 });
 
 test('a release that Forgejo lost to the tag race is created by the job that cut it', () => {
-  for (const [name, prefix] of [['release', 'unfold-v'], ['site-release', 'unfold-site-v']]) {
-    const steps = source.jobs[name].steps;
+  for (const [workflow, name, prefix] of [[train, 'release', 'unfold-v'], [train, 'site-release', 'unfold-site-v'], [source, 'site-release', 'unfold-site-v']]) {
+    const steps = workflow.jobs[name].steps;
     const release = steps.findIndex(step => step.id === 'release');
     const repair = steps[release + 1];
     assert.equal(repair.if, "failure() && steps.release.outcome == 'failure'", name);
@@ -221,6 +327,16 @@ test('the chart is published only after every image of the release, and defaults
   assert.ok(publisher.jobs['unfold-release-distribute'].needs.includes('unfold-release-publish-chart'), 'the mirrors copy the chart only after it is published');
 });
 
+test('the chart job signs the chart it publishes with the image signing identity, so a consumer can verify it before following a candidate', () => {
+  const chart = publisher.jobs['unfold-release-publish-chart'];
+  assert.equal(chart['enable-openid-connect'], true);
+  assert.deepEqual(chart.permissions, { contents: 'read' });
+  const publish = chart.steps.find(step => step.run?.includes('python3 scripts/publish_chart.py unfold'));
+  assert.match(publish.name, /sign and verify/);
+  const script = fs.readFileSync(path.join(root, 'scripts/publish_chart.py'), 'utf8');
+  assert.match(script, /sign_once\(reference\)/);
+});
+
 test('Unfold builds, signs and publishes no Ploeg artifact', () => {
   assert.deepEqual(Object.keys(publisher.jobs).filter(name => name.startsWith('ploeg-')), []);
   assert.doesNotMatch(JSON.stringify(publisher), /ploeg/i);
@@ -232,13 +348,13 @@ test('preview uses the release toolchain and remains a manual dry run', () => {
   assert.deepEqual(Object.keys(preview.on), ['workflow_dispatch']);
   assert.deepEqual(Object.keys(preview.jobs), ['preflight', 'preview']);
   const job = preview.jobs.preview;
-  assert.deepEqual(job.container, source.jobs.release.container);
+  assert.deepEqual(job.container, train.jobs.release.container);
   assert.equal(job.strategy, undefined);
   const step = job.steps.find(step => step.with?.['dry-run']);
   assert.equal(step.with['dry-run'], 'true');
   assert.equal(step.with['package-path'], 'apps');
   assert.equal(step.with['package-name'], 'unfold');
-  assert.equal(step.uses, source.jobs.release.steps.find(step => step.id === 'release').uses);
+  assert.equal(step.uses, train.jobs.release.steps.find(step => step.id === 'release').uses);
   assert.equal(evaluate(job.if, { github: { ref: 'refs/heads/development' } }), true);
   assert.equal(evaluate(job.if, { github: { ref: 'refs/heads/main' } }), false);
 });
@@ -266,29 +382,30 @@ test('release routing publishes Unfold for an Unfold tag and nothing for a close
   }
 });
 
-test('the site versions on its own train: candidates after Unfold on development, stable releases on main', () => {
+test('the site versions on its own train: candidates after Unfold on the release train, stable releases on main', () => {
   assert.deepEqual(source.on.push.branches, ['development', 'main']);
-  const job = source.jobs['site-release'];
-  assert.deepEqual(job.needs, ['checks', 'release']);
+  const stable = source.jobs['site-release'];
+  assert.deepEqual(stable.needs, ['checks']);
   for (const event_name of ['push', 'pull_request', 'workflow_dispatch']) {
     for (const ref of ['refs/heads/development', 'refs/heads/main', 'refs/heads/topic']) {
       for (const gate of ['', 'true']) {
-        for (const checks of ['success', 'failure', 'skipped']) {
-          for (const release of ['success', 'failure', 'skipped']) {
-            const enabled = evaluate(job.if, { github: { event_name, ref }, vars: { UNFOLD_RELEASES_ENABLED: gate }, needs: { checks: { result: checks }, release: { result: release } } });
-            const expected = event_name === 'push' && gate === 'true' && checks === 'success'
-              && ((ref === 'refs/heads/development' && release === 'success') || (ref === 'refs/heads/main' && release === 'skipped'));
-            assert.equal(enabled, expected, `${event_name} ${ref} ${gate} ${checks} ${release}`);
-          }
-        }
+        assert.equal(evaluate(stable.if, { github: { event_name, ref }, vars: { UNFOLD_RELEASES_ENABLED: gate } }), event_name === 'push' && ref === 'refs/heads/main' && gate === 'true', `${event_name} ${ref} ${gate}`);
       }
     }
   }
-  assert.deepEqual(job.container, source.jobs.release.container);
-  const release = job.steps.find(step => step.id === 'release');
-  assert.equal(release.uses, source.jobs.release.steps.find(step => step.id === 'release').uses);
-  assert.equal(release.with['package-path'], 'apps/site');
-  assert.equal(release.with['package-name'], 'unfold-site');
+  const candidate = train.jobs['site-release'];
+  assert.deepEqual(candidate.needs, ['pending', 'release']);
+  const head = candidate.steps.findIndex(step => step.id === 'head');
+  assert.deepEqual(candidate.steps[head], train.jobs.release.steps.find(step => step.id === 'head'));
+  for (const job of [stable, candidate]) {
+    assert.deepEqual(job.container, train.jobs.release.container);
+    const release = job.steps.find(step => step.id === 'release');
+    assert.equal(release.uses, train.jobs.release.steps.find(step => step.id === 'release').uses);
+    assert.equal(release.with['package-path'], 'apps/site');
+    assert.equal(release.with['package-name'], 'unfold-site');
+  }
+  assert.ok(head >= 0 && head < candidate.steps.findIndex(step => step.id === 'release'));
+  assert.equal(candidate.steps.find(step => step.id === 'release').if, "steps.head.outputs.current == 'true'");
 });
 
 test('a site or Unfold release candidate deploys to staging and a stable site release to unfoldhq.dev', () => {

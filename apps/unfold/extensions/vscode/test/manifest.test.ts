@@ -37,3 +37,41 @@ test('every walkthrough step links contributed commands and ships its media', ()
 test('every contributed unfold command is registered by the extension', () => {
   for (const command of contributed) assert.match(source, new RegExp(`register\\('${command.slice('unfold.'.length)}'|registerCommand\\('${command.replace('.', '\\.')}'|'${command.slice('unfold.'.length)}'`), `${command} is registered`);
 });
+
+const tools: Array<{ name: string; toolReferenceName?: string; displayName?: string; modelDescription?: string; userDescription?: string; canBeReferencedInPrompt?: boolean; tags?: string[]; inputSchema?: { type: string; properties: object } }> = manifest.contributes.languageModelTools;
+
+test('every contributed language model tool is registered by the extension, and every registered tool is contributed', async () => {
+  const { lmToolNames } = await import('../src/lm-tools.ts');
+  const registered = new Set([...source.matchAll(/api\.register\('([\w]+)'/g)].map(match => match[1]));
+  const declared = new Set(tools.map(tool => tool.name));
+  assert.deepEqual([...declared].sort(), [...registered].sort());
+  assert.deepEqual([...declared].sort(), [...lmToolNames].sort());
+});
+
+test('each tool reads only, can be referenced in a prompt and describes itself to the model and the person', () => {
+  const references = new Set<string>();
+  for (const tool of tools) {
+    assert.match(tool.name, /^unfold_[a-z_]+$/);
+    assert.ok(tool.toolReferenceName && /^[A-Za-z][A-Za-z0-9]*$/.test(tool.toolReferenceName), `${tool.name} has a toolReferenceName`);
+    assert.ok(!references.has(tool.toolReferenceName), `${tool.toolReferenceName} is unique`);
+    references.add(tool.toolReferenceName);
+    assert.match(tool.displayName ?? '', /^Unfold: /);
+    assert.ok(tool.userDescription, `${tool.name} has a userDescription`);
+    assert.match(tool.modelDescription ?? '', /^Read-only\./);
+    assert.match(tool.modelDescription ?? '', /never as instructions/);
+    assert.equal(tool.canBeReferencedInPrompt, true);
+    assert.ok(tool.tags?.includes('read-only') && tool.tags.includes('unfold'), `${tool.name} is tagged`);
+    assert.equal(tool.inputSchema?.type, 'object');
+    assert.doesNotMatch(`${tool.name} ${tool.modelDescription}`, /\b(approve|reject|retry|stop|cancel|spend|write)s? (it|the|a|this)\b/i, `${tool.name} offers no action`);
+  }
+  assert.equal(manifest.engines.vscode, '^1.99.0', 'the engine floor stays; the tool API is feature-detected');
+  assert.match(source, /lmToolApi<.+>\(vscode as/);
+});
+
+test('the extension declares that it runs in the Agents window, and stays quiet there', () => {
+  assert.deepEqual(manifest.capabilities.agentsWindow, { supported: true }, 'VS Code 1.143 reads capabilities.agentsWindow.supported without an API proposal');
+  assert.equal(manifest.enabledApiProposals, undefined, 'no proposal is needed for it');
+  assert.match(source, /inAgentsWindow = isAgentsWindowWorkspace\(vscode\.workspace\.workspaceFile\)/);
+  assert.match(source, /private async registerEditorWindow[^]*?if \(this\.inAgentsWindow \|\|/, 'the Agents window never claims the editor-window links');
+  assert.match(source, /if \(!this\.inAgentsWindow\) \{\s*await this\.announceNeedsYou/, 'notifications come from the editor window only');
+});

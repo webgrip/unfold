@@ -1,3 +1,120 @@
+## [unfold-v0.4.0-rc.111](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.110...unfold-v0.4.0-rc.111) (2026-10-24)
+
+### Added
+
+* **unfold:** render agent messages and thoughts in a Run transcript as Markdown ([c6ff8b9](https://forgejo.webgrip.dev/webgrip/unfold/commit/c6ff8b989f993ae5d4f9631c33d38e22e5e1cb40))
+* **unfold:** say how long building, the pull request and your review took ([c0990b1](https://forgejo.webgrip.dev/webgrip/unfold/commit/c0990b15734b231e85dd1f0c57700f9342d853c0))
+
+### Fixed
+
+* **unfold:** keep concurrent writes to a Linked Session ([08f1643](https://forgejo.webgrip.dev/webgrip/unfold/commit/08f16439b38e859069a5cb6d96193d634332c4de))
+* **unfold:** say that only Claude Code sessions carry a cost ([be19fbd](https://forgejo.webgrip.dev/webgrip/unfold/commit/be19fbd634b82378118add4a527ba79153d2ba89))
+
+### Docs
+
+* **unfold:** record that a Linked Session's owner now acts on it from Unfold ([b387418](https://forgejo.webgrip.dev/webgrip/unfold/commit/b3874188ade6e7433b88cfff75d2a843e7a874c8))
+
+## [unfold-v0.4.0-rc.110](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.109...unfold-v0.4.0-rc.110) (2026-10-24)
+
+### Added
+
+* **unfold:** an open Work Item hides the Work heading at every width ([c291f8c](https://forgejo.webgrip.dev/webgrip/unfold/commit/c291f8ccc0521dba8d02dd6c4ef797c2c74c5a9c))
+* **unfold:** answer your own sessions' tool prompts from Unfold ([ed432b2](https://forgejo.webgrip.dev/webgrip/unfold/commit/ed432b200232a0b06a274ff2ed471c52961ec7b5))
+* **unfold:** bring Agent Trace attribution to the people who review ([3dc7c0c](https://forgejo.webgrip.dev/webgrip/unfold/commit/3dc7c0c1d9062b28864f4f3946353180b96c2e88))
+* **unfold:** link Linked Sessions by commit, mention and pull request ([7a06caf](https://forgejo.webgrip.dev/webgrip/unfold/commit/7a06caf5b82319e102679fb99c571c2d4f83a738))
+* **unfold:** move cost and work both ways between your own Claude Code sessions and Ploeg ([a87c8b9](https://forgejo.webgrip.dev/webgrip/unfold/commit/a87c8b99df7a5006b6d2493d457286c29054bfe1))
+* **unfold:** name Linked Sessions after /rename and report recorded pull requests ([3336d7c](https://forgejo.webgrip.dev/webgrip/unfold/commit/3336d7ccc71496a48106e45a113c45a3650f335b))
+* **unfold:** push messages and Work Item notices into linked Claude Code sessions ([3fb2aa2](https://forgejo.webgrip.dev/webgrip/unfold/commit/3fb2aa2b9c98b5043ec94448e53fe38581564b20))
+* **unfold:** release a finished session's workspace volume after seven idle days ([ecc8c1b](https://forgejo.webgrip.dev/webgrip/unfold/commit/ecc8c1b626921b748c429041b5b287be05fb5342))
+* **unfold:** report Agent Client Protocol sessions through an unfold-acp proxy ([75f887d](https://forgejo.webgrip.dev/webgrip/unfold/commit/75f887da11cef996060b43f5c9ab04fc48ff9560))
+* **unfold:** report OpenCode and Codex sessions as Linked Sessions ([021662e](https://forgejo.webgrip.dev/webgrip/unfold/commit/021662e17c77eef598f82c697ac2530c541ec74d))
+* **unfold:** show Ploeg and people as two tracks of one Work Item ([8bf36bb](https://forgejo.webgrip.dev/webgrip/unfold/commit/8bf36bbba9eb8f333db09ad7ebda41a4eae81eca))
+* **unfold:** show your waiting agent sessions in Now and the fleet, and warn when work collides ([ba93d62](https://forgejo.webgrip.dev/webgrip/unfold/commit/ba93d62785b4aeed4ea4c06535100b1041526291))
+* **unfold:** the Work Item page takes the whole Work area and the disagreement card shows only what differs ([430640d](https://forgejo.webgrip.dev/webgrip/unfold/commit/430640de7e88b7904f3797ab1fb444297ff7259d))
+
+### Fixed
+
+* **deps:** update dependency undici ( 6.29.0 ➔ 6.29.1 ) [security] ([4f95891](https://forgejo.webgrip.dev/webgrip/unfold/commit/4f95891f3ce556c6bf3cbe2c732e3bc3d523f405))
+* **ploeg:** update Ploeg to 0.2.0-rc.48 ([8a5fb44](https://forgejo.webgrip.dev/webgrip/unfold/commit/8a5fb44e73d3cf2d6449cefa6ec2a9c9477b248f))
+* **ploeg:** update Ploeg to 0.2.0-rc.50 ([2028ec9](https://forgejo.webgrip.dev/webgrip/unfold/commit/2028ec9c7507f659974ebea0615d788d588515d7))
+* **unfold:** an approved Work Item with an open pull request waits for your merge ([3cfa59b](https://forgejo.webgrip.dev/webgrip/unfold/commit/3cfa59b3c3960309c4d2e0e768b704ecde2caef3)), references [#840](https://forgejo.webgrip.dev/webgrip/unfold/issues/840)
+* **unfold:** show the ask's time and never cut off a flight path label ([acd17c9](https://forgejo.webgrip.dev/webgrip/unfold/commit/acd17c98dd4f307b23c03da12790c7f3cff56c05))
+
+### Docs
+
+* **unfold:** record what a desktop VS Code 1.143.1 showed of the extension ([463f7db](https://forgejo.webgrip.dev/webgrip/unfold/commit/463f7db314b2baba9155f6b8ca708b5b2087d30c))
+
+## [unfold-v0.4.0-rc.109](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.108...unfold-v0.4.0-rc.109) (2026-10-23)
+
+### Added
+
+* **unfold:** give agents in VS Code read-only Unfold tools ([cba22a7](https://forgejo.webgrip.dev/webgrip/unfold/commit/cba22a72a0342325450c3b45855b32dd4f5c4479))
+* **unfold:** make the Claude Code plugin an Agent Plugin too ([27cef35](https://forgejo.webgrip.dev/webgrip/unfold/commit/27cef35e4cfa6e314da4f78f7e2409263191df90))
+* **unfold:** run the extension in VS Code's Agents window and stay quiet there ([1dc115c](https://forgejo.webgrip.dev/webgrip/unfold/commit/1dc115c0231fccbcabc76f03679994d5cac2c0ec))
+* **unfold:** show what a Run printed and did as a console ([e307dec](https://forgejo.webgrip.dev/webgrip/unfold/commit/e307dec161e84c5fc0018b4c5a4f863e869114aa))
+
+### Fixed
+
+* **unfold:** give a cold OpenCode one deadline to open its session and name the timer that fired ([5f20c0b](https://forgejo.webgrip.dev/webgrip/unfold/commit/5f20c0b43c84877f45597b15ad0edcac4a743831))
+* **unfold:** name the relay and workspace-start timers and where the time went ([dc4ae93](https://forgejo.webgrip.dev/webgrip/unfold/commit/dc4ae939aa17866e291bfd8a394993e4c0a5e14d))
+
+### Docs
+
+* **unfold:** drop worktree disk usage from the 1.143 recommendations ([86e80fa](https://forgejo.webgrip.dev/webgrip/unfold/commit/86e80fa1f29824ebb6ed1b7e960f81bfcb2fdc68))
+* **unfold:** read VS Code 1.143 against the host and the extension ([8694409](https://forgejo.webgrip.dev/webgrip/unfold/commit/8694409cc4f95c6959f854b16c12d1c3ae7e624d))
+
+### Tests
+
+* **unfold:** count refused tasks in the palette's Now badge and search a Work Item only it matches ([aab5d78](https://forgejo.webgrip.dev/webgrip/unfold/commit/aab5d78905c91b06b81d28f85d29825d0012af28))
+
+## [unfold-v0.4.0-rc.108](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.107...unfold-v0.4.0-rc.108) (2026-10-23)
+
+### Fixed
+
+* **agent:** update opencode ( 1.19.3 ➔ 1.19.4 ) ([1350f40](https://forgejo.webgrip.dev/webgrip/unfold/commit/1350f40dfcc5f40428314d7982fa18003d43c739))
+* **ploeg:** update Ploeg to 0.2.0-rc.47 ([c46f38c](https://forgejo.webgrip.dev/webgrip/unfold/commit/c46f38c5ac9fecb220e058e165cf8db81c1eaec1))
+
+## [unfold-v0.4.0-rc.107](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.106...unfold-v0.4.0-rc.107) (2026-10-20)
+
+### Fixed
+
+* **ploeg:** update Ploeg to 0.2.0-rc.46 ([a541188](https://forgejo.webgrip.dev/webgrip/unfold/commit/a5411889c2ea92216d8ac56314ae5b4ad7cd3a16))
+
+## [unfold-v0.4.0-rc.106](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.105...unfold-v0.4.0-rc.106) (2026-10-20)
+
+### Added
+
+* **unfold:** the run health judge forecasts when a Run finishes ([9c6cf5c](https://forgejo.webgrip.dev/webgrip/unfold/commit/9c6cf5ce4f1bf044f85a93262920351931a16acc))
+
+### Fixed
+
+* **ploeg:** update Ploeg to 0.2.0-rc.45 ([990650b](https://forgejo.webgrip.dev/webgrip/unfold/commit/990650b59b5c73a23d4101abc9f02f6f591eee6d))
+* **unfold:** attribute the Claude Code plugin's edits in a repository reached through a symlink ([234f05e](https://forgejo.webgrip.dev/webgrip/unfold/commit/234f05e5cab39c83e9c66b13b7327a98b5d9ddc0))
+* **unfold:** pass a pool config to Ploeg's store.New in the unified demo ([11bc03e](https://forgejo.webgrip.dev/webgrip/unfold/commit/11bc03e14eeee9d4ff3273f6571db3554024b3e4))
+* **unfold:** rethrow the error that ended a transaction instead of a failed rollback ([0ef5947](https://forgejo.webgrip.dev/webgrip/unfold/commit/0ef59470d9ad97000efb5cdcfadd14c9320d356b))
+
+## [unfold-v0.4.0-rc.105](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.104...unfold-v0.4.0-rc.105) (2026-10-20)
+
+### Added
+
+* **unfold:** run SQLite with synchronous=NORMAL, keep planner statistics fresh and check integrity daily ([be21123](https://forgejo.webgrip.dev/webgrip/unfold/commit/be2112353694428f2b4d62df2111366308eb041c))
+
+### Fixed
+
+* **unfold:** recover the browser within seconds after a restart ([c0b16ff](https://forgejo.webgrip.dev/webgrip/unfold/commit/c0b16ff005c49f8a666bba0e9bfcdbc0a9786be5))
+* **unfold:** restart faster with one replica: 1 s probes, a 10 s shutdown deadline and 75 s keep-alive ([11938e4](https://forgejo.webgrip.dev/webgrip/unfold/commit/11938e4f60625e3bf1a93a1d413e2b4fa56fa01f))
+
+### Performance
+
+* **unfold:** bake a Node compile cache into the workbench image ([8844923](https://forgejo.webgrip.dev/webgrip/unfold/commit/88449233813be7b9c27c192c9fc5cb8d5420a984))
+
+## [unfold-v0.4.0-rc.104](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.103...unfold-v0.4.0-rc.104) (2026-10-19)
+
+### Fixed
+
+* **unfold:** give OpenCode two minutes to open a session, and say so when it does not ([7d91ab0](https://forgejo.webgrip.dev/webgrip/unfold/commit/7d91ab08bb58664a7e3552751bdbfd91925c8b1a))
+* **unfold:** say plainly why a Run stopped, and fold what the agent printed ([6d66068](https://forgejo.webgrip.dev/webgrip/unfold/commit/6d660684b5a9749b65e5d9de0bf2f30eb368b6f7))
+
 ## [unfold-v0.4.0-rc.103](https://forgejo.webgrip.dev/webgrip/unfold/compare/unfold-v0.4.0-rc.102...unfold-v0.4.0-rc.103) (2026-10-19)
 
 ### Fixed

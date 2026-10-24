@@ -332,6 +332,21 @@ test('a needs-you item explains why with Ploeg’s own words, the evidence Runs 
   assert.match(stuck, /<details class="work-run" id="work-run-28" data-tone="attention">/, 'the Run stays closed: the box already shows why it is stuck');
 });
 
+test('a writer that spent its model allowance reads as one plain sentence, with what the agent printed folded away', () => {
+  const detail = demoDetail('111');
+  const spent = 'last agent message: Error: litellm.BadRequestError: Litellm_proxyException - Budget has been exceeded! Key=ploeg-0c3699a2bb3b (sk-...0h6g) Current cost: 2.059854912, Max budget: 2.0 | {"code":-32603}';
+  detail.shifts[0].closeReason = 'writing_run_failed_repeatedly';
+  detail.item.latestShift = detail.shifts[0];
+  Object.assign(detail.runs.find(run => run.id === '28'), { outcome: 'failed', failureReason: 'agent_error', stuckReason: spent, round: 1 });
+  detail.events.unshift({ id: '999', action: 'work_item.needs_human', at, detail: { reason: 'shift stopped: builder failed 3 times in round 1 without writing the branch — a person should look at why the run keeps dying' } });
+  const html = detailMarkup(detail, model({ detailId: '111' }));
+  const box = html.slice(html.indexOf('id="work-decision"'), html.indexOf('id="work-brief"'));
+  assert.match(box, /The builder failed three times in Round 1 without writing the branch, so Ploeg stopped trying\./);
+  assert.doesNotMatch(box, /<blockquote class="work-quote">/, 'Ploeg’s sentence only repeats the reason');
+  assert.match(box, /<p class="work-evidence-text">It spent [^<]*2[.,]06 of the [^<]*2[.,]00 Ploeg authorized for it, so the model gateway refused its next call and the agent stopped\.<\/p><details class="disclosure plain"><summary><span class="disclosure-summary">What the agent printed<\/span>/);
+  assert.match(box, /Split the ticket or raise the Role’s per-Run allowance, then retry the Work Item\./);
+});
+
 test('plan_exhausted tells no pull request apart from unresolved changes and never quotes Ploeg’s plan-complete sentence', () => {
   const unrouted = demoDetail('108');
   const reason = detailReason(unrouted);
@@ -555,25 +570,27 @@ test('a Run an ACP watchdog stopped says the agent stopped responding and labels
   assert.match(html, /Last lines it printed/);
   assert.match(html, /npm WARN deprecated/);
   assert.match(html, /no protocol activity for 10m0s after 29 events/);
-  assert.doesNotMatch(html, /exited with an error|Read its log tail|The agent harness failed/);
+  assert.doesNotMatch(html, /exited with an error|Read the last lines it printed, then/);
 
   const crashed = detail();
   crashed.runs[0] = { ...crashed.runs[0], outcome: 'failed', verdict: '', findings: '', failureReason: 'agent_error', summary: 'acp agent exited before answering the prompt', stuckReason: 'EOF | stderr: panic' };
   const other = detailMarkup(crashed, model({ detailId: '50' }));
-  assert.match(other, /The agent harness failed/);
+  assert.match(other, /The agent exited with an error/);
   assert.match(other, /exited with an error/);
   assert.doesNotMatch(other, /The agent stopped responding|Last lines it printed/);
 });
 
-test('a Run that spent its model allowance says so plainly and folds what the harness printed', () => {
+test('a Run that spent its model allowance says so plainly and folds what the agent printed', () => {
   const spent = detail();
   spent.runs[0] = { ...spent.runs[0], outcome: 'failed', verdict: '', findings: '', failureReason: 'agent_error', summary: 'acp agent exited before answering the prompt', stuckReason: 'last agent message: Litellm_proxyException - Budget has been exceeded! Key=ploeg-1 Current cost: 2.04, Max budget: 2.0 | stderr: agent.py:579 in prompt' };
   const html = detailMarkup(spent, model({ detailId: '50' }));
   assert.match(html, /The Run spent its model allowance/);
   assert.match(html, /so the model gateway refused its next call/);
-  assert.match(html, /<details class="disclosure plain"><summary><span class="disclosure-summary">What the harness printed<\/span>/);
+  assert.match(html, /<details class="disclosure plain"><summary><span class="disclosure-summary">What the agent printed<\/span>/);
   assert.match(html, /Budget has been exceeded! Key=ploeg-1/);
-  assert.doesNotMatch(html, /The agent harness failed|exited with an error|Read its log tail/);
+  assert.match(html, /<div class="console" data-private tabindex="0" role="region" aria-label="What the agent printed in Run \d+"><div class="console-section"><p class="console-label">Last agent message<\/p><pre data-private class="console-text"><span class="console-line" data-tone="danger">Litellm_proxyException/, 'what it printed reads as a console, one section per part');
+  assert.match(html, /<p class="console-label">stderr<\/p><pre data-private class="console-text"><span class="console-line">agent\.py:579 in prompt<\/span>/);
+  assert.doesNotMatch(html, /exited with an error|Read the last lines it printed, then/);
 });
 
 test('untrusted text from the tracker, agents and Ploeg stays inert everywhere on the page', () => {
@@ -826,7 +843,11 @@ test('Pod logs say when they load, are not connected, have no lines yet or faile
   assert.match(failed, /class="callout" data-tone="danger"[^]*The logs could not be read[^]*The log store could not be reached\.[^]*data-action="work-run-logs-retry" data-id="7"/);
   const several = runLogsMarkup(run, { data: { available: true, live: true, pods: [{ pod: 'a' }, { pod: 'b' }] }, lines: [{ at, text: 'x', stream: 'b' }], error: { message: 'Timed out.' } });
   assert.match(several, /2 pods: <span class="mono">a<\/span>, <span class="mono">b<\/span> · <span class="live-dot"/);
-  assert.match(several, /<span class="log-stream">b<\/span> <span class="log-message">x<\/span>/);
+  assert.match(several, /<span class="log-stream" title="b">b<\/span> <span class="log-message">x<\/span>/);
+  const worker = 'ploeg-worker-bronze-builder-cvmvc-97xmz';
+  const ploegPods = runLogsMarkup(run, { data: { available: true, live: false, pods: [{ pod: worker }, { pod: `sbx-${worker}` }] }, lines: [{ at, text: 'x', stream: `sbx-${worker}` }] });
+  assert.match(ploegPods, /2 pods: <span class="log-stream">worker<\/span> <span class="mono">ploeg-worker-[^<]*<\/span>, <span class="log-stream">sandbox<\/span> <span class="mono">sbx-ploeg-worker/, 'Ploeg pods are named by what they are');
+  assert.match(ploegPods, /<span class="log-stream" title="sbx-ploeg-worker-bronze-builder-cvmvc-97xmz">sandbox<\/span> <span class="log-message">x<\/span>/, 'a line names its pod short and keeps the full name in its title');
   assert.match(several, /Could not refresh: Timed out\./, 'an earlier read stays on screen when a refresh fails');
 });
 

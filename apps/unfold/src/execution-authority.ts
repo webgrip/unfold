@@ -2,7 +2,8 @@ import { ploegAttribution } from './action-records.ts';
 import { randomUUID } from 'node:crypto';
 import type { AppConfig, Credential, ExecutionBinding, Session, User } from './types.ts';
 import type { Store } from './store.ts';
-import { PloegError } from './ploeg.ts';
+import { PloegError, contractRefusal } from './ploeg.ts';
+import type { PloegContractGate } from './ploeg-compatibility.ts';
 import type { PloegRevision } from './investigation.ts';
 
 type Command = { commandId: string; action: string; expectedRevision: number; generation: number; state?: string; text?: string; stopConfirmed?: boolean; authenticatedBy?: string };
@@ -13,8 +14,8 @@ const unavailable = (failure: AuthorityFailure = { cause: 'invalid_response' }) 
 /** How long one authority request may take, except a credential request. */
 export const authorityRequestTimeoutMs = 5000;
 
-/** Why an authority operation failed: no response in time, no connection, an HTTP error status, a stale or refused operation, an unusable response, or missing configuration. */
-export type AuthorityFailure = { cause: 'timeout' | 'network' | 'http' | 'stale' | 'refused' | 'invalid_response' | 'not_configured' | 'unknown'; status?: number; durationMs?: number };
+/** Why an authority operation failed: no response in time, no connection, an HTTP error status, a stale or refused operation, an unusable response, missing configuration, or a Ploeg whose contract this Unfold does not speak, so nothing was sent. */
+export type AuthorityFailure = { cause: 'timeout' | 'network' | 'http' | 'stale' | 'refused' | 'invalid_response' | 'not_configured' | 'incompatible' | 'unknown'; status?: number; durationMs?: number };
 
 /** The recorded reason behind an authority error, or `unknown` for an error that did not come from an authority request. */
 export function authorityFailure(error: unknown): AuthorityFailure {
@@ -28,9 +29,11 @@ export class ExecutionAuthority {
   private queues = new Map<string, Promise<unknown>>();
   private store: Store;
   private config: AppConfig;
-  constructor(store: Store, config: AppConfig) {
+  private contract: PloegContractGate | undefined;
+  constructor(store: Store, config: AppConfig, contract?: PloegContractGate) {
     this.store = store;
     this.config = config;
+    this.contract = contract;
     if (!config.ploeg?.url || config.ploeg.demo || !config.ploeg.tokenEnv || !config.execution) throw unavailable();
   }
 
@@ -42,6 +45,8 @@ export class ExecutionAuthority {
   }
 
   private async request(session: Session, path: string, body?: unknown, actingUser = session.ownerId): Promise<Record<string, any>> {
+    const refusal = contractRefusal(this.contract);
+    if (refusal) throw Object.assign(refusal, { failure: { cause: 'incompatible' } satisfies AuthorityFailure });
     const token = process.env[this.config.ploeg!.tokenEnv!];
     if (!token || token.length < 32 || token.length > 4096 || /[^\x21-\x7e]/.test(token)) throw unavailable({ cause: 'not_configured' });
     const started = Date.now();

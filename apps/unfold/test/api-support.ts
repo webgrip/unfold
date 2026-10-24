@@ -118,12 +118,12 @@ export async function sessionUntil(url: string, id: string, accepts: (session: S
   assert.fail(`session did not reach the expected state: ${JSON.stringify(last)}`);
 }
 
-export async function replay(url: string, id: string, after: number, count: number, cookie?: string): Promise<Event[]> {
+export async function replay(url: string, id: string, after: number, count: number, cookie?: string, headers: Record<string, string> = {}): Promise<Event[]> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), scaledTimeout(15_000));
   const events: Event[] = [];
   try {
-    const response = await fetch(`${url}/api/sessions/${id}/events?after=${after}`, { signal: controller.signal, headers: cookie ? { cookie } : {} });
+    const response = await fetch(`${url}/api/sessions/${id}/events?after=${after}`, { signal: controller.signal, headers: { ...headers, ...(cookie ? { cookie } : {}) } });
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-type') ?? '', /text\/event-stream/);
     assert(response.body);

@@ -1,5 +1,5 @@
 import { money, plural } from './format.js';
-import { ciState, failureReason, parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason } from './states.js';
+import { ciState, failureReason, runFailure, parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason } from './states.js';
 import { detailQuestions } from './blackboard.js';
 
 export { parseBudgetReason, parseStuckReason, closeReasonLabel, withdrawnReason };
@@ -80,12 +80,12 @@ const copy = {
   review_failed: {
     chip: 'Reviewer kept failing',
     sentence: 'The agent reviewer failed on every try, so no agent reviewed this work, and Ploeg did not mark it ready for review.',
-    fix: 'Read the reviewer’s failed Runs to see why. Review the change yourself, or fix the reviewer’s model or harness.',
+    fix: 'Read the reviewer’s failed Runs to see why. Review the change yourself, or fix the reviewer’s model or setup.',
   },
   writing_run_failed_repeatedly: {
     chip: 'Writer kept failing',
-    sentence: 'The writer failed three times in one Round without writing the branch. These were agent failures, not infrastructure.',
-    fix: 'Read the failed Runs’ failure reasons and log tails. Fix the brief, the model or the harness.',
+    sentence: 'The writer failed three times in one Round without writing the branch, so Ploeg stopped trying.',
+    fix: 'Read why the failed Runs stopped, then fix the brief or the agent setup, or pick another model.',
   },
   writing_run_killed_repeatedly: {
     chip: 'Cluster kept stopping the writer',
@@ -97,6 +97,11 @@ const copy = {
     sentence: 'An agent asked a question only a person can answer, instead of guessing.',
     fix: 'Answer it here. Unfold restarts the Work Item with your answer, so its next Runs read it.',
   },
+  taken_over: {
+    chip: 'Taken over by a person',
+    sentence: 'A person took the Run over. It stopped at a safe point, and its work is on the Work Item’s branch.',
+    fix: 'Finish the change on the branch and push it, then hand it back so Ploeg continues from your commit.',
+  },
   run_stuck: {
     chip: 'Agent is stuck',
     sentence: 'An agent reported that it cannot finish without a person.',
@@ -106,6 +111,16 @@ const copy = {
     chip: 'Team plan removed',
     sentence: 'The Team’s plan was removed from the configuration during the attempt.',
     fix: 'Restore the plan, or move the task to another Team.',
+  },
+  approved_to_merge: {
+    chip: 'Approved: merge it',
+    sentence: 'The agent reviewers approved and the pull request is still open. Ploeg leaves the merge to you.',
+    fix: 'Read the pull request and merge it on the forge. Merging finishes the Work Item.',
+  },
+  merged_untracked: {
+    chip: 'Merged',
+    sentence: 'The pull request is merged, but Ploeg still holds the Work Item.',
+    fix: 'Close the task in the tracker to finish it.',
   },
   pull_request_closed: {
     chip: 'Pull request closed',
@@ -125,7 +140,7 @@ const copy = {
   stale_attempts: {
     chip: 'Agents kept failing',
     sentence: 'The agents failed on every attempt, so Ploeg stopped retrying.',
-    fix: 'Read the failed Runs’ failure reasons. Fix the brief, the model or the harness.',
+    fix: 'Read why the failed Runs stopped, then fix the brief or the agent setup, or pick another model.',
   },
   operator_interrupted: {
     chip: 'Session interrupted',
@@ -192,7 +207,7 @@ const exactCodes = new Set(['plan_exhausted', 'fix_round_cap_reached', 'checks_n
 
 const sessionCodes = new Set(['operator_failed', 'operator_interrupted', 'operator_expired', 'operator_paused', 'operator_waiting_input']);
 
-const answeredHere = new Set(['person_question']);
+const answeredHere = new Set(['person_question', 'taken_over', 'approved_to_merge', 'merged_untracked']);
 
 /** Whether the reason is about the Unfold session that drives the Work Item, so the next step happens on that session's page. */
 export function sessionReason(reason) {
@@ -205,6 +220,7 @@ function classify(closeReason) {
   const text = String(closeReason ?? '').trim();
   const lower = text.toLowerCase();
   if (text === 'question_for_person') return { code: 'person_question', text };
+  if (text === 'taken_over') return { code: 'taken_over', text };
   if (exactCodes.has(text)) return { code: text, text };
   if (lower.startsWith('budget held by unsettled runs')) return { code: 'budget_held', text };
   if (lower.startsWith('budget exhausted')) {
@@ -251,9 +267,12 @@ const reasonGlyphs = Object.freeze({
   writing_run_failed_repeatedly: 'x-circle',
   writing_run_killed_repeatedly: 'zap',
   person_question: 'help-circle',
+  taken_over: 'pause-circle',
   run_stuck: 'pause-circle',
   plan_removed: 'settings',
   pull_request_closed: 'circle-slash',
+  approved_to_merge: 'pull-request',
+  merged_untracked: 'check-circle',
   operator_failed: 'sessions',
   operator_interrupted: 'sessions',
   operator_expired: 'sessions',
@@ -308,7 +327,19 @@ export function listReason(item, { demo = false } = {}) {
   const closeReason = item.latestShift?.closeReason ?? item.closeReason ?? '';
   if (item.latestShift && !item.latestShift.closedAt && !item.closeReason) return build('unknown', item);
   const { code, text } = classify(closeReason);
-  return build(code, item, text, demo);
+  return build(approvedCode(code, item), item, text, demo);
+}
+
+function approvedCode(code, item) {
+  if (code !== 'pull_request_closed') return code;
+  if (item?.pullRequestState === 'open') return 'approved_to_merge';
+  if (item?.pullRequestState === 'merged') return 'merged_untracked';
+  return code;
+}
+
+/** Whether a Work Item that needs you is only waiting for you to merge: the agent reviewers approved and its pull request is still open. */
+export function approvedToMerge(item) {
+  return item?.state === 'needs_human' && (item.latestShift?.closeReason ?? item.closeReason) === 'review_approved' && item.pullRequestState === 'open';
 }
 
 const ciHolds = Object.freeze({ failure: 'ci_failed', error: 'ci_failed', pending: 'ci_running' });
@@ -349,14 +380,15 @@ export function reviewHold(item) {
 
 /**
  * Which Now group a waiting Work Item belongs to. A pull request whose CI did not pass needs you, not a review;
- * one whose CI still runs stays ready for review. Every state other than `awaiting_review` and `proposed` needs you.
+ * one whose CI still runs stays ready for review. A Work Item the agent reviewers approved whose pull request is still
+ * open (`approvedToMerge`) is ready for review too. Every other state needs you.
  * @param {{ state?: string, ci?: { state?: string } | null }} item
  * @returns {'review' | 'needs' | 'proposed'}
  */
 export function waitingGroup(item) {
   if (item?.state === 'proposed') return 'proposed';
   if (item?.state === 'awaiting_review') return reviewHold(item)?.code === 'ci_failed' ? 'needs' : 'review';
-  return 'needs';
+  return approvedToMerge(item) ? 'review' : 'needs';
 }
 
 /**
@@ -451,7 +483,17 @@ export function detailReason(detail) {
     const recorded = classify(headline);
     if (recorded.code !== 'unknown') { reason = build(recorded.code, item, recorded.text, Boolean(detail.demo)); headline = null; }
   }
+  if (reason.code === 'pull_request_closed' && headline && /a person is asked to merge/i.test(headline) && !/closed without merging/i.test(headline)) {
+    reason = build('approved_to_merge', item, closeReason, Boolean(detail.demo));
+    headline = null;
+  }
   if (budgetCodes.has(reason.code)) headline = null;
+  if (reason.code === 'writing_run_failed_repeatedly') {
+    headline = null;
+    const sentence = `${run?.role ? `The ${run.role}` : 'The writer'} failed three times ${run?.round ? `in Round ${run.round}` : 'in one Round'} without writing the branch, so Ploeg stopped trying.`;
+    const fix = runFailure(run)?.next || reason.fix;
+    reason = { ...reason, sentence, fix, action: `${fix} ${reason.requeue}` };
+  }
   if (reason.code === 'budget_held') reason = { ...reason, ...heldDetail(detail, shift, reason) };
   let variant = null;
   if (reason.code === 'plan_exhausted') {

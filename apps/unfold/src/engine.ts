@@ -1,3 +1,4 @@
+import { defaultWorkspaceRetentionDays, workspaceRetention } from './runtime/retention.ts';
 import { knownSecrets } from './redaction.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { Store } from './store.ts';
@@ -6,6 +7,7 @@ import type { Links } from './links.ts';
 import { classifyFailure, executionFailure, leftWorkingForRestart, workbenchRestart, type FailureCategory, type FailureStage } from './failures.ts';
 import { getTask, taskBindingConfiguration, type TaskSnapshot, type TaskSourceConfig } from './tasks.ts';
 import { lookupTaskBinding, sameTaskBinding } from './task-binding.ts';
+import type { PloegContractGate } from './ploeg-compatibility.ts';
 import { investigate, type Investigation, type PloegRevision } from './investigation.ts';
 import { PloegError } from './ploeg.ts';
 import { unavailableCandidate, type Candidate } from './candidates.ts';
@@ -49,7 +51,7 @@ const waitMessages: Record<Provisioning['phase'], string> = {
   preparing: 'Creating the workspace.',
   scheduling: 'Finding a machine for the workspace.',
   capacity: 'Waiting for a free machine. Every machine is busy; nothing is being charged while the workspace waits.',
-  creating: 'A machine took the workspace. Attaching its storage and downloading the workspace image.',
+  creating: 'Found a machine for the workspace. Attaching its disk and downloading the workspace image.',
   image_unavailable: 'The workspace image cannot be downloaded. Unfold keeps trying until the time limit.',
   container_error: 'The workspace container cannot start. Unfold keeps trying until the time limit.',
   cloning: 'Cloning the repository into the workspace.',
@@ -106,15 +108,16 @@ export class Engine {
   private maintenanceTask?: Promise<void>;
   private signingKey?: SigningKey;
   private links?: Links;
+  private contract?: PloegContractGate;
   private briefs = new Map<string, { resolve: (answers: string[]) => void }>();
   private toolCalls = new Map<string, Set<string>>();
   private preparing = new Map<string, string>();
   private reconnecting = new Map<string, string>();
   private settlementReads = new Map<string, number>();
 
-  constructor(store: Store, config: AppConfig, runtimes: Map<RuntimeKind, AgentRuntime> | Record<string, AgentRuntime>, broker?: Broker, links?: Links) {
-    this.store = store; this.config = config; this.runtimes = runtimes instanceof Map ? runtimes : new Map(Object.entries(runtimes) as [RuntimeKind, AgentRuntime][]); this.broker = broker; this.links = links;
-    if (config.execution) this.authority = new ExecutionAuthority(store, config);
+  constructor(store: Store, config: AppConfig, runtimes: Map<RuntimeKind, AgentRuntime> | Record<string, AgentRuntime>, broker?: Broker, links?: Links, contract?: PloegContractGate) {
+    this.store = store; this.config = config; this.runtimes = runtimes instanceof Map ? runtimes : new Map(Object.entries(runtimes) as [RuntimeKind, AgentRuntime][]); this.broker = broker; this.links = links; this.contract = contract;
+    if (config.execution) this.authority = new ExecutionAuthority(store, config, contract);
     for (const value of knownSecrets(config)) this.keys.add(value);
     if (broker || this.authority) this.maintenance = setInterval(() => {
       if (this.shuttingDown || this.maintenanceTask) return;
@@ -191,7 +194,7 @@ export class Engine {
     if (!this.authority) return snapshot;
     try {
       this.authority.authorize(user);
-      return await lookupTaskBinding(this.config, snapshot);
+      return await lookupTaskBinding(this.config, snapshot, this.contract);
     } catch (error) {
       if (error instanceof PloegError || error instanceof EngineError) return { ...snapshot, ploegUnavailable: { code: error.code, message: error.message } };
       throw error;
@@ -209,7 +212,7 @@ export class Engine {
       return { session: existing, created: false };
     }
     if (related.some(session => !['completed', 'failed', 'cancelled'].includes(session.status) || this.active.has(session.id) || this.store.getSecret<boolean>(`interruption:${session.id}`) || this.store.getSecret<boolean>(`discovery:${session.id}`) || this.store.getSecret<boolean>(`authority-unresolved:${session.id}`) || this.reservations(session.id).length)) throw new EngineError(409, 'task_in_use', 'An earlier revision still has active work or unresolved execution. Finish and reconcile that session first.');
-    if (this.authority) snapshot = await lookupTaskBinding(this.config, snapshot);
+    if (this.authority) snapshot = await lookupTaskBinding(this.config, snapshot, this.contract);
     if (this.authority && (!expectedBinding || snapshot.bindingRevision !== expectedBinding)) throw new EngineError(409, 'task_binding_changed', 'The Ploeg binding changed after your preview. Refresh the task and review the current work item.');
     this.interactiveRepository(snapshot.repositoryId, snapshot);
     const concurrent = this.store.listSessions().find(session => session.sourceTask?.key === snapshot.key && (session.sourceTask.revision === snapshot.revision && (!this.authority || session.sourceTask.bindingRevision === expectedBinding) || !['completed', 'failed', 'cancelled'].includes(session.status)));
@@ -263,7 +266,7 @@ export class Engine {
         const source = this.config.taskSources!.find(source => source.id === session.sourceTask!.sourceId)!;
         const current = await getTask(await this.taskSource(source, owner), session.sourceTask.id);
         if (current.status !== 'open' || current.key !== session.sourceTask.key || current.revision !== session.sourceTask.revision || current.nativeRevision !== session.sourceTask.nativeRevision || current.scope !== session.sourceTask.scope) throw new EngineError(409, 'task_changed', 'The source task changed after import. Review its current version before starting work.');
-        const fresh = await lookupTaskBinding(this.config, current);
+        const fresh = await lookupTaskBinding(this.config, current, this.contract);
         if (!sameTaskBinding(session.sourceTask.ploeg!, fresh.ploeg!)) throw new EngineError(409, 'task_binding_changed', 'The Ploeg work item changed after import. Refresh its binding before starting work.');
         if (this.store.getSession(session.id)!.status !== session.status || this.shuttingDown) throw new EngineError(409, 'start_superseded', 'A stop or shutdown superseded this start. No execution was admitted.');
       }
@@ -561,6 +564,31 @@ export class Engine {
     }
   }
 
+  /** Deletes the retained workspace volume of every finished session the retention rule releases, once each, and records it on the session. */
+  async releaseRetainedVolumes(now = Date.now()): Promise<{ released: string[]; failed: string[] }> {
+    const days = this.config.kubernetes?.workspaceRetentionDays ?? defaultWorkspaceRetentionDays;
+    const released: string[] = [];
+    const failed: string[] = [];
+    for (const session of this.store.listSessions()) {
+      if (session.workspace?.backend !== 'kubernetes' || this.store.getSecret<boolean>(`volume-released:${session.id}`)) continue;
+      const held = this.active.has(session.id) || Boolean(this.store.getSecret<boolean>(`interruption:${session.id}`) || this.store.getSecret<boolean>(`discovery:${session.id}`) || this.store.getSecret<boolean>(`authority-unresolved:${session.id}`)) || this.reservations(session.id).length > 0;
+      const verdict = workspaceRetention(session, now, days, held);
+      if (!verdict.release) continue;
+      const runtime = this.runtimes.get(session.runtime);
+      if (!runtime?.releaseVolume) continue;
+      try {
+        if (!await runtime.releaseVolume(session.workspace)) continue;
+        this.store.setSecret(`volume-released:${session.id}`, true);
+        this.store.appendEvent(session.id, 'workspace.volume_released', 'system', { retentionDays: days, lastChangedAt: session.updatedAt, candidateRetained: session.candidate?.status === 'ready' });
+        released.push(session.id);
+      } catch (error) {
+        failed.push(session.id);
+        console.error(JSON.stringify({ level: 'warn', event: 'workspace.volume_release_failed', sessionId: session.id, message: String((error as Error)?.message ?? error).slice(0, 200) }));
+      }
+    }
+    return { released, failed };
+  }
+
   private async keepCandidate(id: string, runtime: AgentRuntime, candidate: Candidate, stopped: boolean): Promise<void> {
     const finished = this.store.getSession(id)!;
     finished.candidate = candidate;
@@ -805,14 +833,15 @@ export class Engine {
     return current;
   }
 
-  recover(): void {
+  recover(): number {
+    let recovered = 0;
     for (const session of this.store.listSessions()) {
       const unconfirmed = 'Ploeg admission was requested for this session but never confirmed. It will not run standalone; restore the Ploeg execution connection to reconcile it, or cancel it to discard it.';
       if (!this.authority && !session.execution && this.managed(session) && ['queued', 'paused', 'interrupted'].includes(session.status) && session.blocker !== unconfirmed) {
         session.blocker = unconfirmed;
         this.save(session, 'execution.reconciliation_pending', 'system', { admission: 'unconfirmed', autoResumed: false });
       }
-      if (!this.active.has(session.id) && this.reattachable(session)) { this.reconnect(session); continue; }
+      if (!this.active.has(session.id) && this.reattachable(session)) { this.reconnect(session); recovered++; continue; }
       if (session.workspace && ['completed', 'failed', 'cancelled'].includes(session.status)) void this.revokeEndedWorker(session.id, this.runtimes.get(session.runtime)).catch(() => undefined);
       const interrupted = ['running', 'waiting_input', 'exporting'].includes(session.status);
       if (interrupted) this.interruptAfterRestart(session, 'The server restarted. Execution has not been resumed; review the workspace and explicitly resume.');
@@ -821,7 +850,9 @@ export class Engine {
       const controller = new AbortController(); controller.abort();
       const task = this.stopRecoveredSession(session).finally(() => this.active.delete(session.id));
       this.active.set(session.id, { controller, task });
+      recovered++;
     }
+    return recovered;
   }
 
   private interruptAfterRestart(session: Session, blocker: string): void {

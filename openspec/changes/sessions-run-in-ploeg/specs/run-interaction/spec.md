@@ -1,16 +1,5 @@
 # Run interaction
 
-All behaviour below is proposed. The relay, its states (`open`, `answered`,
-`expired`, `withdrawn`, `delivered`, `carried_over`), its commands (`answer`,
-`message`, `pause`, `resume`), its deadlines, the per-Run `autoApprove` flag
-and the `interactive` flag per Harness are owned by Ploeg's contract as extended by ploeg-hq
-`interactive-runs` (Ploeg ADR-0100 and ADR-0101, both proposed); next-Run
-notes are Ploeg's existing `notes` route (Ploeg ADR-0068; for attended Runs Ploeg ADR-0104 lets a message reach the running Run). This spec states
-what Unfold does with them and does not restate them. It replaces, for Unfold,
-the parts of ADR-0023 that ADR-0044 proposes to supersede. "Approve tool use
-automatically" maps to Ploeg's per-Run `autoApprove` flag (owner decision of
-2026-10-13, design R2).
-
 ## ADDED Requirements
 
 ### Requirement: Controls follow the Harness's interactive flag

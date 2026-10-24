@@ -9,17 +9,25 @@ The application's version is the Unfold version, with an `unfold-v<version>` tag
 | Stage | Source | Expected result |
 | --- | --- | --- |
 | Validate | [Source workflow](../../../../.forgejo/workflows/on_source_change.yml), [pull-request workflow](../../../../.forgejo/workflows/on_pull_request.yml) | Application, extension, generated-document and chart checks; cache-only image builds |
-| Version | [Release configuration](../../../.releaserc.cjs), [repository prepare script](../../../../scripts/release-prepare.mjs), [application prepare script](../../scripts/release-prepare.mjs) | Updated manifests and changelog, version tag and Forgejo release |
+| Version | [Release train](../../../../.forgejo/workflows/on_release_train.yml), [release configuration](../../../.releaserc.cjs), [repository prepare script](../../../../scripts/release-prepare.mjs), [application prepare script](../../scripts/release-prepare.mjs) | Updated manifests and changelog, version tag and Forgejo release |
 | Publish | [Publication workflow](../../../../.forgejo/workflows/on_release_published.yml) | Chart, both images, signatures and attestations, VSIX and checksum; configured registry copies |
 | Build documentation | [Documentation workflow](../../../../.forgejo/workflows/on_docs_change.yml) and [source checks](../../../../.forgejo/workflows/on_source_change.yml) | Combined site built from [Unfold MkDocs](../../../../mkdocs.yml); remote documentation deployment is a cutover step |
 
-Unfold checks pushes to `development` and pull requests. The shared semantic-release configuration determines release eligibility from conventional commits. The prepare script synchronizes chart and package versions; do not hand-bump them to repair a failed publication.
+Unfold checks pushes to `development` and pull requests, and the hourly release train versions the development head it checked. The shared semantic-release configuration determines release eligibility from conventional commits. The prepare script synchronizes chart and package versions; do not hand-bump them to repair a failed publication.
 
 Inspect the matching run in [Forgejo Actions](https://forgejo.webgrip.dev/webgrip/unfold/actions) and its [release assets](https://forgejo.webgrip.dev/webgrip/unfold/releases). Record missing artifacts and the failing job. The publication workflow supports a manual dispatch with the existing tag selected as both the workflow ref and tag input; examine which stages completed before rerunning it. Several stages skip an existing artifact, so a retry is not a blanket rebuild or replacement.
 
 ## Images and chart
 
 The publication workflow builds the [workbench image](../../Dockerfile) and [workspace image](../../ops/agent/Dockerfile) for AMD64 and ARM64. The [CVE gate](../../../../.forgejo/actions/cve-gate/action.yml) evaluates the published digest against [configured budgets](../../ops/security/cve-budgets.yaml) and [reviewed VEX statements](../../ops/vex/statements/). Signing and attestation follow that gate. Verify the digest, signer and attached evidence when qualifying a release; an old vulnerability scan is not a permanent assertion about an image.
+
+The workbench image carries a Node compile cache in `/app/.node-cache`, which roughly halves the time from process start to a listening server. The last build step imports `src/main.ts` with `NODE_COMPILE_CACHE` set, which loads every module without starting the server, because `main()` runs only when `src/main.ts` is the entry script. The build fails when that step writes almost nothing, so a cache that silently stopped working cannot ship. The source stays TypeScript and startup still compiles nothing ([ADR 0002](../adrs/0002-native-node-and-single-writer-storage.md)); the cache only spares V8 from parsing it again. Node uses an entry only when the running process matches the one that wrote it, on three points that otherwise fail without a message:
+
+- **The same Node build.** The step runs in the runtime stage, `NODE_RUNTIME_IMAGE`, so the binary that writes the cache is the one that reads it; moving the step to the `-dev` stage would tie it to a second digest that Renovate bumps on its own.
+- **The same user.** The cache directory is named after the uid. The image and the chart's `securityContext` both run as uid 1000; a deployment that overrides `runAsUser` starts without the cache.
+- **The same file paths.** Entries are keyed by absolute path, so the application stays at `/app`.
+
+A read-only root filesystem is fine: Node reads the cache and skips writing new entries.
 
 When a vulnerability sits in a dependency that npm bundles and npm has not yet shipped a fix, the workspace image pins the fixed release as an annotated `NPM_<NAME>_VERSION` build argument, and [the patch script](../../ops/agent/patch-bundled-npm.mjs) swaps it in during the build. The script replaces only a copy that is older and in the same major version, fails the build if npm then cannot expand a brace pattern, and logs when npm itself has caught up, which is the signal to remove the pin. The first pins, `brace-expansion` 5.0.12 and `undici` 6.28.1, followed the advisories of 2026-09-29 that failed the budget in [release run 358](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/358).
 

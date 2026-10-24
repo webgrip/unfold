@@ -1,8 +1,9 @@
 import { escape, safeUrl } from './core/dom.js';
 import { linkedSessionsMarkup } from './core/linked-sessions.js';
+import { linkedWorkMarkup } from './core/linked-handoff.js';
 import { icon } from './core/icons.js';
 import { markdown } from './core/markdown.js';
-import { count as formatCount, money, moneyHtml, plural, duration, dateTime, decimal } from './core/format.js';
+import { count as formatCount, money, moneyHtml, plural, duration, dateTime, decimal, time as clockTime } from './core/format.js';
 import * as ui from './core/ui.js';
 import { workItemState, runOutcome, runState, verdict as verdictMeta, failureReason, failureNote, runFailure, runFailureText, auditEvent, actorName, displayState, unreportedOutcome, closeReasonLabel, withdrawnReason, costStatuses, costStatusWord } from './core/states.js';
 import { listReason, routingWarning, detailReason, needsYouBlocks, reasonGlyph, sessionReason, reviewHold, failingChecks } from './core/reasons.js';
@@ -16,7 +17,7 @@ import { deliveryStages, stageTime } from './core/delivery-track.js';
 import { streamChart, streamLanes } from './core/value-stream.js';
 import { foldTranscript } from './run-transcript.js';
 import { liveModel } from './live/model.js';
-import { landingEstimate } from './live/landing.js';
+import { landingEstimate, withJudgeEta } from './live/landing.js';
 import { flightPath } from './live/flight-path.js';
 import { foldStrip } from './live/fold-strip.js';
 import { answers } from './live/answers.js';
@@ -28,11 +29,13 @@ import { progressTitle, reconcileDetail, sessionProgress } from './core/progress
 import { effortText, termTitle, trackerReference } from './core/terms.js';
 import { runTranscriptMarkup } from './run-transcript.js';
 import { workActionsMarkup } from './action-log.js';
-import { defaultLogView, logViewerMarkup } from './run-log-view.js';
+import { defaultLogView, logViewerMarkup, podLabels } from './run-log-view.js';
+import { consoleMarkup, consoleSections } from './console-view.js';
 import { healthMeta } from './core/run-health.js';
 import { tripwireScoreMeta } from './core/tripwire.js';
 import { checkLabel, isProgressCheck } from './core/checks.js';
 import { resumeOffer, waitingQuestion, waitingQuestions } from './core/blackboard.js';
+import { takeOverMarkup } from './core/take-over.js';
 import { questionMarkup, disagreementsMarkup, findingAnswersMarkup, findingsMarkup, noteAction } from './blackboard-view.js';
 
 /** The Work lanes in the order the lane control shows them: closest to shipping first. */
@@ -633,12 +636,21 @@ function evidenceText(run, reason) {
   return reason.run && reason.run.id === run.id ? reason.run.text : run.stuckReason || run.summary || '';
 }
 
+function evidenceBody(run, reason) {
+  const text = evidenceText(run, reason);
+  if (!text) return '';
+  const split = text === run.stuckReason ? runFailureText(run) : { reason: text, output: '', outputLabel: '' };
+  const raw = !split.output && logLike.test(split.reason);
+  const said = raw ? '' : split.reason;
+  const printed = split.output || (raw ? split.reason : '');
+  return `${said ? `<p class="work-evidence-text">${escape(said)}</p>` : ''}${printed ? ui.disclosure({ summary: split.outputLabel || 'What the agent printed', body: `<p class="work-log">${escape(printed)}</p>`, plain: true }) : ''}`;
+}
+
 function evidenceLine(run, reason) {
   const result = runResult(run);
-  const text = evidenceText(run, reason);
   const failure = runFailure(run);
   const when = run.finishedAt || run.startedAt;
-  return `<li class="work-evidence" data-tone="${result.tone}"><span class="work-evidence-icon" aria-hidden="true">${icon(result.glyph || 'circle')}</span><div class="work-evidence-main"><p class="work-evidence-title"><strong>${escape(run.role || 'Agent')}</strong>${run.round ? ` · Round ${escape(run.round)}` : ''} · ${escape(result.title || result.label)}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}${when ? ` · ${ui.timeAgo(when)}` : ''}</p>${text ? `<p class="${logLike.test(text) ? 'work-evidence-text work-log' : 'work-evidence-text'}">${escape(text)}</p>` : ''}</div>${runJump(run)}</li>`;
+  return `<li class="work-evidence" data-tone="${result.tone}"><span class="work-evidence-icon" aria-hidden="true">${icon(result.glyph || 'circle')}</span><div class="work-evidence-main"><p class="work-evidence-title"><strong>${escape(run.role || 'Agent')}</strong>${run.round ? ` · Round ${escape(run.round)}` : ''} · ${escape(result.title || result.label)}${failure && result.label !== failure.label ? ` · ${escape(failure.label)}` : ''}${when ? ` · ${ui.timeAgo(when)}` : ''}</p>${evidenceBody(run, reason)}</div>${runJump(run)}</li>`;
 }
 
 function steps(entries) {
@@ -995,8 +1007,9 @@ function runLogsBody(run, entry) {
   }
   const pods = [...new Set(data.pods.map(entry => entry.pod))];
   const several = pods.length > 1;
-  const head = `<div class="work-run-log-head"><p class="meta">${entry.truncated ? '<span>Newest lines shown</span> · ' : ''}${several ? `${escape(plural(pods.length, 'pod'))}: ` : 'Pod '}${pods.map(pod => `<span class="mono">${escape(pod)}</span>`).join(', ')}${data.live ? ' · <span class="live-dot" aria-hidden="true"></span> live' : ''}</p>${grafana ? `<div class="work-run-tools">${grafana}</div>` : ''}</div>`;
-  return `${head}${logViewerMarkup(run, lines, entry.view || defaultLogView(), { several })}${stale}`;
+  const labels = podLabels(pods);
+  const head = `<div class="work-run-log-head"><p class="meta">${entry.truncated ? '<span>Newest lines shown</span> · ' : ''}${several ? `${escape(plural(pods.length, 'pod'))}: ` : 'Pod '}${pods.map(pod => `${several && labels.get(pod) !== pod ? `<span class="log-stream">${escape(labels.get(pod))}</span> ` : ''}<span class="mono">${escape(pod)}</span>`).join(', ')}${data.live ? ' · <span class="live-dot" aria-hidden="true"></span> live' : ''}</p>${grafana ? `<div class="work-run-tools">${grafana}</div>` : ''}</div>`;
+  return `${head}${logViewerMarkup(run, lines, entry.view || defaultLogView(), { several, truncated: Boolean(entry.truncated), pods: labels })}${stale}`;
 }
 
 /**
@@ -1060,7 +1073,7 @@ export function runHealthMarkup(run, entry, { now = Date.now() } = {}) {
     const verdict = healthMeta(judge.health);
     const evidence = (judge.evidence || []).length ? ` · evidence ${judge.evidence.map(seq => `<span class="mono" title="Transcript entry ${escape(seq)}">#${escape(seq)}</span>`).join(', ')}` : '';
     const control = entry.wrong?.has(judge.id) ? '<span class="meta">Recorded as wrong. Thank you.</span>' : ui.button({ label: 'This was wrong', variant: 'ghost', size: 'xs', action: 'work-run-judge-wrong', data: { id: judge.id, run: run.id } });
-    parts.push(`<p class="work-run-judge" data-tone="${verdict.tone}"><span class="badge sm" data-tone="neutral" role="img" aria-label="AI judgement" title="Judged by ${escape(judge.model)}">${icon('spark')}AI</span><span><strong>${escape(verdict.label)}</strong> · ${escape(judge.reason)}${evidence}</span>${control}</p>`);
+    parts.push(`<p class="work-run-judge" data-tone="${verdict.tone}"><span class="badge sm" data-tone="neutral" role="img" aria-label="AI judgement" title="Judged by ${escape(judge.model)}">${icon('spark')}AI</span><span><strong>${escape(verdict.label)}</strong> · ${escape(judge.reason)}${evidence}${judge.etaAt ? ` · expects it done about ${escape(clockTime(Date.parse(judge.etaAt)))}` : ''}</span>${control}</p>`);
     const combined = healthMeta(data.combined?.health ?? data.health);
     parts.push(`<p class="meta work-run-health-rule">Badge: ${escape(combined.label)}, the worst of the signals (${escape(signals.label)}) raised but never lowered by the AI judge (${escape(verdict.label)}). The judge only advises.</p>`);
   }
@@ -1117,7 +1130,8 @@ function runBody(run, { demo, now, live, attempts, grafanaUrl, logs, transcripts
     const title = run.outcome === 'stuck' ? 'Why it is stuck' : failure ? failure.label : 'Why it failed';
     const { reason: stated, output, outputLabel } = runFailureText(run);
     const reasonText = stated ? `<p class="${logLike.test(stated) ? 'work-log' : 'work-run-reason'}">${escape(stated)}</p>` : '';
-    const outputText = !output ? '' : failure?.foldOutput ? ui.disclosure({ summary: outputLabel, body: `<p class="work-log">${escape(output)}</p>`, plain: true }) : `<h4 class="overline">${escape(outputLabel)}</h4><p class="work-log">${escape(output)}</p>`;
+    const printed = output ? consoleMarkup(consoleSections(output), { label: `${outputLabel} in Run ${run.id}` }) : '';
+    const outputText = !output ? '' : failure?.foldOutput ? ui.disclosure({ summary: outputLabel, body: printed, plain: true }) : `<h4 class="overline">${escape(outputLabel)}</h4>${printed}`;
     const note = failure ? [failureNote(failure, { live: live && !retriedAs }), retriedAs ? `Ploeg ran it again as Run ${retriedAs}.` : ''].filter(Boolean).join(' ') : '';
     const body = `${reasonText}${outputText}${note ? `<p>${escape(note)}</p>` : ''}`;
     parts.push(ui.callout({ tone, title, body }));
@@ -1190,7 +1204,7 @@ function runsMarkup(detail, model) {
 /** The value-stream chart of a Work Item: the stream Unfold read from Ploeg's facts with the detail's Shifts and Runs, or '' with nothing to draw. */
 export function streamMarkup(detail, model) {
   const stream = model.stream && String(model.stream.workItemId) === String(detail.item.id) ? model.stream : null;
-  const lanes = streamLanes({ stream, shifts: detail.shifts || [], runs: detail.runs || [], runTone: runResult });
+  const lanes = streamLanes({ stream, shifts: detail.shifts || [], runs: detail.runs || [], runTone: runResult, sessions: model.linkedSessions?.sessions || [] });
   return streamChart({ lanes, stream, now: model.now, zoom: model.streamZoom, label: `Value stream of ${detail.item.title}` });
 }
 
@@ -1614,7 +1628,7 @@ export function statusMarkup(detail, model, { reason = null, plan = null } = {})
  * the questions answered from the record. Its health is the running Run's entry from Unfold's health route, the one
  * the Run row's badge shows, so the two never disagree; its decider tripwire hits are the running Run's hits from
  * Unfold's tripwire route, the ones its Run body lists. Its estimate is `landingEstimate` over the Team's earlier
- * Runs that opened a pull request, `model.landingHistory`.
+ * Runs that opened a pull request, `model.landingHistory`, with the AI judge's forecast from the health entry added.
  */
 function liveOf(detail, model) {
   const running = [...(detail.runs || [])].reverse().find(run => run.state === 'running');
@@ -1624,8 +1638,9 @@ function liveOf(detail, model) {
   const missing = entry?.data?.available === false ? (entry.data.reason === 'demo' ? 'demo' : 'unsupported') : !entries.length && entry?.error ? 'failed' : null;
   const health = running ? model.runHealth?.get?.(String(running.id)) ?? null : null;
   const tripwire = running ? (model.tripwire?.data?.hits ?? []).filter(hit => String(hit.runId) === String(running.id)) : [];
-  const estimate = model.landingHistory ? landingEstimate({ history: model.landingHistory, run: running, now: model.now ?? Date.now() }) : null;
-  return liveModel({ detail, transcript, entries, health, tripwire, estimate, transcriptKnown: entries.length > 0, transcriptMissing: missing, transcriptRunId: running ? String(running.id) : undefined, now: model.now ?? Date.now() });
+  const now = model.now ?? Date.now();
+  const estimate = withJudgeEta(model.landingHistory ? landingEstimate({ history: model.landingHistory, run: running, now }) : null, health?.data?.judge, { run: running, now });
+  return liveModel({ detail, transcript, entries, health, tripwire, estimate, transcriptKnown: entries.length > 0, transcriptMissing: missing, transcriptRunId: running ? String(running.id) : undefined, now });
 }
 
 export function liveViewMarkup(detail, model) {
@@ -1639,12 +1654,14 @@ export function liveViewMarkup(detail, model) {
  * on the current page, with what the agent did and its pod logs. `model.session` carries the session's own parts.
  */
 export function onePageMarkup(detail, model, { primary = '', decision, account } = {}) {
-  const view = workView({ live: liveOf(detail, model), detail, asks: model.asksEnabled === false ? null : model.asks, context: model.context, linked: model.linkedSessions, sessions: model.sessions, viewer: model.userName || 'You', canOperate: model.canAddContext !== false });
+  const stream = model.stream && String(model.stream.workItemId) === String(detail.item.id) ? model.stream : null;
+  const view = workView({ live: liveOf(detail, model), detail, asks: model.asksEnabled === false ? null : model.asks, context: model.context, linked: model.linkedSessions, sessions: model.sessions, viewer: model.userName || 'You', canOperate: model.canAddContext !== false, stream });
   const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), detail, attempts: runAttempts(detail.runs || []), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, health: model.runHealth };
   const runs = new Map((detail.runs || []).map(run => [String(run.id), run]));
   const runDetail = id => { const run = runs.get(id); return run ? runBody(run, context) : ''; };
   const cancel = model.canCancel && canStop(detail) ? { busy: Boolean(model.cancelBusy) } : null;
-  const extras = { primary, runDetail, cancel, ...(decision ? { decision } : {}), ...(account ? { account } : {}), ...(model.session ? { session: model.session } : {}), ...(model.workTab ? { tab: model.workTab } : {}), ...(model.intentMode ? { intent: model.intentMode } : {}) };
+  const takeControl = takeOverMarkup(detail, { viewer: model.userId ? { id: model.userId, role: model.userRole } : null, busy: Boolean(model.takeOverBusy), result: model.takeOverResult ?? null });
+  const extras = { primary, runDetail, runTone: runResult, cancel, ...(takeControl ? { takeControl } : {}), ...(decision ? { decision } : {}), ...(account ? { account } : {}), ...(model.session ? { session: model.session } : {}), ...(model.workTab ? { tab: model.workTab } : {}), ...(model.intentMode ? { intent: model.intentMode } : {}) };
   return workPage(view, extras, text => markdown(text, { baseLevel: 3 }));
 }
 
@@ -1662,7 +1679,7 @@ export function detailMarkup(recordedDetail, model) {
     plan = reviewPlan(detail, model.card);
     primary = plan.primary;
   }
-  if (model.flags?.['work.unified'] === true) return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${onePageMarkup(detail, model, { primary, decision: `${reason ? needsYouBox(detail, model, reason, plan) : item.state === 'awaiting_review' ? reviewBox(detail, model, plan) : ''}${disagreementsMarkup(detail)}${findingsMarkup(detail)}`, account: accountMarkup(detail) })}</article>`;
+  if (model.flags?.['work.unified'] === true) return `<article class="work-detail work-detail-layout" aria-labelledby="lv-page-title-${escape(item.id)}">${model.runNotice ? `<p class="work-run-notice" role="alert">${icon('alert')}<span>${escape(model.runNotice)}</span></p>` : ''}${cancelResultMarkup(model)}${onePageMarkup(detail, model, { primary, decision: `${reason ? needsYouBox(detail, model, reason, plan) : item.state === 'awaiting_review' ? reviewBox(detail, model, plan) : ''}${disagreementsMarkup(detail)}${findingsMarkup(detail)}`, account: `${accountMarkup(detail)}${linkedWorkMarkup(detail, model)}` })}</article>`;
   const status = statusMarkup(detail, model, { reason, plan });
   let decision;
   if (reason) decision = needsYouBox(detail, model, reason, plan);
@@ -1684,6 +1701,7 @@ export function detailMarkup(recordedDetail, model) {
     model.trace && model.trace.workItemId === item.id ? traceMarkup(model.trace, { now: model.now, busy: model.traceBusy, result: model.traceResult }) : '',
     sessionsMarkup(detail, model.sessions),
     linkedSessionsMarkup(detail, model.linkedSessions, { now: model.now, canChange: model.userRole !== undefined }),
+    linkedWorkMarkup(detail, model),
     briefMarkup(detail, model),
     contextMarkup(detail, model),
     storyMarkup(detail, model),
@@ -1714,7 +1732,7 @@ function demoMarkup(model) {
 
 /**
  * The whole Work page body for `model`: the demo note, the toolbar (Team and lane), a partial-data notice,
- * the list, and the Work Item detail beside it (wide) or instead of it (narrow).
+ * the list, and the Work Item detail in place of it.
  * `model` = { data, lane, lanePending (the lane waits for the open Work Item's state), team, teams, loading, refreshing,
  * loadingMore, detailId, detail, detailLoading, detailError, listHref, canCancel, agentsWindow, cancelBusy, cancelResult, briefOpen,
  * sessions, userId, trackerUrl, reviewFacts, demoMode, now, card, trace, traceBusy, traceResult }.

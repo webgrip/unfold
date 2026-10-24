@@ -30,6 +30,8 @@ const isAmount = value => typeof value === 'number' && Number.isFinite(value);
 const capital = text => text ? text[0].toUpperCase() + text.slice(1) : '';
 const byStart = (a, b) => (toMs(a.startedAt) ?? Infinity) - (toMs(b.startedAt) ?? Infinity) || Number(a.id) - Number(b.id) || String(a.id).localeCompare(String(b.id));
 const interrupt = /^(c-c|ctrl[- ]?c|\^c)$|\b(interrupt|kill|sigint|sigterm|stuck|hung|hang)\b/i;
+const latest = moments => { const known = moments.filter(at => at !== null); return known.length ? Math.max(...known) : null; };
+const earliest = moments => { const known = moments.filter(at => at !== null); return known.length ? Math.min(...known) : null; };
 const providers = { vikunja: 'Vikunja', github: 'GitHub', forgejo: 'Forgejo', gitlab: 'GitLab', jira: 'Jira', linear: 'Linear', clickup: 'ClickUp', demo: 'Demo', manual: 'Manual' };
 
 function runStatus(run) {
@@ -137,6 +139,25 @@ function healthOf(result, judge, { stale = false, demo = false } = {}) {
   return { health: combined.health, label: meta.label, tone: meta.tone, glyph: meta.glyph, source: combined.source, signalsHealth: result.health ?? 'unknown', reason: result.reason ?? '', deciding: result.deciding ?? null, signals: result.signals ?? [], judge: judge ?? null, stale: stale === true, demo: demo === true };
 }
 
+function stageTimes(detail, runs, stageList, firstStart, now) {
+  const status = Object.fromEntries(stageList.map(stage => [stage.id, stage.status]));
+  const events = detail.events ?? [];
+  const state = detail.item.state;
+  const latestShift = [...(detail.shifts ?? [])].sort((a, b) => (toMs(a.openedAt) ?? 0) - (toMs(b.openedAt) ?? 0)).at(-1) ?? null;
+  const prOpened = earliest((detail.checkpoints ?? []).filter(entry => entry.phase === 'pr_opened').map(entry => toMs(entry.createdAt))) ?? earliest(runs.filter(run => run.outcome === 'pr_opened').map(run => toMs(run.finishedAt)));
+  const finished = latest(runs.map(run => toMs(run.finishedAt)));
+  const moment = action => latest(events.filter(event => event.action === action).map(event => toMs(event.at)));
+  const reviewing = ['current', 'done'].includes(status.review);
+  const reviewFrom = !reviewing ? null : moment('work_item.awaiting_review') ?? (state === 'awaiting_review' ? toMs(latestShift?.closedAt) ?? finished : prOpened !== null ? finished : null);
+  const reviewTo = state !== 'done' ? null : moment('work_item.done') ?? toMs(latestShift?.closedAt);
+  const leg = (from, to, live) => from === null || (to === null && !live) ? null : { from, to, seconds: Math.max(0, ((to ?? now) - from) / 1000) };
+  return {
+    build: status.build === 'done' ? leg(firstStart, prOpened, false) : null,
+    pr: leg(prOpened, reviewFrom, status.pr === 'current'),
+    review: leg(reviewFrom, reviewTo, status.review === 'current'),
+  };
+}
+
 function stageStates(item, runs, current) {
   const state = item.state;
   const hasRun = runs.length > 0;
@@ -168,7 +189,9 @@ function stageStates(item, runs, current) {
  * `spend.attemptUsd` is the part of it the latest attempt spent against its budget, `spend.budgetUsd`; Runs a
  * machine ended count in `lost` and never as Role work; `time.agent = time.useful + time.lost`; attempts are numbered
  * from 1 in the order Ploeg opened them, an attempt that closed before any of its Runs started is not one of them but
- * an entry of `unstarted`, and Runs are numbered from 1 inside each attempt; `health` is the running
+ * an entry of `unstarted`, and Runs are numbered from 1 inside each attempt; `stageTimes` holds how long Building,
+ * Pull request and Your review took, each `{ from, to, seconds }` with `to` null while it lasts, and null when Ploeg
+ * reported no moment to measure it from; `health` is the running
  * Run's badge, the words its Run row shows (`healthMeta`), and null when no Run is working.
  * @param {object} input
  * @param {object} input.detail A Ploeg Work Item detail: `{ item, shifts, runs, checkpoints, events }`.
@@ -292,6 +315,7 @@ export function liveModel({ detail, transcript = [], transcriptRunId, now, ticke
     pullRequest: item.pullRequest?.url ? { url: item.pullRequest.url, number: item.pullRequest.number ?? null } : null,
     now,
     stages: stageList,
+    stageTimes: stageTimes(detail, runs, stageList, firstStart, now),
     stage: stageList.find(stage => stage.status === 'current')?.id ?? (item.state === 'done' ? 'production' : 'wait'),
     attempts,
     unstarted,

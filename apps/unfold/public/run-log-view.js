@@ -24,7 +24,7 @@ const levelKeys = ['level', 'lvl', 'severity', 'levelname', 'log.level'];
 const messageKeys = ['msg', 'message'];
 const timeKeys = ['time', 'ts', 'timestamp', '@timestamp', 't'];
 const plainLevel = /^.{0,64}?\b(FATAL|PANIC|CRITICAL|ERROR|ERR|WARN|WARNING|INFO|DEBUG|TRACE)\b/;
-const logfmtPair = /([^\s="]+)=("(?:[^"\\]|\\.)*"|[^\s]*)/y;
+const logfmtPair = /([^\s="]+)=("(?:[^"\\]|\\.)*(?:"|$)|[^\s]*)/y;
 
 /** The page's level for a level word such as `WARNING` or `err`; null for anything else. */
 export function levelOf(word) {
@@ -33,7 +33,8 @@ export function levelOf(word) {
 
 function unquote(value) {
   if (!value.startsWith('"')) return value;
-  try { return JSON.parse(value); } catch { return value.slice(1, -1); }
+  const closed = value.length > 1 && value.endsWith('"') && !value.endsWith('\\"');
+  try { return JSON.parse(closed ? value : `${value}"`); } catch { return closed ? value.slice(1, -1) : value.slice(1); }
 }
 
 /** The `key=value` pairs of a logfmt line, or null when the line is not logfmt from its start. */
@@ -94,10 +95,10 @@ export function parseLogLine(text) {
   return { level: levelOf(plainLevel.exec(line)?.[1]), message: line, fields: [] };
 }
 
-/** The fields every one of `parsed` carries with the same value, when at least two lines carry fields. */
+/** The fields every line of `parsed` that carries fields carries with the same value, when at least two lines carry fields. */
 export function commonFields(parsed) {
   const withFields = parsed.filter(line => line.fields.length);
-  if (withFields.length < 2 || withFields.length !== parsed.length) return [];
+  if (withFields.length < 2) return [];
   const [first, ...rest] = withFields;
   return first.fields.filter(([key, value]) => rest.every(line => line.fields.some(([other, text]) => other === key && text === value)));
 }
@@ -122,8 +123,9 @@ export function logLineShown(line, parsed, view) {
  * The time window a Run's volume chart covers: the Run's start to its end (or the last line while it runs), widened
  * to include every line; at least a second wide; null without any time.
  */
-export function logExtent(lines, run = {}) {
-  const moments = [toMs(run.startedAt), toMs(run.finishedAt), ...lines.map(line => toMs(line.at))].filter(at => at !== null);
+export function logExtent(lines, run = {}, { truncated = false } = {}) {
+  const runMoments = truncated && lines.length ? [] : [toMs(run.startedAt), toMs(run.finishedAt)];
+  const moments = [...runMoments, ...lines.map(line => toMs(line.at))].filter(at => at !== null);
   if (!moments.length) return null;
   const from = Math.min(...moments);
   return { from, to: Math.max(...moments, from + 1000) };
@@ -175,19 +177,44 @@ function fieldsText(fields, query) {
   return fields.map(([key, value]) => `<span class="log-field"><span class="log-field-key">${highlight(key, query)}=</span>${highlight(/\s/.test(value) || value === '' ? JSON.stringify(value) : value, query)}</span>`).join(' ');
 }
 
-function lineMarkup(run, line, parsed, { index, lines, view, hidden, several }) {
+/**
+ * A short name per pod for the pod column: `sandbox` for a Ploeg sandbox pod (`sbx-` before its worker's name),
+ * `worker` for a Ploeg worker pod, otherwise the name part no other pod shares, or the whole name.
+ * @param {string[]} pods
+ * @returns {Map<string, string>}
+ */
+export function podLabels(pods) {
+  const labels = new Map();
+  const segments = pods.map(pod => pod.split('-'));
+  pods.forEach((pod, index) => {
+    if (/^sbx-/.test(pod)) { labels.set(pod, 'sandbox'); return; }
+    if (/(?:^|-)worker-/.test(pod)) { labels.set(pod, 'worker'); return; }
+    const own = segments[index].find(part => part && segments.every((other, at) => at === index || !other.includes(part)));
+    labels.set(pod, own || pod);
+  });
+  const taken = new Map();
+  for (const [pod, label] of labels) { const count = (taken.get(label) || 0) + 1; taken.set(label, count); if (count > 1) labels.set(pod, `${label} ${count}`); }
+  return labels;
+}
+
+function lineMarkup(run, line, parsed, { index, lines, view, hidden, several, pods, continued }) {
   const level = logLevels.find(entry => entry.id === parsed.level);
   const fields = parsed.fields.filter(([key, value]) => !hidden.some(([other, text]) => other === key && text === value));
   const time = view.times ? `<time class="log-time num" datetime="${escape(line.at)}" title="${escape(dateTime(line.at))}">${escape(stamp(line.at))}</time>` : '';
   const badge = `<span class="log-level"${level ? '' : ' data-empty'}>${level ? escape(level.short) : ''}</span>`;
-  const stream = several && line.stream ? `<span class="log-stream">${highlight(line.stream, view.query)}</span> ` : '';
+  const stream = several && line.stream ? `<span class="log-stream" title="${escape(line.stream)}">${highlight(pods.get(line.stream) || line.stream, view.query)}</span> ` : '';
   const body = `<span class="log-text">${stream}<span class="log-message">${highlight(parsed.message, view.query)}</span>${fields.length ? ` ${fieldsText(fields, view.query)}` : ''}</span>`;
   const facts = [['Time', `<span class="mono">${escape(line.at)}</span>`], ['Level', level ? escape(level.short) : '<span class="subtle">None</span>'], ...(line.stream ? [['Pod', `<span class="mono">${escape(line.stream)}</span>`]] : []), ...parsed.fields.map(([key, value]) => [key, `<span class="mono">${escape(value)}</span>`])];
   const detail = `<div class="log-detail">${ui.dl(facts, { rows: true })}<pre class="work-log log-raw" data-private>${escape(line.text)}</pre></div>`;
-  return `<details class="log-line" id="work-run-log-line-${escape(run.id)}-${lineKey(line, index, lines)}" data-level="${escape(parsed.level || 'none')}"><summary>${time}${badge}${body}</summary>${detail}</details>`;
+  return `<details class="log-line" id="work-run-log-line-${escape(run.id)}-${lineKey(line, index, lines)}" data-level="${escape(parsed.level || 'none')}"${continued ? ' data-continued' : ''}><summary>${time}${badge}${body}</summary>${detail}</details>`;
+}
+
+function continues(previous, line, parsed) {
+  return previous.line.at === line.at && previous.line.stream === line.stream && !parsed.level && !parsed.fields.length;
 }
 
 const pct = share => `${share.toFixed(3)}%`;
+const minBarShare = 6;
 
 function volumeMarkup(run, slices, view) {
   const peak = Math.max(1, ...slices.map(slice => slice.total));
@@ -196,7 +223,7 @@ function volumeMarkup(run, slices, view) {
   const bars = slices.map((slice, index) => {
     let base = 100;
     const rects = order.filter(level => slice.counts[level]).map(level => {
-      const height = (slice.counts[level] / peak) * 100;
+      const height = Math.max(minBarShare, (slice.counts[level] / peak) * 100);
       base -= height;
       return `<rect class="log-bar" data-level="${level}" x="0" y="${pct(base)}" width="100%" height="${pct(height)}"/>`;
     }).join('');
@@ -214,31 +241,34 @@ function volumeMarkup(run, slices, view) {
 /**
  * The log viewer of one Run's pod lines: a volume chart by level over the Run's time (a bar picks a time range), level
  * filters with counts, a search, wrap and time switches, a download of the shown lines, and one row per line that
- * opens to its fields and raw text. Fields every line carries show once above the lines.
+ * opens to its fields and raw text. Several pods show by a short name; a line that continues the line before it (same
+ * pod, same moment, no level or fields) hides its repeated time and pod. Fields every line with fields carries show once above the lines.
  * @param {{ id: string|number, startedAt?: string|null, finishedAt?: string|null }} run
  * @param {{ text: string, at: string, stream?: string }[]} lines
  * @param {{ level: string, query: string, wrap: boolean, times: boolean, range: { from: number, to: number, last?: boolean }|null }} view
- * @param {{ several?: boolean }} [options]
+ * @param {{ several?: boolean, truncated?: boolean, pods?: Map<string, string> }} [options] `truncated` when only the newest
+ *   lines arrived: the chart then spans the lines, not the whole Run. `pods` names each pod, from `podLabels` by default.
  * @returns {string}
  */
-export function logViewerMarkup(run, lines, view, { several = false } = {}) {
+export function logViewerMarkup(run, lines, view, { several = false, truncated = false, pods: names = null } = {}) {
   const parsed = lines.map(line => parseLogLine(line.text));
   const hidden = commonFields(parsed);
   const counts = Object.fromEntries(logLevels.map(level => [level.id, parsed.filter(line => line.level === level.id).length]));
   const present = logLevels.filter(level => counts[level.id] || view.level === level.id);
   const shown = lines.map((line, index) => ({ line, parsed: parsed[index], index })).filter(({ line, parsed: form }) => logLineShown(line, form, view));
-  const extent = logExtent(lines, run);
+  const extent = logExtent(lines, run, { truncated });
+  const pods = names ?? podLabels([...new Set(lines.map(line => line.stream).filter(Boolean))]);
   const volume = extent ? volumeMarkup(run, logVolume(lines, parsed, extent), view) : '';
   const levels = present.length ? ui.segmented({ label: 'Level', action: 'work-run-log-level', items: [{ id: 'all', label: 'All', count: lines.length, selected: view.level === 'all' }, ...present.map(level => ({ id: level.id, label: level.label, count: counts[level.id], selected: view.level === level.id }))] }) : '';
   const search = `<label class="log-search"><span class="sr-only">Search these lines</span>${icon('search')}<input type="search" id="work-run-log-search-${escape(run.id)}" data-run-log-search data-id="${escape(run.id)}" value="${escape(view.query)}" placeholder="Search lines" autocomplete="off" spellcheck="false"></label>`;
   const display = ui.segmented({ label: 'Line display', action: 'work-run-log-toggle', items: [{ id: 'wrap', label: 'Wrap', selected: view.wrap }, { id: 'times', label: 'Times', selected: view.times }] });
   const download = ui.button({ label: 'Download', icon: 'download', variant: 'ghost', size: 'xs', action: 'work-run-log-download', data: { id: run.id }, title: 'Download the shown lines as a text file' });
   const range = view.range ? `<p class="meta log-range">Only ${escape(stamp(new Date(view.range.from).toISOString()))} to ${escape(stamp(new Date(view.range.to).toISOString()))} ${ui.button({ label: 'Show all times', icon: 'x', variant: 'ghost', size: 'xs', action: 'work-run-log-range', data: { id: run.id } })}</p>` : '';
-  const common = hidden.length ? `<p class="meta log-common"><span>Every line carries</span> ${fieldsText(hidden, '')}</p>` : '';
+  const common = hidden.length ? `<p class="meta log-common"><span>Every line with fields carries</span> ${fieldsText(hidden, '')}</p>` : '';
   const filtered = shown.length !== lines.length;
   const tally = `<p class="meta log-tally" role="status"><span class="num">${escape(filtered ? `${shown.length} of ${plural(lines.length, 'line')}` : plural(lines.length, 'line'))}</span>${filtered ? ' shown' : ''}</p>`;
   const rows = shown.length
-    ? shown.map(({ line, parsed: form, index }) => lineMarkup(run, line, form, { index, lines, view, hidden, several })).join('')
+    ? shown.map(({ line, parsed: form, index }, at) => lineMarkup(run, line, form, { index, lines, view, hidden, several, pods, continued: at > 0 && continues(shown[at - 1], line, form) })).join('')
     : `<p class="log-none meta">No line matches. ${ui.button({ label: 'Clear filters', variant: 'ghost', size: 'xs', action: 'work-run-log-clear', data: { id: run.id } })}</p>`;
   return `${volume}<div class="log-tools">${levels}${search}${display}${download}</div>${range}${common}${tally}<div class="log-lines" data-private data-run-log="${escape(run.id)}" data-wrap="${view.wrap ? 'true' : 'false'}" tabindex="0" role="region" aria-label="${escape(`Pod logs of Run ${run.id}`)}">${rows}</div>`;
 }

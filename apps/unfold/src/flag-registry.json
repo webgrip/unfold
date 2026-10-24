@@ -131,6 +131,20 @@
         "labs": false
       }
     },
+    "linked.trace-comment": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "metadata": {
+        "kind": "permission",
+        "owner": "Ryan Grippeling",
+        "created": "2026-10-24",
+        "title": "Agent Trace comment on pull requests",
+        "description": "Keeps one comment, keyed agent-trace, on the open pull request of a Work Item that has Linked Sessions: AI-written lines per commit from the Agent Trace records those sessions sent, with a link to each session's Unfold page. Counts and links only, never cost, model or telemetry. Written through Ploeg's keyed pull request comment at most once per five minutes per Work Item, and only when the text changed. Evaluated per Team: the context carries the Work Item's team.",
+        "client": false,
+        "labs": false
+      }
+    },
     "runs.tripwire": {
       "state": "ENABLED",
       "variants": { "on": true, "off": false },

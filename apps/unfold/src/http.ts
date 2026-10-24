@@ -20,7 +20,8 @@ import { StatusBoard, gatewayProbe } from './status.ts';
 import { CardService, importStatusLine } from './cards/service.ts';
 import { CardStore } from './cards/card-store.ts';
 import { rarityShown } from './cards/settings.ts';
-import { PloegClient, PloegError, contextInput, contextUploadLimit, demoNoteRefusal, type PloegDecision, type PloegState } from './ploeg.ts';
+import { PloegClient, PloegContractIncompatible, PloegError, contextInput, contextUploadLimit, demoNoteRefusal, type PloegDecision, type PloegState } from './ploeg.ts';
+import type { PloegCompatibilityMonitor } from './ploeg-compatibility.ts';
 import { DeliveryService } from './delivery.ts';
 import { TaskHandoff } from './task-handoff.ts';
 import { StaticFiles } from './static.ts';
@@ -28,6 +29,7 @@ import { Collection, CollectionError } from './collection.ts';
 import { CardThemes, ThemeError } from './card-themes.ts';
 import { AssetError, assetLimits, maxImageSide, maxUploadBytes } from './card-assets.ts';
 import { CardArtError, CardArtGenerator, maxArtAttempts } from './card-art.ts';
+import { StoreUpkeep } from './store-upkeep.ts';
 import { InsightService, maxEventPayloadBytes, parseInsightEvents } from './insight.ts';
 import { ReportError, ReportService, parseReport } from './reports.ts';
 import { knownSecrets, withoutKnownSecrets } from './redaction.ts';
@@ -46,11 +48,16 @@ import { defaultTenant } from './insight.ts';
 import { createMcpHttp } from './mcp-http.ts';
 import { entitledRole } from './oidc.ts';
 import { LinkedSessions, parseLinkedEvent } from './linked-sessions.ts';
+import { LinkedHandoff, handoffRoute as serveLinkedHandoff, isHandoffRoute } from './linked-handoff.ts';
+import { TakeOver, isTakeOverRoute, takeOverRoute } from './take-over.ts';
+import { LinkedInbox } from './linked-inbox.ts';
+import { LinkedPermissions, isPermissionRoute, permissionRoute } from './linked-permissions.ts';
 import { agentTraceMediaType } from './agent-trace.ts';
+import { AgentTraceComments } from './agent-trace-comments.ts';
 import type { AddressInfo } from 'node:net';
 
 const reportRefreshWaitMs = 2500;
-const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
+export const applicationVersion = (() => { try { return String(JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version); } catch { return 'unknown'; } })();
 
 /** The most events one storage read loads while streaming a session's history to a live event client. */
 export const eventReplayBatch = 200;
@@ -61,6 +68,12 @@ export const browserModule = /^\/(?:(?:core|views|styles|live|controls)\/[a-z0-9
 /** A request path with its ids replaced by `:id`, so errors on one route group together. */
 export function routeShape(path: string): string {
   return path.split('/').map(part => /^[0-9]+$|^[0-9a-f-]{16,}$|^[A-Za-z0-9_-]{20,}$/i.test(part) ? ':id' : part).join('/').slice(0, 200);
+}
+
+/** Where a session event stream resumes: after the higher of the `after` query and the `Last-Event-ID` an automatic reconnect sends, so a reconnect never replays events the browser already has. */
+export function streamCursor(after: string | null, lastEventId: string | string[] | undefined): number {
+  const read = (value: unknown) => Math.max(0, Math.floor(Number(value)) || 0);
+  return Math.max(read(after), read(Array.isArray(lastEventId) ? lastEventId[0] : lastEventId));
 }
 
 function fault(status: number, code: string, message: string): never { throw Object.assign(new Error(message), { status, code }); }
@@ -161,6 +174,7 @@ function mutationGuard(req: IncomingMessage, config: AppConfig): void {
 }
 
 const requestBodyLimitMs = 15000;
+export const keepAliveTimeoutMs = 75_000;
 
 /**
  * Destroys a request whose body has not fully arrived within `withinMs`, as Node's server-wide `requestTimeout` does,
@@ -175,15 +189,20 @@ export function limitRequestBodies(server: Server, withinMs: number, streams: (r
   });
 }
 
-export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports) {
+export function buildServer(config: AppConfig, store: Store, engine: Engine, runtimeKinds: RuntimeKind[], relay?: WorkerRelay, agentHost?: AgentHost, links?: Links, oidc?: Oidc, errors: ErrorReports = noErrorReports, ploegCompatibility?: PloegCompatibilityMonitor) {
   const auth = new Auth(store, config);
-  const ploeg = new PloegClient(config);
+  const ploeg = new PloegClient(config, ploegCompatibility);
   const cards = config.ploeg && !config.ploeg.demo ? new CardService(ploeg, new CardStore(store.db), { settings: config.cards?.rules ?? {}, publish: config.cards?.publishPullRequestComment === true }) : undefined;
   if (cards) ploeg.useCards(cards);
   const delivery = new DeliveryService(config, store);
+  delivery.useContract(ploegCompatibility);
   void delivery.reconcileAll().catch(() => undefined);
   const handoff = new TaskHandoff(config, ploeg);
   const linked = new LinkedSessions(store.db, config, ploeg);
+  const linkedHandoff = new LinkedHandoff(linked, ploeg, store, config);
+  const takeOver = new TakeOver(ploeg);
+  const inbox = new LinkedInbox(store.db, linked.store, ploeg);
+  const permissions = new LinkedPermissions(store.db, linked.store);
   const status = new StatusBoard(config, store, () => engine.provisioning(), {
     gateway: gatewayProbe(config),
     ploeg: async user => {
@@ -192,13 +211,15 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       catch (error) { return error instanceof PloegError && error.code === 'ploeg_unconfigured' ? 'unconfigured' : error instanceof PloegError && error.status === 403 ? 'ok' : 'down'; }
     },
     ...(cards ? { cards: () => importStatusLine(cards.status().import) } : {}),
+    ...(ploegCompatibility ? { contract: () => ploegCompatibility.status } : {}),
   });
   const streams = new Set<ServerResponse>();
   const staticFiles = new StaticFiles(config.publicDir);
   const collection = new Collection(config, store, ploeg, config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true));
   const themes = new CardThemes(store, config);
   const cardArt = new CardArtGenerator(config);
-  const insight = new InsightService(store, config, applicationVersion);
+  const upkeep = new StoreUpkeep(store, errors);
+  const insight = new InsightService(store, config, applicationVersion, undefined, { upkeep: () => upkeep.run() });
   const reports = new ReportService(store, config, applicationVersion);
   const secrets = knownSecrets(config);
   const askDemo = config.mode === 'demo' && (!config.ploeg || config.ploeg.demo === true);
@@ -242,6 +263,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   const progressEnabled = (team: string) => flags.getBooleanValue('runs.progress-checks', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team });
   const tripwire = new TripwireReader(store, ploeg, { decider: tripwireConnected ? decider : undefined, enabled: tripwireEnabled, progress: progressEnabled, demo: askDemo, requestsPerMinute: config.decider?.requestsPerMinute ?? 8, secrets });
   const tripwireHits = new TripwireService(store, ploeg, { demo: askDemo, connected: tripwireConnected, decider: decider?.identity ?? null, enabled: async team => await tripwireEnabled(team) || await progressEnabled(team), record: recordWork });
+  const traceComments = config.ploeg && !ploeg.isDemo ? new AgentTraceComments(ploeg, linked.store, { enabled: team => flags.getBooleanValue('linked.trace-comment', false, { targetingKey: `team:${team}`, tenantId: defaultTenant, mode: config.mode, team }) }) : undefined;
   ploeg.useRarity(user => rarityShown(config.cards?.rules?.rarity, () => flags.getBooleanValue('cards.rarity', false, flagContext(user))));
   const labsView = async (user: User) => {
     const context = flagContext(user);
@@ -300,7 +322,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       if (path === '/healthz' || path === '/readyz') {
         if (method !== 'GET') return json(res, 405, { error: { code: 'method', message: 'GET required.' } });
         if (path === '/readyz') store.ping();
-        return json(res, 200, { status: 'ok', version: applicationVersion });
+        return json(res, 200, { status: 'ok', version: applicationVersion, ...(path === '/healthz' && ploegCompatibility ? { ploegContract: ploegCompatibility.status } : {}) });
       }
       if (mcp?.handles(path)) return await mcp.handle(req, res, path);
       if (relay && await relay.handle(req, res, url)) return;
@@ -694,18 +716,35 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           const actions = store.actionRecords({ userId: person, target, outcome: outcome as 'done' | 'refused' | 'failed' | undefined, channel, before: Number.isInteger(before) && before > 0 ? before : undefined, limit: limit + 1 });
           return json(res, 200, sanitize({ actions: actions.slice(0, limit), nextBefore: actions.length > limit ? actions[limit - 1].id : null }));
         }
-        const linkedSession = /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})(?:\/(agent-trace|traces)|\/work-items\/([1-9][0-9]{0,18}))?$/.exec(path);
+        if (isHandoffRoute(path)) {
+          const answer = await serveLinkedHandoff(linkedHandoff, { method, path, query: url.searchParams, user, base: config.baseUrl ?? `http://${req.headers.host}`, body: () => body(req) });
+          return json(res, answer.status, sanitize(answer.body));
+        }
+        if (isTakeOverRoute(path)) {
+          const answer = await takeOverRoute(takeOver, { method, path, user, body: () => body(req) });
+          return json(res, answer.status, sanitize(answer.body));
+        }
+        if (isPermissionRoute(path)) {
+          const signIn = auth.scope(req) === 'editor' ? auth.signIn(req) : undefined;
+          const answer = await permissionRoute(permissions, { method, path, caller: { user, scope: auth.scope(req), credential: signIn, confirmation: confirmationOf(req.headers['x-unfold-confirmation']) }, body: () => body(req) });
+          return json(res, answer.status, sanitize(answer.body));
+        }
+        const linkedSession = /^\/api\/linked-sessions\/([A-Za-z0-9_-]{8,128})(?:\/(agent-trace|traces|suggestions|messages|inbox)|\/work-items\/([1-9][0-9]{0,18}))?$/.exec(path);
         const tracedRevision = /^\/api\/agent-trace\/([0-9a-f]{40}(?:[0-9a-f]{24})?)$/.exec(path);
         if (path === '/api/linked-sessions' || path === '/api/linked-sessions/events' || linkedSession || tracedRevision) {
           const base = config.baseUrl ?? `http://${req.headers.host}`;
           if (path === '/api/linked-sessions/events') {
             if (method !== 'POST') fault(405, 'method', 'Report a session event with POST.');
-            return json(res, 200, sanitize(await linked.report(user, parseLinkedEvent(await body(req), new Date()), base)));
+            const reported = await body(req);
+            const answer = await linked.report(user, parseLinkedEvent(reported, new Date()), base, { credentialExpiresAt: auth.editorExpiresAt(req) });
+            if (reported.event === 'start' && typeof reported.remoteApproval === 'boolean') permissions.setOptIn(user, answer.session.id, reported.remoteApproval);
+            if (reported.event === 'idle' || reported.event === 'end') permissions.settle(answer.session.id);
+            return json(res, 200, sanitize(answer));
           }
           if (path === '/api/linked-sessions') {
             if (method !== 'GET') fault(405, 'method', 'List Linked Sessions with GET.');
             const workItem = url.searchParams.get('workItemId');
-            return json(res, 200, sanitize({ sessions: workItem ? await linked.forWorkItem(user, workItem, base) : linked.mine(user, base, url.searchParams.get('all') === '1') }));
+            return json(res, 200, sanitize({ sessions: workItem ? await linked.forWorkItem(user, workItem, base, url.searchParams.get('telemetry') === '1') : linked.mine(user, base, url.searchParams.get('all') === '1') }));
           }
           if (tracedRevision) {
             if (method !== 'GET') fault(405, 'method', 'Read Agent Trace records with GET.');
@@ -719,9 +758,20 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (part === 'traces') {
             if (method !== 'POST') fault(405, 'method', 'Send an Agent Trace record with POST.');
             const stored = linked.addTrace(user, id, await body(req));
+            if (stored.stored) traceComments?.notice(linked.store.get(id)?.workItems.map(entry => entry.id) ?? [], base);
             return json(res, stored.stored ? 201 : 200, stored);
           }
+          if (part === 'messages') {
+            if (method === 'GET') return json(res, 200, sanitize({ messages: inbox.list(user, id) }));
+            if (method !== 'POST') fault(405, 'method', 'List messages with GET and send one with POST.');
+            return json(res, 201, sanitize({ message: inbox.send(user, id, (await body(req)).text) }));
+          }
+          if (part === 'inbox') {
+            if (method !== 'POST') fault(405, 'method', 'Collect a session\'s messages with POST.');
+            return json(res, 200, sanitize({ messages: await inbox.collect(user, id, await body(req)) }));
+          }
           if (method !== 'GET') fault(405, 'method', 'Read a Linked Session with GET.');
+          if (part === 'suggestions') return json(res, 200, sanitize({ suggestions: await linked.suggestions(user, id) }));
           if (part === 'agent-trace') {
             const records = await linked.traces(user, id);
             res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Disposition': `attachment; filename="agent-trace-${id}.jsonl"`, 'X-Agent-Trace-Media-Type': agentTraceMediaType });
@@ -923,7 +973,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
           if (method === 'GET' && action === 'permissions') return json(res, 200, sanitize(store.permissions(id).map(({ nativeId, ...request }) => request)));
           if (method === 'GET' && action === 'events') {
             if (streams.size >= 100) fault(429, 'streams', 'Too many live connections.');
-            let cursor = Math.max(0, Math.floor(Number(url.searchParams.get('after') || req.headers['last-event-id']) || 0));
+            let cursor = streamCursor(url.searchParams.get('after'), req.headers['last-event-id']);
             res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', 'Connection': 'keep-alive', 'X-Accel-Buffering': 'no' });
             streams.add(res);
             res.write('retry: 1500\n\n');
@@ -982,7 +1032,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
         }
         return fault(404, 'not_found', 'API route not found.');
       }
-      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/start.js': 'start.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/blackboard-view.js': 'blackboard-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/connections.js': 'connections.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt', '/action-log.js': 'action-log.js' };
+      const assets: Record<string, string> = { '/': 'index.html', '/app.js': 'app.js', '/shell.js': 'shell.js', '/now.js': 'now.js', '/handoff.js': 'handoff.js', '/start.js': 'start.js', '/ploeg.js': 'ploeg.js', '/ploeg-activity.js': 'ploeg-activity.js', '/run-transcript.js': 'run-transcript.js', '/run-log-view.js': 'run-log-view.js', '/console-view.js': 'console-view.js', '/blackboard-view.js': 'blackboard-view.js', '/delivery.js': 'delivery.js', '/agents-window.js': 'agents-window.js', '/connections.js': 'connections.js', '/styles.css': 'styles.css', '/favicon.svg': 'favicon.svg', '/favicon.ico': 'favicon.ico', '/favicon-16x16.png': 'favicon-16x16.png', '/favicon-32x32.png': 'favicon-32x32.png', '/apple-touch-icon.png': 'apple-touch-icon.png', '/android-chrome-192x192.png': 'android-chrome-192x192.png', '/android-chrome-512x512.png': 'android-chrome-512x512.png', '/site.webmanifest': 'site.webmanifest', '/og-image.png': 'og-image.png', '/fonts/archivo-latin-wght-wdth110.woff2': 'fonts/archivo-latin-wght-wdth110.woff2', '/fonts/archivo-latin-ext-wght-wdth110.woff2': 'fonts/archivo-latin-ext-wght-wdth110.woff2', '/fonts/OFL.txt': 'fonts/OFL.txt', '/action-log.js': 'action-log.js' };
       const file = assets[path] ?? (browserModule.test(path) ? path.slice(1) : undefined);
       if (method !== 'GET' || !file) return fault(404, 'not_found', 'Page not found.');
       await staticFiles.serve(req, res, file, Boolean(assets[path]));
@@ -991,7 +1041,7 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
       const status = Number(error.status || error.statusCode) || 500;
       const code = error.code || (status === 500 ? 'internal_error' : 'request_failed');
       const message = status >= 500 && !(error instanceof TaskError) && !(error instanceof PloegError) && !(error instanceof CardArtError) && !(error instanceof AssetError) && !(error instanceof ThemeError) ? 'The operation could not be completed. Check the server log.' : error.message;
-      if (status >= 500) {
+      if (status >= 500 && !(error instanceof PloegContractIncompatible)) {
         console.error(JSON.stringify({ level: 'error', event: 'http.failed', message: String(error.message).slice(0, 200).replace(/sk-[\w-]+/g, '[redacted]') }));
         const route = `${req.method || 'GET'} ${routeShape(new URL(req.url || '/', 'http://localhost').pathname)}`;
         errors.capture(error, { level: 'error', tags: { feature: 'http', route, http_status: status, code }, fingerprint: ['http', route, String(code)] });
@@ -1019,5 +1069,6 @@ export function buildServer(config: AppConfig, store: Store, engine: Engine, run
   });
   limitRequestBodies(server, requestBodyLimitMs, req => relay?.streamingUpload(req) === true);
   server.headersTimeout = 10000;
+  server.keepAliveTimeout = keepAliveTimeoutMs;
   return { server, cards, tripwire, closeStreams: () => { for (const stream of streams) stream.end(); streams.clear(); }, stopInsight: () => { insight.stop(); reports.stop(); flags.close(); tripwire.stop(); }, reports };
 }

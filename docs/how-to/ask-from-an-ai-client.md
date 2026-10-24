@@ -40,14 +40,14 @@ The steps below run `unfold` over stdio from a checkout. When your Unfold serves
 
 | Tool | Answers |
 | --- | --- |
-| `unfold_now` | Everything waiting for you, each with its reason, fix and Unfold link; running Runs; tracker tasks Ploeg refused to route; your Teams |
+| `unfold_now` | Everything waiting for you, each with its reason, fix and Unfold link; running Runs; tracker tasks Ploeg refused to route; your own agent sessions that wait for you; your Teams |
 | `unfold_find_work` | One Team's Work Items, by state, paged |
 | `unfold_get_work` | Why one Work Item waits, Ploeg's own words, the Run that explains it, budget and spend per Shift, its Runs |
 | `unfold_sessions` | Your workbench sessions |
 | `unfold_linked_sessions` | Agent sessions people run outside Unfold that report to it, for one Work Item or your own: state, owner, Work Items, commits with AI-written lines, and the command that resumes them ([Link your Claude Code sessions](link-claude-code-sessions.md)) |
 | `unfold_link_session` | Links your own agent session to a Work Item, or unlinks it with `unlink: true`. Changes nothing in Ploeg and spends nothing |
 | `unfold_spend` | Spend settled and held per Team for 24h, 7d or 30d, and the finished Runs whose budget hold Ploeg has not released, each with its Work Item |
-| `unfold_digest` | What changed since your previous digest (or since a time or span such as `8h`): what started needing you with the reason and fix, pull requests ready for review, proposals, finished Runs with outcome and cost, changed sessions, refused tasks, spend and stuck holds. It remembers when you last asked in `~/.local/state/unfold-mcp/digest.json`; pass `remember: false` to peek without moving that mark |
+| `unfold_digest` | What changed since your previous digest (or since a time or span such as `8h`): what started needing you with the reason and fix, pull requests ready for review, proposals, finished Runs with outcome and cost, changed sessions, refused tasks, spend and stuck holds. It remembers when you last asked in `~/.local/state/unfold-mcp/digest.json`; pass `remember: false` to peek without moving that mark. A separate `ownSessions` section counts your own agent sessions over the last 7 or 30 days: sessions, Work Items, commits, AI-written lines and Claude Code's API-price estimate |
 | `unfold_ask` | One question about a Work Item. A standing question ("why did it stop?", "what did it cost so far?") is answered from the record, free. Any other question needs `use_model: true`; your client then asks you to confirm, and one model call spends up to the per-Ask Budget from the Team's Ask Allowance. A client that cannot ask you is refused and gets a link to the Work Item instead. An Ask without an answer returns `failureCode` (such as `allowance_used_up`, `timeout` or `cut_off`) and `retryable`, which says whether asking again may help |
 
 ## Act on work
@@ -62,7 +62,11 @@ The steps below run `unfold` over stdio from a checkout. When your Unfold serves
 | `unfold_stop_work` | Stops a Work Item: Ploeg withdraws it, stops its Runs and blocks their keys | `POST /api/ploeg/work-items/:id/cancel` |
 | `unfold_retry_work` | Restarts a Work Item that needs you or went stale from Round 1, with an optional `note` | `POST /api/ploeg/work-items/:id/requeue` |
 | `unfold_add_note` | Leaves a note for a queued or running Work Item's next Run | `POST /api/ploeg/work-items/:id/notes` |
+| `unfold_take_over` | Takes control of a running Work Item: Ploeg asks its Run to stop at the next safe point, pushes what the agent left to the Work Item's branch and parks it for you. Only Runs of an ACP harness can stop between steps; see [take a Run over](link-claude-code-sessions.md#take-a-run-over-and-hand-it-back) | `POST /api/ploeg/work-items/:id/take-over` |
+| `unfold_hand_back` | Hands a Work Item you took over back to Ploeg with an optional `note`: it resumes the Round on the same branch from its head on the forge | `POST /api/ploeg/work-items/:id/hand-back` |
 | `unfold_steer_session` | Sends a `message` to one of your sessions, or pauses, resumes or cancels it | `POST /api/sessions/:id/messages`, `/pause`, `/resume`, `/cancel` |
+| `unfold_message_session` | Sends a message to one of your linked sessions, such as Claude Code on your machine; the Unfold plugin hands it to the session | `POST /api/linked-sessions/:id/messages` |
+| `unfold_answer_permission` | Allows or denies one tool prompt waiting in your own Claude Code session that turned on [remote approval](link-claude-code-sessions.md#approve-a-tool-from-unfold). The question names the tool and the summary the agent wrote. `unfold_permission_requests` lists the waiting prompts. Called by another agent, this is an agent approving a tool for an agent, so read the question before you accept | `POST /api/linked-sessions/:id/permissions/:requestId/answer` |
 
 Every action leaves an Action Record with you, the channel (your credential's name and the client, such as `unfold-mcp on ryan-pc-mint (Claude Code 2.1.296)`, or `mcp:<client>` over HTTPS) and the confirmation: an id and the SHA-256 of the exact text you agreed to. Ploeg receives the same channel and confirmation. You find them under **Who did what** on the Work Item and on your Activity page. In the demo, the confirmation and the result both say it is the demo, and nothing real changes.
 

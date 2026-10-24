@@ -90,17 +90,33 @@ export function noteDialogMarkup(detail, { demo = false } = {}) {
   return `<form data-form="work-note" data-id="${escape(detail.item.id)}" class="work-note-dialog" novalidate><header class="dialog-header"><h2 id="confirm-title">${escape('Leave a note for the next Run')}</h2>${ui.iconButton({ icon: 'x', label: 'Close', action: 'close-dialog' })}</header><div class="dialog-body">${effect}${field}</div><footer class="dialog-footer">${ui.button({ label: 'Cancel', action: 'close-dialog' })}${ui.button({ label: 'Leave note', variant: 'primary', type: 'submit' })}</footer></form>`;
 }
 
-function side(run, { shadow }) {
-  const meta = verdictMeta(run.verdict);
-  const findings = String(run.findings ?? '').trim();
-  const body = findings ? `<div data-private class="prose work-disagree-findings">${markdown(clip(findings, findingsClip), { baseLevel: 5 })}</div>` : `<p class="meta">${escape('No findings.')}</p>`;
-  return `<div class="work-disagree-side"${shadow ? ' data-shadow' : ''}><p class="work-disagree-who"><strong>${escape(run.role || 'Reviewer')}</strong> <span class="meta">${escape(shadow ? 'shadow · recorded, never acts' : 'acts')}</span></p>${ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.short || meta.label, size: 'sm' })}${body}${run.id ? jump(run.id, 'Show this Run') : ''}</div>`;
+function side(runs, { shadow }) {
+  const [latest] = runs;
+  const meta = verdictMeta(latest.verdict);
+  const findings = String(latest.findings ?? '').trim();
+  const who = `${shadow ? 'shadow · recorded, never acts' : 'acts'}${runs.length > 1 ? ` · ${runs.length} Runs` : ''}`;
+  const fold = findings ? `<details class="work-disagree-fold"><summary>${escape('Findings')}</summary><div data-private class="prose work-disagree-findings">${markdown(clip(findings, findingsClip), { baseLevel: 5 })}</div></details>` : '';
+  const link = latest.id ? jump(latest.id, runs.length > 1 ? 'Show the latest' : 'Show this Run') : '';
+  return `<li class="work-disagree-side"${shadow ? ' data-shadow' : ''}><p class="work-disagree-who"><strong>${escape(latest.role || 'Reviewer')}</strong> <span class="meta">${escape(who)}</span></p>${ui.badge({ tone: meta.tone, glyph: meta.glyph, label: meta.short || meta.label, size: 'sm' })}${link}${fold}</li>`;
+}
+
+function sameVerdictWithoutFindings(runs) {
+  const groups = new Map();
+  const kept = [];
+  for (const run of runs) {
+    if (String(run.findings ?? '').trim()) { kept.push([run]); continue; }
+    const key = `${run.role || ''}:${run.verdict || ''}`;
+    if (!groups.has(key)) { groups.set(key, []); kept.push(groups.get(key)); }
+    groups.get(key).push(run);
+  }
+  return kept;
 }
 
 /**
- * The Reviewers disagree card: per Round where a shadow reviewer's verdict differs from the acting reviewers', both
- * sides next to each other with their verdict and findings. Ploeg followed the acting side; the card says so. ''
- * without a disagreement.
+ * The Reviewers disagree card: per Round where a shadow reviewer's verdict differs from the acting reviewers', one
+ * row per side with its verdict and its findings folded. Acting Runs with the same verdict and no findings, such as
+ * reviewers that infrastructure stopped before they could judge, share one row. Ploeg followed the acting side; the
+ * card says so. '' without a disagreement.
  */
 export function disagreementsMarkup(detail) {
   const rounds = reviewDisagreements(detail?.runs, detail?.reviewDisagreements);
@@ -110,12 +126,14 @@ export function disagreementsMarkup(detail) {
     const acting = verdictMeta(entry.acting);
     const label = `${current && entry.shiftId && String(entry.shiftId) !== String(current) ? 'Earlier attempt · ' : ''}Round ${entry.round}`;
     const reviewers = entry.reviewers.length ? entry.reviewers : [{ id: '', role: 'Acting reviewers', verdict: entry.acting, findings: '' }];
-    const sides = [...reviewers.map(run => side(run, { shadow: false })), ...entry.shadows.map(run => side(run, { shadow: true }))].join('');
-    return `<li class="work-disagree"><p class="work-run-group">${escape(label)}</p><div class="work-disagree-sides">${sides}</div><p class="meta">${escape(`Ploeg followed the acting reviewer: ${(acting.short || acting.label).toLowerCase()}. A shadow reviewer only records what it would have said.`)}</p></li>`;
+    const sides = [...sameVerdictWithoutFindings(reviewers).map(runs => side(runs, { shadow: false })), ...entry.shadows.map(run => side([run], { shadow: true }))].join('');
+    return `<li class="work-disagree"><p class="meta work-disagree-round">${escape(label)}</p><ul class="work-disagree-sides">${sides}</ul><p class="meta">${escape(`Ploeg followed the acting reviewer: ${(acting.short || acting.label).toLowerCase()}. A shadow reviewer only records what it would have said.`)}</p></li>`;
   }).join('');
   const more = rounds.length > 3 ? `<p class="meta">${escape(`${rounds.length - 3} earlier ${rounds.length - 3 === 1 ? 'Round disagrees' : 'Rounds disagree'} too; see the Runs.`)}</p>` : '';
-  const body = `<p>${escape('A second reviewer model read the same pull request in the same Round and came to another verdict. Read both before you trust either.')}</p><ul class="work-disagree-list">${entries}</ul>${more}`;
-  return ui.card({ id: 'work-disagreements', region: true, title: 'Reviewers disagree', icon: 'eye', tone: 'attention', level: 3, body });
+  const onlyShadow = rounds[0].acting === 'none';
+  const lead = onlyShadow ? 'The acting reviewer reached no verdict; a second reviewer model did.' : 'A second reviewer model read the same pull request and came to another verdict. Read both before you trust either.';
+  const body = `<p class="meta">${escape(lead)}</p><ul class="work-disagree-list">${entries}</ul>${more}`;
+  return ui.card({ id: 'work-disagreements', region: true, title: onlyShadow ? 'Only the shadow reviewer has a verdict' : 'Reviewers disagree', icon: 'eye', tone: 'attention', level: 3, body });
 }
 
 function findingLine(entry) {

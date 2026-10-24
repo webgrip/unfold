@@ -13,7 +13,7 @@ COPY src ./src
 COPY public ./public
 COPY examples ./examples
 COPY scripts ./scripts
-RUN install -d -o node -g node -m 0700 /data && chown -R node:node /app
+RUN install -d -o node -g node -m 0700 /data && install -d /app/.node-cache && chown -R node:node /app
 
 FROM ${NODE_DEV_IMAGE} AS git
 USER root
@@ -37,6 +37,8 @@ WORKDIR /app
 ENV UNFOLD_HOST=0.0.0.0 UNFOLD_PORT=4080 UNFOLD_DATA_DIR=/data
 EXPOSE 4080
 USER node
+ENV NODE_COMPILE_CACHE=/app/.node-cache
+RUN ["node", "--input-type=module", "-e", "await import('/app/src/main.ts'); const { flushCompileCache, getCompileCacheDir } = await import('node:module'); flushCompileCache(); const { readdirSync } = await import('node:fs'); const written = getCompileCacheDir() ? readdirSync(getCompileCacheDir()).length : 0; if (written < 50) throw new Error('NODE_COMPILE_CACHE wrote ' + written + ' entries; expected one per application module');"]
 LABEL org.opencontainers.image.title="Unfold" \
     org.opencontainers.image.description="Operator workbench control plane: shell-less hardened Node runtime with no package manager, plus git for governed delivery; agent work runs in separate workspaces." \
     org.opencontainers.image.source="https://github.com/webgrip/unfold" \

@@ -6,6 +6,9 @@ import { listReason } from '../core/reasons.js';
 import { runFailure, runOutcome } from '../core/states.js';
 import { compactDuration, dateTime, money, plural, time } from '../core/format.js';
 import { cx, escape, plane, span } from './parts.js';
+import { harnessName } from '../core/linked-sessions.js';
+import { linkedWaitReason } from '../core/linked-waiting.js';
+import { permissionButtons, permissionsBySession } from '../core/linked-permissions.js';
 
 /** The places a Work Item can be on the fleet board, in flight order. */
 export const fleetStages = Object.freeze([
@@ -52,6 +55,39 @@ function planeOf(item, run, at) {
   };
 }
 
+/** Where the person's own live sessions sit in their lane: idle under the gate, working in the air, waiting under holding. */
+export const yourStages = Object.freeze({ idle: 'gate', working: 'air', waiting: 'holding' });
+
+const yourLabels = { gate: 'Idle', air: 'Working', holding: 'Waits for you', approach: '', landed: '' };
+
+function yourPlane(session, at, asked = []) {
+  const seen = moment(session.lastSeenAt);
+  const started = moment(session.startedAt);
+  return {
+    id: String(session.id),
+    ref: `Your ${harnessName(session.harness)} session`,
+    title: String(session.displayTitle || session.title || (session.branch ? `On ${session.branch}` : `${harnessName(session.harness)} session`)),
+    href: `#linked-session/${encodeURIComponent(session.id)}`,
+    state: session.state,
+    branch: String(session.branch ?? ''),
+    waited: seen === null ? null : Math.max(0, Math.round((at - seen) / 1000)),
+    seconds: started === null ? null : Math.max(0, Math.round((at - started) / 1000)),
+    reason: session.state === 'waiting' ? linkedWaitReason(session, asked) : null,
+    permission: session.state === 'waiting' ? asked[0] ?? null : null,
+  };
+}
+
+function yourLane(linked, at, permissions) {
+  const asked = permissionsBySession(permissions);
+  const live = list(linked).filter(session => session?.mine && yourStages[session.state]);
+  if (!live.length) return null;
+  const lane = { team: 'You', yours: true, gate: [], air: [], holding: [], approach: [], refused: [], landed: null, trail: [], spend: null, lastActivityAt: null, parked: false };
+  for (const session of live) lane[yourStages[session.state]].push(yourPlane(session, at, asked.get(String(session.id)) ?? []));
+  for (const stage of ['gate', 'air', 'holding']) lane[stage].sort((a, b) => (b.waited ?? -1) - (a.waited ?? -1));
+  lane.tone = lane.holding.length ? 'attention' : lane.air.length ? 'live' : 'neutral';
+  return lane;
+}
+
 function trailTone(run) {
   if (run.outcome === 'failed') return runFailure(run)?.infra ? 'machine' : 'failed';
   return runOutcome(run.outcome)?.tone ?? 'neutral';
@@ -61,7 +97,7 @@ const stuckFix = 'Read why it stuck, then clarify or split the ticket';
 
 function remark(run) {
   if (run.state === 'running') return { text: 'Running', tone: 'live', fix: '' };
-  if (run.outcome === 'failed') { const failure = runFailure(run); return { text: failure?.infra ? 'Machine ended it' : (failure?.label ?? 'Failed'), tone: failure?.infra ? 'machine' : 'failed', fix: failure && !failure.infra ? failure.next ?? '' : '' }; }
+  if (run.outcome === 'failed') { const failure = runFailure(run); return { text: failure?.infra ? 'Infrastructure fault' : (failure?.label ?? 'Failed'), tone: failure?.infra ? 'machine' : 'failed', fix: failure && !failure.infra ? failure.next ?? '' : '' }; }
   const outcome = runOutcome(run.outcome);
   return { text: outcome?.short ?? outcome?.label ?? 'Finished', tone: outcome?.tone ?? 'neutral', fix: run.outcome === 'stuck' ? stuckFix : '' };
 }
@@ -85,10 +121,14 @@ function laneTone(lane) {
  * to landed, its last Runs as a contrail, its spend, and the departures and arrivals boards. Built only from a
  * `GET /api/ploeg/now` and a 24-hour `GET /api/ploeg/summary` response; nothing is estimated. A Team that has nothing
  * placed and flew no Run in 24 hours is parked. `missing` names what Ploeg could not list, so a short count says so.
- * @param {{ now: object|null, summary?: object|null, at?: number }} input
+ * `linked`, the person's own Linked Sessions (`GET /api/linked-sessions`), becomes `yours`: a lane of their live
+ * sessions, idle, working or waiting for them, kept apart from the Teams' lanes and totals. Ended and stale sessions
+ * are left out; null when none is live. `permissions` (`GET /api/linked-permissions`) gives a waiting session the tool
+ * prompt it asked Unfold to answer, which its chip offers to approve or deny.
+ * @param {{ now: object|null, summary?: object|null, linked?: object[]|null, permissions?: object[]|null, at?: number }} input
  * @returns {object}
  */
-export function fleetModel({ now, summary = null, at = Date.now() } = {}) {
+export function fleetModel({ now, summary = null, linked = null, permissions = null, at = Date.now() } = {}) {
   const waiting = list(now?.waiting);
   const active = list(now?.active);
   const running = list(now?.running);
@@ -150,7 +190,7 @@ export function fleetModel({ now, summary = null, at = Date.now() } = {}) {
     ...['waiting', 'active', 'running', 'recent', 'refused'].filter(group => now?.errors?.[group]),
     ...(summary ? [] : ['summary']),
   ];
-  return { at, demo: Boolean(now?.demo), lanes, totals, refused: refused.map(entry => refusalOf(entry, at)), departures, arrivals, missing };
+  return { at, demo: Boolean(now?.demo), lanes, yours: yourLane(linked, at, permissions), totals, refused: refused.map(entry => refusalOf(entry, at)), departures, arrivals, missing };
 }
 
 /**
@@ -204,6 +244,26 @@ function totalsMarkup(model) {
 
 const waitedFor = entry => entry.waited === null ? '' : `waiting ${compactDuration(entry.waited)}`;
 
+function yourChip(entry, stage) {
+  const sub = stage === 'holding' ? [waitedFor(entry), entry.reason?.chip] : stage === 'air' ? [entry.branch, entry.waited === null ? '' : `last heard ${compactDuration(entry.waited)} ago`] : [entry.branch, entry.waited === null ? '' : `idle ${compactDuration(entry.waited)}`];
+  const label = `${entry.ref}: ${entry.title}.${entry.reason ? ` ${entry.reason.sentence} ${entry.reason.fix}` : ''}${entry.permission ? '' : ' Unfold does not run it.'}`;
+  return `<li class="fb-chip-item"><a class="${cx('fb-chip', `is-${stage}`, 'is-yours')}" href="${escape(entry.href)}" title="${escape(label)}">${markSvg('fb-chip-mark')}<span class="fb-chip-text"><span class="fb-chip-ref">${escape(entry.ref)}</span><span class="fb-chip-title">${escape(entry.title)}</span>${sub.some(Boolean) ? `<span class="fb-chip-sub">${escape(sub.filter(Boolean).join(' · '))}</span>` : ''}</span></a>${entry.permission ? `<div class="fb-chip-answer"><span class="fb-chip-sub">${escape(entry.reason?.sentence ?? '')}</span>${permissionButtons(entry.permission, { prefix: 'fleet', size: 'xs' })}</div>` : ''}</li>`;
+}
+
+function yourCell(lane, stage) {
+  const label = yourLabels[stage.id];
+  const entries = lane[stage.id] ?? [];
+  const head = `<span class="fb-cell-label">${escape(label || stage.label)}</span>`;
+  if (!label) return `<li class="${cx('fb-cell', `is-${stage.id}`, 'is-yours-blank')}" aria-hidden="true"></li>`;
+  const body = entries.length ? `<ul class="fb-chips">${entries.map(entry => yourChip(entry, stage.id)).join('')}</ul>` : `<span class="fb-empty">–</span>`;
+  return `<li class="${cx('fb-cell', `is-${stage.id}`, entries.length ? 'has-entries' : '')}">${head}${body}</li>`;
+}
+
+function yourLaneMarkup(lane) {
+  const live = lane.gate.length + lane.air.length + lane.holding.length;
+  return `<li class="${cx('fb-lane', 'is-yours', `fb-tone-${lane.tone}`)}" aria-labelledby="fb-lane-yours"><div class="fb-lane-head"><h3 class="fb-lane-name" id="fb-lane-yours"><span class="fb-lane-dot" aria-hidden="true"></span>Your sessions</h3><p class="fb-lane-note">${escape(`${plural(live, 'session')} on your machine · not a Ploeg Run`)}</p></div><div class="fb-lane-sky"><ol class="fb-cells">${fleetStages.map(stage => yourCell(lane, stage)).join('')}</ol></div></li>`;
+}
+
 function chip(entry, stage) {
   const sub = stage === 'air' ? [entry.role, entry.seconds === null ? 'between Runs' : span(entry.seconds)]
     : stage === 'gate' ? [entry.proposed ? 'proposed' : 'queued', waitedFor(entry)]
@@ -223,7 +283,7 @@ function stageCell(lane, stage) {
     const stuck = landed?.stuck ? ` · <a class="fb-stuck" href="${escape(`#runs?team=${encodeURIComponent(lane.team)}&outcome=stuck&from=now-24h&to=now`)}" title="${escape(`${stuckFix}.`)}">${landed.stuck} stuck · see why</a>` : '';
     const count = landed ? `<span class="fb-landed-count num">${landed.finished}</span><span class="fb-landed-note">${landed.finished ? `${landed.failed ? `${landed.failed} failed` : 'none failed'}${stuck}` : 'no Run'}</span>` : '<span class="fb-landed-note">Not known</span>';
     const tones = lane.trail.reduce((counts, tick) => ({ ...counts, [tick.tone]: (counts[tick.tone] ?? 0) + 1 }), {});
-    const said = Object.entries(tones).map(([tone, n]) => `${n} ${{ success: 'changed something', neutral: 'without a change', attention: 'stuck', failed: 'failed', machine: 'ended by the machine', live: 'running', review: 'reviewed' }[tone] ?? tone}`).join(', ');
+    const said = Object.entries(tones).map(([tone, n]) => `${n} ${{ success: 'changed something', neutral: 'without a change', attention: 'stuck', failed: 'failed', machine: 'stopped by an infrastructure fault', live: 'running', review: 'reviewed' }[tone] ?? tone}`).join(', ');
     const trail = lane.trail.length ? `<span class="fb-trail" role="img" aria-label="${escape(`Last ${plural(lane.trail.length, 'Run')}, oldest first: ${said}`)}">${lane.trail.map(tick => `<span class="${cx('fb-tick', `is-${tick.tone}`)}" title="${escape(tick.label)}"></span>`).join('')}</span>` : '';
     return `<li class="fb-cell is-landed">${head}<span class="fb-landed">${count}</span>${trail}</li>`;
   }
@@ -246,7 +306,8 @@ function laneMarkup(lane, index) {
 /**
  * The airspace: one lane per flying Team, the five places across it on a climbing glide path, a plane per Work Item
  * that links to its page, approach lights that run while a pull request waits, and the Team's last Runs as a
- * contrail. Parked Teams are left out.
+ * contrail. Parked Teams are left out. The person's own live sessions, when any, fly a lane of their own above the
+ * Teams, marked as theirs and not a Ploeg Run.
  * @param {object} model A `fleetModel` result.
  * @returns {string}
  */
@@ -254,7 +315,8 @@ export function airspace(model) {
   const flying = model.lanes.filter(lane => !lane.parked);
   const header = `<div class="fb-columns" aria-hidden="true"><span class="fb-columns-team">Team</span>${fleetStages.map(stage => `<span title="${escape(stage.hint)}">${escape(stage.label)}</span>`).join('')}</div>`;
   const lanes = flying.length ? `<ol class="fb-lanes" aria-label="Teams in the sky">${flying.map((lane, index) => laneMarkup(lane, index)).join('')}</ol>` : '<p class="fb-clear">Every Team is parked. Nothing flew in the last 24 hours.</p>';
-  return `<section class="fb-sky" aria-labelledby="fb-sky-title"><h2 class="fb-overline" id="fb-sky-title">Airspace</h2>${header}${lanes}</section>`;
+  const yours = model.yours ? `<ol class="fb-lanes fb-lanes-yours" aria-label="Your own agent sessions">${yourLaneMarkup(model.yours)}</ol>` : '';
+  return `<section class="fb-sky" aria-labelledby="fb-sky-title"><h2 class="fb-overline" id="fb-sky-title">Airspace</h2>${header}${yours}${lanes}</section>`;
 }
 
 function clock(at) {

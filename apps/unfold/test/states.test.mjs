@@ -44,7 +44,7 @@ test('Work Item states use the one vocabulary: Needs you, Ready for review, Done
 test('Run states, outcomes and agent verdicts read in plain words, and agent review never reads as human review', () => {
   assert.deepEqual(Object.values(runStates).map(meta => meta.label), ['Pending', 'Running', 'Stopped', 'Finished']);
   assert.deepEqual(Object.fromEntries(Object.entries(runOutcomes).map(([key, meta]) => [key, meta.label])), {
-    pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'No change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Stuck', failed: 'Failed',
+    pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'No change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Stuck', yielded: 'Stopped for a person', failed: 'Failed',
   });
   assert.equal(verdict('approve').label, 'Agent review: approve');
   assert.equal(verdict('request_changes').label, 'Agent review: changes requested');
@@ -113,7 +113,7 @@ test('verdicts have a short form for a reviewer’s own cell that still never sa
 
 test('outcomes have a short form that fits one line of a Round ladder cell', () => {
   assert.deepEqual(Object.fromEntries(Object.entries(runOutcomes).map(([key, meta]) => [key, meta.short])), {
-    pr_opened: 'PR opened', pr_updated: 'PR updated', no_change_needed: 'No change', follow_up_created: 'Follow-up created', issue_updated: 'Tracker updated', stuck: 'Stuck', failed: 'Failed',
+    pr_opened: 'PR opened', pr_updated: 'PR updated', no_change_needed: 'No change', follow_up_created: 'Follow-up created', issue_updated: 'Tracker updated', stuck: 'Stuck', yielded: 'Taken over', failed: 'Failed',
   });
   assert(Object.values(runOutcomes).every(meta => meta.short.length <= 17));
 });
@@ -121,7 +121,7 @@ test('outcomes have a short form that fits one line of a Round ladder cell', () 
 test('a failure reads as its cause, and only a live Work Item is said to retry', () => {
   assert.equal(failureNote('lease_lost'), 'Cause: infrastructure, not the agent. Ploeg retries it automatically. If it keeps happening, check the nodes and the network.');
   assert.equal(failureNote('lease_lost', { live: false }), 'Cause: infrastructure, not the agent. If it keeps happening, check the nodes and the network.');
-  assert.equal(failureNote('agent_error', { live: false }), 'Cause: the agent harness exited with an error. Read its log tail. Fix the brief, the model or the harness.');
+  assert.equal(failureNote('agent_error', { live: false }), 'Cause: the agent exited with an error. Read the last lines it printed, then fix the brief or the agent setup, or pick another model.');
   assert.equal(failureNote('timeout'), 'Cause: the harness time limit. Split the ticket or raise the timeout.', 'agent-side failures never promise a retry');
   assert.equal(failureNote('idle'), 'Cause: the harness printed nothing and made no model call for its idle timeout. Read its log tail. A hung command or an unanswered prompt is the usual cause. Raising the idle timeout only delays the stop.', 'silence is not advised as a time limit');
   assert.equal(failureNote(null), '');
@@ -162,7 +162,7 @@ test('a Run the gateway stopped at its own key budget reads as a spent allowance
     assert.equal(meta.key, 'budget');
     assert.equal(meta.foldOutput, true);
     assert.equal(failureNote(meta), 'Cause: the Run used up the model allowance Ploeg authorized for it. Split the ticket or raise the Role’s per-Run allowance, then retry the Work Item.');
-    assert.deepEqual(runFailureText(run), { reason: `It spent ${money(2.041772616)} of the ${money(2)} Ploeg authorized for it, so the model gateway refused its next call and the agent stopped.`, output: stuckReason, outputLabel: 'What the harness printed' });
+    assert.deepEqual(runFailureText(run), { reason: `It spent ${money(2.041772616)} of the ${money(2)} Ploeg authorized for it, so the model gateway refused its next call and the agent stopped.`, output: stuckReason, outputLabel: 'What the agent printed' });
   }
   assert.equal(runFailureText({ failureReason: 'agent_error', stuckReason: 'ExceededBudget: Key over 1d budget' }).reason, 'It spent the model allowance Ploeg authorized for it, so the model gateway refused its next call and the agent stopped.');
 });

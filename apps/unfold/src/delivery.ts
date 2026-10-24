@@ -8,6 +8,8 @@ import { DockerClient } from './runtime/docker.ts';
 import { KubernetesClient } from './runtime/kubernetes.ts';
 import { kubernetesVerifierPreflight, verifyCandidateInKubernetes } from './delivery-kubernetes-verifier.ts';
 import { ExecutionAuthority } from './execution-authority.ts';
+import { contractRefusal } from './ploeg.ts';
+import type { PloegContractGate } from './ploeg-compatibility.ts';
 import { ForgejoPublisher, publicationBranch, publicationOperationId, pullRequestBody, pullRequestTitle, type PublicationRecord, type PullRequestEvidence } from './delivery-publisher.ts';
 
 type LocalDelivery = { candidate: CanonicalCandidate; generation: number; phase: 'captured' | 'verifying' | 'verified' | 'recorded'; result?: VerificationResult };
@@ -39,12 +41,18 @@ export class DeliveryService {
   private publisher?: ForgejoPublisher;
   private kubernetes: KubernetesClient;
   private queues = new Map<string, Promise<unknown>>();
+  private contract: PloegContractGate | undefined;
   constructor(config: AppConfig, store: Store, publisher?: ForgejoPublisher, kubernetes: KubernetesClient = new KubernetesClient({})) {
     this.config = config; this.store = store; this.kubernetes = kubernetes;
     this.publisher = publisher ?? (config.delivery?.publisher ? new ForgejoPublisher(config.delivery.publisher) : undefined);
   }
 
+  /** Refuses every delivery call to a Ploeg that does not serve what this Unfold requires (system ADR-0044). */
+  useContract(gate: PloegContractGate | undefined): void { this.contract = gate; }
+
   private async exchange(session: Session, suffix = '', payload?: unknown, verifier = false, actingUser = session.ownerId): Promise<PloegReply> {
+    const refusal = contractRefusal(this.contract);
+    if (refusal) throw refusal;
     const name = verifier ? this.config.delivery?.verifierTokenEnv : this.config.ploeg?.tokenEnv;
     const token = name ? process.env[name] : undefined;
     if (!token || token.length < 32 || token.length > 4096 || /[^\x21-\x7e]/.test(token) || !session.execution) deliveryFailure('delivery_authority_unavailable');

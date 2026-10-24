@@ -137,13 +137,14 @@ export class WorkerRelay {
   }
 
   async waitForWorker(workspaceId: string, signal: AbortSignal, timeoutMs: number): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
+    const startedAt = Date.now();
+    const deadline = startedAt + timeoutMs;
     while (Date.now() < deadline) {
       signal.throwIfAborted();
       if (this.connected(workspaceId, maxPollMs)) return;
       await new Promise(done => setTimeout(done, 200));
     }
-    throw new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, `No workspace worker connected to the relay within ${Math.round(timeoutMs / 1000)}s`);
+    throw new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, `relay.waitForWorker fired: no workspace worker connected to the relay after ${Date.now() - startedAt} ms against a limit of ${timeoutMs} ms`);
   }
 
   fetcher(workspaceId: string): typeof fetch {
@@ -159,6 +160,7 @@ export class WorkerRelay {
         body = Buffer.from(init.body).toString('base64');
       }
       const id = randomBytes(12).toString('base64url');
+      const queuedAt = Date.now();
       return new Promise<Response>((resolve, reject) => {
         const pending: PendingRequest = {
           id, method: init.method ?? 'GET', path: url.pathname + url.search, headers, body, signal: init.signal ?? undefined, cancelled: false, picked: false,
@@ -168,7 +170,7 @@ export class WorkerRelay {
         const pickup = setTimeout(() => {
           if (pending.picked) return;
           registration.queue.splice(registration.queue.indexOf(pending), 1);
-          pending.fail(new RuntimeFailure('connectivity', 'runtime', 'not_submitted', undefined, 'The workspace worker did not pick up the request in time'));
+          pending.fail(new RuntimeFailure('connectivity', 'runtime', 'not_submitted', undefined, `relay.pickup fired: the workspace worker did not pick up ${pending.method} ${url.pathname} after ${Date.now() - queuedAt} ms against a limit of ${pickupTimeoutMs} ms; its last poll was ${registration.lastSeen ? `${Date.now() - registration.lastSeen} ms ago` : 'never'}`));
         }, pickupTimeoutMs);
         pickup.unref();
         init.signal?.addEventListener('abort', () => {

@@ -44,11 +44,25 @@ export function podWait(pod: KubernetesObject | undefined): { phase: WorkspaceWa
   return { phase: 'starting' };
 }
 
-export function waitFailure(wait: { phase: WorkspaceWaitPhase; reason?: string } | undefined): RuntimeFailure {
+/** Each phase a starting workspace passed through, entered at `at` milliseconds since the epoch. */
+export type StartPhases = Array<{ phase: WorkspaceWaitPhase; at: number }>;
+
+/** How long a starting workspace spent in each phase, in the order it passed through them. */
+export function phaseDurations(phases: StartPhases, now = Date.now()): string {
+  return phases.map((item, index) => `${item.phase} ${(((phases[index + 1]?.at ?? now) - item.at) / 1000).toFixed(1)} s`).join(', ');
+}
+
+/** The detail of a workspace that did not start before its deadline: the timer, the elapsed time and where that time went. */
+export function startTimeoutDetail(startedAt: number, limitMs: number, phases: StartPhases, now = Date.now()): string {
+  return `workspace_start_timeout fired after ${now - startedAt} ms against a limit of ${limitMs} ms${phases.length ? ` (${phaseDurations(phases, now)})` : ''}`;
+}
+
+export function waitFailure(wait: { phase: WorkspaceWaitPhase; reason?: string } | undefined, elapsed?: string): RuntimeFailure {
   if (wait?.phase === 'capacity') return new RuntimeFailure('capacity', 'workspace', 'not_submitted', undefined, wait.reason);
   if (wait?.phase === 'image_unavailable') return new RuntimeFailure('missing_executable', 'workspace', 'not_submitted', undefined, wait.reason);
   if (wait?.phase === 'container_error') return new RuntimeFailure('workspace_setup', 'workspace', 'not_submitted', undefined, wait.reason);
-  return new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, wait ? `The workspace was still ${wait.phase} when the time limit ran out.${wait.reason ? `\n${wait.reason}` : ''}` : undefined);
+  const still = wait ? `The workspace was still ${wait.phase} when the time limit ran out.${wait.reason ? `\n${wait.reason}` : ''}` : undefined;
+  return new RuntimeFailure('timeout', 'workspace', 'not_submitted', undefined, [still, elapsed].filter(Boolean).join('\n') || undefined);
 }
 
 /** The API server address and the credential files a Kubernetes API client authenticates with; each defaults to the in-cluster service account. */
@@ -340,6 +354,11 @@ export class KubernetesWorkspaces {
     if (!credential) throw new Error('Kubernetes workspaces require a budgeted credential');
     const name = workspaceName(session.id);
     const basic = { username: 'opencode', password: randomBytes(32).toString('base64url') };
+    const phases: StartPhases = [];
+    const enter = (wait: { phase: WorkspaceWaitPhase; reason?: string }) => {
+      if (phases.at(-1)?.phase !== wait.phase) phases.push({ phase: wait.phase, at: Date.now() });
+      this.observe(session.id, wait);
+    };
     await this.removePod(name);
     const relay = this.relayBinding(session.id);
     const manifests = workspaceManifests(this.config, session, repository, credential, basic, managed, relay);
@@ -354,13 +373,15 @@ export class KubernetesWorkspaces {
           await this.client.request(this.path(object.kind, name), 'PUT', object);
         } else await this.client.request(this.path(object.kind), 'POST', object);
       }
-      const deadline = Date.now() + (this.kube.provisionTimeoutMs ?? 180_000);
+      const limitMs = this.kube.provisionTimeoutMs ?? 180_000;
+      const startedAt = Date.now();
+      const deadline = startedAt + limitMs;
       while (Date.now() < deadline) {
         signal.throwIfAborted();
         const pod = await this.client.request(this.path('Pod', name));
         if (pod.status?.phase === 'Failed' || pod.status?.phase === 'Succeeded') throw new Error('Workspace agent exited before readiness');
         if (pod.status?.conditions?.some((item: any) => item.type === 'Ready' && item.status === 'True')) {
-          if (relay && !this.relay.connected(session.id, 5000)) { this.observe(session.id, { phase: 'connecting' }); await new Promise(done => setTimeout(done, 500)); continue; }
+          if (relay && !this.relay.connected(session.id, 5000)) { enter({ phase: 'connecting' }); await new Promise(done => setTimeout(done, 500)); continue; }
           this.passwords.set(session.id, basic);
           let baseSha = session.workspace?.metadata?.baseSha;
           if (!baseSha && !session.workspace) {
@@ -370,10 +391,10 @@ export class KubernetesWorkspaces {
           }
           return { id: session.id, backend: 'kubernetes', directory: '/workspace/repository', endpoint: relay ? relayEndpoint(session.id) : `http://${name}.${this.kube.namespace}.svc:4096`, metadata: { namespace: this.kube.namespace, pod: name, transport: relay ? 'pull' : 'service', ...(baseSha ? { baseSha } : {}) } };
         }
-        this.observe(session.id, podWait(pod));
+        enter(podWait(pod));
         await new Promise(done => setTimeout(done, 500));
       }
-      throw waitFailure(this.waits.get(session.id));
+      throw waitFailure(this.waits.get(session.id), startTimeoutDetail(startedAt, limitMs, phases));
     } catch (error) {
       await this.dispose({ id: session.id, backend: 'kubernetes', directory: '/workspace/repository' }).catch(() => {});
       throw error;
@@ -432,6 +453,20 @@ export class KubernetesWorkspaces {
     if (!basic) return false;
     await this.relay.waitForWorker(workspace.id, signal, withinMs);
     this.passwords.set(workspace.id, basic);
+    return true;
+  }
+
+  async releaseVolume(workspace: Workspace): Promise<boolean> {
+    await this.dispose(workspace);
+    const claim = this.path('PersistentVolumeClaim', workspaceName(workspace.id));
+    const annotations = this.kube.volumeDeleteAnnotations ?? {};
+    if (Object.keys(annotations).length) {
+      const current = await this.client.request(claim, 'GET', undefined, true);
+      if (!current) return true;
+      current.metadata = { ...current.metadata, annotations: { ...(current.metadata?.annotations ?? {}), ...annotations } };
+      await this.client.request(claim, 'PUT', current);
+    }
+    await this.client.request(claim, 'DELETE', undefined, true);
     return true;
   }
 

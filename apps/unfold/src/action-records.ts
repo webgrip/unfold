@@ -26,7 +26,7 @@ export type ActionContext = { via: string; confirmation: string | null };
 /** Holds the {@link ActionContext} of the request being served. */
 export const actionContext = new AsyncLocalStorage<ActionContext>();
 
-const untracked = [/^\/api\/login$/, /^\/api\/auth\//, /^\/api\/insight\//, /^\/api\/ofrep\//, /^\/api\/linked-sessions\/events$/, /^\/api\/linked-sessions\/[^/]+\/traces$/];
+const untracked = [/^\/api\/login$/, /^\/api\/auth\//, /^\/api\/insight\//, /^\/api\/ofrep\//, /^\/api\/linked-sessions\/events$/, /^\/api\/linked-sessions\/[^/]+\/traces$/, /^\/api\/linked-sessions\/[^/]+\/inbox$/, /^\/api\/linked-sessions\/[^/]+\/permissions$/, /^\/api\/linked-sessions\/[^/]+\/permissions\/[^/]+\/(?:collect|withdraw)$/];
 const identifier = /^(?:\d{1,19}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{12,128}|[A-Za-z0-9_-]{20,128})$/;
 const secretKey = /token|secret|password|passphrase|credential|authorization|api[-_]?key|cookie/i;
 const confirmationPattern = /^[A-Za-z0-9_.-]{1,100}:[0-9a-f]{64}$/;

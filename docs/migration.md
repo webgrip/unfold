@@ -3,7 +3,7 @@ type: explanation
 audience: [owner, contributor]
 owner: unfold
 last_verified: 2026-09-23
-verified_by: "Repository claims checked: Helm pins in apps/*/mise.toml, tag formats in apps/*/.releaserc.cjs, package paths in on_source_change.yml, scripts/verify-import.py and the linked records; Forgejo runs, remote refs and homelab-cluster manifests were not re-checked"
+verified_by: "Repository claims checked: Helm pins in apps/*/mise.toml, tag formats in apps/*/.releaserc.cjs, package paths in on_release_train.yml, scripts/verify-import.py and the linked records; Forgejo runs, remote refs and homelab-cluster manifests were not re-checked"
 ---
 
 # Unfold migration
@@ -37,7 +37,7 @@ The earlier [proposal](migration-proposal.md) remains as history. The [system de
 
 Run `mise run setup` and `mise run verify` from the root. CI checks both applications for every push to `development` and every pull request, including changes to shared documentation. This deliberately favors dependable coverage over path-filter complexity at the current repository size.
 
-The [source workflow](../.forgejo/workflows/on_source_change.yml) uses separate semantic-release package paths and tag formats. The [release publication workflow](../.forgejo/workflows/on_release_published.yml) routes each application tag to its own jobs. Ploeg kept its zero-major release-candidate guard, and application images, charts, the extension ID and `github.com/webgrip/ploeg` stayed unchanged until [Ploeg moved out](#ploeg-moves-out). Each application pins its own Helm version in its `mise.toml`. The [CI guide](operations/ci.md) covers all event entry points, shared checks and manual recovery.
+The [release train](../.forgejo/workflows/on_release_train.yml) uses separate semantic-release package paths and tag formats. The [release publication workflow](../.forgejo/workflows/on_release_published.yml) routes each application tag to its own jobs. Ploeg kept its zero-major release-candidate guard, and application images, charts, the extension ID and `github.com/webgrip/ploeg` stayed unchanged until [Ploeg moved out](#ploeg-moves-out). Each application pins its own Helm version in its `mise.toml`. The [CI guide](operations/ci.md) covers all event entry points, shared checks and manual recovery.
 
 The first [actual release preview](https://forgejo.webgrip.dev/webgrip/glide/actions/runs/5) exposed a missing remote `main` baseline (`ERELEASEBRANCHES`). The shared preset needs a normal release branch alongside `development` prereleases. `main` is reserved at the initial Unfold boundary commit; source work and automatic prereleases remain on `development`. CI checks this prerequisite and the release-isolation suite exercises semantic-release's branch resolver.
 

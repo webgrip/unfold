@@ -3,7 +3,7 @@ import { constants } from 'node:fs';
 import { access, mkdir, readFile, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, posix } from 'node:path';
 import { applyEdits, modify, parse, printParseErrorCode, type ParseError } from 'jsonc-parser';
 
 /** The VS Code setting the Agents window reads its remote agent hosts from. */
@@ -405,6 +405,14 @@ export function agentsWindowPlan(view: AgentsWindowLinkView, entries: readonly A
 }
 
 /** This editor window as the workbench needs it to address links at it: the URL protocol and window id of the extension's own link after `env.asExternalUri`. Undefined for a link without a window id, as in VS Code for the Web. */
+/** The workspace file VS Code opens in its Agents window, under the user settings folder (VS Code 1.143 `agentSessionsWorkspace`). */
+export const agentsWindowWorkspaceFile = 'agent-sessions.code-workspace';
+
+/** Whether the extension runs in VS Code's Agents window rather than an editor window, read from the workspace that window opens. */
+export function isAgentsWindowWorkspace(workspaceFile: { scheme: string; path: string } | undefined): boolean {
+  return workspaceFile?.scheme === 'file' && posix.basename(workspaceFile.path) === agentsWindowWorkspaceFile;
+}
+
 export function editorWindowOf(externalLink: string): { protocol: string; windowId: string } | undefined {
   let url: URL;
   try { url = new URL(externalLink); } catch { return undefined; }

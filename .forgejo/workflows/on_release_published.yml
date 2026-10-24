@@ -50,15 +50,18 @@ jobs:
           echo "created=$created" >> "$GITHUB_OUTPUT"
 
   unfold-release-publish-chart:
-    name: Unfold - Publish Helm chart (Harbor)
+    name: Unfold - Publish and sign Helm chart (Harbor)
     needs: [parse-release-tag, unfold-release-distribute-harbor]
     if: needs.parse-release-tag.outputs.version != ''
     runs-on: docker
+    enable-openid-connect: true
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: unfold-v${{ needs.parse-release-tag.outputs.version }}
-      - name: Publish the canonical chart
+      - name: Publish, sign and verify the canonical chart
         shell: bash
         env:
           VERSION: ${{ needs.parse-release-tag.outputs.version }}

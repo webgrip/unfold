@@ -21,6 +21,13 @@ const words = text => (String(text).match(/\S+/g) || []).length;
 /** The key a task has in the Now response's standings (`provider:externalId`). */
 export const taskKey = task => `${task.provider}:${task.id}`;
 
+/** What a brief alone tells an agent: its length, and whether it names acceptance conditions (`ok` null when not found). */
+export function briefFacts(text) {
+  const brief = String(text ?? '').trim();
+  if (!brief) return [{ ok: false, text: 'No brief: an agent would start from the title alone' }];
+  return [{ ok: true, text: `Brief of ${plural(words(brief), 'word')}` }, acceptance.test(brief) ? { ok: true, text: 'Names acceptance conditions' } : { ok: null, text: 'No acceptance conditions found in the brief' }];
+}
+
 /**
  * What Unfold can tell about a task before anyone spends on it, from the task alone: its ready or not-ready label,
  * whether it has a brief and whether that brief names acceptance conditions. Each fact is `ok` true, false or null
@@ -37,8 +44,7 @@ export function readiness(task) {
   const facts = [];
   if (unready) facts.push({ ok: false, text: `Labelled ${unready}` });
   else if (marked) facts.push({ ok: true, text: `Labelled ${marked}` });
-  facts.push(brief ? { ok: true, text: `Brief of ${plural(words(brief), 'word')}` } : { ok: false, text: 'No brief: an agent would start from the title alone' });
-  if (brief) facts.push(acceptance.test(brief) ? { ok: true, text: 'Names acceptance conditions' } : { ok: null, text: 'No acceptance conditions found in the brief' });
+  facts.push(...briefFacts(brief));
   if (facts.some(fact => fact.ok === false)) return { state: 'blocked', label: unready ? 'Not ready' : 'No brief', tone: 'attention', facts };
   if (marked && facts.every(fact => fact.ok === true)) return { state: 'ready', label: 'Marked ready', tone: 'success', facts };
   if (!marked) facts.unshift({ ok: null, text: 'Not labelled ready in the tracker' });

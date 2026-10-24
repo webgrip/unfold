@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { AskAllowanceUsedUp, type AskAuthority, type AskGrant } from '../src/ask/service.ts';
 import { PloegError, type PloegDetail, type PloegRun } from '../src/ploeg.ts';
 import { RunHealthService, type RunHealthWorkItems } from '../src/run-health/service.ts';
-import { RunJudge, defaultJudgeModels, judgeLimits, judgeWindow, parseVerdict } from '../src/run-health/judge.ts';
+import { RunJudge, defaultJudgeModels, judgeLimits, judgeWindow, parseVerdict, progressLines } from '../src/run-health/judge.ts';
 import type { RunTranscript, TranscriptEntry } from '../src/run-transcript.ts';
 import { runHealthSettings } from '../src/config.ts';
 import { Store } from '../src/store.ts';
@@ -161,6 +161,8 @@ for (const [name, content, why] of [
   ['a reply with another shape', '{"health":"fine","reason":"ok","evidence":[]}', 'health'],
   ['a reply with an extra field', '{"health":"watch","reason":"ok","evidence":[],"action":"stop the run"}', 'unexpected_field'],
   ['a reason over 160 characters', JSON.stringify({ health: 'watch', reason: 'x'.repeat(161), evidence: [] }), 'reason'],
+  ['an ETA that is not whole minutes', JSON.stringify({ health: 'watch', reason: 'slow', evidence: [], eta_minutes: 12.5 }), 'eta_minutes'],
+  ['an ETA past ten hours', JSON.stringify({ health: 'watch', reason: 'slow', evidence: [], eta_minutes: 601 }), 'eta_minutes'],
   ['evidence outside the window', '{"health":"watch","reason":"See entry 99.","evidence":[99]}', 'evidence_outside_window'],
   ['no JSON at all', 'I think it is fine.', 'no_json_object'],
 ] as const) {
@@ -177,8 +179,8 @@ for (const [name, content, why] of [
 
 test('a fenced or prefixed JSON object is read, and a reasoning block is skipped', () => {
   const seqs = new Set([3]);
-  assert.deepEqual(parseVerdict('```json\n{"health":"watch","reason":"slow","evidence":[3]}\n```', seqs), { health: 'watch', reason: 'slow', evidence: [3] });
-  assert.deepEqual(parseVerdict('<think>{"health":"off_track"}</think>Verdict: {"health":"on_track","reason":"fine {really}","evidence":[]}', seqs), { health: 'on_track', reason: 'fine {really}', evidence: [] });
+  assert.deepEqual(parseVerdict('```json\n{"health":"watch","reason":"slow","evidence":[3]}\n```', seqs), { health: 'watch', reason: 'slow', evidence: [3], etaMinutes: null });
+  assert.deepEqual(parseVerdict('<think>{"health":"off_track"}</think>Verdict: {"health":"on_track","reason":"fine {really}","evidence":[]}', seqs), { health: 'on_track', reason: 'fine {really}', evidence: [], etaMinutes: null });
 });
 
 test('the transcript window is the newest 40 entries cut to 8 KB', () => {
@@ -375,4 +377,33 @@ test('a Team pins Work Kind expectations in judgement.teams, and anything else i
   const service = new RunHealthService(pinned.store, pinned.work.value, { demo: false, judgeEnabled: async () => false, expectations: team => team === 'bronze' ? { tests: { firstChangeMinutes: 10 } } : null, now: () => new Date(pinned.clock.now) });
   const view = await service.health(operator, '190', '305');
   assert.deepEqual([view.health, view.reason, view.work?.expectations.pinned], ['watch', 'No file changed after 12 min; Tests work usually changes one by 10 min (set for this Team)', ['firstChangeMinutes']]);
+});
+
+test('the judge reads the Run\'s progress against its time limit and forecasts when it finishes', async () => {
+  const t = setup({ replies: [answer('{"health":"watch","reason":"Still reading after 29 minutes.","evidence":[11],"eta_minutes":45}')] });
+  await t.service.health(operator, '190', '305');
+  await t.service.settled('305');
+  const body = t.net.requests[0];
+  assert.deepEqual(body.response_format.json_schema.schema.required, ['health', 'reason', 'evidence', 'eta_minutes']);
+  assert.match(body.messages[0].content, /eta_minutes/);
+  assert.match(body.messages[1].content, /<progress>\nWorking for \d+ min of a 90 min limit\.\nPlan: 0 of \d+ steps done\./);
+  assert.match(body.messages[1].content, /No file changed yet\./);
+  const view = await t.service.health(operator, '190', '305');
+  assert.equal(view.judge?.etaMinutes, 45);
+  assert.equal(view.judge?.etaAt, new Date(Date.parse(view.judge!.at) + 45 * 60_000).toISOString());
+});
+
+test('a verdict without eta_minutes still counts, with no forecast', async () => {
+  const t = setup();
+  await t.service.health(operator, '190', '305');
+  await t.service.settled('305');
+  const view = await t.service.health(operator, '190', '305');
+  assert.equal(view.judge?.etaMinutes, null);
+  assert.equal(view.judge?.etaAt, null);
+});
+
+test('progress lines say how long the Run worked, its plan and its calls', () => {
+  const plan = [{ content: 'a', status: 'completed' }, { content: 'b', status: 'in_progress' }, { content: 'c', status: 'pending' }] as const;
+  assert.equal(progressLines([...plan], { elapsedMinutes: 31, limitMinutes: 100, calls: { read: 60, change: 0, verify: 2 }, firstChangeMinutes: null, cycles: 0 }), 'Working for 31 min of a 100 min limit.\nPlan: 1 of 3 steps done.\nCalls: read 60, verify 2.\nNo file changed yet.\nChange-then-verify cycles: 0.');
+  assert.equal(progressLines(null, null), 'Plan: none yet.');
 });

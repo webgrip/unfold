@@ -426,3 +426,12 @@ test('a relayed response upload that stops sending is cut after its idle limit, 
   assert.equal(await relayed(), 'cut', 'a stalled upload is cut after its idle limit');
   assert.ok(logged.some(line => line.includes('"event":"relay.response_interrupted"') && line.includes('"session":"ws-idle"')), logged.join('\n'));
 });
+
+test('a request no worker picks up fails naming relay.pickup, how long it waited and that no worker ever polled', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'] });
+  const relay = new WorkerRelay();
+  relay.register('ws-unpicked');
+  const pending = relay.fetcher('ws-unpicked')('http://workspace/session?directory=%2Fworkspace', { method: 'POST', body: '{}' });
+  t.mock.timers.tick(30_000);
+  await assert.rejects(pending, (error: any) => error.category === 'connectivity' && /^relay\.pickup fired: the workspace worker did not pick up POST \/session after 30000 ms against a limit of 30000 ms; its last poll was never$/.test(error.detail ?? ''));
+});

@@ -52,7 +52,7 @@ test('a hook report keeps only the fields Unfold uses, strips credentials from t
   assert.equal('prompt' in parsed, false);
   assert.equal(repositoryAddress('git@forgejo.example.org:webgrip/unfold.git'), 'forgejo.example.org:webgrip/unfold.git');
   assert.equal(event({ remoteUrl: 'https://evil.example/code/x' }).remoteUrl, '');
-  assert.throws(() => event({ harness: 'codex' }), { code: 'linked_harness' });
+  assert.throws(() => event({ harness: 'cursor' }), { code: 'linked_harness' });
   assert.throws(() => event({ event: 'deploy' }), { code: 'linked_event' });
   assert.throws(() => event({ sessionId: '../etc' }), { code: 'linked_session_id' });
   assert.throws(() => event({ event: 'commit', commit: { sha: 'abc' } }), { code: 'linked_commit' });
@@ -79,6 +79,13 @@ test('the first report claims the session, its branch links the Work Item the pe
   await linked.report(owner, event({ event: 'prompt', branch: 'feat/vik-2051-login' }), base);
   assert.deepEqual(ploeg.lookups, ['vikunja:2051'], 'an unchanged branch is not looked up again');
   await assert.rejects(linked.report(outsider, event({ event: 'prompt' }), base), { status: 404 });
+});
+
+test('an ACP session reported through the proxy is a Linked Session with no resume command, since only its editor can resume it', async () => {
+  const linked = service(fakePloeg());
+  const { session } = await linked.report(owner, event({ harness: 'acp', sessionId: 'acp-sess_abc123', title: 'Gemini CLI · unfold' }), base);
+  assert.deepEqual([session.harness, session.title, session.resume], ['acp', 'Gemini CLI · unfold', '']);
+  await assert.rejects(linked.report(owner, event({ harness: 'claude-code', sessionId: 'acp-sess_abc123', event: 'prompt' }), base), { code: 'linked_harness' });
 });
 
 test('states follow the hooks, a silent working session reads as stale, and a commit after the end reopens it as idle', async () => {

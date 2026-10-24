@@ -90,3 +90,24 @@ without a Walkthrough does.
 
 - **WHEN** the person chooses "Go back"
 - **THEN** nothing is approved and the checklist is in view
+
+### Requirement: AI-written hunks read first (proposed)
+
+The Work Item page SHALL list the pull request's hunks with those an agent
+wrote lines of first, most AI-written lines first, each saying how many of its
+added lines an agent wrote, by the head commit's Agent Trace records. Only `ai`
+ranges SHALL count, a line MUST count once, and the list MUST NOT show a
+model, cost or telemetry.
+
+#### Scenario: An agent wrote most of one hunk
+
+- **WHEN** the head commit's records attribute 12 of the 14 added lines of
+  `src/login.ts` lines 10 to 24 to an agent, and none of `README.md`
+- **THEN** the `src/login.ts` hunk is listed first with "12 of 14 lines written
+  by an agent", and the `README.md` hunk follows under "Written by a person"
+
+#### Scenario: No record was kept
+
+- **WHEN** no Agent Trace record exists for the head commit
+- **THEN** the hunks keep the diff's order and the page says no attribution was
+  recorded

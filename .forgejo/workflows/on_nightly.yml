@@ -34,6 +34,7 @@ jobs:
       authentik:
         image: harbor.webgrip.dev/ghcr/goauthentik/server:2026.5.2@sha256:3ddf09bbf69ded6a9634ecd753a01608d477f811e99bb5ffe9fc2ef7ad1c6581
         cmd: [server]
+        options: --no-healthcheck
         env:
           AUTHENTIK_POSTGRESQL__HOST: postgresql
           AUTHENTIK_POSTGRESQL__NAME: authentik

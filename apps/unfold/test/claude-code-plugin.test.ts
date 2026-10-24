@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { addedLines, attribute, limits, modelId, remember, traceRecord, writtenText } from '../extensions/claude-code/scripts/agent-trace.mjs';
 import { parseAgentTrace, traceLines } from '../src/agent-trace.ts';
+import { permissionBounds } from '../extensions/claude-code/scripts/permission.mjs';
 
 const plugin = fileURLToPath(new URL('../extensions/claude-code/', import.meta.url));
 const hook = join(plugin, 'scripts/unfold-hook.mjs');
@@ -19,11 +20,12 @@ test('the plugin manifest, hooks and marketplace entry are what Claude Code load
   assert.equal(manifest.name, 'unfold');
   assert.equal(manifest.license, 'Apache-2.0');
   const hooks = JSON.parse(await readFile(join(plugin, 'hooks/hooks.json'), 'utf8')).hooks;
-  assert.deepEqual(Object.keys(hooks).sort(), ['Notification', 'PostToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']);
-  for (const entries of Object.values(hooks) as { hooks: { type: string; command: string; timeout: number }[] }[][]) for (const entry of entries) for (const command of entry.hooks) {
+  assert.deepEqual(Object.keys(hooks).sort(), ['Notification', 'PermissionRequest', 'PostToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']);
+  for (const [event, entries] of Object.entries(hooks) as [string, { hooks: { type: string; command: string; timeout: number }[] }[]][]) for (const entry of entries) for (const command of entry.hooks) {
     assert.equal(command.type, 'command');
     assert.match(command.command, /\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/unfold-hook\.mjs/);
-    assert.ok(command.timeout > 0 && command.timeout <= 20, 'a hook never holds a session up for long');
+    if (event === 'PermissionRequest') assert.ok(command.timeout > permissionBounds.maxWaitSeconds && command.timeout <= permissionBounds.maxWaitSeconds + 15, 'the permission hook outlasts its longest wait; Claude Code shows its own prompt meanwhile, so the wait holds nothing up');
+    else assert.ok(command.timeout > 0 && command.timeout <= 20, 'a hook never holds a session up for long');
   }
   const marketplace = JSON.parse(await readFile(new URL('../../../.claude-plugin/marketplace.json', import.meta.url), 'utf8'));
   assert.deepEqual(marketplace.plugins.map((entry: { name: string; source: string }) => [entry.name, entry.source]), [['unfold', './apps/unfold/extensions/claude-code']]);
@@ -107,10 +109,12 @@ function runHook(payload: Record<string, unknown>, env: Record<string, string>):
   });
 }
 
-test('the hook reports a session, names it after its Work Item, and sends an Agent Trace record and a git note for its commit', async t => {
+test('the hook reports a session, names it after its Work Item, and sends an Agent Trace record and a git note for its commit, also when the repository is reached through a symlink', async t => {
   const unfold = await fakeUnfold();
-  const dir = await mkdtemp(join(tmpdir(), 'unfold-plugin-'));
-  t.after(async () => { await unfold.close(); await rm(dir, { recursive: true, force: true }); });
+  const real = await mkdtemp(join(tmpdir(), 'unfold-plugin-'));
+  const dir = `${real}-link`;
+  await symlink(real, dir);
+  t.after(async () => { await unfold.close(); await rm(dir, { force: true }); await rm(real, { recursive: true, force: true }); });
   const repo = join(dir, 'repo');
   const gitIn = (...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' }).trim();
   execFileSync('git', ['init', '-q', '-b', 'feat/vik-2051-login', repo]);

@@ -34,6 +34,7 @@ export const delegatedRoutes: ReadonlyArray<readonly [string, RegExp]> = [
   ['POST', new RegExp(`^/api/ploeg/work-items/${workItem}/(?:approve|reject|cancel|requeue|notes)$`)],
   ['GET', /^\/api\/sessions$/],
   ['GET', /^\/api\/linked-sessions$/],
+  ['GET', /^\/api\/linked-sessions\/digest$/],
   ['GET', /^\/api\/linked-sessions\/[A-Za-z0-9_-]{8,128}$/],
   ['PUT', new RegExp(`^/api/linked-sessions/[A-Za-z0-9_-]{8,128}/work-items/${workItem}$`)],
   ['DELETE', new RegExp(`^/api/linked-sessions/[A-Za-z0-9_-]{8,128}/work-items/${workItem}$`)],
@@ -123,6 +124,11 @@ export class Auth {
     if (bearer !== undefined) return editorTokenPattern.test(bearer) ? digest(bearer) : undefined;
     const token = this.token(req);
     return token && token.length <= 200 ? digest(token) : undefined;
+  }
+  /** When the editor credential that authenticated a request expires, or undefined for any other sign-in. */
+  editorExpiresAt(req: IncomingMessage): string | undefined {
+    const bearer = this.bearer(req);
+    return bearer && editorTokenPattern.test(bearer) ? this.store.getEditorCredential(digest(bearer))?.expiresAt : undefined;
   }
   /** Which credential authenticated a request: a browser session, an editor credential, or a credential `unfold-mcp` over HTTP delegated. */
   scope(req: IncomingMessage): 'browser' | 'editor' | 'mcp' | undefined {

@@ -6,7 +6,7 @@ import { chmod, lstat, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowFolder, agentsWindowState, agentsWindowStatusText, foldersByLastPick, attachAgentHost, connectionAddress, detachAgentHost, editSetting, editorWindowOf, fileStore, hasAgentHost,
+  SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowFolder, agentsWindowState, agentsWindowStatusText, foldersByLastPick, attachAgentHost, connectionAddress, detachAgentHost, editSetting, editorWindowOf, fileStore, hasAgentHost, isAgentsWindowWorkspace,
   isUnfoldAgentHostName, probeAgentHostToken, userSettingsFile, withAgentHost, withAgentHostNames, withoutIssuedAgentHost,
   type AgentHostEntry, type AgentHostStore, type AttachRequest, type SettingsConfiguration, type TokenProbe,
 } from '../src/agent-host.ts';
@@ -299,4 +299,14 @@ test('the repository picked last is offered first', () => {
   assert.deepEqual(foldersByLastPick(folders, 'b').map(folder => folder.repositoryId), ['b', 'a']);
   assert.deepEqual(foldersByLastPick(folders, 'gone').map(folder => folder.repositoryId), ['a', 'b']);
   assert.deepEqual(foldersByLastPick(folders, undefined).map(folder => folder.repositoryId), ['a', 'b']);
+});
+
+test('the Agents window is recognised by the workspace file VS Code opens in it, on every platform and edition', () => {
+  assert.equal(isAgentsWindowWorkspace({ scheme: 'file', path: '/home/ryan/.config/Code/User/agent-sessions.code-workspace' }), true);
+  assert.equal(isAgentsWindowWorkspace({ scheme: 'file', path: '/Users/ryan/Library/Application Support/Code - Insiders/User/agent-sessions.code-workspace' }), true);
+  assert.equal(isAgentsWindowWorkspace({ scheme: 'file', path: '/c:/Users/ryan/AppData/Roaming/Code/User/agent-sessions.code-workspace' }), true);
+  assert.equal(isAgentsWindowWorkspace(undefined), false, 'a folder or empty editor window has no workspace file');
+  assert.equal(isAgentsWindowWorkspace({ scheme: 'file', path: '/home/ryan/projects/unfold.code-workspace' }), false);
+  assert.equal(isAgentsWindowWorkspace({ scheme: 'untitled', path: '/agent-sessions.code-workspace' }), false, 'an untitled workspace is an editor window');
+  assert.equal(isAgentsWindowWorkspace({ scheme: 'file', path: '/home/ryan/agent-sessions.code-workspace.bak' }), false);
 });

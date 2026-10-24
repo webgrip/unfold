@@ -1,3 +1,4 @@
+import { defaultWorkspaceRetentionDays } from './runtime/retention.ts';
 import { readFileSync, existsSync, mkdirSync, chmodSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,6 +46,15 @@ function gitRewrites(value: unknown): GitRewrite[] {
     if (Object.keys(rest).length || !prefix(url) || !prefix(insteadOf) || url === insteadOf) throw new Error(`kubernetes.gitRewrites[${index}] needs url and insteadOf, two different HTTP(S) URL prefixes ending in / without credentials`);
     return { url: url as string, insteadOf: insteadOf as string };
   });
+}
+
+function volumeDeleteAnnotations(value: unknown): Record<string, string> {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== 'object' || Array.isArray(value)) throw new Error('kubernetes.volumeDeleteAnnotations must map annotation names to string values');
+  const entries = Object.entries(value as Record<string, unknown>);
+  const name = /^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*\/)?[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$/;
+  if (entries.length > 8 || entries.some(([key, text]) => key.length > 316 || !name.test(key) || typeof text !== 'string' || text.length > 256)) throw new Error('kubernetes.volumeDeleteAnnotations must map at most 8 annotation names to string values');
+  return Object.fromEntries(entries) as Record<string, string>;
 }
 
 const backendOrder: WorkspaceBackend[] = ['docker', 'kubernetes', 'local'];
@@ -372,6 +382,8 @@ export function loadConfig(argv = process.argv.slice(2)): AppConfig {
   if (raw.kubernetes) { raw.kubernetes.transport = transportSetting(raw.kubernetes.transport, 'kubernetes.transport'); if (raw.kubernetes.relayUrl !== undefined) raw.kubernetes.relayUrl = configuredUrl(String(raw.kubernetes.relayUrl), 'kubernetes.relayUrl'); if (raw.kubernetes.transport === 'pull' && !raw.kubernetes.relayUrl) throw new Error('kubernetes.transport pull requires kubernetes.relayUrl, the workbench URL reachable from agent pods'); }
   if (raw.kubernetes) {
     raw.kubernetes.provisioner = raw.kubernetes.provisioner ?? 'pod';
+    raw.kubernetes.volumeDeleteAnnotations = volumeDeleteAnnotations(raw.kubernetes.volumeDeleteAnnotations);
+    raw.kubernetes.workspaceRetentionDays = number(raw.kubernetes.workspaceRetentionDays, defaultWorkspaceRetentionDays, 0, 365, 'kubernetes.workspaceRetentionDays');
     for (const key of ['cpu', 'memory', 'cpuRequest', 'memoryRequest']) if (raw.kubernetes[key] !== undefined && (typeof raw.kubernetes[key] !== 'string' || !/^[0-9]+(\.[0-9]+)?(m|[KMGT]i?)?$/.test(raw.kubernetes[key]))) throw new Error(`kubernetes.${key} must be a Kubernetes quantity such as 500m or 1Gi`);
     if (raw.kubernetes.userNamespaces !== undefined && typeof raw.kubernetes.userNamespaces !== 'boolean') throw new Error('kubernetes.userNamespaces must be true or false');
     if (raw.kubernetes.userNamespaces && raw.kubernetes.provisioner === 'sandbox') throw new Error('kubernetes.userNamespaces cannot be combined with the sandbox provisioner; a Kata guest kernel already remaps the workload');

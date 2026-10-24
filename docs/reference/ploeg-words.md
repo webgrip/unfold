@@ -76,6 +76,7 @@ MCP: passes the Ploeg value through as `outcome` in unfold_get_work.
 | `issue_updated` | Updated the tracker item (short: Tracker updated) | same |  |
 | `follow_up_created` | Created follow-up work (short: Follow-up created) | same |  |
 | `stuck` | Stuck | same |  |
+| `yielded` | Stopped for a person (short: Taken over) | same |  |
 | `failed` | Failed | same |  |
 | `no_change_needed` | No change needed (short: No change) | same |  |
 
@@ -104,9 +105,9 @@ MCP: passes the Ploeg value through as `failureReason` in unfold_get_work, `""` 
 
 | Value | Screen label | MCP | Note |
 |---|---|---|---|
-| `infra_node` | The machine ended the Run | same |  |
+| `infra_node` | The machine running the Run failed | same |  |
 | `infra_llm` | The model gateway failed | same |  |
-| `agent_error` | The agent harness failed | same |  |
+| `agent_error` | The agent exited with an error | same |  |
 | `budget` | The agent reached its token ceiling | same |  |
 | `lease_lost` | The worker stopped responding | same |  |
 | `timeout` | The Run timed out | same |  |
@@ -148,6 +149,7 @@ MCP: unfold_get_work passes `closeReason` through on each Shift; unfold_now and 
 | `run stuck`… | The writer got stuck in Round 2 | Agent is stuck | run stuck: writer round 2 | Prefix; the label shown is for `run stuck: writer round 2`. |
 | `plan removed from configuration`… | The Team plan was removed | Team plan removed | same | Prefix; the label shown is for `plan removed from configuration`. |
 | `question_for_person` | An agent asked a person a question | Question for you | same | Accepted ahead of Ploeg: Ploeg's next release (ploeg-hq/ploeg#180, ADR-0121) writes it; the pinned Ploeg does not yet. Unfold already words it. |
+| `taken_over` | A person took it over | Taken over by a person | same |  |
 
 ## Finding answer status
 
@@ -257,6 +259,8 @@ MCP: not exposed; unfold_get_work quotes the reason of the latest `work_item.<st
 | `follow_up.created` | [Follow-Up](glossary.md#follow-up) | Follow-up created from the forge | not exposed |  |
 | `follow_up.skipped` | [Follow-Up](glossary.md#follow-up) | Follow-up skipped | not exposed |  |
 | `review.changes_requested` | [Verdict](glossary.md#verdict) | Changes requested on the pull request | not exposed |  |
+| `review.rework_capped` | [Verdict](glossary.md#verdict) | Request for changes kept for later: this Work Item reached its rework cap | not exposed |  |
+| `review.rework_refused` | [Verdict](glossary.md#verdict) | Request for changes ignored: the reviewer may not send work back | not exposed |  |
 | `round.opened` | [Round](glossary.md#round) | Round started | not exposed |  |
 | `round.reopened` | [Round](glossary.md#round) | Round retried after a failed writer | not exposed |  |
 | `run.claimed` | [Run](glossary.md#run) | An agent started | not exposed |  |

@@ -48,7 +48,7 @@ test('the boards list running Runs and queued Work Items oldest first, and finis
   assert.ok(model.arrivals.every((row, index, rows) => index === 0 || (rows[index - 1].at ?? 0) >= (row.at ?? 0)));
   assert.deepEqual(model.departures.filter(row => row.remark.text === 'Queued').map(row => row.workItemId).sort(), ['305', '306', '307']);
   assert.equal(model.departures.find(row => row.workItemId === '302').role, 'reviewer · Round 2');
-  assert.deepEqual(model.arrivals.map(row => row.remark.text).slice(0, 3), ['PR opened', 'No change', 'Machine ended it']);
+  assert.deepEqual(model.arrivals.map(row => row.remark.text).slice(0, 3), ['PR opened', 'No change', 'Infrastructure fault']);
 });
 
 test('the headline says what holds first and never invents a count', () => {

@@ -140,7 +140,8 @@ document.addEventListener('submit', async event => {
   finally { if (submit) submit.disabled = false; }
 });
 document.addEventListener('keydown', event => { if (globalKeys(event)) return; for (const binding of registry.keys) if (binding(event)) return; });
-document.addEventListener('visibilitychange', () => live.wake());
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') live.recover(); else live.wake(); });
+window.addEventListener('online', () => live.recover());
 document.addEventListener('close', () => live.wake(), true);
 window.addEventListener('storage', preferencesChanged);
 window.addEventListener('hashchange', () => { closeTransientChrome(); state.focusHeading = true; void route(); });

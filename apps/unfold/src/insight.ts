@@ -237,9 +237,11 @@ export class InsightService {
   private lastErrorAt = Number.NEGATIVE_INFINITY;
   private pending: ExportedRow[] = [];
   private admitted = new Map<string, { since: number; count: number }>();
+  private upkeep: (() => void) | undefined;
 
-  constructor(store: Store, config: AppConfig, version: string, now: () => Date = () => new Date(), options: { schedule?: boolean } = {}) {
+  constructor(store: Store, config: AppConfig, version: string, now: () => Date = () => new Date(), options: { schedule?: boolean; upkeep?: () => void } = {}) {
     this.store = store;
+    this.upkeep = options.upkeep;
     this.config = config;
     this.version = version;
     this.now = now;
@@ -325,6 +327,8 @@ export class InsightService {
 
   private async runMaintenance(): Promise<void> {
     if (this.stopped) return;
+    try { this.upkeep?.(); }
+    catch (error) { console.error(JSON.stringify({ level: 'error', event: 'store.upkeep_failed', message: String((error as Error)?.message ?? error).slice(0, 300) })); }
     try {
       const now = this.now();
       this.store.pruneProductEventsBefore(addMonths(now, -retentionMonths).toISOString());

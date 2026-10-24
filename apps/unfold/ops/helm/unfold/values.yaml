@@ -60,6 +60,10 @@ credentialsSecret: unfold-credentials
 workspaceNamespace: unfold-workspaces
 createWorkspaceNamespace: true
 workspaceImage: ""
+workspaceAgentImage:
+  repository: ghcr.io/webgrip/unfold-agent
+  tag: ""
+  digest: ""
 workspaceStorageSize: 8Gi
 workspaceStorageClass: ""
 workspaceCpu: "1"
@@ -80,6 +84,12 @@ workspaceUserNamespaces: false
 # to run each in its own lightweight VM. Empty runs them on the node's default
 # runtime. The sandbox provisioner uses workspaceRuntimeClassName instead.
 workspacePodRuntimeClassName: ""
+# Days a finished session's workspace volume (pod provisioner) is kept after the
+# session last changed, once its change was captured. 0 keeps every volume.
+workspaceRetentionDays: 7
+# Annotations set on a workspace volume just before the retention sweep deletes
+# it, for clusters whose admission policy refuses unannotated PVC deletes.
+workspaceVolumeDeleteAnnotations: {}
 workspaceTransport: pull
 workspaceRelayUrl: ""
 workspaceProvisioner: pod

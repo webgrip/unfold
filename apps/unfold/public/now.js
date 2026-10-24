@@ -278,7 +278,7 @@ function linkIcon(id, href, glyph, label) {
 function waitingActions(entry, context, reason) {
   const title = entry.title || `Work Item ${entry.id}`;
   let primary = '';
-  const pr = entry.state === 'awaiting_review' ? safeUrl(entry.pullRequestUrl) : null;
+  const pr = entry.state === 'awaiting_review' || reason?.code === 'approved_to_merge' ? safeUrl(entry.pullRequestUrl) : null;
   const failedCi = reason?.code === 'ci_failed';
   if (pr) primary = button({ id: `now-pr-${entry.id}`, label: failedCi ? 'Failing checks' : 'Pull request', icon: failedCi ? 'x-circle' : 'pull-request', size: 'sm', href: pr, external: true, ariaLabel: failedCi ? `Open the pull request for “${title}” to see why CI did not pass (opens in a new tab)` : `Open the pull request for “${title}” (opens in a new tab)` });
   if (entry.state === 'needs_human' && entry.question?.text) primary = button({ id: `now-answer-${entry.id}`, label: 'Answer', icon: 'send', size: 'sm', href: `#work/${encodeURIComponent(entry.id)}`, ariaLabel: `Answer the question on “${title}”` });
@@ -728,10 +728,11 @@ export function offersRetry(input) {
  * review, needs you with its reason, proposed), what is in flight (running Runs with their budget meter, then Work Items waiting to run) and what finished recently.
  * `input` is `state.now` plus `since` (the digest baseline, null on a first visit), `shown` (the ids on screen,
  * see `visibleNow`), `summary` ({ data, error } of the 24-hour summary) and `caughtUp`.
- * `options` takes `grafanaUrl`, `singleKeys` (show the j/k/o hints) and `handOver` (an empty In flight card offers
- * to hand over a task).
+ * `options` takes `grafanaUrl`, `singleKeys` (show the j/k/o hints), `handOver` (an empty In flight card offers
+ * to hand over a task) and `yours` (markup of the person's own waiting agent sessions, from `linkedWaitingCard`,
+ * shown above what Ploeg waits on).
  * @param {object} input
- * @param {{ grafanaUrl?: string, singleKeys?: boolean, handOver?: boolean }} [options]
+ * @param {{ grafanaUrl?: string, singleKeys?: boolean, handOver?: boolean, yours?: string }} [options]
  * @param {number} [now]
  * @returns {string}
  */
@@ -743,7 +744,7 @@ export function nowMarkup(input, options = {}, now = Date.now()) {
   const context = { ...options, demo: Boolean(view.data.demo), now, since: moment(since), sinceIso: since, runs: view.data.errors.recent ? [] : view.data.recent, dots: true };
   const { data: visible, held } = visibleNow(view.data, view.shown ?? null);
   const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
-  return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${waitingCard(view, visible, held, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}${view.asksEnabled === false ? '' : asksCard(view)}</div></div></div>`;
+  return `<div class="now"${view.loading ? ' aria-busy="true"' : ''}>${note}${staleBanner(view, now)}${unsettledBanner(view, now)}${digestMarkup(view, since, now)}${statsMarkup(view)}<div class="now-columns"><div class="now-main">${options.yours || ''}${waitingCard(view, visible, held, context)}</div><div class="now-rail">${runningCard(view, context)}${recentCard(view, visible, held, context)}${view.asksEnabled === false ? '' : asksCard(view)}</div></div></div>`;
 }
 
 const loopGroups = {
@@ -844,7 +845,8 @@ function loopRecent(view, visible, held, context, hide) {
  * `options.retryHere` false leaves that out, as for a viewer. The digest shows only when something changed since your
  * last visit. Loading and failure match the desk.
  * @param {object} input `state.now`, as for `nowMarkup`.
- * @param {{ start?: string, handed?: string, hideQueued?: Set<string>, retryHere?: boolean, grafanaUrl?: string, singleKeys?: boolean }} [options]
+ * `options.yours` is the person's own waiting agent sessions, as for `nowMarkup`, shown first among the lanes.
+ * @param {{ start?: string, handed?: string, hideQueued?: Set<string>, retryHere?: boolean, grafanaUrl?: string, singleKeys?: boolean, yours?: string }} [options]
  * @param {number} [now]
  * @returns {string}
  */
@@ -873,7 +875,7 @@ export function loopMarkup(input, options = {}, now = Date.now()) {
   const fresh = digestCounts(view.data, since);
   const news = since !== null && [fresh.review, fresh.needsYou, fresh.proposed].some(value => value > 0);
   const note = view.data.demo ? demoNote('Illustrative records · no model calls, no spend') : '';
-  const lanes = `${laneCard('decide', 'Decide', error ? 1 : decideRows.length, 'review', decide, 'Nothing waits for your review or approval.')}${error ? '' : laneCard('unstick', 'Unstick', unstickTotal, 'attention', unstick, 'Nothing is stuck.')}${options.start || ''}`;
+  const lanes = `${options.yours || ''}${laneCard('decide', 'Decide', error ? 1 : decideRows.length, 'review', decide, 'Nothing waits for your review or approval.')}${error ? '' : laneCard('unstick', 'Unstick', unstickTotal, 'attention', unstick, 'Nothing is stuck.')}${options.start || ''}`;
   const hideRecent = new Set(rows.map(entry => String(entry.id)));
   const running = (view.data.errors.running ? 0 : view.data.running.length) + (waitingToRun(view.data)?.length ?? 0);
   const flight = running || view.data.errors.running ? runningCard(view, { ...context, handOver: false }) : '<section class="loop-lane loop-clear" aria-labelledby="loop-flight-title"><span class="loop-clear-icon" aria-hidden="true">' + icon('runs') + '</span><h2 class="loop-clear-title" id="loop-flight-title">In flight</h2><p class="loop-clear-text">Nothing runs or waits for a worker.</p></section>';

@@ -201,6 +201,12 @@
           "mcp": "stuck"
         },
         {
+          "value": "yielded",
+          "label": "Stopped for a person",
+          "short": "Taken over",
+          "mcp": "yielded"
+        },
+        {
           "value": "failed",
           "label": "Failed",
           "short": "Failed",
@@ -284,7 +290,7 @@
       "values": [
         {
           "value": "infra_node",
-          "label": "The machine ended the Run",
+          "label": "The machine running the Run failed",
           "mcp": "infra_node"
         },
         {
@@ -294,7 +300,7 @@
         },
         {
           "value": "agent_error",
-          "label": "The agent harness failed",
+          "label": "The agent exited with an error",
           "mcp": "agent_error"
         },
         {
@@ -522,6 +528,13 @@
           "chip": "Question for you",
           "mcp": "question_for_person",
           "acceptedAhead": "Ploeg's next release (ploeg-hq/ploeg#180, ADR-0121) writes it; the pinned Ploeg does not yet. Unfold already words it."
+        },
+        {
+          "value": "taken_over",
+          "ploegSource": "pkg/work/take_over.go (ADR-0142)",
+          "label": "A person took it over",
+          "chip": "Taken over by a person",
+          "mcp": "taken_over"
         }
       ]
     },
@@ -876,6 +889,18 @@
           "value": "review.changes_requested",
           "ploegTerm": "Verdict",
           "label": "Changes requested on the pull request",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "review.rework_capped",
+          "ploegTerm": "Verdict",
+          "label": "Request for changes kept for later: this Work Item reached its rework cap",
+          "mcp": "not exposed"
+        },
+        {
+          "value": "review.rework_refused",
+          "ploegTerm": "Verdict",
+          "label": "Request for changes ignored: the reviewer may not send work back",
           "mcp": "not exposed"
         },
         {

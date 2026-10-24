@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 import { pathToFileURL } from 'node:url';
 import { loadCore, type Core } from './core.js';
 import { NowTree, waitingCount, nowGroup, type NowEntry, type WorkItemRef } from './now-tree.js';
-import { linkedWorkItems, sessionRows, statusSummary, type SessionRow } from './now.js';
+import { linkedWorkItems, pullRequestNumber, sessionRows, statusSummary, type SessionRow } from './now.js';
 import type { PloegNow, PloegNowItem } from './ploeg-types.js';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
@@ -17,10 +17,11 @@ import { SessionPanels, type PanelHost, type PanelTab, type InstructionOutcome }
 import { presentation, situation, safeHttpsUrl, spendLabel, isolatedPlacement, placementLabel, presentationFor, plainText, providerNames } from './status.js';
 import { setApproval as chooseApproval, type ApprovalChoice } from './approval.js';
 import { linkedAccounts, type AccountChoice } from './accounts.js';
-import { SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowPlan, agentsWindowState, agentsWindowFolder, agentsWindowStatusText, agentsWindowSubject, foldersByLastPick, type AgentHostFolder, attachAgentHost, type AgentsWindowLinkView, type AgentsWindowState, type AttachedClient, connectionAddress, detachAgentHost, editorWindowOf, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
+import { SettingsFileError, agentHostStore, agentHostTokenId, agentsWindowPlan, agentsWindowState, agentsWindowFolder, agentsWindowStatusText, agentsWindowSubject, foldersByLastPick, type AgentHostFolder, attachAgentHost, type AgentsWindowLinkView, type AgentsWindowState, type AttachedClient, connectionAddress, detachAgentHost, editorWindowOf, isAgentsWindowWorkspace, probeAgentHostToken, userSettingsFile, type AgentHostStore, type AttachOutcome, type IssuedAgentHost } from './agent-host.js';
 import { SessionTree, TaskTree, type SessionEntry, type TaskEntry } from './tree.js';
 import { TaskPanels, type TaskPanelHost } from './task-panel.js';
-import { checkOutWorkItemBranch } from './checkout.js';
+import { checkOutWorkItemBranch, gitApi } from './checkout.js';
+import { answerTool, currentBranch, invocationMessage, lmToolApi, maxCharsFor, type LmToolName } from './lm-tools.js';
 import { sessionEligibility } from './task-view.js';
 import * as wizard from './wizard.js';
 import type { Approval, Bootstrap, Session, TaskSnapshot, TaskSource, CandidateFormat, Decision, Permission, PublicationBinding } from './types.js';
@@ -64,6 +65,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   private ticks = 0;
   private quietTicks = 0;
   private eventRefresh?: ReturnType<typeof setTimeout>;
+  private readonly inAgentsWindow = isAgentsWindowWorkspace(vscode.workspace.workspaceFile);
   private readonly needsYou = new NeedsYouNotifier(() => settings().get<boolean>('notifications.needsYou', true));
   private timer: ReturnType<typeof setInterval>;
   private refreshBusy = false;
@@ -162,6 +164,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
     for (const action of ['start', 'pause', 'resume', 'cancel', 'retry'] as const) register(action, value => this.lifecycleCommand(action, value));
     register('review', async value => { const id = await this.choose(value, 'Review which session?'); if (!id) return; const decision = await vscode.window.showQuickPick([{ label: '$(check) Accept', description: 'The outcome is fit to take further', value: 'accepted' as const }, { label: '$(circle-slash) Reject', description: 'Say why so the next attempt can use it', value: 'rejected' as const }], { title: 'Record your review', ignoreFocusOut: true }); if (decision) await this.review(id, decision.value); });
     this.registerMcpServers(context);
+    this.registerLanguageModelTools(context);
     this.timer = this.poll();
     void this.refresh();
     void this.attachAgentHostOnStart().finally(() => this.watchAgentsWindow());
@@ -218,6 +221,24 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
         return definition;
       },
     }));
+  }
+
+  private registerLanguageModelTools(context: vscode.ExtensionContext) {
+    const api = lmToolApi<vscode.LanguageModelTool<object>>(vscode as unknown as Parameters<typeof lmToolApi>[0]);
+    if (!api) return;
+    const tool = (name: LmToolName): vscode.LanguageModelTool<object> => ({
+      prepareInvocation: options => ({ invocationMessage: invocationMessage(name, options.input) }),
+      invoke: async (options, token) => api.result(await answerTool(name, options.input, {
+        core: this.core,
+        rules: { nowGroup, pullRequestNumber },
+        reader: this.configurationError ? undefined : this.current,
+        configurationError: this.configurationError,
+        signedIn: async () => Boolean(await this.context.secrets.get(this.current.secretKey)),
+        branch: async () => { const git = await gitApi().catch(() => undefined); return git ? currentBranch(git.repositories, vscode.window.activeTextEditor?.document.uri.fsPath) : undefined; },
+        maxChars: maxCharsFor(options.tokenizationOptions?.tokenBudget),
+      }, token)) as vscode.LanguageModelToolResult,
+    });
+    context.subscriptions.push(api.register('unfold_now', tool('unfold_now')), api.register('unfold_get_work', tool('unfold_get_work')), api.register('unfold_find_work', tool('unfold_find_work')));
   }
 
   private async ploegMcp(): Promise<RemoteMcpServer | undefined> {
@@ -347,8 +368,10 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
       this.statusLine(client, bootstrap.mode, now.value, rows);
       await vscode.commands.executeCommand('setContext', 'unfold.sessions', demo || Boolean(bootstrap.sharedExecution) || sessions.length > 0);
       await vscode.commands.executeCommand('setContext', 'unfold.connected', true);
-      await this.announceNeedsYou(client, bootstrap, rows);
-      if (now.value) this.announceWaiting(now.value, rows);
+      if (!this.inAgentsWindow) {
+        await this.announceNeedsYou(client, bootstrap, rows);
+        if (now.value) this.announceWaiting(now.value, rows);
+      }
       await this.panels.refreshVisible();
     } catch (error) {
       if (client === this.current && generation === this.generation) {
@@ -568,7 +591,7 @@ class Workbench implements vscode.Disposable, PanelHost, TaskPanelHost {
   }
 
   private async registerEditorWindow(target = this.current): Promise<void> {
-    if (this.configurationError || this.cachedBootstrap?.user.role === 'viewer') return;
+    if (this.inAgentsWindow || this.configurationError || this.cachedBootstrap?.user.role === 'viewer') return;
     try {
       const external = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://webgrip.unfold/`));
       const window = editorWindowOf(external.toString(true));

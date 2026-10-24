@@ -2,10 +2,10 @@ import { button } from '../core/ui.js';
 import { icon } from '../core/icons.js';
 import { clock, cx, escape, r, span, tokens, usd } from './parts.js';
 
-const endingWords = Object.freeze({ live: 'Working now', machine: 'Ended by the machine', failed: 'Failed', cancelled: 'Cancelled', pending: 'Waiting for a worker', done: 'Landed' });
+const endingWords = Object.freeze({ live: 'Working now', machine: 'Infrastructure fault', failed: 'Failed', cancelled: 'Cancelled', pending: 'Waiting for a worker', done: 'Landed' });
 const seatWords = Object.freeze({ live: 'Working', machine: 'Lost to a machine', failed: 'Failed', stuck: 'Stopped answering', cancelled: 'Cancelled', pending: 'Waiting', done: 'Landed' });
 const ledgerWords = Object.freeze({ proven: 'Proven', claimed: 'Claimed, not proven', running: 'Being checked now', open: 'No proof reported' });
-const dockGlyphs = Object.freeze({ stop: 'alert', review: 'eye', session: 'help-circle', linked: 'link' });
+const dockGlyphs = Object.freeze({ stop: 'alert', review: 'eye', session: 'help-circle', linked: 'link', collision: 'alert' });
 
 /**
  * Where the Work Item came from, as a stamp: a session someone started in Unfold, a tracker task, or a Follow-Up.
@@ -88,7 +88,7 @@ function entryBody(entry, view, runDetail = null) {
     const receipt = entry.flying ? `<p class="lv-tl-receipt">${icon('check')}<span>${escape(`Sent to the running ${entry.flying.role} · Run ${entry.flying.n}; it arrives where its Harness takes messages, otherwise in the next Run`)}</span></p>` : entry.readBy ? `<p class="lv-tl-receipt">${icon('check')}<span>${escape(`Next Run after it: ${entry.readBy.role} · Run ${entry.readBy.n} at ${clock(entry.readBy.at)}`)}</span></p>` : '<p class="lv-tl-receipt is-waiting">No Run has started since; the next one reads it.</p>';
     return `${entryHead(entry, who(entry, view), 'steered', chip('the agents read this', 'live'))}<p class="lv-tl-text lv-tl-said" data-private>${escape(entry.text)}</p>${receipt}`;
   }
-  if (entry.kind === 'linked') return `${entryHead(entry, `${entry.harness} · ${entry.who}`, 'linked session', chip(entry.state || 'linked'))}<p class="lv-tl-text lv-tl-quiet">${escape(`${entry.commits} ${entry.commits === 1 ? 'commit' : 'commits'}${entry.branch ? ` on ${entry.branch}` : ''}. Unfold records it; it never starts or pays for it.`)}</p>`;
+  if (entry.kind === 'linked') return `${entryHead(entry, `${entry.harness} · ${entry.who}`, 'linked session', chip(entry.state || 'linked'))}<p class="lv-tl-text lv-tl-quiet">${escape(`${entry.place ? `${entry.place}. ` : ''}${entry.commits} ${entry.commits === 1 ? 'commit' : 'commits'}${entry.branch ? ` on ${entry.branch}` : ''}. Unfold records it; it never starts or pays for it.`)}</p>`;
   return '';
 }
 
@@ -141,7 +141,7 @@ export function intentBar(view, { id = `lv-intent-${view.id}`, mode } = {}) {
   const allowance = view.allowance ? `${usd(Math.max(0, view.allowance.remainingUsd))} of ${usd(view.allowance.limitUsd)} Ask Allowance left` : 'Paid from your Team’s Ask Allowance when the record cannot answer it';
   const radio = (value, label) => `<label class="lv-intent-mode"><input class="${cx('lv-intent-radio', `is-${value}`)}" type="radio" name="${escape(id)}-mode" value="${value}"${chosen === value ? ' checked' : ''}><span>${escape(label)}</span></label>`;
   const steer = view.canSteer
-    ? `<form class="${cx('lv-intent-form', 'is-steer')}" data-form="work-steer" data-id="${escape(view.id)}" data-session="${escape(view.session.id)}" novalidate><p class="lv-intent-reach lv-tone-live">${icon('eye')}<span>The agents read this</span></p><label class="lv-intent-hint" for="${escape(`${id}-steer-text`)}">Reaches the running Run where its Harness allows it, otherwise the next Run.</label><textarea class="lv-intent-text" id="${escape(`${id}-steer-text`)}" name="text" rows="2" maxlength="16000" required placeholder="Tell the agents what to change"></textarea><div class="lv-intent-foot"><span class="lv-intent-cost">No charge of its own; the Run spends from the Shift Budget.</span>${button({ label: 'Steer', variant: 'primary', size: 'sm', type: 'submit' })}</div></form>`
+    ? `<form class="${cx('lv-intent-form', 'is-steer')}" data-form="work-steer" data-id="${escape(view.id)}" data-session="${escape(view.session.id)}" novalidate><p class="lv-intent-reach lv-tone-live">${icon('eye')}<span>The agents read this</span></p><label class="lv-intent-hint" for="${escape(`${id}-steer-text`)}">The agent working now reads this mid-task if its agent tool supports that. Otherwise the next Run picks it up.</label><textarea class="lv-intent-text" id="${escape(`${id}-steer-text`)}" name="text" rows="2" maxlength="16000" required placeholder="Tell the agents what to change"></textarea><div class="lv-intent-foot"><span class="lv-intent-cost">No charge of its own; the Run spends from the Shift Budget.</span>${button({ label: 'Steer', variant: 'primary', size: 'sm', type: 'submit' })}</div></form>`
     : `<div class="${cx('lv-intent-form', 'is-steer', 'is-off')}"><p class="lv-intent-reach">${icon('info')}<span>Steering is not open here</span></p><p class="lv-intent-hint">${escape(view.steerReason)}</p></div>`;
   const ask = view.canAsk
     ? `<form class="${cx('lv-intent-form', 'is-ask')}" data-form="work-ask" data-id="${escape(view.id)}" novalidate><p class="lv-intent-reach lv-tone-review">${icon('eye-off')}<span>The agents do not see this</span></p><label class="lv-intent-hint" for="${escape(`${id}-ask-text`)}">Answered from the record when it can be. It never changes the work.</label><textarea class="lv-intent-text" id="${escape(`${id}-ask-text`)}" name="question" rows="2" maxlength="2000" required placeholder="Why did it stop? What has it cost?"></textarea><p class="field-error" data-error-for="question" hidden></p><div class="lv-intent-foot"><span class="lv-intent-cost">${escape(allowance)}</span>${button({ label: 'Ask', variant: 'primary', size: 'sm', type: 'submit' })}</div></form>`
@@ -156,7 +156,7 @@ function decisionActions(decision, extras) {
   if (decision.kind === 'review') return `${decision.pullRequest?.url ? button({ label: 'Open the pull request', variant: 'secondary', size: 'sm', href: decision.pullRequest.url, external: true }) : ''}${extras.primary ?? ''}`;
   if (decision.kind === 'stop') return extras.primary ?? '';
   if (decision.kind === 'session') return button({ label: 'Answer it', variant: 'primary', size: 'sm', action: 'work-section', data: { id: 'session-decision' } });
-  if (decision.kind === 'linked') return button({ label: 'Open the linked session', size: 'sm', href: `#linked-session/${encodeURIComponent(decision.sessionId)}` });
+  if (decision.kind === 'linked' || decision.kind === 'collision') return button({ label: 'Open the linked session', size: 'sm', href: `#linked-session/${encodeURIComponent(decision.sessionId)}` });
   return '';
 }
 
@@ -186,7 +186,7 @@ export function decisionDock(view, extras = {}) {
 export function roleRoster(view) {
   if (!view.roles.length) return '<p class="lv-role-empty">No Role has run yet.</p>';
   const seats = view.roles.map(seat => {
-    const figures = [`${seat.runs} ${seat.runs === 1 ? 'Run' : 'Runs'}`, span(seat.seconds), seat.costUsd === null ? '' : usd(seat.costUsd), seat.lost ? `${seat.lost} lost to machines` : ''].filter(Boolean).join(' · ');
+    const figures = [`${seat.runs} ${seat.runs === 1 ? 'Run' : 'Runs'}`, span(seat.seconds), seat.costUsd === null ? '' : usd(seat.costUsd), seat.lost ? `${seat.lost} lost to infrastructure faults` : ''].filter(Boolean).join(' · ');
     return `<li class="${cx('lv-role-seat', `is-${seat.status}`, seat.writes ? 'is-writer' : 'is-reader')}"><span class="lv-role-mark" aria-hidden="true">${escape(seat.initials)}</span><span class="lv-role-text"><span class="lv-role-role">${escape(seat.role)} <span class="lv-role-kind">${seat.writes ? 'writes' : 'reads only'}</span></span><span class="lv-role-figures">${escape(figures)}</span></span><span class="lv-role-state">${escape(seatWords[seat.status] ?? seat.status)}</span></li>`;
   }).join('');
   return `<ol class="lv-roles" aria-label="Roles">${seats}</ol>`;

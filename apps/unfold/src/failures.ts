@@ -33,6 +33,8 @@ const descriptions: Record<FailureCategory, { message: string; remediation: stri
   input_unresolved: { message: 'Execution returned while an operator request was unresolved.', remediation: 'Inspect the recorded permission or question and the runtime evidence. A completed response cannot substitute for the missing operator decision.' },
 };
 
+const runtimeTimeout = { message: 'The agent tool in the workspace did not answer in time while the Run was starting.', remediation: 'Try again. If it keeps happening, check the workspace image and the Status page.', beforePrompt: 'Nothing reached the model, so nothing was spent. Try again; if it keeps happening, check the workspace image and the Status page.' };
+
 const stages = new Set<FailureStage>(['credentials', 'workspace', 'runtime', 'prompt', 'execution']);
 const acceptances = new Set<PromptAcceptance>(['not_submitted', 'rejected', 'accepted', 'unknown']);
 
@@ -41,7 +43,7 @@ export function executionFailure(category: FailureCategory, stage: FailureStage,
   const safeStage = stages.has(stage) ? stage : 'execution';
   const safeAcceptance = acceptances.has(promptAcceptance) ? promptAcceptance : 'unknown';
   const safe = safeDetail(detail);
-  const { message, remediation, beforePrompt } = descriptions[safeCategory];
+  const { message, remediation, beforePrompt } = safeCategory === 'timeout' && safeStage === 'runtime' ? runtimeTimeout : descriptions[safeCategory];
   return { category: safeCategory, stage: safeStage, message, remediation: safeAcceptance === 'not_submitted' && beforePrompt ? beforePrompt : remediation, promptAcceptance: safeAcceptance, automaticRetry: false, ...(safe ? { detail: safe } : {}) };
 }
 

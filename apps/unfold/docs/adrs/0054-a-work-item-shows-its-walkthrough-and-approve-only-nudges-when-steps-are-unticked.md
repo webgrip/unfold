@@ -76,3 +76,4 @@ Chosen option: "**a gallery and a checklist under the Problem and solution card,
 
 * Tickets VIK-2230 (gallery and checklist) and VIK-2231 (the nudge), under epic VIK-2226. OpenSpec change `add-review-walkthrough`.
 * 2026-10-18: proposed, from the owner's request and answers the same day.
+* 2026-10-24: proposed addition, still proposed: AI-written hunks first in a "What the agent wrote" list, from Agent Trace records. The design and requirement are in OpenSpec change `add-review-walkthrough`; the counting function `attributeHunks` in `src/agent-trace-hunks.ts` is built, the list is not.

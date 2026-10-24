@@ -82,6 +82,7 @@ export const runOutcomes = table({
   follow_up_created: ['Created follow-up work', 'neutral', 'plus', { short: 'Follow-up created' }],
   issue_updated: ['Updated the tracker item', 'neutral', 'tag', { short: 'Tracker updated' }],
   stuck: ['Stuck', 'attention', 'alert', { short: 'Stuck' }],
+  yielded: ['Stopped for a person', 'attention', 'pause-circle', { short: 'Taken over' }],
   failed: ['Failed', 'danger', 'x-circle', { short: 'Failed' }],
 });
 
@@ -102,9 +103,9 @@ export const verdicts = table({
  * `next` is the step for a person once it has stopped retrying. `infra` failures do not use up agent attempts.
  */
 export const failureReasons = table({
-  infra_node: ['The machine ended the Run', 'severe', 'zap', { infra: true, owner: 'the cluster', action: 'It retries automatically. If it keeps happening, check the nodes and images.', cause: 'Infrastructure, not the agent', retries: true, next: 'If it keeps happening, check the nodes and images.' }],
+  infra_node: ['The machine running the Run failed', 'severe', 'zap', { infra: true, owner: 'the cluster', action: 'It retries automatically. If it keeps happening, check the nodes and images.', cause: 'Infrastructure, not the agent', retries: true, next: 'If it keeps happening, check the nodes and images.' }],
   infra_llm: ['The model gateway failed', 'severe', 'zap', { infra: true, owner: 'the model gateway', action: 'Check the gateway keys, quotas and provider status.', cause: 'The model gateway, not the agent', retries: true, next: 'Check the gateway keys, quotas and provider status.' }],
-  agent_error: ['The agent harness failed', 'danger', 'x-circle', { infra: false, owner: 'the agent configuration', action: 'Read the log tail in the Run’s stuck reason.', cause: 'The agent harness exited with an error', retries: false, next: 'Read its log tail. Fix the brief, the model or the harness.' }],
+  agent_error: ['The agent exited with an error', 'danger', 'x-circle', { infra: false, owner: 'the agent configuration', action: 'Read the log tail in the Run’s stuck reason.', cause: 'The agent exited with an error', retries: false, next: 'Read the last lines it printed, then fix the brief or the agent setup, or pick another model.' }],
   budget: ['The agent reached its token ceiling', 'danger', 'coins', { infra: false, owner: 'the ticket size or the Role’s cap', action: 'Split the ticket or raise the Role’s cap.', cause: 'The ticket is too big for the Role’s token ceiling', retries: false, next: 'Split the ticket or raise the Role’s cap.' }],
   lease_lost: ['The worker stopped responding', 'severe', 'zap', { infra: true, owner: 'the cluster', action: 'It retries automatically.', cause: 'Infrastructure, not the agent', retries: true, next: 'If it keeps happening, check the nodes and the network.' }],
   timeout: ['The Run timed out', 'danger', 'clock', { infra: false, owner: 'the harness configuration', action: 'Split the ticket or raise the timeout.', cause: 'The harness time limit', retries: false, next: 'Split the ticket or raise the timeout.' }],
@@ -116,7 +117,7 @@ export const failureReasons = table({
 const stoppedResponding = Object.freeze({ ...failureReasons.agent_error, label: 'The agent stopped responding', glyph: 'clock', owner: 'the agent harness', action: 'Read the last lines it printed to see where it stopped.', cause: 'The agent stopped responding', next: 'Its reason names the watchdog that stopped it. A hung command or a long silent model call is the usual cause.', outputLabel: 'Last lines it printed' });
 const watchdogSummary = /^acp (?:agent stopped responding|idle watchdog stopped the agent|prompt wall stopped the agent)\b/;
 const stderrPart = /(?:^| \| )stderr: /;
-const harnessOutput = 'What the harness printed';
+const harnessOutput = 'What the agent printed';
 const keyBudgetWords = /Budget has been exceeded!?\s*Key=|ExceededBudget:\s*Key\b/;
 const sharedBudgetWords = /Budget has been exceeded!?\s*(?:Team|TeamMember|User|End User|Organization|Project|Tag|Model access group)=|ExceededBudget:\s*(?:Team|User|End User|Organization|Project|Tag)=/i;
 const spentAmounts = /(?:Current cost|Spend)[:=]\s*(\d+(?:\.\d+)?)[\s\S]*?(?:Max budget|Budget)[:=]\s*(\d+(?:\.\d+)?)/;
@@ -348,7 +349,7 @@ const premiseChecks = {
   too_big: ['Checked before starting: too big for one go', 'attention', 'alert'],
   skipped: ['The check before starting was skipped', 'neutral', 'circle-dashed'],
 };
-const outcomeEvents = { pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'Reported no change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Reported that it is stuck', failed: 'Run failed' };
+const outcomeEvents = { pr_opened: 'Opened a pull request', pr_updated: 'Updated the pull request', no_change_needed: 'Reported no change needed', follow_up_created: 'Created follow-up work', issue_updated: 'Updated the tracker item', stuck: 'Reported that it is stuck', yielded: 'Stopped at a safe point for a person', failed: 'Run failed' };
 
 /**
  * Reads `budget exhausted: pool P, spent S, reserved R` or `budget held by unsettled runs: pool P, spent S, held H`
@@ -370,6 +371,7 @@ const closeLabels = {
   review_approved: ['An agent reviewer approved', 'success'],
   plan_exhausted: ['Every planned Round ran', 'neutral'],
   question_for_person: ['An agent asked a person a question', 'attention'],
+  taken_over: ['A person took it over', 'attention'],
   review_failed: ['No agent reviewed it: the reviewer kept failing', 'attention'],
   checks_not_passed: ['The checks did not pass', 'attention'],
   ci_not_finished: ['CI was still running when Ploeg stopped waiting', 'attention'],
@@ -509,6 +511,8 @@ export function auditEvent(entry) {
     case 'follow_up.created': return event('Follow-up created from the forge', 'neutral', 'plus', said);
     case 'follow_up.skipped': return event('Follow-up skipped', 'neutral', 'minus', said);
     case 'review.changes_requested': return event('Changes requested on the pull request', 'attention', 'alert', said);
+    case 'review.rework_capped': return event('Request for changes kept for later: this Work Item reached its rework cap', 'attention', 'alert', said);
+    case 'review.rework_refused': return event('Request for changes ignored: the reviewer may not send work back', 'neutral', 'x', said);
     case 'round.opened': return event(`Round${round} started`, 'neutral', 'play', said);
     case 'round.reopened': return event(`Round${round} retried after a failed writer`, 'severe', 'refresh', said);
     case 'run.claimed': return event(`${capital(role(detail))} started${round ? ` Round${round}` : ''}${access ? ` as ${access}` : ''}`, 'live', 'play', authorized);
