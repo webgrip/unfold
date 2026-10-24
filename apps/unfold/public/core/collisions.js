@@ -68,7 +68,8 @@ export function runningRunsOf(detail) {
 }
 
 function sessionMember(session) {
-  return { kind: 'session', id: String(session.id), mine: Boolean(session.mine), who: session.mine ? 'you' : String(session.ownerName || 'someone'), harness: harnessNames[session.harness] ?? String(session.harness || 'Agent'), state: session.state, href: `#linked-session/${encodeURIComponent(session.id)}` };
+  const harness = harnessNames[session.harness] ?? String(session.harness || 'Agent');
+  return { kind: 'session', id: String(session.id), mine: Boolean(session.mine), who: session.mine ? 'you' : String(session.ownerName || 'someone'), harness, title: String(session.displayTitle || session.title || `${harness} session`), state: session.state, href: `#linked-session/${encodeURIComponent(session.id)}` };
 }
 
 function runMember(run) {
@@ -76,9 +77,9 @@ function runMember(run) {
 }
 
 /**
- * Where two pieces of live work would step on each other: two live Linked Sessions, or a working or waiting Linked
- * Session and a running Ploeg Run it did not start itself, on the same Work Item, or on the same repository and
- * branch. An idle session collides only with other sessions, and a session never collides with the Run it claimed or
+ * Where two pieces of live work would step on each other: two working or waiting Linked Sessions, or such a session
+ * and a running Ploeg Run it did not start itself, on the same Work Item, or on the same repository and branch. An
+ * idle session edits nothing, so it never collides, and a session never collides with the Run it claimed or
  * the Runs of the attempt it handed to Ploeg ({@link startedBy}). Each collision names what they share and its
  * members, sessions first. Every collision has at least one session; Runs Ploeg itself coordinates on one Work Item
  * never collide with each other alone. A branch collision whose members a Work Item collision already names is left
@@ -87,7 +88,7 @@ function runMember(run) {
  * @returns {{ key: string, on: 'work-item'|'branch', workItemId?: string, repository?: string, branch?: string, members: object[] }[]}
  */
 export function collisions({ sessions = [], runs = [] } = {}) {
-  const live = [...new Map((sessions ?? []).filter(isLiveSession).map(session => [String(session.id), session])).values()];
+  const live = [...new Map((sessions ?? []).filter(session => busyLinkedStates.includes(session?.state)).map(session => [String(session.id), session])).values()];
   const running = [...new Map((runs ?? []).map(run => [String(run.id), run])).values()];
   const groups = new Map();
   const sessionsIn = new Map();
@@ -126,25 +127,38 @@ export function collisionsOf(found, { sessionId, workItemId } = {}) {
     || (workItemId && (group.workItemId === String(workItemId) || group.members.some(member => member.kind === 'run' && member.workItemId === String(workItemId)))));
 }
 
-function memberWords(member) {
+function memberWords(members, { other = false } = {}) {
+  const [member] = members;
   if (member.kind === 'run') return `Ploeg’s ${member.role} Run`;
-  return member.mine ? `your ${member.harness} session` : `${member.who}’s ${member.harness} session`;
+  const whose = member.mine ? `your${other ? ' other' : ''}` : `${member.who}’s`;
+  return members.length === 1 ? `${whose} ${member.harness} session` : `${members.length} of ${whose} ${member.harness} sessions`;
+}
+
+function memberGroups(members) {
+  const groups = new Map();
+  for (const member of members) {
+    const key = member.kind === 'run' ? `run:${member.id}` : `session:${member.mine ? '' : member.who}:${member.harness}`;
+    groups.set(key, [...(groups.get(key) ?? []), member]);
+  }
+  return [...groups.values()];
 }
 
 /**
  * One collision in plain words, seen from `sessionId` when given: "Your Claude Code session and Ploeg's builder Run
- * both work Work Item 184." or "This session and sam's Claude Code session are both on webgrip/unfold, branch main."
+ * both work Work Item 184.", "This session and sam's Claude Code session are on webgrip/unfold, branch main." or
+ * "This session and 2 of your other Claude Code sessions are on webgrip/unfold, branch main." Sessions of one person
+ * and harness are counted, not repeated.
  * @param {ReturnType<typeof collisions>[number]} group
  * @param {{ sessionId?: string }} [options]
  * @returns {string}
  */
 export function collisionSentence(group, { sessionId } = {}) {
   const self = sessionId ? group.members.find(member => member.kind === 'session' && member.id === String(sessionId)) : null;
-  const others = group.members.filter(member => member !== self).map(memberWords);
+  const others = memberGroups(group.members.filter(member => member !== self)).map(members => memberWords(members, { other: Boolean(self?.mine) && members[0].mine }));
   const names = self ? ['this session', ...others] : others;
   const list = names.length <= 2 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
   const where = group.on === 'work-item' ? `work Work Item ${group.workItemId}` : `are on ${group.repository}, branch ${group.branch}`;
-  const verb = group.on === 'work-item' ? (names.length === 2 ? 'both ' : 'all ') : '';
+  const verb = group.on === 'work-item' ? (group.members.length === 2 ? 'both ' : 'all ') : '';
   const sentence = group.on === 'work-item' ? `${list} ${verb}${where}.` : `${list} ${where}.`;
   return `${sentence[0].toUpperCase()}${sentence.slice(1)}`;
 }
@@ -158,7 +172,7 @@ export function collisionSentence(group, { sessionId } = {}) {
  */
 export function collisionCallout(found, { sessionId } = {}) {
   if (!found.length) return '';
-  const links = group => group.members.filter(member => member.id !== String(sessionId ?? '') || member.kind !== 'session').map(member => `<a class="work-inline-link" href="${escape(member.href)}">${escape(member.kind === 'run' ? `${member.role} Run` : `${member.mine ? 'Your' : `${member.who}’s`} session`)}</a>`).join(' · ');
+  const links = group => group.members.filter(member => member.id !== String(sessionId ?? '') || member.kind !== 'session').map(member => `<a class="work-inline-link" href="${escape(member.href)}">${escape(member.kind === 'run' ? `${member.role} Run` : member.mine ? member.title : `${member.who}’s session: ${member.title}`)}</a>`).join(' · ');
   const rows = found.map(group => `<li class="collision-row"><span>${escape(collisionSentence(group, { sessionId }))}</span> <span class="meta">${links(group)}</span></li>`).join('');
   const title = found.length === 1 ? 'Another agent works the same thing' : `Other agents work the same thing in ${found.length} places`;
   return `<div class="collision-warning" data-collisions="${found.length}">${callout({ tone: 'attention', icon: 'alert', title, body: `<ul class="collision-list">${rows}</ul><p class="meta">Their edits and pushes can overwrite each other. Stop or pause one, or move it to its own branch.</p>` })}</div>`;
