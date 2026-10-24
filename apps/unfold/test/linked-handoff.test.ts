@@ -153,6 +153,8 @@ test('"Let Ploeg finish this" requeues a stopped linked Work Item with a note on
   assert.equal(requeue.body.expectedState, 'needs_human');
   assert.match(requeue.body.note, /branch: feat\/rounding\. .*last commit: a1b2c3d4e5f6 \(wip: rounding\)\. .*pulls\/4/);
   assert.equal(ploeg.calls.some(call => call.path.endsWith('/notes')), false, 'a stopped Work Item takes its note with the requeue, not on the notes route');
+  const after = await request(server.url, '/api/linked-sessions/session-handoff-1', op);
+  assert.deepEqual(after.body.session.handovers.map((entry: { kind: string; workItemId: string; at: string }) => [entry.kind, entry.workItemId, typeof entry.at]), [['handoff', '101', 'string']], 'the session remembers it handed the Work Item over');
 });
 
 test('a Run that waits for the person is claimed through Unfold, which keeps the Run credential and records the dispatched session with it', async t => {
@@ -163,8 +165,16 @@ test('a Run that waits for the person is claimed through Unfold, which keeps the
   const notYours = await request(server.url, '/api/ploeg/work-items/109/claim', { method: 'POST', cookie: other.cookie, body: {} });
   assert.equal(notYours.status, 403);
   assert.equal(notYours.body.error.code, 'not_your_run');
-  const claimed = await request(server.url, '/api/ploeg/work-items/109/claim', { method: 'POST', cookie: op.cookie, body: {} });
+  await report(server.url, op.cookie, { sessionId: 'session-claim-1', title: '' });
+  await report(server.url, other.cookie, { sessionId: 'session-other-1', title: '' });
+  const claimed = await request(server.url, '/api/ploeg/work-items/109/claim', { method: 'POST', cookie: op.cookie, body: { linkedSession: 'session-claim-1' } });
   assert.equal(claimed.status, 200, claimed.text);
+  const claimer = (await request(server.url, '/api/linked-sessions/session-claim-1', op)).body.session;
+  assert.deepEqual(claimer.workItems.map((entry: { id: string; how: string }) => [entry.id, entry.how]), [['109', 'explicit']], 'the session that ran /unfold:start is linked to the Work Item');
+  assert.deepEqual(claimer.handovers.map((entry: { kind: string; workItemId: string; runId: string }) => [entry.kind, entry.workItemId, entry.runId]), [['claim', '109', '9001']]);
+  await request(server.url, '/api/ploeg/work-items/109/claim', { method: 'POST', cookie: op.cookie, body: { linkedSession: 'session-other-1' } });
+  const untouched = (await request(server.url, '/api/linked-sessions/session-other-1', other)).body.session;
+  assert.deepEqual([untouched.workItems, untouched.handovers ?? []], [[], []], 'a claim never marks someone else’s session');
   assert.equal(claimed.body.dispatch.environmentId, 'ccpool_team');
   assert.doesNotMatch(claimed.text, /run-token-secret|control-token-secret/, 'the Run credential stays in Unfold');
   assert.equal((await request(server.url, '/api/ploeg/work-items/109/claude-session', { method: 'POST', cookie: other.cookie, body: { runId: '9001', sessionId: 'session_01abcdef' } })).status, 404, 'only the claimer records the session');

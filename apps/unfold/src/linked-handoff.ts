@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { AppConfig, User } from './types.ts';
-import { LinkedSessionError, LinkedSessions, type LinkedSession, type PresentedLinkedSession } from './linked-sessions.ts';
+import { LinkedSessionError, LinkedSessions, type LinkedHandover, type LinkedSession, type PresentedLinkedSession } from './linked-sessions.ts';
 import { digestSessionLimit, readSessionsCost } from './linked-telemetry.ts';
 import { PloegError, type PloegAdmitted, type PloegClient, type PloegClientClaim, type PloegConnectionRepository, type PloegRequeued, type PloegState } from './ploeg.ts';
 
@@ -16,6 +16,8 @@ export type DigestWindow = keyof typeof digestWindows;
 export const digestReadLimit = 200;
 /** The longest brief a Work Item started from a session takes. */
 export const briefLimit = 20_000;
+/** The most hand-overs one Linked Session keeps; older ones drop off first. */
+export const handoverLimit = 20;
 
 /** What a person's own Linked Sessions did in a window: counts from Unfold's records and one cost estimate from telemetry. */
 export type SessionDigest = {
@@ -122,6 +124,11 @@ export class LinkedHandoff {
     return { window: window as DigestWindow, since: new Date(since).toISOString(), until: until.toISOString(), started: facts.started, active: facts.active, workItems: facts.workItems, commits: facts.commits, aiLines: facts.aiLines, costUsd: cost.costUsd, costStatus: 'estimate', costReason: cost.reason, truncated };
   }
 
+  private remember(session: LinkedSession, handover: LinkedHandover): void {
+    session.handovers = [...(session.handovers ?? []), handover].slice(-handoverLimit);
+    this.linked.store.save(session);
+  }
+
   private owned(user: User, id: string, adminToo: boolean): LinkedSession {
     const session = this.linked.store.get(id);
     if (!session || (session.ownerId !== user.id && !(adminToo && user.role === 'admin'))) fail(404, 'not_found', 'Linked session not found.');
@@ -184,18 +191,29 @@ export class LinkedHandoff {
     if (!ready.available) fail(409, 'handoff_unavailable', ready.reason);
     const note = handoffNote(session, LinkedSessions.page(base, session.id));
     const requeue = await this.ploeg.requeue(user, workItemId, { commandId: command, expectedState: item.state, note });
+    if (!requeue.replayed && !requeue.demo) this.remember(this.linked.store.get(session.id) ?? session, { kind: 'handoff', workItemId, at: this.clock().toISOString() });
     return { requeue, note };
   }
 
   /**
    * Claims the Run of a Work Item that waits for the person's own Claude Code (Ploeg ADR-0112). Answers what their
-   * client dispatches; Unfold keeps the Run credential, encrypted, for {@link recordSession}.
+   * client dispatches; Unfold keeps the Run credential, encrypted, for {@link recordSession}. When `linkedSession`
+   * names one of the person's own Linked Sessions, the session that ran `/unfold:start`, it is linked to the Work Item
+   * and remembers the claim, so it never collides with the Run it started.
    */
-  async claim(user: User, workItemId: string): Promise<{ run: PloegClientClaim['run']; dispatch: PloegClientClaim['dispatch']; deadline: string }> {
+  async claim(user: User, workItemId: string, input: Record<string, unknown> = {}, base = ''): Promise<{ run: PloegClientClaim['run']; dispatch: PloegClientClaim['dispatch']; deadline: string }> {
     const claim = await this.ploeg.claimClientRun(user, workItemId);
     const stored: StoredClaim = { userId: user.id, workItemId, runToken: claim.credential.runToken, controlToken: claim.credential.controlToken, workerId: claim.credential.workerId, environmentId: claim.dispatch.environmentId, baseBranch: claim.dispatch.baseBranch, title: claim.dispatch.title, reference: claim.dispatch.reference, deadline: claim.credential.deadline };
     this.vault.setSecret(`client-claim:${claim.run.id}`, stored);
+    await this.claimedBy(user, typeof input.linkedSession === 'string' ? input.linkedSession : '', workItemId, claim.run.id, base);
     return { run: claim.run, dispatch: claim.dispatch, deadline: claim.credential.deadline };
+  }
+
+  private async claimedBy(user: User, sessionId: string, workItemId: string, runId: string, base: string): Promise<void> {
+    if (!/^[A-Za-z0-9_-]{8,128}$/.test(sessionId) || this.linked.store.get(sessionId)?.ownerId !== user.id) return;
+    await this.linked.setLink(user, sessionId, workItemId, true, base).catch(() => null);
+    const session = this.linked.store.get(sessionId);
+    if (session) this.remember(session, { kind: 'claim', workItemId, runId, at: this.clock().toISOString() });
   }
 
   /** Records the Claude session the person's client dispatched for a claimed Run on Ploeg's run API, with the credential the claim kept. */
@@ -249,7 +267,7 @@ export async function handoffRoute(service: LinkedHandoff, request: HandoffReque
   if ((match = routes.start.exec(path))) { only('POST', 'Start a Work Item with POST.'); return { status: 201, body: await service.startWorkItem(user, match[1], await request.body(), request.base) }; }
   if ((match = routes.readiness.exec(path))) { only('GET', 'Read whether the session can be handed to Ploeg with GET.'); return { status: 200, body: await service.readiness(user, match[1]) }; }
   if ((match = routes.handOff.exec(path))) { only('POST', 'Hand the session to Ploeg with POST.'); const input = await request.body(); return { status: 200, body: await service.handOff(user, match[1], match[2], input.commandId, request.base) }; }
-  if ((match = routes.claim.exec(path))) { only('POST', 'Claim the Run with POST.'); return { status: 200, body: await service.claim(user, match[1]) }; }
+  if ((match = routes.claim.exec(path))) { only('POST', 'Claim the Run with POST.'); return { status: 200, body: await service.claim(user, match[1], await request.body(), request.base) }; }
   if ((match = routes.record.exec(path))) { only('POST', 'Record the Claude session with POST.'); return { status: 200, body: await service.recordSession(user, match[1], await request.body()) }; }
   return fail(404, 'not_found', 'API route not found.');
 }

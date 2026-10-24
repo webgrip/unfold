@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { dispatchedSession, remoteName, workItemArgument } from '../extensions/claude-code/scripts/unfold-start.mjs';
+import { claimBody, dispatchedSession, remoteName, workItemArgument } from '../extensions/claude-code/scripts/unfold-start.mjs';
 
 const plugin = fileURLToPath(new URL('../extensions/claude-code/', import.meta.url));
 const script = join(plugin, 'scripts/unfold-start.mjs');
@@ -23,6 +23,9 @@ test('the start command reads a Work Item id or link, a remote’s owner and nam
   assert.equal(dispatchedSession('starting\n{"ok":true,"session_id":"session_01abc"}\n'), 'session_01abc');
   assert.throws(() => dispatchedSession('{"ok":false,"error":"API keys cannot dispatch"}'), /API keys cannot dispatch/);
   assert.throws(() => dispatchedSession('not json'), /no dispatch result/);
+  assert.deepEqual(claimBody('9316a9ed-2ca0-4a31-8be9-77a4ddcb171b'), { linkedSession: '9316a9ed-2ca0-4a31-8be9-77a4ddcb171b' });
+  assert.deepEqual(claimBody(undefined), {});
+  assert.deepEqual(claimBody('../etc'), {}, 'only an id goes out');
 });
 
 test('the plugin ships /unfold:start, which runs only the start script', async () => {
@@ -63,10 +66,11 @@ test('/unfold:start claims through Unfold, dispatches with the person’s own cl
   const server = await unfold();
   const { dir, fake } = await workspace('git@forgejo.example.org:example/order-service.git', '{"ok":true,"session_id":"session_01abcdef"}\n');
   t.after(async () => { await server.close(); await rm(dir, { recursive: true, force: true }); });
-  const { stdout } = await run(process.execPath, [script, '184'], { cwd: dir, env: { ...process.env, UNFOLD_URL: server.url, UNFOLD_TOKEN: 'vle_test', UNFOLD_CLAUDE_BIN: fake } });
+  const { stdout } = await run(process.execPath, [script, '184'], { cwd: dir, env: { ...process.env, UNFOLD_URL: server.url, UNFOLD_TOKEN: 'vle_test', UNFOLD_CLAUDE_BIN: fake, CLAUDE_CODE_SESSION_ID: 'local-session-0001' } });
   assert.match(stdout, /Started: session session_01abcdef runs Work Item 184 on branch claude\/vik-9/);
   assert.match(stdout, /https:\/\/claude\.ai\/code\/session_01abcdef/);
   assert.deepEqual(server.calls.map(call => `${call.method} ${call.path}`), ['GET /api/ploeg/work-items/184', 'POST /api/ploeg/work-items/184/claim', 'POST /api/ploeg/work-items/184/claude-session']);
+  assert.deepEqual(server.calls[1].body, { linkedSession: 'local-session-0001' }, 'the claim names the session that ran /unfold:start');
   assert.deepEqual(server.calls[2].body, { runId: '9001', sessionId: 'session_01abcdef' });
   assert.equal(server.calls[0].authorization, 'Bearer vle_test');
   assert.deepEqual(JSON.parse(await readFile(join(dir, 'argv.json'), 'utf8')), ['-p', "Do the work; don't stop.", '--environment', 'ccpool_team', '--ref', 'main', '--output-format', 'json'], 'the prompt is one argument, never a shell string');

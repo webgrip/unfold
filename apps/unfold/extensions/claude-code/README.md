@@ -64,7 +64,7 @@ When the specification allows configuration per installation, the plugin can shi
 
 | Command | What it does |
 | --- | --- |
-| `/unfold:start <work item>` | Starts the Run of a Work Item that waits for your own Claude Code (Ploeg ADR-0112). From a clone of the Work Item's repository, [`scripts/unfold-start.mjs`](scripts/unfold-start.mjs) claims the Run through `POST /api/ploeg/work-items/<id>/claim`, dispatches it with `claude -p <prompt> --environment <id> --ref <ref> --output-format json` under your own login, and records the printed session through `POST /api/ploeg/work-items/<id>/claude-session`. It claims nothing outside a clone of the repository. Set `UNFOLD_CLAUDE_BIN` to use another `claude`, and `UNFOLD_DISPATCH_TIMEOUT_MS` (default 180000) to wait longer for the dispatch |
+| `/unfold:start <work item>` | Starts the Run of a Work Item that waits for your own Claude Code (Ploeg ADR-0112). From a clone of the Work Item's repository, [`scripts/unfold-start.mjs`](scripts/unfold-start.mjs) claims the Run through `POST /api/ploeg/work-items/<id>/claim` with the id of the session that runs the command (`CLAUDE_CODE_SESSION_ID`), so Unfold links that session and never warns that it collides with the Run it started, dispatches it with `claude -p <prompt> --environment <id> --ref <ref> --output-format json` under your own login, and records the printed session through `POST /api/ploeg/work-items/<id>/claude-session`. It claims nothing outside a clone of the repository. Set `UNFOLD_CLAUDE_BIN` to use another `claude`, and `UNFOLD_DISPATCH_TIMEOUT_MS` (default 180000) to wait longer for the dispatch |
 
 ## Behaviour
 

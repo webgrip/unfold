@@ -2,6 +2,7 @@ import { closeReasonLabel } from '../core/states.js';
 import { liveSentence } from './parts.js';
 import { collisionSentence, collisions, collisionsOf, runningRunsOf } from '../core/collisions.js';
 import { linkedWaitReason } from '../core/linked-waiting.js';
+import { attachSession, attachmentWords, workTracks } from '../core/session-tracks.js';
 
 const providers = Object.freeze({ vikunja: 'Vikunja', github: 'GitHub', forgejo: 'Forgejo', gitlab: 'GitLab', jira: 'Jira', linear: 'Linear', clickup: 'ClickUp', demo: 'Demo tracker', manual: 'Manual' });
 const harnesses = Object.freeze({ 'claude-code': 'Claude Code', claude_code: 'Claude Code', opencode: 'OpenCode', codex: 'Codex', openhands: 'OpenHands', cursor: 'Cursor' });
@@ -83,7 +84,7 @@ function entriesOf(live, { detail, brief, asks, context, linked, messages, origi
     const reader = live.runs.find(run => run.startedAt !== null && at !== null && run.startedAt >= at) ?? null;
     list.push({ kind: 'steer', at, who: message.by || 'You', text: message.text, flying: flying ? { role: flying.role, n: flying.n, attempt: flying.attempt } : null, readBy: reader ? { role: reader.role, n: reader.n, attempt: reader.attempt, at: reader.startedAt } : null });
   }
-  for (const session of linked?.sessions ?? []) list.push({ kind: 'linked', at: toMs(session.lastSeenAt ?? session.startedAt), who: session.ownerName || 'Someone', harness: harnesses[session.harness] ?? String(session.harness ?? 'Agent'), branch: session.branch || '', commits: Array.isArray(session.commits) ? session.commits.length : Number(session.commits) || 0, state: session.state || '' });
+  for (const session of linked?.sessions ?? []) list.push({ kind: 'linked', at: toMs(session.lastSeenAt ?? session.startedAt), who: session.ownerName || 'Someone', harness: harnesses[session.harness] ?? String(session.harness ?? 'Agent'), branch: session.branch || '', commits: Array.isArray(session.commits) ? session.commits.length : Number(session.commits) || 0, state: session.state || '', place: attachmentWords(attachSession(session, detail, live.now)) });
   const ordered = burstsOf(list.filter(entry => entry.at !== null).sort((a, b) => a.at - b.at));
   const firstRun = live.runs.find(run => run.startedAt !== null)?.startedAt ?? null;
   const withFolds = [];
@@ -169,6 +170,7 @@ function presenceOf(live, linked, viewer) {
  * @param {{ items: object[] }|null} [input.context] The context files Ploeg keeps for it.
  * @param {{ sessions: object[] }|null} [input.linked] Agent sessions people linked to it.
  * @param {object[]} [input.sessions] Unfold sessions; the one whose execution names this Work Item is its origin.
+ * @param {object|null} [input.stream] The Work Item's value stream, whose pull request pushes join the commit spine.
  * @param {{ at: string, text: string, by?: string }[]} [input.messages] Steering messages sent to that session.
  * @param {{ condition: number, label: string, state: 'proven'|'claimed'|'running', note?: string }[]} [input.proofs]
  *   Proof for each acceptance condition. Proposed: Ploeg does not report it yet, so the app passes none.
@@ -176,7 +178,7 @@ function presenceOf(live, linked, viewer) {
  * @param {boolean} [input.canOperate] Whether the signed-in person may steer and add context; a viewer only reads and asks.
  * @returns {object}
  */
-export function workView({ live, detail, asks = null, context = null, linked = null, sessions = [], messages = [], proofs = [], viewer = 'You', canOperate = true }) {
+export function workView({ live, detail, asks = null, context = null, linked = null, sessions = [], messages = [], proofs = [], viewer = 'You', canOperate = true, stream = null }) {
   const session = (sessions ?? []).find(each => String(each.execution?.workItemId ?? '') === String(detail.item.id)) ?? null;
   const from = origin(detail, session);
   const brief = briefOf(detail.item.descriptionMarkdown ?? detail.item.description ?? session?.objective ?? '');
@@ -196,6 +198,7 @@ export function workView({ live, detail, asks = null, context = null, linked = n
     lease: leaseOf(live),
     tape: tapeOf(live, asks),
     presence: presenceOf(live, linked, viewer),
+    tracks: { model: workTracks({ detail, sessions: linked?.sessions ?? [], stream, now: live.now }), detail: { shifts: detail.shifts ?? [], runs: detail.runs ?? [] }, sessions: linked?.sessions ?? [] },
     allowance: asks?.allowance ?? null,
     canSteer: Boolean(session) && !closed && canOperate,
     canAddContext: !closed && canOperate,

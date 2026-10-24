@@ -1203,7 +1203,7 @@ function runsMarkup(detail, model) {
 /** The value-stream chart of a Work Item: the stream Unfold read from Ploeg's facts with the detail's Shifts and Runs, or '' with nothing to draw. */
 export function streamMarkup(detail, model) {
   const stream = model.stream && String(model.stream.workItemId) === String(detail.item.id) ? model.stream : null;
-  const lanes = streamLanes({ stream, shifts: detail.shifts || [], runs: detail.runs || [], runTone: runResult });
+  const lanes = streamLanes({ stream, shifts: detail.shifts || [], runs: detail.runs || [], runTone: runResult, sessions: model.linkedSessions?.sessions || [] });
   return streamChart({ lanes, stream, now: model.now, zoom: model.streamZoom, label: `Value stream of ${detail.item.title}` });
 }
 
@@ -1653,12 +1653,13 @@ export function liveViewMarkup(detail, model) {
  * on the current page, with what the agent did and its pod logs. `model.session` carries the session's own parts.
  */
 export function onePageMarkup(detail, model, { primary = '', decision, account } = {}) {
-  const view = workView({ live: liveOf(detail, model), detail, asks: model.asksEnabled === false ? null : model.asks, context: model.context, linked: model.linkedSessions, sessions: model.sessions, viewer: model.userName || 'You', canOperate: model.canAddContext !== false });
+  const stream = model.stream && String(model.stream.workItemId) === String(detail.item.id) ? model.stream : null;
+  const view = workView({ live: liveOf(detail, model), detail, asks: model.asksEnabled === false ? null : model.asks, context: model.context, linked: model.linkedSessions, sessions: model.sessions, viewer: model.userName || 'You', canOperate: model.canAddContext !== false, stream });
   const context = { demo: detail.demo, now: model.now, live: !stopped.has(detail.item.state), detail, attempts: runAttempts(detail.runs || []), grafanaUrl: model.grafanaUrl, logs: model.runLogs, transcripts: model.runTranscripts, health: model.runHealth };
   const runs = new Map((detail.runs || []).map(run => [String(run.id), run]));
   const runDetail = id => { const run = runs.get(id); return run ? runBody(run, context) : ''; };
   const cancel = model.canCancel && canStop(detail) ? { busy: Boolean(model.cancelBusy) } : null;
-  const extras = { primary, runDetail, cancel, ...(decision ? { decision } : {}), ...(account ? { account } : {}), ...(model.session ? { session: model.session } : {}), ...(model.workTab ? { tab: model.workTab } : {}), ...(model.intentMode ? { intent: model.intentMode } : {}) };
+  const extras = { primary, runDetail, runTone: runResult, cancel, ...(decision ? { decision } : {}), ...(account ? { account } : {}), ...(model.session ? { session: model.session } : {}), ...(model.workTab ? { tab: model.workTab } : {}), ...(model.intentMode ? { intent: model.intentMode } : {}) };
   return workPage(view, extras, text => markdown(text, { baseLevel: 3 }));
 }
 
