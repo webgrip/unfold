@@ -64,6 +64,7 @@ The steps below run `unfold` over stdio from a checkout. When your Unfold serves
 | `unfold_add_note` | Leaves a note for a queued or running Work Item's next Run | `POST /api/ploeg/work-items/:id/notes` |
 | `unfold_steer_session` | Sends a `message` to one of your sessions, or pauses, resumes or cancels it | `POST /api/sessions/:id/messages`, `/pause`, `/resume`, `/cancel` |
 | `unfold_message_session` | Sends a message to one of your linked sessions, such as Claude Code on your machine; the Unfold plugin hands it to the session | `POST /api/linked-sessions/:id/messages` |
+| `unfold_answer_permission` | Allows or denies one tool prompt waiting in your own Claude Code session that turned on [remote approval](link-claude-code-sessions.md#approve-a-tool-from-unfold). The question names the tool and the summary the agent wrote. `unfold_permission_requests` lists the waiting prompts. Called by another agent, this is an agent approving a tool for an agent, so read the question before you accept | `POST /api/linked-sessions/:id/permissions/:requestId/answer` |
 
 Every action leaves an Action Record with you, the channel (your credential's name and the client, such as `unfold-mcp on ryan-pc-mint (Claude Code 2.1.296)`, or `mcp:<client>` over HTTPS) and the confirmation: an id and the SHA-256 of the exact text you agreed to. Ploeg receives the same channel and confirmation. You find them under **Who did what** on the Work Item and on your Activity page. In the demo, the confirmation and the result both say it is the demo, and nothing real changes.
 

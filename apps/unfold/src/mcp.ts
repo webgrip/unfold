@@ -538,6 +538,48 @@ export function createMcpServer(options: McpOptions) {
           });
         },
       },
+      {
+        name: 'unfold_permission_requests', title: 'Prompts waiting in your sessions',
+        description: 'The tool-permission prompts waiting in your own Claude Code sessions that turned on remote approval: each with its session, tool, a short summary the plugin wrote and when it stops waiting. Only you see them. Answer one with unfold_answer_permission.',
+        inputSchema: object({ session_id: string('One linked session id; leave out for all of yours') }),
+        outputSchema: object({ summary: { type: 'string' }, requests: { type: 'array', items: { type: 'object' } } }, ['summary', 'requests']),
+        async run(args) {
+          const session = args.session_id === undefined || args.session_id === '' ? '' : typeof args.session_id === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(args.session_id) ? args.session_id : null;
+          if (session === null) throw new Error('session_id must be the linked session id: 8 to 128 letters, digits, - or _.');
+          const list = await get(session ? `/api/linked-sessions/${session}/permissions` : '/api/linked-permissions');
+          const requests = (list.requests ?? []).slice(0, 20).map((entry: Json) => ({ id: String(entry.id), sessionId: String(entry.sessionId), tool: String(entry.tool), expiresAt: entry.expiresAt ?? null, link: `${base}/#linked-session/${encodeURIComponent(String(entry.sessionId))}`, untrusted: { summary: clip(entry.summary, 200), detail: clip(entry.detail, 120) } }));
+          return { summary: requests.length ? `${requests.length} prompts wait for an answer.` : 'No prompt waits for an answer.', requests };
+        },
+      },
+      {
+        name: 'unfold_answer_permission', title: 'Answer a waiting tool prompt', readOnly: false, confirms: true,
+        description: 'Allow or deny one tool-permission prompt waiting in your own Claude Code session, as unfold_permission_requests lists it. The tool then runs, or not, on your machine. Asks the person to confirm first; nothing is answered without that. When an agent calls this, an agent approves a tool for another agent, so the person must read the prompt. Never "always allow".',
+        inputSchema: object({ session_id: string('The linked session id'), request_id: string('The prompt id, as unfold_permission_requests lists it'), decision: string('allow or deny', { enum: ['allow', 'deny'] }), reason: string('For deny: what the agent should do instead, at most 500 characters') }, ['session_id', 'request_id', 'decision']),
+        outputSchema: actionOutput,
+        async run(args, call) {
+          const id = typeof args.session_id === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(args.session_id) ? args.session_id : '';
+          if (!id) throw new Error('session_id must be the linked session id: 8 to 128 letters, digits, - or _.');
+          const requestId = typeof args.request_id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(args.request_id) ? args.request_id : '';
+          if (!requestId) throw new Error('request_id must be a prompt id, as unfold_permission_requests lists it.');
+          const decision = String(args.decision ?? '');
+          if (decision !== 'allow' && decision !== 'deny') throw new Error('decision must be allow or deny.');
+          const reason = typeof args.reason === 'string' ? args.reason.trim() : '';
+          if (decision === 'allow' && reason) throw new Error('Only deny takes a reason.');
+          if (reason.length > 500) throw new Error('reason must be at most 500 characters.');
+          const page = `${base}/#linked-session/${encodeURIComponent(id)}`;
+          return confirmThen('unfold_answer_permission', page, ['unfold_answer_permission', id, requestId, decision, reason], call, async demo => {
+            const { requests } = await get(`/api/linked-sessions/${id}/permissions`);
+            const waiting = (requests ?? []).find((entry: Json) => entry.id === requestId);
+            if (!waiting) throw new Error(`That prompt no longer waits for an answer from Unfold. Nothing was answered. See ${page}`);
+            const what = `${clip(waiting.tool, 80)}: ${clip(waiting.summary, 200)}${waiting.detail ? ` (${clip(waiting.detail, 120)})` : ''}`;
+            const effect = decision === 'allow' ? `Allow it? The tool runs on your machine, in your session, as if you approved it in the terminal. Only this once.` : `Deny it? The agent is told no${reason ? ` and reads your reason: ${clip(reason, 300)}` : ''}.`;
+            return { message: `${demoSays(demo)}Your Claude Code session ${id} asks to use ${what}. The summary was written by the agent, not checked by Unfold. ${effect}`, async perform(confirmation) {
+              const result = await get(`/api/linked-sessions/${id}/permissions/${requestId}/answer`, decision === 'deny' && reason ? { decision, reason } : { decision }, confirmation);
+              return { summary: `${decision === 'allow' ? 'Allowed' : 'Denied'}. The session picks the answer up within a few seconds, unless you answered in the terminal first.`, done: true, demo, link: page, result: { id: String(result.request?.id ?? requestId), state: String(result.request?.state ?? '') } };
+            } };
+          });
+        },
+      },
     ];
   }
 

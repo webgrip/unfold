@@ -6,12 +6,13 @@ import { linkedSessionPage, linkedStates, linkedStatusLine, attributionLine, ses
 import { icon } from '../core/icons.js';
 import { collisions, collisionsOf, isLiveSession, runningRunsOf } from '../core/collisions.js';
 import { linkedInboxCard } from '../core/linked-inbox.js';
+import { permissionsCard, permissionsChangedEvent } from '../core/linked-permissions.js';
 import { shell } from '../shell.js';
 import { digestMarkup, handOffMarkup, startWorkItemForm } from '../core/linked-handoff.js';
 
 const sessionPath = /^linked-session\/([A-Za-z0-9_-]{8,128})$/;
-const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '' };
-onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '' }));
+const view = { mode: null, id: null, session: null, sessions: null, error: '', request: 0, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '', permissions: null };
+onForget(() => Object.assign(view, { mode: null, id: null, session: null, sessions: null, error: '', request: view.request + 1, titles: {}, clashes: [], suggestions: [], digest: null, window: '7d', options: null, readiness: null, messages: null, messagesError: '', permissions: null }));
 const clashItems = 5;
 
 /** The event other views listen for after a Linked Session gained or lost a Work Item here. */
@@ -53,9 +54,10 @@ function sessionContent() {
   const page = linkedSessionPage(view.session, { workItems: view.titles, suggestions: view.suggestions, clashes: view.clashes });
   const inboxCard = linkedInboxCard(view.session, view.messages, { error: view.messagesError });
   if (!view.session.mine) return `${page}${inboxCard}`;
+  const waiting = permissionsCard(view.session, view.permissions);
   const handOff = handOffMarkup(view.session, view.readiness);
   const start = card({ id: 'linked-session-start', title: 'Start a Work Item from this session', subtitle: 'Hand the next piece of work to Ploeg and keep this session linked to it.', body: startWorkItemForm(view.session, view.options) });
-  return `${page}${handOff ? card({ id: 'linked-session-hand-off', title: 'Let Ploeg finish this', body: handOff }) : ''}${start}${inboxCard}`;
+  return `${waiting}${page}${handOff ? card({ id: 'linked-session-hand-off', title: 'Let Ploeg finish this', body: handOff }) : ''}${start}${inboxCard}`;
 }
 
 function renderLinked() {
@@ -71,7 +73,7 @@ async function loadSession(id) {
     if (request !== view.request) return;
     view.session = session; view.error = '';
     renderLinked();
-    if (session.mine) void loadMessages(id, request);
+    if (session.mine) { void loadMessages(id, request); void loadPermissions(id, request); }
     const details = await Promise.all(session.workItems.slice(0, 10).map(entry => api(`/api/ploeg/work-items/${encodeURIComponent(entry.id)}`).then(detail => [entry.id, detail], () => [entry.id, null])));
     if (request !== view.request) return;
     view.titles = Object.fromEntries(details.filter(([, detail]) => detail?.item?.title).map(([id, detail]) => [id, detail.item.title]));
@@ -102,6 +104,15 @@ async function loadMessages(id, request = view.request) {
   if (request === view.request && state.view === 'linked-sessions') renderLinked();
 }
 
+async function loadPermissions(id, request = view.request) {
+  const requests = await api(`/api/linked-sessions/${encodeURIComponent(id)}/permissions`).then(answer => answer.requests ?? [], () => []);
+  if (request !== view.request) return;
+  view.permissions = requests;
+  if (state.view === 'linked-sessions') renderLinked();
+}
+
+if (globalThis.window) window.addEventListener(permissionsChangedEvent, event => { if (state.view === 'linked-sessions' && view.session?.id === event.detail?.session) void loadPermissions(view.session.id); });
+
 async function sendMessage(data, form) {
   const text = String(data.text ?? '').trim();
   if (!text) throw new Error('Write a message first.');
@@ -114,7 +125,7 @@ async function sendMessage(data, form) {
 async function enterLinked(params) {
   disconnect(); state.session = null; state.view = 'linked-sessions';
   view.mode = params.id ? 'session' : 'settings';
-  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.clashes = []; view.suggestions = []; view.options = null; view.readiness = null; view.messages = null; view.messagesError = '';
+  view.id = params.id ?? null; view.session = null; view.error = ''; view.titles = {}; view.clashes = []; view.suggestions = []; view.options = null; view.readiness = null; view.messages = null; view.messagesError = ''; view.permissions = null;
   renderLinked();
   if (view.mode === 'session') return loadSession(view.id);
   const request = ++view.request;

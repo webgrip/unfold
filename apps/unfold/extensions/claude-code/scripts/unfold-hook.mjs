@@ -7,6 +7,7 @@ import { addedLines, attribute, mainAgent, remember, traceRecord, writtenText } 
 import { mentionsIn } from './mentions.mjs';
 import { deliver } from './inbox.mjs';
 import { pushAgentTrace } from './push-agent-trace.mjs';
+import { awaitRemoteAnswer, waitSettings } from './permission.mjs';
 
 const unfoldUrl = (process.env.UNFOLD_URL ?? '').trim().replace(/\/+$/, '');
 const token = (process.env.UNFOLD_TOKEN ?? '').trim();
@@ -14,6 +15,7 @@ const timeoutMs = Number(process.env.UNFOLD_HOOK_TIMEOUT_MS) || 3000;
 const waitingKinds = new Set(['permission_prompt', 'idle_prompt', 'elicitation_dialog', 'agent_needs_input']);
 const editingTools = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
 const shareTranscript = process.env.UNFOLD_SHARE_TRANSCRIPT === '1';
+const remoteApproval = process.env.UNFOLD_REMOTE_APPROVAL === '1';
 
 function stateDir() {
   const base = process.env.CLAUDE_PLUGIN_DATA || join(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'), 'unfold-claude-code');
@@ -67,8 +69,8 @@ function learn(input, state) {
   state.pendingPulls = facts.pullRequests.filter(url => !state.sentPulls.includes(url));
 }
 
-async function post(path, body) {
-  const response = await fetch(`${unfoldUrl}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'x-unfold-request': '1', 'x-unfold-client': 'claude-code-plugin' }, body: JSON.stringify(body), signal: AbortSignal.timeout(timeoutMs) });
+async function post(path, body, waitMs = timeoutMs) {
+  const response = await fetch(`${unfoldUrl}${path}`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'x-unfold-request': '1', 'x-unfold-client': 'claude-code-plugin' }, body: JSON.stringify(body), signal: AbortSignal.timeout(waitMs) });
   const text = await response.text();
   if (!response.ok) throw new Error(`Unfold answered ${response.status}: ${text.slice(0, 200)}`);
   return text ? JSON.parse(text) : {};
@@ -143,7 +145,7 @@ async function handle(input) {
   switch (input.hook_event_name) {
     case 'SessionStart': {
       learn(input, state);
-      const { answer, repo } = await report(input, state, 'start', input.session_title ? { title: input.session_title } : {});
+      const { answer, repo } = await report(input, state, 'start', { remoteApproval, ...(input.session_title ? { title: input.session_title } : {}) });
       if (repo) tracked(state, repo.top);
       const hookSpecificOutput = { hookEventName: 'SessionStart', additionalContext: String(answer.context ?? '') };
       if (answer.suggestedTitle && !input.session_title && ['startup', 'resume', 'fork'].includes(input.source)) hookSpecificOutput.sessionTitle = answer.suggestedTitle;
@@ -185,6 +187,14 @@ async function handle(input) {
   return output;
 }
 
+async function permission(input) {
+  if (!remoteApproval) return {};
+  const state = loadState(input.session_id);
+  const stopped = new AbortController();
+  process.once('SIGTERM', () => stopped.abort());
+  return awaitRemoteAnswer({ input, post, settings: waitSettings(), signal: stopped.signal, reportWaiting: () => report(input, state, 'waiting', { waitingFor: 'permission_prompt' }) });
+}
+
 async function main() {
   const chunks = [];
   for await (const chunk of process.stdin) chunks.push(chunk);
@@ -193,7 +203,7 @@ async function main() {
   if (!input || typeof input.session_id !== 'string' || !/^[A-Za-z0-9_-]{8,128}$/.test(input.session_id)) return;
   if (!unfoldUrl || !token) return;
   try {
-    const output = await handle(input);
+    const output = input.hook_event_name === 'PermissionRequest' ? await permission(input) : await handle(input);
     if (Object.keys(output).length) process.stdout.write(`${JSON.stringify(output)}\n`);
   } catch (error) {
     if (process.env.UNFOLD_HOOK_DEBUG) process.stderr.write(`unfold: ${error.message}\n`);

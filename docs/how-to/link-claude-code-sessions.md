@@ -172,6 +172,70 @@ Limits:
 * The server takes `UNFOLD_URL`, `UNFOLD_TOKEN` and `UNFOLD_CHANNEL` from the environment Claude Code starts it with. Put them in your shell or in the `env` block of `~/.claude/settings.json`.
 * Claude Code does not acknowledge a pushed message. If the session did not load the server as a channel, Claude Code drops the message, and Unfold still shows it as delivered. That is why `UNFOLD_CHANNEL=1` is needed only when you start with the flag.
 
+## Approve a tool from Unfold
+
+When a session stops to ask whether it may use a tool, you can answer from Unfold, for example from your phone. **Your sessions wait** on Now, the session's page, and your session's chip on the fleet board then show the tool and a short summary with **Approve** and **Deny**. The `unfold_answer_permission` tool does the same after you confirm. The session continues within a few seconds.
+
+It is off until you turn it on, because it lets Unfold answer for you on your own machine. Add this to the `env` block next to `UNFOLD_URL`, then start a new session or resume one:
+
+```json
+"UNFOLD_REMOTE_APPROVAL": "1"
+```
+
+The session's start report tells Unfold it opted in. Without the variable, the plugin sends nothing about tool prompts and Unfold refuses answers for that session.
+
+### How it answers
+
+The plugin's `PermissionRequest` hook ([hooks reference](https://code.claude.com/docs/en/hooks#permissionrequest)) reports the prompt and waits for an answer from Unfold, by default for 120 seconds (`UNFOLD_REMOTE_APPROVAL_WAIT_S`, 10 to 300). It asks every 2 seconds (`UNFOLD_REMOTE_APPROVAL_POLL_MS`, at least 500). An allow lets the tool run once. A deny tells Claude no, with your reason when you give one. Unfold never offers "always allow".
+
+Your terminal keeps working while the hook waits. We checked this on Claude Code 2.1.302 against a local stand-in for the model API, so no model was called:
+
+| What happens | What Claude Code did |
+| --- | --- |
+| A tool needs permission | It showed the prompt in the terminal at once, while the hook was still waiting |
+| You answer Yes in the terminal | The tool ran at once. Claude Code let the hook keep running and ignored what it printed later. The plugin sees the tool's result in the transcript, withdraws the prompt from Unfold and stops |
+| You answer No in the terminal | Claude Code stopped the hook. The plugin withdraws the prompt from Unfold |
+| You answer in Unfold while the terminal prompt is open | The terminal prompt closed, and the tool ran or was refused |
+| Nobody answers in Unfold within the wait | The plugin withdraws the prompt and says nothing. The terminal prompt stays until you answer it |
+
+So the first answer applies, wherever it comes from. In sessions that cannot show a prompt, such as `claude -p` runs, Claude Code denies the tool when no hook decides, so an answer from Unfold is the only way to allow it there. When a deny rule in your settings matches the tool, it still applies, even when you allow from Unfold. Claude Code runs no `PermissionRequest` hook for a sandboxed command's network request, so those prompts can only be answered in the terminal. A prompt from a subagent may not be in the session's transcript; if you answer it in the terminal, Unfold keeps showing it until the wait ends, and answering it there then changes nothing.
+
+Now and the fleet board refresh every 30 seconds, so a prompt can take that long to appear. A session's page shows the prompts when it opens.
+
+### What the summary contains
+
+The plugin sends the tool name and one line about it. Unfold redacts and clips that line again.
+
+| Tool | What is sent |
+| --- | --- |
+| `Bash` | The description Claude gave the command, and the programs it runs without their arguments, such as `Runs rm, git push`. Never the command |
+| `Write`, `Edit`, `MultiEdit`, `NotebookEdit`, `Read` | The file's path, relative to the session's folder or to your home folder. Never its contents |
+| `WebFetch` | The host only. `WebSearch`: nothing about the query |
+| An MCP tool | The server and tool names |
+| A subagent | Its type |
+| Anything else | The tool name |
+
+Credentials in URLs, `sk-` and token-like values, `Bearer` values, `key=value` secrets and long strings that mix letters and digits are masked before the line leaves your machine.
+
+The description of a shell command is the agent's own words. An agent that read something hostile could describe `rm -rf ~` as "Clean the build". That is why the summary also lists the programs the command runs, and why Unfold asks again before it approves a shell command. Approve only what you expect the session to do now. When in doubt, deny, or answer in the terminal, where you see the whole command.
+
+### Answering from an agent
+
+`unfold_permission_requests` lists the waiting prompts, and `unfold_answer_permission` answers one. When another agent calls them, an agent is approving a tool for an agent. So the tool always asks you to confirm, with the tool and the summary in the question, and refuses to act in a client that cannot ask. The editor credential your plugin reports with can never answer its own prompts. Give `unfold-mcp` its own credential (sign in again as in step 1) to answer through it, or answer in the browser.
+
+### Why it is built this way
+
+| Risk | What stops it |
+| --- | --- |
+| Someone else approves tools on your machine | Only the session's owner can see or answer its prompts. An administrator cannot either, and gets "not found" like anyone else |
+| A stolen `UNFOLD_TOKEN` approves its own prompts | The credential that reported a prompt can never answer it. An answer comes from your browser sign-in, or from another credential that carries the confirmation you gave |
+| An old answer is replayed | Each answer is bound to one prompt id and session, is accepted once, and is handed to the plugin once. It expires with the prompt, at most 5 minutes after it was asked |
+| A malicious page answers for you | Answers need Unfold's same-origin request header, which a cross-site form cannot send. The summary is shown as text, never as markup |
+| A lying summary | The programs a command runs are listed beside the agent's description, a shell command needs a second confirmation, and "always allow" is never offered |
+| You did not want this | It is off until `UNFOLD_REMOTE_APPROVAL=1`. Starting a session without it turns it off and withdraws what waits |
+
+Every answer is an Action Record: who answered, through which channel (browser, or `unfold-mcp` with its confirmation), the decision, and when.
+
 ## Show reviewers which lines an agent wrote
 
 Agent Trace records say which lines of a commit an agent wrote. Three things carry them to the people who review your pull request. Each is off until you or an administrator turns it on, because each one shares attribution beyond your machine.
@@ -199,6 +263,7 @@ The plugin sends:
 * commit ids and subjects;
 * the Agent Trace records;
 * with `UNFOLD_PUSH_AGENT_TRACE=1`, the same records to your git remote as `refs/notes/agent-trace`.
+* with `UNFOLD_REMOTE_APPROVAL=1`, for each tool prompt the tool name and the one-line summary described in [What the summary contains](#what-the-summary-contains).
 
 To collect messages it sends only the session id, and which kinds of message it wants. It never sends your prompts, tool output, file contents or your Claude credentials. Telemetry goes wherever your own `OTEL_*` settings send it. Unfold only reads counts from those stores, and only you and administrators see them.
 
@@ -210,5 +275,7 @@ To collect messages it sends only the session id, and which kinds of message it 
 | The session does not link to the Work Item | The branch names no ticket, or Ploeg has no Work Item for that ticket in your Teams, or you unlinked it before | Link it on the session page or with `unfold_link_session` |
 | A message stays **Waiting** | The session has not had a prompt, command or stop since, or it is idle without the channel | Type anything in the session, or start it with the Unfold channel |
 | The channel pushes nothing | Claude Code started without `--dangerously-load-development-channels plugin:unfold@unfold`, without `UNFOLD_CHANNEL=1`, or with `-p` | Start it as in step 5 and check `/mcp` shows `unfold-channel` connected |
+| **Approve** and **Deny** never show | The session did not start with `UNFOLD_REMOTE_APPROVAL=1`, or the prompt was already answered in the terminal or waited longer than `UNFOLD_REMOTE_APPROVAL_WAIT_S` | Set the variable and start or resume the session; answer older prompts in the terminal |
+| An answer from `unfold-mcp` is refused with "cannot answer its own prompts" | `unfold-mcp` uses the same credential as the plugin | Give `unfold-mcp` its own credential, or answer in the browser |
 | A commit shows "no record" | The commit holds no line this session's editing tools wrote, such as a commit you made by hand | Nothing to fix; only agent-written lines are attributed |
 | **No telemetry for this session** | Telemetry is off in your Claude Code settings, or Unfold has no `observability.metricsUrl` or `logsUrl` | Enable telemetry; an operator sets the store URLs ([live operations](../../apps/unfold/docs/operations/live.md)) |
