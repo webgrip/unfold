@@ -9,3 +9,7 @@ CLAUDE.local.md
 /apps/ploeg/
 /apps/.ploeg-contract-*/
 /apps/unfold/ops/helm/unfold/charts/
+
+
+# APM dependencies
+apm_modules/

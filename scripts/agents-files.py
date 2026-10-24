@@ -8,12 +8,16 @@ from pathlib import Path, PurePosixPath
 
 ROOT_WORD_LIMIT = 400
 APPLICATION_WORD_LIMIT = 600
+MANAGED_WORD_LIMIT = 800
 PROJECT_DOC_MAX_BYTES = 32 * 1024
 DUPLICATE_MIN_WORDS = 8
 INVISIBLE = re.compile(r'[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]')
 AGENT_FILE_NAMES = {'AGENTS.md', 'CLAUDE.md', '.cursorrules'}
 AGENT_DIRECTORIES = {'.claude', '.agents', '.openhands'}
-LINKED_DIRECTORIES = {'.claude/skills': '../.agents/skills'}
+SKILLS = '.agents/skills'
+CLAUDE_SKILLS = '.claude/skills'
+APM_LOCK = 'apm.lock.yaml'
+MANAGED = re.compile(r'<!-- apm:start -->.*?<!-- apm:end -->', re.S)
 KNOWLEDGE = 'knowledge'
 CONCEPT_TYPES = {'Convention', 'Decision', 'Fact', 'Pitfall'}
 CONCEPT_FIELDS = ('type', 'title', 'description', 'resource', 'tags')
@@ -45,6 +49,14 @@ def words(text):
     return len(text.split())
 
 
+def hand_written(text):
+    return MANAGED.sub('', text)
+
+
+def managed(text):
+    return ' '.join(MANAGED.findall(text))
+
+
 def chain(name, agents):
     parts = PurePosixPath(name).parent.parts
     candidates = ['AGENTS.md', *('/'.join(parts[:depth]) + '/AGENTS.md' for depth in range(1, len(parts) + 1))]
@@ -56,10 +68,13 @@ def check_budget(root, agents):
     for name in agents:
         text = (root / name).read_text(encoding='utf-8')
         limit = ROOT_WORD_LIMIT if is_root(name) else APPLICATION_WORD_LIMIT
-        count = words(text)
+        count = words(hand_written(text))
         if count > limit:
             scope = 'root' if is_root(name) else 'application'
             failures.append(failure(name, 'budget', f'{count} words; the {scope} limit is {limit}. Move detail into linked docs and keep only rules an agent must hold in context.'))
+        generated = words(managed(text))
+        if generated > MANAGED_WORD_LIMIT:
+            failures.append(failure(name, 'budget', f'{generated} words between the apm markers; the limit is {MANAGED_WORD_LIMIT}. Trim the agent-standards packages this repository pins, or raise the limit in review.'))
         path = chain(name, set(agents))
         total = sum((root / part).stat().st_size for part in path)
         if total > PROJECT_DOC_MAX_BYTES:
@@ -95,7 +110,7 @@ def exists(root, candidate):
 def check_links(root, agents):
     failures = []
     for name in agents:
-        text = (root / name).read_text(encoding='utf-8')
+        text = hand_written((root / name).read_text(encoding='utf-8'))
         base = (root / name).parent
         for target in link_targets(text):
             if is_external(target) or target.startswith('#'):
@@ -144,7 +159,7 @@ def npm_scripts(path):
 def check_commands(root, agents):
     failures = []
     for name in agents:
-        text = (root / name).read_text(encoding='utf-8')
+        text = hand_written((root / name).read_text(encoding='utf-8'))
         base = (root / name).parent
         for directory, task in MISE_RUN.findall(text):
             folder = (base / directory) if directory else base
@@ -206,19 +221,36 @@ def check_unicode(root, files):
     return failures
 
 
-def check_linked_directories(root, files):
+def apm_deployed(root, files):
+    if APM_LOCK not in files:
+        return set()
+    entries = (line.strip() for line in (root / APM_LOCK).read_text(encoding='utf-8').splitlines())
+    return {entry[2:] for entry in entries if entry.startswith(f'- {CLAUDE_SKILLS}/')}
+
+
+def check_skill_links(root, files):
+    skills = sorted({PurePosixPath(name).parts[2] for name in files if name.startswith(SKILLS + '/') and len(PurePosixPath(name).parts) > 3})
+    if not skills:
+        return []
+    folder = root / CLAUDE_SKILLS
+    if folder.is_symlink():
+        return [failure(CLAUDE_SKILLS, 'layout', f'is a symlink; make it a directory that links each skill (`ln -s ../../{SKILLS}/<name> {CLAUDE_SKILLS}/<name>`), so APM can deploy shared skills beside them.')]
+    deployed = apm_deployed(root, files)
     failures = []
-    for link, target in LINKED_DIRECTORIES.items():
-        source = str(PurePosixPath(link).parent / target)
-        source = os.path.normpath(source)
-        if not any(name.startswith(source + '/') for name in files):
-            continue
+    for skill in skills:
+        link = f'{CLAUDE_SKILLS}/{skill}'
+        target = f'../../{SKILLS}/{skill}'
         path = root / link
-        fix = f'run `rm -rf {link} && ln -s {target} {link}`, then git add {link}.'
+        if link in deployed:
+            continue
         if link not in files or not path.is_symlink():
-            failures.append(failure(link, 'layout', f'must be a tracked symlink to {target} so Claude Code reads {source}/; {fix}'))
+            failures.append(failure(link, 'layout', f'must be a tracked symlink to {target} so Claude Code reads the skill; run `ln -s {target} {link}`, then git add {link}.'))
         elif os.readlink(path) != target:
-            failures.append(failure(link, 'layout', f'symlink points to {os.readlink(path)!r}, not {target}; {fix}'))
+            failures.append(failure(link, 'layout', f'symlink points to {os.readlink(path)!r}, not {target}.'))
+    copies = {PurePosixPath(name).parts[2] for name in files if name.startswith(CLAUDE_SKILLS + '/') and len(PurePosixPath(name).parts) > 3}
+    for skill in sorted(copies - set(skills)):
+        if f'{CLAUDE_SKILLS}/{skill}' not in deployed:
+            failures.append(failure(f'{CLAUDE_SKILLS}/{skill}', 'layout', f'is a copy no APM dependency deployed; put the skill in {SKILLS}/{skill} and link it, or add it as an APM dependency.'))
     return failures
 
 
@@ -304,7 +336,7 @@ def check(root, files):
         *check_bridge(root, agents, files),
         *check_unicode(root, files),
         *check_duplication(root, agents),
-        *check_linked_directories(root, files),
+        *check_skill_links(root, files),
         *check_knowledge(root, files),
     ]
 

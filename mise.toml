@@ -6,6 +6,7 @@ go = "1.27.3"
 helm = "4.3.1"
 uv = "0.13.1"
 "npm:@fission-ai/openspec" = "1.14.2"
+"pipx:apm-cli" = "0.35.0"
 regctl = "0.11.6"
 
 [env]
@@ -27,6 +28,19 @@ run = [
   "uv sync --frozen",
 ]
 description = "Install the locked application and documentation dependencies"
+
+[tasks.agents-install]
+run = ["apm install", "apm compile"]
+description = "Install the agent-standards packages pinned in apm.yml and compile the managed block in AGENTS.md"
+
+[tasks.agents-check]
+run = [
+  "apm install --frozen",
+  "apm audit --ci --policy https://forgejo.webgrip.dev/webgrip/agent-standards/raw/branch/main/apm-policy.yml",
+  "apm compile",
+  "git diff --exit-code -- AGENTS.md .claude .codex .agents/skills",
+]
+description = "Fail when the agent files APM deploys differ from apm.lock.yaml or the compiled AGENTS.md block is stale"
 
 [tasks.verify]
 run = "node scripts/verify.mjs"

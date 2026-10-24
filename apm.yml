@@ -1,0 +1,18 @@
+name: unfold
+version: 0.0.0
+targets: [claude, opencode, codex]
+includes: auto
+dependencies:
+  apm:
+    - git: https://forgejo.webgrip.dev/webgrip/agent-standards.git
+      path: packages/baseline
+      ref: v0.1.0
+    - git: https://forgejo.webgrip.dev/webgrip/agent-standards.git
+      path: packages/secrets
+      ref: v0.1.0
+    - git: https://forgejo.webgrip.dev/webgrip/agent-standards.git
+      path: packages/board
+      ref: v0.1.0
+compilation:
+  agents_md:
+    mode: managed_section
